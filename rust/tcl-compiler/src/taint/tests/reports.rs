@@ -341,7 +341,7 @@ fn hosted_taint_diagnostics_use_current_source_metadata_without_native_handler_c
         .find(|diagnostic| diagnostic.code == DiagCode::Irule3001)
         .expect("genuine conditional hosted sink");
     assert_eq!(
-        diagnostic.taint_subject.as_ref().unwrap().sink_command(),
+        diagnostic.taint_subject().unwrap().sink_command(),
         "HTTP::respond"
     );
     assert_eq!(

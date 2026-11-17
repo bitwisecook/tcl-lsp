@@ -91,13 +91,12 @@ not a safe migration.
 
 ## Remaining acceptance gaps and verification
 
-There are still separate analyser, compiler-check, Core and wire envelopes.
-`compiler_checks::Diagnostic` has optional source context and taint subjects,
-but no declared typed contract for every family. On the wire,
+`compiler_checks::Diagnostic` carries a typed `CheckPayload` for every code
+it emits, and `CheckPayloadData` carries it on the LSP, CLI and MCP wire; the
+per-family contract and its tests are in
+[diagnostic subjects](design/contracts/diagnostic-subjects.md). On the wire,
 `lift_report_with_payloads` prefers issued rewrite data over
-`Finding::structured_data`, and emits no related information. These are
-coverage/composition gaps to assess against the complete issue contract;
-they are not evidence of another text parser.
+`Finding::structured_data`, and emits no related information.
 
 `cargo xtask diagnostic-presentation` is the maintained drift gate; see
 [diagnostic subjects](design/contracts/diagnostic-subjects.md).

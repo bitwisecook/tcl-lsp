@@ -853,3 +853,50 @@ async fn style_line_length_setting_drives_w111() {
             "W111 should fire once the style line length is lowered: {some:?}",
         );
 }
+
+#[cfg(test)]
+mod check_payload_wire_tests {
+    use super::*;
+    use tcl_lsp_core::check_payload::{CheckPayloadData, family_fixtures};
+
+    /// Implementation contract: every compiler-check family's payload
+    /// survives the LSP `Diagnostic.data` field, as JSON text, without the message.
+    #[test]
+    fn every_check_family_payload_survives_lsp_diagnostic_data() {
+        let fixtures = family_fixtures();
+        let source = "x".repeat(64);
+        let report = core_policy::Report::new(
+            fixtures
+                .iter()
+                .cloned()
+                .map(|diagnostic| {
+                    (
+                        core_policy::Finding::from(diagnostic),
+                        core_policy::Outcome::Shown {
+                            severity: tcl_compiler::analyser::Severity::Warning,
+                            tag: None,
+                        },
+                    )
+                })
+                .collect(),
+        );
+        let lifted = lift_report(&source, &report);
+        assert_eq!(lifted.len(), fixtures.len());
+        for diagnostic in lifted {
+            let text = serde_json::to_string(&diagnostic).unwrap();
+            let parsed: tower_lsp_server::ls_types::Diagnostic =
+                serde_json::from_str(&text).unwrap();
+            let Some(tower_lsp_server::ls_types::NumberOrString::String(code)) = &parsed.code
+            else {
+                panic!("string code: {text}");
+            };
+            let decoded = CheckPayloadData::from_value(parsed.data.as_ref().unwrap(), code)
+                .unwrap_or_else(|| panic!("{code}: {text}"));
+            let original = fixtures
+                .iter()
+                .find(|fixture| fixture.code.as_str() == code)
+                .unwrap();
+            assert!(decoded.describes(&original.payload), "{text}");
+        }
+    }
+}

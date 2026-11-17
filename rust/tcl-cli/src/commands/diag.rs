@@ -753,3 +753,55 @@ mod original_document_signature_tests {
         assert!(!document.analysis_source().contains('\r'));
     }
 }
+
+#[cfg(test)]
+mod check_payload_wire_tests {
+    use super::*;
+    use tcl_lsp_core::check_payload::{CheckPayloadData, family_fixtures};
+    use tcl_lsp_core::diagnostic_policy::{Finding, Outcome};
+
+    /// Implementation contract: every compiler-check family's payload
+    /// survives the `diag --json` row, as JSON text, without the message.
+    #[test]
+    fn every_check_family_payload_survives_the_json_row() {
+        let fixtures = family_fixtures();
+        let source = "x".repeat(64);
+        let report = Report::new(
+            fixtures
+                .iter()
+                .cloned()
+                .map(|diagnostic| {
+                    (
+                        Finding::from(diagnostic),
+                        Outcome::Shown {
+                            severity: Severity::Warning,
+                            tag: None,
+                        },
+                    )
+                })
+                .collect(),
+        );
+        let rows = rows_of(&report, &source, &LineIndex::new_lsp(&source));
+        assert_eq!(rows.len(), fixtures.len());
+        for row in rows {
+            let item = DiagItem {
+                line: row.line,
+                column: row.column,
+                severity: severity_label(row.severity),
+                code: row.code,
+                message: "reworded".to_owned(),
+                data: row.data,
+            };
+            let text = serde_json::to_string(&item).unwrap();
+            let parsed: serde_json::Value = serde_json::from_str(&text).unwrap();
+            let code = parsed["code"].as_str().unwrap();
+            let decoded = CheckPayloadData::from_value(&parsed["data"], code)
+                .unwrap_or_else(|| panic!("{code}: {text}"));
+            let original = fixtures
+                .iter()
+                .find(|diagnostic| diagnostic.code.as_str() == code)
+                .unwrap();
+            assert!(decoded.describes(&original.payload), "{text}");
+        }
+    }
+}

@@ -21,9 +21,9 @@
 use super::{
     CollectFlowState, CollectionCall, CollectionSourceObligationKind,
     ConditionalCollectionSourcePairing, ConditionalCollectionSourcePairingAdvice,
-    ConditionalIruleSourceOwner, ConditionalSourcePairingAdvice, IrulesCheckWarning,
-    IrulesSourceQuery, OriginalEventPresence, PayloadCall, conditional_source_pairing_message,
-    is_irules,
+    ConditionalIruleSourceOwner, ConditionalSourcePairingAdvice, IrulesCheckPayload,
+    IrulesCheckWarning, IrulesSourceQuery, OriginalEventPresence, PayloadCall,
+    conditional_source_pairing_message, is_irules,
 };
 use crate::cfg_builder::build_cfg_with_registry_and_config;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
@@ -668,6 +668,11 @@ fn emit_missing_data_collect_warnings(
                 "'{event}' has no matching source {required_side} {} candidate in the retained handlers.",
                 proto_hint.join(" or "),
             )),
+            payload: IrulesCheckPayload::EventWithoutCollect {
+                event: event.clone(),
+                side: required_side.to_string(),
+                collect_commands: proto_hint.iter().map(|name| (*name).to_owned()).collect(),
+            },
             replacement: None,
             fixes: Vec::new(),
         });
@@ -716,6 +721,10 @@ fn emit_payload_without_collect_warnings(
                     "Possible '{}::payload' without a matching source {} {}::collect candidate.",
                     payload.protocol, payload.side, payload.protocol,
                 )),
+                payload: IrulesCheckPayload::PayloadWithoutCollect {
+                    protocol: payload.protocol.clone(),
+                    side: payload.side.clone(),
+                },
                 replacement: None,
                 fixes: Vec::new(),
             });
@@ -761,6 +770,10 @@ fn emit_collect_without_release_warnings(
                     "Possible {}::collect without a matching source {}::release candidate on the {} side.",
                     collect.protocol, collect.protocol, collect.side,
                 )),
+                payload: IrulesCheckPayload::CollectWithoutRelease {
+                    protocol: collect.protocol.clone(),
+                    side: collect.side.clone(),
+                },
                 replacement: None,
                 fixes: Vec::new(),
             });
@@ -787,6 +800,10 @@ fn emit_release_without_collect_warnings(
                     "Possible {}::release without a matching source {}::collect candidate on the {} side.",
                     release.protocol, release.protocol, release.side,
                 )),
+                payload: IrulesCheckPayload::ReleaseWithoutCollect {
+                    protocol: release.protocol.clone(),
+                    side: release.side.clone(),
+                },
                 replacement: None,
                 fixes: Vec::new(),
             });

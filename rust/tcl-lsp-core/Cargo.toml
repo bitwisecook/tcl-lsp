@@ -32,6 +32,8 @@ authors.workspace = true
 # the adapter crates' tests: each enables it from its `[dev-dependencies]`,
 # so no shipped build carries the table.
 truth-table = []
+# `check_payload::family_fixtures`, for the adapter crates' wire tests.
+transport-fixtures = []
 
 [dependencies]
 tcl-core-types = { path = "../tcl-core-types" }

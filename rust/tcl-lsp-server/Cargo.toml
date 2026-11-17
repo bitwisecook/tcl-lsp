@@ -146,7 +146,7 @@ tcl-test-support = { path = "../tcl-test-support" }
 temp-env = "0.3"
 # The diagnostic-policy truth table, for the LSP and code-action passes over
 # its rows (`src/policy_truth_table.rs`); only this crate's tests build it.
-tcl-lsp-core = { path = "../tcl-lsp-core", features = ["truth-table"] }
+tcl-lsp-core = { path = "../tcl-lsp-core", features = ["truth-table", "transport-fixtures"] }
 tokio = { version = "1", features = ["io-util", "macros", "rt-multi-thread", "time", "sync", "test-util"] }
 
 [lints]

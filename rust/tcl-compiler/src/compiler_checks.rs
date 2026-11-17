@@ -55,6 +55,12 @@ use crate::taint::{
 use crate::uri_split::find_uri_split_suggestions;
 use tcl_registry::CommandRegistry;
 
+mod payload;
+#[cfg(test)]
+mod payload_contract_tests;
+
+pub use payload::{CheckPayload, CheckPayloadKind};
+
 // Unified diagnostic envelope
 
 pub use tcl_core_types::DiagCode;
@@ -165,6 +171,16 @@ pub struct TaintDiagnosticSubject {
 }
 
 impl TaintDiagnosticSubject {
+    /// Subject with no retained source sink invocation.
+    #[must_use]
+    pub fn new(variable: String, sink_command: String) -> Self {
+        Self {
+            variable,
+            sink_command,
+            source_sink: None,
+        }
+    }
+
     /// Taint-analysis subject used for source advice and presentation.
     #[must_use]
     pub fn variable(&self) -> &str {
@@ -211,11 +227,20 @@ pub struct Diagnostic {
     pub fixes: Vec<CodeFix>,
     /// Exact issuer inputs for a context-driven source action, when retained.
     pub source_context: Option<DiagnosticSourceContext>,
-    /// Original taint fields, independent of any message or reporting label.
-    pub taint_subject: Option<TaintDiagnosticSubject>,
+    /// Typed family payload; the message is rendered from it.
+    pub payload: CheckPayload,
 }
 
 impl Diagnostic {
+    /// Taint fields of a taint-family diagnostic.
+    #[must_use]
+    pub fn taint_subject(&self) -> Option<&TaintDiagnosticSubject> {
+        match &self.payload {
+            CheckPayload::Taint(subject) => Some(subject),
+            _ => None,
+        }
+    }
+
     fn from_constant_branch(cb: &ConstantBranch) -> Self {
         Self {
             // Use the branch terminator's span when available so
@@ -232,7 +257,7 @@ impl Diagnostic {
             replacement: None,
             fixes: Vec::new(),
             source_context: None,
-            taint_subject: None,
+            payload: CheckPayload::ConstantBranch { value: cb.value },
         }
     }
 
@@ -252,7 +277,13 @@ impl Diagnostic {
             replacement: None,
             fixes: Vec::new(),
             source_context: None,
-            taint_subject: None,
+            payload: CheckPayload::Representation {
+                variable: w.variable.clone(),
+                from_type: w.from_type,
+                to_type: w.to_type,
+                command: w.command.clone(),
+                in_loop: w.in_loop,
+            },
         }
     }
 
@@ -266,7 +297,11 @@ impl Diagnostic {
             replacement: None,
             fixes: Vec::new(),
             source_context: None,
-            taint_subject: None,
+            payload: CheckPayload::Oscillation {
+                variable: w.variable.clone(),
+                first_type: w.type_a,
+                second_type: w.type_b,
+            },
         }
     }
 
@@ -284,7 +319,11 @@ impl Diagnostic {
             replacement: None,
             fixes: Vec::new(),
             source_context: None,
-            taint_subject: None,
+            payload: CheckPayload::SharedCopy {
+                variable: w.variable.clone(),
+                shared_with: w.shared_with.clone(),
+                command: w.command.clone(),
+            },
         }
     }
 
@@ -303,7 +342,7 @@ impl Diagnostic {
             replacement: w.replacement.clone(),
             fixes: w.fixes.clone(),
             source_context: None,
-            taint_subject: Some(TaintDiagnosticSubject {
+            payload: CheckPayload::Taint(TaintDiagnosticSubject {
                 variable: w.variable.clone(),
                 sink_command: w.sink_command.clone(),
                 source_sink: w.source_sink.clone(),
@@ -322,6 +361,7 @@ impl Diagnostic {
             pairing.span(),
             pairing.code(),
             pairing.message(),
+            pairing.payload(),
         )?;
         if matches!(pairing.code(), DiagCode::Irule1005 | DiagCode::Irule1006)
             && let Some(context) = diagnostic.source_context.as_mut()
@@ -343,6 +383,7 @@ impl Diagnostic {
             finding.span(),
             finding.code(),
             finding.message(),
+            finding.payload(),
         )
     }
 
@@ -352,6 +393,7 @@ impl Diagnostic {
         span: Span,
         code: DiagCode,
         message: &str,
+        payload: &crate::irules_checks::IrulesCheckPayload,
     ) -> Option<Self> {
         let mut context = DiagnosticSourceContext::for_unit(unit, registry)?;
         context.authoring_purpose = DiagnosticSourceAuthoringPurpose::ConditionalSourceNoAction;
@@ -364,7 +406,7 @@ impl Diagnostic {
             replacement: None,
             fixes: Vec::new(),
             source_context: Some(context),
-            taint_subject: None,
+            payload: CheckPayload::Irules(payload.clone()),
         })
     }
 
@@ -385,7 +427,7 @@ impl Diagnostic {
             replacement: w.replacement.clone(),
             fixes: w.fixes.clone(),
             source_context: None,
-            taint_subject: None,
+            payload: CheckPayload::Irules(w.payload.clone()),
         }
     }
 
@@ -399,7 +441,10 @@ impl Diagnostic {
             replacement: None,
             fixes: Vec::new(),
             source_context: None,
-            taint_subject: None,
+            payload: CheckPayload::Redundancy {
+                first_span: r.first_span,
+                expression: r.expression_text.clone(),
+            },
         }
     }
 
@@ -432,7 +477,9 @@ impl Diagnostic {
             replacement: w.replacement.clone(),
             fixes,
             source_context: None,
-            taint_subject: None,
+            payload: CheckPayload::PathConcatenation {
+                variable: w.variable.clone(),
+            },
         }
     }
 }
@@ -902,6 +949,17 @@ fn push_irules_flow_checks(
     }
 }
 
+/// The first diagnostic whose payload is not its code's contract family.
+fn out_of_contract(diagnostics: &[Diagnostic]) -> Option<(DiagCode, &CheckPayload)> {
+    diagnostics
+        .iter()
+        .find(|diagnostic| {
+            !CheckPayload::CODES.contains(&diagnostic.code)
+                || !diagnostic.payload.accepts(diagnostic.code)
+        })
+        .map(|diagnostic| (diagnostic.code, &diagnostic.payload))
+}
+
 /// Impose a deterministic total order on diagnostics.
 ///
 /// See [`run_all_checks`] — the per-pass producers emit in `HashMap`-iteration
@@ -909,6 +967,11 @@ fn push_irules_flow_checks(
 /// replacement)` is what makes the output byte-identical between the memoised
 /// per-procedure build and the whole-module build.
 pub fn sort_diagnostics(out: &mut [Diagnostic]) {
+    debug_assert!(
+        out_of_contract(out).is_none(),
+        "compiler-check payload outside its code's family: {:?}",
+        out_of_contract(out)
+    );
     out.sort_by(|a, b| {
         (
             a.span.start(),
@@ -1483,7 +1546,10 @@ mod retained_taint_sink_source_tests {
                     .into_iter()
                     .find(|diagnostic| diagnostic.code == DiagCode::T101)
                     .expect("the original output sink warning");
-            let subject = diagnostic.taint_subject.as_mut().unwrap();
+            let crate::compiler_checks::CheckPayload::Taint(subject) = &mut diagnostic.payload
+            else {
+                panic!("T101 carries a taint payload");
+            };
             let sink = subject
                 .source_sink()
                 .expect("actual original sink invocation")

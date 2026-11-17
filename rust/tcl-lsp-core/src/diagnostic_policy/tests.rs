@@ -81,7 +81,9 @@ fn compiler_check_replacement_becomes_a_same_span_fix() {
         code: DiagCode::W201,
         source_context: None,
         category: "path".to_owned(),
-        taint_subject: None,
+        payload: compiler_checks::CheckPayload::PathConcatenation {
+            variable: "p".to_owned(),
+        },
         severity: Severity::Warning,
         message: "Use file join".to_owned(),
         replacement: Some("[file join a b]".to_owned()),

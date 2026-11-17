@@ -525,3 +525,6 @@ mod original_event_source_tests;
 
 #[cfg(test)]
 mod retained_graph_input_tests;
+
+#[cfg(test)]
+mod check_payload_wire_tests;

@@ -21,8 +21,8 @@
 use super::flow_inventory::original_irules_flow_commands;
 use super::flow_walk::{unreached_statements, walk_flow};
 use super::{
-    FlowDispatch, HttpFlowState, IrulesCheckWarning, IrulesSourceQuery, OriginalEventPresence,
-    OriginalIrulesFlowCommand, is_irules,
+    FlowDispatch, HttpFlowState, IrulesCheckPayload, IrulesCheckWarning, IrulesSourceQuery,
+    OriginalEventPresence, OriginalIrulesFlowCommand, is_irules,
 };
 use crate::compilation_unit::CompilationUnit;
 use crate::ir::{Script, Statement};
@@ -146,6 +146,10 @@ fn apply_http_flow_command(
                 message: format!(
                     "Multiple '{cmd}' calls possible in {event}. Only the first response takes effect.",
                 ),
+                payload: IrulesCheckPayload::RepeatedResponse {
+                    command: cmd.clone(),
+                    event: event.to_owned(),
+                },
                 replacement: None,
                 fixes: Vec::new(),
             });
@@ -163,6 +167,10 @@ fn apply_http_flow_command(
             message: format!(
                 "'{cmd}' used after response is committed. HTTP context is invalid after HTTP::respond/HTTP::redirect.",
             ),
+            payload: IrulesCheckPayload::ContextAfterResponse {
+                command: cmd.clone(),
+                event: event.to_owned(),
+            },
             replacement: None,
             fixes: Vec::new(),
         });

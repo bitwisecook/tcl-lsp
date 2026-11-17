@@ -18,7 +18,9 @@
 
 //! IRULE4004: a per-request literal assignment that could run once per connection.
 
-use super::{IrulesCheckWarning, IrulesSourceQuery, OriginalEventPresence, is_irules};
+use super::{
+    IrulesCheckPayload, IrulesCheckWarning, IrulesSourceQuery, OriginalEventPresence, is_irules,
+};
 use crate::compilation_unit::CompilationUnit;
 use crate::ir::Statement;
 use std::collections::HashMap;
@@ -109,6 +111,9 @@ pub fn find_hoistable_set_warnings(
                 message: format!(
                     "`set {name} ...` runs on every request — consider hoisting to a once-per-connection event.",
                 ),
+                payload: IrulesCheckPayload::HoistableAssignment {
+                    variable: name.clone(),
+                },
                 replacement: None,
                 fixes: Vec::new(),
             });

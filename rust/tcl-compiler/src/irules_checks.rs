@@ -272,16 +272,91 @@ impl CodeFix {
     }
 }
 
-/// An IRULE3102 / iRules-check diagnostic emitted by
-/// [`find_unnormalised_getter_warnings`].
+/// Typed subject of one iRules check. The message is rendered from these
+/// fields; consumers read them, never the message.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum IrulesCheckPayload {
+    /// IRULE3102: a getter whose declared normalising option is not selected.
+    UnnormalisedGetter {
+        /// Getter command as selected from the registry.
+        command: String,
+    },
+    /// IRULE5002: a drop with no following `event disable all` / `return`.
+    UnguardedDrop {
+        /// Drop command as written.
+        command: String,
+    },
+    /// IRULE5004: `DNS::return` with no following `return`.
+    UnguardedDnsReturn,
+    /// IRULE1005: an event whose collection requirement has no candidate.
+    EventWithoutCollect {
+        /// Event name.
+        event: String,
+        /// Required collection side.
+        side: String,
+        /// Registry collect commands that would satisfy the requirement.
+        collect_commands: Vec<String>,
+    },
+    /// IRULE1006: a payload read with no matching collect candidate.
+    PayloadWithoutCollect {
+        /// Data-collection protocol.
+        protocol: String,
+        /// Collection side.
+        side: String,
+    },
+    /// IRULE1007: a collect with no matching release candidate.
+    CollectWithoutRelease {
+        /// Data-collection protocol.
+        protocol: String,
+        /// Collection side.
+        side: String,
+    },
+    /// IRULE1008: a release with no matching collect candidate.
+    ReleaseWithoutCollect {
+        /// Data-collection protocol.
+        protocol: String,
+        /// Collection side.
+        side: String,
+    },
+    /// IRULE1201: an HTTP-context command after a committed response.
+    ContextAfterResponse {
+        /// Command that needs HTTP context.
+        command: String,
+        /// Event whose body contains it.
+        event: String,
+    },
+    /// IRULE1202: a second response command on one path.
+    RepeatedResponse {
+        /// Response command.
+        command: String,
+        /// Event whose body contains it.
+        event: String,
+    },
+    /// IRULE4002: a `static::` name matching a generic-name pattern.
+    GenericStaticName {
+        /// Source spelling of the variable reference.
+        source_name: String,
+        /// Namespace-relative name the pattern matched.
+        pattern_name: String,
+    },
+    /// IRULE4004: a per-request constant assignment that could be hoisted.
+    HoistableAssignment {
+        /// Assigned connection variable.
+        variable: String,
+    },
+}
+
+/// One iRules-check diagnostic.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct IrulesCheckWarning {
     /// Source span of the offending call.
     pub span: Span,
-    /// Diagnostic code (`"IRULE3102"`).
+    /// Diagnostic code.
     pub code: DiagCode,
-    /// Formatted message.
+    /// Rendered message; presentation only.
     pub message: String,
+    /// Typed subject the message is rendered from.
+    pub payload: IrulesCheckPayload,
     /// Optional replacement text (currently always `None`).
     pub replacement: Option<String>,
     /// Suggested fixes whose range is independent of `span` (insertions /
@@ -437,6 +512,12 @@ impl ConditionalIruleSourceFlowFinding {
     pub fn message(&self) -> &str {
         &self.warning.message
     }
+
+    /// Typed subject of the finding.
+    #[must_use]
+    pub fn payload(&self) -> &IrulesCheckPayload {
+        &self.warning.payload
+    }
 }
 
 /// One possible source-pairing hazard, without an observed runtime outcome.
@@ -461,6 +542,12 @@ impl ConditionalCollectionSourcePairing {
     #[must_use]
     pub fn message(&self) -> &str {
         &self.warning.message
+    }
+
+    /// Typed subject of the finding.
+    #[must_use]
+    pub fn payload(&self) -> &IrulesCheckPayload {
+        &self.warning.payload
     }
 }
 
