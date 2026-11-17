@@ -37,6 +37,12 @@ fn original_own_object_completion_keeps_allocations_and_opaque_routes_after_repo
     analysis.superseded_classes.clear();
     analysis.global_scope.classes.clear();
     let own = items(source, &analysis, "object shared");
+    // tclsh 8.6.18, 9.0.4 and 9.1.0 (ASCII names for the escapes):
+    //   lsort [info object methods object -all]  ->  destroy pa pb shared
+    // The built-in `destroy` comes from the family's registry row.
+    let (builtin, own): (Vec<_>, Vec<_>) =
+        own.into_iter().partition(|item| item.label == "destroy");
+    assert_eq!(builtin.len(), 1);
     assert_eq!(own.len(), 3);
     assert!(own.iter().all(
             |item| item.detail.as_deref() == Some("method — per-object declaration candidate")
@@ -66,15 +72,17 @@ fn original_own_object_completion_keeps_allocations_and_opaque_routes_after_repo
     assert!(values.contains(&b"p\xed\xa0\x80".to_vec()));
     assert!(values.contains(&b"p\xed\xa0\x81".to_vec()));
     let sibling = items(source, &analysis, "sibling shared");
+    // tclsh 8.6.18 and 9.1.0: lsort [info object methods sibling -all]
+    //   ->  destroy shared
     assert_eq!(
         sibling
             .iter()
             .map(|item| item.label.as_str())
             .collect::<Vec<_>>(),
-        ["shared"]
+        ["destroy", "shared"]
     );
     assert_eq!(
-        sibling[0].detail.as_deref(),
+        sibling[1].detail.as_deref(),
         Some("method — source declaration candidate")
     );
     assert!(matches!(

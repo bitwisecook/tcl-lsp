@@ -55,6 +55,38 @@ fn obj_method_completion_includes_inherited() {
 }
 
 #[test]
+fn obj_method_completion_offers_the_builtin_destroy_as_the_class_exports_it() {
+    // tclsh 8.6.18, 9.0.4 and 9.1.0:
+    //   oo::class create A {method bark {} {}; unexport destroy}
+    //   oo::class create P {unexport destroy}
+    //   oo::class create C {superclass P; method bark {} {}}
+    //   oo::class create D {superclass A; export destroy}
+    //   info object methods [X new] -all  ->  A: bark  C: bark  D: bark destroy
+    //   and `$o destroy` fails on A and C and runs on D.
+    let decls = "oo::class create A {method bark {} {}; unexport destroy}\n\
+                 oo::class create P {unexport destroy}\n\
+                 oo::class create C {superclass P; method bark {} {}}\n\
+                 oo::class create D {superclass A; export destroy}\n";
+    for (class, offered) in [("A", false), ("C", false), ("D", true)] {
+        let src = format!("{decls}set o [{class} new]\n$o \n");
+        let analysis = analyse(&src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            &src,
+            5,
+            3,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"bark"), "{class}: {labels:?}");
+        assert_eq!(labels.contains(&"destroy"), offered, "{class}: {labels:?}");
+    }
+}
+
+#[test]
 fn malformed_braced_instance_head_does_not_offer_method_completion() {
     let src = "oo::class create Dog {\n    method bark {} {}\n}\nset x [Dog new]\n${x ba\n";
     let analysis = analyse(src);

@@ -111,7 +111,9 @@ use itcl_class_procs::itcl_class_proc_declaration;
 pub use itcl_class_procs::itcl_class_proc_target_at;
 #[cfg(test)]
 use itcl_class_procs::itcl_self_qualified_candidate;
-pub(crate) use itcl_class_procs::{class_definer_family, itcl_class_proc_target};
+pub(crate) use itcl_class_procs::{
+    class_definer_family, class_definition_grammar, itcl_class_proc_target,
+};
 #[cfg(test)]
 pub(crate) use method_receivers::instance_method_at_cursor;
 use method_receivers::next_dispatch_target;

@@ -41,7 +41,10 @@ fn original_property_method_advice_uses_selected_grammar_and_own_source_ledger()
         .iter()
         .map(|item| item.label.as_str())
         .collect::<Vec<_>>();
-    assert_eq!(names, ["configure", "own"]);
+    // tclsh 9.0.4 and 9.1.0 (ASCII names for the escapes):
+    //   oo::configurable create C {property pa -kind readable pb -kind writable; method own {} {}}
+    //   lsort [info object methods [C new] -all]  ->  configure destroy own
+    assert_eq!(names, ["configure", "destroy", "own"]);
     assert!(!names.contains(&"cget"));
     let accessor = items.iter().find(|item| item.label == "configure").unwrap();
     assert_eq!(
@@ -54,11 +57,12 @@ fn original_property_method_advice_uses_selected_grammar_and_own_source_ledger()
     );
     let ordinary = Analyser::new().analyse("oo::class create C {method own {} {}}", "tcl9.1");
     let record = ordinary.original_class_declarations().next().unwrap();
+    // tclsh 8.6.18 and 9.1.0: lsort [info object methods [C new] -all]  ->  destroy own
     assert_eq!(
         original_method_candidate_items(&ordinary, record, "", MemberSide::Instance)
             .iter()
             .map(|item| item.label.as_str())
             .collect::<Vec<_>>(),
-        ["own"]
+        ["destroy", "own"]
     );
 }
