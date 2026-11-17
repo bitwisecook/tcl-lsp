@@ -792,12 +792,7 @@ impl MemberRenameScan<'_, '_> {
         if owner.is_some() && self.next_chain(command, &words)? {
             return Ok(());
         }
-        if crate::original_declaration::class_relation_member(syntax, command) {
-            return Ok(());
-        }
-        if crate::original_declaration::class_visibility_member(syntax, command)
-            && recorded_visibility_words(document, words.get(1..).unwrap_or_default())
-        {
+        if inert_definition_member(document, syntax, command, &words) {
             return Ok(());
         }
         if let Some(shape) = binding.original_default_manufacture_shape(
@@ -1700,6 +1695,18 @@ fn changes_default_visibility(
         roster.default_exported(current) != method.exported()
             || roster.default_exported(wanted) != method.exported()
     }
+}
+
+/// A relation or visibility member whose words this rename handles elsewhere.
+fn inert_definition_member(
+    document: OriginalDeclarationDocument<'_>,
+    syntax: &crate::source_structure::SourceSyntaxStructure,
+    command: &tcl_compiler::segmenter::SegmentedCommand,
+    words: &[tcl_lexer::NativeWord],
+) -> bool {
+    crate::original_declaration::class_relation_member(syntax, command)
+        || crate::original_declaration::class_visibility_member(syntax, command)
+            && recorded_visibility_words(document, words.get(1..).unwrap_or_default())
 }
 
 /// Every operand is a static word the analysis recorded as a visibility
