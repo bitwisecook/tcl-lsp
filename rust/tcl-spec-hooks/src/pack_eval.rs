@@ -306,7 +306,7 @@ impl PackEvalCtx<'_> {
     /// back as `Err`; the handler returns it from its own invocation so the
     /// failure unwinds the whole evaluation.
     pub fn eval_body(&mut self, body: &str) -> Result<(), String> {
-        match self.vm.eval_source(body) {
+        match self.vm.eval_value_source(body) {
             Ok(completion) => match completion.code {
                 Code::Ok | Code::Return => Ok(()),
                 _ => {

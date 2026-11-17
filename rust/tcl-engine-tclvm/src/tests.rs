@@ -1872,3 +1872,54 @@ fn guest_dictionary_options_refuse_an_unknown_native_issuer_without_shimmer() {
     assert_eq!(completion.options.cached_dictionary_bucket_count(), Some(4));
     assert!(completion.options.cached_list_representation().is_none());
 }
+
+/// Records the words it is called with.
+struct WordRecorder(Rc<RefCell<Vec<String>>>);
+
+impl tcl_vm::NativeCommand for WordRecorder {
+    fn invoke(&self, _vm: &mut tcl_vm::Vm, args: &[tcl_vm::Value]) -> Completion<tcl_vm::Value> {
+        self.0
+            .borrow_mut()
+            .extend(args.iter().map(|word| word.to_str().to_string()));
+        Completion::new(Code::Ok, tcl_vm::Value::empty(), tcl_vm::Value::empty())
+    }
+}
+
+/// Evaluates its argument as a script, as a host command running a body does.
+struct BodyEvaluator;
+
+impl tcl_vm::NativeCommand for BodyEvaluator {
+    fn invoke(&self, vm: &mut tcl_vm::Vm, args: &[tcl_vm::Value]) -> Completion<tcl_vm::Value> {
+        let body = args[0].to_str().to_string();
+        vm.eval_value_source(&body).expect("the body compiles")
+    }
+}
+
+/// A script value keeps a bare CR in a braced word, at the top level and when
+/// a host command evaluates a body: C translates line endings only where a
+/// channel reads a file. tclsh 8.6.18/9.0.4:
+/// `eval "set x {a\rb}\nstring first \r \$x"` -> 1.
+#[test]
+fn a_script_value_keeps_a_bare_carriage_return_in_a_braced_word() {
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    let mut engine = TclVmEngine::new();
+    engine
+        .vm_mut()
+        .register_native_command("record", Rc::new(WordRecorder(Rc::clone(&seen))));
+    engine
+        .vm_mut()
+        .register_native_command("body", Rc::new(BodyEvaluator));
+    let handle = engine
+        .compile(CompileUnit {
+            name: "carriage",
+            parameters: &[],
+            body: "record {left\rright}; body {record {left\rright}; set a 1}",
+        })
+        .unwrap();
+    engine.invoke(&handle, &[]).unwrap();
+    engine
+        .vm_mut()
+        .eval_value_source("record {left\rright}")
+        .unwrap();
+    assert_eq!(*seen.borrow(), ["left\rright"; 3]);
+}
