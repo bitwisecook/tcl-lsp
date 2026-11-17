@@ -433,6 +433,12 @@ impl Vm {
                 .entered_native_compiler_selections
                 .iter()
                 .any(|(start, end)| *start <= f.pc && f.pc < *end)
+            // A compiled operation selected before its arguments ran finishes
+            // as selected, as C's runs on past `INST_START_CMD`.
+            && !f
+                .entered_native_operations
+                .iter()
+                .any(|entered| entered.start < f.pc && f.pc < entered.end)
             && f.command_epoch != self.trace_deopt_epoch()
             && !self.release_keeps_running(f, &asm, instr)
         {
