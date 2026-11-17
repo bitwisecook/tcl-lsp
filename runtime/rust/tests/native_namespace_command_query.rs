@@ -60,8 +60,10 @@ impl Host for CaptureHost {
     fn native_integer_formatter(&self) -> Option<&dyn tcl_platform::NativeIntegerFormatter> {
         self.native.native_integer_formatter()
     }
+    /// The oracles ran under a UTF-8 locale; the process's own locale must
+    /// not decide what the guest's channels write.
     fn system_encoding(&self) -> tcl_platform::SystemEncoding {
-        self.native.system_encoding()
+        tcl_platform::SystemEncoding::Utf8
     }
     fn encoding_catalogue(&self) -> Option<&dyn tcl_platform::EncodingCatalogue> {
         self.native.encoding_catalogue()
