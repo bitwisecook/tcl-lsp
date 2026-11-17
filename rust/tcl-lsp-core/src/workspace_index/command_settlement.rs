@@ -715,14 +715,25 @@ impl WorkspaceIndex {
         if publications != 1 {
             return false;
         }
-        let Ok(name) = String::from_utf8(tcl_syntax::naming::native_command_full_name_bytes(slot))
-        else {
-            return false;
-        };
-        let name = unroot_rooted_key(&name).unwrap_or(&name);
+        // A name that is not text (`p\uD800`) can only be named by a link's
+        // own source-name slot.
+        let name = String::from_utf8(tcl_syntax::naming::native_command_full_name_bytes(slot)).ok();
+        let name = name
+            .as_deref()
+            .map(|name| unroot_rooted_key(name).unwrap_or(name));
         !self.command_links().any(|link| {
-            unroot_rooted_key(&link.linked_qname).unwrap_or(&link.linked_qname) == name
-                || unroot_rooted_key(&link.target_qname).unwrap_or(&link.target_qname) == name
+            link.linked_source_name
+                .as_ref()
+                .is_some_and(|source| source.slot() == slot)
+                || link
+                    .target_source_name
+                    .as_ref()
+                    .is_some_and(|source| source.slot() == slot)
+                || name.is_some_and(|name| {
+                    unroot_rooted_key(&link.linked_qname).unwrap_or(&link.linked_qname) == name
+                        || unroot_rooted_key(&link.target_qname).unwrap_or(&link.target_qname)
+                            == name
+                })
         })
     }
 
