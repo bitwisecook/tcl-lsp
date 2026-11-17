@@ -170,3 +170,29 @@ fn indexes_classes() {
     assert_eq!(defs.len(), 1);
     assert_eq!(defs[0].qualified_name, "::Widget");
 }
+
+/// A `superclass` word whose class another document declares selects that
+/// declaration through the word's own lookup (current namespace, then
+/// global); a word naming no declared class selects nothing.
+#[test]
+fn a_cross_file_superclass_word_selects_the_declaring_document() {
+    let base = analyse("namespace eval ::ns {\n    oo::class create Base {}\n}\n");
+    let sub_source = "namespace eval ::app {\n    oo::class create Sub {\n        superclass ::ns::Base\n    }\n}\n";
+    let sub = analyse(sub_source);
+    let index =
+        WorkspaceIndex::from_documents([("file:///base.tcl", &base), ("file:///sub.tcl", &sub)]);
+    let cursor = u32::try_from(sub_source.find("::ns::Base").unwrap() + 4).unwrap();
+    let targets = index.class_relation_targets_at("file:///sub.tcl", sub_source, &sub, cursor);
+    assert_eq!(targets.len(), 1, "{targets:?}");
+    assert_eq!(targets[0].0, "file:///base.tcl");
+    let other = sub_source.replace("::ns::Base", "::ns::Other");
+    let other_analysis = analyse(&other);
+    let index = WorkspaceIndex::from_documents([
+        ("file:///base.tcl", &base),
+        ("file:///sub.tcl", &other_analysis),
+    ]);
+    assert_eq!(
+        index.class_relation_targets_at("file:///sub.tcl", &other, &other_analysis, cursor),
+        []
+    );
+}

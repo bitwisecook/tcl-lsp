@@ -201,6 +201,58 @@ impl WorkspaceIndex {
         })
     }
 
+    /// Class declarations in other documents that the `superclass` or `mixin`
+    /// word at `cursor` selects through its own recorded lookup (current
+    /// namespace, then global). A navigation listing for a relation whose class
+    /// another document declares; rename does not read it.
+    #[must_use]
+    pub fn class_relation_targets_at(
+        &self,
+        uri: &str,
+        source: &str,
+        analysis: &tcl_compiler::analyser::AnalysisResult,
+        cursor: u32,
+    ) -> Vec<(String, tcl_lexer::Span)> {
+        use tcl_compiler::analyser::types::OriginalSourceClassRelationKind as Kind;
+        let Some((image, config)) = tcl_compiler::source_graph::current_analysis(source, analysis)
+        else {
+            return Vec::new();
+        };
+        let relation = analysis
+            .original_class_declarations()
+            .flat_map(|record| record.metadata().original_relations.effects())
+            .filter(|effect| matches!(effect.kind(), Kind::Superclass | Kind::Mixin))
+            .flat_map(|effect| effect.values().unwrap_or_default())
+            .find(|relation| {
+                relation
+                    .name_input()
+                    .original_word_key()
+                    .is_some_and(|key| {
+                        key.source_image() == &image
+                            && key.lexer_config() == config
+                            && key.span().start() <= cursor
+                            && cursor < key.span().end()
+                    })
+            });
+        let Some(relation) = relation else {
+            return Vec::new();
+        };
+        let declarations = self
+            .original_class_declarations()
+            .filter(|(owner, _)| *owner != uri)
+            .collect::<Vec<_>>();
+        relation
+            .lookup()
+            .first_matching_publications(
+                declarations
+                    .iter()
+                    .map(|(owner, declaration)| (declaration.name(), (*owner, *declaration))),
+            )
+            .into_iter()
+            .map(|(owner, declaration)| (owner.to_owned(), declaration.metadata().name_span))
+            .collect()
+    }
+
     /// Publications surviving an independently completed modeled source root.
     /// Document ownership is retained; no workspace load order or physical
     /// interpreter existence follows from this source inventory.

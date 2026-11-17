@@ -145,6 +145,14 @@ impl Backend {
         if !cross_var.is_empty() {
             return Ok(cross_var);
         }
+        if !analysis.allows_lexical_declaration_advice() {
+            let relation = self
+                .cross_document_class_relation_definition(uri, &doc.text, pos, analysis)
+                .await?;
+            if !relation.is_empty() {
+                return Ok(relation);
+            }
+        }
         if !on_command_head && !Self::original_autoload_head_eligible(&doc.text, analysis, pos) {
             return Ok(Vec::new());
         }
@@ -444,6 +452,29 @@ impl Backend {
             on_command_head,
         )
         .await
+    }
+
+    /// Cross-document go-to-definition for a `superclass` / `mixin` word whose
+    /// class another document declares, selected by the word's own lookup.
+    async fn cross_document_class_relation_definition(
+        &self,
+        uri: &Uri,
+        source: &str,
+        pos: Position,
+        analysis: &AnalysisResult,
+    ) -> DocumentSourceResult<Vec<Location>> {
+        let cursor = tcl_lexer::LineIndex::new(source).offset_at_utf16(
+            pos.line,
+            tcl_lexer::Utf16Col::new(pos.character),
+            source,
+        );
+        let rehoming_guard = self.rehomed_index_guard().await?;
+        let targets = {
+            let index = self.workspace_index.read().await;
+            index.class_relation_targets_at(uri.as_str(), source, analysis, cursor)
+        };
+        drop(rehoming_guard);
+        self.resolve_target_locations(targets).await
     }
 
     /// Cross-document go-to-definition for a namespace variable: the
