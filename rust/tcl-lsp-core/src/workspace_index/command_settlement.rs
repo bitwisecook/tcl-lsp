@@ -750,11 +750,18 @@ impl WorkspaceIndex {
         if let Some(reference) = &inv.resolved_command_reference
             && (inv.original_name_input.is_some() || reference.original_name_policy().is_some())
         {
-            return if links.is_some() {
+            return if let Some(links) = links {
                 reference
                     .linked_definition()
                     .or_else(|| reference.definition())
                     .and_then(|definition| self.original_definition_target(definition))
+                    .or_else(|| {
+                        let slot = reference.original_slot()?;
+                        let name =
+                            String::from_utf8(tcl_syntax::naming::native_command_full_name_bytes(slot))
+                                .ok()?;
+                        Self::linked_name_target(&name, links, defined)
+                    })
             } else {
                 reference.is_direct_definition().then_some(())?;
                 Some(SettledCommandTarget::OriginalSlot(
@@ -766,12 +773,16 @@ impl WorkspaceIndex {
         if let Some(lookup) = inv.original_lookup.as_ref()
             && lookup.policy().authority() == tcl_syntax::naming::NamePolicyAuthority::Native
         {
-            return self.original_assistance_target(lookup, links.is_some());
+            return self
+                .original_assistance_target(lookup, links.is_some())
+                .or_else(|| Self::linked_candidate_target(inv, links?, defined));
         }
         if let Some(lookup) = inv.original_lookup.as_ref()
             && inv.logical_source_domain == Some(false)
         {
-            return self.workspace_assistance_target(lookup, links.is_some());
+            return self
+                .workspace_assistance_target(lookup, links.is_some())
+                .or_else(|| Self::linked_candidate_target(inv, links?, defined));
         }
         if inv.original_name_input.is_some() || inv.logical_source_domain != Some(false) {
             return None;
@@ -865,6 +876,33 @@ impl WorkspaceIndex {
                     unroot_rooted_key(&resolved).unwrap_or(&resolved).to_owned(),
                 )
             })
+    }
+
+    fn linked_candidate_target(
+        inv: &WorkspaceInvocation,
+        links: &std::collections::HashMap<String, String>,
+        defined: &HashSet<String>,
+    ) -> Option<SettledCommandTarget> {
+        inv.resolution_candidates
+            .iter()
+            .find_map(|candidate| Self::linked_name_target(candidate, links, defined))
+    }
+
+    /// A call whose own document could not follow its name to a definition
+    /// (an alias or rename whose target another document declares) settles,
+    /// in the link-following view only, where the workspace link map chases
+    /// the called name to a defined command.
+    fn linked_name_target(
+        name: &str,
+        links: &std::collections::HashMap<String, String>,
+        defined: &HashSet<String>,
+    ) -> Option<SettledCommandTarget> {
+        let name = unroot_rooted_key(name).unwrap_or(name);
+        links.contains_key(name).then_some(())?;
+        let target = Self::follow_links(links, name);
+        defined
+            .contains(&target)
+            .then_some(SettledCommandTarget::Authored(target))
     }
 
     /// The command name-link map (`::`-stripped `linked → immediate target`)
