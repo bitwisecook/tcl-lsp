@@ -750,7 +750,8 @@ fn source_aware_lsearch_dynamic_prefix_and_suffix_have_distinct_obligations() {
 #[test]
 fn string_is_failindex_names_a_variable_it_writes() {
     for environment in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-        let context = crate::model::ingress::resolve_environment(environment).default_context_registry();
+        let context =
+            crate::model::ingress::resolve_environment(environment).default_context_registry();
         let reg = context.commands();
         for args in [
             ["is", "integer", "-failindex", "bad", "$s"].as_slice(),
