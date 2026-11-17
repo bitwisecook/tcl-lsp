@@ -94,7 +94,7 @@ fn record_logical_alias_pairs(
         let local = invocation.literal(destination);
         if let Some(target) = invocation.literal(source) {
             if let Some(local) = local {
-                info.literal_targets.insert(local, target);
+                info.link_literal(local, target);
             } else {
                 info.unnameable_local_aliases.insert(target.clone());
                 info.uplevel_literal_writes.insert(target);
@@ -111,7 +111,7 @@ fn record_logical_alias_pairs(
                     info.has_unresolvable_caller_target = true;
                 }
             } else if let Some(local) = local {
-                info.param_targets.insert(local, parameter);
+                info.link_parameter(local, parameter);
             } else {
                 info.uplevel_param_writes.insert(parameter);
             }
