@@ -1,0 +1,4314 @@
+tests	files	crates	failing	fixture
+330	165	16	13	string
+302	186	20	27	set x 1
+251	110	18	15	source
+188	91	17	4	variable
+187	112	13	6	namespace
+168	106	15	24	return
+110	81	7	16	$literal
+97	61	11	17	switch
+95	53	8	6	regexp
+90	63	11	4	foreach
+90	69	9	2	puts hello
+88	62	9	5	rename
+74	49	9	4	global
+69	17	2	17	--source
+66	41	7	2	lappend
+65	39	8	4	interp
+65	35	7	13	lindex
+58	48	8	6	${a{b}c}
+58	42	9	2	set x 1 puts $x
+54	36	8	12	puts $x
+54	39	8	6	puts hi
+50	37	6	2	oo::class
+49	33	5	1	oo::define
+48	32	10	2	package
+46	29	4	14	proc helper {} {}
+43	18	2	9	original source namespace
+37	24	7	0	set x 1 set y 2
+37	30	6	1	uplevel
+35	26	6	3	-regexp
+35	6	2	5	namespace eval ::mymod { proc helper {} {} namespace export helper }
+34	30	6	3	${a{b}
+33	9	2	6	superclass oo::class
+30	25	4	5	$value
+29	27	8	1	if {1} {
+28	23	10	0	proc p {} {}
+27	24	7	8	# changed {source}
+27	10	3	9	oo::class create C {
+27	13	6	3	when HTTP_REQUEST {
+26	4	2	9	::T::Mother create ${NSPACE}::class { superclass ::T::Mother }
+26	4	2	8	namespace eval ::T {}
+26	4	2	3	oo::class create Meta {
+26	21	5	0	set x 42
+26	19	6	0	unmatched open brace in list
+25	20	5	5	::puts
+25	12	2	10	::when::HTTP_REQUEST
+24	12	5	0	$a + $b
+24	3	2	7	oo::class create ::T::Mother { superclass oo::class }
+24	17	4	11	{source} # changed
+23	13	5	4	puts 1
+22	15	4	2	namespace current
+22	9	4	4	puts 5
+22	20	8	3	set value 1
+21	14	9	0	-namespace
+21	17	4	1	oo::class create C {}
+20	13	4	4	[literal]
+20	5	2	0	proc helper {} {return VALUE}
+20	15	4	9	puts 2
+20	15	3	5	set x 42 puts $x
+20	13	7	4	set y 1
+19	14	5	0	$arr(key)
+19	15	5	1	${scalar(open}
+19	15	4	2	puts VALUE
+19	13	6	1	set a 1
+19	13	6	5	set y 2
+18	13	4	4	$local
+18	16	3	3	$other
+18	4	3	0	/source.tcl
+18	15	4	4	expr {1 + 2}
+18	14	6	1	oo::abstract
+18	13	5	0	proc foo {} {}
+18	15	6	3	return 1
+18	10	4	3	set v 1
+17	14	6	2	${a(k)}
+17	12	6	2	extra characters after close-brace
+17	12	5	1	if {1}
+17	14	4	9	incr x
+17	14	5	0	return OK
+17	10	3	3	return ORIGINAL
+17	4	2	0	set ::log
+17	9	4	1	set x 3
+17	12	8	1	when HTTP_REQUEST {}
+16	14	4	2	${$literal}
+16	2	2	0	oo::class create Counter {
+16	3	3	1	package require tcltest
+16	8	4	0	proc greet {name} { puts $name }
+16	8	3	2	set after
+16	7	2	3	source child.tcl
+15	14	5	1	$arr(idx)
+15	15	5	0	$missing
+15	8	3	0	$x + 1
+15	9	4	3	puts done
+15	11	7	1	return $x
+15	13	3	5	string length
+14	13	2	7	# displaced {source}
+14	10	3	2	$counter
+14	12	4	3	${name}
+14	11	5	1	::global
+14	11	4	1	::oo::class
+14	9	3	1	a($key)
+14	10	2	0	"can't read ""nope"": no such variable"
+14	7	3	0	expr {1+2}
+14	11	3	6	oo::class create Widget {
+14	7	3	5	puts no
+14	12	1	0	set ::errorCode
+14	13	7	2	set x 2
+14	11	8	2	string length abc
+14	10	2	2	{$literal}
+13	10	7	0	$a != $b
+13	8	2	0	$shared
+13	13	5	0	${a{b}}
+13	11	4	1	${missing
+13	10	2	5	::expr
+13	8	2	4	[list a b c]
+13	12	5	0	cash$name
+13	10	4	0	oo::class create C
+13	6	2	1	oo::class create Dog {
+13	6	4	2	package require Tk
+13	10	2	3	proc greet {name} { return $name }
+13	9	2	3	proc helper {} {} helper
+13	5	2	4	proc registered
+13	11	4	3	puts 3
+13	9	4	0	set x [expr {1 + 2}]
+13	2	2	3	skipping: no Tcl 9.0.4 source tree available
+12	11	4	3	${a b}
+12	10	2	0	${arr(key)}
+12	11	5	0	${cash$name}
+12	9	4	0	-variable
+12	10	6	0	::namespace
+12	8	1	1	eval $body
+12	8	3	0	expr {Pi()}
+12	6	1	6	llength $x
+12	3	2	4	namespace eval ::mymod { proc helper {} {} }
+12	9	3	1	oo::class create
+12	6	2	1	proc foo {} { set y 1 }
+12	8	2	0	proc greet {} {} greet
+12	6	3	4	puts $
+12	12	6	0	set x {
+12	5	2	2	source child
+12	4	1	0	source helper.tcl
+12	9	8	0	string length hello
+12	7	3	0	struct::list
+11	10	7	1	$a == $b
+11	9	4	2	$arr(k)
+11	10	2	0	$target
+11	9	3	0	::oo::object
+11	2	1	0	if {$x lt $y} { puts hi }
+11	8	3	2	if {1} { set x 1 } else { set y 2 }
+11	8	3	0	incr n
+11	11	6	2	namespace eval
+11	4	3	0	namespace import ::tcltest::*
+11	4	1	1	oo::class create Factory {
+11	6	3	4	package require Tcl
+11	6	1	0	proc current {} {}
+11	6	2	0	proc f {} { set x 1 }
+11	7	2	0	proc foo {} { set x 1 }
+11	6	4	6	proc subject {} {if {1} {puts retained} else {puts omitted}}
+11	10	4	4	puts 42
+11	3	2	3	return $w
+11	9	4	2	set a 1 set b 2 set c 3
+11	5	3	0	set log
+11	7	3	4	set result VALUE
+11	10	5	2	set x 5
+11	6	3	0	string length value
+10	10	3	0	$computed
+10	2	2	0	$greeting
+10	9	4	1	$items
+10	3	3	0	$level
+10	9	5	1	${literal}
+10	8	3	4	::list
+10	6	5	2	dict create
+10	8	4	3	expr {$a + $b}
+10	10	3	4	foreign source
+10	6	3	0	hello $name
+10	2	1	1	mylib::with_var counter { set counter 1 }
+10	7	3	0	namespace which
+10	6	3	5	oo::class create C {method ping {} {}}
+10	9	3	0	oo::objdefine
+10	6	2	1	proc p {} {}; p
+10	10	3	1	puts ok
+10	6	4	4	return OTHER
+10	9	5	3	return VALUE
+10	9	7	0	set done 1
+10	5	3	5	set x 1; puts $x
+10	3	2	0	source lib/old.tcl
+10	5	3	0	source.tcl
+10	2	1	2	tiny source
+10	7	3	0	when XDP { pass }
+10	9	4	1	{set x 1}
+9	7	5	0	$a >= $b
+9	6	3	1	$dynamic
+9	5	3	1	$i < 3
+9	9	2	0	${braced}
+9	7	4	0	::oo::configurable
+9	7	4	1	expr $a + $b
+9	2	1	0	expr {2 in {1 2 3}}
+9	7	3	0	extra characters after close-quote
+9	8	3	1	incr i
+9	5	2	0	interp create kid
+9	4	2	3	method GetSpecs {} { return iconlist }
+9	7	5	0	missing close-brace for variable name
+9	4	1	0	namespace eval ::a {
+9	3	1	0	namespace eval a {
+9	3	1	0	namespace eval b {
+9	2	1	5	namespace eval tc { proc setdef {a b} { return 1 } }
+9	9	3	1	"oo::class create A { method make {} { ::return [::B new] } } oo::class create B { method greet {} { ::return ""hi"" } } set a [A new] set b [$a make] $b greet"
+9	5	1	0	oo::class create C { method greet {} {} method twice {} { my greet ; my greet } }
+9	5	1	0	oo::class create parent
+9	7	3	1	package require Tcl 8.6
+9	8	3	4	package require http
+9	6	5	0	proc a {} {}
+9	6	1	0	"proc greet {name} { puts ""Hello $name"" } greet World"
+9	4	2	0	proc greet {} { return hi } greet
+9	9	3	1	proc p
+9	8	4	4	proc p {{}} {{{body}}}
+9	5	2	3	proc p {} {return VALUE}
+9	4	3	0	return YES
+9	4	1	3	return original
+9	6	3	0	set a 1 set b 2
+9	2	1	0	set log {}
+9	8	1	3	set value
+9	9	8	0	set x ${a{}
+9	6	2	0	set x 0
+9	7	4	0	set x 1 puts hi
+9	8	2	3	set x VALUE
+9	3	1	2	set x [read $fd] eval $x
+9	7	3	0	set y $x
+9	2	2	0	source child.tcl; proc run {} {return VALUE}
+9	3	2	1	string:
+9	3	2	0	when XDP { drop }
+9	2	1	5	{dialect} {source}
+8	4	3	0	$a % $b
+8	5	4	0	$a * $b
+8	7	6	0	$a < $b
+8	8	3	1	$array(key)
+8	5	2	1	${literal$name}
+8	2	1	2	${lst}
+8	2	1	4	${ns}::setdef x y
+8	7	3	0	${scalar(open)tail}
+8	6	3	3	${value}
+8	5	4	0	::after
+8	6	4	0	::dict
+8	7	3	0	::tcl::dict::for
+8	7	6	0	::tcl::dict::get
+8	6	2	0	[list a b]
+8	2	1	2	[llength {a b c}]
+8	2	2	2	[self] create ::$w {*}$args
+8	5	4	0	catch {error oops}
+8	4	1	6	if {1} {set value VALUE}
+8	4	1	2	interp alias {} ensure {} package require; ensure Tcl
+8	6	5	0	interp create child
+8	4	3	5	lmap x {1 2} {set x}
+8	2	2	2	namespace eval ::Foo { proc set {a b} { return SHADOW } namespace export set }
+8	3	1	0	namespace eval c {
+8	2	2	6	oo::class create Animal { method speak {} {} }
+8	6	5	1	oo::configurable
+8	3	2	0	proc ::f
+8	2	2	0	proc a {} { return A }
+8	4	3	1	proc add {a b} { return [expr {$a + $b}] }
+8	7	2	0	proc changed {} {}
+8	7	2	0	proc greet {} {}
+8	2	2	3	proc helper {x y} { return $x }
+8	8	4	0	proc other {} {}
+8	4	2	2	proc vendor::f {x} {expr {$x * 2}}
+8	2	1	5	puts $::mypkg::version
+8	8	2	0	puts ${a{b}c}
+8	4	1	5	puts A
+8	4	2	0	puts [eval {{{script}}}]
+8	5	2	0	puts café
+8	7	3	3	puts foreign
+8	6	2	7	puts never
+8	2	2	0	rename a x
+8	5	3	0	return BODY
+8	7	4	0	return SECOND
+8	2	2	3	set answer
+8	4	2	1	set checkpoint READY
+8	8	4	4	set i 0
+8	3	2	4	set o [C new]
+8	3	1	1	set v 0
+8	4	2	2	set x 5 puts $x
+8	5	3	0	string length $s
+8	4	1	5	the variable
+8	7	5	1	when HTTP_REQUEST
+8	4	2	0	when HTTP_REQUEST { set x 1 }
+8	6	4	2	when HTTP_REQUEST {set local 1}
+7	4	3	0	$a & $b
+7	6	4	0	$a && $b
+7	3	2	0	$a ** $b
+7	4	3	0	$a / $b
+7	4	3	0	$arr(name)
+7	7	2	3	$command
+7	4	3	0	$count
+7	6	4	0	$index
+7	5	3	0	$selector
+7	7	3	1	${a\b}
+7	7	4	1	${a\}b}
+7	3	1	3	**Format string**
+7	6	4	0	::incr
+7	7	2	0	::proc
+7	5	3	1	::string
+7	2	1	1	Run a script with a caller variable bound.
+7	2	1	0	SKIPPING the tclsh oracle comparison: neither tclsh8.6 (or $TCL_LSP_TCLSH86) nor tclsh9.0 (or $TCL_LSP_TCLSH90) was found
+7	5	2	0	[unterminated
+7	5	4	0	array($index)
+7	5	3	0	"can't use non-numeric string as operand of ""+"""
+7	6	5	0	catch {
+7	4	2	0	catch { puts hi }
+7	2	1	3	dict get {a 1} a
+7	7	2	0	expr {$x + 1}
+7	6	1	4	fixture source offset fits u32
+7	5	5	0	for {set i 0} {$i < 3} {incr i} { puts $i }
+7	5	2	2	foreach x {a b c} {puts $x}
+7	7	2	1	interp alias
+7	2	1	0	interp alias {} = {} set
+7	4	1	0	interp eval
+7	3	1	0	namespace eval d {
+7	3	2	1	namespace eval gui {
+7	3	2	1	namespace eval modelTestVerTool {
+7	7	1	1	oo::class create Dog { method bark {} {} } set d [Dog new] $d bark
+7	5	3	1	oo::singleton
+7	3	1	3	proc ::T::mk {name} {
+7	4	2	0	"proc greet {name} { puts ""Hello $name"" }"
+7	3	3	3	proc helper {mode} {return $mode}
+7	7	3	7	proc p {y} { set x [llength $y] puts $x }
+7	6	1	0	proc stale {} {}
+7	2	1	3	proc vdouble {x} {expr {$x * 2}}
+7	7	3	2	puts $a
+7	6	4	0	puts $y
+7	7	3	4	puts 4
+7	5	2	3	puts 7
+7	4	1	5	puts yes
+7	7	3	0	return FIRST
+7	6	3	0	return OLD
+7	4	1	1	set v 5
+7	5	1	0	set value VALUE
+7	7	3	0	"set x """
+7	5	1	0	set x 1 puts $x puts $x
+7	4	3	0	set x 1 set y $x
+7	3	3	0	set x extra bad
+7	7	3	0	set x hello
+7	5	3	2	set x value
+7	2	2	0	source discovery
+7	4	2	0	string le $s
+7	6	5	0	string toupper
+7	5	2	0	tiny test source
+7	3	2	2	when CLIENT_ACCEPTED { drop }
+6	3	2	0	# tcl-dialect: tcl8.4 set x 1
+6	5	4	1	$a > $b
+6	5	3	0	$a || $b
+6	4	2	2	$a($k)
+6	5	3	1	$absent
+6	6	4	0	$arr($i)
+6	5	3	1	$arr($idx)
+6	2	1	0	$object valid
+6	3	2	2	$pattern
+6	5	2	2	$scalar(open
+6	6	4	0	$x * 2
+6	3	2	0	$x == 5
+6	4	1	0	$x ? 1 : 0
+6	5	2	1	${a(k)tail}
+6	6	6	0	${café}
+6	6	4	0	::::set
+6	4	2	0	::foreach
+6	6	2	1	::oo::Helpers::self
+6	4	4	0	::oo::abstract
+6	6	5	1	::when http_request { if {1} { :::when client_data {} } }
+6	3	3	2	Add 'package require
+6	3	2	0	Add catch result variable(s)
+6	3	2	1	Caller-frame variable
+6	5	3	0	[expr {1 + 2}]
+6	6	3	0	[name]
+6	4	2	1	[self]
+6	4	4	0	[set x 1]
+6	6	6	0	a list
+6	5	4	0	arr($i)
+6	5	3	0	"cannot use non-numeric string ""abc"" as left operand of ""+"""
+6	3	2	1	dict create a 1
+6	5	2	3	dict create key value
+6	6	2	0	eval $script
+6	5	3	0	if {$x} { puts hi }
+6	2	1	1	if {0} {set a 1} else {set a 2}
+6	5	2	2	if {1} $body
+6	4	1	0	info exists {$literal}
+6	6	3	0	list a b
+6	3	2	0	method kept {} { return 2 }
+6	3	1	0	namespace eval ::b {
+6	3	1	6	namespace eval ::ns { source b.tcl }
+6	2	2	3	namespace eval Lib { proc bar {} { return 1 } }
+6	6	3	0	namespace eval n {}
+6	3	2	0	oo::Helpers::link
+6	3	1	3	oo::class create C {method m {} {return VALUE}}
+6	3	1	0	oo::class create Dog { method bark {} {} } Dog create rex rex bark
+6	3	2	5	oo::class create Factory { classmethod make {} { return [Factory new] } }
+6	5	2	0	oo::class create Widget {}
+6	4	2	0	oo::configurable create C {property size}
+6	3	2	0	package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]
+6	5	3	0	proc b {} {}
+6	4	2	3	proc f {} {set p literal.txt; open $p}
+6	5	3	0	proc foo {} { unset xs }
+6	4	2	0	proc fresh {} {}
+6	4	3	0	proc greet {} { return hi } rename greet hello hello
+6	4	3	0	proc replacement {} {}
+6	6	3	0	"puts ""hello"""
+6	3	1	1	puts $auto_path
+6	2	2	1	puts $out
+6	5	2	0	puts ${x}
+6	5	3	4	puts 6
+6	3	2	2	puts [::app::widget show]
+6	5	1	0	puts [llength [list a b c]]
+6	6	4	2	puts a
+6	6	5	0	return $a
+6	3	1	0	return SAME
+6	4	1	0	set ::errorInfo
+6	6	5	0	set a 1 incr a
+6	4	1	1	set checkpoint
+6	3	1	2	set counter 0
+6	3	2	3	set g 1
+6	3	3	1	set hits 0
+6	5	2	0	set local
+6	3	2	0	set n [expr abs(-2)]
+6	4	1	3	set selected YES
+6	3	2	0	set u [HTTP::uri] HTTP::respond 200 content $u
+6	6	4	1	set x $y
+6	4	2	0	set x 1 puts hi set y 2
+6	6	3	0	set x 1; set y 2
+6	3	2	1	set x AGAIN
+6	2	2	0	set x [expr {1 + 2}] puts $x
+6	4	2	0	set x foo}bar
+6	6	3	0	source $path
+6	2	2	0	source child.tcl; proc run {} {helper}
+6	3	1	2	source second
+6	5	2	0	string length $value
+6	2	1	0	tcl::string::map
+6	5	2	0	unmatched open brace in dict
+6	4	2	0	uplevel 1 $body
+6	4	2	0	when HTTP_REQUEST { pool my_pool }
+6	5	1	3	while {1}
+6	5	4	1	"wrong # args: should be ""set varName ?newValue?"""
+5	3	1	1	!$x || !$y
+5	4	2	1	"""$x[set y]"""
+5	4	3	0	"""prefix ${value} suffix"""
+5	5	2	1	$::a:::b
+5	4	3	0	$a - $b
+5	2	2	0	$a << $b
+5	4	3	0	$a <= $b
+5	2	2	0	$a >> $b
+5	4	3	0	$a ^ $b
+5	4	1	2	"$a eq ""hello"""
+5	5	4	0	$a eq $b
+5	4	4	0	$a ne $b
+5	4	3	0	$a | $b
+5	5	2	0	$a($i)
+5	3	2	0	$banana
+5	5	1	2	$d bark
+5	5	2	1	$foo:::
+5	2	1	0	$i < 1
+5	4	2	0	$i < 10
+5	2	2	1	$o ping
+5	3	1	0	$object
+5	5	2	1	$script
+5	5	1	1	$unknown
+5	2	2	0	${greeting}
+5	5	3	0	${{{name}}}
+5	2	1	2	::T::Mother create ${name}::class {}
+5	5	4	0	::oo::define
+5	5	3	1	::return
+5	4	3	0	::source
+5	4	2	0	::tcl::dict::incr
+5	5	3	0	::tcl::dict::map
+5	5	2	0	::tcl::dict::set
+5	4	4	2	::tcl::string::is
+5	3	3	0	ARITH DOMAIN {non-numeric string}
+5	2	2	5	Add 'package require http'
+5	4	3	1	Brace expr for safety and performance
+5	4	2	1	Conditional source declaration
+5	3	1	1	Format string
+5	2	1	0	Inline proc
+5	2	2	0	[file dirname [info script]]
+5	3	1	0	[gets stdin]
+5	4	3	2	[info exists x]
+5	3	1	0	[list {*}$a {*}$b]
+5	5	3	0	[set x]
+5	3	1	0	`string length`
+5	3	3	0	abs($x)
+5	4	2	1	apply $lambda
+5	4	3	0	"can't read ""x"": no such variable"
+5	4	2	0	catch {error oops} result
+5	5	5	0	catch {}
+5	4	2	2	dict get
+5	2	1	0	dict get $o -errorinfo
+5	5	2	0	eval $cmd
+5	4	2	4	expr 1 + 2
+5	5	4	2	expr {$x * 2}
+5	2	1	1	fixture source fits Span
+5	3	2	0	fold [string length [lindex $words 0]]
+5	5	2	1	for {set i 0} {$i < 10} {incr i} {puts $i}
+5	5	2	4	foreach m {alpha beta gamma} {
+5	5	2	2	global g
+5	4	1	2	if {$x}
+5	3	1	2	if {1} {puts a} else {puts b}
+5	3	1	1	interp alias {} pick {} switch
+5	5	2	0	list VALUE
+5	3	1	0	lsearch $mode {a b} {a+}
+5	5	2	4	method $m {args} { return $args }
+5	4	1	2	method fetch {item} { return $item }
+5	4	3	2	method m {} { return 1 }
+5	2	2	4	method old {} { return 1 }
+5	4	2	0	namespace code
+5	2	2	1	namespace eval ::R {}
+5	2	1	0	namespace eval ::app {
+5	3	1	1	namespace eval ::app { namespace import ::mymod::* proc run {} { helper } }
+5	2	2	3	namespace eval ::ns { oo::class create Base {} }
+5	3	2	1	namespace eval N {variable x FIRST; set x AGAIN; puts $x}
+5	4	1	0	namespace eval inner {
+5	5	1	0	namespace eval ns{i} {{
+5	4	1	0	namespace eval outer {
+5	4	3	1	namespace import
+5	4	2	0	namespace origin
+5	4	2	0	namespace upvar
+5	3	3	0	oo::class create ::Meta {superclass oo::class; self method create {name body} {next $name $body}}
+5	4	2	2	oo::class create Base {}
+5	3	1	0	oo::configurable create Widget {
+5	4	2	0	oo::copy
+5	2	2	0	oo::define Counter {
+5	4	3	0	oo::object
+5	5	1	0	oo::util
+5	3	3	1	original source
+5	2	1	0	package require Tk entry .e -placeholder hi
+5	4	2	0	package require x
+5	4	2	0	proc caller {} { helper }
+5	3	1	0	proc greet {} { return hi } puts [greet] puts [greet]
+5	4	3	1	proc make {} { return 1 }
+5	3	2	0	proc outer {} {
+5	4	3	3	proc p {x} {return $x}
+5	5	3	1	proc p {} {
+5	4	1	4	proc p {} {set value TEXT; return $value}
+5	2	1	1	proc p\uD800 {} {}
+5	2	1	1	proc reader {name} {upvar 1 $name cell; set cell 1}
+5	3	2	0	proc use {} { global tolComp return $tolComp } set ::tolComp 0.05 use
+5	4	3	0	"puts """""
+5	5	4	0	"puts ""hello world"""
+5	2	1	0	puts $shared
+5	5	2	1	puts ${}
+5	3	1	1	puts [expr {1 + 2}]
+5	4	3	0	puts {*}$args
+5	2	1	3	puts {[dict size DATA]}
+5	4	3	0	puts {a}b
+5	5	4	0	puts ÿ
+5	3	3	0	return 3
+5	5	2	3	return 5
+5	3	2	2	return AFTER
+5	3	2	2	return BEFORE
+5	2	2	0	return DONE
+5	5	2	2	return one
+5	5	3	0	return x
+5	3	2	1	self method create {name body} { next $name $body }
+5	5	2	4	set a 1 incr a puts $a
+5	3	2	1	set actual 1; puts $actual
+5	2	1	0	set auto_index(p) [list source [file join $dir p.tcl]]
+5	3	2	1	set b 2
+5	3	3	0	set before
+5	2	2	2	set result
+5	3	1	1	set u [HTTP::uri]
+5	3	2	1	set v 3
+5	5	3	0	"set x ""hello"
+5	3	2	1	set x 1 puts ${x}
+5	4	3	0	set x 1 set y 2 puts $x
+5	3	2	0	set x 1 }
+5	2	1	0	set x 1;set y 2
+5	4	2	0	set x [foo
+5	5	3	1	set x [gets stdin] puts $x
+5	3	2	1	set x hello incr x
+5	5	2	0	set x {hello world}
+5	2	2	0	set {x} 1 puts ${x}
+5	4	3	0	sin($x)
+5	3	2	0	source child.tcl; helper
+5	2	1	2	source first
+5	2	2	2	string tolower ABC
+5	3	1	1	textDocument/rename
+5	4	2	1	trace info variable x
+5	4	2	0	uplevel 1 $script
+5	5	2	0	uplevel 1 {set x 1}
+5	2	1	2	upvar 1 other local
+5	2	1	3	when CLIENT_DATA {{ set p [TCP::payload] set q [{op}] TCP::payload replace 0 100 $q }}
+5	4	3	1	when HTTP_REQUEST { pool web }
+5	3	1	1	when HTTP_REQUEST { pool web_pool }
+5	5	3	2	when HTTP_REQUEST { }
+5	4	2	0	when HTTP_REQUEST {pool p}
+5	2	2	3	when RULE_INIT { set static::debug 1 }
+5	3	2	3	{eval %P}
+5	4	2	2	{return one}
+4	4	2	1	"""${café}"""
+4	2	1	3	# Tcl autoload index file, version 2.0 set auto_index(Rbc_ActiveLegend) [list source [file join $dir graph.tcl]] set auto_index(Rbc_ZoomStack) [list source [file join $dir graph.tcl]]
+4	3	2	0	# noqa set x 1
+4	3	2	0	#changed {source}
+4	4	4	1	$::foo
+4	2	2	0	$::ns::foo
+4	4	4	0	$a ge $b
+4	4	4	0	$a lt $b
+4	4	2	0	$a([format \{])
+4	3	2	0	$a(x\)y)
+4	3	2	0	$arr(idx
+4	4	1	0	$array
+4	4	3	0	$auto_path
+4	2	1	1	$dispatch
+4	4	1	1	$result
+4	3	1	0	$x < 1
+4	2	1	0	"$x == ""foo"""
+4	4	2	0	$x == 1
+4	3	1	0	$x >= 1
+4	3	3	0	${arr(idx)}
+4	4	2	0	${arr(k)}
+4	4	2	3	${body}
+4	4	2	0	${café🙂}
+4	4	1	1	${cmd}
+4	4	1	0	${name
+4	4	3	0	${unfinished
+4	3	2	2	'puts'
+4	4	4	0	-global
+4	3	1	1	::$literal
+4	2	2	1	::R::Mk create ::R::W { method go {} { return went } }
+4	3	3	0	::namespace inscope
+4	3	2	0	::tcl::dict
+4	3	2	0	::tcl::dict::create a 1
+4	3	3	0	::tcl::namespace::current
+4	4	2	0	::tcl::string::equal
+4	3	2	0	::tcl::string::length
+4	3	3	1	::upvar
+4	3	1	2	::when::RULE_INIT
+4	3	1	0	; set ::auto_index(unknown_future_entry) {source lib.tcl}; unknown_future_entry
+4	2	2	0	Unwrap the nested `expr`
+4	3	3	0	[a [b] c]
+4	2	2	0	[diagnostics] disabled = W112
+4	4	2	0	[expr {$x * 2}]
+4	3	1	0	[foo {bar
+4	4	3	0	[id 9]
+4	3	1	1	[lindex $x 0]
+4	4	1	2	[llength {a b c d}]
+4	2	2	0	[notifications] environment_kind = false
+4	2	2	0	[optimiser] profile = full
+4	4	1	0	[pick]
+4	2	1	0	[puts $payload]
+4	2	2	1	[self] create ::$w
+4	3	2	1	[self] ping
+4	2	1	1	"[string length ""hello""]"
+4	4	2	2	[unknown]
+4	4	3	0	a${x}b
+4	3	2	0	after idle $cb
+4	3	3	1	after idle [list apply {{x} {puts $x}} 5]
+4	4	3	0	apply $lambda a b
+4	4	2	1	apply {dir { puts $dir }} /tmp
+4	4	2	1	apply {{} puts\ hi}
+4	2	1	0	auth user /Common/admin { encrypted-password $6$abcsalt12$xVTHU6Ifw7m21v5IXNpEQM1G/HDajebt/qt8a3FrnxzBmgXWpecsAYQNalE3Oaotb83HDNkXt3gc4TbJMjplv1 }
+4	4	3	0	"cannot use non-numeric string ""abc"" as right operand of ""+"""
+4	4	4	0	catch { error oops }
+4	3	2	0	character-channel-source
+4	3	3	0	concat $a $b
+4	3	2	0	conditional-source
+4	4	3	0	dict for
+4	4	2	0	dict g {a 1} a
+4	2	1	0	dict get $o -errorstack
+4	3	2	0	dict incr d a 5
+4	2	2	3	dict set values key [C new]; [dict get $values key] ping
+4	2	1	0	error after 0
+4	4	3	1	expr {1 / 0}
+4	3	3	2	expr {1/0}
+4	4	3	1	expr {2 + 3}
+4	3	1	3	expr {[dict size DATA]}
+4	2	1	0	foo {*}$args
+4	3	2	0	foo {*}$b
+4	3	2	0	foreach item {a b c} { puts $item }
+4	2	1	2	if {!!$x} { puts yes }
+4	3	1	2	if {!($x && $y)} { puts yes }
+4	2	1	1	if {$a} {set one 1}; if {$b} {set two 2}; if {$c} {set three 3}
+4	2	1	0	"if {$x == ""foo""} {puts yes}"
+4	3	1	0	if {1} then
+4	3	2	2	if {1} {puts ${a{b}c}} puts done
+4	3	1	0	if {1} {puts hi}
+4	4	2	0	if {1} {set x 1}
+4	4	2	2	incr x 5
+4	2	1	2	interp alias {} declare {} proc p {x}; declare {}
+4	3	1	2	interp alias {} ensure {} package require; proc subject {} {ensure Tcl}
+4	2	1	0	interp alias {} search {} lsearch -regexp {a b} {a+}; search
+4	2	1	0	interp alias {} search {} lsearch -regexp; search {a b} {a+}
+4	2	2	0	interp alias {} x {} b
+4	4	2	1	interp cr j
+4	4	1	1	interp create -safe
+4	3	2	0	"invalid command name ""dict update"""
+4	4	3	0	itcl::class Factory { proc make {} { return 1 } } Factory make
+4	3	2	0	lindex $x 0
+4	4	1	1	list ONE
+4	2	2	0	list resolves
+4	3	2	1	list spec
+4	3	3	1	list {1 + 2}
+4	2	2	0	literal$name
+4	3	2	0	lsort -command {apply {{a b} {expr {$a - $b}}}} {3 1 2}
+4	2	2	0	ltm rule /Common/r { when HTTP_REQUEST { pool /Common/no_such_pool } }
+4	3	1	0	max($a, $b)
+4	4	2	0	"method bark {} { return ""woof"" }"
+4	3	2	2	method cm {} { return 1 }
+4	2	2	0	method gone {} { return 1 }
+4	3	2	0	namespace delete ::N
+4	2	1	0	namespace eval ::app { namespace import ::mymod::* }
+4	3	3	1	namespace eval ::app { namespace path ::mymod proc run {} { helper } }
+4	2	2	2	namespace eval ::app { oo::class create Sub { superclass ::ns::Base } }
+4	3	3	1	namespace eval ::n {}
+4	3	2	1	namespace eval ::p::q::r {}
+4	2	1	3	namespace eval ::x { source b.tcl } ::x::helper
+4	3	2	1	namespace eval N {proc helper {arg} {return $arg}}
+4	3	1	0	namespace eval a {expr {1 + 2}}; namespace eval b {expr {3 + 4}}
+4	2	1	0	namespace eval app {
+4	3	1	0	namespace eval mypkg { variable version 1.0 }
+4	3	2	0	namespace eval ns {}
+4	3	2	4	namespace eval src { namespace export helper }
+4	4	2	0	namespace info
+4	3	3	0	namespace inscope
+4	4	3	1	namespace unknown handler
+4	2	1	0	not $x
+4	3	1	3	oo::abstract create Base {}; Base new
+4	2	2	4	oo::class create ::ProjectThing {method kept {} {}} ::ProjectThing create specimen proc bind {name} {upvar 1 $name cell; set cell 1}
+4	4	2	1	oo::class create ::tk::Megawidget {
+4	3	2	2	"oo::class create ActiveRecord { classmethod find {args} { return ""found $args"" } } oo::class create Table { superclass ActiveRecord } Table find foo bar ActiveRecord find foo bar"
+4	4	2	2	oo::class create Bar { variable _options constructor {args} { set _options $args } method get {key} { return [dict get $_options $key] } } set b [Bar new] puts [$b get foo]
+4	4	2	0	oo::class create C {method m {} {}}
+4	4	3	3	oo::class create C {method ping {} {}}; C create obj
+4	3	1	0	oo::class create C\uD800 {} oo::class create C\uD801 {} C\uD800 new C\uD801 new
+4	3	3	2	oo::class create Child {superclass Base}
+4	2	2	0	oo::class create Factory { classmethod make {} { return [Factory new] } } Factory make
+4	3	2	0	oo::class create Foo { method bar {} { puts hi
+4	4	2	2	oo::class create Gadget { variable _x } oo::define Gadget { method Helper {} { return hi } method Caller {} { my Helper } }
+4	2	2	1	oo::configurable create ::Pin { property node }
+4	4	2	2	original source binding
+4	2	2	0	package provide pkga
+4	3	1	1	package require
+4	3	1	0	package require Tk 8.7 entry .e -placeholder hi
+4	2	1	0	package require Tk butt
+4	3	2	2	proc a {} { puts 11111 } proc b {} { puts 22222 } proc c {} { puts 33333 }
+4	4	3	0	proc add {a b} { expr {$a + $b} }
+4	3	2	2	proc add {b c} {return [expr {$b + $c}]} set d 2 set e 4 puts [add $d $e]
+4	2	1	0	proc anotherproc {a b} { return $a } proc dump {x} { return $x } proc caller {} { return [anotherproc dump 5] }
+4	2	2	0	proc b {} { return B }
+4	3	2	3	proc button {args} {return orig_button} proc entry {args} {return orig_entry} namespace eval ::tk::accessible { foreach wtype {button entry} { rename ::$wtype ::tk::accessible::orig_$wtype proc ::$wtype {args} {return wrapped} } } set r1 [button .b1] set r2 [entry .e1]
+4	3	1	0	proc deep {} { return }
+4	4	4	1	proc dormant {} { pool dormant_pool }
+4	2	2	0	proc f {} { puts hi }
+4	4	1	0	proc f {} { set i 0 set i 5 return $i }
+4	2	1	0	proc f {} { set x 0 while {1} { set x [expr {$x + 1}] set x [string range $x 0 end] } }
+4	4	3	0	proc f {} { set x 1 return $x }
+4	3	2	2	proc fact {n} { # base case if {$n <= 1} { return 1 } return [expr {$n * [fact [expr {$n - 1}]]}] } puts [fact 5]
+4	2	1	3	proc factorial {n acc} { if {$n <= 1} { return $acc } return [factorial [expr {$n - 1}] [expr {$n * $acc}]] }
+4	4	3	0	proc foo {} { return 1 }
+4	4	2	0	proc foo {} { return 1 } proc bar {} { return 2 }
+4	4	3	0	proc greet {name} {}
+4	4	2	0	"proc greet {who} { puts ""hi $who"" } greet world"
+4	2	2	0	proc greet {} { return hi } interp alias {} sayHi {} greet puts [sayHi] puts [sayHi]
+4	3	2	2	proc helper
+4	4	3	1	proc helper {} { return 1 }
+4	2	2	0	proc helper {} {} proc caller {} {helper}
+4	2	1	0	proc lsearch args {}; lsearch -regexp {a b} {a+}
+4	4	2	0	"proc method {name parameters body} { return ""$name:$parameters:$body"" } interp alias {} define_method {} method oo::class create C { define_method m {} { # inert data puts must-not-run } }"
+4	4	2	0	proc myHelper {a b} {return $a} set y myHelper arg1 arg2]
+4	2	2	0	proc p {arg} {return $arg}; p 1
+4	3	2	2	proc p {x} {return $x}; p VALUE
+4	2	2	0	"proc p {} ""puts"
+4	4	3	0	proc p {} {return 1}
+4	3	1	3	proc p {} {set known [string length abcde]; return $known}
+4	3	2	0	proc p\uD800 {} {}; proc p\uD801 {} {}
+4	3	1	1	proc provided {} {}
+4	3	1	1	proc q {} {}; q
+4	2	1	3	proc selected {prefix value} {}; interp alias {} forwarded {} selected PREFIX; forwarded VALUE
+4	4	2	0	proc string {op args} { return $op } info bogus
+4	3	1	3	proc subject {} {package require Tcl}
+4	2	2	1	proc target {} { return hi } set cmd target $cmd target
+4	3	3	1	proc u {} {}
+4	3	2	2	proc unrelated {} {}
+4	4	2	2	proc vendor::f {a b} {string cat $a $b}
+4	4	2	0	"puts ""hello $name"""
+4	3	3	0	"puts ""{"""
+4	3	2	0	puts -foo
+4	4	2	1	puts 0
+4	3	2	3	puts 10
+4	3	3	0	puts [mystery]; puts [mypkg_autoloaded]
+4	2	2	0	puts [string reverse abc]
+4	4	2	2	puts after
+4	4	2	4	puts always
+4	4	2	1	puts b
+4	3	2	2	puts hit
+4	2	2	0	puts opaque
+4	4	3	0	puts value
+4	3	3	0	puts α
+4	3	1	1	regexp -- $pattern $text
+4	4	4	1	regexp match variables not allowed when using -inline
+4	4	2	0	rename foo bar
+4	3	2	0	rename string {}
+4	3	2	0	return $v
+4	4	2	0	return ${
+4	4	1	0	return 42
+4	4	1	2	return 7
+4	3	2	0	return NEW
+4	4	4	0	return NEXT
+4	4	2	2	return [expr {$x * 2}]
+4	4	1	2	return {Hello World}
+4	2	1	0	running the package 'demo' is not permitted by policy
+4	2	2	0	scan $hex %x var
+4	4	2	2	set $n 1
+4	4	3	0	set $x 1
+4	2	2	0	set ::SHOULD_NOT_RUN YES
+4	2	2	0	set ::filename_effect YES; return DONE
+4	3	2	2	"set a 1 incr a puts ""$a"""
+4	4	2	0	set a 1 puts $a
+4	3	1	2	set a 1 set b [expr {$a + 1}] puts $b
+4	4	2	3	set d [Widget new]
+4	2	1	1	set local VALUE
+4	4	2	3	set msg
+4	4	2	0	set myvar 42
+4	4	3	0	set other 1
+4	3	2	1	set out
+4	2	2	0	set retained 1
+4	4	2	1	set token ::http::1 set ${token}(status) eof
+4	3	2	0	set v 9
+4	2	1	0	set v [expr {!($x && $y)}]
+4	2	1	0	set v [expr {!($x || $y)}]
+4	4	3	0	set v{i} {i}
+4	2	2	0	set x 42 puts hello
+4	3	2	4	"set x 42 set p ""/tmp/$x"""
+4	2	2	0	set x [bad
+4	4	2	1	set x [clock seconds] puts $x
+4	4	4	0	set x \
+4	4	2	0	set x blah]
+4	2	2	0	"set x foo if {{$x {op} ""foo""}} {{ puts hi }}"
+4	4	4	0	set x {*}{
+4	3	2	0	set x {}
+4	3	2	0	"set y ""a""b"
+4	2	2	0	set z 1
+4	4	2	1	set z 3
+4	3	2	0	set z 9
+4	3	2	0	set {new} 1 puts ${new}
+4	4	3	0	"source ""lib/old.tcl"""
+4	2	1	0	source /proj/lib/old.tcl
+4	3	2	0	source {lib/old.tcl}
+4	3	1	0	special variable
+4	4	3	1	string cat
+4	2	1	0	string command
+4	3	1	0	string equal -nocase A a
+4	2	1	1	string lenght $x
+4	2	2	2	string length $x
+4	3	3	0	string match * $subject
+4	2	1	0	string spec
+4	3	3	2	string toupper hello
+4	2	1	4	test source fits in u32
+4	3	1	0	trace add
+4	2	1	0	"uplevel 1 ""set x $y"""
+4	3	1	0	upvar 1 caller_x x
+4	2	2	1	when DNS_REQUEST { DNS::return }
+4	3	2	0	when HTTP_REQUEST { boguscmd $undefvar }
+4	3	2	3	when HTTP_REQUEST {set x [HTTP::query]; HTTP::respond 200 content $x}
+4	4	3	0	when HTTP_RESPONSE {}
+4	2	1	0	when XDP { map m hash 8 8 16 pass }
+4	3	2	0	while 1 {}
+4	4	2	0	{${literal}}
+4	2	1	0	{*}list
+4	4	3	0	{a}{*}$b
+4	3	2	1	{é[$literal]}
+4	3	2	1	﻿proc visible {} {} if 1 {﻿proc hidden {} {}} if 1 {proc nested {} {}}
+3	3	3	0	!($a && $b)
+3	3	1	0	"""#${n}"""
+3	3	3	2	"""$x + [incr x]"""
+3	3	2	0	"""${a b}"""
+3	3	2	0	"""a[foo ""b""]c"""
+3	3	2	1	"""pré $value"""
+3	3	2	0	"""set"" isn't a procedure"
+3	2	2	0	# a comment \ still a comment set x 1
+3	3	1	0	$::ns::level
+3	2	2	0	$M$ab$
+3	3	2	0	$a && $b || $c
+3	2	1	0	$a + 2
+3	2	2	0	$a << 2
+3	2	2	0	$a >> 2
+3	3	2	0	$a and $b
+3	3	3	0	$a in $b
+3	3	2	0	$a($b($c(1)))
+3	3	2	0	$a(${key})
+3	3	3	0	$a({key})
+3	3	2	1	$alias
+3	2	1	0	$apple
+3	3	2	1	$arr($index)
+3	3	3	1	$array($index)
+3	2	1	1	$child
+3	2	2	0	$d speak
+3	3	1	0	$delta
+3	3	1	1	$different
+3	3	1	1	$first
+3	2	2	0	$foo-bar
+3	3	1	0	$foo::bar
+3	3	2	0	$foreign
+3	3	2	0	$head data
+3	2	1	0	$i < 5
+3	3	3	2	$i == 3
+3	2	2	0	$newvar
+3	3	2	0	$ns::var
+3	2	1	0	$original
+3	3	3	0	$package
+3	2	1	0	$thing
+3	2	2	0	$x + $y
+3	3	1	0	$x + 3
+3	2	1	2	$x + [incr x] + $x
+3	2	1	2	$x + [set x 10] + $x
+3	3	2	0	$x / 2
+3	3	1	0	$x <= 1
+3	3	1	0	$x == $x
+3	3	1	0	$x > 1
+3	2	2	0	"$x eq ""one"" || $y eq ""two"""
+3	3	1	0	$x extra
+3	2	2	0	$x in $y
+3	3	2	0	$x.tail
+3	2	1	0	${ with space }
+3	3	2	0	${[literal]}
+3	2	1	0	${a(1)}
+3	2	1	0	${a(b)}
+3	3	3	0	${arr($i)}
+3	3	3	0	${array(key)}
+3	2	2	0	${arr}
+3	2	1	0	${dynamic}
+3	2	2	0	${foo-bar}
+3	3	2	0	${foo}
+3	3	3	1	${missing}
+3	3	1	0	${nul tail(key)}
+3	3	2	0	${odd name}
+3	3	2	0	${two words}
+3	3	3	0	${unterminated
+3	3	3	0	${x y}P Q
+3	3	2	1	${x}suffix
+3	3	1	0	${ÿ(key)}
+3	3	1	0	${ÿ(open}
+3	2	1	0	${箱}suffix
+3	3	1	0	($key)
+3	2	2	0	**`puts`**
+3	3	1	0	--package
+3	2	1	2	0 && [incr x]
+3	2	2	0	::global tail
+3	3	3	0	::namespace inscope ÿ 
+3	3	2	0	::oo::InfoClass
+3	3	2	0	::oo::InfoClass::superclasses
+3	3	3	0	::oo::objdefine
+3	3	2	0	::other::$ns
+3	3	1	3	::tcl::OptProc greet {child -use -display} { return $child } greet foo
+3	2	2	0	::tcl::dict::create
+3	3	3	0	::tcl::dict::with
+3	3	3	1	::when
+3	3	1	0	::when::
+3	2	1	2	::when::HTTP_REQUEST#1
+3	3	1	1	::when::HTTP_RESPONSE
+3	2	1	0	; rename expr saved; proc expr args {return changed}
+3	2	1	0	; trace add execution expr enter callback
+3	2	2	0	<unavailable namespace>
+3	3	3	0	A B$k[set x X]
+3	2	2	2	Add 'event disable all' + 'return'
+3	2	2	0	Conditional source method of `Made`
+3	2	2	2	Possible source declaration
+3	2	2	0	Rewrite with `lappend`
+3	2	2	1	Tcl 9 source tree discovery
+3	2	1	0	Variable read before set
+3	3	2	0	[::Pin new] configure -node 5
+3	2	2	0	[:]{2,}
+3	3	2	0	[clock seconds]
+3	3	2	0	[cmd arg]
+3	3	2	0	[command]
+3	3	2	0	[compileMe]
+3	3	1	0	[expr {$n}]
+3	2	2	0	[file dirname [file dirname [info script]]]
+3	2	2	0	[file join [file dirname [info script]] ..]
+3	3	2	0	[foo bar]
+3	2	1	2	[incr x] + [incr x]
+3	2	1	2	[leaf] + 1
+3	2	1	1	"[list ""[lindex $x 0]""]"
+3	3	2	0	[list 1 2 3]
+3	3	1	0	[list cb $x]
+3	3	1	0	[llength $list]
+3	3	1	0	[llength $list] + 1
+3	2	2	0	[llength $y]
+3	3	2	2	[namespace current]
+3	2	2	0	[project] dialect = tcl9.0
+3	3	2	0	[string length $x]
+3	3	1	1	[tclsh8.6] {}
+3	3	1	1	[tclsh9.0] {}
+3	2	2	0	`namespace` is a core command
+3	3	3	0	a $k[set x X]\n{q};z
+3	3	2	0	a [b] c
+3	3	1	0	a grandparent-namespace proc must not resolve for a bare call
+3	3	1	1	after 0
+3	3	2	0	after 0 $coroName
+3	3	3	0	"ambiguous option ""-"": must be -get, -kind, or -set"
+3	2	1	1	an incr amount
+3	2	2	0	apply {dir {puts $dir}} /tmp
+3	2	2	0	apply {{a b} {return [expr {$a+$b}]}} 1
+3	3	1	0	array set 123 {member VALUE}
+3	3	2	0	atan2($y, $x)
+3	3	3	0	"bad operation list """": must be one or more of array, read, unset, or write"
+3	3	3	0	"bad option ""-command"": must be -map, -namespace, -parameters, -prefixes, -subcommands, or -unknown"
+3	3	3	0	"bad option ""-namespace"": must be -command, -map, -parameters, -prefixes, -subcommands, or -unknown"
+3	2	1	0	binary encode hex [string toupper [binary format H* 41ff42]]
+3	2	1	0	binary scan $d su r
+3	2	2	1	bind $win.fra.tool.buT_testAddIconLarge <ButtonRelease-1> {testAddButtonPopUp %X %Y}
+3	3	2	1	"can't read ""a"": no such variable"
+3	3	3	0	"can't read ""a"": variable is array"
+3	2	2	0	"can't read ""nosuch"": no such variable"
+3	3	2	0	"can't set ""arr"": variable is array"
+3	3	1	0	"can't set ""c"": variable is a constant"
+3	3	3	0	"can't unset ""nosuch"": no such variable"
+3	3	3	0	"can't use non-numeric string as operand of ""!"""
+3	2	1	0	cannot continue bytecode after compile service changed
+3	2	1	0	"cannot define or rename alias ""b"": would create a loop"
+3	2	2	3	cannot rename method to itself
+3	3	3	0	"cannot use a list as left operand of ""+"""
+3	3	3	0	"cannot use non-numeric string ""abc"" as operand of ""!"""
+3	3	3	0	catch { error oops } result
+3	3	2	0	catch { puts hi } result
+3	2	1	0	catch {set ::hits VALUE}
+3	3	2	0	catch {set x 1}
+3	3	3	0	catch {} result
+3	2	2	0	chan configure $chan -inputmode raw
+3	2	1	0	class Point {x 0} proc {Point move} {dx} {return $dx}
+3	2	2	0	classmethod count {} { return 0 }
+3	3	2	0	"clock format $t -format ""%Y-%m-%d"""
+3	3	3	0	concat {*}{A B} $c
+3	3	2	0	"conflicting versions provided for package ""pkga"": 2.0, then 1.0"
+3	3	3	0	dict create a
+3	2	2	0	dict create a 1 b 2
+3	3	2	0	"dict element in braces followed by ""c"" instead of space"
+3	3	2	0	dict get $d k
+3	2	1	0	dict get $o -errorcode
+3	3	2	0	dict get {a 1} z
+3	3	2	0	dict keys $d
+3	3	2	0	different source
+3	2	2	0	editor.action.rename
+3	3	3	0	error [set message BODY] [set info STACK] [set code {FOO BAR}]
+3	3	2	0	"eval ""do $script"""
+3	3	2	0	"eval ""process $x"""
+3	2	1	0	"eval ""puts $x"""
+3	3	1	1	eval $x
+3	2	1	0	eval [build_cmd]
+3	3	1	0	eval [linsert $cmdlist 0 extraarg]
+3	3	1	0	eval [list set $varname $value]
+3	2	1	0	eval loop
+3	2	1	0	eval set ::original VALUE
+3	2	1	0	eval {puts hello}
+3	2	1	0	exec $cmd
+3	2	1	0	exec -- $cmd
+3	3	2	1	"expr ""1 + 2"""
+3	2	1	0	expr $x + 1
+3	2	1	0	expr math function
+3	3	1	0	expr {
+3	2	2	0	expr {!(1 && 0)}
+3	3	2	0	expr {$a + 1}
+3	2	1	1	expr {*}$arguments
+3	3	3	1	expr {1 + 1}
+3	2	2	0	expr {1 +}
+3	2	1	3	expr {[dict size [dict create key value]]}
+3	2	1	1	expr {abs(-3)}
+3	3	2	0	expr {abs(1)}
+3	2	2	0	expr {{{expr}}}
+3	3	3	0	extra switch pattern with no body
+3	2	1	0	fconfigure $c -blocking yes
+3	3	1	0	file delete $path
+3	2	2	0	for {set i 0} {$i < 10} {incr i} { puts $i }
+3	3	2	3	"foreach dirName {src src {src core}} name {alpha beta gamma} { puts ""$dirName $name"" if {$name eq ""pixutils""} { puts skip } } foreach name {examples color changes} { puts $name.ruff }"
+3	3	2	0	foreach name $nameList $body
+3	2	2	0	foreach x {1} {
+3	3	2	0	foreach x {a b} {puts $x}
+3	2	2	0	global ::ns::foo
+3	3	2	0	helper $value
+3	2	2	0	https://example.test/a b;[literal]$value\tail
+3	3	1	0	if $a {puts x}
+3	3	2	0	if 1 { puts a } elseif 2 { puts b } else { puts c }
+3	3	1	2	if 1 {puts hi}
+3	3	1	0	"if { [HTTP::uri] contains ""&key="" } { log local0. x }"
+3	2	2	0	if {!(1 && 0)} {info frame -1}
+3	3	1	0	if {$a == $b} {puts yes}
+3	3	1	1	if {$a} {puts a} elseif {$b} {puts b} else {puts c}
+3	2	1	1	if {$m
+3	2	2	1	if {1} { puts hi }
+3	3	1	0	if {1} { upvar 1 caller_x x }
+3	3	3	1	if {1} {package ifneeded p 1.0 {source p.tcl}}
+3	2	1	2	if {1} {puts ${a{b}c}}
+3	2	1	2	if {1} {puts a} puts after
+3	3	2	0	if {ma
+3	3	1	0	incr counter
+3	3	1	2	incr x -3
+3	2	1	1	incr {$n}
+3	3	2	0	info body set
+3	2	2	0	info cmdtype set
+3	2	2	0	info commands ::set
+3	3	2	0	info complete {set x 1}
+3	3	2	1	info exists ${token}(-pipeline)
+3	3	2	1	interp alias {} = {} expr = {1 + 2}
+3	2	2	0	interp alias {} a {} b
+3	3	2	0	interp alias {} baz {} bar
+3	3	2	0	interp alias {} build {} file join {/ROOT with space}; source [build {literal$é.tcl}]
+3	2	1	0	interp alias {} builder {} list source; set auto_index(p) [builder [file join $dir p.tcl]]
+3	3	2	0	interp alias {} clean {} unset -nocomplain clean
+3	2	1	1	interp alias {} declare {} proc p; declare {x} {}
+3	2	1	0	interp alias {} make {} list set x; eval [make $value]
+3	2	2	2	interp alias {} reader {} puts; reader retained
+3	2	1	2	interp alias {} store {} set; proc f {} {store p literal.txt; open $p}
+3	2	2	0	interp alias {} x {} y
+3	2	1	0	interp create -safe s; rename s moved; interp delete s; moved eval {source a.tcl}
+3	3	2	0	interp create child child eval { puts hi }
+3	3	2	0	interp ev {} {set x 1}
+3	2	1	0	interp eval $child $script
+3	2	1	0	"invalid bareword ""foo"" in expression ""foo bar baz""; should be ""$foo"" or ""{foo}"" or ""foo(...)"" or ..."
+3	3	3	0	"invalid bareword ""lt"" in expression ""{a} lt {b}""; should be ""$lt"" or ""{lt}"" or ""lt(...)"" or ..."
+3	3	1	0	kid ev {set x 1}
+3	2	1	0	lassign {a b} x; set x
+3	3	3	0	lindex {a b c} 1
+3	3	3	0	lindex {a b c} end
+3	2	1	0	list $answer [info commands audit]
+3	2	1	0	list $array([rename old new])
+3	2	1	0	list [catch {{{}}} value] $value
+3	3	3	0	list must have an even number of elements
+3	2	1	0	list size must be a multiple of the stride length
+3	2	2	0	list {*}{A B}
+3	2	2	0	list {}
+3	3	3	1	llength $l
+3	2	1	0	lsearch -regexp -stride 2 {a b} {a+}
+3	2	1	0	lsearch {*}$arguments {a+}
+3	2	2	0	lsort [array names env]
+3	2	2	0	method <ReadProp-x> {} { return 2 }
+3	2	2	0	method make {n} { return $n }
+3	2	1	0	method notafactory {} { return 1 }
+3	2	2	0	method with-dash {} { return 1 }
+3	2	1	0	must have exactly two variable names
+3	3	1	0	namespace ensemble configure ::E -namespace
+3	2	1	3	namespace eval ::a { oo::class create Factory { classmethod make {} { return 1 } } }
+3	3	2	0	namespace eval ::app { namespace import ::mymod::helper proc run {} { helper } }
+3	2	1	1	namespace eval ::app { namespace import ::mymod::helper }
+3	2	2	0	namespace eval ::app { variable count 0 proc bump {} { variable count; incr count } proc get {} { variable count; return $count } }
+3	2	1	3	namespace eval ::b { Factory make }
+3	2	1	3	namespace eval ::b { oo::class create Factory { classmethod make {} { return 2 } } }
+3	3	2	0	"namespace eval ::e { namespace ensemble create -map { foo ::e::Foo } } proc ::e::Foo {args} { return ""foo: $args"" } puts [e foo bar]"
+3	2	2	0	namespace eval ::inner {}
+3	3	1	0	namespace eval ::n { proc a {ctx token} { puts $ctx } proc b {ctx token} { puts $ctx } proc c {ctx token} { puts $ctx } }
+3	2	2	0	namespace eval ::other { proc helper {} {} }
+3	2	1	0	namespace eval ::p::q::r {} namespace children ::p::q
+3	3	2	0	"namespace eval ::simple { variable v ""hello"" } puts $::simple::v"
+3	3	2	0	namespace eval ::tcl::dict { proc mine {d} { return $d } } ::tcl::dict::mine {a 1}
+3	3	1	1	namespace eval Foo { proc bar {} { return 1 } namespace export bar } namespace import ::Foo::* bar
+3	2	1	1	namespace eval N {}
+3	3	1	0	namespace eval a {}
+3	3	1	1	namespace eval foo { apply {{} { proc helper {} { return 1 } }} }
+3	3	3	0	namespace eval myns { proc helper {} { return 1 } }
+3	3	1	2	namespace eval myns { variable nsVar 1 puts $nsVar }
+3	2	2	0	namespace eval mypkg {} namespace children ::mypkg
+3	3	2	1	namespace eval n\uD800 {} namespace eval n\uD801 {} namespace exists n\uD800
+3	3	2	0	namespace eval ns { proc set {key value} { return $value } set x 1 } set y 2
+3	3	1	0	namespace eval ns { variable config 1 proc get {} { variable config return $config } }
+3	2	2	0	namespace eval outer { proc caller {} { inner::p } }
+3	3	2	1	namespace export lassign
+3	2	2	1	namespace forget
+3	2	2	0	namespace import ::ns::*
+3	3	3	0	namespace inscope :: cmd
+3	2	2	0	namespace which -command ::set
+3	3	2	0	namespace which -command set
+3	3	1	1	next $name [list superclass ::tk::MegawidgetClass
+3	3	1	0	no tclsh on this machine: set TCL_LSP_TCLSH84 … TCL_LSP_TCLSH91, or put tclsh8.4 … tclsh9.1 on PATH
+3	3	2	0	oo::Helpers::next
+3	3	1	0	oo::Helpers::self
+3	2	1	3	oo::abstract create Base {}; oo::objdefine Base export new; Base new
+3	2	2	2	oo::class create ::C {method ping {} {}}; ::C create ::obj
+3	3	1	1	oo::class create ::tk::MegawidgetClass {}
+3	3	1	0	oo::class create A { method run {} {} } oo::class create B { method run {} {} } set x [a run]
+3	2	2	3	oo::class create B\uD800 {method m\uD800 {} {}}
+3	2	2	0	oo::class create Base {
+3	3	2	0	oo::class create Base { constructor {} { } } oo::class create Sub { superclass Base constructor {} { next } }
+3	3	1	0	oo::class create Base { method greet {} { return hi } } oo::class create Sub { superclass Base method greet {} { return yo } }
+3	2	2	0	oo::class create Base { method tick {} { return 1 } } oo::class create Child { superclass Base unexport tick method wire {} { after idle [list [self] tick] } }
+3	2	2	1	oo::class create Base {method ping {} {}}
+3	3	1	0	oo::class create Base {} oo::class create Derived { superclass Base } oo::class create Other {}
+3	2	2	3	oo::class create Base {}; mystery; oo::class create Child {superclass Base}
+3	3	1	0	oo::class create C { method greet {} {} } greet
+3	2	2	3	oo::class create C { method old {} { return 1 } renamemethod old new }
+3	2	2	1	oo::class create C { variable n method get {} { return $n } method bump {} { incr n } }
+3	2	1	2	oo::class create C {constructor {} { }; method ping {} {}}
+3	3	2	1	oo::class create C {method m {} {}} set obj unknown $obj m
+3	2	1	2	oo::class create C {method ping {x} {return INSTANCE}}; set obj [C new]; $obj ping [oo::define C method ping {x} {return REPLACED}]
+3	2	2	0	oo::class create C {method ping {} {}; method body {} {my ping; my ping}}
+3	2	2	1	oo::class create C {method ping {} {}}; [C new] ping
+3	2	2	1	oo::class create C {property size; method body {} {my size}}
+3	2	2	1	oo::class create C {superclass Base}; [C new] ping
+3	3	2	0	oo::class create C {}; C create object
+3	2	1	0	oo::class create C {}; C new
+3	2	2	0	oo::class create Dog { method bark {} { return woof } } set o [Dog new] $o
+3	3	3	0	oo::class create Dog { method bark {} {} }
+3	2	1	0	oo::class create Dog { method bark {} {} } set d [Dog new] $d bark puts [$d bark]
+3	3	2	0	oo::class create Dog { superclass Animal }
+3	2	2	3	oo::class create Factory { classmethod make {} { return 1 } classmethod build {} { Factory make } } Factory make
+3	2	1	0	oo::class create Foo {
+3	3	1	0	oo::class create Greeter {}
+3	3	1	0	oo::class create Meta {superclass ::oo::class; self method create {name body} {next $name $body}}
+3	3	3	0	oo::class create Meta {superclass ::oo::class}
+3	2	2	0	oo::class create Widget { method foo {x} { return $x } method bar {} { link foo return [foo 1] } }
+3	3	2	3	"oo::class create widget { method bar {} { return ""bar-value"" } method dispatch {args} { switch -exact -- [lindex $args 0] { bar { my bar {*}[lrange $args 1 end] } } } }"
+3	2	2	2	oo::define ::C { renamemethod old new }
+3	2	2	2	oo::define ::C { self unexport cm }
+3	3	2	0	oo::define C method m {} {return SECOND}
+3	3	3	0	oo::define::method
+3	3	1	0	oo::objdefine Base export new
+3	2	1	0	oo::object create foo
+3	2	1	2	open $p
+3	3	1	1	original body namespace context is unavailable
+3	3	3	0	p[bad]
+3	2	2	0	package demo version 1.0
+3	2	2	1	package ifneeded P 1.0 {source actual.tcl}
+3	2	1	0	package ifneeded http 2.9 [list source [file join $dir http.tcl]]
+3	2	1	1	package ifneeded own 1.0 {source owned.tcl}
+3	2	1	0	package provide http 2.9 proc http::register {a b c} {}
+3	3	2	3	"package require Tk namespace eval ::decoy { proc systray {args} { return ""DECOY"" } } proc ::tk::systray {args} { return ""real systray: $args"" } namespace ensemble configure tk -map [dict merge [namespace ensemble configure tk -map] {systray ::tk::systray}] tk systray create -image book"
+3	3	2	0	package require http 2.9
+3	2	1	0	package require snit {src}
+3	3	1	1	pick subject {default {puts through_alias}}
+3	3	2	0	proc $fakeName $arglist $body
+3	3	1	0	proc $name {} {return VALUE}
+3	3	2	0	proc ::f {x} { return [expr {$x + 1}] }
+3	3	2	2	"proc ::oo::Helpers::classvar {name} { set ns [uplevel 1 {my getONSClass}] tailcall namespace upvar $ns $name $name } oo::class create Counter { variable _label constructor {label} { set _label $label } method getONSClass {} { return [self class] } method bump {} { classvar hits incr hits return ""$_l"
+3	2	2	0	proc ::p {} { namespace upvar ::ns counter c set c 1 }
+3	2	2	0	proc ::p {} { uplevel #0 {set glob 1} }
+3	3	3	1	proc ::tk::SourceLibFile {file} { namespace eval :: [list source [file join $::tk_library $file.tcl]] }
+3	3	1	2	proc List2array {lst} { return ONE } proc List2array {lst} { return TWO }
+3	2	2	0	proc NameProcess {arguments object} { upvar name name set name W1 } proc build {} { NameProcess x obj set out $name }
+3	2	1	0	proc P {} {}; eval $unknown
+3	2	2	0	proc Rbc_ActiveLegend {graph} {}
+3	2	1	2	proc Rbc_ActiveLegend {graph} {} proc Rbc_ZoomStack {graph args} {}
+3	3	2	1	proc a {x} { return $x } proc b {} { a 1 }
+3	2	2	0	proc add {a b} { expr {$a + $b} } puts [add 1 2]
+3	2	1	1	proc add {a b} {return [expr {$a + $b}]} add 1 2
+3	2	1	0	proc alpha {} {}
+3	2	1	0	proc alpha {} {} proc beta {} {}
+3	3	3	0	proc bar {} { return global } namespace eval foo { proc bar {} { return local } proc caller {} { return [bar] } } foo::caller rename foo::bar {}
+3	3	3	0	proc bar {} { return global } namespace eval foo { proc bar {} { return local } rename foo::bar {} proc caller {} { return [bar] } } foo::caller
+3	3	2	1	proc call {args} {} when HTTP_REQUEST {call Lib::one}
+3	2	1	0	proc caller {n} {vdouble $n}
+3	3	2	0	proc demo {} { set x 1 set y 2 puts $x }
+3	2	2	0	proc external {one} {}
+3	2	2	0	proc f {a b} {
+3	2	2	0	proc f {a\ b} {return}
+3	3	2	0	proc f {cond} { if {$cond} { puts hi } else { set result 1 } return $result }
+3	3	1	0	proc f {c} { return [expr {$c && 1/0}] }
+3	3	1	0	proc f {n} { return [expr {10 / $n}] }
+3	3	2	0	"proc f {n} { set x ""seed"" while {$n} { if {$n % 2} { set x ""value"" } else { set x [list 1 2] } incr n -1 } return $x }"
+3	3	2	3	"proc f {n} { set x ""seed"" while {$n} { if {$n % 2} { set x [string range $x 0 end] } else { set x [list 1 2] } incr n -1 } return $x }"
+3	3	2	3	"proc f {n} { set x 0 while {$n > 0} { if {$n % 2} { set x [expr {$x + $n}] } else { set x ""s$x"" } incr n -1 } return $x }"
+3	3	1	0	proc f {s i} { return [string index $s $i] }
+3	2	1	0	proc f {v} { set l {a b c} set j 3 lset l $j $v }
+3	3	1	0	proc f {x} { switch -glob $x { a* { return 1 } default { set z 9 } } puts $y }
+3	3	2	1	proc f {} { ILX::call $h m }
+3	2	1	0	proc f {} { if {![regexp {x} y -> v]} { puts $v } }
+3	3	1	0	proc f {} { if {1} { set x 1 } }
+3	2	1	0	proc f {} { if {[regexp {x} y -> v]} { puts $v } }
+3	3	1	0	proc f {} { puts $u }
+3	3	1	0	proc f {} { return [expr {!0 && 1/0}] }
+3	3	1	0	proc f {} { return [expr {-1 && 1/0}] }
+3	3	1	0	proc f {} { return [expr {0 && 1/0}] }
+3	3	1	0	proc f {} { return [expr {0 ? 1/0 : 7}] }
+3	3	1	0	proc f {} { return [expr {1 / 0}] }
+3	3	1	0	proc f {} { return [expr {1.0 && 1/0}] }
+3	3	1	1	proc f {} { set a(k) 1; set a(j) 2; puts $a(k) }
+3	3	2	0	"proc f {} { set arr(n) 5 set arr(label) ""text"" incr arr(n) }"
+3	3	2	0	proc f {} { set arr(x) 0 while {1} { set arr(x) [expr {$arr(x) + 1}] set arr(x) [string range $arr(x) 0 end] } }
+3	3	1	0	proc f {} { set d 3 return [expr {10 / $d}] }
+3	3	1	0	proc f {} { set i 0 foreach j {1 2 3} { lappend r [incr i $j] } return $r }
+3	3	1	0	"proc f {} { set s ""hello"" set i 2 return [string index $s $i] }"
+3	3	1	0	"proc f {} { set s ""hello"" set i 5 return [string index $s $i] }"
+3	3	2	0	proc f {} { set x 1 set y 2 }
+3	3	2	0	proc f {} { set x 1; return $x }
+3	3	2	0	proc f {} { try { set x 1 error boom } on error {} { puts $x } }
+3	3	2	2	proc f {} {set p {(a+)+}; regexp $p literal}
+3	3	2	0	proc f {} {set x 1}
+3	3	2	0	proc f {} {}
+3	2	1	1	proc fact {n} {if {$n<=1} {return 1};return [expr {$n*[fact [expr {$n-1}]]}]};puts [fact 5]
+3	3	2	0	proc foo {} { return 1 } if {1} foo
+3	2	2	0	proc foo {} { unset -nocomplain xs }
+3	3	2	0	proc foo {} {} proc bar {} {}
+3	3	2	0	proc foreign {} {}
+3	3	1	0	"proc g {x} { namespace eval ::ns { puts ""hello $x"" } }"
+3	3	2	2	proc gen {} { while 1 { yield 1 } } coroutine nextNum gen nextNum
+3	2	1	0	proc ghost {} {}
+3	3	1	0	"proc greet {name} { puts ""Hello $name"" } greet World greet Everyone"
+3	2	2	1	"proc greet {name} { puts ""hi $name"" }"
+3	2	2	0	proc greet {} { return hi }
+3	3	3	0	proc greet {} { return hi } hello rename greet hello
+3	2	1	0	proc greet {} { set x 1 return $x }
+3	2	2	0	proc greet {} { }
+3	3	2	1	proc greet {} {return loaded}
+3	3	3	3	"proc greetD {n} {puts ""D $n""} set cmdD [list greetD World] eval $cmdD"
+3	2	2	0	proc helper {a b} {}
+3	2	2	1	proc helper {mode} { return $mode }
+3	3	2	1	proc helper {value} {return $value}
+3	3	3	0	proc helper {value} {}
+3	2	1	0	proc helper {} {
+3	3	3	1	proc helper {} { pool helper_pool }
+3	2	1	0	"proc helper {} { return ""a-b"" }"
+3	2	1	0	"proc helper {} { return ""c-d"" }"
+3	2	2	0	proc helper {} {return VALUE}; helper
+3	3	1	0	proc helper {} {} he
+3	3	2	2	"proc helperFunc {x} { return [expr {$x * 2}] } helperFunc 21 rename helperFunc """""
+3	2	2	3	proc html_encode
+3	2	2	0	proc inner {} {}
+3	2	2	0	proc invalid {a(x)} {}
+3	2	2	0	proc invalid {{a b c}} {}
+3	3	2	0	proc join {first second} {} interp alias {} joined {} join captured joined value rename join archived proc join {new} {} archived alpha beta join one
+3	3	2	0	proc leaf {} { return 1 }
+3	3	1	0	proc llength {l} { return 99 }
+3	3	2	0	proc lonely {} {}
+3	2	1	0	proc lowered
+3	3	3	0	proc mypkg_autoloaded {} {}; puts [mypkg_autoloaded]
+3	2	2	0	"proc onread {name1 name2 op} { puts ""trace fired"" } proc setup {} { trace add variable ::x read onread } set x 1 setup if {$x} { puts yes } else { puts no }"
+3	3	1	0	proc onw {a b c} { puts trace } trace add variable ::g write ::onw set g 1 set g 2 puts $g
+3	3	1	1	proc p {*}$unknown
+3	2	1	1	proc p {arg} {puts $missing}
+3	3	2	0	proc p {x} {expr {$x + 1}} p 2
+3	2	1	1	proc p {x} {}
+3	3	2	1	proc p {y} { set x [llength $y] # noqa puts $x }
+3	3	1	3	proc p {} {global g; set g 1} p
+3	2	2	1	proc p {} {puts literal}
+3	3	1	1	proc p {} {return 1}; p
+3	3	1	1	proc p {} {return FIRST}; proc p {} {return LAST}; proc ::top {} {return NAMED}
+3	2	1	1	proc p {} {set d {K A}; dict update d K v {set v B}; return $d}
+3	2	1	0	proc p {} {set known [string length abcde]}
+3	2	2	2	proc p {} {set n 1; incr n; return $n}
+3	3	3	2	"proc p {} {set r [expr {""x""}]; set n [expr {[string length abcdef] * 2}]}"
+3	3	2	0	proc p\uD800 {} {return FIRST} proc p\uD801 {} {return SECOND} p\uD800 p\uD801
+3	3	2	1	proc p\uD800 {} {} proc p\uD801 {} {} p\uD800
+3	3	1	0	proc p\uD800 {} {}; proc p\uD801 {} {}; namespace export p\uD800; namespace export -clear p\uD801
+3	3	2	0	proc recurse {} { recurse }
+3	3	1	0	proc replaced_header {} {}
+3	3	2	1	proc resolveSwitch {name def} { catch {foo} name return $name }
+3	2	1	1	proc retained {} {} retained EXTRA
+3	2	1	0	proc selected {value} {}; unknown; selected VALUE
+3	3	1	0	proc set {} {}
+3	3	2	0	proc shared_helper {} {}
+3	3	2	0	proc sizzler {} {} set a [expr {si
+3	2	1	2	proc subject {} {puts [package require Tcl]}
+3	2	2	0	proc target {{optional DEFAULT} required} {}; target ONLY
+3	2	2	0	proc target {} {}
+3	2	2	1	"proc testAddButtonPopUp {x y} { return ""test $x $y"" }"
+3	3	2	0	proc when args {}; when HTTP_REQUEST {}
+3	2	2	2	proc when {args} {} when HTTP_REQUEST {}
+3	3	1	1	proc wrap {} { upvar 1 other local return $local }
+3	2	2	0	providing a package
+3	3	2	0	"puts ""${a{}"""
+3	2	2	0	"puts ""\x4142"""
+3	3	2	0	"puts ""literal \} ${value}"""
+3	2	2	1	puts $g
+3	2	2	1	puts $hits
+3	3	2	0	puts $i
+3	3	2	0	puts $name
+3	3	2	0	puts $other
+3	3	1	1	puts $v
+3	3	2	0	puts $value
+3	2	1	0	puts AFTER
+3	2	1	2	puts B
+3	2	1	3	puts G
+3	3	3	0	puts ONE
+3	2	1	1	puts [$w go]
+3	2	2	0	puts [::app::widget beta]
+3	3	2	1	puts [expr {$x + [set x 10] + $x}]
+3	3	1	0	puts [format %05d 42]
+3	3	2	0	puts [join {a b c} -]
+3	3	2	0	puts [lindex {a b c} 1]
+3	3	2	0	puts [list
+3	2	1	3	puts [list VALUE]; foreach item [list VALUE] {}
+3	3	3	0	puts [lreverse {a b c}]
+3	2	1	0	puts [owner::f abcde]
+3	3	2	1	puts [p]
+3	3	2	0	puts [string is integer 42]
+3	3	2	0	puts [string is list {a b c}]
+3	2	2	2	puts [string length $x]
+3	3	2	0	puts [string repeat ab 3]
+3	2	1	0	puts [﻿unknown argument]
+3	2	1	0	puts a puts b
+3	2	1	0	puts a; puts b
+3	3	2	1	puts changed
+3	2	2	0	puts first
+3	2	2	3	puts foo
+3	3	2	0	puts hello puts world
+3	3	2	0	puts literal
+3	2	2	1	puts one puts two
+3	3	3	1	puts one set value 2 if {$enabled} {puts enabled} puts two
+3	2	1	0	puts pre-VALUE-post
+3	3	2	3	puts retained
+3	2	2	0	puts second
+3	2	2	0	puts string
+3	3	2	0	puts string]
+3	3	2	0	puts visible
+3	3	2	1	puts x
+3	3	1	1	puts {$literal}
+3	3	1	2	puts {word}
+3	3	3	0	puts {}
+3	2	2	0	reading a variable
+3	3	1	1	regexp $pattern $text
+3	3	2	0	"regexp -- ""^foo$"" $text"
+3	3	2	0	"regexp -- ""^foo$bar"" $text"
+3	2	2	0	regexp -abc $s
+3	2	2	0	regexp {abc} $s
+3	3	1	0	regsub $mode {a} $value {\1}
+3	3	1	0	regsub -c {a} $value {\1}
+3	3	1	0	regsub -command {a} $value callback
+3	3	1	0	regsub -start $start {a} $value {\1}
+3	2	1	3	rename $old decl proc kept {} {list retained}
+3	3	2	1	rename C {}
+3	2	2	0	rename format origfmt
+3	3	1	1	rename info {{}}; proc info args {{return UNKNOWN}}; {declaration}; f VALUE
+3	2	2	1	rename puts myputs proc f {x} { myputs $x }
+3	3	2	0	rename set myset
+3	3	2	0	rename target
+3	2	1	0	return $local
+3	2	2	0	return $missing
+3	3	3	1	return -code error boom
+3	3	3	2	return 9
+3	2	2	0	return CLASS
+3	2	1	1	return [::expr {2 + 3}]
+3	2	1	1	return [expr {1 / 0}]
+3	3	2	1	return two
+3	3	2	1	set $x v
+3	3	1	1	set $x {a $b}
+3	2	1	0	set ::a::x
+3	3	3	0	set ::g 1
+3	2	2	0	set ::handled $::message
+3	3	1	0	set ::r
+3	3	2	0	set ::seen
+3	2	1	2	set L {a b c}; lindex $L [expr {[llength $L] - 2}]
+3	3	2	0	set a 2
+3	2	1	0	set a 3 set b 4 puts [expr {$a + $b}]
+3	3	1	0	"set a 3; set b 4; set r [expr ""$a + $b""]"
+3	3	3	0	set a A\ set b B
+3	2	1	0	set a [expr {si
+3	3	2	0	set a [lrepeat 1000 x] set b $a lappend b y puts [llength $a]
+3	3	1	2	set a llength rename $a {}
+3	3	1	0	set addr [IP::client_addr] eval $addr
+3	3	1	0	set alive 2
+3	3	2	0	set arr(key) 1 set v $arr(k more stuff
+3	2	1	0	set auto_index(p) [list source $unknown]
+3	2	1	0	set auto_index(p) [list source {*}$unknown]
+3	3	1	1	set b 0
+3	3	2	1	set b 3
+3	2	2	0	set body
+3	3	1	1	set c 3
+3	2	1	1	set c [catch {{{script}}} r]; puts [list $c $r]
+3	2	2	1	set cmd [gets stdin] $cmd dev
+3	3	2	1	set d [Dog new]
+3	2	1	0	set data {se<|>}
+3	3	1	0	set dead 1
+3	2	1	0	set different VALUE
+3	2	1	0	set dir /a upvar 1 elsewhere dir
+3	3	2	0	set errorInfo
+3	3	3	2	set f [file join $dir $missing] source $f
+3	3	2	2	set final
+3	3	2	0	set first 1 set second 2
+3	3	1	1	"set foo ""-[HTTP::path]"" regexp $foo test"
+3	2	1	0	set fresh VALUE
+3	3	1	0	set greeting hi puts $greeting
+3	2	1	0	set ip 192.168.0.1
+3	3	2	1	set l {a b c} llength $l
+3	3	2	2	set l {a b}
+3	3	3	3	set local 1
+3	2	1	2	"set msg ""error"" if {$ok} { return } else { log $msg }"
+3	3	2	0	set n 1
+3	2	2	0	"set n 7 puts ""n=$n"""
+3	2	2	0	set n 7 puts $n
+3	3	3	0	set name
+3	3	2	0	set opaque {ÿ TAIL}; set opaque
+3	2	2	0	set pattern [gets stdin] regexp $pattern $haystack
+3	2	1	2	set payload [gets stdin]; puts [list puts $payload]
+3	3	3	1	"set payload {when CLIENT_DATA {}} set q ""when SERVER_DATA {}"" when HTTP_REQUEST {}"
+3	3	2	0	set r [expr {1 + 2}]
+3	3	1	2	set raw [gets stdin] interp eval $child [list $raw]
+3	3	1	2	set raw [gets stdin] interp eval $child [list puts $raw]
+3	3	2	2	"set s ""a\nb"" switch $s {a\nb {puts hit} default {puts miss}}"
+3	2	1	1	set s [interp create -safe]
+3	3	2	0	set seen
+3	3	1	2	set t 1
+3	3	2	0	set unrelated 1
+3	2	1	1	"set uri [HTTP::uri] set parts [split $uri ""?""]"
+3	2	1	1	set v 42
+3	3	2	2	set v 5 expr {$v + 1} lindex $v 0
+3	3	1	1	set v 7
+3	2	1	0	set v [expr {!($a == $b && $c < $d)}]
+3	2	1	0	set v [expr {!($a == $b)}]
+3	2	1	0	set v [expr {!($x < 1)}]
+3	2	1	0	"set value """
+3	3	2	0	set value 2
+3	2	2	0	"set x ""abcdef"" if {$x contains ""cd""} { puts hit }"
+3	2	2	0	"set x ""hello"""
+3	2	2	0	set x $::basic__addr
+3	3	1	1	set x ${a(1)} puts $x
+3	3	2	0	set x ${a{b}c}
+3	3	1	2	set x -glob switch $x a {puts A} default {puts D}
+3	3	1	3	set x -glob switch $x {-glob {puts G} default {puts D}}
+3	3	1	3	set x -glob switch -- $x {-glob {puts G} default {puts D}}
+3	3	1	0	set x 0 incr x
+3	3	2	0	set x 1 puts [expr {$x + 1}] puts $x
+3	3	3	3	set x 1 set r [expr {expression}] puts $r puts $x
+3	3	2	1	set x 1 set x 2 puts $x
+3	3	2	0	set x 1 set y $x set z $x
+3	3	2	0	set x 1;
+3	2	2	0	set x 1; info ex x
+3	3	1	0	set x 42 set y $x
+3	3	1	2	set x 7 puts ${x}
+3	3	3	0	set x [
+3	2	2	0	set x [expr {min(1, 2)}]
+3	2	1	0	set x [foo bar puts done
+3	3	2	0	set x [gets stdin] eval $x
+3	2	2	2	set x [gets stdin] subst $x
+3	3	2	1	set x [llength $y]
+3	2	1	0	set x [read $fd] puts $x
+3	2	2	0	set x {abc
+3	3	3	0	set x {a}{*}$y
+3	2	2	0	set x “hi”
+3	3	2	0	set y [expr {1+2}]
+3	3	2	0	set y bar baz\]
+3	2	1	0	set z 0; oo::class create C {method run {} {}}
+3	3	1	0	set {} 1
+3	3	2	1	set {} VALUE
+3	3	1	0	source -encoding utf-8 $path
+3	2	1	0	source [file join lib helper.tcl]
+3	3	1	1	source leaf.tcl
+3	2	2	1	source lib.tcl helper dev
+3	3	3	1	source lib.tcl helper prod
+3	2	1	0	source mod.tcl source imp.tcl source exp.tcl
+3	3	2	0	source {a $b [c].tcl}
+3	2	1	0	source ~/lib/init.tcl
+3	3	3	0	speclib trap 2.0 { default available {tcl 8.6-} command base { arity 1 } if {[available? {tcl 8.6-}]} { command extra { arity 1 } } }
+3	2	2	0	string bogus $x
+3	2	1	0	string cat A B
+3	3	2	0	string equal -length 9223372036854775808 a b
+3	3	3	0	string is
+3	2	2	0	string is ascii $subject
+3	2	1	0	string l abc
+3	2	1	0	string length $name
+3	3	2	0	string length a\tb
+3	3	2	0	string length foo
+3	3	2	0	string range hello 1 3
+3	2	2	0	string to
+3	3	1	0	subst $template
+3	2	1	0	supplies the list
+3	3	2	2	"switch ""a\\b"" {{a\b} {puts hit} default {puts miss}}"
+3	3	2	2	"switch ""a\nb"" {a\nb {puts hit} default {puts miss}}"
+3	3	2	2	"switch ""a\nb"" {{a b} {puts hit} default {puts miss}}"
+3	3	2	2	"switch ""a\tb"" a\tb {puts hit} default {puts miss}"
+3	3	2	2	"switch ""a\tb"" {a\tb {puts hit} default {puts miss}}"
+3	3	1	1	switch $x { a - b { puts 2 } }
+3	3	2	2	"switch -- a\nb {""a\nb"" {puts hit} default {puts miss}}"
+3	3	2	2	"switch -exact -- ""a\tb"" {a\tb {puts hit} default {puts miss}}"
+3	2	1	1	switch -exact -- {$x} {a {return one} b {return two}}
+3	2	2	0	switch -exact -- {subject} {{GET {{drop}} POST {{drop}} PUT {{drop}}}}
+3	3	2	2	"switch -glob -- a\nb {""a\nb"" {puts hit} default {puts miss}}"
+3	3	2	0	switch -regexp xa {( {set r hit}}
+3	3	1	3	switch \x2dglob {-glob {puts G} default {puts D}}
+3	3	2	2	switch a\$b {a\$b {puts hit} default {puts miss}}
+3	3	2	2	switch a\[b {a\[b {puts hit} default {puts miss}}
+3	3	2	2	"switch a\nb {""a\nb"" {puts hit} default {puts miss}}"
+3	3	2	2	"switch a\tb ""a\tb"" {puts hit} default {puts miss}"
+3	3	2	2	"switch a\tb {""a\tb"" {puts hit} default {puts miss}}"
+3	3	2	2	"switch {a b} {""a\nb"" {puts hit} default {puts miss}}"
+3	3	2	2	switch {a\ b} {{a b} {puts hit} default {puts miss}}
+3	3	2	2	"switch {a\b} {""a\\b"" {puts hit} default {puts miss}}"
+3	3	1	0	tcl-foreach
+3	2	1	0	tcl::OptProc greet {child -use -display} { return $child }
+3	3	2	0	tcl::dict
+3	3	3	0	tcl::dict::get
+3	2	2	0	tcl::namespace::unregistered
+3	3	2	0	tcl::string::length
+3	2	2	0	trace add execution expr enter callback; expr {1 + 2}
+3	2	2	0	trace.test
+3	3	2	1	type string
+3	3	2	0	unable to convert input string: invalid month
+3	2	2	0	unmatched open quote in list
+3	3	2	1	unset ${tok}(socketcoro)
+3	2	1	0	uplevel $script
+3	3	2	0	uplevel 1
+3	2	2	0	upvar 1 $xName x
+3	3	2	0	variable ${ns}::v
+3	3	2	1	vwait ${token}(status)
+3	2	2	0	when CLIENT_ACCEPTED { TCP::collect }
+3	3	3	1	when HTTP_REQUEST set
+3	3	3	0	when HTTP_REQUEST { HTTP::respond 200 }
+3	3	1	3	"when HTTP_REQUEST { incr static::counter } when HTTP_RESPONSE { log local0. ""$static::counter"" }"
+3	3	2	0	when HTTP_REQUEST { set u [HTTP::uri] }
+3	2	2	1	when RULE_INIT { set greeting hi }
+3	3	1	1	"when RULE_INIT { set static::config 1 } when HTTP_REQUEST { log local0. ""$static::config"" }"
+3	3	1	0	when XDP { map hits array 4 8 4 setint k 0 map_get n hits {$k} pass }
+3	2	1	0	when XDP { setbuf p ctx load16 dport p 36 pass }
+3	2	1	0	when registered
+3	3	3	0	while 1 {incr n}
+3	2	1	1	while {$i < 10} {puts $i}
+3	3	3	1	while {0} {}
+3	3	3	0	while {1} {
+3	3	1	1	while {1} { break }
+3	2	1	0	with$dollar
+3	3	3	0	"wrong # args: no expression after ""if"" argument"
+3	3	2	0	"wrong # args: should be ""namespace ensemble create ?option value ...?"""
+3	3	2	0	{$a + $b}
+3	3	3	0	{$name}
+3	3	3	2	{$x + [incr x] + $x}
+3	3	3	2	{$x + [set x 10] + $x}
+3	3	3	2	{$x ? [incr x] : [incr x 10]}
+3	3	3	0	{${x}}
+3	3	1	1	{*}$superclasses]\;$body
+3	3	3	2	{0 && [incr x]}
+3	3	3	2	{[incr x] + [incr x]}
+3	3	2	0	{foreach name {a b} {method $name {} {}}}
+3	2	2	0	{f}($x)
+3	3	2	0	{method $name {} {}}
+3	2	1	0	{é $x}
+3	2	1	3	· answer: evaluated: error after 1 store
+3	2	2	0	ÿ after
+3	3	3	0	﻿#prefix $x
+3	2	2	0	﻿proc greet {} { return 1 }
+3	2	1	0	﻿puts 1
+3	3	2	0	﻿set x 1
+3	2	2	0	﻿set x 1 puts $x
+2	2	2	0	!$a || !$b
+2	2	1	2	!$x ? [incr x] : [incr x 10]
+2	2	2	0	""" $item"""
+2	2	2	0	"""$absent"""
+2	2	1	0	"""$delta"""
+2	2	2	0	"""${ÿ}"""
+2	2	1	1	"""/tmp/$x"""
+2	2	1	0	"""[set é]$x"""
+2	2	2	0	"""a""[b]"
+2	2	2	0	"""one"" eq $café"
+2	2	2	0	"""pré $tmpl"""
+2	2	2	0	"""puts $x"""
+2	2	1	0	"""puts hi"""
+2	2	1	0	"""set x 1; set y 2"""
+2	2	2	0	# a comment puts hi
+2	2	2	0	# doc proc f {} {}
+2	2	2	0	# escaped end \\ set z 3
+2	2	1	0	# first line \ second line puts ok
+2	2	1	1	# foreign {source}
+2	2	2	0	# moved {source}
+2	2	2	0	# noqa: W115 # trailing \ set x 1
+2	2	2	0	# noqa: W210 puts $y
+2	2	1	0	# note \ puts next
+2	2	1	0	# note proc current {} {}
+2	2	2	0	# orphan puts hi
+2	2	1	2	# proc helper
+2	2	1	1	# profiles: HTTP2 when HTTP_REQUEST { if {1} { HTTP2::active } }
+2	2	1	0	# tcl-dialect: tcl8.4 expr {2 in {1 2 3}}
+2	2	1	0	# tcl-lsp: disable=W210 puts $y
+2	2	1	0	# tcl-lsp: disable=W210,W211 proc foo {} {}
+2	2	2	0	# tcl-lsp: package custom provides Tk
+2	2	2	0	# trailing \ set x 1
+2	2	2	0	# {puts matched}
+2	2	1	0	#![allow(non_snake_case)]
+2	2	1	0	"#![cfg_attr(test, recursion_limit = ""256"", cfg(test))]"
+2	2	1	0	"#![recursion_limit = ""256""]"
+2	2	1	0	"#include ""missing.inc"" section basic { string addr string port }"
+2	2	2	0	#prefix $x
+2	2	1	0	$::argv
+2	2	1	0	$::name
+2	2	2	0	$::other::foo
+2	2	2	0	$a $b $c
+2	2	2	0	$a * 2
+2	2	1	0	$a + $b * $c
+2	2	2	0	$a + 1
+2	2	1	1	$a == 1
+2	2	2	2	"$a == 3 && $b eq """""
+2	2	1	0	$a ? $b : $c
+2	2	1	2	"$a eq ""x"""
+2	2	2	0	$a gt $b
+2	2	2	0	$a le $b
+2	2	1	1	"$a ne ""hello"""
+2	2	2	0	$a ni $b
+2	2	2	0	$a tail
+2	2	1	0	$a((b)
+2	2	1	0	$a([set b])
+2	2	1	0	$a(\{k\})
+2	2	2	0	$a(\{key\})
+2	2	1	0	$a(idx)
+2	2	2	0	$a(k(x))
+2	2	1	1	$a(key)
+2	2	2	0	$a:::b
+2	2	2	0	$a::b::c
+2	2	2	0	$actual
+2	2	2	0	$alpha
+2	2	2	0	$arity
+2	2	2	0	$arr($k)
+2	2	2	0	$arr($key)
+2	2	2	0	$arr($x)
+2	2	2	1	$arr([step])
+2	2	1	0	$arr({key})
+2	2	2	0	$arr({k})
+2	2	1	0	$arr(ÿ)
+2	2	2	0	$bnaana
+2	2	2	1	$c3 options
+2	2	2	0	"$café eq ""one"""
+2	2	2	0	$café($clé)
+2	2	1	1	$class
+2	2	1	0	$cmd arg
+2	2	1	0	$config
+2	2	1	2	$d alpha
+2	2	1	1	$dispatch $value
+2	2	1	0	$i < 10000
+2	2	1	0	$i < 2
+2	2	1	0	$i == 1
+2	2	1	2	$i == 10
+2	2	2	2	$i == 2
+2	2	2	2	$i == 4
+2	2	2	2	$i == 4 && $n == 2
+2	2	2	2	$i == 5
+2	2	1	1	$input
+2	2	1	2	$j == 5
+2	2	1	2	"$kind eq ""x"""
+2	2	1	1	$known
+2	2	1	0	$lb bogus
+2	2	1	0	$literal [data]
+2	2	1	1	$longleft
+2	2	1	0	$missing + 1
+2	2	2	0	$myns::total
+2	2	1	2	$n == 1
+2	2	2	2	$n == 1 && $x == 2
+2	2	1	0	$ns::count
+2	2	2	0	$object method
+2	2	1	0	$operation
+2	2	2	1	$options --
+2	2	2	0	$ordinary
+2	2	2	0	$params
+2	2	1	0	$payload
+2	2	1	1	$receiver
+2	2	1	0	$source
+2	2	2	2	$t == 3
+2	2	2	2	$t == 6
+2	2	1	0	$total
+2	2	1	0	"$uri contains ""admin"""
+2	2	1	0	$variable
+2	2	1	2	$w nosuchmethod
+2	2	1	0	$w render
+2	2	1	0	$win.a
+2	2	1	0	$x != $x
+2	2	2	0	$x != 1
+2	2	1	0	$x ** 0
+2	2	1	0	"$x == ""01"""
+2	2	1	0	"$x == ""GET"""
+2	2	2	0	"$x == ""hello"""
+2	2	1	2	$x ? [incr x] : [incr x 10]
+2	2	1	0	$x bark
+2	2	2	0	"$x eq ""one"" || !($x eq ""two"")"
+2	2	1	0	$x eq $x
+2	2	1	1	$x eq lit
+2	2	2	0	$x ge $y
+2	2	1	0	$x in $list
+2	2	2	0	$x lt $y
+2	2	2	0	$x ni $y
+2	2	1	1	$x-suffix
+2	2	2	0	$x-tail
+2	2	1	0	${2|$items,$list|}
+2	2	1	0	${a($i)}
+2	2	1	1	${a($k)}
+2	2	1	1	${a(b}
+2	2	2	0	${a-b}
+2	2	2	0	${alpha}
+2	2	1	0	${args}
+2	2	2	1	${arr($index)}
+2	2	2	0	${arr($literal)}
+2	2	2	0	${arr(first(second)}
+2	2	1	0	${arr(inner)(key)}
+2	2	2	1	${arr}(a\)b)
+2	2	1	0	${a{b{c}d}e}
+2	2	2	0	${a{b}c}/$tail
+2	2	2	0	${a}(tail)
+2	2	2	0	${bar}
+2	2	2	2	${direction}view
+2	2	2	2	${direction}}view
+2	2	1	0	${dir}/$file
+2	2	2	0	${local}
+2	2	2	0	${new}
+2	2	1	0	${ns}::go
+2	2	1	0	${other}
+2	2	2	1	${plain}
+2	2	2	0	${x tail}
+2	2	2	0	${x}${y}
+2	2	1	0	${x}(k)
+2	2	2	1	${{{}}}
+2	2	1	0	${箱}[list suffix]
+2	2	2	0	%[abc]
+2	2	1	0	'dict'
+2	2	2	0	([lsearch -exact {1 2 3} 2] >= 0)
+2	2	2	0	([string compare $x $y] < 0)
+2	2	1	1	**Format string** (sprintf-style)
+2	2	2	0	**`set`**
+2	2	1	0	-$a + $b
+2	2	1	0	--left-source
+2	2	1	0	--right-source
+2	2	2	0	-matchvar option requires -regexp option
+2	2	2	0	-source-
+2	2	2	0	/workspace/.proofs/2286-packages-dialects/package-native-completion/leaf.tcl
+2	2	2	0	/workspace/.proofs/2286-packages-dialects/package-native-completion/nested.tcl
+2	2	2	0	/workspace/.proofs/2286-packages-dialects/package-native-completion/pkgIndex.tcl
+2	2	2	0	/workspace/.proofs/2286-packages-dialects/package-native-completion/skip.tcl
+2	2	2	0	"0 && ""${ÿmissing}"""
+2	2	1	0	0 && [boom]
+2	2	2	0	0 && [error REACHED]
+2	2	2	0	0 {} {{0 ::retiring} {0 0} {1 {can't create namespace
+2	2	2	0	"1 ? 0 : ""$absent"""
+2	2	2	0	1 ? 0 : $absent
+2	2	2	1	"1 expected integer but got ""$n"""
+2	2	1	0	"1 invalid command name ""trace"""
+2	2	1	0	"1 {can't create namespace """
+2	2	2	0	"1 {can't create namespace ""retiring"": already exists}"
+2	2	2	0	"1 {can't read ""y"": no such variable} NEW"
+2	2	1	0	1 || [boom]
+2	2	2	1	"1:bad option ""add"": must be variable, vdelete, or vinfo"
+2	2	2	1	"1:bad option ""variable"": must be add, info, or remove"
+2	2	1	0	::$target
+2	2	1	0	::${ns}::go
+2	2	2	0	::::namespace inscope :: cmd
+2	2	2	2	::D::M1 create ::D::M2 { superclass oo::class }
+2	2	2	2	::D::M2 create ::D::M3 { superclass oo::class }
+2	2	2	0	"::N 0 1 {namespace """" not found in ""::N""} {TCL LOOKUP NAMESPACE {}}"
+2	2	2	0	::U::Meta create ::U::Widget { method go {} { return went } }
+2	2	1	1	::case_alias::pick subject {default {puts namespaced_alias}}
+2	2	1	0	::catch
+2	2	2	1	::dict get {a 1} a
+2	2	1	1	::eval
+2	2	1	0	::eval $script
+2	2	2	0	::interp
+2	2	2	0	::namespace inscope  
+2	2	2	0	::namespace inscope :: cmd
+2	2	2	0	::namespace inscopeX
+2	2	2	0	::ns::set
+2	2	2	0	::oo::Helpers::link foo
+2	2	2	0	::oo::Helpers::next
+2	2	2	2	::oo::Helpers::renamedClassvar
+2	2	2	0	::oo::InfoObject
+2	2	2	0	::oo::define::method
+2	2	2	0	::oo::define::private
+2	2	1	0	::orch::load_rule /Other/library {proc helper {} {return ok}} 0
+2	2	2	0	::regexp
+2	2	2	0	"::report::defstyle simpletable {} { top set [split ""x""] data set [split ""y""] bottom enable topdatasep enable columns }"
+2	2	2	0	::report::defstyle st {} { top set foo columns }
+2	2	1	1	::root_pick subject {default {puts rooted_alias}}
+2	2	2	0	::set x 1
+2	2	2	0	::tcl::OptProc greet {child -use -display} { return $child }
+2	2	2	0	::tcl::dict::lappend
+2	2	2	0	::tcl::namespace
+2	2	1	0	::tcl::namespace::eval
+2	2	2	0	::tcl::namespace::exists
+2	2	1	0	::tcl::namespace::origin
+2	2	2	0	::tcl::namespace::which
+2	2	2	0	::variable
+2	2	2	0	::while
+2	2	2	0	:namespace inscope :: cmd
+2	2	2	0	:tcl::dict
+2	2	2	0	ARITH DOMAIN list
+2	2	2	0	Add catch result + options variable(s)
+2	2	2	2	C create c1 1 out 0 -c 1e-9 L create l1 1 out 0 -l 10e-6 C create c2 2 n002 0 -c 1e-9 foreach elem [list c1 l1 c2] { $elem actOnParam -set 1 }
+2	2	1	0	Clock format string
+2	2	1	2	DNS::return
+2	2	2	0	EXTERNAL_LIVE 1 {} source
+2	2	2	0	"Extra words after ""else"" clause in ""if"" command"
+2	2	2	1	Extract selection into proc
+2	2	1	0	"HTTP::uri ""/new"" set parts [split [HTTP::uri /path] ""?""]"
+2	2	2	0	Jim namespace import cyclic alias chain
+2	2	1	0	Jim oracle not requested and unavailable; set TCL_LSP_JIMSH
+2	2	1	0	Literal string
+2	2	2	0	Meta create Made { method go {} {return 1} }
+2	2	2	0	"No expression after ""if"" argument"
+2	2	2	0	OK ::oo::define 0 CALLER HERE
+2	2	2	0	RUN if [ -f tclpkg.lock ]; then tcl pkg install --frozen; fi
+2	2	2	0	Tcl 9.0.4 array-get trace oracle
+2	2	1	2	Unicode fixture source
+2	2	2	0	Unknown Jim source path recipe
+2	2	2	0	X {list MATCH}
+2	2	2	2	[::C new] ping
+2	2	1	0	[a] [b]
+2	2	2	0	[a][b]
+2	2	2	0	[append
+2	2	2	1	[catch {incr x}]
+2	2	2	0	[data]
+2	2	2	0	[diagnostics] W112 = true
+2	2	2	0	[diagnostics] disabled = W210
+2	2	1	0	[dict get $d k1 k2]
+2	2	1	0	[documented]
+2	2	2	0	[error REACHED]
+2	2	2	0	[exec ls]
+2	2	1	0	"[expr ""$a == $b""]"
+2	2	1	2	"[expr {$s contains ""cd""}]"
+2	2	2	0	[expr {1+1}]
+2	2	1	0	[express]
+2	2	2	0	[features]
+2	2	2	0	[file dirname $base]
+2	2	1	0	"[format ""%d-%d"" 1 2]"
+2	2	2	0	[getcmd] doit
+2	2	2	1	[helper $x]
+2	2	2	0	[incr c]
+2	2	1	0	[incr n]
+2	2	2	0	[info constant A] [info consts A] [info consts G]}
+2	2	2	0	[info constant U] [info consts ::*] [info consts N::*]}; p
+2	2	2	0	[info constant [info object namespace op]::Q]
+2	2	2	0	[info consts N::*] [info consts ::N::*]
+2	2	1	0	[linsert $l 1 X]
+2	2	2	0	[list VALUE]
+2	2	2	0	[list a; list b]
+2	2	1	1	[list a[lindex $x 0]b]
+2	2	1	0	[list a]
+2	2	1	0	[list cb]
+2	2	2	0	[list process $x]
+2	2	1	0	[list source [file join $dir { spaced.tcl }]]
+2	2	1	0	"[list source [file join $dir {""quoted"".tcl}]]"
+2	2	1	0	[list source [file join $dir {cash$name.tcl}]]
+2	2	1	0	[list source [file join $dir {} empty.tcl]]
+2	2	1	0	[list {*}$a {*}$b {*}$c]
+2	2	1	0	[list {*}$a]
+2	2	2	0	[list {a b c}]
+2	2	1	0	[llength $lst]
+2	2	1	0	[llength $x]
+2	2	2	0	[llength {a b}] # c
+2	2	1	0	[lreplace $l 1 2 X]
+2	2	2	0	[lsort [info consts]] [info constant L] [info constant G]
+2	2	2	0	[lsort {a b}]
+2	2	1	0	[make $x]
+2	2	2	0	[makeargs]
+2	2	1	0	[nonexistent_fold args]
+2	2	2	1	[opaque]
+2	2	2	0	[optimiser] profile = aggressive
+2	2	2	0	[optimiser] profile = readability
+2	2	2	0	[project]
+2	2	2	0	"[puts ""hello world""]"
+2	2	1	0	[regexp -nocase abc $s]
+2	2	1	0	[sandbox] max-timeout-secs = 1
+2	2	1	0	[self object]
+2	2	1	0	[set $name 2]
+2	2	1	0	[set b]
+2	2	2	0	[set condition_probe 1]
+2	2	2	0	[set n]
+2	2	2	0	[set x 1; set y 2]
+2	2	1	0	[set x [set y 1]]
+2	2	1	0	[set x {b}{]
+2	2	1	0	[set y [set z 42]]
+2	2	2	0	[set {ÿ}]
+2	2	2	0	[string cat a b]
+2	2	1	0	[string compare -length 3 $a $b]
+2	2	1	0	[string compare -nocase $a $b]
+2	2	1	0	[string equal -nocase $a $b]
+2	2	1	1	"[string length ""𝄞""]"
+2	2	1	0	[string length $s]
+2	2	1	1	[string length $s] == 0
+2	2	1	0	[string length abc]
+2	2	1	0	[string tolower [HTTP::path]]
+2	2	1	0	[tT][cC][lL]
+2	2	1	0	[unbalanced
+2	2	1	0	[verticalAxis $win.a]
+2	2	2	0	[workspaceScan] max_files = 100
+2	2	2	0	[workspaceScan] max_files = 9000
+2	2	2	1	[﻿quote ${a{b}]
+2	2	1	0	\$literal
+2	2	2	0	] binary scan $observed H* hex set hex
+2	2	1	0	^[a-z]+$
+2	2	1	2	"`$s contains ""cd""` with $s = abcde must fold to 1 under an iRules policy"
+2	2	1	2	`list` is untouched by a `rename llength` and keeps its fold
+2	2	2	0	`upvar`
+2	2	1	0	a $b [c].tcl
+2	2	2	0	a Value member requires no variable-trace domain
+2	2	2	0	a [inert]
+2	2	1	0	a barrier-defined variable must be Overdefined, not absent/Unknown
+2	2	1	0	a literal-colon namespace segment must not be canonicalised as Tcl source
+2	2	1	2	a renamed `list` must not fold to the builtin's answer
+2	2	1	0	a$b[set b]
+2	2	1	0	a$b[set b]\x41
+2	2	1	0	a:::$x:b
+2	2	1	0	a[set b
+2	2	1	0	abs($a - $b)
+2	2	2	0	actual Guest trace has no Host refusal
+2	2	2	0	actual callback event variable
+2	2	1	2	actual original FIRST_ARG source owner
+2	2	1	0	actual readonly source body owner
+2	2	1	1	actual source action
+2	2	1	2	actual source metadata
+2	2	2	0	actual-source.tcl
+2	2	2	1	add variable x write cb
+2	2	2	0	"after 200 {puts ""Hello world!""}"
+2	2	2	0	after idle
+2	2	1	2	after idle set done 1
+2	2	2	0	after {word} {{}}
+2	2	2	0	after#0
+2	2	2	0	after-forget.tcl
+2	2	2	0	after-unset-missing
+2	2	2	0	"ambiguous option """": must be execution, command, or variable"
+2	2	2	0	"ambiguous option ""v"": must be add, info, remove, variable, vdelete, or vinfo"
+2	2	1	1	an eval is a barrier-shaped fallback
+2	2	1	0	an unexported global command installs nothing
+2	2	1	2	an untouched `list` still folds
+2	2	1	2	append $selector value
+2	2	1	1	append ${arr}(buf) x
+2	2	1	0	"append items "" $item"""
+2	2	2	1	append value $suffix; return $value
+2	2	1	2	append {$literal} value
+2	2	1	0	apply $lambda 1
+2	2	1	0	apply {{a b} { expr {$a + $b} }} 1 2
+2	2	2	0	apply {{a b} {return $b}} 1 2
+2	2	2	0	apply {{a b} {return [expr {$a+$b}]}} 1 2
+2	2	2	0	apply {{dir} { foreach f {mypkg.tcl} { package ifneeded mypkg 1.0 [list source [file join $dir $f]] } }} $dir
+2	2	2	0	apply {{if} { puts $if }} 1
+2	2	2	1	apply {{x y} {return [expr {$x+$y}]}} 1 2
+2	2	1	0	apply {{{a b c}} {return 1}}
+2	2	2	2	apply {{} if\ 1\ \{puts\ hi\}}
+2	2	1	0	apply {{} {﻿puts 1}}
+2	2	2	0	array set a {}
+2	2	1	0	array set fresh {}; set fresh VALUE
+2	2	1	2	autoload-rename
+2	2	2	0	available {tcl 8.6} {package f5-iapps-cmds}
+2	2	2	0	"bad index ""{source}"": must be intexpr or end?[+-]intexpr?"
+2	2	2	0	"bad option ""-badopt"": must be -exact, -glob, -indexvar, -matchvar, -nocase, -regexp, or --"
+2	2	1	0	"bad option ""-bogus"": must be -global, -namespace, or --"
+2	2	2	0	"bad option ""-namespace"": must be -global or --"
+2	2	2	0	"bad option ""bogus"": must be execution, command, or variable"
+2	2	2	0	"bad option ""variable"": must be add, info, or remove"
+2	2	2	0	"bad option ""zzz"": must be add, info, remove, variable, vdelete, or vinfo"
+2	2	2	0	"bad variable name ""a(b)"": can't create a scalar variable that looks like an array element"
+2	2	2	0	binary decode uuencode [binary encode uuencode Cat]
+2	2	1	0	binary scan $d q v
+2	2	1	0	binary scan $x ss a b
+2	2	2	0	braced and quoted multi-line string literals must highlight identically
+2	2	2	0	build tcl-lsp from source
+2	2	2	0	but it needs the eval fallback
+2	2	2	0	cache-after-temporary-miss
+2	2	2	1	"can't read ""greet"": no such variable"
+2	2	1	0	"can't read ""missing"": no such variable"
+2	2	2	0	"can't read ""missing:::b"": no such variable"
+2	2	2	0	"can't read ""n"": no such variable"
+2	2	2	0	"can't read ""tcl_patchLevel"": no such variable"
+2	2	2	0	"can't set ""a"": variable is array"
+2	2	2	0	"can't set ""a(k)"": variable isn't array"
+2	2	2	0	"can't use non-numeric string as operand of ""*"""
+2	2	1	0	"cannot use a list as operand of ""-"""
+2	2	1	0	cash$name.tcl
+2	2	1	0	"catch ""puts $x"""
+2	2	1	0	"catch ""puts hi"""
+2	2	1	0	catch $script
+2	2	1	0	catch result
+2	2	2	0	catch { puts hi } result options
+2	2	2	1	catch { set x 1 }
+2	2	1	0	catch {close $fh}
+2	2	2	0	catch {error FAIL INFO NONE} m;list $m $::errorInfo $::errorCode
+2	2	2	0	catch {error FAIL INFO {CUSTOM DETAIL}} m;list $m $::errorInfo $::errorCode
+2	2	2	0	catch {error FAIL INFO} m;list $m $::errorInfo $::errorCode
+2	2	2	0	catch {error FAIL {} NONE} m;list $m $::errorCode
+2	2	2	0	catch {error FAIL {} {CUSTOM DETAIL}} m;list $m $::errorCode
+2	2	2	0	catch {error FAIL} m;list $m $::errorCode
+2	2	1	0	catch {error e}
+2	2	2	0	catch {error oops} ;# best effort
+2	2	2	0	catch {error oops} result ;# best effort
+2	2	2	0	catch {error oops} result options
+2	2	2	0	catch {error x} msg
+2	2	2	2	catch {for {set i 0} {$i < 5} {incr i} {if {$i == 2} {error x}}}
+2	2	2	0	catch {lindex {} BAD} m;list $m $::errorCode
+2	2	2	0	catch {namespace ensemble create -bogus} m; set m
+2	2	2	0	catch {namespace ensemble create -command} m; set m
+2	2	2	0	catch {namespace ensemble create -namespace ::x} m; set m
+2	2	2	0	catch {namespace ensemble frobnicate} m; set m
+2	2	1	0	catch {set ::other VALUE}
+2	2	2	0	catch {uplevel #0 {error BODY}} m o; list [dict get $o -errorstack] [dict keys $o]
+2	2	2	0	catch {uplevel 0 {error BODY}} m o; list [dict get $o -errorstack] [dict keys $o]
+2	2	2	1	changed source
+2	2	1	0	class Point {x 0} puts OPAQUE proc {Point move} {dx} {return $dx}
+2	2	1	0	clock format $t -format {%Y-%m-%d}
+2	2	2	2	clock format [expr {1.5}] -gmt 1
+2	2	1	0	cmd {*}$args
+2	2	1	0	cmd {*}$x
+2	2	2	0	compared-string
+2	2	1	0	complete original return proposal
+2	2	1	0	complete original set proposal
+2	2	1	0	complete-source-census
+2	2	2	0	const ::x 1; list [info consts :::x] [info consts ::::x] [info consts ::::::*]
+2	2	2	0	const G 1; namespace eval N {const C 2; set ordinary 0};
+2	2	2	0	coroutine c apply {{} {return [yield READY]}}
+2	2	1	0	coroutine paused apply {{} {yield READY; return END}}
+2	2	2	0	couldn't find HOME environment variable to expand path
+2	2	2	0	"couldn't set variable ""a(k)"""
+2	2	2	0	counted-native-source
+2	2	1	0	create_clock -period 10 [get_ports clk]
+2	2	2	0	default-namespace-command.tcl
+2	2	2	0	delete rename
+2	2	2	0	delete-return
+2	2	1	0	destructor { return }
+2	2	1	0	dict bogus a b
+2	2	2	0	dict create a b
+2	2	2	0	"dict element in quotes followed by ""c"" instead of space"
+2	2	2	0	dict filter {a 1 b 2 aa 3} key a*
+2	2	2	0	dict filter {a 1 b 2 aa 3} value 2
+2	2	2	0	dict filter {a 1 b 2 c 3} script {k v} {expr {$v > 1}}
+2	2	2	0	dict filter {a 1 b 2} key
+2	2	2	0	dict filter {a 1} k *
+2	2	2	0	dict filter {a 1} {} *
+2	2	2	0	dict filter {a b c} bogus
+2	2	2	0	dict for {k v} $d { puts $k }
+2	2	2	1	dict for {k v} $d {puts $k}
+2	2	1	0	dict get $opts -errorcode
+2	2	1	0	dict get $opts -errorinfo
+2	2	2	0	dict get {a 1 b 2} b
+2	2	2	0	dict get {a {b 1}} a c
+2	2	2	0	dict getdef {a 1} a
+2	2	2	0	dict k {a 1}
+2	2	2	0	dict keys {a 1 b 2}
+2	2	2	2	dict lappend values key [C new]; [dict get $values key] ping
+2	2	1	0	dict registered
+2	2	2	0	dict set ::d k v
+2	2	2	0	"dict set frame proc ""asasdas asd"""
+2	2	2	2	dict set other key [C new]; [dict get $values key] ping
+2	2	2	2	dict set values key UNKNOWN; [dict get $values key] ping
+2	2	2	2	dict set values key [C new]; rename C D; [dict get $values key] ping
+2	2	2	2	dict set values outer inner [C new]; [dict get $values outer] ping
+2	2	2	0	dict si {a 1}
+2	2	2	0	dict spec
+2	2	2	0	dict update
+2	2	2	0	dict values {a 1 b 2}
+2	2	2	1	dict with
+2	2	1	0	dict {*}{create a b}
+2	2	2	0	dict {} {a 1}
+2	2	1	0	dict-for
+2	2	1	0	document-proc
+2	2	2	1	elided:no-trace-reaches-cell
+2	2	2	1	"error ""boom-$x"""
+2	2	1	0	error STOP; return [expr {1 / 0}]
+2	2	2	0	error [set message BODY] [set info STACK]
+2	2	2	0	"eval ""safeprefix"" $x"
+2	2	1	0	eval $cmd arg
+2	2	2	0	eval $cmd$args
+2	2	1	1	eval $other
+2	2	1	0	eval $x [unknown_callback]
+2	2	1	0	eval [concat $script $args]
+2	2	1	0	eval [split $line :]
+2	2	1	0	eval [subst $template]
+2	2	1	0	eval puts hello
+2	2	2	0	eval set
+2	2	2	0	eval set l2 hello puts $l2
+2	2	1	0	eval set\ x 5
+2	2	2	0	eval {puts hi}
+2	2	1	0	eval {set x 1} {puts $x}
+2	2	1	1	evaluated: error after 0 stores
+2	2	2	2	event disable all return
+2	2	2	0	expect {-re {^ready$} {puts ready} -timeout 5 timeout {puts slow}}
+2	2	1	1	expect {ready puts;expect_semicolon_unknown}
+2	2	1	0	expected `length` in subcommand list: {}
+2	2	1	1	expected boolean value but got a list
+2	2	2	0	expose-non-global
+2	2	2	1	"expr ""$value + 2"""
+2	2	2	1	"expr ""abs(1)"""
+2	2	2	0	expr $left + $right
+2	2	2	0	expr { 1 + 2 * 3 }
+2	2	2	0	expr {!(1 && 0)}; info frame 0
+2	2	2	0	expr {!1 || !0}
+2	2	1	0	"expr {""set"" in [info commands]}"
+2	2	1	0	expr {$a < $b}
+2	2	2	0	expr {$a+1}
+2	2	1	0	expr {$value}
+2	2	2	0	expr {$x ? (1/0) : (1+2)}
+2	2	2	0	expr {1+2*3}
+2	2	2	0	expr {2 ** 3}
+2	2	1	0	expr {2 + 1}
+2	2	2	0	expr {3 + 4}
+2	2	1	0	expr {3.5}
+2	2	1	1	expr {[expr {$x * 2}]}
+2	2	1	0	expr {[expr {$x + 1}]}
+2	2	1	0	expr {[expr {1+1}] + 1}
+2	2	1	1	expr {[info exists target]}
+2	2	2	0	expr {abs( 1 )}
+2	2	2	0	expr {abs(-1)}
+2	2	1	0	expr {abs(-2)}
+2	2	2	1	expr {abs(077)}
+2	2	2	0	expr {local(1)}
+2	2	2	0	expr {rand()}
+2	2	1	0	expr {si
+2	2	2	0	expr {srand(1)} set v {} for {set i 2} {$i <= 145} {incr i} { set v [expr {rand()}] } set v
+2	2	2	1	"expr {{${inert} [missing $also_inert]} eq ""${active}"" && $array($index) ne [set value $nested]}"
+2	2	2	1	expr {{{expression}}}
+2	2	1	0	expr {{{src}}}
+2	2	2	0	fconfigure stdout -translation binary; puts -nonewline [binary format H* ff41]
+2	2	1	0	file delete -- $path
+2	2	2	0	file:///after.tcl
+2	2	1	0	file:///source-%FF.tcl
+2	2	1	0	file:///source.tcl
+2	2	1	0	fold [ expr {$x * 2} ]
+2	2	2	0	"foo ""q""{*}$z"
+2	2	1	1	foo $x [incr x] $x
+2	2	1	0	foo proc foo {} {}
+2	2	2	0	foo {*}{*}$args
+2	2	2	0	foo$bar
+2	2	2	0	foo[cmd]
+2	2	2	2	for {set i 0} {$i < 10} {incr i} {if {$i == 3} break}
+2	2	1	2	for {set i 0} {$i < 10} {} {puts hi}
+2	2	2	2	for {set i 0} {$i < 2.5} {incr i} {}
+2	2	2	2	for {set i 0} {$i < 5} {incr i} {}
+2	2	1	0	for {set i 0} {$i<2} {set x ${i}} {puts a}
+2	2	1	2	for {set i 0} {0} {incr i} { puts looping }
+2	2	1	0	for {set i 0} {si
+2	2	1	2	for {} {0} {} { puts looping } puts done
+2	2	1	0	foreach i {1 2 3} {puts $i}
+2	2	2	0	foreach n [info commands ::N::*] {trace add command $n delete rec} namespace delete ::N
+2	2	2	0	foreach varlist is empty
+2	2	1	1	foreach x $items $body
+2	2	2	0	foreach x $l y {puts $x}
+2	2	2	0	foreach x $l {puts $x}
+2	2	2	0	foreach x {a b c} { puts $x }
+2	2	2	2	foreach x {} {}
+2	2	2	2	foreach {a b} {1 2 3} {}
+2	2	2	1	format %c [expr {1.5}]
+2	2	2	1	format %d [expr {1.5}]
+2	2	2	0	format %x $x
+2	2	2	1	format %x [expr {2.0}]
+2	2	2	0	format {%08x} 42 rename format origfmt
+2	2	2	0	frobnicate $x
+2	2	1	0	gated-global
+2	2	1	0	gated-write {$scalar(open} VALUE
+2	2	1	1	genuine original return fixture
+2	2	2	0	global ${ns}::v
+2	2	2	0	global ${ns}v
+2	2	1	0	global frame declaration is a no-op
+2	2	2	0	global longleft; return $longleft
+2	2	2	0	global-cell
+2	2	2	0	global-helper-replacement.tcl
+2	2	2	0	hide-non-global
+2	2	2	1	hold $script
+2	2	1	0	hold-script { # café 😀 \ puts 😀 }
+2	2	1	0	host[set ::hint 1]
+2	2	1	2	i == 10 after the loop, so the branch is true
+2	2	2	0	"if ""1"""
+2	2	1	0	if $condition
+2	2	2	0	"if 0 {} ""else"" {puts ok}"
+2	2	1	0	if 1 $body
+2	2	1	1	if 1 { puts baseline }
+2	2	1	0	if 1 {break}
+2	2	1	0	if 1 {puts α}
+2	2	1	1	if 1 {}
+2	2	1	0	"if { [HTTP::uri] contains ""something"" } { log local0. x }"
+2	2	1	0	"if { [HTTP::uri] contains ""user=test"" } { log local0. x }"
+2	2	1	0	"if { [HTTP::uri] ends_with "".html"" } { log local0. x }"
+2	2	1	0	"if { [HTTP::uri] matches_glob ""*&key=*"" } { log local0. x }"
+2	2	1	0	"if { [HTTP::uri] matches_glob ""/api/*"" } { log local0. x }"
+2	2	1	0	"if { [HTTP::uri] starts_with ""/api"" } { log local0. x }"
+2	2	1	0	if {!($a < $b)} {puts x}
+2	2	1	0	if {!($a<$b)} {puts x}
+2	2	1	0	"if {!($x == ""foo"")} {puts no}"
+2	2	2	0	if {!(1 && 0)} {puts yes}
+2	2	2	0	if {!(1 && 0)} {}
+2	2	1	0	"if {$a == ""1.25""} {}"
+2	2	1	1	"if {$a == ""hello""} {}"
+2	2	1	0	"if {$a == ""true""} {}"
+2	2	1	0	"if {$a == $b || $x == ""foo""} {puts y}"
+2	2	1	0	if {$a == $b} {}
+2	2	1	0	if {$a lt $b} { puts hi }
+2	2	1	0	if {$condition} {set result A}; if {[set condition]} {set result B}
+2	2	2	1	if {$condition} {set x 1} else {set x 2}
+2	2	1	1	"if {$host eq ""a.com""} { pool web_pool } elseif {$host eq ""b.com""} { pool web_pool } elseif {$host eq ""c.com""} { pool web_pool }"
+2	2	1	1	"if {$host eq ""a.com""} {pool web_pool} elseif {$host eq ""b.com""} {pool web_pool} elseif {$host eq ""c.com""} {pool web_pool}"
+2	2	2	0	if {$static::broken +} {}
+2	2	1	0	if {$unknown} {rename proc original; original proc args {return ordinary}}; proc p {{a b c}} {}
+2	2	1	0	"if {$x != ""bar""} {puts no}"
+2	2	1	2	if {$x % 8} {}
+2	2	1	2	if {$x ** 2} {}
+2	2	1	0	"if {$x == ""42""} {puts yes}"
+2	2	1	0	"if {$x == ""true""} {puts yes}"
+2	2	1	0	if {$x == 42} {puts yes}
+2	2	1	0	if {$x > 0} {puts yes}
+2	2	1	1	"if {$x eq ""a""} { puts 1 } elseif {$x eq ""b""} { puts 2 }"
+2	2	2	0	"if {$x eq ""a""} { puts ok }"
+2	2	1	0	"if {$x eq ""foo""} {puts yes}"
+2	2	2	0	"if {$x eq ""one"" || $x eq ""two""} {puts FIRST} elseif {$x eq ""three""} {puts SECOND}"
+2	2	2	0	"if {$x eq {""80""} || $x eq { 80 }} {puts SAME}"
+2	2	1	0	if {$x eq {a}} {puts a}
+2	2	2	0	if {$x} then { puts yes } else { puts no }
+2	2	2	0	if {$x} { puts a } else { puts b }
+2	2	2	0	if {$x} { set a 1 } elseif {$y} { set b 2 } else { set c 3 }
+2	2	1	1	if {$x} { set y 1 }
+2	2	1	0	if {$x} {body}
+2	2	1	0	if {$x} {puts hi}
+2	2	1	1	if {$x} {return 1} puts after
+2	2	1	0	if {$x} {set a 1} else {set a 2}
+2	2	1	2	if {($a > $b) ? 1 : 0} { puts yes }
+2	2	1	1	if {0}
+2	2	1	1	if {0} { set a 1 } elseif {1} { set b 2 } else { set c 3 }
+2	2	1	1	if {0} { set x 1 } else { set y 2 }
+2	2	2	1	if {0} {set x 1}
+2	2	2	0	if {1 == 1} {} elseif {[incr x]} {}
+2	2	1	0	if {1} { if {0} { set dead 1 } set alive 2 }
+2	2	1	0	if {1} { if {2} { set x 1 } }
+2	2	1	0	"if {1} { puts ""yes"" puts ""really"" }"
+2	2	1	1	if {1} { set x 1 }
+2	2	1	0	if {1} {a} {b} {c}
+2	2	2	0	if {1} {class Point {x 0}; class Derived Point {z 0}}
+2	2	1	1	if {1} {if {2} {puts a}} puts done
+2	2	1	0	if {1} {si
+2	2	1	0	if {1} {string equal -nocase A a}
+2	2	1	1	if {1} {}
+2	2	1	2	if {[expr {$x + 1}]} {}
+2	2	1	1	if {[string length $s] != 0} {}
+2	2	1	1	if {[string length $s] == 0} {}
+2	2	1	1	if {[string length $s] > 0} {}
+2	2	1	0	if {si
+2	2	2	0	"if {{{subject} eq ""a""}} {{drop}} elseif {{{subject} eq ""b""}} {{drop}}"
+2	2	2	0	"import pattern ""::self::*"" tries to import from namespace ""self"" into itself"
+2	2	1	2	in a* {puts yes} default {puts no}
+2	2	2	0	include $file
+2	2	2	0	include [set file]
+2	2	1	1	incr $counter
+2	2	1	1	incr ${arr}(n)
+2	2	1	2	incr a($i)
+2	2	2	0	incr c
+2	2	2	0	incr fresh
+2	2	2	0	incr i 2
+2	2	1	1	incr r [expr {$x + [set x 10]}]
+2	2	2	0	"incr side; set x """
+2	2	2	1	incr v
+2	2	2	0	incr x $amount
+2	2	1	0	incr x -127
+2	2	1	0	incr x -128
+2	2	2	0	info comm set
+2	2	2	0	info commands $pattern
+2	2	1	0	info complete {set x [}
+2	2	1	2	info exists $dynamic
+2	2	2	1	info exists $x
+2	2	1	0	info exists \$literal
+2	2	1	0	info exists \[literal\]
+2	2	1	0	info exists {[literal]}
+2	2	2	0	info locals; return $longleft
+2	2	2	1	info object class $o
+2	2	1	0	info object class $obj
+2	2	2	1	info object properties $o
+2	2	1	0	inner namespace
+2	2	2	0	input string does not match supplied format
+2	2	2	0	inspect X; inspect [error FAIL]
+2	2	2	0	inspect X; set x {bad
+2	2	2	0	inspect pre${v}post
+2	2	2	0	int($x)
+2	2	2	0	interp alias slave myfmt {} format
+2	2	2	1	interp alias {} $n {} format
+2	2	1	1	interp alias {} ::case_alias::pick {} switch
+2	2	1	1	interp alias {} ::root_pick {} ::switch
+2	2	2	0	interp alias {} = {}
+2	2	1	0	interp alias {} = {} expr
+2	2	2	1	interp alias {} = {} expr proc f {x} { return [= {$x + 1}] }
+2	2	1	0	interp alias {} = {} expr proc foo {x y} { set result [= {$x + $y}] return $result }
+2	2	2	1	interp alias {} C {} list; [C new] ping
+2	2	1	0	interp alias {} a {} b interp alias {} b {} expr
+2	2	2	0	"interp alias {} add {} append out add "" $item"""
+2	2	2	0	interp alias {} aliased {} set
+2	2	2	0	interp alias {} at {} string range {λé} 9; at 12
+2	2	2	0	interp alias {} branch {} if 1 branch {puts $value}
+2	2	2	0	interp alias {} build {} file join /ROOT; lappend auto_path [build {literal$é}]
+2	2	1	1	interp alias {} cb {} ::external FIXED lsort -command {cb BAKED} {2 1}
+2	2	1	0	interp alias {} cb {} external FIXED lsort -command cb {2 1}
+2	2	2	0	interp alias {} choose {} switch -regexp literal {(é+)+ {BODY}}; choose
+2	2	2	0	interp alias {} choose {} switch -regexp subject choose a $body
+2	2	1	0	"interp alias {} define {} proc define f {} { # noqa: W305 puts ""‮"" }"
+2	2	2	0	interp alias {} delegated {} puts; delegated ONE
+2	2	1	1	interp alias {} ensure {} package require; $unknown Tcl
+2	2	1	0	interp alias {} fmt {} format {%d}; fmt 7
+2	2	1	0	interp alias {} fmt {} format; fmt {%d} 7
+2	2	2	0	interp alias {} idx {} string index held; idx 1
+2	2	1	0	interp alias {} invoke {} apply $lambda invoke 1
+2	2	1	0	interp alias {} invoke {} apply {{a b} {return ok}} invoke 1
+2	2	1	0	interp alias {} la {} lassign
+2	2	2	0	interp alias {} myfmt {} format
+2	2	2	0	interp alias {} myindex {} ::lindex set x [dict create a 1 b 2] myindex $x 0
+2	2	1	0	interp alias {} myop {} expr interp alias {} myop {} puts
+2	2	2	1	interp alias {} obj {} list; obj ping
+2	2	1	1	interp alias {} pick {}
+2	2	1	1	interp alias {} pick {} puts
+2	2	2	0	"interp alias {} render {} subst -nocommands; render ""pré $tmpl"""
+2	2	1	0	interp alias {} run {} eval {set local}; run $script
+2	2	1	0	interp alias {} run {} eval; rename eval Held; run $script
+2	2	1	0	interp alias {} run {} eval; run $script
+2	2	1	1	interp alias {} shout {} puts
+2	2	2	0	interp aliases {}
+2	2	2	0	interp children
+2	2	2	0	interp create - k
+2	2	2	0	interp create -s k
+2	2	2	0	interp create -safe s interp eval s { after idle [list apply {x { puts $x }} val] }
+2	2	2	0	interp create -safe s interp eval s { set x [source b.tcl] }
+2	2	2	0	interp create -safe s interp eval s { {*}[list source b.tcl] }
+2	2	1	0	interp create -safe s; mystery; s eval {source a.tcl}
+2	2	1	0	interp create -safe s; namespace eval N {}; rename s ::N::held; ::N::held eval {source a.tcl}
+2	2	1	0	interp create -safe s; proc s args {}; s eval {source a.tcl}
+2	2	1	0	interp create -safe s; rename s first; rename first second; second eval {source a.tcl}
+2	2	1	0	interp create -safe s; rename s moved; moved eval {source a.tcl}
+2	2	1	0	interp create -safe s; rename s moved; rename moved {}; moved eval {source a.tcl}
+2	2	1	0	interp create -safe s; rename s moved; s eval {source a.tcl}
+2	2	2	0	interp create -safe sandbox
+2	2	2	0	interp create -x k
+2	2	2	0	interp create InfoParent085; interp eval InfoParent085 {interp create InfoChild085}; info loaded {InfoParent085 InfoChild085}
+2	2	2	0	interp create c; interp limit c commands -granularity 4294967296
+2	2	2	0	interp create c; interp limit c commands -value -1
+2	2	2	0	interp create c; interp limit c commands -value 0x10; interp limit c commands -value
+2	2	2	0	interp create c; interp limit c commands -value 99999999999999999999
+2	2	2	0	interp create c; interp limit c time -seconds 99999999999999999999
+2	2	1	0	interp create child interp hide child puts
+2	2	2	0	interp create k; k recursionlimit 99999999999999999999
+2	2	1	0	interp delete kid
+2	2	1	0	"interp eval $child ""set x $y"""
+2	2	1	0	interp eval vectorCoreChild {set child}
+2	2	1	0	interp hide {} a held
+2	2	2	0	interp hide {} info hiddenInfo proc observe {} { list [interp invokehidden {} -global hiddenInfo level] [interp invokehidden {} hiddenInfo level] } list [observe] [interp invokehidden {} -global hiddenInfo level]
+2	2	1	0	interp hide {} lassign
+2	2	2	0	interp recursionlimit {} 0
+2	2	2	0	interp recursionlimit {} 0x10
+2	2	2	0	interp recursionlimit {} 9223372036854775808
+2	2	2	0	interp recursionlimit {} 99999999999999999999
+2	2	2	0	interp recursionlimit {} abc
+2	2	1	0	interp slaves
+2	2	2	0	"invalid command name ""oo::class"""
+2	2	2	0	"invalid command name ""oo::configurable"""
+2	2	2	0	"invalid command name ""puts"""
+2	2	2	0	isnan($x)
+2	2	2	0	itcl::class C { variable handler common registry method run {} { $this configure $handler process return $registry } }
+2	2	1	2	j == 5 after the loop
+2	2	1	1	lappend ${arr}(list) item
+2	2	2	0	lappend auto_path [file join /ROOT {a b}]
+2	2	1	0	lappend items $item
+2	2	2	2	lappend values [C new]; [lindex $values 0] ping
+2	2	2	0	lappend x {*}$values
+2	2	1	2	lassign {1 2 3} a b c eval {1 2 3}
+2	2	1	0	lassign {one two} first [set first]
+2	2	2	0	lindex $::crossing 0
+2	2	2	1	lindex $l 0
+2	2	1	0	lindex {a b c} 5
+2	2	2	0	lindex {a b c} end-1
+2	2	1	0	lindex {a b c} foo
+2	2	2	0	lindex {a\x4142 b} 0
+2	2	2	0	linked-root-path-set
+2	2	1	0	"list """""
+2	2	2	0	list #a b
+2	2	2	0	list $::tcl_platform(user) $::tcl_platform(wasm) $::tcl_library $::env(FIRST_ONLY)
+2	2	2	0	list $::tcl_platform(user) $::tcl_platform(wasm) $::tcl_library $::env(SECOND_ONLY) [info exists ::env(FIRST_ONLY)] [info exists ::env(EMBEDDER_STALE)] [info exists ::tclDefaultLibrary] [info exists ::tcl_pkgPath] [llength $::auto_path]
+2	2	1	1	list $first $x [append x B]}
+2	2	2	0	list $r
+2	2	1	0	list ${a{b}c}
+2	2	2	0	list OK
+2	2	2	0	list [catch {return -level 0 -code 0x3 x} m] $m
+2	2	2	0	list [catch {return -level 0x1 x} m] $m
+2	2	2	0	list [catch {return -level abc -level 0 x} m] $m
+2	2	2	0	list [lsort [info consts]] [info consts G]
+2	2	2	0	list [lsort [info vars]] [lsort [info consts]]
+2	2	1	0	list [string equal -nocase A a]
+2	2	2	0	list a
+2	2	2	0	"list element in braces followed by ""b"" instead of space"
+2	2	2	0	"list element in braces followed by ""c"" instead of space"
+2	2	1	1	list final
+2	2	2	0	list index out of range
+2	2	1	0	list p\uD800
+2	2	2	0	list source -encoding utf-8 [
+2	2	2	0	list source [
+2	2	2	0	list value
+2	2	2	0	list {
+2	2	1	1	list {*}$args
+2	2	2	0	list {*}{one two}
+2	2	2	0	list {plain}
+2	2	1	0	list {string equal -nocase A a}
+2	2	1	0	list {unterminated
+2	2	2	0	llength $d
+2	2	1	0	llength $r
+2	2	1	0	llength [interp sl]
+2	2	2	0	llength [list a b c]
+2	2	2	1	llength [list {*}{a b}]
+2	2	1	0	load $fileName
+2	2	2	0	locate Tcl 9.0.4 source tree
+2	2	2	0	log local0. $x
+2	2	1	0	loud {set debug 1} default {set debug 0}
+2	2	2	1	lrepeat [expr {1.5}] a
+2	2	1	0	lsearch -exact $domain c
+2	2	1	0	lsearch -regexp -str 2 {a b} {a+}
+2	2	2	0	lsearch -regexp {a b} (
+2	2	1	0	lsearch -regexp {a b} {a+}
+2	2	2	0	lsearch -regexp {foo123 bar456} {[0-9]+}
+2	2	2	0	lsort -command {apply {{a b} {return 4294967295}}} {1 2}
+2	2	2	0	lsort -command {apply {{a b} {return 99999999999999999999}}} {1 2}
+2	2	2	0	lsort -command {apply {{a b} {return x}}} {1 2}
+2	2	2	1	lsort -stride [expr {2.0}] {a b c d}
+2	2	2	0	lsort -unique -command {apply {{a b} {expr {$a - $b}}}} {3 1 3 2 1}
+2	2	2	0	ltm pool /Common/web_pool { } ltm rule /Common/r { when HTTP_REQUEST { pool /Common/web_pool } }
+2	2	2	0	ltm rule /Common/r { when HTTP_REQUEST { pool /Common/missing } }
+2	2	2	0	max(abs($x), 2)
+2	2	2	0	merged-after-words-drop
+2	2	2	0	method m {} {puts α}
+2	2	1	1	method m {} {return VALUE}
+2	2	1	2	method own {} { return plain-own }
+2	2	1	0	method ping {} {return ORIGINAL}; unexport ping
+2	2	2	0	method reset {} { return 0 }
+2	2	2	0	method tick {} { return 1 }
+2	2	2	0	method unknown {w args} { return $w }
+2	2	1	1	method — source declaration candidate
+2	2	1	0	missing-alpha-rename-contract
+2	2	2	0	must be -global, -namespace, or --
+2	2	2	0	must be append, create, exists, filter, for, get, getdef, getwithdefault, incr, info, keys, lappend, map, merge, remove, replace, set, size, unset, update, values, or with
+2	2	2	0	mystery $longleft
+2	2	2	0	mystery; puts [mypkg_autoloaded]
+2	2	2	0	namespace cu
+2	2	2	0	namespace delete
+2	2	2	0	namespace delete ::
+2	2	2	0	namespace delete src
+2	2	2	0	namespace ensemble configure tk -map [dict merge [namespace ensemble configure tk -map] {systray ::tk::systray}] tk zzznotreal
+2	2	2	0	namespace ensemble create
+2	2	2	0	namespace ensemble create -command ::E
+2	2	2	0	namespace ensemble create -command ::q -foo x
+2	2	2	0	namespace ensemble create -command ::q -map {} -prefixes {yes }
+2	2	1	1	namespace eval $ns {}
+2	2	2	0	namespace eval : { proc : args { return hello } } namespace eval : { : }
+2	2	2	0	namespace eval :: $state(-command) $token
+2	2	2	0	namespace eval :: {set ephemeralRoot 11}; info exists ::ephemeralRoot
+2	2	2	0	namespace eval :: {} namespace eval {} {} namespace children {}
+2	2	2	0	namespace eval ::Bar { namespace import ::Foo::* proc go {} { set x 1 } }
+2	2	2	2	namespace eval ::D {} oo::class create ::D::M1 { superclass oo::class }
+2	2	1	0	namespace eval ::Factory { proc make {} { return 1 } } Factory::make
+2	2	2	2	namespace eval ::Foo { proc mything {} {} namespace export mything }
+2	2	2	0	namespace eval ::InfoScope085 {namespace eval tcl::mathfunc {proc local085 {} {return LOCAL}}; info functions local085}
+2	2	1	2	namespace eval ::N {set value 1; puts $value}
+2	2	2	2	namespace eval ::Ops { proc + {a b} { return OPS } namespace export + }
+2	2	2	0	namespace eval ::U {} puts hello
+2	2	2	1	namespace eval ::a {} proc a::outer {} { proc helper {unusedp} { return 1 } }
+2	2	1	0	namespace eval ::app { namespace forget ::mymod::helper }
+2	2	1	0	namespace eval ::app { namespace import ::mymod::* proc run {} { other } }
+2	2	1	0	namespace eval ::app { proc run {} { helper } }
+2	2	1	0	namespace eval ::app {source child.tcl}
+2	2	2	0	namespace eval ::app {} proc ::app::Helper {} { return 42 } set s [interp create -safe] interp alias $s greet {} ::app::Helper interp eval $s { greet }
+2	2	1	1	namespace eval ::app::widget {
+2	2	2	0	namespace eval ::bench { variable counter 0 }
+2	2	1	1	namespace eval ::case_alias {}
+2	2	1	0	namespace eval ::deep { proc buried {x} { return $x } }
+2	2	1	0	namespace eval ::demo { variable value 1 } proc wire_namespace_vars {} { global ::demo::value upvar 0 ::demo::value local_value unset -nocomplain ::demo::value }
+2	2	1	0	namespace eval ::foo {puts $::auto_path}
+2	2	1	0	namespace eval ::foo {puts $auto_path}
+2	2	2	0	namespace eval ::graph { proc dfs {count} { if {$count & 1} { set parity odd } else { set parity even } if {$count < 3} { dfs [expr {$count + 1}] } } } ::graph::dfs 0
+2	2	1	0	namespace eval ::mymod { proc helper {} {} proc other {} {} namespace export helper }
+2	2	2	0	namespace eval ::myns {
+2	2	1	0	namespace eval ::n { proc a {ctx token} { puts $ctx } proc b {ctx token} { puts $ctx } proc c {ctx token} { puts $ctx } proc dispatch {cmd ctx token} { $cmd $ctx $token } }
+2	2	2	0	"namespace eval ::ns { set s subject set re "".*x"" regexp $re $s }"
+2	2	2	0	namespace eval ::nsa::tcl::mathfunc {} proc ::nsa::tcl::mathfunc::pf {x} { return 20 } namespace eval ::nsa { proc caller {} { return [expr {pf(1)}] } }
+2	2	2	0	namespace eval ::outer { namespace eval inner {} namespace children inner } namespace children inner
+2	2	2	1	namespace eval ::outer { namespace exists {} }
+2	2	2	0	namespace eval ::pix {
+2	2	1	0	namespace eval ::pki { proc _$suffix {} { proc helper {} {} } }
+2	2	2	1	namespace eval ::pq::r {}
+2	2	2	0	namespace eval ::tcl::mathfunc { proc Pi958 {} { return 3.14 } proc Tau958 {} { return 6.28 } } set x [expr {Tau958()}]
+2	2	1	1	namespace eval A { oo::class create Shape {} oo::class create Circle { superclass Shape } } namespace eval B { oo::class create Shape {} oo::class create Square { superclass Shape } }
+2	2	1	0	namespace eval A {} oo::class create A::B {method c {} {return LEFT}} oo::class create A {method B::c {} {return RIGHT}; method <constructor> {} {return NAMED}; constructor {} {set local ACTUAL}; export B::c <constructor>}
+2	2	2	1	namespace eval B
+2	2	1	0	namespace eval Foo { proc bar {} { return 1 } proc other {} { return 2 } namespace export bar } namespace import ::Foo::* other
+2	2	1	2	namespace eval M
+2	2	2	0	namespace eval M {namespace export * proc zeta {} {return Z} proc alpha {} {return A} proc mid {} {return M} namespace ensemble create -command ::E -map {zz zeta aa alpha}}
+2	2	1	2	namespace eval N
+2	2	2	1	namespace eval N {
+2	2	2	0	namespace eval N { proc p {} { namespace delete ::N namespace eval ::N {} set old [list [namespace current] [namespace exists {}] [namespace exists ::N]] set old_code [catch {namespace parent {}} old_message old_options] set new_code [catch {namespace parent ::N} new_message] list $old $old_code $ol
+2	2	2	0	namespace eval N { proc p {} { namespace delete ::N set code [catch {namespace parent {}} message options] list [namespace current] [namespace exists {}] $code $message [dict get $options -errorcode] } p }
+2	2	2	0	namespace eval N { proc p {} {namespace delete ::N; list [catch {namespace delete ::N} m] $m} } ::N::p
+2	2	1	1	namespace eval N {proc :f {} {return [namespace current]}}
+2	2	2	0	namespace eval N {proc helper {} {}}
+2	2	1	0	namespace eval N {proc p {} {}}; namespace delete N; namespace eval N {}
+2	2	2	0	namespace eval N {proc q {} {return Q}} set a [namespace inscope N { namespace delete ::N list [q] [namespace current] [namespace exists ::N] }] list $a [namespace exists ::N]
+2	2	1	0	namespace eval N {set dir /FIRST; source $dir/a.tcl}; namespace eval N {source $dir/b.tcl}; source $dir/c.tcl
+2	2	2	0	namespace eval N {set ephemeral 5; variable v 7; list $ephemeral $v [info locals] [info vars]}; list [info exists ::N::ephemeral] [set ::N::v]
+2	2	2	0	namespace eval N {variable R:::v 6; incr v}; list [set ::N::R:::v] [info exists ::N::R::v]
+2	2	2	0	namespace eval N {variable R::x 9; proc p {} {set R::x 10; list $R::x $::N::R::x}}; N::p
+2	2	2	0	namespace eval N {variable v 4; namespace eval C {variable x 3}}; namespace delete N; list [info exists ::N::v] [info exists ::N::C::x]
+2	2	2	0	namespace eval N {variable v QUALIFIED};set name ::N::v;p
+2	2	2	0	namespace eval N {{info {name}}}
+2	2	2	0	namespace eval N {} set ::N::v VALUE unknown $::N::v
+2	2	2	0	namespace eval N\uD800 {}
+2	2	2	0	namespace eval Probe {proc p {} {package require plain 999}; p}
+2	2	2	0	namespace eval R {variable x 9}; namespace eval N {namespace eval R {}; proc p {} {set R::x 11}}; N::p; list $::R::x [info exists ::N::R::x]
+2	2	1	0	namespace eval a { namespace eval b { proc helper {} { return 1 } } } namespace eval c { namespace eval d { proc helper {} { return 2 } proc caller {} { return [helper] } } }
+2	2	1	0	namespace eval a { proc go {} { return 1 } }
+2	2	2	0	namespace eval a { proc helper {x} { return 1 } } namespace eval b { proc helper {y} { return 2 } helper 5 }
+2	2	2	0	namespace eval a { proc helper {} { return 1 } } namespace eval b { proc helper {} { return 2 } helper }
+2	2	2	0	namespace eval a { set x 1 namespace eval b { puts $x } }
+2	2	1	0	namespace eval a: {namespace eval b {proc p {} {return FIRST}}}; namespace eval a {namespace eval :b {proc p {} {return SECOND}}}
+2	2	1	0	namespace eval app { namespace path ::lib }
+2	2	2	0	namespace eval app { set x 1 puts $x }
+2	2	1	0	namespace eval b { proc go {} { return 1 } }
+2	2	1	0	namespace eval c9::: {} list [namespace exists ::c9] [namespace exists c9:::]
+2	2	2	0	namespace eval created {}
+2	2	2	0	namespace eval declared {variable only list [namespace which -variable only] [info vars] [info exists only]}
+2	2	2	0	namespace eval e {namespace export -clear -clear x} namespace eval e {namespace export}
+2	2	2	0	namespace eval e {namespace export a b; namespace export -clear} namespace eval e {namespace export}
+2	2	2	0	namespace eval e5 {namespace export *; proc go {} {return G} namespace ensemble create -command ::ab5 -subcommands go}
+2	2	2	0	namespace eval foo { proc bar {} {}; proc baz {} {} } namespace eval foo::sub { proc deep {} {} } proc gproc {} {}
+2	2	1	0	namespace eval foo {namespace current}
+2	2	1	0	namespace eval math { proc add {a b} { return [+ $a $b] } }
+2	2	1	0	"namespace eval modelTestVerTool { namespace eval gui { proc specAddButtonPopUp {x y} { return ""$x $y"" } } } ::modelTestVerTool::gui::specAddButtonPopUp 1 2"
+2	2	1	0	namespace eval myns {
+2	2	1	0	namespace eval myns { proc helper {} { return } }
+2	2	2	0	namespace eval mypkg {} # namespace children ::mypkg here
+2	2	2	0	namespace eval mypkg {} namespace eval mypkg {}
+2	2	2	0	namespace eval mypkg {} set d {namespace children ::mypkg}
+2	2	2	0	namespace eval n {namespace import ::lassign}
+2	2	1	0	namespace eval n {proc format {args} {return NS}; format %b 5} format %d 5
+2	2	1	1	namespace eval n\u0000tail {}
+2	2	1	1	namespace eval n\uD800 {}
+2	2	2	1	namespace eval n\uD800 {} namespace exists n\uD800 namespace eval N {} set ::N::v\uD800 1 info exists ::N::v\uD800
+2	2	1	0	namespace eval ns {
+2	2	1	0	namespace eval ns { proc foo {} {} } ns::foo
+2	2	1	0	namespace eval ns { proc inner {} {} }
+2	2	2	1	namespace eval ns { set x hello incr x }
+2	2	2	1	namespace eval ns { variable v 1 }
+2	2	2	0	namespace eval ns {variable foo 1}; proc p {} {global ::ns::foo; puts $foo; puts $::ns::foo; puts $::other::foo}; proc sibling {} {puts $foo}
+2	2	1	0	namespace eval ns {} ns::missing hello
+2	2	1	0	"namespace eval ns {} set ::ns::arr(k) ""alpha beta"" set n [llength $::ns::arr(k)]"
+2	2	1	2	"namespace eval ns {} set ::ns::x ""alpha beta"" set n [llength $::ns::x]"
+2	2	2	0	namespace eval ns {}; namespace eval :ns {}; namespace eval \u00e9 {}; namespace eval :\u00e9 {}
+2	2	2	0	namespace eval ns2 {variable shadow 5 proc q {} {set shadow 9; namespace which -variable shadow}} ns2::q
+2	2	1	0	namespace eval other { proc q {} { return Q } }
+2	2	2	0	namespace eval p {} foreach n {a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11} { namespace eval ::p::$n {} } foreach i {1 2 4 5 6 7 8 9 10 11} {namespace delete ::p::a$i} namespace children ::p
+2	2	2	0	"namespace eval real { proc cleanup {tag} { puts ""real $tag"" } } namespace eval lexical { proc cleanup {tag} { puts ""lexical $tag"" } } apply {{} {cleanup done} ::real}"
+2	2	1	0	namespace eval resolves
+2	2	2	0	namespace eval retiring {trace add variable sentinel unset ::during}
+2	2	2	0	namespace eval retiring {trace variable sentinel u ::during}
+2	2	2	0	namespace eval s3 {namespace export q; proc q {} {return Q}}
+2	2	2	0	namespace eval src { proc helper {} { return SRC } namespace export helper }
+2	2	2	0	namespace eval src {namespace export p; proc p {} {return P}} namespace eval dst {namespace import ::src::p} namespace origin ::dst::p
+2	2	2	0	namespace eval src {proc p {} {}; namespace export p}
+2	2	2	0	namespace eval svg {
+2	2	2	2	namespace eval z { proc helper {a} { return 26 } } namespace eval a { proc helper {b} { return 1 } } helper 1
+2	2	2	0	namespace eval z { proc helper {} { return 26 } } namespace eval a { proc helper {} { return 1 } } helper
+2	2	1	1	namespace eval {*}{ns} {}
+2	2	2	0	namespace eval {my ns} { variable v 7 } namespace children {my ns}
+2	2	2	0	namespace exists
+2	2	2	0	namespace exists ::A
+2	2	2	0	namespace exists retiring
+2	2	1	1	namespace export
+2	2	2	0	namespace export guarded
+2	2	2	0	namespace export helper
+2	2	1	1	namespace export p
+2	2	2	0	namespace forget src::p
+2	2	2	2	namespace import -force ::Foo::* set x 1
+2	2	2	2	namespace import ::Foo::* mything
+2	2	2	0	namespace import ::Foo::* set x 1
+2	2	2	0	namespace import ::Foo::set set x 1
+2	2	1	0	namespace import ::Lib::* bar
+2	2	1	0	namespace import ::Lib::* other
+2	2	2	2	namespace import ::Ops::* + 1 2
+2	2	2	1	namespace import ::acme::widgets::render_* render_box 10 frobnicate 1
+2	2	2	1	namespace import ::lib::*
+2	2	2	0	namespace import ::tcltest::* test t-1 {desc} -body { set x 1 } -result 1
+2	2	2	0	namespace import src::p
+2	2	2	0	namespace origin set
+2	2	2	0	namespace path ::src
+2	2	1	0	namespace qualifiers ::a::b::c
+2	2	1	0	namespace qualifiers foo:::
+2	2	2	0	namespace registered
+2	2	1	0	namespace tail ::a::b::c
+2	2	1	0	namespace tail foo:::
+2	2	1	0	namespace which -command no_such_cmd_xyz
+2	2	2	0	namespace {}
+2	2	2	0	namespace-local-helper-replacement.tcl
+2	2	2	0	namespace-prefix-override.tcl
+2	2	2	0	native set
+2	2	1	0	native string count cache origin
+2	2	1	1	next $name $body
+2	2	1	1	next $name [list superclass [pickBase $extra]]\;$body
+2	2	2	0	next $x
+2	2	2	0	nextto Base $x
+2	2	2	0	"no namespace specified in import pattern ""-force"""
+2	2	2	0	no such variable
+2	2	2	0	non-variable value
+2	2	1	0	oo::Helpers::nextto
+2	2	1	0	oo::abstract create Base {{}}; {mutation}; Base new
+2	2	1	0	oo::abstract create Base {{}}; {tail}
+2	2	1	2	oo::abstract create Base {}; rename Base Moved; Moved new
+2	2	1	0	oo::class create ::C
+2	2	2	0	oo::class create ::C {{ method m {{}} {{ return 1 }} {body} }}
+2	2	2	1	oo::class create ::R::Mk { superclass oo::class }
+2	2	2	1	oo::class create ::Widget
+2	2	1	0	oo::class create A
+2	2	2	0	"oo::class create A { method make {} { ::return [::B new] } } oo::class create B { method greet {} { ::return ""hi"" } } set a [A new] set b [$a make] $b"
+2	2	2	0	oo::class create A {}
+2	2	1	0	oo::class create A {} oo::class create B { superclass A } oo::class create C { superclass B }
+2	2	1	0	"oo::class create ActiveRecord { classmethod find {args} { return ""found $args"" } } ActiveRecord find foo bar"
+2	2	1	2	oo::class create Animal { method speak {} { return animal } }
+2	2	1	0	oo::class create Animal {}
+2	2	2	0	oo::class create B {method inherited {} {}; export inherited}; oo::class create C {superclass B; method Public {} {}; export Public; method hidden {} {}; unexport hidden}; C create O; oo::objdefine O {method OPub {} {}; export OPub; method ohide {} {}; unexport ohide}
+2	2	2	0	oo::class create B {method m {} {return BASE}}
+2	2	2	2	oo::class create B\uD800 {} oo::class create B\uD801 {} oo::class create C {superclass B\uD800; mixin B\uD801}
+2	2	2	0	oo::class create Bar { method get {} { return 1 } } oo::class create Foo { method get {} { return 2 } } set b [Bar new] puts [$b get]
+2	2	2	0	oo::class create Base { constructor {a b} { } } oo::class create Sub { superclass Base } Sub new 1
+2	2	1	0	oo::class create Base { destructor { } } oo::class create Sub { superclass Base destructor { next } }
+2	2	1	0	oo::class create Base { method greet {} {} } oo::class create Sub { superclass Base method greet {} { next } }
+2	2	2	2	oo::class create Base { method tick {} { return 1 } } oo::class create Child { superclass Base method tick {} { return 2 } method wire {} { after idle [list [self] tick] } }
+2	2	2	2	oo::class create Base { method tick {} { return 1 } } oo::class create Child { superclass Base method wire {} { after idle [list [self] tick] } }
+2	2	2	0	oo::class create Base {method ping {} {}}; oo::class create Child {superclass Base; method body {} {my ping}}
+2	2	2	2	oo::class create Base {method run {} {}} mystery oo::class create Child {superclass Base; method run {} {}} oo::class create Other {superclass $missing}
+2	2	1	1	oo::class create Base {} oo::class create Child {superclass Base}
+2	2	1	0	oo::class create Base {} oo::class create Derived { superclass Base }
+2	2	1	0	oo::class create C { classmethod factory {} {} method use {} { factory } }
+2	2	1	0	oo::class create C { constructor {arg} {} method touch_ctor {} { constructor } }
+2	2	1	0	oo::class create C { constructor {} { link factory } classmethod factory {} {} method use {} { factory } }
+2	2	2	0	oo::class create C { method getOptions {k} { return $k } method other {k} { return $k } method run {} { my other 1 } }
+2	2	1	0	oo::class create C { method greet {} {} method twice {} { greet ; greet } }
+2	2	2	0	oo::class create C { method m {arg1 arg2} { puts $arg1 } }
+2	2	2	0	"oo::class create C { method m {s} { ::set re "".*x"" ::regexp $re $s } }"
+2	2	1	0	oo::class create C { method m {} { ::set cmd nope; $cmd arg } }
+2	2	2	1	oo::class create C { method m {} { ::set x hello ::incr x } }
+2	2	1	1	oo::class create C { method m {} { return 1 } method $n {} { return 2 } }
+2	2	1	1	oo::class create C { method m {} { return 1 } }
+2	2	1	0	oo::class create C { method run {} { return ok } } proc f {} { set x [C new]; $x run }
+2	2	1	0	oo::class create C { variable handle method m {} { $handle op } }
+2	2	2	0	oo::class create C {constructor {x} {observe_original; error FAILURE}}
+2	2	2	0	oo::class create C {destructor {observe_original; error FAILURE}}; C create o
+2	2	1	2	oo::class create C {foreach item {left right} {method $item {} {return body}}}
+2	2	2	1	oo::class create C {method changed {} {return body}} C create object object changed
+2	2	1	0	oo::class create C {method m {} {expr {1+2}}}; C create o
+2	2	2	0	oo::class create C {method m {} {return FIRST}}
+2	2	2	0	oo::class create C {method m {} {}} set object [C new] $object m
+2	2	1	0	oo::class create C {method p {} {my variable x; set x 1}}
+2	2	1	1	oo::class create C {method ping {} {return INSTANCE}}; set obj [C new]; $obj ping
+2	2	2	2	oo::class create C {method ping {} {}}; C create obj; rename obj {}
+2	2	2	1	oo::class create C {method ping {} {}}; interp alias {} make {} C new; [make] ping
+2	2	1	0	oo::class create C {method variable args {return NOOP}; method p {} {my variable x; set x 1}}
+2	2	2	0	oo::class create C {self method m {} {}}
+2	2	1	1	oo::class create C {self method ping {x} {return CLASS}}; C ping [oo::objdefine C method ping {x} {return REPLACED}]
+2	2	1	2	oo::class create C {self method ping {} {return CLASS}}; C ping
+2	2	1	0	oo::class create C {self method ping {} {return CLASS}}; rename C old; proc C args {return DECOY}; C ping
+2	2	2	0	oo::class create C {self method ping {} {return ok}}
+2	2	2	0	oo::class create C {set ::before [private];private {set ::inside [private]};set ::after [private]};list $::before $::inside $::after
+2	2	2	2	oo::class create C {{method ping {{}} {{}}}}; {storage}
+2	2	2	0	oo::class create C {{superclass B; method m {{}} {{{mutation}; next}}}}
+2	2	2	1	oo::class create C {} C {^foo.*$} $line
+2	2	2	0	oo::class create C {} proc a {} { set o [C new] oo::objdefine $o {method m {} {return a}} $o m } proc b {} { set o [C new] oo::objdefine $o {method m {} {return b}} $o m }
+2	2	2	0	oo::class create C {} set k [C new] oo::objdefine $k { method probe {} { ::return $neverBound } }
+2	2	2	0	oo::class create C {} set k [C new] oo::objdefine $k { variable z method probe {} { if {[info exists z]} { return $z } return {} } }
+2	2	1	0	oo::class create C {}; C create obj; proc obj args {}; obj ping
+2	2	1	0	oo::class create C {}; C create obj; rename C {}; obj ping
+2	2	1	0	oo::class create C {}; C create obj; rename obj {}; obj ping
+2	2	1	0	oo::class create C {}; C create object; oo::objdefine object method p\uD800 {} {}; object p\uD800
+2	2	2	1	oo::class create C {}; proc p {} {set o [C new]; $o ping}
+2	2	2	0	oo::class create C {};C create c
+2	2	2	0	oo::class create C {};oo::define C method invoke {} {my p};C create c
+2	2	1	0	oo::class create C\uD800 {method m {} {}
+2	2	2	2	oo::class create C\uD800 {self method m\uD800 {} {}; self method m\uD801 {} {}}
+2	2	1	0	oo::class create C\uD800 {}
+2	2	1	0	oo::class create C\uD800 {} proc change args {rename C\uD800 {}} trace add execution C\uD800 enter change C\uD800 new
+2	2	1	0	oo::class create C\uD800 {} rename C\uD800 {} C\uD800 new
+2	2	1	0	oo::class create C\uD800 {} rename C\uD800 {} proc C\uD800 args {} C\uD800 new
+2	2	2	2	oo::class create Child { superclass Base method wire {chan} { fileevent $chan readable [namespace code [list my read]] } }
+2	2	2	0	oo::class create Counter { method bump {} { my variable count incr count } }
+2	2	1	0	oo::class create D { method run {} { return ok } } oo::class create C { method m {} { [D new] run } }
+2	2	1	2	oo::class create D { method run {} { return ok } } oo::class create C { method obj {} { return [D new] } method m {} { [my obj] run } }
+2	2	2	0	oo::class create D {}
+2	2	2	0	"oo::class create Dog { method bark {} { return ""woof"" } }"
+2	2	2	0	oo::class create Dog { method bark {} { return woof } } rename Dog Cat set d [Cat new] $d fly
+2	2	2	1	oo::class create Dog { method bark {} { return woof } } rename Dog {} [Dog new] fly
+2	2	2	0	oo::class create Dog { method bark {} { return woof } } rename Dog {} oo::class create Dog { method bark {} { return woof } } proc foo {} { set x [Dog new] $x fly }
+2	2	2	0	oo::class create Dog { method bark {} { return woof } } rename Dog {} proc foo {} { set x [Dog new] $x fly }
+2	2	2	0	oo::class create Dog { method bark {} { return woof } } set o [Dog new] $o bark
+2	2	1	0	oo::class create Dog { method bark {} {} } $x bark
+2	2	2	0	oo::class create Dog { method bark {} {} } set d [Dog new]
+2	2	1	0	oo::class create Dog { method bark {} {} } set d [Dog new] d bark
+2	2	1	1	oo::class create Dog { method bark {} {} } set x [Dog new] ${x bark
+2	2	1	2	oo::class create Dog { superclass Animal method speak {} { return dog } }
+2	2	2	0	oo::class create Dog {}
+2	2	1	0	oo::class create Empty {}
+2	2	2	0	oo::class create Factory { classmethod make {} { return 1 } }
+2	2	1	2	oo::class create Factory { method make {} { return 1 } classmethod make {} { return [Factory new] } } set f [Factory new] $f make Factory make
+2	2	2	0	"oo::class create Formatter { method Reference? {lookup refvar} { upvar 1 $refvar ref if {$lookup eq ""x""} { set ref 1; return 1 } return 0 } method ResolvableReference? {lookup} { my Reference? $lookup ref if {[info exists ref]} { puts hi } } }"
+2	2	1	0	oo::class create Greeter { method greet {} { return hi } method again {} { greet } }
+2	2	1	0	oo::class create K
+2	2	2	1	oo::class create K { method m {a} { set n $a } } proc p {} { set q 1 }
+2	2	1	0	oo::class create M {method a::b {arg} {}} oo::class create C {mixin M; method a::b {} {next 1 2}}
+2	2	1	2	oo::class create Meta { superclass oo::class }
+2	2	1	0	oo::class create Meta {superclass Missing}
+2	2	2	0	oo::class create Mine
+2	2	1	0	oo::class create MyClass {}
+2	2	2	0	oo::class create Old {}; oo::class create Removed {}; rename Old New; rename Removed {}
+2	2	2	0	oo::class create Old {}; proc Old {} {}
+2	2	2	0	oo::class create Old {}; rename Old {}
+2	2	2	2	oo::class create Other {method m\uD800 {} {}}
+2	2	2	0	oo::class create ReportBase { constructor {} {observe_report_role ctor-base}; destructor {observe_report_role dtor-base} }; oo::class create ReportDerived { superclass ReportBase; constructor {} {observe_report_role ctor-derived; next}; destructor {observe_report_role dtor-derived; next}; method <co
+2	2	2	1	oo::class create Snap { method Start {} { return [callback ReadBrowser] } method ReadBrowser {} { return 1 } }
+2	2	1	0	oo::class create Solo { method lonely {} {} } Solo new
+2	2	2	0	oo::class create Solo { method ping {} { return pong } }
+2	2	1	0	oo::class create Sub {
+2	2	2	0	"oo::class create Utility { method NameProcess {arguments object} { set name $object } } oo::class create Widget { mixin Utility constructor {arguments} { my NameProcess $arguments [self object] puts ""name=$name"" } }"
+2	2	2	0	oo::class create Widget { classmethod make {} { return 1 } } proc Factory {args} { return $args } Factory make
+2	2	2	0	oo::class create Widget { constructor {a b} { } } Widget new 1
+2	2	2	0	oo::class create Widget { method bar {} { } } Widget new 1 2 3 4 5
+2	2	1	0	"oo::class create Widget { self method make {n} { return ""made $n"" } } Widget make gadget"
+2	2	1	0	oo::class create Widget {} set y Widget create]
+2	2	2	0	oo::class create geo::Plane { constructor {args} {} } oo::define geo::Plane { method GetType {} { return Plane } method WhichAmI {} { return [my GetType] } }
+2	2	2	0	oo::class create helper {method run {} {}}
+2	2	1	0	oo::class create root
+2	2	2	1	oo::class create widget { constructor {} { puts $thing } method thing {} { return 1 } }
+2	2	2	0	oo::configurable create C; C create o
+2	2	2	0	oo::configurable create P {property x -}
+2	2	1	0	oo::configurable create Point {
+2	2	2	1	oo::configurable create Point { property x y }
+2	2	2	0	oo::configurable create Q {property x -kind r}
+2	2	2	0	oo::define B deletemethod m
+2	2	2	0	oo::define B deletemethod m; oo::define B method m {} {return NEW_RECORD}
+2	2	2	0	oo::define B method m {} {return REPLACED}
+2	2	2	0	oo::define C method deleted {} {rename [self] {}; self}; renamed deleted
+2	2	2	1	oo::define C method evalContext {} {my eval {self object}}; obj evalContext
+2	2	2	0	oo::define C private method Secret {} {}; oo::objdefine O private method OSecret {} {}
+2	2	1	0	oo::objdefine Base method new {} {return custom}
+2	2	2	0	oo::objdefine renamed deletemethod m
+2	2	2	0	oo::objdefine renamed method m {} {return LOCAL}
+2	2	2	0	oo::objdefine::method
+2	2	2	0	oo::object create O; oo::objdefine O {variable P;
+2	2	2	0	oo::object create obj
+2	2	1	0	"open ""|$cmd"""
+2	2	1	0	option -namespace is read-only
+2	2	1	0	option of `regexp`
+2	2	2	0	original byte variable name
+2	2	2	0	original-relative-rename-preserves-other-holder
+2	2	1	0	original-source.tcl
+2	2	1	2	outer literal uplevel must lower to UpFrame
+2	2	2	0	p[set ::hint 1]
+2	2	1	0	package anything version 1.0.0
+2	2	2	0	package demo require foo 1.0
+2	2	2	0	package directory
+2	2	2	0	package files mypackage
+2	2	2	0	package forget Tcl;
+2	2	2	0	package ifneeded P 1.0 [list source [file join $dir produced.tcl]]
+2	2	2	0	package ifneeded myPackage 1.0.0 { source [file join $dir x.tcl] }
+2	2	2	0	package ifneeded myTkPackage 1.0 [list source [file join $dir mytk.tcl]]
+2	2	2	0	package ifneeded mylib 1.0 [list source [file join $dir mylib.tcl]]
+2	2	2	0	package ifneeded p 1.0 [list ::apply {dir {puts $dir}} $dir]
+2	2	2	0	package ifneeded plain 1.0 [list source [file join $dir plain.tcl]]
+2	2	1	1	package ifneeded testpix 0.8 [list apply {dir {load [file join $dir libtestpix.so] Pix}} $dir]
+2	2	1	1	package ifneeded w 1.2 {source stable.tcl} package ifneeded w 1.3b1 {source beta.tcl} package ifneeded dep 1.1 {source dep-old.tcl} package ifneeded dep 1.2b1 {source dep-beta.tcl} package ifneeded absent 1.0 {source absent.tcl}
+2	2	1	0	package prefer
+2	2	2	0	package prefer latest
+2	2	1	0	package prefer stable
+2	2	2	0	package present nope
+2	2	2	0	package provide Tcl 7.0;
+2	2	1	0	package provide demo 1.0
+2	2	1	0	package provide demo 1.0 after 20000
+2	2	1	0	package provide demo 1.0 exit 0
+2	2	1	1	package provide http
+2	2	2	0	package provide myTkPackage 1.0 package require Tk proc mytk::go {} {}
+2	2	1	1	package provide mylib 1.0
+2	2	2	0	package provide pkga 2.0
+2	2	2	0	package provide probe 1;catch {package provide probe 2} m;list $m $::errorCode
+2	2	2	0	package require -exact foo 1.1
+2	2	1	0	package require -exact w 1.2
+2	2	1	0	package require Foo 1.0 2.0-2.5
+2	2	2	0	package require Tcl 8.4
+2	2	2	0	package require Tcl 8.5
+2	2	2	0	package require Tcl 9.0
+2	2	1	0	package require Tk 8.6 entry .e -placeholder hi
+2	2	1	0	package require Tk bind $frameName <Destroy> +[list [self] destroy]
+2	2	1	0	"package require Tk proc f {y} {bind .x <Destroy> ""puts $y""}"
+2	2	2	1	package require Tk source lib/util.tcl
+2	2	2	0	package require Tk ttk::treeview .tree .tree current
+2	2	2	2	"package require argparse proc upvarProc {args} { argparse { {a -upvar} b c } puts ""a=$a b=$b c=$c"" }"
+2	2	2	1	package require myExtension frame .outer.inner
+2	2	1	0	package require own proc unfinished {
+2	2	2	0	package require pkga
+2	2	2	2	package require report ::report::report r 3 r data set x r printmatrix m
+2	2	2	2	package require tcl::idna
+2	2	2	0	package require tcl::oo
+2	2	2	0	package source
+2	2	2	0	package v
+2	2	2	0	package x
+2	2	2	0	package {}
+2	2	2	0	package.tcl
+2	2	1	1	pick subject {default {puts before_alias}}
+2	2	1	1	pick subject {default {puts deleted_alias}}
+2	2	1	2	potential source coverage
+2	2	1	0	prefix${value}suffix
+2	2	2	1	proc ::T::mkdialect {name} {
+2	2	2	0	proc ::a {} { ::b } proc ::b {} { ::c } proc ::c {} { set x 1 }
+2	2	1	2	proc ::a {} { set j 0 for {set k 5} {$k > 0} {incr k -1} { incr j } if {$j == 5} { return yes } else { return no } }
+2	2	2	2	proc ::a::helper
+2	2	2	0	proc ::app::widget::Setup {} { namespace ensemble create -map [list show ::app::widget::Show] } proc ::app::widget::Show {} {} ::app::widget::Setup ::app::widget show
+2	2	2	0	proc ::b::helper {y}
+2	2	2	0	proc ::dump
+2	2	2	0	proc ::f {x} { return [expr {[expr {$x * 2}]}] }
+2	2	1	0	proc ::f {} { set x 1; return $x }
+2	2	2	0	proc ::foo {a args} { return $args } puts [::foo 1 2]
+2	2	1	0	proc ::greet
+2	2	2	0	proc ::helper {}
+2	2	1	0	proc ::leaf {} { upvar 1 x y set y 9 } proc ::host {} { set x 1 leaf }
+2	2	2	0	proc ::method args {error GLOBAL_WORKER}; namespace eval caller {proc build {} {set private CALLER; oo::class create ::C {set scope [namespace current]; set inherited [info exists private]; set local [uplevel 1 {set private}]; proc born {} {return HERE}; meth m {} {return OK}}}}; caller::build; C cr
+2	2	2	0	proc ::ns::set
+2	2	1	2	proc ::p {} { for {set i 0} {$i < 10} {incr i} {} if {$i == 10} { return yes } else { return no } }
+2	2	1	2	"proc ::p {} { foreach v {{a b} {c d}} { if {$v eq ""c d""} { set r yes } else { set r no } } }"
+2	2	1	1	proc ::p {} {return FIRST}; proc ::p {} {return SECOND}
+2	2	1	2	proc ::q {n} { for {set i 0} {$i < $n} {incr i} {} if {$i == 10} { return yes } else { return no } }
+2	2	2	0	proc ::retainedSideEffect {} {return yes}; package provide bad 999; error stop
+2	2	1	0	proc ::tcl::mathfunc::abs {argument} {return OVERRIDE} expr {abs(-2)}
+2	2	1	1	proc ::tcl::mathfunc::abs {x} { return 999 } expr {abs(-5)}
+2	2	2	0	proc ::tcl::mathfunc::myfunc {x} { return $x } set r [expr {myfunc(1)}]
+2	2	2	2	proc ::tk::MouseWheel {w dir amount {factor -120.0} {units units}} { $w ${dir}view scroll [expr {$amount/$factor}] $units }
+2	2	2	0	proc ::tk::systray {args} {} proc ::tk::sysnotify::sysnotify {a b} {} namespace ensemble configure tk -map [dict merge [namespace ensemble configure tk -map] {systray ::tk::systray sysnotify ::tk::sysnotify::sysnotify}] tk systray create -image book tk sysnotify Alert message
+2	2	2	1	proc C {args} {}; [C new] ping
+2	2	2	1	proc C {args} {}; rename C {}; [C new] ping
+2	2	2	0	proc NewArrays {varNames value} { foreach varName $varNames { set $varName $value } }
+2	2	2	0	proc NewArrays {varNames value} { foreach varName $varNames { uplevel 1 [list set $varName $value] } } proc Qfrac2 {} { NewArrays {rdiagArray acnormArray waArray} 1 return [list $rdiagArray $acnormArray $waArray] }
+2	2	1	0	proc P {} {}; error BOOM
+2	2	1	0	proc P {} {}; rename $unknown Q
+2	2	1	0	proc P {} {}; rename P Q
+2	2	1	0	proc P\uD800 {} {}; rename P\uD800 Q\uD801
+2	2	2	0	proc Qfrac2 {} { return [list $rdiagArray $acnormArray $waArray] }
+2	2	2	2	"proc SetFocusGrab {grab focus} { set index ""$grab,$focus"" upvar ::tk::FocusGrab($index) data lappend data one } proc RestoreFocusGrab {grab focus} { set index ""$grab,$focus"" if {[info exists ::tk::FocusGrab($index)]} { set data2 $::tk::FocusGrab($index) unset ::tk::FocusGrab($index) } }"
+2	2	1	2	proc a {} { puts 11111 } proc b {} { puts 99999999 } proc c {} { puts 33333 }
+2	2	1	0	proc a {} { set v 10 return $v } proc b {} { set v 20 return $v }
+2	2	1	2	proc a {} { set x 11111 } proc b {} { set y 22222 }
+2	2	1	2	proc a {} { set x 9999999999 } proc b {} { set y 22222 }
+2	2	2	0	proc a {} {return A}
+2	2	2	0	proc a {} {} a
+2	2	2	0	proc add {a b} { expr {$a + $b} } add 1 2
+2	2	1	1	proc add {b c} { return [expr {$b + $c}] } set e 2 set f 4 puts [add $e $f]
+2	2	2	1	proc add {b c} {return [expr {$b + $c}]}; add 2 4; add 3 5
+2	2	1	2	proc add {{a b}} {{{body}}}; proc f {{}} {{set unused [add {actual}]; puts done}}
+2	2	2	0	proc aliaser {} {global ::n::shared; set shared 1}
+2	2	2	0	proc aliaser {} {global ::shared; set shared 1}
+2	2	1	1	proc append args {return NEW};
+2	2	2	0	proc apply args {return SHADOW}; coroutine c apply {} VALUE
+2	2	2	0	proc b {} {} b
+2	2	1	0	proc bar {} {}
+2	2	1	1	proc beta_command {} {}
+2	2	2	0	proc bind {} { uplevel 1 {upvar foo bar} }
+2	2	2	0	proc boomp args { error boom } catch {regsub -command {.x.} abcxdef boomp} e list $e $::errorInfo
+2	2	1	2	proc build_banner {} { set msg {Hello} append msg { } append msg World return $msg }
+2	2	2	1	"proc bump {name} { upvar 1 $name v incr v } set n 1 set m 10 bump n set z [bump m] puts ""$n $m $z"""
+2	2	2	1	"proc bump {name} {upvar 1 $name v; incr v} set n 1 bump n set other 10 bump other puts ""$n $other"""
+2	2	1	0	proc bump {} { global counter incr counter puts $counter }
+2	2	2	1	proc button {args} {return orig_button} proc entry {args} {return orig_entry} namespace eval ::tk::accessible { foreach wtype {button entry} { rename ::$wtype ::tk::accessible::orig_$wtype proc ::$wtype {args} {return wrapped} } }
+2	2	2	0	proc c {} {}
+2	2	1	1	proc café {} {}
+2	2	2	0	proc caller {} {
+2	2	2	0	proc caller {} { helper } proc helper {} {}
+2	2	2	0	proc caller {} {helper}
+2	2	2	0	proc caller {} {namespace eval A {helper}; namespace eval B {helper}}
+2	2	2	0	proc cb {a b c} {}
+2	2	2	0	proc cb {a b c} {} rename cb {} lsort -command cb {2 1}
+2	2	2	0	proc cb {a b} {return 0} lsort -command {cb fixed} {3 1 2}
+2	2	1	0	proc changed {argument} {return $argument} changed value
+2	2	1	0	proc check {a b} { set total [expr $a + $b] return $total }
+2	2	2	0	proc class args {};
+2	2	2	2	proc ctr {} {incr ::hits} ctr ctr puts $::hits
+2	2	1	0	proc defined {} {}; defined
+2	2	2	2	proc demo {d} { dict for {k v} $d { set tmp 1 set tmp 2 puts $tmp } }
+2	2	2	0	proc demo {} { set x 1 set y 2 }
+2	2	2	0	proc demo {} { set x set set d [dict create a true b false c true] dict for {key value} $d { if {$value} { $x a $key } } }
+2	2	2	0	"proc demonstrate {arg1 arg2 arg3 arg4 arg5 arg6 arg7} { return ""$arg1 $arg2 $arg3 $arg4 $arg5 $arg6 $arg7"" } demonstrate one two three four five six seven"
+2	2	2	0	"proc demonstrate {arg1 arg2 arg3 arg4 arg5 arg6 arg7} { return ""$arg1 $arg2 $arg3 $arg4 $arg5 $arg6 $arg7"" } demonstrate one two three four five six seven eight"
+2	2	1	1	proc dep_beta {} {}
+2	2	1	1	proc dep_old {} {}
+2	2	1	1	proc dispatch {cmd} { switch -exact -- $cmd { add { return 1 } sub { return 2 } mul { return 3 } default { return 0 } } }
+2	2	2	1	proc dispatcher {body} { uplevel 1 $body }
+2	2	2	0	proc dispatcher {body} { uplevel 1 $other }
+2	2	2	0	proc do_add {a b} {} rename do_add {} array set ops {add do_add} set k add $ops($k) 1 2
+2	2	2	0	proc double {n} { expr {$n * 2} } set x [double 21]
+2	2	1	2	proc double_expr {x} { return [expr {[expr {$x * 2}]}] }
+2	2	2	0	proc expr args {}; expr {!(1 && 0)}
+2	2	2	1	"proc expr {args} {return SHADOW}; expr ""1 + 2"""
+2	2	2	0	proc extra {} { pool malformed } trailing
+2	2	2	0	proc extracted_proc {value}
+2	2	2	0	proc f
+2	2	1	0	proc f {a b} { return $a }
+2	2	1	2	proc f {a b} { return [f $a] }
+2	2	1	0	proc f {args} { puts $args } f 1 2 3
+2	2	1	2	proc f {a} { if {[info exists a]} { puts hi } }; f VALUE
+2	2	1	2	proc f {a} { if {[info exists b]} { puts hi } }; f VALUE
+2	2	1	0	proc f {a} {if {[info exists a]} {puts hi}}
+2	2	1	0	proc f {body} { uplevel $body }
+2	2	1	0	proc f {body} { uplevel 1 $body }
+2	2	1	0	"proc f {cmd} { set fh [open ""|$cmd"" r] }"
+2	2	2	0	proc f {cond} { if {$cond} { tailcall g } else { set result 1 } return $result }
+2	2	1	0	proc f {cond} { if {$cond} { tailcall } else { set result 1 } return $result }
+2	2	2	2	proc f {c} { if {$c == 1} { set x [list 1] } elseif {$c == 2} { set x [dict create a 1] } else { set x [expr {1+1}] } return $x }
+2	2	1	0	"proc f {c} { if {$c} { set arr(n) 5 } else { set arr(s) ""hi"" } return [string length $arr(n)] }"
+2	2	2	2	proc f {c} { set a {1 2} if {$c} { llength $a } else { dict size $a } string length $a }
+2	2	1	0	proc f {c} { set x 1 if {$c} { unset x } puts $x }
+2	2	2	0	proc f {c} { try { if {$c} { error a } set x 1 error b } on error {} { puts $x } }
+2	2	2	0	proc f {c} { while 1 { if {$c} break } puts after }
+2	2	1	2	proc f {d} { dict with d { $cmd hi } } f {cmd puts}
+2	2	1	1	proc f {d} { dict with d { return $missing } } f {missing ok}
+2	2	1	2	proc f {d} { dict with d { return $missing } } f {} f {missing X}
+2	2	1	0	proc f {d} { dict with d {}; return $missing }
+2	2	1	2	proc f {l} { foreach x $l { set y [expr {$x + 1}] } }
+2	2	1	0	proc f {name} {set $name 1}
+2	2	1	0	proc f {n} {
+2	2	1	1	proc f {n} { for {set i 0} {[f $n]} {incr i} { return [f [expr {$n - 1}]] } return $n }
+2	2	1	1	proc f {n} { if {[f $n]} { return [f [expr {$n - 1}]] } else { return $n } }
+2	2	1	1	proc f {n} { switch [f [expr {$n - 1}]] { 0 { return 0 } default { return [f [expr {$n - 2}]] } } }
+2	2	2	0	proc f {n} { while {$n > 0} { set y 1; incr n -1 } puts $y }
+2	2	1	1	proc f {n} { while {[f $n]} { return [f [expr {$n - 1}]] } return $n }
+2	2	2	0	proc f {n} {{n 0}} {return $n}; f ARG
+2	2	1	0	proc f {p} { source $p }
+2	2	1	2	proc f {p} {open $p}
+2	2	1	0	"proc f {p} {set b [set {$p}]; set a 1; set a 2; return ""$a$b""}"
+2	2	1	0	proc f {v} { set l {a b c} for {set j 4} {$j < 9} {incr j} { lset l $j $v } }
+2	2	1	0	proc f {v} { set l {a b c} set j 1 lset l $j $v }
+2	2	1	0	proc f {x} { switch $x { -nocase {puts a} default {puts b} } }
+2	2	1	0	proc f {x} { switch -glob $x { a* { error bad } default { set y 2 } } puts $y }
+2	2	1	0	proc f {x} { switch -glob $x { a* { return 1 } b* { return 2 } } puts $y }
+2	2	1	0	proc f {x} { switch -glob $x { a* { set z 9 } default { set y 2 } } puts $y }
+2	2	1	0	proc f {x} { while 1 { switch -glob $x {a* {break} default {break}} }; puts $y }
+2	2	1	0	proc f {x} {puts $x}
+2	2	1	0	proc f {x} {set opt -novariables; subst $opt $x}
+2	2	1	2	proc f {{lst}} {{ set x [llength $lst] {stmt} }}
+2	2	2	0	proc f {{name other names}} {{ {body} }} set ::seen BEFORE set code [catch {{f x y {{x y}}}} value] list RESULT $code $value $::seen
+2	2	1	0	proc f {}
+2	2	2	0	proc f {} { # noqa: O109 set x 1 set x 2 return $x }
+2	2	1	0	proc f {} { array set state {-command puts}; $state(-command) hi }
+2	2	2	1	proc f {} { foreach x {1 2 3} { set y $x } puts $y }
+2	2	2	1	proc f {} { foreach x {} { set y $x } puts $y }
+2	2	1	0	proc f {} { if {[info exists u]} { puts $u } }
+2	2	1	0	proc f {} { regexp {x} y -> v puts $v }
+2	2	2	0	proc f {} { rename set myset myset x 0 while {1} { myset x [expr {$x + 1}] myset x [string range $x 0 end] } }
+2	2	2	0	proc f {} { return 1 } f
+2	2	1	0	proc f {} { return [expr {!1 && 1/0}] }
+2	2	1	0	proc f {} { return [expr {0.0 || 1/0}] }
+2	2	1	0	proc f {} { return [expr {1 || 1/0}] }
+2	2	1	0	proc f {} { return [expr {1.5 ? 1/0 : 7}] }
+2	2	1	0	proc f {} { return [expr {5 % 0}] }
+2	2	1	0	proc f {} { return [expr {False && 1/0}] }
+2	2	1	0	proc f {} { return [expr {No || 1/0}] }
+2	2	1	0	proc f {} { return [expr {TRUE && 1/0}] }
+2	2	1	0	proc f {} { return [expr {True && 1/0}] }
+2	2	2	1	proc f {} { scan 2 %b n puts $n }
+2	2	1	0	proc f {} { scan abc %d n puts $n }
+2	2	1	0	proc f {} { set a(k) 1 set a(k) 2 return $a(k) }
+2	2	2	0	proc f {} { set arr(x) 0 while {1} { set arr(x) [expr {$arr(x) + 1}] set arr(y) [string range z 0 end] } }
+2	2	1	0	proc f {} { set b [binary format a* hello] set u [string toupper $b] }
+2	2	1	0	proc f {} { set d 0 if {$d != 0} { return [expr {1 / $d}] } return safe }
+2	2	1	0	proc f {} { set d 0 return [expr {10 / $d}] }
+2	2	1	0	proc f {} { set d {missing ok}; dict with d {}; return $missing }
+2	2	2	1	proc f {} { set h [ILX::init p e]; ILX::call $h m }
+2	2	1	0	proc f {} { set local 1 puts $local }
+2	2	1	0	proc f {} { set n hello incr n }
+2	2	1	0	proc f {} { set ns mypkg; ${ns}::unknownproc arg }
+2	2	2	0	proc f {} { set out [array get arr] }
+2	2	1	0	proc f {} { set p [TCP::payload] set q [string map {a b} $p] TCP::payload replace 0 100 $q }
+2	2	1	0	proc f {} { set r {} foreach x {1 2 3} { lappend r $x } return [llength $r] }
+2	2	1	0	"proc f {} { set s ""hello"" set i 10 return [string index $s $i] }"
+2	2	1	0	proc f {} { set unused [list 1 2 3]; puts done }
+2	2	1	0	proc f {} { set x 1 set x 2 return $x }
+2	2	1	0	proc f {} { set x 1 unset x puts $x }
+2	2	2	0	proc f {} { set x 1; eval {puts $x} }
+2	2	2	0	proc f {} { set x 1; puts $x }
+2	2	1	0	proc f {} { set x [whatever] $x op }
+2	2	1	0	proc f {} { set y 5 puts $y } f
+2	2	2	0	proc f {} { trace add variable x write {apply {{n1 n2 op} {}}} set x 0 while {1} { set x [expr {$x + 1}] set x [string range $x 0 end] } }
+2	2	1	0	proc f {} { unset -nocomplain x }
+2	2	1	0	proc f {} { unset x }
+2	2	1	1	proc f {} { uplevel 1 { upvar 0 caller_value alias; unset alias } }
+2	2	2	0	proc f {} { while 1 { set y 1; break } puts $y }
+2	2	1	1	proc f {} {f}
+2	2	1	2	proc f {} {set p literal.txt; set p $unknown; open $p}
+2	2	2	0	proc f {} {{n 0}} {return $missing}; f
+2	2	2	0	proc f {} {{n 0}} {return $n}; proc g {} {return $n}; g
+2	2	1	1	proc factorial {n} { if {$n <= 1} { return 1 } return [expr {$n * [factorial [expr {$n - 1}]]}] }
+2	2	2	0	"proc fib {n} { if {$n < 2} { return $n } return [expr {[fib [expr {$n - 1}]] + [fib [expr {$n - 2}]]}] } puts ""fib(10) = [fib 10]"""
+2	2	1	1	proc fib {n} { if {$n <= 1} { return $n } return [expr {[fib [expr {$n-1}]] + [fib [expr {$n-2}]]}] }
+2	2	2	0	proc file {args} {}; lappend auto_path [file join /ROOT leaf]
+2	2	1	2	proc foo {n} { for {set x 0} {$x < $n} {incr x} { set x [expr {$x + 1}] puts $x } } foo 3
+2	2	1	2	proc foo {n} { for {set x 0} {$x < $n} {incr x} { set x [expr {$x + 5}] puts $x } } foo 3
+2	2	1	2	proc foo {n} { for {set x 0} {$x < $n} {incr x} { set x [expr {$x - 3}] puts $x } } foo 3
+2	2	1	0	proc foo {x y} { puts $x }
+2	2	1	0	proc foo {x} { return [expr {$x + 1}] }
+2	2	2	0	proc foo {x} {}
+2	2	1	0	proc foo {} { puts hi puts there
+2	2	2	0	proc foo {} { puts hi }
+2	2	1	2	proc foo {} { puts hi } set x 1 foo puts $x
+2	2	1	0	proc foo {} { set x 1 set x 2 return $x }
+2	2	2	0	proc foo {} {return 1}
+2	2	1	0	proc foo {} {return hi}
+2	2	1	0	proc foo {} {} ::foo
+2	2	1	0	proc foo {} {} eval {} foo
+2	2	1	0	proc foo {} {} proc bar {} { foo }
+2	2	1	0	proc foo {} {} set x [foo]
+2	2	2	0	proc forgetXyce {} { uplevel 1 {foreach nameSpc [namespace children ::SpiceGenTcl::Xyce] { namespace forget ${nameSpc}::* }} }
+2	2	1	0	proc format args {}; format {%d} 7
+2	2	2	0	proc format {args} { return USER }
+2	2	1	0	"proc g {x} { eval { puts ""hello $x"" } }"
+2	2	2	2	proc g {} {set ::counter 5} g puts $::counter
+2	2	2	2	proc gen {} { while 1 { yield 1 } } coroutine nextNum gen nextNun
+2	2	2	0	proc generator value {set resumed [yield $value]; return $resumed}
+2	2	2	0	proc global_alias {} {upvar #0 ::N::R::a(k) alias; incr alias}; global_alias
+2	2	1	0	proc greet {name body} {} greet
+2	2	1	0	proc greet {name body} {} greet alice
+2	2	1	0	"proc greet {name {greeting Hello}} { puts ""$greeting $name"" }"
+2	2	1	0	"proc greet {name} { puts ""Hello"" puts ""$name"" }"
+2	2	2	1	"proc greet {name} { puts ""hello $name"" } greet {a b}"
+2	2	2	0	proc greet {name} { return $name } greet hi
+2	2	1	0	proc greet {name} {puts $name}
+2	2	2	0	proc greet {{name world}} { puts $name } greet
+2	2	2	0	proc greet {} { puts hi } greet
+2	2	1	0	proc greet {} { return hi } greet greet
+2	2	1	0	proc greet {} { return }
+2	2	1	0	proc greet {} { return } greet
+2	2	1	0	proc greet {} { return } greet greet
+2	2	1	0	proc greet {} {} proc shout {} {} g
+2	2	2	0	proc guarded {} {return 1}
+2	2	2	0	proc handler {args} { puts $args } namespace eval ::target [list namespace unknown handler] mystery_cmd 1
+2	2	2	2	"proc handler {} { apply {{m} { if {$m eq ""GET""} { puts get } elseif {$m eq ""POST""} { puts post } }} $x }"
+2	2	2	0	"proc helper {mode} { if {$mode eq ""prod""} { set x 1 } else { set x 2 } } helper prod helper prod"
+2	2	2	0	"proc helper {mode} { if {$mode eq ""prod""} { set x 1 } else { set x 2 } } helper prod helper prod set cmd helper $cmd prod"
+2	2	1	2	proc helper {mode} { return $mode } when RULE_INIT { call helper dev }
+2	2	2	0	"proc helper {value} {puts ""literal \} ${value}""}"
+2	2	2	0	proc helper {x} {}; helper ONE
+2	2	2	0	proc helper {} { return hi } proc inner {} { helper } proc outer {} { inner } outer rename helper {}
+2	2	1	0	proc helper {} {changed}
+2	2	1	2	proc helper {} {namespace current}
+2	2	2	0	proc helper {} {} oo::class create Foo {} set o [Foo new] oo::objdefine $o { method greet {} { helper } }
+2	2	2	1	proc helper {} {} proc caller {} { helper }
+2	2	2	0	proc helper {} {} proc caller {} { helper } caller rename helper {}
+2	2	2	1	proc helper {} {} proc p\uD800 {} {} when HTTP_REQUEST {}
+2	2	2	0	proc helper {} {} proc pingCaller {} { helper pongCaller } proc pongCaller {} { pingCaller } rename helper {}
+2	2	2	0	proc helper {} {} rename helper {} proc caller {} { helper } caller
+2	2	2	0	proc hit {} { return hit } switch -glob $value { default { hit } }
+2	2	1	2	proc hit {} {global hits; incr hits} proc p {s} { set n 5 switch -glob -- $s { g* { hit } } puts $n }
+2	2	1	1	proc hook {} { rename puts _p } puts hi
+2	2	1	0	proc hover
+2	2	2	0	proc id {v} { return $v }; set e {{[id 9]}}; expr $e
+2	2	1	0	proc if args {}; if {ma
+2	2	2	0	proc if {c b} { return 1 } if {$x} {puts a}
+2	2	2	2	proc incr {{v args}} {{return 99}} {body}
+2	2	2	0	proc inner {} {upvar 1 R::x link; set link 12}; proc outer {} {set R::x 3; inner; set R::x}; outer
+2	2	2	0	proc installer {} {
+2	2	1	0	proc invoke {} {set h [ILX::init p e]; ILX::call $h m}
+2	2	2	0	proc is_even {n} { if {$n % 2 == 0} { return 1 } else { return 0 } } proc main {} { is_even 3 catch { is_even 4 } }
+2	2	2	0	proc list args {}
+2	2	1	0	proc loop {} { for {set i 0} {$i < 10} {incr i} { puts $i } }
+2	2	1	0	proc max {a b} { if {$a > $b} { return $a } else { return $b } } set v [max 3 7]
+2	2	2	0	proc mine {} {}
+2	2	2	0	proc missing {}
+2	2	2	0	proc mixed {a {b B} c} {return A_LONGER_BODY}
+2	2	2	0	proc mixed {a {b B} c} {return FIRST}
+2	2	1	1	proc mutate {} {
+2	2	2	1	proc mutate {} { global x; set x 99 } set x 5 mutate puts [expr {$x + 1}]
+2	2	2	0	proc myCmd {a} {return $a} if {[myCmd [expr {1 + 1}]]} {puts hi}
+2	2	2	2	proc my_helper {x} {puts $x} set q { aaa my_helper
+2	2	1	0	proc mylen {l} { return 99 } interp alias {} makep {} proc p makep {} {set a llength; set b mylen; rename $a {}; rename $b $a} p
+2	2	1	1	proc noop args {}
+2	2	2	0	proc nop {} { return }
+2	2	2	1	proc obj {args} {}; obj ping
+2	2	1	1	proc observe args {{{callback}}}; proc f {{}} {{set dictionary [dict create k 1]; upvar 0 dictionary view; trace add variable view write observe; set dictionary [dict create k 2]; llength $view}}
+2	2	1	0	proc obsolete_disk_symbol {} {}
+2	2	1	0	proc old {value} {}; proc deleted {} {}; rename old moved; rename deleted {}
+2	2	1	1	proc old_command {} {} package prefer latest package require dep 1.0
+2	2	1	0	proc onw {a b c} { puts trace } trace add variable ::acc write ::onw set acc {} lappend acc a lappend acc b
+2	2	2	0	proc original {value} {}; proc removed {} {}; rename original moved; rename removed {}
+2	2	2	0	proc originalQualifiers {value} {namespace qualifiers $value}
+2	2	2	0	proc originalTail {value} {namespace tail $value}
+2	2	2	0	proc other {x} { return $x } other 1
+2	2	2	1	proc other {} { return [make] }
+2	2	2	2	proc outer {} {proc inner {} {return VALUE}}
+2	2	1	0	"proc p {a b} { set v [expr {$a + $b}] if {$v > 1} { set v [string length $a$b] } return $v } set x 1 set y [p $x [string trim $x]] puts ""$x [p $y $x]"""
+2	2	2	0	proc p {a b} {return}
+2	2	2	1	proc p {args} {return $args}
+2	2	2	0	proc p {arr} { puts ${arr}(x) }
+2	2	2	0	proc p {arr} { upvar 1 remote ${arr}(x) }
+2	2	2	0	proc p {a} { return [list $a {b}] }
+2	2	2	0	proc p {a} {expr {1/0}; return [expr {$a + 1}]} puts [p 5]
+2	2	2	0	proc p {a} {return $a}
+2	2	2	0	"proc p {c} { catch {set v $c} m puts ""<$m>"" } p 7"
+2	2	2	2	proc p {i} {upvar ::n::a($i) data; lappend data value; puts $data}; proc sibling {} {puts $data}
+2	2	1	0	proc p {known} {set copy $known; set copy $missing}
+2	2	2	0	proc p {l} { lappend l x return $l }
+2	2	1	1	proc p {name spare} {upvar 1 $name cell; set cell VALUE} proc q {name spare} {upvar 1 $name cell; set cell VALUE}
+2	2	1	2	proc p {n} { while {$n} {puts x} }
+2	2	1	0	proc p {n} {set anchor 1; while {$n > 0} {set x 1; incr n -1}; puts $x}
+2	2	2	0	proc p {self} { $self configure -x 1 }
+2	2	2	0	proc p {value} {return $value}
+2	2	2	0	proc p {x i} {lindex $x $i}
+2	2	2	0	proc p {x} {return $x} p 1
+2	2	2	1	proc p {x} {return [expr {$x + 1}]}
+2	2	2	1	proc p {x} {return [unknown_worker $x]}
+2	2	1	0	proc p {{a b c}} {}
+2	2	2	0	proc p {{left right}} {{{}}}
+2	2	2	0	proc p {{s c}} {{string {member} $s{}}}
+2	2	2	0	proc p {{x i}} {{{}}}
+2	2	1	2	proc p {{}} {{ global g try {{{body}}} finally {{set g 1}} }}
+2	2	2	0	"proc p {} ""puts hi"""
+2	2	1	0	"proc p {} ""set local \u0031"""
+2	2	2	1	proc p {} { catch {error e} $res }
+2	2	2	0	proc p {} { global alpha beta gamma }
+2	2	2	0	proc p {} { return [expr {1 + 2}] } puts [p]
+2	2	1	1	proc p {} { return first } p proc p {a} { return $a } p x
+2	2	2	0	proc p {} { set a [expr {1 + 2}] set b [expr {$a * 2}] return $b }
+2	2	1	1	proc p {} { set a before regexp {(x)(y)} zz a b puts $a } p
+2	2	2	0	proc p {} { set n 1 set r [expr {$n + [incr n]}] return $r } puts [p]
+2	2	1	0	proc p {} { set timeout 30 puts $timeout } p
+2	2	1	1	proc p {} { try {error boom} on error {} {set f 2} finally {set f 1} return $f }
+2	2	2	1	proc p {} { vwait $x }
+2	2	1	2	proc p {} { while 1 { try {break} on error {} {} finally {} set x 1 } puts $x }
+2	2	2	0	proc p {} {catch {uplevel #0 {error BODY}} m o; list [dict get $o -errorstack] [dict keys $o]}; namespace eval N {p}
+2	2	2	0	proc p {} {const L 3; set ordinary 0; global G;
+2	2	2	0	proc p {} {error FIRST_ERROR_LONG}
+2	2	2	0	proc p {} {error X}
+2	2	2	0	proc p {} {expr {1/0}; return foo} puts [p]
+2	2	1	0	proc p {} {format {%d} 7}
+2	2	1	0	proc p {} {global g}
+2	2	1	0	proc p {} {global shared; puts $shared}
+2	2	1	0	proc p {} {global shared; upvar 0 $unknown shared; $dispatch $shared}
+2	2	1	0	proc p {} {info exists {}; info exists {$literal}}
+2	2	1	0	proc p {} {puts $::auto_path}
+2	2	1	0	proc p {} {puts $auto_path}
+2	2	1	0	proc p {} {regexp {a+} $value}
+2	2	2	0	proc p {} {return OK}
+2	2	2	0	proc p {} {return OTHER}
+2	2	1	0	proc p {} {return P}
+2	2	2	0	proc p {} {set a scalar; array set a {}}; catch {p} message; set ::errorCode
+2	2	1	0	proc p {} {set anchor 1; puts literal}
+2	2	2	0	proc p {} {set longVariable VALUE; return $longVariable}
+2	2	2	0	proc p {} {set n 1; foreach v [incr n] {}; puts $n} p
+2	2	2	2	proc p {} {set n 1; incr n; incr n 2; return $n}
+2	2	1	0	proc p {} {set original 1}
+2	2	2	0	proc p {} {set x 1; unset x; if {[info exists x]} {puts yes}}
+2	2	2	1	proc p {} {set x 5; return {$x}} puts [p]
+2	2	1	0	"proc p {} {set x OLD; set y NEW; upvar 0 x a; return ""$a[upvar 0 y a]$a""}; p"
+2	2	2	0	proc p {} {set x VALUE;probe x};p
+2	2	2	2	proc p {} {set x [string range foobar 0 2]; return $x} puts [p]
+2	2	2	2	proc p {} {set z 010; incr z}
+2	2	2	0	proc p {} {set {scalar(open} VALUE; return ${scalar(open}}
+2	2	2	2	proc p {} {uplevel +1 {set x 4}}; p; set x
+2	2	2	2	proc p {} {uplevel 4294967295 {set x 3}}; p
+2	2	2	2	proc p {} {upvar 0x1 x y; set y 1}; set x 0; p; set x
+2	2	2	2	proc p {} {upvar 1.0 x y}; p
+2	2	1	1	proc p {} {}; interp alias {} inspect {} info body; inspect p
+2	2	1	0	proc p {} {}; namespace export p; namespace export -clear
+2	2	2	0	proc p\uD800 {} {return FIRST}; p\uD800; proc p\uD801 {} {return OTHER}; p\uD801; proc p\uD800 {} {return LAST}; p\uD800
+2	2	1	0	proc p\uD800 {} {}; p\uD800; proc p\uD801 {} {}; p\uD801
+2	2	2	0	proc package {args} { return $args } package files mypackage
+2	2	1	0	proc parade {} {} par
+2	2	1	0	proc pass {value} {return $value}
+2	2	1	1	proc pf {y} { return bogus } namespace eval ::nsa::tcl::mathfunc {} proc ::nsa::tcl::mathfunc::pf {x} { return 20 } namespace eval ::nsa { proc caller {} { return [expr {pf(1)}] } }
+2	2	2	2	proc pick {} { return first } proc pick {} { return second }
+2	2	2	0	proc pix::svg::parse {a} {
+2	2	2	1	proc plain {} {}
+2	2	2	0	proc probe {} {upvar 1 local}; proc caller {} {set 1 3; catch probe}; caller
+2	2	1	0	proc puts {custom_arg} {} puts
+2	2	2	0	proc q args { return -code continue } list [catch {regsub -command {.x.} {abcxdef} q} r] $r [info exists ::errorInfo]
+2	2	2	0	proc q {} { set n 1 set r [expr {[incr n] + [incr n]}] return $r } puts [q]
+2	2	2	2	proc reader {name} {upvar 1 $name cell; set cell 1}; proc puts {name} {upvar 1 $name cell; set cell 1}
+2	2	2	2	proc reader {value} {}; reader retained
+2	2	2	2	proc reader {value} {}; rename reader {}; reader retained
+2	2	2	2	proc rec {n} {if {$n <= 0} {return 0}; expr {$n + [rec [expr {$n - 1}]]}} puts [rec 4]
+2	2	1	0	proc renamed {} {}
+2	2	2	2	proc reset {name} {upvar 1 $name v; unset v} set m 1 reset m if {[info exists m]} {puts bound} else {puts unbound}
+2	2	2	0	proc reset {x} { uplevel 1 {set counter 0} }
+2	2	1	0	proc resolveSwitch {name def} { catch {error boom} name return $name }
+2	2	2	0	proc retained {} {}
+2	2	1	1	proc run {cmd} {$cmd 5}; proc d {} {run notacommand}
+2	2	2	0	proc run {} {puts [mypkg_autoloaded]}
+2	2	1	0	proc sample {x} {if {$x <= 1} { return 1 }} sample 0
+2	2	2	0	proc sample {} {puts VALUE}
+2	2	1	2	proc set args {return CUSTOM}; proc f {} {set p literal.txt; open $p}
+2	2	2	0	proc set args {};
+2	2	2	0	proc set {a b} { return }
+2	2	2	2	proc setInCaller {var} { set $var 99 } proc useIt {} { setInCaller answer return $answer }
+2	2	2	0	proc setInCaller {var} { uplevel 1 [list set $var 99] }
+2	2	2	0	proc setUp2 {var} { uplevel 2 [list set $var 99] } proc middle {} { setUp2 answer } proc outer {} { middle return $answer }
+2	2	1	0	proc setdef {{d}} {{ upvar {level} $d dst; set dst 1 }} proc caller {{}} {{ setdef shared puts $shared }}
+2	2	2	0	proc setter {} { uplevel #0 { set x 99 } } set x 5 setter puts $x
+2	2	1	0	proc shout {x} { puts $x; expr {$x + 1} } proc f {} { set unused [shout 1]; puts done }
+2	2	2	2	proc shout {} { uplevel #0 [list puts hi] } set x 5 shout puts $x
+2	2	2	0	proc sin {x} { return bogus } set y [expr {sin(1.0)}]
+2	2	2	0	proc sizzler {} {} si
+2	2	1	0	proc small {} { set x 1 }
+2	2	2	1	"proc specAddButtonPopUp {x y} { return ""spec $x $y"" }"
+2	2	1	0	proc spin {} { while {1} { break } }
+2	2	1	0	proc string args {return shadow}
+2	2	2	0	proc string args {return x}
+2	2	1	0	proc string args {}; string length value
+2	2	2	0	proc string {op args} { return $op } string reverse hello
+2	2	1	0	proc stub {a b} {}
+2	2	1	1	proc subject
+2	2	2	0	proc target args {return TARGET} namespace eval ER { proc repair {ens args} { namespace ensemble configure $ens -map {nope ::target} rename $ens ::ER2 return {} } namespace ensemble create -command ::ER -unknown ::ER::repair } list [::ER nope] [namespace ensemble configure ::ER2 -map] [::ER2 nope]
+2	2	2	0	proc target args {return TARGET} proc repair {ens args} { namespace ensemble configure $ens -map {nope ::target}; return {} } namespace eval se7 { namespace ensemble create -command ::se7 -unknown ::repair } ::se7 nope
+2	2	2	0	proc target args {return TARGET} set seen {} proc hide_repair {ens args} { namespace ensemble configure $ens -map {nope ::target} -unknown ::hidden_repair interp hide {} $ens heldE return {} } proc hidden_repair {ens args} { set ::seen $ens return [list ::target] } namespace ensemble create -command
+2	2	2	0	proc target {a b c} {} interp alias {} shortcut {} target 100 shortcut 2
+2	2	2	0	proc target {a b c} {} interp alias {} shortcut {} target 100 shortcut 2 3
+2	2	2	0	proc target {a b c} {} rename target target_orig target_orig 1 2
+2	2	2	0	proc target {a b c} {}; interp alias {} selected {} target first second; selected
+2	2	1	0	proc target {captured written} {}; interp alias {} alias {} target FIXED; alias VALUE
+2	2	2	0	proc target {captured written} {}; interp alias {} alias {} target FIXED; alias {*}{VALUE}
+2	2	2	0	proc target {captured written} {}; target {*}{FIXED VALUE}
+2	2	2	0	proc target {first {second DEFAULT}} {}; target ONLY
+2	2	1	0	proc target {{a b c}} {}
+2	2	2	1	proc target {} { return hi } set cmd [gets stdin] eval $cmd
+2	2	1	0	proc target {} {return OK} info args target rename target moved moved
+2	2	2	0	proc target {} {} rename target {} proc foo {} { set cmd target $cmd hello }
+2	2	2	0	proc tgt_old args {return OLD} proc tgt_new args {return NEW} namespace eval S { namespace export E namespace ensemble create -command ::S::E -map {x ::tgt_old} } namespace eval I {namespace import ::S::E} namespace eval S { namespace ensemble create -command ::S::E -map {x ::tgt_new} } list [::I::E
+2	2	1	2	proc tick {} { set ::done 1 } set done 0 after 10 tick after 50 update puts $done
+2	2	1	0	proc tool {} {} tool tool tool
+2	2	2	0	proc uh {ens args} {return [list list REPLACED $ens]} namespace eval se5 { namespace ensemble create -command ::se5 -subcommands {} -unknown ::uh } ::se5 nope 1 2
+2	2	2	0	proc unknown args { return }
+2	2	2	0	proc unknown args {return 0}
+2	2	1	1	proc unknown args {return handled}; missing
+2	2	2	0	proc unknown args {}
+2	2	1	2	proc unknown {args} {return -code error absent} set a old catch {lassign {new second} a b} m puts $a
+2	2	2	1	"proc unknown {cmd args} { if {$cmd eq ""alpha""} { return 1 } else { return 2 } } unknown alpha unknown alpha bogus beta"
+2	2	2	0	proc upvar args {}
+2	2	2	0	proc valid {} { pool valid_proc }
+2	2	2	0	proc vendor::f {x {y 1}} {set x}
+2	2	1	2	proc vendor::f {x} {upvar 1 $x y; expr {$y * 2}}
+2	2	1	2	proc walk {tree} { switch [lindex $tree 0] { leaf { return [lindex $tree 1] } node { walk [lindex $tree 2] } } }
+2	2	2	0	proc watch {n1 n2 op} {lappend ::events $op}; proc arm {} {uplevel 1 {trace add variable r {read write} watch}}; set events {}
+2	2	2	0	proc watch {token args} {set ::seen $token}
+2	2	2	0	proc watched {} {}; proc callback args {}; trace add execution watched enter callback
+2	2	2	0	proc watched {} {}; trace add execution watched enter callback; watched
+2	2	2	1	proc when {args} {}; when HTTP_REQUEST {}
+2	2	1	0	"proc xyz {""as"" v} { return $v }"
+2	2	1	2	proc zero {v} {upvar 1 $v x; set x 0} proc p {s} { set line 5 switch -glob -- $s { g* { zero line } } puts $line }
+2	2	2	0	proc {namespace upvar} {args} {return [list FULL {*}$args]}
+2	2	2	0	proc {namespace upv} {args} {return [list SHORT {*}$args]}
+2	2	2	0	proc {name} {{a}} {{ return }}
+2	2	2	0	proc {{{helper}}} {{}} {{return SCRIPTED}}
+2	2	1	0	proc:report-data
+2	2	1	0	pure leaf proc should be flagged
+2	2	2	0	"puts ""$"""
+2	2	2	0	"puts ""$a$b"""
+2	2	1	0	"puts ""$sum"""
+2	2	1	0	"puts ""42"""
+2	2	2	0	"puts ""[foo"""
+2	2	2	0	"puts ""\é"""
+2	2	2	0	"puts ""\€"""
+2	2	2	0	"puts ""a[foo b"""
+2	2	1	0	"puts ""a\ b"""
+2	2	2	0	"puts ""a\你b"""
+2	2	1	0	"puts ""abc"
+2	2	2	0	"puts ""case\t"
+2	2	1	0	"puts ""cost: $"""
+2	2	2	0	"puts ""hi"""
+2	2	2	0	"puts ""unterminated"
+2	2	1	2	"puts ""val=5"""
+2	2	2	0	"puts ""widget $label"""
+2	2	1	2	"puts ""x=5"" puts 6"
+2	2	2	0	"puts ""x\é\你"""
+2	2	1	0	puts $::auto_path
+2	2	2	2	puts $::counter
+2	2	2	2	puts $::hits
+2	2	1	0	puts $::shared
+2	2	2	0	puts $a$b
+2	2	2	0	puts $a($i)
+2	2	2	0	puts $a(k)
+2	2	2	0	puts $app::colors::palette
+2	2	1	2	puts $argv
+2	2	2	0	puts $b
+2	2	2	0	puts $café
+2	2	2	0	puts $changed
+2	2	2	0	puts $local
+2	2	2	0	puts $missing
+2	2	1	0	puts $n
+2	2	1	0	puts $parameter
+2	2	2	1	puts $tcl_precision
+2	2	1	0	puts ${$literal}
+2	2	2	0	puts ${a($i)}
+2	2	2	0	puts ${abc
+2	2	1	0	puts ${a{b}; set x 1
+2	2	1	0	puts ${source}
+2	2	2	0	puts ${value}
+2	2	2	0	puts -nonewline $f +tail; seek $f 0; set r [read $f]
+2	2	2	0	puts -nonewline $f hello; set r {}
+2	2	2	0	puts -nonewline $f new; seek $f 0; set r [read $f]
+2	2	1	0	puts -nonewline forbidden
+2	2	1	0	puts -nonewline stale
+2	2	1	2	puts 7}
+2	2	2	0	puts CHANGED
+2	2	2	0	puts NEVER
+2	2	1	0	puts Z
+2	2	1	0	puts [concat a {b c} d]
+2	2	2	0	puts [dict get {a 1 b 2} b]
+2	2	2	0	"puts [expr {""1"" == ""01""}]"
+2	2	2	0	puts [expr {1000000 * 1000000}]
+2	2	1	1	puts [expr {4.9e-324}]
+2	2	2	0	puts [info commands ::tcl::InitAutoPath]
+2	2	2	0	puts [info level]
+2	2	1	0	puts [lindex {a b c} end]
+2	2	1	0	puts [list $__vecCode $__vecResult]
+2	2	1	0	puts [llength [split a,b,c ,]]
+2	2	2	0	puts [llength {a b c}]
+2	2	1	0	puts [lrange {a b c d} 1 2]
+2	2	2	0	puts [mypkg_autoloaded $arg]
+2	2	2	0	puts [set a]
+2	2	1	0	puts [set x [clock seconds]]
+2	2	2	0	puts [string cat a b c]
+2	2	1	0	puts [string index hello 1]
+2	2	2	0	puts [string is alpha abc]
+2	2	2	0	puts [string is boolean yes]
+2	2	2	0	puts [string is double 1.5]
+2	2	1	0	puts [string length hello]
+2	2	2	0	"puts [string range ""Ãabc"" 1 2]"
+2	2	1	0	puts [string range hello 1 3]
+2	2	1	0	puts [string toupper hello]
+2	2	2	0	puts [string trim { hi }]
+2	2	2	0	puts [{script}]
+2	2	2	0	puts a\ b
+2	2	2	0	puts a\tb
+2	2	2	0	puts ab
+2	2	2	0	puts before
+2	2	1	1	puts data
+2	2	1	1	puts different
+2	2	2	1	puts early rename puts myputs myputs late
+2	2	2	0	puts example
+2	2	1	0	puts foo\\]
+2	2	1	0	puts foo\]
+2	2	1	0	puts foo]
+2	2	1	0	puts hello\
+2	2	1	0	puts hi ;# bye
+2	2	2	0	puts hi ;# tail \ more set y 2
+2	2	1	0	puts hidden
+2	2	1	2	puts immediate
+2	2	1	2	puts looping
+2	2	2	0	puts nested
+2	2	2	1	puts one
+2	2	2	0	puts plain
+2	2	1	0	puts resolves
+2	2	2	0	puts spec
+2	2	2	1	puts stderr hello
+2	2	2	0	puts stderr hi
+2	2	2	1	puts stdout hello
+2	2	2	1	puts two
+2	2	2	1	puts unreachable
+2	2	1	2	puts wrapper
+2	2	2	0	puts {$value}
+2	2	1	0	puts {$x eq {}}
+2	2	1	0	puts {[add 2 4]}
+2	2	2	2	puts {dropped}
+2	2	2	2	puts {value}
+2	2	1	0	puts é
+2	2	2	1	puts 😀
+2	2	2	0	read shared array-get trace fixture
+2	2	1	0	"regexp ""$pat"" $s"
+2	2	1	0	regexp $mode {a+} $value
+2	2	2	0	"regexp -- ""$pattern"" $text"
+2	2	1	1	regexp -- $payload haystack
+2	2	2	0	regexp -about {(}
+2	2	2	0	regexp -all abc $s
+2	2	2	1	regexp -inline a abc x
+2	2	2	0	regexp -start 1+1 {a} aaaa
+2	2	2	0	regexp -start 3 {a} {a a a}
+2	2	2	1	regexp -start 99999999999999999999 a abc
+2	2	2	1	regexp -start abc a abc
+2	2	2	0	regexp -start bogus {a} aaaa
+2	2	1	0	regexp {(a+)+$} $text
+2	2	2	0	regexp {(a+)+} $s
+2	2	2	1	regexp {(} abc
+2	2	2	0	regexp {(} x
+2	2	1	0	regexp {-[0-9]+} $text
+2	2	1	0	regexp {^(\d+)\s+(\w+)$} $line
+2	2	2	1	regexp {^foo.*$} $line
+2	2	2	0	regexp {a(} b
+2	2	2	0	"regsub ""\n$"" $msg """" out"
+2	2	1	0	regsub $pattern $text X out
+2	2	1	0	regsub -all {a} $b {} c
+2	2	2	0	regsub -command {(a)|(b)} ab {list <}
+2	2	1	0	regsub -nocase -all -- $pat $s {} out
+2	2	2	0	rename $old decl
+2	2	1	1	rename $old decl proc kept {arg} {list $arg}
+2	2	2	1	rename $old myfmt
+2	2	2	0	rename ::apply ::SavedInfoApply085; proc ::apply args {error APPLY_HELPER085}; info functions sin
+2	2	2	0	rename ::src::p ::src::q
+2	2	2	0	rename ::tcl::mathfunc::sin {} set x [expr {sin(1.0)}]
+2	2	1	1	rename C {}; oo::class create C {}
+2	2	2	1	rename a b
+2	2	1	1	rename append saved_append;
+2	2	2	0	rename baz {}
+2	2	2	0	rename c {}
+2	2	2	0	rename definitelyNotDefinedAnywhere someAlias
+2	2	2	0	rename dict d; d info
+2	2	1	0	rename expr real_expr expr {1 + 2}
+2	2	1	0	rename expr saved; proc expr args {return CUSTOM}; return [expr {1 / 0}]
+2	2	1	0	rename foo {}
+2	2	2	0	rename guarded moved
+2	2	2	0	rename info inspect
+2	2	2	0	rename lassign {}
+2	2	1	0	rename list make
+2	2	1	2	rename list mylist
+2	2	1	2	rename llength myll
+2	2	2	0	rename moved guarded
+2	2	2	0	rename mypkg_autoloaded removed; puts [mypkg_autoloaded]
+2	2	2	0	rename obj renamed
+2	2	1	0	rename proc original; original proc args {return REPLACED}
+2	2	1	0	rename proc original; original proc args {return ordinary}; proc p {{a b c}} {}
+2	2	1	1	rename puts myputs
+2	2	1	0	rename puts {}
+2	2	1	1	rename puts {} puts x
+2	2	1	1	rename puts ﻿puts; ﻿puts value
+2	2	2	1	rename regexp {} oo::class create regexp {} regexp {^foo.*$} $line
+2	2	2	1	rename set saved_set
+2	2	2	0	rename set {}
+2	2	2	1	rename source moved; source selected.tcl
+2	2	2	1	rename source {}; source selected.tcl
+2	2	2	0	rename string original
+2	2	2	0	rename totallyBogusCommand {} puts done
+2	2	2	0	rename unknown moved
+2	2	2	0	rename unknown {}
+2	2	2	0	rename upvar myupvar
+2	2	2	0	rename {{{helper}}} held
+2	2	1	2	retained source input
+2	2	1	0	return $::seen
+2	2	1	0	return ${unterminated
+2	2	2	0	return ${xÿ}
+2	2	2	0	return -code
+2	2	2	0	return -code $code $result
+2	2	2	0	return -code 7 x
+2	2	2	0	return -code break
+2	2	2	0	"return -code error ""bad"""
+2	2	2	0	return -code error -errorcode {X Y} msg
+2	2	2	0	return -code error oops
+2	2	2	0	return -code {word} x
+2	2	2	0	return -errorcode {A B}
+2	2	2	0	return -level 0
+2	2	2	0	return -level 0 -code error -options {-custom kept -errorcode CUSTOM}
+2	2	2	0	return -level 0 -code error -options {-custom kept -errorcode CUSTOM} BODY
+2	2	2	0	return -level 0 -code error BODY
+2	2	2	0	return -level 0 -code error [set y BODY]
+2	2	2	0	return -level 0 -options {-custom A -options {-custom B} -custom C} BODY
+2	2	2	0	return -level {word} x
+2	2	2	0	return -options $options $result
+2	2	2	0	return -options {-code abc} x
+2	2	2	0	return BAD
+2	2	1	0	return FOREIGN
+2	2	2	0	return ONE
+2	2	2	0	return RAW
+2	2	2	0	return TWO
+2	2	1	1	return X}
+2	2	1	0	return [error STOP] [expr {1 / 0}]
+2	2	2	0	return [expr {$a + $b}]
+2	2	1	0	return [expr {$x+$y}]
+2	2	1	0	return [expr {1 / 0o0}]
+2	2	2	0	return [llength $words]
+2	2	2	0	return [self object]
+2	2	1	0	return [self]
+2	2	1	0	return [set ::seen]
+2	2	2	1	return a b
+2	2	1	1	return no
+2	2	2	0	return ok
+2	2	2	0	return value
+2	2	2	0	return y
+2	2	2	1	return yes
+2	2	2	0	return {*}$args
+2	2	1	0	return {[expr {1 / 0}]}
+2	2	1	0	return {value}
+2	2	1	0	returnCodeBranch: TOS not a return code
+2	2	2	2	route incr: direct cell-increment (registry)
+2	2	2	2	route llength: direct list-length (registry)
+2	2	2	0	"second error while executing ""second command"""
+2	2	1	0	semanticTokens enabled must yield a token set
+2	2	2	0	"set ""foo-bar"" 1 puts $"
+2	2	2	0	"set ""weird}name"" 1"
+2	2	1	0	set $name 1
+2	2	1	0	set $p 1
+2	2	2	0	set $target
+2	2	2	0	set $target DYNAMIC;return [list [info locals] [info vars]]
+2	2	2	0	set $unknown 1
+2	2	1	1	set ${x} v
+2	2	2	0	set ::Missing::x 3; set ::N:::x 4; set ::N::x 5; list $::::Missing::x $::N:::x $::N::x
+2	2	2	0	set ::N::changed(k) 1; set ::N::v\uD801 2; info exists ::N::changed(k)
+2	2	2	0	set ::N::v\uD800 1 set ::N::v\uD801 2 info exists ::N::v\uD800
+2	2	2	0	set ::N::v\uD800(k) 1; set ::N::v\uD801 2; info exists ::N::v\uD800(k)
+2	2	2	0	set ::auto_path [list {}]
+2	2	2	0	set ::encoded é; return YES
+2	2	2	0	set ::fired
+2	2	2	0	set ::loaderContext
+2	2	2	0	set ::loaderContext [list [namespace current] [info level]]; return done
+2	2	2	0	set ::observations {} proc during {name1 name2 operation} { foreach script { {interp invokehidden {} -namespace retiring hiddenNamespace current} {interp invokehidden {} hiddenNamespace exists retiring} {interp invokehidden {} hiddenNamespace eval retiring {}} } { set code [catch {uplevel #0 $script
+2	2	2	0	set ::observations {} proc during {name1 name2 operation} { set status [catch {namespace eval $::operand {namespace current}} value] set ::observations [list $status $value] } namespace eval retiring { variable sentinel HELD trace add variable sentinel unset ::during } namespace delete retiring set 
+2	2	2	0	set ::observed
+2	2	2	0	set ::prior BEFORE; catch {return -level 0 -code error -errorcode [lseq 100000001] BODY} captured options; set ::after YES
+2	2	1	0	set ::r {}
+2	2	2	0	set ::recursiveVersion
+2	2	2	0	set ::recursiveVersion [package require recursive 999]; package provide recursive invalid
+2	2	1	0	set ::result
+2	2	1	0	set ::shared 1
+2	2	2	0	set ::x GLOBAL; namespace eval ::N {proc observe {} {set x LOCAL; set child [interp]; $child alias readX set x; $child alias where namespace current; set result [list [$child eval {readX}] [$child eval {where}]]; $child delete; return $result}}; ::N::observe
+2	2	1	0	set HANDLED YES
+2	2	2	1	set NSPACE [NSNormalize [uplevel 1 {namespace current}] $name]
+2	2	2	0	set a 1 foreach b $a { puts $b }
+2	2	1	2	set a 1 incr a 5 puts $a
+2	2	1	1	set a 1 set a 2 puts $a
+2	2	2	0	"set a 1 set b 2 puts ""ÿ bad"""
+2	2	1	2	set a 1 set b 2 set c 3 eval {$a $b $c}
+2	2	1	2	"set a 1 set b 2 set c 3 puts ""$a $b $c"""
+2	2	2	0	set a 1 set b 2 set c 3 set d 4
+2	2	2	0	set a 1 set b 3 if {$a && [expr {$b + 1}]} { puts hi }
+2	2	2	0	set a 1 set b [expr $a + 1]
+2	2	1	1	set a 1 unset a set b [expr {$a + 2}]
+2	2	2	0	set a 1; set b 2
+2	2	2	0	"set a 1;set b 2;puts ""$a [expr {$a+$b}] $b"";# tail"
+2	2	1	0	"set a [clock seconds] if {$a == ""1""} {}"
+2	2	2	0	set a [expr {sin(1.0)}]
+2	2	2	0	set a [list 1 2 3] set b $a lappend b y puts [llength $b]
+2	2	2	0	set a [list 1 2 3] set b [lrange $a 0 end] lappend b y puts [llength $a]
+2	2	1	0	"set a [string trim $raw] if {$a == ""1""} {}"
+2	2	1	0	"set a [string trim $raw] if {$a == ""true""} {}"
+2	2	1	2	"set a [string trim $raw] if {$a == ""x"" && $n == 1} {}"
+2	2	1	0	set a [string trim $x] set b [string trim $y] if {$a == $b} {}
+2	2	1	0	set a alpha; set b beta; set r [expr {$a == $b}]
+2	2	1	2	set a foo if {$a == $b} {}
+2	2	1	2	set a foo set b bar if {$a == $b} {}
+2	2	2	0	set a hi subst {x${a}y}
+2	2	1	0	set a x set a:b BAD set arr(x:b) good set arr(BAD) bad fold $arr($a:b)
+2	2	2	0	set a {$x} set x 3 set b 2 puts [expr $a + $b]
+2	2	1	2	set a($i) 1
+2	2	1	0	"set a(1) ""alpha beta"" set n [llength $a(1)]"
+2	2	1	0	set a(k) VALUE; proc p {} {a} {array get a}; set a(k) NEW; list [p] [array get a]
+2	2	1	0	set a(k) v
+2	2	1	0	set a\x62 1
+2	2	1	2	"set acc """"; append acc foo; append acc bar"
+2	2	2	0	set addr 10.0.0.1
+2	2	1	0	set addr [IP::client_addr] regexp $addr test
+2	2	2	1	set after 1
+2	2	1	0	set ans_cleared
+2	2	2	0	set answer [class lookup $x answers]
+2	2	2	0	set argv {{{}}}
+2	2	1	0	set arr(key) 1 set v $arr(k)
+2	2	2	0	set arr(src) [list 1 2 3] set b $arr(src) lappend b y puts [llength $arr(src)]
+2	2	1	0	set auto_index(a) [list source $missing]
+2	2	1	0	set auto_index(a) [list source $option utf-8 a.tcl]
+2	2	1	0	set auto_index(a) [list source -encoding utf-8 $missing]
+2	2	1	0	set auto_index(a) [list source -encoding utf-8 [file join $dir a.tcl]] set auto_index(b) [list source -encoding utf-8 [file join $dir b.tcl]]
+2	2	1	0	set auto_index(a) [list source [file dirname $dir]]
+2	2	1	0	set auto_index(a) [list source [file join $dir a.tcl]] set auto_index(b) [list source [file join $dir b.tcl]]
+2	2	1	0	set auto_index(a) [list source {*}$unknown]
+2	2	2	0	set auto_path [file join /ROOT {a b}]
+2	2	1	1	set b $x if {$b} { puts hello }
+2	2	2	0	set b 5
+2	2	1	1	set b [clock seconds] if {$a} { puts $b }
+2	2	1	2	set b foo if {$a} { puts $b }
+2	2	1	2	"set b foo if {$kind == ""x""} { puts $b }"
+2	2	2	0	set before 1
+2	2	1	1	set before 1; $handler {set hidden 2}; set after 3
+2	2	1	0	set before 1; if {1} $body; set after 3
+2	2	2	0	set beta 2
+2	2	2	0	"set c [catch {{{source}}} m];binary scan $m H* h;set observed ""$c\t$h"""
+2	2	2	0	set c [self class]
+2	2	2	0	set c(1) inner set b(inner) mid set a(mid) outer subst {$a($b($c(1)))}
+2	2	2	0	set changed 1
+2	2	2	0	set child [binary format H* 496e666f5a65726f30383500ff]; interp create $child; info loaded $child
+2	2	2	2	set cmd foo
+2	2	1	0	set cmd puts $cmd hi
+2	2	2	1	set cmd renamed
+2	2	2	0	set counter 1
+2	2	1	2	set d [Dog new] $d speak
+2	2	2	0	set d [dict create a 1 b 2] foreach x $d { puts $x }
+2	2	2	0	"set d {a 1 b 2} dict for {k v} $d { puts ""$k=$v"" }"
+2	2	1	0	set d {a 1 b 2} dict with d {set a 9; unset b; set c 3} set d
+2	2	2	1	set d {a 1}; dict incr d a [expr {1.5}]
+2	2	2	1	set d {a 1}; dict incr d b [expr {2.0}]
+2	2	2	0	set d {a {b 1}}; dict unset d a y; set d
+2	2	2	0	set d {a {b 1}}; dict unset d x y
+2	2	2	0	set d {first NEW};set ok BEFORE;set entered 0;set c [catch {dict update d first ok {set entered 1}} r];list [info commands {dict update}] $c $r $ok $entered $d
+2	2	2	0	set data [list puts hello world]
+2	2	1	0	set data {ma
+2	2	2	1	set dir /ROOT; source -encoding $encoding [file join $dir leaf.tcl]
+2	2	2	1	set dir /ROOT; source -encoding [opaque] [file join $dir leaf.tcl]
+2	2	2	1	set dir /ROOT; source -encoding [set dir /OTHER; list utf-8] [file join $dir leaf.tcl]
+2	2	2	1	set dir /ROOT; source [file join $dir leaf.tcl]
+2	2	2	0	set done
+2	2	1	2	set done 0 after 10 { set done 1 } after 50 update puts $done
+2	2	2	0	"set e ""{a\\\n b}""; expr $e"
+2	2	2	0	"set e ""{a\\tb}""; expr $e"
+2	2	2	0	set empty {} foreach x $empty { puts $x }
+2	2	2	0	set env(GONE) 1; set ::log {} trace add variable env unset {apply {args {lappend ::log arr}}} trace add variable env(GONE) unset {apply {args {lappend ::log elem:$args}}}
+2	2	2	0	set env(UP)
+2	2	1	0	set errorCode
+2	2	2	0	set evenWhenWritingCode
+2	2	2	0	set events
+2	2	2	0	set f [open {p} {mode}]; {body}; close $f; set r
+2	2	1	2	set fabricated VALUE
+2	2	1	1	set first [append x [mutate]];
+2	2	1	2	set fixed VALUE EXTRA
+2	2	1	2	set fixed {*}$n
+2	2	1	1	set flag
+2	2	1	1	set flag 0; set before 1; if {$flag} {set}
+2	2	2	0	set flag 1
+2	2	1	1	"set fmt ""%-20s %d"" format $fmt a 1"
+2	2	2	0	set fontSizes {10.0 12.0 16.0 24.0} foreach size $fontSizes { puts $size }
+2	2	1	0	set foo 1 set bar 2
+2	2	2	0	set g 0 proc p {c} { global g catch {set v $c} g } p 7 puts $g
+2	2	1	2	set g 0 proc p {x} { global g try {return $x} on error {} {exit 0} finally {set g 1} } p 5 puts $g
+2	2	1	2	set g 0 proc p {} { global g try {return -level 0 -code 8 boom} on 010 {} {set g 1} finally {} } catch p puts $g
+2	2	1	2	set g 0 proc tr args {error TRACE} proc p {} { global g trace add variable msg write tr try {error boom} on error msg {exit 0} finally {set g 1} } catch p puts $g
+2	2	2	0	set g 1 namespace eval foo { puts $g }
+2	2	2	0	set g 1 proc p {} { puts $g }
+2	2	2	1	set g 1 proc p {} { set g 99 uplevel #0 { puts $g } }
+2	2	2	0	set g 4 proc helper {} { global g set g 17 } helper puts $g
+2	2	1	1	set go 1 catch { namespace eval :: {set go 0} } if {$go} {puts a} else {puts b}
+2	2	1	2	set go 1 switch -glob -- [gets stdin] { q* { namespace eval :: {set go 0} } } puts $go
+2	2	1	1	set go 1 trace add variable x write { set ::go 0 ;# } set x 1 if {$go} {puts a} else {puts b}
+2	2	1	2	set go 1 while {$go} {puts x}
+2	2	2	0	set go 1 while {$go} {string index lappend never x} string length abc
+2	2	2	0	set greeting hello puts ${gre
+2	2	2	0	set greeting hello puts ${gre}
+2	2	2	0	set held
+2	2	2	1	set hits 0 proc bump {} {set y [incr ::hits]; return $y} bump puts $hits
+2	2	2	2	set i 0; for {} {$i < 3} {} {incr i 2}
+2	2	1	0	set inert
+2	2	1	0	set inherited $dir
+2	2	2	0	"set item x set items {} append items "" $item"""
+2	2	1	0	set items {a b} set n [mypkg::count $items]
+2	2	2	0	set k KEY; set d [dict create KEY VALUE]
+2	2	1	0	set l {1 2 3 4 5} ledit l 1 1 a b set l
+2	2	2	0	set l {1 2 3} llength $l
+2	2	2	0	set l {a 1 b 2} foreach i {1 2 3} { llength $l dict size $l }
+2	2	2	1	set l {a b c}
+2	2	1	0	set l {{a b} {c d}} set c lset $c l 0 1 X set l
+2	2	1	1	set l {} lappend l a lappend l b c
+2	2	1	1	set l {} lappend l {a b} lappend l c
+2	2	2	0	set label $text
+2	2	1	1	set later YES
+2	2	2	2	set lb [listbox .l] $lb curselection
+2	2	1	0	"set line [gets stdin] set trimmed [string trimleft $line] set is_empty [expr {$trimmed eq """"}] set is_comment [expr {!$is_empty && [string index $trimmed 0] eq ""#""}] set is_code [expr {!$is_empty && !$is_comment}]"
+2	2	1	0	set live current
+2	2	1	0	set live old
+2	2	2	0	set log {} proc rec {old new op} {lappend ::log [list $old $op]} namespace eval N { namespace ensemble create -command ::E proc p {} {namespace delete ::N; list [info commands ::E] $::log} } trace add command ::E delete rec ::N::p
+2	2	2	0	set log {} proc rec {old new op} {lappend ::log [list $old $op]} namespace eval N { proc q {} {return Q} proc p {} {namespace delete ::N; set ::mid $::log; return [q]} } trace add command ::N::p delete rec trace add command ::N::q delete rec set r [namespace eval N {set inner [p]; set ::after_p $::l
+2	2	2	0	set log {} proc rec {old new op} {lappend ::log [list $old $op]} namespace eval N { proc q {} {return Q} proc p2 {} {namespace delete ::N} proc p {} {p2; list [q] [llength $::log]} } trace add command ::N::q delete rec set a [::N::p] list $a [llength $log]
+2	2	1	1	set log {} proc rec {old new op} {lappend ::log [list $old $op]} namespace eval N { proc q {} {return [namespace current]} proc p {} {namespace delete ::N; set a [q]; set b $::log; list $a $b} } trace add command ::N::q delete rec set a [::N::p] list $a $log
+2	2	2	0	set log {} proc rec {old new op} {lappend ::log [list $old $op]} namespace eval N {proc q {} {return Q}} trace add command ::N::q delete rec set a [apply [list {} {namespace delete ::N; list [q] [llength $::log]} ::N]] list $a $log
+2	2	2	0	set log {} proc rec2 {old new op} {lappend ::log [namespace tail $old]} namespace eval N {} foreach n {one two three four five six seven eight nine ten} { proc ::N::$n {} {} } proc ::N::p {} {namespace delete ::N; return [llength $::log]} foreach n [info commands ::N::*] {trace add command $n delete
+2	2	2	0	set log {} proc rec2 {old new op} {lappend ::log [namespace tail $old]} namespace eval S {proc s1 {} {}; namespace export s*} namespace eval N { namespace import ::S::s1 proc p {} {namespace delete ::N; return} } foreach n {one two three four five six seven eight nine ten} { proc ::N::$n {} {} } for
+2	2	2	0	set longleft changed; return $longleft
+2	2	1	0	"set marker ""noqa""; # ordinary comment \ puts live"
+2	2	2	0	set meta ::tk::Megawidget
+2	2	2	0	set method m C $method
+2	2	1	2	set msg {Hello World}
+2	2	1	2	set msg {Hello} append msg { } append msg World
+2	2	1	2	set msg {Hello} puts $msg append msg { World}
+2	2	1	2	set msg {Hello} puts ok append msg { World}
+2	2	2	1	"set my_re "".*abc"" regexp $my_re $s"
+2	2	2	0	"set my_re "".*abc"" set s subject regexp $my_re $s"
+2	2	2	0	set myns::count 0 puts $myns::count
+2	2	1	0	"set n ""="" interp alias {} $n {} expr"
+2	2	2	2	set n 0; for {set i 0} {$i < 3} {incr i} {set i [expr {$i + 1}]; incr n}
+2	2	2	2	set n 0; foreach x {1 2 3} {if {$x == 2} break; incr n}
+2	2	2	0	set n 0; time {incr n} 0x3; set n
+2	2	2	2	set n 1 if $n { puts a } else { puts b }
+2	2	2	0	set n 1; proc f {} {n} {return $n}; f
+2	2	2	0	set n 3; lseq $n*2
+2	2	1	0	set n 5 uplevel #0 { set n 99 } if {$n == 5} { set r yes } else { set r no }
+2	2	2	0	set n 5 uplevel #0 { set n 99 } puts $n
+2	2	1	0	set n [eval $s] set n 1 puts $n
+2	2	1	0	set n [expr {abs(-2)}]
+2	2	1	0	set n [gets stdin] set m [expr {$n + 1}] if {$m} {puts y}
+2	2	2	0	set n [regsub -command {.x.} abcxdef {string length} out]; list $n $out
+2	2	2	2	"set n x set p ""/var/log/$n.log"""
+2	2	1	1	set name {LiteralChild}; set body {return original}; proc $name {} $body
+2	2	2	0	"set ns ""ctx"" puts ""{ $ns"""
+2	2	2	0	set ns ::a if {$c} { set ns ::b } namespace eval $ns { proc go {} { return 1 } }
+2	2	2	0	set o [Base new]
+2	2	2	0	set observed [
+2	2	1	0	set oid 1.3.6.1.4.1.4203.1.11.3
+2	2	1	0	set ok $::basic__addr set missing $::basic__missing
+2	2	1	1	"set ok [expr {$a != ""hello""}]"
+2	2	2	0	set originalCallback BAD
+2	2	1	0	set output {value}
+2	2	2	1	set p [C new]
+2	2	1	0	"set p [HTTP::path] if { $p starts_with ""/api"" } { log local0. x }"
+2	2	1	0	"set p [HTTP::path] set m [string match ""/api/*"" $p]"
+2	2	1	0	"set p [HTTP::path] set parts [split $p ""?""]"
+2	2	1	0	set p [file join ROOT child]
+2	2	1	1	"set parts [split [HTTP::uri] ""?""]"
+2	2	1	0	set path -force proc useit {path} { file delete $path }
+2	2	1	1	set path /etc/hosts
+2	2	1	0	"set payload ""# pseudo \ puts live"""
+2	2	1	0	set payload {# pseudo \ puts live}
+2	2	1	0	set pinged
+2	2	2	0	set point [list 1 2 3] lassign $point x y z set offset [expr {$x + $y + $z}]
+2	2	1	0	set port [TCP::client_port] eval $port
+2	2	1	0	set port [TCP::client_port] regexp $port test
+2	2	1	0	"set progress """" expr {$progress eq """" ? """" : ""[expr {round($progress * 100)}]%""}"
+2	2	1	1	set r [expr {$x + [set x 10] + $x}]
+2	2	1	1	set r [expr {[expr {$x + 1}] + [set x 10]}]
+2	2	1	2	set r [expr {[set x 10] + 1}]
+2	2	1	1	set r [expr {[string length $x] + [set x 10]}]
+2	2	2	0	set r [list [tell $f] [read $f]]
+2	2	2	2	set r [llength {a b}]
+2	2	2	0	set r [read $f 2]; puts -nonewline $f XY; seek $f 0; append r | [read $f]
+2	2	2	0	set r [read $f 3]; puts -nonewline $f Q; seek $f 0; append r | [read $f]
+2	2	2	0	set r {a b} puts $r
+2	2	1	2	set r {word}
+2	2	1	0	set raw [HTTP::query] set enc [URI::encode $raw] HTTP::respond 200 content $enc
+2	2	2	0	set replacement 1
+2	2	1	0	set result [Base new]
+2	2	2	0	set result [llength [pid]]
+2	2	2	0	set retained VALUE
+2	2	1	1	"set s """" set t 1 append s foo append s bar"
+2	2	2	0	"set s ""abc"" regexp {(.)} $s letter if {$letter eq ""a""} { puts yes }"
+2	2	2	0	set s [format %d 5]
+2	2	1	0	set s [string trim hello] set y [expr {$s <= 5}]
+2	2	1	0	set s abc; set n [string length $s]; set m $n; lindex $m 0; lindex $n 0
+2	2	1	2	set s hello set p again append s $p puts $s
+2	2	1	2	set s hello set p { again} append s $p puts $s
+2	2	2	0	set safe_const 42 proc other {} { puts unrelated } other puts $safe_const
+2	2	2	0	set second
+2	2	2	0	set seen {} proc ensdeleted {tag old new op} { lappend ::seen [list $tag [namespace exists ::P] [namespace exists ::P::C]] } proc cmddeleted {old new op} { lappend ::seen [list PC [namespace exists ::P] [namespace exists ::P::C] [info commands ::CE]] } namespace eval ::P { namespace ensemble create 
+2	2	2	0	set seen {} proc observe {old new op} { lappend ::seen [list [namespace exists ::N] $old [info commands $old] [namespace ensemble exists $old]] } namespace eval N {namespace ensemble create -command ::E} trace add command ::E delete observe namespace delete ::N list $seen [namespace exists ::N] [inf
+2	2	2	0	set seen {} proc target args {return TARGET} proc repair {ens args} { set ::seen $ens namespace ensemble configure $ens -map {nope ::target} return {} } namespace eval S { namespace export E namespace ensemble create -command E -unknown ::repair } namespace eval I {namespace import ::S::E} list [::I
+2	2	2	0	set sin 1 puts $sin
+2	2	1	0	set sni [SSL::sni] log local0. $sni
+2	2	1	0	set sni [SSL::sni] regexp $sni test
+2	2	2	2	set t 0; for {set i 0} {$i < 4} {incr i} {if {$i == 1} continue; incr t}
+2	2	2	2	set t 0; for {set i 0} {$i < 4} {incr i} {incr t $i}
+2	2	2	0	set target value
+2	2	1	0	set top 1
+2	2	1	0	set total 0
+2	2	1	2	set total 0 for {set i 0} {$i < 5} {incr i} { set total [expr {$total + $i}] }
+2	2	1	1	set unused
+2	2	1	0	set uri
+2	2	1	0	set uri [HTTP::uri] eval $uri
+2	2	1	1	"set uri [HTTP::uri] if { $uri starts_with ""/api"" } { log local0. x }"
+2	2	1	1	"set uri [HTTP::uri] if { [string first ""?"" $uri] >= 0 } { log local0. x }"
+2	2	1	1	"set uri [HTTP::uri] if { [string match ""/static/*"" $uri] } { log local0. x }"
+2	2	1	0	set uri [HTTP::uri] regexp $uri test
+2	2	1	1	"set uri [HTTP::uri] set copy $uri set parts [split $copy ""?""]"
+2	2	1	1	"set uri [HTTP::uri] set m [string match ""*&key=*"" $uri]"
+2	2	1	0	"set uri [HTTP::uri] set m [string match ""*something*"" $uri]"
+2	2	1	1	"set uri [HTTP::uri] set m [string match ""/api/*"" $uri]"
+2	2	1	1	"set uri [HTTP::uri] set m [string match ""/api/??"" $uri]"
+2	2	1	1	"set uri [HTTP::uri] set parts [split $uri ""&""]"
+2	2	1	0	"set uri [HTTP::uri] set parts [split $uri ""/""]"
+2	2	1	1	"set uri [HTTP::uri] set parts [split $uri ""?&""]"
+2	2	1	1	"set uri [HTTP::uri] set pos [string first ""?"" $uri]"
+2	2	1	1	set uri [HTTP::uri] set x $uri regexp $x test
+2	2	1	0	set uri [HTTP::uri] set z ${uri}/suffix regexp $z test
+2	2	1	0	set v 1 puts hi ;# note $v
+2	2	2	0	set v 2
+2	2	2	0	"set v 5 foreach x {a b c} { puts $v if {$x eq ""b""} { set v ""s"" } else { set v 7 } }"
+2	2	1	1	set v 99
+2	2	2	0	set v GLOBAL; proc p {} {set v LOCAL; namespace_cache_probe $::name; return $alias}; p
+2	2	2	0	set v GLOBAL;proc p {} {set v LOCAL;probe $::name;unset v;global $::name;probe $::name;return $v};p
+2	2	1	1	set v OLD; list $v [set v NEW]
+2	2	2	0	set v VALUE
+2	2	1	0	set v [expr {!!($a == $b)}]
+2	2	1	0	set v [expr {!($a && $b)}]
+2	2	1	0	set v [expr {!($a < $b)}]
+2	2	1	0	set v [expr {$a + 1 + 2}]
+2	2	1	0	set v [expr {$a == $b}]
+2	2	1	1	set v [expr {$x != $x}]
+2	2	1	0	set v [expr {$x % 1}]
+2	2	1	0	set v [expr {$x & 0}]
+2	2	1	0	set v [expr {$x && 0}]
+2	2	1	0	set v [expr {$x && 1}]
+2	2	1	0	set v [expr {$x ** 0}]
+2	2	1	0	set v [expr {$x ** 1}]
+2	2	1	0	set v [expr {$x + 1 + 2}]
+2	2	1	0	set v [expr {$x << 0}]
+2	2	1	1	set v [expr {$x == $x}]
+2	2	1	0	set v [expr {$x >> 0}]
+2	2	1	1	set v [expr {$x ^ $x}]
+2	2	1	0	set v [expr {$x ^ 0}]
+2	2	1	0	set v [expr {$x | 0}]
+2	2	1	0	set v [expr {$x || 0}]
+2	2	1	0	set v [expr {$x || 1}]
+2	2	1	0	set v [expr {$x}]
+2	2	1	2	set v [expr {0 ? $a : $b}]
+2	2	1	2	set v [expr {1 ? $a : $b}]
+2	2	2	1	set v [expr {2.0}]; incr v
+2	2	1	1	set v [expr {abs(-5)}]
+2	2	1	0	set v [expr {~~$x}]
+2	2	2	0	set value 42
+2	2	1	0	set value OTHER
+2	2	1	0	set value current
+2	2	1	0	set value old
+2	2	1	0	set value {{{}}}
+2	2	2	0	set var 10 10
+2	2	2	0	set varName
+2	2	2	0	set w 5
+2	2	1	2	set w [PlainWidget new]
+2	2	2	0	"set x """""
+2	2	2	0	"set x ""a""b {"
+2	2	2	0	"set x ""a\ b""; set x"
+2	2	1	0	"set x ""foo"" set parts [split $x ""?""]"
+2	2	1	0	"set x ""foo?bar"" set parts [split $x ""?""]"
+2	2	2	0	"set x ""hello world"
+2	2	1	1	"set x ""hello"" incr x"
+2	2	2	0	"set x ""some long string that spans multiple lines"""
+2	2	1	0	set x $
+2	2	1	0	set x $::ns::arr(k) puts $x
+2	2	1	1	set x $a
+2	2	1	0	set x $a(1) puts $x
+2	2	1	0	set x $value
+2	2	1	0	set x ${a
+2	2	2	0	"set x 0 set x 1 puts $x puts ""after=$x"""
+2	2	1	0	set x 0; foreach i $unknown {incr x; lindex $x 0}
+2	2	1	0	set x 0; foreach i {1 2 3} {incr x; lindex $x 0}
+2	2	1	0	set x 0; foreach i {1} {incr x; lindex $x 0}
+2	2	1	0	set x 0; foreach i {} {incr x; lindex $x 0}
+2	2	1	0	set x 0; incr x
+2	2	1	0	set x 0; incr x; llength $x
+2	2	1	0	set x 0; set x [expr {$x+1}]
+2	2	2	2	set x 1 catch {expr {[incr x] + [error mid]}} msg puts $msg puts $x
+2	2	1	0	set x 1 chan push stdout observe puts $x
+2	2	2	1	set x 1 if {$x > 0} { puts yes }
+2	2	1	0	set x 1 if {$x > 0} { set y 1 }
+2	2	2	0	set x 1 if {[expr $x + 1] > 0} {}
+2	2	2	0	set x 1 puts $x list x
+2	2	2	0	set x 1 puts $y
+2	2	2	0	set x 1 puts [expr {$x + [incr x] + $x}] puts $x
+2	2	1	0	set x 1 puts [expr {$x + [incr x]}]
+2	2	2	0	set x 1 puts [expr {$x + [set x 10] + $x}] puts $x
+2	2	2	0	set x 1 puts hello
+2	2	1	0	set x 1 rename puts saved_puts puts $x
+2	2	1	0	set x 1 return $x
+2	2	2	0	set x 1 set y 2 set z 3
+2	2	1	0	set x 1 trace add variable x read observe puts $x
+2	2	1	0	set x 1 unknown_call puts $x
+2	2	2	0	set x 10
+2	2	2	0	set x 1; incr x abc
+2	2	2	1	set x 1; puts hi
+2	2	2	0	set x 2 set y [expr {[expr {$x}] + 1}]
+2	2	1	0	set x 3.14
+2	2	1	0	set x 42 puts $x puts $x
+2	2	1	0	set x 42 set y 99
+2	2	2	0	set x 5 after 0 {puts $x} update set x 6 puts $x
+2	2	1	0	set x 5 lindex $x 0
+2	2	1	1	"set x 5 puts ""n=$x"""
+2	2	1	2	"set x 5 puts ""val=$x"""
+2	2	1	0	set x 5 puts $x puts done
+2	2	1	2	set x 5 puts $x set y [expr {$x + 1}]
+2	2	1	2	"set x 5 set y [expr {$x + 1}] puts ""x=$x"" puts $y"
+2	2	2	0	"set x 5; set e {""pre$x""}; expr $e"
+2	2	2	0	"set x 5; set e {{pre$x} eq ""pre$x""}; expr $e"
+2	2	1	2	"set x 7 puts ""${x}"""
+2	2	1	0	set x ::foo::bar
+2	2	1	1	set x A;
+2	2	2	0	set x X; proc p {} {alias_probe; return $v}; p
+2	2	1	2	set x [HTTP::payload] eval $x
+2	2	1	2	set x [apply {{} {foo}}]
+2	2	2	0	"set x [bad x ""abc"
+2	2	2	0	set x [bad {
+2	2	1	2	set x [catch {apply {{} {foo}}}]
+2	2	1	2	set x [catch {expr {[foo] + 1}}]
+2	2	2	0	set x [dict create a 1 b 2] lindex $x 0
+2	2	1	1	set x [expr {2 + 3}]
+2	2	1	0	set x [expr {4 + 5}]
+2	2	2	0	set x [expr {frobnicate(1)}]
+2	2	2	0	set x [expr {sin(1.0) + max(1, 2, 3)}] puts $x
+2	2	1	0	set x [expr {sqrt(-1)}]
+2	2	2	0	set x [expr {sqrt(abs($y))}]
+2	2	2	0	"set x [foo abc"" proc recovered_after_midword {} {}"
+2	2	1	0	set x [foo bar
+2	2	2	0	set x [foo bar set
+2	2	1	0	set x [join {a b c} ,]
+2	2	1	0	set x [lindex {a b c} 1] puts $x
+2	2	1	0	set x [lindex {x y z} end] puts $x
+2	2	1	0	set x [list a b c]
+2	2	1	0	set x [list a b c] puts $x
+2	2	1	0	set x [list a b c] set n [llength $x]
+2	2	1	0	set x [list a] puts $x
+2	2	1	2	set x [namespace eval ns {foo}]
+2	2	1	0	set x [read $fd] exec $x
+2	2	1	0	set x [string length hello]
+2	2	1	2	set x [subst {[foo]}]
+2	2	1	2	set x [uplevel #0 {foo}]
+2	2	1	2	set x a switch $x {a {puts A} default {puts D}}
+2	2	1	0	set x false
+2	2	1	0	set x foo\}bar
+2	2	2	1	set x hello # noqa: S100 incr x
+2	2	1	1	set x string]
+2	2	1	0	set x true
+2	2	1	0	set x {a b c}
+2	2	2	0	set x {a\ b}; set x
+2	2	2	0	set x {a}b
+2	2	2	0	set x {hello
+2	2	2	0	set x {hello world
+2	2	2	0	set x {hello}
+2	2	2	0	set x {some long string that spans multiple lines}
+2	2	1	0	"set y """"b"
+2	2	2	0	"set y ""abc""def"
+2	2	2	0	set y 1 puts ${y}
+2	2	2	0	set y 10 puts $y puts $y
+2	2	2	0	set y 42
+2	2	2	0	set y 99
+2	2	1	0	set ys {}; set pts {}; foreach pt {{1 2} {3 4} {5 6}} {set y [lindex $pt 1]; if {$y > 2} {lappend ys $y; lappend pts $pt}}
+2	2	1	1	set ys {}; set pts {}; foreach pt {{1 2} {3 4} {5 6}} {set y [lindex $pt 1]; lappend ys $y; lappend pts $pt}
+2	2	2	0	set {$literal} 1
+2	2	1	1	set {$literal} VALUE; puts ${$literal}
+2	2	1	0	set {$name} 1
+2	2	1	2	set {$x} 1; incr {$x}; set x 2; incr x
+2	2	1	2	set {*}{fixed} VALUE
+2	2	2	1	set {R T(k)} element; list [array exists {R T}] [array size {R T}] [array names {R T}] [info exists {R T(k)}] [info exists {R T(missing)}]
+2	2	2	1	set {S T} scalar; set copied ${S T}; unset {S T}; list $copied [info exists {S T}]
+2	2	2	0	set {__tcl_lsp_2286_r2286m_arrayindex_root(A B)} element; set {__tcl_lsp_2286_r2286m_arrayindex_root(A B)}
+2	2	2	0	set {__tcl_lsp_2286_r2286m_nul_A B} counted; set {__tcl_lsp_2286_r2286m_nul_A B}
+2	2	1	0	set {a b} 1
+2	2	1	0	"set {a(1)} ""alpha beta"" set n [llength ${a(1)}]"
+2	2	2	0	set {{{name}}} 1 puts ${{{name}}}
+2	2	1	1	set {} EMPTY; set : COLON; puts ${}; puts $:
+2	2	2	0	snit::type Dog { method bark {} { return woof } } Dog t $t
+2	2	2	0	snit::type Factory { typemethod make {} { return [Factory create x] } } Factory make
+2	2	2	0	snit::widget mywidget { variable helper component inner method draw {} { $self configure -bg white $inner render $helper compute return $win } }
+2	2	1	0	socket $host 80
+2	2	1	0	source $somevar
+2	2	1	0	source -encoding utf-8 /tmp/foo.tcl
+2	2	1	0	source -encoding utf-8 a.tcl
+2	2	1	1	source -encoding utf-8 child.tcl
+2	2	1	0	source /path/with spaces.tcl
+2	2	1	0	source /usr/lib/tcl/init.tcl
+2	2	1	0	source [file join $undeclared .. pkgfile.tcl]
+2	2	2	2	source b.tcl
+2	2	2	0	source declaration
+2	2	1	0	source declaration candidate
+2	2	1	0	source first.tcl; source second.tcl; set after DONE
+2	2	1	1	source leaf
+2	2	2	2	"source lib.tcl proc local {mode} { if {$mode eq ""prod""} { set r 1 } else { set r 2 } } local prod local prod"
+2	2	2	0	source lib/helpers.tcl proc run {{arg}} {{{body}}}
+2	2	2	0	source missing.tcl
+2	2	2	0	source other.tcl
+2	2	2	0	source {*}$paths
+2	2	2	0	source {}
+2	2	2	1	source-body
+2	2	2	0	source-check.tcl
+2	2	2	0	source-path-jim079
+2	2	1	0	source_next_named $unknown
+2	2	1	0	speclib probe 2.0 { command probe::collect { arity 0 result_stability Volatile data_collection -native HTTP_COLLECT side_switch_target Server event_handler_priority -default 500 -min 0 -max 1000 -warn-implicit event_requirement_form {append} -only-in {HTTP_REQUEST} { client_side yes } body_scope { n
+2	2	1	0	sqrt($x)
+2	2	1	0	sqrt($y)
+2	2	1	0	string $selector value
+2	2	2	0	string bogus
+2	2	1	0	string cat C D
+2	2	2	0	string cat a b
+2	2	2	0	string cat foo bar baz
+2	2	2	0	string compare -nocase ABC abc
+2	2	2	0	string compare abc abc
+2	2	2	0	string compare abc abd
+2	2	2	0	string equal -length abc a b
+2	2	2	0	string equal -nocase -length 1 İ i
+2	2	2	0	string equal -nocase ABC abc
+2	2	2	0	string equal abc abc
+2	2	2	0	string equal abc abd
+2	2	2	0	string in abc 1
+2	2	1	0	string index $p 3
+2	2	2	0	string index $s -1
+2	2	2	0	string index abc abc
+2	2	2	0	string index hello 1
+2	2	2	0	string index hello end
+2	2	1	0	string is a
+2	2	1	0	string is al
+2	2	2	0	string is alpha abc
+2	2	1	0	string is booleanx 1
+2	2	2	0	string is dict {a 1 b 2}
+2	2	2	0	string is dict {a 1 b}
+2	2	2	0	string is double 1.5
+2	2	2	0	string is integer 123
+2	2	2	0	string is integer 12x
+2	2	2	2	string is integer [clock format now -format %s]
+2	2	1	2	string is rebound in a proc body
+2	2	1	0	string l
+2	2	2	0	string le hello
+2	2	2	0	string lenght
+2	2	2	0	string lenght abc
+2	2	2	0	string length $a
+2	2	2	1	string length VALUE
+2	2	1	0	string length a b c
+2	2	2	0	string length héllo
+2	2	1	0	string length other
+2	2	1	0	string length resolves
+2	2	2	0	string length string
+2	2	2	0	string length {}
+2	2	1	2	string map {a b} $p
+2	2	2	0	string match
+2	2	2	0	"string match ""abc$"" $x"
+2	2	1	0	string match $pattern $value
+2	2	1	0	string range $p 0 5
+2	2	2	0	string repeat $s 2
+2	2	2	0	string repeat ab 3
+2	2	1	0	string repeat ab x
+2	2	2	0	string repeat x 99999999999999999999
+2	2	2	1	string repeat x [expr {1.5}]
+2	2	2	0	string repeat x abc
+2	2	2	0	string replace abcde 1 3
+2	2	2	0	string replace abcde 1 3 XY
+2	2	1	0	string rev abc
+2	2	1	0	string reverse $p
+2	2	2	0	string reverse $s
+2	2	2	0	string t $s
+2	2	2	0	string to abc
+2	2	2	0	string tolower $s
+2	2	2	0	string totitle $s
+2	2	2	0	string totitle hello
+2	2	2	0	string totitle {hello world}
+2	2	2	0	string trim
+2	2	1	2	string trim $p
+2	2	1	0	string trim $s
+2	2	2	0	string trim { hi }
+2	2	1	2	string trimleft $p
+2	2	1	2	string trimright $p
+2	2	2	0	string zzz $s
+2	2	1	0	string {*}{length value}
+2	2	2	0	string {sub}
+2	2	2	0	string {} a
+2	2	1	0	subst -backslashes $tmpl
+2	2	1	0	subst -nocommands -novariables $x
+2	2	2	0	subst {$x(}
+2	2	2	0	"subst {[list ""a]b""]}"
+2	2	2	0	subst {[list {a]b}]}
+2	2	2	1	switch # { # {puts matched} default {puts default} }
+2	2	2	1	switch $s a b c d
+2	2	2	1	switch $s {a b c d e f}
+2	2	1	1	switch $x { a { puts 1 } b { puts 2 } }
+2	2	2	1	"switch $x { {a b} { puts one } ""c d"" { puts two } default { puts def } }"
+2	2	1	0	switch -- $mode {a {puts A} default {puts D}}
+2	2	1	0	"switch -- aAb {""a\x41b"" {puts hit} default {puts miss}}"
+2	2	1	0	switch -- aAb {a\x41b {puts hit} default {puts miss}}
+2	2	2	1	switch -exact -- $x { a { puts 1 } b { puts 2 } }
+2	2	1	1	switch -exact -- {$x} {a {{return one}} b {return two}}
+2	2	2	2	switch -glob
+2	2	2	1	switch -glob -- a\$b {a\$b {puts hit} default {puts miss}}
+2	2	2	2	switch -regexp
+2	2	2	0	switch -regexp $x { {^a} {puts a} {^b} {puts b} }
+2	2	1	0	switch abc { abc { set x 1 } def { set y 2 } }
+2	2	1	1	switch subject {a {puts hidden} orphan}
+2	2	1	1	switch subject {}
+2	2	1	0	switch x {x {﻿puts 1}}
+2	2	1	0	switch xyz { abc { set a 1 } default { set b 2 } }
+2	2	1	0	switch xyz { abc { set a 1 } } puts done
+2	2	2	0	"syntax error in expression ""nope"": variable references require preceding $"
+2	2	2	0	tailcall can only be called from a proc, lambda or method
+2	2	2	0	tailcall target [set seen VALUE]
+2	2	1	0	tcl-proc
+2	2	2	0	tcl::array::set
+2	2	2	0	test name; [literal]$value
+2	2	2	0	test trace-1.11 {
+2	2	1	0	the eval-body upvar alias is Frame
+2	2	1	2	the explicit legacy API still sees the nested string-classified calls
+2	2	1	2	the lattice must not fold a builtin a computed rename may have moved
+2	2	1	2	the nested literal uplevel must remain an UpFrame in its parent body
+2	2	1	1	the regression requires the static uplevel lowering path
+2	2	2	0	the span must index the source it came from
+2	2	2	2	the tracked `[$v X]` call site
+2	2	2	2	the untracked `[$other X]` call site
+2	2	2	2	throw ERROR payload; set reached 1
+2	2	2	0	time {set x 1}
+2	2	1	0	trace add command string rename callback
+2	2	2	0	trace add execution expr enter callback; expr {!(1 && 0)}
+2	2	1	0	trace add execution llength enter observe llength {a b} llength {a b}
+2	2	2	0	trace add variable A write {set callback}
+2	2	2	0	trace add variable item {read rename write} callback
+2	2	2	0	trace add variable longleft read hook; return $longleft
+2	2	1	0	trace add variable v write changed
+2	2	1	0	trace add variable watched write callback
+2	2	2	0	trace add variable x read {list ok;#}
+2	2	2	0	trace add variable x write callback set x 1 puts $x
+2	2	2	0	trace add variable y read {error boom;#}
+2	2	2	0	trace add variable z unset {error nope;#}
+2	2	2	0	trace info variable env
+2	2	2	0	trace info variable env(GONE)
+2	2	2	0	trace remove execution watched enter callback
+2	2	1	0	trace remove variable v write changed
+2	2	2	0	trace vinfo v
+2	2	2	0	trace-barrier-elision
+2	2	2	0	try { risky } on error {msg opts} { puts $msg }
+2	2	2	0	try { set x 1 } on error {e} { puts $e } finally { puts d }
+2	2	1	0	try {error x} trap NONE {m o} {puts $m} finally {puts bye}
+2	2	2	0	type must be non-empty list
+2	2	1	0	unavailable; set auto_index(a) [list source -encoding utf-8 a.tcl]
+2	2	2	0	"unknown namespace in import pattern ""::nosuch::*"""
+2	2	2	0	"unknown or ambiguous subcommand ""bogus"": must be call, class, creationid, definition, filters, forward, isa, methods, methodtype, mixins, namespace, properties, variables, or vars"
+2	2	2	0	"unknown subcommand ""zz"": namespace ::e8 does not export any commands"
+2	2	1	0	unresolvable switch subject should bail
+2	2	1	1	unset -nocomplain $x
+2	2	1	1	unsupported by this engine: reading a variable
+2	2	1	0	uplevel #0 [list \ puts hello \ ]
+2	2	1	0	uplevel #0 [list puts hello]
+2	2	2	0	uplevel #0 [list upvar #0 originalName localName]
+2	2	1	0	uplevel #0 literal body is not pessimistic
+2	2	2	0	uplevel #0 {foreach x $l { puts $x }}
+2	2	1	0	uplevel 0 {set x 2}
+2	2	2	2	uplevel 0x10 {set a 1}
+2	2	2	0	uplevel 1 set x OUTER
+2	2	2	0	uplevel 1 {foreach x $l { puts $x }}
+2	2	2	0	uplevel 1 {set x OUTER}
+2	2	2	0	uplevel 1 {set y 1}
+2	2	2	2	uplevel 99999999999999999999 {set a 1}
+2	2	2	2	uplevel abc {set a 1}
+2	2	2	0	uplevel {foreach x $l { puts $x }}
+2	2	2	0	uplevel {set x 1}
+2	2	2	0	uplevel {set x OUTER}
+2	2	2	0	upvar TAIL
+2	2	2	0	upvar #0 ::N::C U; list [lsort [info vars]]
+2	2	1	0	upvar #0 ::a alias
+2	2	2	2	upvar #1 x y
+2	2	2	0	upvar 0 A alias
+2	2	2	0	upvar 1
+2	2	2	1	upvar 1 $name v
+2	2	1	2	upvar 1 ${odd name} local
+2	2	1	1	upvar 1 dictionary destination; llength $destination
+2	2	2	2	upvar 5 ::x y
+2	2	2	0	upvar ::N::array($index) local
+2	2	2	2	upvar ::x y
+2	2	2	0	upvar ?level? otherVar localVar
+2	2	2	0	upvar other local
+2	2	2	0	variable ${ns}v
+2	2	2	0	variable _x
+2	2	1	0	variable a 1 b 2
+2	2	2	0	variable label
+2	2	2	0	variable name
+2	2	2	0	variable v
+2	2	1	0	variable v 1
+2	2	2	1	variable x w cb
+2	2	2	0	variable {}
+2	2	2	1	vdouble $n
+2	2	1	2	vendor::f $::unknown
+2	2	2	0	when BOGUS_EVENT { pool bogus; set static::bogus 1; table incr bogus }
+2	2	2	0	when CLIENT_ACCEPTED
+2	2	2	0	when CLIENT_ACCEPTED pool
+2	2	2	0	when CLIENT_ACCEPTED {
+2	2	1	1	"when CLIENT_ACCEPTED { set a 1 } when CLIENT_ACCEPTED { set b 2 } when HTTP_REQUEST { log local0. ""$a $b"" }"
+2	2	1	2	"when CLIENT_ACCEPTED { set ip [IP::client_addr] } when HTTP_REQUEST { log local0. ""$ip"" }"
+2	2	1	2	when CLIENT_ACCEPTED { switch $mode { loud { set debug 1 } default { set debug 0 } } } when HTTP_REQUEST { if {$debug} { log local0. hi } }
+2	2	2	0	when CLIENT_DATA { pool other_event_pool; call dormant }
+2	2	1	2	when CLIENT_DATA { set p [TCP::payload] set q [string map {a b} $p] TCP::payload replace 0 100 $q }
+2	2	1	0	when HTTP_REQUEST bare_body
+2	2	2	0	when HTTP_REQUEST priority
+2	2	2	0	when HTTP_REQUEST { HTTP::collect } when HTTP_REQUEST_DATA { HTTP::collect }
+2	2	2	1	"when HTTP_REQUEST { HTTP::respond 200 content ""ok"" }"
+2	2	2	0	"when HTTP_REQUEST { HTTP::respond 200 content ""static body"" }"
+2	2	2	0	when HTTP_REQUEST { HTTP::respond 200 content [HTTP::uri] }
+2	2	2	0	when HTTP_REQUEST { call valid; pool valid_event }
+2	2	1	0	when HTTP_REQUEST { if [class match -- [HTTP::host] equals /Common/host_dg] { snatpool /Common/sp1 pool /Common/web_pool } }
+2	2	2	0	when HTTP_REQUEST { if { 1 }{ pool p } }
+2	2	1	0	when HTTP_REQUEST { pool /Common/web-pool }
+2	2	2	1	when HTTP_REQUEST { set ::counter 0 }
+2	2	1	0	when HTTP_REQUEST { set count [active_members /Common/app_pool] LB::reselect pool /Common/fallback_pool }
+2	2	2	1	when HTTP_REQUEST { set host [HTTP::host] }
+2	2	2	2	when HTTP_REQUEST { set svc foo; switch -glob [HTTP::uri] { /a* { set svc bar } }; pool $svc }
+2	2	1	2	when HTTP_REQUEST { set t 1 set t 2 log local0. $t }
+2	2	1	0	"when HTTP_REQUEST { set uri [HTTP::uri] } when HTTP_RESPONSE { log local0. ""uri=$uri"" }"
+2	2	2	0	when HTTP_REQUEST { set x
+2	2	2	0	when HTTP_REQUEST { } when CLIENT_ACCEPTED { }
+2	2	2	0	when HTTP_REQUEST {if {1} {set h [ILX::init p e]; ILX::notify $h m}}
+2	2	2	0	"when HTTP_REQUEST {if {[HTTP::path] eq ""/a""} {pool route}}"
+2	2	2	1	when HTTP_REQUEST {pool selected}
+2	2	2	0	when HTTP_REQUEST {set h [ILX::init p e]; ILX::call $h m; ILX::notify $h n}
+2	2	2	1	when HTTP_REQUEST {set x A B}
+2	2	2	1	when HTTP_REQUEST {set x é}
+2	2	2	1	when HTTP_REQUEST {set x é}
+2	2	2	1	when HTTP_REQUEST {{{body}}}
+2	2	2	0	when HTTP_REQUEST {} trailing
+2	2	2	0	when HTTP_REQUEST {}; when CLIENT_ACCEPTED {}
+2	2	2	0	when HTTP_RESPONSE { HTTP::collect } when HTTP_RESPONSE_DATA { set payload [HTTP::payload] }
+2	2	1	0	when MQTT_CLIENT_DATA { set bytes [MQTT::payload] }
+2	2	1	0	when MQTT_CLIENT_INGRESS {{ MQTT::payload {form} }}
+2	2	1	0	when RULE_INIT { } irule
+2	2	2	2	when RULE_INIT {rename a b}
+2	2	1	0	when SOCKET_FILTER { map m hash 8 8 8 map_set m {7} {99} map_get v m {7} accept {$v} }
+2	2	1	0	when SOCKET_FILTER { setbuf p ctx pktlen len p if {$len < 20} { drop } accept {$len} }
+2	2	2	0	when SOCKET_FILTER { setbuf pkt ctx accept }
+2	2	2	0	when SOCKET_FILTER { setbuf pkt ctx pktlen len pkt if {$len < 36} { accept } load16 dport pkt 36 if {$dport == 22} { drop } accept }
+2	2	1	0	when SOCKET_FILTER { seti32 n {0} while {1} { seti32 n {1} } accept }
+2	2	2	0	when XDP { map hits array 4 8 4 setint k 0 map_get n hits {$k} setint n1 {$n + 1} map_set hits {$k} {$n1} pass }
+2	2	1	0	when XDP {pass}
+2	2	2	0	while 1 {throw MYERR boom}
+2	2	2	0	while executing
+2	2	1	1	while {$a} {for {set i 0} {$i<3} {incr i} {if {$i} {break} else {continue}}}
+2	2	2	0	while {$x eq {}} {}
+2	2	1	0	while {${x}} {puts hi}
+2	2	1	2	while {0} { puts looping } puts done
+2	2	1	0	"while {1} { puts ""loop"" puts ""again"" }"
+2	2	2	0	while {1} {break}
+2	2	1	1	while {1} {if {$done} {break} puts x}
+2	2	1	2	while {1} {if {$x} {break} else {continue}}
+2	2	2	0	wide($x)
+2	2	2	0	word-after-merge
+2	2	2	1	"wrong # args: should be ""catch command ?varName?"""
+2	2	2	0	"wrong # args: should be ""namespace origin name"""
+2	2	2	0	"wrong # args: should be ""namespace which ?-command? ?-variable? name"""
+2	2	2	0	"wrong # args: should be ""string length string"""
+2	2	2	0	"wrong # args: should be ""switch ?-option ...? string {?pattern body ...? ?default body?}"""
+2	2	1	0	"wrong # args: should be ""while test command"""
+2	2	2	0	x {puts x}tail
+2	2	1	0	{ puts hi }
+2	2	2	0	{$a + 1}
+2	2	1	0	{$delta}
+2	2	1	0	{$x + 1}
+2	2	2	0	{$x eq {}
+2	2	2	0	{$x eq {}}
+2	2	1	0	{${braced}}
+2	2	1	0	{*} list
+2	2	2	1	{*}$options --
+2	2	1	0	{*}$var
+2	2	1	0	{*}[cmd]
+2	2	2	0	"{0 {}} {1 {can't create procedure "":p"" in non-global namespace with name starting with "":""}} {0 {}} {1 invalid} {1 invalid} {1 invalid} {0 nested} {0 {}} {1 invalid} {1 invalid}"
+2	2	2	2	{BUMP}bump absent puts $absent
+2	2	2	2	{BUMP}proc twice {{name}} {{upvar 1 $name w; bump w; bump w}} set t 1 twice t puts $t
+2	2	2	2	{BUMP}set n 1 bump n bump n 2 puts $n
+2	2	2	0	{[append}
+2	2	2	0	{a $b}
+2	2	1	2	{a* {puts yes} default {puts no}}
+2	2	2	0	{a[b]c}
+2	2	2	0	"{basic {x traced} {{whole A x read} {elem A x read}} traced {x y}} {missing 0 {} {TCL READ VARNAME} 0 0} {destroy 1 {can't read ""C(x)"": no such variable} {TCL READ VARNAME}} {retype 1 {can't read ""D(x)"": no such element in array} {TCL READ VARNAME} scalar} {boom 0 {} {TCL READ VARNAME} 1 1 1 {TCL RE"
+2	2	1	2	{dialect}: {source}
+2	2	2	0	{list [info consts] [info constant X] $X}}; set oa [CA new];
+2	2	1	0	{puts hi}
+2	2	2	1	{renamed_src}puts [$cmd]
+2	2	2	0	{return $x}
+2	2	1	1	{return other}
+2	2	2	1	{set i 0}
+2	2	1	0	{set x 1; set y 2}
+2	2	2	0	{source} puts -nonewline [set ::out]
+2	2	1	1	{source}; list changed
+2	2	2	2	{value} {after}
+2	2	2	0	{x} {return $x}
+2	2	2	0	{x} {yield READY; return $x}
+2	2	2	1	{{list 0 inside 0} {try 0 inside 0} {eval 0 inside 0} {switch 0 inside 0}} {0 inside 0} {0 value BAR}
+2	2	2	0	{} original publication callbacks and variable stores
+2	2	2	0	{}set leaf 1{}
+2	2	2	0	} STATIC;return [list [info locals] [info vars]]
+2	2	2	0	} {} {return OK}};method invoke {} {my {
+2	2	1	1	﻿#prefix ${a{b}
+2	2	1	0	﻿interp alias {} ﻿match {} regexp if {![﻿match λ λ out]} {puts $out}
+2	2	2	0	﻿puts ${a{b}
+2	2	1	0	﻿puts value
+2	2	2	0	﻿return
+2	2	1	1	﻿set answer ONE
+2	2	1	0	﻿set name value
+2	2	2	0	﻿when HTTP_REQUEST {}
+2	2	1	0	﻿﻿puts value

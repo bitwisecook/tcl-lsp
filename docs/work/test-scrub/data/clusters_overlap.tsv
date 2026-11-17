@@ -1,0 +1,845 @@
+cluster	size	failing	files	crate	target	path	file	line	codes
+43686a827d3b	6	0	1	tcl-vm	it_4	cross_version_vars_e2e::compiled_braced_var_close_rule_matches_real_tclsh	rust/tcl-vm/tests/it_4/cross_version_vars_e2e.rs	772	
+43686a827d3b	6	0	1	tcl-vm	it_4	cross_version_vars_e2e::compiled_interpolated_and_switch_paths_match_real_tclsh	rust/tcl-vm/tests/it_4/cross_version_vars_e2e.rs	853	
+43686a827d3b	6	0	1	tcl-vm	it_4	cross_version_vars_e2e::compiled_array_index_braced_var_matches_real_tclsh	rust/tcl-vm/tests/it_4/cross_version_vars_e2e.rs	932	
+43686a827d3b	6	0	1	tcl-vm	it_4	cross_version_vars_e2e::compiled_backslash_braced_var_names_match_real_tclsh	rust/tcl-vm/tests/it_4/cross_version_vars_e2e.rs	1212	
+43686a827d3b	6	0	1	tcl-vm	it_4	cross_version_vars_e2e::compiled_dollar_equals_word_matches_real_tclsh	rust/tcl-vm/tests/it_4/cross_version_vars_e2e.rs	1547	
+43686a827d3b	6	0	1	tcl-vm	it_4	cross_version_vars_e2e::compiled_composite_array_key_matches_real_tclsh	rust/tcl-vm/tests/it_4/cross_version_vars_e2e.rs	1568	
+b15beda2322f	6	0	1	tcl-codegen	lib	codegen::emitter::bytecoded::tests::lassign_rejects_wrong_arity	rust/tcl-codegen/src/codegen/emitter/bytecoded/tests.rs	189	
+b15beda2322f	6	0	1	tcl-codegen	lib	codegen::emitter::bytecoded::tests::lassign_emits_expected_sequence	rust/tcl-codegen/src/codegen/emitter/bytecoded/tests.rs	201	
+b15beda2322f	6	0	1	tcl-codegen	lib	codegen::emitter::bytecoded::tests::llength_single_arg	rust/tcl-codegen/src/codegen/emitter/bytecoded/tests.rs	219	
+b15beda2322f	6	0	1	tcl-codegen	lib	codegen::emitter::bytecoded::tests::lrange_constant_indices	rust/tcl-codegen/src/codegen/emitter/bytecoded/tests.rs	269	
+b15beda2322f	6	0	1	tcl-codegen	lib	codegen::emitter::bytecoded::tests::lrange_non_constant_indices_rejects	rust/tcl-codegen/src/codegen/emitter/bytecoded/tests.rs	280	
+b15beda2322f	6	0	1	tcl-codegen	lib	codegen::emitter::bytecoded::tests::linsert_emits_lreplace4_with_op2	rust/tcl-codegen/src/codegen/emitter/bytecoded/tests.rs	289	
+15f1260ac131	5	0	1	tcl-codegen	lib	codegen::emitter::bytecoded::tests::dict_lappend_uses_dict_lappend_opcode	rust/tcl-codegen/src/codegen/emitter/bytecoded/tests.rs	469	
+15f1260ac131	5	0	1	tcl-codegen	lib	codegen::emitter::bytecoded::tests::lappend_scalar_single_uses_lappend_scalar1	rust/tcl-codegen/src/codegen/emitter/bytecoded/tests.rs	634	
+15f1260ac131	5	0	1	tcl-codegen	lib	codegen::emitter::bytecoded::tests::lappend_multi_builds_list_then_lappend_list	rust/tcl-codegen/src/codegen/emitter/bytecoded/tests.rs	645	
+15f1260ac131	5	0	1	tcl-codegen	lib	codegen::emitter::bytecoded::tests::lappend_array_element_uses_lappend_array1	rust/tcl-codegen/src/codegen/emitter/bytecoded/tests.rs	659	
+15f1260ac131	5	0	1	tcl-codegen	lib	codegen::emitter::bytecoded::tests::lappend_multi_array_captures_one_key_and_builds_one_list	rust/tcl-codegen/src/codegen/emitter/bytecoded/tests.rs	670	
+4ea0a40299ce	5	0	2	tcl-lsp-core	lib	document_links::tests::relative_path_resolves_against_workspace_root	rust/tcl-lsp-core/src/document_links/tests.rs	305	
+4ea0a40299ce	5	0	2	tcl-lsp-core	lib	document_links::tests::relative_path_without_root_produces_no_link	rust/tcl-lsp-core/src/document_links/tests.rs	317	
+4ea0a40299ce	5	0	2	tcl-lsp-core	lib	document_links::tests::trailing_slash_on_workspace_root_handled	rust/tcl-lsp-core/src/document_links/tests.rs	678	
+4ea0a40299ce	5	0	2	tcl-lsp-core	it_3	lsp_lens_links_symbols::links_relative_source_resolves_against_workspace_root	rust/tcl-lsp-core/tests/it_3/lsp_lens_links_symbols.rs	670	
+4ea0a40299ce	5	0	2	tcl-lsp-core	it_3	lsp_lens_links_symbols::links_relative_source_without_root_yields_none	rust/tcl-lsp-core/tests/it_3/lsp_lens_links_symbols.rs	683	
+6cab8edcab90	5	0	2	tcl-lsp-core	lib	file_ops::tests::rewrites_relative_source_literal	rust/tcl-lsp-core/src/file_ops.rs	245	
+6cab8edcab90	5	0	2	tcl-lsp-core	it_2	file_ops_bigip_residual::rename_non_file_old_uri_declines	rust/tcl-lsp-core/tests/it_2/file_ops_bigip_residual.rs	112	
+6cab8edcab90	5	0	2	tcl-lsp-core	it_2	file_ops_bigip_residual::rename_non_file_new_uri_declines	rust/tcl-lsp-core/tests/it_2/file_ops_bigip_residual.rs	122	
+6cab8edcab90	5	0	2	tcl-lsp-core	it_2	file_ops_bigip_residual::rename_percent_decoded_uri_path_matches	rust/tcl-lsp-core/tests/it_2/file_ops_bigip_residual.rs	273	
+6cab8edcab90	5	0	2	tcl-lsp-core	it_2	file_ops_bigip_residual::rename_percent_decode_handles_upper_and_lower_hex_digits	rust/tcl-lsp-core/tests/it_2/file_ops_bigip_residual.rs	342	
+89cc72fa18b1	5	0	1	tcl-lsp-core	it_2	docstring::docstring_style_none_offers_no_action	rust/tcl-lsp-core/tests/it_2/docstring.rs	601	
+89cc72fa18b1	5	0	1	tcl-lsp-core	it_2	docstring::docstring_style_preceding_matches_plain_code_actions_default	rust/tcl-lsp-core/tests/it_2/docstring.rs	623	
+89cc72fa18b1	5	0	1	tcl-lsp-core	it_2	docstring::docstring_style_body_inserts_after_the_opening_brace_not_on_decl_line	rust/tcl-lsp-core/tests/it_2/docstring.rs	651	
+89cc72fa18b1	5	0	1	tcl-lsp-core	it_2	docstring::docstring_style_body_matches_the_bodys_existing_indent	rust/tcl-lsp-core/tests/it_2/docstring.rs	682	
+89cc72fa18b1	5	0	1	tcl-lsp-core	it_2	docstring::docstring_style_body_falls_back_to_four_spaces_for_a_single_line_proc	rust/tcl-lsp-core/tests/it_2/docstring.rs	707	
+fe5a93fd04df	5	0	1	tcl-registry	lib	return_type::tests::regexp_inline_is_not_an_int_and_not_a_guaranteed_list	rust/tcl-registry/src/return_type.rs	307	
+fe5a93fd04df	5	0	1	tcl-registry	lib	return_type::tests::regexp_about_is_a_guaranteed_list	rust/tcl-registry/src/return_type.rs	321	
+fe5a93fd04df	5	0	1	tcl-registry	lib	return_type::tests::a_switch_past_the_terminator_is_an_operand	rust/tcl-registry/src/return_type.rs	327	
+fe5a93fd04df	5	0	1	tcl-registry	lib	return_type::tests::a_terminator_or_a_literal_makes_the_switch_run_certain	rust/tcl-registry/src/return_type.rs	371	
+fe5a93fd04df	5	0	1	tcl-registry	lib	return_type::tests::a_resolved_switch_survives_a_later_dynamic_word	rust/tcl-registry/src/return_type.rs	383	
+0145ccce2963	4	0	1	tcl-registry	lib	commands::tcl::subst_::tests::subst_evaluates_commands_default_is_true	rust/tcl-registry/src/commands/tcl/subst_.rs	393	
+0145ccce2963	4	0	1	tcl-registry	lib	commands::tcl::subst_::tests::subst_evaluates_commands_legacy_nocommands_disables	rust/tcl-registry/src/commands/tcl/subst_.rs	398	
+0145ccce2963	4	0	1	tcl-registry	lib	commands::tcl::subst_::tests::subst_evaluates_commands_legacy_other_negatives_leave_commands_on	rust/tcl-registry/src/commands/tcl/subst_.rs	409	
+0145ccce2963	4	0	1	tcl-registry	lib	commands::tcl::subst_::tests::subst_evaluates_commands_positive_form_requires_explicit_commands	rust/tcl-registry/src/commands/tcl/subst_.rs	415	
+0e69cc97be46	4	0	3	tcl-lsp-core	lib	rename::tests::rename_var_also_rejects_unsafe_new_name	rust/tcl-lsp-core/src/rename/tests.rs	230	
+0e69cc97be46	4	0	3	tcl-lsp-core	lib	rename::tests::variables::rename_var_includes_decl_span	rust/tcl-lsp-core/src/rename/tests/variables.rs	93	
+0e69cc97be46	4	0	3	tcl-lsp-core	it_2	references_rename::rename_edits::rename_var_also_rejects_unsafe_new_name	rust/tcl-lsp-core/tests/it_2/references_rename/rename_edits.rs	284	
+0e69cc97be46	4	0	3	tcl-lsp-core	it_2	references_rename::rename_edits::rename_out_of_range_and_empty_file_do_not_panic	rust/tcl-lsp-core/tests/it_2/references_rename/rename_edits.rs	414	
+363ac8b46027	4	1	1	tcl-compiler	lib	lowering::hooks::control::tests::unit_return_no_args	rust/tcl-compiler/src/lowering/hooks/control.rs	753	
+363ac8b46027	4	1	1	tcl-compiler	lib	lowering::hooks::control::tests::unit_return_extra_values_preserve_runtime_arity_error	rust/tcl-compiler/src/lowering/hooks/control.rs	767	
+363ac8b46027	4	1	1	tcl-compiler	lib	lowering::hooks::control::tests::unit_return_dash_first_arg_is_barrier	rust/tcl-compiler/src/lowering/hooks/control.rs	780	
+363ac8b46027	4	1	1	tcl-compiler	lib	lowering::hooks::control::tests::unit_return_braced_value_marks_braced	rust/tcl-compiler/src/lowering/hooks/control.rs	811	
+59aa6941d776	4	1	1	tcl-vm	it_4	tcltest_load::upstream_var_search_mutation_handlers_receive_errorinfo	rust/tcl-vm/tests/it_4/tcltest_load.rs	430	
+59aa6941d776	4	1	1	tcl-vm	it_4	tcltest_load::upstream_error_shifted_context_definitions_pass_after_real_startup	rust/tcl-vm/tests/it_4/tcltest_load.rs	451	
+59aa6941d776	4	1	1	tcl-vm	it_4	tcltest_load::upstream_error_stack_reset_preserves_shifted_context	rust/tcl-vm/tests/it_4/tcltest_load.rs	469	
+59aa6941d776	4	1	1	tcl-vm	it_4	tcltest_load::upstream_invalid_error_stack_preserves_shifted_context	rust/tcl-vm/tests/it_4/tcltest_load.rs	487	
+8bf1d0203ee5	4	0	2	tcl-lsp-core	lib	file_ops::tests::resolves_relative_source_via_workspace_root	rust/tcl-lsp-core/src/file_ops.rs	321	
+8bf1d0203ee5	4	0	2	tcl-lsp-core	lib	file_ops::tests::script_dir_match_still_rewrites_relative_to_script	rust/tcl-lsp-core/src/file_ops.rs	348	
+8bf1d0203ee5	4	0	2	tcl-lsp-core	it_2	file_ops_bigip_residual::rename_resolves_relative_literal_via_workspace_root	rust/tcl-lsp-core/tests/it_2/file_ops_bigip_residual.rs	230	
+8bf1d0203ee5	4	0	2	tcl-lsp-core	it_2	file_ops_bigip_residual::rename_drops_non_file_workspace_roots	rust/tcl-lsp-core/tests/it_2/file_ops_bigip_residual.rs	257	
+b636183d8831	4	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::which_helper_descriptor_keeps_the_original_pinned_declaration	rust/tcl-registry/src/native_jim_lookup.rs	375	
+b636183d8831	4	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::info_helper_descriptor_keeps_original_private_procedure_without_public_dispatch	rust/tcl-registry/src/native_jim_lookup.rs	485	
+b636183d8831	4	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::delete_helper_descriptor_keeps_original_variadic_procedure_and_public_arity	rust/tcl-registry/src/native_jim_lookup.rs	513	
+b636183d8831	4	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::upvar_helper_descriptor_keeps_original_variadic_procedure_and_public_arity	rust/tcl-registry/src/native_jim_lookup.rs	542	
+bfeedaea3680	4	0	1	tcl-compiler	lib	analyser::diagnostics::tests::validity::expr_operators::w003_message_cites_the_relevant_tip	rust/tcl-compiler/src/analyser/diagnostics/tests/validity/expr_operators.rs	185	
+bfeedaea3680	4	0	1	tcl-compiler	lib	analyser::diagnostics::tests::validity::expr_operators::w003_correctly_gates_eda_vendor_dialects_by_documented_base_version	rust/tcl-compiler/src/analyser/diagnostics/tests/validity/expr_operators.rs	421	
+bfeedaea3680	4	0	1	tcl-compiler	lib	analyser::diagnostics::tests::validity::expr_operators::w003_f5_irules_stays_gated_on_its_tcl_8_4_runtime	rust/tcl-compiler/src/analyser/diagnostics/tests/validity/expr_operators.rs	483	
+bfeedaea3680	4	0	1	tcl-compiler	lib	analyser::diagnostics::tests::validity::expr_operators::w003_f5_tmsh_gates_both_tip_201_and_tip_461	rust/tcl-compiler/src/analyser/diagnostics/tests/validity/expr_operators.rs	492	
+079ddb0dc785	3	0	1	tcl-compiler	lib	analyser::diagnostics::tests::validity::expr_operators::w003_fires_on_in_operator_in_tcl84	rust/tcl-compiler/src/analyser/diagnostics/tests/validity/expr_operators.rs	54	W003
+079ddb0dc785	3	0	1	tcl-compiler	lib	analyser::diagnostics::tests::validity::expr_operators::w003_fires_on_newline_separated_operator	rust/tcl-compiler/src/analyser/diagnostics/tests/validity/expr_operators.rs	108	W003
+079ddb0dc785	3	0	1	tcl-compiler	lib	analyser::diagnostics::tests::validity::expr_operators::w003_silent_on_in_operator_in_tcl85	rust/tcl-compiler/src/analyser/diagnostics/tests/validity/expr_operators.rs	135	W003
+0cc4e576b187	3	0	1	tcl-compiler	lib	auto_path_eval::tests::dirname_of_info_script	rust/tcl-compiler/src/auto_path_eval/tests.rs	52	
+0cc4e576b187	3	0	1	tcl-compiler	lib	auto_path_eval::tests::info_script_without_path_is_none	rust/tcl-compiler/src/auto_path_eval/tests.rs	158	
+0cc4e576b187	3	0	1	tcl-compiler	lib	auto_path_eval::tests::drive_relative_paths_abstain	rust/tcl-compiler/src/auto_path_eval/tests.rs	1068	
+1a76dbccd23d	3	0	1	tcl-lsp-server	e2e	editor_features::test_parameter_hints_only_produce_labels_no_type_hints	rust/tcl-lsp-server/tests/e2e/editor_features.rs	734	
+1a76dbccd23d	3	0	1	tcl-lsp-server	e2e	editor_features::test_type_hints_only_emit_no_parameter_labels	rust/tcl-lsp-server/tests/e2e/editor_features.rs	761	
+1a76dbccd23d	3	0	1	tcl-lsp-server	e2e	editor_features::test_legacy_inlay_hints_alias_enables_type_only	rust/tcl-lsp-server/tests/e2e/editor_features.rs	791	
+1d86eaa87c16	3	0	2	tcl-lsp-core	lib	references::tests::variables::references_to_var_includes_definition_and_uses	rust/tcl-lsp-core/src/references/tests/variables.rs	232	
+1d86eaa87c16	3	0	2	tcl-lsp-core	it_2	references_rename::reference_sets::references_var_includes_definition_and_every_read	rust/tcl-lsp-core/tests/it_2/references_rename/reference_sets.rs	273	
+1d86eaa87c16	3	0	2	tcl-lsp-core	it_2	references_rename::reference_sets::references_var_exclude_declaration_keeps_only_reads	rust/tcl-lsp-core/tests/it_2/references_rename/reference_sets.rs	295	
+342a66db8776	3	0	1	tcl-compiler	lib	alias::tests::rename_states_a_move_of_both_names	rust/tcl-compiler/src/alias.rs	196	
+342a66db8776	3	0	1	tcl-compiler	lib	alias::tests::renaming_to_the_empty_name_is_a_deletion_not_a_move	rust/tcl-compiler/src/alias.rs	229	
+342a66db8776	3	0	1	tcl-compiler	lib	alias::tests::a_qualified_rename_target_keeps_its_global_root	rust/tcl-compiler/src/alias.rs	261	
+35b36b222704	3	0	1	tcl-codegen	it_2	codegen::disassembly_format::format_header	rust/tcl-codegen/tests/it_2/codegen/disassembly_format.rs	26	
+35b36b222704	3	0	1	tcl-codegen	it_2	codegen::disassembly_format::format_instruction_offsets	rust/tcl-codegen/tests/it_2/codegen/disassembly_format.rs	58	
+35b36b222704	3	0	1	tcl-codegen	it_2	codegen::disassembly_format::format_block_labels	rust/tcl-codegen/tests/it_2/codegen/disassembly_format.rs	64	
+36f393293120	3	0	1	tcl-compiler	lib	alias::tests::interp_alias_creation_states_the_alias_with_its_baked_arguments	rust/tcl-compiler/src/alias.rs	146	
+36f393293120	3	0	1	tcl-compiler	lib	alias::tests::the_four_word_alias_form_deletes_and_the_three_word_form_queries	rust/tcl-compiler/src/alias.rs	286	
+36f393293120	3	0	1	tcl-compiler	lib	alias::tests::a_deleting_alias_in_a_foreign_interpreter_is_stated_as_foreign	rust/tcl-compiler/src/alias.rs	355	
+38d9e33b8d2c	3	0	2	tcl-lsp-server	lib	tests::diagnostics::closed_files::did_close_clears_badge_when_file_deleted_before_close	rust/tcl-lsp-server/src/tests/diagnostics/closed_files.rs	293	
+38d9e33b8d2c	3	0	2	tcl-lsp-server	lib	tests::diagnostics::closed_files::publish_closed_is_noop_for_open_document	rust/tcl-lsp-server/src/tests/diagnostics/closed_files.rs	334	
+38d9e33b8d2c	3	0	2	tcl-lsp-server	lib	tests::workspace::watched_files::watched_delete_clears_closed_file_badge	rust/tcl-lsp-server/src/tests/workspace/watched_files.rs	89	
+3b10f47edfd3	3	0	1	tcl-compiler	lib	signature_scan::handlers::tests::handle_namespace_import_absolute_pattern	rust/tcl-compiler/src/signature_scan/handlers.rs	1127	
+3b10f47edfd3	3	0	1	tcl-compiler	lib	signature_scan::handlers::tests::handle_namespace_import_force_flag_skipped	rust/tcl-compiler/src/signature_scan/handlers.rs	1144	
+3b10f47edfd3	3	0	1	tcl-compiler	lib	signature_scan::handlers::tests::handle_namespace_import_relative_under_nested_ns	rust/tcl-compiler/src/signature_scan/handlers.rs	1268	
+3d294b385f39	3	0	1	tcl-lsp-core	it_2	references_rename::reference_sets::references_proc_from_definition_includes_decl_and_both_calls	rust/tcl-lsp-core/tests/it_2/references_rename/reference_sets.rs	26	
+3d294b385f39	3	0	1	tcl-lsp-core	it_2	references_rename::reference_sets::references_proc_from_call_site_finds_the_same_set	rust/tcl-lsp-core/tests/it_2/references_rename/reference_sets.rs	52	
+3d294b385f39	3	0	1	tcl-lsp-core	it_2	references_rename::reference_sets::references_proc_exclude_declaration_drops_the_decl_line	rust/tcl-lsp-core/tests/it_2/references_rename/reference_sets.rs	204	
+4150220babbb	3	0	1	tcl-registry	lib	registry::tests::argument_roles::arg_indices_for_role_trace_add_variable_var_write	rust/tcl-registry/src/registry/tests/argument_roles.rs	730	
+4150220babbb	3	0	1	tcl-registry	lib	registry::tests::argument_roles::arg_indices_for_role_trace_add_command_name_reference	rust/tcl-registry/src/registry/tests/argument_roles.rs	759	
+4150220babbb	3	0	1	tcl-registry	lib	registry::tests::argument_roles::arg_indices_for_role_trace_remove_variable_var_write	rust/tcl-registry/src/registry/tests/argument_roles.rs	781	
+4779b75d3c6f	3	0	1	tcl-explorer	lib	view_tree::tests::every_tree_descriptor_has_a_shared_builder	rust/tcl-explorer/src/view_tree/tests.rs	160	
+4779b75d3c6f	3	0	1	tcl-explorer	lib	view_tree::tests::unknown_view_is_empty	rust/tcl-explorer/src/view_tree/tests.rs	263	
+4779b75d3c6f	3	0	1	tcl-explorer	lib	view_tree::tests::empty_analysis_views_have_a_dim_note	rust/tcl-explorer/src/view_tree/tests.rs	268	
+5515223c9579	3	0	3	tcl-syntax	command_resolution_conformance	vectors_match_real_tclsh	rust/tcl-syntax/tests/command_resolution_conformance.rs	77	
+5515223c9579	3	0	3	tcl-syntax	namespace_op_conformance	vectors_match_real_tclsh	rust/tcl-syntax/tests/namespace_op_conformance.rs	34	
+5515223c9579	3	0	3	tcl-syntax	variable_resolution_conformance	vectors_match_real_tclsh	rust/tcl-syntax/tests/variable_resolution_conformance.rs	34	
+65a9d460d781	3	0	2	tcl-lsp-core	lib	document_links::tests::tilde_expansion_uses_supplied_home	rust/tcl-lsp-core/src/document_links/tests.rs	690	
+65a9d460d781	3	0	2	tcl-lsp-core	lib	document_links::tests::tilde_without_home_produces_no_link	rust/tcl-lsp-core/src/document_links/tests.rs	703	
+65a9d460d781	3	0	2	tcl-lsp-core	it_3	lsp_lens_links_symbols::links_tilde_expands_against_supplied_home	rust/tcl-lsp-core/tests/it_3/lsp_lens_links_symbols.rs	728	
+67485d60c308	3	0	1	tcl-lsp-core	it_5	stub_arg_roles::a_barrier_stub_fences_its_scope_from_renaming	rust/tcl-lsp-core/tests/it_5/stub_arg_roles.rs	732	
+67485d60c308	3	0	1	tcl-lsp-core	it_5	stub_arg_roles::an_extension_stub_fences_its_scope_from_renaming	rust/tcl-lsp-core/tests/it_5/stub_arg_roles.rs	868	
+67485d60c308	3	0	1	tcl-lsp-core	it_5	stub_arg_roles::a_stated_mutation_narrows_an_extension_stub_and_a_stated_barrier_survives_it	rust/tcl-lsp-core/tests/it_5/stub_arg_roles.rs	950	
+6da95fa129dc	3	0	1	tcl-codegen	it_5	wasm_codegen::an_emitted_module_carries_its_identity_manifest	rust/tcl-codegen/tests/it_5/wasm_codegen.rs	98	
+6da95fa129dc	3	0	1	tcl-codegen	it_5	wasm_codegen::default_compilation_keeps_legacy_analysis_specialisations_disabled	rust/tcl-codegen/tests/it_5/wasm_codegen.rs	132	
+6da95fa129dc	3	0	1	tcl-codegen	it_5	wasm_codegen::analysis_specialisation_requires_its_explicit_pass	rust/tcl-codegen/tests/it_5/wasm_codegen.rs	146	
+7dc26b11ac42	3	0	1	tcl-lsp-core	lib	document_symbols::tests::tp_test_constraint_setter_is_a_constant_symbol	rust/tcl-lsp-core/src/document_symbols/tests.rs	529	
+7dc26b11ac42	3	0	1	tcl-lsp-core	lib	document_symbols::tests::fp_guard_test_constraint_getter_is_not_a_symbol	rust/tcl-lsp-core/src/document_symbols/tests.rs	547	
+7dc26b11ac42	3	0	1	tcl-lsp-core	lib	document_symbols::tests::tp_multiple_tests_each_listed	rust/tcl-lsp-core/src/document_symbols/tests.rs	613	
+85d628e56df9	3	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::code_helper_descriptor_keeps_original_source_and_public_arity	rust/tcl-registry/src/native_jim_lookup.rs	399	
+85d628e56df9	3	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::origin_helper_descriptor_keeps_original_source_and_public_arity	rust/tcl-registry/src/native_jim_lookup.rs	427	
+85d628e56df9	3	0	1	tcl-registry	lib	native_jim_lookup::namespace_helper_source_tests::inscope_helper_descriptor_keeps_original_source_and_public_arity	rust/tcl-registry/src/native_jim_lookup.rs	455	
+8695ca592c45	3	0	1	tcl-compiler	it_4	text_utils::test_exact_match_first	rust/tcl-compiler/tests/it_4/text_utils.rs	97	
+8695ca592c45	3	0	1	tcl-compiler	it_4	text_utils::test_close_match	rust/tcl-compiler/tests/it_4/text_utils.rs	104	
+8695ca592c45	3	0	1	tcl-compiler	it_4	text_utils::test_no_match_beyond_max_distance	rust/tcl-compiler/tests/it_4/text_utils.rs	113	
+948b72db8971	3	0	1	tcl-lsp-core	lib	document_symbols::tests::tp_qualified_test_name_is_a_symbol	rust/tcl-lsp-core/src/document_symbols/tests.rs	325	
+948b72db8971	3	0	1	tcl-lsp-core	lib	document_symbols::tests::tp_legacy_positional_test_name_is_a_symbol	rust/tcl-lsp-core/src/document_symbols/tests.rs	341	
+948b72db8971	3	0	1	tcl-lsp-core	lib	document_symbols::tests::tp_custom_match_is_an_operator_symbol	rust/tcl-lsp-core/src/document_symbols/tests.rs	567	
+9c7b1328b377	3	0	3	tcl-lsp-core	lib	code_lens::tests::lens_anchors_at_proc_name_span	rust/tcl-lsp-core/src/code_lens.rs	506	
+9c7b1328b377	3	0	3	tcl-lsp-core	it_3	lsp_lens_links_symbols::lens_carries_qualified_name_in_data	rust/tcl-lsp-core/tests/it_3/lsp_lens_links_symbols.rs	573	
+9c7b1328b377	3	0	3	tcl-lsp-core	it_5	lsp_providers::code_lens_anchor_is_proc_name_span	rust/tcl-lsp-core/tests/it_5/lsp_providers.rs	243	
+9cdaa2de47c6	3	0	2	tcl-lsp-core	lib	file_ops::tests::rewrites_absolute_source_literal_to_new_absolute	rust/tcl-lsp-core/src/file_ops.rs	291	
+9cdaa2de47c6	3	0	2	tcl-lsp-core	it_2	file_ops_bigip_residual::rename_absolute_literal_becomes_new_absolute_path	rust/tcl-lsp-core/tests/it_2/file_ops_bigip_residual.rs	214	
+9cdaa2de47c6	3	0	2	tcl-lsp-core	it_2	file_ops_bigip_residual::rename_skips_dependent_with_non_file_uri	rust/tcl-lsp-core/tests/it_2/file_ops_bigip_residual.rs	364	
+a7afae7feb96	3	0	3	tcl-compiler	it_3	taint::colours::shell_atom::ip_addr_augments_shell_atom	rust/tcl-compiler/tests/it_3/taint/colours.rs	216	T100
+a7afae7feb96	3	0	3	tcl-compiler	it_3	taint::option_sinks::t102_suppression::ip_addr_still_fires_t100	rust/tcl-compiler/tests/it_3/taint/option_sinks.rs	272	T100
+a7afae7feb96	3	0	3	tcl-compiler	it_3	taint::sources::irules_taint_sources::ip_client_addr_taints_with_colour	rust/tcl-compiler/tests/it_3/taint/sources.rs	435	T100
+ae113258fead	3	0	2	tcl-lsp-core	lib	code_lens::tests::lens_shows_singular_for_one_reference	rust/tcl-lsp-core/src/code_lens.rs	470	
+ae113258fead	3	0	2	tcl-lsp-core	lib	code_lens::tests::proc_lens_without_workspace_counts_local_only	rust/tcl-lsp-core/src/code_lens.rs	1044	
+ae113258fead	3	0	2	tcl-lsp-core	it_3	lsp_lens_links_symbols::lens_singular_grammar_for_one_reference	rust/tcl-lsp-core/tests/it_3/lsp_lens_links_symbols.rs	557	
+aff306090c1f	3	0	1	tcl-compiler	lib	signature_scan::handlers::tests::handle_rename_records_qualified_target	rust/tcl-compiler/src/signature_scan/handlers.rs	1488	
+aff306090c1f	3	0	1	tcl-compiler	lib	signature_scan::handlers::tests::handle_rename_to_empty_string_deletes_and_is_skipped	rust/tcl-compiler/src/signature_scan/handlers.rs	1527	
+aff306090c1f	3	0	1	tcl-compiler	lib	signature_scan::handlers::tests::handle_rename_too_few_args_is_a_no_op	rust/tcl-compiler/src/signature_scan/handlers.rs	1535	
+b3fda7aad571	3	0	1	tcl-registry	lib	substitution::tests::tp_no_switches_runs_every_substitution	rust/tcl-registry/src/substitution.rs	708	
+b3fda7aad571	3	0	1	tcl-registry	lib	substitution::tests::tp_a_negated_switch_turns_off_only_its_own_kind	rust/tcl-registry/src/substitution.rs	716	
+b3fda7aad571	3	0	1	tcl-registry	lib	substitution::tests::tp_a_positive_switch_turns_on_only_its_own_kind	rust/tcl-registry/src/substitution.rs	735	
+b43c07d9d8a4	3	0	1	tcl-compiler	lib	analyser::diagnostics::tests::validity::expr_operators::w003_fires_on_string_compare_in_tcl84	rust/tcl-compiler/src/analyser/diagnostics/tests/validity/expr_operators.rs	24	W003
+b43c07d9d8a4	3	0	1	tcl-compiler	lib	analyser::diagnostics::tests::validity::expr_operators::w003_silent_on_string_compare_in_tcl9	rust/tcl-compiler/src/analyser/diagnostics/tests/validity/expr_operators.rs	43	W003
+b43c07d9d8a4	3	0	1	tcl-compiler	lib	analyser::diagnostics::tests::validity::expr_operators::w003_fires_on_tab_separated_operator	rust/tcl-compiler/src/analyser/diagnostics/tests/validity/expr_operators.rs	92	W003
+b741ab82c32d	3	0	1	tcl-lsp-core	it_5	minify_residual::remap_line_one_is_not_rewritten	rust/tcl-lsp-core/tests/it_5/minify_residual.rs	264	
+b741ab82c32d	3	0	1	tcl-lsp-core	it_5	minify_residual::remap_line_zero_underflow_is_guarded	rust/tcl-lsp-core/tests/it_5/minify_residual.rs	276	
+b741ab82c32d	3	0	1	tcl-lsp-core	it_5	minify_residual::remap_line_out_of_range_is_declined	rust/tcl-lsp-core/tests/it_5/minify_residual.rs	288	
+bcda31da7977	3	0	1	tcl-compiler	lib	analyser::diagnostics::fp::nab::fp_nab_10_dict_disabled_in_tcl_8_4_fires_w002	rust/tcl-compiler/src/analyser/diagnostics/fp/nab.rs	275	W002
+bcda31da7977	3	0	1	tcl-compiler	lib	analyser::diagnostics::fp::nab::fp_nab_10_dict_enabled_in_tcl_9_0_silent	rust/tcl-compiler/src/analyser/diagnostics/fp/nab.rs	284	W002
+bcda31da7977	3	0	1	tcl-compiler	lib	analyser::diagnostics::fp::nab::fp_nab_13_no_shadow_still_fires_w002	rust/tcl-compiler/src/analyser/diagnostics/fp/nab.rs	372	W002
+c43c23461e6b	3	0	1	f5-cli	irule	format_resolves_the_irules_profile_for_its_dialect	rust/f5-cli/tests/irule.rs	112	
+c43c23461e6b	3	0	1	f5-cli	irule	format_accepts_both_irules_dialect_spellings	rust/f5-cli/tests/irule.rs	126	
+c43c23461e6b	3	0	1	f5-cli	irule	format_under_a_core_tcl_dialect_leaves_the_ghost_separator_alone	rust/f5-cli/tests/irule.rs	145	
+cb65445b3ef3	3	0	1	tcl-compiler	lib	signature_scan::handlers::tests::handle_package_with_version	rust/tcl-compiler/src/signature_scan/handlers.rs	1300	
+cb65445b3ef3	3	0	1	tcl-compiler	lib	signature_scan::handlers::tests::handle_package_without_version	rust/tcl-compiler/src/signature_scan/handlers.rs	1328	
+cb65445b3ef3	3	0	1	tcl-compiler	lib	signature_scan::handlers::tests::handle_package_with_exact_flag	rust/tcl-compiler/src/signature_scan/handlers.rs	1420	
+d4d5d7f69dcb	3	0	3	tcl-lsp-core	lib	document_symbols::tests::oo_class_emits_class_symbol_with_method_children	rust/tcl-lsp-core/src/document_symbols/tests.rs	836	
+d4d5d7f69dcb	3	0	3	tcl-lsp-core	it_3	lsp_lens_links_symbols::symbols_oo_class_with_method_children	rust/tcl-lsp-core/tests/it_3/lsp_lens_links_symbols.rs	311	
+d4d5d7f69dcb	3	0	3	tcl-lsp-core	it_5	lsp_providers::doc_symbols_oo_class_lists_its_methods	rust/tcl-lsp-core/tests/it_5/lsp_providers.rs	502	
+d7207eb7e331	3	0	2	tcl-lsp-core	lib	rename::tests::commands::rename_unknown_word_empty	rust/tcl-lsp-core/src/rename/tests/commands.rs	315	
+d7207eb7e331	3	0	2	tcl-lsp-core	it_2	references_rename::rename_edits::rename_unknown_word_yields_no_edits	rust/tcl-lsp-core/tests/it_2/references_rename/rename_edits.rs	373	
+d7207eb7e331	3	0	2	tcl-lsp-core	it_2	references_rename::rename_edits::rename_builtin_without_registry_still_yields_no_edits	rust/tcl-lsp-core/tests/it_2/references_rename/rename_edits.rs	393	
+da7b46dbe42e	3	0	2	tcl-lsp-core	lib	rename::tests::rename_returns_empty_for_unsafe_new_name	rust/tcl-lsp-core/src/rename/tests.rs	185	
+da7b46dbe42e	3	0	2	tcl-lsp-core	lib	rename::tests::commands::rename_proc_includes_decl_and_calls	rust/tcl-lsp-core/src/rename/tests/commands.rs	256	
+da7b46dbe42e	3	0	2	tcl-lsp-core	lib	rename::tests::commands::rename_top_level_proc_uses_short_form_at_decl	rust/tcl-lsp-core/src/rename/tests/commands.rs	617	
+e6b9d7494085	3	0	1	tcl-vm	it_2	cmd_info_prefix_e2e::prefix_all_bad_list_errors	rust/tcl-vm/tests/it_2/cmd_info_prefix_e2e.rs	147	
+e6b9d7494085	3	0	1	tcl-vm	it_2	cmd_info_prefix_e2e::prefix_match_error_option	rust/tcl-vm/tests/it_2/cmd_info_prefix_e2e.rs	314	
+e6b9d7494085	3	0	1	tcl-vm	it_2	cmd_info_prefix_e2e::prefix_longest_bad_list_errors	rust/tcl-vm/tests/it_2/cmd_info_prefix_e2e.rs	1522	
+eeca03c99c8b	3	0	2	tcl-lsp-core	lib	document_links::tests::a_literal_file_join_link_anchors_on_the_file_name_only_775	rust/tcl-lsp-core/src/document_links/tests.rs	613	
+eeca03c99c8b	3	0	2	tcl-lsp-core	lib	document_links::tests::source_with_literal_file_join_surfaces_link	rust/tcl-lsp-core/src/document_links/tests.rs	904	
+eeca03c99c8b	3	0	2	tcl-lsp-core	it_3	lsp_lens_links_symbols::links_literal_file_join_source_resolves	rust/tcl-lsp-core/tests/it_3/lsp_lens_links_symbols.rs	742	
+f0a3802f893d	3	0	1	tcl-lsp-core	lib	formatting::keywords::tests::a_unique_subcommand_prefix_expands	rust/tcl-lsp-core/src/formatting/keywords.rs	982	
+f0a3802f893d	3	0	1	tcl-lsp-core	lib	formatting::keywords::tests::an_ambiguous_or_unknown_subcommand_is_left_alone	rust/tcl-lsp-core/src/formatting/keywords.rs	996	
+f0a3802f893d	3	0	1	tcl-lsp-core	lib	formatting::keywords::tests::expansion_can_be_turned_off	rust/tcl-lsp-core/src/formatting/keywords.rs	1023	
+01a71916a899	2	0	1	tcl-compiler	lib	analyser::diagnostics::tests::dialect_profiles::w003_fires_on_irules_word_operators_outside_irules	rust/tcl-compiler/src/analyser/diagnostics/tests/dialect_profiles.rs	387	
+01a71916a899	2	0	1	tcl-compiler	lib	analyser::diagnostics::tests::dialect_profiles::w003_silent_on_irules_word_operators_inside_irules	rust/tcl-compiler/src/analyser/diagnostics/tests/dialect_profiles.rs	418	
+03f5f701f8ef	2	0	1	tcl-vm	it_4	cross_version_command_surface_e2e::compile_service_profiles::named_command_surface_override_cannot_hide_compiled_release_commands	rust/tcl-vm/tests/it_4/cross_version_command_surface_e2e/compile_service_profiles.rs	350	
+03f5f701f8ef	2	0	1	tcl-vm	it_4	cross_version_command_surface_e2e::compile_service_profiles::command_surface_override_rejects_a_same_release_narrower_profile	rust/tcl-vm/tests/it_4/cross_version_command_surface_e2e/compile_service_profiles.rs	421	
+04d3840da576	2	0	1	tcl-lsp-core	lib	references::tests::variables::references_from_in_proc_global_alias_reach_the_callers_canonical_set	rust/tcl-lsp-core/src/references/tests/variables.rs	56	
+04d3840da576	2	0	1	tcl-lsp-core	lib	references::tests::variables::references_from_the_callers_canonical_set_reach_the_in_proc_global_alias	rust/tcl-lsp-core/src/references/tests/variables.rs	94	
+0548ec47a2dc	2	0	2	tcl-compiler	lib	sccp::original_value_facts::tests::fold_trust::only_the_rewrite_stance_declines_on_the_unbounded_top	rust/tcl-compiler/src/sccp/original_value_facts/tests/fold_trust.rs	181	
+0548ec47a2dc	2	0	2	tcl-compiler	lib	sccp::tests::fold_trust::only_the_rewrite_stance_declines_on_the_unbounded_top	rust/tcl-compiler/src/sccp/tests/fold_trust.rs	181	
+055fda18b701	2	0	2	tcl-compiler	lib	sccp::original_value_facts::tests::assignment_folds::quoted_expr_with_string_var_does_not_fold	rust/tcl-compiler/src/sccp/original_value_facts/tests/assignment_folds.rs	175	
+055fda18b701	2	0	2	tcl-compiler	lib	sccp::tests::assignment_folds::quoted_expr_with_string_var_does_not_fold	rust/tcl-compiler/src/sccp/tests/assignment_folds.rs	255	
+0638a719a5f1	2	0	2	tcl-compiler	lib	analyser::diagnostics::fp::sanity::baseline_read_before_set_fires_w210	rust/tcl-compiler/src/analyser/diagnostics/fp/mod.rs	78	W210
+0638a719a5f1	2	0	2	tcl-compiler	it_5	unused_var_tricky_features::read_before_set_tps::tp_plain_read_before_set	rust/tcl-compiler/tests/it_5/unused_var_tricky_features.rs	351	W210
+071b8a386ebf	2	0	2	tcl-lsp-core	it_2	references_rename::namespaces::proc_rename_unambiguous_callsite_unaffected	rust/tcl-lsp-core/tests/it_2/references_rename/namespaces.rs	862	
+071b8a386ebf	2	0	2	tcl-lsp-core	it_2	references_rename::rename_edits::rename_proc_from_call_site_rewrites_declaration_too	rust/tcl-lsp-core/tests/it_2/references_rename/rename_edits.rs	88	
+07553265f2ce	2	0	1	tcl-vm	lib	cmd_package::tests::jim_import_ignores_exports_overwrites_and_retains_missing_source_alias	rust/tcl-vm/src/cmd_package/tests.rs	286	
+07553265f2ce	2	0	1	tcl-vm	lib	cmd_package::tests::jim_interpreter_handle_isolation	rust/tcl-vm/src/cmd_package/tests.rs	302	
+0773ae5c8596	2	0	1	tcl-spectcl	it_2	export::a_canonical_environment_block_round_trips_byte_identically	rust/tcl-spectcl/tests/it_2/export.rs	414	
+0773ae5c8596	2	0	1	tcl-spectcl	it_2	export::an_environment_block_with_kind_and_short_name_round_trips_byte_identically	rust/tcl-spectcl/tests/it_2/export.rs	426	
+07ab78e98967	2	0	2	tcl-lsp-core	lib	definition::tests::variables::jump_to_var_definition	rust/tcl-lsp-core/src/definition/tests/variables.rs	94	
+07ab78e98967	2	0	2	tcl-lsp-core	it_4	lsp_navigation::definition_var_use_jumps_to_set_declaration	rust/tcl-lsp-core/tests/it_4/lsp_navigation.rs	383	
+07da06788089	2	0	2	tcl-compiler	lib	var_escape::cfg_propagation::handlers::tests::upvar_command_substitution_level_marks_pessimistic	rust/tcl-compiler/src/var_escape/cfg_propagation/handlers.rs	461	
+07da06788089	2	0	2	tcl-compiler	lib	var_escape::handlers::tests::upvar_command_substitution_level_marks_pessimistic	rust/tcl-compiler/src/var_escape/handlers.rs	463	
+0855073eaa17	2	0	1	tcl-lsp-server	e2e	navigation::hover_on_a_caller_frame_read_names_the_creating_call_not_a_method	rust/tcl-lsp-server/tests/e2e/navigation.rs	173	
+0855073eaa17	2	0	1	tcl-lsp-server	e2e	navigation::hover_on_a_literal_upvar_target_read_names_the_creating_call	rust/tcl-lsp-server/tests/e2e/navigation.rs	238	
+0b6c38111027	2	0	2	tcl-lsp-core	it_3	lsp_core_residual::fmt_enforce_braced_variables_rewrites_refs	rust/tcl-lsp-core/tests/it_3/lsp_core_residual.rs	201	
+0b6c38111027	2	0	2	tcl-lsp-core	it_4	formatting_engine_residual::fmt_enforce_braced_variables_rewrites_dollar_refs	rust/tcl-lsp-core/tests/it_4/formatting_engine_residual.rs	394	
+0c1fe6a72f1a	2	0	1	tcl-runtime	lib	codegen_abi::tests::argv_invocation::guarded_intrinsic_string_length_hits_and_releases_exact_completion_and_token	runtime/rust/src/codegen_abi/tests/argv_invocation.rs	24	
+0c1fe6a72f1a	2	0	1	tcl-runtime	lib	codegen_abi::tests::argv_invocation::guarded_intrinsic_jim_character_identity_ignores_the_c_assistance_release	runtime/rust/src/codegen_abi/tests/argv_invocation.rs	181	
+0c9f002842a6	2	0	2	tcl-compiler	lib	static_loops::tests::summarise_body_accumulates_counter	rust/tcl-compiler/src/static_loops.rs	1107	
+0c9f002842a6	2	0	2	tcl-compiler	lib	static_loops::original_simulation::tests::analyse_body_accumulates_counter	rust/tcl-compiler/src/static_loops/original_simulation/tests.rs	777	
+0cb42218c176	2	0	2	tcl-lsp-core	lib	code_lens::tests::lens_shows_zero_references_for_unused_proc	rust/tcl-lsp-core/src/code_lens.rs	455	
+0cb42218c176	2	0	2	tcl-lsp-core	it_3	lsp_lens_links_symbols::lens_reports_zero_for_unused_proc	rust/tcl-lsp-core/tests/it_3/lsp_lens_links_symbols.rs	519	
+0cd45e8d2bfd	2	0	2	tcl-compiler	lib	analyser::diagnostics::fp::obj::fp_w307_oo_class_method_local_literal_fires	rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs	937	W307
+0cd45e8d2bfd	2	0	2	tcl-compiler	it_3	fp_depth::obj_depth::method_local_literal_non_command_dispatch_fires_w307	rust/tcl-compiler/tests/it_3/fp_depth.rs	1119	W307
+0d92c3914226	2	0	2	tcl-registry	it_4	spectcl_pack::the_pack_loads_for_the_spectcl_profile_and_nowhere_else	rust/tcl-registry/tests/it_4/spectcl_pack.rs	35	
+0d92c3914226	2	0	2	tcl-registry	it_5	sslictcl_pack::the_pack_loads_for_the_sslictcl_profile_and_nowhere_else	rust/tcl-registry/tests/it_5/sslictcl_pack.rs	116	
+0dc43c70171d	2	2	2	tcl-compiler	lib	var_escape::cfg_propagation::handlers::tests::owned_info_unknown_ambiguous_and_missing_operands_are_pessimistic	rust/tcl-compiler/src/var_escape/cfg_propagation/handlers.rs	743	
+0dc43c70171d	2	2	2	tcl-compiler	lib	var_escape::handlers::tests::owned_info_unknown_ambiguous_and_missing_operands_are_pessimistic	rust/tcl-compiler/src/var_escape/handlers.rs	768	
+0e68ddf15a38	2	0	1	tcl-lsp-server	lib	tests::diagnostics::closed_files::did_close_retains_diagnostics_for_on_disk_file_with_problems	rust/tcl-lsp-server/src/tests/diagnostics/closed_files.rs	177	W211
+0e68ddf15a38	2	0	1	tcl-lsp-server	lib	tests::diagnostics::closed_files::reschedule_closed_file_diagnostics_clears_badge_when_master_off	rust/tcl-lsp-server/src/tests/diagnostics/closed_files.rs	425	W211
+0ebb43a062ea	2	0	1	tcl-compiler	lib	mixed_region_plan::tests::guarded_intrinsic_declines_without_concrete_runtime_semantics	rust/tcl-compiler/src/mixed_region_plan.rs	1383	
+0ebb43a062ea	2	0	1	tcl-compiler	lib	mixed_region_plan::tests::validation_rejects_candidate_selection_on_generic_path	rust/tcl-compiler/src/mixed_region_plan.rs	1422	
+10bd7981d738	2	0	2	tcl-runtime	numeric_tower_semantics	the_145th_draw_after_srand_1_matches_the_oracle	runtime/rust/tests/numeric_tower_semantics.rs	339	
+10bd7981d738	2	0	2	tcl-vm	it_2	numeric_tower_e2e::the_145th_draw_after_srand_1_matches_the_oracle	rust/tcl-vm/tests/it_2/numeric_tower_e2e.rs	458	
+1149fc42b943	2	0	2	tcl-compiler	lib	sccp::original_value_facts::tests::foreach_lists::evaluate_def_foreach_list_cmd_subst_folds_constset	rust/tcl-compiler/src/sccp/original_value_facts/tests/foreach_lists.rs	163	
+1149fc42b943	2	0	2	tcl-compiler	lib	sccp::tests::foreach_lists::evaluate_def_foreach_list_cmd_subst_folds_constset	rust/tcl-compiler/src/sccp/tests/foreach_lists.rs	160	
+121be869948a	2	0	1	tcl-lexer	it_2	differential_boundaries::scanner_agrees_with_owner_over_corpora	rust/tcl-lexer/tests/it_2/differential_boundaries.rs	514	
+121be869948a	2	0	1	tcl-lexer	it_2	differential_boundaries::scanner_agrees_with_owner_over_corpora_deep	rust/tcl-lexer/tests/it_2/differential_boundaries.rs	535	
+125af7492910	2	0	1	tcl-registry	lib	definer::tests::tcloo_slot_members_carry_their_c_pinned_defaults	rust/tcl-registry/src/definer/tests.rs	1114	
+125af7492910	2	0	1	tcl-registry	lib	definer::tests::declaring_members_carry_no_member_effect	rust/tcl-registry/src/definer/tests.rs	1289	
+12a28dc0981b	2	2	1	tcl-lsp-core	lib	rename_safety::tests::tp_refuses_renaming_a_moved_member_onto_a_live_sibling	rust/tcl-lsp-core/src/rename_safety/tests.rs	625	
+12a28dc0981b	2	2	1	tcl-lsp-core	lib	rename_safety::tests::tn_allows_renaming_a_moved_member_to_a_fresh_name	rust/tcl-lsp-core/src/rename_safety/tests.rs	672	
+134752325fc3	2	0	1	tcl-vm	it_4	cross_version_vars_e2e::subst_braced_var_close_rule_follows_the_emulated_release	rust/tcl-vm/tests/it_4/cross_version_vars_e2e.rs	532	
+134752325fc3	2	0	1	tcl-vm	it_4	cross_version_vars_e2e::compiled_array_index_braced_var_follows_the_emulated_release	rust/tcl-vm/tests/it_4/cross_version_vars_e2e.rs	904	
+1396f7de7b14	2	0	1	tcl-lsp-core	it_4	lsp_navigation::definition_proc_call_jumps_to_proc_definition	rust/tcl-lsp-core/tests/it_4/lsp_navigation.rs	121	
+1396f7de7b14	2	0	1	tcl-lsp-core	it_4	lsp_navigation::definition_from_proc_definition_resolves_to_itself	rust/tcl-lsp-core/tests/it_4/lsp_navigation.rs	368	
+1486cf6b736f	2	0	1	tcl-compiler	lib	world_state_ssa::tests::may_commit_has_exact_ok_and_joined_abrupt_versions	rust/tcl-compiler/src/world_state_ssa/tests.rs	277	
+1486cf6b736f	2	0	1	tcl-compiler	lib	world_state_ssa::tests::mixed_ok_and_default_target_uses_join_not_precise_definition	rust/tcl-compiler/src/world_state_ssa/tests.rs	357	
+15964c3d596b	2	0	2	tcl-compiler	it_3	taint::option_sinks::t102_suppression::http_uri_no_t102	rust/tcl-compiler/tests/it_3/taint/option_sinks.rs	154	T102
+15964c3d596b	2	0	2	tcl-compiler	it_3	taint::sources::source_colour_augmentation::path_prefixed_augments_non_dash	rust/tcl-compiler/tests/it_3/taint/sources.rs	473	T102
+194e31116c55	2	0	1	tcl-compiler	lib	var_scoping::tests::my_variable_decls_all_names_no_values	rust/tcl-compiler/src/var_scoping.rs	289	
+194e31116c55	2	0	1	tcl-compiler	lib	var_scoping::tests::my_variable_decls_skip_substituted_and_non_variable_subcommand	rust/tcl-compiler/src/var_scoping.rs	297	
+1ab1781d87da	2	0	1	tcl-lsp-core	lib	code_lens::tests::lens_reports_zero_for_unused_property	rust/tcl-lsp-core/src/code_lens.rs	812	
+1ab1781d87da	2	0	1	tcl-lsp-core	lib	code_lens::tests::property_lens_carries_class_property_key_qname	rust/tcl-lsp-core/src/code_lens.rs	834	
+1b70df853371	2	0	2	tcl-lsp-core	lib	code_lens::tests::lens_counts_multiple_references	rust/tcl-lsp-core/src/code_lens.rs	488	
+1b70df853371	2	0	2	tcl-lsp-core	it_3	lsp_lens_links_symbols::lens_counts_call_sites	rust/tcl-lsp-core/tests/it_3/lsp_lens_links_symbols.rs	538	
+1cebfcb14bc1	2	0	1	tcl-compiler	lib	irules_checks::tests::every_explicit_payload_family_warns_without_collect	rust/tcl-compiler/src/irules_checks/tests.rs	686	
+1cebfcb14bc1	2	0	1	tcl-compiler	lib	irules_checks::tests::event_owned_payload_families_do_not_invent_collect_lifecycles	rust/tcl-compiler/src/irules_checks/tests.rs	705	
+1ced359de9c4	2	0	1	tcl-registry	it_2	name_lookup_issue_witnesses::tcllib_list_mutators_name_each_caller_destination	rust/tcl-registry/tests/it_2/name_lookup_issue_witnesses.rs	43	
+1ced359de9c4	2	0	1	tcl-registry	it_2	name_lookup_issue_witnesses::tcllib_join_and_split_outputs_share_variable_name_roles	rust/tcl-registry/tests/it_2/name_lookup_issue_witnesses.rs	69	
+1d834b73ad34	2	0	1	tcl-registry	it_4	keyword_abbreviations::an_exact_subcommand_wins_over_the_prefix_it_shares	rust/tcl-registry/tests/it_4/keyword_abbreviations.rs	67	
+1d834b73ad34	2	0	1	tcl-registry	it_4	keyword_abbreviations::a_strict_override_disables_prefix_matching_at_the_call_site	rust/tcl-registry/tests/it_4/keyword_abbreviations.rs	177	
+1e1ab22816dc	2	1	1	tcl-compiler	lib	var_escape::slot_resolution::tests::trace_add_variable_marks_target_ineligible	rust/tcl-compiler/src/var_escape/slot_resolution.rs	737	
+1e1ab22816dc	2	1	1	tcl-compiler	lib	var_escape::slot_resolution::tests::trace_add_variable_dynamic_target_disables_proc	rust/tcl-compiler/src/var_escape/slot_resolution.rs	785	
+2025b538efa6	2	0	2	tcl-lsp-core	lib	document_links::tests::dynamic_path_produces_no_link	rust/tcl-lsp-core/src/document_links/tests.rs	377	
+2025b538efa6	2	0	2	tcl-lsp-core	it_3	lsp_lens_links_symbols::links_dynamic_source_path_yields_none	rust/tcl-lsp-core/tests/it_3/lsp_lens_links_symbols.rs	698	
+203b84c3c85d	2	0	1	tcl-codegen	lib	codegen::cmd_subst::tests::try_inline_list_without_target_emits_break_as_literal	rust/tcl-codegen/src/codegen/cmd_subst/tests.rs	1453	
+203b84c3c85d	2	0	1	tcl-codegen	lib	codegen::cmd_subst::tests::try_inline_list_with_break_emits_jump_to_target	rust/tcl-codegen/src/codegen/cmd_subst/tests.rs	1469	
+2076b70d3843	2	0	1	tcl-lsp-core	lib	irules_context::tests::when_open_line_counts_as_inside_body	rust/tcl-lsp-core/src/irules_context.rs	448	
+2076b70d3843	2	0	1	tcl-lsp-core	lib	irules_context::tests::cursor_inside_body_reports_event	rust/tcl-lsp-core/src/irules_context.rs	463	
+20ce45cc56e5	2	0	2	tcl-compiler	it_3	taint::option_sinks::t102_suppression::ip_client_addr_no_t102	rust/tcl-compiler/tests/it_3/taint/option_sinks.rs	217	T102
+20ce45cc56e5	2	0	2	tcl-compiler	it_3	taint::sources::source_colour_augmentation::ip_client_addr_non_dash	rust/tcl-compiler/tests/it_3/taint/sources.rs	449	T102
+21bb4367b6fa	2	0	2	tcl-compiler	lib	analyser::diagnostics::fp::inj::fp_inj_04_dash_prefix_still_warns	rust/tcl-compiler/src/analyser/diagnostics/fp/inj.rs	152	T102
+21bb4367b6fa	2	0	2	tcl-compiler	it_3	fp_depth::inj_depth::literal_dash_prefix_on_path_breaks_guarantee_t102	rust/tcl-compiler/tests/it_3/fp_depth.rs	798	T102
+22429a5a7321	2	0	1	tcl-registry	lib	variable_output::tests::literal_capture_groups_preserve_selected_successful_output_stores	rust/tcl-registry/src/variable_output.rs	191	
+22429a5a7321	2	0	1	tcl-registry	lib	variable_output::tests::native_literal_matching_refines_only_proved_successful_stores	rust/tcl-registry/src/variable_output.rs	222	
+2249e052dafd	2	0	2	tcl-compiler	it_3	taint::option_sinks::t102_suppression::ssl_sni_no_t102	rust/tcl-compiler/tests/it_3/taint/option_sinks.rs	251	T102
+2249e052dafd	2	0	2	tcl-compiler	it_3	taint::sources::source_colour_augmentation::ssl_sni_non_dash	rust/tcl-compiler/tests/it_3/taint/sources.rs	465	T102
+224e008cf4df	2	0	1	tcl-lsp-core	lib	workspace_symbols::tests::empty_query_returns_all_symbols	rust/tcl-lsp-core/src/workspace_symbols.rs	465	
+224e008cf4df	2	0	1	tcl-lsp-core	lib	workspace_symbols::tests::query_filters_by_substring_case_insensitive	rust/tcl-lsp-core/src/workspace_symbols.rs	471	
+247db8c1089d	2	0	1	tcl-compiler	lib	analyser::diagnostics::fp::sh::fp_sh_01_string_arith_still_fires	rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs	46	
+247db8c1089d	2	0	1	tcl-compiler	lib	analyser::diagnostics::fp::sh::fp_sh_17_genuine_string_arithmetic_still_fires	rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs	1238	
+24b1cd5122df	2	0	1	tcl-registry	lib	registry::tests::invocation_resolution::resolve_invocation_preserves_an_ambiguous_subcommand_outcome	rust/tcl-registry/src/registry/tests/invocation_resolution.rs	458	
+24b1cd5122df	2	0	1	tcl-registry	lib	registry::tests::invocation_resolution::resolve_invocation_preserves_an_unknown_subcommand_outcome	rust/tcl-registry/src/registry/tests/invocation_resolution.rs	481	
+259022099104	2	0	2	tcl-vm	it_2	cmd_info_prefix_e2e::info_complete_cases	rust/tcl-vm/tests/it_2/cmd_info_prefix_e2e.rs	404	
+259022099104	2	0	2	tcl-vm	it_3	run_script::introspection::info_complete_shared_core	rust/tcl-vm/tests/it_3/run_script/introspection.rs	116	
+27eed6e705e9	2	0	1	tcl-registry	lib	option_effect::tests::tp_a_negated_switch_turns_off_only_its_own_kind	rust/tcl-registry/src/option_effect.rs	776	
+27eed6e705e9	2	0	1	tcl-registry	lib	option_effect::tests::tp_a_positive_switch_turns_on_only_its_own_kind	rust/tcl-registry/src/option_effect.rs	800	
+29456e52f073	2	0	1	tcl-compiler	it_3	command_segmenter::recovery_finds_known_command_and_marks_partial	rust/tcl-compiler/tests/it_3/command_segmenter.rs	137	
+29456e52f073	2	0	1	tcl-compiler	it_3	command_segmenter::recovered_commands_have_correct_names	rust/tcl-compiler/tests/it_3/command_segmenter.rs	166	
+29e2bfbeb041	2	0	2	tcl-lsp-core	it_3	lsp_core_residual::fmt_expand_single_line_bodies_config	rust/tcl-lsp-core/tests/it_3/lsp_core_residual.rs	186	
+29e2bfbeb041	2	0	2	tcl-lsp-core	it_4	formatting_engine_residual::fmt_crlf_line_ending_applied	rust/tcl-lsp-core/tests/it_4/formatting_engine_residual.rs	535	
+2b271fad5a81	2	0	1	tcl-lsp-core	lib	rename::tests::variables::rename_from_the_in_proc_global_alias_rewrites_the_callers_canonical_set_too	rust/tcl-lsp-core/src/rename/tests/variables.rs	24	
+2b271fad5a81	2	0	1	tcl-lsp-core	lib	rename::tests::variables::rename_from_the_callers_canonical_set_rewrites_every_in_proc_global_alias_too	rust/tcl-lsp-core/src/rename/tests/variables.rs	59	
+2b45ad69b214	2	0	2	tcl-lsp-core	lib	type_definition::tests::unrelated_word_returns_empty	rust/tcl-lsp-core/src/type_definition.rs	182	
+2b45ad69b214	2	0	2	tcl-lsp-core	it_5	lsp_providers::type_definition_unrelated_word_is_empty_and_no_panic	rust/tcl-lsp-core/tests/it_5/lsp_providers.rs	896	
+2ba149995726	2	0	2	tcl-lsp-core	lib	references::tests::highlights::document_highlights_empty_for_unknown_symbol	rust/tcl-lsp-core/src/references/tests/highlights.rs	113	
+2ba149995726	2	0	2	tcl-lsp-core	it_2	references_residual::document_highlights_unknown_word_is_empty	rust/tcl-lsp-core/tests/it_2/references_residual.rs	705	
+2c227dd3e77a	2	0	1	tcl-lsp-core	it_5	stub_arg_roles::an_omitted_optional_slot_shifts_the_var_role	rust/tcl-lsp-core/tests/it_5/stub_arg_roles.rs	360	
+2c227dd3e77a	2	0	1	tcl-lsp-core	it_5	stub_arg_roles::a_supplied_optional_slot_keeps_the_declared_position	rust/tcl-lsp-core/tests/it_5/stub_arg_roles.rs	398	
+2d2126df0fae	2	0	1	tcl-engine-api	lib	tests::a_door_without_the_extra_doors_declines_each_of_them	rust/tcl-engine-api/src/lib.rs	1466	
+2d2126df0fae	2	0	1	tcl-engine-api	lib	tests::an_engine_without_the_extra_doors_declines_each_of_them	rust/tcl-engine-api/src/lib.rs	1480	
+2d4826e3e171	2	0	1	tcl-registry	lib	definer::tests::member_row_reads_a_method_statement	rust/tcl-registry/src/definer/tests.rs	1434	
+2d4826e3e171	2	0	1	tcl-registry	lib	definer::tests::member_row_applies_the_self_wrapper	rust/tcl-registry/src/definer/tests.rs	1469	
+2ec75ca64e3d	2	0	1	tcl-vm	it_3	cmd_math_expr_e2e::radix_invalid_numerals_are_barewords	rust/tcl-vm/tests/it_3/cmd_math_expr_e2e.rs	1713	
+2ec75ca64e3d	2	0	1	tcl-vm	it_3	cmd_math_expr_e2e::bad_hex_numerals_are_barewords_without_a_hint	rust/tcl-vm/tests/it_3/cmd_math_expr_e2e.rs	1732	
+2f1bd94acd2f	2	0	1	tcl-lsp-server	e2e	diagnostics::dialect_gating::issue_968_version_gated_math_function_dual_fires_end_to_end	rust/tcl-lsp-server/tests/e2e/diagnostics/dialect_gating.rs	417	W002,W123
+2f1bd94acd2f	2	0	1	tcl-lsp-server	e2e	diagnostics::dialect_gating::undotted_vscode_language_ids_resolve_to_the_same_dialect_end_to_end	rust/tcl-lsp-server/tests/e2e/diagnostics/dialect_gating.rs	503	W002,W123
+2f782924ead5	2	0	2	tcl-lsp-core	lib	code_lens::tests::empty_lenses_when_analysis_is_none	rust/tcl-lsp-core/src/code_lens.rs	427	
+2f782924ead5	2	0	2	tcl-lsp-core	it_3	lsp_lens_links_symbols::lens_none_without_analysis	rust/tcl-lsp-core/tests/it_3/lsp_lens_links_symbols.rs	468	
+304f8404b0e8	2	0	1	tcl-lsp-core	it_2	file_ops_bigip_residual::rename_root_level_dependent_relativises_without_dotdot	rust/tcl-lsp-core/tests/it_2/file_ops_bigip_residual.rs	331	
+304f8404b0e8	2	0	1	tcl-lsp-core	it_2	file_ops_bigip_residual::rename_slashless_dependent_and_target_resolve	rust/tcl-lsp-core/tests/it_2/file_ops_bigip_residual.rs	383	
+313a1433a2c0	2	0	1	tcl-compiler	lib	var_escape::walker::tests::upvar_escapes_local_alias	rust/tcl-compiler/src/var_escape/walker.rs	967	
+313a1433a2c0	2	0	1	tcl-compiler	lib	var_escape::walker::tests::population_upvar_records_upvar_source_reason	rust/tcl-compiler/src/var_escape/walker.rs	1127	
+31a05d63fa1f	2	2	2	tcl-compiler	lib	sccp::original_value_facts::tests::fold_trust::list_arm_declines_once_the_unit_renames_list	rust/tcl-compiler/src/sccp/original_value_facts/tests/fold_trust.rs	65	
+31a05d63fa1f	2	2	2	tcl-compiler	lib	sccp::tests::fold_trust::list_arm_declines_once_the_unit_renames_list	rust/tcl-compiler/src/sccp/tests/fold_trust.rs	65	
+31fa13df3b18	2	0	1	tcl-lsp-core	it_5	stub_arg_roles::stub_body_role_is_a_call_graph_edge	rust/tcl-lsp-core/tests/it_5/stub_arg_roles.rs	109	
+31fa13df3b18	2	0	1	tcl-lsp-core	it_5	stub_arg_roles::an_undeclared_body_word_is_not_a_call_graph_edge	rust/tcl-lsp-core/tests/it_5/stub_arg_roles.rs	129	
+321976af825b	2	0	1	tcl-compiler	lib	var_escape::slot_resolution::tests::dynamic_assign_value_name_disables_whole_proc	rust/tcl-compiler/src/var_escape/slot_resolution.rs	815	
+321976af825b	2	0	1	tcl-compiler	lib	var_escape::slot_resolution::tests::dynamic_incr_name_disables_whole_proc	rust/tcl-compiler/src/var_escape/slot_resolution.rs	839	
+321c2603368a	2	0	2	tcl-compiler	it_2	phi_undef_memo::conditional_unset_then_read_fires_w210	rust/tcl-compiler/tests/it_2/phi_undef_memo.rs	287	W210
+321c2603368a	2	0	2	tcl-compiler	it_3	fp_depth::helpers_depth::conditional_unset_then_read_phi_can_undef_fires_w210	rust/tcl-compiler/tests/it_3/fp_depth.rs	445	W210
+331993ae7e08	2	0	1	tcl-lsp-server	e2e	hover::var_hover	rust/tcl-lsp-server/tests/e2e/hover.rs	368	
+331993ae7e08	2	0	1	tcl-lsp-server	e2e	hover::var_hover_shows_refs	rust/tcl-lsp-server/tests/e2e/hover.rs	378	
+33a1490774f6	2	0	1	bigip-report-gen-rust	lib	security::tests::malformed_and_unsupported_hash_formats_fail_closed	rust/bigip-report-gen/rust/src/security.rs	842	
+33a1490774f6	2	0	1	bigip-report-gen-rust	lib	security::tests::locked_account_is_not_applicable_not_confirmed	rust/bigip-report-gen/rust/src/security.rs	862	
+3498a17d44f9	2	0	2	tcl-cli	it_5	spec_verbs::import_scan_and_probe::spec_import_probe_stops_a_package_that_does_not_finish_in_time	rust/tcl-cli/tests/it_5/spec_verbs/import_scan_and_probe.rs	340	
+3498a17d44f9	2	0	2	tcl-cli	it_5	spec_verbs::test_against_package::spec_test_stops_a_package_that_does_not_finish_in_time	rust/tcl-cli/tests/it_5/spec_verbs/test_against_package.rs	683	
+36638d0fbac0	2	0	1	tcl-syntax	lib	expr::substitution::tests::fails_closed_when_the_runtime_surface_rejects_the_expression	rust/tcl-syntax/src/expr/substitution.rs	762	
+36638d0fbac0	2	0	1	tcl-syntax	lib	expr::substitution::tests::fails_closed_when_the_script_config_is_for_another_profile	rust/tcl-syntax/src/expr/substitution.rs	777	
+36ab400250ae	2	0	2	tcl-compiler	lib	sccp::original_value_facts::tests::value_solver::sccp_widens_across_upframe_from_literal_uplevel	rust/tcl-compiler/src/sccp/original_value_facts/tests/value_solver.rs	596	
+36ab400250ae	2	0	2	tcl-compiler	lib	sccp::tests::solver::sccp_widens_across_upframe_from_literal_uplevel	rust/tcl-compiler/src/sccp/tests/solver.rs	482	
+3735131200cc	2	0	2	tcl-compiler	lib	var_scoping::tests::namespace_upvar_space_joined	rust/tcl-compiler/src/var_scoping.rs	369	
+3735131200cc	2	0	2	tcl-compiler	it_2	alias_scoping::upvar_local_declaration_indices_tests::namespace_upvar_direct_form	rust/tcl-compiler/tests/it_2/alias_scoping.rs	511	
+3892bc190041	2	0	1	tcl-compiler	lib	analyser::diagnostics::fp::rbs::guards_and_output_variables::fp_rbs_02_regexp_in_negated_condition_fires	rust/tcl-compiler/src/analyser/diagnostics/fp/rbs/guards_and_output_variables.rs	216	W210
+3892bc190041	2	0	1	tcl-compiler	lib	analyser::diagnostics::fp::rbs::guards_and_output_variables::fp_rbs_12_regexp_in_negated_if_arm_fires	rust/tcl-compiler/src/analyser/diagnostics/fp/rbs/guards_and_output_variables.rs	448	W210
+3924b83d606a	2	0	1	tcl-lsp-server	e2e	rename::prepare_rename_variable	rust/tcl-lsp-server/tests/e2e/rename.rs	78	
+3924b83d606a	2	0	1	tcl-lsp-server	e2e	rename::prepare_rename_variable_from_definition_site	rust/tcl-lsp-server/tests/e2e/rename.rs	88	
+393445169543	2	0	1	tcl-lsp-core	it_4	code_actions_depth::check_actions_report_irule5004_as_advice_without_an_edit	rust/tcl-lsp-core/tests/it_4/code_actions_depth.rs	878	IRULE5004
+393445169543	2	0	1	tcl-lsp-core	it_4	code_actions_depth::check_actions_irule5004_suppressed_when_disabled	rust/tcl-lsp-core/tests/it_4/code_actions_depth.rs	919	IRULE5004
+3aaae0d8ac11	2	0	1	tcl-compiler	lib	analyser::diagnostics::tests::dialect_profiles::w003_irules_alias_gates_like_the_canonical_profile	rust/tcl-compiler/src/analyser/diagnostics/tests/dialect_profiles.rs	356	W003
+3aaae0d8ac11	2	0	1	tcl-compiler	lib	analyser::diagnostics::tests::dialect_profiles::w003_bpf_accepts_both_tips_on_its_tcl_9_runtime	rust/tcl-compiler/src/analyser/diagnostics/tests/dialect_profiles.rs	366	W003
+3bd7e25578f5	2	1	1	tcl-explorer	lib	serialise::tests::loops_empty_for_straightline_code	rust/tcl-explorer/src/serialise/tests.rs	1007	
+3bd7e25578f5	2	1	1	tcl-explorer	lib	serialise::tests::asm_emits_structured_instructions_for_top_level	rust/tcl-explorer/src/serialise/tests.rs	1311	
+3bf7a035d24b	2	0	1	tcl-compiler	lib	analyser::utils::tests::recovery_known_commands_adds_user_proc_qualified_and_tail	rust/tcl-compiler/src/analyser/utils/tests.rs	1322	
+3bf7a035d24b	2	0	1	tcl-compiler	lib	analyser::utils::tests::recovery_known_commands_adds_the_leading_colon_colon_form_too	rust/tcl-compiler/src/analyser/utils/tests.rs	1411	
+3c2ba67b2c81	2	0	2	tcl-compiler	lib	analyser::diagnostics::fp::sty::fp_sty_02_pure_dollar_in_quoted_pattern_no_w306	rust/tcl-compiler/src/analyser/diagnostics/fp/sty.rs	106	W306
+3c2ba67b2c81	2	0	2	tcl-compiler	it_3	fp_depth::sty_depth::pure_dollar_in_quoted_pattern_no_w306	rust/tcl-compiler/tests/it_3/fp_depth.rs	960	W306
+3cf667e2cdd4	2	0	1	tcl-compiler	lib	signature_scan::handlers::tests::handle_rename_qualifies_against_ns_prefix	rust/tcl-compiler/src/signature_scan/handlers.rs	1503	
+3cf667e2cdd4	2	0	1	tcl-compiler	lib	signature_scan::handlers::tests::handle_rename_absolute_new_name_ignores_ns_prefix	rust/tcl-compiler/src/signature_scan/handlers.rs	1515	
+3e6899b2bada	2	0	1	tcl-runtime	lib	interp::native_procedure_body::tests::rejected_native_formal_binding_acquires_no_execution_reference	runtime/rust/src/interp/native_procedure_body.rs	237	
+3e6899b2bada	2	0	1	tcl-runtime	lib	interp::native_procedure_body::tests::c_interpreter_shutdown_retires_visible_and_hidden_bindings_despite_query_views	runtime/rust/src/interp/native_procedure_body.rs	417	
+3e9261afbaeb	2	0	1	tcl-lsp-core	lib	rename::tests::members::rename_method_at_decl_rewrites_decl_and_calls	rust/tcl-lsp-core/src/rename/tests/members.rs	65	
+3e9261afbaeb	2	0	1	tcl-lsp-core	lib	rename::tests::members::rename_method_at_call_site_also_works	rust/tcl-lsp-core/src/rename/tests/members.rs	179	
+3f1d8b4d980c	2	0	1	tcl-bigip	lib	apl::iapp_diagnostics::tests::iapp7001_fires_for_undefined_variable	rust/tcl-bigip/src/apl/iapp_diagnostics.rs	202	
+3f1d8b4d980c	2	0	1	tcl-bigip	lib	apl::iapp_diagnostics::tests::no_iapp_checks_outside_iapp_dialects	rust/tcl-bigip/src/apl/iapp_diagnostics.rs	239	
+4097e3ba5c4f	2	0	1	tcl-lsp-core	lib	definition::tests::command_heads::fp_argument_word_sharing_a_procs_name_is_not_resolved_as_a_command	rust/tcl-lsp-core/src/definition/tests/command_heads.rs	351	
+4097e3ba5c4f	2	0	1	tcl-lsp-core	lib	definition::tests::command_heads::tp_the_head_beside_that_argument_still_resolves	rust/tcl-lsp-core/src/definition/tests/command_heads.rs	367	
+40c17d28350e	2	0	1	tcl-compiler	it_3	taint::sinks::t104_network_sinks::socket_tainted_host	rust/tcl-compiler/tests/it_3/taint/sinks.rs	519	T104
+40c17d28350e	2	0	1	tcl-compiler	it_3	taint::sinks::t104_network_sinks::message_format	rust/tcl-compiler/tests/it_3/taint/sinks.rs	567	T104
+413541bd4210	2	0	1	tcl-vm	lib	interp::native_variable_names::tests::variable_read_diagnostics_match_five_original_source_controls	rust/tcl-vm/src/interp/native_variable_names/tests.rs	1660	
+413541bd4210	2	0	1	tcl-vm	lib	interp::native_variable_names::tests::variable_read_input_preserves_current_jim_dictionary_results	rust/tcl-vm/src/interp/native_variable_names/tests.rs	1712	
+413de1b53e5f	2	0	1	tcl-compiler	it_2	intervals::compute_intervals_suite::loop_induction_widens_soundly	rust/tcl-compiler/tests/it_2/intervals.rs	812	
+413de1b53e5f	2	0	1	tcl-compiler	it_2	intervals::interval_arithmetic_observable::widen_sends_growing_loop_bound_to_infinity	rust/tcl-compiler/tests/it_2/intervals.rs	961	
+41d26e92223a	2	0	1	tcl-lsp-core	lib	selection_range::tests::command_segment_emitted_with_leading_whitespace	rust/tcl-lsp-core/src/selection_range.rs	553	
+41d26e92223a	2	0	1	tcl-lsp-core	lib	selection_range::tests::command_segment_trims_whitespace	rust/tcl-lsp-core/src/selection_range.rs	601	
+4362d4108db9	2	0	1	tcl-registry	lib	resolved_invocation::tests::invocation_facts::selected_operand_coercions_preserve_shared_object_hazards	rust/tcl-registry/src/resolved_invocation/tests/invocation_facts.rs	24	
+4362d4108db9	2	0	1	tcl-registry	lib	resolved_invocation::tests::invocation_facts::selected_argument_hints_decline_unresolved_argv_and_rejected_arity	rust/tcl-registry/src/resolved_invocation/tests/invocation_facts.rs	169	
+4428bced8ac9	2	0	2	tcl-compiler	lib	var_escape::cfg_propagation::walker::tests::original_scalar_owner_refusal_cannot_use_standalone_alias_hints	rust/tcl-compiler/src/var_escape/cfg_propagation/walker.rs	918	
+4428bced8ac9	2	0	2	tcl-compiler	lib	var_escape::walker::tests::original_scalar_owner_refusal_cannot_use_standalone_alias_hints	rust/tcl-compiler/src/var_escape/walker.rs	851	
+45c8b12d7cd6	2	2	2	tcl-compiler	lib	var_escape::cfg_propagation::handlers::tests::source_first_names_keep_actual_values_and_terminal_unknown_targets	rust/tcl-compiler/src/var_escape/cfg_propagation/handlers.rs	583	
+45c8b12d7cd6	2	2	2	tcl-compiler	lib	var_escape::handlers::tests::source_first_names_keep_actual_values_and_terminal_unknown_targets	rust/tcl-compiler/src/var_escape/handlers.rs	614	
+465083ac688f	2	0	1	tcl-compiler	it_4	analyser::class_factories::cross_file::an_unindexed_metaclass_still_abstains	rust/tcl-compiler/tests/it_4/analyser/class_factories/cross_file.rs	233	
+465083ac688f	2	0	1	tcl-compiler	it_4	analyser::class_factories::cross_file::a_workspace_metaclass_is_not_reached_by_a_same_tailed_bare_name	rust/tcl-compiler/tests/it_4/analyser/class_factories/cross_file.rs	252	
+4673b7157353	2	0	1	tcl-lsp-core	lib	references::tests::self_dispatch_scan::references_for_method_includes_decl_and_call_sites	rust/tcl-lsp-core/src/references/tests/self_dispatch_scan.rs	61	
+4673b7157353	2	0	1	tcl-lsp-core	lib	references::tests::self_dispatch_scan::references_for_method_excludes_decl_when_requested	rust/tcl-lsp-core/src/references/tests/self_dispatch_scan.rs	110	
+46d8ca735f8c	2	0	1	tcl-lsp-core	it_3	name_resolution::non_identifier_method_names::tp_hyphenated_method_call_site_is_a_reference	rust/tcl-lsp-core/tests/it_3/name_resolution.rs	1093	
+46d8ca735f8c	2	0	1	tcl-lsp-core	it_3	name_resolution::non_identifier_method_names::tp_hyphenated_method_references_from_the_call_site	rust/tcl-lsp-core/tests/it_3/name_resolution.rs	1101	
+470a62843b64	2	0	1	tcl-lsp-server	e2e	completion::dollar_triggers_vars	rust/tcl-lsp-server/tests/e2e/completion.rs	117	
+470a62843b64	2	0	1	tcl-lsp-server	e2e	completion::dollar_completion_tolerates_cursor_past_eol	rust/tcl-lsp-server/tests/e2e/completion.rs	322	
+47ba2d641325	2	0	1	tcl-compiler	it_4	analyser::diagnostic_reports::leading_bom::tcl9_skips_a_leading_bom	rust/tcl-compiler/tests/it_4/analyser/diagnostic_reports.rs	738	W123
+47ba2d641325	2	0	1	tcl-compiler	it_4	analyser::diagnostic_reports::leading_bom::tcl86_still_reports_a_leading_bom	rust/tcl-compiler/tests/it_4/analyser/diagnostic_reports.rs	750	W123
+4a8620619f4e	2	0	2	tcl-codegen	it_2	compiler_analysis_residual::auto_path::auto_path_variable_subst_declines	rust/tcl-codegen/tests/it_2/compiler_analysis_residual/auto_path.rs	173	
+4a8620619f4e	2	0	2	tcl-compiler	lib	auto_path_eval::tests::variable_substitution_is_unsupported	rust/tcl-compiler/src/auto_path_eval/tests.rs	149	
+4b7d01185d4b	2	0	1	tcl-lsp-core	lib	semantic_tokens::original::original_source_schema_tests::original_pattern_colours_keep_selected_availability_and_generation	rust/tcl-lsp-core/src/semantic_tokens/original/original_source_schema_tests.rs	650	
+4b7d01185d4b	2	0	1	tcl-lsp-core	lib	semantic_tokens::original::original_source_schema_tests::logical_pattern_colours_keep_actual_context_over_a_profiled_store	rust/tcl-lsp-core/src/semantic_tokens/original/original_source_schema_tests.rs	742	
+4e77d85fd3e8	2	0	1	tcl-compiler	it_5	checks::argument_checks::mistyped_ipv4::valid_ips_clean	rust/tcl-compiler/tests/it_5/checks/argument_checks.rs	528	
+4e77d85fd3e8	2	0	1	tcl-compiler	it_5	checks::argument_checks::mistyped_ipv4::non_octal_leading_zero_clean	rust/tcl-compiler/tests/it_5/checks/argument_checks.rs	539	
+4ece82752901	2	0	2	tcl-compiler	lib	static_loops::tests::summarise_counts_iterations_to_five	rust/tcl-compiler/src/static_loops.rs	1084	
+4ece82752901	2	0	2	tcl-compiler	lib	static_loops::original_simulation::tests::analyse_counts_iterations_to_five	rust/tcl-compiler/src/static_loops/original_simulation/tests.rs	757	
+4f8f203cf717	2	0	2	tcl-compiler	lib	analyser::state::tests::analysis_entries::analyse_records_source_text_for_handler_re_slicing	rust/tcl-compiler/src/analyser/state/tests/analysis_entries.rs	500	
+4f8f203cf717	2	0	2	tcl-compiler	it_4	analyser::unresolved_commands::unresolved_command::no_unknown_proc_info_by_default	rust/tcl-compiler/tests/it_4/analyser/unresolved_commands.rs	579	
+501acbeaf81d	2	0	2	tcl-compiler	lib	signature_scan::tests::rename_to_empty_deletes_not_recorded	rust/tcl-compiler/src/signature_scan/mod.rs	656	
+501acbeaf81d	2	0	2	tcl-compiler	it_3	signature_scan::rename_to_empty_string_deletes_and_is_not_recorded	rust/tcl-compiler/tests/it_3/signature_scan.rs	240	
+5023f18b3c11	2	0	2	tcl-compiler	lib	analyser::diagnostics::fp::obj::fp_w307_oo_class_instance_var_dispatch_silent	rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs	970	W307
+5023f18b3c11	2	0	2	tcl-compiler	it_3	fp_depth::obj_depth::declared_instance_var_dispatch_no_w307	rust/tcl-compiler/tests/it_3/fp_depth.rs	1107	W307
+5180e70d092a	2	0	2	tcl-codegen	it_2	compiler_analysis_residual::auto_path::auto_path_nested_and_double_dirname	rust/tcl-codegen/tests/it_2/compiler_analysis_residual/auto_path.rs	126	
+5180e70d092a	2	0	2	tcl-compiler	lib	auto_path_eval::tests::nested_dirname	rust/tcl-compiler/src/auto_path_eval/tests.rs	75	
+521c97e8870d	2	0	1	tcl-compiler	lib	analyser::diagnostics::fp::obj::fp_obj_03_typemethod_dispatch_no_w307	rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs	247	W307
+521c97e8870d	2	0	1	tcl-compiler	lib	analyser::diagnostics::fp::obj::fp_w307_snit_typevariable_dispatch_silent	rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs	981	W307
+53ca4e22fce5	2	0	2	tcl-lsp-core	lib	references::tests::call_sites::references_to_unknown_word_empty	rust/tcl-lsp-core/src/references/tests/call_sites.rs	703	
+53ca4e22fce5	2	0	2	tcl-lsp-core	it_2	references_rename::reference_sets::references_unrelated_word_yields_nothing	rust/tcl-lsp-core/tests/it_2/references_rename/reference_sets.rs	394	
+53e0e47ef8af	2	0	1	tcl-compiler	lib	var_refs::tests::scan_no_recurse	rust/tcl-compiler/src/var_refs.rs	1198	
+53e0e47ef8af	2	0	1	tcl-compiler	lib	var_refs::tests::scan_with_recurse	rust/tcl-compiler/src/var_refs.rs	1215	
+540abc448f51	2	0	2	tcl-runtime	lib	cmd_dict::tests::get_missing_key_errors	runtime/rust/src/cmd_dict/tests.rs	347	
+540abc448f51	2	0	2	tcl-vm	it_3	run_script::lists_and_dicts::dict_get_missing_key_errors	rust/tcl-vm/tests/it_3/run_script/lists_and_dicts.rs	271	
+545607654e34	2	0	2	tcl-lsp-core	lib	definition::tests::no_definition_for_unknown_word	rust/tcl-lsp-core/src/definition/tests.rs	343	
+545607654e34	2	0	2	tcl-lsp-core	it_4	lsp_navigation::definition_unknown_word_yields_no_definition	rust/tcl-lsp-core/tests/it_4/lsp_navigation.rs	449	
+5546a1e37c6d	2	0	1	tcl-lsp-core	it_4	formatting_engine_residual::fmt_ensure_final_newline_disabled	rust/tcl-lsp-core/tests/it_4/formatting_engine_residual.rs	513	
+5546a1e37c6d	2	0	1	tcl-lsp-core	it_4	formatting_engine_residual::fmt_trim_trailing_whitespace_disabled_keeps_clean_lines	rust/tcl-lsp-core/tests/it_4/formatting_engine_residual.rs	523	
+557dbe7181c9	2	0	2	tcl-lsp-server	e2e	diagnostics::code_canaries::unbraced_expr_is_w100	rust/tcl-lsp-server/tests/e2e/diagnostics/code_canaries.rs	24	W100
+557dbe7181c9	2	0	2	tcl-lsp-server	e2e	diagnostics::publication::fixing_the_source_clears_the_diagnostic	rust/tcl-lsp-server/tests/e2e/diagnostics/publication.rs	24	W100
+578dbfd4d424	2	0	1	tcl-lsp-core	lib	workspace_index::tests::command_settlement::invocations_of_resolves_namespace_path_across_files	rust/tcl-lsp-core/src/workspace_index/tests/command_settlement.rs	311	
+578dbfd4d424	2	0	1	tcl-lsp-core	lib	workspace_index::tests::command_settlement::invocations_of_does_not_cross_link_the_colliding_namespace	rust/tcl-lsp-core/src/workspace_index/tests/command_settlement.rs	334	
+585e3dced97a	2	0	1	tcl-codegen	it_3	inlining::arity_mismatch_declines	rust/tcl-codegen/tests/it_3/inlining.rs	528	
+585e3dced97a	2	0	1	tcl-codegen	it_3	inlining::missing_arg_no_default_declines	rust/tcl-codegen/tests/it_3/inlining.rs	641	
+58e1022f1db4	2	0	2	tcl-codegen	it_2	compiler_analysis_residual::auto_path::auto_path_normpath_collapses_dotdot_and_dot	rust/tcl-codegen/tests/it_2/compiler_analysis_residual/auto_path.rs	81	
+58e1022f1db4	2	0	2	tcl-compiler	lib	auto_path_eval::tests::parent_dir_join_idiom_collapses_dotdot	rust/tcl-compiler/src/auto_path_eval/tests.rs	61	
+58ecf0fa6d69	2	0	2	bpf-tcl	diagnostics	rejects_unbounded_while	rust/bpf-tcl/tests/diagnostics.rs	36	
+58ecf0fa6d69	2	0	2	bpf-tcl	loops	native_while_still_rejected	rust/bpf-tcl/tests/loops.rs	95	
+5a28c3ef35ed	2	0	1	tcl-runtime	lib	cmd_namespace::tests::teardown_order::namespace_teardown_follows_command_table_hash_order	runtime/rust/src/cmd_namespace/tests/teardown_order.rs	56	
+5a28c3ef35ed	2	0	1	tcl-runtime	lib	cmd_namespace::tests::teardown_order::namespace_teardown_hash_order_records_table_growth	runtime/rust/src/cmd_namespace/tests/teardown_order.rs	71	
+5a7747333e09	2	0	1	tcl-compiler	lib	cfg::tests::reachable_blocks_with_loop	rust/tcl-compiler/src/cfg.rs	1139	
+5a7747333e09	2	0	1	tcl-compiler	lib	cfg::tests::reverse_postorder_loop	rust/tcl-compiler/src/cfg.rs	1185	
+5a90e0ffb8df	2	0	1	tcl-compiler	lib	executable_ir::tests::compatibility_builder_evaluates_each_source_word_once	rust/tcl-compiler/src/executable_ir/tests.rs	1543	
+5a90e0ffb8df	2	0	1	tcl-compiler	lib	executable_ir::tests::generic_invoke_retains_original_words_as_non_executable_provenance	rust/tcl-compiler/src/executable_ir/tests.rs	1754	
+5b37d6046811	2	0	2	tcl-lsp-core	lib	linked_editing_range::tests::returns_none_for_proc_with_no_self_calls	rust/tcl-lsp-core/src/linked_editing_range.rs	246	
+5b37d6046811	2	0	2	tcl-lsp-core	it_5	lsp_providers::linked_editing_non_recursive_proc_is_none	rust/tcl-lsp-core/tests/it_5/lsp_providers.rs	1096	
+5bf7b6015049	2	0	1	tcl-runtime	parser_gaps	subst_reports_the_missing_bracket_after_running_the_earlier_one	runtime/rust/tests/parser_gaps.rs	246	
+5bf7b6015049	2	0	1	tcl-runtime	parser_gaps	subst_is_not_a_command_parse_and_still_runs_the_earlier_bracket	runtime/rust/tests/parser_gaps.rs	489	
+5bf99cec12cb	2	1	2	tcl-lsp-core	lib	type_definition::tests::variable_jumps_to_inferred_class	rust/tcl-lsp-core/src/type_definition.rs	143	
+5bf99cec12cb	2	1	2	tcl-lsp-core	it_5	lsp_providers::type_definition_var_jumps_to_inferred_class	rust/tcl-lsp-core/tests/it_5/lsp_providers.rs	852	
+5e313cbebade	2	0	1	tcl-compiler	lib	shimmer::expr::tests::expr_shimmer_string_in_arithmetic	rust/tcl-compiler/src/shimmer/expr.rs	1119	
+5e313cbebade	2	0	1	tcl-compiler	lib	shimmer::expr::tests::expr_shimmer_span_narrows_to_operand_assign_expr	rust/tcl-compiler/src/shimmer/expr.rs	1478	
+5e61b9aa9761	2	0	2	tcl-runtime	lib	interp::native_variable_names::tests::name_caches::original_local_cache_getter_order_matches_all_25_native_paths	runtime/rust/src/interp/native_variable_names/tests/name_caches.rs	378	
+5e61b9aa9761	2	0	2	tcl-vm	lib	interp::native_variable_names::tests::original_local_cache_getter_order_matches_all_25_native_paths	rust/tcl-vm/src/interp/native_variable_names/tests.rs	1106	
+5ea7fd2da3ff	2	0	1	tcl-lsp-core	lib	semantic_tokens::tests::command_tokens::keyword_head_has_no_default_library_modifier	rust/tcl-lsp-core/src/semantic_tokens/tests/command_tokens.rs	159	
+5ea7fd2da3ff	2	0	1	tcl-lsp-core	lib	semantic_tokens::tests::command_tokens::keywords_classified_as_keyword	rust/tcl-lsp-core/src/semantic_tokens/tests/command_tokens.rs	167	
+5ec0ed070e1e	2	0	1	tcl-codegen	lib	codegen::statements::tests::the_unseen_call_marker_keeps_the_next_command_boundary	rust/tcl-codegen/src/codegen/statements/tests.rs	1108	
+5ec0ed070e1e	2	0	1	tcl-codegen	lib	codegen::statements::tests::the_unseen_call_marker_under_start_cmd_does_not_advance_command_index	rust/tcl-codegen/src/codegen/statements/tests.rs	1143	
+5fc7298f746b	2	0	1	tcl-vm	lib	interp::native_variable_names::tests::list_assignment_arity_matches_five_original_source_controls	rust/tcl-vm/src/interp/native_variable_names/tests.rs	1594	
+5fc7298f746b	2	0	1	tcl-vm	lib	interp::native_variable_names::tests::list_assignment_arity_matches_current_jim_original_source_controls	rust/tcl-vm/src/interp/native_variable_names/tests.rs	1646	
+6098e9668a5f	2	0	1	tcl-compiler	lib	optimiser::unused_procs::tests::reachable_procs_follows_call_chain	rust/tcl-compiler/src/optimiser/unused_procs.rs	243	
+6098e9668a5f	2	0	1	tcl-compiler	lib	optimiser::unused_procs::tests::reachable_procs_handles_cycles	rust/tcl-compiler/src/optimiser/unused_procs.rs	261	
+6131d477c9a8	2	0	2	tcl-lsp-core	lib	references::tests::highlights::document_highlights_surfaces_var_reads_from_arg_positions	rust/tcl-lsp-core/src/references/tests/highlights.rs	132	
+6131d477c9a8	2	0	2	tcl-lsp-core	it_2	references_residual::document_highlights_var_marks_def_write_and_reads_read	rust/tcl-lsp-core/tests/it_2/references_residual.rs	282	
+626fc5729710	2	0	2	tcl-lsp-core	lib	document_symbols::tests::single_proc_emits_function_symbol	rust/tcl-lsp-core/src/document_symbols/tests.rs	642	
+626fc5729710	2	0	2	tcl-lsp-core	it_5	lsp_providers::doc_symbols_proc_is_a_function_with_param_detail	rust/tcl-lsp-core/tests/it_5/lsp_providers.rs	390	
+62dcbd7bc21c	2	0	2	tcl-compiler	lib	parsing::syntax::green::tests::document_full_text_round_trips_source	rust/tcl-compiler/src/parsing/syntax/green.rs	672	
+62dcbd7bc21c	2	0	2	tcl-compiler	lib	parsing::syntax::red::tests::full_text_round_trips_via_tree	rust/tcl-compiler/src/parsing/syntax/red.rs	757	
+63260a01b692	2	0	2	tcl-lsp-core	lib	source_style::tests::w112_flags_trailing_whitespace_with_fix	rust/tcl-lsp-core/src/source_style.rs	581	W112
+63260a01b692	2	0	2	tcl-lsp-core	it_3	lsp_edit_workspace::style_w112_flags_trailing_whitespace_with_remove_fix	rust/tcl-lsp-core/tests/it_3/lsp_edit_workspace.rs	714	W112
+6400fea63507	2	0	2	tcl-lsp-core	lib	type_definition::tests::variable_without_known_class_returns_empty	rust/tcl-lsp-core/src/type_definition.rs	157	
+6400fea63507	2	0	2	tcl-lsp-core	it_5	lsp_providers::type_definition_var_without_known_class_is_empty	rust/tcl-lsp-core/tests/it_5/lsp_providers.rs	884	
+650c176470e7	2	0	1	tcl-lsp-core	lib	code_lens::tests::lens_counts_inherited_method_on_subclass_instance	rust/tcl-lsp-core/src/code_lens.rs	1342	
+650c176470e7	2	0	1	tcl-lsp-core	lib	code_lens::tests::lens_matches_peek_for_inherited_method_with_subclass_my_dispatch	rust/tcl-lsp-core/src/code_lens.rs	1381	
+650c3aeaabf7	2	0	1	tcl-compiler	lib	gvn::tests::statement_occurrences::statement_occurrences_includes_embedded_pure_cmd	rust/tcl-compiler/src/gvn/tests/statement_occurrences.rs	310	
+650c3aeaabf7	2	0	1	tcl-compiler	lib	gvn::tests::statement_occurrences::statement_occurrences_includes_embedded_in_assign_value	rust/tcl-compiler/src/gvn/tests/statement_occurrences.rs	341	
+652b44a2af5b	2	0	1	tcl-lsp-core	lib	minify::tests::remap_line_references_maps_proportionally	rust/tcl-lsp-core/src/minify/tests.rs	609	
+652b44a2af5b	2	0	1	tcl-lsp-core	lib	minify::tests::remap_line_references_procline_single_pass	rust/tcl-lsp-core/src/minify/tests.rs	620	
+671119693b7a	2	0	2	tcl-compiler	lib	sccp::original_value_facts::tests::assignment_folds::evaluate_def_assign_value_folds_format_literal	rust/tcl-compiler/src/sccp/original_value_facts/tests/assignment_folds.rs	165	
+671119693b7a	2	0	2	tcl-compiler	lib	sccp::tests::assignment_folds::evaluate_def_assign_value_folds_format_literal	rust/tcl-compiler/src/sccp/tests/assignment_folds.rs	245	
+678319f47c19	2	0	1	tcl-compiler	it_4	dataflow::def_use_phi_incoming_edges_are_uses	rust/tcl-compiler/tests/it_4/dataflow.rs	243	
+678319f47c19	2	0	1	tcl-compiler	it_4	dataflow::def_use_has_phi_use	rust/tcl-compiler/tests/it_4/dataflow.rs	356	
+68806025d7fa	2	0	2	tcl-lsp-core	lib	signature_help::tests::active_param_advances_with_typed_args	rust/tcl-lsp-core/src/signature_help.rs	818	
+68806025d7fa	2	0	2	tcl-lsp-core	it_4	hover_completion::signature_active_param_advances_with_argument_index	rust/tcl-lsp-core/tests/it_4/hover_completion.rs	302	
+68e7177b2270	2	0	2	tcl-vm	lib	interp::logical_eval_source::tests::logical_eval_policy_withdrawal_prevents_fresh_word_execution	rust/tcl-vm/src/interp/logical_eval_source/tests.rs	178	
+68e7177b2270	2	0	2	tcl-vm	lib	interp::logical_uplevel_source::tests::authored_uplevel_receipt_cannot_enter_after_its_invocation_policy_changes	rust/tcl-vm/src/interp/logical_uplevel_source.rs	179	
+690629f007f7	2	2	1	tcl-lsp-server	lib	tests::method_families::cross_file_method_definition_jumps_to_inherited_declaration	rust/tcl-lsp-server/src/tests/method_families.rs	775	
+690629f007f7	2	2	1	tcl-lsp-server	lib	tests::method_families::goto_definition_follows_inherited_method_cross_file	rust/tcl-lsp-server/src/tests/method_families.rs	803	
+6a311c39b9e1	2	0	2	tcl-runtime	lib	cmd_oo::native_variables::tests::compiled_and_dynamic_declared_variables_match_original_native_controls	runtime/rust/src/cmd_oo/native_variables.rs	221	
+6a311c39b9e1	2	0	2	tcl-vm	lib	cmd_oo::native_variables::tests::compiled_and_dynamic_declared_variables_match_original_native_controls	rust/tcl-vm/src/cmd_oo/native_variables.rs	199	
+6a6c4c8033d4	2	0	1	tcl-lsp-server	e2e	diagnostic_matrix::constant_expr_folds	rust/tcl-lsp-server/tests/e2e/diagnostic_matrix.rs	406	
+6a6c4c8033d4	2	0	1	tcl-lsp-server	e2e	diagnostic_matrix::expr_not_redefined_still_folds	rust/tcl-lsp-server/tests/e2e/diagnostic_matrix.rs	500	
+6b9cce092928	2	2	1	tcl-lsp-core	lib	definition::tests::command_heads::foreach_rename_reinstall_call_site_resolves_to_the_wrapper_not_the_stale_original	rust/tcl-lsp-core/src/definition/tests/command_heads.rs	296	
+6b9cce092928	2	2	1	tcl-lsp-core	lib	definition::tests::command_heads::foreach_rename_reinstall_second_element_also_resolves_to_its_own_wrapper	rust/tcl-lsp-core/src/definition/tests/command_heads.rs	326	
+6c9c811ffca0	2	2	2	tcl-lsp-db	lib	tests::document_analysis::body_edit_recomputes_one_item	rust/tcl-lsp-db/src/tests/document_analysis.rs	273	
+6c9c811ffca0	2	2	2	tcl-lsp-db	lib	tests::function_lattices::function_lattice_reused_on_body_shift	rust/tcl-lsp-db/src/tests/function_lattices.rs	848	
+6dc7b711bf38	2	0	1	tcl-lsp-core	lib	document_symbols::tests::fp_guard_local_proc_named_test_shadows_imported_definer	rust/tcl-lsp-core/src/document_symbols/tests.rs	477	
+6dc7b711bf38	2	0	1	tcl-lsp-core	lib	document_symbols::tests::tp_qualified_test_still_records_when_local_proc_shadows_bare_name	rust/tcl-lsp-core/src/document_symbols/tests.rs	508	
+6dd526ea73a6	2	0	1	tcl-compiler	lib	lowering::structured::tests::switch_single_braced_body_is_lowered	rust/tcl-compiler/src/lowering/structured/tests.rs	50	
+6dd526ea73a6	2	0	1	tcl-compiler	lib	lowering::structured::tests::switch_braced_block_sets_patterns_braced_true	rust/tcl-compiler/src/lowering/structured/tests.rs	219	
+6de086fcdb42	2	1	2	tcl-vm	it_2	cross_version_numerals_e2e::vectors_match_real_tclsh_when_available	rust/tcl-vm/tests/it_2/cross_version_numerals_e2e.rs	350	
+6de086fcdb42	2	1	2	tcl-vm	it_4	cross_version_vars_e2e::vectors_match_real_tclsh	rust/tcl-vm/tests/it_4/cross_version_vars_e2e.rs	359	
+6e119ee3e8f2	2	0	1	tcl-compiler	it_3	taint::colours::crlf_free::uri_encode_adds_crlf_free	rust/tcl-compiler/tests/it_3/taint/colours.rs	131	IRULE3003
+6e119ee3e8f2	2	0	1	tcl-compiler	it_3	taint::colours::url_encoded::uri_encode_also_sets_crlf_free	rust/tcl-compiler/tests/it_3/taint/colours.rs	605	IRULE3003
+6e554a3d918e	2	2	2	tcl-compiler	lib	sccp::original_value_facts::tests::fold_trust::head_word_arms_decline_only_for_the_name_the_unit_touched	rust/tcl-compiler/src/sccp/original_value_facts/tests/fold_trust.rs	89	
+6e554a3d918e	2	2	2	tcl-compiler	lib	sccp::tests::fold_trust::head_word_arms_decline_only_for_the_name_the_unit_touched	rust/tcl-compiler/src/sccp/tests/fold_trust.rs	89	
+6ec17402b8bc	2	0	1	tcl-compiler	lib	analyser::diagnostics::fp::sh::fp_sh_12_untraced_control_still_fires	rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs	420	
+6ec17402b8bc	2	0	1	tcl-compiler	lib	analyser::diagnostics::fp::sh::fp_sh_13_scalar_control_still_fires	rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs	490	
+6f2d303b93c3	2	0	1	tcl-compiler	lib	signature_scan::handlers::tests::handle_oo_class_with_body	rust/tcl-compiler/src/signature_scan/handlers.rs	1543	
+6f2d303b93c3	2	0	1	tcl-compiler	lib	signature_scan::handlers::tests::handle_oo_class_with_absolute_name	rust/tcl-compiler/src/signature_scan/handlers.rs	1565	
+6fdda8d41450	2	0	2	tcl-compiler	it_3	taint::sink_suppression::sink_suppression_matrix::irule3001_not_suppressed_by_crlf_free	rust/tcl-compiler/tests/it_3/taint/sink_suppression.rs	68	IRULE3001
+6fdda8d41450	2	0	2	tcl-compiler	it_4	taint_depth::irule3001_depth::url_encoded_body_does_not_suppress	rust/tcl-compiler/tests/it_4/taint_depth.rs	1084	IRULE3001
+70122487d8fb	2	0	2	tcl-compiler	it_3	taint::colours::crlf_free::ssl_sni_augments_crlf_free	rust/tcl-compiler/tests/it_3/taint/colours.rs	123	IRULE3003
+70122487d8fb	2	0	2	tcl-compiler	it_3	taint::sink_suppression::sink_suppression_matrix::irule3003_suppressed_by_fqdn	rust/tcl-compiler/tests/it_3/taint/sink_suppression.rs	108	IRULE3003
+70feea16a78e	2	0	2	tcl-lsp-core	lib	document_links::tests::encoding_flag_skipped_before_path	rust/tcl-lsp-core/src/document_links/tests.rs	328	
+70feea16a78e	2	0	2	tcl-lsp-core	it_3	lsp_lens_links_symbols::links_encoding_flag_skipped_before_path	rust/tcl-lsp-core/tests/it_3/lsp_lens_links_symbols.rs	714	
+71767db33d0e	2	0	2	tcl-irules	lib	walker::tests::extracts_refs_nested_in_body_and_command_substitution	rust/tcl-irules/src/walker.rs	568	
+71767db33d0e	2	0	2	tcl-irules	object_refs	extract_irules_refs_nested_in_body_and_command_substitution	rust/tcl-irules/tests/object_refs.rs	88	
+728365a0436c	2	0	1	tcl-compiler	lib	dynamic_names::tests::unbraced_substituted_target_still_raises_the_write_flag	rust/tcl-compiler/src/dynamic_names/tests.rs	554	
+728365a0436c	2	0	1	tcl-compiler	lib	dynamic_names::tests::literal_head_with_a_computed_name_still_raises_the_write_flag	rust/tcl-compiler/src/dynamic_names/tests.rs	577	
+72d8cc392bc7	2	0	2	tcl-lsp-core	lib	document_links::tests::empty_links_for_non_source_commands	rust/tcl-lsp-core/src/document_links/tests.rs	22	
+72d8cc392bc7	2	0	2	tcl-lsp-core	it_3	lsp_lens_links_symbols::links_none_for_non_source_commands	rust/tcl-lsp-core/tests/it_3/lsp_lens_links_symbols.rs	629	
+72dcabbc8e1c	2	0	1	tcl-compiler	lib	ssa::tests::defs::defs_of_barrier_trace_via_registry	rust/tcl-compiler/src/ssa/tests/defs.rs	340	
+72dcabbc8e1c	2	0	1	tcl-compiler	lib	ssa::tests::defs::defs_of_barrier_variable_vararg_no_partial_defs	rust/tcl-compiler/src/ssa/tests/defs.rs	396	
+72e790013cf1	2	0	2	tcl-lsp-core	lib	linked_editing_range::tests::returns_none_for_non_proc_word	rust/tcl-lsp-core/src/linked_editing_range.rs	238	
+72e790013cf1	2	0	2	tcl-lsp-core	it_5	lsp_providers::linked_editing_on_builtin_is_none	rust/tcl-lsp-core/tests/it_5/lsp_providers.rs	1105	
+72f2448c72c5	2	0	2	tcl-compiler	lib	analyser::diagnostics::fp::obj::fp_obj_09_single_dispatch_unknown_still_fires	rust/tcl-compiler/src/analyser/diagnostics/fp/obj.rs	560	W307
+72f2448c72c5	2	0	2	tcl-compiler	it_3	fp_depth::obj_depth::single_dispatch_unknown_source_fires_w307	rust/tcl-compiler/tests/it_3/fp_depth.rs	1095	W307
+733dc51d322d	2	0	1	tcl-compiler	lib	analyser::param_traits::tests::command_traits::upvar_records_var_read_and_aliases_writes	rust/tcl-compiler/src/analyser/param_traits/tests/command_traits.rs	192	
+733dc51d322d	2	0	1	tcl-compiler	lib	analyser::param_traits::tests::command_traits::genuine_upvar_write_stays_var_write_not_dynamic_name_local	rust/tcl-compiler/src/analyser/param_traits/tests/command_traits.rs	727	
+74221971ed3a	2	0	1	tcl-compiler	lib	ssa::tests::uses::uses_of_classified_opaque_switch_arm_braced_foreach_list_is_quoted	rust/tcl-compiler/src/ssa/tests/uses.rs	372	
+74221971ed3a	2	0	1	tcl-compiler	lib	ssa::tests::uses::uses_of_classified_opaque_switch_arm_substituted_foreach_list_is_substituted	rust/tcl-compiler/src/ssa/tests/uses.rs	397	
+745976b54792	2	0	1	tcl-lsp-core	it_2	references_rename::rename_edits::rename_var_updates_definition_and_reads_with_dollar_preserved	rust/tcl-lsp-core/tests/it_2/references_rename/rename_edits.rs	134	
+745976b54792	2	0	1	tcl-lsp-core	it_2	references_rename::rename_edits::rename_var_from_definition_site_resolves_without_dollar	rust/tcl-lsp-core/tests/it_2/references_rename/rename_edits.rs	167	
+74d32a83484b	2	0	2	tcl-lsp-server	e2e	code_actions::quick_fixes::test_e004_missing_first_clause_offers_no_fix	rust/tcl-lsp-server/tests/e2e/code_actions/quick_fixes.rs	240	E004
+74d32a83484b	2	0	2	tcl-lsp-server	e2e	diagnostics::syntax_errors::e004_condition_without_body_anchors_on_the_condition_word	rust/tcl-lsp-server/tests/e2e/diagnostics/syntax_errors.rs	35	E004
+75e3441c6494	2	0	2	tcl-compiler	lib	analyser::diagnostics::fp::ds::fp_ds_08_known_key_dict_with_return_var_silent	rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs	365	W210
+75e3441c6494	2	0	2	tcl-compiler	it_3	fp_depth::helpers_depth::dict_with_known_key_body_read_suppressed	rust/tcl-compiler/tests/it_3/fp_depth.rs	286	W210
+75f22da8d8a7	2	0	1	tcl-compiler	lib	optimiser::helpers::spans::tests::full_rewrite_span_balanced_span_unchanged	rust/tcl-compiler/src/optimiser/helpers/spans.rs	425	
+75f22da8d8a7	2	0	1	tcl-compiler	lib	optimiser::helpers::spans::tests::full_rewrite_span_single_unclosed_bracket	rust/tcl-compiler/src/optimiser/helpers/spans.rs	432	
+76204c09f630	2	0	2	tcl-lsp-core	lib	implementation::tests::unknown_word_returns_empty	rust/tcl-lsp-core/src/implementation.rs	471	
+76204c09f630	2	0	2	tcl-lsp-core	it_5	lsp_providers::implementation_unknown_word_is_empty_and_no_panic	rust/tcl-lsp-core/tests/it_5/lsp_providers.rs	976	
+763f5c385375	2	0	2	tcl-lsp-core	lib	rename::tests::is_safe_symbol_name_rejects_invalid_shapes	rust/tcl-lsp-core/src/rename/tests.rs	172	
+763f5c385375	2	0	2	tcl-lsp-core	it_2	references_rename::rename_edits::is_safe_symbol_name_accepts_identifiers_and_rejects_the_rest	rust/tcl-lsp-core/tests/it_2/references_rename/rename_edits.rs	522	
+76e8070f64f1	2	0	1	tcl-lexer	it_2	parse_lexer::t3_6_braces_group_and_suppress_substitution	rust/tcl-lexer/tests/it_2/parse_lexer.rs	214	
+76e8070f64f1	2	0	1	tcl-lexer	it_2	parse_lexer::t14_braces_suppress_substitution	rust/tcl-lexer/tests/it_2/parse_lexer.rs	402	
+7732f23a17ae	2	0	2	tcl-codegen	it_2	compiler_analysis_residual::places::place_whole_array_read_overlaps_every_element	rust/tcl-codegen/tests/it_2/compiler_analysis_residual/places.rs	170	
+7732f23a17ae	2	0	2	tcl-compiler	lib	place_bridge::tests::var_read_role_arg_resolves_whole_array	rust/tcl-compiler/src/place_bridge/tests.rs	272	
+7778c57e4b57	2	0	1	tcl-compiler	it_3	taint::sinks::dangerous_sinks::eval_sink	rust/tcl-compiler/tests/it_3/taint/sinks.rs	30	T100
+7778c57e4b57	2	0	1	tcl-compiler	it_3	taint::sinks::warning_messages::taint_warning_message	rust/tcl-compiler/tests/it_3/taint/sinks.rs	102	T100
+781abf795d42	2	0	2	tcl-compiler	lib	lowering::hooks::incr::tests::incr_single_arg_lowers_to_incr	rust/tcl-compiler/src/lowering/hooks/incr.rs	101	
+781abf795d42	2	0	2	tcl-compiler	lib	lowering::tests::command_lowering::incr_command	rust/tcl-compiler/src/lowering/tests/command_lowering.rs	50	
+7a5533d135b7	2	0	2	tcl-spectcl	lib	discovery::manifest_frontier_completeness_controls::actual_scan_bound_cannot_donate_unvisited_nested_manifest_subtrees_to_parent	rust/tcl-spectcl/src/discovery/manifest_frontier_completeness_controls.rs	23	
+7a5533d135b7	2	0	2	tcl-spectcl	lib	discovery::manifest_selection_source_controls::unavailable_nested_manifest_cannot_borrow_parent_implicit_scan	rust/tcl-spectcl/src/discovery/manifest_selection_source_controls.rs	23	
+7c43bb81a09d	2	1	2	tcl-lsp-server	lib	tests::navigation::references::cross_document_references_reach_caller_from_shadowed_duplicate_decl	rust/tcl-lsp-server/src/tests/navigation/references.rs	208	
+7c43bb81a09d	2	1	2	tcl-lsp-server	lib	tests::rename::cross_document_rename_reaches_caller_from_shadowed_duplicate_decl	rust/tcl-lsp-server/src/tests/rename.rs	466	
+7da43dde544d	2	0	1	tcl-lsp-core	lib	hover::tests::builtin_commands::option_hover_resolves_subcommand_scoped_option	rust/tcl-lsp-core/src/hover/tests/builtin_commands.rs	369	
+7da43dde544d	2	0	1	tcl-lsp-core	lib	hover::tests::builtin_commands::option_hover_notes_dialect_unavailability	rust/tcl-lsp-core/src/hover/tests/builtin_commands.rs	379	
+7dcb312e62d3	2	0	1	tcl-runtime	lib	interp::native_variable_names::tests::source_controls::array_root_write_diagnostics_match_five_original_source_controls	runtime/rust/src/interp/native_variable_names/tests/source_controls.rs	394	
+7dcb312e62d3	2	0	1	tcl-runtime	lib	interp::native_variable_names::tests::source_controls::array_root_write_preserves_current_jim_dictionary_replacement	runtime/rust/src/interp/native_variable_names/tests/source_controls.rs	434	
+7e9c13cae7d8	2	0	1	tcl-compiler	lib	analyser::diagnostics::fp::inj::fp_inj_03_path_prefixed_copy_suppresses	rust/tcl-compiler/src/analyser/diagnostics/fp/inj.rs	128	T102
+7e9c13cae7d8	2	0	1	tcl-compiler	lib	analyser::diagnostics::fp::inj::fp_inj_06_pure_copy_still_suppresses	rust/tcl-compiler/src/analyser/diagnostics/fp/inj.rs	233	T102
+7f9c3fd370d1	2	0	1	tcl-compiler	lib	analyser::commands::tests::irule5005_fires_for_direct_proc_call_in_event	rust/tcl-compiler/src/analyser/commands/tests.rs	1050	IRULE5005
+7f9c3fd370d1	2	0	1	tcl-compiler	lib	analyser::commands::tests::irule5005_quiet_in_plain_tcl_dialect	rust/tcl-compiler/src/analyser/commands/tests.rs	1112	IRULE5005
+81831329762e	2	0	2	tcl-lsp-core	lib	refactor::extract_proc::tests::variable_references_read_braced_names_by_the_documents_release	rust/tcl-lsp-core/src/refactor/extract_proc/tests.rs	190	
+81831329762e	2	0	2	tcl-lsp-core	lib	refactor::inline_proc::tests::variable_reference_spans_follow_the_documents_release	rust/tcl-lsp-core/src/refactor/inline_proc/tests.rs	460	
+81c33bf6e33b	2	0	2	tcl-compiler	lib	analyser::original_members::tests::original_property_source_provenance_refuses_foreign_profile	rust/tcl-compiler/src/analyser/original_members/tests.rs	22	
+81c33bf6e33b	2	0	2	tcl-lsp-core	lib	original_declaration::property_producer_context_tests::property_identity_refuses_same_source_foreign_producer	rust/tcl-lsp-core/src/original_declaration/property_producer_context_tests.rs	23	
+82f2506430ca	2	0	1	tcl-lsp-core	it_2	semantic_tokens::comments::comment_line_continuation_is_comment	rust/tcl-lsp-core/tests/it_2/semantic_tokens/comments.rs	60	
+82f2506430ca	2	0	1	tcl-lsp-core	it_2	semantic_tokens::comments::comment_continuation_crlf	rust/tcl-lsp-core/tests/it_2/semantic_tokens/comments.rs	121	
+83a6e2a70e64	2	0	2	tcl-compiler	lib	static_loops::tests::summarise_bails_on_unresolvable_switch_subject	rust/tcl-compiler/src/static_loops.rs	1412	
+83a6e2a70e64	2	0	2	tcl-compiler	lib	static_loops::original_simulation::tests::analyse_bails_on_unresolvable_switch_subject	rust/tcl-compiler/src/static_loops/original_simulation/tests.rs	930	
+85fed5e0b79a	2	0	1	tcl-compiler	it_3	signature_scan::simple_alias	rust/tcl-compiler/tests/it_3/signature_scan.rs	204	
+85fed5e0b79a	2	0	1	tcl-compiler	it_3	signature_scan::local_alias_still_recorded	rust/tcl-compiler/tests/it_3/signature_scan.rs	415	
+864b8e4affc3	2	0	1	tcl-lsp-core	lib	rename::tests::override_families::rename_method_renames_subclass_override	rust/tcl-lsp-core/src/rename/tests/override_families.rs	26	
+864b8e4affc3	2	0	1	tcl-lsp-core	lib	rename::tests::override_families::rename_method_renames_from_subclass_up_to_base	rust/tcl-lsp-core/src/rename/tests/override_families.rs	58	
+88d28c48a436	2	0	2	tcl-compiler	lib	var_escape::cfg_propagation::walker::tests::frameless_runtime_call_does_not_set_call_fallback	rust/tcl-compiler/src/var_escape/cfg_propagation/walker.rs	1123	
+88d28c48a436	2	0	2	tcl-compiler	lib	var_escape::walker::tests::frameless_runtime_call_does_not_set_call_fallback	rust/tcl-compiler/src/var_escape/walker.rs	1019	
+8972038797aa	2	0	1	tcl-compiler	lib	text::tests::fold_interpolation_single_resolves_simple_dollar_var	rust/tcl-compiler/src/text.rs	445	
+8972038797aa	2	0	1	tcl-compiler	lib	text::tests::fold_interpolation_single_returns_none_for_unknown_var	rust/tcl-compiler/src/text.rs	507	
+899fb56c981e	2	0	2	tcl-lsp-core	lib	document_symbols::tests::oo_configurable_property_emits_property_symbol	rust/tcl-lsp-core/src/document_symbols/tests.rs	917	
+899fb56c981e	2	0	2	tcl-lsp-core	it_3	lsp_lens_links_symbols::symbols_oo_configurable_emits_property	rust/tcl-lsp-core/tests/it_3/lsp_lens_links_symbols.rs	372	
+8a72c1ccd578	2	0	2	tcl-lsp-core	lib	implementation::tests::method_inside_class_returns_self_and_descendant_overrides	rust/tcl-lsp-core/src/implementation.rs	454	
+8a72c1ccd578	2	0	2	tcl-lsp-core	it_5	lsp_providers::implementation_method_inside_class_returns_self_and_descendant	rust/tcl-lsp-core/tests/it_5/lsp_providers.rs	958	
+8adc2cfe5362	2	0	2	tcl-lsp-core	lib	declaration::tests::global_declaration_in_proc_body	rust/tcl-lsp-core/src/declaration.rs	840	
+8adc2cfe5362	2	0	2	tcl-lsp-core	it_5	lsp_providers::declaration_global_decl_in_proc_body	rust/tcl-lsp-core/tests/it_5/lsp_providers.rs	726	
+8af19412ef93	2	0	2	tcl-compiler	lib	sccp::original_value_facts::tests::assignment_folds::evaluate_def_assign_value_llength_via_lattice_var	rust/tcl-compiler/src/sccp/original_value_facts/tests/assignment_folds.rs	365	
+8af19412ef93	2	0	2	tcl-compiler	lib	sccp::tests::assignment_folds::evaluate_def_assign_value_llength_via_lattice_var	rust/tcl-compiler/src/sccp/tests/assignment_folds.rs	298	
+8decd64f2775	2	0	1	tcl-compiler	lib	optimiser::propagation::tests::proc_folds::static_proc_call_folds_to_constant_return	rust/tcl-compiler/src/optimiser/propagation/tests/proc_folds.rs	148	O103
+8decd64f2775	2	0	1	tcl-compiler	lib	optimiser::propagation::tests::proc_folds::o103_bare_call_stays_hint_only	rust/tcl-compiler/src/optimiser/propagation/tests/proc_folds.rs	269	O103
+8eb26357e26f	2	0	2	tcl-compiler	lib	static_loops::tests::summarise_forwards_for_statement_helper	rust/tcl-compiler/src/static_loops.rs	1434	
+8eb26357e26f	2	0	2	tcl-compiler	lib	static_loops::original_simulation::tests::analyse_forwards_for_statement_helper	rust/tcl-compiler/src/static_loops/original_simulation/tests.rs	949	
+8f81438ef3fb	2	0	2	tcl-compiler	lib	static_loops::tests::summarise_respects_iteration_cap	rust/tcl-compiler/src/static_loops.rs	1131	
+8f81438ef3fb	2	0	2	tcl-compiler	lib	static_loops::original_simulation::tests::analyse_respects_iteration_cap	rust/tcl-compiler/src/static_loops/original_simulation/tests.rs	798	
+9051dd293393	2	0	2	tcl-lsp-core	lib	rename::tests::variables::rename_var_rejected_on_same_scope_collision	rust/tcl-lsp-core/src/rename/tests/variables.rs	679	
+9051dd293393	2	0	2	tcl-lsp-core	it_2	references_rename::rename_edits::rename_var_rejected_on_same_scope_collision	rust/tcl-lsp-core/tests/it_2/references_rename/rename_edits.rs	230	
+91237f71f549	2	0	2	tcl-lsp-core	lib	implementation::tests::class_name_returns_direct_subclasses	rust/tcl-lsp-core/src/implementation.rs	420	
+91237f71f549	2	0	2	tcl-lsp-core	it_5	lsp_providers::implementation_class_name_returns_direct_subclasses	rust/tcl-lsp-core/tests/it_5/lsp_providers.rs	923	
+915a18b5a34d	2	0	1	tcl-vm	lib	interp::native_variable_names::tests::array_root_write_diagnostics_match_five_original_source_controls	rust/tcl-vm/src/interp/native_variable_names/tests.rs	1726	
+915a18b5a34d	2	0	1	tcl-vm	lib	interp::native_variable_names::tests::array_root_write_preserves_current_jim_dictionary_replacement	rust/tcl-vm/src/interp/native_variable_names/tests.rs	1778	
+91e3d7cc9ab7	2	0	2	tcl-compiler	lib	sccp::original_value_facts::tests::value_solver::barrier_own_defs_become_overdefined	rust/tcl-compiler/src/sccp/original_value_facts/tests/value_solver.rs	52	
+91e3d7cc9ab7	2	0	2	tcl-compiler	lib	sccp::tests::solver::barrier_own_defs_become_overdefined	rust/tcl-compiler/src/sccp/tests/solver.rs	52	
+92645d20273d	2	2	1	tcl-lsp-server	e2e	tcloo_navigation::tp_renaming_a_moved_member_onto_a_live_sibling_is_refused	rust/tcl-lsp-server/tests/e2e/tcloo_navigation.rs	1601	
+92645d20273d	2	2	1	tcl-lsp-server	e2e	tcloo_navigation::tn_renaming_a_moved_member_onto_an_earlier_deleted_name_is_allowed	rust/tcl-lsp-server/tests/e2e/tcloo_navigation.rs	1694	
+93c92f87c8a4	2	0	2	tcl-lsp-core	lib	implementation::logical_source_selection_tests::logical_implementation_lifts_lone_cr_source_positions	rust/tcl-lsp-core/src/implementation.rs	896	
+93c92f87c8a4	2	0	2	tcl-lsp-core	lib	type_hierarchy::logical_source_selection_tests::logical_hierarchy_lifts_lone_cr_source_positions	rust/tcl-lsp-core/src/type_hierarchy.rs	1249	
+9520ebe95d81	2	1	1	tcl-compiler	lib	optimiser::tail_call::tests::o121_suppressed_on_pre_8_6_dialects	rust/tcl-compiler/src/optimiser/tail_call.rs	853	O121
+9520ebe95d81	2	1	1	tcl-compiler	lib	optimiser::tail_call::tests::o121_fires_on_8_6_plus_dialects	rust/tcl-compiler/src/optimiser/tail_call.rs	879	O121
+954808e93edc	2	0	1	tcl-lsp-core	lib	linked_editing_range::tests::links_recursive_self_call_to_declaration	rust/tcl-lsp-core/src/linked_editing_range.rs	256	
+954808e93edc	2	0	1	tcl-lsp-core	lib	linked_editing_range::tests::cursor_inside_body_also_links	rust/tcl-lsp-core/src/linked_editing_range.rs	317	
+955c5b15287b	2	0	1	tcl-runtime	lib	interp::native_variable_names::tests::source_controls::variable_read_diagnostics_match_five_original_source_controls	runtime/rust/src/interp/native_variable_names/tests/source_controls.rs	216	
+955c5b15287b	2	0	1	tcl-runtime	lib	interp::native_variable_names::tests::source_controls::variable_read_input_preserves_current_jim_dictionary_results	runtime/rust/src/interp/native_variable_names/tests/source_controls.rs	256	
+95b192db5510	2	0	2	tcl-compiler	lib	static_loops::tests::summarise_resolves_switch_dispatch_in_body	rust/tcl-compiler/src/static_loops.rs	1296	
+95b192db5510	2	0	2	tcl-compiler	lib	static_loops::original_simulation::tests::analyse_resolves_switch_dispatch_in_body	rust/tcl-compiler/src/static_loops/original_simulation/tests.rs	910	
+95be2e0cfa78	2	0	1	tcl-compiler	it_4	analyser::diagnostic_reports::diagnostics::constant_string_eq_and_double_equals_fold_i230	rust/tcl-compiler/tests/it_4/analyser/diagnostic_reports.rs	555	I230
+95be2e0cfa78	2	0	1	tcl-compiler	it_4	analyser::diagnostic_reports::diagnostics::constant_string_ne_and_bang_equals_fold_i230	rust/tcl-compiler/tests/it_4/analyser/diagnostic_reports.rs	565	I230
+96b7cb39e9f8	2	0	1	tcl-compiler	it_4	analyser::class_factories::computed_names::a_relative_computed_name_still_abstains	rust/tcl-compiler/tests/it_4/analyser/class_factories/computed_names.rs	575	
+96b7cb39e9f8	2	0	1	tcl-compiler	it_4	analyser::class_factories::computed_names::a_proc_nobody_calls_proves_nothing	rust/tcl-compiler/tests/it_4/analyser/class_factories/computed_names.rs	600	
+98997a9497be	2	0	1	tcl-explorer	lib	render::tests::show_filter_limits_views	rust/tcl-explorer/src/render.rs	442	
+98997a9497be	2	0	1	tcl-explorer	lib	render::tests::colour_emits_ansi	rust/tcl-explorer/src/render.rs	450	
+99334933137c	2	1	1	tcl-compiler	lib	shimmer::expr::tests::expr_shimmer_double_still_fires_for_integer_only_operators	rust/tcl-compiler/src/shimmer/expr.rs	1086	
+99334933137c	2	1	1	tcl-compiler	lib	shimmer::expr::tests::no_expr_shimmer_double_for_true_arithmetic_operators	rust/tcl-compiler/src/shimmer/expr.rs	1103	
+9983d23d7b15	2	0	2	tcl-lsp-core	lib	signature_help::tests::help_on_first_argument	rust/tcl-lsp-core/src/signature_help.rs	806	
+9983d23d7b15	2	0	2	tcl-lsp-core	it_4	hover_completion::signature_on_user_proc_first_argument	rust/tcl-lsp-core/tests/it_4/hover_completion.rs	288	
+9a1b200c1bf3	2	0	1	tcl-explorer	lib	serialise::tests::irules_flow_empty_for_plain_tcl	rust/tcl-explorer/src/serialise/tests.rs	864	
+9a1b200c1bf3	2	0	1	tcl-explorer	lib	serialise::tests::event_order_empty_for_plain_tcl	rust/tcl-explorer/src/serialise/tests.rs	870	
+9a5d7d5f992d	2	0	1	tcl-compiler	it_5	checks::quoting::unmatched_close_brace::bare_close_brace_detected	rust/tcl-compiler/tests/it_5/checks/quoting.rs	550	E102
+9a5d7d5f992d	2	0	1	tcl-compiler	it_5	checks::quoting::unmatched_close_brace::isolated_close_brace_offers_line_deletion_fix	rust/tcl-compiler/tests/it_5/checks/quoting.rs	587	E102
+9a9ed703f429	2	0	1	tcl-compiler	lib	analyser::scope::tests::scope_diagnostics::w215_fires_for_unreachable_quoted_name	rust/tcl-compiler/src/analyser/scope/tests/scope_diagnostics.rs	33	W215
+9a9ed703f429	2	0	1	tcl-compiler	lib	analyser::scope::tests::scope_diagnostics::w215_still_fires_for_static_typo_after_the_fix	rust/tcl-compiler/src/analyser/scope/tests/scope_diagnostics.rs	85	W215
+9ce1d44670d2	2	0	1	tcl-lsp-core	it_2	docstring::extract_simple_comment	rust/tcl-lsp-core/tests/it_2/docstring.rs	150	
+9ce1d44670d2	2	0	1	tcl-lsp-core	it_2	docstring::extract_leading_blank_lines_skipped	rust/tcl-lsp-core/tests/it_2/docstring.rs	185	
+9d57db72c3de	2	0	2	tcl-compiler	lib	static_loops::tests::simple_var_ref_bare_and_braced	rust/tcl-compiler/src/static_loops.rs	1068	
+9d57db72c3de	2	0	2	tcl-compiler	lib	static_loops::original_simulation::tests::simple_var_ref_bare_and_braced	rust/tcl-compiler/src/static_loops/original_simulation/tests.rs	741	
+9e3e1ff8ec3d	2	0	2	tcl-lsp-core	lib	code_lens::tests::lens_per_user_proc	rust/tcl-lsp-core/src/code_lens.rs	441	
+9e3e1ff8ec3d	2	0	2	tcl-lsp-core	it_3	lsp_lens_links_symbols::lens_one_per_user_proc	rust/tcl-lsp-core/tests/it_3/lsp_lens_links_symbols.rs	498	
+a038d8c51edc	2	0	1	tcl-lsp-core	it_3	lsp_core_residual::fmt_tab_indented_body_reindented_to_spaces	rust/tcl-lsp-core/tests/it_3/lsp_core_residual.rs	141	
+a038d8c51edc	2	0	1	tcl-lsp-core	it_3	lsp_core_residual::fmt_already_formatted_is_unchanged	rust/tcl-lsp-core/tests/it_3/lsp_core_residual.rs	251	
+a0c3e4d5265b	2	0	1	tcl-runtime	lib	interp::native_variable_names::tests::source_controls::list_assignment_arity_matches_five_original_source_controls	runtime/rust/src/interp/native_variable_names/tests/source_controls.rs	165	
+a0c3e4d5265b	2	0	1	tcl-runtime	lib	interp::native_variable_names::tests::source_controls::list_assignment_arity_matches_current_jim_original_source_controls	runtime/rust/src/interp/native_variable_names/tests/source_controls.rs	205	
+a55bda5fa6dc	2	0	2	tcl-lsp-core	lib	implementation::tests::unknown_command_argument_cannot_supply_method_implementation_identity	rust/tcl-lsp-core/src/implementation.rs	436	
+a55bda5fa6dc	2	0	2	tcl-lsp-core	it_5	lsp_providers::implementation_method_outside_class_returns_all_definers	rust/tcl-lsp-core/tests/it_5/lsp_providers.rs	940	
+a5a1a65d5429	2	0	1	tcl-cli	cli	inspection_verbs::explore_summary_lists_views	rust/tcl-cli/tests/cli/inspection_verbs.rs	97	
+a5a1a65d5429	2	0	1	tcl-cli	cli	inspection_verbs::smoke_explore_reports_summary_for_tiny_snippet	rust/tcl-cli/tests/cli/inspection_verbs.rs	108	
+a8064b465958	2	0	2	tcl-lsp-core	it_3	lsp_core_residual::st_range_variant_restarts_delta_from_first_surviving_token	rust/tcl-lsp-core/tests/it_3/lsp_core_residual.rs	580	
+a8064b465958	2	0	2	tcl-lsp-core	it_5	semantic_tokens_residual::st_range_variant_drops_tokens_outside_window_and_rebases_delta	rust/tcl-lsp-core/tests/it_5/semantic_tokens_residual.rs	1207	
+a832df89e555	2	0	1	tcl-compiler	lib	analyser::diagnostics::tests::unresolved::w123_tp_ordinary_call_shaped_like_mathfunc_fires_under_84	rust/tcl-compiler/src/analyser/diagnostics/tests/unresolved.rs	404	W123
+a832df89e555	2	0	1	tcl-compiler	lib	analyser::diagnostics::tests::unresolved::w123_fp_ordinary_call_shaped_like_mathfunc_resolves_under_86	rust/tcl-compiler/src/analyser/diagnostics/tests/unresolved.rs	421	W123
+a9d985c299e6	2	1	1	tcl-lsp-core	lib	code_actions::tests::check_actions_surface_shimmer_noqa_suppress_action	rust/tcl-lsp-core/src/code_actions/tests.rs	1141	
+a9d985c299e6	2	1	1	tcl-lsp-core	lib	code_actions::tests::check_actions_shimmer_noqa_suppress_honours_disabled_codes	rust/tcl-lsp-core/src/code_actions/tests.rs	1236	
+aaee1bbaa08e	2	0	1	tcl-lsp-server	e2e	navigation_extras::incoming_calls	rust/tcl-lsp-server/tests/e2e/navigation_extras.rs	62	
+aaee1bbaa08e	2	0	1	tcl-lsp-server	e2e	navigation_extras::outgoing_calls	rust/tcl-lsp-server/tests/e2e/navigation_extras.rs	77	
+ab58f1c4b94f	2	0	2	tcl-compiler	it_3	taint::sinks::output_sinks::puts_tainted_data	rust/tcl-compiler/tests/it_3/taint/sinks.rs	138	T101
+ab58f1c4b94f	2	0	2	tcl-compiler	it_4	taint_depth::puts_position_filter::puts_single_arg_tainted_is_content	rust/tcl-compiler/tests/it_4/taint_depth.rs	599	T101
+ac1d5c26163a	2	0	1	tcl-compiler	lib	analyser::diagnostics::tests::dataflow::dead_stores::emit_cfg_ssa_diagnostics_w220_pkgindex_dir_var_suppressed	rust/tcl-compiler/src/analyser/diagnostics/tests/dataflow/dead_stores.rs	385	W220
+ac1d5c26163a	2	0	1	tcl-compiler	lib	analyser::diagnostics::tests::dataflow::dead_stores::emit_cfg_ssa_diagnostics_w220_dir_var_not_suppressed_outside_pkgindex	rust/tcl-compiler/src/analyser/diagnostics/tests/dataflow/dead_stores.rs	467	W220
+aca6bc79abf0	2	0	2	tcl-compiler	it_3	taint::option_sinks::t102_suppression::tcp_client_port_no_t102	rust/tcl-compiler/tests/it_3/taint/option_sinks.rs	234	T102
+aca6bc79abf0	2	0	2	tcl-compiler	it_3	taint::sources::source_colour_augmentation::tcp_client_port_non_dash	rust/tcl-compiler/tests/it_3/taint/sources.rs	457	T102
+ad83bf29e219	2	0	1	tcl-compiler	it_4	analyser::class_factories::load_time_paths::switch_with_an_orphan_braced_clause_never_materialises_a_class	rust/tcl-compiler/tests/it_4/analyser/class_factories/load_time_paths.rs	366	
+ad83bf29e219	2	0	1	tcl-compiler	it_4	analyser::class_factories::load_time_paths::switch_with_a_final_fallthrough_body_never_materialises_a_class	rust/tcl-compiler/tests/it_4/analyser/class_factories/load_time_paths.rs	386	
+ae17796918d4	2	0	1	tcl-spectcl	lib	pack::actual_include_input_controls::borrowed_foreign_provider_cannot_resolve_an_include_through_host_filesystem	rust/tcl-spectcl/src/pack.rs	1807	
+ae17796918d4	2	0	1	tcl-spectcl	lib	pack::lazy_actual_include_ingress_controls::unavailable_borrowed_resolver_does_not_poison_a_clean_unrelated_pack	rust/tcl-spectcl/src/pack.rs	1898	
+aec6078d805a	2	0	1	tcl-compiler	lib	shimmer::hints::tests::arg_shimmer_type_subcommand_string_index_charindex	rust/tcl-compiler/src/shimmer/hints.rs	620	
+aec6078d805a	2	0	1	tcl-compiler	lib	shimmer::hints::tests::arg_shimmer_type_subcommand_arg0_is_subcommand_word	rust/tcl-compiler/src/shimmer/hints.rs	631	
+af9275c87727	2	2	2	tcl-compiler	lib	sccp::original_value_facts::tests::definition_values::evaluate_def_folds_irules_word_operator_only_under_an_irules_policy	rust/tcl-compiler/src/sccp/original_value_facts/tests/definition_values.rs	111	
+af9275c87727	2	2	2	tcl-compiler	lib	sccp::tests::definition_values::evaluate_def_folds_irules_word_operator_only_under_an_irules_policy	rust/tcl-compiler/src/sccp/tests/definition_values.rs	99	
+b238dce69990	2	0	1	tcl-lsp-server	e2e	rename::rejects_invalid_new_symbol_name	rust/tcl-lsp-server/tests/e2e/rename.rs	353	
+b238dce69990	2	0	1	tcl-lsp-server	e2e	rename::rejects_proc_rename_to_builtin	rust/tcl-lsp-server/tests/e2e/rename.rs	396	
+b243890acc95	2	0	2	tcl-compiler	it_3	optimiser::idiom_rewrites::variable_shape_guardrails	rust/tcl-compiler/tests/it_3/optimiser/idiom_rewrites.rs	409	
+b243890acc95	2	0	2	tcl-compiler	it_5	optimiser_coverage::robustness::variable_shape_guardrails	rust/tcl-compiler/tests/it_5/optimiser_coverage/robustness.rs	61	
+b2f0dfac4b11	2	0	1	tcl-lsp-core	it_5	lsp_providers::linked_editing_links_recursive_self_call	rust/tcl-lsp-core/tests/it_5/lsp_providers.rs	1067	
+b2f0dfac4b11	2	0	1	tcl-lsp-core	it_5	lsp_providers::linked_editing_degenerate_inputs_do_not_panic	rust/tcl-lsp-core/tests/it_5/lsp_providers.rs	1113	
+b39b3a0ffdbb	2	0	2	tcl-compiler	lib	var_escape::cfg_propagation::handlers::tests::upvar_namespaced_dollar_level_marks_pessimistic	rust/tcl-compiler/src/var_escape/cfg_propagation/handlers.rs	485	
+b39b3a0ffdbb	2	0	2	tcl-compiler	lib	var_escape::handlers::tests::upvar_namespaced_dollar_level_marks_pessimistic	rust/tcl-compiler/src/var_escape/handlers.rs	479	
+b3bc6f27a185	2	0	2	tcl-lsp-core	lib	source_style::tests::w112_does_not_flag_crlf	rust/tcl-lsp-core/src/source_style.rs	611	
+b3bc6f27a185	2	0	2	tcl-lsp-core	it_3	lsp_edit_workspace::style_w112_does_not_flag_clean_lines_or_crlf	rust/tcl-lsp-core/tests/it_3/lsp_edit_workspace.rs	734	
+b4726037d87d	2	0	2	tcl-compiler	lib	sccp::original_value_facts::tests::assignment_folds::evaluate_def_assign_value_folds_expr_cmd_subst	rust/tcl-compiler/src/sccp/original_value_facts/tests/assignment_folds.rs	155	
+b4726037d87d	2	0	2	tcl-compiler	lib	sccp::tests::assignment_folds::evaluate_def_assign_value_folds_expr_cmd_subst	rust/tcl-compiler/src/sccp/tests/assignment_folds.rs	235	
+b5bc866aa4ed	2	0	2	tcl-lsp-core	lib	completion::tests::commands::builtin_completion_none_registry_keeps_minimal_behaviour	rust/tcl-lsp-core/src/completion/tests/commands.rs	287	
+b5bc866aa4ed	2	0	2	tcl-lsp-core	it_4	hover_completion::completion_without_registry_yields_procs_only	rust/tcl-lsp-core/tests/it_4/hover_completion.rs	693	
+b5f64fd7da5e	2	0	2	tcl-compiler	lib	analyser::diagnostics::fp::ds::fp_ds_01_genuine_dead_store_still_fires	rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs	64	W220
+b5f64fd7da5e	2	0	2	tcl-compiler	it_3	fp_depth::ds_depth::genuine_dead_store_with_no_rmw_still_fires_w220	rust/tcl-compiler/tests/it_3/fp_depth.rs	685	W220
+b636c1c41c30	2	0	1	tcl-compiler	lib	analyser::handlers::tests::classes::class_definitions::handle_oo_define_recognises_canonical_form	rust/tcl-compiler/src/analyser/handlers/tests/classes/class_definitions.rs	469	
+b636c1c41c30	2	0	1	tcl-compiler	lib	analyser::handlers::tests::classes::class_definitions::handle_oo_define_no_args_returns_false	rust/tcl-compiler/src/analyser/handlers/tests/classes/class_definitions.rs	482	
+b6babf0504b4	2	0	2	tcl-lsp-core	lib	document_links::tests::source_with_spaces_in_path_produces_escaped_uri	rust/tcl-lsp-core/src/document_links/tests.rs	821	
+b6babf0504b4	2	0	2	tcl-lsp-core	it_3	lsp_lens_links_symbols::links_source_uri_is_percent_encoded	rust/tcl-lsp-core/tests/it_3/lsp_lens_links_symbols.rs	782	
+b7f34a97fc3f	2	0	2	tcl-lsp-core	lib	declaration::tests::variable_declaration_in_namespace	rust/tcl-lsp-core/src/declaration.rs	863	
+b7f34a97fc3f	2	0	2	tcl-lsp-core	it_5	lsp_providers::declaration_variable_decl_in_namespace_proc	rust/tcl-lsp-core/tests/it_5/lsp_providers.rs	750	
+b8084de3b097	2	0	1	tcl-lsp-core	lib	references::tests::object_method_sites::references_include_bare_created_instance_command_site	rust/tcl-lsp-core/src/references/tests/object_method_sites.rs	436	
+b8084de3b097	2	0	1	tcl-lsp-core	lib	references::tests::object_method_sites::references_from_cursor_on_bare_obj_command_call_site	rust/tcl-lsp-core/src/references/tests/object_method_sites.rs	455	
+b842c6488646	2	0	1	tcl-lsp-server	e2e	jim::a_tcl_jim_document_is_analysed_as_jim	rust/tcl-lsp-server/tests/e2e/jim.rs	100	
+b842c6488646	2	0	1	tcl-lsp-server	e2e	jim::a_plain_tcl_document_is_not_analysed_as_jim	rust/tcl-lsp-server/tests/e2e/jim.rs	125	
+b8eff0a7f707	2	0	1	tcl-compiler	lib	analyser::diagnostics::fp::rbs::guards_and_output_variables::fp_rbs_02_regexp_in_positive_condition_success_branch_silent	rust/tcl-compiler/src/analyser/diagnostics/fp/rbs/guards_and_output_variables.rs	227	W210
+b8eff0a7f707	2	0	1	tcl-compiler	lib	analyser::diagnostics::fp::rbs::guards_and_output_variables::fp_rbs_12_regexp_match_arm_read_silent	rust/tcl-compiler/src/analyser/diagnostics/fp/rbs/guards_and_output_variables.rs	459	W210
+b9217a793dd2	2	0	1	tcl-lsp-server	lib	tests::diagnostics::f5_models::bigip_config_findings_surface_codes	rust/tcl-lsp-server/src/tests/diagnostics/f5_models.rs	50	
+b9217a793dd2	2	0	1	tcl-lsp-server	lib	tests::diagnostics::f5_models::the_f5_report_honours_a_disabled_model_code	rust/tcl-lsp-server/src/tests/diagnostics/f5_models.rs	70	
+b9571448dce5	2	0	1	tcl-compiler	lib	shimmer::thunking::tests::span_anchors_inside_loop_not_pre_loop_initialiser	rust/tcl-compiler/src/shimmer/thunking.rs	894	
+b9571448dce5	2	0	1	tcl-compiler	lib	shimmer::thunking::tests::thunking_still_fires_for_untraced_control	rust/tcl-compiler/src/shimmer/thunking.rs	1088	
+ba57eacae515	2	0	2	tcl-runtime	lib	cmd_list::tests::lsearch_shared_core	runtime/rust/src/cmd_list/tests.rs	125	
+ba57eacae515	2	0	2	tcl-vm	it_5	builtins_e2e::lists_arrays_dicts::lsearch_shared_core	rust/tcl-vm/tests/it_5/builtins_e2e/lists_arrays_dicts.rs	46	
+baa3361c8219	2	0	1	tcl-compiler	lib	taint::tests::option_injection::t102_emitted_for_tainted_regexp_pattern	rust/tcl-compiler/src/taint/tests/option_injection.rs	166	T102
+baa3361c8219	2	0	1	tcl-compiler	lib	taint::tests::option_injection::t102_suppressed_with_terminator	rust/tcl-compiler/src/taint/tests/option_injection.rs	263	T102
+bc12287e1901	2	0	2	tcl-codegen	it_2	compiler_analysis_residual::auto_path::auto_path_unsupported_command_declines	rust/tcl-codegen/tests/it_2/compiler_analysis_residual/auto_path.rs	183	
+bc12287e1901	2	0	2	tcl-compiler	lib	auto_path_eval::tests::unsupported_command_is_none	rust/tcl-compiler/src/auto_path_eval/tests.rs	861	
+bda2d9e1a37c	2	0	1	tcl-compiler	it_4	analyser::class_factories::computed_names::a_braced_variable_command_head_resolves_through_its_constant	rust/tcl-compiler/tests/it_4/analyser/class_factories/computed_names.rs	624	
+bda2d9e1a37c	2	0	1	tcl-compiler	it_4	analyser::class_factories::computed_names::a_resolved_braced_variable_head_is_a_reference_not_a_rename_target	rust/tcl-compiler/tests/it_4/analyser/class_factories/computed_names.rs	645	
+bdc187905f84	2	0	1	tcl-lsp-core	it_3	name_resolution::classmethod_dispatch::tp_bare_class_command_dispatch_is_a_reference	rust/tcl-lsp-core/tests/it_3/name_resolution.rs	248	
+bdc187905f84	2	0	1	tcl-lsp-core	it_3	name_resolution::classmethod_dispatch::tp_bare_class_command_dispatch_resolves_from_the_call_site_itself	rust/tcl-lsp-core/tests/it_3/name_resolution.rs	268	
+bf5bd64d9c24	2	0	1	tcl-registry	it_4	value_transfers::captures_and_destructuring::regexp_writes_or_preserves_its_match_variables	rust/tcl-registry/tests/it_4/value_transfers/captures_and_destructuring.rs	181	
+bf5bd64d9c24	2	0	1	tcl-registry	it_4	value_transfers::captures_and_destructuring::a_regexp_that_established_nothing_declines	rust/tcl-registry/tests/it_4/value_transfers/captures_and_destructuring.rs	295	
+c0940595c514	2	0	1	tcl-lsp-server	lib	studio_source::tests::cross_backend_same_uri_token_cannot_publish_or_retire_new_owner	rust/tcl-lsp-server/src/studio_source.rs	825	
+c0940595c514	2	0	1	tcl-lsp-server	lib	studio_source::tests::replaced_or_stale_revision_and_missing_entropy_never_donate_a_live_lease	rust/tcl-lsp-server/src/studio_source.rs	922	
+c185697c2445	2	0	1	tcl-lsp-server	e2e	references::var_refs_respect_shadowing_global_target	rust/tcl-lsp-server/tests/e2e/references.rs	357	
+c185697c2445	2	0	1	tcl-lsp-server	e2e	references::var_refs_respect_shadowing_local_target	rust/tcl-lsp-server/tests/e2e/references.rs	368	
+c1f3bb261e85	2	0	1	tcl-compiler	lib	lowering::tests::trace_facts::trace_add_variable_does_not_record_execution_trace	rust/tcl-compiler/src/lowering/tests/trace_facts.rs	48	
+c1f3bb261e85	2	0	1	tcl-compiler	lib	lowering::tests::trace_facts::trace_add_variable_literal_recorded	rust/tcl-compiler/src/lowering/tests/trace_facts.rs	107	
+c21b3d19a169	2	0	1	tcl-lsp-core	lib	rename::tests::members::rename_method_rewrites_bare_created_instance_command_site	rust/tcl-lsp-core/src/rename/tests/members.rs	458	
+c21b3d19a169	2	0	1	tcl-lsp-core	lib	rename::tests::members::rename_method_from_cursor_on_bare_obj_command_call_site	rust/tcl-lsp-core/src/rename/tests/members.rs	519	
+c24c7565dd11	2	0	1	tcl-lsp-server	e2e	recovery::c5_break_then_fix	rust/tcl-lsp-server/tests/e2e/recovery.rs	487	
+c24c7565dd11	2	0	1	tcl-lsp-server	e2e	recovery::c5_rapid_toggling_stays_consistent	rust/tcl-lsp-server/tests/e2e/recovery.rs	509	
+c48085337422	2	0	1	bpf-tcl-ir	lib	loader::tests::refuses_to_attach_over_a_foreign_pin	rust/bpf-tcl-ir/src/loader.rs	687	
+c48085337422	2	0	1	bpf-tcl-ir	lib	loader::tests::detach_never_removes_a_foreign_pin	rust/bpf-tcl-ir/src/loader.rs	705	
+c4e049f611d2	2	0	2	tcl-compiler	lib	var_scoping::tests::namespace_upvar_lowered	rust/tcl-compiler/src/var_scoping.rs	358	
+c4e049f611d2	2	0	2	tcl-compiler	it_2	alias_scoping::upvar_local_declaration_indices_tests::namespace_upvar_lowered_form	rust/tcl-compiler/tests/it_2/alias_scoping.rs	501	
+c6aaa50d2962	2	0	1	tcl-lsp-server	e2e	references::references_include_call_sites_spelled_through_an_alias	rust/tcl-lsp-server/tests/e2e/references.rs	563	
+c6aaa50d2962	2	0	1	tcl-lsp-server	e2e	references::references_from_an_alias_call_site_offer_the_targets_sites	rust/tcl-lsp-server/tests/e2e/references.rs	582	
+c8cacd25f68a	2	0	2	tcl-compiler	lib	sccp::original_value_facts::tests::fold_trust::an_unnameable_rename_subject_inside_an_alias_defined_body_also_distrusts	rust/tcl-compiler/src/sccp/original_value_facts/tests/fold_trust.rs	276	
+c8cacd25f68a	2	0	2	tcl-compiler	lib	sccp::tests::fold_trust::an_unnameable_rename_subject_inside_an_alias_defined_body_also_distrusts	rust/tcl-compiler/src/sccp/tests/fold_trust.rs	268	
+c9510e0a095a	2	0	2	tcl-compiler	lib	analyser::diagnostics::fp::ds::fp_ds_08_unknown_dict_with_return_var_silent	rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs	376	W210
+c9510e0a095a	2	0	2	tcl-compiler	it_3	fp_depth::helpers_depth::dict_with_unknown_shape_param_conservative_silent	rust/tcl-compiler/tests/it_3/fp_depth.rs	312	W210
+ca2c0f405f27	2	0	2	tcl-compiler	lib	var_escape::cfg_propagation::handlers::tests::original_empty_and_sigil_name_operands_keep_escape_reasons	rust/tcl-compiler/src/var_escape/cfg_propagation/handlers.rs	667	
+ca2c0f405f27	2	0	2	tcl-compiler	lib	var_escape::handlers::tests::original_empty_and_sigil_name_operands_keep_escape_reasons	rust/tcl-compiler/src/var_escape/handlers.rs	695	
+ca34681bbf41	2	0	1	tcl-runtime	lib	cmd_namespace::tests::ensemble_dispatch::ensemble_default_dispatches_to_namespace_commands	runtime/rust/src/cmd_namespace/tests/ensemble_dispatch.rs	66	
+ca34681bbf41	2	0	1	tcl-runtime	lib	cmd_namespace::tests::ensemble_dispatch::ensemble_prefix_match_and_ambiguity	runtime/rust/src/cmd_namespace/tests/ensemble_dispatch.rs	87	
+cb2358bb8796	2	0	1	xtask	lib	owner_resolution::tests::missing_entry_point_is_reported	rust/xtask/src/owner_resolution/tests.rs	340	
+cb2358bb8796	2	0	1	xtask	lib	owner_resolution::tests::missing_make_gate_is_reported	rust/xtask/src/owner_resolution/tests.rs	493	
+cbbd97a2337f	2	0	2	tcl-lsp-core	lib	definition::tests::variables::proc_local_var_jumps_to_proc_scope_definition	rust/tcl-lsp-core/src/definition/tests/variables.rs	275	
+cbbd97a2337f	2	0	2	tcl-lsp-core	it_4	lsp_navigation::definition_proc_local_var_resolves_to_proc_scope_set	rust/tcl-lsp-core/tests/it_4/lsp_navigation.rs	399	
+cc319eeebd3e	2	0	2	tcl-compiler	lib	sccp::original_value_facts::tests::fold_trust::both_stances_decline_a_builtin_a_proc_shadows	rust/tcl-compiler/src/sccp/original_value_facts/tests/fold_trust.rs	144	
+cc319eeebd3e	2	0	2	tcl-compiler	lib	sccp::tests::fold_trust::both_stances_decline_a_builtin_a_proc_shadows	rust/tcl-compiler/src/sccp/tests/fold_trust.rs	144	
+cd1376b93c96	2	0	1	tcl-lsp-server	e2e	rename::rename_var	rust/tcl-lsp-server/tests/e2e/rename.rs	209	
+cd1376b93c96	2	0	1	tcl-lsp-server	e2e	rename::rename_var_from_definition_site	rust/tcl-lsp-server/tests/e2e/rename.rs	219	
+cda1354530fe	2	0	2	tcl-compiler	it_3	taint::colours::shell_atom::port_augments_shell_atom	rust/tcl-compiler/tests/it_3/taint/colours.rs	222	T100
+cda1354530fe	2	0	2	tcl-compiler	it_3	taint::option_sinks::t102_suppression::port_still_fires_t100	rust/tcl-compiler/tests/it_3/taint/option_sinks.rs	279	T100
+ce29dd4397c5	2	0	1	tcl-lsp-core	it_2	references_residual::references_class_includes_decl_and_every_instantiation	rust/tcl-lsp-core/tests/it_2/references_residual.rs	99	
+ce29dd4397c5	2	0	1	tcl-lsp-core	it_2	references_residual::references_class_exclude_declaration_keeps_only_instantiations	rust/tcl-lsp-core/tests/it_2/references_residual.rs	130	
+ce66cb93b390	2	0	1	tcl-registry	lib	commands::tcl::string_::tests::string_value_folds_match_tcl	rust/tcl-registry/src/commands/tcl/string_/tests.rs	595	
+ce66cb93b390	2	0	1	tcl-registry	lib	commands::tcl::string_::tests::string_index_comparison_folds_match_tcl	rust/tcl-registry/src/commands/tcl/string_/tests.rs	619	
+ceb92d803d15	2	0	1	tcl-registry	it_3	detect_dialect::directive_tcl84	rust/tcl-registry/tests/it_3/detect_dialect.rs	79	
+ceb92d803d15	2	0	1	tcl-registry	it_3	detect_dialect::directive_crlf_line_endings	rust/tcl-registry/tests/it_3/detect_dialect.rs	109	
+cedf726c9391	2	2	1	tcl-codegen	codegen_integration	foreach_emits_native_opcodes	rust/tcl-codegen/tests/codegen_integration.rs	708	
+cedf726c9391	2	2	1	tcl-codegen	codegen_integration	complex_foreach_body_emits_step_at_end	rust/tcl-codegen/tests/codegen_integration.rs	797	
+d2026d60b4e0	2	0	1	tcl-vm	it_2	cmd_string_e2e::format_pointer_width_modifiers_are_lp64_issue_2163	rust/tcl-vm/tests/it_2/cmd_string_e2e.rs	1164	
+d2026d60b4e0	2	0	1	tcl-vm	it_2	cmd_string_e2e::format_pre_tcl9_long_width_and_unknown_modifiers_issue_2163	rust/tcl-vm/tests/it_2/cmd_string_e2e.rs	1292	
+d2fc8f06cdc8	2	0	2	tcl-lsp-core	lib	document_symbols::tests::namespace_eval_nests_inner_proc	rust/tcl-lsp-core/src/document_symbols/tests.rs	770	
+d2fc8f06cdc8	2	0	2	tcl-lsp-core	it_5	lsp_providers::doc_symbols_namespace_nests_inner_proc	rust/tcl-lsp-core/tests/it_5/lsp_providers.rs	427	
+d52dd9a4bba4	2	0	2	tcl-syntax	lib	expr::ast::tests::ternary_render	rust/tcl-syntax/src/expr/ast.rs	1711	
+d52dd9a4bba4	2	0	2	tcl-syntax	lib	expr::parser::tests::render_ternary	rust/tcl-syntax/src/expr/parser.rs	1585	
+d5464ade1964	2	0	1	tcl-compiler	lib	analyser::state::tests::usage_lints::analyse_emits_w110_for_string_eq_in_if_condition	rust/tcl-compiler/src/analyser/state/tests/usage_lints.rs	106	W110
+d5464ade1964	2	0	1	tcl-compiler	lib	analyser::state::tests::usage_lints::analyse_w110_includes_eq_code_fix	rust/tcl-compiler/src/analyser/state/tests/usage_lints.rs	218	W110
+d5adfdce6feb	2	0	1	tcl-runtime	lib	obj::native_duplicate_controls::checked_original_duplicate_retains_first_cause_before_cleanup_and_refuses_incoming_admission	runtime/rust/src/obj/native_duplicate_controls.rs	129	
+d5adfdce6feb	2	0	1	tcl-runtime	lib	obj::native_duplicate_controls::checked_original_duplicate_transfers_exact_incoming_primary_and_cleanup_once	runtime/rust/src/obj/native_duplicate_controls.rs	194	
+d6275f8936df	2	0	2	tcl-lsp-core	lib	declaration::tests::non_variable_falls_back_to_definition	rust/tcl-lsp-core/src/declaration.rs	1050	
+d6275f8936df	2	0	2	tcl-lsp-core	it_5	lsp_providers::declaration_non_variable_falls_back_to_definition	rust/tcl-lsp-core/tests/it_5/lsp_providers.rs	797	
+d62d4982e21f	2	0	2	tcl-syntax	expr_parser_coverage	command_substitution_node	rust/tcl-syntax/tests/expr_parser_coverage.rs	778	
+d62d4982e21f	2	0	2	tcl-syntax	it_4	expr_parser::command_substitution	rust/tcl-syntax/tests/it_4/expr_parser.rs	89	
+d650c2ccdb27	2	0	1	tcl-lsp-server	e2e	diagnostics::constant_conditions::double_equals_string_condition_folds	rust/tcl-lsp-server/tests/e2e/diagnostics/constant_conditions.rs	57	I230
+d650c2ccdb27	2	0	1	tcl-lsp-server	e2e	diagnostics::constant_conditions::bang_equals_string_condition_folds	rust/tcl-lsp-server/tests/e2e/diagnostics/constant_conditions.rs	67	I230
+d69e86bb663d	2	0	1	tcl-lsp-core	lib	workspace_index::tests::remove_document_drops_its_entries	rust/tcl-lsp-core/src/workspace_index/tests.rs	69	
+d69e86bb663d	2	0	1	tcl-lsp-core	lib	workspace_index::tests::re_indexing_a_document_keeps_its_size_and_its_place	rust/tcl-lsp-core/src/workspace_index/tests.rs	113	
+d73bc607c4eb	2	0	1	tcl-codegen	lib	codegen::emitter::bytecoded::tests::global_multi_reuses_namespace	rust/tcl-codegen/src/codegen/emitter/bytecoded/tests.rs	1007	
+d73bc607c4eb	2	0	1	tcl-codegen	lib	codegen::emitter::bytecoded::tests::global_qualified_or_toplevel_falls_back	rust/tcl-codegen/src/codegen/emitter/bytecoded/tests.rs	1030	
+d81ff9bde50f	2	0	2	tcl-lsp-core	lib	completion::tests::commands::proc_completion_lists_user_defined_procs	rust/tcl-lsp-core/src/completion/tests/commands.rs	24	
+d81ff9bde50f	2	0	2	tcl-lsp-core	it_4	hover_completion::completion_lists_user_defined_procs	rust/tcl-lsp-core/tests/it_4/hover_completion.rs	545	
+da0098af0710	2	0	1	tcl-compiler	it_4	fix_safety::tp_w100_brace_fix_over_a_substitution_free_operand_is_equivalent	rust/tcl-compiler/tests/it_4/fix_safety.rs	106	W100
+da0098af0710	2	0	1	tcl-compiler	it_4	fix_safety::fn_the_equivalent_class_is_actually_reachable	rust/tcl-compiler/tests/it_4/fix_safety.rs	228	W100
+dadc5c42e0ef	2	0	1	tcl-lsp-server	e2e	spec_packs::pack_commands::a_workspace_pack_makes_an_unknown_command_resolve_with_hover	rust/tcl-lsp-server/tests/e2e/spec_packs/pack_commands.rs	32	
+dadc5c42e0ef	2	0	1	tcl-lsp-server	e2e	spec_packs::pack_commands::the_spec_packs_setting_reaches_a_pack_convention_would_miss	rust/tcl-lsp-server/tests/e2e/spec_packs/pack_commands.rs	240	
+db37dd7d9150	2	0	2	tcl-compiler	lib	var_escape::cfg_propagation::handlers::tests::upvar_quoted_substituted_level_marks_pessimistic	rust/tcl-compiler/src/var_escape/cfg_propagation/handlers.rs	473	
+db37dd7d9150	2	0	2	tcl-compiler	lib	var_escape::handlers::tests::upvar_quoted_substituted_level_marks_pessimistic	rust/tcl-compiler/src/var_escape/handlers.rs	471	
+dbd7e19b848a	2	0	1	tcl-vm	lib	cmd_oo::original_name_operands::tests::original_oo_name_declaring_facet_comes_from_the_genuine_entered_method_chain	rust/tcl-vm/src/cmd_oo/original_name_operands/tests.rs	349	
+dbd7e19b848a	2	0	1	tcl-vm	lib	cmd_oo::original_name_operands::tests::original_oo_name_present_method_requires_its_actual_declaring_step	rust/tcl-vm/src/cmd_oo/original_name_operands/tests.rs	435	
+dd14b3a657ae	2	0	2	tcl-runtime	lib	cmd_coro::native_injection_tests::original_coroutine_probe_and_injection_match_counted_object_controls	runtime/rust/src/cmd_coro/native_injection_tests.rs	149	
+dd14b3a657ae	2	0	2	tcl-vm	lib	cmd_coro::native_injection_tests::original_coroutine_probe_and_injection_match_counted_object_controls	rust/tcl-vm/src/cmd_coro/native_injection_tests.rs	159	
+dd54e22b481c	2	0	2	tcl-compiler	lib	lowering::hooks::control::tests::return_value_lowers_to_return	rust/tcl-compiler/src/lowering/hooks/control.rs	448	
+dd54e22b481c	2	0	2	tcl-compiler	lib	lowering::tests::command_lowering::return_statement	rust/tcl-compiler/src/lowering/tests/command_lowering.rs	132	
+dd59e883da6d	2	0	1	tcl-vm	it_5	opcode_c_parity::variable_state::unset_array_stk_complain_flag_errors	rust/tcl-vm/tests/it_5/opcode_c_parity/variable_state.rs	86	
+dd59e883da6d	2	0	1	tcl-vm	it_5	opcode_c_parity::variable_state::unset_array_complain_flag_errors	rust/tcl-vm/tests/it_5/opcode_c_parity/variable_state.rs	317	
+dd7158c919af	2	0	1	tcl-compiler	lib	signature_scan::handlers::tests::handle_interp_local_alias_emitted	rust/tcl-compiler/src/signature_scan/handlers.rs	1454	
+dd7158c919af	2	0	1	tcl-compiler	lib	signature_scan::handlers::tests::handle_interp_cross_interp_alias_skipped	rust/tcl-compiler/src/signature_scan/handlers.rs	1473	
+ded2108da266	2	0	1	bigip-query-wasm	lib	analyze::tests::annotated_html_wraps_diagnostics_and_stays_wellformed	rust/bigip-query-wasm/src/analyze.rs	332	
+ded2108da266	2	0	1	bigip-query-wasm	lib	analyze::tests::undefined_variable_read_is_flagged	rust/bigip-query-wasm/src/analyze.rs	349	
+df1bc9c220b4	2	0	1	tcl-compiler	lib	analyser::oo::tests::member_effects::variable_subcommand_records_class_variables	rust/tcl-compiler/src/analyser/oo/tests/member_effects.rs	454	
+df1bc9c220b4	2	0	1	tcl-compiler	lib	analyser::oo::tests::member_effects::a_second_variable_subcommand_accumulates_rather_than_replacing	rust/tcl-compiler/src/analyser/oo/tests/member_effects.rs	466	
+e0a2a047ad91	2	0	1	tcl-compiler	it_4	dataflow::dataflow_alias_detection	rust/tcl-compiler/tests/it_4/dataflow.rs	428	
+e0a2a047ad91	2	0	1	tcl-compiler	it_4	dataflow::dataflow_alias_info_present	rust/tcl-compiler/tests/it_4/dataflow.rs	460	
+e143c9d90904	2	0	2	tcl-runtime	lib	cmd_proc::native_static_original_tests::original_static_member_objects_match_native_counted_names_and_value_capture	runtime/rust/src/cmd_proc/native_static_original_tests.rs	93	
+e143c9d90904	2	0	2	tcl-vm	lib	command::native_static_original_tests::original_static_member_objects_match_native_counted_names_and_value_capture	rust/tcl-vm/src/command/native_static_original_tests.rs	169	
+e199d2f148ac	2	0	2	tcl-lsp-core	it_3	lsp_lens_links_symbols::symbols_global_set_emits_variable	rust/tcl-lsp-core/tests/it_3/lsp_lens_links_symbols.rs	292	
+e199d2f148ac	2	0	2	tcl-lsp-core	it_5	lsp_providers::doc_symbols_global_set_emits_variable	rust/tcl-lsp-core/tests/it_5/lsp_providers.rs	488	
+e1f66b3a3208	2	0	2	tcl-compiler	it_3	taint::colours::taint_colours::http_uri_getter_has_path_colour	rust/tcl-compiler/tests/it_3/taint/colours.rs	27	T100
+e1f66b3a3208	2	0	2	tcl-compiler	it_3	taint::sources::irules_taint_sources::http_uri_taints	rust/tcl-compiler/tests/it_3/taint/sources.rs	421	T100
+e2f47f90cf24	2	0	2	tcl-compiler	lib	sccp::original_value_facts::tests::foreach_lists::extract_foreach_elements_rejects_substitutions	rust/tcl-compiler/src/sccp/original_value_facts/tests/foreach_lists.rs	62	
+e2f47f90cf24	2	0	2	tcl-compiler	lib	sccp::tests::foreach_lists::extract_foreach_elements_rejects_substitutions	rust/tcl-compiler/src/sccp/tests/foreach_lists.rs	65	
+e329d52754f8	2	0	1	tcl-lsp-server	e2e	code_actions::refactor_actions::test_cursor_past_end_of_line_does_not_crash	rust/tcl-lsp-server/tests/e2e/code_actions/refactor_actions.rs	424	
+e329d52754f8	2	0	1	tcl-lsp-server	e2e	code_actions::refactor_actions::test_cursor_past_last_line_does_not_crash	rust/tcl-lsp-server/tests/e2e/code_actions/refactor_actions.rs	444	
+e33fbcf5f69d	2	0	1	tcl-compiler	lib	analyser::diagnostics::tests::validity::expr_operators::w003_distinct_operators_each_get_their_own_tight_span	rust/tcl-compiler/src/analyser/diagnostics/tests/validity/expr_operators.rs	162	
+e33fbcf5f69d	2	0	1	tcl-compiler	lib	analyser::diagnostics::tests::validity::expr_operators::w003_no_fix_when_more_than_one_occurrence	rust/tcl-compiler/src/analyser/diagnostics/tests/validity/expr_operators.rs	305	
+e3a8dddf414f	2	0	2	tcl-compiler	lib	static_loops::tests::simple_var_ref_rejects_non_var	rust/tcl-compiler/src/static_loops.rs	1075	
+e3a8dddf414f	2	0	2	tcl-compiler	lib	static_loops::original_simulation::tests::simple_var_ref_rejects_non_var	rust/tcl-compiler/src/static_loops/original_simulation/tests.rs	748	
+e485ec4cbe16	2	0	1	tcl-lsp-core	lib	package_resolver::reachability::tests::a_patch_level_requirement_the_line_disagrees_about_stays_conditional	rust/tcl-lsp-core/src/package_resolver/reachability/tests.rs	462	
+e485ec4cbe16	2	0	1	tcl-lsp-core	lib	package_resolver::reachability::tests::the_two_component_requirement_matrix_is_unchanged	rust/tcl-lsp-core/src/package_resolver/reachability/tests.rs	503	
+e52511e7f605	2	0	2	tcl-lsp-core	lib	definition::tests::variables::jump_to_absolutely_qualified_var_definition	rust/tcl-lsp-core/src/definition/tests/variables.rs	156	
+e52511e7f605	2	0	2	tcl-lsp-core	it_5	mathfunc_and_word_recognition::fp_guard_idx24_qualified_reads_still_resolve	rust/tcl-lsp-core/tests/it_5/mathfunc_and_word_recognition.rs	869	
+e5840a4e16ad	2	0	2	tcl-runtime	lib	builtins::tests::expression_arguments_use_native_concatenation_and_selected_cardinality	runtime/rust/src/builtins/tests.rs	468	
+e5840a4e16ad	2	0	2	tcl-runtime	lib	cmd_var::tests::captured_increment_receivers_match_actual_native_releases	runtime/rust/src/cmd_var/tests.rs	631	
+e5d1f5ae975f	2	0	1	tcl-compiler	lib	analyser::state::tests::unknown_subcommands::analyse_w001_includes_did_you_mean_suggestion	rust/tcl-compiler/src/analyser/state/tests/unknown_subcommands.rs	47	W001
+e5d1f5ae975f	2	0	1	tcl-compiler	lib	analyser::state::tests::unknown_subcommands::analyse_w001_diagnostic_span_matches_fix_span	rust/tcl-compiler/src/analyser/state/tests/unknown_subcommands.rs	219	W001
+e651c9e823d8	2	0	1	tcl-codegen	lib	codegen::wasm::pipeline::tests::hosted_literal_invocation_selects_executable_generic_argv_plan	rust/tcl-codegen/src/codegen/wasm/pipeline.rs	1076	
+e651c9e823d8	2	0	1	tcl-codegen	lib	codegen::wasm::pipeline::tests::invalid_semantic_layout_declines_before_the_single_emitter_runs	rust/tcl-codegen/src/codegen/wasm/pipeline.rs	1583	
+e74a734c24d7	2	0	1	tcl-lsp-core	it_4	formatting_engine_residual::range_formatting_clamps_end_past_eof_to_last_line	rust/tcl-lsp-core/tests/it_4/formatting_engine_residual.rs	665	
+e74a734c24d7	2	0	1	tcl-lsp-core	it_4	formatting_engine_residual::range_formatting_crlf_finalisation	rust/tcl-lsp-core/tests/it_4/formatting_engine_residual.rs	705	
+e99b46a04be9	2	0	2	tcl-lsp-server	e2e	diagnostics::publication::introducing_an_error_publishes_it	rust/tcl-lsp-server/tests/e2e/diagnostics/publication.rs	55	E002
+e99b46a04be9	2	0	2	tcl-lsp-server	e2e	edit_tracking_stress::introduce_then_immediately_fix_error	rust/tcl-lsp-server/tests/e2e/edit_tracking_stress.rs	560	E002
+e99d596287dc	2	0	2	tcl-lsp-core	it_3	lsp_lens_links_symbols::actions_none_at_inert_position	rust/tcl-lsp-core/tests/it_3/lsp_lens_links_symbols.rs	914	
+e99d596287dc	2	0	2	tcl-lsp-core	it_4	code_actions_depth::inert_statement_offers_nothing	rust/tcl-lsp-core/tests/it_4/code_actions_depth.rs	1258	
+eb00d046db43	2	0	2	tcl-compiler	lib	sccp::original_value_facts::tests::assignment_folds::evaluate_def_assign_value_folds_string_length	rust/tcl-compiler/src/sccp/original_value_facts/tests/assignment_folds.rs	97	
+eb00d046db43	2	0	2	tcl-compiler	lib	sccp::tests::assignment_folds::evaluate_def_assign_value_folds_string_length	rust/tcl-compiler/src/sccp/tests/assignment_folds.rs	182	
+eb2a34027b38	2	1	2	tcl-lsp-core	lib	declaration::tests::upvar_local_alias_is_a_declaration	rust/tcl-lsp-core/src/declaration.rs	888	
+eb2a34027b38	2	1	2	tcl-lsp-core	it_5	lsp_providers::declaration_upvar_alias_is_a_declaration	rust/tcl-lsp-core/tests/it_5/lsp_providers.rs	775	
+ecaeaefa9708	2	0	1	tcl-lsp-core	it_4	formatting_engine_residual::fmt_max_consecutive_blank_lines_config	rust/tcl-lsp-core/tests/it_4/formatting_engine_residual.rs	461	
+ecaeaefa9708	2	0	1	tcl-lsp-core	it_4	formatting_engine_residual::fmt_explicit_line_ending_still_overrides_auto	rust/tcl-lsp-core/tests/it_4/formatting_engine_residual.rs	777	
+ed9809991a59	2	0	1	tcl-compiler	lib	signature_scan::factory::tests::canonical_factory_body_matches	rust/tcl-compiler/src/signature_scan/factory.rs	408	
+ed9809991a59	2	0	1	tcl-compiler	lib	signature_scan::factory::tests::fewer_than_three_params_no_match	rust/tcl-compiler/src/signature_scan/factory.rs	454	
+edc49db10516	2	0	1	tcl-codegen	lib	codegen::control_flow::tests::catch_inline_emits_begin_end_catch	rust/tcl-codegen/src/codegen/control_flow/tests.rs	570	
+edc49db10516	2	0	1	tcl-codegen	lib	codegen::control_flow::tests::catch_inline_stores_result_var	rust/tcl-codegen/src/codegen/control_flow/tests.rs	984	
+eea27501bf87	2	0	1	tcl-lexer	edge_structural	reparse_window_snaps_to_command	rust/tcl-lexer/tests/edge_structural.rs	306	
+eea27501bf87	2	0	1	tcl-lexer	edge_structural	reparse_window_multi_line_edit	rust/tcl-lexer/tests/edge_structural.rs	313	
+ef06c7b2bb61	2	0	2	tcl-compiler	it_2	phi_undef_memo::unset_then_read_fires_w210	rust/tcl-compiler/tests/it_2/phi_undef_memo.rs	299	W210
+ef06c7b2bb61	2	0	2	tcl-compiler	it_3	fp_depth::helpers_depth::unset_whole_name_then_read_fires_w210	rust/tcl-compiler/tests/it_3/fp_depth.rs	391	W210
+efc64e1bfa55	2	0	1	tcl-lsp-core	it_4	inlay_hints::integer_type_hint	rust/tcl-lsp-core/tests/it_4/inlay_hints.rs	60	
+efc64e1bfa55	2	0	1	tcl-lsp-core	it_4	inlay_hints::hint_kinds_are_type_or_parameter	rust/tcl-lsp-core/tests/it_4/inlay_hints.rs	86	
+f17f14ecffc0	2	0	1	xtask	lib	dialect_drift::tests::a_bare_split_is_only_flagged_in_document_crates	rust/xtask/src/dialect_drift.rs	598	
+f17f14ecffc0	2	0	1	xtask	lib	dialect_drift::tests::the_owner_method_call_is_not_a_hit	rust/xtask/src/dialect_drift.rs	605	
+f1c1f0112504	2	0	2	tcl-compiler	lib	analyser::commands::tests::process_foreach_defines_loop_var	rust/tcl-compiler/src/analyser/commands/tests.rs	623	
+f1c1f0112504	2	0	2	tcl-compiler	lib	analyser::handlers::tests::control_flow::handle_foreach_defines_single_loop_var	rust/tcl-compiler/src/analyser/handlers/tests/control_flow.rs	26	
+f277af9f02b6	2	0	2	tcl-compiler	lib	static_loops::tests::summarise_unsupported_statement_returns_none	rust/tcl-compiler/src/static_loops.rs	1152	
+f277af9f02b6	2	0	2	tcl-compiler	lib	static_loops::original_simulation::tests::analyse_unsupported_statement_returns_none	rust/tcl-compiler/src/static_loops/original_simulation/tests.rs	816	
+f47f00a1e744	2	0	1	tcl-lsp-core	it_4	code_actions_depth::profiles_action_updates_stale_directive	rust/tcl-lsp-core/tests/it_4/code_actions_depth.rs	1044	
+f47f00a1e744	2	0	1	tcl-lsp-core	it_4	code_actions_depth::profiles_action_noop_when_directive_already_correct	rust/tcl-lsp-core/tests/it_4/code_actions_depth.rs	1078	
+f4f371238ed9	2	0	2	tcl-compiler	lib	static_loops::tests::summarise_resolves_if_else_branch_in_body	rust/tcl-compiler/src/static_loops.rs	1259	
+f4f371238ed9	2	0	2	tcl-compiler	lib	static_loops::original_simulation::tests::analyse_resolves_if_else_branch_in_body	rust/tcl-compiler/src/static_loops/original_simulation/tests.rs	876	
+f51b8721466b	2	0	1	tcl-lsp-core	it_4	formatting_engine_residual::formatting_edit_range_spans_a_lone_cr_document	rust/tcl-lsp-core/tests/it_4/formatting_engine_residual.rs	789	
+f51b8721466b	2	0	1	tcl-lsp-core	it_4	formatting_engine_residual::formatting_edit_range_spans_a_mixed_line_ending_document	rust/tcl-lsp-core/tests/it_4/formatting_engine_residual.rs	810	
+f5f4c195a784	2	0	1	tcl-compiler	lib	analyser::diagnostics::tests::validity::expr_operators::w003_fires_on_all_six_gated_operators_pre_availability	rust/tcl-compiler/src/analyser/diagnostics/tests/validity/expr_operators.rs	203	
+f5f4c195a784	2	0	1	tcl-compiler	lib	analyser::diagnostics::tests::validity::expr_operators::w003_silent_on_ni_le_gt_ge_when_dialect_supports_them	rust/tcl-compiler/src/analyser/diagnostics/tests/validity/expr_operators.rs	219	
+f7e577b629a3	2	0	2	tcl-compiler	lib	sccp::original_value_facts::tests::assignment_folds::evaluate_def_assign_value_folds_llength_literal	rust/tcl-compiler/src/sccp/original_value_facts/tests/assignment_folds.rs	87	
+f7e577b629a3	2	0	2	tcl-compiler	lib	sccp::tests::assignment_folds::evaluate_def_assign_value_folds_llength_literal	rust/tcl-compiler/src/sccp/tests/assignment_folds.rs	172	
+fa783cf34bc6	2	2	1	tcl-compiler	lib	optimiser::elimination::tests::unused_variable_fires_o126_in_proc_body	rust/tcl-compiler/src/optimiser/elimination/tests.rs	632	O126
+fa783cf34bc6	2	2	1	tcl-compiler	lib	optimiser::elimination::tests::o126_still_fires_for_literal_rhs	rust/tcl-compiler/src/optimiser/elimination/tests.rs	980	O126
+fb081aeaf448	2	0	2	tcl-compiler	it_3	taint::colours::taint_colours::colour_kept_when_dynamic_leading_piece_is_path_prefixed	rust/tcl-compiler/tests/it_3/taint/colours.rs	62	T102
+fb081aeaf448	2	0	2	tcl-compiler	it_3	taint::option_sinks::non_dash_prefixed_interpolation::dynamic_leading_piece_inherits_original	rust/tcl-compiler/tests/it_3/taint/option_sinks.rs	369	T102
+fb4454d9a63d	2	1	1	tcl-lsp-core	lib	rename::tests::member_targets::method_target_fires_on_the_members_own_declaration_name	rust/tcl-lsp-core/src/rename/tests/member_targets.rs	222	
+fb4454d9a63d	2	1	1	tcl-lsp-core	lib	rename::tests::member_targets::method_target_abstains_on_an_unlinked_bareword_sibling_call	rust/tcl-lsp-core/src/rename/tests/member_targets.rs	265	
+fb65c9ccbe9c	2	0	1	tcl-compiler	it_3	signature_scan::package_simple_require	rust/tcl-compiler/tests/it_3/signature_scan.rs	143	
+fb65c9ccbe9c	2	0	1	tcl-compiler	it_3	signature_scan::top_level_require_not_conditional	rust/tcl-compiler/tests/it_3/signature_scan.rs	449	
+fb6690a9edd7	2	0	2	tcl-compiler	lib	sccp::original_value_facts::tests::assignment_folds::evaluate_def_assign_value_folds_list_cmd	rust/tcl-compiler/src/sccp/original_value_facts/tests/assignment_folds.rs	76	
+fb6690a9edd7	2	0	2	tcl-compiler	lib	sccp::tests::assignment_folds::evaluate_def_assign_value_folds_list_cmd	rust/tcl-compiler/src/sccp/tests/assignment_folds.rs	161	
+fbb3c0a1a9a1	2	0	1	tcl-compiler	it_4	differential_group::owner_matches_segmenter_over_corpora	rust/tcl-compiler/tests/it_4/differential_group.rs	804	
+fbb3c0a1a9a1	2	0	1	tcl-compiler	it_4	differential_group::owner_matches_segmenter_over_corpora_deep	rust/tcl-compiler/tests/it_4/differential_group.rs	834	
+fbe3658a5d83	2	0	1	tcl-lsp-core	it_2	references_rename::namespaces::rename_namespaced_proc_from_its_own_decl_isolates_to_that_namespace	rust/tcl-lsp-core/tests/it_2/references_rename/namespaces.rs	706	
+fbe3658a5d83	2	0	1	tcl-lsp-core	it_2	references_rename::namespaces::rename_second_same_named_proc_resolves_to_that_proc_not_the_first	rust/tcl-lsp-core/tests/it_2/references_rename/namespaces.rs	755	
+fcdb6ede7cdf	2	0	1	tcl-compiler	lib	analyser::handlers::tests::namespaces::handle_namespace_eval_creates_child_scope	rust/tcl-compiler/src/analyser/handlers/tests/namespaces.rs	472	
+fcdb6ede7cdf	2	0	1	tcl-compiler	lib	analyser::handlers::tests::namespaces::handle_namespace_eval_dynamic_target_gets_a_synthetic_span_keyed_name	rust/tcl-compiler/src/analyser/handlers/tests/namespaces.rs	574	
+fce2339d699f	2	0	1	tcl-compiler	lib	analyser::handlers::tests::procedures::handle_proc_consumes_last_comment_as_doc	rust/tcl-compiler/src/analyser/handlers/tests/procedures.rs	199	
+fce2339d699f	2	0	1	tcl-compiler	lib	analyser::handlers::tests::procedures::handle_proc_body_walk_does_not_leak_inner_doc_comment	rust/tcl-compiler/src/analyser/handlers/tests/procedures.rs	377	
