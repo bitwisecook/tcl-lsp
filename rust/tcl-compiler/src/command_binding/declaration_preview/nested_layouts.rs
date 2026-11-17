@@ -912,11 +912,17 @@ impl ScopeAliasOwnershipShare {
             snapshot: Arc::clone(start),
             ..parent.clone()
         };
-        let effects = observation
-            .source_body_name_ownership(registry, crate::script_binds::Ownership::ScopeAliases);
+        let effects = scope_alias_body_ownership(&observation, registry);
         self.results.borrow_mut().insert(key, effects.clone());
         effects
     }
+}
+
+fn scope_alias_body_ownership(
+    parent: &DeclarationLayoutObservation,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<crate::ir_helpers::VariableWriteEffects> {
+    parent.source_body_name_ownership(registry, crate::script_binds::Ownership::ScopeAliases)
 }
 
 fn nested_conditional_layouts(
