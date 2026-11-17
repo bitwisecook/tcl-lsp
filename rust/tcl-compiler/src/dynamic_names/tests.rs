@@ -916,3 +916,56 @@ fn bracket_depth_exhaustion_fails_closed_for_dynamic_name_facts() {
     assert_eq!(dynamic, DynamicNameBarrier::OPAQUE_SCRIPT, "{dynamic:?}");
     assert_eq!(literal, DynamicNameBarrier::OPAQUE_SCRIPT, "{literal:?}");
 }
+
+/// Owner ruling, 17 November 2026: a computed variable name is a rename
+/// barrier only when it could spell the old or the new cell. tclsh 8.4.20 and
+/// 9.0.4: with n `::mypkg::version`, `mypkg::version` or `:::mypkg::version`,
+/// `set ::other::$n 2` creates `::other::mypkg::version`; `namespace upvar $ns
+/// counter local` with ns `::mypkg` links `counter`.
+#[test]
+fn a_computed_name_excludes_a_cell_only_by_its_written_prefix_or_tail() {
+    let cells = ["::mypkg::version", "::mypkg::release"];
+    for dialect in ["tcl8.4", "tcl9.1"] {
+        let profile = tcl_dialect::DialectProfile::find(dialect).unwrap();
+        let config = LexerConfig::from_grammar(profile.grammar);
+        for word in [
+            "::other::$n",
+            ":::other::$n",
+            "::mypkg::sub::$n",
+            "${ns}::counter",
+            "${ns}:::counter",
+            "[pick]::counter",
+        ] {
+            assert!(
+                computed_variable_name_cannot_spell(word, &cells, config),
+                "{dialect}: {word}"
+            );
+        }
+        for word in [
+            "$n",
+            "::mypkg::$n",
+            ":::mypkg::$n",
+            "::my$n",
+            "::mypkg::ver$n",
+            "::mypkg::rel$n",
+            "other::$n",
+            "mypkg:::$n",
+            "${ns}::version",
+            "${ns}::release",
+            "${x}a:::version",
+            "::other:$n",
+            "\"::other::$n\"",
+            "{::other::$n}",
+            "::other::version",
+        ] {
+            assert!(
+                !computed_variable_name_cannot_spell(word, &cells, config),
+                "{dialect}: {word} must stay a barrier"
+            );
+        }
+        assert!(
+            !computed_variable_name_cannot_spell("${ns}::counter", &["::mypkg::counter"], config),
+            "{dialect}: the new name is checked too"
+        );
+    }
+}

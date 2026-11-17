@@ -356,6 +356,64 @@ pub fn source_name_pattern_can_spell(
     Some(cell_spellings(source_coordinate).any(|spelling| pattern_matches(&pattern, &spelling)))
 }
 
+/// Whether a computed variable-name word provably cannot spell any of the
+/// given qualified cells (owner ruling, 17 November 2026). Only two written
+/// facts exclude a cell: an absolute literal prefix whose components, each
+/// closed by its own separator, are not the cell's namespace path; or a final
+/// literal whose text after its last separator is not the cell's tail. A
+/// computed neighbour can lengthen an edge separator run but cannot join a
+/// component across one (tclsh 8.4.20 and 9.0.4: `set ::other::$n 2` with n
+/// `::mypkg::version`, `mypkg::version` or `:::mypkg::version` creates
+/// `::other::mypkg::version`). Every other word, a static one included, is
+/// answered `false`.
+#[must_use]
+pub fn computed_variable_name_cannot_spell(
+    word: &str,
+    qualified_cells: &[&str],
+    config: LexerConfig,
+) -> bool {
+    if word.starts_with(['"', '{']) {
+        return false;
+    }
+    let Some(pieces) = raw_name_pieces(literal_variable_root(word), config) else {
+        return false;
+    };
+    pieces
+        .iter()
+        .any(|piece| matches!(piece, NamePiece::Wildcard))
+        && !qualified_cells.is_empty()
+        && qualified_cells.iter().all(|cell| {
+            written_prefix_diverges(&pieces, cell) || written_tail_differs(&pieces, cell)
+        })
+}
+
+fn written_prefix_diverges(pieces: &[NamePiece], cell: &str) -> bool {
+    let Some(NamePiece::Literal(first)) = pieces.first() else {
+        return false;
+    };
+    let fragment = tcl_syntax::naming::written_fragment_components(first.as_bytes());
+    if !fragment.rooted || fragment.closed.is_empty() {
+        return false;
+    }
+    let (holder, _) = tcl_syntax::naming::key_holder_and_tail(cell);
+    let path = tcl_syntax::naming::qualifier_segments(holder.as_bytes());
+    fragment.closed.len() > path.len()
+        || fragment
+            .closed
+            .iter()
+            .zip(&path)
+            .any(|(written, held)| written != held)
+}
+
+fn written_tail_differs(pieces: &[NamePiece], cell: &str) -> bool {
+    let Some(NamePiece::Literal(last)) = pieces.last() else {
+        return false;
+    };
+    tcl_syntax::naming::written_fragment_components(last.as_bytes())
+        .tail_after_separator
+        .is_some_and(|tail| tail != tcl_syntax::naming::key_tail(cell).as_bytes())
+}
+
 /// Conditional overlap of one original command-name operand and a constructed
 /// Logical source coordinate. Unknown substitutions remain possible targets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -481,30 +539,33 @@ enum NamePiece {
 /// spelling, so both are recognised — the same double spelling
 /// [`names_a_dynamic_variable`] documents.
 fn name_word_pattern(word: &str, config: LexerConfig) -> Vec<NamePiece> {
-    use tcl_lexer::{ExecutablePart, ExecutablePartArena, SourceImage, Span};
-    let Some(length) = u32::try_from(word.len()).ok() else {
+    let Some(pieces) = raw_name_pieces(word, config) else {
         return vec![NamePiece::Wildcard];
     };
-    let Ok(arena) = ExecutablePartArena::decompose(
+    canonical_name_pieces(pieces)
+}
+
+/// The literal runs and substitutions of a name word as written, or `None`
+/// when the word cannot be decomposed into plain literal text.
+fn raw_name_pieces(word: &str, config: LexerConfig) -> Option<Vec<NamePiece>> {
+    use tcl_lexer::{ExecutablePart, ExecutablePartArena, SourceImage, Span};
+    let length = u32::try_from(word.len()).ok()?;
+    let arena = ExecutablePartArena::decompose(
         SourceImage::document(word),
         Span::new(0, length),
         tcl_lexer::word_parts::SubstFlags::default(),
         config,
-    ) else {
-        return vec![NamePiece::Wildcard];
-    };
+    )
+    .ok()?;
     let mut pieces = Vec::new();
     for component in arena.list(arena.root()) {
         match component.part {
             ExecutablePart::Text(_) => {
-                let Some(text) = arena
+                let text = arena
                     .bytes(component.span)
-                    .and_then(|text| std::str::from_utf8(text).ok())
-                else {
-                    return vec![NamePiece::Wildcard];
-                };
+                    .and_then(|text| std::str::from_utf8(text).ok())?;
                 if text.contains(['\\', '\0']) {
-                    return vec![NamePiece::Wildcard];
+                    return None;
                 }
                 if !text.is_empty() {
                     pieces.push(NamePiece::Literal(text.to_owned()));
@@ -515,9 +576,13 @@ fn name_word_pattern(word: &str, config: LexerConfig) -> Vec<NamePiece> {
             | ExecutablePart::Expression { .. } => {
                 pieces.push(NamePiece::Wildcard);
             }
-            ExecutablePart::ParseError(_) => return vec![NamePiece::Wildcard],
+            ExecutablePart::ParseError(_) => return None,
         }
     }
+    Some(pieces)
+}
+
+fn canonical_name_pieces(pieces: Vec<NamePiece>) -> Vec<NamePiece> {
     if pieces
         .iter()
         .any(|piece| matches!(piece, NamePiece::Wildcard))

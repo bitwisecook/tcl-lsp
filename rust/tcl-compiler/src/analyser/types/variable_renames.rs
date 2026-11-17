@@ -268,6 +268,108 @@ impl AnalysisResult {
         self.original_variable_alias_coverage()
     }
 
+    /// [`Self::original_variable_rename_is_complete`] for renaming a C
+    /// namespace cell to `proposed` (owner ruling, 17 November 2026): a
+    /// computed variable name is a barrier only when it could spell the old or
+    /// the new cell, and an alias whose computed namespace sits beside a
+    /// written name with another tail cannot link either. Exclusions come only
+    /// from [`crate::dynamic_names::computed_variable_name_cannot_spell`]; an
+    /// excluded site is neither edited nor counted as covered. Local symbols
+    /// keep the whole-document answer.
+    #[must_use]
+    pub fn original_variable_rename_is_complete_for(
+        &self,
+        symbol: &crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol,
+        proposed: &crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol,
+    ) -> bool {
+        let (Some(old), Some(new)) = (
+            symbol.checked_c_namespace_key(),
+            proposed.checked_c_namespace_key(),
+        ) else {
+            return self.original_variable_rename_is_complete(symbol);
+        };
+        if self.original_variable_rename_is_complete(symbol) {
+            return true;
+        }
+        let cells = [old.as_str(), new.as_str()];
+        self.original_variable_rename_preconditions(symbol)
+            && self.original_variable_alias_coverage_excluding(&cells)
+    }
+
+    fn original_variable_rename_preconditions(
+        &self,
+        symbol: &crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol,
+    ) -> bool {
+        !self.original_variable_symbols.iter().any(|occurrence| {
+            occurrence.symbol() == symbol && occurrence.has_source_applicability_obligation()
+        }) && self.retained_command_realm().is_some_and(|realm| {
+            if let Some(input) = self
+                .resolved_input
+                .as_ref()
+                .filter(|input| input.has_logical_source_name_context())
+            {
+                !realm.original_logical_variable_formal_name_is_unrepresented(input, symbol)
+            } else {
+                !realm
+                    .source_bindings_ref()
+                    .original_variable_formal_name_is_unrepresented(symbol)
+            }
+        })
+    }
+
+    fn original_variable_alias_coverage_excluding(&self, cells: &[&str]) -> bool {
+        let Some(config) = self.body_lexer_config else {
+            return false;
+        };
+        let image = self
+            .retained_command_realm()
+            .and_then(crate::realm::CommandBindingRealm::original_source_image);
+        let text = |span: tcl_lexer::Span| {
+            image
+                .and_then(|image| image.bytes().get(span.as_range()))
+                .and_then(|bytes| std::str::from_utf8(bytes).ok())
+        };
+        let cannot_spell = |span| {
+            text(span).is_some_and(|word| {
+                crate::dynamic_names::computed_variable_name_cannot_spell(word, cells, config)
+            })
+        };
+        let written_tail_differs = |span| {
+            text(span).is_some_and(|word| {
+                !word.is_empty()
+                    && !word.starts_with(['"', '{'])
+                    && !word.contains(['$', '[', '\\', '\0'])
+                    && cells.iter().all(|cell| {
+                        tcl_syntax::naming::key_tail(cell) != tcl_syntax::naming::key_tail(word)
+                    })
+            })
+        };
+        self.dynamic_variable_names
+            .iter()
+            .all(|site| cannot_spell(site.span))
+            && self.original_variable_name_unknowns.is_empty()
+            && self
+                .original_variable_alias_obligations
+                .iter()
+                .all(|&(site, count)| {
+                    let receipts = self
+                        .original_variable_alias_receipts
+                        .iter()
+                        .filter(|receipt| receipt.invocation_offset() == site)
+                        .count();
+                    let targets: Vec<_> = self
+                        .original_variable_alias_operands
+                        .iter()
+                        .filter(|operand| operand.0 == site)
+                        .map(|operand| operand.2)
+                        .collect();
+                    receipts == count
+                        || (targets.len() >= count
+                            && targets.iter().all(|&target| written_tail_differs(target)))
+                })
+            && self.original_variable_symbol_conflicts.is_empty()
+    }
+
     /// Whether the selected recorded variable-alias declarations have complete
     /// source-name coverage in this actual current image/input/configuration.
     /// This is not a runtime alias census, successful link, binding continuity,
