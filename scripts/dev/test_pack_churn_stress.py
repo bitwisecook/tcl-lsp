@@ -38,6 +38,13 @@ def test_select_documents_keeps_small_tcl_files_sorted(tmp_path: Path) -> None:
     assert got == sorted([tmp_path / "b.tcl", tmp_path / "sub" / "a.tcl"])
 
 
+def test_select_documents_takes_every_named_extension(tmp_path: Path) -> None:
+    for name in ("a.tcl", "b.irul", "c.tm", "d.json"):
+        (tmp_path / name).write_text("x\n")
+    got = churn.select_documents(tmp_path, 50, ("tcl", "irul", "tm"))
+    assert [p.name for p in got] == ["a.tcl", "b.irul", "c.tm"]
+
+
 @pytest.mark.parametrize(
     ("round_no", "existed", "want"),
     [
