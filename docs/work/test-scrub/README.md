@@ -174,7 +174,7 @@ Updated at the hourly check from the ledgers on `work`.
 | taint | 190 | 0 | |
 | analysis-performance | 30 | 0 | |
 | lsp-features | 500 | 0 | |
-| server-e2e-db | 216 (plus 214 routed: 181 navigation to lsp-features, 33 memo to analysis-performance) | 216 (KEEP-CONTRACT 151, UNDECIDED 50, KEEP-F5 9, KEEP-ORACLE 6) | part 1 read 21:00 UTC; lower-level twins, tclsh runs and the never-publishing cause to do |
+| server-e2e-db | 216 (plus 214 routed: 181 navigation to lsp-features, 33 memo to analysis-performance) | 216, complete (KEEP-CONTRACT 163, KEEP-ORACLE 29, MERGE 10, KEEP-F5 10, REWRITE 2, FIX-FIXTURE 1, UNDECIDED 1 ruled) | signed off 21:12 UTC; three publication faults first |
 | execution | 286 | 261 kept, 25 routed (KEEP-ORACLE 108, MERGE 48, RETIRE 36, REWRITE 32, KEEP-CONTRACT 28, FIX-EXPECTATION 4, FIX-FIXTURE 3, KEEP-F5 2) | G1 to G15 accepted; the 31 receipt-ordering retirements rejected (26 of 36 RETIRE rows cite a contract in the test) and sent back |
 | irules-registry-tooling | 151 | 151, complete (KEEP-F5 48, KEEP-CONTRACT 47, KEEP-ORACLE 40, MERGE 15, FIX-FIXTURE 1); BIG-IP checks TS-01 to TS-10 | signed off 21:00 UTC |
 | tk-oo | 60 | 0 | |
