@@ -22,6 +22,7 @@
 
 use super::{CommandRegistry, Script, SourceInvocationBinding, Statement};
 use crate::ir::{CommandTokens, Module};
+use crate::math_function_binding::{ExpressionMathBindings, OpenExpression};
 use tcl_registry::world_effect::{CallbackKinds, Reentrancy, WorldStateDomain};
 
 /// Why a body may not be run again from its start.
@@ -54,6 +55,8 @@ pub enum ReExecutionDecline {
     IncompleteRoles,
     /// The target is reached through words an alias or ensemble prepends.
     PrependedWords,
+    /// An `expr` may run more than its arithmetic at its site.
+    Expression(OpenExpression),
 }
 
 /// Whether `body`, a procedure body of `module` as a fresh interpreter of the
@@ -77,11 +80,28 @@ pub fn re_executable_body(
     while let Some(script) = pending.pop() {
         for site in script.command_binding_sites.iter() {
             let tokens = site.source_tokens.as_deref().ok_or(Decline::NoInvocation)?;
-            invocation_re_executable(module, tokens, registry)?;
+            let expression = script
+                .statements
+                .iter()
+                .find(|statement| statement.span() == site.span)
+                .and_then(|statement| expression_verdict(module, statement, tokens, registry));
+            invocation_re_executable(module, tokens, registry, expression.as_ref())?;
         }
         for statement in &script.statements {
+            let expression = statement
+                .tokens()
+                .or_else(|| {
+                    script
+                        .command_binding_sites
+                        .iter()
+                        .find(|site| site.span == statement.span())
+                        .and_then(|site| site.source_tokens.as_deref())
+                })
+                .and_then(|tokens| expression_verdict(module, statement, tokens, registry));
             match statement.tokens() {
-                Some(tokens) => invocation_re_executable(module, tokens, registry)?,
+                Some(tokens) => {
+                    invocation_re_executable(module, tokens, registry, expression.as_ref())?;
+                }
                 None if statement.is_executable_invocation()
                     && !script
                         .command_binding_sites
@@ -92,7 +112,7 @@ pub fn re_executable_body(
                 }
                 None => {}
             }
-            if math_function_called(statement) {
+            if expression.is_none() && math_function_called(statement) {
                 return Err(Decline::MathFunction);
             }
             pending.extend(statement.child_scripts());
@@ -101,22 +121,87 @@ pub fn re_executable_body(
     Ok(())
 }
 
+/// The verdict on the expression an expression statement evaluates, at its
+/// site, whose invocation `tokens` records; `None` for any other statement.
+fn expression_verdict(
+    module: &Module,
+    statement: &Statement,
+    tokens: &CommandTokens,
+    registry: &CommandRegistry,
+) -> Option<Result<(), OpenExpression>> {
+    if !matches!(
+        statement,
+        Statement::AssignExpr { .. }
+            | Statement::ExprEval { .. }
+            | Statement::Return { expr: Some(_), .. }
+    ) {
+        return None;
+    }
+    let Some(bindings) = ExpressionMathBindings::for_module_statement(module, statement.span())
+    else {
+        return Some(Err(OpenExpression::Unprepared));
+    };
+    let Some(context) = tokens
+        .source_binding
+        .as_ref()
+        .map(|binding| &binding.variable_context)
+    else {
+        return Some(Err(OpenExpression::Unprepared));
+    };
+    Some(bindings.runs_only_its_arithmetic(
+        |name| plain_local(context, name),
+        |call, arity| math_function_re_executable(call, arity, registry),
+    ))
+}
+
+/// Whether a resolved math function reaches one registry implementation,
+/// through no prepended words, whose declared effects a re-run repeats.
+fn math_function_re_executable(
+    call: &crate::math_function_binding::ResolvedMathFunctionCall<'_>,
+    arity: usize,
+    registry: &CommandRegistry,
+) -> bool {
+    let Some(binding) = call
+        .invocation
+        .reached()
+        .and_then(|reached| reached.command_binding.as_ref())
+    else {
+        return false;
+    };
+    let Some(target) = binding.proved_execution_target() else {
+        return false;
+    };
+    if binding.unknown
+        || binding.may_be_absent
+        || !target.registry_backed
+        || !target.prepended.is_empty()
+        || !call.prepended.is_empty()
+    {
+        return false;
+    }
+    let arguments = vec!["0"; arity];
+    registry
+        .resolve_invocation(&target.command, &arguments, None)
+        .is_some_and(|resolved| facts_re_executable(&resolved.facts(), false).is_ok())
+}
+
 fn invocation_re_executable(
     module: &Module,
     tokens: &CommandTokens,
     registry: &CommandRegistry,
+    expression: Option<&Result<(), OpenExpression>>,
 ) -> Result<(), ReExecutionDecline> {
     let binding = tokens
         .source_binding
         .as_ref()
         .ok_or(ReExecutionDecline::UnprovedTarget)?;
-    binding_re_executable(module, tokens, binding, registry)?;
+    binding_re_executable(module, tokens, binding, registry, expression)?;
     for (_, nested) in tokens.nested_bindings.iter() {
         let Some((_, mut nested_tokens)) = nested.original_recorded_command() else {
             return Err(ReExecutionDecline::NoInvocation);
         };
         nested_tokens.source_binding = Some(nested.clone());
-        invocation_re_executable(module, &nested_tokens, registry)?;
+        invocation_re_executable(module, &nested_tokens, registry, expression)?;
     }
     Ok(())
 }
@@ -126,6 +211,7 @@ fn binding_re_executable(
     tokens: &CommandTokens,
     binding: &SourceInvocationBinding,
     registry: &CommandRegistry,
+    expression: Option<&Result<(), OpenExpression>>,
 ) -> Result<(), ReExecutionDecline> {
     use ReExecutionDecline as Decline;
     let target = binding
@@ -134,13 +220,46 @@ fn binding_re_executable(
     if binding.unknown || binding.may_be_absent || !target.registry_backed {
         return Err(Decline::UnprovedTarget);
     }
+    // The registry declares that any `expr` may call back; whether this one
+    // does is a fact of its site.
+    if let Some(verdict) = expression
+        && target.prepended.is_empty()
+        && tcl_syntax::naming::unroot_rooted_key(&target.command).unwrap_or(&target.command)
+            == "expr"
+    {
+        return verdict.map_err(Decline::Expression);
+    }
     let metadata = binding.original_argument_metadata_for_module(tokens, module, registry);
     let invocation = crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
         registry, metadata, tokens,
     )
     .ok_or(Decline::NoFacts)?;
-    let effects = &invocation.facts.effects;
-    let facts = &invocation.facts;
+    let context = &binding.variable_context;
+    let traced = context.dynamic_traces
+        || !context.traced.is_empty()
+        || !context.trace_registrations.is_empty()
+        || !context.untracked_traces.is_empty()
+        || !context.possible_trace_registrations.is_empty();
+    facts_re_executable(&invocation.facts, traced)?;
+    if traced {
+        return Err(Decline::TracedRead);
+    }
+    if !target.prepended.is_empty() {
+        return Err(Decline::PrependedWords);
+    }
+    variables_local(module, tokens, binding, &invocation.facts)
+}
+
+/// Whether a registry implementation's declared effects stay in its frame:
+/// no frame change, body or state transition; no callback but a trace, and
+/// that only where `traced` is false; and no access beyond the frame's
+/// variables, the interpreter result and the completion state.
+fn facts_re_executable(
+    facts: &tcl_registry::InvocationFacts,
+    traced: bool,
+) -> Result<(), ReExecutionDecline> {
+    use ReExecutionDecline as Decline;
+    let effects = &facts.effects;
     if facts.frame_effect.is_some()
         || facts.body_execution.is_some()
         || facts
@@ -151,12 +270,6 @@ fn binding_re_executable(
         return Err(Decline::StateTransition);
     }
     let callback = effects.callback();
-    let context = &binding.variable_context;
-    let traced = context.dynamic_traces
-        || !context.traced.is_empty()
-        || !context.trace_registrations.is_empty()
-        || !context.untracked_traces.is_empty()
-        || !context.possible_trace_registrations.is_empty();
     // A trace is the only callback a variable access can make, and none is
     // set on a variable this frame holds (as the native body template rules).
     let trace_only = callback.kinds == CallbackKinds::TRACE && !traced;
@@ -178,13 +291,7 @@ fn binding_re_executable(
             other => return Err(Decline::WorldAccess(other)),
         }
     }
-    if traced {
-        return Err(Decline::TracedRead);
-    }
-    if !target.prepended.is_empty() {
-        return Err(Decline::PrependedWords);
-    }
-    variables_local(module, tokens, binding, &invocation.facts)
+    Ok(())
 }
 
 /// Whether each variable the invocation names, as an operand or a
@@ -203,15 +310,7 @@ fn variables_local(
     }
     // Each variable the invocation names, as an operand or a substitution,
     // is a plain local of the frame.
-    let local = |name: &str| {
-        let root = tcl_syntax::naming::split_element_ref(name).map_or(name, |(root, _)| root);
-        !root.is_empty()
-            && !tcl_syntax::naming::is_qualified(root.as_bytes())
-            && !context.globals.contains(root)
-            && !context.ns_vars.contains(root)
-            && !context.upvar_aliases.contains_key(root)
-            && !context.instance_vars.contains(root)
-    };
+    let local = |name: &str| plain_local(context, name);
     for &(index, role) in &facts.arg_roles {
         use tcl_registry::ArgRole;
         match role {
@@ -300,4 +399,17 @@ fn walk_expression(
             _ => {}
         }
     }
+}
+
+/// Whether `name`, or the array it names an element of, is a plain local of
+/// the frame `context` describes: unqualified, and neither linked nor declared
+/// global, namespace or instance.
+fn plain_local(context: &crate::var_resolve::ResolveContext, name: &str) -> bool {
+    let root = tcl_syntax::naming::split_element_ref(name).map_or(name, |(root, _)| root);
+    !root.is_empty()
+        && !tcl_syntax::naming::is_qualified(root.as_bytes())
+        && !context.globals.contains(root)
+        && !context.ns_vars.contains(root)
+        && !context.upvar_aliases.contains_key(root)
+        && !context.instance_vars.contains(root)
 }
