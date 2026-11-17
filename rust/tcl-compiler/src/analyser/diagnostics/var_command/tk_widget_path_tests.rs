@@ -129,3 +129,29 @@ fn a_widget_method_call_keeps_the_command_world_it_declares() {
         }
     }
 }
+
+/// Deleting a widget command destroys the window, whose `<Destroy>`
+/// bindings run arbitrary scripts, so `rename .e {}`, `rename .e .f` and
+/// `destroy .e` leave no proof that `.e` is still bound (#2324). Tcl 8.6
+/// and 9.0 under the Tk provider.
+#[test]
+fn deleting_a_widget_withdraws_its_binding() {
+    for release in ["tcl8.6", "tcl9.0"] {
+        for deletion in ["rename .e {}", "rename .e .f", "destroy .e"] {
+            let source = format!("package require Tk\nentry .e\n{deletion}\nputs done\n");
+            let analysis = analyse(&source, release, &[Provider::Tk]);
+            let at = u32::try_from(source.find("puts done").unwrap()).unwrap();
+            let presence = analysis
+                .retained_command_realm()
+                .unwrap()
+                .invocation_at_source("", at)
+                .lookup_command_word(".e")
+                .selected_slot_presence();
+            assert_ne!(
+                presence,
+                crate::command_binding::SourceCommandSlotPresence::Present,
+                "{release}: {source}"
+            );
+        }
+    }
+}

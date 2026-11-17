@@ -35,6 +35,7 @@ pub fn spec() -> CommandSpec {
         name: "destroy",
         surface: Some(SpecSurface::TK_AND_TCL),
         traits: Traits::FIRE_AND_FORGET_TEARDOWN,
+        state_transitions: Some(crate::state_transition::command_binding::DESTROYS_WINDOWS),
         teardown_argument_layout: Some(
             crate::spec::TeardownArgumentLayout::AllEffectivePostHeadArguments,
         ),
