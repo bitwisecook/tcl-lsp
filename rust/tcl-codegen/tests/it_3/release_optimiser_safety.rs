@@ -1158,6 +1158,8 @@ fn code_after_a_region_and_dead_code_keep_what_runs() {
         "proc p {} {set n 1; foreach {a b} [list 1 2 3] {incr n}; puts $n}\np\n",
         "proc p {} {if {0} {puts never}; puts after}\np\n",
         "proc p {} {return 1; puts never}\nputs [p]\n",
+        "proc p {} {if {0} {puts never}}\nputs [list [p]]\n",
+        "proc p {} {for {set i 7} 0 {} {}}\nputs [list [p]]\n",
     ] {
         preserves(source, "8.4");
     }
