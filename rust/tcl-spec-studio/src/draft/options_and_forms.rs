@@ -335,7 +335,7 @@ fn command_form(form: &CommandForm, lost: &mut Unrecovered) -> (Value, bool) {
     let native = form.source_package_query.is_some()
         || form.semantic_operation.is_some()
         || !form.completion.is_unknown()
-        || form.result_stability.is_some()
+        || !form.result_stability.is_unknown()
         || form.native_result.is_some()
         || !form.world_effects.is_unknown()
         || form.state_transitions.is_some()

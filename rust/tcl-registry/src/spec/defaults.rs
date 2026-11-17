@@ -75,7 +75,7 @@ impl CommandSpec {
         semantic_operation: None,
         semantic_operation_windows: &[],
         completion: crate::knowledge::Knowledge::Unknown,
-        result_stability: None,
+        result_stability: crate::knowledge::Knowledge::Unknown,
         native_result: None,
         assigns_variable_at: None,
         safe_on_uninit: None,
@@ -228,7 +228,9 @@ impl CommandSpec {
     /// interpreter policy. It is not an object method, and, being resolvable,
     /// it never reaches `unknown` fallback handling.
     pub const CLOSED_REFERENTIALLY_TRANSPARENT: Self = Self {
-        result_stability: Some(crate::result_stability::ResultStability::ReferentiallyTransparent),
+        result_stability: crate::knowledge::Knowledge::Partial(
+            crate::result_stability::ResultStability::ReferentiallyTransparent,
+        ),
         world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(StateTransitionDescriptor::EMPTY),
         dispatch_dependencies: Some(DispatchDependencyDescriptor::replace(
@@ -308,7 +310,7 @@ impl SubCommand {
         semantic_operation: None,
         semantic_operation_windows: &[],
         completion: crate::knowledge::Knowledge::Unknown,
-        result_stability: None,
+        result_stability: crate::knowledge::Knowledge::Unknown,
         native_result: None,
         surface: None,
         lifecycle: Lifecycle::UNSPECIFIED,
@@ -365,7 +367,9 @@ impl SubCommand {
     /// an object method and, being resolvable, never reaches `unknown`
     /// fallback handling.
     pub const CLOSED_REFERENTIALLY_TRANSPARENT: Self = Self {
-        result_stability: Some(crate::result_stability::ResultStability::ReferentiallyTransparent),
+        result_stability: crate::knowledge::Knowledge::Partial(
+            crate::result_stability::ResultStability::ReferentiallyTransparent,
+        ),
         world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(StateTransitionDescriptor::EMPTY),
         dispatch_dependencies: Some(DispatchDependencyDescriptor::replace(
@@ -381,7 +385,9 @@ impl SubCommand {
     /// transitions remain conservative unless the command spec independently
     /// declares them.
     pub const VOLATILE_RESULT: Self = Self {
-        result_stability: Some(crate::result_stability::ResultStability::Volatile),
+        result_stability: crate::knowledge::Knowledge::Partial(
+            crate::result_stability::ResultStability::Volatile,
+        ),
         ..Self::DEFAULT
     };
 }

@@ -381,6 +381,7 @@ so the value stays the row's first word:
 world_effects none -complete {8.4 9.1}   ;# no world access, evidenced 8.4 through 9.1
 world_effects none                       ;# stated, but only a lower bound
 completion {Ok Error} -complete {8.4 9.1} ;# finishes only normally or with an error
+result_stability ReferentiallyTransparent -complete {8.4 9.1}
 ```
 
 No row is `Unknown`; a row without flags is `Partial`; each `-complete`
@@ -1475,7 +1476,7 @@ schema order. "excluded" rows carry the reason.
 | `world_effects` | `world_effects none\|NAME\|{ … } ?-partial? ?-complete WINDOW?…` | block carries composition / access / callback / dynamic_fallback; `resolver` is reference-only. **Only `composition` is loaded**; unsupported semantic rows exclude strong analysis with a notice. The `Knowledge` wrapper is `Unknown` with no row, `Partial` with a row, `Complete` with `-complete` |
 | `state_transitions` | `state_transitions NAME\|{ … }` | block carries composition / argument_shape / widen / covers / commit, every row loaded; `resolver` takes `none`, `from-frame-effect`, `-native ID`, or a body whose verbs are `alias LOCAL TARGET ?-level LEVEL?` / `namespace-variable NAME` (variable-cell alias facts only); no call = no transitions |
 | `dispatch_dependencies` | **excluded** | specialisation-proof machinery whose meaning is defined by the optimiser, not by the command; fields.md itself says "leave unset" |
-| `result_stability` | `result_stability Unknown\|ReferentiallyTransparent\|Volatile\|{ReadsVersionedWorld {D …}}` |  |
+| `result_stability` | `result_stability Unknown\|ReferentiallyTransparent\|Volatile\|{ReadsVersionedWorld {D …}} ?-partial? ?-complete WINDOW?…` | the `Knowledge` wrapper is `Unknown` with no row, `Partial` with a row, `Complete` with `-complete` |
 | `literal_argument_validator` | `literal_argument_validator {words ctx} { … }` \| `-native ID` | emitter verbs `invalid …` / `abstain REASON`; no call = valid |
 | `constraints` | `constraints -inputs {invocation} {words ctx} { … }` | the rare escape hatch, consulted only when every declarative option relation reported nothing. Readers `option-present` / `option-value` / `literal N` / `arg-count`; emitters `invalid SLOT MESSAGE ?-conflict?` / `abstain`; no call = no report |
 | `inferred_storage_type` | `inferred_storage_type Dict\|List\|Array` |  |
@@ -1623,7 +1624,7 @@ schema order. "excluded" rows carry the reason.
 | `world_effects` | `world_effects none\|NAME\|{ … } ?-partial? ?-complete WINDOW?…` | block carries composition / access / callback / dynamic_fallback; `resolver` is reference-only. **Only `composition` is loaded**; unsupported semantic rows exclude strong analysis with a notice. The `Knowledge` wrapper is `Unknown` with no row, `Partial` with a row, `Complete` with `-complete` |
 | `state_transitions` | `state_transitions NAME\|{ … }` | block carries composition / argument_shape / widen / covers / commit, every row loaded; `resolver` takes `none`, `from-frame-effect`, `-native ID`, or a body whose verbs are `alias LOCAL TARGET ?-level LEVEL?` / `namespace-variable NAME` (variable-cell alias facts only); no call = no transitions |
 | `dispatch_dependencies` | **excluded** | specialisation-proof machinery whose meaning is defined by the optimiser, not by the command; fields.md itself says "leave unset" |
-| `result_stability` | `result_stability Unknown\|ReferentiallyTransparent\|Volatile\|{ReadsVersionedWorld {D …}}` |  |
+| `result_stability` | `result_stability Unknown\|ReferentiallyTransparent\|Volatile\|{ReadsVersionedWorld {D …}} ?-partial? ?-complete WINDOW?…` | the `Knowledge` wrapper is `Unknown` with no row, `Partial` with a row, `Complete` with `-complete` |
 | `literal_argument_validator` | `literal_argument_validator {words ctx} { … }` \| `-native ID` | emitter verbs `invalid …` / `abstain REASON`; no call = valid |
 | `constraints` | `constraints -inputs {invocation} {words ctx} { … }` | the rare escape hatch, consulted only when every declarative option relation reported nothing. Readers `option-present` / `option-value` / `literal N` / `arg-count`; emitters `invalid SLOT MESSAGE ?-conflict?` / `abstain`; no call = no report |
 | `destructive` | `destructive ?yes\|no?` |  |

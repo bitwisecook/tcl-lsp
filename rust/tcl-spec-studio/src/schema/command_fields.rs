@@ -567,9 +567,16 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Result stability",
         EFFECTS,
         FieldKind::RustExpr {
-            hint: "Some(ResultStability::ReferentiallyTransparent)",
+            hint: "Knowledge::Partial(ResultStability::ReferentiallyTransparent)",
         },
         "Whether repeated calls return the same value, or depend on mutable or volatile state.",
+    ),
+    f(
+        "result_stability_knowledge",
+        "Result-stability completeness",
+        EFFECTS,
+        FieldKind::Knowledge,
+        "How completely the result stability is known: unknown, partial (stated), or complete for the release windows evidenced from the implementation.",
     ),
     f(
         "constraints",

@@ -584,8 +584,9 @@ pub struct CommandSpec {
     pub completion: crate::knowledge::Knowledge<crate::completion::CompletionDescriptor>,
 
     /// Whether equal evaluated arguments are sufficient to reproduce this
-    /// command's result. `None` is conservative, not an assertion of purity.
-    pub result_stability: Option<crate::result_stability::ResultStability>,
+    /// command's result. `Unknown` is conservative, not an assertion of
+    /// purity; only `Complete` closes the domain for the windows it names.
+    pub result_stability: crate::knowledge::Knowledge<crate::result_stability::ResultStability>,
 
     /// Native result dependency; runtime identity and completion remain required.
     pub native_result: Option<crate::native_result::NativeResultContract>,

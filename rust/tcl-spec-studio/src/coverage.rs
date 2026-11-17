@@ -422,7 +422,10 @@ pub const COMMAND_SPEC: &[Field] = &[
         "dispatch_dependencies",
         Surface::Key("dispatch_dependencies"),
     ),
-    f("result_stability", Surface::Key("result_stability")),
+    f(
+        "result_stability",
+        Surface::Keys(&["result_stability", "result_stability_knowledge"]),
+    ),
     f("native_result", Surface::Key("native_result")),
     f(
         "literal_argument_validator",
@@ -828,7 +831,10 @@ pub const SUB_COMMAND: &[Field] = &[
         "dispatch_dependencies",
         Surface::Key("dispatch_dependencies"),
     ),
-    f("result_stability", Surface::Key("result_stability")),
+    f(
+        "result_stability",
+        Surface::Keys(&["result_stability", "result_stability_knowledge"]),
+    ),
     f("native_result", Surface::Key("native_result")),
     f(
         "literal_argument_validator",

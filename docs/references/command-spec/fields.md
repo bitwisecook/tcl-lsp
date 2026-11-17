@@ -702,6 +702,16 @@ What must stay *unchanged* for the registry's knowledge about this command to re
 
 Whether calling the command twice with the same arguments yields the same value. `string length` always does; `clock seconds` may not; `info commands` depends on what has been defined in the meantime. Purity says "no side effects"; this says "same answer again" — a command can be pure yet unstable (`clock seconds` changes nothing but its answer advances with the clock). The optimiser only reuses results it can prove stable.
 
+### `result_stability_knowledge` — Result-stability completeness
+
+*command and subcommand* — How completely the result stability is known: unknown, partial (stated), or complete for the release windows evidenced from the implementation.
+
+How much the result-stability claim is known. **Unknown** claims nothing, and a repeated call may return anything. **Partial** says the claim was stated without evidence. **Complete** says it holds for the release windows you evidenced from the implementation's source; a complete `ReferentiallyTransparent` is one of the four facts purity is derived from.
+
+```
+result_stability ReferentiallyTransparent -complete {8.4 9.1}
+```
+
 ## Compiler hooks
 
 Named entry points into the compiler for commands that need special-cased lowering, bytecode, or analysis. Core Tcl commands use these; a third-party command spec almost never should — prefer expressing behaviour through roles, traits, and effects, which need no code.

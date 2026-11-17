@@ -559,7 +559,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     crate::WorldEffectDescriptor::EMPTY,
                 ),
                 state_transitions: Some(crate::StateTransitionDescriptor::EMPTY),
-                result_stability: Some(crate::ResultStability::ReferentiallyTransparent),
+                result_stability: crate::knowledge::Knowledge::Partial(
+                    crate::ResultStability::ReferentiallyTransparent,
+                ),
                 traits: Some(Traits::PURE.union(Traits::CSE_CANDIDATE)),
                 ..crate::forms::SubCommandForm::DEFAULT
             }]

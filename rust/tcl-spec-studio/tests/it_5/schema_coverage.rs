@@ -104,6 +104,10 @@ const EXPANDED_FIELDS: &[(&str, &[&str])] = &[
         &["world_effects", "world_effects_knowledge"],
     ),
     ("completion", &["completion", "completion_knowledge"]),
+    (
+        "result_stability",
+        &["result_stability", "result_stability_knowledge"],
+    ),
 ];
 
 fn expansion_of(field: &str) -> &'static [&'static str] {

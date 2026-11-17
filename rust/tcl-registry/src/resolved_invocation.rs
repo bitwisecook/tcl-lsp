@@ -173,7 +173,7 @@ pub struct InvocationSemantics<'r, 'w> {
     /// with [`crate::knowledge::Knowledge::or_conservative`].
     pub completion: crate::knowledge::Knowledge<CompletionDescriptor>,
     /// Registry-declared dependency contract for the invocation's result.
-    pub result_stability: ResultStability,
+    pub result_stability: crate::knowledge::Knowledge<ResultStability>,
     /// Authored native result dependency, requiring actual implementation proof.
     pub native_result: Option<crate::native_result::NativeResultContract>,
     /// Effective Tcl value-representation effect.

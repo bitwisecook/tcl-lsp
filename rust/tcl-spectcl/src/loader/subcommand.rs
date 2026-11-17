@@ -20,7 +20,7 @@
 
 use super::block_descriptors::{
     check_clause_grammar, clause_grammar_value, record_clause_grammar_derivations,
-    result_stability_row,
+    result_stability_value,
 };
 use super::body_rows::{
     hover_block, option_effect_family_row, option_row, parse_callback_taint_input_table,
@@ -502,8 +502,9 @@ pub(super) fn apply_subcommand_stmt(
         // The ratified word `SubCommand` carries in its own right: an
         // ensemble arm's result contract is not its command's.
         "result_stability" => {
-            if let Some(stability) = result_stability_row(stmt, log) {
-                sub.result_stability = Some(stability);
+            let stability = result_stability_value(stmt, log);
+            if !stability.is_unknown() {
+                sub.result_stability = stability;
             }
         }
         "side_effect" => {

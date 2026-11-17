@@ -813,7 +813,7 @@ impl ResolvedInvocation<'_, '_> {
             irules_source_flow_action: self.authored_source_irules_flow_action(),
             source_may_commit_response: self.authored_source_may_commit_response(),
             completion: self.semantics.completion.or_conservative(),
-            result_stability: self.semantics.result_stability,
+            result_stability: self.semantics.result_stability.stated().unwrap_or_default(),
             native_result: self.semantics.native_result,
             representation_effect: self.semantics.representation_effect,
             operand_representation_coercions: self.operand_representation_coercions(),

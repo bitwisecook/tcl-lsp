@@ -778,6 +778,20 @@ append log $line",
         },
     ),
     (
+        "result_stability_knowledge",
+        Example {
+            code: "set a [string length $s]\nset b [string length $s]",
+            focuses: &[
+                focus(
+                    0,
+                    "string",
+                    "its result depends only on its argument, complete from the 8.4–9.1 sources",
+                ),
+                focus(1, "string", "so the repeat can reuse the first result"),
+            ],
+        },
+    ),
+    (
         // No shipped command needs this hook; it exists for packs, so the
         // example is a pack's own command.
         "constraints",

@@ -425,7 +425,7 @@ fn the_ratified_words_reach_their_model_fields() {
         .find(|command| command.spec.name == "probe::collect")
         .expect("the collect command loads");
     assert_eq!(
-        collect.spec.result_stability,
+        collect.spec.result_stability.stated(),
         Some(ResultStability::Volatile)
     );
     assert_eq!(
@@ -459,7 +459,7 @@ fn the_ratified_words_reach_their_model_fields() {
         .find(|command| command.spec.name == "probe::read")
         .expect("the read command loads");
     assert_eq!(
-        read.spec.result_stability,
+        read.spec.result_stability.stated(),
         Some(ResultStability::ReadsVersionedWorld(&[
             WorldStateDomain::CommandBindings,
             WorldStateDomain::NamespaceLookup,
@@ -478,7 +478,7 @@ fn the_ratified_words_reach_their_model_fields() {
             .subcommands
             .iter()
             .find(|sub| sub.name == "line")
-            .and_then(|sub| sub.result_stability),
+            .and_then(|sub| sub.result_stability.stated()),
         Some(ResultStability::ReferentiallyTransparent)
     );
 }
@@ -534,7 +534,7 @@ fn a_malformed_ratified_row_is_dropped_with_a_notice() {
         .iter()
         .find(|command| command.spec.name == "probe::bad")
         .expect("the command still loads");
-    assert_eq!(command.spec.result_stability, None);
+    assert!(command.spec.result_stability.is_unknown());
     assert_eq!(command.spec.event_handler_priority, None);
     assert_eq!(command.spec.data_collection, None);
     assert_eq!(pack.notices.len(), 3, "{:?}", pack.notices);
@@ -620,4 +620,32 @@ fn completion_rows_state_their_completeness_issue_1712() {
         descriptor.codes,
         CompletionCodeDomain::Exact(&[CompletionCode::Ok, CompletionCode::Error])
     );
+}
+
+/// Issue #1712: a `result_stability` row's trailing flags state how completely
+/// its claim is known; the row alone is a lower bound and no row states
+/// nothing.
+#[test]
+fn result_stability_rows_state_their_completeness_issue_1712() {
+    use tcl_dialect::model::{Family, SurfaceQuery};
+    use tcl_registry::knowledge::KnowledgeLevel;
+    let load = |row: &str| {
+        let pack = evaluate_pack(&format!("speclib probe 2.2 {{ command demo {{ {row} }} }}"));
+        (
+            pack.command("demo").unwrap().spec.result_stability,
+            pack.notices,
+        )
+    };
+    let (absent, _) = load("arity 0");
+    assert!(absent.is_unknown());
+    let (stated, _) = load("result_stability ReferentiallyTransparent");
+    assert_eq!(stated.level(), KnowledgeLevel::Partial);
+    let (complete, notices) = load("result_stability ReferentiallyTransparent -complete {8.6 9.1}");
+    assert!(notices.is_empty(), "{notices:?}");
+    let at = |release| SurfaceQuery::core(Family::Tcl, release);
+    assert_eq!(
+        complete.complete_at(Some(&at("9.0"))),
+        Some(&ResultStability::ReferentiallyTransparent)
+    );
+    assert!(complete.complete_at(Some(&at("8.5"))).is_none());
 }

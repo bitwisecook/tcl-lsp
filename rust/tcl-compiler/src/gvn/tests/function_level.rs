@@ -283,7 +283,7 @@ fn function_level_gvn_declines_volatile_result_despite_closed_effects() {
     registry.insert(tcl_registry::CommandSpec {
         name: "test::volatile_cse",
         traits: Traits::PURE | Traits::CSE_CANDIDATE,
-        result_stability: Some(ResultStability::Volatile),
+        result_stability: tcl_registry::knowledge::Knowledge::Partial(ResultStability::Volatile),
         world_effects: tcl_registry::knowledge::Knowledge::Partial(
             tcl_registry::WorldEffectDescriptor::EMPTY,
         ),

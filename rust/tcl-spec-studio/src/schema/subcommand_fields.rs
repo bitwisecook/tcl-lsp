@@ -779,9 +779,16 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Result stability",
         EFFECTS,
         FieldKind::RustExpr {
-            hint: "Some(ResultStability::ReferentiallyTransparent)",
+            hint: "Knowledge::Partial(ResultStability::ReferentiallyTransparent)",
         },
         "Subcommand-specific result stability declaration.",
+    ),
+    f(
+        "result_stability_knowledge",
+        "Result-stability completeness",
+        EFFECTS,
+        FieldKind::Knowledge,
+        "How completely this subcommand's result stability is known.",
     ),
     f(
         "constraints",

@@ -60,7 +60,7 @@ pub(super) use body_statements::{apply_command_stmt, repeat_row};
 use containment::check_command_containment;
 pub(super) use effect_rows::{
     StatedKnowledge, completion_value, effects_knowledge, effects_row, option_relation_row,
-    side_effect_row,
+    side_effect_row, split_knowledge_flags, stated_knowledge,
 };
 pub(super) use refinements::{load_refinement, variable_receivers_value};
 pub(super) use role_resolvers::{

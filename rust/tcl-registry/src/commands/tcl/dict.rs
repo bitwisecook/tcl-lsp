@@ -245,7 +245,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // unknown values are retained without coercion. An open world
         // contract cannot carry the referentially transparent result claim.
         world_effects: crate::knowledge::Knowledge::Unknown,
-        result_stability: None,
+        result_stability: crate::knowledge::Knowledge::Unknown,
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),

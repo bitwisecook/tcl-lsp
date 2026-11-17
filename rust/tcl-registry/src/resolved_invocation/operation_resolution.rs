@@ -227,10 +227,17 @@ pub(super) fn resolve_invocation_semantics<'r, 'w>(
                 crate::knowledge::Knowledge::Unknown
             }),
         result_stability: form
-            .and_then(|form| form.result_stability)
-            .or(sub.and_then(|sub| sub.result_stability))
-            .or(inherit_command.then_some(spec.result_stability).flatten())
-            .unwrap_or_default(),
+            .map_or(crate::knowledge::Knowledge::Unknown, |form| {
+                form.result_stability
+            })
+            .or(sub.map_or(crate::knowledge::Knowledge::Unknown, |sub| {
+                sub.result_stability
+            }))
+            .or(if inherit_command {
+                spec.result_stability
+            } else {
+                crate::knowledge::Knowledge::Unknown
+            }),
         native_result: form
             .and_then(|form| form.native_result)
             .or(sub.and_then(|sub| sub.native_result))

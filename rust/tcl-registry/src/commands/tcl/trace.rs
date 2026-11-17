@@ -1205,9 +1205,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arg_role_resolver_roles: &[ArgRole::VarRead, ArgRole::CommandName],
         pure: true,
         return_type: Some(TclType::List),
-        result_stability: Some(ResultStability::ReadsVersionedWorld(
-            TRACE_INFO_RESULT_DOMAINS,
-        )),
+        result_stability: crate::knowledge::Knowledge::Partial(
+            ResultStability::ReadsVersionedWorld(TRACE_INFO_RESULT_DOMAINS),
+        ),
         arg_values: &[(0, TRACE_TYPE_VALUES)],
         closed_value_args: &[0],
         arg_values_accept_prefix: true,
@@ -1344,9 +1344,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arg_roles: &[(0, ArgRole::VarRead)],
         pure: true,
         return_type: Some(TclType::List),
-        result_stability: Some(ResultStability::ReadsVersionedWorld(&[
-            WorldStateDomain::VariableTraces,
-        ])),
+        result_stability: crate::knowledge::Knowledge::Partial(
+            ResultStability::ReadsVersionedWorld(&[WorldStateDomain::VariableTraces]),
+        ),
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::InterpState,
             reads: true,

@@ -343,7 +343,11 @@ fn subcommand_hooks(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
     );
     d.insert(
         "result_stability".into(),
-        lost.expr("result_stability", sub.result_stability.is_some()),
+        lost.expr("result_stability", !sub.result_stability.is_unknown()),
+    );
+    d.insert(
+        "result_stability_knowledge".into(),
+        knowledge(&sub.result_stability),
     );
     d.insert(
         "native_result".into(),

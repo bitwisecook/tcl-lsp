@@ -654,6 +654,15 @@ advances with the clock). \
 The optimiser only reuses results it can prove stable.",
     ),
     (
+        "result_stability_knowledge",
+        "How much the result-stability claim is known. **Unknown** claims \
+nothing, and a repeated call may return anything. **Partial** says the claim \
+was stated without evidence. **Complete** says it holds for the release \
+windows you evidenced from the implementation's source; a complete \
+`ReferentiallyTransparent` is one of the four facts purity is derived from.\n\n\
+```\nresult_stability ReferentiallyTransparent -complete {8.4 9.1}\n```",
+    ),
+    (
         "option_placement",
         "Where this command's declared options may be found. `Leading` — the \
 default, and what every core Tcl command does — stops option parsing at the \

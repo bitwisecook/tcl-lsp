@@ -152,8 +152,8 @@ pub struct CommandForm {
     pub completion: crate::knowledge::Knowledge<CompletionDescriptor>,
 
     /// Result-dependency refinement for this concrete invocation shape.
-    /// `None` inherits the resolved subcommand or command declaration.
-    pub result_stability: Option<ResultStability>,
+    /// `Unknown` inherits the resolved subcommand or command declaration.
+    pub result_stability: crate::knowledge::Knowledge<ResultStability>,
 
     /// Native result dependency, inheriting the parent when omitted.
     pub native_result: Option<crate::native_result::NativeResultContract>,
@@ -256,7 +256,7 @@ impl CommandForm {
         successful_handler: None,
         variable_receivers: None,
         completion: crate::knowledge::Knowledge::Unknown,
-        result_stability: None,
+        result_stability: crate::knowledge::Knowledge::Unknown,
         native_result: None,
         return_type: None,
         arg_types: None,

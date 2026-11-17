@@ -303,9 +303,9 @@ pub struct SubCommand {
     /// parent command's descriptor.
     pub completion: crate::knowledge::Knowledge<crate::completion::CompletionDescriptor>,
 
-    /// Result-dependency refinement for this subcommand. `None` inherits the
-    /// parent command declaration.
-    pub result_stability: Option<crate::result_stability::ResultStability>,
+    /// Result-dependency refinement for this subcommand. `Unknown` inherits
+    /// the parent command declaration.
+    pub result_stability: crate::knowledge::Knowledge<crate::result_stability::ResultStability>,
 
     /// Native result dependency; runtime identity and completion remain required.
     pub native_result: Option<crate::native_result::NativeResultContract>,

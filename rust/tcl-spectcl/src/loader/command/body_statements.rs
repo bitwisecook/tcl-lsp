@@ -21,7 +21,7 @@
 use super::super::block_descriptors::{
     IRULES_SOURCE_FLOWS, SIDE_SWITCH_TARGETS, body_scope_value, clause_grammar_value,
     data_collection_row, event_handler_priority_row, event_requirement_form_row, manufacturer_row,
-    result_stability_row,
+    result_stability_value,
 };
 use super::super::body_rows::{
     hover_block, option_effect_family_row, option_row, parse_callback_taint_input_table,
@@ -443,8 +443,9 @@ pub(in super::super) fn apply_command_stmt(
         }
         // The ratified words (design §6.2, §6.3's blind spot).
         "result_stability" => {
-            if let Some(stability) = result_stability_row(stmt, log) {
-                spec.result_stability = Some(stability);
+            let stability = result_stability_value(stmt, log);
+            if !stability.is_unknown() {
+                spec.result_stability = stability;
             }
         }
         "irules_source_flow" => {

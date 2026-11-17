@@ -258,7 +258,13 @@ pub const GAPS: &[Gap] = &[
     },
     Gap {
         key: "result_stability",
-        spelling: "result_stability Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}",
+        spelling: "result_stability Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}} ?-partial? ?-complete WINDOW?…",
+        kind: GapKind::DraftOpaque,
+    },
+    Gap {
+        // Spelled on the opaque `result_stability` row, so it travels with it.
+        key: "result_stability_knowledge",
+        spelling: "result_stability … -complete WINDOW",
         kind: GapKind::DraftOpaque,
     },
     // The draft has it; the loader does not read it yet.

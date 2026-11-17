@@ -93,6 +93,11 @@ const NO_SUBS: &[(&str, &str, &str)] = &[];
 /// `world_effects` is a descriptor the port does not transcribe: the
 /// completeness travels on the `world_effects` row, so a port without the
 /// row states none (issue #1712).
+/// The same for `result_stability_knowledge` beside an untranscribed
+/// `result_stability`.
+const UNTRANSCRIBED_STABILITY_KNOWLEDGE: &str = "the completeness of a shipped \
+     `result_stability` claim the port does not transcribe; it is spelled on that \
+     row, so the port states none";
 /// The same for `completion_knowledge` beside an untranscribed `completion`.
 const UNTRANSCRIBED_COMPLETION_KNOWLEDGE: &str = "the completeness of a shipped \
      `completion` descriptor the port does not transcribe; it is spelled on that \
@@ -366,6 +371,11 @@ const PORTS: &[Port] = &[
                     "completion_knowledge",
                     UNTRANSCRIBED_COMPLETION_KNOWLEDGE,
                 ),
+                (
+                    "length",
+                    "result_stability_knowledge",
+                    UNTRANSCRIBED_STABILITY_KNOWLEDGE,
+                ),
                 ("is", "__unrenderable", NATIVE_COMPILATION),
                 (
                     "map",
@@ -386,6 +396,11 @@ const PORTS: &[Port] = &[
                     "completion_knowledge",
                     UNTRANSCRIBED_COMPLETION_KNOWLEDGE,
                 ),
+                (
+                    "map",
+                    "result_stability_knowledge",
+                    UNTRANSCRIBED_STABILITY_KNOWLEDGE,
+                ),
                 ("range", "successful_handler", SUCCESSFUL_HANDLER),
                 (
                     "range",
@@ -396,6 +411,11 @@ const PORTS: &[Port] = &[
                     "range",
                     "completion_knowledge",
                     UNTRANSCRIBED_COMPLETION_KNOWLEDGE,
+                ),
+                (
+                    "range",
+                    "result_stability_knowledge",
+                    UNTRANSCRIBED_STABILITY_KNOWLEDGE,
                 ),
                 (
                     "range",

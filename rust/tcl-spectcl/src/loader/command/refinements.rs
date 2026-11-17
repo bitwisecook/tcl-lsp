@@ -18,7 +18,7 @@
 
 //! `refine` blocks: the invocation form a refinement describes, its statements, options and selector.
 
-use super::super::block_descriptors::result_stability_row;
+use super::super::block_descriptors::result_stability_value;
 use super::super::body_rows::option_row;
 use super::super::statement_reader::{Stmt, block};
 use super::super::value_parsers::{
@@ -265,8 +265,9 @@ fn apply_refine_stmt(
         }
         "semantic_operation" => form_semantic_operation(form, stmt, &value, log),
         "result_stability" => {
-            if let Some(stability) = result_stability_row(stmt, log) {
-                form.result_stability = Some(stability);
+            let stability = result_stability_value(stmt, log);
+            if !stability.is_unknown() {
+                form.result_stability = stability;
             }
         }
         "representation_effect" => {

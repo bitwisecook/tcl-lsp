@@ -539,7 +539,13 @@ speclib probe 2.0 {
     assert_eq!(snapshot(&pack), snapshot(&reloaded));
     assert_eq!(notice_keys(&pack), notice_keys(&reloaded));
     assert!(reloaded.commands[0].spec.body_scope.is_some());
-    assert!(reloaded.commands[0].spec.result_stability.is_some());
+    assert!(
+        reloaded.commands[0]
+            .spec
+            .result_stability
+            .stated()
+            .is_some()
+    );
     let twice = export_pack_reporting(&reloaded).0;
     assert_eq!(twice, exported, "export is not idempotent");
 }

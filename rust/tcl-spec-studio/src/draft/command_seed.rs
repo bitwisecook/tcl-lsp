@@ -323,7 +323,11 @@ fn command_effects(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     );
     d.insert(
         "result_stability".into(),
-        lost.expr("result_stability", spec.result_stability.is_some()),
+        lost.expr("result_stability", !spec.result_stability.is_unknown()),
+    );
+    d.insert(
+        "result_stability_knowledge".into(),
+        knowledge(&spec.result_stability),
     );
 }
 

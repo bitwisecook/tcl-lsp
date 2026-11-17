@@ -36,7 +36,9 @@ const CLOCK_CONTEXT_DOMAINS: &[WorldStateDomain] = &[
     WorldStateDomain::VariableStore,
 ];
 const VERSIONED_CLOCK_CONTEXT_RESULT: SubCommand = SubCommand {
-    result_stability: Some(ResultStability::ReadsVersionedWorld(CLOCK_CONTEXT_DOMAINS)),
+    result_stability: crate::knowledge::Knowledge::Partial(ResultStability::ReadsVersionedWorld(
+        CLOCK_CONTEXT_DOMAINS,
+    )),
     ..SubCommand::DEFAULT
 };
 
