@@ -229,11 +229,21 @@ impl NativeFrameLevelProtocol {
         } else {
             prefix.first().is_some_and(u8::is_ascii_digit)
         };
+        // `TclObjGetFrame` takes a word that is no level for the caller, which
+        // the global level does not have, so it reports `1` there before the
+        // command can report the word (tclsh 8.6.18 to 9.1.0:
+        // `upvar abc ::x y` is `bad level "1"` at the global level and
+        // `bad level "abc"` inside a procedure).
+        let reported = if is_level || (required && current > 0) {
+            prefix
+        } else {
+            b"1"
+        };
         Ok(self.finish(
             current,
             (!is_level && !required).then_some((true, 1)),
             required,
-            if is_level || required { prefix } else { b"1" },
+            reported,
         ))
     }
 
