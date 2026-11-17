@@ -91,8 +91,11 @@ mod unresolved_command {
     fn glob_namespace_import_suppresses_matching_tail_only() {
         // A literal glob import provides every source command matching the
         // pattern's tail — `render_box` matches `render_*` (silent), while an
-        // unrelated name matches nothing and still fires.
-        let src = "namespace import ::acme::widgets::render_*\nrender_box 10 20\nfrobnicate 1\n";
+        // unrelated name matches nothing and still fires. The namespace must
+        // exist: tclsh 8.4.20, 8.6.18 and 9.0.4 raise `unknown namespace in
+        // import pattern` otherwise, and with it run `render_box 10 20` and
+        // raise `invalid command name "frobnicate"`.
+        let src = "namespace eval ::acme::widgets {proc render_box {x y} {}; namespace export *}\nnamespace import ::acme::widgets::render_*\nrender_box 10 20\nfrobnicate 1\n";
         let d = w123(src);
         assert_eq!(d.len(), 1, "only the unrelated name fires; got {d:?}");
         assert!(d[0].contains("frobnicate"));
@@ -106,8 +109,9 @@ mod unresolved_command {
 
     #[test]
     fn literal_namespace_import_suppresses_exactly_that_name() {
-        let src =
-            "namespace import ::acme::widgets::render_box\nrender_box 10 20\nrender_circle 5\n";
+        // tclsh 8.4.20, 8.6.18 and 9.0.4 run `render_box 10 20` and raise
+        // `invalid command name "render_circle"`.
+        let src = "namespace eval ::acme::widgets {proc render_box {x y} {}; proc render_circle {r} {}; namespace export *}\nnamespace import ::acme::widgets::render_box\nrender_box 10 20\nrender_circle 5\n";
         let d = w123(src);
         assert_eq!(d.len(), 1, "only the un-imported name fires; got {d:?}");
         assert!(d[0].contains("render_circle"));
