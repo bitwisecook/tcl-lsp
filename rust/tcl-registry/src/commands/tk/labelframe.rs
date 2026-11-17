@@ -285,6 +285,7 @@ pub fn spec() -> CommandSpec {
         side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         object_class: Some(&LABELFRAME_CLASS),
         creates_instance_at: Some(0),
+        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
         ..CommandSpec::DEFAULT
     }
 }

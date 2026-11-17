@@ -333,3 +333,6 @@ mod selected_method_return_source_tests;
 
 #[cfg(test)]
 mod logical_enclosing_member_inventory_tests;
+
+#[cfg(test)]
+mod tk_widget_path_tests;
