@@ -479,6 +479,12 @@ impl ModuleCommandBindings {
         configuration: &super::super::closed_class_configuration::ClosedClassConfiguration,
         context: SourceExecutionContext<'_>,
     ) {
+        // The definer's declared transition taints every class when its
+        // operand is not an exact literal; this configuration changed the one
+        // class below and nothing else.
+        if !configuration.tainted_all {
+            Arc::make_mut(&mut self.tainted_object_dispatch).remove("*");
+        }
         let Some(identity) = configuration.class.identity.clone() else {
             return;
         };
@@ -579,15 +585,8 @@ impl ModuleCommandBindings {
         if let Some(bounded) = &configuration.bounded {
             Arc::make_mut(&mut self.bounded_constructions).insert(identity, bounded.clone());
         }
-        // The definer's declared transition taints the configured operand,
-        // or every class when that operand is not an exact literal; this
-        // configuration changed the one class above and nothing else.
-        let tainted = Arc::make_mut(&mut self.tainted_object_dispatch);
         if !configuration.tainted {
-            tainted.remove(&configuration.class.command);
-        }
-        if !configuration.tainted_all {
-            tainted.remove("*");
+            Arc::make_mut(&mut self.tainted_object_dispatch).remove(&configuration.class.command);
         }
     }
 }

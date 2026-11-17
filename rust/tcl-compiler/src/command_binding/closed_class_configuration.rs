@@ -36,6 +36,7 @@ pub(super) struct ClosedClassConfiguration {
     pub(super) bounded: Option<super::module_bindings::BoundedClassConstruction>,
     pub(super) tainted: bool,
     pub(super) tainted_all: bool,
+    pub(super) site: super::CommandAllocationSite,
 }
 
 impl SourceCommandBindings {
@@ -120,6 +121,10 @@ impl SourceCommandBindings {
                 .tainted_object_dispatch
                 .contains(&class_target.command),
             tainted_all: state.tainted_object_dispatch.contains("*"),
+            site: super::CommandAllocationSite {
+                source: std::sync::Arc::clone(state.current_source_origin.as_ref()?),
+                offset: native.segment.span.start(),
+            },
         })
     }
 
@@ -132,6 +137,7 @@ impl SourceCommandBindings {
         context: SourceExecutionContext<'_>,
     ) {
         state.retain_configured_class_definition(configuration, context);
+        self.record_configured_class_method_references(configuration, state, context);
         self.register_original_method_bodies(
             configuration.grammar,
             &configuration.body,
