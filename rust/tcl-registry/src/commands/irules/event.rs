@@ -24,16 +24,16 @@ pub const fn spec() -> CommandSpec {
         name: "event",
         traits: Traits::DIAGRAM_ACTION,
         // `Some(IRULES)`, not `None`: this is the F5 iRules `event`
-        // (enable/disable/info of iRule event evaluation on a connection —
-        // note the `ConnectionControl` side effect), not Tcl's. Core Tcl has
+        // (enable/disable/info of iRule event evaluation on a connection),
+        // not Tcl's. Core Tcl has
         // no `event` command at all — `event generate`/`add`/`info` are Tk's
         // (see `tk/event.rs`, `Some(TK)`). A catch-all `None` here would let
         // the iRules command resolve under *every* dialect (plain Tcl, the
         // EDA vendors, expect, …), since `best_visible` treats `None` as
         // visible everywhere and Tk's `TK`-gated spec never intersects
         // them — so a plain-Tcl `event disable` would wrongly resolve to
-        // this iRules command (ConnectionControl side effect and all)
-        // instead of reading as unknown. Gating to the bare `IRULES` vendor
+        // this iRules command instead of reading as unknown. Gating to the
+        // bare `IRULES` vendor
         // bit matches every other `irules/` command and confines it to the
         // iRules dialect.
         surface: Some(SpecSurface::IRULES),
@@ -55,12 +55,12 @@ pub const fn spec() -> CommandSpec {
             synopsis: "event info",
             ..FormSpec::DEFAULT
         }],
-        side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
-            target: SideEffectTarget::ConnectionControl,
-            writes: true,
-            connection_side: ConnectionSide::Both,
-            ..SideEffect::DEFAULT
-        }]),
+        // Unknown: `ConnectionControl` names a connection-terminating action
+        // (drop, reject, discard), which disabling an event's evaluation is
+        // not, and whether a device treats it as event control or connection
+        // control is not evidenced: `bigip-name-checks.md` check 31
+        // (issue #1712 audit).
+        side_effects: crate::knowledge::Knowledge::Unknown,
         ..CommandSpec::DEFAULT
     }
 }

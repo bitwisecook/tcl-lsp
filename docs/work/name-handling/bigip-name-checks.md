@@ -3667,6 +3667,22 @@ its citation and a regression that reads the recorded lines.
     - `bnq18nosuch\nwhen RULE_INIT { log local0. x }`
     Until answered, the walk keeps entering the call and the consumers that
     need a refusal stay conservative.
+31. **What `event … disable` touches** (issue #1712 audit). Not a naming
+    question; filed here because it needs a device. The registry stated it
+    as a `ConnectionControl` write, the target the connection-terminating
+    commands (`drop`, `reject`, `discard`) use, and now states its side
+    effects as `Unknown` (`rust/tcl-registry/src/commands/irules/event.rs`).
+    On one virtual server with one HTTP request per connection, record what
+    each rule does and whether the connection survives:
+    - `when HTTP_REQUEST { event disable; log local0. "after" }` and a second
+      rule `when HTTP_REQUEST priority 600 { log local0. "second" }`
+    - `when HTTP_REQUEST { event HTTP_RESPONSE disable }` with
+      `when HTTP_RESPONSE { log local0. "response" }`
+    - `when CLIENT_ACCEPTED { event disable all }` with
+      `when HTTP_REQUEST { log local0. "request" }`
+    If every connection completes and only the named events stop firing,
+    the effect is event control and gets its own target; until answered it
+    stays `Unknown`.
 
 #### Checks for tests that hold iRules behaviour no Tcl core shows (test scrub, `irules-registry-tooling`)
 
