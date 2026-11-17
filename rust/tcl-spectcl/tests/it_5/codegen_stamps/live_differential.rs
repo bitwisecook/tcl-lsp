@@ -33,8 +33,9 @@ const SHAPES: &[(&str, &str, usize, &str)] = &[
 
 /// Each shape's caller, the calls made of it, and how many definitions the
 /// VM's compile of the caller splices in where the release splices at all: as
-/// many as the release-unit compile splices, which keeps a body that runs a
-/// parameter as a command a call.
+/// many as the release-unit compile splices. A body that runs a parameter as a
+/// command stays a call by decision: the command it runs is a value only the
+/// call knows, so no splice can bind it.
 const CASES: &[(&str, &[&str], usize)] = &[
     ("proc caller {} {vthree}", &["caller"], 1),
     ("proc caller {n} {vupper $n}", &["caller abc"], 1),
@@ -121,9 +122,11 @@ fn run_tclsh(tclsh: &std::path::Path, caller: &str, call: &str) -> String {
 
 /// Every shape — no parameters, one, one an expression reads, one used as the
 /// command word, a default and `args` — answers, result and error text alike,
-/// what tclsh of each release answers. 8.4 enters a procedure body afresh at
-/// each call and splices nothing; every later release splices each shape the
-/// inliner proves safe.
+/// what tclsh of each release answers. 8.4 splices nothing by decision: it
+/// keeps running bytecode it compiled even after a command it bound changes
+/// (`TclVersion::revalidates_running_bytecode`), so a spliced body could not be
+/// refused there. Every later release splices each shape the inliner proves
+/// safe.
 #[test]
 fn each_shape_spliced_by_the_live_compile_answers_as_tclsh_does() {
     let (set, _registry) = bundled_source("live-differential", &shapes_pack());
