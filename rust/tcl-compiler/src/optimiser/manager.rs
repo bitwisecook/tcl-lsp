@@ -281,9 +281,10 @@ fn elim_target_vars(
         return None;
     }
     // A dead structure's removal (O112: a constant-false `if`, `while` or
-    // `for`) deletes a body the structure never enters. A statement the solver
-    // proves never runs defines nothing, so only reachable statements name
-    // the definitions such a removal withdraws.
+    // `for`) deletes a body the structure never enters, and an unreachable
+    // statement's (O107) never runs. A statement the solver proves never runs
+    // defines nothing, so only reachable statements name the definitions such
+    // a removal withdraws.
     let first = cu
         .all_body_function_units()
         .flat_map(|unit| {
@@ -394,13 +395,17 @@ fn drop_def_elims_resurrected_by_replacements(
         .enumerate()
         .filter(|(_, o)| o.replacement.trim().is_empty())
         .map(|(i, o)| {
-            let names = elim_target_vars(cu, registry, o.span, o.code == DiagCode::O112).and_then(
-                |names| {
-                    (!names.is_empty()
-                        || !matches!(o.code, DiagCode::O109 | DiagCode::O125 | DiagCode::O126))
-                    .then_some(names)
-                },
-            );
+            let names = elim_target_vars(
+                cu,
+                registry,
+                o.span,
+                matches!(o.code, DiagCode::O107 | DiagCode::O112),
+            )
+            .and_then(|names| {
+                (!names.is_empty()
+                    || !matches!(o.code, DiagCode::O109 | DiagCode::O125 | DiagCode::O126))
+                .then_some(names)
+            });
             (i, names)
         })
         .collect();

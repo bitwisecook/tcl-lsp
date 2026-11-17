@@ -164,6 +164,24 @@ pub(in super::super) fn sccp_process_terminator(
         // operand evaluation. Original block exception edges remain below.
         Terminator::Return { .. } | Terminator::Complete { .. } => {}
     }
+    // An analysis edge leaves a block that completes normally for a target
+    // its terminator does not name: the exit of a possible body region, which
+    // a loop leaves when its list is exhausted and a wrapper reaches when its
+    // handler declines the body. Without it, `puts $n` after `foreach v [incr
+    // n] {}` was unreachable and O107 deleted it (tclsh 8.4.20 prints `2`).
+    if exit.completes {
+        for &(from, to) in &cfg.analysis_edges {
+            if from != bn {
+                continue;
+            }
+            if executable_edges.insert((bn, to)) {
+                changed = true;
+            }
+            if cfg.blocks.contains_key(&to) && executable_blocks.insert(to) {
+                changed = true;
+            }
+        }
+    }
     // `try` exception edges sourced at `bn`: when `bn` is executable the
     // handler is reachable (a throw can occur in the body).
     for (from, to) in &cfg.exception_edges {

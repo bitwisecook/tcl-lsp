@@ -851,3 +851,22 @@ fn a_store_in_a_loop_body_reaches_the_reads_after_the_loop() {
         prints_under_releases_from(&format!("{FOO}proc p {{}} {{{body}}}\np\n"), "2\n", "8.6");
     }
 }
+
+/// The code after a loop whose list a substitution computes runs once the
+/// list is exhausted. The solver did not follow the region's exit edge, so
+/// `puts $n` was unreachable and deleted. tclsh 8.4.20, 8.6.18 and 9.1.0
+/// print `2` and `1` for these programs.
+#[test]
+fn the_code_after_a_substituted_loop_list_runs() {
+    for source in [
+        "proc p {} {set n 1; foreach v [incr n] {}; puts $n}\np\n",
+        "proc q {} {set n 1; foreach v [list 2] {}; puts 1}\nq\n",
+    ] {
+        let expected = if source.contains("incr") {
+            "2\n"
+        } else {
+            "1\n"
+        };
+        prints_under_every_release(source, expected);
+    }
+}
