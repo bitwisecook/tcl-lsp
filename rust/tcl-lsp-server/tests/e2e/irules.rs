@@ -63,19 +63,6 @@ fn hover(lsp: &mut Lsp, uri: &str, line: u32, ch: u32) -> String {
     hover_text(&lsp.hover(uri, line, ch))
 }
 
-/// Build a synthetic diagnostic.
-fn diag(code: &str, message: &str, start: (u32, u32), end: (u32, u32)) -> Value {
-    json!({
-        "range": {
-            "start": { "line": start.0, "character": start.1 },
-            "end": { "line": end.0, "character": end.1 },
-        },
-        "code": code,
-        "message": message,
-        "source": "tcl-lsp",
-    })
-}
-
 /// An LSP `Range` from `(line, char)` tuples.
 fn range(start: (u32, u32), end: (u32, u32)) -> Value {
     json!({
