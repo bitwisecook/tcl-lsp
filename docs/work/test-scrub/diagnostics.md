@@ -64,6 +64,10 @@ All verdicts; the owner is the session that fixes the product (or the fixture).
 
 161 further causes block one or two tests each; see the ledger.
 
+## Retired record
+
+The five RETIRE rows hold `AnalysisResult::regex_patterns` and `Analyser::regex_vars`. Nothing outside tcl-compiler's own plumbing reads them (per-item graft and rebase, result ordering); the record and its writer in `analyser/handlers/regex_patterns.rs` are noted for removal.
+
 ## Wrong answers (own slugs, first on the fix list)
 
 - `i231-escaped-pattern-false-arm`: `set s "a\nb"; switch $s {a\nb {puts hit} default {puts miss}}` prints `hit` on every release; the product calls that arm always false.
@@ -74,6 +78,7 @@ All verdicts; the owner is the session that fixes the product (or the fixture).
 - `interp-domain-raw-var-key`: procedures made by `makeA` and `makeB` share `@interp@${s}`; navigation crosses between them.
 - `dict-ensemble-map-reconfigure`: a false W001 on `dict is_dict` after `-map` is reconfigured, and a false W214 on a parameter `dict size` reads.
 - `lexer-var-scan-debug-assert`: `w215_quiet_for_backslash_continued_param_list` panics on the `debug_assert` at `tcl-lexer/src/word_parts.rs:702` (a crash, naming owner).
+- `w304-proved-non-dash-constant`: an information-level W304 on a value proved to be the constant `datagroup`, which cannot read as an option.
 - Passing tests the oracle contradicts: two `namespace unknown` rows in `it_4 unresolved_commands` ([`diagnostics-passing-wrong.tsv`](ledger/diagnostics-passing-wrong.tsv)).
 
 ## Distinct failing behaviours worth fixing
