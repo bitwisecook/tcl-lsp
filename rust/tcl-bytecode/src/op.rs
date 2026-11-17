@@ -392,6 +392,13 @@ pub enum Op {
     TCLOO_NEXT_LIST,
     /// C9.1 nextto consumes one genuinely constructed original argument List.
     TCLOO_NEXT_CLASS_LIST,
+    /// Tcl 9.1's four-byte local-index forms of the `incr` opcodes, which
+    /// replace the deprecated one-byte ones (tclCompile.h `INST_INCR_SCALAR`
+    /// through `INST_INCR_ARRAY_IMM`).
+    INCR_SCALAR4,
+    INCR_ARRAY4,
+    INCR_SCALAR4_IMM,
+    INCR_ARRAY4_IMM,
 }
 
 impl Op {
@@ -449,6 +456,8 @@ impl Op {
             Self::APPEND_ARRAY1 | Self::APPEND_ARRAY4 => "appendArray",
             Self::LAPPEND_SCALAR1 | Self::LAPPEND_SCALAR4 => "lappendScalar",
             Self::LAPPEND_ARRAY1 | Self::LAPPEND_ARRAY4 => "lappendArray",
+            Self::TCLOO_NEXT | Self::TCLOO_NEXT4 => "tclooNext",
+            Self::TCLOO_NEXT_CLASS | Self::TCLOO_NEXT_CLASS4 => "tclooNextClass",
             other => other.mnemonic(),
         }
     }
@@ -653,6 +662,10 @@ impl Op {
             Self::TCLOO_NEXT_CLASS4 => "tclooNextClass4",
             Self::TCLOO_NEXT_LIST => "tclooNextList",
             Self::TCLOO_NEXT_CLASS_LIST => "tclooNextClassList",
+            Self::INCR_SCALAR4 => "incrScalar",
+            Self::INCR_ARRAY4 => "incrArray",
+            Self::INCR_SCALAR4_IMM => "incrScalarImm",
+            Self::INCR_ARRAY4_IMM => "incrArrayImm",
             _ => return None,
         })
     }
@@ -741,6 +754,10 @@ impl Op {
                 | Self::LOAD_ARRAY4
                 | Self::INCR_ARRAY1
                 | Self::INCR_ARRAY1_IMM
+                | Self::INCR_SCALAR4
+                | Self::INCR_ARRAY4
+                | Self::INCR_SCALAR4_IMM
+                | Self::INCR_ARRAY4_IMM
                 | Self::LAPPEND_LIST_ARRAY
                 | Self::ARRAY_EXISTS_IMM
                 | Self::ARRAY_MAKE_IMM
@@ -937,6 +954,9 @@ impl Op {
         if self.is_one_byte() {
             return 1;
         }
+        if self.is_five_byte() {
+            return 5;
+        }
         match self {
             // 2-byte: opcode + 1-byte operand
             Self::PUSH1
@@ -972,60 +992,14 @@ impl Op {
             // 3-byte: opcode + 2 1-byte operands
             Self::INCR_SCALAR1_IMM | Self::INCR_ARRAY1_IMM => 3,
 
-            // 5-byte: opcode + 4-byte operand
-            Self::PUSH4
-            | Self::TCLOO_NEXT4
-            | Self::TCLOO_NEXT_CLASS4
-            | Self::TAILCALL4
-            | Self::LOAD_SCALAR4
-            | Self::STORE_SCALAR4
-            | Self::INVOKE_STK4
-            | Self::JUMP4
-            | Self::JUMP_TRUE4
-            | Self::JUMP_FALSE4
-            | Self::LIST
-            | Self::LIST_INDEX_IMM
-            | Self::LINDEX_MULTI
-            | Self::BEGIN_CATCH4
-            | Self::FOREACH_START
-            | Self::DICT_FIRST
-            | Self::DICT_NEXT
-            | Self::DICT_RECOMBINE_IMM
-            | Self::JUMP_TABLE
-            | Self::LAPPEND_LIST
-            | Self::APPEND_SCALAR4
-            | Self::LAPPEND_SCALAR4
-            | Self::APPEND_ARRAY4
-            | Self::LAPPEND_ARRAY4
-            | Self::STORE_ARRAY4
-            | Self::LOAD_ARRAY4
-            | Self::LAPPEND_LIST_ARRAY
-            | Self::ARRAY_EXISTS_IMM
-            | Self::ARRAY_MAKE_IMM
-            | Self::CONCAT_STK
-            | Self::DICT_GET
-            | Self::ERROR_PREFIX_EQ
-            | Self::DICT_GET_DEF
-            | Self::DICT_EXISTS
-            | Self::EXIST_SCALAR
-            | Self::EXIST_ARRAY
-            | Self::CONST_IMM
-            | Self::DICT_APPEND
-            | Self::DICT_LAPPEND
-            | Self::UPVAR
-            | Self::NSUPVAR
-            | Self::VARIABLE
-            | Self::LSET_FLAT
-            | Self::REVERSE
-            | Self::OVER
-            | Self::EXPAND_STKTOP => 5,
-
             // 6-byte
             Self::INVOKE_REPLACE
             | Self::LREPLACE4
             | Self::LREPLACE
             | Self::UNSET_SCALAR
-            | Self::UNSET_ARRAY => 6,
+            | Self::UNSET_ARRAY
+            | Self::INCR_SCALAR4_IMM
+            | Self::INCR_ARRAY4_IMM => 6,
 
             // 9-byte: opcode + 2× 4-byte operands
             Self::LIST_RANGE_IMM
@@ -1043,6 +1017,94 @@ impl Op {
             // early return; `opcode_family_partition_total` proves this.
             _ => unreachable!(),
         }
+    }
+
+    /// The opcodes with one four-byte operand (or two that total four bytes)
+    /// — the five-byte size class of [`Op::size`].
+    const fn is_five_byte(self) -> bool {
+        matches!(
+            self,
+            Self::PUSH4
+                | Self::TCLOO_NEXT4
+                | Self::TCLOO_NEXT_CLASS4
+                | Self::TAILCALL4
+                | Self::LOAD_SCALAR4
+                | Self::STORE_SCALAR4
+                | Self::INCR_SCALAR4
+                | Self::INCR_ARRAY4
+                | Self::INVOKE_STK4
+                | Self::JUMP4
+                | Self::JUMP_TRUE4
+                | Self::JUMP_FALSE4
+                | Self::LIST
+                | Self::LIST_INDEX_IMM
+                | Self::LINDEX_MULTI
+                | Self::BEGIN_CATCH4
+                | Self::FOREACH_START
+                | Self::DICT_FIRST
+                | Self::DICT_NEXT
+                | Self::DICT_RECOMBINE_IMM
+                | Self::JUMP_TABLE
+                | Self::LAPPEND_LIST
+                | Self::APPEND_SCALAR4
+                | Self::LAPPEND_SCALAR4
+                | Self::APPEND_ARRAY4
+                | Self::LAPPEND_ARRAY4
+                | Self::STORE_ARRAY4
+                | Self::LOAD_ARRAY4
+                | Self::LAPPEND_LIST_ARRAY
+                | Self::ARRAY_EXISTS_IMM
+                | Self::ARRAY_MAKE_IMM
+                | Self::CONCAT_STK
+                | Self::DICT_GET
+                | Self::ERROR_PREFIX_EQ
+                | Self::DICT_GET_DEF
+                | Self::DICT_EXISTS
+                | Self::EXIST_SCALAR
+                | Self::EXIST_ARRAY
+                | Self::CONST_IMM
+                | Self::DICT_APPEND
+                | Self::DICT_LAPPEND
+                | Self::UPVAR
+                | Self::NSUPVAR
+                | Self::VARIABLE
+                | Self::LSET_FLAT
+                | Self::REVERSE
+                | Self::OVER
+                | Self::EXPAND_STKTOP
+        )
+    }
+
+    /// The four-byte-operand form a release that emits only wide
+    /// instructions (Tcl 9.1, `DEPRECATED_OPCODE` in tclCompile.h) compiles
+    /// in this one-byte form's place, or `None` where it has none.
+    /// `returnCodeBranch` has none: 9.1 compiles `try`'s dispatch as
+    /// `jumpTableNum` instead.
+    #[must_use]
+    pub const fn wide_form(self) -> Option<Self> {
+        Some(match self {
+            Self::PUSH1 => Self::PUSH4,
+            Self::INVOKE_STK1 => Self::INVOKE_STK4,
+            Self::LOAD_SCALAR1 => Self::LOAD_SCALAR4,
+            Self::LOAD_ARRAY1 => Self::LOAD_ARRAY4,
+            Self::STORE_SCALAR1 => Self::STORE_SCALAR4,
+            Self::STORE_ARRAY1 => Self::STORE_ARRAY4,
+            Self::INCR_SCALAR1 => Self::INCR_SCALAR4,
+            Self::INCR_ARRAY1 => Self::INCR_ARRAY4,
+            Self::INCR_SCALAR1_IMM => Self::INCR_SCALAR4_IMM,
+            Self::INCR_ARRAY1_IMM => Self::INCR_ARRAY4_IMM,
+            Self::JUMP1 => Self::JUMP4,
+            Self::JUMP_TRUE1 => Self::JUMP_TRUE4,
+            Self::JUMP_FALSE1 => Self::JUMP_FALSE4,
+            Self::APPEND_SCALAR1 => Self::APPEND_SCALAR4,
+            Self::APPEND_ARRAY1 => Self::APPEND_ARRAY4,
+            Self::LAPPEND_SCALAR1 => Self::LAPPEND_SCALAR4,
+            Self::LAPPEND_ARRAY1 => Self::LAPPEND_ARRAY4,
+            Self::TAILCALL => Self::TAILCALL4,
+            Self::TCLOO_NEXT => Self::TCLOO_NEXT4,
+            Self::TCLOO_NEXT_CLASS => Self::TCLOO_NEXT_CLASS4,
+            _ => return None,
+        })
     }
 
     /// Map a [`BinOp`] to its bytecode opcode.

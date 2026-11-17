@@ -46,6 +46,7 @@ mod hook_operands;
 mod native_compiler_pass;
 mod native_failure;
 pub(crate) mod native_substitution;
+mod operand_width;
 pub mod peephole;
 pub mod statements;
 pub mod structured;

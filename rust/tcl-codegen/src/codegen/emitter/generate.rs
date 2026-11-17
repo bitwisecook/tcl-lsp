@@ -1037,6 +1037,7 @@ fn finalize_function(
 
     // Layout pass.
     optimise_jumps(&mut ctx.instructions, &ctx.label_positions, 10);
+    ctx.widen_operands();
     let labels = resolve_layout(&mut ctx.instructions, &ctx.label_positions);
 
     // Mark actual source-command entry independently of diagnostic metadata.

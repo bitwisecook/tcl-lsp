@@ -247,6 +247,11 @@ fn op_table_matches_c_instruction_table() {
         (Op::TCLOO_NEXT_CLASS4, "tclooNextClass4", 5),
         (Op::TCLOO_NEXT_LIST, "tclooNextList", 1),
         (Op::TCLOO_NEXT_CLASS_LIST, "tclooNextClassList", 1),
+        // Tcl 9.1 tclCompile.c instruction table.
+        (Op::INCR_SCALAR4, "incrScalar", 5),
+        (Op::INCR_ARRAY4, "incrArray", 5),
+        (Op::INCR_SCALAR4_IMM, "incrScalarImm", 6),
+        (Op::INCR_ARRAY4_IMM, "incrArrayImm", 6),
     ] {
         assert_eq!(op.mnemonic(), mnemonic, "mnemonic of {op:?}");
         assert_eq!(op.size(), size, "size of {op:?}");
@@ -267,6 +272,10 @@ fn op_is_lvt_covers_the_new_slot_operands() {
         Op::STORE_ARRAY4,
         Op::INCR_ARRAY1,
         Op::INCR_ARRAY1_IMM,
+        Op::INCR_SCALAR4,
+        Op::INCR_ARRAY4,
+        Op::INCR_SCALAR4_IMM,
+        Op::INCR_ARRAY4_IMM,
         Op::EXIST_ARRAY,
         Op::ARRAY_MAKE_IMM,
         Op::VARIABLE,
@@ -603,6 +612,10 @@ fn opcode_family_partition_total() {
             Op::TCLOO_ID => (Op::TCLOO_ID.mnemonic(), Op::TCLOO_ID.size()),
             Op::TCLOO_NEXT => (Op::TCLOO_NEXT.mnemonic(), Op::TCLOO_NEXT.size()),
             Op::TCLOO_NEXT_CLASS => (Op::TCLOO_NEXT_CLASS.mnemonic(), Op::TCLOO_NEXT_CLASS.size()),
+            Op::INCR_SCALAR4 => (Op::INCR_SCALAR4.mnemonic(), Op::INCR_SCALAR4.size()),
+            Op::INCR_ARRAY4 => (Op::INCR_ARRAY4.mnemonic(), Op::INCR_ARRAY4.size()),
+            Op::INCR_SCALAR4_IMM => (Op::INCR_SCALAR4_IMM.mnemonic(), Op::INCR_SCALAR4_IMM.size()),
+            Op::INCR_ARRAY4_IMM => (Op::INCR_ARRAY4_IMM.mnemonic(), Op::INCR_ARRAY4_IMM.size()),
         }
     }
     let all = [
@@ -825,6 +838,10 @@ fn opcode_family_partition_total() {
         Op::TCLOO_NEXT_CLASS4,
         Op::TCLOO_NEXT_LIST,
         Op::TCLOO_NEXT_CLASS_LIST,
+        Op::INCR_SCALAR4,
+        Op::INCR_ARRAY4,
+        Op::INCR_SCALAR4_IMM,
+        Op::INCR_ARRAY4_IMM,
     ];
     for op in all {
         let (mnemonic, size) = touch(op);
@@ -1000,4 +1017,43 @@ fn a_modules_claimed_packs_are_every_functions_stamps_sorted_and_once() {
         ..module
     };
     assert!(bare.claimed_packs().is_empty());
+}
+
+/// Tcl 9.1 deprecates every one-byte-operand opcode (tclCompile.h
+/// `DEPRECATED_OPCODE`, from line 666) and compiles its four-byte form, which
+/// it names without a width suffix.
+#[test]
+fn every_deprecated_one_byte_form_has_its_9_1_wide_form() {
+    for (narrow, wide, name) in [
+        (Op::PUSH1, Op::PUSH4, "push"),
+        (Op::INVOKE_STK1, Op::INVOKE_STK4, "invokeStk"),
+        (Op::LOAD_SCALAR1, Op::LOAD_SCALAR4, "loadScalar"),
+        (Op::LOAD_ARRAY1, Op::LOAD_ARRAY4, "loadArray"),
+        (Op::STORE_SCALAR1, Op::STORE_SCALAR4, "storeScalar"),
+        (Op::STORE_ARRAY1, Op::STORE_ARRAY4, "storeArray"),
+        (Op::INCR_SCALAR1, Op::INCR_SCALAR4, "incrScalar"),
+        (Op::INCR_ARRAY1, Op::INCR_ARRAY4, "incrArray"),
+        (Op::INCR_SCALAR1_IMM, Op::INCR_SCALAR4_IMM, "incrScalarImm"),
+        (Op::INCR_ARRAY1_IMM, Op::INCR_ARRAY4_IMM, "incrArrayImm"),
+        (Op::JUMP1, Op::JUMP4, "jump"),
+        (Op::JUMP_TRUE1, Op::JUMP_TRUE4, "jumpTrue"),
+        (Op::JUMP_FALSE1, Op::JUMP_FALSE4, "jumpFalse"),
+        (Op::APPEND_SCALAR1, Op::APPEND_SCALAR4, "appendScalar"),
+        (Op::APPEND_ARRAY1, Op::APPEND_ARRAY4, "appendArray"),
+        (Op::LAPPEND_SCALAR1, Op::LAPPEND_SCALAR4, "lappendScalar"),
+        (Op::LAPPEND_ARRAY1, Op::LAPPEND_ARRAY4, "lappendArray"),
+        (Op::TAILCALL, Op::TAILCALL4, "tailcall"),
+        (Op::TCLOO_NEXT, Op::TCLOO_NEXT4, "tclooNext"),
+        (
+            Op::TCLOO_NEXT_CLASS,
+            Op::TCLOO_NEXT_CLASS4,
+            "tclooNextClass",
+        ),
+    ] {
+        assert_eq!(narrow.wide_form(), Some(wide), "{narrow:?}");
+        assert_eq!(wide.wide_form(), None, "{wide:?}");
+        assert_eq!(wide.wide_mnemonic(), name, "{wide:?}");
+        assert!(wide.size() > narrow.size(), "{wide:?}");
+    }
+    assert_eq!(Op::RETURN_CODE_BRANCH.wide_form(), None);
 }

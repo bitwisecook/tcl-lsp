@@ -156,6 +156,8 @@ fn format_operand<S: BuildHasher>(
                 instr.op,
                 Op::INCR_SCALAR1_IMM
                     | Op::INCR_ARRAY1_IMM
+                    | Op::INCR_SCALAR4_IMM
+                    | Op::INCR_ARRAY4_IMM
                     | Op::INCR_STK_IMM
                     | Op::INCR_SCALAR_STK_IMM
                     | Op::INCR_ARRAY_STK_IMM
@@ -212,12 +214,20 @@ pub fn instruction_operand_text<S: BuildHasher>(
 
 /// Mirrors C Tcl 9.0.2's `tcl::unsupported::disassemble proc` output.
 #[must_use]
+pub fn format_function_asm(asm: &FunctionAsm) -> String {
+    format_function_asm_named(asm, false)
+}
+
+/// [`format_function_asm`] under a release's instruction names:
+/// `wide_names` for one that compiles only the wide forms and names them
+/// without a width suffix (Tcl 9.1, [`Op::wide_mnemonic`]).
+#[must_use]
 #[allow(
     clippy::cast_possible_truncation,
     clippy::cast_possible_wrap,
     clippy::cast_sign_loss
 )]
-pub fn format_function_asm(asm: &FunctionAsm) -> String {
+pub fn format_function_asm_named(asm: &FunctionAsm, wide_names: bool) -> String {
     let mut lines = Vec::new();
 
     let total_bytes: u32 = asm
@@ -297,7 +307,11 @@ pub fn format_function_asm(asm: &FunctionAsm) -> String {
         lines.push(format!(
             "    ({}) {}{spacer}{ops_str}{comment}",
             instr.offset,
-            instr.op.mnemonic()
+            if wide_names {
+                instr.op.wide_mnemonic()
+            } else {
+                instr.op.mnemonic()
+            }
         ));
 
         format_instruction_tables(asm, instr, &mut lines);
@@ -352,12 +366,22 @@ fn format_instruction_tables(asm: &FunctionAsm, instr: &Instruction, lines: &mut
 /// Format an entire [`ModuleAsm`] for display.
 #[must_use]
 pub fn format_module_asm(module: &ModuleAsm) -> String {
-    let mut parts = vec![format_function_asm(&module.top_level)];
+    format_module_asm_named(module, false)
+}
+
+/// [`format_module_asm`] under a release's instruction names, as
+/// [`format_function_asm_named`].
+#[must_use]
+pub fn format_module_asm_named(module: &ModuleAsm, wide_names: bool) -> String {
+    let mut parts = vec![format_function_asm_named(&module.top_level, wide_names)];
     let mut body_ids: Vec<_> = module.procedures.keys().collect();
     body_ids.sort();
     for id in body_ids {
         parts.push(String::new());
-        parts.push(format_function_asm(&module.procedures[id]));
+        parts.push(format_function_asm_named(
+            &module.procedures[id],
+            wide_names,
+        ));
     }
     parts.join("\n")
 }
