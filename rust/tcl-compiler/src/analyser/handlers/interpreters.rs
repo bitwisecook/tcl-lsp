@@ -123,17 +123,26 @@ impl Analyser {
     ) {
         // The substitution's registry transition, not its spelling, names the
         // created interpreter. Keep the variable binding in the scope chain.
+        use tcl_registry::TransitionSubject;
         self.clear_const_string(name, scope_path);
-        match path {
-            Some(tcl_registry::TransitionSubject::Unknown { .. }) => {
+        let written = match &path {
+            Some(
+                TransitionSubject::Literal(value) | TransitionSubject::LocatedLiteral { value, .. },
+            ) => Some(Some(value.as_str())),
+            Some(TransitionSubject::LocatedNativeBytes { value, .. }) => {
+                Some(std::str::from_utf8(value).ok())
+            }
+            Some(TransitionSubject::Unknown { .. }) => Some(None),
+            None => None,
+        };
+        match written {
+            Some(None) => {
                 self.dynamic_interp_ops = true;
                 self.clear_interp_var_binding(name, scope_path);
             }
-            path => {
-                let key = match path {
-                    Some(tcl_registry::TransitionSubject::Literal(p)) => {
-                        self.qualified_interp_key(&p)
-                    }
+            written => {
+                let key = match written {
+                    Some(Some(p)) => self.qualified_interp_key(p),
                     _ => self.mint_synthetic_offset_name("@autoname@", value_tok.span.start()),
                 };
                 self.interpreters.insert(
