@@ -135,3 +135,82 @@ async fn did_close_drops_the_diagnostics_slot() {
         "a closed document must not keep its diagnostics slot (#1144)",
     );
 }
+
+/// A reload reschedules every open document. Admission keeps at most its
+/// bound of them analysing at once and queues the rest, none dropped, while
+/// a document-free request is still answered. Unbounded, every document's
+/// analysis started together on the blocking pool, which then reached its
+/// thread cap with stdin read on the same pool (#1657).
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_reload_over_many_documents_admits_at_most_the_bound_1657() {
+    const BOUND: usize = 2;
+    const DOCUMENTS: usize = 8;
+    let hold = Arc::new(tokio::sync::Semaphore::new(0));
+    let admission = Arc::new(
+        crate::diagnostics::AnalysisAdmission::with_bound(BOUND).holding(Arc::clone(&hold)),
+    );
+    let db = tcl_lsp_db::TclDatabase::default();
+    let (service, _socket) = tower_lsp_server::LspService::new(Backend::new);
+    let client = service.inner().client.clone();
+    let publisher = Arc::new(DiagnosticPublisher::new(client.clone()));
+    let config = default_analyser_config(&db);
+    let mut state = test_backend_state_over(db, client, publisher, config);
+    state.diagnostics_admission = Arc::clone(&admission);
+    let backend = Backend::from_state(state);
+    backend.workspace_scan_ready.mark_complete();
+    for n in 0..DOCUMENTS {
+        let uri = Uri::from_str(&format!("file:///reload/doc{n}.tcl")).unwrap();
+        register(
+            &backend,
+            &uri,
+            &format!("proc p{n} {{a}} {{return $a}}\np{n} 1\n"),
+        )
+        .await;
+    }
+
+    backend.reschedule_all_open_documents().await;
+    let saturated = crate::rt::timeout(std::time::Duration::from_secs(30), async {
+        while admission.in_flight() < BOUND {
+            crate::rt::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await;
+    assert!(saturated.is_ok(), "the bound fills while documents wait");
+    crate::rt::sleep(std::time::Duration::from_millis(300)).await;
+    assert_eq!(admission.in_flight(), BOUND, "the rest stay queued");
+    assert_eq!(admission.peak(), BOUND);
+    assert!(
+        crate::rt::timeout(
+            std::time::Duration::from_secs(5),
+            backend.get_effective_config_command(&[]),
+        )
+        .await
+        .is_ok(),
+        "a document-free request is answered while documents queue",
+    );
+
+    hold.add_permits(DOCUMENTS * 8);
+    let drained = crate::rt::timeout(std::time::Duration::from_secs(120), async {
+        loop {
+            if backend
+                .diag_slots
+                .lock()
+                .await
+                .values()
+                .all(|slot| !slot.running)
+            {
+                break;
+            }
+            crate::rt::sleep(std::time::Duration::from_millis(20)).await;
+        }
+    })
+    .await;
+    assert!(drained.is_ok(), "every queued document drains");
+    assert_eq!(admission.peak(), BOUND, "never more than the bound at once");
+    assert_eq!(admission.in_flight(), 0);
+    assert!(
+        admission.admitted() >= DOCUMENTS,
+        "every document was admitted, none dropped: {}",
+        admission.admitted(),
+    );
+}
