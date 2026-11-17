@@ -58,6 +58,19 @@ pub(crate) fn install_stock_scripted_wrappers(interp: &mut Interp) {
     }
 }
 
+impl Interp {
+    /// Load one of the distribution's scripted libraries, as jimsh loads its
+    /// static extensions (`nshelper.tcl` and the rest) before it reads a
+    /// script. A bare native core has none; commands the host or a script
+    /// already defined are kept. The C releases have no such library.
+    pub fn install_scripted_library(
+        &mut self,
+        library: tcl_registry::native_scripted_distribution::NativeScriptedLibrary,
+    ) {
+        install_stock_scripted_library(self, library);
+    }
+}
+
 /// Explicit source-library entry, independent of core construction. Existing
 /// host or user bindings are preserved; calls keep using mutable lookup.
 pub(crate) fn install_stock_scripted_library(
