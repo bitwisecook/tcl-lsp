@@ -613,25 +613,29 @@ pub fn braced_body_source_region<'t>(
     close: usize,
     text: &'t str,
 ) -> &'t str {
-    let Some(region) = source.get(base..close) else {
-        return text;
-    };
-    if region.len() == text.len() {
-        return text;
-    }
-    let folded = if region.contains('\r') {
-        std::borrow::Cow::Owned(region.replace("\r\n", "\n").replace('\r', "\n"))
-    } else {
-        std::borrow::Cow::Borrowed(region)
-    };
-    // dialect-drift-ok: the region is kept when it reads as `text` verbatim or
-    // under C's continuation fold; a grammar that keeps continuations (Jim)
-    // matches verbatim, and any other difference keeps `text`
-    if folded == text || tcl_syntax::backslash::collapse_brace_continuations_str(&folded) == text {
-        region
-    } else {
-        text
-    }
+    // A braced token's span may end at its closing brace or just past it, so
+    // the content may stop at `close` or one byte later; only a region that
+    // reads as `text` is taken.
+    [close, close + 1]
+        .into_iter()
+        .find_map(|close| {
+            let region = source.get(base..close)?;
+            if region.len() == text.len() {
+                return (region == text).then_some(region);
+            }
+            let folded = if region.contains('\r') {
+                std::borrow::Cow::Owned(region.replace("\r\n", "\n").replace('\r', "\n"))
+            } else {
+                std::borrow::Cow::Borrowed(region)
+            };
+            // dialect-drift-ok: the region is kept when it reads as `text` verbatim or
+            // under C's continuation fold; a grammar that keeps continuations (Jim)
+            // matches verbatim, and any other difference keeps `text`
+            (folded == text
+                || tcl_syntax::backslash::collapse_brace_continuations_str(&folded) == text)
+                .then_some(region)
+        })
+        .unwrap_or(text)
 }
 
 /// The part of a body word's `text` whose spans a walk may rebase by `base`,
