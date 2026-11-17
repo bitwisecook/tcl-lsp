@@ -480,6 +480,22 @@ fn compiler_head_decline(
     }
 }
 
+/// A head with no original name proof is the host compiler's to judge; only
+/// the rule loader's own statements are that, every other walk stays generic.
+fn unproven_head_selection(
+    context: &super::SourceExecutionContext<'_>,
+) -> CompiledInvocationSelection {
+    if !super::rule_declaration::is_rule_loader_top_level(context) {
+        return CompiledInvocationSelection::default();
+    }
+    CompiledInvocationSelection {
+        compiler_name_preservation: super::SourceCompilerNameClosure::Unknown,
+        unknown: true,
+        admission: Some(NativeCompilationSelection::Unknown),
+        ..CompiledInvocationSelection::default()
+    }
+}
+
 pub(super) fn select_invocation(
     words: &[crate::ir::WordExpr],
     state: &ModuleCommandBindings,
@@ -525,7 +541,7 @@ pub(super) fn select_invocation(
         state,
         context.config,
     ) else {
-        return CompiledInvocationSelection::default();
+        return unproven_head_selection(&context);
     };
     let head = std::str::from_utf8(head_input.bytes()).unwrap_or("");
     let Some(snapshot) = context.compilation_snapshot else {
