@@ -435,6 +435,18 @@ impl SourceCommandBindings {
         self.dispatch_points.contains_key(&offset)
     }
 
+    /// Whether the interpretation began the command at `offset`: dispatched
+    /// it, or evaluated its words until one of them raised. A command after
+    /// one that was proved to raise was never begun.
+    #[must_use]
+    pub fn entered_site(&self, offset: u32) -> bool {
+        self.reached_site(offset)
+            || self
+                .pre_handler_failures
+                .keys()
+                .any(|site| site.offset == offset)
+    }
+
     /// Whether this interpretation entered no command (see
     /// [`SourceAnalysisOptions::unentered`]).
     #[must_use]
