@@ -22,6 +22,8 @@ The burn-down continues with new sessions. This file is what every one of them r
 
 The coordinator is session `session_017u5g3KpKgjfMZcPMj8rx4F`. It rules on questions, keeps the scoreboard and does not write area code. `tcl-syntax::naming`, `tcl-lexer` and `xtask` have no session: a session that needs a change there asks the coordinator, then makes it as one small separate commit with the tclsh oracle in the test, after the `tcl-syntax` and `tcl-lexer` suites, `make xtask-gates` and the whole `tcl-compiler` suite against its baseline, and tells the analyser-binding session before pushing.
 
+The owner's open issues are worked by a separate set of sessions under their own orchestrator (session `session_017u5g3KDVBH5v5PXpMYy7KP`); their roster and hand-overs are in `docs/work/issue-sessions/`. They push to `work` too and announce changes in an area's files to that area's session: answer them directly. Issues #2324, #1956 and #1655 stay with `tk-oo`; queue item "No procedure has a transfer summary" of `dataflow-optimiser` is the issue session `dataflow`'s (#2408, #1796).
+
 ## Starting
 
 1. Read `AGENTS.md`, `docs/work/name-handling/fixing-guide.md`, this file, then your hand-over `docs/work/name-handling/handover/<slug>.md` and the rulings at the top of `docs/work/name-handling/current-state.md`. Your hand-over's rulings are settled: do not reopen them.
