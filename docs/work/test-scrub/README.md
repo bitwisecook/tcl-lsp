@@ -208,7 +208,7 @@ session whose area note names it, and analyser-binding decides the rest.
 
 ## Where it stands, 17 November 2026, 22:40 UTC
 
-Twelve of thirteen ledgers are signed off: 3,252 failing tests triaged (only the Tk and TclOO ledger, about 60 tests, is outstanding).
+All thirteen ledgers are signed off (the last, Tk and TclOO, at 23:06 UTC with 35 rows of its own): about 3,290 failing tests triaged. The table below is the first twelve.
 
 | Verdict | Tests | Share |
 | --- | ---: | ---: |
@@ -260,5 +260,5 @@ Updated at the hourly check from the ledgers on `work`.
 | server-e2e-db | 216 (plus 214 routed: 181 navigation to lsp-features, 33 memo to analysis-performance) | 216, complete (KEEP-CONTRACT 163, KEEP-ORACLE 29, MERGE 10, KEEP-F5 10, REWRITE 2, FIX-FIXTURE 1, UNDECIDED 1 ruled) | signed off 21:12 UTC; three publication faults first |
 | execution | 264 (23 routed to live-inlining) | 264, complete (KEEP-ORACLE 109, KEEP-CONTRACT 56, MERGE 49, REWRITE 33, RETIRE 8, FIX-EXPECTATION 4, FIX-FIXTURE 3, KEEP-F5 2) | signed off 21:20 UTC, after the receipt-ordering retirements were redone test by test (26 back to KEEP-CONTRACT) |
 | irules-registry-tooling | 151 | 151, complete (KEEP-F5 48, KEEP-CONTRACT 47, KEEP-ORACLE 40, MERGE 15, FIX-FIXTURE 1); BIG-IP checks TS-01 to TS-10 | signed off 21:00 UTC |
-| tk-oo | 60 | 0 | |
+| tk-oo | 63 (28 cross-listed from lsp-features and class-facts, not counted twice) | 35, complete (KEEP-ORACLE 20, FIX-FIXTURE 12, KEEP-CONTRACT 3) | signed off 23:06 UTC |
 | live-inlining | 29 | 29, complete (REWRITE 13, KEEP-CONTRACT 8, FIX-EXPECTATION 4, KEEP-ORACLE 2, FIX-FIXTURE 1, MERGE 1); the splice matrix (1,449 VM pairs, 20 minutes) to become 142 cells holding the same shapes | signed off 21:45 UTC |
