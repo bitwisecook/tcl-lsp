@@ -199,7 +199,7 @@ Updated at the hourly check from the ledgers on `work`.
 | class-facts | 246 | 246, complete (KEEP-ORACLE 74, FIX-FIXTURE 67, KEEP-CONTRACT 43, REWRITE 40, FIX-EXPECTATION 14, UNDECIDED 4 ruled, KEEP-F5 2, RETIRE 1, MERGE 1); BIG-IP checks CF-01, CF-02 | signed off 21:30 UTC |
 | dataflow-optimiser | 423 | 423, complete (FIX-FIXTURE 142, KEEP-CONTRACT 103, KEEP-ORACLE 82, REWRITE 50, FIX-EXPECTATION 30, MERGE 10, RETIRE 5, KEEP-F5 1) | signed off 20:55 UTC |
 | values | 218 | 218, complete (KEEP-ORACLE 123, KEEP-CONTRACT 32, KEEP-F5 30, FIX-FIXTURE 20, FIX-EXPECTATION 6, REWRITE 6, RETIRE 1) | signed off 21:07 UTC |
-| taint | 171 | 171, complete (FIX-FIXTURE 81, KEEP-CONTRACT 38, KEEP-ORACLE 15, KEEP-F5 13, REWRITE 13, UNDECIDED 10 to finish, FIX-EXPECTATION 1); BIG-IP checks 049, 071, 072, 073 | sampled 21:27 UTC: accepted once the 10 undecided rows name their observable |
+| taint | 171 | 174, complete (FIX-FIXTURE 81, KEEP-CONTRACT 38, REWRITE 18, KEEP-ORACLE 18, KEEP-F5 13, MERGE 4, RETIRE 1, FIX-EXPECTATION 1); BIG-IP checks 049, 071, 072, 073 | signed off 21:50 UTC |
 | analysis-performance | 46 | 46, complete (KEEP-CONTRACT 41, REWRITE 4, UNDECIDED 1 to diff) | signed off 21:33 UTC |
 | lsp-features | 500 | 0 | |
 | server-e2e-db | 216 (plus 214 routed: 181 navigation to lsp-features, 33 memo to analysis-performance) | 216, complete (KEEP-CONTRACT 163, KEEP-ORACLE 29, MERGE 10, KEEP-F5 10, REWRITE 2, FIX-FIXTURE 1, UNDECIDED 1 ruled) | signed off 21:12 UTC; three publication faults first |
