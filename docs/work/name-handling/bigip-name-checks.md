@@ -514,6 +514,7 @@ is the last field of the `BNC|…` line. "empty" means the result field is empty
 | BIGIP-NAME-058 | iRules in TMM | `table` keys are not Tcl names | TMM HTTP_REQUEST | no |
 | BIGIP-NAME-059 | iRules in TMM | Inventory of namespaces and commands in TMM | TMM RULE_INIT | partly |
 | BIGIP-NAME-068 | iRules in TMM | `HTTP::header NAME VALUE` with no subcommand, before and after `HTTP::respond` | TMM rule load + HTTP_REQUEST | no |
+| BIGIP-NAME-070 | iRules in TMM | A backslash inside a braced argument | TMM HTTP_REQUEST | no |
 | BIGIP-NAME-060 | tmsh, iApp and iCall | Execution namespace and frame of tmsh-hosted scripts | tmsh cli script | partly |
 | BIGIP-NAME-061 | tmsh, iApp and iCall | The `tmsh::` command namespace | tmsh cli script | partly |
 | BIGIP-NAME-062 | tmsh, iApp and iCall | Where procs defined in a cli script live | tmsh cli script | partly |
@@ -2872,10 +2873,6 @@ when RULE_INIT {
 |---|---|---|---|---|
 | | | | | |
 
-### 4.8 tmsh, iApp and iCall
-
-The tmsh-hosted contexts share an interpreter build but are entered differently; run each check in every context its environment line lists.
-
 #### BIGIP-NAME-068 — `HTTP::header NAME VALUE` with no subcommand, before and after `HTTP::respond`
 
 - **Question.** Does TMM accept `HTTP::header NAME VALUE` (first word a header name, not a subcommand), and as what: a read of `NAME`, an insert, or an error? Is it refused when the rule loads or when the event runs? Does it raise after `HTTP::respond` in the same event?
@@ -2936,6 +2933,41 @@ There is no Tcl baseline: `HTTP::header` is a TMM command.
 | Observed result | BIG-IP build | Environment | Date | Verdict |
 |---|---|---|---|---|
 | | | | | |
+
+#### BIGIP-NAME-070 — A backslash inside a braced argument
+
+- **Question.** Does TMM pass the backslashes of a braced argument through unchanged, as Tcl 8.4 does (in a brace group only backslash-newline is replaced)?
+- **Why the toolchain needs it.** `vendor_source_literal_units` (`rust/tcl-syntax/src/naming/vendor_source.rs`) reads a braced word that holds a backslash and no backslash-newline as its content bytes, so a handler's `regsub -all {[][{}()*+?.\\^$|]} $s {\\&}` is recognised as the regex-escaping form (the `REGEX_LITERAL` colour behind T103 suppression and T106) and a braced pattern ends the T102 option scan. Read it together with item 11 of §6 (issue #2151, the F5 string character model): both concern the bytes TMM keeps for a word.
+- **Environments.** TMM `HTTP_REQUEST` (lab virtual server, any request).
+- **Already on record.** Not measured on BIG-IP.
+
+```tcl
+when HTTP_REQUEST {
+    set bnc_id BIGIP-NAME-070
+    log local0. "BNC|$bnc_id|tmm[TMM::cmp_unit]|len|[string length {a\\b}]"
+    binary scan {a\\b} H* bnc_h
+    log local0. "BNC|$bnc_id|tmm[TMM::cmp_unit]|hex|$bnc_h"
+    log local0. "BNC|$bnc_id|tmm[TMM::cmp_unit]|quote|[regsub -all {[][{}()*+?.\\^$|]} a.b {\\&}]"
+    log local0. "BNC|$bnc_id|tmm[TMM::cmp_unit]|cont|[string length {a\
+b}]"
+    HTTP::respond 200 content "BNC $bnc_id [TMM::cmp_unit]" Connection close
+}
+```
+
+| Label | Tcl 8.4 | Basis | Tcl 8.5 to 9.1 |
+|---|---|---|---|
+| `len` | `4` | tclsh 8.4.20 | same |
+| `hex` | `615c5c62` | tclsh 8.4.20 | same |
+| `quote` | `a\.b` | tclsh 8.4.20 | same |
+| `cont` | `3` (backslash-newline becomes a space) | tclsh 8.4.20 | same |
+
+| Observed result | BIG-IP build | Environment | Date | Verdict |
+|---|---|---|---|---|
+| | | | | |
+
+### 4.8 tmsh, iApp and iCall
+
+The tmsh-hosted contexts share an interpreter build but are entered differently; run each check in every context its environment line lists.
 
 #### BIGIP-NAME-060 — Execution namespace and frame of tmsh-hosted scripts
 
