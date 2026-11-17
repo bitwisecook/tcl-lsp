@@ -105,12 +105,9 @@ fn place_no_array_assignment_is_empty() {
 fn place_braced_literal_data_word_is_not_a_read() {
     // `puts {$a(k)}` is a BRACED literal data word — Tcl performs no
     // substitution, so it must NOT register a read of a(k).  A real dead store
-    // to a(k) would otherwise be wrongly suppressed.
-    let (_defs, reads) = places_of_with(
-        &authored_reg(),
-        "proc f {} { set a(k) 1; puts {$a(k)} }",
-        "::f",
-    );
+    // to a(k) would otherwise be wrongly suppressed. tclsh 8.4.20 and 9.1.0
+    // print `$a(k)` for `f`.
+    let (_defs, reads) = places_of("proc f {} { set a(k) 1; puts {$a(k)} }", "::f");
     let ak = place::array_elem("a", Index::literal("k"), LOCAL_NS, false);
     assert!(
         !reads.iter().any(|r| overlap(r, &ak)),
@@ -133,26 +130,19 @@ fn place_quoted_data_word_does_read() {
 #[test]
 fn place_namespace_upvar_alias_resolves() {
     // `namespace upvar ::ns v local` binds `local` to the namespace var
-    // ::ns::v — the resolve context records the alias and `local` resolves to
-    // an UpvarAlias, not a fresh local scalar.
+    // ::ns::v: `local` resolves to that variable's own cell, not a fresh
+    // local scalar. tclsh 8.5.19 to 9.1.0 print 1 for `puts $::ns::v` after
+    // `f` (8.4.20 has no `namespace upvar`).
     let r = reg();
-    let cu = CompilationUnit::build_for(
-        "namespace eval ns { variable v 0 }\nproc f {} { namespace upvar ::ns v local; set local 1 }",
-        &r,
-        false,
-    );
+    let src = "namespace eval ns { variable v 0 }\nproc f {} { namespace upvar ::ns v local; set local 1 }";
+    let cu = CompilationUnit::build_for(src, &r, false);
     let fu = cu.fixture_function("::f").expect("proc");
-    let ctx = build_resolve_context(&fu.cfg, &fu.name);
-    assert!(
-        ctx.upvar_aliases.contains_key("local"),
-        "namespace upvar should register the alias; aliases={:?}",
-        ctx.upvar_aliases,
-    );
-    let p = tcl_compiler::var_resolve::resolve_place("local", &ctx, false, &r);
+    let ctx = context_before(fu, src, "set local 1");
+    let p = tcl_compiler::var_resolve::resolve_place("local", ctx, false, &r);
     assert_eq!(
-        p.kind,
-        PlaceKind::UpvarAlias,
-        "the namespace-upvar local resolves to an UpvarAlias",
+        (p.kind, p.ns.as_str(), p.name.as_str(), p.dynamic),
+        (PlaceKind::Scalar, "::ns", "v", false),
+        "the namespace-upvar local is ::ns::v: {p:?}",
     );
 }
 
@@ -161,18 +151,19 @@ fn place_trace_target_marks_observed() {
     // `trace add variable g write …` marks `g` as traced → externally
     // observable, so a write to it is never dead.
     let r = reg();
-    let cu = CompilationUnit::build_for(
-        "proc f {} { set g 1; trace add variable g write cb; set g 2 }",
-        &r,
-        false,
-    );
+    let src = "proc f {} { set g 1; trace add variable g write cb; set g 2 }";
+    let cu = CompilationUnit::build_for(src, &r, false);
     let fu = cu.fixture_function("::f").expect("proc");
-    let ctx = build_resolve_context(&fu.cfg, &fu.name);
+    let ctx = context_before(fu, src, "set g 2");
+    // The traced set holds the cell `g` names in this activation.
+    let g = tcl_compiler::var_resolve::resolve_place("g", ctx, false, &r);
     assert!(
-        ctx.traced.contains("g"),
-        "trace add variable should record g as traced; traced={:?}",
+        ctx.traced
+            .contains(&tcl_compiler::var_resolve::cell_key(&g)),
+        "trace add variable should record g as traced; g={g:?} traced={:?}",
         ctx.traced,
     );
+    assert!(g.observed, "a traced g is observed: {g:?}");
 }
 
 #[test]

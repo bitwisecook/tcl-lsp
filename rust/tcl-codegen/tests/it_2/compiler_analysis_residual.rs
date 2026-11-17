@@ -78,8 +78,8 @@ use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_compiler::ir::{Module, Statement};
 use tcl_compiler::place::{self, Index, LOCAL_NS, Place, PlaceKind, overlap};
 use tcl_compiler::place_bridge::{
-    build_resolve_context, def_places, element_writes_observed_by_reads, read_places,
-    terminator_read_places,
+    build_resolve_context, def_places_at, element_writes_observed_by_reads, read_places_at,
+    terminator_read_places, terminator_read_places_at,
 };
 use tcl_compiler::scan_predicate::scan_provably_no_match;
 use tcl_compiler::var_escape::{ProcEscapeSummary, analyse_var_escape};
@@ -105,12 +105,6 @@ fn reg() -> CommandRegistry {
     CommandRegistry::build_default().project_for_profile(
         tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     )
-}
-
-/// A profile-less registry: the authored-simulation mode, which issues no
-/// native entry for a source declaration.
-fn authored_reg() -> CommandRegistry {
-    CommandRegistry::build_default()
 }
 
 /// Every diagnostic code the analyser + `run_all_checks` surface for `src`
@@ -155,6 +149,25 @@ fn o107_fires(src: &str, dialect: &str) -> bool {
         .any(|o| o.code == DiagCode::O107)
 }
 
+/// The context the unit proved before the statement of `fu`'s body spelled
+/// `spelling` in `source`.
+fn context_before<'a>(
+    fu: &'a tcl_compiler::compilation_unit::FunctionUnit,
+    source: &str,
+    spelling: &str,
+) -> &'a tcl_compiler::var_resolve::ResolveContext {
+    let points = fu.ssa.point_contexts.as_ref().expect("point contexts");
+    for (&id, block) in &fu.cfg.blocks {
+        for (index, stmt) in block.statements.iter().enumerate() {
+            let span = stmt.span();
+            if source.get(span.start() as usize..span.end() as usize) == Some(spelling) {
+                return points.before_statement(id, index);
+            }
+        }
+    }
+    panic!("no statement spelled {spelling:?}")
+}
+
 /// `source → Module`, for the inliner.
 fn module_for(source: &str) -> Module {
     CompilationUnit::build_for(source, &reg(), false).ir_module
@@ -184,16 +197,18 @@ fn places_of(src: &str, qname: &str) -> (Vec<Place>, Vec<Place>) {
 fn places_of_with(r: &CommandRegistry, src: &str, qname: &str) -> (Vec<Place>, Vec<Place>) {
     let cu = CompilationUnit::build_for(src, r, false);
     let fu = cu.fixture_function(qname).expect("proc not found");
-    let ctx = build_resolve_context(&fu.cfg, &fu.name);
+    // Each statement reads its names in the context the unit proved at that
+    // point, as the consumers (dead stores, elimination) read them.
+    let points = fu.ssa.point_contexts.as_ref().expect("point contexts");
     let mut defs = Vec::new();
     let mut reads = Vec::new();
-    for block in fu.cfg.blocks.values() {
-        for stmt in &block.statements {
-            defs.extend(def_places(stmt, &ctx, r));
-            reads.extend(read_places(stmt, &ctx, r));
+    for (&id, block) in &fu.cfg.blocks {
+        for (index, stmt) in block.statements.iter().enumerate() {
+            defs.extend(def_places_at(stmt, id, index, points, r));
+            reads.extend(read_places_at(stmt, id, index, points, r));
         }
         if let Some(term) = &block.terminator {
-            reads.extend(terminator_read_places(term, &ctx, r));
+            reads.extend(terminator_read_places_at(term, id, points, r));
         }
     }
     (defs, reads)
