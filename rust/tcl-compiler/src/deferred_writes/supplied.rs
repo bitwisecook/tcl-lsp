@@ -206,7 +206,7 @@ impl SourceScan<'_> {
             .retains_original_frame_definition(tokens)
             .then(|| tokens.words().last().map(|word| word.source().span))
             .flatten();
-        for (offset, binding) in &tokens.nested_bindings {
+        for (offset, binding) in tokens.nested_bindings.iter() {
             if lowered_children.contains(offset)
                 || retained_body.is_some_and(|body| body.start() <= *offset && *offset < body.end())
             {

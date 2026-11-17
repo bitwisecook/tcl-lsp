@@ -116,7 +116,7 @@ fn restored_nested_compiler_carriers_issue_only_current_complete_source_owners()
     let registry = actual.input.borrowed_context_registry().commands();
     assert!(parent.nested_bindings.len() >= 2);
     assert_expression_syntax_inventory_boundary(owner, parent);
-    for (offset, _) in &parent.nested_bindings {
+    for (offset, _) in parent.nested_bindings.iter() {
         let raw = owner.invocation_at_source("", *offset);
         assert!(raw.original_analysis_owner.is_none());
         let (_, mut child) = raw.original_recorded_command().unwrap();
@@ -136,7 +136,7 @@ fn restored_nested_compiler_carriers_issue_only_current_complete_source_owners()
     let mut restored = parent.clone();
     restored.source_binding = Some(owner.invocation_at_source("", 0));
     owner.restore_original_nested_bindings(&mut restored);
-    for (offset, restored_binding) in &restored.nested_bindings {
+    for (offset, restored_binding) in restored.nested_bindings.iter() {
         assert!(Arc::ptr_eq(
             restored_binding.original_analysis_owner.as_ref().unwrap(),
             owner.original_analysis_owner.as_ref().unwrap(),
@@ -153,7 +153,7 @@ fn restored_nested_compiler_carriers_issue_only_current_complete_source_owners()
         );
     }
     let foreign = fixture("set result [expr {1 + [expr {3 + 4}]}]", "tcl8.6");
-    for (offset, binding) in &foreign.tokens[0].nested_bindings {
+    for (offset, binding) in foreign.tokens[0].nested_bindings.iter() {
         assert!(
             owner
                 .restored_child_analysis_owner(*offset, binding)
@@ -176,7 +176,7 @@ fn restored_nested_compiler_carriers_issue_only_current_complete_source_owners()
     let mut attachment = owner.original_analysis_owner.as_deref().unwrap().clone();
     attachment.metadata = OwnedInvocationMetadataContext::for_source_input(Some(&foreign_input));
     changed.original_analysis_owner = Some(Arc::new(attachment));
-    for (offset, _) in &parent.nested_bindings {
+    for (offset, _) in parent.nested_bindings.iter() {
         let raw = owner.invocation_at_source("", *offset);
         assert!(
             changed
@@ -185,9 +185,8 @@ fn restored_nested_compiler_carriers_issue_only_current_complete_source_owners()
         );
     }
     let mut duplicate = parent.clone();
-    duplicate
-        .nested_bindings
-        .push(duplicate.nested_bindings[0].clone());
+    let first = duplicate.nested_bindings[0].clone();
+    duplicate.nested_bindings_mut().push(first);
     duplicate.source_binding = Some(owner.invocation_at_source("", 0));
     owner.restore_original_nested_bindings(&mut duplicate);
     let repeated = duplicate.nested_bindings[0].0;

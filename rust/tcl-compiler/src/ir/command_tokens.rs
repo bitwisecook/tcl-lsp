@@ -75,7 +75,8 @@ pub struct CommandTokens {
     /// answer must never be replaced with a written-head catalogue lookup.
     pub source_binding: Option<crate::command_binding::SourceInvocationBinding>,
     /// Exact nested dispatch proofs keyed by the nested command head's source offset.
-    pub nested_bindings: Vec<(u32, crate::command_binding::SourceInvocationBinding)>,
+    pub nested_bindings:
+        std::sync::Arc<Vec<(u32, crate::command_binding::SourceInvocationBinding)>>,
     /// Bindings at reached reads during original argument evaluation or the
     /// selected native expression. Temporal owners distinguish those phases;
     /// executed script bodies are excluded. Reads can differ within one word.
@@ -111,7 +112,7 @@ impl CommandTokens {
         if let Some(binding) = &mut self.source_binding {
             binding.relocate_variable_proofs(relocation);
         }
-        for (_, binding) in &mut self.nested_bindings {
+        for (_, binding) in self.nested_bindings_mut() {
             binding.relocate_variable_proofs(relocation);
         }
         for access in &mut self.variable_accesses {
@@ -211,7 +212,7 @@ impl CommandTokens {
             synthetic: None,
             evaluated_body: None,
             source_binding: None,
-            nested_bindings: Vec::new(),
+            nested_bindings: std::sync::Arc::default(),
             variable_accesses: Vec::new(),
             hosted_taint_context: None,
             source_bpf_command: None,
@@ -240,7 +241,7 @@ impl CommandTokens {
             synthetic: Some(kind),
             evaluated_body: None,
             source_binding: None,
-            nested_bindings: Vec::new(),
+            nested_bindings: std::sync::Arc::default(),
             variable_accesses: Vec::new(),
             hosted_taint_context: None,
             source_bpf_command: None,
@@ -292,7 +293,7 @@ impl CommandTokens {
             synthetic: None,
             evaluated_body: None,
             source_binding: None,
-            nested_bindings: Vec::new(),
+            nested_bindings: std::sync::Arc::default(),
             variable_accesses: Vec::new(),
             hosted_taint_context: None,
             source_bpf_command: None,
@@ -342,6 +343,14 @@ impl CommandTokens {
         source: &SourceSite,
     ) -> Option<&crate::command_binding::SourceVariableAccess> {
         crate::command_binding::SourceVariableAccess::find_at_site(&self.variable_accesses, source)
+    }
+
+    /// The nested proofs for writing; a list still shared with another
+    /// command's tokens is copied first.
+    pub fn nested_bindings_mut(
+        &mut self,
+    ) -> &mut Vec<(u32, crate::command_binding::SourceInvocationBinding)> {
+        std::sync::Arc::make_mut(&mut self.nested_bindings)
     }
 
     /// Inherit exact nested dispatch proofs from the owning source invocation.

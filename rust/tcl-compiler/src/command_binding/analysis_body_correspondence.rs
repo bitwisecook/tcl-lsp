@@ -467,7 +467,7 @@ fn collect_registry_dependencies(
     for child in children {
         calls.push(child.tokens?);
     }
-    for (_, proof) in &original.nested_bindings {
+    for (_, proof) in original.nested_bindings.iter() {
         let (_, mut recorded) = proof.original_recorded_command()?;
         recorded.source_binding = Some(proof.clone());
         calls.push(recorded);
@@ -747,11 +747,11 @@ fn normalize_analysis_tokens(
     relocation: &crate::var_resolve::VariableProofRelocation,
 ) {
     super::body_template::normalize_native_tokens(tokens, scope, origin, relocation);
-    for proof in tokens
-        .source_binding
-        .iter_mut()
-        .chain(tokens.nested_bindings.iter_mut().map(|(_, proof)| proof))
-    {
+    for proof in tokens.source_binding.iter_mut().chain(
+        std::sync::Arc::make_mut(&mut tokens.nested_bindings)
+            .iter_mut()
+            .map(|(_, proof)| proof),
+    ) {
         // Exact conditional lookup, source vectors and complete metadata are
         // retained in the private dependency value before these issuers move.
         proof.declaration_layout_observations = None;
@@ -772,11 +772,11 @@ fn normalize_readonly_source_tokens(
 ) {
     normalize_analysis_tokens(tokens, scope, origin, relocation);
     if matches!(kind, ReadonlySourceBodyKind::Authored) {
-        for proof in tokens
-            .source_binding
-            .iter_mut()
-            .chain(tokens.nested_bindings.iter_mut().map(|(_, proof)| proof))
-        {
+        for proof in tokens.source_binding.iter_mut().chain(
+            std::sync::Arc::make_mut(&mut tokens.nested_bindings)
+                .iter_mut()
+                .map(|(_, proof)| proof),
+        ) {
             proof.original_authored_source_body_scope = None;
         }
     }
@@ -827,7 +827,7 @@ fn collect_readonly_source_registry_dependencies(
     for child in children {
         calls.push(child.tokens?);
     }
-    for (_, proof) in &original.nested_bindings {
+    for (_, proof) in original.nested_bindings.iter() {
         let (_, mut recorded) = proof.original_recorded_command()?;
         recorded.source_binding = Some(proof.clone());
         calls.push(recorded);

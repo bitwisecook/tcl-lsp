@@ -172,7 +172,7 @@ fn assert_foreign_caller_sidecar(
     let mut foreign = tokens.clone();
     let offset = command.span.start();
     let unrelated = tokens.source_binding.clone().unwrap();
-    foreign.nested_bindings.push((offset, unrelated));
+    foreign.nested_bindings_mut().push((offset, unrelated));
     let mut withdrawn = CallSiteEvidence::default();
     record_call_site_evidence(
         &mut withdrawn,
@@ -271,7 +271,7 @@ fn original_body_caller_inventory_requires_each_original_child_sidecar() {
         Some("DIFFERENT")
     );
     let mut missing = tokens.clone();
-    missing.nested_bindings.clear();
+    missing.nested_bindings_mut().clear();
     let mut withdrawn = CallSiteEvidence::default();
     record_call_site_evidence(
         &mut withdrawn,

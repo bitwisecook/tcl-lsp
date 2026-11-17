@@ -89,7 +89,7 @@ pub(crate) fn original_hidden_reads(
             } else {
                 out.opaque = true;
             }
-            for (_, binding) in &tokens.nested_bindings {
+            for (_, binding) in tokens.nested_bindings.iter() {
                 let Some((_, nested)) = binding.original_recorded_command() else {
                     out.opaque = true;
                     continue;

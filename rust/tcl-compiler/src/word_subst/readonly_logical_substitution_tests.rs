@@ -72,7 +72,7 @@ fn readonly_logical_input_inventory_keeps_real_expr_and_lexical_children() {
         );
         if expected != 0 {
             let mut missing = tokens.clone();
-            missing.nested_bindings.clear();
+            missing.nested_bindings_mut().clear();
             assert!(
                 checked_original_lifted_calls_with_logical_source_input(
                     &missing, config, registry, &input

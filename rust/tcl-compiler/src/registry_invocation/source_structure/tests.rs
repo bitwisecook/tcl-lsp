@@ -450,7 +450,7 @@ fn original_case_fold_child_keeps_declaration_realm_and_refuses_foreign_source_o
             .is_none()
     );
     let mut missing = tokens.clone();
-    missing.nested_bindings.clear();
+    missing.nested_bindings_mut().clear();
     assert!(
         original_folded_case_subject(&missing, &missing.words()[1], context.commands(), metadata)
             .is_none()

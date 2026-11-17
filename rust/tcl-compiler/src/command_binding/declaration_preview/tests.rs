@@ -912,7 +912,7 @@ fn nested_layout_syntax_shares_only_exact_original_geometry() {
     assert!(first[0].tokens.source_binding.is_none());
     assert_eq!(first[0].tokens.variable_accesses.len(), 0);
     assert_eq!(
-        first[0].tokens.nested_bindings,
+        *first[0].tokens.nested_bindings,
         [] as [(u32, crate::command_binding::SourceInvocationBinding); 0]
     );
 

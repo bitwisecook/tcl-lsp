@@ -207,7 +207,7 @@ impl SourceCommandBindings {
             .original_lexical_command(tokens.words(), site.offset, config)?;
         let mut parent = tokens.clone();
         parent.source_binding = None;
-        parent.nested_bindings.clear();
+        parent.nested_bindings = Arc::default();
         Some(OriginalSourceArgumentSyntax {
             owner: Arc::clone(owner),
             parent: Arc::new(parent),

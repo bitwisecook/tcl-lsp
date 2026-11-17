@@ -547,7 +547,7 @@ impl CommandBindingRealm {
             binding.retain_original_logical_source_advice(advice);
         }
         self.retain_original_registered_instance_source(tokens);
-        for (_, binding) in &tokens.nested_bindings {
+        for (_, binding) in tokens.nested_bindings.iter() {
             if let Some(mut child) = binding.original_recorded_command_tokens() {
                 child.source_binding = Some(binding.clone());
                 self.retain_original_registered_instance_source(&child);
@@ -556,7 +556,7 @@ impl CommandBindingRealm {
         if let Some(input) = self.source_input.as_ref()
             && input.has_logical_source_name_context()
         {
-            for (_, binding) in &mut tokens.nested_bindings {
+            for (_, binding) in tokens.nested_bindings_mut() {
                 if binding.has_original_source_layout_owner() {
                     continue;
                 }

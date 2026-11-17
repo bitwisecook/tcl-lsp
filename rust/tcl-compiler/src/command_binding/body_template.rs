@@ -476,7 +476,7 @@ impl ModuleCommandBindings {
             for statement in &script.statements {
                 if let Some(tokens) = statement.tokens() {
                     collect_token_activations(&mut relocation, tokens);
-                    for (offset, _) in &tokens.nested_bindings {
+                    for (offset, _) in tokens.nested_bindings.iter() {
                         collect_body_offset(&mut relocation, scope, *offset);
                     }
                 }
@@ -822,11 +822,11 @@ pub(super) fn normalize_native_tokens(
     relocation: &crate::var_resolve::VariableProofRelocation,
 ) {
     tokens.relocate_variable_proofs(relocation);
-    for proof in tokens
-        .source_binding
-        .iter_mut()
-        .chain(tokens.nested_bindings.iter_mut().map(|(_, proof)| proof))
-    {
+    for proof in tokens.source_binding.iter_mut().chain(
+        std::sync::Arc::make_mut(&mut tokens.nested_bindings)
+            .iter_mut()
+            .map(|(_, proof)| proof),
+    ) {
         // Callers capture original dependencies before removing lookup worlds.
         // Analysis consumers must restore the current source owners.
         proof.original_analysis_owner = None;
@@ -1153,10 +1153,10 @@ mod tests {
             .find_map(Statement::tokens_mut)
             .unwrap();
         assert_ne!(
-            tokens.nested_bindings,
+            *tokens.nested_bindings,
             [] as [(u32, crate::command_binding::SourceInvocationBinding); 0]
         );
-        tokens.nested_bindings[0].1.dispatch_site = None;
+        tokens.nested_bindings_mut()[0].1.dispatch_site = None;
         assert!(
             bindings
                 .prepare_native_body_template(&changed, scope, &registry)

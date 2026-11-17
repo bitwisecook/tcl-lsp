@@ -632,8 +632,10 @@ fn retained_report_tokens_eq(
     if left.nested_bindings.len() != right.nested_bindings.len() {
         return None;
     }
-    for ((left_offset, left), (right_offset, right)) in
-        left.nested_bindings.iter().zip(&right.nested_bindings)
+    for ((left_offset, left), (right_offset, right)) in left
+        .nested_bindings
+        .iter()
+        .zip(right.nested_bindings.iter())
     {
         if left_offset != right_offset {
             return None;

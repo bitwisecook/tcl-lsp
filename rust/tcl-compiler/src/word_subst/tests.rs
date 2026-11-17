@@ -402,7 +402,7 @@ fn original_nested_word_parser_keeps_body_bom_parent_metadata_and_child_geometry
             .is_none()
         );
         let mut missing = tokens.clone();
-        missing.nested_bindings.clear();
+        missing.nested_bindings_mut().clear();
         assert!(
             checked_original_lifted_calls_with_metadata_context(
                 &missing, config, registry, metadata
@@ -662,7 +662,7 @@ fn original_logical_inventory_keeps_alias_ordinals_and_uncertain_geometry_refusa
                 source.as_bytes()
             );
             let mut missing = tokens.clone();
-            missing.nested_bindings.clear();
+            missing.nested_bindings_mut().clear();
             assert!(
                 checked_original_lifted_calls_with_metadata_context(
                     &missing, config, registry, metadata
@@ -708,7 +708,7 @@ fn original_nested_call_inventory_withdraws_changed_geometry_and_missing_sidecar
         .is_none()
     );
     let mut missing = tokens.clone();
-    missing.nested_bindings.clear();
+    missing.nested_bindings_mut().clear();
     assert!(
         checked_original_lifted_calls_with_metadata_context(&missing, config, registry, metadata,)
             .is_none()
@@ -1455,10 +1455,10 @@ fn original_argument_index_children_keep_order_source_and_inherited_bindings() {
     );
     let mut unowned = tokens.clone();
     unowned.source_binding = None;
-    unowned.nested_bindings.clear();
+    unowned.nested_bindings_mut().clear();
     assert!(checked_argument_lifted_calls(&unowned, config).is_none());
     let mut missing = tokens.clone();
-    missing.nested_bindings.clear();
+    missing.nested_bindings_mut().clear();
     assert!(checked_original_argument_lifted_calls(&missing, registry, metadata).is_none());
     let mut foreign = tokens;
     foreign.argv_texts[1].push('!');
@@ -1529,7 +1529,7 @@ fn original_lexical_bracket_inventory_does_not_require_parent_handler_roles() {
             .is_none()
     );
     let mut withdrawn = tokens.clone();
-    withdrawn.nested_bindings.clear();
+    withdrawn.nested_bindings_mut().clear();
     assert!(
             checked_original_lifted_calls_with_metadata_context(
                 &withdrawn, config, registry, metadata,

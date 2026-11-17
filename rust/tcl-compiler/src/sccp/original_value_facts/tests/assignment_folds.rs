@@ -262,7 +262,7 @@ fn quoted_expr_with_numeric_var_retains_known_contents() {
                     tokens.argv_texts,
                     tokens.source_binding.as_ref().map(show)
                 );
-                for (offset, binding) in &tokens.nested_bindings {
+                for (offset, binding) in tokens.nested_bindings.iter() {
                     eprintln!("quoted expr nested {offset} {}", show(binding));
                 }
             }

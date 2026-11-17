@@ -285,7 +285,7 @@ impl OriginalBodySyntaxInventory {
         ) {
             return;
         }
-        for (offset, proof) in &parent.nested_bindings {
+        for (offset, proof) in parent.nested_bindings.iter() {
             if self.commands.len() + self.source_commands.len() > 65_536 {
                 return;
             }

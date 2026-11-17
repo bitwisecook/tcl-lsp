@@ -222,7 +222,7 @@ impl SourceCommandBindings {
     pub(super) fn restore_original_nested_bindings(&self, tokens: &mut crate::ir::CommandTokens) {
         // naming.compiler.original-positioned-callee-body-availability
         // docs/design/analysis/name-resolution-proofs/original-positioned-callee-body-availability.md
-        for (offset, binding) in &mut tokens.nested_bindings {
+        for (offset, binding) in tokens.nested_bindings_mut() {
             *binding = self.invocation_at_source("", *offset);
         }
         let Some(config) = self.lexer_config else {
@@ -259,8 +259,11 @@ impl SourceCommandBindings {
             if tokens.words().iter().any(|word| {
                 word.source().span.start() <= offset && offset <= word.source().span.end()
             }) {
-                tokens.nested_bindings[index].1.original_analysis_owner =
+                let owner =
                     self.restored_child_analysis_owner(offset, &tokens.nested_bindings[index].1);
+                tokens.nested_bindings_mut()[index]
+                    .1
+                    .original_analysis_owner = owner;
             }
             let mut matching = calls.iter().filter_map(|call| {
                 let child = call.tokens.as_ref()?;
@@ -280,7 +283,7 @@ impl SourceCommandBindings {
             child.source_binding = Some(tokens.nested_bindings[index].1.clone());
             self.stamp_original_logical_declaration_targets(&mut child);
             if let Some(binding) = child.source_binding {
-                tokens.nested_bindings[index].1 = binding;
+                tokens.nested_bindings_mut()[index].1 = binding;
             }
         }
     }
@@ -347,7 +350,7 @@ impl SourceCommandBindings {
         };
         let offset = head.source().span.start();
         tokens.variable_accesses = self.variable_accesses_during_expression_invocation(offset);
-        tokens.nested_bindings.clear();
+        tokens.nested_bindings = Arc::default();
         let config = self.lexer_config.unwrap_or_default();
         let argument_syntax = self.original_argument_syntax_for_tokens(tokens, config);
         for lifted in crate::word_subst::lifted_calls(Some(tokens), config) {
@@ -364,7 +367,7 @@ impl SourceCommandBindings {
                     binding.original_argument_syntax = syntax.map(Arc::new);
                 }
                 if let Some(binding) = nested.source_binding {
-                    tokens.nested_bindings.push((offset, binding));
+                    tokens.nested_bindings_mut().push((offset, binding));
                 }
             }
         }
@@ -387,14 +390,15 @@ impl SourceCommandBindings {
         let compiled_offsets = self.compiled_invocation_offsets_in_words(tokens.words(), offset);
         for nested in nested_offsets.into_iter().chain(compiled_offsets) {
             if retained.insert(nested) {
-                tokens.nested_bindings.push((nested, binding_at(nested)));
+                tokens
+                    .nested_bindings_mut()
+                    .push((nested, binding_at(nested)));
             }
         }
         tokens.source_binding = Some(binding_at(offset));
         self.stamp_original_logical_declaration_targets(tokens);
         for binding in tokens.source_binding.iter_mut().chain(
-            tokens
-                .nested_bindings
+            Arc::make_mut(&mut tokens.nested_bindings)
                 .iter_mut()
                 .map(|(_, binding)| binding),
         ) {

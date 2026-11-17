@@ -264,7 +264,7 @@ mod tests {
         assert!(Arc::ptr_eq(&first, &from_clone));
         assert_eq!(realm, clone);
         assert_ne!(
-            first.nested_bindings,
+            *first.nested_bindings,
             [] as [(u32, crate::command_binding::SourceInvocationBinding); 0]
         );
     }

@@ -429,10 +429,10 @@ fn original_unknown_case_advice_selects_the_original_case_fold_child() {
         .unwrap()
         .clone();
     assert_ne!(
-        tokens.nested_bindings,
+        *tokens.nested_bindings,
         [] as [(u32, crate::command_binding::SourceInvocationBinding); 0]
     );
-    tokens.nested_bindings.clear();
+    tokens.nested_bindings_mut().clear();
     let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
         context.commands(),
         &input,

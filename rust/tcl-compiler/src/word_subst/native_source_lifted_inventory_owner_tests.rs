@@ -48,7 +48,7 @@ fn assert_native_expression_child_refusals(
             .is_none()
     );
     let mut missing = tokens.clone();
-    missing.nested_bindings.clear();
+    missing.nested_bindings_mut().clear();
     assert!(
         checked_original_lifted_calls_with_metadata_context(&missing, config, registry, metadata,)
             .is_none()

@@ -55,7 +55,7 @@ fn tokens(words: Vec<WordExpr>) -> crate::ir::CommandTokens {
         synthetic: None,
         evaluated_body: None,
         source_binding: None,
-        nested_bindings: Vec::new(),
+        nested_bindings: std::sync::Arc::default(),
         variable_accesses: Vec::new(),
         hosted_taint_context: None,
         source_bpf_command: None,

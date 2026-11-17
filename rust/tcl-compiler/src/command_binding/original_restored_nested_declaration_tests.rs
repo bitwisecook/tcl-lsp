@@ -77,7 +77,7 @@ fn selected_child(tokens: &CommandTokens, config: tcl_lexer::LexerConfig) -> Com
 }
 
 fn assert_raw_nested(owner: &SourceCommandBindings, tokens: &CommandTokens) {
-    for (offset, binding) in &tokens.nested_bindings {
+    for (offset, binding) in tokens.nested_bindings.iter() {
         assert_eq!(binding, &owner.invocation_at_source("", *offset));
         assert!(binding.original_logical_declaration_targets.is_none());
     }
@@ -181,12 +181,11 @@ fn original_restored_nested_declaration_requires_retained_inventory_input_config
                 changed_owner.lexer_config = Some(config);
             }
             2 => {
-                changed
-                    .nested_bindings
-                    .push(changed.nested_bindings[0].clone());
+                let first = changed.nested_bindings[0].clone();
+                changed.nested_bindings_mut().push(first);
             }
             3 => {
-                changed.nested_bindings[0].0 += 1;
+                changed.nested_bindings_mut()[0].0 += 1;
             }
             4 => {
                 changed.word_exprs.pop();
@@ -230,10 +229,10 @@ fn original_restored_nested_declaration_requires_retained_inventory_input_config
     changed_owner.restore_original_nested_bindings(&mut changed);
     assert_raw_nested(&changed_owner, &changed);
     let mut missing = parent.clone();
-    missing.nested_bindings.clear();
+    missing.nested_bindings_mut().clear();
     owner.restore_original_nested_bindings(&mut missing);
     assert_eq!(
-        missing.nested_bindings,
+        *missing.nested_bindings,
         [] as [(u32, crate::command_binding::SourceInvocationBinding); 0]
     );
 }
@@ -282,7 +281,7 @@ fn original_script_restoration_keeps_reached_nested_statement_and_consumed_site_
     let source_before = restored.executed_source.clone();
     let statement = restored.statements[0].tokens().unwrap();
     assert_ne!(
-        statement.nested_bindings,
+        *statement.nested_bindings,
         [] as [(u32, crate::command_binding::SourceInvocationBinding); 0]
     );
     assert!(restored.command_binding_sites.iter().any(|site| {
@@ -303,7 +302,7 @@ fn original_script_restoration_keeps_reached_nested_statement_and_consumed_site_
                 .filter_map(|site| site.source_tokens.as_deref()),
         )
     {
-        for (offset, binding) in &tokens.nested_bindings {
+        for (offset, binding) in tokens.nested_bindings.iter() {
             assert_eq!(binding, &owner.invocation_at_source("", *offset));
             assert!(binding.lookup_state.is_some());
             assert!(binding.original_logical_declaration_targets.is_none());

@@ -128,7 +128,7 @@ fn assert_original_argv_child_refusals(
         }
     }
     let mut missing_child = (*phase).clone();
-    missing_child.nested_bindings.clear();
+    missing_child.nested_bindings_mut().clear();
     let mut changed_vector = (*phase).clone();
     changed_vector.argv_texts[1] = "changed".into();
     for refused_tokens in [&missing_child, &changed_vector] {

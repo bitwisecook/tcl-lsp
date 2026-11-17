@@ -513,12 +513,13 @@ impl OriginalNativeSourceBodyChildren {
                 .iter()
                 .position(|(at, _)| *at == child_offset);
             let binding = if let Some(position) = position {
-                &mut tokens.nested_bindings[position].1
+                &mut Arc::make_mut(&mut tokens.nested_bindings)[position].1
             } else {
                 let mut binding = crate::command_binding::SourceInvocationBinding::unknown();
                 binding.original_analysis_owner = Some(Arc::clone(attachment));
-                tokens.nested_bindings.push((child_offset, binding));
-                &mut tokens.nested_bindings.last_mut()?.1
+                let nested = Arc::make_mut(&mut tokens.nested_bindings);
+                nested.push((child_offset, binding));
+                &mut nested.last_mut()?.1
             };
             if binding
                 .original_analysis_owner

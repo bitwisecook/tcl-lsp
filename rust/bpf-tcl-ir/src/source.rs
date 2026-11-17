@@ -675,7 +675,7 @@ fn discard_execution_proofs(script: &mut Script) {
         for statement in &mut script.statements {
             if let Some(tokens) = statement.tokens_mut() {
                 tokens.source_binding = None;
-                tokens.nested_bindings.clear();
+                tokens.nested_bindings = std::sync::Arc::default();
                 tokens.variable_accesses.clear();
                 tokens.evaluated_body = None;
             }

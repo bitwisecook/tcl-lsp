@@ -189,7 +189,7 @@ pub(crate) fn rebase_command_tokens(tokens: &mut CommandTokens, delta: i64) {
     for word in &mut tokens.word_exprs {
         rebase_source_word(word, delta);
     }
-    for (offset, _) in &mut tokens.nested_bindings {
+    for (offset, _) in tokens.nested_bindings_mut() {
         *offset = u32::try_from((i64::from(*offset) + delta).max(0)).unwrap_or(u32::MAX);
     }
     for access in &mut tokens.variable_accesses {
