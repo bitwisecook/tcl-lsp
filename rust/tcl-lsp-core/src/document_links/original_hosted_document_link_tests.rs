@@ -50,8 +50,11 @@ fn original_hosted_links_keep_source_schema_and_name_purposes_independent() {
             document_links_from_analysis(&source.replace("a $b", "z $b"), &analysis, &context),
             [] as [crate::document_links::DocumentLink; 0]
         );
+        // A quoted word performs the escape and leaves no path to link; a
+        // brace group would not (tclsh 8.4.20 to 9.1.0: `source {f\uD800.tcl}`
+        // reads the file named `f\uD800.tcl`, backslash included).
         for source in [
-            "source {f\\uD800.tcl}",
+            "source \"f\\uD800.tcl\"",
             "source $path",
             "source -encoding utf-8 a.tcl",
             "proc source args {}; source a.tcl",
