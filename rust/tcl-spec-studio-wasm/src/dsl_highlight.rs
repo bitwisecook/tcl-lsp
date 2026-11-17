@@ -347,7 +347,7 @@ mod tests {
     #[test]
     fn top_level_and_nested_statement_heads_are_command_words() {
         let src =
-            "speclib mylib 1.0 {\n\ncommand foo {\n    arity 1..\n    traits {PURE}\n}\n\n}\n";
+            "speclib mylib 1.0 {\n\ncommand foo {\n    arity 1..\n    traits {CSE_CANDIDATE}\n}\n\n}\n";
         let cs = classes(src);
         assert!(cs.contains(&("command-word", "speclib".to_owned())));
         assert!(cs.contains(&("command-word", "command".to_owned())));
@@ -355,10 +355,10 @@ mod tests {
         // `traits` is itself a command-word (a CommandSpec field, statement
         // head)…
         assert!(cs.contains(&("command-word", "traits".to_owned())));
-        // …but its own block is a flat FlagSet, so `PURE` is a value, not a
+        // …but its own block is a flat FlagSet, so `CSE_CANDIDATE` is a value, not a
         // nested command-word.
-        assert!(cs.contains(&("value", "PURE".to_owned())));
-        assert!(!cs.contains(&("command-word", "PURE".to_owned())));
+        assert!(cs.contains(&("value", "CSE_CANDIDATE".to_owned())));
+        assert!(!cs.contains(&("command-word", "CSE_CANDIDATE".to_owned())));
     }
 
     #[test]
@@ -515,9 +515,9 @@ mod tests {
 
     #[test]
     fn hover_finds_a_trait_catalogue_variant() {
-        let src = "command foo {\n    traits {PURE}\n}\n";
-        let offset = src.find("PURE").unwrap();
-        // `PURE` classifies as `value`, not `command-word`/`property-flag`,
+        let src = "command foo {\n    traits {CSE_CANDIDATE}\n}\n";
+        let offset = src.find("CSE_CANDIDATE").unwrap();
+        // `CSE_CANDIDATE` classifies as `value`, not `command-word`/`property-flag`,
         // so hover intentionally has nothing to say about it — it is call
         // site (well, pack-author-site) data, matching the doc comment on
         // `hover_json`.

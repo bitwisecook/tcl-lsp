@@ -22,7 +22,6 @@ use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http::requestHeaderValue",
-        traits: Traits::PURE,
         surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::exact(2),
         hover: Some(HoverSnippet {

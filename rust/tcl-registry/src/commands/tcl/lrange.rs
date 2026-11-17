@@ -116,7 +116,6 @@ pub fn spec() -> CommandSpec {
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
-            | Traits::PURE
             | Traits::CSE_CANDIDATE,
         arity: Arity::exact(3),
         return_type: Some(TclType::List),

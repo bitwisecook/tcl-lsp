@@ -469,8 +469,9 @@ the author's knowledge of the flow, and no rule here can recover it.
 #### Related settings ride the schema too
 
 A `CommandSpec` field is rarely a standalone switch: `arity` is read against
-`arity_windows`, and setting `pure` while `side_effects` says otherwise is a
-contradiction an author should see rather than meet in a failing gate.
+`arity_windows`, and `side_effects` is read with `world_effects`,
+`result_stability`, and their knowledge, which together decide whether a call
+is pure.
 `relations.rs` names the clusters of settings that are read together
 (Taint sinks, Effects and purity, Bodies and frames, …), each with one
 sentence saying why it hangs together, and `STANDALONE` names the one field
@@ -486,7 +487,7 @@ naming a key that is not a schema field fails too, because a link that goes
 nowhere is worse than no link.
 
 `FieldSchema::to_json` carries the result as `related` on every field, so
-the front-end can link `pure` to `side_effects` without knowing either name.
+the front-end can link `side_effects` to `world_effects` without knowing either name.
 The documentation dock draws them: each cluster is its name, its sentence,
 and one chip per member, and following a chip is the navigation described
 under [related settings are links](#related-settings-are-links). A studio
@@ -902,7 +903,7 @@ each `proc` into a draft:
 |---|---|
 | `arity` | the parameter list — defaults are optional, trailing `args` is variadic |
 | `arg_roles` | `ProcArgTrait` from [proc-arg-trait inference](proc-arg-traits.md), deep pass enabled |
-| `traits` | the same trait observations, and `PURE` as a proposal when the body is side-effect free |
+| `traits` | the same trait observations; purity is never proposed as a trait (see the note below) |
 | `side_effects`, `return_type` | proposals from the compiler's summary of the body: the state outside its frame it writes or reads through a command, and the type every path answers |
 | `hover`, `forms` | the `proc`'s doc comment and parameter list |
 | `required_package`, `introduced_version` | `package provide` |
@@ -917,10 +918,12 @@ list and the body (a name the list binds is local and any other is not), and the
 analyser's parameter traits for the parameters the body invokes as commands. Each
 fact is a proposal: a body is evidence of what the command does today, and whether
 a fact is part of its contract is the author's call, so each is added with its line
-of evidence and nothing the draft already states is replaced. The summary does
-not record a read of a global through a variable substitution, so a body that
-only reads one is still proposed `PURE`: the trait says side-effect free, not
-deterministic.
+of evidence and nothing the draft already states is replaced. Purity is derived
+from complete facts domains, not authored, so a body that writes nothing outside
+its frame and calls only commands the compiler can read gets a note, "looks pure:
+…", naming the `-complete` rows that would evidence it. The summary does not
+record a read of a global through a variable substitution, so a body that only
+reads one still gets the note: it says side-effect free, not deterministic.
 
 Every inferred draft carries `Inferred::notes` — one line of evidence per
 guess, surfaced in the UI. **Inference reports its reasoning, never a bare

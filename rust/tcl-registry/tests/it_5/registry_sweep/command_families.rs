@@ -363,13 +363,13 @@ fn family_f5_irules_shapes() {
         "when IS_EVENT_HANDLER"
     );
 
-    // HTTP::uri getter (no args, PURE source) vs setter (one arg) forms.
+    // HTTP::uri getter (no args, reusable source) vs setter (one arg) forms.
     let getter = reg
         .resolve_call("HTTP::uri", &[], ds)
         .expect("HTTP::uri getter");
     assert!(
-        getter.spec.traits.contains(Traits::PURE),
-        "HTTP::uri getter is pure"
+        getter.spec.traits.contains(Traits::CSE_CANDIDATE),
+        "HTTP::uri getter is reusable"
     );
     let setter = reg
         .resolve_call("HTTP::uri", &["/p"], ds)

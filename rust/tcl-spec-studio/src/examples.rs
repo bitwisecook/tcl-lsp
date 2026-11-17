@@ -1147,14 +1147,15 @@ mod tests {
             .unwrap_or_else(|| panic!("no focus labelled {prefix}"))
     }
 
-    /// The `traits` field example must put `PURE` on a command whose own
-    /// `traits` field declares it. `string length` is pure only through its
-    /// subcommand row; `llength` (Tcl 8.4 to 9.1) carries the trait itself.
+    /// The `traits` field example must put `CSE_CANDIDATE` on a command whose
+    /// own `traits` field declares it, and that command is pure, which the
+    /// optimiser needs before it reuses a result: `llength`'s C closes its
+    /// four purity domains on Tcl 8.4 to 9.1 (issue #1712).
     #[test]
-    fn traits_field_pure_arrow_sits_on_a_command_declaring_the_trait() {
+    fn traits_field_cse_arrow_sits_on_a_command_declaring_the_trait() {
         use tcl_dialect::model::{Family, SurfaceQuery};
 
-        let pure = focus_labelled(&FIELD_TRAITS, "PURE:");
+        let pure = focus_labelled(&FIELD_TRAITS, "CSE_CANDIDATE:");
         let head = pure
             .needle
             .trim_start_matches('[')
@@ -1163,7 +1164,10 @@ mod tests {
             .expect("carrier head");
         let registry = tcl_registry::CommandRegistry::build_default();
         let spec = registry.get(head).expect("registered carrier");
-        assert!(spec.is_pure(), "{head}");
+        assert!(
+            spec.traits.contains(tcl_registry::Traits::CSE_CANDIDATE),
+            "{head}"
+        );
         for release in ["8.4", "8.5", "8.6", "9.0", "9.1"] {
             let resolved = registry
                 .resolve_invocation(
@@ -1172,7 +1176,10 @@ mod tests {
                     Some(SurfaceQuery::core(Family::Tcl, release)),
                 )
                 .unwrap_or_else(|| panic!("Tcl {release} resolves {head}"));
-            assert!(resolved.facts().is_pure(), "Tcl {release} {head} is pure");
+            assert!(
+                resolved.facts().is_cse_pure(),
+                "Tcl {release} {head} is pure"
+            );
         }
         assert!(
             !pure.note.contains("fold"),
@@ -1222,7 +1229,7 @@ mod tests {
     /// never "never repeats".
     #[test]
     fn volatile_examples_do_not_claim_a_result_never_repeats() {
-        for key in ["result_stability", "pure", "mutator"] {
+        for key in ["result_stability", "mutator"] {
             let example = field_template(key).expect("example");
             for focus in example.focuses {
                 assert!(

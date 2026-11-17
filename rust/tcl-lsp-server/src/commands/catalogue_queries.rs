@@ -158,7 +158,10 @@ impl Backend {
                             "name": sub.name,
                             "detail": sub.detail,
                             "synopsis": sub.synopsis,
-                            "pure": sub.pure,
+                            "pure": sub.is_pure_at(
+                                spec,
+                                registry.profile().map(tcl_dialect::DialectProfile::surface_query).as_ref(),
+                            ),
                             "mutator": sub.mutator,
                             // The registry tracks deprecation at command level,
                             // not per subcommand — report the shape with a

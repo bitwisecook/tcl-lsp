@@ -1358,12 +1358,14 @@ fn declares_variable_write(
 }
 
 impl CommandSpec {
-    /// Whether the command is declared free of side effects. This is the one
-    /// reader of the authored `PURE` trait outside the registry, so purity
-    /// can later be derived from a complete effect footprint here alone.
+    /// Whether the command, called with no subcommand or form selected, is
+    /// pure at `query`: its side effects, world effects, completion and
+    /// result stability are all complete and closed there
+    /// ([`crate::purity::PurityDomains`], issue #1712). A query with no
+    /// release is pure only when every release is.
     #[must_use]
-    pub const fn is_pure(&self) -> bool {
-        self.traits.contains(Traits::PURE)
+    pub fn is_pure_at(&self, query: Option<&tcl_dialect::model::SurfaceQuery<'_>>) -> bool {
+        crate::purity::PurityDomains::of_command(self).pure_at(query)
     }
 
     /// Whether argument roles have a declared dynamic input contract.

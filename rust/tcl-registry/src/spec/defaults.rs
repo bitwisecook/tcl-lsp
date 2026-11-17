@@ -217,7 +217,7 @@ impl CommandSpec {
     ///
     /// Command specs still declare their behavioural traits explicitly. This
     /// base only closes the four independent semantic proof obligations, so
-    /// `PURE` and `CSE_CANDIDATE` cannot be acquired accidentally.
+    /// purity and `CSE_CANDIDATE` cannot be acquired accidentally.
     ///
     /// The dispatch declaration replaces the conservative default with
     /// [`DispatchDependencies::NONE`], which
@@ -283,7 +283,6 @@ impl SubCommand {
         var_elements_effect: None,
         representation_effect: None,
         arg_types: &[],
-        pure: false,
         mutator: false,
         const_fold: None,
         const_fold_versioned: None,

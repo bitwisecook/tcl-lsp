@@ -653,7 +653,7 @@ fn pure_wrapper(inner: &str) -> String {
     )
 }
 
-/// `-pure` is `Traits::PURE`: the interprocedural summary classifies the
+/// `-pure` states purity: the interprocedural summary classifies the
 /// call as a pure one, so `label` is pure. Over `string length`, which
 /// completes whatever it is given, the unused result of calling `label`
 /// goes (O126); a stub states purity, not how the command completes, so

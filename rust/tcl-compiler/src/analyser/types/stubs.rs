@@ -109,10 +109,15 @@ impl StubCommandDef {
         };
         if self.flags.contains(StubFlags::EXTENSION) {
             return DeclaredCommand::extension(self.name.clone(), arguments, provenance)
-                .narrowed_by(self.declared_traits(), self.declared_side_effects())
+                .narrowed_by(
+                    self.flags.contains(StubFlags::PURE),
+                    self.declared_traits(),
+                    self.declared_side_effects(),
+                )
                 .with_frame_effect(self.frame);
         }
         DeclaredCommand::new(self.name.clone(), arguments, provenance)
+            .with_pure(self.flags.contains(StubFlags::PURE))
             .with_traits(self.declared_traits())
             .with_side_effects(self.declared_side_effects())
             .with_frame_effect(self.frame)
@@ -120,7 +125,7 @@ impl StubCommandDef {
 
     /// The traits the flags state, each on the field its catalogue
     /// counterpart uses: `-barrier` is [`Traits::CREATES_DYNAMIC_BARRIER`],
-    /// `-loop` [`Traits::HAS_LOOP_BODY`], `-pure` [`Traits::PURE`], `-unsafe`
+    /// `-loop` [`Traits::HAS_LOOP_BODY`], `-unsafe`
     /// [`Traits::UNSAFE`] with [`Traits::SAFE_INTERP_HIDDEN`] (as `exec`
     /// states them), `-scope_alias` [`Traits::CREATES_SCOPE_ALIAS`], and
     /// `-mutator` [`Traits::READS_BEFORE_WRITE`] — the read half of a
@@ -129,7 +134,6 @@ impl StubCommandDef {
     ///
     /// [`Traits::CREATES_DYNAMIC_BARRIER`]: tcl_registry::Traits::CREATES_DYNAMIC_BARRIER
     /// [`Traits::HAS_LOOP_BODY`]: tcl_registry::Traits::HAS_LOOP_BODY
-    /// [`Traits::PURE`]: tcl_registry::Traits::PURE
     /// [`Traits::UNSAFE`]: tcl_registry::Traits::UNSAFE
     /// [`Traits::SAFE_INTERP_HIDDEN`]: tcl_registry::Traits::SAFE_INTERP_HIDDEN
     /// [`Traits::CREATES_SCOPE_ALIAS`]: tcl_registry::Traits::CREATES_SCOPE_ALIAS
@@ -137,10 +141,9 @@ impl StubCommandDef {
     #[must_use]
     pub fn declared_traits(&self) -> tcl_registry::Traits {
         use tcl_registry::Traits;
-        const FIELDS: [(StubFlags, Traits); 6] = [
+        const FIELDS: [(StubFlags, Traits); 5] = [
             (StubFlags::BARRIER, Traits::CREATES_DYNAMIC_BARRIER),
             (StubFlags::LOOP, Traits::HAS_LOOP_BODY),
-            (StubFlags::PURE, Traits::PURE),
             (
                 StubFlags::UNSAFE,
                 Traits::UNSAFE.union(Traits::SAFE_INTERP_HIDDEN),

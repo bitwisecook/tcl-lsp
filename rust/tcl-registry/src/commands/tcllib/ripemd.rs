@@ -89,7 +89,6 @@ fn digest(
     ];
     CommandSpec {
         name,
-        traits: Traits::PURE,
         arity: if keyed {
             Arity::at_least(2)
         } else {

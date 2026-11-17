@@ -103,7 +103,6 @@ fn push_spellings(out: &mut Vec<CommandSpec>, spec: &mathfunc::MathFuncSpec) {
                     crate::completion::CompletionCode::Error,
                 ])
             })),
-            traits: Traits::PURE,
             // Native operand updateStringProc/freeIntRepProc can change the
             // interpreter. The handler body effect and original object-hook
             // obligation are deliberately separate authored descriptors.

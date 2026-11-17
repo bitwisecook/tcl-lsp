@@ -20,6 +20,16 @@
 use crate::prelude::*;
 use tcl_dialect::model::SpecSurface;
 
+/// What a getter subcommand touches: it reads the header storage and writes
+/// nothing; only the `mutator` subcommands write it.
+const HEADER_READ: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::HttpHeader,
+    reads: true,
+    writes: false,
+    connection_side: ConnectionSide::Both,
+    ..SideEffect::DEFAULT
+}];
+
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
@@ -28,6 +38,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get header name by index.",
         synopsis: "HTTP::header at <index>",
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
+        side_effects: crate::knowledge::Knowledge::Partial(HEADER_READ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -36,6 +47,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Count headers.",
         synopsis: "HTTP::header count ?<name>?",
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
+        side_effects: crate::knowledge::Knowledge::Partial(HEADER_READ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -44,6 +56,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Check if header exists.",
         synopsis: "HTTP::header exists <name>",
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
+        side_effects: crate::knowledge::Knowledge::Partial(HEADER_READ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -78,6 +91,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Check if connection is keep-alive.",
         synopsis: "HTTP::header is_keepalive",
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
+        side_effects: crate::knowledge::Knowledge::Partial(HEADER_READ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -86,6 +100,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Check if response is a redirect.",
         synopsis: "HTTP::header is_redirect",
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
+        side_effects: crate::knowledge::Knowledge::Partial(HEADER_READ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -94,6 +109,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Returns 1 if a header with linear white space was encountered.",
         synopsis: "HTTP::header lws",
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
+        side_effects: crate::knowledge::Knowledge::Partial(HEADER_READ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -102,6 +118,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "List all header names.",
         synopsis: "HTTP::header names",
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
+        side_effects: crate::knowledge::Knowledge::Partial(HEADER_READ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -147,6 +164,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get first header value.",
         synopsis: "HTTP::header value <name>",
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
+        side_effects: crate::knowledge::Knowledge::Partial(HEADER_READ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -157,6 +175,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get all values for header.",
         synopsis: "HTTP::header values <name>",
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
+        side_effects: crate::knowledge::Knowledge::Partial(HEADER_READ),
         ..SubCommand::DEFAULT
     },
 ];
@@ -164,9 +183,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::header",
-        traits: Traits::PURE
-            .union(Traits::CSE_CANDIDATE)
-            .union(Traits::DIAGRAM_ACTION),
+        traits: Traits::CSE_CANDIDATE.union(Traits::DIAGRAM_ACTION),
         surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(1),
         options: const {

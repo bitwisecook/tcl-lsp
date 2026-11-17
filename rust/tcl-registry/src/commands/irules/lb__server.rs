@@ -27,7 +27,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Get server name.",
         synopsis: "LB::server name",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::PoolSelection,
             reads: true,
@@ -42,7 +41,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Get pool name.",
         synopsis: "LB::server pool",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::PoolSelection,
             reads: true,
@@ -57,7 +55,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Get route domain.",
         synopsis: "LB::server route_domain",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::PoolSelection,
             reads: true,
@@ -72,7 +69,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Get server address.",
         synopsis: "LB::server addr",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::PoolSelection,
             reads: true,
@@ -87,7 +83,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Get server port.",
         synopsis: "LB::server port",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::PoolSelection,
             reads: true,
@@ -102,7 +97,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Get server priority.",
         synopsis: "LB::server priority",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::PoolSelection,
             reads: true,
@@ -117,7 +111,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Get server ratio.",
         synopsis: "LB::server ratio",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::PoolSelection,
             reads: true,
@@ -132,7 +125,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Get server weight.",
         synopsis: "LB::server weight",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::PoolSelection,
             reads: true,
@@ -147,7 +139,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Get server ripeness.",
         synopsis: "LB::server ripeness",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::PoolSelection,
             reads: true,

@@ -98,7 +98,14 @@ fn unicode_is_91_only_with_normalization_subcommands() {
         let sub = spec
             .subcommand(name)
             .unwrap_or_else(|| panic!("unicode {name}"));
-        assert!(sub.pure, "unicode {name} is a pure normalization");
+        // Not evidenced pure: `TclUnicodeNormalizeCmd` (tcl9.1.0
+        // generic/tclCmdMZ.c) looks its encoding up by name and maps through
+        // utf8proc, which the C evidence does not close (issue #1712).
+        assert!(
+            !sub.is_pure_at(spec, Some(&SurfaceQuery::core(Family::Tcl, "9.1"))),
+            "unicode {name}"
+        );
+        assert!(!sub.mutator, "unicode {name} writes nothing");
         assert!(sub.options.iter().any(|o| o.name == "-profile"));
     }
 }
@@ -130,10 +137,18 @@ fn grapheme_is_91_only_with_its_ensemble_arities() {
         }
         for sub in ["next", "prev"] {
             let s = spec.subcommand(sub).unwrap();
-            assert!(!s.pure, "{sub} writes indexVar");
+            assert!(
+                !s.is_pure_at(spec, Some(&SurfaceQuery::core(Family::Tcl, "9.1"))),
+                "{sub} writes indexVar"
+            );
             assert_eq!(s.arg_roles, &[(1, ArgRole::VarWrite)], "{sub}");
         }
-        assert!(spec.subcommand("split").unwrap().pure);
+        // tcl9.1.0 `GraphemeSplitCmd` reaches no world-touching interface.
+        assert!(
+            spec.subcommand("split")
+                .unwrap()
+                .is_pure_at(spec, Some(&SurfaceQuery::core(Family::Tcl, "9.1")))
+        );
     }
 }
 
@@ -150,7 +165,16 @@ fn timer_is_91_only_with_scheduler_side_effects() {
     for name in ["in", "at", "idle", "sleep", "cancel", "info"] {
         assert!(spec.subcommand(name).is_some(), "timer {name}");
     }
-    assert!(spec.subcommand("info").unwrap().pure);
+    let info = spec.subcommand("info").unwrap();
+    assert!(
+        !info.mutator
+            && info
+                .side_effects
+                .lower_bound()
+                .iter()
+                .all(|effect| !effect.writes),
+        "timer info only reads"
+    );
     assert!(spec.subcommand("in").unwrap().mutator);
     assert!(
         spec.side_effects
@@ -296,7 +320,6 @@ fn tcl91_math_commands_are_pure_and_91_only() {
     // C Tcl 9.1b0 generic/tclBasic.c: DivModObjCmd / FracExpObjCmd / ModFObjCmd
     // / RemQuoObjCmd — pure numeric ops returning a two-element list.  The C
     // source is the authoritative reference for these.
-    use tcl_registry::traits::Traits;
     use tcl_registry::types::TclType;
     let r = reg();
     for name in ["divmod", "frexp", "modf", "remquo"] {
@@ -309,7 +332,10 @@ fn tcl91_math_commands_are_pure_and_91_only() {
             !spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.0"))),
             "{name} NOT in 9.0"
         );
-        assert!(spec.traits.contains(Traits::PURE), "{name} is pure");
+        assert!(
+            spec.is_pure_at(Some(&SurfaceQuery::core(Family::Tcl, "9.1"))),
+            "{name} is pure at 9.1: tclsh9.1's C implementation closes it"
+        );
         assert_eq!(spec.return_type, Some(TclType::List));
     }
     // `divmod x y` / `remquo x y` take 2 args; `frexp value` / `modf value` 1.

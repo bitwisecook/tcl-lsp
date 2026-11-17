@@ -27,7 +27,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get/set the DIAMETER protocol version.",
         synopsis: "DIAMETER::header version ?value?",
-        pure: true,
         mutator: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
@@ -44,7 +43,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Get the message length (read-only).",
         synopsis: "DIAMETER::header length",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
@@ -59,7 +57,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get/set the request flag (R-bit).",
         synopsis: "DIAMETER::header rflag ?value?",
-        pure: true,
         mutator: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
@@ -76,7 +73,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get/set the proxiable flag (P-bit).",
         synopsis: "DIAMETER::header pflag ?value?",
-        pure: true,
         mutator: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
@@ -93,7 +89,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get/set the error flag (E-bit).",
         synopsis: "DIAMETER::header eflag ?value?",
-        pure: true,
         mutator: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
@@ -110,7 +105,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get/set the retransmit flag (T-bit).",
         synopsis: "DIAMETER::header tflag ?value?",
-        pure: true,
         mutator: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
@@ -127,7 +121,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get/set the command code.",
         synopsis: "DIAMETER::header command_code ?value?",
-        pure: true,
         mutator: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
@@ -144,7 +137,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get/set the application ID.",
         synopsis: "DIAMETER::header application_id ?value?",
-        pure: true,
         mutator: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
@@ -161,7 +153,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get/set the hop-by-hop identifier.",
         synopsis: "DIAMETER::header hop_by_hop_id ?value?",
-        pure: true,
         mutator: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
@@ -178,7 +169,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get/set the end-to-end identifier.",
         synopsis: "DIAMETER::header end_to_end_id ?value?",
-        pure: true,
         mutator: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,

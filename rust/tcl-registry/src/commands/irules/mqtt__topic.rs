@@ -42,7 +42,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Get topic count.",
         synopsis: "MQTT::topic count",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
@@ -57,7 +56,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "List all topics.",
         synopsis: "MQTT::topic list",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
@@ -72,7 +70,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Get topic at index.",
         synopsis: "MQTT::topic index <n>",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
@@ -87,7 +84,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get/set topic QoS.",
         synopsis: "MQTT::topic qos ?index?",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,

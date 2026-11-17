@@ -539,7 +539,14 @@ mod tests {
         assert!(get.traits.contains(Traits::TAINT_SOURCE_ZERO_ARGS));
         assert!(!get.traits.contains(Traits::TAINT_SOURCE));
         let xcoord = toggleswitch.resolve_subcommand("xcoord").unwrap();
-        assert!(xcoord.pure);
+        assert!(
+            (!xcoord.mutator
+                && xcoord
+                    .side_effects
+                    .lower_bound()
+                    .iter()
+                    .all(|effect| !effect.writes))
+        );
         assert!(xcoord.traits.contains(Traits::TAINT_SOURCE_ZERO_ARGS));
         assert!(!xcoord.mutator);
         for supported in [
@@ -708,7 +715,15 @@ mod tests {
                     .intersects(Traits::TAINT_SOURCE | Traits::TAINT_SOURCE_ZERO_ARGS),
                 "{command} get must classify user-controlled data"
             );
-            assert!(get.pure, "{command} get must be a read, not a mutation");
+            assert!(
+                (!get.mutator
+                    && get
+                        .side_effects
+                        .lower_bound()
+                        .iter()
+                        .all(|effect| !effect.writes)),
+                "{command} get must be a read, not a mutation"
+            );
             assert!(get.return_type.is_some(), "{command} get return type");
             assert!(!get.detail.is_empty(), "{command} get hover detail");
             assert!(!get.synopsis.is_empty(), "{command} get synopsis");
@@ -793,7 +808,7 @@ mod tests {
             assert!(get.traits.contains(Traits::TAINT_SOURCE));
             assert!(get.return_type.is_some());
             assert!(
-                !get.pure,
+                !get.is_pure_at(spec, Some(&SurfaceQuery::core(Family::Tcl, "9.0"))),
                 "{command} get reads externally mutable selection state"
             );
         }
@@ -865,7 +880,7 @@ mod tests {
                 query
                     .semantics
                     .traits
-                    .contains(Traits::TAINT_SOURCE_ZERO_ARGS | Traits::PURE),
+                    .contains(Traits::TAINT_SOURCE_ZERO_ARGS),
                 "{command} {method}"
             );
             assert!(
@@ -892,7 +907,7 @@ mod tests {
                 !setter
                     .semantics
                     .traits
-                    .contains(Traits::TAINT_SOURCE_ZERO_ARGS | Traits::PURE),
+                    .contains(Traits::TAINT_SOURCE_ZERO_ARGS),
                 "setter form must not inherit query traits: {command} {method}"
             );
         }
@@ -951,7 +966,9 @@ mod tests {
                 .resolve_instance_invocation(class, ".w", query_args, None)
                 .unwrap_or_else(|| panic!("query form resolves: {class} {query_args:?}"));
             assert_eq!(query.form.map(|form| form.name), Some("query"));
-            assert!(query.semantics.traits.contains(Traits::PURE));
+            // A query reads widget state no source evidence closes, so it is
+            // read-only but not pure (issue #1712).
+            assert!(!query.facts().is_pure());
             assert!(!query.semantics.mutator);
             assert!(
                 query
@@ -969,7 +986,7 @@ mod tests {
                 mutation.form.map(|form| form.name),
                 Some("set" | "modify")
             ));
-            assert!(!mutation.semantics.traits.contains(Traits::PURE));
+            assert!(!mutation.facts().is_pure());
             assert!(mutation.semantics.mutator);
             assert!(
                 mutation
@@ -1213,7 +1230,15 @@ mod tests {
                 .and_then(|spec| spec.object_class)
                 .unwrap();
             let cget = class.instance_method("cget").unwrap();
-            assert!(cget.pure && !cget.mutator, "{command} cget");
+            assert!(
+                (!cget.mutator
+                    && cget
+                        .side_effects
+                        .lower_bound()
+                        .iter()
+                        .all(|effect| !effect.writes)),
+                "{command} cget"
+            );
             assert!(
                 cget.side_effects
                     .lower_bound()
@@ -1222,10 +1247,7 @@ mod tests {
             );
 
             let configure = class.instance_method("configure").unwrap();
-            assert!(
-                !configure.mutator && !configure.pure,
-                "neutral {command} configure"
-            );
+            assert!(!configure.mutator, "neutral {command} configure");
             assert!(configure.traits.is_empty(), "neutral {command} configure");
             assert!(
                 configure.side_effects.lower_bound().is_empty(),
@@ -1234,7 +1256,9 @@ mod tests {
             let query = registry
                 .resolve_instance_invocation(command, ".w", &["configure"], None)
                 .unwrap();
-            assert!(query.semantics.traits.contains(Traits::PURE));
+            // A query reads widget state no source evidence closes, so it is
+            // read-only but not pure (issue #1712).
+            assert!(!query.facts().is_pure());
             assert!(!query.semantics.mutator);
             assert!(
                 query
@@ -1315,7 +1339,15 @@ mod tests {
         );
         for method in ["delta", "fraction", "get", "identify"] {
             let method = scrollbar_class.instance_method(method).unwrap();
-            assert!(method.pure && !method.mutator, "{method:?}");
+            assert!(
+                (!method.mutator
+                    && method
+                        .side_effects
+                        .lower_bound()
+                        .iter()
+                        .all(|effect| !effect.writes)),
+                "{method:?}"
+            );
             assert!(method.return_type.is_some(), "{method:?}");
             assert!(
                 method
@@ -1327,7 +1359,7 @@ mod tests {
         }
         for method in ["activate", "set"] {
             let method = scrollbar_class.instance_method(method).unwrap();
-            assert!(method.mutator && !method.pure, "{method:?}");
+            assert!(method.mutator, "{method:?}");
             assert!(
                 method
                     .side_effects
@@ -1393,13 +1425,9 @@ mod tests {
         };
 
         let specs = tk_command_specs();
-        let dump = specs
-            .iter()
-            .find(|spec| spec.name == "text")
-            .unwrap()
-            .resolve_subcommand("dump")
-            .unwrap();
-        assert!(!dump.pure);
+        let text_spec = specs.iter().find(|spec| spec.name == "text").unwrap();
+        let dump = text_spec.resolve_subcommand("dump").unwrap();
+        assert!(!dump.is_pure_at(text_spec, Some(&SurfaceQuery::core(Family::Tcl, "9.0"))));
         assert!(dump.traits.contains(Traits::TAINT_SOURCE));
         assert!(dump.traits.contains(Traits::EVALUATES_CODE));
         let command = dump
@@ -1509,7 +1537,14 @@ mod tests {
         let locale = text.resolve_subcommand("locale").unwrap();
         assert_eq!(locale.lifecycle.introduced, Some("9.1"));
         assert_eq!(locale.arity, Arity::exact(1));
-        assert!(locale.pure);
+        assert!(
+            (!locale.mutator
+                && locale
+                    .side_effects
+                    .lower_bound()
+                    .iter()
+                    .all(|effect| !effect.writes))
+        );
 
         let toggle = specs
             .iter()

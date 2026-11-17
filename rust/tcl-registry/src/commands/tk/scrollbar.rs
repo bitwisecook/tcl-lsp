@@ -244,7 +244,6 @@ static SCROLLBAR_METHODS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Return the fraction corresponding to a pixel displacement.",
         synopsis: "pathName delta deltaX deltaY",
-        pure: true,
         return_type: Some(TclType::Double),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         ..SubCommand::DEFAULT
@@ -254,7 +253,6 @@ static SCROLLBAR_METHODS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Return the fraction corresponding to a point in the trough.",
         synopsis: "pathName fraction x y",
-        pure: true,
         return_type: Some(TclType::Double),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         ..SubCommand::DEFAULT
@@ -264,7 +262,6 @@ static SCROLLBAR_METHODS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Return the scrollbar's current view fractions.",
         synopsis: "pathName get",
-        pure: true,
         return_type: Some(TclType::List),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         ..SubCommand::DEFAULT
@@ -274,7 +271,6 @@ static SCROLLBAR_METHODS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Return the scrollbar element at the given coordinates.",
         synopsis: "pathName identify x y",
-        pure: true,
         return_type: Some(TclType::String),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         ..SubCommand::DEFAULT

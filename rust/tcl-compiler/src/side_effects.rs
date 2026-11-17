@@ -700,10 +700,10 @@ impl Default for CalleeSummary {
 /// into effects — see [`classify_from_callee_summary`].
 ///
 /// The registry
-/// traits consulted today are `PURE`, `PURE_EVALUATION`,
+/// facts consulted today are derived purity, `PURE_EVALUATION`,
 /// `EVALUATES_CODE`, `CREATES_BARRIER`, `DEFINES_PROCEDURE`, and
 /// `DESTROYS_VARIABLE`, plus the spec-level `assigns_variable_at`
-/// field, and the spec's structured `side_effects`. A `PURE` command
+/// field, and the spec's structured `side_effects`. A pure command
 /// with a mutator subcommand
 /// (`HTTP::header insert …`) is downgraded to impure and a still-pure
 /// command surfaces its hint read-only. Full arity-based form
@@ -775,10 +775,10 @@ pub fn classify_side_effects_with_context(
         };
     }
 
-    // Command-level `PURE` commands. Two refinements on the pure
+    // Commands pure at the command level. Two refinements on the pure
     // branch:
     //   1. A *mutator* subcommand downgrades purity — e.g. `HTTP::header`
-    //      is `PURE` but `HTTP::header insert …` mutates header state, so
+    //      is pure but `HTTP::header insert …` mutates header state, so
     //      it must fall through to the structured-hints classification
     //      below (which yields the read+write effect). Without this a
     //      header mutation reads as pure with no effects.
@@ -786,7 +786,11 @@ pub fn classify_side_effects_with_context(
     //      (getter) reads header state. Return the structured hint
     //      with `reads=true, writes=false` by forcing the
     //      spec's hints read-only.
-    if spec.is_pure() {
+    // With no dialect, the registry's own release answers.
+    let query = dialect
+        .or_else(|| registry.profile())
+        .map(tcl_dialect::DialectProfile::surface_query);
+    if spec.is_pure_at(query.as_ref()) {
         let effective_sub = args.first().map(String::as_str);
         let sub_is_mutator = effective_sub
             .and_then(|s| spec.resolve_subcommand(s))
@@ -804,8 +808,8 @@ pub fn classify_side_effects_with_context(
                         .collect::<Vec<_>>()
                 });
             return CommandSideEffects {
-                effects,
                 pure: true,
+                effects,
                 deterministic: true,
                 dialect: dialect.map(|profile| profile.name.to_owned()),
                 ..CommandSideEffects::default()
@@ -823,7 +827,7 @@ pub fn classify_side_effects_with_context(
     // conservative unknown-write, which (e.g.) hides redundant `string length`
     // computations from GVN.
     if let Some(sub) = args.first().and_then(|a| spec.resolve_subcommand(a))
-        && sub.pure
+        && sub.is_pure_at(spec, query.as_ref())
         && !sub.mutator
     {
         return CommandSideEffects {
@@ -950,7 +954,7 @@ pub fn classify_side_effects_in(
 
 /// The side effects of a command the document declares, read off the facts
 /// its declaration states in the order [`classify_side_effects`] reads a
-/// catalogue spec's: an eval-like barrier trait first, then `PURE` (its
+/// catalogue spec's: an eval-like barrier trait first, then purity (its
 /// stated effects surfaced read-only, as a pure catalogue command's hints
 /// are), then the stated effects, and the conservative unknown write for a
 /// declaration that states none — so a stub with no flags classifies exactly
@@ -975,7 +979,8 @@ fn classify_declared(
         };
     }
     let stated = surface.side_effects(command).unwrap_or_default();
-    if surface.is_pure(command) {
+    let query = dialect.map(tcl_dialect::DialectProfile::surface_query);
+    if surface.is_pure_at(command, query.as_ref()) {
         return CommandSideEffects {
             effects: stated
                 .iter()

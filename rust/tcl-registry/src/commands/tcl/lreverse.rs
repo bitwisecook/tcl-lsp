@@ -121,7 +121,7 @@ pub fn spec() -> CommandSpec {
         native_result: Some(crate::native_result::NativeResultContract::ListReverse { list_at: 0 }),
         runtime_backing: RuntimeBacking::shipped("lreverse"),
         const_fold: Some(crate::const_fold::fold_lreverse),
-        traits: Traits::FRAMELESS_RUNTIME | Traits::PURE | Traits::CSE_CANDIDATE,
+        traits: Traits::FRAMELESS_RUNTIME | Traits::CSE_CANDIDATE,
         // Added in Tcl 8.5 (TIP 272) — absent from the 8.4 manpage tree and
         // from `generic/tclCmdIL.c` in the 8.4.20 source; see the module
         // doc comment above for the full version and dialect history.

@@ -447,7 +447,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Test whether the last input operation would have blocked; only ever true on a channel configured non-blocking.",
         synopsis: "chan blocked channelId",
-        pure: true,
         arg_roles: &[(0, ArgRole::Channel)],
         return_type: Some(TclType::Boolean),
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
@@ -541,7 +540,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Test for end of file.",
         synopsis: "chan eof channelId",
-        pure: true,
         arg_roles: &[(0, ArgRole::Channel)],
         return_type: Some(TclType::Boolean),
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
@@ -632,7 +630,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "List open channels, optionally filtered by a glob pattern.",
         synopsis: "chan names ?pattern?",
-        pure: true,
         arg_roles: &[(0, ArgRole::Pattern)],
         pattern_type: Some(PatternType::Glob),
         return_type: Some(TclType::List),
@@ -649,7 +646,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Return the number of bytes currently buffered internally for input or output.",
         synopsis: "chan pending mode channelId",
-        pure: true,
         arg_roles: &[(1, ArgRole::Channel)],
         arg_values: &[(0, PENDING_MODE_VALUES)],
         closed_value_args: &[0],
@@ -773,7 +769,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Return current position.",
         synopsis: "chan tell channelId",
-        pure: true,
         arg_roles: &[(0, ArgRole::Channel)],
         return_type: Some(TclType::Int),
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
@@ -806,7 +801,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         surface: Some(SpecSurface::TCL90_PLUS),
         detail: "Test whether the channel is binary (iso8859-1 encoding, empty -eofchar, lf translation).",
         synopsis: "chan isbinary channelId",
-        pure: true,
         arg_roles: &[(0, ArgRole::Channel)],
         return_type: Some(TclType::Boolean),
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {

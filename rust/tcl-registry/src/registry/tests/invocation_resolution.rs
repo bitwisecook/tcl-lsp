@@ -620,7 +620,8 @@ fn resolve_invocation_exposes_subcommand_effects_through_one_semantic_view() {
         )
         .expect("HTTP::header insert resolves in the iRules dialect");
 
-    assert!(resolved.semantics.traits.contains(Traits::PURE));
+    // No source evidence closes an iRules command (issue #1712).
+    assert!(!resolved.facts().is_pure());
     assert_eq!(resolved.semantics.side_effects.lower_bound().len(), 1);
     let effect = resolved.semantics.side_effects.lower_bound()[0];
     assert_eq!(

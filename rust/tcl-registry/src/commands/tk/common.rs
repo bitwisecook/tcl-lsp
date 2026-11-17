@@ -148,7 +148,7 @@ pub(crate) const CONFIGURE_FORMS: &[SubCommandForm] = &[
     SubCommandForm {
         name: "query",
         arity: Arity::new(0, 1),
-        traits: Some(Traits::PURE),
+        traits: Some(Traits::empty()),
         mutator: Some(false),
         side_effects: Some(crate::knowledge::Knowledge::declared(TTK_WIDGET_READS)),
         ..SubCommandForm::DEFAULT
@@ -170,7 +170,7 @@ pub(crate) const QUERY_OR_SET_FORMS: &[SubCommandForm] = &[
     SubCommandForm {
         name: "query",
         arity: Arity::exact(0),
-        traits: Some(Traits::PURE),
+        traits: Some(Traits::empty()),
         mutator: Some(false),
         side_effects: Some(crate::knowledge::Knowledge::declared(TTK_WIDGET_READS)),
         ..SubCommandForm::DEFAULT
@@ -192,7 +192,7 @@ pub(crate) const TAINTED_QUERY_OR_SET_FORMS: &[SubCommandForm] = &[
     SubCommandForm {
         name: "query",
         arity: Arity::exact(0),
-        traits: Some(Traits::PURE.union(Traits::TAINT_SOURCE_ZERO_ARGS)),
+        traits: Some(Traits::TAINT_SOURCE_ZERO_ARGS),
         mutator: Some(false),
         side_effects: Some(crate::knowledge::Knowledge::declared(TTK_WIDGET_READS)),
         ..SubCommandForm::DEFAULT
@@ -215,7 +215,7 @@ pub(crate) const VIEW_FORMS: &[SubCommandForm] = &[
     SubCommandForm {
         name: "query",
         arity: Arity::exact(0),
-        traits: Some(Traits::PURE),
+        traits: Some(Traits::empty()),
         mutator: Some(false),
         side_effects: Some(crate::knowledge::Knowledge::declared(TTK_WIDGET_READS)),
         ..SubCommandForm::DEFAULT
@@ -238,7 +238,7 @@ pub(crate) const ENTRY_SELECTION_FORMS: &[SubCommandForm] = &[SubCommandForm {
     name: "present",
     arity: Arity::exact(1),
     literal_argument_prefix: Some(LiteralArgumentPrefix::unique(&["present"])),
-    traits: Some(Traits::PURE),
+    traits: Some(Traits::empty()),
     mutator: Some(false),
     side_effects: Some(crate::knowledge::Knowledge::declared(TTK_WIDGET_READS)),
     ..SubCommandForm::DEFAULT
@@ -290,7 +290,6 @@ pub(crate) const CLASSIC_WIDGET_CGET: SubCommand = SubCommand {
     arity: Arity::exact(1),
     detail: "Return the current value of a widget option.",
     synopsis: "pathName cget option",
-    pure: true,
     return_type: Some(TclType::String),
     side_effects: crate::knowledge::Knowledge::declared(TTK_WIDGET_READS),
     ..SubCommand::DEFAULT
@@ -348,7 +347,6 @@ macro_rules! ttk_widget_class {
                 arity: Arity::exact(1),
                 detail: "Return the current value of a widget option.",
                 synopsis: "pathName cget option",
-                pure: true,
                 return_type: Some(TclType::String),
                 side_effects: $crate::knowledge::Knowledge::declared($crate::commands::tk::common::TTK_WIDGET_READS),
                 semantics: SemanticsDeclaration::Declared(
@@ -370,7 +368,6 @@ macro_rules! ttk_widget_class {
                 arity: Arity::exact(3),
                 detail: "Identify a themed component at the given coordinates.",
                 synopsis: "pathName identify element x y",
-                pure: true,
                 return_type: Some(TclType::String),
                 side_effects: $crate::knowledge::Knowledge::declared($crate::commands::tk::common::TTK_WIDGET_READS),
                 semantics: SemanticsDeclaration::Declared(
@@ -403,7 +400,6 @@ macro_rules! ttk_widget_class {
                 lifecycle: $style_lifecycle,
                 detail: "Return the widget's current style.",
                 synopsis: "pathName style",
-                pure: true,
                 return_type: Some(TclType::String),
                 side_effects: $crate::knowledge::Knowledge::declared($crate::commands::tk::common::TTK_WIDGET_READS),
                 semantics: SemanticsDeclaration::Declared(

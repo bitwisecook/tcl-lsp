@@ -347,8 +347,6 @@ declare_traits! {
     LoopListHeader => LOOP_LIST_HEADER, ControlFlow, "a loop header with list-expression arguments";
 
     // Purity and optimisation
-    /// Side-effect-free command.
-    Pure => PURE, Runtime, "side-effect free";
     /// Candidate for common subexpression elimination.
     CseCandidate => CSE_CANDIDATE, Runtime, "eligible for common-subexpression elimination";
     /// Pure evaluation (`expr` — side-effect-free when braced).
@@ -1324,7 +1322,6 @@ declare_trait_examples! {
     HasLoopBody => flow!("set items {alpha beta}\nforeach item $items { lappend seen $item }\nputs $seen"; (1, "foreach"); (0, "{alpha beta}", "supplies loop values"), (1, "foreach item $items", "recursively analyses its loop body"), (1, "lappend seen $item", "runs in that loop body"), (2, "$seen", "contains the values produced by each iteration"));
     NeverInlineBody => flow!("set items {alpha beta}\nforeach item $items { puts $item }\nputs done"; (1, "foreach"); (0, "{alpha beta}", "supplies runtime iterations"), (1, "foreach item $items", "owns a distinct loop body"), (1, "{ puts $item }", "must remain a distinct loop body"), (2, "puts done", "runs after the loop completes"));
     LoopListHeader => flow!("set items {alpha beta}\nforeach name $items { puts $name }"; (1, "foreach"); (0, "{alpha beta}", "supplies the list"), (1, "$items", "is substituted once, before the first iteration"), (1, "foreach name", "reads that one list rather than re-evaluating it per pass"), (1, "puts $name", "sees one element each time round"));
-    Pure => flow!("set input hello\nset n [string length $input]\nputs $n"; (1, "string"); (0, "hello", "is the only input"), (1, "[string length $input]", "has no externally visible side effect"), (2, "$n", "is the complete observable result"));
     CseCandidate => flow!("set input hello\nset a [string length $input]\nset b [string length $input]\nputs [expr {$a + $b}]"; (1, "string"); (1, "[string length $input]", "computes the expression once"), (2, "[string length $input]", "can reuse the equivalent result"), (3, "$a + $b", "observes identical values"));
     PureEvaluation => flow!("set price 20\nset total [expr {$price * 2}]\nputs $total"; (1, "expr"); (0, "price 20", "supplies the expression input"), (1, "expr {$price * 2}", "evaluates without changing external state"), (2, "$total", "receives the numeric result"));
     DefinesProcedure => flow!("proc greet {name} { return \"hello $name\" }\nputs [greet Ada]"; (0, "proc"); (0, "proc greet", "adds a command definition"), (0, "{name}", "declares its parameter"), (1, "[greet Ada]", "resolves to the new procedure"));
@@ -1481,6 +1478,10 @@ pub const RETIRED_TRAITS: &[(&str, &str)] = &[
     (
         "CONFIGURES_CHANNEL",
         "a `SideEffect` on the `FileIo` target with `reads` and `writes` set now carries this",
+    ),
+    (
+        "PURE",
+        "purity is derived: a call is pure where its side effects, world effects, completion and result stability are all complete and closed (`effects -complete`, `world_effects none -complete`, `completion {Ok Error} -complete`, `result_stability ReferentiallyTransparent -complete`); the derived answer is `CommandSpec::is_pure_at`",
     ),
     (
         "STRING_LIST_CONFUSION",

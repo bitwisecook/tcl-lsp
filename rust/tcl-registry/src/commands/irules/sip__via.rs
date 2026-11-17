@@ -27,7 +27,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get Via protocol.",
         synopsis: "SIP::via proto ?index?",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
@@ -42,7 +41,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get Via sent-by field.",
         synopsis: "SIP::via sent_by ?index?",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
@@ -57,7 +55,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get Via received parameter.",
         synopsis: "SIP::via received ?index?",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
@@ -72,7 +69,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get Via branch parameter.",
         synopsis: "SIP::via branch ?index?",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
@@ -87,7 +83,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get Via maddr parameter.",
         synopsis: "SIP::via maddr ?index?",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
@@ -102,7 +97,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get Via ttl parameter.",
         synopsis: "SIP::via ttl ?index?",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,

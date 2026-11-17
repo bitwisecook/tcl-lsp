@@ -390,7 +390,10 @@ mod tests {
         assert_eq!(spell("${x}", false).as_deref(), Some("{${x}}"));
         assert_eq!(spell("a b", false).as_deref(), Some("{a b}"));
         // A word the source braced stays braced, so its bytes are the value.
-        assert_eq!(spell("PURE", true).as_deref(), Some("{PURE}"));
+        assert_eq!(
+            spell("CSE_CANDIDATE", true).as_deref(),
+            Some("{CSE_CANDIDATE}")
+        );
         // No verbatim spelling at all: an unbalanced brace, or a trailing
         // backslash that would escape the closing one.
         assert_eq!(spell("a { brace", false), None);

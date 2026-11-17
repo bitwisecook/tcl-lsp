@@ -324,9 +324,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::cookie",
-        traits: Traits::PURE
-            .union(Traits::CSE_CANDIDATE)
-            .union(Traits::DIAGRAM_ACTION),
+        traits: Traits::CSE_CANDIDATE.union(Traits::DIAGRAM_ACTION),
         surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {

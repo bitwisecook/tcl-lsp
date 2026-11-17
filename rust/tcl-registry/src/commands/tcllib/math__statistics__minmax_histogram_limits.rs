@@ -26,7 +26,6 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "math::statistics::minmax-histogram-limits",
-        traits: Traits::PURE,
         surface: None,
         arity: Arity::new(2, 3),
         hover: Some(HoverSnippet {

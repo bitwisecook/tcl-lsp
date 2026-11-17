@@ -241,13 +241,6 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Expected intrep and shimmer risk per argument index.",
     ),
     f(
-        "pure",
-        "Pure",
-        BEHAVIOUR,
-        FieldKind::Bool,
-        "Side-effect free.",
-    ),
-    f(
         "mutator",
         "Mutator",
         BEHAVIOUR,

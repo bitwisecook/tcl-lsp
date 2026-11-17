@@ -481,12 +481,10 @@ fn external_tk_selection_reads_are_neither_pure_nor_deterministic() {
 
 #[test]
 fn pure_command_mutator_subcommand_downgrades_purity() {
-    // `HTTP::header` carries `Traits::PURE` + a structured `HttpHeader`
-    // read+write hint + `mutator` subcommands. The getter stays pure with
-    // a read-only effect; a mutator subcommand (`insert`) downgrades to
-    // impure with a read+write effect. On the pure branch,
-    // `HTTP::header` → (HTTP_STATE, NONE) pure; `insert` → (HTTP_STATE,
-    // HTTP_STATE) impure.
+    // `HTTP::header` states a read+write `HttpHeader` hint and `mutator`
+    // subcommands; its getters state a read-only one. No iRules call is pure
+    // without source evidence, so the getter reads (HTTP_STATE, NONE) and a
+    // mutator (`insert`) reads and writes (HTTP_STATE, HTTP_STATE).
     let mut registry = CommandRegistry::build_default();
     registry.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
 
@@ -497,11 +495,14 @@ fn pure_command_mutator_subcommand_downgrades_purity() {
         Some(tcl_dialect::DialectProfile::irules()),
         None,
     );
-    assert!(getter.pure, "HTTP::header getter should stay pure");
+    assert!(
+        !getter.pure,
+        "iRules has no source evidence, so no iRules call is pure (issue #1712)"
+    );
     assert_eq!(
         getter.to_effect_regions(),
         (EffectRegion::HTTP_STATE, EffectRegion::NONE),
-        "pure getter reads header state, no write",
+        "the getter reads header state, no write",
     );
 
     let insert = classify_side_effects(
@@ -999,7 +1000,7 @@ fn special_variable_effects_follow_root_cells_and_aliases() {
 ///
 /// The declarations arrive the way a document states them, through the
 /// analyser's one ingestion path (`document_declared_surface`), so the
-/// facts classified here are the flags' own: `-pure` is `PURE`, and
+/// facts classified here are the flags' own: `-pure` states purity, and
 /// `-mutator` is `READS_BEFORE_WRITE` beside a variable read and write.
 #[test]
 fn a_declared_command_classifies_from_its_declaration() {

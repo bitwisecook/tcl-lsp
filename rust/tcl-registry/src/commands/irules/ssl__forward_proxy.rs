@@ -57,7 +57,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 2),
         detail: "Retrieve the forged certificate or set cert options.",
         synopsis: "SSL::forward_proxy cert ?response_control? ?status?",
-        pure: true,
         arg_values: &[(
             0,
             &[

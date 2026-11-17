@@ -40,8 +40,7 @@ the matched form, and every consumer reads the combined answer
 (`tcl_registry::resolved_invocation`). Two rules apply, and they differ:
 
 - **Traits union.** The command's trait bits are OR-ed with the resolved
-  subcommand's (a subcommand's `pure: true` folds in as `PURE` here). A
-  subcommand can only ever *add* behaviour — it cannot mask its parent's
+  subcommand's. A subcommand can only ever *add* behaviour — it cannot mask its parent's
   traits. The legacy purity classifier is the one place
   `SubCommand::mutator` downgrades a pure parent.
 - **Descriptors are most-specific-wins.** `result_stability`,
@@ -82,7 +81,10 @@ For a third-party library, ordered by payoff:
    right: completion filtering, missing-`package require` fixes, and
    version gating.
 5. **Traits + `side_effects` + taint fields** — the behavioural facts
-   diagnostics and the optimiser key on. `PURE | CSE_CANDIDATE` is the
+   diagnostics and the optimiser key on. Purity is derived, never
+   declared: a call is pure at a release when its side effects, world
+   effects, completion, and result stability are all complete there
+   (`CommandSpec::is_pure_at`). `CSE_CANDIDATE` on a pure call is the
    opt-in to folding and hoisting; `EVALUATES_CODE` / `CREATES_BARRIER`
    is the deliberate opt-out that makes a call a hard barrier.
 
@@ -121,8 +123,9 @@ Both retain the current analysis and original operand mapping.
 ## Optimisations by field
 
 The optimiser's O-codes and what enables or blocks each. The recurring
-gate is the shared purity classifier: `Traits::PURE` (or
-`PURE_EVALUATION`, or a pure resolved subcommand) enables;
+gate is the shared purity classifier: a pure call (its four facts
+domains complete at the release, `InvocationFacts::is_pure`) or
+`PURE_EVALUATION` enables;
 `EVALUATES_CODE` / `CREATES_BARRIER` makes the call a hard barrier; an
 **unregistered command blocks everything around it**.
 
@@ -132,7 +135,7 @@ gate is the shared purity classifier: `Traits::PURE` (or
 | O102 load forwarding | literal into uses | Blocked by the same aliasing/trace traits and by any barrier statement |
 | O103 pure-proc folding | call → constant | Every callee must classify pure — one unregistered command in a proc poisons it |
 | O104 / O130 chain folds | selected `set` plus append/list-append layout → one `set` | Requires a selected `StructuredLowering` source layout, retained current original invocation, effective arguments, matching lexer configuration, frozen arity, and mutation/context proof; this does not accept arbitrary RMW commands or prefixes |
-| O105 redundancy (GVN) | reuse a prior identical call | Production requires source-faithful semantic facts, `PURE \| CSE_CANDIDATE`, reusable `result_stability`, closed empty effects/transitions, and a complete per-site dispatch proof. Versioned-world results also key on their declared read domains; missing proof declines reuse |
+| O105 redundancy (GVN) | reuse a prior identical call | Production requires source-faithful semantic facts, a pure call carrying `CSE_CANDIDATE` (`InvocationFacts::is_cse_pure`), reusable `result_stability`, closed empty effects/transitions, and a complete per-site dispatch proof. Versioned-world results also key on their declared read domains; missing proof declines reuse |
 | O106 loop hoisting (LICM) | invariant out of loop | The production path uses the same semantic eligibility and dispatch proofs as GVN, plus the function's SCCP executability and loop-invariance checks; traits alone do not authorise a hoist |
 | O107 / O112 unreachable + constant branches | dead blocks, `if {0}` | Need structured IR: only commands with a `lowering_hook` (`If` / `While` / `For` / `Switch`) participate; the hook enum is closed |
 | O108 / O109 / O126 / O127 dead code, dead stores, inlining | removal / inlining | Purity classifier; `VarRead` / `WHOLE_ARRAY_ARG` roles prevent false "unused"; `READS_BEFORE_WRITE` protects RMW feeds; `DESTROYS_VARIABLE` keeps the killed store alive |

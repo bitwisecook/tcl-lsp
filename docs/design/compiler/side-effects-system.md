@@ -212,7 +212,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "lookup",
         arity: Arity::at_least(0),
-        pure: true,
         side_effects: &[SideEffect {
             target: SideEffectTarget::SessionTable,
             reads: true,
@@ -225,14 +224,16 @@ const SUBCOMMANDS: &[SubCommand] = &[
 ];
 ```
 
-Key interaction: on a command carrying `Traits::PURE`, a non-mutator
-subcommand's declared effects are returned **read-only** (`reads` forced
+Purity is derived, never declared: a call is pure at a release when its side
+effects, world effects, completion, and result stability are all complete there
+(`CommandSpec::is_pure_at`, `SubCommand::is_pure_at`). Key interaction: on a
+command pure at the active dialect, a non-mutator subcommand's declared effects are returned **read-only** (`reads` forced
 `true`, `writes` forced `false`). This lets read-only subcommands like
 `HTTP::header value` carry target metadata without being classified as
 writers.
 
-The ensemble arm behaves differently: when the *command* is not `PURE` but a
-resolved subcommand is `pure: true` and not a mutator, the classifier returns
+The ensemble arm behaves differently: when the *command* is not pure but a
+resolved subcommand is pure at the dialect and not a mutator, the classifier returns
 pure with **no effects at all** — that subcommand's declared targets do not
 reach the result.
 
@@ -275,14 +276,15 @@ It follows this priority chain, returning at the first arm that matches:
    `dynamic_barrier: true`.
 4. **Pure evaluation** — `Traits::PURE_EVALUATION` (braced `expr`) → pure and
    deterministic, unconditionally, with no subcommand or hint handling.
-5. **Command-level purity** — `Traits::PURE`, with two refinements. A
+5. **Command-level purity** — the command is pure at the dialect
+   (`CommandSpec::is_pure_at`), with two refinements. A
    *mutator* subcommand (`HTTP::header insert …`) downgrades the command and
    falls through to the hints arm; a still-pure command returns its dialect
    hints forced read-only (`reads = true`, `writes = false`), so
    `HTTP::header` the getter keeps its target metadata.
-6. **Subcommand-level purity** — an ensemble that is not itself `PURE`
-   inherits purity from a resolved `SubCommand` with `pure: true` and
-   `mutator: false` (`string length`, `dict get`, `array names`). Returns
+6. **Subcommand-level purity** — an ensemble that is not itself pure
+   inherits purity from a resolved `SubCommand` pure at the dialect
+   (`SubCommand::is_pure_at`) with `mutator: false` (`string length`, `dict get`, `array names`). Returns
    pure with *no* effects.
 7. **Variable assignment** — `assigns_variable_at` → `classify_variable_assignment`,
    producing a `SideEffectTarget::Variable` effect with scope, namespace, key,
@@ -428,14 +430,13 @@ SideEffect {
    declared on the spec.
 4. **Add to CommandSpec** — set `side_effects: &[SideEffect { … }]` on the spec.
 5. **Add SubCommand entries if needed** — if subcommands have different read/write profiles, set `side_effects` on each `SubCommand`.
-6. **Mark pure subcommands** — set `pure: true` on read-only subcommands. On a `PURE` command the classifier forces its hints read-only; on an ensemble a pure subcommand makes the call pure with no effects.
-7. **Mark mutator subcommands** — set `mutator: true` on write subcommands. This is what stops a `PURE` command's mutating subcommand from being classified pure, sending it to the hints arm instead.
+6. **Do not declare purity** — it is derived from complete facts domains, which come from C-source evidence (`scripts/dev/tcl_command_evidence.py`, generating `rust/tcl-registry/src/commands/closed_evidence/table.rs`). On a pure command the classifier forces its hints read-only; on an ensemble a pure subcommand makes the call pure with no effects.
+7. **Mark mutator subcommands** — set `mutator: true` on write subcommands. This is what stops a pure command's mutating subcommand from being classified pure, sending it to the hints arm instead.
 
 ### Checklist
 
 - [ ] `side_effects` slice on `CommandSpec`
 - [ ] Subcommand hints where read/write varies
-- [ ] `pure: true` on read-only subcommands
 - [ ] `mutator: true` on write subcommands
 
 ## File-path anchors
@@ -463,7 +464,7 @@ SideEffect {
 ## Failure modes
 
 - **Missing effects** — command falls through to conservative `SideEffectTarget::Unknown` read+write. GVN will not optimise around it. Fix: add `side_effects` to the command's registry spec.
-- **Missing subcommand effects** — read-only subcommand inherits the command's conservative read+write effect. Fix: add per-subcommand `side_effects` with `pure: true` on read-only subcommands.
+- **Missing subcommand effects** — read-only subcommand inherits the command's conservative read+write effect. Fix: add per-subcommand read-only `side_effects`.
 - **Wrong `connection_side`** — iRules flow checker may fail to track response commits or connection drops on the correct side. Fix: set `connection_side` to match the F5 documentation.
 - **Pure subcommand without effects** — classifier returns `pure: true` with no effects. Target metadata is lost. Fix: add `side_effects` to the subcommand so the classifier can include read-only effects.
 - **Hint on dynamic barrier command** — hints are ignored; dynamic barriers always produce `UNKNOWN` read+write. This is correct — do not add hints to `eval`/`uplevel`.

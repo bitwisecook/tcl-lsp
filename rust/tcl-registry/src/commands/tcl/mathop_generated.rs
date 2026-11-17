@@ -116,13 +116,13 @@ fn push_spellings(out: &mut Vec<CommandSpec>, spec: OperatorSpec) {
             // non-numeric) raises an error, which the registry models as
             // control flow rather than as a side effect.
             //
-            // The namespace spec (`mathop.rs`) already carried `PURE`; the
+            // The namespace spec (`mathop.rs`) was once pure; the
             // commands generated under it did not, so `classify_side_effects`
             // treated `[+ $a $b]` as impure and the GVN pass would not hoist
             // or CSE it. Deliberately *not* `CSE_CANDIDATE` — that trait asks
             // for a redundancy *diagnostic*, which is a policy call about
             // user-visible noise rather than a fact about the command.
-            traits: Traits::OPERATOR_COMMAND.union(Traits::PURE),
+            traits: Traits::OPERATOR_COMMAND,
             arity,
             native_compilation:
                 crate::native_mathop_compilation::NativeMathOperator::from_spelling(spec.spelling)

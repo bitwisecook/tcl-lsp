@@ -58,8 +58,10 @@ is the subcommand word itself (`length` in `string length`).",
         "Behavioural facts about the command, as a set of flags. Traits are \
 how every analysis learns what a command *does* without anyone writing code: \
 tick `EVALUATES_CODE` and body arguments are analysed as scripts; tick \
-`CONTROL_FLOW` and unreachable-code checks understand it; tick `PURE` and the \
-optimiser may fold it. If you only fill in one thing beyond arity, make it \
+`CONTROL_FLOW` and unreachable-code checks understand it. Purity is not a \
+trait: a call is pure where its side effects, world effects, completion and \
+result stability are complete and closed, and an unknown domain never is. If \
+you only fill in one thing beyond arity, make it \
 the traits — most diagnostics key off them.\n\nOpen the Reference tab for \
 the full list with a one-line meaning each. When no trait fits, leave them \
 all off — an empty set is always safe, it just tells the tools less.",
@@ -473,7 +475,8 @@ operation as not safe.",
         "A compile-time evaluator: when every argument is a literal, compute \
 the result now — `string length abc` is always 3. This is code, carried by \
 reference. If your command is a pure function of its arguments, saying so \
-in the issue notes (plus the `PURE` trait) is what a maintainer needs.",
+in the issue notes (with the source evidence that closes its effect domains) \
+is what a maintainer needs.",
     ),
     (
         "const_fold_versioned",
@@ -647,10 +650,10 @@ shadowed the command in between. Compiler-proof machinery; leave unset.",
         "result_stability",
         "Whether calling the command twice with the same arguments yields \
 the same value. `string length` always does; `clock seconds` may not; \
-`info commands` depends on what has been defined in the meantime. Purity \
-says \"no side effects\"; this says \"same answer again\" — a command can \
-be pure yet unstable (`clock seconds` changes nothing but its answer \
-advances with the clock). \
+`info commands` depends on what has been defined in the meantime. Effects \
+say \"changes nothing\"; this says \"same answer again\" — `clock seconds` \
+changes nothing, but its answer advances with the clock, so it is not pure: \
+purity needs both, complete. \
 The optimiser only reuses results it can prove stable.",
     ),
     (
@@ -1364,13 +1367,6 @@ version.",
 `string length string`, `dict get dictionary ?key …?`. Shown in \
 completion and hover, and worth writing even when nothing else is \
 filled in.",
-    ),
-    (
-        "pure",
-        "Side-effect free: the subcommand changes nothing — no variables, \
-no I/O, no interpreter state. `string length` is pure; `lappend` is not. \
-Purity feeds the optimiser and lets \"result unused\" warnings fire (a \
-pure call whose result is discarded does nothing at all).",
     ),
     (
         "mutator",

@@ -180,7 +180,7 @@ expression, and declared-implementation routes decide nothing here.
 > command the pack declares whether the package defines it, what its arity
 > refuses, what its examples answer and whether the answers have the declared
 > type, whether a Tcl-body reference body agrees with it, and whether a command
-> declared `pure` writes a variable of any namespace but the shell's own `::tcl`.
+> whose spec derives pure (`CommandSpec::is_pure_at`) writes a variable of any namespace but the shell's own `::tcl`.
 > The policy is the operator's: the outermost project at or above the working
 > directory, never the tree the pack was found in, so a dependency vendored into
 > the project cannot opt itself in, from the project or from inside the
@@ -451,8 +451,10 @@ can predict, and a flag such as `-pure` would mean nothing.
 
 **What follows.** `DeclaredCommand` carries the declared behavioural facts
 beside its `arguments`, and each flag lands on the field its catalogue
-counterpart uses: `-pure` on `Traits::PURE` (`SubCommand::pure` at
-subcommand level), `-mutator` as a declared `SideEffect` write,
+counterpart uses, except `-pure`: a catalogue command's purity is derived
+from its facts domains, so `-pure` lands on `DeclaredCommand.pure` and
+`DocumentCommandSurface::is_pure_at` answers with it for a command the
+document declares. `-mutator` as a declared `SideEffect` write,
 `-barrier` on `Traits::CREATES_DYNAMIC_BARRIER`, `-loop` on
 `Traits::HAS_LOOP_BODY`, `-scope_alias` on `Traits::CREATES_SCOPE_ALIAS`,
 and `-unsafe` on `Traits::UNSAFE` together with
@@ -2448,7 +2450,7 @@ flowchart LR
 - `rust/tcl-registry/src/substitution.rs`, `patterns.rs`, `option_effect.rs` — the substitution kinds, `option_selected_pattern_args`, and the option-effect walk both project
 - `rust/tcl-registry/src/definer.rs` — `DefinitionBodyGrammar`, `MemberSpec`, `MemberKind`, `SlotSpec`, `MemberRetraction`, `MemberVisibility`, `DeclaredMemberVisibility`, `member_body_indices_in`
 - `rust/tcl-registry/src/model/declaration.rs`, `registration.rs`, `capability.rs` — `DeclaredCommand`, `DocumentCommandSurface`, the one `untrusted(…)` predicate, and `CodegenCapability` with its `for_tier` matrix
-- `rust/tcl-registry/src/traits.rs` — `Traits::PURE`, `CREATES_SCOPE_ALIAS`, `CREATES_DYNAMIC_BARRIER`, `HAS_LOOP_BODY`, `UNSAFE`, `SAFE_INTERP_HIDDEN`, `CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC`, `CLAUSE_NOISE_KEYWORDS`
+- `rust/tcl-registry/src/traits.rs` — `CREATES_SCOPE_ALIAS`, `CREATES_DYNAMIC_BARRIER`, `HAS_LOOP_BODY`, `UNSAFE`, `SAFE_INTERP_HIDDEN`, `CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC`, `CLAUSE_NOISE_KEYWORDS`
 - `rust/tcl-compiler/src/analyser/handlers.rs`, `oo.rs`, `commands.rs`, `dispatch.rs`, `param_traits.rs`, `utils.rs`, `types.rs` — the hook dispatch and its generic tail (`apply_state_transitions`, `handle_var_binding_command`, `dispatch_body_arguments`), `member_landing` and `apply_oo_subcommand_in`, `parse_stub_flags`, and `StubCommandDef::to_declared_command`
 - `rust/tcl-compiler/src/lowering/structured.rs`, `lowering/mod.rs`, `ir.rs`, `executable_ir.rs`, `cfg_builder/cfg_lower.rs`, `signature_scan/walker.rs` — `lower_if`, `lower_try`, `MethodKind::from_effect`, `TryHandler`, `IfClause`, and the clause-plan readers
 - `rust/tcl-compiler/src/dynamic_names.rs`, `analyser/diagnostics/security.rs` — the substitution barrier and W102

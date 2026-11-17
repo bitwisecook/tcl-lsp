@@ -112,7 +112,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Without an id, return a list of the ids of every pending after/idle handler. With an id, return a two-element list of the handler's script and its type, idle or timer (from Tcl 9.1, both after- and timer-command handlers report as timer; use timer info to distinguish them).",
         synopsis: "after info ?id?",
         return_type: Some(TclType::List),
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::InterpState,
             reads: true,

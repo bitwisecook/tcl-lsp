@@ -34,7 +34,6 @@ fn pure_rows(pkg: &'static str, table: &'static [Row]) -> Vec<CommandSpec> {
         .iter()
         .map(|&(name, arity, synopsis, summary)| CommandSpec {
             name,
-            traits: Traits::PURE,
             arity,
             hover: Some(HoverSnippet::brief(
                 summary,

@@ -12,7 +12,7 @@ proc bench-command {name summary} {
     command bench::$name {
         available {tcl 8.6-}
         arity 1..
-        traits {PURE}
+        traits {CSE_CANDIDATE}
 
         option -mode -takes mode -values bench-modes -closed \
             -detail {Which run mode the command reports on.}

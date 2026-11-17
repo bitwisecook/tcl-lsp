@@ -159,7 +159,6 @@ const ALL_TRAITS: &[Traits] = &[
     Traits::HAS_LOOP_BODY,
     Traits::NEVER_INLINE_BODY,
     Traits::LOOP_LIST_HEADER,
-    Traits::PURE,
     Traits::CSE_CANDIDATE,
     Traits::PURE_EVALUATION,
     Traits::DEFINES_PROCEDURE,

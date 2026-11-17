@@ -714,7 +714,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Return the number of characters.",
         return_type: Some(TclType::Int),
-        pure: true,
         ..SubCommand::DEFAULT
     },
     // …
@@ -779,11 +778,11 @@ compiler routing: `name`, per-form `arity`, `arg_roles`, `options`,
 matches a call's argument count and dialect against the form list; the chosen
 form is reported as the `form` field of the resolved invocation.  Example for
 `HTTP::host` (`rust/tcl-registry/src/commands/irules/http__host.rs`), whose
-purity and header read are declared on the command spec itself:
+traits and header read are declared on the command spec itself (its purity is
+derived from its facts domains, not declared):
 
 ```rust
-traits: Traits::PURE
-    .union(Traits::CSE_CANDIDATE)
+traits: Traits::CSE_CANDIDATE
     .union(Traits::DIAGRAM_ACTION),
 forms: &[
     FormSpec { kind: FormKind::Getter, synopsis: "HTTP::host", dialects: None },
@@ -839,7 +838,6 @@ pub struct SubCommand {
     pub detail: &'static str,          // completion-list description
     pub synopsis: &'static str,
     pub hover: Option<HoverSnippet>,
-    pub pure: bool,                    // no side effects
     pub mutator: bool,                 // modifies state
     pub return_type: Option<TclType>,
     pub var_write_typing: VarWriteTyping,   // overrides the parent's
@@ -865,8 +863,9 @@ Hooks are typed IDs, not function pointers into a consumer crate: the registry
 names the hook (`rust/tcl-registry/src/hooks.rs`) and the consumer owns the
 dispatch table.
 
-**Example** — `string length` declares `arity: Arity::exact(1)`,
-`pure: true`, and `return_type: Some(TclType::Int)`.  The arity checker
+**Example** — `string length` declares `arity: Arity::exact(1)` and
+`return_type: Some(TclType::Int)`; its purity is derived from its facts
+domains (`SubCommand::is_pure_at`).  The arity checker
 validates each subcommand invocation independently.
 
 Subcommands can be dialect-filtered by their own `dialects` set, which
@@ -1216,17 +1215,23 @@ declarations with the call's actual arguments:
 3. Resolve the subcommand and the matching form.
 4. Read the `side_effects` slice from the resolved form, subcommand, or
    command spec.
-5. Check the `Traits::PURE` bit and the subcommand-level `pure` / `mutator`
-   flags.
+5. Check derived purity (`CommandSpec::is_pure_at`,
+   `SubCommand::is_pure_at`) and the subcommand-level `mutator` flag.
 
 **How purity propagates:**
 
-- A command is pure when its spec sets `Traits::PURE` (e.g. `string`, `list`).
-- A subcommand can override upward: `SubCommand.pure = true` makes
-  `string length` pure even if the parent were not.
-- A subcommand can also override downward: `SubCommand.mutator = true` makes
-  `HTTP::header replace` impure even though `HTTP::header` itself carries
-  `Traits::PURE` (its getter form reads without side effects).
+- Purity is derived, never declared. A call is pure at a Tcl release when,
+  at that release, its side effects are complete and empty, its world effects
+  complete and touching nothing, its completion complete and only
+  `Ok`/`Error`, and its result stability complete and
+  `ReferentiallyTransparent`. A domain that is unknown, partial, or complete
+  only for other releases is not evidence. Which shipped rows are complete
+  comes from C-source evidence; a command without evidence stays impure.
+- A subcommand's purity derives from its own or its command's domains
+  (`SubCommand::is_pure_at`), so `string length` can be pure where the
+  `string` ensemble is not.
+- A subcommand can override downward: `SubCommand.mutator = true` makes
+  `HTTP::header replace` impure even where `HTTP::header` itself is pure.
 - A `CommandForm` / `SubCommandForm` refines further, overriding the levels
   above it for that specific arity match.
 
@@ -1457,11 +1462,12 @@ The registry metadata flows into every stage of the compilation pipeline:
    static analysis (e.g. `eval`, `uplevel`).  The lowering emits a
    `Statement::Barrier` for these.
 
-3. **SSA/SCCP** — `Traits::PURE` commands can be inferred through without
+3. **SSA/SCCP** — pure commands (`InvocationFacts::is_pure`) can be inferred through without
    invalidating the lattice state.  Impure commands force variables to
    `LatticeValue::Overdefined`.
 
-4. **GVN** — `Traits::CSE_CANDIDATE` and `Traits::PURE` determine whether a
+4. **GVN** — derived purity with `Traits::CSE_CANDIDATE`
+   (`InvocationFacts::is_cse_pure`) determines whether a
    command's result is a static reuse candidate (common subexpression
    elimination); `result_stability`, `world_effects`, `state_transitions`,
    and `dispatch_dependencies` decide whether the reuse is actually sound.
@@ -2537,9 +2543,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::header",
-        traits: Traits::PURE
-            .union(Traits::CSE_CANDIDATE)
-            .union(Traits::DIAGRAM_ACTION),
+        traits: Traits::CSE_CANDIDATE.union(Traits::DIAGRAM_ACTION),
         surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
@@ -2568,7 +2572,6 @@ SubCommand {
     name: "tolower",
     arity: Arity::new(1, 3),
     detail: "Convert to lower case.",
-    pure: true,
     return_type: Some(TclType::String),
     // no `taint_transform` → does NOT strip taint
     ..SubCommand::DEFAULT
@@ -2931,7 +2934,8 @@ single event), so the second call is redundant.
 
 1. **Purity check** (`is_pure_command()`, or `is_pure_command_with_traces()`
    where variable traces are in play): looks up `HTTP::uri` in the
-   command registry → `CommandSpec.pure = true`, `cse_candidate = true`.
+   command registry → pure at the dialect (`InvocationFacts::is_pure`) and
+   `CSE_CANDIDATE`.
 
 2. **Value numbering**: assigns a canonical `ExprKey` to each computation.
    Both `[HTTP::uri]` calls get the same key `("HTTP::uri",)`.

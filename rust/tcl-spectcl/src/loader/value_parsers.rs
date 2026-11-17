@@ -190,7 +190,7 @@ pub(super) fn parse_traits(text: &str, line: u32, log: &mut Log) -> Traits {
 /// its author needs the replacement, not the news that a word the registry
 /// once documented is meaningless. The word is dropped either way — the
 /// replacement is a descriptor the pack writes for itself.
-fn unaccepted_trait_notice(name: &str) -> String {
+pub(super) fn unaccepted_trait_notice(name: &str) -> String {
     match tcl_registry::traits::RETIRED_TRAITS
         .iter()
         .find(|(retired, _)| *retired == name)

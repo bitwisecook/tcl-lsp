@@ -197,21 +197,21 @@ pub fn spec() -> CommandSpec {
         const_fold: Some(crate::const_fold::fold_lsort),
         native_result: Some(crate::native_result::NativeResultContract::ListSort),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
-        // NOT `Traits::PURE` / `Traits::CSE_CANDIDATE`: unlike `lsearch`
+        // Not pure and not `Traits::CSE_CANDIDATE`: unlike `lsearch`
         // (which has no comparator option), `-command cmdPrefix` lets a
         // call site name an arbitrary command that runs with the
         // interpreter's full state as part of the sort — `tcl-vm/src/
         // cmd_list.rs`'s `vm_compare` dispatches it via `vm.dispatch`
         // with no purity check. `classify_side_effects`
-        // (`tcl-compiler/src/side_effects.rs`) treats a `PURE`-tagged
+        // (`tcl-compiler/src/side_effects.rs`) treats a pure
         // command as pure for *every* call site regardless of its actual
         // arguments (there is no per-option purity carve-out), so
         // `lsort -command sideEffectingProc $list` would otherwise be
         // wrongly eligible for CSE/dead-code elimination. Matches the
         // sibling command-prefix-bearing specs (`chan`, `socket`,
-        // `fcopy`, `trace`), none of which carry `PURE`/`CSE_CANDIDATE`.
+        // `fcopy`, `trace`), none of which is pure or a `CSE_CANDIDATE`.
         //
-        // `FRAMELESS_RUNTIME` (unlike `PURE`) stays: `cmd_lsort` is a
+        // `FRAMELESS_RUNTIME` stays: `cmd_lsort` is a
         // dedicated Rust runtime helper that never falls back to a
         // generic eval path, and `-command`'s `vm.dispatch` call invokes
         // the comparator as its own ordinary nested call (not an

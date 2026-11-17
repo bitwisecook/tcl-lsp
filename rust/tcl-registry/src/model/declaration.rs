@@ -210,10 +210,14 @@ pub struct DeclaredCommand {
     /// Parameters in declaration order.
     pub arguments: Vec<DeclaredArgument>,
     /// The behavioural traits the declaration states, on the fields a
-    /// catalogue command states the same facts on — a stub's `-pure` is
-    /// [`Traits::PURE`], its `-loop` [`Traits::HAS_LOOP_BODY`]. Empty for a
-    /// declaration that states none.
+    /// catalogue command states the same facts on — a stub's `-loop` is
+    /// [`Traits::HAS_LOOP_BODY`]. Empty for a declaration that states none.
     pub traits: Traits,
+    /// A stub's `-pure`: the document's own statement that its command is
+    /// pure. The document is the authority for a command it declares, so
+    /// this is stated, not derived; a catalogue command's purity is derived
+    /// from its domains ([`crate::purity::PurityDomains`], issue #1712).
+    pub pure: bool,
     /// The side effects the declaration states — a stub's `-mutator` is a
     /// read and a write of
     /// [`SideEffectTarget::Variable`](crate::side_effects::SideEffectTarget::Variable).
@@ -242,6 +246,7 @@ impl DeclaredCommand {
             name,
             arguments,
             traits: Traits::empty(),
+            pure: false,
             side_effects: Vec::new(),
             frame_effect: DeclaredFrameEffect::Unstated,
             declaration: SurfaceDeclaration {
@@ -315,16 +320,15 @@ impl DeclaredCommand {
     ];
 
     /// The traits a reader that does not hold this declaration may go
-    /// without: `-pure`'s, whose absence only declines what purity allows,
-    /// and `-unsafe`'s, which speak of safe interpreters alone.
-    const INERT_TRAITS: Traits = Traits::PURE
-        .union(Traits::UNSAFE)
-        .union(Traits::SAFE_INTERP_HIDDEN);
+    /// without: `-unsafe`'s, which speak of safe interpreters alone. A
+    /// stub's `-pure` is no trait, and its absence only declines what purity
+    /// allows.
+    const INERT_TRAITS: Traits = Traits::UNSAFE.union(Traits::SAFE_INTERP_HIDDEN);
 
     /// The frame effect the declaration states, when that is all a reader
     /// holding the catalogue alone has to learn from it to read a call to
     /// the command right: every argument is data ([`Self::DATA_ROLES`]), and
-    /// it states no trait but `-pure`'s or `-unsafe`'s and no side effect.
+    /// it states no trait but `-unsafe`'s and no side effect.
     ///
     /// A flow graph is such a reader — it reads roles and traits off the
     /// catalogue, which answers a name it does not hold as a command of
@@ -371,8 +375,8 @@ impl DeclaredCommand {
 
     /// Narrow this declaration by facts it states, axis by axis.
     ///
-    /// A statement of *effects* — [`Traits::PURE`], or a side effect of its
-    /// own — is the declaration saying what the command does to state, so it
+    /// A statement of *effects* — `pure`, or a side effect of its own — is
+    /// the declaration saying what the command does to state, so it
     /// replaces the default's effect axes ([`extension_default::EFFECT_AXES`]:
     /// code evaluation and traces, with the unknown read and write) by what it
     /// states: a command that is pure, or that only rewrites its target,
@@ -381,12 +385,25 @@ impl DeclaredCommand {
     /// are added whether or not they narrow anything, so a stated barrier
     /// survives a stated effect.
     #[must_use]
-    pub fn narrowed_by(mut self, traits: Traits, side_effects: Vec<SideEffect>) -> Self {
-        if traits.contains(Traits::PURE) || !side_effects.is_empty() {
+    pub fn narrowed_by(
+        mut self,
+        pure: bool,
+        traits: Traits,
+        side_effects: Vec<SideEffect>,
+    ) -> Self {
+        if pure || !side_effects.is_empty() {
             self.traits.remove(extension_default::EFFECT_AXES);
             self.side_effects = side_effects;
         }
+        self.pure |= pure;
         self.traits.insert(traits);
+        self
+    }
+
+    /// State that the document's command is pure: a stub's `-pure`.
+    #[must_use]
+    pub const fn with_pure(mut self, pure: bool) -> Self {
+        self.pure = pure;
         self
     }
 
@@ -756,12 +773,18 @@ impl<'a> DocumentCommandSurface<'a> {
         }
     }
 
-    /// Whether `name` is declared free of side effects, by the document's
-    /// own declaration or the catalogue.
+    /// Whether `name` is pure at `query`: a document's own declaration
+    /// answers with its stub's `-pure`, a catalogue command with the purity
+    /// its domains derive there ([`CommandSpec::is_pure_at`]).
     #[must_use]
-    pub fn is_pure(&self, name: &str) -> bool {
-        self.traits(name)
-            .is_some_and(|traits| traits.contains(Traits::PURE))
+    pub fn is_pure_at(&self, name: &str, query: Option<&SurfaceQuery<'_>>) -> bool {
+        match self.declaration(name) {
+            Some(declared) => declared.pure,
+            None => self
+                .commands
+                .get(name)
+                .is_some_and(|spec| spec.is_pure_at(query)),
+        }
     }
 
     /// The traits one invocation of `name` carries — [`Self::traits`] for a
@@ -1093,16 +1116,17 @@ mod tests {
         let mut surface = DeclaredSurface::new();
         surface.declare(
             declared("my_fold", &[("x", ArgRole::Value)])
-                .with_traits(Traits::PURE)
+                .with_pure(true)
                 .with_side_effects(vec![mutation]),
         );
-        surface.declare(declared("exec", &[("cmd", ArgRole::Value)]).with_traits(Traits::PURE));
+        surface.declare(declared("exec", &[("cmd", ArgRole::Value)]).with_pure(true));
         let view = DocumentCommandSurface::new(registry, Some(&surface));
 
-        assert_eq!(view.traits("my_fold"), Some(Traits::PURE));
+        assert!(view.is_pure_at("my_fold", None));
+        assert_eq!(view.traits("my_fold"), Some(Traits::empty()));
         assert_eq!(
             view.invocation_traits("my_fold", &["a"], None),
-            Traits::PURE
+            Traits::empty()
         );
         assert_eq!(
             view.side_effects("my_fold").as_deref(),
@@ -1113,7 +1137,7 @@ mod tests {
         let floor = SecurityFloor::security_traits(shipped.traits);
         assert!(floor.contains(Traits::UNSAFE), "exec's floor holds UNSAFE");
         let exec = view.traits("exec").expect("declared");
-        assert!(exec.contains(Traits::PURE) && exec.contains(floor));
+        assert!(view.is_pure_at("exec", None) && exec.contains(floor));
         assert!(
             shipped.side_effects.lower_bound().iter().all(|effect| view
                 .side_effects("exec")
@@ -1178,7 +1202,7 @@ mod tests {
         assert_eq!(command.traits, default.traits);
         assert_eq!(command.side_effects, default.side_effects.lower_bound());
         assert_eq!(command.provenance(), Provenance::Document);
-        assert!(!command.traits.contains(Traits::PURE));
+        assert!(!command.pure);
 
         let plain = declared("pkga_calc", &[]);
         assert!(plain.traits.is_empty());
@@ -1187,8 +1211,8 @@ mod tests {
 
     #[test]
     fn a_stated_purity_replaces_the_effect_axes_and_leaves_the_others() {
-        let narrowed = extension("pure_ext").narrowed_by(Traits::PURE, Vec::new());
-        assert!(narrowed.traits.contains(Traits::PURE));
+        let narrowed = extension("pure_ext").narrowed_by(true, Traits::empty(), Vec::new());
+        assert!(narrowed.pure);
         assert!(
             !narrowed.traits.intersects(extension_default::EFFECT_AXES),
             "a pure command evaluates no code and establishes no trace: {}",
@@ -1212,7 +1236,8 @@ mod tests {
             writes: true,
             ..SideEffect::DEFAULT
         };
-        let narrowed = extension("mut_ext").narrowed_by(Traits::READS_BEFORE_WRITE, vec![variable]);
+        let narrowed =
+            extension("mut_ext").narrowed_by(false, Traits::READS_BEFORE_WRITE, vec![variable]);
         assert_eq!(narrowed.side_effects, vec![variable]);
         assert!(!narrowed.traits.intersects(extension_default::EFFECT_AXES));
         assert!(narrowed.traits.contains(Traits::READS_BEFORE_WRITE));
@@ -1222,10 +1247,8 @@ mod tests {
 
     #[test]
     fn a_stated_barrier_survives_a_stated_effect() {
-        let narrowed = extension("barrier_ext").narrowed_by(
-            Traits::PURE.union(Traits::CREATES_DYNAMIC_BARRIER),
-            Vec::new(),
-        );
+        let narrowed =
+            extension("barrier_ext").narrowed_by(true, Traits::CREATES_DYNAMIC_BARRIER, Vec::new());
         assert!(narrowed.traits.contains(Traits::CREATES_DYNAMIC_BARRIER));
         assert!(
             !narrowed.traits.contains(Traits::EVALUATES_CODE),
@@ -1238,7 +1261,7 @@ mod tests {
         let stated = Traits::HAS_LOOP_BODY
             .union(Traits::CREATES_SCOPE_ALIAS)
             .union(Traits::UNSAFE);
-        let narrowed = extension("loop_ext").narrowed_by(stated, Vec::new());
+        let narrowed = extension("loop_ext").narrowed_by(false, stated, Vec::new());
         assert!(narrowed.traits.contains(extension_default::TRAITS));
         assert!(narrowed.traits.contains(stated));
         assert_eq!(narrowed.side_effects, unknown_read_write());
@@ -1248,7 +1271,9 @@ mod tests {
     fn narrowing_a_plain_declaration_by_nothing_changes_nothing() {
         let plain = declared("plain", &[("a", ArgRole::Body)]);
         assert_eq!(
-            plain.clone().narrowed_by(Traits::empty(), Vec::new()),
+            plain
+                .clone()
+                .narrowed_by(false, Traits::empty(), Vec::new()),
             plain
         );
     }
@@ -1326,7 +1351,8 @@ mod tests {
         );
         assert_eq!(
             own(declared("pure_query", &data))
-                .with_traits(Traits::PURE.union(Traits::UNSAFE))
+                .with_pure(true)
+                .with_traits(Traits::UNSAFE)
                 .plain_call_frame_effect(),
             Some(None)
         );

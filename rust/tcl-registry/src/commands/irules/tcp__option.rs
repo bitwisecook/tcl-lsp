@@ -27,7 +27,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Get TCP option value.",
         synopsis: "TCP::option get <kind>",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,

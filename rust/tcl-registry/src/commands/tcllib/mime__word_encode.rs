@@ -26,7 +26,6 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "mime::word_encode",
-        traits: Traits::PURE,
         surface: None,
         arity: Arity::at_least(3),
         hover: Some(HoverSnippet {

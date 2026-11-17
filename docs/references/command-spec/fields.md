@@ -483,7 +483,7 @@ The command's behavioural traits — the facts every analysis reads instead of s
 
 *command and subcommand* — Behavioural trait flags every consumer reads instead of naming the command.
 
-Behavioural facts about the command, as a set of flags. Traits are how every analysis learns what a command *does* without anyone writing code: tick `EVALUATES_CODE` and body arguments are analysed as scripts; tick `CONTROL_FLOW` and unreachable-code checks understand it; tick `PURE` and the optimiser may fold it. If you only fill in one thing beyond arity, make it the traits — most diagnostics key off them.
+Behavioural facts about the command, as a set of flags. Traits are how every analysis learns what a command *does* without anyone writing code: tick `EVALUATES_CODE` and body arguments are analysed as scripts; tick `CONTROL_FLOW` and unreachable-code checks understand it. Purity is not a trait: a call is pure where its side effects, world effects, completion and result stability are complete and closed, and an unknown domain never is. If you only fill in one thing beyond arity, make it the traits — most diagnostics key off them.
 
 Open the Reference tab for the full list with a one-line meaning each. When no trait fits, leave them all off — an empty set is always safe, it just tells the tools less.
 
@@ -564,12 +564,6 @@ The selected command or subcommand describes channel configuration. EncodingTran
 *command and subcommand* — How the command transforms a byte-array operand it derives its result from.
 
 What happens when the command's operand is binary data (a byte array): passed through intact, silently coerced to a string (corrupting it), case-folded, re-encoded, or re-binarified. This powers the "binary data corrupted by string operation" check — Tcl's classic gotcha where `string tolower` quietly destroys bytes.
-
-### `pure` — Pure
-
-*subcommand only* — Side-effect free.
-
-Side-effect free: the subcommand changes nothing — no variables, no I/O, no interpreter state. `string length` is pure; `lappend` is not. Purity feeds the optimiser and lets "result unused" warnings fire (a pure call whose result is discarded does nothing at all).
 
 ### `mutator` — Mutator
 
@@ -700,7 +694,7 @@ What must stay *unchanged* for the registry's knowledge about this command to re
 
 *command and subcommand* — Whether repeated calls return the same value, or depend on mutable or volatile state.
 
-Whether calling the command twice with the same arguments yields the same value. `string length` always does; `clock seconds` may not; `info commands` depends on what has been defined in the meantime. Purity says "no side effects"; this says "same answer again" — a command can be pure yet unstable (`clock seconds` changes nothing but its answer advances with the clock). The optimiser only reuses results it can prove stable.
+Whether calling the command twice with the same arguments yields the same value. `string length` always does; `clock seconds` may not; `info commands` depends on what has been defined in the meantime. Effects say "changes nothing"; this says "same answer again" — `clock seconds` changes nothing, but its answer advances with the clock, so it is not pure: purity needs both, complete. The optimiser only reuses results it can prove stable.
 
 ### `result_stability_knowledge` — Result-stability completeness
 
@@ -1026,7 +1020,7 @@ SpecTcl authors these as `refine NAME { … }` blocks. The descriptor's native h
 
 *command and subcommand* — Compile-time folder returning the command's constant result.
 
-A compile-time evaluator: when every argument is a literal, compute the result now — `string length abc` is always 3. This is code, carried by reference. If your command is a pure function of its arguments, saying so in the issue notes (plus the `PURE` trait) is what a maintainer needs.
+A compile-time evaluator: when every argument is a literal, compute the result now — `string length abc` is always 3. This is code, carried by reference. If your command is a pure function of its arguments, saying so in the issue notes (with the source evidence that closes its effect domains) is what a maintainer needs.
 
 ### `const_fold_versioned` — Versioned constant folder
 
@@ -1831,7 +1825,6 @@ The registry's behavioural vocabulary — one flag per fact a consumer might nee
 | `HAS_LOOP_BODY` | takes a loop body |
 | `NEVER_INLINE_BODY` | its body must never be inlined |
 | `LOOP_LIST_HEADER` | a loop header with list-expression arguments |
-| `PURE` | side-effect free |
 | `CSE_CANDIDATE` | eligible for common-subexpression elimination |
 | `PURE_EVALUATION` | evaluation itself has no side effects |
 | `DEFINES_PROCEDURE` | defines a procedure |

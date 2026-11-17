@@ -27,7 +27,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get/set SAML authentication request.",
         synopsis: "ACCESS::saml authn ?content?",
-        pure: true,
         mutator: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::ApmState,
@@ -44,7 +43,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get/set SAML assertion.",
         synopsis: "ACCESS::saml assertion ?content?",
-        pure: true,
         mutator: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::ApmState,
@@ -61,7 +59,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get/set SAML single logout request.",
         synopsis: "ACCESS::saml slo_req ?content?",
-        pure: true,
         mutator: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::ApmState,
@@ -78,7 +75,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get/set SAML single logout response.",
         synopsis: "ACCESS::saml slo_resp ?content?",
-        pure: true,
         mutator: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::ApmState,

@@ -24,7 +24,7 @@ use tcl_dialect::model::SpecSurface;
 /// `pid` reads process/channel-table state it never writes, but that
 /// state lives outside the argument list — the OS process table for the
 /// bare form, and the open-channel table's pipeline-pid bookkeeping for
-/// `pid fileId` — the same reasoning that keeps `Traits::PURE` off
+/// `pid fileId` — the same reasoning that keeps purity off
 /// `close`/`eof`/`tell`/`fblocked`/`seek`, its FileIo-reading siblings
 /// (see the `traits` field below). Both forms are modelled as a single
 /// `FileIo` read, not `SideEffectTarget::Process`: in this registry
@@ -119,7 +119,7 @@ pub fn spec() -> CommandSpec {
         // Reads process/channel-table state that lives outside the
         // argument list rather than being a pure function of its own
         // arguments (see the `SIDE_EFFECTS` doc comment above) —
-        // `close`/`eof`/`tell`/`fblocked` stay off `Traits::PURE` for
+        // `close`/`eof`/`tell`/`fblocked` stay off purity for
         // the identical reason.
         traits: Traits::BYTE_COMPILED,
         arity: Arity::new(0, 1),

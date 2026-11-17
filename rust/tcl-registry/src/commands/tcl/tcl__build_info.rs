@@ -222,11 +222,11 @@ const FIELD_VALUES: &[ArgValue] = &[
 /// `unload` — and this command is not on it); it exposes only static,
 /// read-only compile-time metadata (no filesystem, network, or process
 /// access), the same low-risk shape as `info tclversion`/`info patchlevel`, so
-/// it is not stamped hidden here either. Left off `Traits::PURE`: unlike a
+/// it is not stamped hidden here either. Left off purity: unlike a
 /// value-transforming command such as `lremove` (deterministic given only its
 /// own arguments), this command's result depends on which Tcl binary happens
 /// to be running it — state that lives outside the argument list, the same
-/// reason `Traits::PURE` stays off `pid`/`pwd` in this registry (see
+/// reason purity stays off `pid`/`pwd` in this registry (see
 /// `pid.rs`'s note) even though none of the three ever mutates anything.
 pub fn spec() -> CommandSpec {
     CommandSpec {

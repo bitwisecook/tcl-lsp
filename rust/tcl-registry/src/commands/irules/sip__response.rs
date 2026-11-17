@@ -27,7 +27,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Get response code.",
         synopsis: "SIP::response code",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
@@ -42,7 +41,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Get response phrase.",
         synopsis: "SIP::response phrase",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,

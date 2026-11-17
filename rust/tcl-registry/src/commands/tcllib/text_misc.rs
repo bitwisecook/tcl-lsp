@@ -99,7 +99,6 @@ fn normalize(
     const FORM_OPT: &[ArgValue] = NORMAL_FORMS;
     CommandSpec {
         name,
-        traits: Traits::PURE,
         arity: Arity::exact(2),
         arg_values: &[(0, FORM_OPT)],
         closed_value_args: &[0],
@@ -124,7 +123,6 @@ fn normalize(
 fn soundex_cmd() -> CommandSpec {
     CommandSpec {
         name: "soundex::knuth",
-        traits: Traits::PURE,
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Compute the Knuth-variant Soundex code of a string.",
@@ -167,7 +165,6 @@ fn stringprep_specs() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "stringprep::stringprep",
-            traits: Traits::PURE,
             arity: Arity::exact(2),
             hover: Some(HoverSnippet {
                 summary: "Prepare a string according to a registered stringprep profile.",
@@ -186,7 +183,6 @@ fn stringprep_specs() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "stringprep::compare",
-            traits: Traits::PURE,
             arity: Arity::exact(3),
             hover: Some(HoverSnippet {
                 summary: "Compare two strings after applying a stringprep profile.",
@@ -211,7 +207,6 @@ fn unicode_specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec {
             name: "unicode::fromstring",
-            traits: Traits::PURE,
             arity: Arity::exact(1),
             hover: Some(HoverSnippet {
                 summary: "Convert a Tcl string to a list of Unicode code points.",
@@ -230,7 +225,6 @@ fn unicode_specs() -> Vec<CommandSpec> {
         },
         CommandSpec {
             name: "unicode::tostring",
-            traits: Traits::PURE,
             arity: Arity::exact(1),
             hover: Some(HoverSnippet {
                 summary: "Convert a list of Unicode code points to a Tcl string.",

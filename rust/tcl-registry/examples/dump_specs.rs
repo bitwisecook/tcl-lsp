@@ -108,7 +108,6 @@ const BOOL_TRAITS: &[(&str, Traits)] = &[
         "is_unnormalized_http_getter",
         Traits::UNNORMALISED_HTTP_GETTER,
     ),
-    ("pure", Traits::PURE),
     ("cse_candidate", Traits::CSE_CANDIDATE),
     ("diagram_action", Traits::DIAGRAM_ACTION),
     ("is_control_flow", Traits::CONTROL_FLOW),
@@ -235,7 +234,7 @@ fn arg_values_json(av: &[(u8, &[tcl_registry::ArgValue])]) -> String {
     format!("{{{}}}", parts.join(","))
 }
 
-fn sub_record_json(sub: &SubCommand) -> String {
+fn sub_record_json(spec: &CommandSpec, sub: &SubCommand) -> String {
     let ret = sub
         .return_type
         .map_or_else(|| "null".to_string(), |t| json_str(&format!("{t:?}")));
@@ -244,7 +243,9 @@ fn sub_record_json(sub: &SubCommand) -> String {
         .map_or_else(|| "null".to_string(), |t| json_str(&format!("{t:?}")));
     format!(
         "{{\"return_type\":{ret},\"pure\":{},\"mutator\":{},\"destructive\":{},\"returns_path\":{},\"is_unescape\":{},\"loop_list_header\":{},\"creates_scope_alias\":{},\"options\":{},\"arg_types\":{},\"arg_roles\":{},\"arg_values\":{},\"n_forms\":{},\"side_effects\":{},\"safe_on_uninit\":{},\"credential_arg\":{},\"sensitive_headers\":{},\"taint_transform\":{},\"taint_output_sink\":{},\"cfg_rewrite_name\":{},\"inferred_storage_type\":{ist}}}",
-        sub.pure,
+        !tcl_registry::purity::PurityDomains::of_subcommand(spec, sub)
+            .pure_releases(tcl_dialect::model::Family::Tcl)
+            .is_empty(),
         sub.mutator,
         sub.destructive,
         sub.returns_path,
@@ -326,7 +327,7 @@ fn deep_dump(group: &str) {
         let mut subs: Vec<(&str, String)> = spec
             .subcommands
             .iter()
-            .map(|s| (s.name, sub_record_json(s)))
+            .map(|s| (s.name, sub_record_json(spec, s)))
             .collect();
         subs.sort_by_key(|(n, _)| *n);
         let subs_json = {

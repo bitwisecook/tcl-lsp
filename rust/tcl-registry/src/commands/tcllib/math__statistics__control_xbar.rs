@@ -26,7 +26,6 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "math::statistics::control-xbar",
-        traits: Traits::PURE,
         surface: None,
         arity: Arity::new(1, 2),
         hover: Some(HoverSnippet {

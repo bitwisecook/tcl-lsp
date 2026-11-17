@@ -62,6 +62,9 @@ impl SelectedArgumentTypeHints {
 /// and lowering hook.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InvocationFacts {
+    /// Whether the selected invocation is pure at its release: derived once,
+    /// from its resolved purity domains ([`crate::purity::PurityDomains`]).
+    purity: Purity,
     source_callback_retention: SourceCallbackRetention,
     deferred_script_arguments: Option<Vec<usize>>,
     script_lookup_arguments: Option<Vec<(usize, crate::ScriptLookupScope)>>,
@@ -272,37 +275,54 @@ fn selected_variable_receiver_operand_form(
     (handler || compiler).then_some(VariableReceiverOperandForm::Combined)
 }
 
+/// Whether an invocation is pure, as [`InvocationFacts`] holds it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Purity {
+    /// Effect-free with a referentially transparent result.
+    Pure,
+    /// Effect-free; the result may depend on more than the arguments.
+    EffectFree,
+    Impure,
+}
+
 impl InvocationFacts {
-    /// Whether the selected invocation is declared free of side effects.
+    /// Whether the selected invocation is pure at its release: its side
+    /// effects, world effects, completion and result stability are all
+    /// complete and closed there (issue #1712). An invocation with no release
+    /// is pure only when every release is.
     #[must_use]
     pub const fn is_pure(&self) -> bool {
-        self.traits.contains(Traits::PURE)
+        matches!(self.purity, Purity::Pure)
+    }
+
+    /// Whether the invocation is effect-free at its release: its side
+    /// effects, world effects and completion are complete and closed there,
+    /// whatever its result depends on. Every pure invocation is effect-free.
+    #[must_use]
+    pub const fn is_effect_free(&self) -> bool {
+        matches!(self.purity, Purity::Pure | Purity::EffectFree)
     }
 
     /// Whether the invocation is pure and a candidate for common
     /// subexpression elimination.
     #[must_use]
     pub const fn is_cse_pure(&self) -> bool {
-        self.traits
-            .contains(Traits::PURE.union(Traits::CSE_CANDIDATE))
+        self.is_pure() && self.traits.contains(Traits::CSE_CANDIDATE)
     }
 
     /// Whether evaluating the invocation changes no state: a pure command, or
     /// one whose evaluation is pure (a braced `expr`).
     #[must_use]
     pub const fn evaluates_purely(&self) -> bool {
-        self.traits
-            .intersects(Traits::PURE.union(Traits::PURE_EVALUATION))
+        self.is_pure() || self.traits.contains(Traits::PURE_EVALUATION)
     }
 
     /// Withdraw every purity claim, and the frameless-runtime claim that
     /// rests on it, once the invocation is known to call back into a host.
     pub fn withdraw_purity(&mut self) {
-        self.traits.remove(
-            Traits::PURE
-                .union(Traits::PURE_EVALUATION)
-                .union(Traits::FRAMELESS_RUNTIME),
-        );
+        self.purity = Purity::Impure;
+        self.traits
+            .remove(Traits::PURE_EVALUATION.union(Traits::FRAMELESS_RUNTIME));
     }
 
     /// Selected source retention capability, frozen with these same facts.
@@ -768,6 +788,25 @@ impl ResolvedInvocation<'_, '_> {
             .map(|descriptor| descriptor.select(self.words.arguments()))
     }
 
+    /// Purity at the invocation's release, or, with no release, at every Tcl
+    /// release.
+    fn derived_purity(&self) -> Purity {
+        let domains = crate::purity::PurityDomains {
+            side_effects: self.semantics.side_effects,
+            world_effects: self.semantics.world_effects,
+            completion: self.semantics.completion,
+            result_stability: self.semantics.result_stability,
+        };
+        let query = self.dialect.as_ref();
+        if domains.pure_at(query) {
+            Purity::Pure
+        } else if domains.effect_free_at(query) {
+            Purity::EffectFree
+        } else {
+            Purity::Impure
+        }
+    }
+
     fn facts_on_edge(&self, successful: bool) -> InvocationFacts {
         let (transitions, transition_effect_coverage) = if successful {
             self.semantics
@@ -780,6 +819,7 @@ impl ResolvedInvocation<'_, '_> {
         };
         let (arg_roles, arg_roles_complete) = self.argument_roles_on_edge(successful);
         let mut facts = InvocationFacts {
+            purity: self.derived_purity(),
             source_callback_retention: self.selected_source_callback_retention(),
             deferred_script_arguments: self.semantics.script_metadata.deferred_arguments(
                 self,

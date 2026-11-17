@@ -26,7 +26,6 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "math::statistics::analyse-Kruskal-Wallis",
-        traits: Traits::PURE,
         surface: None,
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {

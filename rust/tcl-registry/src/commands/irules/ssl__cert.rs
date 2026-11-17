@@ -27,7 +27,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Get certificate count in chain.",
         synopsis: "SSL::cert count",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::SslState,
             reads: true,
@@ -42,7 +41,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Get issuer info for cert at index.",
         synopsis: "SSL::cert issuer <index>",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::SslState,
             reads: true,
@@ -57,7 +55,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get/set certificate mode.",
         synopsis: "SSL::cert mode ?ignore|request|require?",
-        pure: true,
         mutator: true,
         arg_values: &[(
             0,
@@ -94,7 +91,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SSL::cert",
-        traits: Traits::PURE.union(Traits::CSE_CANDIDATE),
+        traits: Traits::CSE_CANDIDATE,
         surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {

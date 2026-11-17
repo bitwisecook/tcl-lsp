@@ -405,8 +405,8 @@ string; and `tcl-irule-test` guessing a profile's type from its name.
 
 The registry's command modules, by pack: a module is one `.rs` file under
 `rust/tcl-registry/src/commands/<pack>/` other than `mod.rs`, *pure-ish*
-when it declares `pure: true`, `Traits::PURE`, `CSE_CANDIDATE`, or
-`ReferentiallyTransparent`, and *with a fold* when it carries
+when it derives pure (`CommandSpec::is_pure_at`, `SubCommand::is_pure_at`),
+declares `CSE_CANDIDATE`, or states `ReferentiallyTransparent`, and *with a fold* when it carries
 `const_fold: Some`.
 
 | Pack | Modules | Pure-ish | With a fold |
@@ -544,7 +544,7 @@ family, with three parts in the shape of its neighbours:
    route (direct, expression, declared implementation, or none) with its
    origin (native, `.tclspec` body), the target roles, and a *gap* column
    for a command that declares `VarWrite` roles, `READS_BEFORE_WRITE`,
-   `pure`, or `ReferentiallyTransparent` and has no route. `append`,
+   derives pure, or states `ReferentiallyTransparent` and has no route. `append`,
    `lappend`, and `dict incr` have no gap: each declares its semantics. The
    pure-ish third-party commands are rows too.
    `--check` fails on drift, on an unclassified `VarWrite` command with no

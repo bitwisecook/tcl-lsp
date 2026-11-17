@@ -27,7 +27,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(1, 3),
         detail: "Get/set AVP code.",
         synopsis: "DIAMETER::avp code <avp_code> ?vendor_id? ?index?",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
@@ -42,7 +41,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(1, 2),
         detail: "Count AVPs matching code.",
         synopsis: "DIAMETER::avp count <avp_code> ?vendor_id?",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
@@ -57,7 +55,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(1, 3),
         detail: "Get AVP length.",
         synopsis: "DIAMETER::avp length <avp_code> ?vendor_id? ?index?",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
             reads: true,
@@ -87,7 +84,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(1, 3),
         detail: "Get/set AVP data.",
         synopsis: "DIAMETER::avp data <avp_code> ?vendor_id? ?index?",
-        pure: true,
         mutator: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NetworkIo,
@@ -164,7 +160,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(2, 5),
         detail: "Get/set AVP flags.",
         synopsis: "DIAMETER::avp flags <get|set> <avp_code> ?value? ?vendor_id? ?index?",
-        pure: true,
         mutator: true,
         arg_values: &[(
             0,

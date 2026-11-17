@@ -500,7 +500,7 @@ pub(crate) fn is_pure_tokens_with_metadata_context(
         return false;
     };
     // This shared gate requires every original variable read and nested result
-    // to have closed evaluation. It does not promote a nominal PURE label.
+    // to have closed evaluation. It does not promote a nominal pure label.
     crate::const_subst::ConstSubstCtx {
         registry,
         resolution_namespace: "::",
@@ -711,7 +711,10 @@ impl GvnSemanticFacts {
 /// the per-class predicates below; live dispatch stability is a separate
 /// per-site proof ([`crate::dispatch_proof::SiteDispatchProof`]).
 fn resolved_invocation_static_gvn_gates(resolved: &tcl_registry::InvocationFacts) -> bool {
-    if !resolved.is_cse_pure() {
+    // Effect-free, not pure: a versioned-world result is effect-free with a
+    // result that depends on the world; the referentially transparent gate
+    // checks its own stability.
+    if !(resolved.is_effect_free() && resolved.traits.contains(Traits::CSE_CANDIDATE)) {
         return false;
     }
     if !resolved.effects.accesses().is_empty() || resolved.effects.requires_world_barrier() {

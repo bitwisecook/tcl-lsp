@@ -291,10 +291,7 @@ pub fn spec() -> CommandSpec {
         }),
         runtime_backing: RuntimeBacking::shipped("lsearch"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
-        traits: Traits::FRAMELESS_RUNTIME
-            | Traits::BYTE_COMPILED
-            | Traits::PURE
-            | Traits::CSE_CANDIDATE,
+        traits: Traits::FRAMELESS_RUNTIME | Traits::BYTE_COMPILED | Traits::CSE_CANDIDATE,
         arity: Arity::exact(2).with_positionals(),
         return_type: Some(TclType::Int),
         // `-all`, `-inline` and `-subindices` each move the result shape, and

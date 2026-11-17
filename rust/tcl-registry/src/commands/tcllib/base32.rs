@@ -35,7 +35,6 @@ fn codec(
 ) -> CommandSpec {
     CommandSpec {
         name,
-        traits: Traits::PURE,
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary,

@@ -79,7 +79,6 @@ command struct::tree {
             arity 0..
             detail   {List the immediate children of a node.}
             synopsis {$tree children ?-all|-leaves? node}
-            pure
             return_type List
             hover { summary {Return node's children (or, with -all/-leaves, its whole subtree/its leaves).} source {tree_tcl.tcl:451-518} }
         }

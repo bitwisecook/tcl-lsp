@@ -107,7 +107,6 @@ fn codec(
 ) -> CommandSpec {
     CommandSpec {
         name,
-        traits: Traits::PURE,
         arity: Arity::at_least(1),
         options,
         hover: Some(HoverSnippet {

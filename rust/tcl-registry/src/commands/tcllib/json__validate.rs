@@ -26,7 +26,6 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "json::validate",
-        traits: Traits::PURE,
         surface: None,
         arity: Arity::exact(1),
         return_type: Some(TclType::Boolean),

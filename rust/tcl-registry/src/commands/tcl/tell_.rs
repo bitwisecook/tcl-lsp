@@ -80,7 +80,7 @@ pub fn spec() -> CommandSpec {
         // — the access position can change between two calls if
         // something else reads from or seeks the channel meanwhile —
         // rather than being a pure function of its own arguments, so
-        // `Traits::PURE` stays off `tell` for the same reason it stays
+        // purity stays off `tell` for the same reason it stays
         // off its FileIo-reading siblings `close`/`eof`/`fblocked`/
         // `seek`/`pid` (see `pid.rs`).
         traits: Traits::BYTE_COMPILED,

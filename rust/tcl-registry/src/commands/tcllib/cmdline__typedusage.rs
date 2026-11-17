@@ -26,7 +26,6 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "cmdline::typedUsage",
-        traits: Traits::PURE,
         surface: None,
         arity: Arity::new(1, 2),
         hover: Some(HoverSnippet {

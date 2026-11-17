@@ -31,7 +31,6 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "sha1::sha1",
-        traits: Traits::PURE,
         surface: None,
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {

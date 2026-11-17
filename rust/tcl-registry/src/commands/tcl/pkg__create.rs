@@ -55,9 +55,9 @@ pub fn spec() -> CommandSpec {
         // A redefinable Tcl library proc (see `Traits::OVERRIDABLE_LIBRARY_PROC`,
         // whose own doc comment names the `pkg_*` family directly) that only
         // builds and returns a string — it never touches a variable, channel,
-        // or the interpreter's own state, so it is `PURE` in the same sense
+        // or the interpreter's own state, so it is pure in the same sense
         // as `list`/`format`/`concat`.
-        traits: Traits::OVERRIDABLE_LIBRARY_PROC | Traits::PURE,
+        traits: Traits::OVERRIDABLE_LIBRARY_PROC,
         // `pkg::create`'s documented grammar is entirely `-flag value`
         // pairs with no leading positional word, and `-load`/`-source` are
         // explicitly repeatable ("Any number of -load parameters may be

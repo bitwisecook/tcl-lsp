@@ -27,7 +27,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "Set/get virtual connection limit.",
         synopsis: "LB::connlimit virtual ?limit <value>? ?key <value>?",
-        pure: true,
         mutator: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::PoolSelection,
@@ -44,7 +43,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "Set/get node connection limit.",
         synopsis: "LB::connlimit node ?limit <value>? ?key <value>?",
-        pure: true,
         mutator: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::PoolSelection,
@@ -61,7 +59,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "Set/get poolmember connection limit.",
         synopsis: "LB::connlimit poolmember ?limit <value>? ?key <value>?",
-        pure: true,
         mutator: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::PoolSelection,

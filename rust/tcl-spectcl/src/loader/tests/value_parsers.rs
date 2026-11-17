@@ -81,7 +81,7 @@ fn an_object_class_carries_its_name_flags_and_method_table() {
                    mutator\n\
                    option -text -takes value\n\
                  }\n\
-                 method cget { arity 1 ; detail {Read one option.} ; pure }\n\
+                 method cget { arity 1 ; detail {Read one option.} ; destructive }\n\
                }\n\
              }\n\
              }",
@@ -102,7 +102,7 @@ fn an_object_class_carries_its_name_flags_and_method_table() {
     assert!(configure.mutator);
     assert_eq!(configure.options.len(), 1);
     assert_eq!(configure.options[0].name, "-text");
-    assert!(class.instance_method("cget").expect("by name").pure);
+    assert!(class.instance_method("cget").expect("by name").destructive);
 
     // The method table is the class's, not the command's: a factory
     // declaring no `subcommand` rows still has none.
@@ -162,4 +162,38 @@ fn a_malformed_object_class_degrades_with_a_notice() {
     assert!(class.instance_methods.is_empty());
     assert!(said("unknown flag `-mixin` on `object_class` dropped"));
     assert!(said("unknown property `subcommand` dropped"));
+}
+
+/// Issue #1712: purity is derived, so a pack's `traits {PURE}` and a
+/// subcommand's `pure` row are dropped with a notice naming what carries
+/// the fact now, and neither makes the command pure.
+#[test]
+fn retired_purity_spellings_say_where_purity_went() {
+    let pack = evaluate_pack(
+        "speclib probe 2.2 { command demo { arity 1 ; traits {PURE} ; \
+         subcommand read { arity 0 ; pure } } }",
+    );
+    let messages: Vec<&str> = pack
+        .notices
+        .iter()
+        .map(|notice| notice.message.as_str())
+        .collect();
+    assert!(
+        messages
+            .iter()
+            .any(|m| m.starts_with("retired trait `PURE` dropped: purity is derived")),
+        "{messages:?}"
+    );
+    assert!(
+        messages
+            .iter()
+            .any(|m| m.starts_with("retired row `pure` dropped: purity is derived")),
+        "{messages:?}"
+    );
+    let spec = pack.command("demo").expect("demo loads").spec;
+    assert!(
+        tcl_registry::purity::PurityDomains::of_command(spec)
+            .pure_releases(tcl_dialect::model::Family::Tcl)
+            .is_empty()
+    );
 }

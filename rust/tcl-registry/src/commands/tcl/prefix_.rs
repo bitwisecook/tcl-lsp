@@ -65,7 +65,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Return every element of table that begins with string.",
         synopsis: "tcl::prefix all table string",
-        pure: true,
         return_type: Some(TclType::List),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
@@ -78,7 +77,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Return the longest common prefix of every element of table that begins with string.",
         synopsis: "tcl::prefix longest table string",
-        pure: true,
         return_type: Some(TclType::String),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
@@ -98,7 +96,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         reserved_trailing_words: 2,
         detail: "Resolve string to the unique element of table it is an unambiguous prefix of.",
         synopsis: "tcl::prefix match ?-exact? ?-message string? ?-error options? table string",
-        pure: true,
         return_type: Some(TclType::String),
         options: const {
             &[

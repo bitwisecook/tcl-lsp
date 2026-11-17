@@ -54,7 +54,7 @@
 //! field left at its default. The `set`/`incr`/`unset` variable-assignment
 //! path *does* populate scope/namespace/key (it is not hint-driven).
 //!
-//! `class match` (a `pure: true` subcommand) short-circuits to a pure,
+//! `class match` (a pure subcommand) short-circuits to a pure,
 //! effect-free result rather than surfacing the command-level `DataGroup` read
 //! hint — pure subcommands win, so the class-lookup assertions check purity
 //! (documented at the site).
@@ -514,13 +514,16 @@ fn classify_snat_selection() {
 
 #[test]
 fn classify_class_lookup() {
-    // f5-dialect. `class match` is a `pure: true` subcommand, so the classifier
+    // f5-dialect. `class match` is a pure subcommand, so the classifier
     // short-circuits to a pure, effect-free result rather than surfacing the
     // command-level DataGroup read hint. (Pure subcommands win.) Assert the
     // behaviour: pure, no tracked write.
     let reg = irules_registry();
     let r = classify(&reg, "class", &["match", "-name", "myclass", "value"], None);
-    assert!(r.pure, "class match resolves via the pure-subcommand path");
+    assert!(
+        !r.pure,
+        "iRules has no source evidence, so no iRules call is pure (issue #1712)"
+    );
     assert!(!r.writes_any());
     // The DataGroup read is reachable via the command-level hint only when no
     // pure subcommand matches; assert the registry actually carries it so the
@@ -568,7 +571,7 @@ fn classify_session_add() {
 
 #[test]
 fn classify_session_lookup() {
-    // f5-dialect. `session lookup` is a `pure: true` subcommand, so the
+    // f5-dialect. `session lookup` is a pure subcommand, so the
     // classifier short-circuits to a pure, effect-free result (pure subcommands
     // win) rather than surfacing the subcommand's PersistenceTable read hint.
     // Assert the behaviour: pure, no write. The structured read/write effect for
@@ -582,8 +585,8 @@ fn classify_session_lookup() {
         Some(tcl_dialect::DialectProfile::irules()),
     );
     assert!(
-        r.pure,
-        "session lookup resolves via the pure-subcommand path"
+        !r.pure,
+        "iRules has no source evidence, so no iRules call is pure (issue #1712)"
     );
     assert!(!r.writes_any());
 }
@@ -609,7 +612,7 @@ fn classify_http_header_read() {
 
 #[test]
 fn classify_http_uri_normalized_getter_is_read_only() {
-    // f5-dialect. The `HTTP::uri` spec carries `Traits::PURE` but NO structured
+    // f5-dialect. The `HTTP::uri` spec states no structured
     // `side_effects` hint (`-normalized` is an *option*, not a subcommand, and
     // the read-only-ness is captured purely by `pure=true`). So the getter is
     // classified as pure with an EMPTY effect list rather than surfacing a
@@ -624,7 +627,10 @@ fn classify_http_uri_normalized_getter_is_read_only() {
         &["-normalized"],
         Some(tcl_dialect::DialectProfile::irules()),
     );
-    assert!(r.pure, "HTTP::uri -normalized is a pure getter");
+    assert!(
+        !r.pure,
+        "iRules has no source evidence, so no iRules call is pure (issue #1712)"
+    );
     assert!(!r.writes_any(), "a getter must not write");
 }
 

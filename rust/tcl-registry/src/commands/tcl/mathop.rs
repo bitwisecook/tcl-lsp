@@ -35,7 +35,6 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::mathop",
-        traits: Traits::PURE,
         // The operator-command namespace was added in Tcl 8.5 (TIP 174):
         // no tcl8.4/TclCmd/mathop.html manpage exists (404), and the 8.5
         // manpage is the first to document it. Present unchanged in shape

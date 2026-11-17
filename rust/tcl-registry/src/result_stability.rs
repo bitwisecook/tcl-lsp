@@ -22,7 +22,7 @@
 //! equal arguments return the same value.  `clock seconds`, for example, is a
 //! read-only operation whose result changes independently of Tcl state.  This
 //! descriptor keeps that distinction in the command registry so optimisers do
-//! not infer determinism from the legacy `PURE` or `CSE_CANDIDATE` traits.
+//! not infer determinism from the legacy purity or `CSE_CANDIDATE` traits.
 
 use crate::world_effect::WorldStateDomain;
 

@@ -173,7 +173,6 @@ static SUBCOMMANDS: [SubCommand; 14] = [
         arity: Arity::exact(1),
         detail: "Return the current value of a widget option.",
         synopsis: "pathName cget option",
-        pure: true,
         return_type: Some(TclType::String),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
@@ -224,7 +223,6 @@ static SUBCOMMANDS: [SubCommand; 14] = [
         arity: Arity::exact(3),
         detail: "Identify the element or tab at the given coordinates.",
         synopsis: "pathName identify component x y",
-        pure: true,
         return_type: Some(TclType::String),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
@@ -235,7 +233,6 @@ static SUBCOMMANDS: [SubCommand; 14] = [
         arity: Arity::exact(1),
         detail: "Return the numeric index of the tab specified by tabid.",
         synopsis: "pathName index tabid",
-        pure: true,
         return_type: Some(TclType::Int),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
@@ -277,7 +274,6 @@ static SUBCOMMANDS: [SubCommand; 14] = [
         arity: Arity::exact(0),
         detail: "Return the list of windows managed by the notebook.",
         synopsis: "pathName tabs",
-        pure: true,
         return_type: Some(TclType::List),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
@@ -310,7 +306,6 @@ static SUBCOMMANDS: [SubCommand; 14] = [
         detail: "Return the widget's current style.",
         synopsis: "pathName style",
         lifecycle: Lifecycle::introduced_in("8.7"),
-        pure: true,
         return_type: Some(TclType::String),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
@@ -374,7 +369,14 @@ mod tests {
     #[test]
     fn notebook_cget_is_a_plain_widget_read() {
         let cget = sub("cget");
-        assert!(cget.pure);
+        assert!(
+            (!cget.mutator
+                && cget
+                    .side_effects
+                    .lower_bound()
+                    .iter()
+                    .all(|effect| !effect.writes))
+        );
         assert_eq!(
             cget.side_effects.lower_bound(),
             super::super::common::TTK_WIDGET_READS

@@ -87,7 +87,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Get proxy destination address.",
         synopsis: "HTTP::proxy addr",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::HttpUri,
             reads: true,
@@ -102,7 +101,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Get proxy destination port.",
         synopsis: "HTTP::proxy port",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::HttpUri,
             reads: true,
@@ -117,7 +115,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Get proxy route domain.",
         synopsis: "HTTP::proxy rtdom",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::HttpUri,
             reads: true,
@@ -132,7 +129,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Check if proxy is active.",
         synopsis: "HTTP::proxy exists",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::HttpUri,
             reads: true,
@@ -147,7 +143,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Get proxy IP tuple.",
         synopsis: "HTTP::proxy iptuple",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::HttpUri,
             reads: true,

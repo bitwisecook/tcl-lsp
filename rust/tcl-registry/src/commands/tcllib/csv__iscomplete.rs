@@ -26,7 +26,6 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "csv::iscomplete",
-        traits: Traits::PURE,
         surface: None,
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {

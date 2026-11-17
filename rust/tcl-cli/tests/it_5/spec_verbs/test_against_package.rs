@@ -78,7 +78,7 @@ fn spec_test_reports_a_command_the_package_does_not_define() {
     };
     let pack = "speclib demo 2.0 {\n    command demo::fixed {\n        arity 2\n        \
                 required_package demo\n    }\n    command demo::ghost {\n        arity 1\n        \
-                required_package demo\n        traits {PURE}\n        hover { example {demo::ghost 1} }\n    }\n}\n";
+                required_package demo\n        traits {CSE_CANDIDATE}\n        hover { example {demo::ghost 1} }\n    }\n}\n";
     let ghost = Described::new("spec-test-ghost", DEMO_PACKAGE, pack, &["demo"]);
     let (stdout, stderr, code) = ghost.run(&tclsh);
     assert_eq!(code, 1, "stdout: {stdout}\nstderr: {stderr}");
@@ -222,7 +222,7 @@ const BEHAVING_PACK: &str = "speclib demo 2.0 {\n\
     command demo::remember {\n\
         arity 1\n\
         required_package demo\n\
-        traits {PURE}\n\
+        traits {CSE_CANDIDATE}\n\
         hover { example {demo::remember 5} }\n\
     }\n\
     command demo::raises {\n\
@@ -233,25 +233,25 @@ const BEHAVING_PACK: &str = "speclib demo 2.0 {\n\
     command demo::memo {\n\
         arity 1\n\
         required_package demo\n\
-        traits {PURE}\n\
+        traits {CSE_CANDIDATE}\n\
         hover { example {demo::memo 3} }\n\
     }\n\
     command demo::tidy {\n\
         arity 1\n\
         required_package demo\n\
-        traits {PURE}\n\
+        traits {CSE_CANDIDATE}\n\
         hover { example {demo::tidy 4} }\n\
     }\n\
     command demo::cached {\n\
         arity 1\n\
         required_package demo\n\
-        traits {PURE}\n\
+        traits {CSE_CANDIDATE}\n\
         hover { example {demo::cached 4} }\n\
     }\n\
     command demo::counted {\n\
         arity 1\n\
         required_package demo\n\
-        traits {PURE}\n\
+        traits {CSE_CANDIDATE}\n\
         hover { example {demo::counted 4} }\n\
     }\n\
 }\n";
@@ -314,11 +314,11 @@ proc demo::arity_only {x} {set ::arity_scratch x; unset ::arity_scratch; return 
 proc demo::local {} {set scratch x; unset scratch; return ok}
 ";
     let pack = r"speclib demo 2.0 {
-    command demo::scratch {required_package demo; traits {PURE}; hover {example {demo::scratch}}}
-    command demo::nested {required_package demo; traits {PURE}; hover {example {demo::nested}}}
-    command demo::once {required_package demo; traits {PURE}; hover {example {demo::once}}}
-    command demo::arity_only {required_package demo; traits {PURE}; arity 1}
-    command demo::local {required_package demo; traits {PURE}; hover {example {demo::local}}}
+    command demo::scratch {required_package demo; traits {CSE_CANDIDATE}; hover {example {demo::scratch}}}
+    command demo::nested {required_package demo; traits {CSE_CANDIDATE}; hover {example {demo::nested}}}
+    command demo::once {required_package demo; traits {CSE_CANDIDATE}; hover {example {demo::once}}}
+    command demo::arity_only {required_package demo; traits {CSE_CANDIDATE}; arity 1}
+    command demo::local {required_package demo; traits {CSE_CANDIDATE}; hover {example {demo::local}}}
 }
 ";
     let described = Described::new("spec-test-transient", package, pack, &["demo"]);

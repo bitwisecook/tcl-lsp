@@ -596,15 +596,19 @@ fn argument_expansion_fails_closed() {
 #[test]
 fn versioned_world_results_key_on_the_read_domain_version() {
     let mut registry = CommandRegistry::build_default();
+    let (side_effects, world_effects, completion, _) =
+        tcl_registry::purity::closed_domains(tcl_dialect::model::SpecSurface::ALL_TCL);
     registry.insert(tcl_registry::CommandSpec {
         name: "test::versioned",
-        traits: Traits::PURE | Traits::CSE_CANDIDATE,
+        traits: Traits::CSE_CANDIDATE,
         result_stability: tcl_registry::knowledge::Knowledge::Partial(
             ResultStability::ReadsVersionedWorld(&[tcl_registry::WorldStateDomain::VariableStore]),
         ),
-        world_effects: tcl_registry::knowledge::Knowledge::Partial(
-            tcl_registry::WorldEffectDescriptor::EMPTY,
-        ),
+        // Effect-free at every release: no effect, no world write, and only a
+        // normal completion or an error.
+        side_effects,
+        world_effects,
+        completion,
         state_transitions: Some(tcl_registry::StateTransitionDescriptor::EMPTY),
         ..tcl_registry::CommandSpec::DEFAULT
     });

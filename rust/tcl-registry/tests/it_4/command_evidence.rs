@@ -101,6 +101,14 @@ fn complete_rows_match_the_c_evidence() {
             let bare = bare
                 .strip_prefix("tcl::dict::")
                 .map_or_else(|| bare.to_owned(), |sub| format!("dict {sub}"));
+            // A bare operator row is the `tcl::mathop` command a `namespace
+            // path` reaches it through.
+            let operator = format!("tcl::mathop::{bare}");
+            let bare = if !bare.contains("::") && closed.contains(operator.as_str()) {
+                operator
+            } else {
+                bare
+            };
             let bare = bare.as_str();
             let mut check = |label: String, domains: PurityDomains| {
                 let claimed = closed_claims(&domains, &query);
@@ -129,4 +137,26 @@ fn complete_rows_match_the_c_evidence() {
         unevidenced.len(),
         unevidenced.join("\n")
     );
+}
+
+/// The issue #1712 audit: no `tmsh::*` iApps command states its effects, so
+/// every one is `Unknown` — never verified empty, never pure. What
+/// `tmsh::create`, `modify` and `delete` change needs a device to evidence.
+#[test]
+fn tmsh_commands_state_their_effects_as_unknown() {
+    let tmsh: Vec<_> = tcl_registry::commands::iapps::iapps_command_specs()
+        .into_iter()
+        .filter(|spec| spec.name.starts_with("tmsh::"))
+        .collect();
+    assert!(tmsh.len() >= 30, "{}", tmsh.len());
+    for spec in &tmsh {
+        assert!(spec.side_effects.is_unknown(), "{}", spec.name);
+        assert!(
+            tcl_registry::purity::PurityDomains::of_command(spec)
+                .pure_releases(tcl_dialect::model::Family::Tcl)
+                .is_empty(),
+            "{}",
+            spec.name
+        );
+    }
 }

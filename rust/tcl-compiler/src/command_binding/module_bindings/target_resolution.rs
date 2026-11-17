@@ -120,10 +120,14 @@ impl ModuleCommandBindings {
             return None;
         }
         let traits = spec.traits;
+        let query = registry
+            .profile()
+            .map(tcl_dialect::DialectProfile::surface_query);
+        let pure = spec.is_pure_at(query.as_ref());
         (traits.contains(Traits::TCLOO_METHOD_CONTEXT)
             && !traits.contains(Traits::TCLOO_BINDS_METHOD_ALIAS)
-            && (preview || spec.is_pure()))
-        .then_some(spec.is_pure())
+            && (preview || pure))
+            .then_some(pure)
     }
 
     /// The frame effect a declared command states when an authored call

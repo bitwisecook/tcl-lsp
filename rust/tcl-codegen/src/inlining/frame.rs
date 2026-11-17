@@ -719,9 +719,12 @@ fn command_goes_beyond_values(
 fn works_on_values(head: &str, registry: &CommandRegistry) -> bool {
     !head.is_empty()
         && !head.contains(['$', '[', ']', '\\', '{', '}', '"'])
-        && registry
-            .get(head)
-            .is_some_and(|spec| registry.is_splice_safe(head) || spec.is_pure())
+        && registry.get(head).is_some_and(|spec| {
+            let query = registry
+                .profile()
+                .map(tcl_dialect::DialectProfile::surface_query);
+            registry.is_splice_safe(head) || spec.is_pure_at(query.as_ref())
+        })
 }
 
 #[cfg(test)]

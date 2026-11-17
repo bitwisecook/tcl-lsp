@@ -466,7 +466,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
             (6, ADD_UNIT_VALUES),
             (8, ADD_UNIT_VALUES),
         ],
-        pure: true,
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::PLATFORM_DECIDED,
         ),
@@ -479,7 +478,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Return hi-res clock value.",
         synopsis: "clock clicks ?-milliseconds? ?-microseconds?",
         options: CLICKS_OPTIONS,
-        pure: true,
         return_type: Some(TclType::Int),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::PLATFORM_DECIDED,
@@ -499,7 +497,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // `FormatString` / `ScanFormat` argument role that locates the
         // word, it is the whole registry answer the LSP needs.
         format_string_type: Some(FormatType::Clock),
-        pure: true,
         return_type: Some(TclType::String),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::PLATFORM_DECIDED,
@@ -514,7 +511,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Return current time in microseconds.",
         synopsis: "clock microseconds",
-        pure: true,
         return_type: Some(TclType::Int),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::PLATFORM_DECIDED,
@@ -529,7 +525,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Return current time in milliseconds.",
         synopsis: "clock milliseconds",
-        pure: true,
         return_type: Some(TclType::Int),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::PLATFORM_DECIDED,
@@ -546,7 +541,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Return current monotonic clock value in microseconds.",
         synopsis: "clock monotonic",
-        pure: true,
         return_type: Some(TclType::Int),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::PLATFORM_DECIDED,
@@ -578,7 +572,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Return current time in seconds.",
         synopsis: "clock seconds",
-        pure: true,
         return_type: Some(TclType::Int),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::PLATFORM_DECIDED,
@@ -785,7 +778,7 @@ pub fn getenv_spec() -> CommandSpec {
 
 #[cfg(test)]
 mod tests {
-    use super::{TclVersion, Traits};
+    use super::TclVersion;
     #[test]
     fn private_date_worker_is_c86_only_shipped_dict_and_null_hook() {
         let registry = crate::CommandRegistry::build_default();
@@ -806,7 +799,11 @@ mod tests {
                 selected.then_some(Some(false))
             );
         }
-        assert!(!super::get_date_fields_spec().traits.contains(Traits::PURE));
+        assert!(
+            crate::purity::PurityDomains::of_command(&super::get_date_fields_spec())
+                .pure_releases(tcl_dialect::model::Family::Tcl)
+                .is_empty()
+        );
         assert_eq!(
             super::get_date_fields_spec().return_type,
             Some(super::TclType::Dict)
@@ -829,7 +826,11 @@ mod tests {
                 assert_eq!(compiler.compiler_hook_presence(dialect), Some(false));
             }
         }
-        assert!(!super::getenv_spec().traits.contains(Traits::PURE));
+        assert!(
+            crate::purity::PurityDomains::of_command(&super::getenv_spec())
+                .pure_releases(tcl_dialect::model::Family::Tcl)
+                .is_empty()
+        );
     }
     #[test]
     fn private_format_worker_has_only_the_measured_c86_surface_and_null_hook() {
@@ -846,7 +847,11 @@ mod tests {
             }
         }
         let spec = super::parse_format_args_spec();
-        assert!(!spec.traits.contains(Traits::PURE));
+        assert!(
+            crate::purity::PurityDomains::of_command(&spec)
+                .pure_releases(tcl_dialect::model::Family::Tcl)
+                .is_empty()
+        );
     }
 
     #[test]

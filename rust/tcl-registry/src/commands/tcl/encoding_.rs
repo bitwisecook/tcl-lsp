@@ -271,7 +271,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             // -failindex (Tcl 9.0+) optionally writes its `var` argument;
             // the static spec can't see whether a given call uses it, so
-            // conservatively declare the write rather than staying `pure`.
+            // conservatively declare the write rather than staying pure.
             target: SideEffectTarget::Variable,
             writes: true,
             surface: Some(SpecSurface::TCL90_PLUS),
@@ -343,7 +343,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Return a list of the names of all currently available encodings. utf-8 and iso8859-1 are always present.",
         synopsis: "encoding names",
-        pure: true,
         return_type: Some(TclType::List),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::PLATFORM_DECIDED,
@@ -377,7 +376,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         surface: Some(SpecSurface::TCL90_PLUS),
         detail: "Return a list of the names of the available encoding profiles (strict, tcl8, replace).",
         synopsis: "encoding profiles",
-        pure: true,
         return_type: Some(TclType::List),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
@@ -393,7 +391,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         surface: Some(SpecSurface::TCL90_PLUS),
         detail: "Return the encoding matching the user's platform preferences: on Windows, derived from the user's code-page registry setting; on other platforms, the same value as encoding system.",
         synopsis: "encoding user",
-        pure: true,
         return_type: Some(TclType::String),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::PLATFORM_DECIDED,

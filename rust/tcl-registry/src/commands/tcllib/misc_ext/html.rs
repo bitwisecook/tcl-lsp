@@ -18,7 +18,7 @@
 
 //! The `html` package: its richer row shape, the row builder and the command table.
 
-use super::{Arity, CommandSpec, HoverSnippet, Lifecycle, SemanticsDeclaration, TclType, Traits};
+use super::{Arity, CommandSpec, HoverSnippet, Lifecycle, SemanticsDeclaration, TclType};
 
 /// A row in the `html` package command table: name, arity, synopsis,
 /// summary, return type, purity (side-effect-free), and the html-package
@@ -49,7 +49,6 @@ pub(super) fn html_rows(table: &'static [HtmlRow]) -> Vec<CommandSpec> {
             |&(name, arity, synopsis, summary, return_type, pure, introduced)| CommandSpec {
                 name,
                 arity,
-                traits: if pure { Traits::PURE } else { Traits::empty() },
                 return_type: Some(return_type),
                 hover: Some(HoverSnippet::brief(
                     summary,

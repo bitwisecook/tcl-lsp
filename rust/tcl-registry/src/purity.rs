@@ -33,7 +33,7 @@ use crate::result_stability::ResultStability;
 use crate::side_effects::SideEffect;
 use crate::spec::{CommandSpec, SubCommand};
 use crate::world_effect::{ResolvedWorldEffects, WorldEffectDescriptor};
-use tcl_dialect::model::SurfaceQuery;
+use tcl_dialect::model::{Family, SurfaceQuery};
 
 /// The four domains purity is derived from, as one invocation shape resolves
 /// them.
@@ -109,13 +109,48 @@ impl PurityDomains {
     }
 
     /// Whether the invocation is pure at `query`: every one of the four
-    /// domains is closed there.
+    /// domains is closed there. With no release, it is pure only when it is
+    /// pure at every Tcl release.
     #[must_use]
     pub fn pure_at(&self, query: Option<&SurfaceQuery<'_>>) -> bool {
+        let Some(query) = query else {
+            let family = Family::Tcl;
+            return self.pure_releases(family).len() == family.releases().len();
+        };
+        let query = Some(query);
         self.side_effects_closed_at(query)
             && self.world_effects_closed_at(query)
             && self.completion_closed_at(query)
             && self.result_stability_closed_at(query)
+    }
+
+    /// Whether the invocation is effect-free at `query`: its side effects,
+    /// world effects and completion are closed there, whatever its result
+    /// depends on. With no release, at every Tcl release.
+    #[must_use]
+    pub fn effect_free_at(&self, query: Option<&SurfaceQuery<'_>>) -> bool {
+        let Some(query) = query else {
+            let family = Family::Tcl;
+            return family
+                .releases()
+                .iter()
+                .all(|step| self.effect_free_at(Some(&SurfaceQuery::core(family, step.as_str()))));
+        };
+        let query = Some(query);
+        self.side_effects_closed_at(query)
+            && self.world_effects_closed_at(query)
+            && self.completion_closed_at(query)
+    }
+
+    /// The releases of `family` at which the invocation is pure.
+    #[must_use]
+    pub fn pure_releases(&self, family: Family) -> Vec<&'static str> {
+        family
+            .releases()
+            .iter()
+            .map(|step| step.as_str())
+            .filter(|release| self.pure_at(Some(&SurfaceQuery::core(family, release))))
+            .collect()
     }
 }
 
@@ -128,19 +163,21 @@ pub fn completes_normally_or_raises(descriptor: CompletionDescriptor) -> bool {
             if codes.iter().all(|code| matches!(code, CompletionCode::Ok | CompletionCode::Error)))
 }
 
+/// The four domains as one row states them: side effects, world effects,
+/// completion and result stability.
+pub type ClosedDomains = (
+    Knowledge<&'static [SideEffect]>,
+    Knowledge<WorldEffectDescriptor>,
+    Knowledge<CompletionDescriptor>,
+    Knowledge<ResultStability>,
+);
+
 /// The four domains closed for the windows `surfaces` names: no side
 /// effects, no world access, completion only normal or an error, and a
 /// referentially transparent result. A row evidenced from its
 /// implementation's source states this for exactly those windows.
 #[must_use]
-pub const fn closed_domains(
-    surfaces: &'static [tcl_dialect::model::SpecSurface],
-) -> (
-    Knowledge<&'static [SideEffect]>,
-    Knowledge<WorldEffectDescriptor>,
-    Knowledge<CompletionDescriptor>,
-    Knowledge<ResultStability>,
-) {
+pub const fn closed_domains(surfaces: &'static [tcl_dialect::model::SpecSurface]) -> ClosedDomains {
     (
         Knowledge::Complete(&[], surfaces),
         Knowledge::Complete(WorldEffectDescriptor::EMPTY, surfaces),
@@ -155,7 +192,7 @@ pub const fn closed_domains(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tcl_dialect::model::{Family, SpecSurface};
+    use tcl_dialect::model::SpecSurface;
 
     const NINE: &[SpecSurface] = &[SpecSurface::core_in(Family::Tcl, &[("9.0", None)])];
 
@@ -182,7 +219,8 @@ mod tests {
             "one release never fills another"
         );
         assert!(!domains.pure_at(Some(&SurfaceQuery::any_release(Family::Tcl))));
-        assert!(!domains.pure_at(None));
+        assert!(!domains.pure_at(None), "no release: pure only at every one");
+        assert_eq!(domains.pure_releases(Family::Tcl), ["9.0", "9.1"]);
 
         let mut partial = spec.clone();
         partial.result_stability = Knowledge::Partial(ResultStability::ReferentiallyTransparent);
@@ -196,6 +234,21 @@ mod tests {
         assert!(!PurityDomains::of_command(&breaks).pure_at(Some(&at("9.0"))));
 
         assert!(!PurityDomains::of_command(&CommandSpec::DEFAULT).pure_at(Some(&at("9.0"))));
+    }
+
+    #[test]
+    fn with_no_release_purity_needs_every_tcl_release() {
+        const EVERY: &[SpecSurface] = &[SpecSurface::core_in(Family::Tcl, &[("8.4", None)])];
+        let (side_effects, world_effects, completion, result_stability) = closed_domains(EVERY);
+        let spec = CommandSpec {
+            name: "probe",
+            side_effects,
+            world_effects,
+            completion,
+            result_stability,
+            ..CommandSpec::DEFAULT
+        };
+        assert!(PurityDomains::of_command(&spec).pure_at(None));
     }
 
     #[test]

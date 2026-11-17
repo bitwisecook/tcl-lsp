@@ -26,7 +26,6 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "textutil::splitn",
-        traits: Traits::PURE,
         surface: None,
         arity: Arity::new(1, 2),
         hover: Some(HoverSnippet {

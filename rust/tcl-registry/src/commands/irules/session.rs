@@ -41,7 +41,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "",
         synopsis: "",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::PersistenceTable,
             reads: true,
@@ -70,7 +69,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "",
         synopsis: "",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::PersistenceTable,
             reads: true,

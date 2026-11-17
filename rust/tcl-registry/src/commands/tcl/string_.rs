@@ -113,7 +113,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 crate::completion::CompletionCode::Error,
             ]),
         ),
-        pure: true,
         return_type: Some(TclType::Int),
         // Documented "likely to go away in a future release" as far back
         // as the Tcl 8.4 manpage, but only actually removed at the 9.0
@@ -170,7 +169,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 crate::completion::CompletionCode::Error,
             ]),
         ),
-        pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_cat),
         surface: Some(SpecSurface::TCL86_PLUS),
@@ -216,7 +214,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 crate::completion::CompletionCode::Error,
             ]),
         ),
-        pure: true,
         return_type: Some(TclType::Int),
         const_fold: Some(fold_compare),
         options: const {
@@ -287,7 +284,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 crate::completion::CompletionCode::Error,
             ]),
         ),
-        pure: true,
         return_type: Some(TclType::Boolean),
         const_fold: Some(fold_equal),
         options: const {
@@ -357,7 +353,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 crate::completion::CompletionCode::Error,
             ]),
         ),
-        pure: true,
         return_type: Some(TclType::Int),
         const_fold: Some(fold_first),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STRING_FIRST),
@@ -444,7 +439,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 crate::completion::CompletionCode::Error,
             ]),
         ),
-        pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_index),
         arg_types: &[
@@ -512,7 +506,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 crate::completion::CompletionCode::Error,
             ]),
         ),
-        pure: true,
         return_type: Some(TclType::String),
         surface: Some(SpecSurface::TCL90_PLUS),
         arg_types: &[(
@@ -562,17 +555,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 result_stability: crate::knowledge::Knowledge::Partial(
                     crate::ResultStability::ReferentiallyTransparent,
                 ),
-                traits: Some(Traits::PURE.union(Traits::CSE_CANDIDATE)),
+                traits: Some(Traits::CSE_CANDIDATE),
                 ..crate::forms::SubCommandForm::DEFAULT
             }]
         },
-        // Deliberately NOT `pure: true`: `-failindex` (documented since
+        // Deliberately NOT pure: `-failindex` (documented since
         // Tcl 8.4) optionally writes its `varname` argument, and the
         // static spec can't see whether a given call uses it — the same
         // shape as `encoding convertfrom`/`convertto`'s `-failindex`,
         // resolved there the same way (see `commands/tcl/encoding_.rs`).
         // `classify_side_effects` (`tcl-compiler/src/side_effects.rs`)
-        // trusts a subcommand's `pure` flag unconditionally and never even
+        // trusts a subcommand's pure flag unconditionally and never even
         // looks at `side_effects` when it's set, so marking this pure
         // would let dead-code-elimination/CSE silently drop or reorder a
         // real variable write.
@@ -659,7 +652,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 crate::completion::CompletionCode::Error,
             ]),
         ),
-        pure: true,
         return_type: Some(TclType::Int),
         const_fold: Some(fold_last),
         arg_types: &[
@@ -738,7 +730,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             },
         ),
-        pure: true,
         return_type: Some(TclType::Int),
         const_fold: Some(fold_length),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STRING_LENGTH),
@@ -795,7 +786,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 crate::completion::CompletionCode::Error,
             ]),
         ),
-        pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_string_map),
         // Claimed per call, not per command — `string map {a b} $x` launders
@@ -890,7 +880,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 crate::completion::CompletionCode::Error,
             ]),
         ),
-        pure: true,
         inline_codegen_hook: Some(crate::hooks::InlineCodegenHookId::StringMatch),
         const_fold: Some(fold_match),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STRING_MATCH),
@@ -938,7 +927,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 crate::completion::CompletionCode::Error,
             ]),
         ),
-        pure: true,
         return_type: Some(TclType::String),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STRING_RANGE),
         const_fold: Some(fold_range_unanimous),
@@ -1022,7 +1010,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 crate::completion::CompletionCode::Error,
             ]),
         ),
-        pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_repeat),
         arg_types: &[(
@@ -1084,7 +1071,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
             lifecycle: crate::lifecycle::Lifecycle::introduced_in("8.6"),
             value: crate::hooks::InlineCodegenHookId::StringReplace,
         }],
-        pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_replace),
         arg_types: &[
@@ -1170,7 +1156,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 crate::completion::CompletionCode::Error,
             ]),
         ),
-        pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_reverse),
         // Added in Tcl 8.5.
@@ -1229,7 +1214,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 crate::completion::CompletionCode::Error,
             ]),
         ),
-        pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_tolower),
         arg_types: &[
@@ -1291,7 +1275,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 crate::completion::CompletionCode::Error,
             ]),
         ),
-        pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_totitle),
         arg_types: &[
@@ -1353,7 +1336,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 crate::completion::CompletionCode::Error,
             ]),
         ),
-        pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_toupper),
         arg_types: &[
@@ -1422,7 +1404,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 crate::completion::CompletionCode::Error,
             ]),
         ),
-        pure: true,
         // `TclCompileStringTrimCmd` arrives in 8.6; before it the command runs.
         inline_codegen_hook_windows: &[crate::stamp_window::StampWindow {
             lifecycle: crate::lifecycle::Lifecycle::introduced_in("8.6"),
@@ -1471,7 +1452,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 crate::completion::CompletionCode::Error,
             ]),
         ),
-        pure: true,
         // `TclCompileStringTrimLCmd` arrives in 8.6; before it the command runs.
         inline_codegen_hook_windows: &[crate::stamp_window::StampWindow {
             lifecycle: crate::lifecycle::Lifecycle::introduced_in("8.6"),
@@ -1520,7 +1500,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 crate::completion::CompletionCode::Error,
             ]),
         ),
-        pure: true,
         // `TclCompileStringTrimRCmd` arrives in 8.6; before it the command runs.
         inline_codegen_hook_windows: &[crate::stamp_window::StampWindow {
             lifecycle: crate::lifecycle::Lifecycle::introduced_in("8.6"),
@@ -1575,7 +1554,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 crate::completion::CompletionCode::Error,
             ]),
         ),
-        pure: true,
         return_type: Some(TclType::Int),
         // Subject (index 0) deliberately carries NO hint: 8.6's
         // `StringEndCmd` reads it via `TclGetStringFromObj` + `Tcl_UtfAtIndex`
@@ -1639,7 +1617,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 crate::completion::CompletionCode::Error,
             ]),
         ),
-        pure: true,
         return_type: Some(TclType::Int),
         // Subject (index 0) deliberately un-stamped — same 8.6 dual-ported
         // read / 9.0 `Tcl_GetUnicodeFromObj` divergence as `wordend`.

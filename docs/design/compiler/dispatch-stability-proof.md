@@ -357,7 +357,9 @@ were resolved for.
 `gvn_site_eligibility` (`rust/tcl-compiler/src/gvn.rs`) is the seam. A site is
 eligible only when all of the following hold:
 
-1. the static registry gates pass — `PURE` and `CSE_CANDIDATE` traits, an empty
+1. the static registry gates pass — the invocation is pure and carries
+   `CSE_CANDIDATE` (`InvocationFacts::is_cse_pure`; purity derives from its four
+   facts domains being complete at its dialect), an empty
    effect access set, no world barrier, empty legacy command-table/frame/side
    effects, and a *closed and empty* `StateTransitionKnowledge::Declared` set
    (`resolved_invocation_static_gvn_gates`);

@@ -27,7 +27,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Get GTP version.",
         synopsis: "GTP::header version ?-message msg?",
-        pure: true,
         options: const {
             &[OptionSpec {
                 name: "-message",
@@ -54,7 +53,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Get GTP type.",
         synopsis: "GTP::header type ?-message msg?",
-        pure: true,
         options: const {
             &[OptionSpec {
                 name: "-message",
@@ -81,7 +79,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "Get/set/remove GTP npdu.",
         synopsis: "GTP::header npdu ?set|remove? ?-message msg? ?value?",
-        pure: true,
         mutator: true,
         options: const {
             &[OptionSpec {
@@ -110,7 +107,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "Get/set/remove GTP teid.",
         synopsis: "GTP::header teid ?set|remove? ?-message msg? ?value?",
-        pure: true,
         mutator: true,
         options: const {
             &[OptionSpec {
@@ -139,7 +135,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "Get/set/remove GTP sequence.",
         synopsis: "GTP::header sequence ?set|remove? ?-message msg? ?value?",
-        pure: true,
         mutator: true,
         options: const {
             &[OptionSpec {
@@ -168,7 +163,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "Access GTP extension headers.",
         synopsis: "GTP::header extension ?args?",
-        pure: true,
         mutator: true,
         options: const {
             &[OptionSpec {

@@ -82,7 +82,8 @@ export interface FieldKind {
 /**
  * A named cluster of settings that are read together.
  *
- * `pure` contradicting `side_effects`, `arity` against `arity_windows`, a
+ * a `CSE_CANDIDATE` without a referentially transparent result, `arity`
+ * against `arity_windows`, a
  * taint source with nothing that checks it: these are decided as a set, and a
  * form that shows one at a time never says so.
  */

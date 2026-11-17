@@ -818,7 +818,7 @@ const SELECTION_FORMS: &[SubCommandForm] = &[
     SubCommandForm {
         name: "query",
         arity: Arity::exact(0),
-        traits: Some(Traits::PURE.union(Traits::TAINT_SOURCE_ZERO_ARGS)),
+        traits: Some(Traits::TAINT_SOURCE_ZERO_ARGS),
         mutator: Some(false),
         side_effects: Some(crate::knowledge::Knowledge::declared(
             super::common::TTK_WIDGET_READS,
@@ -844,7 +844,7 @@ const ROW_CONFIGURE_FORMS: &[SubCommandForm] = &[
     SubCommandForm {
         name: "query-all",
         arity: Arity::exact(1),
-        traits: Some(Traits::PURE),
+        traits: Some(Traits::empty()),
         mutator: Some(false),
         side_effects: Some(crate::knowledge::Knowledge::declared(
             super::common::TTK_WIDGET_READS,
@@ -854,7 +854,7 @@ const ROW_CONFIGURE_FORMS: &[SubCommandForm] = &[
     SubCommandForm {
         name: "query-one",
         arity: Arity::exact(2),
-        traits: Some(Traits::PURE),
+        traits: Some(Traits::empty()),
         mutator: Some(false),
         side_effects: Some(crate::knowledge::Knowledge::declared(
             super::common::TTK_WIDGET_READS,
@@ -879,7 +879,7 @@ macro_rules! tag_query_form {
             name: $name,
             arity: $arity,
             literal_argument_prefix: Some(LiteralArgumentPrefix::unique(&[$($word),+])),
-            traits: Some(Traits::PURE),
+            traits: Some(Traits::empty()),
             mutator: Some(false),
             side_effects: Some(crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS)),
             ..SubCommandForm::DEFAULT
@@ -943,7 +943,6 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         arity: Arity::exact(1),
         detail: "Return the current value of a widget option.",
         synopsis: "pathName cget option",
-        pure: true,
         return_type: Some(TclType::String),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
@@ -964,7 +963,6 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         detail: "Return the item after an item in the current view.",
         synopsis: "pathName after ?-hidden? ?-norecurse? item",
         lifecycle: Lifecycle::introduced_in("9.1"),
-        pure: true,
         return_type: Some(TclType::String),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
@@ -975,7 +973,6 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         arity: Arity::new(1, 2),
         detail: "Return the bounding box of the item, optionally restricted to a column.",
         synopsis: "pathName bbox item ?column?",
-        pure: true,
         return_type: Some(TclType::List),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
@@ -987,7 +984,6 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         detail: "Return the item before an item in the current view.",
         synopsis: "pathName before ?-hidden? ?-norecurse? item",
         lifecycle: Lifecycle::introduced_in("9.1"),
-        pure: true,
         return_type: Some(TclType::String),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
@@ -1052,7 +1048,6 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         detail: "Return the item and column currently under the pointer.",
         synopsis: "pathName current",
         lifecycle: Lifecycle::introduced_in("9.1"),
-        pure: true,
         return_type: Some(TclType::List),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
@@ -1074,7 +1069,6 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         detail: "Return an item's depth below the root.",
         synopsis: "pathName depth item",
         lifecycle: Lifecycle::introduced_in("9.1"),
-        pure: true,
         return_type: Some(TclType::Int),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
@@ -1096,7 +1090,6 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         detail: "List detached items or test whether an item is detached.",
         synopsis: "pathName detached ?-all|item?",
         lifecycle: Lifecycle::introduced_in("9.0"),
-        pure: true,
         return_type: Some(TclType::String),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
@@ -1129,7 +1122,6 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         arity: Arity::exact(1),
         detail: "Return whether the specified item is present in the tree.",
         synopsis: "pathName exists item",
-        pure: true,
         return_type: Some(TclType::Boolean),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
@@ -1161,7 +1153,6 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         detail: "Return whether an item has children.",
         synopsis: "pathName haschildren item",
         lifecycle: Lifecycle::introduced_in("9.1"),
-        pure: true,
         return_type: Some(TclType::Boolean),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
@@ -1195,7 +1186,6 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         detail: "Return the identifier of the child at an index.",
         synopsis: "pathName id item index",
         lifecycle: Lifecycle::introduced_in("9.1"),
-        pure: true,
         return_type: Some(TclType::String),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
@@ -1206,7 +1196,6 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         arity: Arity::new(2, 3),
         detail: "Identify the tree component at the given coordinates.",
         synopsis: "pathName identify ?component? x y",
-        pure: true,
         return_type: Some(TclType::String),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
@@ -1218,7 +1207,6 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         detail: "Return the child identifier at an index.",
         synopsis: "pathName identifier item index",
         lifecycle: Lifecycle::introduced_in("9.1"),
-        pure: true,
         return_type: Some(TclType::String),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
@@ -1230,7 +1218,6 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         arity_windows: INDEX_ARITY_WINDOWS,
         detail: "Return an item's sibling index, or resolve a child index below it.",
         synopsis: "pathName index item ?index?",
-        pure: true,
         return_type: Some(TclType::Int),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
@@ -1272,7 +1259,6 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         arity: Arity::exact(1),
         detail: "Return the identifier of the item's next sibling.",
         synopsis: "pathName next item",
-        pure: true,
         return_type: Some(TclType::String),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
@@ -1283,7 +1269,6 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         arity: Arity::exact(1),
         detail: "Return the identifier of the item's parent.",
         synopsis: "pathName parent item",
-        pure: true,
         return_type: Some(TclType::String),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
@@ -1294,7 +1279,6 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         arity: Arity::exact(1),
         detail: "Return the identifier of the item's previous sibling.",
         synopsis: "pathName prev item",
-        pure: true,
         return_type: Some(TclType::String),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
@@ -1306,7 +1290,6 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         detail: "Return the inclusive view range between two items.",
         synopsis: "pathName range ?-hidden? ?-norecurse? first last",
         lifecycle: Lifecycle::introduced_in("9.1"),
-        pure: true,
         return_type: Some(TclType::List),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
@@ -1319,7 +1302,6 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         synopsis: "pathName search parent ?options? pattern",
         options: SEARCH_OPTIONS,
         lifecycle: Lifecycle::introduced_in("9.1"),
-        pure: true,
         return_type: Some(TclType::String),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
@@ -1362,7 +1344,6 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         detail: "Count an item's children with optional traversal controls.",
         synopsis: "pathName size ?-hidden? ?-recurse? item",
         lifecycle: Lifecycle::introduced_in("9.1"),
-        pure: true,
         return_type: Some(TclType::Int),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
@@ -1425,7 +1406,6 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         detail: "Return the widget's current style.",
         synopsis: "pathName style",
         lifecycle: Lifecycle::introduced_in("9.0"),
-        pure: true,
         return_type: Some(TclType::String),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
@@ -1448,7 +1428,6 @@ static SUBCOMMANDS: [SubCommand; 48] = [
         detail: "Return whether an item is visible in the current view.",
         synopsis: "pathName visible item",
         lifecycle: Lifecycle::introduced_in("9.1"),
-        pure: true,
         return_type: Some(TclType::Boolean),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
@@ -1744,7 +1723,15 @@ mod tests {
             "cget", "bbox", "exists", "index", "search", "size", "visible",
         ] {
             let sub = sub(name);
-            assert!(sub.pure, "{name}");
+            assert!(
+                (!sub.mutator
+                    && sub
+                        .side_effects
+                        .lower_bound()
+                        .iter()
+                        .all(|effect| !effect.writes)),
+                "{name}"
+            );
             assert!(!sub.side_effects.lower_bound().is_empty(), "{name}");
             assert!(
                 sub.side_effects

@@ -27,7 +27,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Get number of secret bits used.",
         synopsis: "SSL::cipher bits",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::SslState,
             reads: true,
@@ -42,7 +41,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Get cipher name.",
         synopsis: "SSL::cipher name",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::SslState,
             reads: true,
@@ -57,7 +55,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Get cipher version.",
         synopsis: "SSL::cipher version",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::SslState,
             reads: true,
@@ -72,7 +69,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Get client cipher list.",
         synopsis: "SSL::cipher clientlist",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::SslState,
             reads: true,
@@ -87,7 +83,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SSL::cipher",
-        traits: Traits::PURE.union(Traits::CSE_CANDIDATE),
+        traits: Traits::CSE_CANDIDATE,
         surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {

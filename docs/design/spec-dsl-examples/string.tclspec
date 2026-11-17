@@ -77,7 +77,8 @@ if {[string first "World" $s] >= 0} {
         arity 1
         detail   {Return number of characters.}
         synopsis {string length string}
-        pure
+        # No side effects at 8.4-9.1: the C evidence closes it.
+        effects -complete {8.4 9.1}
         return_type Int
 
         # Tcl_GetCharLength installs the string intrep, replacing a
@@ -109,11 +110,9 @@ if {[string first "World" $s] >= 0} {
         synopsis {string is class ?-strict? ?-failindex varname? string}
         return_type Boolean
 
-        # Deliberately NOT `pure`: -failindex optionally writes its varname
-        # argument and the static spec cannot see whether a given call uses
-        # it.  The purity classifier trusts `pure` unconditionally and never
-        # looks at side_effects when it is set, so marking this pure would let
-        # DCE/CSE silently drop or reorder a real variable write.
+        # Not pure: -failindex optionally writes its varname argument and the
+        # static spec cannot see whether a given call uses it, so the side
+        # effects stay open and DCE/CSE never drop or reorder that write.
         side_effect Variable -writes
 
         # The two-word call `string is class string` has no -failindex, so
@@ -124,7 +123,7 @@ if {[string first "World" $s] >= 0} {
             world_effects none
             state_transitions {}
             result_stability ReferentiallyTransparent
-            traits {PURE CSE_CANDIDATE}
+            traits {CSE_CANDIDATE}
         }
 
         option -strict -detail {Treat the empty string as not matching the class (by default the empty string matches every class).}
@@ -154,7 +153,8 @@ if {[string first "World" $s] >= 0} {
         arity 2..
         detail   {Map substrings via key-value pairs.}
         synopsis {string map ?-nocase? mapping string}
-        pure
+        # No side effects at 8.4-9.1: the C evidence closes it.
+        effects -complete {8.4 9.1}
         return_type String
 
         # Claimed per call, not per command: `string map {a b} $x` launders
@@ -207,7 +207,8 @@ if {[string first "World" $s] >= 0} {
         arity 3
         detail   {Return substring by index range.}
         synopsis {string range string first last}
-        pure
+        # No side effects at 8.4-9.1: the C evidence closes it.
+        effects -complete {8.4 9.1}
         return_type String
 
         arg 0 -type String -shimmers -transparent {ByteArray}

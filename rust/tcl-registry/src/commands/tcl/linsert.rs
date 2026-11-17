@@ -79,10 +79,7 @@ pub fn spec() -> CommandSpec {
         }),
         runtime_backing: RuntimeBacking::shipped("linsert"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
-        traits: Traits::FRAMELESS_RUNTIME
-            | Traits::BYTE_COMPILED
-            | Traits::PURE
-            | Traits::CSE_CANDIDATE,
+        traits: Traits::FRAMELESS_RUNTIME | Traits::BYTE_COMPILED | Traits::CSE_CANDIDATE,
         arity: Arity::at_least(2),
         return_type: Some(TclType::List),
         inferred_storage_type: Some(StorageType::List),

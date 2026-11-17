@@ -27,7 +27,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Get the agent identifier.",
         synopsis: "ACCESS::policy agent_id",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::ApmState,
             reads: true,
@@ -68,7 +67,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "Get the policy result (allow/deny/redirect).",
         synopsis: "ACCESS::policy result ?-sid id?",
-        pure: true,
         options: const {
             &[OptionSpec {
                 name: "-sid",
@@ -95,7 +93,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Check if URI is internal to ACCESS.",
         synopsis: "ACCESS::policy uri",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::ApmState,
             reads: true,

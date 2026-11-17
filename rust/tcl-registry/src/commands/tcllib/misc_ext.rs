@@ -662,13 +662,13 @@ fn processman_onexit_spec() -> CommandSpec {
 /// from `textutil::string`).
 ///
 /// The umbrella alias file is the sole source of truth for that command's
-/// trait descriptors (`Traits::PURE`, …) and its value-transfer declaration —
+/// trait descriptors and its value-transfer declaration —
 /// [`sync_textutil_submodule_traits`] copies them onto the `Row`-built
 /// submodule spec below rather than a second, independent declaration, so the
 /// two spellings of the same real tcllib command can never drift apart:
 /// without it, the submodule spec built via the generic `Row` →
-/// `CommandSpec::DEFAULT` path would silently lack the `Traits::PURE` its
-/// umbrella sibling carries, blocking purity-based GVN/DCE on the canonical
+/// `CommandSpec::DEFAULT` path would silently lack the traits its
+/// umbrella sibling carries, blocking GVN/DCE on the canonical
 /// three-segment spelling only.
 fn textutil_submodule_trait_sources() -> Vec<(&'static str, CommandSpec)> {
     vec![

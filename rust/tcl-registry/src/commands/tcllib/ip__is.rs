@@ -26,7 +26,6 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "ip::is",
-        traits: Traits::PURE,
         surface: None,
         arity: Arity::exact(2),
         return_type: Some(TclType::Boolean),

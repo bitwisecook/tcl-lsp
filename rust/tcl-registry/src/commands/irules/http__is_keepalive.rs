@@ -22,7 +22,6 @@ use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::is_keepalive",
-        traits: Traits::PURE,
         surface: Some(SpecSurface::IRULES),
         arity: Arity::exact(0),
         hover: Some(HoverSnippet {

@@ -285,7 +285,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Returns all of the path components in name excluding the last element.",
         synopsis: "file dirname name",
-        pure: true,
         return_type: Some(TclType::String),
         returns_path: true,
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::path::FILE_DIRNAME),
@@ -337,7 +336,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Returns all of the characters in name after and including the last dot.",
         synopsis: "file extension name",
-        pure: true,
         return_type: Some(TclType::String),
         returns_path: true,
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::path::FILE_EXTENSION),
@@ -407,7 +405,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(1),
         detail: "Combines one or more file names using the correct path separator for the current platform.",
         synopsis: "file join name ?name ...?",
-        pure: true,
         return_type: Some(TclType::String),
         // `[file join]` yields a portable (but not
         // canonicalised) path.
@@ -564,7 +561,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Returns the platform-specific name of the file.",
         synopsis: "file nativename name",
-        pure: true,
         return_type: Some(TclType::String),
         returns_path: true,
         semantics: SemanticsDeclaration::Declared(
@@ -627,7 +623,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Returns one of absolute, relative, volumerelative.",
         synopsis: "file pathtype name",
-        pure: true,
         return_type: Some(TclType::String),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::PLATFORM_DECIDED,
@@ -731,7 +726,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Returns all characters in name up to but not including the last dot in the last component.",
         synopsis: "file rootname name",
-        pure: true,
         return_type: Some(TclType::String),
         returns_path: true,
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::path::FILE_ROOTNAME),
@@ -747,7 +741,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Returns the character used to separate path segments for native files on this platform.",
         synopsis: "file separator ?name?",
-        pure: true,
         return_type: Some(TclType::String),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::PLATFORM_DECIDED,
@@ -782,7 +775,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Returns a list whose elements are the path components in name.",
         synopsis: "file split name",
-        pure: true,
         return_type: Some(TclType::List),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::path::FILE_SPLIT),
         ..SubCommand::DEFAULT
@@ -851,7 +843,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Returns all of the characters in the last filesystem component of name.",
         synopsis: "file tail name",
-        pure: true,
         return_type: Some(TclType::String),
         returns_path: true,
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::path::FILE_TAIL),

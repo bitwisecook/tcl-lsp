@@ -57,7 +57,7 @@ pub fn spec() -> CommandSpec {
         byte_array_effect: ByteArrayEffect::Coerces,
         const_fold: Some(crate::const_fold::fold_split),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::SPLIT),
-        traits: Traits::FRAMELESS_RUNTIME | Traits::PURE | Traits::CSE_CANDIDATE,
+        traits: Traits::FRAMELESS_RUNTIME | Traits::CSE_CANDIDATE,
         // `split string ?splitChars?` — synopsis, argument defaults, and
         // documented behaviour are byte-for-byte identical across the
         // split.n manual page in Tcl 8.4, 8.5, 8.6, 9.0, and 9.1: no

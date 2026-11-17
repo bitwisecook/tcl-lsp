@@ -334,21 +334,15 @@ impl InferredFacts {
     /// the draft already states is left as it is.
     fn apply(&self, d: &mut Draft, notes: &mut Vec<String>) {
         if self.pure {
-            let mut traits: BTreeSet<String> = d
-                .get("traits")
-                .and_then(Value::as_array)
-                .into_iter()
-                .flatten()
-                .filter_map(|name| name.as_str().map(str::to_owned))
-                .collect();
-            if traits.insert("PURE".to_owned()) {
-                d.insert("traits".into(), json!(traits));
-                notes.push(
-                    "proposed `PURE`: the body writes nothing outside its own frame and calls \
-                     only commands the compiler can read"
-                        .to_owned(),
-                );
-            }
+            // Purity is derived from evidenced domains, not authored, so the
+            // reading is offered as a note for the author to evidence.
+            notes.push(
+                "looks pure: the body writes nothing outside its own frame and calls only \
+                 commands the compiler can read; evidence it with `effects -complete`, \
+                 `world_effects none -complete`, `completion {Ok Error} -complete` and \
+                 `result_stability ReferentiallyTransparent -complete`, or a stub's `-pure`"
+                    .to_owned(),
+            );
         }
         if !self.side_effects.is_empty() && d.get("side_effects").is_none_or(is_empty_array) {
             let rows: Vec<Value> = self
@@ -1062,17 +1056,10 @@ mod tests {
         let answer = find(&import, "demo::answer");
         assert_eq!(answer.draft["return_type"], json!("Int"));
         assert!(
-            answer.draft["traits"]
-                .as_array()
-                .is_some_and(|traits| traits.contains(&json!("PURE"))),
-            "{:?}",
-            answer.draft["traits"]
-        );
-        assert!(
             answer
                 .notes
                 .iter()
-                .any(|note| note.starts_with("proposed `PURE`")),
+                .any(|note| note.starts_with("looks pure")),
             "{:?}",
             answer.notes
         );
@@ -1093,10 +1080,8 @@ mod tests {
             "{rows:?}"
         );
         assert!(
-            !note.draft["traits"]
-                .as_array()
-                .is_some_and(|traits| traits.contains(&json!("PURE"))),
-            "a body that writes a global is not proposed pure"
+            !note.notes.iter().any(|note| note.starts_with("looks pure")),
+            "a body that writes a global is not read as pure"
         );
 
         let twice = find(&import, "demo::twice");

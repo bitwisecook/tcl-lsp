@@ -133,7 +133,7 @@ pack looks like data and invites the assumption that it is not a script.
 
 | shape | spelling | notes |
 |---|---|---|
-| bool | `pure`, `pure yes`, `pure no` | the bare word means `yes`; **absent** means the field's default |
+| bool | `mutator`, `mutator yes`, `mutator no` | the bare word means `yes`; **absent** means the field's default |
 | tri-state bool | `xc_translatable no` | the argument is required — absent is `unset`, which is not `false` |
 | count / index | `reserved_trailing_words 2` | plain integer |
 | text | `taint_output_sink IRULE3002` | brace it when it has spaces |
@@ -142,7 +142,7 @@ pack looks like data and invites the assumption that it is not a script.
 | index list | `taint_network_sink_args {0}` | tri-state where the field is: `{}` is *declared empty*, absent is *unset* |
 | enum | `body_kind Structural` | the variant name **verbatim** from the studio catalogue |
 | enum + payload | `var_write_typing {ElementsOf 0}` | variant word first, then its fields in declaration order |
-| flag set | `traits {PURE CSE_CANDIDATE}` | member words verbatim; unioned |
+| flag set | `traits {CSE_CANDIDATE BUILDS_COMMAND_PREFIX}` | member words verbatim; unioned. `PURE` is retired: purity is derived from complete facts domains, and a `traits {PURE}` spelling is dropped with a notice |
 | dialect set | `dialects {all-tcl f5-irules}` | the 1.x word; members verbatim, plus the set words below |
 | availability | `available {tcl 8.6-} {package Tk 8.5-8.6}` | the 2.0 spelling of the same claim, one provider per braced word: `tcl RANGE`, `jim RANGE`, `f5-irules`, `package NAME ?RANGE?`; `RANGE` in Tcl requirement syntax, a bare release naming that line only |
 
@@ -603,7 +603,6 @@ subcommand cget {
 
     refine query {
         arity 0
-        traits {PURE}
         mutator no
         side_effect InterpState -reads
     }
@@ -1573,7 +1572,7 @@ schema order. "excluded" rows carry the reason.
 | `var_elements_effect` | `var_elements_effect {VARIANT payload …}` | same rule |
 | `representation_effect` | `representation_effect {VARIANT payload …}` | same rule |
 | `arg_types` | `arg N -type T ?-shimmers? ?-transparent {T …}?` |  |
-| `pure` | `pure ?yes\|no?` |  |
+| `pure` | retired | purity is derived from complete facts domains; a `pure` row is dropped with a notice |
 | `mutator` | `mutator ?yes\|no?` |  |
 | `const_fold` | `const_fold {words ctx} { … }` \| `-native ID` | emitter verb `fold VALUE`; no call = no fold |
 | `const_fold_versioned` | `const_fold_versioned {words ctx} { … }` \| `-native ID` | same, with `tcl-version` in `ctx` |

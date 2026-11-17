@@ -111,7 +111,7 @@ fn body_memo_registry_identity_preserves_authored_overrides_and_pins() {
             .contains(&("MemoPackage", "1.0"))
     );
     let mut spec = registry.get("set").unwrap().clone();
-    spec.traits = tcl_registry::Traits::PURE;
+    spec.traits = tcl_registry::Traits::CSE_CANDIDATE;
     registry.insert(spec);
     let authored = make_key(registry.snapshot());
     assert!(
@@ -126,7 +126,7 @@ fn body_memo_registry_identity_preserves_authored_overrides_and_pins() {
             .get("set")
             .unwrap()
             .traits,
-        tcl_registry::Traits::PURE
+        tcl_registry::Traits::CSE_CANDIDATE
     );
 }
 #[test]
