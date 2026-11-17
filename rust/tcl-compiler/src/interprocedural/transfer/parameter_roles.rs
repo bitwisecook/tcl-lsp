@@ -63,16 +63,21 @@ impl ModuleProcedures<'_> {
             .map(|entry| self.summary_run(qname, (cfg, &ssa), &owned, entry, inputs));
         // Where each linked local stands at the normal exits of each run:
         // `None` for a run that completes nowhere — no normal exit reached,
-        // or every path to one through a callee that never completes.
+        // or every path to one through a callee that never completes — and
+        // a `None` slot where a run completes but cannot state the local
+        // (a release unit's SSA sends a write through a caller link to the
+        // link's target rather than defining the local).
         let facts = runs.each_ref().map(|run| {
             let exits = normal_exits(cfg, run);
             if exits.is_empty() {
                 return None;
             }
-            links
-                .iter()
-                .map(|(_, local)| exit_fact(&ssa, run, &exits, local))
-                .collect::<Option<Vec<Existence>>>()
+            Some(
+                links
+                    .iter()
+                    .map(|(_, local)| exit_fact(&ssa, run, &exits, local))
+                    .collect::<Vec<Option<Existence>>>(),
+            )
         });
         if facts.iter().all(Option::is_none) {
             return None;
@@ -88,12 +93,15 @@ impl ModuleProcedures<'_> {
             // link's target rather than defining the local, so its exit facts
             // cannot state the place's outcome.
             let source = self.source.as_ref()?;
-            let outcomes = if source.reads_linked_locals()
+            let slot_facts = facts
+                .each_ref()
+                .map(|facts| facts.as_ref().map(|facts| facts[slot]));
+            let stated = slot_facts.iter().all(|fact| !matches!(fact, Some(None)));
+            let outcomes = if stated
+                && source.reads_linked_locals()
                 && linked_cleanly(cfg, &ssa, local, param, qname, source)
             {
-                let [bound, unbound] = facts
-                    .each_ref()
-                    .map(|facts| facts.as_ref().map(|facts| facts[slot]));
+                let [bound, unbound] = slot_facts.map(Option::flatten);
                 outcomes_of(bound, unbound, defined_in(&ssa, &reached, local))
             } else {
                 ANY_OUTCOME.to_vec()
