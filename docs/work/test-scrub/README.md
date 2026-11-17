@@ -167,6 +167,9 @@ These go ahead of missing facts once the ledgers are in.
 | The workspace index installs import links that tclsh refuses (15 tests; feeds definition and the linked references view) | lsp-features |
 | Three go-to-definition answers that follow import ordering in a way tclsh contradicts; a property lens that counts `my size`, which raises on 9.0 and 9.1 | lsp-features |
 | The stub's declared words are still given to a command after `rename check {}` | analyser-binding |
+| The rename family: the lattice keeps a builtin after `rename string {}`; `mystr` reads as opaque after `rename string mystr`; `expr` or `::add` still trusted after a renaming procedure or `rename $command …` runs; a rename inside an evaluated body (`namespace eval`, `apply`, a procedure built from a variable) or behind an unknown-handler alias is not replayed | analyser-binding (with dataflow's rename scan) |
+| Body advice inside `proc A::p` where tclsh raises unknown namespace; a `struct::graph` callback receipt with no `package require`; a constructor shape after `unexport new` | analyser-binding |
+| Native lowering still emits a definition after `proc` is replaced; `unset` in a callback not counted as a write; a Jim entry lexed with the 8.6 configuration; `[dict size DATA]` inside an unknown command's braced word listed as a nested call | analyser-binding |
 
 ## Passing tests the oracle contradicts
 
@@ -221,7 +224,7 @@ Updated at the hourly check from the ledgers on `work`.
 | Session | Failing tests to triage (about) | Rows in ledger | Sampled by the coordinator |
 | --- | ---: | ---: | --- |
 | diagnostics | 397 | 397, complete (KEEP-ORACLE 143, KEEP-CONTRACT 94, FIX-FIXTURE 62, REWRITE 36, FIX-EXPECTATION 33, KEEP-F5 17, UNDECIDED 6 ruled, RETIRE 5, MERGE 1) | signed off 21:20 UTC |
-| analyser-binding | 416 | 49 (KEEP-CONTRACT 24, KEEP-ORACLE 10, REWRITE 7, KEEP-F5 4, FIX-FIXTURE 3, FIX-EXPECTATION 1); five parts running | part 1 sampled 22:16 UTC: accepted |
+| analyser-binding | 418 | 302 (KEEP-CONTRACT 103, KEEP-ORACLE 75, FIX-FIXTURE 62, REWRITE 35, FIX-EXPECTATION 20, KEEP-F5 7); two parts running | parts 1 to 4 read: accepted so far |
 | class-facts | 246 | 246, complete (KEEP-ORACLE 74, FIX-FIXTURE 67, KEEP-CONTRACT 43, REWRITE 40, FIX-EXPECTATION 14, UNDECIDED 4 ruled, KEEP-F5 2, RETIRE 1, MERGE 1); BIG-IP checks CF-01, CF-02 | signed off 21:30 UTC |
 | dataflow-optimiser | 423 | 423, complete (FIX-FIXTURE 142, KEEP-CONTRACT 103, KEEP-ORACLE 82, REWRITE 50, FIX-EXPECTATION 30, MERGE 10, RETIRE 5, KEEP-F5 1) | signed off 20:55 UTC |
 | values | 218 | 218, complete (KEEP-ORACLE 123, KEEP-CONTRACT 32, KEEP-F5 30, FIX-FIXTURE 20, FIX-EXPECTATION 6, REWRITE 6, RETIRE 1) | signed off 21:07 UTC |
