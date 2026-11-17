@@ -889,22 +889,26 @@ mod oo_helpers_namespace_path {
 
     #[test]
     fn tp_a_method_body_call_carries_the_helpers_candidate_first() {
-        // TP — `::oo::Helpers::callback` must be a candidate, and must rank
-        // ahead of the global one: with both defined, real Tcl reaches the
-        // helper.
+        // TP — `::oo::Helpers::callback` is a built-in on 9.0, so the lookup
+        // stops there and never reaches a global `callback`: with
+        // `proc ::callback` defined, tclsh 9.0.4 and 9.1.0 answer
+        // `namespace which -command callback` in a method with
+        // `::oo::Helpers::callback`.
         let src = "oo::class create C {\n    method Go {} {\n        callback Read\n    }\n}\n";
         assert_eq!(
             candidates_for(src, "tcl9.0", "callback"),
-            ["::oo::Helpers::callback", "::callback"],
+            ["::oo::Helpers::callback"],
         );
     }
 
     #[test]
     fn tp_the_same_holds_for_a_constructor_body() {
+        // tclsh 9.0.4 and 9.1.0: in a constructor, too, `namespace which
+        // -command callback` answers `::oo::Helpers::callback`.
         let src = "oo::class create C {\n    constructor {} {\n        callback Read\n    }\n}\n";
         assert_eq!(
             candidates_for(src, "tcl9.0", "callback"),
-            ["::oo::Helpers::callback", "::callback"],
+            ["::oo::Helpers::callback"],
         );
     }
 
