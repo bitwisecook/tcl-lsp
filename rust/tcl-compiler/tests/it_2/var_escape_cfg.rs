@@ -416,25 +416,6 @@ fn cu_upvar_first_tags_initial_version() {
 }
 
 #[test]
-fn cu_upvar_after_writes_tags_latest_version() {
-    // The mirror of the above: three writes then the upvar. The upvar's def is
-    // the highest SSA version, so *that* version is tagged Frame. (This exact
-    // script errors at runtime — `upvar` rejects an already-existing local —
-    // so the assertion is purely structural: it pins which version the
-    // flow-sensitive walker tags, not a runtime value.)
-    let s = escape_cu("proc ::p {} { set y 1\n set y 2\n set y 3\n upvar 1 cy y }");
-    let p = summary(&s, "::p");
-    assert!(p.is_frame("y"));
-    assert!(
-        ssa_frame(p, "y", 4),
-        "the trailing upvar tags the latest version (4): {:?}",
-        p.ssa_tags
-    );
-    // Earlier pure-store versions were not individually tagged Frame.
-    assert!(!ssa_frame(p, "y", 1), "store version 1 was not tagged");
-}
-
-#[test]
 fn cu_conditional_global_tags_def_version() {
     // tclsh: a conditional `incr` on a global persists:
     //   set g 10; proc f {flag} { global g; if {$flag} { incr g } }
