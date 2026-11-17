@@ -7,68 +7,80 @@ Failing tests of `tcl-codegen`, `tcl-vm`, `tcl-runtime`, the engines, `tcl-cshim
 | Verdict | Tests |
 | --- | ---: |
 | `KEEP-ORACLE` | 109 |
-| `MERGE` | 48 |
-| `RETIRE` | 36 |
-| `REWRITE` | 32 |
-| `KEEP-CONTRACT` | 28 |
+| `KEEP-CONTRACT` | 56 |
+| `MERGE` | 49 |
+| `REWRITE` | 33 |
+| `RETIRE` | 8 |
 | `FIX-EXPECTATION` | 4 |
 | `FIX-FIXTURE` | 3 |
 | `KEEP-F5` | 2 |
-| total kept here | 262 |
+| total kept here | 264 |
 | routed: live-inlining (inliner, `ledger/live-inlining.tsv`) | 23 |
-| routed: irules-registry-tooling (pack families) | 2 |
 
 ## Causes ranked by tests blocked
 
 | Cause | Verdict | Tests | Crates | Survivor |
 | --- | --- | ---: | --- | --- |
-| `receipt-ordering-no-observable` | RETIRE | 31 | tcl-cshim, tcl-engine-tclvm, tcl-runtime, tcl-vm |  |
-| `runtime-compile-admission-refused` | KEEP-ORACLE | 22 | tcl-engine-tclvm, tcl-runtime, tcl-vm |  |
 | `native-conformance-vector` | KEEP-ORACLE | 22 | tcl-runtime, tcl-vm |  |
+| `runtime-compile-admission-refused` | KEEP-ORACLE | 22 | tcl-engine-tclvm, tcl-runtime, tcl-vm |  |
 | `per-release-script-divergence` | KEEP-ORACLE | 20 | tcl-runtime, tcl-vm |  |
 | `obs-native-tier-report` | MERGE | 17 | tcl-codegen | tcl-explorer lib serialise::tests::wasm_view_exposes_the_native_tier_lowering_record ; tcl-cli compile_verbs compwasm_codegen_passes_natively_lower_a_hot_loop |
-| `obs-redefinition-seen-at-next-command` | MERGE | 16 | tcl-codegen, tcl-vm | tcl-vm it_5 command_mutation_deopt_e2e::binding_revalidation::active_proc_frame_redispatches_after_nested_command_mutation |
+| `obs-redefinition-seen-at-next-command` | MERGE | 17 | tcl-codegen, tcl-runtime, tcl-vm | tcl-vm it_5 command_mutation_deopt_e2e::binding_revalidation::active_proc_frame_redispatches_after_nested_command_mutation |
 | `native-compiler-selection-declined` | KEEP-ORACLE | 14 | tcl-codegen |  |
 | `obs-wasm-module-answers-as-tclsh` | REWRITE | 12 | tcl-codegen | tcl-codegen it_5 wasm_execute::emitted_modules_run_under_wasmtime |
 | `embedding-contract` | KEEP-CONTRACT | 10 | tcl-cshim, tcl-engine-tclvm, tcl-runtime, tcl-vm |  |
 | `oracle-corpus-divergence` | KEEP-ORACLE | 10 | tcl-runtime, tcl-vm |  |
 | `obs-disassembly-equals-tclsh` | REWRITE | 8 | tcl-codegen |  |
-| `wasm-module-fails-to-instantiate` | KEEP-CONTRACT | 6 | tcl-codegen |  |
 | `c-extension-vectors` | KEEP-ORACLE | 6 | tcl-cshim, tcl-runtime |  |
+| `contract-authored-operand-currency` | KEEP-CONTRACT | 6 | tcl-vm |  |
 | `obs-result-representation` | REWRITE | 6 | tcl-runtime, tcl-vm | tcl-vm it_3 cross_version_info_surface_e2e::representation_reports_the_value_as_each_release_does |
-| `obs-switch-dispatch` | MERGE | 5 | tcl-codegen | tcl-codegen codegen_depth switch_exact_return_arms_jump_table |
+| `wasm-module-fails-to-instantiate` | KEEP-CONTRACT | 6 | tcl-codegen |  |
+| `contract-append-boundary` | KEEP-CONTRACT | 5 | tcl-runtime |  |
+| `contract-body-artifact-boundary` | KEEP-CONTRACT | 5 | tcl-runtime |  |
 | `live-splicing-off-by-ruling` | KEEP-CONTRACT | 5 | tcl-codegen |  |
+| `obs-switch-dispatch` | MERGE | 5 | tcl-codegen | tcl-codegen codegen_depth switch_exact_return_arms_jump_table |
 | `analysis-record-no-execution-observable` | RETIRE | 4 | tcl-codegen |  |
-| `fold-survives-unit-rename` | KEEP-ORACLE | 3 | tcl-codegen |  |
-| `optimiser-drops-effectful-foreach-list` | KEEP-ORACLE | 3 | tcl-codegen |  |
-| `obs-8.4-direct-evaluation` | MERGE | 3 | tcl-codegen | tcl-vm it_3 literal_index_encoding_e2e::a_literal_index_reads_as_the_release_compiles_it |
-| `obs-namespace-introspection-opcodes` | REWRITE | 3 | tcl-codegen |  |
+| `contract-name-consumer-withdrawal` | KEEP-CONTRACT | 3 | tcl-runtime, tcl-vm |  |
+| `contract-scalar-carrier-issuer` | KEEP-CONTRACT | 3 | tcl-engine-tclvm, tcl-runtime |  |
 | `fixture-body-identity-lookup` | FIX-FIXTURE | 3 | tcl-codegen |  |
+| `fold-survives-unit-rename` | KEEP-ORACLE | 3 | tcl-codegen |  |
+| `obs-8.4-direct-evaluation` | MERGE | 3 | tcl-codegen | tcl-vm it_3 literal_index_encoding_e2e::a_literal_index_reads_as_the_release_compiles_it |
 | `obs-loop-control-dispatch` | MERGE | 3 | tcl-codegen | tcl-vm it_3 run_script::control_flow::loop_body_redefining_continue_is_honoured |
+| `obs-namespace-introspection-opcodes` | REWRITE | 3 | tcl-codegen |  |
 | `obs-profile-and-dispatch-mode-answers` | MERGE | 3 | tcl-codegen | tcl-vm it_4 cross_version_command_surface_e2e::profile_mutation::profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations |
+| `optimiser-drops-effectful-foreach-list` | KEEP-ORACLE | 3 | tcl-codegen |  |
 | `c-api-completion` | KEEP-ORACLE | 2 | tcl-cshim |  |
 | `c-api-delete-proc` | KEEP-ORACLE | 2 | tcl-cshim |  |
 | `c-api-visibility` | KEEP-CONTRACT | 2 | tcl-cshim |  |
 | `engine-value-bridge` | KEEP-CONTRACT | 2 | tcl-engine-tclvm |  |
-| `switch-return-arms-invoked` | FIX-EXPECTATION | 1 | tcl-codegen |  |
-| `self-referential-golden` | RETIRE | 1 | tcl-codegen |  |
-| `obs-errorinfo-command-extent` | MERGE | 1 | tcl-codegen | tcl-vm it_3 c_error_paths_e2e::procedure_frame_names_the_invoking_word |
-| `jim-module-purpose-premise` | REWRITE | 1 | tcl-codegen |  |
-| `wasm-framing-budget` | KEEP-CONTRACT | 1 | tcl-codegen |  |
-| `obs-c-index-after-retirement` | REWRITE | 1 | tcl-cshim |  |
-| `c-api-object-lifetime` | KEEP-CONTRACT | 1 | tcl-cshim |  |
-| `c-api-load` | KEEP-ORACLE | 1 | tcl-cshim |  |
-| `c-abi-layout` | KEEP-CONTRACT | 1 | tcl-cshim |  |
+| `runtime-engine-host-metadata-list-reader` | KEEP-CONTRACT | 2 | tcl-spec-hooks |  |
 | `bad-option-wording-below-8.6` | FIX-EXPECTATION | 1 | tcl-runtime |  |
-| `representation-command-before-8.6` | KEEP-ORACLE | 1 | tcl-runtime |  |
-| `delete-proc-runs-in-delete-command` | FIX-EXPECTATION | 1 | tcl-runtime |  |
-| `f5-matches-operator` | KEEP-F5 | 1 | tcl-runtime |  |
-| `obs-8.4-expr-syntax-errorcode` | REWRITE | 1 | tcl-runtime |  |
 | `boolean-nan-wording-9.0` | KEEP-ORACLE | 1 | tcl-runtime |  |
-| `interp-option-list` | FIX-EXPECTATION | 1 | tcl-runtime |  |
-| `f5-iapps-evaluation-point` | KEEP-F5 | 1 | tcl-spec-hooks |  |
-| `errorstack-inner-uplevel-and-fold-options` | KEEP-ORACLE | 1 | tcl-vm |  |
+| `bridge-header-sharing-unobservable` | RETIRE | 1 | tcl-engine-tclvm |  |
+| `c-abi-layout` | KEEP-CONTRACT | 1 | tcl-cshim |  |
+| `c-api-load` | KEEP-ORACLE | 1 | tcl-cshim |  |
+| `c-api-object-lifetime` | KEEP-CONTRACT | 1 | tcl-cshim |  |
 | `clock-read-compilation` | KEEP-ORACLE | 1 | tcl-vm |  |
+| `contract-child-completion-transport` | KEEP-CONTRACT | 1 | tcl-runtime |  |
+| `contract-dictionary-read-refusal-order` | KEEP-CONTRACT | 1 | tcl-runtime |  |
+| `contract-namespace-cleanup-retention` | KEEP-CONTRACT | 1 | tcl-runtime |  |
+| `contract-stock-installation-refusal` | KEEP-CONTRACT | 1 | tcl-runtime |  |
+| `delete-proc-runs-in-delete-command` | FIX-EXPECTATION | 1 | tcl-runtime |  |
+| `errorstack-inner-uplevel-and-fold-options` | KEEP-ORACLE | 1 | tcl-vm |  |
+| `f5-iapps-evaluation-point` | KEEP-F5 | 1 | tcl-spec-hooks |  |
+| `f5-matches-operator` | KEEP-F5 | 1 | tcl-runtime |  |
+| `foreign-issuer-unreachable` | RETIRE | 1 | tcl-cshim |  |
+| `interp-option-list` | FIX-EXPECTATION | 1 | tcl-runtime |  |
+| `jim-module-purpose-premise` | REWRITE | 1 | tcl-codegen |  |
+| `obs-8.4-expr-syntax-errorcode` | REWRITE | 1 | tcl-runtime |  |
+| `obs-c-index-after-retirement` | REWRITE | 1 | tcl-cshim |  |
+| `obs-errorinfo-command-extent` | MERGE | 1 | tcl-codegen | tcl-vm it_3 c_error_paths_e2e::procedure_frame_names_the_invoking_word |
+| `obs-namespace-value-resolves-by-name` | REWRITE | 1 | tcl-engine-tclvm |  |
+| `representation-command-before-8.6` | KEEP-ORACLE | 1 | tcl-runtime |  |
+| `self-referential-golden` | RETIRE | 1 | tcl-codegen |  |
+| `switch-return-arms-invoked` | FIX-EXPECTATION | 1 | tcl-codegen |  |
+| `wasm-framing-budget` | KEEP-CONTRACT | 1 | tcl-codegen |  |
+| `withdrawn-world-unreachable` | RETIRE | 1 | tcl-vm |  |
 
 ## Distinct failing behaviours (what is worth fixing)
 
@@ -88,7 +100,7 @@ Each line is one behaviour tclsh, Jim or a contract shows that the product gets 
 ## Open questions for the coordinator
 
 - `inliner-unshipped` (23): routed to live-inlining by the coordinator's ruling (read per test: answers as the original → KEEP-ORACLE; inliner shape → REWRITE to the differential or MERGE into a `live_differential` row; visible `__inline_N__` names → FIX-EXPECTATION).
-- Part 2 read the native-artefact rows (superseded in part, see the groups below): C-API and extension behaviours are KEEP-ORACLE or KEEP-CONTRACT (`c-api-*`, `engine-value-bridge`, `c-extension-vectors`); the rest assert a refusal or ordering point through receipts or pointers and are REWRITE (`native-artefact-ordering`): the behaviour is real, the observable is the script result and the absence of later effects. Still undecided: `callback_namespace_primary_retains_private_scope_and_descriptor` (engine), `measured_bare_matches_runtime_requires_independent_authored_policy` (runtime), `unrepresented_native_byte_literal_is_a_host_refusal` (vm) and the two `families_e2e::*::runtime` pack-family rows (contract owner irules-registry-tooling).
+- Part 2 read the native-artefact rows (superseded in part, see the groups below): C-API and extension behaviours are KEEP-ORACLE or KEEP-CONTRACT (`c-api-*`, `engine-value-bridge`, `c-extension-vectors`); the rest assert a refusal or ordering point through receipts or pointers and are REWRITE (`native-artefact-ordering`): the behaviour is real, the observable is the script result and the absence of later effects. Still undecided: `callback_namespace_primary_retains_private_scope_and_descriptor` (engine), `measured_bare_matches_runtime_requires_independent_authored_policy` (runtime), `unrepresented_native_byte_literal_is_a_host_refusal` (vm); the two `families_e2e::*::runtime` pack-family rows are KEEP-CONTRACT (G16 paragraph).
 - `codegen-internal-record` (37): REWRITE, each re-pointed at tclsh disassembly or the replay/deopt behaviour it guards.
 
 ## Observables by group (part 3)
@@ -110,7 +122,7 @@ Each REWRITE, MERGE and RETIRE row names its group; the group states the script 
 - **G13** `obs-8.4-expr-syntax-errorcode` → REWRITE. tclsh 8.4.20 catch {expr {1 +}} -> syntax error in expression "1 +": premature end of expression, errorCode NONE
 - **G14** `obs-c-index-after-retirement` → REWRITE. C caller: Tcl_GetIndexFromObj(table) answers the same index after the command owning the table is deleted (C API)
 - **G15** `obs-result-representation` → REWRITE. tclsh 8.6.18 tcl::unsupported::representation [linsert [list a b] end X] -> value is a list ... no string representation (9.0: same); re-point the windows at representation rows; vm and runtime copies fold into one shared row Survivor: `tcl-vm it_3 cross_version_info_surface_e2e::representation_reports_the_value_as_each_release_does`.
-- **G16** `receipt-ordering-no-observable` → RETIRE. asserts an internal receipt, pointer or issuer ordering (currency, retainers, header donation, withdrawn worlds, ABA transport); no script answer and no C-API caller sees the difference: a refused operation already returns the refusal, and nothing it skips has a visible effect
+- **G16** (redone test by test after the coordinator rejected one blanket RETIRE for 31 rows). 26 cite a naming key (`naming.embedding.original-host-publication-and-fact-transport`, `naming.error.nonempty-info-publication-order` or `naming.interpreter.original-child-host-refusal-transport`) and are KEEP-CONTRACT; each row's evidence carries the key and the assertion it fails on today, and the cause names the subsystem (`contract-append-boundary` 4, `contract-body-artifact-boundary` 6, `contract-authored-operand-currency` 6, `contract-name-consumer-withdrawal` 3, `contract-scalar-carrier-issuer` 3, one each for namespace cleanup, child completion transport, dictionary read order, stock installation). The 5 uncited rows: `callback_namespace_primary_retains_private_scope_and_descriptor` REWRITE to `namespace eval ::a {set ::n [namespace current]}; namespace delete ::a; namespace eval ::a {proc here {} {return HERE}}; namespace eval $::n {here}` -> `HERE` (tclsh 8.6.18/9.0.4); `publication_revision_tracks_moves_and_callback_rebound_rename_sources` MERGE onto G1's survivor (`proc a {} {return A}; proc call {} {a}; call; rename a b; proc a {} {return NEW}; call` -> `NEW`); RETIRE `zero_argument_callback_refuses_a_foreign_native_issuer_before_native_execution` (issuers are not in the public C API, so no extension can hand over a foreign one), `retained_list_bridge_keeps_actual_storage_and_native_header_sharing` (the engine API is value-based: shared header and copy read the same elements, no identity accessor) and `jim_info_current_namespace_getter_stops_at_the_withdrawn_consumer_world` (only the VM's own operation currency withdraws that world; Jim `namespace current` answers by name). The two `families_e2e::*::runtime` pack-family rows came back from irules-registry-tooling as KEEP-CONTRACT (`runtime-engine-host-metadata-list-reader`: RuntimeEngine leaves `Engine::host_metadata_list_reader` at None).
 
 ## tcl-vm and tcl-runtime: both copies
 
