@@ -516,6 +516,7 @@ is the last field of the `BNC|…` line. "empty" means the result field is empty
 | BIGIP-NAME-068 | iRules in TMM | `HTTP::header NAME VALUE` with no subcommand, before and after `HTTP::respond` | TMM rule load + HTTP_REQUEST | no |
 | BIGIP-NAME-070 | iRules in TMM | A backslash inside a braced argument | TMM HTTP_REQUEST | no |
 | BIGIP-NAME-071 | iRules in TMM | What runs after a response, a drop or a DNS answer, and payload without collect | TMM HTTP_REQUEST, DNS_REQUEST | no |
+| BIGIP-NAME-072 | iRules in TMM | A plain variable across the events of one connection, and `global` | TMM CLIENT_ACCEPTED + HTTP_REQUEST | no |
 | BIGIP-NAME-060 | tmsh, iApp and iCall | Execution namespace and frame of tmsh-hosted scripts | tmsh cli script | partly |
 | BIGIP-NAME-061 | tmsh, iApp and iCall | The `tmsh::` command namespace | tmsh cli script | partly |
 | BIGIP-NAME-062 | tmsh, iApp and iCall | Where procs defined in a cli script live | tmsh cli script | partly |
@@ -3003,6 +3004,35 @@ There is no Tcl baseline: these are TMM commands.
 | `second_respond` | an error or a logged TCL error | IRULE1202 claim |
 | `after_drop` | logged (execution continues) | IRULE5002 claim |
 | `after_dns_return` | logged (execution continues) | IRULE5004 claim |
+
+| Observed result | BIG-IP build | Environment | Date | Verdict |
+|---|---|---|---|---|
+| | | | | |
+
+#### BIGIP-NAME-072 — A plain variable across the events of one connection, and `global`
+
+- **Question.** Is a plain variable set in `CLIENT_ACCEPTED` (or `RULE_INIT`) readable in a later `HTTP_REQUEST` of the same connection, and gone on a new connection? Does `global x` in an event link to a variable shared by every connection on the TMM?
+- **Why the toolchain needs it.** IRULE4003 (a variable read in one event and set in another), IRULE5001 (a debug flag set in a setup event is not unset) and IRULE6001 (`global` and `::` names are shared across connections) rest on these, through the connection scope (`rust/tcl-compiler/src/connection_scope.rs`). The test-scrub ledger keeps those tests on this check. Not measured.
+- **Environments.** TMM, one virtual server, two HTTP requests on one keep-alive connection, then one request on a new connection.
+
+```tcl
+when CLIENT_ACCEPTED {
+    if {![info exists bnq72conn]} { set bnq72conn [TCP::client_port] }
+    global bnq72glob
+    if {![info exists bnq72glob]} { set bnq72glob 0 }
+    incr bnq72glob
+}
+when HTTP_REQUEST {
+    global bnq72glob
+    log local0. "BNC|BIGIP-NAME-072|tmm[TMM::cmp_unit]|conn|[info exists bnq72conn]|[expr {[info exists bnq72conn] ? $bnq72conn : {}}]|glob|$bnq72glob"
+}
+```
+
+| Label | Expected by the checks | Basis |
+| --- | --- | --- |
+| `conn` on both requests of the first connection | `1` and that connection's client port | IRULE4003/IRULE5001 claim |
+| `conn` on the second connection | `1` and the new connection's port | IRULE4003 claim |
+| `glob` | counts every connection on the TMM | IRULE6001 claim |
 
 | Observed result | BIG-IP build | Environment | Date | Verdict |
 |---|---|---|---|---|
