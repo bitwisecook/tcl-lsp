@@ -323,6 +323,11 @@ fn extend_procedure_outline(
         );
         let metadata = declaration.metadata();
         let selection = span_to_range(source, index, key.span());
+        // A hosted declaration retains a vendor card for the same name word;
+        // this row carries the namespace placement, so it replaces the card.
+        nodes.retain(|node| {
+            node.symbol.selection_range != selection || node.symbol.kind != SymbolKind::Function
+        });
         nodes.push(Node {
             symbol: DocumentSymbol {
                 name,

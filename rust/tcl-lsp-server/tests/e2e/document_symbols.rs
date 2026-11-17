@@ -636,6 +636,20 @@ fn variables_set_in_a_handler_nest_under_it() {
 }
 
 #[test]
+fn a_proc_in_an_irule_is_one_symbol() {
+    let mut lsp = Lsp::irules();
+    let uri = unique_uri("irule");
+    lsp.open_ready_lang(
+        &uri,
+        "proc helper {a} {\n\x20   return $a\n}\nwhen HTTP_REQUEST {\n\x20   log local0. [call helper 1]\n}\n",
+        "tcl-irule",
+    );
+    let syms = top(&mut lsp, &uri);
+    let helpers = syms.iter().filter(|s| name(s) == "helper").count();
+    assert_eq!(helpers, 1, "{syms:?}");
+}
+
+#[test]
 fn event_handler_is_a_workspace_symbol() {
     let mut lsp = Lsp::irules();
     let uri = unique_uri("irule");
