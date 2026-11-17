@@ -58,10 +58,15 @@ FILE_CHANGE_CHANGED = 2
 FILE_CHANGE_DELETED = 3
 
 
-def select_documents(root: Path, max_bytes: int) -> list[Path]:
-    """Every `.tcl` file under *root* smaller than *max_bytes*, sorted."""
+def select_documents(
+    root: Path, max_bytes: int, extensions: tuple[str, ...] = ("tcl",)
+) -> list[Path]:
+    """Every file under *root* with one of *extensions*, smaller than *max_bytes*."""
+    suffixes = {f".{extension}" for extension in extensions}
     return sorted(
-        p for p in root.rglob("*.tcl") if p.is_file() and p.stat().st_size < max_bytes
+        p
+        for p in root.rglob("*")
+        if p.suffix in suffixes and p.is_file() and p.stat().st_size < max_bytes
     )
 
 
@@ -390,7 +395,9 @@ def run(args: argparse.Namespace) -> int:
     rng = random.Random(args.seed)
     workdir = Path(tempfile.mkdtemp(prefix="pack-churn-", dir=args.workdir))
     workspace = prepare_workspace(args.fixture, workdir)
-    documents = select_documents(workspace, args.max_bytes)[: args.max_documents]
+    documents = select_documents(
+        workspace, args.max_bytes, tuple(args.extensions.split(","))
+    )[: args.max_documents]
     server = lsp_client.find_native_server(args.server_bin)
     client = make_client_class(lsp_client, args.settings)(str(workspace), [server])
     client.start()
@@ -492,6 +499,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--rounds", type=int, default=250)
     parser.add_argument("--max-bytes", type=int, default=60_000)
+    parser.add_argument(
+        "--extensions",
+        default="tcl",
+        help="comma-separated source extensions to open, e.g. tcl,irul,tm,exp",
+    )
     parser.add_argument(
         "--max-documents", type=int, default=None, help="open at most this many"
     )
