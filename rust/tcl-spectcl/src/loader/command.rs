@@ -283,6 +283,9 @@ pub(super) fn command_from_parts(
             return None;
         }
 
+        for hook in &mut acc.hooks {
+            hook.row = log.row_subject(hook.line);
+        }
         Some(PackCommand {
             spec: leak_one(spec),
             overrides_shipped,
@@ -290,6 +293,7 @@ pub(super) fn command_from_parts(
             clause_grammar: acc.clause_grammar,
             degraded: log.assistance_unknown,
             line,
+            row: log.row_subject(line),
             file: std::path::PathBuf::new(),
             // Set for every command once the whole evaluation is known
             // (`evaluate_pack_in`), which is the only place the bytes are.

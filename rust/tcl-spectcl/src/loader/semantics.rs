@@ -346,6 +346,7 @@ pub(super) fn rebind(
             family: HookFamily::Evaluate,
             source,
             line,
+            row: None,
         });
     }
 }

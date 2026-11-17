@@ -221,6 +221,8 @@ pub struct DormantHook {
     pub file: PathBuf,
     /// The line of the row that declares it ([`HookDecl::line`]).
     pub line: u32,
+    /// The source subject of that row, when the loader issued one.
+    pub row: Option<tcl_lsp_core::code_actions::SpecPackNoticeSubject>,
 }
 
 /// The hook bodies `commands` declare that stay dormant for a pack named
@@ -243,6 +245,7 @@ pub fn dormant_hooks(
             field: hook.field,
             file: command.file.clone(),
             line: hook.line,
+            row: hook.row.clone(),
         })
         .collect()
 }

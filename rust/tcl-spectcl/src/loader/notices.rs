@@ -213,6 +213,19 @@ impl Log {
         });
     }
 
+    /// The subject of a notice about the row that starts on `line`.
+    pub(super) fn row_subject(
+        &self,
+        line: u32,
+    ) -> Option<tcl_lsp_core::code_actions::SpecPackNoticeSubject> {
+        let source = self.source.as_deref()?;
+        tcl_lsp_core::code_actions::SpecPackNoticeSubject::for_row(
+            source,
+            super::source_config(super::FileBom::Skip),
+            line,
+        )
+    }
+
     fn attach_subject(&mut self, subject: RejectedWordSubject) {
         let Some(source) = &self.source else {
             return;

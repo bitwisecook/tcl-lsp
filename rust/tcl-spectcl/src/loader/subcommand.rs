@@ -457,6 +457,7 @@ pub(super) fn apply_subcommand_stmt(
                     family: HookFamily::OptionArity,
                     source,
                     line: stmt.line,
+                    row: None,
                 });
             }
             acc.options.push(option);
@@ -581,6 +582,7 @@ pub(super) fn apply_subcommand_stmt(
                             family: HookFamily::StateTransitionResolver,
                             source,
                             line,
+                            row: None,
                         });
                     }
                     descriptor
@@ -666,6 +668,7 @@ pub(super) fn apply_subcommand_stmt(
                 family,
                 source,
                 line: stmt.line,
+                row: None,
             });
         }
         _ => log.unknown_property(stmt),

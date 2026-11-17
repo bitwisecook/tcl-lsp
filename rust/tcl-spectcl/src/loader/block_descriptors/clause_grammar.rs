@@ -51,6 +51,7 @@ pub(in super::super) fn record_clause_grammar_derivations(
                 keyword: "clause_grammar".to_owned(),
             },
             line,
+            row: None,
         });
     }
 }

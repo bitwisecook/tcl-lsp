@@ -35,6 +35,10 @@ pub enum SpecPackNoticeKind {
         /// The supplied row whose flag vocabulary the consumer must validate.
         row: String,
     },
+    /// The head word of a definition row a notice is about as a whole (a
+    /// dormant hook body, a refused stamp). The word is not a mistake, so no
+    /// did-you-mean fix is derived from it.
+    Row,
 }
 
 /// Original source geometry and supplied notice-kind metadata. This does not
@@ -53,7 +57,7 @@ pub struct SpecPackNoticeSubject {
 #[derive(Clone, Copy)]
 struct LoaderNoticeSite<'a> {
     line: u32,
-    wanted: &'a str,
+    wanted: Option<&'a str>,
     kind: &'a SpecPackNoticeKind,
 }
 fn loader_notice_plain_word(word: &NativeWord) -> Option<&str> {
@@ -106,14 +110,17 @@ fn collect_loader_notice_sites(
             .ok()?
             .checked_add(1)?;
             let position = match kind {
-                SpecPackNoticeKind::Property => ordinal == 0,
+                SpecPackNoticeKind::Property | SpecPackNoticeKind::Row => ordinal == 0,
                 SpecPackNoticeKind::Flag { row } => {
-                    ordinal > 0 && head_text == Some(row.as_str()) && wanted.starts_with('-')
+                    ordinal > 0
+                        && head_text == Some(row.as_str())
+                        && wanted.is_some_and(|wanted| wanted.starts_with('-'))
                 }
             };
             if position
                 && word_line == line
-                && loader_notice_plain_word(word) == Some(wanted)
+                && loader_notice_plain_word(word)
+                    .is_some_and(|text| wanted.is_none_or(|wanted| wanted == text))
                 && word.group().kind != tcl_lexer::WordKind::Braced
             {
                 sites.push(word.content_span().ok()?);
@@ -156,7 +163,7 @@ impl SpecPackNoticeSubject {
             0,
             LoaderNoticeSite {
                 line,
-                wanted: word,
+                wanted: Some(word),
                 kind: &kind,
             },
             &mut sites,
@@ -169,6 +176,43 @@ impl SpecPackNoticeSubject {
             config,
             kind,
             word: word.into(),
+            span: *span,
+            line,
+            original: None,
+        })
+    }
+
+    /// The subject of a notice about the row that starts on `line`: its head
+    /// word, when exactly one plain literal row head begins on that line.
+    /// Computed, escaped, several-per-line and absent heads issue none.
+    #[must_use]
+    pub fn for_row(source: &str, config: LexerConfig, line: u32) -> Option<Self> {
+        let image = SourceImage::document(source);
+        let mut sites = Vec::new();
+        collect_loader_notice_sites(
+            &image,
+            Span::new(0, u32::try_from(image.len()).ok()?),
+            config,
+            0,
+            LoaderNoticeSite {
+                line,
+                wanted: None,
+                kind: &SpecPackNoticeKind::Row,
+            },
+            &mut sites,
+        )?;
+        let [span] = sites.as_slice() else {
+            return None;
+        };
+        let word = std::str::from_utf8(image.bytes().get(span.as_range())?).ok()?;
+        if !word.is_ascii() {
+            return None;
+        }
+        Some(Self {
+            word: word.into(),
+            kind: SpecPackNoticeKind::Row,
+            image,
+            config,
             span: *span,
             line,
             original: None,
@@ -188,7 +232,9 @@ impl SpecPackNoticeSubject {
             return None;
         }
         match &kind {
-            SpecPackNoticeKind::Property if original.ordinal() != 0 => return None,
+            SpecPackNoticeKind::Property | SpecPackNoticeKind::Row if original.ordinal() != 0 => {
+                return None;
+            }
             SpecPackNoticeKind::Flag { row } => {
                 if original.ordinal() == 0
                     || !word.starts_with('-')
@@ -197,7 +243,7 @@ impl SpecPackNoticeSubject {
                     return None;
                 }
             }
-            SpecPackNoticeKind::Property => {}
+            SpecPackNoticeKind::Property | SpecPackNoticeKind::Row => {}
         }
         let line = original.statement_line()?;
         let span = original.content_span()?;

@@ -141,6 +141,7 @@ fn derive(command: &mut PackCommand) -> Option<String> {
             inputs: HookInputs::declared([HookInput::Words]),
         },
         line: command.line,
+        row: None,
     });
     None
 }

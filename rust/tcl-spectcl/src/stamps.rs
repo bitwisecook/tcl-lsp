@@ -666,6 +666,7 @@ mod tests {
             clause_grammar: None,
             degraded: false,
             line: 3,
+            row: None,
             file: std::path::PathBuf::new(),
             content_hash: 0,
             dependency_tier: None,

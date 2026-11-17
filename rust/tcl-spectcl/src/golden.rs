@@ -302,6 +302,7 @@ fn positionless(hooks: &[HookDecl]) -> Vec<HookDecl> {
         .iter()
         .map(|hook| HookDecl {
             line: 0,
+            row: None,
             ..hook.clone()
         })
         .collect()

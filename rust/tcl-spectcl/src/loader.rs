@@ -339,6 +339,9 @@ pub struct HookDecl {
     /// workspace ([`crate::hooks::dormant_hooks`]) — goes here, in the file
     /// the merge records on the command.
     pub line: u32,
+    /// The source subject of that row, issued by the loader when the row's
+    /// head word is a plain literal alone on its line.
+    pub row: Option<tcl_lsp_core::code_actions::SpecPackNoticeSubject>,
 }
 
 // The abstaining implementations installed for every pack-declared hook until
@@ -441,6 +444,8 @@ pub struct PackCommand {
     /// knows the line; the *file* is added later by the merge, which is the
     /// only layer that knows which file a command came from.
     pub line: u32,
+    /// The source subject of the `command` row, issued by the loader.
+    pub row: Option<tcl_lsp_core::code_actions::SpecPackNoticeSubject>,
     /// The file this command was declared in.
     ///
     /// Empty as the loader builds it — [`crate::loader`] parses one source at a

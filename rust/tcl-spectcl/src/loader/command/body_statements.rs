@@ -433,6 +433,7 @@ pub(in super::super) fn apply_command_stmt(
                             family: HookFamily::StateTransitionResolver,
                             source,
                             line,
+                            row: None,
                         });
                     }
                     descriptor
@@ -574,6 +575,7 @@ pub(in super::super) fn apply_command_stmt(
                     family: HookFamily::OptionArity,
                     source,
                     line: stmt.line,
+                    row: None,
                 });
             }
             acc.options.push(option);
@@ -789,6 +791,7 @@ pub(in super::super) fn apply_command_stmt(
                 family,
                 source,
                 line: stmt.line,
+                row: None,
             });
         }
 
