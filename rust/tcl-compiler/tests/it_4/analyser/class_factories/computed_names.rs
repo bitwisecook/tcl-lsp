@@ -120,7 +120,7 @@ fn unrelated_multi_arm_writes_preserve_provenance() {
     let src = COMPUTED_METACLASS.replace(
         "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
         concat!(
-            "    if {$runtime} {set other a} else {set other b}\n",
+            "    if {rand() < 0.5} {set other a} else {set other b}\n",
             "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
         ),
     );
@@ -138,7 +138,7 @@ fn a_multi_arm_write_to_the_provenance_variable_abstains() {
     let src = COMPUTED_METACLASS.replace(
         "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
         concat!(
-            "    if {$runtime} {set NSPACE ::Bad} else {set other b}\n",
+            "    if {rand() < 0.5} {set NSPACE ::Bad} else {set other b}\n",
             "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
         ),
     );
@@ -157,7 +157,7 @@ fn an_unknown_same_frame_branch_write_abstains() {
     let src = COMPUTED_METACLASS.replace(
         "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
         concat!(
-            "    if {$runtime} {eval $script}\n",
+            "    if {rand() < 0.5} {eval [lindex $::argv 0]}\n",
             "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
         ),
     );
