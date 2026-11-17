@@ -809,27 +809,35 @@ fn complex_expression_inference() {
 #[test]
 fn namespaced_scalar_keeps_qualified_symbol_type() {
     // The qualified scalar `::ns::x` is typed under its own fully-qualified
-    // symbol — but `crate::type_propagation::sccp::is_externally_mutable` treats any
-    // `::`-prefixed name as externally mutable unconditionally (the same
-    // predicate `sccp_with_extra_escaping`/O102 load-forwarding already
-    // apply to their own lattices): a fully-qualified name bypasses
-    // `global`/`variable` declarations entirely, so no aliasing-declaration
-    // scan could ever catch a *different* procedure writing it directly by
-    // the same qualified name. So the symbol is correctly keyed and typed —
-    // just conservatively OVERDEFINED, not the literal's own type.
-    let src = "set ::ns::x \"alpha beta\"\nset n [llength $::ns::x]";
+    // symbol. A `::`-prefixed name is externally mutable, so its definitions
+    // widen, unless the source owner retains the exact store's value in the
+    // same cell after callbacks (`type_infer::propagate_types`): here nothing
+    // runs between the store and the read, so the definition keeps the
+    // literal's type. tclsh 8.6.18, 9.0.4 and 9.1.0 report `$::ns::x` a
+    // pure string (`tcl::unsupported::representation`).
+    // `namespace eval ns {}` first: without it `set ::ns::x` raises "can't
+    // set \"::ns::x\": parent namespace doesn't exist" (tclsh 8.4.20 to
+    // 9.1.0), and the store never reaches the type table.
+    let src = "namespace eval ns {}\nset ::ns::x \"alpha beta\"\nset n [llength $::ns::x]";
     let t = var_type(src, "::ns::x").expect("::ns::x typed");
-    assert_eq!(t.kind(), TypeKind::Overdefined);
+    assert_eq!(t.kind(), TypeKind::Known);
+    assert_eq!(t.tcl_type(), Some(TclType::String));
 }
 
 #[test]
-fn namespaced_array_element_uses_base_array_symbol_type() {
-    // `set ::ns::arr(k) ...` flows under the base array symbol `::ns::arr`,
-    // conservatively OVERDEFINED for the same reason as the scalar case
-    // above.
-    let src = "set ::ns::arr(k) \"alpha beta\"\nset n [llength $::ns::arr(k)]";
-    let t = var_type(src, "::ns::arr").expect("::ns::arr typed");
-    assert_eq!(t.kind(), TypeKind::Overdefined);
+fn namespaced_array_element_uses_its_element_place_type() {
+    // `set ::ns::arr(k) ...` flows under the element's own place
+    // `::ns::arr(k)` (a literal key is a place, ruling of 17 November),
+    // keeping the literal's type for the same reason as the scalar case
+    // above (tclsh reports `$::ns::arr(k)` a pure string).
+    // `namespace eval ns {}` first: without it `set ::ns::x` raises "can't
+    // set \"::ns::x\": parent namespace doesn't exist" (tclsh 8.4.20 to
+    // 9.1.0), and the store never reaches the type table.
+    let src =
+        "namespace eval ns {}\nset ::ns::arr(k) \"alpha beta\"\nset n [llength $::ns::arr(k)]";
+    let t = var_type(src, "::ns::arr(k)").expect("::ns::arr(k) typed");
+    assert_eq!(t.kind(), TypeKind::Known);
+    assert_eq!(t.tcl_type(), Some(TclType::String));
 }
 
 #[test]

@@ -533,7 +533,11 @@ mod variable_shape {
     #[test]
     fn namespaced_scalar_flows_with_qualified_name() {
         // `set ::ns::x …` flows under the qualified name "::ns::x".
-        let cu = build("set ::ns::x \"alpha beta\"\nset n [llength $::ns::x]");
+        // `namespace eval ns {}` first: without it `set ::ns::x` raises "can't
+        // set \"::ns::x\": parent namespace doesn't exist" (tclsh 8.4.20 to
+        // 9.1.0), and the store never reaches the type table.
+        let cu =
+            build("namespace eval ns {}\nset ::ns::x \"alpha beta\"\nset n [llength $::ns::x]");
         assert!(
             ty(&cu.top_level, "::ns::x", 1).is_some(),
             "::ns::x must appear in the type table"
@@ -541,23 +545,30 @@ mod variable_shape {
     }
 
     #[test]
-    fn namespaced_array_element_flows_as_base_array_name() {
-        // `set ::ns::arr(k) …` flows under the base array symbol "::ns::arr".
-        let cu = build("set ::ns::arr(k) \"alpha beta\"\nset n [llength $::ns::arr(k)]");
-        assert!(ty(&cu.top_level, "::ns::arr", 1).is_some());
+    fn namespaced_array_element_flows_as_its_element_place() {
+        // `set ::ns::arr(k) …` flows under the element's own place
+        // "::ns::arr(k)" (a literal key is a place, ruling of 17 November).
+        // `namespace eval ns {}` first: without it `set ::ns::x` raises "can't
+        // set \"::ns::x\": parent namespace doesn't exist" (tclsh 8.4.20 to
+        // 9.1.0), and the store never reaches the type table.
+        let cu = build(
+            "namespace eval ns {}\nset ::ns::arr(k) \"alpha beta\"\nset n [llength $::ns::arr(k)]",
+        );
+        assert!(ty(&cu.top_level, "::ns::arr(k)", 1).is_some());
     }
 
     #[test]
-    fn braced_array_like_name_flows_as_base_array_symbol() {
-        // Braced ${a(1)} is a whole-name load of array element a(1); base "a".
+    fn braced_array_like_name_flows_as_its_element_place() {
+        // Braced ${a(1)} is a whole-name load of array element a(1), typed
+        // under the element's own place (ruling of 17 November).
         let cu = build("set {a(1)} \"alpha beta\"\nset n [llength ${a(1)}]");
-        assert!(ty(&cu.top_level, "a", 1).is_some());
+        assert!(ty(&cu.top_level, "a(1)", 1).is_some());
     }
 
     #[test]
-    fn unbraced_array_ref_flows_as_base_array_symbol() {
+    fn unbraced_array_ref_flows_as_its_element_place() {
         let cu = build("set a(1) \"alpha beta\"\nset n [llength $a(1)]");
-        assert!(ty(&cu.top_level, "a", 1).is_some());
+        assert!(ty(&cu.top_level, "a(1)", 1).is_some());
     }
 
     #[test]
