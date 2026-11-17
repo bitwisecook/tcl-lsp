@@ -36,7 +36,7 @@ The two `UNDECIDED` rows are `tcl-spec-hooks` pack-family tests the execution se
 | `pack-implementation-value-facts` | 4 | values, analyser-binding | A pack reference body donates an executable stored value for a declaration the analysis never entered. |
 | `irule-s110-roundtrips` | 3 | taint | S110 payload round-trip warnings per protocol are not published. |
 | `rule-object-walker-reachability` | 2 | taint (hosted lookup), me (walker) | Rule-to-object reachability proves nothing under the hosted source (everything "possible", nothing "confirmed"), and a handler constant is not propagated. |
-| `jim-class-factory-walk` | 2 | see ledger | Jim 0.84 `class c {}; set s [c new]; $s destroy`: W307 on `puts [$s model]` (diagnostics, class-facts); jimsh not installed here to confirm |
+| `jim-class-factory-walk` | 2 | see ledger | Jim 0.84 `class c {}; set s [c new]; $s destroy`: W307 on `puts [$s model]` (diagnostics, class-facts); jimsh 0.84 confirms: the script fails with `invalid command name "::<reference.<c______>.00000000000000000000>"`, so the destroyed instance is a dead command and the warning is real |
 | `package-requires-collection` | 2 | see ledger | `package require $dep $minimum` with proc-local constants not listed; literal Tk in `if` has no name (analyser-binding); docs/kcs pkg discov |
 | `diagram-call-resolution` | 2 | see ledger | name resolution of calls in the caller namespace and alias heads: tclsh namespace resolution (name-handling contract) |
 | `explorer-original-profile` | 2 | see ledger | taintReplays/profile retention for the original source (analyser-binding) |
