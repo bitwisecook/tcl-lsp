@@ -299,29 +299,10 @@ impl Backend {
         let candidates = if symbol.is_namespace() {
             let _rehoming_guard = self.rehomed_index_guard().await?;
             let index = self.workspace_index.read().await;
-            if proposed != *symbol {
-                let occupied = index
-                    .original_variable_occurrences(&proposed, "")
-                    .collect::<Vec<_>>();
-                if !occupied.is_empty() {
-                    let mut declarations = occupied
-                        .iter()
-                        .filter(|(_, occurrence)| occurrence.is_declaration())
-                        .map(|(owner, _)| (*owner).to_owned())
-                        .collect::<Vec<_>>();
-                    declarations.sort();
-                    declarations.dedup();
-                    let reason = symbol
-                        .checked_c_namespace_key()
-                        .zip(proposed.checked_c_namespace_key())
-                        .and_then(|(selected, proposed)| {
-                            describe_variable_collision(&selected, &proposed, &declarations)
-                        })
-                        .unwrap_or_else(|| {
-                            "the replacement names another variable in this workspace".to_owned()
-                        });
-                    return Err(refuse(&reason));
-                }
+            if proposed != *symbol
+                && let Some(reason) = occupied_variable_reason(&index, symbol, &proposed)
+            {
+                return Err(refuse(&reason));
             }
             let mut candidates = index.document_uris();
             candidates.push(uri.as_str().to_owned());
@@ -332,6 +313,7 @@ impl Backend {
             vec![uri.as_str().to_owned()]
         };
         let mut changes = std::collections::HashMap::new();
+        let mut refused = None;
         for owner in candidates {
             let parsed = Uri::from_str(&owner)
                 .map_err(|_| refuse("cannot inspect every indexed variable consumer"))?;
@@ -348,12 +330,27 @@ impl Backend {
                 (target_doc.text, Some(target_analysis))
             };
             let target_analysis = target_analysis.as_deref().unwrap_or(analysis);
-            let edits = tcl_lsp_core::variable_symbol::original_variable_rename_edits(
+            if refused.is_some() {
+                if let Some(hazard) = computed_name_refusal(&source, target_analysis, symbol) {
+                    return Err(hazard);
+                }
+                continue;
+            }
+            let edits = match tcl_lsp_core::variable_symbol::original_variable_rename_edits(
                 &source,
                 target_analysis,
                 symbol,
                 new_name,
-            )?;
+            ) {
+                Ok(edits) => edits,
+                Err(refusal) => {
+                    if let Some(hazard) = computed_name_refusal(&source, target_analysis, symbol) {
+                        return Err(hazard);
+                    }
+                    refused = Some(refusal);
+                    continue;
+                }
+            };
             if !edits.is_empty() {
                 changes.insert(
                     parsed,
@@ -367,6 +364,53 @@ impl Backend {
                 );
             }
         }
-        Ok(changes)
+        refused.map_or(Ok(changes), Err)
     }
+}
+
+/// The per-site computed-name hazard names the cause a coverage refusal hides.
+fn computed_name_refusal(
+    source: &str,
+    analysis: &AnalysisResult,
+    symbol: &tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableSymbol,
+) -> Option<core_rename_safety::RenameRefusal> {
+    let cell = symbol.checked_c_namespace_key()?;
+    core_rename_safety::namespace_variable_rename_hazard(
+        source,
+        analysis.resolved_profile()?,
+        analysis,
+        &cell,
+        &tcl_lexer::LineIndex::new(source),
+    )
+}
+
+fn occupied_variable_reason(
+    index: &tcl_lsp_core::workspace_index::WorkspaceIndex,
+    symbol: &tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableSymbol,
+    proposed: &tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableSymbol,
+) -> Option<String> {
+    let occupied = index
+        .original_variable_occurrences(proposed, "")
+        .collect::<Vec<_>>();
+    if occupied.is_empty() {
+        return None;
+    }
+    let mut declarations = occupied
+        .iter()
+        .filter(|(_, occurrence)| occurrence.is_declaration())
+        .map(|(owner, _)| (*owner).to_owned())
+        .collect::<Vec<_>>();
+    declarations.sort();
+    declarations.dedup();
+    Some(
+        symbol
+            .checked_c_namespace_key()
+            .zip(proposed.checked_c_namespace_key())
+            .and_then(|(selected, proposed)| {
+                describe_variable_collision(&selected, &proposed, &declarations)
+            })
+            .unwrap_or_else(|| {
+                "the replacement names another variable in this workspace".to_owned()
+            }),
+    )
 }
