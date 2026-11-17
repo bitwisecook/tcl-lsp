@@ -205,10 +205,10 @@ impl ModuleCommandBindings {
             let Some(name) = self.callable_spelling_for_key(key) else {
                 continue;
             };
+            // A builtin's slot starts as the release's original table says,
+            // which the walk read when it resolved the builtin.
             let original = self
-                .original_entry_bindings
-                .get(key)
-                .cloned()
+                .original_initial_bindings_for_key(key)
                 .unwrap_or_else(|| {
                     Self::unmodified_bindings(key, self.baseline.semantics.binding_names())
                 });
