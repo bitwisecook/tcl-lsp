@@ -45,8 +45,8 @@ row that is kept still needs its citation written into the test; the evidence co
 | 36 | `binding-substitution-word-no-layout` | analyser-binding | A procedure-body statement whose words hold a substitution gets no declared layout: `set d [expr {sqrt($x)}]` stays `Call set` with no definition of `d`, `set a($k) 9` raises every dynamic-name flag |
 | 21 | `f5-rule-procedure-frame` | taint (queue item 1) | Under f5-irules a rule procedure called at the top level gets no SSA definitions, or names its variables by a frame identity (`@frame:47:::p@0/…:r`) |
 | 12 | `unknown-head-untrust` | dataflow, then values | Ruling of 17 November: untrust after an unknown head is flow-sensitive and fixtures say bounded or unbounded. Eleven `handler_widening` fixtures must be restated (FIX-FIXTURE) |
-| 9 | `loop-enumeration` | analyser-binding | A `foreach` over a literal list is not lowered structurally, so nothing is enumerated after the loop |
 | 10 | `switch-not-lowered-structurally` | analyser-binding | `switch`/`case` no longer lowers to `Statement::Switch`; no selection, branch or merge facts |
+| 9 | `loop-enumeration` | analyser-binding | A `foreach` over a literal list is not lowered structurally, so nothing is enumerated after the loop |
 | 9 | `frame-script-body-unread` | analyser-binding | A script run at `#0` or `1` (`uplevel`, an alias to it, `eval` inside it) has no invocation metadata, so the global summary goes opaque |
 | 9 | `f5-handler-command-unbound` | analyser-binding | Inside a `when` body `set`, `TCP::payload` resolve as `UnprovedBinding` |
 | 8 | `summary-link-local-def` | dataflow issue session | A write through `upvar 1 $name v` defines nothing at the callee's exit (summary SSA step 4 in progress) |
