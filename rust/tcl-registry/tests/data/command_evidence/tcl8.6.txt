@@ -1,0 +1,360 @@
+# tcl8.6.18 generic/*.c, by scripts/dev/tcl_command_evidence.py
+# NAME	VERDICT	CLASSES	ROOTS
+after	open	channels:Tcl_Flush,clock:time,indirect:TimerHandlerEventProc:proc,interpreter:Tcl_IsSafe,scripts:Tcl_EvalObjv,completion:TCL_BREAK,completion:TCL_RETURN	Tcl_AfterObjCmd
+after cancel	open	channels:Tcl_Flush,clock:time,indirect:TimerHandlerEventProc:proc,interpreter:Tcl_IsSafe,scripts:Tcl_EvalObjv,completion:TCL_BREAK,completion:TCL_RETURN	switch
+after idle	open	channels:Tcl_Flush,clock:time,indirect:TimerHandlerEventProc:proc,interpreter:Tcl_IsSafe,scripts:Tcl_EvalObjv,completion:TCL_BREAK,completion:TCL_RETURN	switch
+after info	open	channels:Tcl_Flush,clock:time,indirect:TimerHandlerEventProc:proc,interpreter:Tcl_IsSafe,scripts:Tcl_EvalObjv,completion:TCL_BREAK,completion:TCL_RETURN	switch
+append	open	variables:TclPtrSetVarIdx	Tcl_AppendObjCmd
+apply	open	channels:fflush,clock:Tcl_GetTime,commands:TclCreateProc,filesystem:Tcl_FSGetNormalizedPath,indirect:TclProcCleanupProc:deleteProc,interpreter:TclNRInterpProcCore:varFramePtr,namespaces:Tcl_PopCallFrame,scripts:TclNRExecuteByteCode,unresolved:InterpProcNR2:errorProc,variables:Tcl_LinkVar,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	Tcl_ApplyObjCmd,TclNRApplyObjCmd
+array anymore	open	interpreter:ParseSearchId:varSearches,variables:TclObjCallVarTraces	ArrayAnyMoreCmd
+array donesearch	open	interpreter:ArrayDoneSearchCmd:varSearches,variables:TclObjCallVarTraces	ArrayDoneSearchCmd
+array exists	open	variables:TclObjCallVarTraces	ArrayExistsCmd
+array get	open	variables:Tcl_ObjGetVar2	ArrayGetCmd
+array names	open	unresolved:RegExpExecUniChar:TclReExec,variables:TclObjCallVarTraces	ArrayNamesCmd
+array nextelement	open	interpreter:ParseSearchId:varSearches,variables:TclObjCallVarTraces	ArrayNextElementCmd
+array set	open	variables:TclObjVarErrMsg	ArraySetCmd
+array size	open	variables:TclObjCallVarTraces	ArraySizeCmd
+array startsearch	open	interpreter:ArrayStartSearchCmd:varSearches,variables:TclObjCallVarTraces	ArrayStartSearchCmd
+array statistics	open	variables:TclObjCallVarTraces	ArrayStatsCmd
+array unset	open	variables:TclPtrUnsetVarIdx	ArrayUnsetCmd
+binary decode base64	closed	-	BinaryDecode64
+binary decode hex	closed	-	BinaryDecodeHex
+binary decode uuencode	closed	-	BinaryDecodeUu
+binary encode base64	closed	-	BinaryEncode64
+binary encode hex	closed	-	BinaryEncodeHex
+binary encode uuencode	closed	-	BinaryEncodeUu
+binary format	closed	-	BinaryFormatCmd
+binary scan	open	variables:Tcl_ObjSetVar2	BinaryScanCmd
+break	open	completion:TCL_BREAK	Tcl_BreakObjCmd
+case	open	scripts:Tcl_EvalObjEx	Tcl_CaseObjCmd
+catch	open	interpreter:TclNRCatchObjCmd:cmdFramePtr,scripts:TclNREvalObjEx,variables:Tcl_ObjSetVar2,completion:TCL_RETURN	Tcl_CatchObjCmd,TclNRCatchObjCmd
+cd	open	filesystem:Tcl_FSChdir	Tcl_CdObjCmd
+chan blocked	open	channels:Tcl_InputBlocked	Tcl_FblockedObjCmd
+chan close	open	channels:Tcl_CloseObjCmd	Tcl_CloseObjCmd
+chan copy	open	channels:Tcl_GetChannelErrorInterp,encodings:Tcl_GetEncoding,indirect:ChanWatch:watchProc,interpreter:FlushChannel:chanMsg,scripts:Tcl_EvalObjv,unresolved:Tcl_NotifyChannel:upHandlerProc,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	Tcl_FcopyObjCmd
+chan create	open	channels:Tcl_GetChannelInstanceData,indirect:Tcl_NotifyChannel:proc,interpreter:Tcl_CreateTimerHandler,scripts:Tcl_EvalObjv,unresolved:Tcl_NotifyChannel:upHandlerProc,completion:TCL_RETURN	TclChanCreateObjCmd
+chan eof	open	channels:Tcl_Eof	Tcl_EofObjCmd
+chan event	open	channels:Tcl_Flush,indirect:ChanWatch:watchProc,interpreter:Tcl_IsSafe,scripts:Tcl_EvalObjv,unresolved:Tcl_NotifyChannel:upHandlerProc,completion:TCL_BREAK,completion:TCL_RETURN	Tcl_FileEventObjCmd
+chan flush	open	channels:Tcl_GetChannelErrorInterp,completion:TCL_RETURN	Tcl_FlushObjCmd
+chan gets	open	channels:Tcl_GetsObjCmd	Tcl_GetsObjCmd
+chan names	open	channels:Tcl_GetChannelNamesEx	TclChannelNamesCmd
+chan pending	open	channels:TclGetChannelFromObj	ChanPendingObjCmd
+chan pipe	open	channels:Tcl_GetChannelName,clock:time,indirect:Tcl_NotifyChannel:proc,interpreter:OpenFileChannel:handle,process:TclGetEnv,unresolved:Tcl_CreatePipe:pipe,completion:TCL_RETURN	ChanPipeObjCmd
+chan pop	open	channels:Tcl_Close,indirect:ChanWatch:watchProc,interpreter:FlushChannel:chanMsg,unresolved:Tcl_NotifyChannel:upHandlerProc,completion:TCL_RETURN	TclChanPopObjCmd
+chan postevent	open	channels:Tcl_GetChannelInstanceData,clock:time,indirect:Tcl_AlertNotifier:alertNotifierProc,interpreter:Tcl_ThreadAlert:threadId,scripts:Tcl_EvalObjv,unresolved:Tcl_AlertNotifier:PostMessageW,completion:TCL_RETURN	TclChanPostEventObjCmd
+chan push	open	channels:Tcl_GetChannelName,interpreter:FreeReflectedTransformArgs:handle,scripts:Tcl_EvalObjv,unresolved:Tcl_ConditionNotify:SetEvent,completion:TCL_RETURN	TclChanPushObjCmd
+chan puts	open	channels:Tcl_GetChannelErrorInterp,completion:TCL_RETURN	Tcl_PutsObjCmd
+chan read	open	channels:Tcl_ReadObjCmd	Tcl_ReadObjCmd
+chan seek	open	channels:Tcl_GetChannelErrorInterp,completion:TCL_RETURN	Tcl_SeekObjCmd
+chan tell	open	channels:Tcl_GetChannelErrorInterp,completion:TCL_RETURN	Tcl_TellObjCmd
+chan truncate	open	channels:Tcl_GetChannelErrorInterp,indirect:CloseChannelPart:close2Proc,interpreter:FlushChannel:chanMsg,unresolved:Tcl_TruncateChannel:truncateProc,completion:TCL_RETURN	ChanTruncateObjCmd
+clock ConvertLocalToUTC	open	clock:mktime,process:getenv,unresolved:TzsetIfNecessary:tzset	ClockConvertlocaltoutcObjCmd
+clock GetDateFields	open	clock:localtime,process:getenv,unresolved:ThreadSafeLocalTime:localtime_r	ClockGetdatefieldsObjCmd
+clock GetJulianDayFromEraYearMonthDay	open	clock:Tcl_GetTime,process:getenv,unresolved:TzsetIfNecessary:tzset	ClockGetjuliandayfromerayearmonthdayObjCmd
+clock GetJulianDayFromEraYearWeekDay	open	clock:Tcl_GetTime,process:getenv,unresolved:TzsetIfNecessary:tzset	ClockGetjuliandayfromerayearweekdayObjCmd
+clock Oldscan	open	unresolved:yyparse:yyoverflow	TclClockOldscanObjCmd
+clock ParseFormatArgs	closed	-	ClockParseformatargsObjCmd
+clock clicks	open	clock:TclpGetMicroseconds	ClockClicksObjCmd
+clock getenv	open	process:getenv	ClockGetenvObjCmd
+clock microseconds	open	clock:TclpGetMicroseconds	ClockMicrosecondsObjCmd
+clock milliseconds	open	clock:Tcl_GetTime	ClockMillisecondsObjCmd
+clock seconds	open	clock:Tcl_GetTime	ClockSecondsObjCmd
+close	open	channels:Tcl_CloseObjCmd	Tcl_CloseObjCmd
+concat	closed	-	Tcl_ConcatObjCmd
+continue	open	completion:TCL_CONTINUE	Tcl_ContinueObjCmd
+coroutine	open	scripts:TclNRCoroutineObjCmd	TclNRCoroutineObjCmd
+dict append	open	variables:Tcl_ObjSetVar2	DictAppendCmd
+dict create	closed	-	DictCreateCmd
+dict exists	closed	-	DictExistsCmd
+dict filter	open	interpreter:DictFilterCmd:cmdFramePtr,scripts:TclEvalObjEx,variables:Tcl_ObjSetVar2,completion:TCL_BREAK,completion:TCL_CONTINUE	DictFilterCmd
+dict for	open	interpreter:DictForNRCmd:cmdFramePtr,scripts:TclNREvalObjEx,variables:Tcl_ObjSetVar2,completion:TCL_BREAK,completion:TCL_CONTINUE	DictForNRCmd
+dict get	closed	-	DictGetCmd
+dict incr	open	variables:Tcl_ObjSetVar2	DictIncrCmd
+dict info	closed	-	DictInfoCmd
+dict keys	closed	-	DictKeysCmd
+dict lappend	open	variables:Tcl_ObjSetVar2	DictLappendCmd
+dict map	open	interpreter:DictMapNRCmd:cmdFramePtr,scripts:TclNREvalObjEx,variables:Tcl_ObjSetVar2,completion:TCL_BREAK,completion:TCL_CONTINUE	DictMapNRCmd
+dict merge	closed	-	DictMergeCmd
+dict remove	closed	-	DictRemoveCmd
+dict replace	closed	-	DictReplaceCmd
+dict set	open	variables:Tcl_ObjSetVar2	DictSetCmd
+dict size	closed	-	DictSizeCmd
+dict unset	open	variables:Tcl_ObjSetVar2	DictUnsetCmd
+dict update	open	interpreter:DictUpdateCmd:cmdFramePtr,scripts:TclNREvalObjEx,variables:Tcl_ObjSetVar2	DictUpdateCmd
+dict values	closed	-	DictValuesCmd
+dict with	open	interpreter:DictWithCmd:cmdFramePtr,scripts:TclNREvalObjEx,variables:TclPtrSetVarIdx	DictWithCmd
+encoding convertfrom	open	encodings:Tcl_GetEncodingFromObj,indirect:Tcl_ExternalToUtfDString:toUtfProc	EncodingConvertfromObjCmd
+encoding convertto	open	encodings:Tcl_GetEncodingFromObj,indirect:Tcl_UtfToExternalDString:fromUtfProc	EncodingConverttoObjCmd
+encoding dirs	open	encodings:Tcl_SetEncodingSearchPath	EncodingDirsObjCmd
+encoding names	open	encodings:Tcl_GetEncodingNames	EncodingNamesObjCmd
+encoding system	open	encodings:Tcl_SetSystemEncoding	EncodingSystemObjCmd
+eof	open	channels:Tcl_Eof	Tcl_EofObjCmd
+error	open	completion:TCL_RETURN	Tcl_ErrorObjCmd
+eval	open	scripts:TclNREvalObjCmd	Tcl_EvalObjCmd,TclNREvalObjCmd
+exec	open	channels:Tcl_Close,clock:time,entropy:rand,filesystem:Tcl_FSGetTranslatedPath,indirect:Tcl_DeleteFileHandler:deleteFileHandlerProc,interpreter:TclpCloseFile:handle,process:TclpGetPid,unresolved:TclpCloseFile:close,completion:TCL_RETURN	Tcl_ExecObjCmd
+exit	open	process:Tcl_Exit	Tcl_ExitObjCmd
+expr	open	scripts:Tcl_NRExprObj	Tcl_ExprObjCmd,TclNRExprObjCmd
+fblocked	open	channels:Tcl_InputBlocked	Tcl_FblockedObjCmd
+fconfigure	open	channels:Tcl_SetChannelOption	Tcl_FconfigureObjCmd
+fcopy	open	channels:Tcl_GetChannelErrorInterp,encodings:Tcl_GetEncoding,indirect:ChanWatch:watchProc,interpreter:FlushChannel:chanMsg,scripts:Tcl_EvalObjv,unresolved:Tcl_NotifyChannel:upHandlerProc,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	Tcl_FcopyObjCmd
+file atime	open	filesystem:Tcl_FSStat	FileAttrAccessTimeCmd
+file attributes	open	filesystem:Tcl_FSFileAttrsSet	TclFileAttrsCmd
+file channels	open	channels:Tcl_GetChannelNamesEx	TclChannelNamesCmd
+file copy	open	channels:Tcl_Close,encodings:Tcl_GetEncoding,filesystem:Tcl_FSDeleteFile,indirect:ChanWatch:watchProc,interpreter:FlushChannel:chanMsg,scripts:Tcl_EvalObjv,unresolved:Tcl_NotifyChannel:upHandlerProc,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	TclFileCopyCmd
+file delete	open	filesystem:Tcl_FSDeleteFile	TclFileDeleteCmd
+file dirname	open	filesystem:Tcl_FSGetPathType	PathDirNameCmd
+file executable	open	filesystem:Tcl_FSAccess	FileAttrIsExecutableCmd
+file exists	open	filesystem:Tcl_FSAccess	FileAttrIsExistingCmd
+file extension	open	filesystem:Tcl_FSGetPathType	PathExtensionCmd
+file isdirectory	open	filesystem:Tcl_FSStat	FileAttrIsDirectoryCmd
+file isfile	open	filesystem:Tcl_FSStat	FileAttrIsFileCmd
+file join	open	filesystem:TclGetPathType,indirect:TclJoinPath:filesystemSeparatorProc	PathJoinCmd
+file link	open	filesystem:Tcl_FSLink	TclFileLinkCmd
+file lstat	open	filesystem:Tcl_FSLstat,variables:Tcl_ObjSetVar2	FileAttrLinkStatCmd
+file mkdir	open	filesystem:Tcl_FSCreateDirectory	TclFileMakeDirsCmd
+file mtime	open	filesystem:Tcl_FSStat	FileAttrModifyTimeCmd
+file nativename	open	filesystem:Tcl_FSGetTranslatedPath	PathNativeNameCmd
+file normalize	open	filesystem:Tcl_FSGetNormalizedPath	PathNormalizeCmd
+file owned	open	filesystem:Tcl_FSStat,unresolved:TclWinFileOwned:GetNamedSecurityInfoW	FileAttrIsOwnedCmd
+file pathtype	open	filesystem:Tcl_FSGetPathType	PathTypeCmd
+file readable	open	filesystem:Tcl_FSAccess	FileAttrIsReadableCmd
+file readlink	open	filesystem:Tcl_FSLink	TclFileReadLinkCmd
+file rename	open	channels:Tcl_Close,encodings:Tcl_GetEncoding,filesystem:Tcl_FSDeleteFile,indirect:ChanWatch:watchProc,interpreter:FlushChannel:chanMsg,scripts:Tcl_EvalObjv,unresolved:Tcl_NotifyChannel:upHandlerProc,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	TclFileRenameCmd
+file rootname	open	filesystem:Tcl_FSGetPathType	PathRootNameCmd
+file separator	open	filesystem:Tcl_FSPathSeparator	FilesystemSeparatorCmd
+file size	open	filesystem:Tcl_FSStat	FileAttrSizeCmd
+file split	open	filesystem:Tcl_FSSplitPath	PathSplitCmd
+file stat	open	filesystem:Tcl_FSStat,variables:Tcl_ObjSetVar2	FileAttrStatCmd
+file system	open	filesystem:Tcl_FSFileSystemInfo	PathFilesystemCmd
+file tail	open	filesystem:Tcl_FSGetPathType	PathTailCmd
+file tempfile	open	channels:Tcl_GetChannelName,filesystem:TclpOpenTemporaryFile,variables:Tcl_ObjSetVar2	TclFileTemporaryCmd
+file type	open	filesystem:Tcl_FSLstat	FileAttrTypeCmd
+file volumes	open	filesystem:Tcl_FSListVolumes	FilesystemVolumesCmd
+file writable	open	filesystem:Tcl_FSAccess	FileAttrIsWritableCmd
+fileevent	open	channels:Tcl_Flush,indirect:ChanWatch:watchProc,interpreter:Tcl_IsSafe,scripts:Tcl_EvalObjv,unresolved:Tcl_NotifyChannel:upHandlerProc,completion:TCL_BREAK,completion:TCL_RETURN	Tcl_FileEventObjCmd
+flush	open	channels:Tcl_GetChannelErrorInterp,completion:TCL_RETURN	Tcl_FlushObjCmd
+for	open	interpreter:TclNRForObjCmd:cmdFramePtr,scripts:TclNREvalObjEx,completion:TCL_BREAK,completion:TCL_CONTINUE	Tcl_ForObjCmd,TclNRForObjCmd
+foreach	open	interpreter:EachloopCmd:cmdFramePtr,scripts:TclNREvalObjEx,variables:Tcl_ObjSetVar2,completion:TCL_BREAK,completion:TCL_CONTINUE	Tcl_ForeachObjCmd,TclNRForeachCmd
+format	closed	-	Tcl_FormatObjCmd
+gets	open	channels:Tcl_GetsObjCmd	Tcl_GetsObjCmd
+glob	open	filesystem:Tcl_FSGetPathType,process:TclGetEnv	Tcl_GlobObjCmd
+global	open	indirect:TclLookupSimpleVar:varResProc,interpreter:Tcl_GlobalObjCmd:varFramePtr,namespaces:TclGetNamespaceForQualName,variables:TclObjVarErrMsg,completion:TCL_CONTINUE	Tcl_GlobalObjCmd
+if	open	interpreter:IfConditionCallback:cmdFramePtr,scripts:Tcl_NRExprObj	Tcl_IfObjCmd,TclNRIfObjCmd
+incr	open	variables:TclPtrIncrObjVarIdx	Tcl_IncrObjCmd
+info args	open	commands:TclFindProc	InfoArgsCmd
+info body	open	commands:TclFindProc	InfoBodyCmd
+info cmdcount	open	interpreter:InfoCmdCountCmd:cmdCount	InfoCmdCountCmd
+info commands	open	interpreter:Tcl_GetCommandFullName:globalNsPtr,namespaces:TclGetNamespaceForQualName	InfoCommandsCmd
+info complete	closed	-	InfoCompleteCmd
+info coroutine	open	interpreter:Tcl_GetCommandFullName:globalNsPtr	TclInfoCoroutineCmd
+info default	open	commands:TclFindProc,variables:Tcl_ObjSetVar2	InfoDefaultCmd
+info errorstack	open	interpreter:Tcl_GetChild	InfoErrorStackCmd
+info exists	open	variables:TclCallVarTraces	TclInfoExistsCmd
+info frame	open	indirect:TclInfoFrame:proc,interpreter:InfoFrameCmd:cmdFramePtr	InfoFrameCmd
+info functions	open	scripts:Tcl_EvalObjEx	InfoFunctionsCmd
+info globals	open	namespaces:Tcl_GetGlobalNamespace	TclInfoGlobalsCmd
+info hostname	open	process:Tcl_GetHostName	InfoHostnameCmd
+info level	open	interpreter:InfoLevelCmd:varFramePtr	InfoLevelCmd
+info library	open	variables:Tcl_GetVar	InfoLibraryCmd
+info loaded	open	packages:TclGetLoadedPackages	InfoLoadedCmd
+info locals	open	interpreter:TclInfoLocalsCmd:varFramePtr	TclInfoLocalsCmd
+info nameofexecutable	open	filesystem:TclGetProcessGlobalValue	InfoNameOfExecutableCmd
+info patchlevel	open	variables:Tcl_GetVar	InfoPatchLevelCmd
+info procs	open	commands:TclGetOriginalCommand,indirect:TclProcCleanupProc:deleteProc,interpreter:TclProcCleanupProc:linePBodyPtr,namespaces:TclGetNamespaceForQualName	InfoProcsCmd
+info script	open	interpreter:InfoScriptCmd:scriptFile	InfoScriptCmd
+info sharedlibextension	closed	-	InfoSharedlibCmd
+info tclversion	open	variables:Tcl_GetVar2Ex	InfoTclVersionCmd
+info vars	open	interpreter:TclInfoVarsCmd:varFramePtr,namespaces:TclGetNamespaceForQualName,variables:Tcl_GetVariableFullName	TclInfoVarsCmd
+join	closed	-	Tcl_JoinObjCmd
+lappend	open	variables:TclPtrSetVarIdx	Tcl_LappendObjCmd
+lassign	open	variables:Tcl_ObjSetVar2	Tcl_LassignObjCmd
+lindex	closed	-	Tcl_LindexObjCmd
+linsert	closed	-	Tcl_LinsertObjCmd
+list	closed	-	Tcl_ListObjCmd
+llength	closed	-	Tcl_LlengthObjCmd
+lmap	open	interpreter:EachloopCmd:cmdFramePtr,scripts:TclNREvalObjEx,variables:Tcl_ObjSetVar2,completion:TCL_BREAK,completion:TCL_CONTINUE	Tcl_LmapObjCmd,TclNRLmapCmd
+load	open	filesystem:Tcl_LoadFile,indirect:Tcl_LoadObjCmd:safeInitProc,interpreter:Tcl_SetAssocData,completion:TCL_RETURN	Tcl_LoadObjCmd
+lrange	closed	-	Tcl_LrangeObjCmd
+lrepeat	closed	-	Tcl_LrepeatObjCmd
+lreplace	closed	-	Tcl_LreplaceObjCmd
+lreverse	closed	-	Tcl_LreverseObjCmd
+lsearch	open	unresolved:RegExpExecUniChar:TclReExec	Tcl_LsearchObjCmd
+lset	open	variables:Tcl_ObjSetVar2	Tcl_LsetObjCmd
+lsort	open	scripts:Tcl_EvalObjv	Tcl_LsortObjCmd
+namespace children	open	interpreter:TclGetCurrentNamespace:varFramePtr,variables:TclGetNamespaceFromObj	NamespaceChildrenCmd
+namespace code	open	interpreter:TclGetGlobalNamespace:globalNsPtr	NamespaceCodeCmd
+namespace current	open	interpreter:TclGetGlobalNamespace:globalNsPtr	NamespaceCurrentCmd
+namespace delete	open	namespaces:Tcl_DeleteNamespace	NamespaceDeleteCmd
+namespace ensemble	open	commands:Tcl_GetCommandFromObj,indirect:TclAttemptCompileProc:compileProc,interpreter:Tcl_SetEnsembleFlags:compileEpoch,namespaces:TclGetNamespaceForQualName,scripts:TclCompileScript,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	TclNamespaceEnsembleCmd
+namespace eval	open	interpreter:NRNamespaceEvalCmd:cmdFramePtr,namespaces:Tcl_PopCallFrame,scripts:TclNREvalObjEx	NamespaceEvalCmd,NRNamespaceEvalCmd
+namespace exists	open	namespaces:Tcl_GetCurrentNamespace	NamespaceExistsCmd
+namespace export	open	interpreter:TclGetCurrentNamespace:varFramePtr,namespaces:TclGetNamespaceForQualName	NamespaceExportCmd
+namespace forget	open	commands:Tcl_DeleteCommandFromToken,interpreter:TclGetCurrentNamespace:varFramePtr,namespaces:TclGetNamespaceForQualName	NamespaceForgetCmd
+namespace import	open	commands:Tcl_CreateObjCommand,interpreter:DoImport:globalNsPtr,namespaces:TclGetNamespaceForQualName,scripts:TclNREvalObjv	NamespaceImportCmd
+namespace inscope	open	interpreter:TclPopStackFrame:framePtr,namespaces:Tcl_PopCallFrame,scripts:TclNREvalObjEx,variables:TclGetNamespaceFromObj	NamespaceInscopeCmd,NRNamespaceInscopeCmd
+namespace origin	open	commands:TclGetOriginalCommand,interpreter:Tcl_GetCommandFullName:globalNsPtr	NamespaceOriginCmd
+namespace parent	open	interpreter:TclGetCurrentNamespace:varFramePtr,variables:TclGetNamespaceFromObj	NamespaceParentCmd
+namespace path	open	interpreter:TclGetCurrentNamespace:varFramePtr,variables:TclGetNamespaceFromObj	NamespacePathCmd
+namespace qualifiers	closed	-	NamespaceQualifiersCmd
+namespace tail	closed	-	NamespaceTailCmd
+namespace unknown	open	interpreter:Tcl_GetNamespaceUnknownHandler:globalNsPtr	NamespaceUnknownCmd
+namespace upvar	open	indirect:TclLookupSimpleVar:varResProc,interpreter:NamespaceUpvarCmd:varFramePtr,namespaces:TclGetNamespaceForQualName,variables:TclObjVarErrMsg,completion:TCL_CONTINUE	NamespaceUpvarCmd
+namespace which	open	commands:Tcl_GetCommandFromObj,indirect:ObjFindNamespaceVar:varResProc,interpreter:ObjFindNamespaceVar:resolverPtr,namespaces:TclGetNamespaceForQualName,variables:Tcl_GetVariableFullName,completion:TCL_CONTINUE	NamespaceWhichCmd
+oo::InfoClass call	open	commands:TclGetOriginalCommand,indirect:TclOOObjectCmdCore:mapMethodNameProc,interpreter:Tcl_GetCommandFullName:globalNsPtr,scripts:TclNRAddCallback,completion:TCL_BREAK	InfoClassCallCmd
+oo::InfoClass constructor	open	commands:TclGetOriginalCommand,indirect:TclOOObjectCmdCore:mapMethodNameProc,scripts:TclNRAddCallback,completion:TCL_BREAK	InfoClassConstrCmd
+oo::InfoClass definition	open	commands:TclGetOriginalCommand,indirect:TclOOObjectCmdCore:mapMethodNameProc,scripts:TclNRAddCallback,completion:TCL_BREAK	InfoClassDefnCmd
+oo::InfoClass destructor	open	commands:TclGetOriginalCommand,indirect:TclOOObjectCmdCore:mapMethodNameProc,scripts:TclNRAddCallback,completion:TCL_BREAK	InfoClassDestrCmd
+oo::InfoClass filters	open	commands:TclGetOriginalCommand,indirect:TclOOObjectCmdCore:mapMethodNameProc,scripts:TclNRAddCallback,completion:TCL_BREAK	InfoClassFiltersCmd
+oo::InfoClass forward	open	commands:TclGetOriginalCommand,indirect:TclOOObjectCmdCore:mapMethodNameProc,scripts:TclNRAddCallback,completion:TCL_BREAK	InfoClassForwardCmd
+oo::InfoClass instances	open	commands:TclGetOriginalCommand,indirect:TclOOObjectCmdCore:mapMethodNameProc,interpreter:Tcl_GetCommandFullName:globalNsPtr,scripts:TclNRAddCallback,completion:TCL_BREAK	InfoClassInstancesCmd
+oo::InfoClass methods	open	commands:TclGetOriginalCommand,indirect:TclOOObjectCmdCore:mapMethodNameProc,scripts:TclNRAddCallback,completion:TCL_BREAK	InfoClassMethodsCmd
+oo::InfoClass methodtype	open	commands:TclGetOriginalCommand,indirect:TclOOObjectCmdCore:mapMethodNameProc,scripts:TclNRAddCallback,completion:TCL_BREAK	InfoClassMethodTypeCmd
+oo::InfoClass mixins	open	commands:TclGetOriginalCommand,indirect:TclOOObjectCmdCore:mapMethodNameProc,interpreter:Tcl_GetCommandFullName:globalNsPtr,scripts:TclNRAddCallback,completion:TCL_BREAK	InfoClassMixinsCmd
+oo::InfoClass subclasses	open	commands:TclGetOriginalCommand,indirect:TclOOObjectCmdCore:mapMethodNameProc,interpreter:Tcl_GetCommandFullName:globalNsPtr,scripts:TclNRAddCallback,completion:TCL_BREAK	InfoClassSubsCmd
+oo::InfoClass superclasses	open	commands:TclGetOriginalCommand,indirect:TclOOObjectCmdCore:mapMethodNameProc,interpreter:Tcl_GetCommandFullName:globalNsPtr,scripts:TclNRAddCallback,completion:TCL_BREAK	InfoClassSupersCmd
+oo::InfoClass variables	open	commands:TclGetOriginalCommand,indirect:TclOOObjectCmdCore:mapMethodNameProc,scripts:TclNRAddCallback,completion:TCL_BREAK	InfoClassVariablesCmd
+oo::InfoObject call	open	commands:TclGetOriginalCommand,indirect:TclOOObjectCmdCore:mapMethodNameProc,interpreter:Tcl_GetCommandFullName:globalNsPtr,scripts:TclNRAddCallback,completion:TCL_BREAK	InfoObjectCallCmd
+oo::InfoObject class	open	commands:TclGetOriginalCommand,indirect:TclOOObjectCmdCore:mapMethodNameProc,interpreter:Tcl_GetCommandFullName:globalNsPtr,scripts:TclNRAddCallback,completion:TCL_BREAK	InfoObjectClassCmd
+oo::InfoObject definition	open	commands:TclGetOriginalCommand,indirect:TclOOObjectCmdCore:mapMethodNameProc,scripts:TclNRAddCallback,completion:TCL_BREAK	InfoObjectDefnCmd
+oo::InfoObject filters	open	commands:TclGetOriginalCommand,indirect:TclOOObjectCmdCore:mapMethodNameProc,scripts:TclNRAddCallback,completion:TCL_BREAK	InfoObjectFiltersCmd
+oo::InfoObject forward	open	commands:TclGetOriginalCommand,indirect:TclOOObjectCmdCore:mapMethodNameProc,scripts:TclNRAddCallback,completion:TCL_BREAK	InfoObjectForwardCmd
+oo::InfoObject isa	open	commands:TclGetOriginalCommand,indirect:TclOOObjectCmdCore:mapMethodNameProc,interpreter:GetFoundation:objectFoundation,scripts:TclNRAddCallback,completion:TCL_BREAK	InfoObjectIsACmd
+oo::InfoObject methods	open	commands:TclGetOriginalCommand,indirect:TclOOObjectCmdCore:mapMethodNameProc,scripts:TclNRAddCallback,completion:TCL_BREAK	InfoObjectMethodsCmd
+oo::InfoObject methodtype	open	commands:TclGetOriginalCommand,indirect:TclOOObjectCmdCore:mapMethodNameProc,scripts:TclNRAddCallback,completion:TCL_BREAK	InfoObjectMethodTypeCmd
+oo::InfoObject mixins	open	commands:TclGetOriginalCommand,indirect:TclOOObjectCmdCore:mapMethodNameProc,interpreter:Tcl_GetCommandFullName:globalNsPtr,scripts:TclNRAddCallback,completion:TCL_BREAK	InfoObjectMixinsCmd
+oo::InfoObject namespace	open	commands:TclGetOriginalCommand,indirect:TclOOObjectCmdCore:mapMethodNameProc,scripts:TclNRAddCallback,completion:TCL_BREAK	InfoObjectNsCmd
+oo::InfoObject variables	open	commands:TclGetOriginalCommand,indirect:TclOOObjectCmdCore:mapMethodNameProc,scripts:TclNRAddCallback,completion:TCL_BREAK	InfoObjectVariablesCmd
+oo::InfoObject vars	open	commands:TclGetOriginalCommand,indirect:TclOOObjectCmdCore:mapMethodNameProc,scripts:TclNRAddCallback,completion:TCL_BREAK	InfoObjectVarsCmd
+open	open	channels:Tcl_GetChannelName,clock:time,entropy:rand,filesystem:Tcl_FSGetTranslatedPath,indirect:Tcl_DeleteFileHandler:deleteFileHandlerProc,interpreter:TclpCloseFile:handle,process:TclGetEnv,unresolved:TclpCloseFile:close,completion:TCL_RETURN	Tcl_OpenObjCmd
+package	open	interpreter:TclNRPackageObjCmd:packageTable,packages:Tcl_PkgProvideEx,scripts:Tcl_NRAddCallback	Tcl_PackageObjCmd,TclNRPackageObjCmd
+package forget	open	interpreter:body:packageTable	switch
+package ifneeded	open	interpreter:body:packageTable	switch
+package names	open	interpreter:body:packageTable	switch
+package prefer	open	interpreter:body:packagePrefer	switch
+package present	open	interpreter:body:packageTable,packages:Tcl_PkgPresentEx,scripts:Tcl_NRAddCallback	switch
+package provide	open	interpreter:body:packageTable,packages:Tcl_PkgProvideEx	switch
+package require	open	interpreter:PkgRequireCoreStep1:packageUnknown,scripts:Tcl_NRAddCallback	switch
+package unknown	open	interpreter:body:packageUnknown	switch
+package vcompare	closed	-	switch
+package versions	open	interpreter:body:packageTable	switch
+package vsatisfies	closed	-	switch
+pid	open	channels:Tcl_GetChannelInstanceData,process:TclpGetPid	Tcl_PidObjCmd
+proc	open	channels:fflush,clock:Tcl_GetTime,commands:TclCreateObjCommandInNs,filesystem:Tcl_FSGetNormalizedPath,indirect:TclProcCleanupProc:deleteProc,interpreter:Tcl_ProcObjCmd:cmdFramePtr,namespaces:Tcl_PopCallFrame,scripts:TclCompileScript,unresolved:InterpProcNR2:errorProc,variables:Tcl_LinkVar,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	Tcl_ProcObjCmd
+puts	open	channels:Tcl_GetChannelErrorInterp,completion:TCL_RETURN	Tcl_PutsObjCmd
+pwd	open	filesystem:Tcl_FSGetCwd	Tcl_PwdObjCmd
+read	open	channels:Tcl_ReadObjCmd	Tcl_ReadObjCmd
+regexp	open	unresolved:RegExpExecUniChar:TclReExec,variables:Tcl_ObjSetVar2	Tcl_RegexpObjCmd
+regsub	open	unresolved:RegExpExecUniChar:TclReExec,variables:Tcl_ObjSetVar2	Tcl_RegsubObjCmd
+rename	open	commands:TclRenameCommand	Tcl_RenameObjCmd
+return	open	completion:TCL_RETURN	Tcl_ReturnObjCmd
+scan	open	variables:Tcl_ObjSetVar2	Tcl_ScanObjCmd
+seek	open	channels:Tcl_GetChannelErrorInterp,completion:TCL_RETURN	Tcl_SeekObjCmd
+set	open	variables:Tcl_ObjSetVar2	Tcl_SetObjCmd
+socket	open	channels:Tcl_GetChannelName,clock:time,indirect:Tcl_DeleteFileHandler:deleteFileHandlerProc,interpreter:Tcl_CreateTimerHandler,scripts:Tcl_EvalObjv,unresolved:TcpCloseProc:close,variables:Tcl_GetVar,completion:TCL_BREAK,completion:TCL_RETURN	Tcl_SocketObjCmd
+source	open	scripts:TclNREvalFile	Tcl_SourceObjCmd,TclNRSourceObjCmd
+split	closed	-	Tcl_SplitObjCmd
+string bytelength	closed	-	StringBytesCmd
+string cat	closed	-	StringCatCmd
+string compare	closed	-	StringCmpCmd
+string equal	closed	-	StringEqualCmd
+string first	closed	-	StringFirstCmd
+string index	closed	-	StringIndexCmd
+string is	open	variables:Tcl_ObjSetVar2	StringIsCmd
+string last	closed	-	StringLastCmd
+string length	closed	-	StringLenCmd
+string map	closed	-	StringMapCmd
+string match	closed	-	StringMatchCmd
+string range	closed	-	StringRangeCmd
+string repeat	closed	-	StringReptCmd
+string replace	closed	-	StringRplcCmd
+string reverse	closed	-	StringRevCmd
+string tolower	closed	-	StringLowerCmd
+string totitle	closed	-	StringTitleCmd
+string toupper	closed	-	StringUpperCmd
+string trim	closed	-	StringTrimCmd
+string trimleft	closed	-	StringTrimLCmd
+string trimright	closed	-	StringTrimRCmd
+string wordend	closed	-	StringEndCmd
+string wordstart	closed	-	StringStartCmd
+subst	open	channels:fflush,clock:Tcl_GetTime,filesystem:Tcl_FSGetNormalizedPath,indirect:FormatInstruction:printProc,interpreter:CompileSubstObj:varFramePtr,scripts:TclNRExecuteByteCode,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	Tcl_SubstObjCmd,TclNRSubstObjCmd
+switch	open	interpreter:TclNRSwitchObjCmd:cmdFramePtr,scripts:TclNREvalObjEx,unresolved:RegExpExecUniChar:TclReExec,variables:Tcl_ObjSetVar2	Tcl_SwitchObjCmd,TclNRSwitchObjCmd
+tailcall	open	interpreter:TclNRTailcallObjCmd:varFramePtr,completion:TCL_RETURN	TclNRTailcallObjCmd
+tcl::mathfunc::abs	closed	-	ExprAbsFunc
+tcl::mathfunc::acos	closed	-	ExprUnaryFunc
+tcl::mathfunc::asin	closed	-	ExprUnaryFunc
+tcl::mathfunc::atan	closed	-	ExprUnaryFunc
+tcl::mathfunc::atan2	closed	-	ExprBinaryFunc
+tcl::mathfunc::bool	closed	-	ExprBoolFunc
+tcl::mathfunc::ceil	closed	-	ExprCeilFunc
+tcl::mathfunc::cos	closed	-	ExprUnaryFunc
+tcl::mathfunc::cosh	closed	-	ExprUnaryFunc
+tcl::mathfunc::double	closed	-	ExprDoubleFunc
+tcl::mathfunc::entier	closed	-	ExprEntierFunc
+tcl::mathfunc::exp	closed	-	ExprUnaryFunc
+tcl::mathfunc::floor	closed	-	ExprFloorFunc
+tcl::mathfunc::fmod	closed	-	ExprBinaryFunc
+tcl::mathfunc::hypot	closed	-	ExprBinaryFunc,hypot
+tcl::mathfunc::int	closed	-	ExprIntFunc
+tcl::mathfunc::isqrt	closed	-	ExprIsqrtFunc
+tcl::mathfunc::log	closed	-	ExprUnaryFunc
+tcl::mathfunc::log10	closed	-	ExprUnaryFunc
+tcl::mathfunc::pow	closed	-	ExprBinaryFunc
+tcl::mathfunc::rand	open	clock:TclpGetClicks,interpreter:ExprRandFunc:randSeed	ExprRandFunc
+tcl::mathfunc::round	closed	-	ExprRoundFunc
+tcl::mathfunc::sin	closed	-	ExprUnaryFunc
+tcl::mathfunc::sinh	closed	-	ExprUnaryFunc
+tcl::mathfunc::sqrt	closed	-	ExprSqrtFunc
+tcl::mathfunc::srand	open	clock:TclpGetClicks,interpreter:ExprSrandFunc:randSeed	ExprSrandFunc
+tcl::mathfunc::tan	closed	-	ExprUnaryFunc
+tcl::mathfunc::tanh	closed	-	ExprUnaryFunc
+tcl::mathfunc::wide	closed	-	ExprWideFunc
+tcl::mathop::!	open	channels:fflush,clock:Tcl_GetTime,filesystem:Tcl_FSGetNormalizedPath,interpreter:TclVerifyGlobalLiteralTable:literalTable,scripts:TclNRRunCallbacks,unresolved:dumpchr:putc,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	TclSingleOpCmd
+tcl::mathop::!=	open	channels:fflush,clock:Tcl_GetTime,filesystem:Tcl_FSGetNormalizedPath,interpreter:TclVerifyGlobalLiteralTable:literalTable,scripts:TclNRRunCallbacks,unresolved:dumpchr:putc,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	TclSingleOpCmd
+tcl::mathop::%	open	channels:fflush,clock:Tcl_GetTime,filesystem:Tcl_FSGetNormalizedPath,interpreter:TclVerifyGlobalLiteralTable:literalTable,scripts:TclNRRunCallbacks,unresolved:dumpchr:putc,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	TclSingleOpCmd
+tcl::mathop::&	open	channels:fflush,clock:Tcl_GetTime,filesystem:Tcl_FSGetNormalizedPath,interpreter:TclVerifyGlobalLiteralTable:literalTable,scripts:TclNRRunCallbacks,unresolved:dumpchr:putc,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	TclVariadicOpCmd
+tcl::mathop::*	open	channels:fflush,clock:Tcl_GetTime,filesystem:Tcl_FSGetNormalizedPath,interpreter:TclVerifyGlobalLiteralTable:literalTable,scripts:TclNRRunCallbacks,unresolved:dumpchr:putc,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	TclVariadicOpCmd
+tcl::mathop::**	open	channels:fflush,clock:Tcl_GetTime,filesystem:Tcl_FSGetNormalizedPath,interpreter:TclVerifyGlobalLiteralTable:literalTable,scripts:TclNRRunCallbacks,unresolved:dumpchr:putc,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	TclVariadicOpCmd
+tcl::mathop::+	open	channels:fflush,clock:Tcl_GetTime,filesystem:Tcl_FSGetNormalizedPath,interpreter:TclVerifyGlobalLiteralTable:literalTable,scripts:TclNRRunCallbacks,unresolved:dumpchr:putc,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	TclVariadicOpCmd
+tcl::mathop::-	open	channels:fflush,clock:Tcl_GetTime,filesystem:Tcl_FSGetNormalizedPath,interpreter:TclVerifyGlobalLiteralTable:literalTable,scripts:TclNRRunCallbacks,unresolved:dumpchr:putc,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	TclNoIdentOpCmd
+tcl::mathop::/	open	channels:fflush,clock:Tcl_GetTime,filesystem:Tcl_FSGetNormalizedPath,interpreter:TclVerifyGlobalLiteralTable:literalTable,scripts:TclNRRunCallbacks,unresolved:dumpchr:putc,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	TclNoIdentOpCmd
+tcl::mathop::<	open	channels:fflush,clock:Tcl_GetTime,filesystem:Tcl_FSGetNormalizedPath,interpreter:TclVerifyGlobalLiteralTable:literalTable,scripts:TclNRRunCallbacks,unresolved:dumpchr:putc,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	TclSortingOpCmd
+tcl::mathop::<<	open	channels:fflush,clock:Tcl_GetTime,filesystem:Tcl_FSGetNormalizedPath,interpreter:TclVerifyGlobalLiteralTable:literalTable,scripts:TclNRRunCallbacks,unresolved:dumpchr:putc,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	TclSingleOpCmd
+tcl::mathop::<=	open	channels:fflush,clock:Tcl_GetTime,filesystem:Tcl_FSGetNormalizedPath,interpreter:TclVerifyGlobalLiteralTable:literalTable,scripts:TclNRRunCallbacks,unresolved:dumpchr:putc,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	TclSortingOpCmd
+tcl::mathop::==	open	channels:fflush,clock:Tcl_GetTime,filesystem:Tcl_FSGetNormalizedPath,interpreter:TclVerifyGlobalLiteralTable:literalTable,scripts:TclNRRunCallbacks,unresolved:dumpchr:putc,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	TclSortingOpCmd
+tcl::mathop::>	open	channels:fflush,clock:Tcl_GetTime,filesystem:Tcl_FSGetNormalizedPath,interpreter:TclVerifyGlobalLiteralTable:literalTable,scripts:TclNRRunCallbacks,unresolved:dumpchr:putc,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	TclSortingOpCmd
+tcl::mathop::>=	open	channels:fflush,clock:Tcl_GetTime,filesystem:Tcl_FSGetNormalizedPath,interpreter:TclVerifyGlobalLiteralTable:literalTable,scripts:TclNRRunCallbacks,unresolved:dumpchr:putc,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	TclSortingOpCmd
+tcl::mathop::>>	open	channels:fflush,clock:Tcl_GetTime,filesystem:Tcl_FSGetNormalizedPath,interpreter:TclVerifyGlobalLiteralTable:literalTable,scripts:TclNRRunCallbacks,unresolved:dumpchr:putc,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	TclSingleOpCmd
+tcl::mathop::^	open	channels:fflush,clock:Tcl_GetTime,filesystem:Tcl_FSGetNormalizedPath,interpreter:TclVerifyGlobalLiteralTable:literalTable,scripts:TclNRRunCallbacks,unresolved:dumpchr:putc,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	TclVariadicOpCmd
+tcl::mathop::eq	open	channels:fflush,clock:Tcl_GetTime,filesystem:Tcl_FSGetNormalizedPath,interpreter:TclVerifyGlobalLiteralTable:literalTable,scripts:TclNRRunCallbacks,unresolved:dumpchr:putc,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	TclSortingOpCmd
+tcl::mathop::in	open	channels:fflush,clock:Tcl_GetTime,filesystem:Tcl_FSGetNormalizedPath,interpreter:TclVerifyGlobalLiteralTable:literalTable,scripts:TclNRRunCallbacks,unresolved:dumpchr:putc,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	TclSingleOpCmd
+tcl::mathop::ne	open	channels:fflush,clock:Tcl_GetTime,filesystem:Tcl_FSGetNormalizedPath,interpreter:TclVerifyGlobalLiteralTable:literalTable,scripts:TclNRRunCallbacks,unresolved:dumpchr:putc,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	TclSingleOpCmd
+tcl::mathop::ni	open	channels:fflush,clock:Tcl_GetTime,filesystem:Tcl_FSGetNormalizedPath,interpreter:TclVerifyGlobalLiteralTable:literalTable,scripts:TclNRRunCallbacks,unresolved:dumpchr:putc,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	TclSingleOpCmd
+tcl::mathop::|	open	channels:fflush,clock:Tcl_GetTime,filesystem:Tcl_FSGetNormalizedPath,interpreter:TclVerifyGlobalLiteralTable:literalTable,scripts:TclNRRunCallbacks,unresolved:dumpchr:putc,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	TclVariadicOpCmd
+tcl::mathop::~	open	channels:fflush,clock:Tcl_GetTime,filesystem:Tcl_FSGetNormalizedPath,interpreter:TclVerifyGlobalLiteralTable:literalTable,scripts:TclNRRunCallbacks,unresolved:dumpchr:putc,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	TclSingleOpCmd
+tcl::prefix all	closed	-	PrefixAllObjCmd
+tcl::prefix longest	closed	-	PrefixLongestObjCmd
+tcl::prefix match	open	completion:TCL_RETURN	PrefixMatchObjCmd
+tell	open	channels:Tcl_GetChannelErrorInterp,completion:TCL_RETURN	Tcl_TellObjCmd
+throw	open	completion:TCL_RETURN	Tcl_ThrowObjCmd
+time	open	clock:time,scripts:TclEvalObjEx,unresolved:TclpWideClicksToNanoseconds:mach_timebase_info	Tcl_TimeObjCmd
+timerate	open	channels:fflush,clock:Tcl_GetTime,filesystem:Tcl_FSGetNormalizedPath,indirect:FormatInstruction:printProc,interpreter:Tcl_TimeRateObjCmd:evalFlags,scripts:TclEvalObjEx,unresolved:TclpWideClickInMicrosec:mach_timebase_info,variables:Tcl_LinkVar,completion:TCL_BREAK,completion:TCL_CONTINUE	Tcl_TimeRateObjCmd
+trace	open	commands:Tcl_FindCommand,interpreter:Tcl_LimitExceeded:limit,scripts:Tcl_EvalEx,variables:TclLookupVar	Tcl_TraceObjCmd
+trace add	open	commands:Tcl_FindCommand,interpreter:Tcl_LimitExceeded:limit,scripts:Tcl_EvalEx,variables:TclLookupVar	switch
+trace info	open	commands:Tcl_FindCommand,interpreter:Tcl_LimitExceeded:limit,scripts:Tcl_EvalEx,variables:TclLookupVar	switch
+trace remove	open	commands:Tcl_FindCommand,interpreter:Tcl_LimitExceeded:limit,scripts:Tcl_EvalEx,variables:TclLookupVar	switch
+trace vdelete	open	commands:Tcl_FindCommand,interpreter:Tcl_LimitExceeded:limit,scripts:Tcl_EvalEx,variables:TclLookupVar	switch
+try	open	interpreter:TclNRTryObjCmd:cmdFramePtr,scripts:TclNREvalObjEx,variables:Tcl_ObjSetVar2,completion:TCL_RETURN	Tcl_TryObjCmd,TclNRTryObjCmd
+try finally	open	interpreter:body:cmdFramePtr,scripts:TclNREvalObjEx,variables:Tcl_ObjSetVar2,completion:TCL_RETURN	switch
+try on	open	interpreter:body:cmdFramePtr,scripts:TclNREvalObjEx,variables:Tcl_ObjSetVar2,completion:TCL_RETURN	switch
+try trap	open	interpreter:body:cmdFramePtr,scripts:TclNREvalObjEx,variables:Tcl_ObjSetVar2,completion:TCL_RETURN	switch
+unload	open	filesystem:Tcl_FSUnloadFile,interpreter:Tcl_SetAssocData,unresolved:Tcl_UnloadObjCmd:unloadProc,completion:TCL_RETURN	Tcl_UnloadObjCmd
+unset	open	variables:TclPtrUnsetVarIdx	Tcl_UnsetObjCmd
+update	open	interpreter:Tcl_LimitExceeded:limit	Tcl_UpdateObjCmd
+update idletasks	open	interpreter:Tcl_LimitExceeded:limit	switch
+uplevel	open	interpreter:TclNRUplevelObjCmd:varFramePtr,namespaces:TclObjGetFrame,scripts:TclNREvalObjEx	Tcl_UplevelObjCmd,TclNRUplevelObjCmd
+upvar	open	indirect:TclLookupSimpleVar:varResProc,interpreter:ObjMakeUpvar:rootFramePtr,namespaces:TclGetNamespaceForQualName,variables:TclObjVarErrMsg,completion:TCL_CONTINUE	Tcl_UpvarObjCmd
+variable	open	indirect:TclLookupSimpleVar:varResProc,interpreter:Tcl_VariableObjCmd:varFramePtr,namespaces:TclGetNamespaceForQualName,variables:TclObjVarErrMsg,completion:TCL_CONTINUE	Tcl_VariableObjCmd
+vwait	open	interpreter:Tcl_UntraceVar2:varTraces,variables:TclLookupVar	Tcl_VwaitObjCmd
+while	open	interpreter:ForCondCallback:cmdFramePtr,scripts:Tcl_NRExprObj,completion:TCL_BREAK,completion:TCL_CONTINUE	Tcl_WhileObjCmd,TclNRWhileObjCmd
+yield	open	scripts:TclNRCoroutineActivateCallback	TclNRYieldObjCmd
+yieldto	open	interpreter:TclGetCurrentNamespace:varFramePtr,scripts:TclNRCoroutineActivateCallback	TclNRYieldToObjCmd

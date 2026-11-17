@@ -1,0 +1,199 @@
+# tcl8.4.20 generic/*.c, by scripts/dev/tcl_command_evidence.py
+# NAME	VERDICT	CLASSES	ROOTS
+after	open	channels:Tcl_Flush,clock:time,commands:Tcl_FindCommand,indirect:TimerHandlerEventProc:timerHandlerPtr->proc,interpreter:TclGlobalInvoke:varFramePtr,scripts:TclInvoke,variables:Tcl_SetVar,completion:TCL_BREAK	Tcl_AfterObjCmd
+after cancel	open	channels:Tcl_Flush,clock:time,commands:Tcl_FindCommand,indirect:TimerHandlerEventProc:timerHandlerPtr->proc,interpreter:TclGlobalInvoke:varFramePtr,scripts:TclInvoke,variables:Tcl_SetVar,completion:TCL_BREAK	switch
+after idle	open	channels:Tcl_Flush,clock:time,commands:Tcl_FindCommand,indirect:TimerHandlerEventProc:timerHandlerPtr->proc,interpreter:TclGlobalInvoke:varFramePtr,scripts:TclInvoke,variables:Tcl_SetVar,completion:TCL_BREAK	switch
+after info	open	channels:Tcl_Flush,clock:time,commands:Tcl_FindCommand,indirect:TimerHandlerEventProc:timerHandlerPtr->proc,interpreter:TclGlobalInvoke:varFramePtr,scripts:TclInvoke,variables:Tcl_SetVar,completion:TCL_BREAK	switch
+append	open	variables:TclPtrSetVar	Tcl_AppendObjCmd
+array	open	indirect:CallVarTraces:tracePtr->traceProc,interpreter:Tcl_ArrayObjCmd:tracePtr,unresolved:RegExpExecUniChar:TclReExec,variables:TclObjLookupVar	Tcl_ArrayObjCmd
+array anymore	open	indirect:CallVarTraces:tracePtr->traceProc,interpreter:body:tracePtr,variables:TclObjLookupVar	switch
+array donesearch	open	indirect:CallVarTraces:tracePtr->traceProc,interpreter:body:tracePtr,variables:TclObjLookupVar	switch
+array exists	open	indirect:CallVarTraces:tracePtr->traceProc,interpreter:body:tracePtr,variables:TclObjLookupVar	switch
+array get	open	indirect:CallVarTraces:tracePtr->traceProc,interpreter:body:tracePtr,variables:Tcl_ObjGetVar2	switch
+array names	open	indirect:CallVarTraces:tracePtr->traceProc,interpreter:body:tracePtr,unresolved:RegExpExecUniChar:TclReExec,variables:TclObjLookupVar	switch
+array nextelement	open	indirect:CallVarTraces:tracePtr->traceProc,interpreter:body:tracePtr,variables:TclObjLookupVar	switch
+array set	open	indirect:CallVarTraces:tracePtr->traceProc,interpreter:body:tracePtr,variables:TclPtrSetVar	switch
+array size	open	indirect:CallVarTraces:tracePtr->traceProc,interpreter:body:tracePtr,variables:TclObjLookupVar	switch
+array startsearch	open	indirect:CallVarTraces:tracePtr->traceProc,interpreter:body:tracePtr,variables:TclObjLookupVar	switch
+array statistics	open	indirect:CallVarTraces:tracePtr->traceProc,interpreter:body:tracePtr,variables:TclObjLookupVar	switch
+array unset	open	indirect:CallVarTraces:tracePtr->traceProc,interpreter:body:tracePtr,variables:TclObjLookupVar	switch
+binary	open	variables:Tcl_ObjSetVar2	Tcl_BinaryObjCmd
+binary format	closed	-	switch
+binary scan	open	variables:Tcl_ObjSetVar2	switch
+break	open	completion:TCL_BREAK	Tcl_BreakObjCmd
+case	open	scripts:Tcl_EvalObjEx	Tcl_CaseObjCmd
+catch	open	interpreter:Tcl_CatchObjCmd:cmdFramePtr,scripts:TclEvalObjEx,variables:Tcl_ObjSetVar2	Tcl_CatchObjCmd
+cd	open	filesystem:Tcl_FSChdir	Tcl_CdObjCmd
+clock	open	clock:TclpGetSeconds,indirect:Tcl_ExternalToUtfDString:encodingPtr->toUtfProc,unresolved:TclGetDate:TclDateparse,variables:Tcl_UnsetVar2	Tcl_ClockObjCmd
+clock clicks	open	clock:TclpGetClicks	switch
+clock format	open	clock:TclpGetTZName,indirect:Tcl_ExternalToUtfDString:encodingPtr->toUtfProc,unresolved:FormatClock:tzset,variables:Tcl_UnsetVar2	switch
+clock scan	open	clock:TclpGetDate,unresolved:TclGetDate:TclDateparse	switch
+clock seconds	open	clock:TclpGetSeconds	switch
+close	open	channels:Tcl_CloseObjCmd	Tcl_CloseObjCmd
+concat	closed	-	Tcl_ConcatObjCmd
+continue	open	completion:TCL_CONTINUE	Tcl_ContinueObjCmd
+encoding	open	encodings:Tcl_SetSystemEncoding,indirect:Tcl_UtfToExternalDString:encodingPtr->fromUtfProc	Tcl_EncodingObjCmd
+encoding convertfrom	open	encodings:TclGetEncodingFromObj,indirect:Tcl_UtfToExternalDString:encodingPtr->fromUtfProc	switch
+encoding convertto	open	encodings:TclGetEncodingFromObj,indirect:Tcl_UtfToExternalDString:encodingPtr->fromUtfProc	switch
+encoding names	open	encodings:Tcl_GetEncodingNames	switch
+encoding system	open	encodings:Tcl_SetSystemEncoding	switch
+eof	open	channels:Tcl_Eof	Tcl_EofObjCmd
+error	open	variables:Tcl_SetVar2Ex	Tcl_ErrorObjCmd
+eval	open	scripts:Tcl_EvalObjCmd	Tcl_EvalObjCmd
+exec	open	channels:Tcl_Close,filesystem:Tcl_FSGetTranslatedPath,indirect:Tcl_DeleteFileHandler:tcl_DeleteFileHandler,interpreter:TclpCloseFile:handle,process:TclpGetPid,unresolved:TclGetAndDetachPids:wsprintfA	Tcl_ExecObjCmd
+exit	open	process:Tcl_Exit	Tcl_ExitObjCmd
+expr	open	scripts:Tcl_ExprObj	Tcl_ExprObjCmd
+fblocked	open	channels:Tcl_InputBlocked	Tcl_FblockedObjCmd
+fconfigure	open	channels:Tcl_SetChannelOption	Tcl_FconfigureObjCmd
+fcopy	open	channels:Tcl_Close,commands:Tcl_FindCommand,indirect:Tcl_UtfToExternal:encodingPtr->fromUtfProc,interpreter:Tcl_DeleteTimerHandler,scripts:TclInvoke,variables:Tcl_SetVar,completion:TCL_BREAK	Tcl_FcopyObjCmd
+file	open	channels:Tcl_Close,commands:Tcl_FindCommand,filesystem:Tcl_FSAccess,indirect:Tcl_UtfToExternal:encodingPtr->fromUtfProc,interpreter:Tcl_DeleteTimerHandler,scripts:TclInvoke,unresolved:Tcl_FileObjCmd:geteuid,variables:Tcl_ObjSetVar2,completion:TCL_BREAK	Tcl_FileObjCmd
+file atime	open	filesystem:Tcl_FSStat	switch
+file attributes	open	filesystem:Tcl_FSFileAttrsSet	switch
+file channels	open	channels:Tcl_GetChannelNamesEx	switch
+file copy	open	channels:Tcl_Close,commands:Tcl_FindCommand,filesystem:Tcl_FSDeleteFile,indirect:Tcl_UtfToExternal:encodingPtr->fromUtfProc,interpreter:Tcl_DeleteTimerHandler,scripts:TclInvoke,variables:Tcl_SetVar,completion:TCL_BREAK	switch
+file delete	open	filesystem:Tcl_FSDeleteFile	switch
+file dirname	open	filesystem:Tcl_FSAccess	switch
+file executable	open	filesystem:Tcl_FSAccess	switch
+file exists	open	filesystem:Tcl_FSAccess	switch
+file extension	closed	-	switch
+file isdirectory	open	filesystem:Tcl_FSStat	switch
+file isfile	open	filesystem:Tcl_FSStat	switch
+file join	open	filesystem:Tcl_FSJoinToPath	switch
+file link	open	filesystem:Tcl_FSLink	switch
+file lstat	open	filesystem:Tcl_FSLstat,variables:Tcl_ObjSetVar2	switch
+file mkdir	open	filesystem:Tcl_FSStat	switch
+file mtime	open	filesystem:Tcl_FSStat	switch
+file nativename	open	filesystem:Tcl_FSGetTranslatedPath	switch
+file normalize	open	filesystem:Tcl_FSGetNormalizedPath	switch
+file owned	open	filesystem:Tcl_FSStat,unresolved:body:geteuid	switch
+file pathtype	open	filesystem:Tcl_FSGetPathType	switch
+file readable	open	filesystem:Tcl_FSAccess	switch
+file readlink	open	filesystem:Tcl_FSLink	switch
+file rename	open	channels:Tcl_Close,commands:Tcl_FindCommand,filesystem:Tcl_FSDeleteFile,indirect:Tcl_UtfToExternal:encodingPtr->fromUtfProc,interpreter:Tcl_DeleteTimerHandler,scripts:TclInvoke,variables:Tcl_SetVar,completion:TCL_BREAK	switch
+file rootname	closed	-	switch
+file separator	open	filesystem:Tcl_FSPathSeparator	switch
+file size	open	filesystem:Tcl_FSStat	switch
+file split	open	filesystem:Tcl_FSSplitPath	switch
+file stat	open	filesystem:Tcl_FSStat,variables:Tcl_ObjSetVar2	switch
+file system	open	filesystem:Tcl_FSGetPathType	switch
+file tail	open	filesystem:Tcl_FSGetPathType	switch
+file type	open	filesystem:Tcl_FSLstat	switch
+file volumes	open	filesystem:Tcl_FSListVolumes	switch
+file writable	open	filesystem:Tcl_FSAccess	switch
+fileevent	open	channels:Tcl_Flush,commands:Tcl_FindCommand,interpreter:TclGlobalInvoke:varFramePtr,scripts:TclInvoke,variables:Tcl_SetVar,completion:TCL_BREAK	Tcl_FileEventObjCmd
+flush	open	channels:Tcl_Flush	Tcl_FlushObjCmd
+for	open	interpreter:Tcl_ForObjCmd:cmdFramePtr,scripts:TclEvalObjEx,completion:TCL_BREAK,completion:TCL_CONTINUE	Tcl_ForObjCmd
+foreach	open	interpreter:Tcl_ForeachObjCmd:cmdFramePtr,scripts:TclEvalObjEx,variables:Tcl_ObjSetVar2,completion:TCL_BREAK,completion:TCL_CONTINUE	Tcl_ForeachObjCmd
+format	closed	-	Tcl_FormatObjCmd
+gets	open	channels:Tcl_GetsObjCmd	Tcl_GetsObjCmd
+glob	open	filesystem:Tcl_FSMatchInDirectory,process:TclGetEnv	Tcl_GlobObjCmd
+global	open	indirect:TclLookupSimpleVar:cxtNsPtr->varResProc,interpreter:Tcl_GlobalObjCmd:varFramePtr,namespaces:TclGetNamespaceForQualName,variables:TclObjLookupVar,completion:TCL_CONTINUE	Tcl_GlobalObjCmd
+if	open	interpreter:Tcl_IfObjCmd:cmdFramePtr,scripts:TclEvalObjEx	Tcl_IfObjCmd
+incr	open	variables:TclPtrSetVar	Tcl_IncrObjCmd
+info	open	channels:fflush,commands:Tcl_SetCommandInfoFromToken,filesystem:Tcl_GetNameOfExecutable,indirect:TclProcCleanupProc:resVarInfo->deleteProc,interpreter:InfoVarsCmd:varFramePtr,namespaces:TclGetNamespaceForQualName,packages:TclGetLoadedPackages,process:Tcl_GetHostName,unresolved:TclObjInterpProc:TclCompEvalObj,variables:Tcl_GetVariableFullName,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	Tcl_InfoObjCmd
+info args	open	commands:TclFindProc	switch
+info body	open	commands:TclFindProc	switch
+info cmdcount	open	interpreter:InfoCmdCountCmd:cmdCount	switch
+info commands	open	interpreter:Tcl_GetCommandFullName:globalNsPtr,namespaces:TclGetNamespaceForQualName	switch
+info complete	closed	-	switch
+info default	open	commands:TclFindProc,variables:Tcl_ObjSetVar2	switch
+info exists	open	indirect:CallVarTraces:tracePtr->traceProc,interpreter:Tcl_ListMathFuncs:mathFuncTable,variables:TclLookupVar	switch
+info globals	open	namespaces:Tcl_GetGlobalNamespace	switch
+info hostname	open	process:Tcl_GetHostName	switch
+info level	open	interpreter:InfoLevelCmd:varFramePtr	switch
+info library	open	variables:Tcl_GetVar	switch
+info loaded	open	packages:TclGetLoadedPackages	switch
+info locals	open	interpreter:InfoLocalsCmd:varFramePtr	switch
+info nameofexecutable	open	filesystem:Tcl_GetNameOfExecutable	switch
+info patchlevel	open	variables:Tcl_GetVar	switch
+info procs	open	channels:fflush,commands:Tcl_SetCommandInfoFromToken,indirect:TclProcCleanupProc:resVarInfo->deleteProc,interpreter:TclProcCleanupProc:linePBodyPtr,namespaces:Tcl_PopCallFrame,unresolved:TclObjInterpProc:TclCompEvalObj,variables:Tcl_ObjSetVar2,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	switch
+info script	open	interpreter:InfoScriptCmd:scriptFile	switch
+info sharedlibextension	closed	-	switch
+info tclversion	open	variables:Tcl_GetVar	switch
+info vars	open	interpreter:InfoVarsCmd:varFramePtr,namespaces:TclGetNamespaceForQualName,variables:Tcl_GetVariableFullName	switch
+join	closed	-	Tcl_JoinObjCmd
+lappend	open	variables:TclPtrSetVar	Tcl_LappendObjCmd
+lindex	closed	-	Tcl_LindexObjCmd
+linsert	closed	-	Tcl_LinsertObjCmd
+list	closed	-	Tcl_ListObjCmd
+llength	closed	-	Tcl_LlengthObjCmd
+load	open	filesystem:Tcl_FSLoadFile,indirect:Tcl_LoadObjCmd:pkgPtr->safeInitProc,interpreter:Tcl_SetAssocData,variables:Tcl_GetVar2Ex	Tcl_LoadObjCmd
+lrange	closed	-	Tcl_LrangeObjCmd
+lreplace	closed	-	Tcl_LreplaceObjCmd
+lsearch	open	unresolved:RegExpExecUniChar:TclReExec	Tcl_LsearchObjCmd
+lset	open	variables:Tcl_ObjSetVar2	Tcl_LsetObjCmd
+lsort	open	scripts:Tcl_EvalObjv	Tcl_LsortObjCmd
+namespace	open	commands:Tcl_GetCommandFromObj,indirect:Tcl_FindNamespaceVar:cxtNsPtr->varResProc,interpreter:Tcl_FindNamespaceVar:resolverPtr,namespaces:TclGetNamespaceForQualName,scripts:Tcl_EvalObjEx,variables:Tcl_GetVariableFullName,completion:TCL_CONTINUE	Tcl_NamespaceObjCmd
+namespace children	open	interpreter:GetNamespaceFromObj:varFramePtr,namespaces:Tcl_GetCurrentNamespace	switch
+namespace code	open	namespaces:Tcl_GetGlobalNamespace	switch
+namespace current	open	namespaces:Tcl_GetGlobalNamespace	switch
+namespace delete	open	namespaces:Tcl_DeleteNamespace	switch
+namespace eval	open	interpreter:NamespaceEvalCmd:cmdFramePtr,namespaces:Tcl_PopCallFrame,scripts:TclEvalObjEx	switch
+namespace exists	open	interpreter:GetNamespaceFromObj:varFramePtr,namespaces:Tcl_GetCurrentNamespace	switch
+namespace export	open	namespaces:TclGetNamespaceForQualName	switch
+namespace forget	open	commands:Tcl_DeleteCommandFromToken,namespaces:TclGetNamespaceForQualName	switch
+namespace import	open	commands:Tcl_CreateObjCommand,indirect:Tcl_Import:cmdPtr->objProc,interpreter:Tcl_Import:globalNsPtr,namespaces:TclGetNamespaceForQualName	switch
+namespace inscope	open	interpreter:GetNamespaceFromObj:varFramePtr,namespaces:Tcl_PopCallFrame,scripts:Tcl_EvalObjEx	switch
+namespace origin	open	commands:TclGetOriginalCommand,interpreter:Tcl_GetCommandFullName:globalNsPtr	switch
+namespace parent	open	interpreter:GetNamespaceFromObj:varFramePtr,namespaces:Tcl_GetCurrentNamespace	switch
+namespace qualifiers	closed	-	switch
+namespace tail	closed	-	switch
+namespace which	open	commands:Tcl_GetCommandFromObj,indirect:Tcl_FindNamespaceVar:cxtNsPtr->varResProc,interpreter:Tcl_FindNamespaceVar:resolverPtr,namespaces:TclGetNamespaceForQualName,variables:Tcl_GetVariableFullName,completion:TCL_CONTINUE	switch
+open	open	channels:Tcl_GetChannelName,filesystem:Tcl_FSGetTranslatedPath,indirect:Tcl_DeleteFileHandler:tcl_DeleteFileHandler,interpreter:TclpCloseFile:handle,process:TclpCreateProcess,unresolved:TclpCloseFile:close	Tcl_OpenObjCmd
+package	open	interpreter:Tcl_PackageObjCmd:packageTable,packages:Tcl_PkgRequireProc	Tcl_PackageObjCmd
+package forget	open	interpreter:body:packageTable	switch
+package ifneeded	open	interpreter:body:packageTable,packages:Tcl_PkgRequireProc	switch
+pid	open	channels:Tcl_GetChannelInstanceData,process:TclpGetPid,unresolved:Tcl_PidObjCmd:wsprintfA	Tcl_PidObjCmd
+proc	open	channels:fflush,commands:Tcl_SetCommandInfoFromToken,indirect:TclProcCleanupProc:resVarInfo->deleteProc,interpreter:Tcl_ProcObjCmd:globalNsPtr,namespaces:Tcl_PopCallFrame,scripts:TclCompileScript,unresolved:TclObjInterpProc:TclCompEvalObj,variables:Tcl_ObjSetVar2,completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	Tcl_ProcObjCmd
+puts	open	channels:Tcl_WriteChars	Tcl_PutsObjCmd
+pwd	open	filesystem:Tcl_FSGetCwd	Tcl_PwdObjCmd
+read	open	channels:Tcl_ReadObjCmd	Tcl_ReadObjCmd
+regexp	open	unresolved:RegExpExecUniChar:TclReExec,variables:Tcl_ObjSetVar2	Tcl_RegexpObjCmd
+regsub	open	unresolved:RegExpExecUniChar:TclReExec,variables:Tcl_ObjSetVar2	Tcl_RegsubObjCmd
+rename	open	commands:TclRenameCommand	Tcl_RenameObjCmd
+return	open	completion:TCL_BREAK,completion:TCL_CONTINUE,completion:TCL_RETURN	Tcl_ReturnObjCmd
+scan	open	unresolved:Tcl_ScanObjCmd:Tcl_WideInt,variables:Tcl_ObjSetVar2	Tcl_ScanObjCmd
+seek	open	channels:Tcl_Seek	Tcl_SeekObjCmd
+set	open	variables:Tcl_ObjSetVar2	Tcl_SetObjCmd
+socket	open	channels:Tcl_GetChannelName,commands:Tcl_FindCommand,indirect:CreateSocket:socket,interpreter:InitSockets:threadId,scripts:TclInvoke,unresolved:Tcl_OpenTcpClient:wsprintfA,variables:Tcl_SetVar,completion:TCL_BREAK	Tcl_SocketObjCmd
+source	open	filesystem:Tcl_FSEvalFile	Tcl_SourceObjCmd
+split	closed	-	Tcl_SplitObjCmd
+string	open	variables:Tcl_ObjSetVar2	Tcl_StringObjCmd
+string bytelength	closed	-	switch
+string compare	closed	-	switch
+string equal	closed	-	switch
+string first	closed	-	switch
+string index	closed	-	switch
+string is	open	variables:Tcl_ObjSetVar2	switch
+string last	closed	-	switch
+string length	closed	-	switch
+string map	closed	-	switch
+string match	closed	-	switch
+string range	closed	-	switch
+string repeat	closed	-	switch
+string replace	closed	-	switch
+string tolower	closed	-	switch
+string totitle	closed	-	switch
+string toupper	closed	-	switch
+string trim	closed	-	switch
+string trimleft	closed	-	switch
+string trimright	closed	-	switch
+string wordend	closed	-	switch
+string wordstart	closed	-	switch
+subst	open	interpreter:Tcl_SubstObj:evalFlags,scripts:Tcl_EvalEx,completion:TCL_BREAK,completion:TCL_CONTINUE	Tcl_SubstObjCmd
+switch	open	interpreter:Tcl_SwitchObjCmd:cmdFramePtr,scripts:TclEvalObjEx,unresolved:RegExpExecUniChar:TclReExec	Tcl_SwitchObjCmd
+tell	open	channels:Tcl_Tell	Tcl_TellObjCmd
+time	open	clock:Tcl_GetTime,scripts:Tcl_EvalObjEx	Tcl_TimeObjCmd
+trace	open	commands:Tcl_FindCommand,interpreter:Tcl_VarTraceInfo2:tracePtr,scripts:Tcl_EvalEx,variables:TclLookupVar	Tcl_TraceObjCmd
+trace add	open	commands:Tcl_FindCommand,interpreter:TclTraceVariableObjCmd:tracePtr,scripts:Tcl_EvalEx,variables:TclLookupVar	switch
+trace info	open	commands:Tcl_FindCommand,interpreter:TclTraceVariableObjCmd:tracePtr,scripts:Tcl_EvalEx,variables:TclLookupVar	switch
+trace remove	open	commands:Tcl_FindCommand,interpreter:TclTraceVariableObjCmd:tracePtr,scripts:Tcl_EvalEx,variables:TclLookupVar	switch
+trace vdelete	open	commands:Tcl_FindCommand,interpreter:TclTraceVariableObjCmd:tracePtr,scripts:Tcl_EvalEx,variables:TclLookupVar	switch
+unset	open	indirect:CallVarTraces:tracePtr->traceProc,interpreter:CleanupVar:tracePtr,variables:TclObjLookupVar	Tcl_UnsetObjCmd
+update	open	interpreter:Tcl_DoOneEvent	Tcl_UpdateObjCmd
+update idletasks	open	interpreter:Tcl_DoOneEvent	switch
+uplevel	open	interpreter:Tcl_UplevelObjCmd:varFramePtr,namespaces:TclGetFrame,scripts:Tcl_EvalObjEx	Tcl_UplevelObjCmd
+upvar	open	indirect:TclLookupSimpleVar:cxtNsPtr->varResProc,interpreter:ObjMakeUpvar:varFramePtr,namespaces:TclGetNamespaceForQualName,variables:TclObjLookupVar,completion:TCL_CONTINUE	Tcl_UpvarObjCmd
+variable	open	indirect:TclLookupSimpleVar:cxtNsPtr->varResProc,interpreter:Tcl_VariableObjCmd:varFramePtr,namespaces:TclGetNamespaceForQualName,variables:TclObjLookupVar,completion:TCL_CONTINUE	Tcl_VariableObjCmd
+vwait	open	interpreter:Tcl_UntraceVar2:activeVarTracePtr,variables:TclLookupVar	Tcl_VwaitObjCmd
+while	open	interpreter:Tcl_WhileObjCmd:cmdFramePtr,scripts:TclEvalObjEx,completion:TCL_BREAK,completion:TCL_CONTINUE	Tcl_WhileObjCmd

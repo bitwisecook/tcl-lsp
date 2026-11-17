@@ -184,6 +184,7 @@ pub mod native_tcloo_registration;
 pub mod native_try_compilation;
 pub mod native_variable_declaration;
 pub mod normal_source_case;
+pub mod purity;
 
 pub mod native_boolean_truth;
 pub mod native_bytecode;
