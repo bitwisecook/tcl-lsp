@@ -1380,23 +1380,19 @@ mod soundness_gates {
 
 // TestFlowSensitiveNarrowing — true-region reads are safe; false region flags.
 //
-// The leading `uplevel 1 $cmd` barrier keeps both arms live (no fold), so
-// narrowing — not DCE — governs the verdict. `cmd` is itself the genuine
-// read-before-set in each reproducer.
-//
-// The scaffolding is `uplevel 1`, not `eval`, precisely because of the frame
-// difference: `uplevel 1 $cmd` runs the script one frame **up**, so it cannot
-// define a local of `p` and leaves `p`'s own name space provable, while
-// `eval $cmd` runs *here* and therefore blinds every W210 in `p` (tclsh 9.0.4 /
-// 8.6.14: `proc runner {b} {set helper 42; uplevel 1 $b}` invoked with
-// `{set x $helper}` raises `can't read "helper"`, while the same body under
-// `eval $b` reads `42`). Both are `Statement::Barrier`s, so either disables the
-// existence fold; only one of them is a name barrier.
+// The leading `if {$flag} { set X 1 }` leaves `X` possibly bound, so both
+// arms of the guard stay live and narrowing, not a fold, governs the verdict,
+// with nothing unbounded in sight. (The former `uplevel 1 $cmd` wrapper was a
+// command the walk cannot bound: after it every command could be rebound, so
+// the narrowing these tests are about was never exercised; ruling of 17
+// November.)
 mod flow_sensitive_narrowing {
     use super::*;
 
     fn flagged(body: &str) -> std::collections::HashSet<String> {
-        w210_vars(&format!("proc p {{}} {{ uplevel 1 $cmd; {body} }}"))
+        w210_vars(&format!(
+            "proc p {{flag}} {{ if {{$flag}} {{ set X 1 }}; {body} }}"
+        ))
     }
 
     #[test]
@@ -1430,12 +1426,12 @@ mod flow_sensitive_narrowing {
     #[test]
     fn and_pure_right_keeps_both_facts() {
         // The existence guard refines through `&&`:
-        // with X and Y set on one path, `[info exists X] && [info exists Y]`
+        // with X and Y set on one path (the wrapper's and this `$flag` arm), `[info exists X] && [info exists Y]`
         // binds both on its true edge, so neither read is flagged — tclsh
         // reads both only when both exist. With neither ever set the guard
         // decides false, the arm is dead, and a read there carries no fact.
         let f = flagged(
-            "if {[string length $cmd]} { set X 1; set Y 1 }\n\
+            "if {$flag} { set Y 1 }\n\
              if {[info exists X] && [info exists Y]} { puts $X$Y }",
         );
         assert!(
@@ -1450,40 +1446,33 @@ mod flow_sensitive_narrowing {
     }
 
     #[test]
-    fn and_impure_right_drops_left_fact() {
-        // An impure right operand could mutate X before the branch, so the left
-        // `info exists X` fact must not narrow the body → X stays flagged. X
-        // is set on one path, so the guard decides nothing (a never-set X
-        // makes the arm dead, where no read reports).
-        assert!(
-            flagged(
-                "if {[string length $cmd]} { set X 1 }\n\
-                 if {[info exists X] && [otherproc]} { puts $X }"
-            )
-            .contains("X")
-        );
+    fn an_undefined_right_operand_never_reaches_the_arm() {
+        // `otherproc` is not defined in the document, so `&&` raises before
+        // the arm (tclsh 8.6.18/9.0.4: p 0 ok, p 1 `invalid command name
+        // "otherproc"`); the arm's read is at most possibly unbound.
+        assert!(!flagged("if {[info exists X] && [otherproc]} { puts $X }").contains("X"));
     }
 }
 
 // TestInfoVarsNarrowing — `info vars` / `info locals` membership idioms.
 //
-// The analyser narrows only the direct `info exists` / `array exists` / `catch`
-// guards, NOT the `[info vars X] ne ""` / `lsearch [info vars] X` membership
-// idioms, so it conservatively still flags X. The reads are genuinely
-// guard-safe in Tcl, but the over-warn is sound (it never *suppresses* a real
-// read); we capture the actual verdict. The two must-still-flag controls (`info
-// globals`, `-regexp`, glob `X*`) behave the same.
+// W210 reports a read only where every binding the document can produce
+// leaves it unbound. X is set on one path (the wrapper's), so a read is at
+// most possibly unbound unless a guard proves X absent on its arm. tclsh
+// 8.6.18 and 9.0.4, `p 0` and `p 1` for each row: only the else arm of
+// `[info vars X] ne ""` raises (`can't read "X": no such variable`, p 0).
 mod info_vars_narrowing {
     use super::*;
 
     fn flagged(body: &str) -> std::collections::HashSet<String> {
-        w210_vars(&format!("proc p {{}} {{ uplevel 1 $cmd; {body} }}"))
+        w210_vars(&format!(
+            "proc p {{flag}} {{ if {{$flag}} {{ set X 1 }}; {body} }}"
+        ))
     }
 
     #[test]
-    fn info_vars_membership_idioms_are_not_narrowed_rust_behaviour() {
-        // X is still flagged for each of these (no info-vars membership
-        // narrowing). Assert the actual verdict.
+    fn info_vars_membership_reads_are_silent() {
+        // tclsh: p 0 and p 1 both complete for each.
         for body in [
             "if {[info vars X] ne \"\"} { puts $X }",
             "if {[info vars X] eq \"\"} { puts a } else { puts $X }",
@@ -1493,80 +1482,75 @@ mod info_vars_narrowing {
             "if {[lsearch -exact [info vars] X] >= 0} { puts $X }",
             "if {[lsearch [info vars] X] == -1} { puts a } else { puts $X }",
         ] {
-            assert!(
-                flagged(body).contains("X"),
-                "Rust does not narrow info-vars idiom: {body:?}"
-            );
+            assert!(!flagged(body).contains("X"), "{body:?}");
         }
     }
 
     #[test]
     fn info_vars_ne_empty_false_branch_flagged() {
-        // The else arm of `[info vars X] ne ""` definitely lacks X — a genuine
-        // read-before-set in any model (X flagged).
+        // The else arm of `[info vars X] ne ""` lacks X for every binding
+        // (tclsh: p 0 raises `can't read "X"`).
         assert!(flagged("if {[info vars X] ne \"\"} { puts a } else { puts $X }").contains("X"));
     }
 
     #[test]
-    fn info_globals_is_not_narrowed() {
-        // `info globals X` proves the *global* exists, not the local `$X`, so X
-        // is still flagged.
-        assert!(flagged("if {[info globals X] ne \"\"} { puts $X }").contains("X"));
+    fn info_globals_leaves_x_possibly_bound() {
+        // `info globals X` proves the *global* exists, not the local `$X`;
+        // X is only possibly unbound (tclsh: p 0 and p 1 complete).
+        assert!(!flagged("if {[info globals X] ne \"\"} { puts $X }").contains("X"));
     }
 
     #[test]
-    fn lsearch_regexp_is_not_narrowed() {
-        // `-regexp` matches a regex, not an exact name — unsound to narrow.
-        assert!(flagged("if {[lsearch -regexp [info vars] X] > -1} { puts $X }").contains("X"));
+    fn lsearch_regexp_leaves_x_possibly_bound() {
+        // `-regexp` matches a regex, not an exact name — no narrowing, and X is only possibly unbound.
+        assert!(!flagged("if {[lsearch -regexp [info vars] X] > -1} { puts $X }").contains("X"));
     }
 
     #[test]
-    fn glob_pattern_is_not_narrowed() {
-        // A glob pattern (`X*`) is not a single exact name.
-        assert!(flagged("if {[info vars X*] ne \"\"} { puts $X }").contains("X"));
+    fn glob_pattern_leaves_x_possibly_bound() {
+        // A glob pattern (`X*`) is not a single exact name; X stays possibly unbound.
+        assert!(!flagged("if {[info vars X*] ne \"\"} { puts $X }").contains("X"));
     }
 }
 
-// TestCatchNarrowing — `catch {set _ $X}` signals existence on its succeeded
-// (false) branch.
+// TestCatchNarrowing — `catch {set _ $X}` as an existence probe.
 //
-// The analyser does not implement catch-as-existence-probe narrowing, so the
-// guarded reads (which are safe in Tcl) are still flagged. Sound over-warn;
-// captured at the actual verdict. The two must-still-flag controls
-// (failed/ambiguous arm, non-pure body) behave the same.
+// Same rule as above. tclsh 8.6.18 and 9.0.4: only the then arm of
+// `[catch {set _ $X}]` raises (p 0); the document never makes X an array,
+// so a failed `set _ $X` means X is unset there for every binding.
 mod catch_narrowing {
     use super::*;
 
     fn flagged(body: &str) -> std::collections::HashSet<String> {
-        w210_vars(&format!("proc p {{}} {{ uplevel 1 $cmd; {body} }}"))
+        w210_vars(&format!(
+            "proc p {{flag}} {{ if {{$flag}} {{ set X 1 }}; {body} }}"
+        ))
     }
 
     #[test]
-    fn catch_success_branch_reads_are_not_narrowed_rust_behaviour() {
-        // The succeeded/false arm and the negated true arm both prove X readable,
-        // yet X is still flagged. Actual verdict.
+    fn catch_success_branch_reads_are_silent() {
+        // tclsh: p 0 and p 1 both complete; the catch-body read is caught.
         for body in [
             "if {[catch {set _ $X}]} { puts a } else { puts $X }",
             "if {![catch {set _ $X}]} { puts $X }",
             "if {[catch {set _ $X} e]} { puts a } else { puts $X }",
         ] {
-            assert!(
-                flagged(body).contains("X"),
-                "Rust does not narrow catch-existence: {body:?}"
-            );
+            assert!(!flagged(body).contains("X"), "{body:?}");
         }
     }
 
     #[test]
-    fn failed_branch_is_ambiguous_and_still_flagged() {
-        // catch != 0 could mean missing *or* an array-as-scalar read → flagged.
+    fn failed_branch_read_is_flagged() {
+        // The then arm runs only when `set _ $X` raised, and X is never an
+        // array here, so X is unset there (tclsh: p 0 raises `can't read "X"`).
         assert!(flagged("if {[catch {set _ $X}]} { puts $X }").contains("X"));
     }
 
     #[test]
-    fn non_pure_body_is_not_narrowed() {
-        // A non-pure catch body (`someproc $X`) carries no existence signal.
-        assert!(flagged("if {[catch {someproc $X}]} { puts a } else { puts $X }").contains("X"));
+    fn an_undefined_catch_body_command_leaves_the_else_arm_dead() {
+        // `someproc` is undefined, so catch is always 1 and the else arm never
+        // runs (tclsh: p 0 and p 1 complete).
+        assert!(!flagged("if {[catch {someproc $X}]} { puts a } else { puts $X }").contains("X"));
     }
 }
 
