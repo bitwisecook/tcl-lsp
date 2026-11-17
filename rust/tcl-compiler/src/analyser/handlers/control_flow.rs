@@ -169,7 +169,15 @@ impl Analyser {
         // defined inside the loop land in the enclosing scope.
         if let (Some(body_text), Some(body_tok)) = (args.last(), arg_tokens.last().copied()) {
             self.control_flow_body_depth += 1;
+            let bound = literal_binding.as_ref().and_then(|(var, elements)| {
+                Some((var.clone(), elements.first()?.clone(), body_tok.span))
+            });
+            let pushed = bound.is_some();
+            self.literal_foreach_bindings.extend(bound);
             self.analyse_body(body_text, body_tok, scope_path);
+            if pushed {
+                self.literal_foreach_bindings.pop();
+            }
             if let Some((var, elements)) = &literal_binding {
                 self.simulate_remaining_foreach_iterations(var, elements, body_tok, scope_path);
             }
@@ -311,6 +319,8 @@ impl Analyser {
                 .finite_foreach_names
                 .advance(var, body_tok, scope_path, index, element);
             self.set_const_string(var, element.clone(), body_tok.span, scope_path);
+            self.literal_foreach_bindings
+                .push((var.to_owned(), element.clone(), body_tok.span));
             for (seg, hook) in &installers {
                 let args = seg.args();
                 let arg_tokens = seg.arg_tokens();
@@ -359,6 +369,7 @@ impl Analyser {
                     _ => {}
                 }
             }
+            self.literal_foreach_bindings.pop();
         }
     }
 

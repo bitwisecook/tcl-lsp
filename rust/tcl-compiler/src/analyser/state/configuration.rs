@@ -118,6 +118,7 @@ impl Analyser {
             interp_path_stack: Vec::new(),
             recovered_source: false,
             concatenated_script: false,
+            literal_foreach_bindings: Vec::new(),
             concatenated_windows: Vec::new(),
             recovered_tail: None,
             safe_interp_stack: Vec::new(),
