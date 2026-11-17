@@ -6,20 +6,20 @@ Updated 15 November 2026. Results apply to their captured source and stated purp
 
 Every hand-written Rust file under `rust/` and `runtime/rust/` is at most 2,000 lines (`docs/work/file-split/README.md`); the split moved items without renaming them, and test paths gained a module, so failing lists are compared by last path segment. The sessions that worked until 16 November were paused for the split and then replaced on the owner's instruction. Each left a hand-over in `docs/work/name-handling/handover/<slug>.md`, its last failing list in `docs/work/name-handling/lists/<slug>-failing-2026-11-16.txt`, and any unfinished work as `docs/work/name-handling/patches/handover-<slug>-*.patch`. The new sessions, their models and how they work together are in `docs/work/name-handling/handover/successors.md`. The area sections below are the outgoing sessions' notes and name pre-split paths; a successor replaces its own section with a current snapshot after its first full run.
 
-## Scoreboard, 16 November 2026, 00:50 UTC
+## Scoreboard, 17 November 2026, 10:55 UTC
 
-Failing tests by area, from each session's last full run on `work`. The start-of-work figure for the whole workspace was about 4,940.
+Failing tests by area on the restructured tree, from the successor sessions' baselines and first pushes. The start-of-work figure for the whole workspace was about 4,940.
 
 | Area | Failing | Of | Session |
 | --- | --- | --- | --- |
-| `tcl-compiler` (all areas below share this suite) | about 2,390 | 13,120 | six compiler sessions |
-| `tcl-lsp-core` library | 551 (semantic tokens 14 of 239) | 3,642 | LSP features; tokens with the coordinator |
-| `tcl-lsp-server` end to end | 319 | 1,651 | LSP features (navigation), LSP server and database |
-| `tcl-lsp-db` | about 80 | not re-measured | LSP server and database |
-| Execution (`tcl-codegen`, `tcl-vm`, engines, `tcl-cshim`, `tcl-spec-hooks`) | 329 | 5,480 | execution |
+| `tcl-compiler` (all areas below share this suite) | 2,223 (values 325, class factories 48) | 13,130 | analyser-binding, class-facts, diagnostics, dataflow-optimiser, values, taint, tk-oo |
+| `tcl-lsp-core` library | 518 (semantic tokens 14 of 239) | 3,642 | lsp-features |
+| `tcl-lsp-server` end to end | 278 (navigation family about 130) | 1,651 | lsp-features (navigation), server-e2e-db |
+| `tcl-lsp-db` | 75 (16 November; not yet re-measured) | 248 | server-e2e-db; the memo tests wait on analysis-performance |
+| Execution (`tcl-codegen`, `tcl-vm`, engines, `tcl-cshim`, `tcl-spec-hooks`) | 310 | 5,482 | execution |
 | Tooling (17 November on `30783a0e`: `tcl-cli` 40, `tcl-diagram` 14, `tcl-explorer` 13, `tcl-spectcl` 29, `tcl-mcp` 3, `tcl-irules` 3, `tcl-spec-studio` 3, `tcl-sslictcl` 1, `tcl-registry` 1; plus 4 `rule_declaration` tests in `tcl-compiler`; list `lists/irules-registry-tooling-failing-2026-11-17.txt`) | 104 | | tooling |
 | Server end to end, `irules`, `spec_packs`, `sslictcl`, `jim` groups (within the 319 above) | 33 | 131 | tooling |
-| `tcl-lexer`, `tcl-syntax`, `tcl-core-types`, `tcl-dialect` | 0 | 2,005 | coordinator |
+| `tcl-lexer`, `tcl-syntax`, `tcl-core-types`, `tcl-dialect` | 0 | 2,005 | no session; the coordinator rules |
 | `xtask` (38 drift gates) | 0 | | coordinator |
 
 Compiler suite by owning session (counts overlap the first row): analyser and binding (walk) is the critical path; class and object facts (new, about 50 class-factory tests plus method-body and lenient-environment facts); diagnostics about 440; dataflow and optimiser; taint and iRules checks about 300; value transfers, escape, shimmer and types 349.
@@ -58,6 +58,7 @@ Made so sessions were not stalled; each can be overruled.
   - *The naming owner has no session.* `tcl-syntax::naming`, `tcl-lexer` and `xtask` are ruled on by the coordinator. A session that needs a change there makes it as one small separate commit with the tclsh oracle in the test, runs the `tcl-syntax` and `tcl-lexer` suites, `make xtask-gates` and the whole `tcl-compiler` suite against its baseline, and tells the analyser area before pushing.
   - *Backslash in a braced word of hosted source.* A braced, non-expanded word with no backslash-newline is a literal unit whose content is its bytes, backslashes included (tclsh 8.4.20 to 9.1.0 print `4` for `string length {a\\b}`); F5 units follow the 8.4 rule, with a device check added beside #2151. The taint area makes the change in `vendor_source_literal_units`; quoted and bare words with a backslash are not widened.
   - *Pack reference bodies under a live native entry.* A parameterised splice renames the body's variables, while native compilation of a spliced command replays its original source bytes, so the replay would read the formal instead of the renamed local. Under a live entry the inliner therefore splices only a body it renames nothing in (argument-less); a parameterised reference body stays a plain call there. The three `codegen_stamps` tests move to the release-unit path with their assertions unchanged, the live-path limitation gets its own test, and the `spliced_bodies` run tests assert whether their site was inlined. Open for the owner: a variable remap for native replay of spliced commands (compiler and VM), which would inline parameterised pack bodies on live compiles; it buys speed only.
+  - *Index files run in a procedure frame that holds `dir`* (#832). C Tcl evaluates a `tclIndex` inside `auto_load_index` and a `pkgIndex.tcl` inside `tclPkgUnknown`, each with a local `dir`. Read as a fresh-interpreter document, the first `$dir` is a proved error and every later entry is unreached, so only the first name was indexed. The caller of an index survey supplies an entry fact (a procedure frame holding `dir`, with the directory as its value when known); the compiler never infers it from a file name, and an ordinary document never gets it. The tk-oo area makes both edits as announced commits; the analyser area may veto the entry fact's design.
   - Left for the owner: whether the minifier's lexical naming passes get a shared transactional rename planner or the forty expectations are retired; whether rename-grade code may read a command's descriptor in a body the analysis did not enter.
 - **Naming gate.** Colon trims count as hand-written name handling; four `::` joins in `f5-cli` and `tcl-bigip` are listed as not Tcl names.
 
