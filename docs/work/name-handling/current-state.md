@@ -285,15 +285,19 @@ Open, by owner:
 
 ## Analyser diagnostics area, 17 November 2026
 
-Session `session_017u5g3HXzMVEcpUS6bxGcmA` (successor). Area and queue: [handover/diagnostics.md](handover/diagnostics.md). Baseline on `30783a0e`, `cargo nextest run -p tcl-compiler`, test profile `opt-level 1`: 13,130 run, 2,229 failing, 377 under this area's prefixes (list: `lists/diagnostics-failing-2026-11-17.txt`).
+Session `session_017u5g3HXzMVEcpUS6bxGcmA` (successor). Area and queue: [handover/diagnostics.md](handover/diagnostics.md). Baseline on `30783a0e`: 13,130 run, 2,229 failing, 377 under this area's prefixes (`lists/diagnostics-failing-2026-11-17.txt`). Last full run (before the 17:30 rebase): 13,145 run, 2,139 failing.
 
-Landed: the recovered tail checks a procedure the reached prefix declares once and nothing rebinds (bare or qualified head, pinned releases; the lenient `tcl` environment states no formal count, so it abstains there), and reports the registry's selector errors (W001, W145, W002, W004) over literal words. Fixed 1, new 0; server e2e `recovery` 35 of 37 (the two left are `if {$x > 5` arity at the cut and the outline of an unterminated `namespace eval`, both failing before). `7a1d1983` stays: without it eight `recovery` outline tests fail.
+Landed: recovered tail checks a prefix-declared procedure's arity and the registry's selector errors (W001/W145/W002/W004); `7a1d1983` stays (without it eight server `recovery` outline tests fail); regex patterns through a variable on a release profile; a named child interpreter created inside a substitution; interp create fixtures analysed as source; interp alias target asserted per layer; a registry command's lookup at a site with no execution proof (diagnostics only); `namespace eval ns [list …]` operands read in the calling frame; scan `%b` no-match from 8.6; W306 leaves variable-only patterns alone; fixtures that read unset variables or imported from a namespace never created now bind or create them.
 
-Sent, waiting:
+Waiting on other areas (sent with fixtures and traces):
 
-- `analyser-binding`: W210 withheld after a call to a procedure that writes through a computed name (`upvar 1 $name`, `set $var`): the read's `SourceVariableAccess` context is not closed, so `read_contents_presence_alternatives_at` answers nothing. `report` package scoped bodies not entered, and `::report::report r 3` leaves `r` unbound, after `package require report`.
-- `values`: the `info_exists_*` folds under a native Direct entry: SCCP applies the branch but keeps the not-taken block executable, and the advisory solve has no branch.
-- `analysis-performance`: superlinear time in `if` nesting depth.
+- `analyser-binding`: loop-body lookup state (`foreach … $items` body, `for` clauses); W210 after a computed-name callee; `report` package bodies and object; child-interpreter `proc` (a design item); formal values at a raising read (param traits, lsp-features' token test); W123 presence for coroutine, `rename puts {}`, `namespace unknown`, `auto_path`; an entered/stopped site query and presence at unreached sites (W123, W125, W210 after a raising command); registry words for `tcl::idna` and under the lenient `tcl` profile (W120); the zero-trip `for` declaration flow.
+- `dataflow-optimiser`: `info exists` folds under a native Direct entry (SCCP keeps the not-taken block executable); a control statement's nested unseen-call marker has no clobber (`foreach y [operation x]`); `Incr` with a variable amount has no SSA definition (W242); O107 failing across optimiser suites.
+- `irules-registry-tooling`: a quoted word with a literal non-`-` first character is taken for a possible option (W304, no W306).
+- `analysis-performance`: nesting-depth timing; `phi_undef_memo::nested_if_stages_*_linear_time` regressed with the 17 November rebase.
+- `taint`: W201 (handed over by the previous session).
+
+Open here, not yet traced: `unresolved_class_name` on `::a::::p` (naming owner question), `const_cmd_subst_set_rhs` head resolution on a release, multi-word `namespace eval` E003, `namespace eval` dead store (W220), `report_scoped_commands` fixtures (held until the walk enters the body; adding the require would turn the passing W001 row red).
 
 ## Tk and TclOO issues area, 17 November 2026
 
