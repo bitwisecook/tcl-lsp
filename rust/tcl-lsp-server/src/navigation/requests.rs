@@ -946,11 +946,11 @@ impl Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await?;
-        if let std::ops::ControlFlow::Break(hover) = self
+        if let std::ops::ControlFlow::Break(Some(hover)) = self
             .original_source_view_hover_route_for_snapshot(&uri, &doc.text, &analysis, pos)
             .await?
         {
-            return Ok(hover.map(lift_hover));
+            return Ok(Some(lift_hover(hover)));
         }
 
         // `profile_for_dialect`, not `by_name`: this is a dialect ingress, and
