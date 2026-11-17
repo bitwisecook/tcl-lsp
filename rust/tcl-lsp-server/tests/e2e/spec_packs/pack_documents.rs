@@ -417,7 +417,7 @@ fn a_dropped_property_offers_a_did_you_mean_fix() {
         })
         .unwrap_or_else(|| panic!("a did-you-mean quick fix: {actions:#?}"));
     assert_eq!(fix.get("kind").and_then(Value::as_str), Some("quickfix"));
-    let edit = fix["edit"]["changes"][&uri][0].clone();
+    let edit = crate::common::helpers::rename_edits(&fix["edit"])[&uri][0].clone();
     assert_eq!(edit.get("newText").and_then(Value::as_str), Some("arity"));
     assert_eq!(edit["range"]["start"]["line"].as_i64(), Some(2));
     assert_eq!(edit["range"]["start"]["character"].as_i64(), Some(8));
