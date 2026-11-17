@@ -116,6 +116,13 @@ impl Lowerer<'_> {
         else {
             return true;
         };
+        if tokens
+            .source_binding
+            .as_ref()
+            .is_some_and(invokes_only_retained_source_commands)
+        {
+            return false;
+        }
         let Some(advice) = crate::registry_invocation::original_registry_invocation_assistance_with_metadata_context(
             self.registry, Some(context), tokens,
         ) else { return true; };
@@ -246,4 +253,20 @@ impl Lowerer<'_> {
 
         walk(self, script, 0)
     }
+}
+
+/// A proved call of a document procedure or class/object command runs a body
+/// the module already retains, so it supplies no unretained executable root.
+fn invokes_only_retained_source_commands(
+    binding: &crate::command_binding::SourceInvocationBinding,
+) -> bool {
+    use crate::command_binding::BindingKind;
+    if binding.execution_is_unknown() {
+        return false;
+    }
+    let mut targets = binding.execution_targets().peekable();
+    targets.peek().is_some()
+        && targets.all(|target| {
+            !target.registry_backed && matches!(target.kind, BindingKind::Proc | BindingKind::Class)
+        })
 }

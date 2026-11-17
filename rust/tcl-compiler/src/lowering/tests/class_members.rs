@@ -771,3 +771,45 @@ fn class_variable_unknown_operands_keep_known_literal_protection_without_referen
     assert!(!names.contains("a"));
     assert!(!names.contains("dynamic"));
 }
+
+/// A proved call of a document procedure or class runs a body the module
+/// retains; only a call whose execution is unbounded may supply another root.
+#[test]
+fn only_an_unbounded_call_leaves_unretained_executable_roots() {
+    for (source, expected) in [
+        ("proc helper {x} {return $x}\nhelper 1\n", false),
+        (
+            "oo::class create C {method m {} {return 1}}\nC create c\n",
+            false,
+        ),
+        (
+            "oo::class create C {method m {} {return 1}}\nset o [C new]\n",
+            false,
+        ),
+        ("helper 1\n", true),
+        ("$cmd 1\n", true),
+        (
+            "proc helper {x} {return $x}\nrename helper h2\nhelper 1\n",
+            true,
+        ),
+        (
+            "oo::class create C {}\nset b {return 1}\noo::define C method m {} $b\n",
+            true,
+        ),
+    ] {
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let module = lower_to_ir_with(
+            Lowerer::with_config(
+                input.borrowed_context_registry().commands(),
+                input.lexer_config(),
+            )
+            .with_resolved_analysis_input(input.clone()),
+            source,
+        );
+        assert_eq!(
+            module.oo_evidence.unretained_executable_roots, expected,
+            "{source:?}"
+        );
+    }
+}
