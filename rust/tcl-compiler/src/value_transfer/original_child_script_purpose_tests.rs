@@ -264,9 +264,12 @@ fn original_return_region_keeps_bom_alias_first_close_and_whole_word_config() {
     // naming.source.original-configured-script-completeness
     // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
     // Actual reached CFG return source geometry; Native value/read/observer gates remain independent.
+    // `${a{b}}` reads `a{b` under the first-close rule, so the formal binds it
+    // and the return is reached: tclsh 8.4.20 to 8.6.18 print `7}` for
+    // `proc p {a\{b} {return ${a{b}}}; p 7`.
     for argument in ["VALUE", "${a{b}}"] {
         let source = format!(
-            "\u{feff}rename return {{\u{feff}back}}\nproc p {{}} {{\u{feff}back {argument}}}"
+            "\u{feff}rename return {{\u{feff}back}}\nproc p {{a\\{{b}} {{\u{feff}back {argument}}}"
         );
         let (context, unit) = supplied(&source);
         let function = unit
