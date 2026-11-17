@@ -154,8 +154,11 @@ impl Analyser {
                     self.cached_line_index_source_len,
                 );
                 let var_name = sm.token_text(tok).to_string();
-                if let Some((const_val, def_span)) = self.lookup_logical_const_substitution(tok) {
-                    let pattern = const_val.to_string();
+                let constant = self
+                    .lookup_logical_const_substitution(tok)
+                    .map(|(value, span)| (value.to_owned(), span))
+                    .or_else(|| self.frozen_regex_pattern_definition(tok, &var_name, scope_path));
+                if let Some((pattern, def_span)) = constant {
                     // Record the use site (the `$var` token).
                     self.result
                         .regex_patterns
@@ -187,5 +190,36 @@ impl Analyser {
                     });
             }
         }
+    }
+
+    /// On a profile whose words the interpretation evaluates, the value it
+    /// froze for a plain `$name` pattern word, with the span of the
+    /// dominating constant assignment in the same scope that wrote exactly
+    /// that value before the read.
+    fn frozen_regex_pattern_definition(
+        &self,
+        tok: Token,
+        var_name: &str,
+        scope_path: &[usize],
+    ) -> Option<(String, tcl_lexer::Span)> {
+        let name =
+            tcl_syntax::naming::var_reference_for_style(var_name, self.lexer_config().braced_var);
+        if tcl_syntax::naming::split_array_name(name).1.is_some()
+            || !tcl_syntax::naming::source_variable_name_is_frame_local_for_all_policies(
+                name.as_bytes(),
+            )
+        {
+            return None;
+        }
+        let value = self.frozen_value_word(tok)?;
+        if self
+            .nondominating_consts
+            .get(scope_path)
+            .is_some_and(|names| names.contains(name))
+        {
+            return None;
+        }
+        let (written, span) = self.const_strings.get(scope_path)?.get(name)?;
+        (*written == value && span.end() < tok.span.start()).then_some((value, *span))
     }
 }

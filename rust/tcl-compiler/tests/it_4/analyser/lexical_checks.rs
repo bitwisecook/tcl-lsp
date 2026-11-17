@@ -135,10 +135,10 @@ pub(super) mod regex_patterns {
     #[test]
     fn set_then_regexp_and_regsub_propagate_constant_pattern() {
         // `set pat {re}; regexp $pat …` records two patterns (def + use site).
-        let p = pats("set pat {^\\d+$}\nregexp $pat $str");
+        let p = pats("set str [gets stdin]\nset pat {^\\d+$}\nregexp $pat $str");
         assert_eq!(p.len(), 2);
         assert!(p.iter().all(|(pat, _)| pat == "^\\d+$"));
-        let p2 = pats("set pat {foo}\nregsub $pat $str bar result");
+        let p2 = pats("set str [gets stdin]\nset pat {foo}\nregsub $pat $str bar result");
         assert_eq!(p2.len(), 2);
         assert!(p2.iter().all(|(pat, _)| pat == "foo"));
     }
@@ -150,30 +150,36 @@ pub(super) mod regex_patterns {
     /// is 1).
     #[test]
     fn a_rooted_set_propagates_its_constant_pattern() {
-        let p = pats("::set pat {^\\d+$}\nregexp $pat $str");
+        let p = pats("set str [gets stdin]\n::set pat {^\\d+$}\nregexp $pat $str");
         assert_eq!(p.len(), 2);
         assert!(p.iter().all(|(pat, _)| pat == "^\\d+$"));
     }
 
     #[test]
     fn set_then_switch_regexp_propagates() {
-        let p = pats("set pat {^hello}\nswitch -regexp $x $pat {puts matched}");
+        let p = pats("set x [gets stdin]\nset pat {^hello}\nswitch -regexp $x $pat {puts matched}");
         assert!(p.iter().any(|(pat, _)| pat == "^hello"));
     }
 
     #[test]
     fn dynamic_or_interpolated_pattern_not_recorded() {
         assert_eq!(
-            pats("set pat $dynamic_value\nregexp $pat $str"),
+            pats(
+                "set str [gets stdin]\nset dynamic_value [gets stdin]\nset pat $dynamic_value\nregexp $pat $str"
+            ),
             [] as [(std::string::String, std::string::String); 0]
         );
         assert_eq!(
-            pats("set pat \"^$prefix\"\nregexp $pat $str"),
+            pats(
+                "set str [gets stdin]\nset prefix [gets stdin]\nset pat \"^$prefix\"\nregexp $pat $str"
+            ),
             [] as [(std::string::String, std::string::String); 0]
         );
         // Reassigned to non-constant loses tracking.
         assert_eq!(
-            pats("set pat {^\\d+}\nset pat $other\nregexp $pat $str"),
+            pats(
+                "set str [gets stdin]\nset other [gets stdin]\nset pat {^\\d+}\nset pat $other\nregexp $pat $str"
+            ),
             [] as [(std::string::String, std::string::String); 0]
         );
     }
@@ -187,7 +193,9 @@ pub(super) mod regex_patterns {
 
     #[test]
     fn literal_and_variable_patterns_mixed() {
-        let p = pats("set pat {^a}\nregexp $pat $str\nregexp {^b} $str2");
+        let p = pats(
+            "set str [gets stdin]\nset str2 [gets stdin]\nset pat {^a}\nregexp $pat $str\nregexp {^b} $str2",
+        );
         let pset: Vec<_> = p.iter().map(|(pat, _)| pat.as_str()).collect();
         assert!(pset.contains(&"^a") && pset.contains(&"^b"));
     }
