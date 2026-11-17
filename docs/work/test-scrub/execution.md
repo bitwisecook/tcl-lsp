@@ -1,15 +1,15 @@
 # Test scrub: execution
 
-Failing tests of `tcl-codegen`, `tcl-vm`, `tcl-runtime`, the engines, `tcl-cshim` and `tcl-spec-hooks` as of 17 November 2026 evening (latest runs: tcl-vm 3,208 tests, runtime/rust 2,726, the selection 9,479), less the 51 routed to dataflow and values and the tests fixed since. One row per test in `ledger/execution.tsv`. First pass: grouped by cause; the `UNDECIDED` rows are the ones a per-test reading must still settle.
+Failing tests of `tcl-codegen`, `tcl-vm`, `tcl-runtime`, the engines, `tcl-cshim` and `tcl-spec-hooks` as of 17 November 2026 evening (latest runs: tcl-vm 3,208 tests, runtime/rust 2,726, the selection 9,479), less the 51 routed to dataflow and values and the tests fixed since. One row per test in `ledger/execution.tsv`. Grouped by cause, then the first pass's undecided rows read test by test (part 2): 28 remain `UNDECIDED`, 23 of them the inliner question below.
 
 ## Counts by verdict
 
 | Verdict | Tests |
 | --- | ---: |
-| `UNDECIDED` | 96 |
-| `KEEP-ORACLE` | 87 |
-| `REWRITE` | 78 |
-| `KEEP-CONTRACT` | 17 |
+| `REWRITE` | 117 |
+| `KEEP-ORACLE` | 107 |
+| `UNDECIDED` | 28 |
+| `KEEP-CONTRACT` | 26 |
 | `FIX-EXPECTATION` | 4 |
 | `FIX-FIXTURE` | 3 |
 | `KEEP-F5` | 1 |
@@ -19,28 +19,35 @@ Failing tests of `tcl-codegen`, `tcl-vm`, `tcl-runtime`, the engines, `tcl-cshim
 
 | Cause | Verdict | Tests | Crates |
 | --- | --- | ---: | --- |
-| `native-artefact-assertion` | UNDECIDED | 55 | tcl-cshim, tcl-engine-tclvm, tcl-runtime, tcl-vm |
+| `native-artefact-ordering` | REWRITE | 39 | tcl-cshim, tcl-engine-tclvm, tcl-runtime, tcl-vm |
 | `codegen-internal-record` | REWRITE | 37 | tcl-codegen, tcl-vm |
 | `wasm-native-tier-plan-record` | REWRITE | 29 | tcl-codegen |
 | `inliner-unshipped` | UNDECIDED | 23 | tcl-codegen, tcl-vm |
-| `runtime-compile-admission-refused` | KEEP-ORACLE | 21 | tcl-engine-tclvm, tcl-vm |
-| `native-conformance-vector` | KEEP-ORACLE | 20 | tcl-runtime, tcl-vm |
-| `native-protocol-refusal` | UNDECIDED | 16 | tcl-cshim, tcl-engine-tclvm, tcl-runtime, tcl-vm |
+| `runtime-compile-admission-refused` | KEEP-ORACLE | 22 | tcl-engine-tclvm, tcl-runtime, tcl-vm |
+| `native-conformance-vector` | KEEP-ORACLE | 22 | tcl-runtime, tcl-vm |
+| `per-release-script-divergence` | KEEP-ORACLE | 19 | tcl-runtime, tcl-vm |
 | `native-compiler-selection-declined` | KEEP-ORACLE | 13 | tcl-codegen |
-| `per-release-script-divergence` | KEEP-ORACLE | 12 | tcl-runtime, tcl-vm |
+| `oracle-corpus-divergence` | KEEP-ORACLE | 10 | tcl-runtime, tcl-vm |
 | `ir-shape-expectation` | REWRITE | 9 | tcl-codegen |
-| `oracle-corpus-divergence` | KEEP-ORACLE | 7 | tcl-runtime, tcl-vm |
+| `embedding-contract` | KEEP-CONTRACT | 9 | tcl-cshim, tcl-engine-tclvm, tcl-runtime, tcl-vm |
 | `wasm-module-fails-to-instantiate` | KEEP-CONTRACT | 6 | tcl-codegen |
-| `embedding-contract` | KEEP-CONTRACT | 6 | tcl-cshim, tcl-runtime, tcl-vm |
+| `c-extension-vectors` | KEEP-ORACLE | 6 | tcl-cshim, tcl-runtime |
 | `live-splicing-off-by-ruling` | KEEP-CONTRACT | 5 | tcl-codegen |
-| `c-extension-vectors` | KEEP-ORACLE | 4 | tcl-cshim, tcl-runtime |
 | `fold-survives-unit-rename` | KEEP-ORACLE | 3 | tcl-codegen |
 | `optimiser-drops-effectful-foreach-list` | KEEP-ORACLE | 3 | tcl-codegen |
 | `fixture-body-identity-lookup` | FIX-FIXTURE | 3 | tcl-codegen |
+| `native-artefact-assertion` | UNDECIDED | 3 | tcl-engine-tclvm, tcl-runtime, tcl-vm |
 | `self-referential-golden` | REWRITE | 2 | tcl-codegen |
+| `c-api-completion` | KEEP-ORACLE | 2 | tcl-cshim |
+| `c-api-delete-proc` | KEEP-ORACLE | 2 | tcl-cshim |
+| `c-api-visibility` | KEEP-CONTRACT | 2 | tcl-cshim |
+| `engine-value-bridge` | KEEP-CONTRACT | 2 | tcl-engine-tclvm |
 | `pack-family-runtime-path` | UNDECIDED | 2 | tcl-spec-hooks |
 | `switch-return-arms-invoked` | FIX-EXPECTATION | 1 | tcl-codegen |
 | `jim-module-purpose-premise` | REWRITE | 1 | tcl-codegen |
+| `c-api-object-lifetime` | KEEP-CONTRACT | 1 | tcl-cshim |
+| `c-api-load` | KEEP-ORACLE | 1 | tcl-cshim |
+| `c-abi-layout` | KEEP-CONTRACT | 1 | tcl-cshim |
 | `bad-option-wording-below-8.6` | FIX-EXPECTATION | 1 | tcl-runtime |
 | `representation-command-before-8.6` | KEEP-ORACLE | 1 | tcl-runtime |
 | `delete-proc-runs-in-delete-command` | FIX-EXPECTATION | 1 | tcl-runtime |
@@ -68,7 +75,7 @@ Each line is one behaviour tclsh, Jim or a contract shows that the product gets 
 ## Open questions for the coordinator
 
 - `inliner-unshipped` (23): tests of `inlining::inline_module`, which no production path calls (guarded by c0ed6978). Keep as the design tests the splice work will need, or retire with the guard as the reason.
-- `native-artefact-assertion` / `native-protocol-refusal` (about 80): they assert native headers, windows, receipts or refusal shapes. A per-test reading decides KEEP (a named script observable depends on it) or REWRITE/RETIRE. Not yet done; this is the second part.
+- Part 2 read the native-artefact rows: C-API and extension behaviours are KEEP-ORACLE or KEEP-CONTRACT (`c-api-*`, `engine-value-bridge`, `c-extension-vectors`); the rest assert a refusal or ordering point through receipts or pointers and are REWRITE (`native-artefact-ordering`): the behaviour is real, the observable is the script result and the absence of later effects. Still undecided: `callback_namespace_primary_retains_private_scope_and_descriptor` (engine), `measured_bare_matches_runtime_requires_independent_authored_policy` (runtime), `unrepresented_native_byte_literal_is_a_host_refusal` (vm) and the two `families_e2e::*::runtime` pack-family rows (contract owner irules-registry-tooling).
 - `codegen-internal-record` (37): REWRITE, each re-pointed at tclsh disassembly or the replay/deopt behaviour it guards.
 
 ## tcl-vm and tcl-runtime: both copies
