@@ -399,7 +399,9 @@ mod tests {
     // Implementation contract: naming.vendor.original-source-context-input
     // docs/design/analysis/name-resolution-proofs/vendor-original-source-context-input.md
     fn vendor_variable_advice_preserves_selected_body_and_formal_source_owners() {
-        let source = "proc p {argument {optional DEFAULT} args} {set local 1; set {v\\uD800} 2; return $argument}\n";
+        // A quoted word performs the escape; a brace group would not (tclsh
+        // 8.4.20 to 9.1.0: `set {v\uD800} 1; info vars v*` lists `{v\uD800}`).
+        let source = "proc p {argument {optional DEFAULT} args} {set local 1; set \"v\\uD800\" 2; return $argument}\n";
         for profile in ["f5-irules", "f5-iapps", "f5-tmsh"] {
             let mut analysis = crate::analyser::Analyser::new().analyse(source, profile);
             let image = SourceImage::document(source);
@@ -470,7 +472,7 @@ mod tests {
                 .find(|advice| {
                     matches!(advice.input(),
                 VendorSourceVariableNameInput::Written(original)
-                    if original.name_input().original_word().bytes() == b"{v\\uD800}")
+                    if original.name_input().original_word().bytes() == b"\"v\\uD800\"")
                 })
                 .expect("unsupported name remains owned");
             assert!(opaque.literal_units().is_none());

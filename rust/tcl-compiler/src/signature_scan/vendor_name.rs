@@ -229,7 +229,9 @@ mod tests {
     // Implementation contract: naming.vendor.original-source-context-input
     // docs/design/analysis/name-resolution-proofs/vendor-original-source-context-input.md
     fn original_vendor_words_keep_context_units_and_unknown_producers_separate() {
-        let source = "proc {p\\uD800} {arg} {return $arg}\npackage require {pkg\\uD800}\nsource {file\\uD800}\nset {v\\uD800} 1";
+        // A quoted word performs the escape; a brace group would not (tclsh
+        // 8.4.20 to 9.1.0 define `proc {p\uD800}` under a nine-character name).
+        let source = "proc \"p\\uD800\" {arg} {return $arg}\npackage require \"pkg\\uD800\"\nsource \"file\\uD800\"\nset \"v\\uD800\" 1";
         for (profile, context) in [
             ("f5-irules", BigIpExecutionContext::TmmIRule),
             ("f5-iapps", BigIpExecutionContext::IAppImplementation),
