@@ -87,6 +87,15 @@ impl Analyser {
         )
         .with_workspace_source_modules(self.workspace_source_modules.clone())
         .with_script_encoding(self.script_encoding);
+        // Only a supplier runs the document inside a procedure frame.
+        let input = match self
+            .resolved_input
+            .as_ref()
+            .and_then(|supplied| supplied.entry_procedure_frame.clone())
+        {
+            Some(frame) => input.with_entry_procedure_frame(frame),
+            None => input,
+        };
         // A supplied input keeps the policy its supplier gave it, including
         // none; only the default ingress derives one from the environment.
         let policy = match &self.resolved_input {

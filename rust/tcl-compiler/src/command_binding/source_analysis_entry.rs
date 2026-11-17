@@ -281,6 +281,22 @@ impl SourceAnalysisOptions<'_> {
         Some(input.clone())
     }
 
+    /// The procedure frame the supplier evaluates the whole document inside
+    /// ([`crate::analyser::EntryProcedureFrame`]). A native entry, an
+    /// inherited source point or an unknown entry selects its own frame.
+    pub(crate) fn entry_procedure_frame(&self) -> Option<&crate::analyser::EntryProcedureFrame> {
+        if self.native_entry.is_some() || self.source_point_entry.is_some() || self.unknown_entry {
+            return None;
+        }
+        let supplied = match self.metadata_context {
+            crate::registry_invocation::InvocationMetadataInput::SuppliedSource(input) => input,
+            _ => None,
+        };
+        supplied
+            .or(self.logical_source_input)
+            .and_then(crate::analyser::ResolvedAnalysisInput::entry_procedure_frame)
+    }
+
     pub(crate) fn retained_logical_source_input(
         &self,
         registry: &tcl_registry::CommandRegistry,

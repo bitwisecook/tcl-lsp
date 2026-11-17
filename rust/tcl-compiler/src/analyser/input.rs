@@ -20,6 +20,12 @@
 
 use std::sync::Arc;
 
+mod entry_frame;
+#[cfg(test)]
+mod entry_frame_tests;
+
+pub use entry_frame::EntryProcedureFrame;
+
 /// The exact profile, availability generation and whole-source configuration
 /// supplied by a driver. Clones retain the same immutable generation for cache
 /// keys; independently assembled generations conservatively invalidate them.
@@ -36,6 +42,7 @@ pub struct ResolvedAnalysisInput {
     vendor_source_policy: Option<tcl_syntax::naming::VendorSourceNamePolicy>,
     workspace_source_modules: Option<Arc<Vec<crate::command_binding::TrustedSourceModuleLoader>>>,
     script_encoding: tcl_registry::value_transfer::ScriptEncoding,
+    pub(super) entry_procedure_frame: Option<Arc<EntryProcedureFrame>>,
 }
 
 impl ResolvedAnalysisInput {
@@ -58,7 +65,23 @@ impl ResolvedAnalysisInput {
             vendor_source_policy: None,
             workspace_source_modules: None,
             script_encoding: tcl_registry::value_transfer::ScriptEncoding::Auto,
+            entry_procedure_frame: None,
         }
+    }
+
+    /// The procedure frame the driver evaluates this document inside
+    /// ([`EntryProcedureFrame`]); without it the document runs in a fresh
+    /// interpreter's global frame.
+    #[must_use]
+    pub fn with_entry_procedure_frame(mut self, frame: Arc<EntryProcedureFrame>) -> Self {
+        self.entry_procedure_frame = Some(frame);
+        self
+    }
+
+    /// The driver-supplied entry procedure frame, if any.
+    #[must_use]
+    pub fn entry_procedure_frame(&self) -> Option<&EntryProcedureFrame> {
+        self.entry_procedure_frame.as_deref()
     }
 
     /// The encoding the target reads this document's script in, as the
@@ -211,6 +234,7 @@ impl PartialEq for ResolvedAnalysisInput {
             && self.config == other.config
             && self.vendor_source_policy == other.vendor_source_policy
             && self.script_encoding == other.script_encoding
+            && self.entry_procedure_frame == other.entry_procedure_frame
             && Arc::ptr_eq(&self.context, &other.context)
     }
 }
@@ -224,6 +248,7 @@ impl std::hash::Hash for ResolvedAnalysisInput {
         self.config.hash(state);
         self.vendor_source_policy.hash(state);
         self.script_encoding.hash(state);
+        self.entry_procedure_frame.hash(state);
         Arc::as_ptr(&self.context).hash(state);
     }
 }

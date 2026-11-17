@@ -577,6 +577,48 @@ impl SourceCommandBindings {
         }
     }
 
+    /// The supplier runs the whole document inside a procedure (a loader's
+    /// `eval` or `source`): a fresh activation over the fresh interpreter,
+    /// named after this source origin so no document procedure can share it,
+    /// holding the supplier's locals and `global` links before the first line.
+    /// Otherwise the supplied frame is the entry activation.
+    fn entry_activation(
+        state: &mut ModuleCommandBindings,
+        options: &SourceAnalysisOptions<'_>,
+        frame: &crate::var_resolve::VariableExecutionFrame,
+        namespace_key: &SourceNamespaceKey,
+        registry: &CommandRegistry,
+    ) -> crate::var_resolve::VariableExecutionFrame {
+        let Some(entry) = options
+            .entry_procedure_frame()
+            .filter(|_| matches!(frame, crate::var_resolve::VariableExecutionFrame::Global))
+        else {
+            return frame.clone().with_namespace_identity(namespace_key.clone());
+        };
+        let frame = crate::var_resolve::VariableExecutionFrame::Procedure {
+            namespace: source_frame_namespace(frame).to_owned(),
+            identity: super::source_origin::source_activation_name(
+                state.current_source_origin.as_ref(),
+                "entry-procedure",
+                0,
+            ),
+        }
+        .with_namespace_identity(namespace_key.clone());
+        let mut variables = state.source_variables.enter_called_frame(&frame);
+        for (name, value) in entry.locals() {
+            match value {
+                Some(value) => variables.bind_literal_incoming(name, value, registry),
+                None => variables.bind_unknown_incoming(name, registry),
+            }
+        }
+        for name in entry.globals() {
+            crate::variable_bindings::bind_entry_global_link(&mut variables, name, registry);
+        }
+        state.source_variables = Arc::new(variables);
+        state.variable_frame = frame.clone();
+        frame
+    }
+
     fn analyse_source_in_frame_with_options(
         source: &str,
         image: &tcl_lexer::SourceImage,
@@ -631,7 +673,7 @@ impl SourceCommandBindings {
         bindings.original_analysis_owner =
             Self::initial_original_analysis_owner(&state, config, options);
         let namespace_key = source_entry_namespace_key(&options, frame, namespace);
-        let frame = frame.clone().with_namespace_identity(namespace_key.clone());
+        let frame = Self::entry_activation(&mut state, &options, frame, &namespace_key, registry);
         // This API's supplied frame is the entry activation. It is not a
         // nested call whose final state should restore the initial model frame.
         Self::update_source_interpretation_frame(&mut state, &frame);
