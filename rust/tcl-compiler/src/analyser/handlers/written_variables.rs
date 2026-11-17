@@ -150,7 +150,7 @@ impl Analyser {
                     .flatten()
             })
         {
-            self.bind_created_interpreter_value(path, safe, name, value_tok, scope_path);
+            self.bind_created_interpreter_value(path.as_ref(), safe, name, value_tok, scope_path);
         } else if single
             && value_tok.kind == TokenType::Cmd
             && let Some(folded) =

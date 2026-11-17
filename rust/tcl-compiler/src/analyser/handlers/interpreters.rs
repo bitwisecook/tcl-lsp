@@ -115,7 +115,7 @@ pub(super) fn created_interpreter(
 impl Analyser {
     pub(super) fn bind_created_interpreter_value(
         &mut self,
-        path: Option<tcl_registry::TransitionSubject>,
+        path: Option<&tcl_registry::TransitionSubject>,
         safe: bool,
         name: &str,
         value_tok: Token,
@@ -125,7 +125,7 @@ impl Analyser {
         // created interpreter. Keep the variable binding in the scope chain.
         use tcl_registry::TransitionSubject;
         self.clear_const_string(name, scope_path);
-        let written = match &path {
+        let written = match path {
             Some(
                 TransitionSubject::Literal(value) | TransitionSubject::LocatedLiteral { value, .. },
             ) => Some(Some(value.as_str())),
