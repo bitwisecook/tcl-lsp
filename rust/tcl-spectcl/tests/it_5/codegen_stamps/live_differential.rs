@@ -21,6 +21,10 @@
 use super::*;
 use tcl_dialect::TclVersion;
 
+/// What both runs define besides the pack's definitions: a procedure that
+/// looks into its caller's frame.
+const SETUP: &str = "proc peek {} {uplevel 1 {info locals}}";
+
 /// A pack of the shapes: `(name, arity, formal count, definition)`.
 const SHAPES: &[(&str, &str, usize, &str)] = &[
     ("vthree", "0", 0, "proc vthree {} {expr {1 + 2}}"),
@@ -50,6 +54,33 @@ const CASES: &[(&str, &[&str], usize)] = &[
         0,
     ),
     ("proc caller {n} {vdef $n}", &["caller 5", "caller x"], 1),
+    // The caller's frame after the call holds only the caller's variables,
+    // whoever looks: the caller itself, or a procedure it calls next.
+    (
+        "proc caller {n} {vdouble $n; info locals}",
+        &["caller 2"],
+        1,
+    ),
+    (
+        "proc caller {n} {vdouble $n; lsort [info vars]}",
+        &["caller 2"],
+        1,
+    ),
+    ("proc caller {n} {vdouble $n; peek}", &["caller 2"], 1),
+    // A caller's own variables spelled as a splice would name its locals,
+    // written and read directly and through a computed name around the call.
+    (
+        "proc caller {n} {set __inline_0__x 5; set __inline_1__x 6; vdouble $n; \
+         list $__inline_0__x $__inline_1__x}",
+        &["caller 2"],
+        1,
+    ),
+    (
+        "proc caller {n} {set v __inline_; append v 1__x; set $v 5; vdouble $n; \
+         list [set $v] [info exists __inline_0__x]}",
+        &["caller 2"],
+        1,
+    ),
     // The call's own argument count is wrong.
     ("proc caller {n} {vdouble $n $n}", &["caller 1"], 0),
     (
@@ -113,8 +144,10 @@ fn run_inlined(set: &PackSet, version: TclVersion, caller: &str, call: &str) -> 
         let completion = vm.eval_source(definition).expect("compiles");
         assert_eq!(completion.code, Code::Ok, "{definition}");
     }
-    let completion = vm.eval_source(caller).expect("compiles");
-    assert_eq!(completion.code, Code::Ok, "{caller}");
+    for script in [SETUP, caller] {
+        let completion = vm.eval_source(script).expect("compiles");
+        assert_eq!(completion.code, Code::Ok, "{script}");
+    }
     let completion = vm.eval_source(&report(version, call)).expect("compiles");
     Outcome {
         code: completion.code,
@@ -131,7 +164,7 @@ fn run_tclsh(tclsh: &tcl_test_support::Tclsh, caller: &str, call: &str) -> Strin
         .map(|(_, _, _, definition)| *definition)
         .collect();
     let script = format!(
-        "{}\n{caller}\nputs -nonewline [{}]\n",
+        "{}\n{SETUP}\n{caller}\nputs -nonewline [{}]\n",
         definitions.join("\n"),
         report(tclsh.version, call)
     );
@@ -167,7 +200,12 @@ fn each_shape_spliced_by_the_live_compile_answers_as_tclsh_does() {
                         0
                     },
                 };
-                let got = run_inlined(&set, version, caller, call);
+                let mut got = run_inlined(&set, version, caller, call);
+                // A plain recompile says a splice was refused; where nothing
+                // is spliced the VM's own recompiles are not this test's.
+                if want.spliced == 0 {
+                    got.plain = 0;
+                }
                 if got != want {
                     disagreements.push(format!(
                         "{} {caller}: {call}\n    tclsh {want:?}\n    vm    {got:?}",
