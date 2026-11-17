@@ -1081,6 +1081,7 @@ mod sidecar_publication_tests {
      {
         let documents = Documents::new();
         let backend = crate::tests::test_backend();
+        backend.workspace_scan_ready.mark_complete();
         open_empty_diagnostic_fixture(&documents, &backend).await;
         let uri = &documents.uris[0];
         let expected = [serde_json::json!({"uri": uri, "version": 1, "source": ""})];

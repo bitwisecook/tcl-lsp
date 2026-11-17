@@ -430,6 +430,7 @@ async fn publication_validation_reborrows_exact_publisher_without_reissuing() {
 #[tokio::test]
 async fn current_diagnostics_serializes_dialect_from_the_completed_publisher_pass() {
     let backend = crate::tests::test_backend();
+    backend.workspace_scan_ready.mark_complete();
     let expected = DiagnosticSourceExpectation {
         uri: Uri::from_str("file:///diagnostic-published-dialect.tcl").unwrap(),
         version: 1,
