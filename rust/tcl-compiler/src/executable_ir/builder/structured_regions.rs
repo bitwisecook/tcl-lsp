@@ -262,7 +262,7 @@ impl FunctionBuilder {
                 completion,
                 descriptor,
                 kind,
-                statement: statement.clone(),
+                statement: std::sync::Arc::new(statement.clone()),
                 node: node.clone(),
                 source: SourceSite::source(statement.span()),
             }),

@@ -539,7 +539,9 @@ pub struct StructuredRegion {
     /// Which executable projection this region received.
     pub kind: StructuredRegionKind,
     /// Exact structured source-IR payload, retained as provenance only.
-    pub statement: Statement,
+    /// Shared, because it holds every nested body: a copy per clone of the
+    /// function grows with the square of the nesting depth.
+    pub statement: std::sync::Arc<Statement>,
     /// Stable source-semantic node that originated the region.
     pub node: NodeId,
     /// Full source site and provenance.
