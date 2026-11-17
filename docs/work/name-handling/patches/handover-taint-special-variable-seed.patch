@@ -1,0 +1,84 @@
+diff --git a/rust/tcl-compiler/src/taint/propagation.rs b/rust/tcl-compiler/src/taint/propagation.rs
+index 8f16a868..0d4fcafb 100644
+--- a/rust/tcl-compiler/src/taint/propagation.rs
++++ b/rust/tcl-compiler/src/taint/propagation.rs
+@@ -439,14 +439,24 @@ pub(super) fn seed_entry_taints(
+ 
+     // Registry-declared external inputs colour only their original physical
+     // root-global cells. Display aliases and array labels cannot select them.
+-    let Some((entry, profile)) = source.incoming_native_global_context() else {
+-        // Missing physical origin contributes no seed. Authored formals and
+-        // unknown SCRIPT contents retain their independent transfers.
+-        return;
++    let (entry, profile) = match source.incoming_native_global_context() {
++        Some((entry, profile)) => (Some(entry), profile),
++        // A supplied document starts a fresh interpreter, which holds its
++        // special variables: tclsh 8.4.20 to 9.1.0 print `1 1 1` for
++        // `list [info exists argv] [info exists argv0] [info exists env]`
++        // at file level. Unknown history contributes no seed.
++        None => match source.supplied_fresh_global_profile() {
++            Some(profile) => (None, profile),
++            None => return,
++        },
+     };
+     let surface = Some(profile.surface_query());
+     for (symbol, cell) in ssa.cell_symbols() {
+-        let Some(global) = cell.incoming_root_global(entry) else {
++        let global = match entry {
++            Some(entry) => cell.incoming_root_global(entry),
++            None => cell.supplied_root_global(),
++        };
++        let Some(global) = global else {
+             continue;
+         };
+         let Ok(name) = global.name().try_utf8() else {
+diff --git a/rust/tcl-compiler/src/taint/source_context.rs b/rust/tcl-compiler/src/taint/source_context.rs
+index 35eefac7..a16cf54d 100644
+--- a/rust/tcl-compiler/src/taint/source_context.rs
++++ b/rust/tcl-compiler/src/taint/source_context.rs
+@@ -139,6 +139,15 @@ impl<'a> TaintSourceContext<'a> {
+         (entry.profile == profile.cache_key()).then_some((entry, profile))
+     }
+ 
++    /// The profile of a supplied document that starts from a fresh
++    /// interpreter: complete source input, no captured entry and no unknown
++    /// history. Its root globals hold what the interpreter starts with.
++    pub(super) fn supplied_fresh_global_profile(self) -> Option<&'static DialectProfile> {
++        let input = self.metadata?.source_analysis_input()?;
++        let entry = &self.module?.source_entry;
++        (!entry.unknown_entry && entry.native_entry.is_none()).then(|| input.unit_profile())
++    }
++
+     pub(crate) fn for_input(
+         registry: &CommandRegistry,
+         input: Option<&'a ResolvedAnalysisInput>,
+diff --git a/rust/tcl-compiler/src/var_resolve/cell_key.rs b/rust/tcl-compiler/src/var_resolve/cell_key.rs
+index 1ea9f924..cb36d66c 100644
+--- a/rust/tcl-compiler/src/var_resolve/cell_key.rs
++++ b/rust/tcl-compiler/src/var_resolve/cell_key.rs
+@@ -146,6 +146,25 @@ impl VariableCellKey {
+             })
+     }
+ 
++    /// The root-global address in a supplied document, which starts from a
++    /// fresh interpreter and so carries no captured entry to compare with.
++    pub(crate) fn supplied_root_global(&self) -> Option<IncomingRootGlobalCell<'_>> {
++        let mut root = self;
++        while let Self::Element { cell, .. } = root {
++            root = cell;
++        }
++        match root {
++            Self::Namespace {
++                identity: SourceNamespaceKey::Authored(namespace),
++                simple,
++            } if namespace == "::" => Some(IncomingRootGlobalCell {
++                cell: self,
++                name: simple,
++            }),
++            _ => None,
++        }
++    }
++
+     /// Compatibility spelling only; never a lookup or equality proof.
+     #[must_use]
+     pub fn compatibility_name(&self) -> String {
