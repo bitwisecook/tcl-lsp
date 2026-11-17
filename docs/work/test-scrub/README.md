@@ -101,6 +101,20 @@ The second pass, after the failing tests, takes the passing ones through the exa
 - *An unknown head is bounded when the `unknown` handler in force is a proved document procedure* (and no `namespace unknown` applies): the call's effect is that procedure's.
 - *Reads in a body the analysis did not enter are display facts:* the occurrence is recorded, with no version.
 - *The Unavailable metadata context is a product state* (a missing overlay abstains); its tests are kept and reach it by the real route. A profile-less registry is a supported input only if production code builds one.
+- *Facts inside a never-called procedure.* A fact that depends on a caller's values is a fixture fault (call it). A fact that holds for every entry is kept: an uncalled procedure is still callable, so the walk gives it a generic entry (formals unknown, the command world under the entry-independent conditions, caller frame unknown) and proves what holds for every entry. Tests of that kind are not "fixed" by adding a call. Design with analyser-binding.
+- *A fold on the characters of a non-ASCII source literal* declines on 8.4 to 8.6 unless the script's encoding is proved (a script file is read in the system encoding there); on 9.0 and later the default is utf-8.
+
+## Wrong answers found by the scrub
+
+These go ahead of missing facts once the ledgers are in.
+
+| Finding | Area |
+| --- | --- |
+| A procedure body rewritten from its one in-file call (`proc add` becomes `return 7`) | dataflow-optimiser |
+| A procedure summarised pure although it writes a global (`proc g {} {bump ::n}`) | dataflow-optimiser |
+| A call through `interp alias {} via {} far x` not seen as a call of `far`; `return $x` folds to 1 where tclsh prints 2 | dataflow-optimiser |
+| `rename list mylist` / `rename llength myll` still fold where tclsh raises | analyser-binding (mutation scan) |
+| `string length` of U+1D11E folds to 2 under 8.6 where tclsh 8.6 prints 4 in an iso8859-1 locale | dataflow-optimiser |
 
 ## Families by session
 
