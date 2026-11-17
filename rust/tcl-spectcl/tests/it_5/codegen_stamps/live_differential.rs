@@ -35,6 +35,20 @@ const SHAPES: &[(&str, &str, usize, &str)] = &[
     ("vcount", "0..", 0, "proc vcount {args} {llength $args}"),
     ("vformat", "1", 1, "proc vformat {x} {format %d $x}"),
     ("vlevel", "1", 1, "proc vlevel {x} {return -level 2 $x}"),
+    (
+        "vret",
+        "1",
+        1,
+        "proc vret {x} {return -code error -errorcode {VENDOR BAD} $x}",
+    ),
+    ("vbrk", "0", 0, "proc vbrk {} {break}"),
+    ("vcont", "0", 0, "proc vcont {} {continue}"),
+    (
+        "verr",
+        "1",
+        1,
+        "proc verr {x} {error $x {custom info} {VENDOR ERR}}",
+    ),
     ("vabs", "1", 1, "proc vabs {x} {expr {abs($x) + 1}}"),
     (
         "vlen",
@@ -134,6 +148,12 @@ const CASES: &[(&str, &[&str], usize)] = &[
         &["list [catch caller] $::n"],
         0,
     ),
+    // A body that completes other than normally stays a call: none is
+    // spliced by the release unit.
+    ("proc caller {n} {vret $n}", &["caller x"], 0),
+    ("proc caller {} {vbrk}", &["caller"], 0),
+    ("proc caller {} {vcont}", &["caller"], 0),
+    ("proc caller {n} {verr $n}", &["caller y"], 0),
     // A body that returns from its caller stays a call: the registry
     // declares no role for each of `return`'s words (`IncompleteRoles`).
     (
