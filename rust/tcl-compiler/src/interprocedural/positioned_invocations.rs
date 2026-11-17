@@ -193,10 +193,24 @@ pub(super) fn scan_normal_visible_reads(
     ) else {
         return;
     };
+    // Every named operand is a local linked to the place a parameter names
+    // one frame up: what the read reaches is that place, which the caller
+    // sees through the link alone.
+    let roles = normal.variable_roles();
+    let through_links = !roles.is_empty()
+        && roles.iter().all(|&(index, _)| {
+            normal
+                .argument_literal(index)
+                .is_some_and(|name| facts.upvar_aliases.contains_key(&name))
+        });
     for place in normal.read_places(&binding.variable_context, ctx.registry) {
         let owner = place.cell.as_ref().map(|cell| &cell.owner);
         if place.dynamic || place.observed || owner.is_none() {
-            facts.mark_impure();
+            if through_links {
+                facts.local_pure = false;
+            } else {
+                facts.mark_impure();
+            }
             facts.effect_reads |= EffectRegion::GLOBAL_STATE | EffectRegion::UNKNOWN_STATE;
         } else if matches!(
             owner,
@@ -484,6 +498,7 @@ pub(super) fn scan_positioned_invocation(
             scan_unproved_invocation(args, positioned, facts);
         }
     } else if let Some(target) = possible_body_id(&target.command, ctx) {
+        facts.procedure_calls.push((target, Some(args.clone())));
         facts.direct_calls.insert(target);
         note_original_command_params(positioned, ProcArgTrait::ForwardedToCallee, facts);
         for arg in args {

@@ -106,6 +106,7 @@ The ledger gains a `status` column (open, repaired, fixed, deleted) and is kept 
 
 - *Tests of `inlining::inline_module`* (23, no production caller): read per test by the live-inlining session. "The inlined program answers as the original" is `KEEP-ORACLE`; an assertion on the inliner's internal shape is `REWRITE` to the differential or `MERGE` into a `live_differential` row; an assertion that names the renamed locals is `FIX-EXPECTATION`, since they become anonymous slots.
 - *A procedure body is never rewritten from call-site facts.* The procedure stays callable with other arguments from another file, a later `source`, a callback or an interactive session. The call site may fold; the body may not. The product does this today (`proc add {a b} {...}` becomes `return 7` from its one in-file call): a wrong rewrite, top of the dataflow fix list.
+- *The strict lattice of a procedure body is never seeded from its in-file callers* (the cause of the body rewrite above, and of I230 on a condition over a formal in a library file). A body is analysed from a generic entry; a value the in-file calls pass may be shown by hover as advice from the advisory side, never from the strict lattice.
 - *Store removal by liveness in a `when` body is not a licensed rewrite.* Handler variables are connection-scoped and what hosted commands read is advice; the finding may be offered as advice, never applied. The same-event case gets a BIG-IP check row.
 - *A binding's target is the command as tclsh names it.* After `rename a b` it is `::b`; the defining declaration is the binding's definition record.
 - *A proof nothing consumes is not behaviour.* Range joins that only the sealed four-statement add could use, on sources it can never select, are retired; the unconsumed code is noted for removal or a consumer.
@@ -123,6 +124,13 @@ The ledger gains a `status` column (open, repaired, fixed, deleted) and is kept 
 - *A switch-dispatch `proc unknown` bounds its calls:* a name its switch handles is known; a name that falls to a raising arm draws W123, instead of W123 being off for the whole file.
 - *A resolver derived from a pack's frame effect does exactly what `upvar` does* for a computed level: the local exists as a link to an unknown frame.
 - *A wall-clock budget in a unit test holds nothing.* It is re-pointed at a count the algorithm controls, bounded by a stated function of input size, or at a scaling check; a user-visible latency budget belongs in a benchmark with the number's source written down.
+- *A statement after a proved error in an executed unit yields no facts for proof consumers or the call graph* (no object handles, call edges or definitions); it keeps the editor tier only. Uncalled procedure bodies are not affected.
+- *A hardening action is offered only on a proof:* the inserted command is the release's builtin at that site, the registry declares its evaluation effect-free, and the single read stays in place. It is a single, not-preferred action, never in fix-all.
+- *Branch conversion keeps its control-flow obligation only where a variable trace cannot be ruled out;* expression bracing beyond the literal subset and dictionary conversion keep theirs until they have evidence.
+- *A red test is not turned green by expecting the product's refusal.* Where tclsh shows a minifier rewrite equivalent under conditions the fixture meets (keyword abbreviation over a stock ensemble), the test keeps expecting the shorter text and stays red until the product can issue the receipt; the loss is tracked in the minifier open item. Only a rewrite tclsh shows not equivalent has its expectation changed to the refusal.
+- *A Logical class call publishes no Native class record;* the lenient environment's class facts live in the Logical domain, so they cannot reach proof consumers.
+- *Navigation answers under the display policy; edits need proof.* Go to Definition answers a written declaration where the strict world is unknown; inline and rename refuse there. Definition lists the sites that create a variable on some path to the cursor, not a later write to one that exists. A call-hierarchy item for a procedure carries its qualified name, as a member item does.
+- *A rename that returns no edits and no reason is a wrong answer.* An expression function name resolving through `tcl::mathfunc` is a reference a rename must edit or refuse on.
 - *Same input, same result, to the byte, is a contract of the analysis.* Incremental reuse and reproducible diagnostics rest on it; a difference between two runs is a wrong answer.
 - *Abstaining at `source -encoding` with a decode obligation recorded is sound* when nothing can decode; the command world after it must not stay proved.
 - *The generic entry covers a procedure the body defines on every call:* the nested procedure's body gets its own generic entry. It covers that body's facts only; whether the nested procedure exists for an outside caller still depends on whether the outer one surely ran.
@@ -158,6 +166,16 @@ These go ahead of missing facts once the ledgers are in.
 | Nine in the class and object facts area, listed first in `class-facts.md`: a creation recorded after a `proc` in a namespace that does not exist (tclsh stops); a call in an uncalled procedure closed to the in-file callee although a later `proc` or `rename` decides it; a nested `proc` selected as structured, feeding rename's coverage; `struct::graph g` typed as an object with no provider; and five more | class-facts |
 | Two analyses of the same file compare unequal (`aliases.tcl`): the analysis is not deterministic there | class-facts to name the field |
 | The whole-file walk records `::${ns}::setdef` as a candidate for `${ns}::setdef` | analyser-binding |
+| A namespace rename accepted while `after 0 {::old::tick}` and `[list ::old::tick]` keep the old name (tclsh: invalid command name after the rename) | lsp-features |
+| The namespace-variable rename hazard check clears a branch-dependent constant that can spell the old name | lsp-features |
+| The workspace index installs import links that tclsh refuses (15 tests; feeds definition and the linked references view) | lsp-features |
+| Three go-to-definition answers that follow import ordering in a way tclsh contradicts; a property lens that counts `my size`, which raises on 9.0 and 9.1 | lsp-features |
+| The stub's declared words are still given to a command after `rename check {}` | analyser-binding |
+| The rename family: the lattice keeps a builtin after `rename string {}`; `mystr` reads as opaque after `rename string mystr`; `expr` or `::add` still trusted after a renaming procedure or `rename $command …` runs; a rename inside an evaluated body (`namespace eval`, `apply`, a procedure built from a variable) or behind an unknown-handler alias is not replayed | analyser-binding (with dataflow's rename scan) |
+| Body advice inside `proc A::p` where tclsh raises unknown namespace; a `struct::graph` callback receipt with no `package require`; a constructor shape after `unexport new` | analyser-binding |
+| Native lowering still emits a definition after `proc` is replaced; `unset` in a callback not counted as a write; a Jim entry lexed with the 8.6 configuration; `[dict size DATA]` inside an unknown command's braced word listed as a nested call | analyser-binding |
+| `-force` imports followed to the deleted local (10 tests); an inner namespaced class does not shadow the global one; a mathfunc rename that returns no edits and no reason | lsp-features |
+| A helper's condition concluded, and its body rewritten, from in-file callers although another file calls it differently (the body-seed cause above); W210 after a raising `unset x`; `namespace export *` in `namespace eval` scanned as no export boundary | analyser-binding |
 
 ## Passing tests the oracle contradicts
 
@@ -188,22 +206,42 @@ session whose area note names it, and analyser-binding decides the rest.
 | tk-oo | the tests its issues name |
 | live-inlining | `tcl-spectcl` `codegen_stamps` |
 
-## Where it stands, 17 November 2026, 21:55 UTC
+## Where it stands, 17 November 2026, 22:40 UTC
 
-Ten of thirteen ledgers are signed off: 2,162 failing tests triaged.
+Twelve of thirteen ledgers are signed off: 3,252 failing tests triaged (only the Tk and TclOO ledger, about 60 tests, is outstanding).
 
 | Verdict | Tests | Share |
 | --- | ---: | ---: |
-| `KEEP-ORACLE` | 623 | 29% |
-| `KEEP-CONTRACT` | 623 | 29% |
-| `KEEP-F5` | 123 | 6% |
-| `FIX-FIXTURE` | 381 | 18% |
-| `FIX-EXPECTATION` | 94 | 4% |
-| `REWRITE` | 205 | 9% |
-| `MERGE` | 91 | 4% |
-| `RETIRE` | 21 | 1% |
+| `KEEP-ORACLE` | 942 | 29% |
+| `KEEP-CONTRACT` | 920 | 28% |
+| `KEEP-F5` | 140 | 4% |
+| `FIX-FIXTURE` | 622 | 19% |
+| `FIX-EXPECTATION` | 201 | 6% |
+| `REWRITE` | 290 | 9% |
+| `MERGE` | 94 | 3% |
+| `RETIRE` | 35 | 1% |
+| `UNDECIDED` (ruled, rows being updated) | 8 | |
 
-So 63% of the failing tests hold behaviour worth making pass, 22% fail because the test itself is wrong, 9% hold real behaviour through an internal detail and are re-pointed, and 5% go. The scrub has found 32 wrong answers the product gives today and five passing tests that hold it to a wrong answer or pass for the wrong reason. Outstanding: analyser-binding (about 330, the critical path), lsp-features (about 500 and 181 routed from the server), tk-oo (about 60). The second pass (overlap among passing tests: 88 exact-copy groups, 385 overlap groups, the vacuous negatives) follows.
+What the failing tests are worth:
+
+- **62% (2,002) hold behaviour worth making pass**: tclsh or Jim shows it, a contract states it, or it is F5 behaviour tied to a BIG-IP check.
+- **25% (823) fail because the test is wrong**: the fixture is not what it claims, or the expectation contradicts the oracle. One fixture fault alone, a registry built with no dialect profile, accounts for well over a hundred across five areas; fixtures that read an unset variable, never install the procedure under test, or use a package without requiring it account for most of the rest.
+- **9% (290) hold real behaviour through an internal detail** and are re-pointed at the observable.
+- **4% (129) go**: merged into a named survivor or retired with an argument specific to the test.
+
+The scrub also found about sixty places where the product gives a wrong answer today (list below; `analyser-binding.md` ranks 27 of them), and a handful of passing tests that hold the product to a wrong answer or pass for the wrong reason. Wrong answers are fixed before missing facts.
+
+The failing behaviours are far fewer than the failing tests. The causes ranked highest across the ledgers:
+
+1. A procedure body's strict lattice seeded from its in-file callers (wrong rewrites and wrong diagnostics; being removed).
+2. `rename` not followed: a builtin still trusted after it is renamed away, in the lattice, the mutation scan and evaluated bodies.
+3. Statements with substituted words in a procedure body define nothing (the `info exists` wrong fold; 37 tests).
+4. The generic entry of a never-called procedure and the entry-independent binding (74 tests in the compiler, about 42 more in the editor features).
+5. A `proc` or a TclOO creation under a namespace that does not exist is not taken as the error tclsh raises.
+6. The VM's own compile refuses scripts tclsh runs (21).
+7. A class made by a user metaclass publishes no factory (15).
+
+The second pass (overlap among passing tests: 88 exact-copy groups, 385 overlap groups, the vacuous negatives on unwired helpers) follows the repairs.
 
 ## Progress
 
@@ -212,13 +250,13 @@ Updated at the hourly check from the ledgers on `work`.
 | Session | Failing tests to triage (about) | Rows in ledger | Sampled by the coordinator |
 | --- | ---: | ---: | --- |
 | diagnostics | 397 | 397, complete (KEEP-ORACLE 143, KEEP-CONTRACT 94, FIX-FIXTURE 62, REWRITE 36, FIX-EXPECTATION 33, KEEP-F5 17, UNDECIDED 6 ruled, RETIRE 5, MERGE 1) | signed off 21:20 UTC |
-| analyser-binding | 330 | 0 | |
+| analyser-binding | 418 | 418, complete (KEEP-CONTRACT 140, FIX-FIXTURE 98, KEEP-ORACLE 94, REWRITE 50, FIX-EXPECTATION 22, KEEP-F5 12, RETIRE 1, MERGE 1); 27 wrong answers; one ranked list merging the routed causes | signed off 22:38 UTC |
 | class-facts | 246 | 246, complete (KEEP-ORACLE 74, FIX-FIXTURE 67, KEEP-CONTRACT 43, REWRITE 40, FIX-EXPECTATION 14, UNDECIDED 4 ruled, KEEP-F5 2, RETIRE 1, MERGE 1); BIG-IP checks CF-01, CF-02 | signed off 21:30 UTC |
 | dataflow-optimiser | 423 | 423, complete (FIX-FIXTURE 142, KEEP-CONTRACT 103, KEEP-ORACLE 82, REWRITE 50, FIX-EXPECTATION 30, MERGE 10, RETIRE 5, KEEP-F5 1) | signed off 20:55 UTC |
 | values | 218 | 218, complete (KEEP-ORACLE 123, KEEP-CONTRACT 32, KEEP-F5 30, FIX-FIXTURE 20, FIX-EXPECTATION 6, REWRITE 6, RETIRE 1) | signed off 21:07 UTC |
 | taint | 171 | 174, complete (FIX-FIXTURE 81, KEEP-CONTRACT 38, REWRITE 18, KEEP-ORACLE 18, KEEP-F5 13, MERGE 4, RETIRE 1, FIX-EXPECTATION 1); BIG-IP checks 049, 071, 072, 073 | signed off 21:50 UTC |
 | analysis-performance | 46 | 46, complete (KEEP-CONTRACT 41, REWRITE 4, UNDECIDED 1 to diff) | signed off 21:33 UTC |
-| lsp-features | 500 | 0 | |
+| lsp-features | 672 (492 core, 177 routed from the server, 3 preview tickets) | 672, complete (KEEP-ORACLE 220, KEEP-CONTRACT 155, FIX-FIXTURE 149, FIX-EXPECTATION 84, REWRITE 35, RETIRE 13, UNDECIDED 7 ruled, KEEP-F5 5, MERGE 4) | signed off 22:35 UTC |
 | server-e2e-db | 216 (plus 214 routed: 181 navigation to lsp-features, 33 memo to analysis-performance) | 216, complete (KEEP-CONTRACT 163, KEEP-ORACLE 29, MERGE 10, KEEP-F5 10, REWRITE 2, FIX-FIXTURE 1, UNDECIDED 1 ruled) | signed off 21:12 UTC; three publication faults first |
 | execution | 264 (23 routed to live-inlining) | 264, complete (KEEP-ORACLE 109, KEEP-CONTRACT 56, MERGE 49, REWRITE 33, RETIRE 8, FIX-EXPECTATION 4, FIX-FIXTURE 3, KEEP-F5 2) | signed off 21:20 UTC, after the receipt-ordering retirements were redone test by test (26 back to KEEP-CONTRACT) |
 | irules-registry-tooling | 151 | 151, complete (KEEP-F5 48, KEEP-CONTRACT 47, KEEP-ORACLE 40, MERGE 15, FIX-FIXTURE 1); BIG-IP checks TS-01 to TS-10 | signed off 21:00 UTC |

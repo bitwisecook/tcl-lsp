@@ -67,6 +67,34 @@ impl Analyser {
         let descriptor = generation
             .context()
             .resolve_spec(generation.commands(), metadata.command())?;
+        // Where the walk reached this site, the head must not be a document
+        // definition (an alias, or an earlier `proc` or `rename` of the
+        // definer): each replaces the registry definer. Unreached bodies
+        // keep the inventory.
+        if let Some(realm) = self.result.retained_command_realm() {
+            let at = command.span.start();
+            let written = self.source.get(command.span.as_range())?;
+            let binding = realm
+                .invocation_at_source("", at)
+                .lookup_command_word(written);
+            let canonical = metadata.command().trim_start_matches("::");
+            let redeclared = || {
+                let ours = |name: &str| name.trim_start_matches("::") == canonical;
+                self.result
+                    .proc_declaration_sites
+                    .iter()
+                    .any(|(name, span)| span.start() < at && ours(name))
+                    || self
+                        .deleted_commands
+                        .iter()
+                        .any(|(name, offset)| *offset < at && ours(name))
+            };
+            if binding.targets.iter().any(|target| !target.registry_backed)
+                || (binding.unknown && realm.source_bindings_ref().reached_site(at) && redeclared())
+            {
+                return None;
+            }
+        }
         let grammar = descriptor.definition_body?;
         if grammar.family != DefinerFamily::Clay {
             return None;

@@ -485,6 +485,12 @@ impl Vm {
         self.native_errors.error_line = 1;
     }
 
+    /// Forget an error a spliced body raised before its call runs uninlined:
+    /// the call's own error starts the episode afresh.
+    pub(crate) fn abandon_error_episode(&mut self) {
+        self.reset_error_state_for_eval();
+    }
+
     /// Take the accumulated `errorInfo` trace (if any) and reset it for the next
     /// error — used when `catch` reports an error.
     /// Forget `ERR_ALREADY_LOGGED` while keeping the accumulated `errorInfo`,

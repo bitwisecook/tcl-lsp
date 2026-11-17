@@ -33,6 +33,10 @@ pub(super) fn a_declaration_body_the_walk_cannot_read_is_not_a_blocker() {
     let src = COMPUTED_METACLASS.replace(
         "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
         concat!(
+            // tclsh 8.4 to 9.1 refuse `proc` into a namespace that does not
+            // exist (`can't create procedure "::T::D::define": unknown
+            // namespace`), so the namespace is created first.
+            "    namespace eval $NSPACE {}\n",
             "    proc ${NSPACE}::define {oclass args} [string map [list %NSPACE% $NSPACE] {\n",
             "        set class $oclass\n",
             "    }]\n",

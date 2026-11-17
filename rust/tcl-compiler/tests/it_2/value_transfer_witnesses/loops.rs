@@ -642,6 +642,9 @@ fn the_eleven_loop_witnesses() {
         let printed = if holds { then } else { otherwise };
         let dropped = if holds { otherwise } else { then };
         for dialect in DIALECTS {
+            if f5_refuses_top_level(&source, dialect) {
+                continue;
+            }
             let unit = unit_of(&source, dialect);
             assert!(
                 unit.top_level
@@ -790,6 +793,9 @@ fn an_enumerated_loop_bounds_its_counter_after_it() {
                           puts [lindex $l $i]\n}\np\n";
     for dialect in DIALECTS {
         for source in [top_level, in_a_procedure] {
+            if f5_refuses_top_level(source, dialect) {
+                continue;
+            }
             assert!(
                 reports(source, dialect, DiagCode::W230),
                 "{dialect}\n{source}"

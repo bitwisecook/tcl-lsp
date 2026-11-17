@@ -80,7 +80,7 @@ pub use definitions::{
 };
 pub use module::{
     DeclaredFrameEffects, DeferredWrites, Module, NO_DEFERRED_WRITES, ReferenceBodies,
-    ReferenceImport, TopLevelKind, when_event_name,
+    ReferenceImport, SpliceSite, TopLevelKind, when_event_name,
 };
 pub use provenance::{DerivedKind, NodeId, Provenance, SourceSite};
 pub use script::{

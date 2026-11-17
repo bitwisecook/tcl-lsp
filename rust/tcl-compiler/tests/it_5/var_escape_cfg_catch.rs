@@ -210,13 +210,16 @@ fn catch_body_upvar_records_source_and_escapes_alias() {
 }
 
 #[test]
-fn catch_body_nested_eval_block_escapes_inner_name() {
-    // tclsh: `proc f {} { catch {eval {set z 9}}; return $z }; f` -> 9. A literal
-    // `eval` nested in the catch body reaches the tree walker's eval-block arm.
+fn catch_body_nested_eval_block_keeps_its_name_local() {
+    // tclsh: `proc f {} { catch {eval {set z 9}}; return $z }; f` -> 9, z a
+    // variable of f. On 8.4 to 9.1 the literal `eval` body is lowered inline
+    // (`set z 1` is an ordinary statement of p), so every access is static
+    // and z is Local (docs/design/compiler/var-escape-analysis.md; ruling of
+    // 17 November).
     let r = proc_cfg_result("catch {eval {set z 1}}");
     assert!(
-        is_frame(&r, "z"),
-        "name in catch'd nested eval escapes: {:?}",
+        !is_frame(&r, "z"),
+        "a literal eval body lowered inline keeps z Local: {:?}",
         r.name_tags
     );
 }

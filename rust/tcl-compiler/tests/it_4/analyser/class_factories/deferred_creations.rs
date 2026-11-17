@@ -297,12 +297,14 @@ fn a_head_the_walk_knew_only_as_a_define_stub_is_still_deferred() {
 }
 
 #[test]
-fn a_stub_that_contradicts_the_replayed_creation_abstains_but_keeps_members() {
-    // The other side of that join: the stub and the creation body declare
-    // *different* superclasses. Two observations that disagree publish the
-    // abstaining record — no factory, inheritance unknown — exactly as a
-    // pair of disagreeing creations does, while both sides' declarations
-    // stay, because they are declarations of this class either way.
+fn a_later_define_replaces_the_replayed_creation_superclass() {
+    // The creation body and the later `oo::define` declare different
+    // superclasses. They run in order, so the define replaces the
+    // superclass and both bodies' members stay. tclsh 8.6.18 / 9.0.4 /
+    // 9.1.0: `info class superclasses ::T::W` is `::T::Other`, `info class
+    // methods ::T::W` is `extra go`, and `info object class ::T::W` is
+    // `::T::D::class`. `::T::Other` is no metaclass, so `::T::W` ends a
+    // plain class and publishes no factory.
     let src = format!(
         "{COMPUTED_METACLASS}\
              oo::class create ::T::Other {{}}\n\
@@ -313,19 +315,26 @@ fn a_stub_that_contradicts_the_replayed_creation_abstains_but_keeps_members() {
     let w = result
         .all_classes
         .get("::T::W")
-        .expect("the contested class is still recorded");
+        .expect("the class is recorded");
     assert!(
-        w.inheritance_unknown,
-        "two disagreeing superclass observations must abstain"
+        !w.inheritance_unknown && w.superclasses == ["::T::Other"],
+        "the later define replaces the superclass; got {:?} (unknown {})",
+        w.superclasses,
+        w.inheritance_unknown
     );
     assert!(
         w.methods.contains_key("go") && w.methods.contains_key("extra"),
-        "an abstaining record still holds every declaration; got {:?}",
+        "both bodies' members stay; got {:?}",
         w.methods.keys().collect::<Vec<_>>()
     );
     assert!(
+        w.metaclass.ends_with("T::D::class"),
+        "the creating metaclass is unchanged; got {:?}",
+        w.metaclass
+    );
+    assert!(
         !result.class_factories().contains_key("::T::W"),
-        "an abstaining record publishes no factory"
+        "a class whose superclass is no metaclass publishes no factory"
     );
 }
 
@@ -496,13 +505,12 @@ fn a_define_stub_replaces_a_member_the_creation_body_also_declared() {
 }
 
 #[test]
-fn two_creations_naming_one_class_under_different_metaclasses_abstain() {
-    // FP guard at the source level: the gate added there must
-    // stay a statement about *unobserved* metaclasses only. Both of
-    // these creations read a head word, and they disagree, so the
-    // record must still abstain — no factory, inheritance unknown —
-    // exactly as it did before the gate existed. Without this, dropping
-    // the `metaclass_provenance: Observed` at the creation site is invisible.
+fn a_second_creation_of_an_existing_class_fails_and_keeps_the_first() {
+    // The second creation names a class that already exists, so it raises
+    // and the first creation's record stands. tclsh 8.6.18 / 9.0.4 /
+    // 9.1.0: `::T::mk ::T::D` -> `can't create object "::T::D::class":
+    // command already exists with that name`, and `info object class
+    // ::T::D::class` stays `::T::MotherA`.
     let src = concat!(
         "namespace eval ::T {}\n",
         "oo::class create ::T::MotherA { superclass oo::class }\n",
@@ -517,20 +525,22 @@ fn two_creations_naming_one_class_under_different_metaclasses_abstain() {
     let class = result
         .all_classes
         .get("::T::D::class")
-        .expect("the contested class is still recorded");
+        .expect("the first creation's class is recorded");
     assert!(
-        class.superclasses.is_empty()
+        class.superclasses.is_empty() && !class.inheritance_unknown,
+        "the failing second creation changes nothing; got {:?} (unknown {})",
+        class.superclasses,
+        class.inheritance_unknown
+    );
+    assert!(
+        class.metaclass.ends_with("T::MotherA")
             && class.metaclass_provenance == MetaclassProvenance::Observed,
-        "both bodies declare no superclass, so the metaclass is the only \
-             thing this pair disagrees about"
+        "the metaclass is the first creation's; got {:?}",
+        class.metaclass
     );
     assert!(
-        class.inheritance_unknown,
-        "two observed, disagreeing metaclasses must abstain the record"
-    );
-    assert!(
-        class.factory.is_none(),
-        "an abstaining record must publish no factory"
+        !result.class_factories().contains_key("::T::D::class"),
+        "a class with no metaclass superclass publishes no factory"
     );
 }
 

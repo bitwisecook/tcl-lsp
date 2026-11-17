@@ -43,4 +43,7 @@ pub struct NativeReturnOptionsLiteral {
     pub level: i32,
     /// Remaining member count checked against the manufactured header.
     pub size: usize,
+    /// `TclCompileSyntaxError` stores `Tcl_GetReturnOptions`' dictionary,
+    /// which keeps `-code` and `-level` as members; `return` removes them.
+    pub retains_controls: bool,
 }

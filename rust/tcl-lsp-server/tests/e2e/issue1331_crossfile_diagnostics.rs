@@ -310,7 +310,12 @@ fn a_genuinely_unknown_command_still_draws_w123() {
     let caller = unique_uri("tcl");
     lsp.open_ready(&caller, "libtest 1 2 3\nneverDefinedAnywhereAtAll x\n");
 
-    let diags = settled(&lsp, &caller, |d| has(d, "W123"));
+    // The caller's first publish can precede the library's evidence, when
+    // `libtest` is still unresolved; wait for the converged list, where the
+    // unknown command is the only W123.
+    let diags = settled(&lsp, &caller, |d| {
+        has_message(d, "W123", "neverDefinedAnywhereAtAll") && !has_message(d, "W123", "libtest")
+    });
     let msg = message_of(&diags, "W123").unwrap_or_default();
     assert!(
         msg.contains("neverDefinedAnywhereAtAll"),

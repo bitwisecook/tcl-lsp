@@ -370,6 +370,26 @@ pub struct ReferenceBodies {
     /// name an anonymous slot, so the caller's frame holds no variable of that
     /// name for anything to list, reach or collide with.
     pub hidden_local_prefixes: Vec<String>,
+    /// The calls a live compile spliced, each with what codegen needs to emit
+    /// the call the splice falls back to.
+    pub splices: Vec<SpliceSite>,
+}
+
+/// A call whose body a live compile spliced in its place. Codegen brackets the
+/// body's instructions as a range and follows it with the call itself, made
+/// from the words the splice evaluated, which the runtime runs instead when
+/// anything inside the range leaves abnormally.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpliceSite {
+    /// The call's own extent in the caller.
+    pub call_span: Span,
+    /// The extent of the spliced body's statements in the module's source.
+    pub body_region: Span,
+    /// The hidden locals holding the call's evaluated words, the command word
+    /// first.
+    pub words: Vec<String>,
+    /// Whether the call's value is left on the stack after it.
+    pub resumes_with_value: bool,
 }
 
 /// One pack command's definition, as copied into a module.

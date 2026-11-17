@@ -104,7 +104,8 @@ fn a_call_naming_the_callers_own_place_keeps_it_pure() {
              proc ::p {} {set n 1; bump n; return $n}\n\
              proc ::r {} {set t 1; twice t; return $t}\n\
              proc ::g {} {bump ::n; return 0}\n\
-             proc ::h {} {global n; bump n; return 0}\n",
+             proc ::h {} {global n; bump n; return 0}\n\
+             proc ::q {} {g; return 1}\n",
     );
     let pure = |name: &str| fixture_proc(&ia, name).expect(name).pure;
     assert!(!pure("::bump"));
@@ -113,6 +114,8 @@ fn a_call_naming_the_callers_own_place_keeps_it_pure() {
     assert!(pure("::r"));
     assert!(!pure("::g"));
     assert!(!pure("::h"));
+    // tclsh 8.4-9.1 and jimsh: `set ::n 0; list [p] [g] $::n` is `2 0 1`.
+    assert!(!pure("::q"));
 }
 
 #[test]

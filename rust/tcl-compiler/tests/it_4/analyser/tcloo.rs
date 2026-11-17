@@ -167,39 +167,60 @@ mod tcloo_classes {
 
     #[test]
     fn oo_define_inline_and_partial_class() {
-        let cd = class(
-            "oo::define Dog method sit {} { return \"sitting\" }",
-            "::Dog",
-        );
-        assert!(cd.methods.contains_key("sit"));
-        // oo::define on an unseen class creates a partial ClassDef.
-        let cd2 = class(
-            "oo::define MyClass {\n    method foo {} {}\n}\n",
-            "::MyClass",
-        );
-        assert!(cd2.methods.contains_key("foo"));
+        // Alone, `oo::define Dog …` raises on tclsh 8.6.18, 9.0.4 and 9.1.0
+        // (`Dog does not refer to an object`): the document declares no class.
+        // Under a pinned release its members are a contribution another file's
+        // class may receive, never a class of this document (ruling of 17
+        // November on oo::define targets a document does not declare).
+        for (src, qn, method) in [
+            (
+                "oo::define Dog method sit {} { return \"sitting\" }",
+                "::Dog",
+                "sit",
+            ),
+            (
+                "oo::define MyClass {\n    method foo {} {}\n}\n",
+                "::MyClass",
+                "foo",
+            ),
+        ] {
+            let analysis = Analyser::new().analyse(src, D);
+            assert!(analysis.all_classes.is_empty(), "{src}");
+            assert!(
+                analysis
+                    .external_class_contributions
+                    .get(qn)
+                    .is_some_and(|contribution| contribution.methods.contains_key(method)),
+                "{src}"
+            );
+        }
     }
 
     #[test]
     fn metaclass_variants() {
-        let cfg = class(
+        // oo::configurable, oo::abstract and oo::singleton exist from Tcl 9.0
+        // (tclsh 9.0.4 and 9.1.0 have them; 8.6.18 raises invalid command name).
+        let cfg = class_in(
             "oo::configurable create Point {\n    property x y\n}\n",
             "::Point",
+            "tcl9.0",
         );
         assert_eq!(cfg.metaclass, "oo::configurable");
         assert!(cfg.properties.contains_key("x") && cfg.properties.contains_key("y"));
         assert_eq!(
-            class(
+            class_in(
                 "oo::abstract create Shape {\n    method area {} { error \"abstract\" }\n}\n",
-                "::Shape"
+                "::Shape",
+                "tcl9.0"
             )
             .metaclass,
             "oo::abstract"
         );
         assert_eq!(
-            class(
+            class_in(
                 "oo::singleton create Logger {\n    method log {msg} { puts $msg }\n}\n",
-                "::Logger"
+                "::Logger",
+                "tcl9.0"
             )
             .metaclass,
             "oo::singleton"
@@ -884,22 +905,26 @@ mod oo_helpers_namespace_path {
 
     #[test]
     fn tp_a_method_body_call_carries_the_helpers_candidate_first() {
-        // TP — `::oo::Helpers::callback` must be a candidate, and must rank
-        // ahead of the global one: with both defined, real Tcl reaches the
-        // helper.
+        // TP — `::oo::Helpers::callback` is a built-in on 9.0, so the lookup
+        // stops there and never reaches a global `callback`: with
+        // `proc ::callback` defined, tclsh 9.0.4 and 9.1.0 answer
+        // `namespace which -command callback` in a method with
+        // `::oo::Helpers::callback`.
         let src = "oo::class create C {\n    method Go {} {\n        callback Read\n    }\n}\n";
         assert_eq!(
             candidates_for(src, "tcl9.0", "callback"),
-            ["::oo::Helpers::callback", "::callback"],
+            ["::oo::Helpers::callback"],
         );
     }
 
     #[test]
     fn tp_the_same_holds_for_a_constructor_body() {
+        // tclsh 9.0.4 and 9.1.0: in a constructor, too, `namespace which
+        // -command callback` answers `::oo::Helpers::callback`.
         let src = "oo::class create C {\n    constructor {} {\n        callback Read\n    }\n}\n";
         assert_eq!(
             candidates_for(src, "tcl9.0", "callback"),
-            ["::oo::Helpers::callback", "::callback"],
+            ["::oo::Helpers::callback"],
         );
     }
 

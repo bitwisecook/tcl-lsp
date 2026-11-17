@@ -31,10 +31,15 @@ struct CachedBodyCompileService {
     qname: String,
     body_src: String,
     body: tcl_bytecode::FunctionAsm,
+    /// Splice this procedure call into the compiled body instead.
+    splice: Option<&'static [&'static str]>,
 }
 
 impl CachedBodyCompileService {
     fn inject(&self, mut module: tcl_bytecode::ModuleAsm) -> tcl_bytecode::ModuleAsm {
+        if self.splice.is_some() {
+            return module;
+        }
         let mut ids = module.procedures.keys();
         let Some(id) = ids.next().copied() else {
             return module;
@@ -64,7 +69,10 @@ impl CachedBodyCompileService {
         mut module: tcl_bytecode::ModuleAsm,
     ) -> tcl_bytecode::ModuleAsm {
         if body == self.body_src.as_bytes() {
-            let mut cached = self.body.clone();
+            let mut cached = match self.splice {
+                Some(inline) => spliced_caller(&module.top_level, inline),
+                None => self.body.clone(),
+            };
             cached.plain_command_dispatch = module.top_level.plain_command_dispatch;
             module.top_level_body = cached.clone();
             module.top_level = cached;
@@ -250,6 +258,7 @@ fn vm_with_cached_body(qname: &str, body_src: &str, marker: &str) -> Vm {
         qname: qname.to_owned(),
         body_src: body_src.to_owned(),
         body: cached,
+        splice: None,
     }));
     vm
 }
@@ -314,4 +323,126 @@ fn the_proc_command_that_runs_is_the_one_whose_body_is_installed() {
         .2,
         "B\n"
     );
+}
+
+// A spliced call leaves its body for the fallback invocation.
+
+/// `caller`'s compiled body `vdouble [nextval]` with the call spliced: the
+/// words go to anonymous locals, the spliced body runs `inline`, and the
+/// fallback at the range's end invokes the words with the compiled call's own
+/// instruction, as codegen lays a splice out.
+fn spliced_caller(
+    compiled: &tcl_bytecode::FunctionAsm,
+    inline: &[&str],
+) -> tcl_bytecode::FunctionAsm {
+    use tcl_bytecode::{FunctionAsm, Instruction, LiteralTable, Op, Operand, SpliceRange};
+
+    let invokes: Vec<_> = compiled
+        .instructions
+        .iter()
+        .filter(|instruction| instruction.op == Op::INVOKE_STK1)
+        .collect();
+    let [next, call] = invokes.as_slice() else {
+        panic!("vdouble [nextval] compiles to two invocations");
+    };
+    let mut literals = LiteralTable::new();
+    let mut push = |text: &str| pushv(i32::try_from(literals.intern(text)).unwrap());
+    let mut lvt = compiled.lvt.clone();
+    let words = [lvt.intern_anonymous(), lvt.intern_anonymous()];
+    let slot = |index: usize| Operand::Imm(i32::try_from(words[index]).unwrap());
+    let mut instructions = vec![
+        push("vdouble"),
+        Instruction::new(Op::STORE_SCALAR1, vec![slot(0)]),
+        Instruction::new(Op::POP, vec![]),
+        push("nextval"),
+        (*next).clone(),
+        Instruction::new(Op::STORE_SCALAR1, vec![slot(1)]),
+        Instruction::new(Op::POP, vec![]),
+    ];
+    let mut labels = std::collections::HashMap::new();
+    labels.insert("splice_start".to_owned(), instructions.len());
+    for word in inline {
+        instructions.push(push(word));
+    }
+    instructions.push(Instruction::new(
+        Op::INVOKE_STK1,
+        vec![Operand::Imm(i32::try_from(inline.len()).unwrap())],
+    ));
+    instructions.push(Instruction::new(
+        Op::JUMP4,
+        vec![Operand::Label("splice_join".to_owned())],
+    ));
+    labels.insert("splice_end".to_owned(), instructions.len());
+    instructions.push(Instruction::new(Op::LOAD_SCALAR1, vec![slot(0)]));
+    instructions.push(Instruction::new(Op::LOAD_SCALAR1, vec![slot(1)]));
+    instructions.push((*call).clone());
+    labels.insert("splice_join".to_owned(), instructions.len());
+    instructions.push(Instruction::new(Op::DONE, vec![]));
+    let labels = tcl_bytecode::layout::resolve_layout(&mut instructions, &labels);
+    let spliced = FunctionAsm {
+        name: compiled.name.clone(),
+        literals,
+        lvt,
+        instructions,
+        labels,
+        body_base_line: compiled.body_base_line,
+        proc_body_src: compiled.proc_body_src.clone(),
+        splice_ranges: vec![SpliceRange {
+            start: "splice_start".to_owned(),
+            end: "splice_end".to_owned(),
+            entry_depth: 0,
+            words: words.iter().map(|&slot| u32::try_from(slot).unwrap()).collect(),
+            resumes_with_value: true,
+        }],
+        ..FunctionAsm::default()
+    };
+    assert!(spliced.splice_ranges_valid());
+    spliced
+}
+
+fn vm_with_spliced_caller(inline: &'static [&'static str]) -> Vm {
+    let mut vm = tcl_vm::test_support::native_vm();
+    vm.set_compiler(Box::new(CachedBodyCompileService {
+        inner: BytecodeCompileService::default(),
+        qname: "::caller".to_owned(),
+        body_src: "vdouble [nextval]".to_owned(),
+        body: tcl_bytecode::FunctionAsm::default(),
+        splice: Some(inline),
+    }));
+    vm
+}
+
+/// The procedure frame of a spliced call that fails comes from the fallback:
+/// the words, `[nextval]` included, were evaluated once, and the result,
+/// `errorInfo` and `-errorstack` are the uninlined call's.
+///
+/// tclsh 8.6.18, 9.0.4 and 9.1.0 print `2 1`, then `{bad 1} 1 {bad 1
+/// ... "caller"} {INNER {returnImm {bad 1} {}} CALL {vdouble 1} CALL caller}`.
+#[test]
+fn a_spliced_call_that_fails_runs_its_words_once_through_the_fallback() {
+    let script = r#"proc caller {} {vdouble [nextval]}
+proc nextval {} {incr ::n}
+proc vdouble x {expr {$x*2}}
+proc fails {} {error "inline failed"}
+set ::n 0
+set r [list [caller] $::n]
+proc vdouble x {error "bad $x"}
+set ::n 0
+catch caller m o
+lappend r $m $::n [dict get $o -errorinfo] [dict get $o -errorstack]"#;
+    let expected = r#"2 1 {bad 1} 1 {bad 1
+    while executing
+"error "bad $x""
+    (procedure "vdouble" line 1)
+    invoked from within
+"vdouble [nextval]"
+    (procedure "caller" line 1)
+    invoked from within
+"caller"} {INNER {returnImm {bad 1} {}} CALL {vdouble 1} CALL caller}"#;
+    // The spliced body fails in a builtin it runs, then in a procedure it calls.
+    for inline in [&["error", "inline failed"][..], &["fails"][..]] {
+        let mut vm = vm_with_spliced_caller(inline);
+        let completion = vm.eval_source(script).expect("script");
+        assert_eq!(&*completion.result.to_str(), expected, "{inline:?}");
+    }
 }

@@ -1158,6 +1158,9 @@ pub(crate) fn lattice_const_text<S1: std::hash::BuildHasher, S2: std::hash::Buil
 /// the evaluation read it.
 #[cfg(test)]
 pub(crate) fn evaluate_over_x(text: &str, nested: NestedPolicy) -> LiftedAnswer {
+    // One named release: 8.4 to 9.1 agree on every expression these tests
+    // evaluate, and without one the numeral grammar is ambiguous.
+    let profile = tcl_dialect::DialectProfile::find("tcl8.6").expect("tcl8.6");
     let registry = CommandRegistry::build_default();
     let mutations = crate::command_binding::ModuleCommandMutations::default();
     let driver = LatticeDriver::detached(
@@ -1171,12 +1174,12 @@ pub(crate) fn evaluate_over_x(text: &str, nested: NestedPolicy) -> LiftedAnswer 
             trust: crate::sccp::FoldTrust::ObservedBindings,
             proven_pure_parameters: false,
         }),
-        FoldPolicy::default(),
+        FoldPolicy::for_profile(None, Some(profile)),
     );
     let node = crate::expr_parser::parse_expr_for_profile(text, None);
     let expression = ExpressionEvaluation {
         expression: Expression::Parsed(&node),
-        policy: FoldPolicy::default(),
+        policy: FoldPolicy::for_profile(None, Some(profile)),
         nested,
         head: None,
     };

@@ -133,6 +133,20 @@ fn summary<'a>(map: &'a FixtureEscapes, qname: &str) -> &'a ProcEscapeSummary {
 }
 
 /// True if `(name, version)` is tagged `Frame` in the per-SSA-version map.
+/// The flow-sensitive path tags the alias: some SSA version of `name` is
+/// tagged, and every tagged version is Frame, whichever version number the
+/// link statement takes (ruling of 17 November, REWRITE of the
+/// version-number rows).
+fn alias_versions_frame(p: &ProcEscapeSummary, name: &str) -> bool {
+    let mut tags = p
+        .ssa_tags
+        .iter()
+        .filter(|((tagged, _), _)| tagged == name)
+        .map(|(_, tag)| tag)
+        .peekable();
+    tags.peek().is_some() && tags.all(|tag| *tag == EscapeTag::Frame)
+}
+
 fn ssa_frame(p: &ProcEscapeSummary, name: &str, version: Version) -> bool {
     p.ssa_tags.get(&(name.to_string(), version)) == Some(&EscapeTag::Frame)
 }
@@ -177,10 +191,10 @@ fn cu_upvar_on_one_if_branch_still_escapes() {
         !p.dynamic_barrier(),
         "a conditional upvar is not a whole-proc barrier"
     );
-    // The flow-sensitive path tags a concrete SSA version of the alias.
+    // The flow-sensitive path tags the alias on the branch that links it.
     assert!(
-        ssa_frame(p, "v", 1),
-        "v#1 tagged Frame on the CFG path: {:?}",
+        alias_versions_frame(p, "v"),
+        "every tagged version of the alias v is Frame: {:?}",
         p.ssa_tags
     );
 }
@@ -230,8 +244,8 @@ fn cu_global_inside_while_loop_escapes() {
     assert_eq!(p.tag("i"), EscapeTag::Local, "the loop counter stays Local");
     assert!(p.frame_needed);
     assert!(
-        ssa_frame(p, "g", 1),
-        "g#1 tagged on the CFG path: {:?}",
+        alias_versions_frame(p, "g"),
+        "every tagged version of the global link g is Frame: {:?}",
         p.ssa_tags
     );
 }
@@ -402,36 +416,17 @@ fn cu_upvar_first_tags_initial_version() {
     // tclsh: writes *through* an alias all reach the caller:
     //   proc f {} { upvar 1 cy y; set y 1; set y 2; set y 3 }
     //   set cy init; f; set cy   -> 3
-    // The upvar binds `y` before any write, so the analysis tags y's *first*
-    // SSA version (1); the later store-versions are the same Frame name.
+    // The upvar binds `y` before any write, so every write through it is a
+    // write of the caller's `cy`.
     let s = escape_cu("proc ::p {} { upvar 1 cy y\n set y 1\n set y 2\n set y 3 }");
     let p = summary(&s, "::p");
     assert!(p.is_frame("y"));
     assert!(
-        ssa_frame(p, "y", 1),
-        "the upvar tags y's initial version: {:?}",
+        alias_versions_frame(p, "y"),
+        "every tagged version of the alias y is Frame: {:?}",
         p.ssa_tags
     );
     assert!(p.upvar_source_names.contains("cy"));
-}
-
-#[test]
-fn cu_upvar_after_writes_tags_latest_version() {
-    // The mirror of the above: three writes then the upvar. The upvar's def is
-    // the highest SSA version, so *that* version is tagged Frame. (This exact
-    // script errors at runtime — `upvar` rejects an already-existing local —
-    // so the assertion is purely structural: it pins which version the
-    // flow-sensitive walker tags, not a runtime value.)
-    let s = escape_cu("proc ::p {} { set y 1\n set y 2\n set y 3\n upvar 1 cy y }");
-    let p = summary(&s, "::p");
-    assert!(p.is_frame("y"));
-    assert!(
-        ssa_frame(p, "y", 4),
-        "the trailing upvar tags the latest version (4): {:?}",
-        p.ssa_tags
-    );
-    // Earlier pure-store versions were not individually tagged Frame.
-    assert!(!ssa_frame(p, "y", 1), "store version 1 was not tagged");
 }
 
 #[test]
@@ -555,9 +550,12 @@ fn cu_expand_word_in_unknown_call_is_a_barrier() {
 
 #[test]
 fn cu_caller_inherits_unbounded_upvar_pessimism() {
-    // `::setit` upvars a *dynamic* source (`$n`) — an unbounded upvar source —
-    // so it is pessimistic. `::wrap` calls it; on the CU+IPA path the
-    // pessimism propagates up the call edge.
+    // `::setit` upvars a *dynamic* source (`$n`): for an unknown caller any
+    // variable may be written, so its own summary stays unbounded. On the
+    // CU+IPA path `::wrap` passes the written name `x`, so exactly that
+    // variable is touched and the precise answer is sound for this caller
+    // (ruling of 17 November). tclsh 8.4.20, 8.6.18, 9.0.4, 9.1.0:
+    //   proc wrap {} {set x 5; set y 7; setit x 1; list $x $y}  -> 1 7
     let s = escape_cu(
         "proc ::setit {n v} { upvar 1 $n a\n set a $v }\n\
          proc ::wrap {} { set x 5\n setit x 1 }",
@@ -570,8 +568,12 @@ fn cu_caller_inherits_unbounded_upvar_pessimism() {
     assert!(setit.dynamic_barrier());
     let wrap = summary(&s, "::wrap");
     assert!(
-        wrap.dynamic_barrier(),
-        "the caller of an unbounded-upvar proc is downgraded on the CU path"
+        wrap.is_frame("x"),
+        "the caller's named argument variable is the one written: {wrap:?}"
+    );
+    assert!(
+        !wrap.dynamic_barrier(),
+        "the caller passes a written name, so no unbounded pessimism reaches it"
     );
 }
 

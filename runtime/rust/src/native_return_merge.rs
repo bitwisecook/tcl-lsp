@@ -150,14 +150,20 @@ pub(crate) fn manufacture(recipe: &NativeReturnOptionsLiteral) -> Result<Owned, 
         .iter()
         .map(|word| known_word(&ops, word))
         .collect::<Result<Vec<_>, _>>()?;
-    let merged = native_return_merge::merge(&mut ops, protocol, &originals)?;
+    let (merged, options) = if recipe.retains_controls {
+        native_return_merge::merge_retaining_controls(&mut ops, protocol, &originals)?
+    } else {
+        let merged = native_return_merge::merge(&mut ops, protocol, &originals)?;
+        let options = merged.options.clone();
+        (merged, options)
+    };
     if (merged.code, merged.level, merged.size) != (recipe.code, recipe.level, recipe.size) {
         return Err(ValueError::CommandProtocolUnavailable(
             "native Return literal controls mismatch",
         )
         .into());
     }
-    Ok(merged.options)
+    Ok(options)
 }
 
 #[cfg(test)]
@@ -216,6 +222,7 @@ mod physical_tests {
                 code: 0,
                 level: 0,
                 size: 1,
+                retains_controls: false,
             };
             let root = manufacture(&literal).unwrap();
             assert!(!obj::has_string_rep(root.as_ptr()));

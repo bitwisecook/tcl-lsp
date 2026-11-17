@@ -28,7 +28,7 @@
 //! whose selections reach a source the caller's does not hold, stays a call.
 
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use tcl_compiler::analyser::ResolvedAnalysisInput;
@@ -97,12 +97,29 @@ pub(super) struct LiveBodies<'a> {
     lowering: Lowering<'a>,
     renamed: HashMap<ProcedureId, RenamedDefinition>,
     image: RefCell<SourceImage>,
+    /// The statements that stand directly in a compiled script, where the
+    /// operand stack is empty between commands.
+    body_level: HashSet<Span>,
+    /// The calls spliced, in the order the rewrite made them.
+    splices: RefCell<Vec<tcl_compiler::ir::SpliceSite>>,
 }
 
 impl LiveBodies<'_> {
-    /// The source the module ends with.
-    pub(super) fn into_image(self) -> SourceImage {
-        self.image.into_inner()
+    /// Whether the statement at `span` stands directly in a compiled script:
+    /// the only place a splice is entered with nothing on the operand stack,
+    /// which is what its range records for the call it falls back to.
+    pub(super) fn at_body_level(&self, span: Span) -> bool {
+        self.body_level.contains(&span)
+    }
+
+    /// The source the module ends with, and the calls spliced.
+    pub(super) fn into_parts(self) -> (SourceImage, Vec<tcl_compiler::ir::SpliceSite>) {
+        (self.image.into_inner(), self.splices.into_inner())
+    }
+
+    /// Record a call the rewrite spliced.
+    pub(super) fn spliced(&self, site: tcl_compiler::ir::SpliceSite) {
+        self.splices.borrow_mut().push(site);
     }
 
     /// The body of `id` with `names` applied, lowered under the live entry
@@ -228,10 +245,16 @@ pub(super) fn import<'a>(
         imported.inlinable.insert(id, inlinable);
         imported.sites.extend(sites.iter().map(|site| (*site, id)));
     }
+    let body_level = std::iter::once(&module.top_level)
+        .chain(module.procedures.values().map(|procedure| &procedure.body))
+        .flat_map(|script| script.statements.iter().map(Statement::span))
+        .collect();
     let bodies = LiveBodies {
         lowering,
         renamed,
         image: RefCell::new(module.source.clone()),
+        body_level,
+        splices: RefCell::new(Vec::new()),
     };
     (imported, bodies)
 }

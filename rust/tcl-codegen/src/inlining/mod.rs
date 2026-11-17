@@ -118,6 +118,11 @@ struct InliningSummaries<'a> {
 }
 
 impl InliningSummaries<'_> {
+    /// Whether a call at `span` may be spliced: anywhere for the release
+    /// unit, and only directly in a compiled script for a live compile.
+    fn splices_at(&self, span: tcl_lexer::Span) -> bool {
+        self.live.is_none_or(|bodies| bodies.at_body_level(span))
+    }
     fn get(&self, id: &tcl_compiler::ir::ProcedureId) -> Option<&ProcEscapeSummary> {
         self.escapes.get(&tcl_core_types::BodyFrameId::Body(*id))
     }
@@ -688,7 +693,9 @@ pub(crate) fn inline_reference_bodies_live(
     module
         .procedures
         .retain(|name, _| !imported.ids.contains(name));
-    module.source = bodies.into_image();
+    let (image, splices) = bodies.into_parts();
+    module.source = image;
+    module.reference_bodies.splices = splices;
     Some(module)
 }
 
