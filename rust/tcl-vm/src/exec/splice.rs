@@ -75,11 +75,12 @@ impl Vm {
             return false;
         };
         let inside = |index: usize| bounds.start <= index && index < bounds.end;
-        if f
-            .catch_ranges
-            .iter()
-            .any(|range| !range.in_handler && range.start_idx <= fault && fault < range.end_idx && inside(range.begin_idx))
-        {
+        if f.catch_ranges.iter().any(|range| {
+            !range.in_handler
+                && range.start_idx <= fault
+                && fault < range.end_idx
+                && inside(range.begin_idx)
+        }) {
             return false;
         }
         self.leave_splice_range(f, bounds);
@@ -108,7 +109,8 @@ impl Vm {
         f.entered_native_operations
             .retain(|entered| !inside(entered.start));
         f.foreach_stack.retain(|state| !inside(state.body_idx));
-        f.expand_markers.retain(|&depth| depth <= bounds.entry_depth);
+        f.expand_markers
+            .retain(|&depth| depth <= bounds.entry_depth);
         f.stack.truncate(bounds.entry_depth);
         f.failed_operands = None;
         self.abandon_error_episode();
