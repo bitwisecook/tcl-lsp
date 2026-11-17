@@ -371,7 +371,7 @@ def run(args: argparse.Namespace) -> int:
     rng = random.Random(args.seed)
     workdir = Path(tempfile.mkdtemp(prefix="pack-churn-", dir=args.workdir))
     workspace = prepare_workspace(args.fixture, workdir)
-    documents = select_documents(workspace, args.max_bytes)
+    documents = select_documents(workspace, args.max_bytes)[: args.max_documents]
     server = lsp_client.find_native_server(args.server_bin)
     client = make_client_class(lsp_client)(str(workspace), [server])
     client.start()
@@ -469,6 +469,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--rounds", type=int, default=250)
     parser.add_argument("--max-bytes", type=int, default=60_000)
+    parser.add_argument(
+        "--max-documents", type=int, default=None, help="open at most this many"
+    )
     parser.add_argument(
         "--reopen",
         type=int,
