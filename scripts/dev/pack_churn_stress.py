@@ -356,9 +356,20 @@ def run(args: argparse.Namespace) -> int:
                 log("probe-died", round=round_no)
                 status = 1
                 break
-            action = churn_once(client, pack, round_no, distinct=args.distinct_bodies)
-            if args.reopen:
-                reopen(client, lsp_client, reopen_batch(documents, args.reopen, rng))
+            try:
+                action = churn_once(
+                    client, pack, round_no, distinct=args.distinct_bodies
+                )
+                if args.reopen:
+                    reopen(
+                        client, lsp_client, reopen_batch(documents, args.reopen, rng)
+                    )
+            except TimeoutError as blocked:
+                # The server stopped reading stdin: as much a wedge as an
+                # unanswered probe.
+                log("send-blocked", round=round_no, error=str(blocked))
+                probe.wedged_at = time.time()
+                break
             client.drop_notifications()
             if round_no % args.rss_every == 0:
                 measure_rss(pid, log, round_no, args.malloc_trim)
