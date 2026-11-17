@@ -26,45 +26,52 @@ These rows are re-caused in the ledger (`cross-file-source-evidence-not-delivere
 
 | Verdict | Tests |
 | --- | ---: |
-| KEEP-CONTRACT | 151 |
-| UNDECIDED | 50 |
-| KEEP-F5 | 9 |
-| KEEP-ORACLE | 6 |
+| KEEP-CONTRACT | 163 |
+| KEEP-ORACLE | 29 |
+| MERGE | 10 |
+| KEEP-F5 | 10 |
+| REWRITE | 2 |
+| FIX-FIXTURE | 1 |
+| UNDECIDED | 1 |
 
-No `RETIRE` or `MERGE` is proposed yet: the lower-layer survivor of an e2e diagnostic test has to be named and asserted to cover at least as much, which this pass did not verify. `UNDECIDED` rows are class C/D tests whose behaviour is tclsh-checkable (or internal structure) and still need the oracle run or the owner reading.
+`MERGE` rows name a survivor whose assertions and fixture were read against the e2e test; `KEEP-CONTRACT` rows cite contract file and section; `KEEP-ORACLE` rows carry the tclsh releases run (8.4.20 to 9.1.0, `tmp/tcl*/unix/tclsh`, tcllib on `TCLLIBPATH` for snit/report). Pending oracles: `needs-itcl-oracle` (1: no Itcl build under `tmp/tcl*`), `needs-jim-oracle` (1: no `jimsh`). One `UNDECIDED` (`tracked_locks`), one `FIX-FIXTURE` (`w210_still_fires_for_a_genuinely_dynamic_condition_call_923_idx122`: `doesNothing` must return a true value).
 
 ## Causes ranked by tests blocked
 
-| Cause | Tests | Verdicts | Routed fix |
-| --- | ---: | --- | --- |
-| `source-view-graph-rehoming` | 28 | KEEP-CONTRACT 28 | server lib; needs source-view-graph tracing (refresh_source_rehoming); not a Logical-vs-release fixture issue |
-| `original-world-seed-and-publication` | 21 | KEEP-CONTRACT 16, UNDECIDED 5 | server lib; mostly class D internal structure |
-| `quick-fix-diagnostic-or-action-absent` | 19 | KEEP-CONTRACT 19 | the diagnostic is missing or the ContextActionTier action is not produced; compiler/taint facts for W201/W216/S100 |
-| `flow-diagnostics-w210-w220-parity` | 17 | UNDECIDED 12, KEEP-ORACLE 5 | compiler flow facts (diagnostics/values sessions); e2e adds publication only |
-| `command-resolution-w123-parity` | 16 | UNDECIDED 16 | native recipes keep proof of absence; crossFileResolution lenient only (ruling 17 Nov) |
-| `open-document-never-publishes-in-e2e` | 12 | KEEP-CONTRACT 12 | root cause not yet traced: no publish for sourced-file, irule and spec-pack documents; likely scan-ready/overlay seed |
-| `value-transfer-memo-parity` | 11 | KEEP-CONTRACT 11 | values + analysis-performance |
-| `dollar-completion-variable-scope` | 10 | UNDECIDED 9, KEEP-CONTRACT 1 | display consumer; completion/original_variables.rs frame rules |
-| `logical-source-arity-cross-file` | 10 | KEEP-CONTRACT 10 | contracts/command-resolution.md: replay only on Logical; fixture facts routed to compiler |
-| `project-token-input-split` | 9 | KEEP-CONTRACT 9 | split class-facts and lsp-features by producer |
-| `shimmer-s10x-not-reported` | 9 | KEEP-CONTRACT 9 | values session; compiler change |
-| `class-factory-fixpoint` | 7 | KEEP-CONTRACT 7 | class-facts |
-| `editor-feature-wire-shape` | 6 | KEEP-CONTRACT 6 | lens counts external dispatch / property accessors |
-| `source-view-graph-parity` | 6 | KEEP-CONTRACT 6 | naming_source_view_owners / diagnostics barriers |
-| `dialect-gating-absent` | 4 | KEEP-F5 4 | F5 observation; BIG-IP check list |
-| `display-consumer-fallback` | 4 | KEEP-CONTRACT 4 | display consumers |
-| `method-body-and-trace-arity` | 4 | UNDECIDED 4 | needs package Itcl/snit oracle; compiler facts |
-| `rewrite-wire-standalone-unit-o127` | 4 | KEEP-CONTRACT 4 | compiler fact O127 standalone-unit mismatch |
-| `spec-pack-lifecycle` | 4 | KEEP-CONTRACT 4 | overlay abstention ruling |
-| `irule-s110-collect-bootstrap` | 3 | KEEP-F5 3 | F5-only; ruling: bootstrap single not-preferred |
-| `release-gated-display` | 3 | UNDECIDED 2, KEEP-ORACLE 1 | tclsh 8.6.18 vs 9.1.0 |
-| `project-input-roles` | 2 | KEEP-CONTRACT 2 | class D |
-| `recovered-tail-rules` | 2 | KEEP-CONTRACT 2 | recovered-tail ruling |
-| `autoload-w123-832` | 1 | UNDECIDED 1 | unexplained; needs tracing |
-| `irules-event-completion-order` | 1 | KEEP-F5 1 | F5-only |
-| `irules-octal-literal` | 1 | KEEP-F5 1 | F5; tclsh 8.6 9, 9.0 11 |
-| `jim-hint-only-document` | 1 | UNDECIDED 1 | Jim 0.84 |
-| `method-suggestion-mro` | 1 | KEEP-CONTRACT 1 | contract |
+| Cause | Tests | Verdicts |
+| --- | ---: | --- |
+| `source-view-graph-rehoming` | 28 | KEEP-CONTRACT 28 |
+| `original-world-seed-and-publication` | 21 | KEEP-CONTRACT 18, REWRITE 2, UNDECIDED 1 |
+| `quick-fix-diagnostic-or-action-absent` | 19 | KEEP-CONTRACT 17, MERGE 2 |
+| `flow-diagnostics-w210-w220-parity` | 17 | KEEP-ORACLE 11, KEEP-CONTRACT 3, FIX-FIXTURE 1, MERGE 1, KEEP-F5 1 |
+| `command-resolution-w123-parity` | 16 | KEEP-ORACLE 7, KEEP-CONTRACT 6, MERGE 3 |
+| `value-transfer-memo-parity` | 11 | KEEP-CONTRACT 11 |
+| `dollar-completion-variable-scope` | 10 | KEEP-CONTRACT 8, KEEP-ORACLE 2 |
+| `logical-source-arity-cross-file` | 10 | KEEP-CONTRACT 10 |
+| `project-token-input-split` | 9 | KEEP-CONTRACT 9 |
+| `shimmer-s10x-not-reported` | 9 | KEEP-CONTRACT 6, MERGE 3 |
+| `class-factory-fixpoint` | 7 | KEEP-CONTRACT 7 |
+| `editor-feature-wire-shape` | 6 | KEEP-CONTRACT 6 |
+| `source-view-graph-parity` | 6 | KEEP-CONTRACT 6 |
+| `dialect-gating-absent` | 4 | KEEP-F5 4 |
+| `display-consumer-fallback` | 4 | KEEP-CONTRACT 3, MERGE 1 |
+| `irule-taint-code-not-published` | 4 | KEEP-CONTRACT 4 |
+| `rewrite-wire-standalone-unit-o127` | 4 | KEEP-CONTRACT 4 |
+| `spec-pack-lifecycle` | 4 | KEEP-CONTRACT 4 |
+| `irule-s110-collect-bootstrap` | 3 | KEEP-F5 3 |
+| `method-body-and-trace-arity` | 3 | KEEP-ORACLE 3 |
+| `cross-file-source-evidence-not-delivered` | 3 | KEEP-CONTRACT 3 |
+| `deep-nesting-no-publication` | 3 | KEEP-CONTRACT 3 |
+| `release-gated-display` | 3 | KEEP-ORACLE 3 |
+| `spec-pack-body-notices-not-published` | 2 | KEEP-CONTRACT 2 |
+| `project-input-roles` | 2 | KEEP-CONTRACT 2 |
+| `recovered-tail-rules` | 2 | KEEP-CONTRACT 2 |
+| `autoload-w123-832` | 1 | KEEP-ORACLE 1 |
+| `irules-event-completion-order` | 1 | KEEP-F5 1 |
+| `irules-octal-literal` | 1 | KEEP-F5 1 |
+| `needs-jim-oracle` | 1 | KEEP-ORACLE 1 |
+| `needs-itcl-oracle` | 1 | KEEP-ORACLE 1 |
+| `method-suggestion-mro` | 1 | KEEP-CONTRACT 1 |
 
 ## Distinct failing behaviours (what is worth fixing)
 
