@@ -314,3 +314,55 @@ fn edit_session_memory_growth_plateaus() {
         );
     }
 }
+
+/// Interned slots of one salsa struct ingredient, by its debug name.
+fn interned_count(db: &mut TclDatabase, name: &str) -> usize {
+    <dyn salsa::Database>::memory_usage(db)
+        .structs
+        .iter()
+        .filter(|ingredient| ingredient.debug_name() == name)
+        .map(|ingredient| ingredient.count())
+        .sum()
+}
+
+/// A configuration that moves back and forth between two values re-analyses
+/// an unchanged document under each of them. The second visit to a value
+/// must reuse the module context and procedure lattices the first one
+/// interned. When the context was keyed by module-scoped procedure
+/// identities, every rebuild interned new ones, so a language server that
+/// re-analysed open documents on each spec-pack reload grew without bound
+/// (#2543). Dialect-invariant; run under Tcl 8.6.
+#[test]
+fn an_unchanged_document_reanalysed_under_alternating_configuration_interns_nothing_new_2543() {
+    const ROUNDS: usize = 12;
+    let mut db = TclDatabase::default();
+    let source = "proc p {a b} {\n  upvar 1 $a v\n  set v [expr {$b + 1}]\n  return $v\n}\n\
+                  proc q {} { p x 1 }\nq\n";
+    let file = SourceFile::new(&db, source.to_owned(), "tcl8.6".to_owned(), None);
+    let config = build_config(&db);
+    let mut seen = Vec::new();
+    for round in 0..ROUNDS {
+        let extra = if round % 2 == 0 {
+            Vec::new()
+        } else {
+            vec!["churnpack::noop".to_owned()]
+        };
+        config.set_extra_commands(&mut db).to(extra);
+        let _ = file_analysis_incremental(&db, file, config);
+        let _ = compiler_check_diagnostics(&db, file, config);
+        seen.push((
+            interned_count(&mut db, "CfgContext"),
+            interned_count(&mut db, "FnLatticeKey"),
+        ));
+    }
+    let after_both = seen[1];
+    assert!(
+        after_both.0 > 0 && after_both.1 > 0,
+        "the fixture reaches the lattice memo: {seen:?}"
+    );
+    assert!(
+        seen[2..].iter().all(|&counts| counts == after_both),
+        "revisiting a configuration interned new contexts or lattice keys \
+         (CfgContext, FnLatticeKey per round): {seen:?}",
+    );
+}
