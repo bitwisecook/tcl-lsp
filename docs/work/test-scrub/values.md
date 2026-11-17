@@ -25,9 +25,9 @@ edited.
 
 | Verdict | Tests |
 | --- | ---: |
-| KEEP-ORACLE | 127 |
-| KEEP-CONTRACT | 29 |
-| KEEP-F5 | 23 |
+| KEEP-ORACLE | 121 |
+| KEEP-CONTRACT | 28 |
+| KEEP-F5 | 30 |
 | FIX-FIXTURE | 20 |
 | UNDECIDED | 10 |
 | FIX-EXPECTATION | 5 |
@@ -42,31 +42,30 @@ row that is kept still needs its citation written into the test; the evidence co
 
 | Tests | Cause | Owner | What fails |
 | ---: | --- | --- | --- |
-| 32 | `binding-substitution-word-no-layout` | analyser-binding | A procedure-body statement whose words hold a substitution gets no declared layout: `set d [expr {sqrt($x)}]` stays `Call set` with no definition of `d`, `set a($k) 9` raises every dynamic-name flag |
-| 15 | `f5-rule-procedure-frame` | taint (queue item 1) | Under f5-irules a rule procedure called at the top level gets no SSA definitions |
-| 13 | `ssa-variable-absent` | values | The witness helper finds no SSA symbol for the variable; the panic does not name the dialect, so each needs a per-dialect probe before it is assigned |
+| 36 | `binding-substitution-word-no-layout` | analyser-binding | A procedure-body statement whose words hold a substitution gets no declared layout: `set d [expr {sqrt($x)}]` stays `Call set` with no definition of `d`, `set a($k) 9` raises every dynamic-name flag |
+| 21 | `f5-rule-procedure-frame` | taint (queue item 1) | Under f5-irules a rule procedure called at the top level gets no SSA definitions, or names its variables by a frame identity (`@frame:47:::p@0/…:r`) |
 | 12 | `unknown-head-untrust` | dataflow, then values | Ruling of 17 November: untrust after an unknown head is flow-sensitive and fixtures say bounded or unbounded. Eleven `handler_widening` fixtures must be restated (FIX-FIXTURE) |
-| 10 | `loop-enumeration` | analyser-binding | A `foreach` over a literal list is not lowered structurally, so nothing is enumerated after the loop |
+| 9 | `loop-enumeration` | analyser-binding | A `foreach` over a literal list is not lowered structurally, so nothing is enumerated after the loop |
 | 10 | `switch-not-lowered-structurally` | analyser-binding | `switch`/`case` no longer lowers to `Statement::Switch`; no selection, branch or merge facts |
 | 9 | `frame-script-body-unread` | analyser-binding | A script run at `#0` or `1` (`uplevel`, an alias to it, `eval` inside it) has no invocation metadata, so the global summary goes opaque |
-| 8 | `f5-handler-command-unbound` | analyser-binding | Inside a `when` body `set`, `TCP::payload` resolve as `UnprovedBinding` |
+| 9 | `f5-handler-command-unbound` | analyser-binding | Inside a `when` body `set`, `TCP::payload` resolve as `UnprovedBinding` |
 | 8 | `summary-link-local-def` | dataflow issue session | A write through `upvar 1 $name v` defines nothing at the callee's exit (summary SSA step 4 in progress) |
-| 6 | `binding-catch-result-variable-no-place` | analyser-binding | `catch {…} m ?opts?`: the result and options variables get no place |
 | 6 | `catch-body-transfer` | values | The value a flattened catch body leaves (code table, state before it, `scan` partial writes) |
+| 5 | `ssa-var-symbol-lookup-refused` | dataflow | The procedure lists the variable (`vars [x, m, o]`, or two symbols named `g`) yet `var_symbol` returns None |
 | 5 | `try-body-transfer` | values | `try` bodies, handlers and `finally` (level-0 return, `exit`, partial `lassign`) |
 | 5 | `escape-top-level-fixture` | values | Escape fixtures run at `#0`, where `global` links nothing and a variable is Local by ruling (37cf6fd2); they need a procedure |
 | 5 | `f5-top-level-not-executable` | values | f5-irules rows of top-level fixtures expect Tcl folding; iRules refuses executable top-level code (IRULE5007) |
 | 5 | `declared-route-evaluation` | values | Declared package routes through the driver (pack writes, raising arguments, shadowing, folded types) |
 | 4 | `binding-alias-invocation-metadata` | analyser-binding | An aliased invocation keeps no original Logical invocation |
 | 4 | `ssa-link-statement-version` | dataflow issue session | Which SSA version a link statement defines (REWRITE three to the observable, RETIRE one) |
+| 3 | `binding-catch-result-variable-no-place` | analyser-binding | `catch {…} m ?opts?`: the result variable gets no place (root found by analyser-binding: the walk is widened after a raising catch body) |
 | 3 each | `edge-refinement`, `escape-catch-body-walk`, `rebase-memoised-receipts` | dataflow, values, analysis-performance | |
 | 2 each | `binding-catch-body-children-unavailable`, `binding-conditional-alias-join`, `binding-renamed-builtin-head`, `class-facts-object-element`, `escape-param-upvar-source-precision`, `escape-registry-premise-puts`, `existence-chain-fold`, `expr-decline-reason`, `fixture-body-absent`, `ordered-nested-write`, `orig-diagnostic-refusal`, `release-tower-fold`, `wrong-rewrite-callback-write` | | |
 | 1 each | 26 more, listed in the ledger | | |
 
-By owner of the cause: analyser-binding 88, values 80, dataflow 16 and its issue session 12, taint
-15, analysis-performance 4, class-facts 3 (the 12 unknown-head rows count under dataflow; their
-fixtures are restated here afterwards). What values can move now: the 13 `ssa-variable-absent`
-probes, the catch and try transfer rows, declared routes, the escape walker, 5 f5 expectations and
+By owner of the cause: analyser-binding 90, values 67, dataflow 21 and its issue session 12, taint
+21, analysis-performance 4, class-facts 3 (the 12 unknown-head rows count under dataflow; their
+fixtures are restated here afterwards). What values can move now: the catch and try transfer rows, declared routes, the escape walker, 5 f5 expectations and
 the fixtures.
 
 ## Distinct failing behaviours
