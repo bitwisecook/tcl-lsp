@@ -76,6 +76,18 @@ pub struct DiagnosticSourceContext {
 enum DiagnosticSourceAuthoringPurpose {
     OrdinarySourceSubject,
     ConditionalSourceNoAction,
+    ConditionalSourceSingleAction,
+}
+
+/// What an editor may build from a diagnostic's retained subject.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ContextActionTier {
+    /// Any action the subject's own checks allow, including fix-all.
+    Ordinary,
+    /// Conditional advice: at most one action, never preferred, never in fix-all.
+    SingleNotPreferred,
+    /// No action.
+    None,
 }
 
 impl DiagnosticSourceContext {
@@ -84,6 +96,19 @@ impl DiagnosticSourceContext {
     #[must_use]
     pub fn allows_context_action_subject(&self) -> bool {
         self.authoring_purpose == DiagnosticSourceAuthoringPurpose::OrdinarySourceSubject
+    }
+
+    /// The action tier of the retained subject. Conditional collection advice
+    /// (IRULE1005, IRULE1006) keeps a single, not-preferred bootstrap action.
+    #[must_use]
+    pub const fn context_action_tier(&self) -> ContextActionTier {
+        match self.authoring_purpose {
+            DiagnosticSourceAuthoringPurpose::OrdinarySourceSubject => ContextActionTier::Ordinary,
+            DiagnosticSourceAuthoringPurpose::ConditionalSourceSingleAction => {
+                ContextActionTier::SingleNotPreferred
+            }
+            DiagnosticSourceAuthoringPurpose::ConditionalSourceNoAction => ContextActionTier::None,
+        }
     }
 
     fn for_unit(cu: &CompilationUnit, registry: &CommandRegistry) -> Option<Self> {
@@ -291,13 +316,20 @@ impl Diagnostic {
         pairing: &crate::irules_checks::ConditionalCollectionSourcePairing,
     ) -> Option<Self> {
         let (unit, registry) = advice.diagnostic_source_owner_for(pairing)?;
-        Self::from_conditional_irule_source(
+        let mut diagnostic = Self::from_conditional_irule_source(
             unit,
             registry,
             pairing.span(),
             pairing.code(),
             pairing.message(),
-        )
+        )?;
+        if matches!(pairing.code(), DiagCode::Irule1005 | DiagCode::Irule1006)
+            && let Some(context) = diagnostic.source_context.as_mut()
+        {
+            context.authoring_purpose =
+                DiagnosticSourceAuthoringPurpose::ConditionalSourceSingleAction;
+        }
+        Some(diagnostic)
     }
 
     fn from_conditional_irule_source_flow(
@@ -812,7 +844,7 @@ pub fn retain_diagnostic_source_context(
                 // an unavailable currency refresh must never reset it to Ordinary.
                 previous.filter(|previous| {
                     previous.authoring_purpose
-                        == DiagnosticSourceAuthoringPurpose::ConditionalSourceNoAction
+                        != DiagnosticSourceAuthoringPurpose::OrdinarySourceSubject
                 })
             });
     }
@@ -937,6 +969,14 @@ mod tests {
         let mut diagnostic =
             super::Diagnostic::from_conditional_irule_source_flow(&advice, finding).unwrap();
         assert!(diagnostic.fixes.is_empty() && diagnostic.replacement.is_none());
+        assert_eq!(
+            diagnostic
+                .source_context
+                .as_ref()
+                .unwrap()
+                .context_action_tier(),
+            super::ContextActionTier::None
+        );
         let foreign = tcl_registry::model::resolve_known_environment("tcl8.6")
             .unwrap()
             .default_context_registry();
@@ -1015,12 +1055,11 @@ mod tests {
                 registry,
                 std::slice::from_mut(&mut diagnostic),
             );
-            assert!(
-                !diagnostic
-                    .source_context
-                    .as_ref()
-                    .unwrap()
-                    .allows_context_action_subject()
+            let retained = diagnostic.source_context.as_ref().unwrap();
+            assert!(!retained.allows_context_action_subject());
+            assert_eq!(
+                retained.context_action_tier(),
+                super::ContextActionTier::SingleNotPreferred
             );
         }
         assert!(
