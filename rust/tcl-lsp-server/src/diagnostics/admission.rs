@@ -87,16 +87,19 @@ impl AnalysisAdmission {
     }
 
     /// Documents admitted and not yet released.
+    #[cfg(test)]
     pub(crate) fn in_flight(&self) -> usize {
         self.in_flight.load(Ordering::Acquire)
     }
 
     /// The most documents ever admitted at once.
+    #[cfg(test)]
     pub(crate) fn peak(&self) -> usize {
         self.peak.load(Ordering::Acquire)
     }
 
     /// How many admissions have been granted.
+    #[cfg(test)]
     pub(crate) fn admitted(&self) -> usize {
         self.admitted.load(Ordering::Acquire)
     }

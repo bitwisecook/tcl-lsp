@@ -58,8 +58,8 @@ mod requests;
 mod run;
 mod scheduling;
 
-#[cfg(test)]
 pub(super) use admission::AnalysisAdmission;
+#[cfg(test)]
 pub(super) use analysis_passes::overlay_miss_message;
 pub(super) use analysis_passes::{
     PreparedCompletenessInput, compute_base_analysis,
