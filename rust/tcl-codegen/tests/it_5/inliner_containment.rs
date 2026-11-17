@@ -84,8 +84,6 @@ fn no_production_source_calls_the_procedure_inliner() {
 
 #[test]
 fn the_live_compile_splices_no_reference_body() {
-    assert!(
-        !tcl_codegen::compile_service::LIVE_REFERENCE_INLINING,
-        "{REMOVAL}"
-    );
+    let live = tcl_codegen::compile_service::LIVE_REFERENCE_INLINING;
+    assert!(!live, "{REMOVAL}");
 }
