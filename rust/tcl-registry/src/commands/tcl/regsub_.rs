@@ -325,10 +325,12 @@ pub fn spec() -> CommandSpec {
         // trace returning any other code surfaces as an error, and a 9.x
         // `-command` callback's code never escapes, so the command completes
         // only normally or with an error.
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         ..CommandSpec::DEFAULT
     }
 }

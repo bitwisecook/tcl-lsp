@@ -97,7 +97,9 @@ pub fn spec() -> CommandSpec {
         // trees, not just one).
         arity: Arity::any(),
         return_type: Some(TclType::String),
-        completion: Some(crate::completion::CompletionDescriptor::tailcall()),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::tailcall(),
+        ),
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::InterpState,
             // Scheduling (or clearing) the frame's deferred replacement

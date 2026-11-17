@@ -526,6 +526,8 @@ fn classify_tokens(
             crate::command_binding::BindingKind::Proc => {
                 record_procedure(target, env, facts, callees);
             }
+            // A registry widget's method may run configured callbacks.
+            crate::command_binding::BindingKind::Instance { .. } => facts.anywhere = true,
             _ if target.registry_backed => {
                 let metadata = env
                     .metadata

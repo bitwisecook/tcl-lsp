@@ -444,7 +444,7 @@ fn retain_original_write_roles(
 /// Source-aware projection of variable-cell writes from an invocation.
 /// `opaque` means the command can write a variable but Tcl source expansion
 /// or substitution prevents naming the target safely.
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub(crate) struct VariableWriteEffects {
     pub names: Vec<String>,
     /// The subset of [`Self::names`] the writing command reads before it

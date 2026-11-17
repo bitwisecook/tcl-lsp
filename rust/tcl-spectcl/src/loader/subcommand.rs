@@ -20,15 +20,15 @@
 
 use super::block_descriptors::{
     check_clause_grammar, clause_grammar_value, record_clause_grammar_derivations,
-    result_stability_row,
+    result_stability_value,
 };
 use super::body_rows::{
     hover_block, option_effect_family_row, option_row, parse_callback_taint_input_table,
     validated_callback_taint_input_table,
 };
 use super::command::{
-    StatedKnowledge, arg_role_capabilities, effects_knowledge, effects_row, hook_path, hook_source,
-    load_refinement, native_count_role_resolver, native_fold, native_id,
+    StatedKnowledge, arg_role_capabilities, completion_value, effects_knowledge, effects_row,
+    hook_path, hook_source, load_refinement, native_count_role_resolver, native_fold, native_id,
     native_layout_role_resolver, option_relation_row, repeat_row, side_effect_row,
     state_transitions_value, validate_arg_role_capabilities, validate_role_resolver_inputs,
     variable_receivers_value, world_effects_value,
@@ -37,11 +37,11 @@ use super::statement_reader::{Stmt, Word, block};
 use super::value_parsers::{
     ANALYSER_HOOKS, BODY_KINDS, CODEGEN_HOOKS, FORMAT_TYPES, INLINE_CODEGEN_HOOKS, LOWERING_HOOKS,
     STORAGE_TYPES, TCL_TYPES, apply_availability, checked_arity_windows, checked_lifecycle,
-    checked_option_effect_families, checked_stamp_windows, completion_row, enum_by_name,
-    lifecycle_flag, list_words, next_text, parse_arity, parse_byte_array_effect,
-    parse_deprecation_fix, parse_dialects, parse_flag, parse_representation_effect,
-    parse_return_elements, parse_semantic_operation, parse_taint, parse_traits,
-    parse_var_elements_effect, parse_var_write_typing, place_stamp, stamp_gate,
+    checked_option_effect_families, checked_stamp_windows, enum_by_name, lifecycle_flag,
+    list_words, next_text, parse_arity, parse_byte_array_effect, parse_deprecation_fix,
+    parse_dialects, parse_flag, parse_representation_effect, parse_return_elements,
+    parse_semantic_operation, parse_taint, parse_traits, parse_var_elements_effect,
+    parse_var_write_typing, place_stamp, stamp_gate,
 };
 use super::vocabulary_class::VocabularyClass;
 use super::{
@@ -258,7 +258,7 @@ pub(super) fn apply_subcommand_stmt(
         "return_type" => {
             sub.return_type = enum_by_name(TCL_TYPES, &value, "return type", stmt.line, log);
         }
-        "completion" => sub.completion = completion_row(&value, stmt.line, log),
+        "completion" => sub.completion = completion_value(stmt, log),
         "var_write_typing" => {
             if let Some(typing) = parse_var_write_typing(&value, stmt.line, log) {
                 sub.var_write_typing = typing;
@@ -502,8 +502,9 @@ pub(super) fn apply_subcommand_stmt(
         // The ratified word `SubCommand` carries in its own right: an
         // ensemble arm's result contract is not its command's.
         "result_stability" => {
-            if let Some(stability) = result_stability_row(stmt, log) {
-                sub.result_stability = Some(stability);
+            let stability = result_stability_value(stmt, log);
+            if !stability.is_unknown() {
+                sub.result_stability = stability;
             }
         }
         "side_effect" => {

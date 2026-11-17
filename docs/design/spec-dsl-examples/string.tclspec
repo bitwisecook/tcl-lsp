@@ -102,6 +102,9 @@ if {[string first "World" $s] >= 0} {
         # -failindex is written only when the class test fails.
         traits {CONDITIONAL_VARIABLE_WRITE}
         arity 2..
+        # The class precedes the option run and the tested string follows it.
+        option_prefix_words 1
+        reserved_trailing_words 1
         detail   {Test if string is a member of a character class.}
         synopsis {string is class ?-strict? ?-failindex varname? string}
         return_type Boolean

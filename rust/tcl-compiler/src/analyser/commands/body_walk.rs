@@ -266,6 +266,19 @@ impl Analyser {
         body_tok: Token,
         scope_path: &[usize],
     ) -> bool {
+        self.analyse_list_quoted_body_reading_in(body_tok, scope_path, scope_path)
+    }
+
+    /// [`Self::analyse_list_quoted_body`] for a script that runs in another
+    /// frame than the one building it (`namespace eval ns [list …]`): the
+    /// produced command is walked in `scope_path`, while the builder's own
+    /// operand reads happen in `reads_scope`, before the script is entered.
+    pub(in super::super) fn analyse_list_quoted_body_reading_in(
+        &mut self,
+        body_tok: Token,
+        scope_path: &[usize],
+        reads_scope: &[usize],
+    ) -> bool {
         if body_tok.kind != TokenType::Cmd {
             return false;
         }
@@ -339,7 +352,7 @@ impl Analyser {
             scope_path,
         );
         self.evaluated_body_invocation = previous;
-        self.record_arg_var_reads(&cmd, scope_path);
+        self.record_arg_var_reads(&cmd, reads_scope);
         self.body_depth -= 1;
         true
     }

@@ -506,6 +506,27 @@ impl LatticeDriver<'_> {
             let Some(original) = original else {
                 return DefValues::PerDef(widened(defs));
             };
+            if module.has_original_native_source() && defs.is_empty() {
+                // A statement that defines nothing (`error boom` in a catch
+                // body) is asked how it completes: the value route, which
+                // admits a command with no variable role, answers it.
+                return module
+                    .with_original_native_value(original, false, |operation, schema| {
+                        let cooked = self.operation_arguments(operation)?;
+                        let written = (0..cooked.len())
+                            .map(|index| operation.effective.written_argument(index))
+                            .collect();
+                        Some(self.evaluate_resolved_source_call(
+                            head,
+                            schema,
+                            (&cooked, written, Some(original)),
+                            defs,
+                            (uses, values, ssa),
+                            explain_missing,
+                        ))
+                    })
+                    .unwrap_or_else(|| DefValues::PerDef(widened(defs)));
+            }
             if module.has_original_native_source() {
                 let Some(body) = self.body_id else {
                     return DefValues::PerDef(widened(defs));

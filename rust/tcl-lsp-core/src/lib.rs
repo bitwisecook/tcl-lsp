@@ -68,6 +68,7 @@ pub(crate) const MAX_SCOPE_WALK_DEPTH: tcl_core_types::RecursionLimit =
 pub mod bigip;
 pub mod call_hierarchy;
 mod caller_frame;
+pub mod check_payload;
 pub mod code_actions;
 pub mod code_lens;
 pub mod completion;

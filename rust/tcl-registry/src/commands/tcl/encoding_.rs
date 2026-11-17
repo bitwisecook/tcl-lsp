@@ -65,7 +65,7 @@ const CONVERTTO_FORMS: &[crate::forms::SubCommandForm] = &[crate::forms::SubComm
         reads: true,
         ..SideEffect::DEFAULT
     }])),
-    completion: Some(CompletionDescriptor::exact(&[
+    completion: crate::knowledge::Knowledge::Partial(CompletionDescriptor::exact(&[
         crate::completion::CompletionCode::Ok,
         crate::completion::CompletionCode::Error,
     ])),

@@ -74,8 +74,8 @@ impl CommandSpec {
         command_forms: &[],
         semantic_operation: None,
         semantic_operation_windows: &[],
-        completion: None,
-        result_stability: None,
+        completion: crate::knowledge::Knowledge::Unknown,
+        result_stability: crate::knowledge::Knowledge::Unknown,
         native_result: None,
         assigns_variable_at: None,
         safe_on_uninit: None,
@@ -93,7 +93,7 @@ impl CommandSpec {
         analyser_hook: None,
         command_table_effect: None,
         side_effects: crate::knowledge::Knowledge::Unknown,
-        world_effects: None,
+        world_effects: crate::knowledge::Knowledge::Unknown,
         state_transitions: None,
         dispatch_dependencies: None,
         literal_argument_validator: None,
@@ -203,7 +203,9 @@ impl CommandSpec {
             side_effects: crate::knowledge::Knowledge::declared(
                 crate::extension_default::SIDE_EFFECTS,
             ),
-            completion: Some(crate::completion::CompletionDescriptor::CONSERVATIVE),
+            completion: crate::knowledge::Knowledge::Partial(
+                crate::completion::CompletionDescriptor::CONSERVATIVE,
+            ),
             runtime_backing: crate::runtime_backing::RuntimeBacking::HostNative,
             ..Self::DEFAULT
         }
@@ -226,8 +228,10 @@ impl CommandSpec {
     /// interpreter policy. It is not an object method, and, being resolvable,
     /// it never reaches `unknown` fallback handling.
     pub const CLOSED_REFERENTIALLY_TRANSPARENT: Self = Self {
-        result_stability: Some(crate::result_stability::ResultStability::ReferentiallyTransparent),
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        result_stability: crate::knowledge::Knowledge::Partial(
+            crate::result_stability::ResultStability::ReferentiallyTransparent,
+        ),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(StateTransitionDescriptor::EMPTY),
         dispatch_dependencies: Some(DispatchDependencyDescriptor::replace(
             DispatchDependencies::NONE,
@@ -305,8 +309,8 @@ impl SubCommand {
         subcommand_forms: &[],
         semantic_operation: None,
         semantic_operation_windows: &[],
-        completion: None,
-        result_stability: None,
+        completion: crate::knowledge::Knowledge::Unknown,
+        result_stability: crate::knowledge::Knowledge::Unknown,
         native_result: None,
         surface: None,
         lifecycle: Lifecycle::UNSPECIFIED,
@@ -334,7 +338,7 @@ impl SubCommand {
         pattern_type: None,
         format_string_type: None,
         side_effects: crate::knowledge::Knowledge::Unknown,
-        world_effects: None,
+        world_effects: crate::knowledge::Knowledge::Unknown,
         state_transitions: None,
         dispatch_dependencies: None,
         literal_argument_validator: None,
@@ -363,8 +367,10 @@ impl SubCommand {
     /// an object method and, being resolvable, never reaches `unknown`
     /// fallback handling.
     pub const CLOSED_REFERENTIALLY_TRANSPARENT: Self = Self {
-        result_stability: Some(crate::result_stability::ResultStability::ReferentiallyTransparent),
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        result_stability: crate::knowledge::Knowledge::Partial(
+            crate::result_stability::ResultStability::ReferentiallyTransparent,
+        ),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(StateTransitionDescriptor::EMPTY),
         dispatch_dependencies: Some(DispatchDependencyDescriptor::replace(
             DispatchDependencies::NONE,
@@ -379,7 +385,9 @@ impl SubCommand {
     /// transitions remain conservative unless the command spec independently
     /// declares them.
     pub const VOLATILE_RESULT: Self = Self {
-        result_stability: Some(crate::result_stability::ResultStability::Volatile),
+        result_stability: crate::knowledge::Knowledge::Partial(
+            crate::result_stability::ResultStability::Volatile,
+        ),
         ..Self::DEFAULT
     };
 }

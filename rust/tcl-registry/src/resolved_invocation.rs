@@ -169,10 +169,11 @@ pub struct InvocationSemantics<'r, 'w> {
     ///
     /// The resolver selects a matching form first, then a resolved subcommand,
     /// then the command descriptor, falling back to the conservative generic
-    /// invoke contract only when the registry supplied none of them.
-    pub completion: CompletionDescriptor,
+    /// invoke contract only when the registry supplied none of them: read it
+    /// with [`crate::knowledge::Knowledge::or_conservative`].
+    pub completion: crate::knowledge::Knowledge<CompletionDescriptor>,
     /// Registry-declared dependency contract for the invocation's result.
-    pub result_stability: ResultStability,
+    pub result_stability: crate::knowledge::Knowledge<ResultStability>,
     /// Authored native result dependency, requiring actual implementation proof.
     pub native_result: Option<crate::native_result::NativeResultContract>,
     /// Effective Tcl value-representation effect.

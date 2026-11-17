@@ -122,18 +122,19 @@ fn t100_fires_for_tainted_if_condition() {
 #[test]
 fn t100_fires_for_tainted_while_and_for_conditions() {
     use crate::compilation_unit::CompilationUnit;
-    let registry = CommandRegistry::build_default();
-    for source in [
-        "proc f {} {\n  set x [gets stdin]\n  while {$x < 10} {\n    incr x\n  }\n}\n",
-        "proc f {} {\n  set x [gets stdin]\n  for {set i 0} {$i < $x} {incr i} {\n    puts $i\n  }\n}\n",
-    ] {
-        let cu = CompilationUnit::build_for(source, &registry, false)
-            .with_interprocedural(&registry, None);
-        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
-        assert!(
-            warnings.iter().any(|w| w.code == DiagCode::T100),
-            "expected T100 for tainted loop condition in {source:?}, got {warnings:?}",
-        );
+    for (release, registry) in release_registries() {
+        for source in [
+            "proc f {} {\n  set x [gets stdin]\n  while {$x < 10} {\n    incr x\n  }\n}\n",
+            "proc f {} {\n  set x [gets stdin]\n  for {set i 0} {$i < $x} {incr i} {\n    puts $i\n  }\n}\n",
+        ] {
+            let cu = CompilationUnit::build_for(source, &registry, false)
+                .with_interprocedural(&registry, None);
+            let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+            assert!(
+                warnings.iter().any(|w| w.code == DiagCode::T100),
+                "{release}: expected T100 for tainted loop condition in {source:?}, got {warnings:?}",
+            );
+        }
     }
 }
 
@@ -347,16 +348,16 @@ fn t100_expr_operand_message_not_raised_for_var_only_in_nested_command_sub() {
 #[test]
 fn t100_fires_when_nested_command_sub_is_itself_a_sink() {
     use crate::compilation_unit::CompilationUnit;
-    let registry = CommandRegistry::build_default();
-    let source =
-        "proc f {} {\n  set x [gets stdin]\n  if {[exec $x] eq \"ok\"} {\n    puts ok\n  }\n}\n";
-    let cu =
-        CompilationUnit::build_for(source, &registry, false).with_interprocedural(&registry, None);
-    let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
-    assert!(
-        warnings.iter().any(|w| w.code == DiagCode::T100),
-        "expected T100 from the nested `exec $x`, got {warnings:?}",
-    );
+    for (release, registry) in release_registries() {
+        let source = "proc f {} {\n  set x [gets stdin]\n  if {[exec $x] eq \"ok\"} {\n    puts ok\n  }\n}\n";
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert!(
+            warnings.iter().any(|w| w.code == DiagCode::T100),
+            "{release}: expected T100 from the nested `exec $x`, got {warnings:?}",
+        );
+    }
 }
 
 /// TP: `$tainted` inside a ternary branch still flags when the ternary

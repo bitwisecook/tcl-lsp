@@ -399,6 +399,7 @@ impl<'a> NativeSummaryContext<'a> {
     pub(in crate::interprocedural::transfer) fn with_value_operation<T>(
         &self,
         tokens: &CommandTokens,
+        writes_land: bool,
         apply: impl FnOnce(
             &ResolvedStatementInvocation,
             &tcl_registry::ResolvedInvocation<'_, '_>,
@@ -418,9 +419,12 @@ impl<'a> NativeSummaryContext<'a> {
         // A nested command whose only variable roles are reads of literal
         // names no module trace may name runs no code through them: the
         // consumer reads each place from the lattice or abstains. A write
-        // role keeps the refusal, since a value position cannot land a store.
+        // role keeps the refusal unless the evaluation lands its stores in
+        // its ordered state (`[incr x]` in an `expr` under local writes),
+        // where the write's literal place is published as the read's is.
         let plain_reads = normal.variable_roles().iter().all(|&(argument, role)| {
-            role == tcl_registry::ArgRole::VarRead
+            (role == tcl_registry::ArgRole::VarRead
+                || (writes_land && role == tcl_registry::ArgRole::VarWrite))
                 && operation
                     .argument_literal(argument)
                     .is_some_and(|name| !self.may_carry_variable_trace(&name))
@@ -715,7 +719,7 @@ mod tests {
         );
         assert!(
             context
-                .with_value_operation(original, |_, _| Some(()))
+                .with_value_operation(original, false, |_, _| Some(()))
                 .is_none()
         );
         assert!(

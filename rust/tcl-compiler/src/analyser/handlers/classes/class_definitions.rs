@@ -418,6 +418,16 @@ impl Analyser {
                         .map(|class| class.qualified_name.clone())
                 })
         });
+        if selected.is_none()
+            && let Some(qualified) = arg_tokens
+                .first()
+                .and_then(|token| self.external_configuration_target(*token))
+        {
+            self.record_external_class_contribution(
+                qualified, cmd_name, args, arg_tokens, scope_path,
+            );
+            return true;
+        }
         let Some(qualified) = selected
             .or_else(|| self.oo_define_qualified_target(args, arg_tokens, arg_single, scope_path))
         else {
@@ -458,6 +468,77 @@ impl Analyser {
         }
         self.register_defined_class(qualified, class_def, scope_path);
         true
+    }
+
+    /// The class an original configuration names when this document
+    /// declares no such class under a pinned release: the first path its
+    /// original lookup tries. Another document may declare it.
+    fn external_configuration_target(&self, token: Token) -> Option<String> {
+        if self.result.allows_retained_logical_declaration_advice() {
+            return None;
+        }
+        let configuration = self
+            .result
+            .original_class_configurations()
+            .find(|configuration| {
+                configuration
+                    .target()
+                    .name_input()
+                    .original_word_key()
+                    .is_some_and(|key| {
+                        key.span() == token.span
+                            || key
+                                .original_word()
+                                .tokens()
+                                .first()
+                                .is_some_and(|written| written.span == token.span)
+                    })
+            })?;
+        let target = configuration.target();
+        if target.local_allocation().is_some() || !target.is_external_candidate() {
+            return None;
+        }
+        let lookup = target.lookup();
+        let [candidates] = lookup.candidates() else {
+            return None;
+        };
+        tcl_syntax::naming::native_command_source_spelling(
+            lookup.policy().recipe(),
+            candidates.first()?,
+        )
+    }
+
+    /// Walk a configuration of a class another document may declare into
+    /// its contribution record. The record is no class of this document:
+    /// run alone, the configuration raises (`::C does not refer to an
+    /// object`); the workspace index merges it into the declaring
+    /// document's class.
+    fn record_external_class_contribution(
+        &mut self,
+        qualified: String,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        let (name_span, body_span) = Self::oo_definition_source_spans(arg_tokens, None);
+        let mut contribution = self
+            .result
+            .external_class_contributions
+            .remove(&qualified)
+            .unwrap_or_else(|| super::super::super::types::ClassDef {
+                name: crate::naming::key_tail(&qualified).to_owned(),
+                qualified_name: qualified.clone(),
+                name_span,
+                body_span,
+                via_define: true,
+                ..Default::default()
+            });
+        self.walk_oo_define_form(cmd_name, args, arg_tokens, scope_path, &mut contribution);
+        self.emit_w315_definition_cannot_run(&mut contribution);
+        self.result
+            .external_class_contributions
+            .insert(qualified, contribution);
     }
 
     fn oo_definition_source_class(

@@ -210,6 +210,7 @@ impl<'a> ModuleProcedures<'a> {
     pub(crate) fn with_original_native_value<T>(
         &self,
         tokens: &CommandTokens,
+        writes_land: bool,
         apply: impl FnOnce(
             &crate::registry_invocation::ResolvedStatementInvocation,
             &tcl_registry::ResolvedInvocation<'_, '_>,
@@ -217,7 +218,7 @@ impl<'a> ModuleProcedures<'a> {
     ) -> Option<T> {
         self.native_source
             .as_ref()?
-            .with_value_operation(tokens, apply)
+            .with_value_operation(tokens, writes_land, apply)
     }
 
     /// Retained source Module; callers still own their declaration/input joins.

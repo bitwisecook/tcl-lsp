@@ -19,7 +19,7 @@
 //! Block-valued descriptors: case lists, clause grammars, definition bodies with their members, the iRules event rows and scoped bodies.
 
 use super::body_rows::hover_block;
-use super::command::resolve_block;
+use super::command::{resolve_block, split_knowledge_flags, stated_knowledge};
 use super::statement_reader::{Stmt, block};
 use super::subcommand::load_subcommand;
 use super::value_parsers::{
@@ -273,7 +273,17 @@ pub(super) const IRULES_SOURCE_FLOWS: &[tcl_registry::events::IrulesSourceFlowSp
 ///
 /// The payload-carrying variant is one braced word holding the variant name
 /// and its domain list, which is how the memo spells every payload variant.
-pub(super) fn result_stability_row(stmt: &Stmt, log: &mut Log) -> Option<ResultStability> {
+/// `result_stability VALUE ?-partial? ?-complete WINDOW?…`: the value alone
+/// is a lower bound, and each window closes it (issue #1712).
+pub(super) fn result_stability_value(
+    stmt: &Stmt,
+    log: &mut Log,
+) -> tcl_registry::knowledge::Knowledge<ResultStability> {
+    let (stated, value) = split_knowledge_flags(stmt, log);
+    stated_knowledge(result_stability_row(&value, log), stated)
+}
+
+fn result_stability_row(stmt: &Stmt, log: &mut Log) -> Option<ResultStability> {
     let value = stmt.word_text(1);
     let words = list_words(value);
     if words.first().map(String::as_str) == Some("ReadsVersionedWorld") {

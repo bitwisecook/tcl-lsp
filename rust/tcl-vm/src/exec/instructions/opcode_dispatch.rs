@@ -1817,10 +1817,14 @@ impl Vm {
             | Op::STORE_SCALAR4
             | Op::INCR_SCALAR1
             | Op::INCR_SCALAR1_IMM
+            | Op::INCR_SCALAR4
+            | Op::INCR_SCALAR4_IMM
             | Op::INCR_ARRAY_STK_IMM
             | Op::INCR_ARRAY_STK
             | Op::INCR_ARRAY1
             | Op::INCR_ARRAY1_IMM
+            | Op::INCR_ARRAY4
+            | Op::INCR_ARRAY4_IMM
             | Op::EXIST_SCALAR
             | Op::EXIST_STK
             | Op::EXIST_ARRAY

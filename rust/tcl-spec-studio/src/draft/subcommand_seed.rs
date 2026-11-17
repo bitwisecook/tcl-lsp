@@ -288,8 +288,9 @@ fn subcommand_hooks(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
     );
     d.insert(
         "completion".into(),
-        lost.expr("completion", sub.completion.is_some()),
+        lost.expr("completion", !sub.completion.is_unknown()),
     );
+    d.insert("completion_knowledge".into(), knowledge(&sub.completion));
     d.insert(
         "lowering_hook".into(),
         sub.lowering_hook
@@ -326,7 +327,11 @@ fn subcommand_hooks(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
     );
     d.insert(
         "world_effects".into(),
-        lost.expr("world_effects", sub.world_effects.is_some()),
+        lost.expr("world_effects", !sub.world_effects.is_unknown()),
+    );
+    d.insert(
+        "world_effects_knowledge".into(),
+        knowledge(&sub.world_effects),
     );
     d.insert(
         "state_transitions".into(),
@@ -338,7 +343,11 @@ fn subcommand_hooks(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
     );
     d.insert(
         "result_stability".into(),
-        lost.expr("result_stability", sub.result_stability.is_some()),
+        lost.expr("result_stability", !sub.result_stability.is_unknown()),
+    );
+    d.insert(
+        "result_stability_knowledge".into(),
+        knowledge(&sub.result_stability),
     );
     d.insert(
         "native_result".into(),

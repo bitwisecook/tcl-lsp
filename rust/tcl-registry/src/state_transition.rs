@@ -324,6 +324,10 @@ pub enum CommandBindingDefinitionKind {
     Procedure,
     /// A `TclOO`, snit, or other registry-described object/class command.
     Object,
+    /// An instance of the invoking constructor's registry object class (a
+    /// Tk widget's path): calls through it dispatch the class's declared
+    /// instance methods.
+    Instance,
 }
 
 /// A transition of a child interpreter's lifecycle or policy.
@@ -1200,6 +1204,40 @@ pub mod command_binding {
         effect_coverage: ALIAS_COVERAGE,
         commit: StateTransitionCommit::OnOkOnly,
     };
+
+    /// A Tk widget constructor `CLASS pathName ?option value …?` binds the
+    /// window path as the widget's object command, and destroys the window
+    /// (deleting the command) when configuration fails (`Tcl_CreateObjCommand`
+    /// then `Tk_DestroyWindow` in `tkEntry.c`, Tk 8.4.20–9.0.4).
+    pub const CREATES_WIDGET: StateTransitionDescriptor = StateTransitionDescriptor {
+        logical_source_resolver: None,
+        composition: StateTransitionComposition::Extend,
+        success_resolver: None,
+        resolver: Some(creates_widget),
+        argument_shape: StateTransitionArgumentShape::Positional,
+        // `Tk_CreateWindowFromPath` needs a `.` and an existing parent, and
+        // every window descends from `.`, so a path that succeeds starts with
+        // `.`. A computed path can only bind such a name, so it states nothing
+        // rather than withdrawing the whole command table.
+        dynamic_widening: &[],
+        effect_coverage: ALIAS_COVERAGE,
+        commit: StateTransitionCommit::OnOkOnly,
+    };
+
+    fn creates_widget(arguments: InvocationArguments<'_>) -> StateTransitions {
+        let mut transitions = StateTransitions::default();
+        if let Some(name) = TransitionSubject::from_argument(arguments, 0)
+            && name.literal().is_some_and(|path| path.starts_with('.'))
+        {
+            transitions.push(StateTransition::CommandBinding(
+                CommandBindingTransition::Define {
+                    name,
+                    kind: CommandBindingDefinitionKind::Instance,
+                },
+            ));
+        }
+        transitions
+    }
 
     fn creates_caller_aliases(arguments: InvocationArguments<'_>) -> StateTransitions {
         let mut transitions = StateTransitions::default();

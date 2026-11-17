@@ -143,6 +143,25 @@ impl SourceCommandBindings {
             });
     }
 
+    /// A standalone definition whose own observation a closer reading
+    /// replaces: the methods a closed class configuration declares.
+    pub(super) fn replace_standalone_definition_method_references(
+        &mut self,
+        class: &SourceCommandTarget,
+        site: CommandAllocationSite,
+        phases: Option<Vec<SourceDefinitionMethodReferencePhase>>,
+    ) {
+        if let Some(coverage) = class
+            .identity
+            .as_ref()
+            .and_then(|id| id.allocation.as_ref())
+            .and_then(|allocation| self.definition_method_references.get_mut(allocation))
+        {
+            coverage.observations.remove(&site);
+        }
+        self.record_standalone_definition_method_references(class, site, phases);
+    }
+
     pub(super) fn record_standalone_definition_method_references(
         &mut self,
         class: &SourceCommandTarget,

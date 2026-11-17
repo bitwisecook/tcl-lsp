@@ -828,8 +828,17 @@ pub(super) fn hosted_cell_is_local(
     {
         return false;
     }
-    matches!(&cell.owner, CellOwner::Activation(activation)
-        if variables.activation.as_ref() == Some(activation))
+    // A handler with no activation of its own runs at the global level
+    // (`RULE_INIT`: `namespace current` is `::`, BIGIP-NAME-050), so its
+    // bare name is a cell of that namespace.
+    match &cell.owner {
+        CellOwner::Namespace(_) | CellOwner::NamespaceIdentity(_) => {
+            variables.activation.is_none()
+                && variables.namespace_footprint(access) == Some(namespace)
+        }
+        CellOwner::Activation(activation) => variables.activation.as_ref() == Some(activation),
+        _ => false,
+    }
 }
 
 fn command_transfer(

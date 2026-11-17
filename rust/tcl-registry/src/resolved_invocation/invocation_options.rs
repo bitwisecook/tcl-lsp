@@ -208,6 +208,19 @@ impl<'r> InvocationOptions<'r, '_> {
         while index < end {
             let argument = offset.checked_add(index)?;
             let Some(word) = arguments.literal_at(index) else {
+                // A literal prefix other than `-` proves the value cannot be an
+                // option, whatever the substitution after it produces.
+                if matches!(
+                    arguments.get(index),
+                    Some(crate::InvocationWord::DynamicNonOption)
+                ) {
+                    if placement == crate::OptionPlacement::Anywhere {
+                        index += 1;
+                        continue;
+                    }
+                    scan.boundary = AuthoredSourceOptionBoundary::Positional(argument);
+                    break;
+                }
                 scan.boundary = AuthoredSourceOptionBoundary::Dynamic(argument);
                 break;
             };

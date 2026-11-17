@@ -23,7 +23,7 @@ use super::super::trusted_packages::apply_package_transition;
 use super::super::{
     InvocationBindingContext, ModuleCommandBindings, command_publication, original_command_table,
 };
-use super::binding_transitions::apply_may_binding_transition;
+use super::binding_transitions::{apply_may_binding_transition, retag_instance_definition};
 use super::binding_walk::BindingInvocationMetadata;
 use super::evaluated_bodies::{apply_readable_evaluated_body, procedure_publication_key};
 use super::namespace_transitions::apply_namespace_transition;
@@ -532,6 +532,13 @@ pub(in super::super) fn apply_declared_binding_transitions(
             declaration,
             publication,
             original_operands,
+        );
+        retag_instance_definition(
+            bindings,
+            transition,
+            namespace,
+            declaration,
+            &facts.canonical_command,
         );
     }
 }

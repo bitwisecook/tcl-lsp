@@ -80,7 +80,7 @@ pub fn spec() -> CommandSpec {
         traits: crate::value_transfer::conditional_list_append::CONDITIONAL_LIST_APPEND_TRAITS,
         arity: Arity::at_least(1),
         command_forms: COMMAND_FORMS,
-        completion: Some(crate::CompletionDescriptor::exact(&[
+        completion: crate::knowledge::Knowledge::Partial(crate::CompletionDescriptor::exact(&[
             crate::CompletionCode::Ok,
             crate::CompletionCode::Error,
         ])),

@@ -66,7 +66,7 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std"] }
 tcl-irules = { path = "../tcl-irules", features = ["test-instrumentation"] }
 # The diagnostic-policy truth table, for the MCP pass over its rows
 # (src/tools.rs's `policy_tests` module); only this crate's tests build it.
-tcl-lsp-core = { path = "../tcl-lsp-core", features = ["truth-table"] }
+tcl-lsp-core = { path = "../tcl-lsp-core", features = ["truth-table", "transport-fixtures"] }
 
 [lints]
 workspace = true

@@ -100,7 +100,7 @@ fn completion_descriptor_precedence_is_form_then_subcommand_then_command() {
         .resolve_invocation("completion-fixture", &["run"], None)
         .expect("fixture command resolves");
     assert_eq!(
-        form.semantics.completion.codes,
+        form.semantics.completion.or_conservative().codes,
         CompletionCodeDomain::Exact(FORM_CODES),
         "the matched form owns the most-specific descriptor"
     );
@@ -109,7 +109,7 @@ fn completion_descriptor_precedence_is_form_then_subcommand_then_command() {
         .resolve_invocation("completion-fixture", &["plain"], None)
         .expect("fixture command resolves");
     assert_eq!(
-        subcommand.semantics.completion.codes,
+        subcommand.semantics.completion.or_conservative().codes,
         CompletionCodeDomain::Exact(SUBCOMMAND_CODES),
         "a resolved subcommand overrides its parent command"
     );
@@ -118,7 +118,7 @@ fn completion_descriptor_precedence_is_form_then_subcommand_then_command() {
         .resolve_invocation("completion-fixture", &[], None)
         .expect("fixture command resolves without a subcommand");
     assert_eq!(
-        command.semantics.completion.codes,
+        command.semantics.completion.or_conservative().codes,
         CompletionCodeDomain::Exact(COMMAND_CODES),
         "the command descriptor applies when no narrower form resolved"
     );
@@ -132,7 +132,7 @@ fn registry_exposes_standard_code_descriptors_and_conservative_invoke_fallback()
         .resolve_invocation("error", &["boom"], None)
         .expect("error is a core command");
     assert_eq!(
-        error.semantics.completion.codes,
+        error.semantics.completion.or_conservative().codes,
         CompletionCodeDomain::Exact(&[CompletionCode::Error]),
         "the command registry, not a compiler spelling match, owns error's code"
     );
@@ -145,7 +145,7 @@ fn registry_exposes_standard_code_descriptors_and_conservative_invoke_fallback()
         .resolve_invocation("completion-generic-fallback", &[], None)
         .expect("unstamped fixture command resolves");
     assert_eq!(
-        generic.semantics.completion,
+        generic.semantics.completion.or_conservative(),
         CompletionDescriptor::CONSERVATIVE,
         "an unstamped command must retain generic Invoke semantics"
     );
@@ -164,7 +164,7 @@ fn registry_exposes_standard_code_descriptors_and_conservative_invoke_fallback()
 
     registry.insert(CommandSpec {
         name: "explicit-closed-effect-fixture",
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         ..CommandSpec::DEFAULT
     });
     let explicit_empty = registry

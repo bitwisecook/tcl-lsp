@@ -155,6 +155,33 @@ pub(crate) fn positioned_class_at<'a>(
     Some(class)
 }
 
+/// The `superclass` / `mixin` relation word written at `cursor`, under the
+/// document's current source and grammar.
+pub(crate) fn relation_word_at<'a>(
+    source: &str,
+    analysis: &'a AnalysisResult,
+    cursor: u32,
+) -> Option<&'a tcl_compiler::analyser::types::OriginalSourceClassRelation> {
+    use tcl_compiler::analyser::types::OriginalSourceClassRelationKind as Kind;
+    let (image, config) = tcl_compiler::source_graph::current_analysis(source, analysis)?;
+    analysis
+        .original_class_declarations()
+        .flat_map(|record| record.metadata().original_relations.effects())
+        .filter(|effect| matches!(effect.kind(), Kind::Superclass | Kind::Mixin))
+        .flat_map(|effect| effect.values().unwrap_or_default())
+        .find(|relation| {
+            relation
+                .name_input()
+                .original_word_key()
+                .is_some_and(|key| {
+                    key.source_image() == &image
+                        && key.lexer_config() == config
+                        && key.span().start() <= cursor
+                        && cursor < key.span().end()
+                })
+        })
+}
+
 /// Whether a command's head names a class declared in this document, read
 /// from the realm at the head. [`class_for_invocation`] answers the same
 /// question from the analysis's invocation list, which the structure-only

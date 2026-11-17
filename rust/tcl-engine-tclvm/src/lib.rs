@@ -241,7 +241,7 @@ fn unset_variable(vm: &mut Vm, name: &str) -> Result<(), EngineError> {
 /// normal completion, `return`, `break` and `continue` as the code they are, and
 /// an error as the error, a budget one as the budget it outran.
 fn evaluate(vm: &mut Vm, script: &str) -> Result<HostOutcome, EngineError> {
-    let evaluated = vm.eval_source(script);
+    let evaluated = vm.eval_value_source(script);
     if let Some(kind) = vm.limit_exceeded() {
         return Err(EngineError::BudgetExceeded(budget_kind(kind)));
     }
@@ -267,7 +267,7 @@ fn evaluate_using(
 ) -> Result<HostOutcome, EngineError> {
     check_projection(vm, original)?;
     let reached = vm
-        .eval_source(script)
+        .eval_value_source(script)
         .map_err(|error| projection_error(vm, original, error));
     check_projection(vm, original)?;
     let completion = reached?;

@@ -57,6 +57,41 @@ pub(in super::super) fn resolve_source_invocation_facts(
     })
 }
 
+/// The selected instance method's facts for a call through an instance of
+/// the registry constructor `factory`, under the supplied availability when
+/// the walk retains one.
+#[inline(never)]
+fn resolve_source_instance_facts(
+    state: &ModuleCommandBindings,
+    registry: &CommandRegistry,
+    factory: &str,
+    invocation: tcl_registry::InvocationWords<'_>,
+    realm: tcl_dialect::model::InvocationRealm,
+) -> Option<Box<tcl_registry::InvocationFacts>> {
+    if let crate::registry_invocation::OwnedInvocationMetadataContext::SuppliedSource(input) =
+        &state.baseline.metadata_context
+    {
+        let context = input.context_registry();
+        let spec = context.commands().get(factory)?;
+        return context
+            .commands()
+            .resolve_structured_instance_invocation_for_descriptor_in_context(
+                spec, invocation, &context,
+            )
+            .ok()
+            .flatten()
+            .map(|resolved| Box::new(resolved.facts()));
+    }
+    let query = invocation
+        .arguments()
+        .dialect()
+        .and_then(tcl_registry::InvocationDialect::authoring_query)
+        .map(|query| query.with_realm(realm));
+    registry
+        .resolve_structured_instance_invocation(factory, invocation, query)
+        .map(|resolved| Box::new(resolved.facts()))
+}
+
 #[inline(never)]
 fn resolve_source_success_facts(
     registry: &CommandRegistry,
@@ -214,6 +249,22 @@ pub(in super::super) fn prepare_source_native_invocation<'a>(
     let semantic_context = registry
         .profile()
         .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+    if let super::super::BindingKind::Instance { factory } = target.kind {
+        // A widget call takes its selected instance method's declared facts;
+        // an unknown or computed method stays an unresolved call.
+        let facts = resolve_source_instance_facts(state, registry, factory, invocation, realm)
+            .ok_or(SourceNativePreparationError::Unresolved(route))?;
+        if source_target_arguments_invalid(&facts, invocation.arguments()) {
+            return Err(SourceNativePreparationError::InvalidArguments);
+        }
+        return Ok(Box::new(PreparedSourceNativeInvocation {
+            arguments,
+            dialect,
+            route,
+            facts,
+            original_variable_operands: OnceLock::new(),
+        }));
+    }
     let facts = resolve_source_invocation_facts(registry, semantic_context, invocation, realm)
         .ok_or(SourceNativePreparationError::Unresolved(route))?;
     if source_target_arguments_invalid(&facts, invocation.arguments()) {

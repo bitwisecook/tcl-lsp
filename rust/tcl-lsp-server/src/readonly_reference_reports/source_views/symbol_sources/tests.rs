@@ -34,6 +34,7 @@ const MAIN: &str = "source lib/helpers.tcl\n\nproc run {} {\n    puts [greet_hel
 
 async fn fixture() -> (Backend, Arc<crate::vfs::MemoryStore>) {
     let mut backend = crate::tests::test_backend();
+    backend.workspace_scan_ready.mark_complete();
     let store = Arc::new(crate::vfs::MemoryStore::new());
     for (uri, path, source) in [
         (CHILD_URI, "/ws/lib/helpers.tcl", HELPER),

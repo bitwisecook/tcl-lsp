@@ -78,12 +78,18 @@ pub fn semantic_tokens(db: &dyn TclDb, file: SourceFile, config: AnalyserConfig)
     let registry = token_registry(db, file.dialect(db), config.spec_pack_key(db));
     let cu = document_compilation_unit_for(db, file, config);
     let analysis = file_analysis_incremental(db, file, config);
+    // Highlighting advises: under a missing overlay it reads the plain
+    // registry and drops the unavailable analysis, rather than blanking.
+    let analysis = analysis
+        .analysis_context_unavailable
+        .is_none()
+        .then_some(&*analysis);
     tcl_lsp_core::semantic_tokens::full_with_cu_and_analysis(
         file.text(db),
         tcl_lsp_core::profile_for_dialect(file.dialect(db)),
         &registry,
         cu.as_deref(),
-        Some(&analysis),
+        analysis,
     )
 }
 
@@ -311,6 +317,11 @@ pub fn semantic_tokens_project(
     let proc_roles = project_proc_var_index(db, project);
     let named_instances = project_named_instance_index(db, project);
     let analysis = file_analysis_incremental(db, file, config);
+    if analysis.analysis_context_unavailable.is_some() {
+        // A missing overlay: advise from the plain registry, as the
+        // document-level query does, rather than blanking.
+        return semantic_tokens(db, file, config);
+    }
     tcl_lsp_core::semantic_tokens::full_with_cu_and_facts(
         file.text(db),
         tcl_lsp_core::profile_for_dialect(file.dialect(db)),

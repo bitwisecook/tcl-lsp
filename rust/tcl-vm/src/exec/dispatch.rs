@@ -177,7 +177,10 @@ impl Vm {
         self.pending.top_level_invocation = false;
         self.pending.release_compiled = None;
         match dispatched {
-            Ok(Some(call)) => return call,
+            Ok(Some(call)) => {
+                f.record_invoked_words(&words);
+                return call;
+            }
             Ok(None) => {}
             Err(c) => {
                 if c.code == Code::Error {

@@ -22,7 +22,6 @@ use super::invocation_options::invocation_options;
 use super::source_definitions::NamedObjectFactory;
 use super::{InvocationAvailability, InvocationSemantics};
 use crate::command_table::CommandTableEffect;
-use crate::completion::CompletionDescriptor;
 use crate::dispatch_stability::ResolvedDispatchDependencies;
 use crate::forms::CommandForm;
 use crate::hooks::{CodegenHookId, InlineCodegenHookId, LoweringHookId};
@@ -220,15 +219,25 @@ pub(super) fn resolve_invocation_semantics<'r, 'w>(
         operation,
         codegen_hook,
         completion: form
-            .and_then(|form| form.completion)
-            .or(sub.and_then(|sub| sub.completion))
-            .or(inherit_command.then_some(spec.completion).flatten())
-            .unwrap_or(CompletionDescriptor::CONSERVATIVE),
+            .map_or(crate::knowledge::Knowledge::Unknown, |form| form.completion)
+            .or(sub.map_or(crate::knowledge::Knowledge::Unknown, |sub| sub.completion))
+            .or(if inherit_command {
+                spec.completion
+            } else {
+                crate::knowledge::Knowledge::Unknown
+            }),
         result_stability: form
-            .and_then(|form| form.result_stability)
-            .or(sub.and_then(|sub| sub.result_stability))
-            .or(inherit_command.then_some(spec.result_stability).flatten())
-            .unwrap_or_default(),
+            .map_or(crate::knowledge::Knowledge::Unknown, |form| {
+                form.result_stability
+            })
+            .or(sub.map_or(crate::knowledge::Knowledge::Unknown, |sub| {
+                sub.result_stability
+            }))
+            .or(if inherit_command {
+                spec.result_stability
+            } else {
+                crate::knowledge::Knowledge::Unknown
+            }),
         native_result: form
             .and_then(|form| form.native_result)
             .or(sub.and_then(|sub| sub.native_result))
@@ -351,9 +360,17 @@ pub(super) fn resolve_invocation_semantics<'r, 'w>(
             .and_then(|form| form.side_effects)
             .unwrap_or(inherited_side_effects),
         world_effects: ResolvedWorldEffects {
-            command: inherit_command.then_some(spec.world_effects).flatten(),
-            subcommand: sub.and_then(|sub| sub.world_effects),
-            form: form.and_then(|form| form.world_effects),
+            command: if inherit_command {
+                spec.world_effects
+            } else {
+                crate::knowledge::Knowledge::Unknown
+            },
+            subcommand: sub.map_or(crate::knowledge::Knowledge::Unknown, |sub| {
+                sub.world_effects
+            }),
+            form: form.map_or(crate::knowledge::Knowledge::Unknown, |form| {
+                form.world_effects
+            }),
         },
         state_transitions: ResolvedStateTransitions {
             // A `SpecTcl` pack cannot supply a Rust resolver, so it declares

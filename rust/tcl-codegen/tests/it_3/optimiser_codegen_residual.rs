@@ -81,7 +81,7 @@ use common::command_tokens;
 use tcl_codegen::codegen::{CodegenCtx, Op};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::interprocedural::InterproceduralAnalysis;
-use tcl_compiler::optimiser::manager::optimise_raw;
+use tcl_compiler::optimiser::manager::optimise_raw_for_profile;
 use tcl_compiler::optimiser::{Optimisation, PassContext, PassId, run_passes};
 use tcl_registry::CommandRegistry;
 
@@ -93,10 +93,15 @@ fn registry() -> CommandRegistry {
     )
 }
 
-/// All optimisations for `src` with the registry + interprocedural summary
-/// threaded (the propagation O101/O103/O115/O129 paths need both).
+/// All optimisations for `src` under Tcl 8.6, with the registry and
+/// interprocedural summary threaded (the propagation O101/O103/O115/O129
+/// paths need both).
 fn opts(src: &str) -> Vec<Optimisation> {
-    optimise_raw(src, &registry(), None)
+    optimise_raw_for_profile(
+        src,
+        tcl_registry::model::ingress::static_context_for("tcl8.6").commands(),
+        Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
+    )
 }
 
 /// Replacement texts of every optimisation carrying `code`.
@@ -119,10 +124,13 @@ fn fires(src: &str, code: &str) -> bool {
 /// (an `[expr {1 + 2}]` RHS would otherwise be const-folded first), so the
 /// sink-placement branches are reached deterministically.
 fn sink_only(src: &str) -> Vec<(bool, String)> {
-    let reg = registry();
-    let cu = CompilationUnit::build_for(src, &reg, false);
+    let reg = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+    let cu = CompilationUnit::build_for_dialect(src, reg, false, "tcl8.6");
     let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
-    ctx.registry = Some(&reg);
+    ctx.registry = Some(reg);
+    ctx.dialect =
+        Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile());
+    ctx.ir_module = Some(&cu.ir_module);
     run_passes(&mut ctx, &cu, &[PassId::CodeSinking]);
     ctx.optimisations
         .iter()
@@ -221,7 +229,10 @@ fn prop_assign_expr_o100_substitutes_and_folds_to_literal() {
     // `try_substitute_assign_expr`: a `set name [expr {…}]` whose expr reads an
     // SCCP-constant var substitutes the constant and, when the result is fully
     // constant, emits the unwrapped `set name VALUE`.
-    let r = repls("proc ::h {} { set a 5\n set b [expr {$a + 1}] }", "O100");
+    let r = repls(
+        "proc ::h {} { set a 5\n set b [expr {$a + 1}] }\n::h",
+        "O100",
+    );
     // tclsh: a=5 ⇒ a+1 == 6  (8.6 + 9.0); `set b 6` preserves it.
     assert!(
         r.iter().any(|s| s == "set b 6"),
@@ -234,7 +245,10 @@ fn prop_assign_expr_o100_keeps_expr_wrapper_when_partly_constant() {
     // The same path's *partial* branch: when only some operands are constant
     // the substituted-but-still-dynamic expression keeps its `[expr {…}]`
     // wrapper (the constant is spliced in, the variable read stays).
-    let r = repls("proc ::h {y} { set a 3\n set b [expr {$a + $y}] }", "O100");
+    let r = repls(
+        "proc ::h {y} { set a 3\n set b [expr {$a + $y}] }\n::h 4",
+        "O100",
+    );
     // tclsh: a=3 ⇒ the residual is `$a + $y` with a→3, i.e. `3 + $y`; for any y
     // `set b [expr {3 + $y}]` equals the original `set a 3; set b [expr {$a+$y}]`.
     // tclsh: proc p {y} {set a 3; set b [expr {$a+$y}]; return $b}; p 4 → 7;
@@ -288,13 +302,16 @@ fn prop_recurses_into_while_foreach_catch_switch_try_bodies() {
     // A constant read inside the body folds; the fold is the same observable
     // value the body would compute.
 
-    // `while` body — note the loop never runs here (`while {0}`), but the
-    // propagation walk still descends and folds the body's `$c` read.
-    // tclsh: c=9 ⇒ `puts $c` would print 9; `puts 9` is identical.
+    // `while` body. The loop runs: a body that never runs (`while {0}`) is
+    // dead code, not a place to propagate into.
+    // tclsh: c=9 ⇒ `puts $c` prints 9 twice; `puts 9` is identical.
     assert!(
-        repls("set c 9\nwhile {0} { puts $c }", "O100")
-            .iter()
-            .any(|s| s == "9")
+        repls(
+            "set c 9\nset i 0\nwhile {$i < 2} { puts $c; incr i }",
+            "O100"
+        )
+        .iter()
+        .any(|s| s == "9")
     );
 
     // `foreach` body.
@@ -334,8 +351,10 @@ fn prop_recurses_into_while_foreach_catch_switch_try_bodies() {
 fn prop_recurses_into_if_else_body() {
     // The `If` arm walks every clause body and the `else_body`. A constant
     // folds in the else branch as well as the then branch.
+    // `flag` is bound to an unknown value (the script's argument count): an
+    // unset `$flag` raises before either branch runs.
     // tclsh: v=2 ⇒ whichever branch runs, `puts $v` prints 2; `puts 2` identical.
-    let src = "set v 2\nif {$flag} { puts $v } else { puts $v }";
+    let src = "set v 2\nset flag [llength $argv]\nif {$flag} { puts $v } else { puts $v }";
     assert!(repls(src, "O100").iter().filter(|s| *s == "2").count() >= 1);
 }
 
@@ -941,20 +960,22 @@ fn self_class_folds_to_the_lexically_enclosing_class() {
     // TP. Oracle: `oo::class create ::A { method m {} { self class } }` then
     // `[::A new] m` -> ::A.
     assert_eq!(
-        o129("oo::class create ::A {\n    method m {} { ::puts [::oo::Helpers::self class] }\n}\n"),
+        o129(
+            "oo::class create ::A {\n    method m {} { ::puts [::oo::Helpers::self class] }\n}\n[::A new] m\n"
+        ),
         vec!["::A".to_string()],
     );
     // TP, the `return` shape — the whole statement is the rewrite target.
     assert_eq!(
         o129(
-            "oo::class create ::A {\n    method m {} { ::return [::oo::Helpers::self class] }\n}\n"
+            "oo::class create ::A {\n    method m {} { ::return [::oo::Helpers::self class] }\n}\nputs [[::A new] m]\n"
         ),
         vec!["return ::A".to_string()],
     );
     // TP, the `set` value position.
     assert_eq!(
         o129(
-            "oo::class create ::A {\n    method m {} { ::set c [::oo::Helpers::self class]\n    ::puts $c }\n}\n"
+            "oo::class create ::A {\n    method m {} { ::set c [::oo::Helpers::self class]\n    ::puts $c }\n}\n[::A new] m\n"
         ),
         vec!["::A".to_string()],
     );
@@ -967,7 +988,7 @@ fn self_class_folds_through_every_class_defining_shape() {
     // subclass whose inherited method still answers with ::A.
     assert_eq!(
         o129(
-            "oo::class create ::B {}\noo::define ::B { method n {} { ::puts [::oo::Helpers::self class] } }\n"
+            "oo::class create ::B {}\noo::define ::B { method n {} { ::puts [::oo::Helpers::self class] } }\n[::B new] n\n"
         ),
         vec!["::B".to_string()],
     );
@@ -976,7 +997,7 @@ fn self_class_folds_through_every_class_defining_shape() {
     // `[::N::C new] m` -> ::N::C.
     assert_eq!(
         o129(
-            "namespace eval ::N {\n    oo::class create C { method m {} { ::puts [::oo::Helpers::self class] } }\n}\n"
+            "namespace eval ::N {\n    oo::class create C { method m {} { ::puts [::oo::Helpers::self class] } }\n}\n[::N::C new] m\n"
         ),
         vec!["::N::C".to_string()],
     );
@@ -984,7 +1005,7 @@ fn self_class_folds_through_every_class_defining_shape() {
     // — oracle: both report ::E.
     assert_eq!(
         o129(
-            "oo::class create ::E {\n    constructor {} { ::puts [::oo::Helpers::self class] }\n    destructor { ::puts [::oo::Helpers::self class] }\n}\n"
+            "oo::class create ::E {\n    constructor {} { ::puts [::oo::Helpers::self class] }\n    destructor { ::puts [::oo::Helpers::self class] }\n}\n[::E new] destroy\n"
         ),
         vec!["::E".to_string(), "::E".to_string()],
     );
@@ -994,7 +1015,7 @@ fn self_class_folds_through_every_class_defining_shape() {
 fn self_class_folds_inside_nested_bodies() {
     // TP. The method-body walk recurses through control-flow bodies.
     let r = o129(
-        "oo::class create ::A {\n    method m {} {\n        ::if {1} { ::puts [::oo::Helpers::self class] }\n        ::foreach x {1 2} { ::puts [::oo::Helpers::self class] }\n        ::while {0} { ::puts [::oo::Helpers::self class] }\n    }\n}\n",
+        "oo::class create ::A {\n    method m {} {\n        ::if {1} { ::puts [::oo::Helpers::self class] }\n        ::foreach x {1 2} { ::puts [::oo::Helpers::self class] }\n        ::while {0} { ::puts [::oo::Helpers::self class] }\n    }\n}\n[::A new] m\n",
     );
     assert_eq!(r, vec!["::A".to_string(); 3], "got {r:?}");
 }
@@ -1139,7 +1160,7 @@ fn namespace_qualifiers_and_tail_fold_over_the_self_class_frame_constant() {
     //   namespace qualifiers ::ticklecharts::Gauge -> ::ticklecharts
     assert_eq!(
         o129(
-            "oo::class create ::ticklecharts::Gauge {\n    method m {} { ::set ns [::namespace qualifiers [::oo::Helpers::self class]] }\n}\n"
+            "oo::class create ::ticklecharts::Gauge {\n    method m {} { ::set ns [::namespace qualifiers [::oo::Helpers::self class]] }\n}\nputs [[::ticklecharts::Gauge new] m]\n"
         ),
         vec!["::ticklecharts".to_string()],
     );
@@ -1147,7 +1168,7 @@ fn namespace_qualifiers_and_tail_fold_over_the_self_class_frame_constant() {
     //   namespace tail ::ticklecharts::Gauge -> Gauge
     assert_eq!(
         o129(
-            "oo::class create ::ticklecharts::Gauge {\n    method m {} { ::set n [::namespace tail [::oo::Helpers::self class]] }\n}\n"
+            "oo::class create ::ticklecharts::Gauge {\n    method m {} { ::set n [::namespace tail [::oo::Helpers::self class]] }\n}\nputs [[::ticklecharts::Gauge new] m]\n"
         ),
         vec!["Gauge".to_string()],
     );
@@ -1189,7 +1210,7 @@ fn method_local_variable_propagates_into_the_fold_chain() {
     // value into the `namespace qualifiers` argument. The method-body walk
     // must carry a constants map for this to fold at all.
     let r = o129(
-        "oo::class create ::ticklecharts::Gauge {\n    method m {} {\n        ::set base ::ticklecharts::Gauge\n        ::set ns [::namespace qualifiers $base]\n    }\n}\n",
+        "oo::class create ::ticklecharts::Gauge {\n    method m {} {\n        ::set base ::ticklecharts::Gauge\n        ::set ns [::namespace qualifiers $base]\n    }\n}\nputs [[::ticklecharts::Gauge new] m]\n",
     );
     assert!(
         r.contains(&"::ticklecharts".to_string()),
@@ -1198,13 +1219,13 @@ fn method_local_variable_propagates_into_the_fold_chain() {
     // TP — the same for a `[string …]` fold over a method-local, another
     // example of the same propagation.
     let r = o129(
-        "oo::class create ::A {\n    method m {} {\n        ::set s abcde\n        ::puts [::string length $s]\n    }\n}\n",
+        "oo::class create ::A {\n    method m {} {\n        ::set s abcde\n        ::puts [::string length $s]\n    }\n}\n[::A new] m\n",
     );
     assert!(r.contains(&"5".to_string()), "got {r:?}");
     // TP — plain `$var` propagation inside a method body (O100), the other
     // half of the same propagation.
     let r = repls(
-        "oo::class create ::A {\n    method m {} {\n        ::set v 42\n        ::puts $v\n    }\n}\n",
+        "oo::class create ::A {\n    method m {} {\n        ::set v 42\n        ::puts $v\n    }\n}\n[::A new] m\n",
         "O100",
     );
     assert_eq!(r, vec!["42".to_string()], "got {r:?}");
@@ -1218,7 +1239,7 @@ fn an_instance_variable_never_propagates_inside_a_method_body() {
     // frame-constant `[self class]` still folds (it reads no variable), but
     // the `[namespace qualifiers $ns]` hop must not.
     let r = o129(
-        "oo::class create ::ticklecharts::Gauge {\n    variable ns\n    method m {} {\n        ::set ns [::oo::Helpers::self class]\n        ::set q [::namespace qualifiers $ns]\n    }\n}\n",
+        "oo::class create ::ticklecharts::Gauge {\n    variable ns\n    method m {} {\n        ::set ns [::oo::Helpers::self class]\n        ::set q [::namespace qualifiers $ns]\n    }\n}\nputs [[::ticklecharts::Gauge new] m]\n",
     );
     assert_eq!(
         r,
@@ -1263,7 +1284,7 @@ fn runtime_selected_my_abstains_when_the_target_can_reach_its_caller_frame() {
     // caller frame, no deep fact—including the independent frame constant—may
     // be derived from that incomplete command surface.
     let r = o129(
-        "oo::class create ::ticklecharts::Gauge {\n    method helper {} { ::upvar 1 base b\n        ::set b ::hijacked }\n    method m {} {\n        ::set base [::oo::Helpers::self class]\n        my helper\n        ::set ns [::namespace qualifiers $base]\n    }\n}\n",
+        "oo::class create ::ticklecharts::Gauge {\n    method helper {} { ::upvar 1 base b\n        ::set b ::hijacked }\n    method m {} {\n        ::set base [::oo::Helpers::self class]\n        my helper\n        ::set ns [::namespace qualifiers $base]\n    }\n}\nputs [[::ticklecharts::Gauge new] m]\n",
     );
     assert_eq!(
         r,
@@ -1342,7 +1363,7 @@ fn a_benign_redefinition_no_longer_bars_propagation() {
     // redefined `helper` is caller-frame-clean, so its presence does not
     // impose a class-wide barrier on an exact, dispatch-free sibling method.
     // Bare `my` would add an independent receiver-namespace lookup obligation.
-    let src = "oo::class create D {\n    method helper {} { ::return a }\n    method m {} { ::set x 1\n        ::puts $x }\n}\noo::define D { method helper {} { ::return b } }\n";
+    let src = "oo::class create D {\n    method helper {} { ::return a }\n    method m {} { ::set x 1\n        ::puts $x }\n}\noo::define D { method helper {} { ::return b } }\n[D new] m\n";
     let r = o100(src);
     assert!(
         r.contains(&"1".to_string()),
@@ -1506,7 +1527,7 @@ fn an_unrelated_class_keeps_propagation_despite_a_classvar_helper_elsewhere() {
     // exact-command method keeps its local constant. The dynamic receiver in
     // `use` supplies the bad component's barrier without introducing an
     // independently runtime-selected literal command head.
-    let src = "oo::class create ::Util {\n    method cv {name} { ::upvar 2 $name v\n        ::set v 0 }\n    method use {obj} { ::set a 5\n        $obj cv a\n        ::puts $a }\n}\noo::class create ::Plain {\n    method getv {} { ::return g }\n    method m {} { ::set v 42\n        ::puts $v }\n}\n";
+    let src = "oo::class create ::Util {\n    method cv {name} { ::upvar 2 $name v\n        ::set v 0 }\n    method use {obj} { ::set a 5\n        $obj cv a\n        ::puts $a }\n}\noo::class create ::Plain {\n    method getv {} { ::return g }\n    method m {} { ::set v 42\n        ::puts $v }\n}\n[::Plain new] m\n";
     let r = o100(src);
     assert!(
         r.contains(&"42".to_string()),
@@ -1569,7 +1590,7 @@ fn a_class_command_dispatch_reaches_that_component() {
     );
     // TN — and a method of ::Plain that performs NO dispatch at all keeps
     // its locals even in the same module.
-    let with_quiet = "oo::class create ::Util {\n    method cv {n} { ::upvar 1 $n v\n        ::set v 0 }\n}\noo::class create ::Plain {\n    method quiet {} { ::set y 9\n        ::puts $y }\n}\n";
+    let with_quiet = "oo::class create ::Util {\n    method cv {n} { ::upvar 1 $n v\n        ::set v 0 }\n}\noo::class create ::Plain {\n    method quiet {} { ::set y 9\n        ::puts $y }\n}\n[::Plain new] quiet\n";
     assert!(
         o100(with_quiet).contains(&"9".to_string()),
         "a dispatch-free method is never barred, got {:?}",
@@ -1583,7 +1604,7 @@ fn a_namespace_alias_is_not_a_caller_frame_alias() {
     // `global` / `variable` / `namespace upvar` reach a *namespace*, not the
     // caller's locals, so an exact call to a procedure using them does not
     // block propagation of a method's own locals.
-    let src = "proc ::helper {} { ::global g\n    ::variable v\n    ::namespace upvar ::ns n n\n    ::set g 1 }\noo::class create F {\n    method m {} { ::set s abcde\n        ::helper\n        ::puts [::string length $s] }\n}\n";
+    let src = "namespace eval ::ns {}\nproc ::helper {} { ::global g\n    ::variable v\n    ::namespace upvar ::ns n n\n    ::set g 1 }\noo::class create F {\n    method m {} { ::set s abcde\n        ::helper\n        ::puts [::string length $s] }\n}\n[F new] m\n";
     let r = repls(src, "O129");
     assert!(
         r.contains(&"5".to_string()),

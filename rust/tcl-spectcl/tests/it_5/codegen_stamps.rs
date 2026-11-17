@@ -581,6 +581,16 @@ fn bodies_pack(commands: &[(&str, usize, &str)]) -> String {
     pack
 }
 
+/// `n` splices where the VM's own compile splices pack bodies, and none while
+/// it does not ([`tcl_codegen::compile_service::LIVE_REFERENCE_INLINING`]).
+const fn live_splices(n: usize) -> usize {
+    if tcl_codegen::compile_service::LIVE_REFERENCE_INLINING {
+        n
+    } else {
+        0
+    }
+}
+
 /// What a script answered, how many plain recompiles the VM asked for (none
 /// when the inlined function ran as compiled), and how many pack definitions
 /// the VM's own compiles of procedure bodies spliced in.

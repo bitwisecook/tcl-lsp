@@ -697,7 +697,7 @@ fn selected_extra_store_and_registered_trace_effects_remain_opaque() {
     ] {
         let mut registry = original.commands().project_for_profile(profile);
         let mut setter = registry.get("set").unwrap().clone();
-        setter.world_effects = Some(WorldEffectDescriptor {
+        setter.world_effects = tcl_registry::knowledge::Knowledge::Partial(WorldEffectDescriptor {
             resolver,
             ..WorldEffectDescriptor::VARIABLE_WRITE
         });

@@ -21,7 +21,8 @@
 use super::super::statement_reader::Stmt;
 use super::super::value_parsers::{
     CONNECTION_SIDES, FRAME_LAYOUTS, FRAME_LEVEL_WORDS, SIDE_EFFECT_TARGETS, apply_availability,
-    checked_lifecycle, enum_by_name, lifecycle_flag, list_words, next_text, parse_dialects,
+    checked_lifecycle, completion_row, enum_by_name, lifecycle_flag, list_words, next_text,
+    parse_dialects,
 };
 use super::super::{Log, available, leak_slice, leak_str};
 use tcl_dialect::model::{Family, SpecSurface, SpecWindow};
@@ -54,7 +55,7 @@ pub(in super::super) fn effects_row(stmt: &Stmt, log: &mut Log) -> Option<Stated
             "-partial" => stated = Some(StatedKnowledge::Partial),
             "-complete" => {
                 let text = next_text(words, &mut i);
-                surfaces.push(complete_window(&text, stmt.line, log)?);
+                surfaces.push(complete_window("effects", &text, stmt.line, log)?);
                 stated = Some(StatedKnowledge::Complete(&[]));
             }
             _ => log.unknown_flag("effects", stmt.line, &words[i]),
@@ -74,7 +75,7 @@ pub(in super::super) fn effects_row(stmt: &Stmt, log: &mut Log) -> Option<Stated
     }
 }
 
-fn complete_window(text: &str, line: u32, log: &mut Log) -> Option<SpecSurface> {
+fn complete_window(row: &str, text: &str, line: u32, log: &mut Log) -> Option<SpecSurface> {
     let window = |from: &str, until: &str| -> Option<(SpecWindow, Option<Family>)> {
         let first = from.parse::<tcl_dialect::model::Release>().ok();
         let last = until.parse::<tcl_dialect::model::Release>().ok();
@@ -106,7 +107,7 @@ fn complete_window(text: &str, line: u32, log: &mut Log) -> Option<SpecSurface> 
         log.say(
             line,
             format!(
-                "`effects -complete` takes `{{FROM UNTIL}}` on one release ladder or \
+                "`{row} -complete` takes `{{FROM UNTIL}}` on one release ladder or \
                  `{{package NAME ?FROM UNTIL?}}`, not `{{{text}}}`"
             ),
         );
@@ -125,6 +126,74 @@ pub(in super::super) fn effects_knowledge(
         Some(StatedKnowledge::Partial) => Knowledge::Partial(rows),
         Some(StatedKnowledge::Complete(surfaces)) => Knowledge::Complete(rows, surfaces),
     }
+}
+
+/// A single-valued domain row's completeness flags, and the row without
+/// them (issue #1712): `ROW VALUE ?-partial? ?-complete WINDOW?…`, as
+/// `world_effects none -complete {8.4 9.1}`. The flags follow the value so
+/// the value stays the row's first word, where a block body is painted. The
+/// value alone states a lower bound; each `-complete` window closes the
+/// domain there; no row states nothing. An unreadable window leaves the
+/// value a lower bound.
+pub(in super::super) fn split_knowledge_flags(
+    stmt: &Stmt,
+    log: &mut Log,
+) -> (Option<StatedKnowledge>, Stmt) {
+    let row = stmt.word_text(0).to_owned();
+    let mut stated = None;
+    let mut surfaces = Vec::new();
+    let mut readable = true;
+    let mut i = 2;
+    while let Some(word) = stmt.words.get(i) {
+        match (word.braced, word.text.as_str()) {
+            (false, "-partial") => stated = Some(StatedKnowledge::Partial),
+            (false, "-complete") => {
+                let text = next_text(&stmt.words, &mut i);
+                match complete_window(&row, &text, stmt.line, log) {
+                    Some(surface) => surfaces.push(surface),
+                    None => readable = false,
+                }
+                stated = Some(StatedKnowledge::Complete(&[]));
+            }
+            _ => log.unknown_flag(&row, stmt.line, word),
+        }
+        i += 1;
+    }
+    let mut value = stmt.clone();
+    value.words.truncate(2);
+    let stated = match stated {
+        Some(StatedKnowledge::Complete(_)) if readable => {
+            Some(StatedKnowledge::Complete(leak_slice(surfaces)))
+        }
+        Some(StatedKnowledge::Complete(_)) => Some(StatedKnowledge::Partial),
+        other => other,
+    };
+    (stated, value)
+}
+
+/// The knowledge a single-valued domain's row states: nothing without a
+/// value, otherwise a lower bound unless its flags close it.
+pub(in super::super) fn stated_knowledge<T: Copy>(
+    value: Option<T>,
+    stated: Option<StatedKnowledge>,
+) -> Knowledge<T> {
+    match (value, stated) {
+        (None, _) => Knowledge::Unknown,
+        (Some(value), None | Some(StatedKnowledge::Partial)) => Knowledge::Partial(value),
+        (Some(value), Some(StatedKnowledge::Complete(surfaces))) => {
+            Knowledge::Complete(value, surfaces)
+        }
+    }
+}
+
+/// `completion {CODE …} ?-partial? ?-complete WINDOW?…`: the codes alone
+/// are a lower bound, and each window closes them (issue #1712).
+pub(in super::super) fn completion_value(
+    stmt: &Stmt,
+    log: &mut Log,
+) -> Knowledge<tcl_registry::completion::CompletionDescriptor> {
+    let (stated, value) = split_knowledge_flags(stmt, log);
+    stated_knowledge(completion_row(value.word_text(1), stmt.line, log), stated)
 }
 
 pub(in super::super) fn side_effect_row(stmt: &Stmt, log: &mut Log) -> Option<SideEffect> {

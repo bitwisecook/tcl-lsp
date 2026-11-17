@@ -61,7 +61,7 @@ pub fn spec() -> CommandSpec {
         arg_roles: &[(0, ArgRole::Name)],
         command_prefixes: &[(1, AppendedArity::Exactly(2))],
         script_timing_resolver: Some(custom_match_script_timing),
-        world_effects: Some(WorldEffectDescriptor {
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor {
             static_footprint: StaticEffectFootprint {
                 accesses: MATCHER_WRITES,
                 callback: CallbackEffect::NONE,

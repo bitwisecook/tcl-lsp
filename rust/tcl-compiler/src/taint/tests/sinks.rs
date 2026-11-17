@@ -582,21 +582,35 @@ fn t100_fires_for_subst_positive_form_with_commands() {
 /// "suffix"` statement — `tight_arg_span` narrows the highlight to the
 /// one argument word that actually carries the tainted value, using the
 /// real per-word source spans a compiled `Statement::Call` carries.
+///
+/// `eval` concatenates its words into one script, so a `;` in `$x` runs a
+/// command of its own: with `x` = `a; puts INJECTED; p`, `eval "p" $x "s"`
+/// prints `INJECTED` on tclsh 8.4.20 / 8.5.19 / 8.6.18 / 9.0.4 / 9.1.0,
+/// while the single `[list puts $x]` operand prints the text once.
 #[test]
 fn t100_span_is_the_tainted_argument_word_not_the_whole_statement() {
     use crate::compilation_unit::CompilationUnit;
-    let registry = CommandRegistry::build_default();
-    let source = "proc f {} {\n  set x [gets stdin]\n  eval \"prefix\" $x \"suffix\"\n}\n";
-    let cu =
-        CompilationUnit::build_for(source, &registry, false).with_interprocedural(&registry, None);
-    let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
-    let hit = warnings
-        .iter()
-        .find(|w| w.code == DiagCode::T100)
-        .unwrap_or_else(|| panic!("expected T100, got {warnings:?}"));
-    let text = &source[hit.span.start() as usize..hit.span.end() as usize];
-    assert_eq!(
-        text, "$x",
-        "expected the tight `$x` argument span, got {text:?} from {hit:?}",
-    );
+    for (release, registry) in release_registries() {
+        let source = "proc f {} {\n  set x [gets stdin]\n  eval \"prefix\" $x \"suffix\"\n}\n";
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        let hit = warnings
+            .iter()
+            .find(|w| w.code == DiagCode::T100)
+            .unwrap_or_else(|| panic!("{release}: expected T100, got {warnings:?}"));
+        let text = &source[hit.span.start() as usize..hit.span.end() as usize];
+        assert_eq!(
+            text, "$x",
+            "{release}: expected the tight `$x` argument span, got {text:?} from {hit:?}",
+        );
+        let quoted = "proc f {} {\n  set x [gets stdin]\n  eval [list puts $x]\n}\n";
+        let cu = CompilationUnit::build_for(quoted, &registry, false)
+            .with_interprocedural(&registry, None);
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert!(
+            warnings.iter().all(|w| w.code != DiagCode::T100),
+            "{release}: {warnings:?}",
+        );
+    }
 }

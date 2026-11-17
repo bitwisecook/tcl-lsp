@@ -16,7 +16,7 @@ index 740ee4ef..8cd10b90 100644
          }
          report_phase("original-names");
 diff --git a/rust/tcl-compiler/src/analyser/commands/argument_role_facts.rs b/rust/tcl-compiler/src/analyser/commands/argument_role_facts.rs
-index 69a05f50..6965f545 100644
+index 69a05f50..7f3d4467 100644
 --- a/rust/tcl-compiler/src/analyser/commands/argument_role_facts.rs
 +++ b/rust/tcl-compiler/src/analyser/commands/argument_role_facts.rs
 @@ -49,7 +49,7 @@ impl Analyser {
@@ -28,17 +28,17 @@ index 69a05f50..6965f545 100644
          &mut self,
          invocation_offset: u32,
          argument_tokens: &[Token],
-@@ -114,12 +114,20 @@ impl Analyser {
+@@ -114,7 +114,30 @@ impl Analyser {
          }
      }
  
 -    pub(super) fn record_original_variable_receivers(
 +    pub(in super::super) fn record_original_variable_receivers(
-         &mut self,
-         invocation_offset: u32,
-         argument_tokens: &[Token],
-         scope_path: &[usize],
-     ) {
++        &mut self,
++        invocation_offset: u32,
++        argument_tokens: &[Token],
++        scope_path: &[usize],
++    ) {
 +        if let Some(replays) = &mut self.issuer_replays {
 +            replays.push(super::super::per_item::IssuerReplay::VariableReceivers {
 +                offset: invocation_offset,
@@ -47,9 +47,19 @@ index 69a05f50..6965f545 100644
 +                body_depth: self.body_depth,
 +            });
 +        }
-         let generation = self.analysis_context();
-         let registry = generation.commands();
-         let Some(tokens) = self.retained_invocation_tokens(invocation_offset, argument_tokens)
++        let replays = self.issuer_replays.take();
++        self.record_original_variable_receivers_inner(
++            invocation_offset,
++            argument_tokens,
++            scope_path,
++        );
++        self.issuer_replays = replays;
++    }
++
++    fn record_original_variable_receivers_inner(
+         &mut self,
+         invocation_offset: u32,
+         argument_tokens: &[Token],
 diff --git a/rust/tcl-compiler/src/analyser/commands/original_source.rs b/rust/tcl-compiler/src/analyser/commands/original_source.rs
 index 84a385ef..731b0d23 100644
 --- a/rust/tcl-compiler/src/analyser/commands/original_source.rs
@@ -64,22 +74,32 @@ index 84a385ef..731b0d23 100644
              return;
          };
 diff --git a/rust/tcl-compiler/src/analyser/per_item.rs b/rust/tcl-compiler/src/analyser/per_item.rs
-index 4ddfea65..aa129da7 100644
+index 4ddfea65..eab9bfb0 100644
 --- a/rust/tcl-compiler/src/analyser/per_item.rs
 +++ b/rust/tcl-compiler/src/analyser/per_item.rs
-@@ -599,6 +599,11 @@ pub(super) struct CapturedBodyGlobalRead {
+@@ -566,6 +566,7 @@ impl Analyser {
+         self.result.original_command_world =
+             self.head_identities.original_completed_command_world();
+         self.retain_original_comment_suppressions(source);
++        self.record_original_formal_variables();
+         self.line_offsets = Some(super::state::compute_line_offsets(source));
+         // Same recovery known-command universe as `Analyser::analyse` — see
+         // `recovery_known_commands` — so per-item analysis matches the
+@@ -599,6 +600,13 @@ pub(super) struct CapturedBodyGlobalRead {
  #[derive(Clone, PartialEq)]
  pub struct BodyFragment {
      result: AnalysisResult,
 +    /// Original issuers the isolated walk ran against its scheduling realm,
 +    /// rerun at graft against the document realm (body-relative until then).
 +    issuer_replays: Vec<IssuerReplay>,
++    /// Where the body starts in the wrapper its scheduling realm analysed.
++    wrapper_offset: u32,
 +    /// The isolated proc scope's path, which the graft maps onto the shell's.
 +    proc_path: Vec<usize>,
      proc_scope: super::types::Scope,
      ensembles: std::collections::HashSet<String>,
      pending_arity: Vec<(String, String, bool, super::types::Diagnostic)>,
-@@ -708,6 +713,26 @@ pub struct BodyFragment {
+@@ -708,6 +716,44 @@ pub struct BodyFragment {
      minted_synthetics: std::collections::HashSet<String>,
  }
  
@@ -94,6 +114,24 @@ index 4ddfea65..aa129da7 100644
 +        tokens: Vec<Token>,
 +        scope_path: Vec<usize>,
 +    },
++    /// `record_qualified_var_ref`: variable roots, read occurrences and
++    /// qualified references.
++    QualifiedVarRef {
++        base_name: String,
++        span: tcl_lexer::Span,
++        scope_path: Vec<usize>,
++        substitution: bool,
++        declaration: bool,
++        body_depth: u32,
++    },
++    /// One written variable-name receiver outside a command's receiver pass.
++    VariableReceiver {
++        span: tcl_lexer::Span,
++        scope_path: Vec<usize>,
++        form: tcl_registry::resolved_invocation::VariableReceiverOperandForm,
++        declaration: bool,
++        body_depth: u32,
++    },
 +    /// A command's original variable receivers, write advice and aliases.
 +    VariableReceivers {
 +        offset: u32,
@@ -107,7 +145,7 @@ index 4ddfea65..aa129da7 100644
  mod tests;
  
 diff --git a/rust/tcl-compiler/src/analyser/per_item/body_pass.rs b/rust/tcl-compiler/src/analyser/per_item/body_pass.rs
-index 539e9526..2ad57386 100644
+index 539e9526..09ff0660 100644
 --- a/rust/tcl-compiler/src/analyser/per_item/body_pass.rs
 +++ b/rust/tcl-compiler/src/analyser/per_item/body_pass.rs
 @@ -108,7 +108,7 @@ impl Analyser {
@@ -119,7 +157,21 @@ index 539e9526..2ad57386 100644
              super::super::scope::scope_at(&self.result.global_scope, &body.scope_path)
                  .is_some_and(|scope| scope.original_member_context.is_some())
          }) {
-@@ -208,6 +208,9 @@ impl Analyser {
+@@ -140,9 +140,10 @@ impl Analyser {
+         // longer a false duplicate.)
+         let duplicate_method = !self.probe_skip_duplicate_fallback && {
+             let mut seen = std::collections::HashSet::new();
+-            deferred
+-                .iter()
+-                .any(|db| db.is_method && !seen.insert(db.scope_name.as_str()))
++            deferred.iter().any(|db| {
++                (db.is_method || std::env::var_os("PROBE_WRAP").is_some())
++                    && !seen.insert((db.namespace.as_str(), db.scope_name.as_str()))
++            })
+         };
+         // Checked for proc *and* method bodies alike: a `variable ns::v`
+         // (or in-body `namespace import`/`export`) inside a method body
+@@ -208,6 +209,9 @@ impl Analyser {
              // the shell.  Methods reconstruct a `Method` scope with the class's
              // instance variables pre-bound (see `analyse_proc_body_isolated`).
              let frag = body_fn(db);
@@ -129,17 +181,73 @@ index 539e9526..2ad57386 100644
              // A body that defines a proc whose name is defined elsewhere is a
              // duplicate at the shared `all_procs` key — the graft can't reproduce
              // last-definition-wins there, so fall back.
-@@ -229,7 +232,7 @@ impl Analyser {
+@@ -229,7 +233,11 @@ impl Analyser {
                  self.per_item_fallback = Some(PerItemFallback::ClassFactsCollide);
                  return Err(Box::new(self.fresh_full_analyse(source, dialect)));
              }
 -            if fragment_needs_original_source_owner(&frag) {
++            if frag.wrapper_offset > db.body_tok.span.start() + u32::from(db.body_tok.content_offset) {
++                self.per_item_fallback = Some(PerItemFallback::OriginalSourceOwnership);
++                return Err(Box::new(self.fresh_full_analyse(source, dialect)));
++            }
 +            if std::env::var_os("PROBE_SKIP_OWNER").is_none() && fragment_needs_original_source_owner(&frag) {
                  self.per_item_fallback = Some(PerItemFallback::OriginalSourceOwnership);
                  return Err(Box::new(self.fresh_full_analyse(source, dialect)));
              }
+@@ -325,6 +333,16 @@ impl Analyser {
+ /// the existing owner that can issue these receipts from original command rows.
+ pub(super) fn fragment_needs_original_source_owner(fragment: &BodyFragment) -> bool {
+     let result = &fragment.result;
++    // A replayed body still falls back where its facts depend on the walk
++    // point's command world: object creation and nested declarations.
++    if !fragment.issuer_replays.is_empty()
++        && (!fragment.instances.is_empty()
++            || !fragment.instance_class_sites.is_empty()
++            || !result.proc_declaration_sites.is_empty()
++            || !result.class_body_spans.is_empty())
++    {
++        return true;
++    }
+     if !fragment.private_ns_calls.is_empty()
+         || !fragment.pending_ctor_arity.is_empty()
+         || !fragment.pending_next_arity.is_empty()
+@@ -345,8 +363,8 @@ pub(super) fn fragment_needs_original_source_owner(fragment: &BodyFragment) -> b
+         || !result.original_vendor_class_metadata.is_empty()
+         || !result.original_vendor_symbol_metadata.is_empty()
+         || !result.original_symbol_metadata.is_empty()
+-        || !result.original_scoped_bodies.is_empty()
+-        || !result.original_conditional_registry_metadata.is_empty()
++        || (fragment.issuer_replays.is_empty() && !result.original_scoped_bodies.is_empty())
++        || (fragment.issuer_replays.is_empty() && !result.original_conditional_registry_metadata.is_empty())
+         || !result.command_aliases.is_empty()
+         || !result.renamed_commands.is_empty()
+         || !result.package_requires.is_empty()
+@@ -359,10 +377,19 @@ pub(super) fn fragment_needs_original_source_owner(fragment: &BodyFragment) -> b
+         || result.command_invocations.iter().any(|invocation| {
+             invocation.original_callback_signature_lookup.is_some()
+                 || invocation.original_callback_prefix.is_some()
+-                || invocation.original_name_input.is_some()
+-                || invocation.original_lookup.is_some()
+-                || invocation.resolved_command_reference.is_some()
+-                || invocation.resolved_definition.is_some()
++                || (!fragment.issuer_replays.is_empty()
++                    && !matches!(
++                        invocation.lookup,
++                        crate::signature_scan::types::SignatureCommandLookup::InvocationHead
++                            | crate::signature_scan::types::SignatureCommandLookup::ConsumedName { .. }
++                    )
++                    && (invocation.original_name_input.is_some()
++                        || invocation.original_lookup.is_some()))
++                || (fragment.issuer_replays.is_empty()
++                    && (invocation.original_name_input.is_some()
++                        || invocation.original_lookup.is_some()
++                        || invocation.resolved_command_reference.is_some()
++                        || invocation.resolved_definition.is_some()))
+                 || (invocation.indirect && invocation.lookup.is_execution_site())
+         })
+         || result.diagnostics.iter().any(|diagnostic| {
 diff --git a/rust/tcl-compiler/src/analyser/per_item/graft.rs b/rust/tcl-compiler/src/analyser/per_item/graft.rs
-index 9f2185e7..c5eaccec 100644
+index 9f2185e7..8af58c00 100644
 --- a/rust/tcl-compiler/src/analyser/per_item/graft.rs
 +++ b/rust/tcl-compiler/src/analyser/per_item/graft.rs
 @@ -71,7 +71,8 @@ impl Analyser {
@@ -148,14 +256,17 @@ index 9f2185e7..c5eaccec 100644
          // Rebase: body facts are relative to the body content start.
 -        let delta = db.body_tok.span.start() + u32::from(db.body_tok.content_offset);
 +        let delta = db.body_tok.span.start() + u32::from(db.body_tok.content_offset)
-+            - super::isolated_body::WRAP_SHIFT.with(|c| c.replace(0));
++            - frag.wrapper_offset;
          let line_delta = self.line_offsets.as_deref().map_or(0, |lo| {
              super::super::state::line_at_offset(lo, delta as usize)
          });
-@@ -102,9 +103,64 @@ impl Analyser {
+@@ -101,10 +102,133 @@ impl Analyser {
+             ps.children = proc_scope.children;
          }
          let r = std::mem::take(&mut frag.result);
++        self.reissuing_body = !frag.issuer_replays.is_empty();
          self.merge_fragment_result(r, shell_var_keys);
++        self.reissuing_body = false;
 +        self.replay_body_issuers(db, &mut frag, delta);
          self.graft_fragment_pending(db, frag, delta);
      }
@@ -163,6 +274,32 @@ index 9f2185e7..c5eaccec 100644
 +    /// Rerun the isolated body's original issuers against the document realm,
 +    /// at the body's real offsets and in the shell's scope tree.
 +    fn replay_body_issuers(&mut self, db: &DeferredBody, frag: &mut BodyFragment, delta: u32) {
++        let symbols_before = self.result.original_variable_symbols.len();
++        let roots_before = self.result.original_variable_roots.len();
++        self.replay_body_issuers_in_order(db, frag, delta);
++        // A whole-file walk issues a body's occurrences where it walks the
++        // body; the shell issued the commands around it first.
++        let body_start = db.body_tok.span.start();
++        place_at_body(
++            &mut self.result.original_variable_symbols,
++            symbols_before,
++            body_start,
++            |site| site.span().start(),
++        );
++        place_at_body(
++            &mut self.result.original_variable_roots,
++            roots_before,
++            body_start,
++            |root| root.source_span().start(),
++        );
++    }
++
++    fn replay_body_issuers_in_order(
++        &mut self,
++        db: &DeferredBody,
++        frag: &mut BodyFragment,
++        delta: u32,
++    ) {
 +        let shell_path = |path: &[usize]| -> Option<Vec<usize>> {
 +            let rest = path.strip_prefix(frag.proc_path.as_slice())?;
 +            Some(db.scope_path.iter().chain(rest).copied().collect())
@@ -193,6 +330,46 @@ index 9f2185e7..c5eaccec 100644
 +                        &scope_path,
 +                    );
 +                }
++                super::IssuerReplay::QualifiedVarRef {
++                    base_name,
++                    span,
++                    scope_path,
++                    substitution,
++                    declaration,
++                    body_depth,
++                } => {
++                    let Some(scope_path) = shell_path(&scope_path) else {
++                        continue;
++                    };
++                    let shell_depth = std::mem::replace(&mut self.body_depth, body_depth);
++                    self.record_qualified_var_ref(
++                        &base_name,
++                        super::rebase::shift(span, delta),
++                        &scope_path,
++                        substitution,
++                        declaration,
++                    );
++                    self.body_depth = shell_depth;
++                }
++                super::IssuerReplay::VariableReceiver {
++                    span,
++                    scope_path,
++                    form,
++                    declaration,
++                    body_depth,
++                } => {
++                    let Some(scope_path) = shell_path(&scope_path) else {
++                        continue;
++                    };
++                    let shell_depth = std::mem::replace(&mut self.body_depth, body_depth);
++                    self.record_original_variable_receiver(
++                        super::rebase::shift(span, delta),
++                        &scope_path,
++                        form,
++                        declaration,
++                    );
++                    self.body_depth = shell_depth;
++                }
 +                super::IssuerReplay::VariableReceivers {
 +                    offset,
 +                    argument_tokens,
@@ -217,20 +394,50 @@ index 9f2185e7..c5eaccec 100644
      /// The [`Self::graft_proc_body`] half that merges a rebased fragment's
      /// `AnalysisResult` collections into the shell's.  Split out only to
      /// keep each function within the line budget.
+@@ -200,7 +324,9 @@ impl Analyser {
+             .extend(std::mem::take(&mut r.ambiguous_instance_names));
+         self.merge_fragment_source_shell_advice(&mut r);
+         self.merge_fragment_original_advice(&mut r);
+-        self.result.qualified_var_refs.extend(r.qualified_var_refs);
++        if !self.reissuing_body {
++            self.result.qualified_var_refs.extend(r.qualified_var_refs);
++        }
+         self.result.namespace_refs.extend(r.namespace_refs);
+         self.result
+             .namespace_name_unknowns
+@@ -550,6 +676,19 @@ impl Analyser {
+ /// comment rests on: an isolated body fragment never reaches the fact's one
+ /// producer, so there is nothing to merge.  A future change that starts
+ /// producing facts inside a body fails here instead of silently dropping them.
++/// Move the entries appended from `from` to just after the last earlier entry
++/// that starts before the body.
++fn place_at_body<T>(items: &mut Vec<T>, from: usize, body_start: u32, start: impl Fn(&T) -> u32) {
++    let appended = items.split_off(from);
++    let at = items
++        .iter()
++        .rposition(|item| start(item) < body_start)
++        .map_or(0, |index| index + 1);
++    let tail = items.split_off(at);
++    items.extend(appended);
++    items.extend(tail);
++}
++
+ fn assert_no_body_object_facts(facts: &crate::object_types::ObjectHandleFacts) {
+     debug_assert_eq!(
+         *facts,
 diff --git a/rust/tcl-compiler/src/analyser/per_item/isolated_body.rs b/rust/tcl-compiler/src/analyser/per_item/isolated_body.rs
-index 827e51a8..b28fff82 100644
+index 827e51a8..a59eeceb 100644
 --- a/rust/tcl-compiler/src/analyser/per_item/isolated_body.rs
 +++ b/rust/tcl-compiler/src/analyser/per_item/isolated_body.rs
-@@ -22,6 +22,8 @@ use super::super::state::Analyser;
+@@ -22,6 +22,7 @@ use super::super::state::Analyser;
  use super::{BodyFragment, DeferredBody};
  use tcl_lexer::Token;
  
-+std::thread_local! { pub(crate) static WRAP_SHIFT: std::cell::Cell<u32> = const { std::cell::Cell::new(0) }; }
 +
  /// Seed an isolated body's throwaway result with the ensemble facts the shell
  /// attached ([`Analyser::attach_ensemble_facts`]) — the `subcommand → target`
  /// maps, so an `<ensemble> <sub> …` call inside the body records the same
-@@ -88,6 +90,10 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
+@@ -88,6 +89,10 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
      // Offset 0: the body content is the whole source; a synthetic `Str` body
      // token spans it with `content_offset = 0` (no `{` to skip).
      a.retain_walk_source(&db.body_text);
@@ -241,14 +448,27 @@ index 827e51a8..b28fff82 100644
      // The isolated pass has no whole-file view, so the constant
      // command-substitution fold may trust only the snapshot
      // the shell attached — and must distrust EVERYTHING when none was
-@@ -130,11 +136,31 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
+@@ -130,11 +135,45 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
          kind,
      );
      seed_isolated_frame_state(&mut a, db, &proc_path);
 -    a.analyse_body(&db.body_text, body_tok, &proc_path);
-+    if std::env::var_os("PROBE_WRAP").is_some() && db.namespace == "::" && !db.is_method {
-+        let params: Vec<String> = db.params.iter().map(|p| p.name.clone()).collect();
-+        let prefix = format!("proc {} {{{}}} {{", db.scope_name, params.join(" "));
++    let mut wrapper_offset = 0;
++    if std::env::var_os("PROBE_WRAP").is_some() && !db.is_method {
++        let params: Vec<String> = db
++            .params
++            .iter()
++            .map(|p| match &p.default_value {
++                Some(value) => format!("{{{} {{{}}}}}", p.name, value),
++                None => p.name.clone(),
++            })
++            .collect();
++        let name = if db.namespace == "::" || tcl_syntax::naming::is_absolute(&db.scope_name) {
++            db.scope_name.clone()
++        } else {
++            tcl_syntax::naming::qualify(&db.namespace, &db.scope_name)
++        };
++        let prefix = format!("proc {name} {{{}}} {{", params.join(" "));
 +        let wrapper = format!("{prefix}{}}}\n", db.body_text);
 +        let k = u32::try_from(prefix.len()).unwrap();
 +        a.retain_walk_source(&wrapper);
@@ -261,7 +481,7 @@ index 827e51a8..b28fff82 100644
 +        a.cached_line_index_source_len = wrapper.len();
 +        let body_tok = Token::new(tcl_lexer::TokenType::Str, tcl_lexer::Span::new(k, k + body_len));
 +        a.analyse_body(&db.body_text, body_tok, &proc_path);
-+        WRAP_SHIFT.with(|c| c.set(k));
++        wrapper_offset = k;
 +    } else {
 +        a.analyse_body(&db.body_text, body_tok, &proc_path);
 +    }
@@ -270,6 +490,7 @@ index 827e51a8..b28fff82 100644
          .clone();
      BodyFragment {
 +        issuer_replays: a.issuer_replays.take().unwrap_or_default(),
++        wrapper_offset,
 +        proc_path,
          result: a.result,
          proc_scope,
@@ -292,10 +513,10 @@ index 4418831f..6f0c46b4 100644
      for x in &mut r.package_requires {
          x.range = shift(x.range, d);
 diff --git a/rust/tcl-compiler/src/analyser/per_item/tests.rs b/rust/tcl-compiler/src/analyser/per_item/tests.rs
-index ee35ba35..642c74f9 100644
+index ee35ba35..1f3ea178 100644
 --- a/rust/tcl-compiler/src/analyser/per_item/tests.rs
 +++ b/rust/tcl-compiler/src/analyser/per_item/tests.rs
-@@ -1066,3 +1066,32 @@ fn param_list_with_backslash_continuation_no_spurious_w215() {
+@@ -1066,3 +1066,33 @@ fn param_list_with_backslash_continuation_no_spurious_w215() {
      // Method form (instance vars + params rebind under the same suppression).
      eq("oo::class create K {\n  method m {a b\\\n    c} { return $a }\n}\n");
  }
@@ -303,13 +524,9 @@ index ee35ba35..642c74f9 100644
 +#[test]
 +fn zz_probe_owner_diff() {
 +    let sources = [
-+        "proc a {} { set x 11111 }\nproc b {} { set y 22222 }\n",
-+        "proc a {} { set x 1; puts $x }\n",
-+        "proc a {} { b 1 }\nproc b {x} { return $x }\n",
-+        "namespace eval ns { proc a {} { set x [string length abc]; return $x } }\n",
-+        "oo::class create C { method m {} { set x 1; return $x } }\n",
-+        "proc a {} { lsort -command cb {3 1 2} }\nproc cb {l r} { return 0 }\n",
-+        "proc a {} { foreach i {1 2} { if {$i} { puts $i } } }\n",
++        "proc make {} { set d [Dog new] }\noo::class create Dog {}\n",
++        "oo::class create Dog {}\nproc make {} { Dog create rex }\n",
++        "proc f {} {oo::class create C\\uD800 {}}",
 +    ];
 +    for src in sources {
 +        for d in ["tcl8.6"] {
@@ -323,34 +540,92 @@ index ee35ba35..642c74f9 100644
 +                gk.sort(); wk.sort();
 +                eprintln!("CRM got={gk:?} want={wk:?}");
 +                eprintln!("VSYM got={:?} want={:?}", got.original_variable_symbols.iter().map(|s| s.span()).collect::<Vec<_>>(), want.original_variable_symbols.iter().map(|s| s.span()).collect::<Vec<_>>());
++                if got.object_handle_facts != want.object_handle_facts {
++                    let _ = std::fs::write("/tmp/claude-0/-home-user-tcl-lsp/f2675be4-68bd-52f6-acc5-f3f53026f3ce/scratchpad/ohf-got.txt", format!("{:#?}", got.object_handle_facts));
++                    let _ = std::fs::write("/tmp/claude-0/-home-user-tcl-lsp/f2675be4-68bd-52f6-acc5-f3f53026f3ce/scratchpad/ohf-want.txt", format!("{:#?}", want.object_handle_facts));
++                }
 +                if std::env::var_os("PROBE_FULLDIFF").is_some() { eprintln!("{}", got.bounded_mismatch_summary(&want)); }
 +            }
 +        }
 +    }
 +}
++
+diff --git a/rust/tcl-compiler/src/analyser/scope/namespace_variables.rs b/rust/tcl-compiler/src/analyser/scope/namespace_variables.rs
+index de2d3bcd..166b7b7c 100644
+--- a/rust/tcl-compiler/src/analyser/scope/namespace_variables.rs
++++ b/rust/tcl-compiler/src/analyser/scope/namespace_variables.rs
+@@ -336,7 +336,7 @@ impl Analyser {
+     /// cross-file case is precisely the one where it does not.  Repeated calls
+     /// for one token (a write bound by both its dedicated handler and the
+     /// registry `VarWrite`-role walk) collapse on the trailing duplicate check.
+-    pub(super) fn record_qualified_var_ref(
++    pub(in super::super) fn record_qualified_var_ref(
+         &mut self,
+         base_name: &str,
+         span: Span,
+@@ -344,6 +344,16 @@ impl Analyser {
+         substitution: bool,
+         declaration: bool,
+     ) {
++        if let Some(replays) = &mut self.issuer_replays {
++            replays.push(super::super::per_item::IssuerReplay::QualifiedVarRef {
++                base_name: base_name.to_owned(),
++                span,
++                scope_path: scope_path.to_vec(),
++                substitution,
++                declaration,
++                body_depth: self.body_depth,
++            });
++        }
+         use crate::signature_scan::variable_symbol::{
+             OriginalVariableSymbolPurpose, OriginalVariableSymbolReceiver,
+         };
+diff --git a/rust/tcl-compiler/src/analyser/scope/original_variable_occurrences.rs b/rust/tcl-compiler/src/analyser/scope/original_variable_occurrences.rs
+index 1099752e..87babf96 100644
+--- a/rust/tcl-compiler/src/analyser/scope/original_variable_occurrences.rs
++++ b/rust/tcl-compiler/src/analyser/scope/original_variable_occurrences.rs
+@@ -198,6 +198,15 @@ impl Analyser {
+         form: tcl_registry::resolved_invocation::VariableReceiverOperandForm,
+         declaration: bool,
+     ) {
++        if let Some(replays) = &mut self.issuer_replays {
++            replays.push(super::super::per_item::IssuerReplay::VariableReceiver {
++                span,
++                scope_path: scope_path.to_vec(),
++                form,
++                declaration,
++                body_depth: self.body_depth,
++            });
++        }
+         use crate::signature_scan::variable_symbol::{
+             OriginalVariableSymbolPurpose, OriginalVariableSymbolReceiver,
+         };
 diff --git a/rust/tcl-compiler/src/analyser/state.rs b/rust/tcl-compiler/src/analyser/state.rs
-index 327800df..1c54dc9c 100644
+index 327800df..c336243c 100644
 --- a/rust/tcl-compiler/src/analyser/state.rs
 +++ b/rust/tcl-compiler/src/analyser/state.rs
-@@ -976,6 +976,9 @@ pub struct Analyser {
+@@ -976,6 +976,11 @@ pub struct Analyser {
      /// presentation maps never admit a receiver. Whole-document scans use the
      /// same issuer inline.
      pub(super) pending_bareword_dispatch_sites: Option<Vec<VarCommandSite>>,
 +    /// `Some` in an isolated body walk: the original issuer calls to rerun
 +    /// against the document realm at graft.
 +    pub(super) issuer_replays: Option<Vec<super::per_item::IssuerReplay>>,
++    /// Set while a fragment whose issuers will be replayed is merged.
++    pub(super) reissuing_body: bool,
      /// **Experimental probe flag.**  When `true`, the per-item path does *not*
      /// take the duplicate-definition fallback, to measure the residual
      /// divergence the duplicate fast-path must still close.  Defaults to `false`.
 diff --git a/rust/tcl-compiler/src/analyser/state/configuration.rs b/rust/tcl-compiler/src/analyser/state/configuration.rs
-index bcd44af6..2a5e7d83 100644
+index bcd44af6..f0e88cc4 100644
 --- a/rust/tcl-compiler/src/analyser/state/configuration.rs
 +++ b/rust/tcl-compiler/src/analyser/state/configuration.rs
-@@ -164,6 +164,7 @@ impl Analyser {
+@@ -164,6 +164,8 @@ impl Analyser {
              pending_instances: None,
              deferred_instance_replays: Vec::new(),
              pending_bareword_dispatch_sites: None,
 +            issuer_replays: None,
++            reissuing_body: false,
              probe_skip_enclosing_fallback: false,
              probe_skip_duplicate_fallback: false,
              took_fast_path: false,

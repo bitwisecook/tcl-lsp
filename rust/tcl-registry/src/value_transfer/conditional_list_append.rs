@@ -245,7 +245,7 @@ impl ResolvedInvocation<'_, '_> {
             || facts.operation != native.operation
             || self.selected.spec.state_transitions.is_some()
             || self.semantics.state_transitions.is_declared()
-            || self.selected.spec.world_effects.is_some()
+            || !self.selected.spec.world_effects.is_unknown()
             || self.semantics.world_effects.is_declared()
         {
             return None;
@@ -647,7 +647,9 @@ mod tests {
                         ..crate::StateTransitionDescriptor::EMPTY
                     });
                 } else {
-                    spec.world_effects = Some(crate::WorldEffectDescriptor::VARIABLE_WRITE);
+                    spec.world_effects = crate::knowledge::Knowledge::Partial(
+                        crate::WorldEffectDescriptor::VARIABLE_WRITE,
+                    );
                 }
                 registry.insert(spec);
                 let args = ["out", "5"];
@@ -669,7 +671,7 @@ mod tests {
                     selected.semantics.state_transitions =
                         crate::state_transition::ResolvedStateTransitions::default();
                 } else {
-                    assert!(selected.selected.spec.world_effects.is_some());
+                    assert!(!selected.selected.spec.world_effects.is_unknown());
                     assert!(selected.semantics.world_effects.is_declared());
                     selected.semantics.world_effects =
                         crate::world_effect::ResolvedWorldEffects::default();

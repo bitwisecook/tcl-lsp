@@ -107,6 +107,39 @@ impl<T> Knowledge<T> {
     }
 }
 
+impl<T: Copy> Knowledge<T> {
+    /// The facts stated at this layer, whatever their completeness: what the
+    /// `Option` the domain replaced held.
+    #[must_use]
+    pub const fn stated(&self) -> Option<T> {
+        match self {
+            Self::Unknown => None,
+            Self::Partial(value) | Self::Complete(value, _) => Some(*value),
+        }
+    }
+
+    /// This knowledge, or `other` when this states nothing: how a more
+    /// specific layer (a form, then a subcommand) overrides the one it
+    /// refines.
+    #[must_use]
+    pub const fn or(self, other: Self) -> Self {
+        match self {
+            Self::Unknown => other,
+            stated => stated,
+        }
+    }
+
+    /// The knowledge an optional authored value states before any evidence: a
+    /// value is a lower bound, no value says nothing.
+    #[must_use]
+    pub const fn from_stated(value: Option<T>) -> Self {
+        match value {
+            Some(value) => Self::Partial(value),
+            None => Self::Unknown,
+        }
+    }
+}
+
 impl<T: 'static> Knowledge<&'static [T]> {
     /// The facts known to hold: the stated slice, or none when unknown.
     #[must_use]

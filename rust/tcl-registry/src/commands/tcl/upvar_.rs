@@ -193,10 +193,12 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         runtime_backing: RuntimeBacking::shipped("upvar"),
         // A pure variable-scoping primitive — no filesystem, process, or
         // network access — so every dialect that hosts a real Tcl core carries
@@ -251,7 +253,7 @@ pub fn spec() -> CommandSpec {
         codegen_hook: Some(CodegenHookId::Upvar),
         forms: FORMS,
         xc_translatable: Some(false),
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(UPVAR_TRANSITIONS),
         ..CommandSpec::DEFAULT
     }

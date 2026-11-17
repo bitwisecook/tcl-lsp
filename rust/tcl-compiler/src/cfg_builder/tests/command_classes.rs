@@ -215,9 +215,10 @@ fn whole_module_cfg_uses_the_exact_custom_registry_traits() {
     let mut registry = native_registry();
     let mut custom = registry.get("puts").expect("puts spec").clone();
     custom.traits |= Traits::TERMINATES_BLOCK;
-    custom.completion = Some(tcl_registry::CompletionDescriptor::exact(&[
-        tcl_registry::CompletionCode::Error,
-    ]));
+    custom.completion =
+        tcl_registry::knowledge::Knowledge::Partial(tcl_registry::CompletionDescriptor::exact(&[
+            tcl_registry::CompletionCode::Error,
+        ]));
     registry.insert(custom);
 
     let module = crate::lowering::lower_to_ir("puts before\nset reached 1", &registry);

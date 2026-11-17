@@ -295,12 +295,22 @@ mod tests {
     }
 
     #[test]
-    fn abstains_when_receiver_is_ambiguous_across_procs() {
-        // `.t` is a treeview in one proc and a listbox in another —
-        // `bind_registry_instance_class` drops the name as ambiguous, so
-        // neither dispatch is diagnosed (never a confident wrong answer).
+    fn each_proc_diagnoses_the_widget_it_just_created() {
+        // `.t` is a treeview in one proc and a listbox in another. Window
+        // names are global, so whichever proc runs second fails at its
+        // constructor and never reaches the call; the one that reaches it
+        // calls the widget it just created. Tk 9.0.3: `a` raises `bad command
+        // "bogus": must be bbox, ...`, then after `destroy .t`, `b` raises
+        // `bad option "alsobogus": must be activate, ...`, and `a` after `b`
+        // raises `window name "t" already exists in parent`.
         let src = "proc a {} {\n    ttk::treeview .t\n    .t bogus\n}\nproc b {} {\n    listbox .t\n    .t alsobogus\n}\n";
-        assert!(!has(src, "W001"), "{:?}", codes(src));
+        let found = codes(src);
+        let unknown = |method: &str| {
+            found
+                .iter()
+                .any(|(code, message)| code == "W001" && message.contains(method))
+        };
+        assert!(unknown("'bogus'") && unknown("'alsobogus'"), "{found:?}");
     }
 
     #[test]

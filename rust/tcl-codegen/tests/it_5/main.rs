@@ -22,6 +22,7 @@
 //! module; a new top-level `tests/*.rs` is a binary of its own.
 
 mod differential_codegen;
+mod inliner_containment;
 mod inlining_rename;
 mod real_job_fixtures;
 mod wasm_codegen;

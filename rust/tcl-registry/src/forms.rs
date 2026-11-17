@@ -147,13 +147,13 @@ pub struct CommandForm {
     /// Completion semantics specific to this form.
     ///
     /// When present, this takes precedence over a resolved subcommand's and
-    /// parent command's completion descriptors. `None` inherits the more
+    /// parent command's completion descriptors. `Unknown` inherits the more
     /// general descriptor.
-    pub completion: Option<CompletionDescriptor>,
+    pub completion: crate::knowledge::Knowledge<CompletionDescriptor>,
 
     /// Result-dependency refinement for this concrete invocation shape.
-    /// `None` inherits the resolved subcommand or command declaration.
-    pub result_stability: Option<ResultStability>,
+    /// `Unknown` inherits the resolved subcommand or command declaration.
+    pub result_stability: crate::knowledge::Knowledge<ResultStability>,
 
     /// Native result dependency, inheriting the parent when omitted.
     pub native_result: Option<crate::native_result::NativeResultContract>,
@@ -209,7 +209,9 @@ pub struct CommandForm {
     /// them through [`crate::WorldEffectComposition`].  The result remains
     /// target-neutral and is resolved by the common registry projection before
     /// a compiler pass sees it.
-    pub world_effects: Option<WorldEffectDescriptor>,
+    /// How completely it is known is the field's [`crate::knowledge::Knowledge`]:
+    /// `Unknown` states nothing here, and only `Complete` closes the domain.
+    pub world_effects: crate::knowledge::Knowledge<WorldEffectDescriptor>,
 
     /// Target-neutral command-binding and variable-cell transitions specific
     /// to this concrete invocation shape.
@@ -253,8 +255,8 @@ impl CommandForm {
         semantic_operation: None,
         successful_handler: None,
         variable_receivers: None,
-        completion: None,
-        result_stability: None,
+        completion: crate::knowledge::Knowledge::Unknown,
+        result_stability: crate::knowledge::Knowledge::Unknown,
         native_result: None,
         return_type: None,
         arg_types: None,
@@ -265,7 +267,7 @@ impl CommandForm {
         traits: None,
         mutator: None,
         side_effects: None,
-        world_effects: None,
+        world_effects: crate::knowledge::Knowledge::Unknown,
         state_transitions: None,
         dispatch_dependencies: None,
         literal_argument_validator: None,

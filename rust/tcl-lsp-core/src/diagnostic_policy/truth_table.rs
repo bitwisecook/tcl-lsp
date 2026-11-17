@@ -736,8 +736,11 @@ pub fn core_report(row: &Row) -> (String, Report) {
 const TRAILING: &str = "set x 1   \nputs $y\n";
 /// An unset variable on line 1 (W210).
 const UNSET: &str = "puts $y\n";
-/// A loop whose termination cannot be proven (W242, default-off).
-const LOOP: &str = "while {$x < 10} {puts hi}\n";
+/// A loop whose termination cannot be proven (W242, default-off, on line 2).
+/// `x` is read from input first: a bare `while {$x < 10} {puts hi}` raises on
+/// the unset read in tclsh before any iteration, and a literal `set x 0` makes
+/// the loop provably infinite (W241), not unproven.
+const LOOP: &str = "set x [gets stdin]\nwhile {$x < 10} {puts hi}\n";
 /// A string incremented as an integer (S100 on line 2).
 const SHIMMER: &str = "set x hello\nincr x\n";
 /// A constant expression the optimiser folds (O101).
@@ -985,7 +988,7 @@ pub const ROWS: &[Row] = &[
         ..row(
             "default_off_turned_on_at_global",
             LOOP,
-            &[at(DiagCode::W242, 1, Want::Shown)],
+            &[at(DiagCode::W242, 2, Want::Shown)],
         )
     },
     Row {
@@ -993,7 +996,7 @@ pub const ROWS: &[Row] = &[
         ..row(
             "default_off_turned_on_in_the_slot",
             LOOP,
-            &[at(DiagCode::W242, 1, Want::Shown)],
+            &[at(DiagCode::W242, 2, Want::Shown)],
         )
     },
     Row {
@@ -1001,7 +1004,7 @@ pub const ROWS: &[Row] = &[
         ..row(
             "default_off_turned_on_at_project",
             LOOP,
-            &[at(DiagCode::W242, 1, Want::Shown)],
+            &[at(DiagCode::W242, 2, Want::Shown)],
         )
     },
     Row {

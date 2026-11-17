@@ -255,33 +255,38 @@ mod tests {
                 .authored_source_operation_continuation(dialect)
                 .is_some()
         );
-        let original = selected.semantics.world_effects.subcommand.unwrap();
-        selected
+        let original = selected
             .semantics
             .world_effects
             .subcommand
-            .as_mut()
-            .unwrap()
-            .source_resolver = None;
+            .stated()
+            .unwrap();
+        selected.semantics.world_effects.subcommand =
+            crate::knowledge::Knowledge::Partial(crate::WorldEffectDescriptor {
+                source_resolver: None,
+                ..original
+            });
         assert!(
             selected
                 .authored_source_operation_continuation(dialect)
                 .is_none()
         );
-        selected.semantics.world_effects.subcommand = Some(crate::WorldEffectDescriptor {
-            static_footprint: crate::StaticEffectFootprint {
-                accesses: &[crate::StaticEffectAccess::VARIABLE_STORE_WILDCARD],
-                callback: crate::CallbackEffect::NONE,
-            },
-            ..original
-        });
+        selected.semantics.world_effects.subcommand =
+            crate::knowledge::Knowledge::Partial(crate::WorldEffectDescriptor {
+                static_footprint: crate::StaticEffectFootprint {
+                    accesses: &[crate::StaticEffectAccess::VARIABLE_STORE_WILDCARD],
+                    callback: crate::CallbackEffect::NONE,
+                },
+                ..original
+            });
         assert!(
             selected
                 .authored_source_operation_continuation(dialect)
                 .is_none(),
             "an extra static write is not covered by the resolver's result contract"
         );
-        selected.semantics.world_effects.subcommand = Some(original);
+        selected.semantics.world_effects.subcommand =
+            crate::knowledge::Knowledge::Partial(original);
         selected.semantics.state_transitions.subcommand =
             Some(crate::StateTransitionDescriptor::EMPTY);
         assert!(

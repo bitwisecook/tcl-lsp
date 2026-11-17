@@ -274,14 +274,32 @@ impl CommandRegistry {
             return VariableWriteProjection::default();
         }
 
-        // A declared state-transition descriptor is the closed semantic owner
-        // for variable-cell aliasing. In particular, `global`, `upvar`, trace
-        // registration, and value-less `variable` forms may carry VarWrite
-        // roles without writing a value. Only the descriptor's explicit
-        // `writes_value` facts count here.
-        if invocation.semantics.state_transitions.is_declared() {
+        // A declared state-transition descriptor whose facts concern variable
+        // cells is their closed semantic owner. In particular, `global`,
+        // `upvar`, trace registration, and value-less `variable` forms may
+        // carry VarWrite roles without writing a value. Only the descriptor's
+        // explicit `writes_value` facts count here. A descriptor that only
+        // binds commands (a Tk constructor publishing its path) leaves its
+        // option writes (`-textvariable`) to the argument roles.
+        let transitions = invocation.state_transitions();
+        if invocation.semantics.state_transitions.is_declared()
+            && transitions
+                .facts()
+                .iter()
+                .any(|fact| match &fact.transition {
+                    StateTransition::VariableCellAlias(_) | StateTransition::Trace(_) => true,
+                    StateTransition::Widen(widening) => widening.domains.iter().any(|domain| {
+                        matches!(
+                            domain,
+                            crate::StateTransitionDomain::VariableCells
+                                | crate::StateTransitionDomain::VariableTraces
+                        )
+                    }),
+                    _ => false,
+                })
+        {
             let mut projection = VariableWriteProjection::default();
-            for fact in invocation.state_transitions().facts() {
+            for fact in transitions.facts() {
                 let StateTransition::VariableCellAlias(alias) = &fact.transition else {
                     continue;
                 };

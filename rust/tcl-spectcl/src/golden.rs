@@ -297,13 +297,25 @@ pub fn render(pack: &Pack) -> String {
 /// what the `hooks` digest reads, so it records which hooks a command declares
 /// and not where. A position is the command's `line` column's business, and a
 /// vocabulary rewrite that moves every row must still load identically.
+///
+/// The text is frozen for the shipped snapshots' sake: it spells what a derived
+/// `Debug` of the five hook fields printed. The destructuring names every
+/// field, so a new `HookDecl` field fails to compile here until someone decides
+/// whether it belongs to the digest.
 fn positionless(hooks: &[HookDecl]) -> String {
     let rendered: Vec<String> = hooks
         .iter()
         .map(|hook| {
+            let HookDecl {
+                owner,
+                field,
+                family,
+                source,
+                line: _,
+                row: _,
+            } = hook;
             format!(
-                "HookDecl {{ owner: {:?}, field: {:?}, family: {:?}, source: {:?}, line: 0 }}",
-                hook.owner, hook.field, hook.family, hook.source
+                "HookDecl {{ owner: {owner:?}, field: {field:?}, family: {family:?}, source: {source:?}, line: 0 }}"
             )
         })
         .collect();

@@ -190,38 +190,44 @@ fn explicit_unknown_binding_cannot_recover_a_same_spelled_sink() {
 
 #[test]
 fn point_binding_supplies_sink_alias_prefix_once() {
-    let registry = CommandRegistry::build_default();
-    let module = crate::lowering::lower_to_ir(
-        "interp alias {} invoke {} exec safe-program\ninvoke $x",
-        &registry,
-    );
-    let tokens = module
-        .top_level
-        .statements
-        .last()
-        .unwrap()
-        .tokens()
-        .unwrap();
-    let statement = call_stmt("invoke", &["$x"]);
-    let heads = resolve_taint_command_heads("invoke", &statement, Some(tokens), None);
-    assert_eq!(heads.len(), 1);
-    assert_eq!(heads[0].command, "::exec");
-    assert_eq!(
-        heads[0].effective_args(&["$x".into()]),
-        Some(vec!["safe-program".into(), "$x".into()])
-    );
-    let arguments = vec!["safe-program".into(), "$x".into()];
-    let call = SinkCall {
-        source: TaintSourceContext::standalone(&registry, registry.profile()),
-        command: &heads[0].command,
-        args: &arguments,
-        registry: &registry,
-        tokens: Some(tokens),
-        effective: None,
-        source_read: None,
-        argument_offset: 0,
-    };
-    assert_eq!(sink_arg_span(&call, "x", statement.span()), tokens.argv[1]);
+    for (release, registry) in release_registries() {
+        let module = crate::lowering::lower_to_ir(
+            "interp alias {} invoke {} exec safe-program\ninvoke $x",
+            &registry,
+        );
+        let tokens = module
+            .top_level
+            .statements
+            .last()
+            .unwrap()
+            .tokens()
+            .unwrap();
+        let statement = call_stmt("invoke", &["$x"]);
+        let heads = resolve_taint_command_heads("invoke", &statement, Some(tokens), None);
+        assert_eq!(heads.len(), 1, "{release}");
+        assert_eq!(heads[0].command, "::exec", "{release}");
+        assert_eq!(
+            heads[0].effective_args(&["$x".into()]),
+            Some(vec!["safe-program".into(), "$x".into()]),
+            "{release}",
+        );
+        let arguments = vec!["safe-program".into(), "$x".into()];
+        let call = SinkCall {
+            source: TaintSourceContext::standalone(&registry, registry.profile()),
+            command: &heads[0].command,
+            args: &arguments,
+            registry: &registry,
+            tokens: Some(tokens),
+            effective: None,
+            source_read: None,
+            argument_offset: 0,
+        };
+        assert_eq!(
+            sink_arg_span(&call, "x", statement.span()),
+            tokens.argv[1],
+            "{release}",
+        );
+    }
 }
 
 /// TP: `interp alias {} myEval {} eval; myEval $x` still raises T100 —

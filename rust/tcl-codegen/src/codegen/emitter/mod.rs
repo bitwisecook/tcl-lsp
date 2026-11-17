@@ -108,6 +108,8 @@ struct ModuleEmit<'a> {
     /// The pack commands' definitions the module's calls were inlined from:
     /// each procedure binding of a function that names one is claimed.
     references: &'a [tcl_compiler::ir::ReferenceImport],
+    /// See [`tcl_compiler::ir::ReferenceBodies::hidden_local_prefixes`].
+    hidden_local_prefixes: &'a [String],
     /// The spans of the top level's own commands where the release evaluates
     /// them without compiling them ([`IrModule::top_level_evaluation`]).
     direct_commands: Vec<tcl_lexer::Span>,
@@ -150,6 +152,13 @@ fn configured_codegen_context<'a>(
     }
     ctx.lvt
         .set_native_protocol(module.compiled_variable_protocol);
+    ctx.lvt.hide_names_with_prefixes(
+        module
+            .hidden_local_prefixes
+            .iter()
+            .map(|prefix| tcl_runtime_api::NameBytes::from(prefix.as_bytes()))
+            .collect(),
+    );
     ctx.command_bindings = Some(module.command_bindings);
     ctx.plain_command_dispatch = module.plain_command_dispatch;
     ctx.source_proofs = Some(std::sync::Arc::clone(&module.source_proofs));
@@ -571,6 +580,7 @@ fn module_emission_context<'a>(
         native_compilation: ir_module.source_entry.native_compilation,
         source_proofs: std::sync::Arc::new(source_proofs),
         references: &ir_module.reference_bodies.imports,
+        hidden_local_prefixes: &ir_module.reference_bodies.hidden_local_prefixes,
         direct_commands: if ir_module.top_level_evaluation
             == tcl_compiler::ir::CommandEvaluation::Direct
         {

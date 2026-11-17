@@ -627,13 +627,14 @@ fn global_write_seeding_is_scoped_to_reachable_callees() {
 /// read from the channel.
 #[test]
 fn a_tainted_name_an_opaque_switch_arm_may_overwrite_stays_tainted() {
-    let registry = CommandRegistry::build_default();
-    let source = "proc p {s} {\n set u [gets stdin]\n switch -glob -- $s { q* { set u clean } }\n puts $u\n}\n";
-    let cu = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false)
-        .with_interprocedural(&registry, None);
-    let found = find_taint_warnings_for_cu(&cu, &registry, None);
-    assert!(
-        found.iter().any(|w| w.code == DiagCode::T101),
-        "expected T101 for the sink after the switch, got {found:?}"
-    );
+    for (release, registry) in release_registries() {
+        let source = "proc p {s} {\n set u [gets stdin]\n switch -glob -- $s { q* { set u clean } }\n puts $u\n}\n";
+        let cu = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let found = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert!(
+            found.iter().any(|w| w.code == DiagCode::T101),
+            "{release}: expected T101 for the sink after the switch, got {found:?}"
+        );
+    }
 }

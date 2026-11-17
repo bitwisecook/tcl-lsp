@@ -43,7 +43,7 @@ fn evaluate_def_set_read_in_value_position_folds() {
             "proc p {} {set x hello; set r [set x 10]; return $r}",
             "r"
         ),
-        LatticeValue::Overdefined
+        LatticeValue::Const(ConstValue::Int(10))
     );
     assert_eq!(
         settled(

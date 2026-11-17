@@ -132,6 +132,9 @@ impl ContextDiagnosticData {
     /// Select an existing issuer subject; arbitrary JSON cannot construct one.
     #[must_use]
     pub fn from_value(value: &serde_json::Value, code: &str) -> Option<Self> {
+        if let Some(check) = crate::check_payload::CheckPayloadData::from_value(value, code) {
+            return Self::from_value(check.source_advice()?, code);
+        }
         if value.get("kind")?.as_str()? == "spectcl-source-notice" {
             return Some(Self {
                 diagnostic: None,
@@ -321,7 +324,7 @@ pub(super) fn selected_sink<'a>(
     analysis: &AnalysisResult,
     diagnostic: &Diagnostic,
 ) -> Option<&'a SourceCommand> {
-    let sink = diagnostic.taint_subject.as_ref()?.source_sink()?;
+    let sink = diagnostic.taint_subject()?.source_sink()?;
     let input = match diagnostic.source_context.as_ref() {
         Some(context) => context.analysis_input(),
         None => analysis.resolved_input.as_ref()?,
@@ -344,7 +347,7 @@ pub(super) fn selected_read(
     command: &SourceCommand,
     diagnostic: &Diagnostic,
 ) -> Option<Span> {
-    let subject = diagnostic.taint_subject.as_ref()?;
+    let subject = diagnostic.taint_subject()?;
     let image = SourceImage::document(source);
     let config = analysis.body_lexer_config?;
     let mut candidates = Vec::new();

@@ -788,6 +788,14 @@ async fn pkgindex_package_source_command_suppresses_w123() {
 /// still suppress a sibling's W123 and drive its arity error — cross-file diagnostics
 /// tracks the same on-disk population as the workspace index, not only open
 /// documents.
+///
+/// These run under the lenient `tcl` environment: `crossFileResolution` is the
+/// user's statement that the workspace's files form one program, which tclsh
+/// cannot decide (a sibling file alone is `invalid command name`), and by
+/// `docs/design/contracts/command-resolution.md` only the Logical branch
+/// (`allows_lexical_declaration_advice`) replays that reporting. A pinned
+/// release keeps its proof of absence; see
+/// `original_workspace_w123_preserves_native_absence_with_project_matching`.
 #[tokio::test]
 async fn cross_file_resolves_against_disk_backed_file() {
     let root = unique_scratch_dir("xc-disk");
@@ -795,6 +803,7 @@ async fn cross_file_resolves_against_disk_backed_file() {
     std::fs::write(&on_disk, "proc helper {x y} { return $x }\n").unwrap();
 
     let backend = test_backend();
+    *backend.default_dialect.lock().await = "tcl".to_owned();
     let b = Uri::from_file_path(&on_disk).unwrap();
     let a = Uri::from_str("file:///caller.tcl").unwrap();
 
@@ -814,12 +823,7 @@ async fn cross_file_resolves_against_disk_backed_file() {
     // Correct arity (2 args) → resolves cross-file, no W123, proving the
     // never-opened disk file is in the resolution domain.
     let ok = backend
-        .full_diagnostics_for(
-            &a,
-            Arc::from("helper foo bar\n"),
-            "tcl8.6".to_owned(),
-            "tcl",
-        )
+        .full_diagnostics_for(&a, Arc::from("helper foo bar\n"), "tcl".to_owned(), "tcl")
         .await
         .unwrap();
     assert!(
@@ -831,7 +835,7 @@ async fn cross_file_resolves_against_disk_backed_file() {
     // Wrong arity (3 args to the 2-param proc) → E003 (too many) from the
     // disk-backed proc's arity signature.
     let bad = backend
-        .full_diagnostics_for(&a, Arc::from("helper a b c\n"), "tcl8.6".to_owned(), "tcl")
+        .full_diagnostics_for(&a, Arc::from("helper a b c\n"), "tcl".to_owned(), "tcl")
         .await
         .unwrap();
     assert!(
@@ -854,6 +858,7 @@ async fn cross_file_drops_disk_backed_file_when_gone() {
     std::fs::write(&on_disk, "proc helper {x y} { return $x }\n").unwrap();
 
     let backend = test_backend();
+    *backend.default_dialect.lock().await = "tcl".to_owned();
     let b = Uri::from_file_path(&on_disk).unwrap();
     let a = Uri::from_str("file:///caller.tcl").unwrap();
     backend.feature_toggles.lock().await.apply(
@@ -865,12 +870,7 @@ async fn cross_file_drops_disk_backed_file_when_gone() {
     // Present on disk → resolves cross-file (no W123).
     backend.reindex_index_from_disk(&b).await.unwrap();
     let present = backend
-        .full_diagnostics_for(
-            &a,
-            Arc::from("helper foo bar\n"),
-            "tcl8.6".to_owned(),
-            "tcl",
-        )
+        .full_diagnostics_for(&a, Arc::from("helper foo bar\n"), "tcl".to_owned(), "tcl")
         .await
         .unwrap();
     assert!(
@@ -884,12 +884,7 @@ async fn cross_file_drops_disk_backed_file_when_gone() {
     std::fs::remove_file(&on_disk).unwrap();
     backend.reindex_index_from_disk(&b).await.unwrap();
     let gone = backend
-        .full_diagnostics_for(
-            &a,
-            Arc::from("helper foo bar\n"),
-            "tcl8.6".to_owned(),
-            "tcl",
-        )
+        .full_diagnostics_for(&a, Arc::from("helper foo bar\n"), "tcl".to_owned(), "tcl")
         .await
         .unwrap();
     assert!(
@@ -908,6 +903,7 @@ async fn cross_file_drops_disk_backed_file_when_gone() {
 #[tokio::test]
 async fn cross_file_arity_survives_w123_disabled_on_pull_path() {
     let backend = test_backend();
+    *backend.default_dialect.lock().await = "tcl".to_owned();
     backend
         .apply_global_config(&serde_json::json!({ "diagnostics": { "W123": false } }))
         .await
@@ -919,10 +915,10 @@ async fn cross_file_arity_survives_w123_disabled_on_pull_path() {
     );
     let a = Uri::from_str("file:///caller.tcl").unwrap();
     let b = Uri::from_str("file:///lib.tcl").unwrap();
-    register(&backend, &b, "proc helper {x y} { return $x }\n").await;
+    register_in_dialect(&backend, &b, "proc helper {x y} { return $x }\n", "tcl").await;
     // 3 args to a 2-param cross-file proc → E003, even with W123 disabled.
     let diags = backend
-        .full_diagnostics_for(&a, Arc::from("helper a b c\n"), "tcl8.6".to_owned(), "tcl")
+        .full_diagnostics_for(&a, Arc::from("helper a b c\n"), "tcl".to_owned(), "tcl")
         .await
         .unwrap();
     let codes = diag_codes(&diags);

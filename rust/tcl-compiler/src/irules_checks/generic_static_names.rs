@@ -18,7 +18,9 @@
 
 //! IRULE4002: `static::` variables whose generic names collide across rules.
 
-use super::{IrulesCheckWarning, IrulesSourceQuery, OriginalEventPresence, is_irules};
+use super::{
+    IrulesCheckPayload, IrulesCheckWarning, IrulesSourceQuery, OriginalEventPresence, is_irules,
+};
 use crate::compilation_unit::CompilationUnit;
 use crate::ir::Statement;
 use crate::sccp::cfg_order;
@@ -231,6 +233,10 @@ fn check_generic_static(
              static:: names share storage across rule owners on each executing TMM — \
              prefix with the application or rule name (e.g. 'static::<app>_{pattern_name}')."
         ),
+        payload: IrulesCheckPayload::GenericStaticName {
+            source_name: source_name.to_owned(),
+            pattern_name: pattern_name.into_owned(),
+        },
         replacement: None,
         fixes: Vec::new(),
     });

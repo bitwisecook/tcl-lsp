@@ -309,6 +309,9 @@ fn assert_document_rewrites(
 }
 
 async fn open_source(backend: &Backend, expected: &DiagnosticSourceExpectation) {
+    // A running server has finished its startup scan before a current report
+    // can settle; the fixture models that, as the scan-dependent tests do.
+    backend.workspace_scan_ready.mark_complete();
     backend
         .documents
         .lock("diagnostic_completion_fixture")
@@ -324,6 +327,9 @@ async fn open_source(backend: &Backend, expected: &DiagnosticSourceExpectation) 
 }
 
 async fn run_provider(backend: &Backend, uri: &Uri) {
+    // A running server has finished its startup scan before a current report
+    // can settle; the fixture models that, as the scan-dependent tests do.
+    backend.workspace_scan_ready.mark_complete();
     // Select the provider profile from the actual published Salsa source,
     // and require it to agree with the live document before dispatch.
     let document = backend
@@ -424,6 +430,7 @@ async fn publication_validation_reborrows_exact_publisher_without_reissuing() {
 #[tokio::test]
 async fn current_diagnostics_serializes_dialect_from_the_completed_publisher_pass() {
     let backend = crate::tests::test_backend();
+    backend.workspace_scan_ready.mark_complete();
     let expected = DiagnosticSourceExpectation {
         uri: Uri::from_str("file:///diagnostic-published-dialect.tcl").unwrap(),
         version: 1,

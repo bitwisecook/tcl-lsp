@@ -50,13 +50,17 @@ impl Vm {
             | Op::STORE_SCALAR1
             | Op::STORE_SCALAR4
             | Op::INCR_SCALAR1
-            | Op::INCR_SCALAR1_IMM => self.tick_local_scalar_variable_instruction(f, instr),
+            | Op::INCR_SCALAR1_IMM
+            | Op::INCR_SCALAR4
+            | Op::INCR_SCALAR4_IMM => self.tick_local_scalar_variable_instruction(f, instr),
             Op::INCR_ARRAY_STK_IMM
             | Op::INCR_ARRAY_STK
             | Op::LOAD_ARRAY_STK
             | Op::STORE_ARRAY_STK => self.tick_stack_array_variable_instruction(f, instr),
             Op::INCR_ARRAY1
             | Op::INCR_ARRAY1_IMM
+            | Op::INCR_ARRAY4
+            | Op::INCR_ARRAY4_IMM
             | Op::LOAD_ARRAY1
             | Op::LOAD_ARRAY4
             | Op::STORE_ARRAY1
@@ -189,7 +193,7 @@ impl Vm {
                 );
                 f.stack.push(stored);
             }
-            Op::INCR_SCALAR1 => {
+            Op::INCR_SCALAR1 | Op::INCR_SCALAR4 => {
                 let amount = pop(f);
                 let updated = variable_try_logged!(
                     self,
@@ -203,7 +207,7 @@ impl Vm {
                 f.last_options = updated.options;
                 f.stack.push(updated.value);
             }
-            Op::INCR_SCALAR1_IMM => {
+            Op::INCR_SCALAR1_IMM | Op::INCR_SCALAR4_IMM => {
                 let amount = Value::int(i64::from(imm_at(instr, 1)));
                 let updated = variable_try_logged!(
                     self,
@@ -296,7 +300,7 @@ impl Vm {
         instr: &Instruction,
     ) -> Tick {
         match instr.op {
-            Op::INCR_ARRAY1 => {
+            Op::INCR_ARRAY1 | Op::INCR_ARRAY4 => {
                 let amount = pop(f);
                 let key = variable_operand_bytes!(self, pop(f));
                 let updated = variable_try_logged!(
@@ -311,7 +315,7 @@ impl Vm {
                 f.last_options = updated.options;
                 f.stack.push(updated.value);
             }
-            Op::INCR_ARRAY1_IMM => {
+            Op::INCR_ARRAY1_IMM | Op::INCR_ARRAY4_IMM => {
                 let key = variable_operand_bytes!(self, pop(f));
                 let amount = Value::int(i64::from(imm_at(instr, 1)));
                 let updated = variable_try_logged!(

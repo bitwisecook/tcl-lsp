@@ -66,7 +66,9 @@ pub fn spec() -> CommandSpec {
         // cannot fall through.  This descriptor owns the value grammar too:
         // a static non-integer returnCode is TCL_ERROR, while a substituted
         // one is the typed ProcessExit-or-Error union for flow consumers.
-        completion: Some(CompletionDescriptor::process_exit_status()),
+        completion: crate::knowledge::Knowledge::Partial(
+            CompletionDescriptor::process_exit_status(),
+        ),
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::InterpState,
             writes: true,

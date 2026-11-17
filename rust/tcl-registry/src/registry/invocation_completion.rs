@@ -490,7 +490,7 @@ impl CommandRegistry {
                 ExactReturnCompletion::Dynamic => None,
             };
         }
-        let descriptor = resolved.semantics.completion;
+        let descriptor = resolved.semantics.completion.or_conservative();
         if descriptor.value_semantics
             == crate::completion::CompletionValueSemantics::ProcessExitStatus
         {
@@ -566,7 +566,7 @@ impl CommandRegistry {
                 dialect,
             )
             .resolved()?;
-        let descriptor = resolved.semantics.completion;
+        let descriptor = resolved.semantics.completion.or_conservative();
         if descriptor.value_semantics == crate::completion::CompletionValueSemantics::Tailcall {
             return Some(native_tailcall_completion(args, None));
         }
@@ -630,7 +630,7 @@ impl CommandRegistry {
                 dialect,
             )
             .resolved()?;
-        let descriptor = resolved.semantics.completion;
+        let descriptor = resolved.semantics.completion.or_conservative();
         if descriptor.value_semantics == crate::completion::CompletionValueSemantics::Tailcall {
             return Some(native_tailcall_completion(args, Some(frame)));
         }
@@ -655,7 +655,7 @@ impl CommandRegistry {
                 dialect,
             )
             .resolved()?;
-        let descriptor = resolved.semantics.completion;
+        let descriptor = resolved.semantics.completion.or_conservative();
         if descriptor.value_semantics
             == crate::completion::CompletionValueSemantics::ProcessExitStatus
         {

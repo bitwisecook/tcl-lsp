@@ -628,6 +628,18 @@ fn target(
     }
     None
 }
+/// Where an unread command's own effects can begin: Tcl substitutes every
+/// word before it invokes the command, so at the first nested command
+/// substitution, which runs first, or else at the command's end.
+fn effect_barrier(command: &crate::segmenter::SegmentedCommand) -> u32 {
+    command
+        .word_fragments
+        .iter()
+        .flatten()
+        .find(|fragment| fragment.token.kind == tcl_lexer::TokenType::Cmd)
+        .map_or(command.span.end(), |fragment| fragment.token.span.start())
+}
+
 #[derive(Clone, Copy)]
 struct PathCollectionContext<'a> {
     profile: &'static DialectProfile,
@@ -653,12 +665,20 @@ fn collect(
             out.barriers.push(0);
             continue;
         };
-        if head.contains('$') || head.contains('[') || command.is_partial {
+        if command.is_partial {
             out.barriers.push(at);
             continue;
         }
+        let Some(effects) = base.checked_add(effect_barrier(command)) else {
+            out.barriers.push(0);
+            continue;
+        };
+        if head.contains('$') || head.contains('[') {
+            out.barriers.push(effects);
+            continue;
+        }
         let Some(spec) = registry.get(head) else {
-            out.barriers.push(at);
+            out.barriers.push(effects);
             continue;
         };
         let head = spec.descriptor_key().label();
@@ -1264,11 +1284,17 @@ mod descriptor_metadata_tests {
                 .collect::<Vec<_>>()
         );
         assert_eq!(plain.len(), 1);
+        // An unread command runs after its words are substituted, so its
+        // barrier is its end (see `an_unread_command_reads_the_constant_in_
+        // its_own_words` for the tclsh evidence).
         for head in ["::::set", "set::", "set:::member", ":set", "missing"] {
-            let inventory =
-                constant_path_assignments(&format!("{head} paths {{/opt/lib}}"), profile);
+            let source = format!("{head} paths {{/opt/lib}}");
+            let inventory = constant_path_assignments(&source, profile);
             assert!(inventory.is_empty());
-            assert_eq!(inventory.barriers, vec![0]);
+            assert_eq!(
+                inventory.barriers,
+                vec![u32::try_from(source.len()).unwrap()]
+            );
         }
     }
 }

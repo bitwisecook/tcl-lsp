@@ -96,10 +96,12 @@ pub fn spec() -> CommandSpec {
         ],
         return_type: Some(TclType::String),
         procedure_definition: Some(crate::native_procedure::NativeProcedureDefinitionSpec::Core),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         lowering_hook: Some(LoweringHookId::Proc),
         native_lowering: Some(NativeLowering::Definition),
         // A `proc` body runs in the proc's own frame on each
@@ -132,7 +134,7 @@ pub fn spec() -> CommandSpec {
         dispatch_dependencies: Some(DispatchDependencyDescriptor::replace(
             DispatchDependencies::NONE,
         )),
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(crate::state_transition::command_binding::DEFINES_PROCEDURE),
         ..CommandSpec::DEFAULT
     }

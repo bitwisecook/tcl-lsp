@@ -68,6 +68,12 @@ enum ReportOwner<'a> {
         body: &'a BodyCoordinate,
         receiver: ObjectScopeReceiver,
     },
+    /// A definition script of this report's own module with no retained
+    /// source coordinate, compared by its deterministic ordinal.
+    UnretainedDefinition {
+        ordinal: u32,
+        receiver: ObjectScopeReceiver,
+    },
     Original(
         &'a crate::command_binding::CommandAllocation,
         ObjectScopeReceiver,
@@ -124,9 +130,16 @@ impl ObjectReportSource {
             ObjectFactOwner::DefinitionScript {
                 definition,
                 receiver,
-            } => Some(ReportOwner::Definition {
-                body: self.bodies.get(definition)?,
-                receiver: *receiver,
+            } => Some(match self.bodies.get(definition) {
+                Some(body) => ReportOwner::Definition {
+                    body,
+                    receiver: *receiver,
+                },
+                None if definition.module() == self.module => ReportOwner::UnretainedDefinition {
+                    ordinal: definition.ordinal(),
+                    receiver: *receiver,
+                },
+                None => return None,
             }),
             ObjectFactOwner::OriginalClass {
                 allocation,
@@ -461,6 +474,23 @@ impl ObjectHandleFacts {
 #[cfg(test)]
 mod tests {
     use crate::analyser::Analyser;
+
+    #[test]
+    fn independent_analyses_of_a_class_with_an_unretained_definition_script_compare_equal() {
+        // Each analysis issues its own process-unique module identity; the
+        // class body `K` is a definition script without a retained source
+        // coordinate, so its owner compares by ordinal within the module.
+        let source =
+            "oo::class create K {\n  method m {a} { set n $a }\n}\nproc p {} { set q 1 }\n";
+        let first = Analyser::new().analyse(source, "tcl8.6");
+        let second = Analyser::new().analyse(source, "tcl8.6");
+        assert!(
+            first
+                .object_handle_facts
+                .analysis_report_eq(&second.object_handle_facts)
+        );
+        crate::analyser::types::assert_analysis_results_eq(&first, &second, "two analyses");
+    }
 
     #[test]
     fn current_native_alias_report_capture_control() {

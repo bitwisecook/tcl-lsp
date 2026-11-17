@@ -107,10 +107,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             },
         ),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         pure: true,
         return_type: Some(TclType::Int),
         // Documented "likely to go away in a future release" as far back
@@ -162,10 +164,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             },
         ),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_cat),
@@ -206,10 +210,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             },
         ),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         pure: true,
         return_type: Some(TclType::Int),
         const_fold: Some(fold_compare),
@@ -275,10 +281,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             },
         ),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         pure: true,
         return_type: Some(TclType::Boolean),
         const_fold: Some(fold_equal),
@@ -343,10 +351,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             },
         ),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         pure: true,
         return_type: Some(TclType::Int),
         const_fold: Some(fold_first),
@@ -428,10 +438,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             },
         ),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_index),
@@ -494,10 +506,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             },
         ),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         pure: true,
         return_type: Some(TclType::String),
         surface: Some(SpecSurface::TCL90_PLUS),
@@ -541,9 +555,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 name: "value",
                 arity: Arity::exact(2),
                 side_effects: Some(crate::knowledge::Knowledge::Partial(&[])),
-                world_effects: Some(crate::WorldEffectDescriptor::EMPTY),
+                world_effects: crate::knowledge::Knowledge::Partial(
+                    crate::WorldEffectDescriptor::EMPTY,
+                ),
                 state_transitions: Some(crate::StateTransitionDescriptor::EMPTY),
-                result_stability: Some(crate::ResultStability::ReferentiallyTransparent),
+                result_stability: crate::knowledge::Knowledge::Partial(
+                    crate::ResultStability::ReferentiallyTransparent,
+                ),
                 traits: Some(Traits::PURE.union(Traits::CSE_CANDIDATE)),
                 ..crate::forms::SubCommandForm::DEFAULT
             }]
@@ -635,10 +653,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             },
         ),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         pure: true,
         return_type: Some(TclType::Int),
         const_fold: Some(fold_last),
@@ -700,7 +720,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
             DispatchDependencies::NONE,
         )),
         arity: Arity::exact(1),
-        completion: Some(CompletionDescriptor::exact(OK_COMPLETION_CODES)),
+        completion: crate::knowledge::Knowledge::Partial(CompletionDescriptor::exact(
+            OK_COMPLETION_CODES,
+        )),
         detail: "Return number of characters.",
         synopsis: "string length string",
         successful_handler: Some(
@@ -767,10 +789,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             },
         ),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_string_map),
@@ -860,10 +884,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             },
         ),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         pure: true,
         inline_codegen_hook: Some(crate::hooks::InlineCodegenHookId::StringMatch),
         const_fold: Some(fold_match),
@@ -906,10 +932,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             },
         ),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         pure: true,
         return_type: Some(TclType::String),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STRING_RANGE),
@@ -988,10 +1016,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             },
         ),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_repeat),
@@ -1042,10 +1072,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             },
         ),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         // `TclCompileStringReplaceCmd` arrives in 8.6; before it the command
         // runs.
         inline_codegen_hook_windows: &[crate::stamp_window::StampWindow {
@@ -1132,10 +1164,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             },
         ),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_reverse),
@@ -1189,10 +1223,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             },
         ),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_tolower),
@@ -1249,10 +1285,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             },
         ),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_totitle),
@@ -1309,10 +1347,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             },
         ),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_toupper),
@@ -1376,10 +1416,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             },
         ),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         pure: true,
         // `TclCompileStringTrimCmd` arrives in 8.6; before it the command runs.
         inline_codegen_hook_windows: &[crate::stamp_window::StampWindow {
@@ -1423,10 +1465,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             },
         ),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         pure: true,
         // `TclCompileStringTrimLCmd` arrives in 8.6; before it the command runs.
         inline_codegen_hook_windows: &[crate::stamp_window::StampWindow {
@@ -1470,10 +1514,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             },
         ),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         pure: true,
         // `TclCompileStringTrimRCmd` arrives in 8.6; before it the command runs.
         inline_codegen_hook_windows: &[crate::stamp_window::StampWindow {
@@ -1523,10 +1569,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             },
         ),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         pure: true,
         return_type: Some(TclType::Int),
         // Subject (index 0) deliberately carries NO hint: 8.6's
@@ -1585,10 +1633,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             },
         ),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         pure: true,
         return_type: Some(TclType::Int),
         // Subject (index 0) deliberately un-stamped — same 8.6 dual-ported

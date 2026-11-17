@@ -1733,3 +1733,13 @@ fn original_inlining_eligibility_retains_whole_module_and_selected_frame_context
     *tokens = None;
     assert!(build_inlinable_map(&missing_tokens, &bound, context.commands()).is_empty());
 }
+
+#[test]
+fn a_live_splice_numbers_itself_past_every_prefix_its_source_spells() {
+    assert_eq!(first_unspelled_splice(b"proc caller {n} {vdouble $n}"), 1);
+    assert_eq!(
+        first_unspelled_splice(b"set __inline_0__x 5; set __inline_7__y 6; set __inline_z 1"),
+        8
+    );
+    assert_eq!(first_unspelled_splice(b"__inline_"), 1);
+}

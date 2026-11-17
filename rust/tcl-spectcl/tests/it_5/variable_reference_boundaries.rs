@@ -228,7 +228,7 @@ fn a_live_fold_keeps_declared_effects_and_unclosed_arguments() {
             .get("edge::constant")
             .expect("pack command")
             .clone();
-        assert!(original.world_effects.is_none());
+        assert!(original.world_effects.is_unknown());
         assert_eq!(replacements(&registry, "edge::constant abcde"), ["good"]);
         for call in [
             "edge::abstain abcde",
@@ -244,8 +244,9 @@ fn a_live_fold_keeps_declared_effects_and_unclosed_arguments() {
         }
         let mut registry = registry.project_for_profile(registry.profile().expect("pack profile"));
         let mut declared = original.clone();
-        declared.world_effects =
-            Some(tcl_registry::world_effect::WorldEffectDescriptor::VARIABLE_WRITE);
+        declared.world_effects = tcl_registry::knowledge::Knowledge::Partial(
+            tcl_registry::world_effect::WorldEffectDescriptor::VARIABLE_WRITE,
+        );
         assert_eq!(
             declared.run_const_fold(&["abcde"], None),
             Some("good".into())
@@ -256,7 +257,9 @@ fn a_live_fold_keeps_declared_effects_and_unclosed_arguments() {
             "dsl={dsl}: the selected declared callback footprint prevents erasure"
         );
         let mut pure = original;
-        pure.world_effects = Some(tcl_registry::world_effect::WorldEffectDescriptor::EMPTY);
+        pure.world_effects = tcl_registry::knowledge::Knowledge::Partial(
+            tcl_registry::world_effect::WorldEffectDescriptor::EMPTY,
+        );
         registry.insert(pure);
         assert_eq!(replacements(&registry, "edge::constant abcde"), ["good"]);
         pack_hooks::clear_host();

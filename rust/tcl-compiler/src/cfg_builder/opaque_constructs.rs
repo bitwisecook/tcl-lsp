@@ -380,7 +380,6 @@ impl CfgBuilder<'_> {
             raw_args,
             raw_tokens,
             iterators,
-            is_lmap,
             span,
             ..
         } = stmt
@@ -479,27 +478,63 @@ impl CfgBuilder<'_> {
                 });
 
         if original_each || (!self.inline_loops && !raw_args.is_empty()) || has_qualified_vars {
-            let cmd = if *is_lmap { "lmap" } else { "foreach" };
-            let loop_vars: Vec<String> = iterators.iter().flat_map(|it| it.vars.clone()).collect();
-            self.push_statement(
-                current,
-                Statement::Call {
-                    span: *span,
-                    command: cmd.into(),
-                    canonical_command: None,
-                    args: raw_args.clone(),
-                    defs: loop_vars,
-                    reads: vec![],
-                    reads_own_defs: false,
-                    safe_on_uninit: false,
-                    tokens: Some(frozen_loop_tokens(cmd, raw_args, raw_tokens.as_ref())),
-                    foreach_groups: None,
-                },
-            );
+            self.push_opaque_loop_call(stmt, current);
             return true;
         }
 
         false
+    }
+
+    /// The loop as one call. Its body runs zero or more times in this frame,
+    /// so what it may write the call may write, and a value from before the
+    /// loop can survive it: each such name is read before it is written
+    /// (#2385). Writes the analysis cannot name end at a registry barrier.
+    fn push_opaque_loop_call(&mut self, stmt: &Statement, current: &str) {
+        let Statement::Foreach {
+            raw_args,
+            raw_tokens,
+            iterators,
+            is_lmap,
+            body,
+            span,
+            ..
+        } = stmt
+        else {
+            unreachable!();
+        };
+        let cmd = if *is_lmap { "lmap" } else { "foreach" };
+        let mut defs: Vec<String> = iterators.iter().flat_map(|it| it.vars.clone()).collect();
+        let mut body_writes = std::collections::BTreeSet::new();
+        let unseen_writes = crate::ssa::nested_writes(body, self.registry, &mut body_writes);
+        let reads: Vec<String> = body_writes
+            .into_iter()
+            .filter(|name| !defs.contains(name))
+            .collect();
+        defs.extend(reads.iter().cloned());
+        self.push_statement(
+            current,
+            Statement::Call {
+                span: *span,
+                command: cmd.into(),
+                canonical_command: None,
+                args: raw_args.clone(),
+                defs,
+                reads,
+                reads_own_defs: false,
+                safe_on_uninit: true,
+                tokens: Some(frozen_loop_tokens(cmd, raw_args, raw_tokens.as_ref())),
+                foreach_groups: None,
+            },
+        );
+        if unseen_writes {
+            self.push_statement(
+                current,
+                Self::registry_barrier_statement(
+                    stmt,
+                    "loop body writes variables the analysis cannot name",
+                ),
+            );
+        }
     }
 
     /// Dispatch `Catch` — inlined into real blocks, or deferred opaque.

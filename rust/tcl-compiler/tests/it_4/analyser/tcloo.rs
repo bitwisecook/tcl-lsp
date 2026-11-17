@@ -955,3 +955,90 @@ mod oo_helpers_namespace_path {
         );
     }
 }
+
+mod oo_define_configuration {
+    use super::super::*;
+
+    #[test]
+    fn a_class_keeps_its_methods_after_oo_define_adds_one() {
+        // tclsh 8.6.18, 9.0.4 and 9.1.0: after `oo::define C {method b …}`,
+        // `obj b` returns 1 and `puts hi` runs; `obj nosuch` raises
+        // `unknown method "nosuch": must be a, b or destroy`.
+        let prologue = concat!(
+            "oo::class create C {method a {} {}}\n",
+            "oo::define C {method b {} {return 1}}\n",
+            "C create obj\n",
+        );
+        let rows: [(&str, &[&str]); 2] = [("obj b\nputs hi\n", &[]), ("obj nosuch\n", &["W308"])];
+        for release in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            for (tail, expected) in rows {
+                let src = format!("{prologue}{tail}");
+                let codes: Vec<String> = analyser_diags(&src, release)
+                    .into_iter()
+                    .map(|(code, _, _)| code)
+                    .filter(|code| code.starts_with("W3"))
+                    .collect();
+                assert_eq!(codes, expected, "{release}: {src}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_class_reached_through_a_substituted_word_is_no_closed_configuration() {
+        // tclsh 8.6.18, 9.0.4 and 9.1.0 run `oo::define $c …` on `C` too, but
+        // the class is selected by a value, a relation a rename cannot follow:
+        // the configuration stays open, so the instance keeps no method table
+        // and `obj nosuch` draws no W308.
+        let src = concat!(
+            "oo::class create C {method a {} {}}\n",
+            "set c C\n",
+            "oo::define $c {method b {} {return 1}}\n",
+            "C create obj\n",
+            "obj nosuch\n",
+        );
+        for release in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let codes: Vec<String> = analyser_diags(src, release)
+                .into_iter()
+                .map(|(code, _, _)| code)
+                .filter(|code| code == "W308")
+                .collect();
+            assert!(codes.is_empty(), "{release}: {codes:?}");
+        }
+    }
+}
+
+mod reopened_classes {
+    use super::super::Analyser;
+
+    #[test]
+    fn a_class_another_file_declares_receives_a_contribution_not_a_class() {
+        // a.tcl: `oo::class create ::C { self { method cm {} { return 1 } } }`.
+        // tclsh 8.6.18, 9.0.4 and 9.1.0: `source a.tcl; source b.tcl; ::C cm`
+        // raises `unknown method "cm"`, so b.tcl's members reach the class
+        // a.tcl declares; b.tcl alone raises `::C does not refer to an
+        // object`, so b.tcl declares no class. Its members are a contribution
+        // keyed by the first path the original lookup tries.
+        let rows = [
+            ("oo::define ::C { self unexport cm }\n", "::C"),
+            (
+                "namespace eval a {\n    oo::define C { self unexport cm }\n}\n",
+                "::a::C",
+            ),
+        ];
+        for release in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            for (src, key) in rows {
+                let analysis = Analyser::new().analyse(src, release);
+                assert!(analysis.all_classes.is_empty(), "{release}: {src}");
+                let contribution = analysis
+                    .external_class_contributions
+                    .get(key)
+                    .unwrap_or_else(|| panic!("{release}: no {key} contribution for {src}"));
+                assert!(
+                    contribution.class_unexports.contains("cm"),
+                    "{release}: {src}: {:?}",
+                    contribution.class_unexports
+                );
+            }
+        }
+    }
+}

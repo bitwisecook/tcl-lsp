@@ -74,7 +74,8 @@ impl CodegenCtx<'_> {
         }
     }
 
-    /// Replace `push1 N; pop` with `nop; nop; nop`.
+    /// Replace `push1 N; pop` with `nop; nop; nop`, or six `nop`s where the
+    /// release compiles the five-byte `push` (Tcl 9.1).
     ///
     /// tclsh constant-folds `expr` commands that aren't the script's
     /// last statement into 3 nops. From 8.6 the optimiser's
@@ -89,6 +90,12 @@ impl CodegenCtx<'_> {
             .is_some_and(
                 tcl_registry::native_compiler_pass::native_optimizer_blanks_discarded_pushes,
             );
+        // The blanked push is as wide as the release compiles it.
+        let widened = if self.emits_wide_instructions_only() {
+            usize::from(Op::PUSH4.size() - Op::PUSH1.size())
+        } else {
+            0
+        };
         let mut i = 0;
         while i + 1 < self.instructions.len() {
             let after_start_cmd = i > 0 && self.instructions[i - 1].op == Op::START_CMD;
@@ -124,15 +131,18 @@ impl CodegenCtx<'_> {
                 blanked.comment.clear();
                 blanked.push_verbatim = false;
                 self.instructions[i + 1] = Instruction::new(Op::NOP, vec![]);
-                self.instructions
-                    .insert(i + 2, Instruction::new(Op::NOP, vec![]));
+                let inserted = 1 + widened;
+                self.instructions.splice(
+                    i + 2..i + 2,
+                    std::iter::repeat_with(|| Instruction::new(Op::NOP, vec![])).take(inserted),
+                );
                 // Shift labels past the insertion point.
                 for pos in self.label_positions.values_mut() {
                     if *pos > i + 1 {
-                        *pos += 1;
+                        *pos += inserted;
                     }
                 }
-                i += 3;
+                i += 2 + inserted;
             } else {
                 i += 1;
             }

@@ -272,6 +272,11 @@ fn scalar_probe_using(
         } else {
             return Err(ValueError::ScalarNumericInputUnavailable);
         })
+    } else if let Some(environment) = environment.filter(|_| protocol.int_reads_native_long(kind)) {
+        // A 9.x `int` read of a bignum reads it as the target's `long`.
+        let result = tcl_cmd_core::native_numeric::scalar_getter_target(environment);
+        stage()?;
+        result.ok()
     } else {
         None
     };

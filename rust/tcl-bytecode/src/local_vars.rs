@@ -36,6 +36,12 @@ pub struct LocalVarTable {
     /// colliding in practice, but that prefix is legal in a Tcl variable name,
     /// so the marker is recorded rather than inferred.
     synthetic: std::collections::HashSet<usize>,
+    /// Names spelled with one of these prefixes are compile-time names of
+    /// anonymous slots: every lookup and allocation by such a name reaches its
+    /// slot, and the slot keeps no runtime name, so nothing that looks a
+    /// variable up by name at run time can reach or list it.
+    hidden_prefixes: Vec<tcl_runtime_api::NameBytes>,
+    hidden: HashMap<tcl_runtime_api::NameBytes, usize>,
 }
 
 impl LocalVarTable {
@@ -56,6 +62,34 @@ impl LocalVarTable {
         self.compiler_protocol
     }
 
+    /// Make every name spelled with one of `prefixes` the compile-time name
+    /// of an anonymous slot (see [`LocalVarTable::hidden_prefixes`]). The
+    /// caller chooses prefixes no name of the compiled source spells.
+    pub fn hide_names_with_prefixes(&mut self, prefixes: Vec<tcl_runtime_api::NameBytes>) {
+        self.hidden_prefixes = prefixes;
+    }
+
+    fn is_hidden(&self, name: &[u8]) -> bool {
+        self.hidden_prefixes
+            .iter()
+            .any(|prefix| name.starts_with(prefix.as_bytes()))
+    }
+
+    /// The anonymous slot a hidden name reaches, allocated on first use;
+    /// `None` for a name that is not hidden.
+    fn intern_hidden(&mut self, name: &[u8]) -> Option<usize> {
+        if !self.is_hidden(name) {
+            return None;
+        }
+        let name = tcl_runtime_api::NameBytes::from(name);
+        if let Some(&slot) = self.hidden.get(&name) {
+            return Some(slot);
+        }
+        let slot = self.intern_anonymous();
+        self.hidden.insert(name, slot);
+        Some(slot)
+    }
+
     /// Find a source local through the configured compiler comparison.
     #[must_use]
     pub fn find(&self, name: &str) -> Option<usize> {
@@ -65,6 +99,9 @@ impl LocalVarTable {
     /// Find a source local without decoding its original counted name.
     #[must_use]
     pub fn find_bytes(&self, name: &[u8]) -> Option<usize> {
+        if self.is_hidden(name) {
+            return self.hidden.get(name).copied();
+        }
         match self.compiler_protocol {
             Some(protocol) => self.find_native(protocol, name),
             None => self.index.get(name).copied(),
@@ -117,6 +154,9 @@ impl LocalVarTable {
 
     /// Get or create a local slot for an exact native storage key.
     pub fn intern_bytes(&mut self, name: &[u8]) -> usize {
+        if let Some(slot) = self.intern_hidden(name) {
+            return slot;
+        }
         if let Some(protocol) = self.compiler_protocol {
             return self.intern_native(protocol, name);
         }
@@ -197,6 +237,9 @@ impl LocalVarTable {
         protocol: tcl_syntax::naming::NativeCompiledVariableProtocol,
         name: &[u8],
     ) -> Option<usize> {
+        if self.is_hidden(name) {
+            return self.hidden.get(name).copied();
+        }
         self.slots.iter().enumerate().find_map(|(slot, original)| {
             (!self.synthetic.contains(&slot)
                 && protocol.compiled_local_names_equal(original.as_bytes(), name))
@@ -210,6 +253,9 @@ impl LocalVarTable {
         protocol: tcl_syntax::naming::NativeCompiledVariableProtocol,
         name: &[u8],
     ) -> usize {
+        if let Some(slot) = self.intern_hidden(name) {
+            return slot;
+        }
         self.find_native(protocol, name)
             .unwrap_or_else(|| self.append_native_source(name))
     }

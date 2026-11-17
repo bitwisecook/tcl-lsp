@@ -310,7 +310,12 @@ pub(crate) fn original_source_taint_read_operands(
     tokens: &crate::ir::CommandTokens,
 ) -> Option<OriginalSourceTaintReadOperands> {
     let parent = point.source_tokens()?;
-    let actual = if parent == tokens {
+    // A proved wrapper's argument boundary reads as its own invocation; the
+    // retained marker keeps the argument-evaluation word owner.
+    let wrapper_arguments = parent
+        .evaluated_arguments_invocation()
+        .is_some_and(|wrapper| wrapper == *tokens);
+    let actual = if parent == tokens || wrapper_arguments {
         parent.clone()
     } else {
         let parent_binding = parent.source_binding.as_ref()?;

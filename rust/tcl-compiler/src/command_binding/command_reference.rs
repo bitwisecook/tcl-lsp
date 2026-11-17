@@ -194,7 +194,11 @@ impl SourceCommandReference {
         };
         matches!(
             kind,
-            BindingKind::Proc | BindingKind::Class | BindingKind::Alias | BindingKind::Command
+            BindingKind::Proc
+                | BindingKind::Class
+                | BindingKind::Instance { .. }
+                | BindingKind::Alias
+                | BindingKind::Command
         )
     }
 
@@ -508,6 +512,7 @@ impl ModuleCommandBindings {
             BindingKind::Bottom
             | BindingKind::Builtin
             | BindingKind::Class
+            | BindingKind::Instance { .. }
             | BindingKind::Command
             | BindingKind::Alias
             | BindingKind::Opaque

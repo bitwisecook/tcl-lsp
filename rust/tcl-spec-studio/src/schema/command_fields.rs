@@ -355,9 +355,16 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Completion contract",
         EFFECTS,
         FieldKind::RustExpr {
-            hint: "Some(CompletionDescriptor::exact(COMPLETION_CODES))",
+            hint: "Knowledge::Partial(CompletionDescriptor::exact(COMPLETION_CODES))",
         },
         "Possible Tcl completion codes and result/options payload obligations.",
+    ),
+    f(
+        "completion_knowledge",
+        "Completion completeness",
+        EFFECTS,
+        FieldKind::Knowledge,
+        "How completely the completion codes are known: unknown, partial (a lower bound), or complete for the release windows evidenced from the implementation.",
     ),
     f(
         "assigns_variable_at",
@@ -517,9 +524,16 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "World effects",
         EFFECTS,
         FieldKind::RustExpr {
-            hint: "Some(WorldEffectDescriptor::EMPTY)",
+            hint: "Knowledge::Partial(WorldEffectDescriptor::EMPTY)",
         },
         "Target-neutral mutable-world footprint for common compiler analysis.",
+    ),
+    f(
+        "world_effects_knowledge",
+        "World-effect completeness",
+        EFFECTS,
+        FieldKind::Knowledge,
+        "How completely the world effects are known: unknown, partial (a lower bound), or complete for the release windows evidenced from the implementation.",
     ),
     f(
         "state_transitions",
@@ -553,9 +567,16 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Result stability",
         EFFECTS,
         FieldKind::RustExpr {
-            hint: "Some(ResultStability::ReferentiallyTransparent)",
+            hint: "Knowledge::Partial(ResultStability::ReferentiallyTransparent)",
         },
         "Whether repeated calls return the same value, or depend on mutable or volatile state.",
+    ),
+    f(
+        "result_stability_knowledge",
+        "Result-stability completeness",
+        EFFECTS,
+        FieldKind::Knowledge,
+        "How completely the result stability is known: unknown, partial (stated), or complete for the release windows evidenced from the implementation.",
     ),
     f(
         "constraints",

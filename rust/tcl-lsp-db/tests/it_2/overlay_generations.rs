@@ -37,8 +37,9 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use tcl_dialect::DialectProfile;
 use tcl_lsp_db::{
-    AnalyserConfig, SourceFile, TclDatabase, TclDb, compiler_check_diagnostics,
-    document_compilation_unit_for, semantic_tokens, set_overlay_epoch, take_overlay_misses,
+    AnalyserConfig, Project, SourceFile, TclDatabase, TclDb, compiler_check_diagnostics,
+    document_compilation_unit_for, semantic_tokens, semantic_tokens_project,
+    semantic_tokens_project_for_inputs, set_overlay_epoch, take_overlay_misses,
 };
 use tcl_registry::model::{KeyedVersions, OverlayMiss, resolve_environment};
 use tcl_registry::registry_for_profile_with_overlay;
@@ -197,6 +198,28 @@ fn the_token_query_reads_the_plain_registry_for_a_miss() {
         "the plain registry's tokens"
     );
     assert_eq!(misses_for(MISSING).len(), 1, "and the miss is on record");
+}
+
+/// The project-level token queries advise from the plain registry for a miss
+/// too, as the document-level one does.
+#[test]
+fn the_project_token_queries_read_the_plain_registry_for_a_miss() {
+    const MISSING: u64 = 0x0DB0_0006;
+    let _serial = serial();
+    let db = TclDatabase::default();
+    let file = SourceFile::new(&db, SRC.to_owned(), "tcl9.0".to_owned(), None);
+    let plain = semantic_tokens(&db, file, overlay_config(&db, 0));
+    assert_ne!(plain.data, [] as [u32; 0]);
+    let missing = overlay_config(&db, MISSING);
+    let project = Project::with_token_configurations(&db, vec![file], Some(vec![(file, missing)]));
+    assert_eq!(
+        semantic_tokens_project(&db, file, project, missing).data,
+        plain.data
+    );
+    assert_eq!(
+        semantic_tokens_project_for_inputs(&db, file, project).data,
+        plain.data
+    );
 }
 
 /// A generation the process-wide cache has retired still serves the queries

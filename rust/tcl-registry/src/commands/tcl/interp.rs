@@ -532,7 +532,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         script_timing_resolver: Some(interp_alias_script_timing),
         analyser_hook: Some(crate::hooks::AnalyserHookId::InterpAlias),
         side_effects: crate::knowledge::Knowledge::declared(ALIAS_SIDE_EFFECTS),
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(crate::state_transition::command_binding::CREATES_ALIASES),
         ..SubCommand::DEFAULT
     },
@@ -558,7 +558,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         command_prefix_resolver: Some(interp_bgerror_command_prefixes),
         script_timing_resolver: Some(interp_bgerror_script_timing),
-        world_effects: Some(INTERP_BGERROR_EFFECTS),
+        world_effects: crate::knowledge::Knowledge::Partial(INTERP_BGERROR_EFFECTS),
         state_transitions: Some(INTERP_BGERROR_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
@@ -649,7 +649,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ]
         },
         analyser_hook: Some(crate::hooks::AnalyserHookId::InterpCreate),
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(INTERP_CREATE_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
@@ -699,7 +699,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         destructive: true,
         return_type: Some(TclType::String),
         analyser_hook: Some(crate::hooks::AnalyserHookId::InterpDelete),
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(INTERP_DELETE_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
@@ -747,7 +747,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "interp expose path hiddenCmdName ?exposedCmdName?",
         return_type: Some(TclType::String),
         analyser_hook: Some(crate::hooks::AnalyserHookId::InterpExpose),
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(INTERP_EXPOSE_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
@@ -772,7 +772,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "interp hide path exposedCmdName ?hiddenCmdName?",
         return_type: Some(TclType::String),
         analyser_hook: Some(crate::hooks::AnalyserHookId::InterpHide),
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(INTERP_HIDE_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
@@ -932,7 +932,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Mark interpreter as trusted.",
         synopsis: "interp marktrusted path",
         return_type: Some(TclType::String),
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(INTERP_MARK_TRUSTED_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
@@ -943,7 +943,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Get or set recursion limit.",
         synopsis: "interp recursionlimit path ?newlimit?",
         return_type: Some(TclType::Int),
-        world_effects: Some(INTERP_RECURSION_LIMIT_EFFECTS),
+        world_effects: crate::knowledge::Knowledge::Partial(INTERP_RECURSION_LIMIT_EFFECTS),
         state_transitions: Some(INTERP_RECURSION_LIMIT_TRANSITIONS),
         ..SubCommand::DEFAULT
     },

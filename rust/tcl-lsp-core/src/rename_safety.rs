@@ -1066,6 +1066,13 @@ pub fn namespace_variable_rename_hazard(
                 })
                 .flatten()
         });
+        if let Some(span) = roles
+            .as_deref()
+            .and_then(|roles| computed_namespace_beside_tail(cmd, roles, cell))
+        {
+            hazard = Some((span, false));
+            return;
+        }
         for (ordinal, word) in cmd.texts.iter().skip(1).enumerate() {
             let Some(tok) = cmd.argv.get(ordinal + 1) else {
                 continue;
@@ -1116,6 +1123,36 @@ pub fn namespace_variable_rename_hazard(
         return Some(incomplete_hazard_census(source, line_index, cell));
     }
     namespace_variable_hazard_refusal(source, line_index, cell, hazard)
+}
+
+/// A computed namespace word beside a literal cell word spelling the cell's
+/// tail may link the cell itself (`namespace upvar $ns version local`).
+fn computed_namespace_beside_tail(
+    cmd: &SegmentedCommand,
+    roles: &[(usize, tcl_registry::ArgRole)],
+    cell: &str,
+) -> Option<Span> {
+    let (_, tail) = tcl_syntax::naming::key_holder_and_tail(cell);
+    let literal = |ordinal: usize| {
+        cmd.single_token_word.get(ordinal + 1) == Some(&true)
+            && cmd
+                .argv
+                .get(ordinal + 1)
+                .is_some_and(|tok| matches!(tok.kind, TokenType::Esc | TokenType::Str))
+    };
+    roles
+        .iter()
+        .any(|&(ordinal, role)| {
+            role == tcl_registry::ArgRole::VarCell
+                && literal(ordinal)
+                && cmd.texts.get(ordinal + 1).map(String::as_str) == Some(tail)
+        })
+        .then_some(())?;
+    roles.iter().find_map(|&(ordinal, role)| {
+        (role == tcl_registry::ArgRole::NamespaceName && !literal(ordinal))
+            .then(|| cmd.argv.get(ordinal + 1).map(|tok| tok.span))
+            .flatten()
+    })
 }
 
 fn namespace_variable_hazard_refusal(

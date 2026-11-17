@@ -277,6 +277,37 @@ fn procedure_definition(proc: &Procedure) -> Option<ProcedureDefinitionIdentity>
     })
 }
 
+/// The prefix of the names a splice numbered `cid` gives the body's locals.
+fn local_prefix(cid: usize) -> String {
+    format!("__inline_{cid}__")
+}
+
+/// The first splice number (from 1) whose prefix `source` does not spell, nor
+/// any later one: past the largest number any `__inline_<n>__` in it carries.
+fn first_unspelled_splice(source: &[u8]) -> usize {
+    const HEAD: &[u8] = b"__inline_";
+    let mut first = 1;
+    let mut at = 0;
+    while let Some(found) = source[at..]
+        .windows(HEAD.len())
+        .position(|window| window == HEAD)
+    {
+        let digits = &source[at + found + HEAD.len()..];
+        let length = digits
+            .iter()
+            .take_while(|byte| byte.is_ascii_digit())
+            .count();
+        if let Some(number) = std::str::from_utf8(&digits[..length])
+            .ok()
+            .and_then(|text| text.parse::<usize>().ok())
+        {
+            first = first.max(number.saturating_add(1));
+        }
+        at += found + HEAD.len();
+    }
+    first
+}
+
 // statement counting
 
 /// Total number of leaf statements reachable in `script`, walking nested

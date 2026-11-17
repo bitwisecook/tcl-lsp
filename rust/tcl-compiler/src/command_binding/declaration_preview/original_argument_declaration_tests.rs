@@ -337,6 +337,7 @@ fn original_argv_declaration_requires_original_parent_input_source_config_and_ve
             &originals,
             registry.commands(),
             &mut Vec::new(),
+            &super::nested_layouts::ScopeAliasOwnershipShare::default(),
         );
         assert!(
             !changed.declaration_layouts.contains_key(&child_site),

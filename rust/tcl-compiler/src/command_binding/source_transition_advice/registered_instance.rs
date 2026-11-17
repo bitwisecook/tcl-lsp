@@ -564,10 +564,12 @@ impl AdviceInvocationContext<'_> {
         }
         let slot = graph.instance_key(name.bytes())?;
         graph.namespaces.contains(&slot.namespace).then_some(())?;
+        // An opaque definition at the slot is the factory's own publication
+        // when its substitution already ran (`set w [entry .e]`).
         if graph
             .cells
             .get(&slot)
-            .is_some_and(|cell| !matches!(cell, AdviceCell::Deleted))
+            .is_some_and(|cell| !matches!(cell, AdviceCell::Deleted | AdviceCell::Shadowed))
         {
             return None;
         }
@@ -796,12 +798,15 @@ impl AdviceInvocationContext<'_> {
                 Some(Arc::clone(instance)),
             );
         }
+        // `registered_factory` found the slot free before this invocation,
+        // so an opaque definition there now is the factory's own publication
+        // of the instance (a Tk constructor's path), which this cell refines.
         if let Some(instance) = factory
             && instance.factory.matches_context(self.context)
             && !graph
                 .cells
                 .get(&instance.slot)
-                .is_some_and(|cell| !matches!(cell, AdviceCell::Deleted))
+                .is_some_and(|cell| !matches!(cell, AdviceCell::Deleted | AdviceCell::Shadowed))
         {
             graph.cells.insert(
                 instance.slot.clone(),
@@ -814,7 +819,7 @@ impl AdviceInvocationContext<'_> {
             && !graph
                 .cells
                 .get(&handle.instance.slot)
-                .is_some_and(|cell| !matches!(cell, AdviceCell::Deleted))
+                .is_some_and(|cell| !matches!(cell, AdviceCell::Deleted | AdviceCell::Shadowed))
             && let Some(key) = graph.handle_key(handle.variable.bytes())
         {
             graph.handles.retain(|(owned, _)| owned != &key);

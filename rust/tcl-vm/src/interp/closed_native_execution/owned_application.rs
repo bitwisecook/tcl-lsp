@@ -196,6 +196,7 @@ pub(super) fn check_function(
         body_base_line: _,
         proc_body_src,
         error_regions,
+        splice_ranges,
         plain_command_dispatch,
         command_bindings,
         procedure_bindings,
@@ -211,6 +212,7 @@ pub(super) fn check_function(
         || !slots_are_plain_scalars(lvt, body)
         || !loop_targets.is_empty()
         || proc_body_src.is_some()
+        || !splice_ranges.is_empty()
         || !error_regions.is_empty()
         || !*plain_command_dispatch
         || !command_bindings.is_empty()
@@ -303,6 +305,7 @@ fn instruction_is_closed(instruction: &Instruction, body: bool) -> bool {
         entered_command,
         native_compiler_selection,
         joined_compiler_selections,
+        start_hosts,
         native_operation_selections,
         catch_target,
         catch_start,
@@ -346,6 +349,7 @@ fn instruction_is_closed(instruction: &Instruction, body: bool) -> bool {
         && entered_command.is_none()
         && native_compiler_selection.is_none()
         && joined_compiler_selections.is_empty()
+        && start_hosts.is_empty()
         && native_operation_selections.is_empty()
         && catch_target.is_none()
         && catch_start.is_none()

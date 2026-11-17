@@ -579,12 +579,14 @@ pub struct CommandSpec {
     /// Target-neutral completion semantics for this command.
     ///
     /// A resolved subcommand or invocation form can supply a more-specific
-    /// descriptor. `None` deliberately leaves the invocation conservative.
-    pub completion: Option<crate::completion::CompletionDescriptor>,
+    /// descriptor. `Unknown` deliberately leaves the invocation conservative;
+    /// only `Complete` closes the domain for the windows it names.
+    pub completion: crate::knowledge::Knowledge<crate::completion::CompletionDescriptor>,
 
     /// Whether equal evaluated arguments are sufficient to reproduce this
-    /// command's result. `None` is conservative, not an assertion of purity.
-    pub result_stability: Option<crate::result_stability::ResultStability>,
+    /// command's result. `Unknown` is conservative, not an assertion of
+    /// purity; only `Complete` closes the domain for the windows it names.
+    pub result_stability: crate::knowledge::Knowledge<crate::result_stability::ResultStability>,
 
     /// Native result dependency; runtime identity and completion remain required.
     pub native_result: Option<crate::native_result::NativeResultContract>,
@@ -710,7 +712,9 @@ pub struct CommandSpec {
     /// The result is target-neutral and is resolved, together with the
     /// established command-table, frame, and side-effect metadata, before a
     /// compiler pass consumes it.
-    pub world_effects: Option<WorldEffectDescriptor>,
+    /// How completely it is known is the field's [`crate::knowledge::Knowledge`]:
+    /// `Unknown` states nothing here, and only `Complete` closes the domain.
+    pub world_effects: crate::knowledge::Knowledge<WorldEffectDescriptor>,
 
     /// Target-neutral transitions of command bindings and variable cells.
     ///

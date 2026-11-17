@@ -67,7 +67,9 @@ pub fn spec() -> CommandSpec {
             | Traits::CATCHABLE_THROW
             | Traits::NEEDS_START_CMD,
         arity: Arity::new(1, 3),
-        completion: Some(CompletionDescriptor::exact(COMPLETION_CODES)),
+        completion: crate::knowledge::Knowledge::Partial(CompletionDescriptor::exact(
+            COMPLETION_CODES,
+        )),
         return_type: Some(TclType::String),
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::InterpState,

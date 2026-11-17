@@ -69,6 +69,7 @@ fn assemble(
         required_compiled_local_layout: None,
         proc_body_src: None,
         error_regions: Vec::new(),
+        splice_ranges: Vec::new(),
         plain_command_dispatch: false,
         command_bindings: Vec::new(),
         procedure_bindings: Vec::new(),

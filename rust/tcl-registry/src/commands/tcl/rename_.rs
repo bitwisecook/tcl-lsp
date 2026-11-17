@@ -79,10 +79,12 @@ pub fn spec() -> CommandSpec {
         arity: Arity::exact(2),
         arg_roles: &[(0, ArgRole::Name), (1, ArgRole::Name)],
         return_type: Some(TclType::String),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         hover: Some(HoverSnippet {
             summary: "Rename or delete a command",
             synopsis: &["rename oldName newName"],
@@ -94,7 +96,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         analyser_hook: Some(crate::hooks::AnalyserHookId::Rename),
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         // The command-table mutation is declared **once**, by naming the
         // stock descriptor, rather than also stamping
         // `command_table_effect` with the same fact in a second vocabulary.

@@ -467,9 +467,16 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Completion contract",
         EFFECTS,
         FieldKind::RustExpr {
-            hint: "Some(CompletionDescriptor::exact(COMPLETION_CODES))",
+            hint: "Knowledge::Partial(CompletionDescriptor::exact(COMPLETION_CODES))",
         },
         "Subcommand-specific Tcl completion and payload obligations.",
+    ),
+    f(
+        "completion_knowledge",
+        "Completion completeness",
+        EFFECTS,
+        FieldKind::Knowledge,
+        "How completely this subcommand's completion codes are known.",
     ),
     f(
         "surface",
@@ -729,9 +736,16 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "World effects",
         EFFECTS,
         FieldKind::RustExpr {
-            hint: "Some(WorldEffectDescriptor::EMPTY)",
+            hint: "Knowledge::Partial(WorldEffectDescriptor::EMPTY)",
         },
         "Subcommand-specific mutable-world footprint.",
+    ),
+    f(
+        "world_effects_knowledge",
+        "World-effect completeness",
+        EFFECTS,
+        FieldKind::Knowledge,
+        "How completely this subcommand's world effects are known.",
     ),
     f(
         "state_transitions",
@@ -765,9 +779,16 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Result stability",
         EFFECTS,
         FieldKind::RustExpr {
-            hint: "Some(ResultStability::ReferentiallyTransparent)",
+            hint: "Knowledge::Partial(ResultStability::ReferentiallyTransparent)",
         },
         "Subcommand-specific result stability declaration.",
+    ),
+    f(
+        "result_stability_knowledge",
+        "Result-stability completeness",
+        EFFECTS,
+        FieldKind::Knowledge,
+        "How completely this subcommand's result stability is known.",
     ),
     f(
         "constraints",

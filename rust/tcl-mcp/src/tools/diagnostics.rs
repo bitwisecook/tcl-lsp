@@ -32,7 +32,7 @@ use tcl_lsp_core::diagnostic_policy::{Finding, Reason, Report, Shown};
 /// Serialise one shown finding to `{code, severity, message, range,
 /// category, fixes?}` (the `_facade_diagnostic_to_dict` wire shape), at the
 /// severity the policy resolved.
-fn diag_to_json(shown: &Shown<'_>, sm: &SourceMap<'_>) -> Value {
+pub(super) fn diag_to_json(shown: &Shown<'_>, sm: &SourceMap<'_>) -> Value {
     let d = shown.finding;
     let code = d.code.as_str();
     let mut obj = json!({

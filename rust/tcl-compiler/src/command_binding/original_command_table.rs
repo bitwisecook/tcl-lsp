@@ -842,11 +842,7 @@ impl OriginalCommandOperands {
                     command: label,
                     prepended: Vec::new(),
                     registry_backed: false,
-                    kind: match kind {
-                        CommandBindingDefinitionKind::Procedure => BindingKind::Proc,
-                        CommandBindingDefinitionKind::Object => BindingKind::Class,
-                        CommandBindingDefinitionKind::Command => BindingKind::Command,
-                    },
+                    kind: BindingKind::of_definition(*kind),
                     implementation_generation: declaration,
                     terminal: true,
                     target_lookup: tcl_registry::AliasTargetLookup::Global,

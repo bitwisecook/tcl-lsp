@@ -27,7 +27,8 @@ use super::source_query::leaf_handler_source_completion;
 use super::{
     CollectionSourceObligationKind, ConditionalIruleSourceFlowAdvice,
     ConditionalIruleSourceFlowFinding, ConditionalIruleSourceOwner, DropFlowState, FlowDispatch,
-    HttpFlowState, IrulesCheckWarning, IrulesSourceQuery, OriginalIrulesFlowCommand,
+    HttpFlowState, IrulesCheckPayload, IrulesCheckWarning, IrulesSourceQuery,
+    OriginalIrulesFlowCommand,
 };
 use crate::compilation_unit::CompilationUnit;
 use crate::ir::{Script, Statement};
@@ -96,6 +97,9 @@ fn unguarded_drop_findings(finals: Vec<DropFlowState>) -> Vec<IrulesCheckWarning
                         "Possible '{}' has no independently established guard against later processing.",
                         pending.drop_cmd
                     ),
+                    IrulesCheckPayload::UnguardedDrop {
+                        command: pending.drop_cmd.clone(),
+                    },
                 )
                 .warning,
             );
@@ -108,6 +112,7 @@ fn unguarded_drop_findings(finals: Vec<DropFlowState>) -> Vec<IrulesCheckWarning
                     span,
                     DiagCode::Irule5004,
                     "Possible DNS packet return has no independently established guard against later processing.",
+                    IrulesCheckPayload::UnguardedDnsReturn,
                 )
                 .warning,
             );
@@ -269,6 +274,10 @@ fn conditional_http_flow_command(
                         "Possible response operation '{}' follows another response candidate in {event}.",
                         command.command
                     ),
+                    IrulesCheckPayload::RepeatedResponse {
+                        command: command.command.clone(),
+                        event: event.to_owned(),
+                    },
                 )
                 .warning,
             );
@@ -288,6 +297,10 @@ fn conditional_http_flow_command(
                     "Possible HTTP-context operation '{}' follows a response candidate in {event}.",
                     command.command
                 ),
+                IrulesCheckPayload::ContextAfterResponse {
+                    command: command.command.clone(),
+                    event: event.to_owned(),
+                },
             )
             .warning,
         );
@@ -299,6 +312,7 @@ fn conditional_source_flow_finding(
     span: Span,
     code: DiagCode,
     source_hazard: &str,
+    payload: IrulesCheckPayload,
 ) -> ConditionalIruleSourceFlowFinding {
     ConditionalIruleSourceFlowFinding {
         warning: IrulesCheckWarning {
@@ -307,6 +321,7 @@ fn conditional_source_flow_finding(
             message: format!(
                 "Conditional source flow (runtime reachability and completion unproved): {source_hazard}"
             ),
+            payload,
             replacement: None,
             fixes: Vec::new(),
         },

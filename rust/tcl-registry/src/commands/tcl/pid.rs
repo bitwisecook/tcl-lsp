@@ -65,10 +65,10 @@ const CURRENT_PROCESS_FORMS: &[crate::forms::CommandForm] = &[crate::forms::Comm
     name: "current-process",
     arity: Arity::exact(0),
     successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf),
-    world_effects: Some(crate::WorldEffectDescriptor::EMPTY),
-    completion: Some(crate::completion::CompletionDescriptor::exact(&[
-        crate::completion::CompletionCode::Ok,
-    ])),
+    world_effects: crate::knowledge::Knowledge::Partial(crate::WorldEffectDescriptor::EMPTY),
+    completion: crate::knowledge::Knowledge::Partial(
+        crate::completion::CompletionDescriptor::exact(&[crate::completion::CompletionCode::Ok]),
+    ),
     ..crate::forms::CommandForm::DEFAULT
 }];
 

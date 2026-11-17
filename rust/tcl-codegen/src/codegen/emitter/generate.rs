@@ -1037,6 +1037,7 @@ fn finalize_function(
 
     // Layout pass.
     optimise_jumps(&mut ctx.instructions, &ctx.label_positions, 10);
+    ctx.widen_operands();
     let labels = resolve_layout(&mut ctx.instructions, &ctx.label_positions);
 
     // Mark actual source-command entry independently of diagnostic metadata.
@@ -1278,6 +1279,7 @@ fn finalize_function(
         body_base_line: 0,
         proc_body_src: None,
         error_regions,
+        splice_ranges: Vec::new(),
         plain_command_dispatch: ctx.plain_command_dispatch,
         command_bindings: std::mem::take(&mut ctx.command_binding_requirements)
             .into_iter()

@@ -201,6 +201,37 @@ impl WorkspaceIndex {
         })
     }
 
+    /// Class declarations in other documents that the `superclass` or `mixin`
+    /// word at `cursor` selects through its own recorded lookup (current
+    /// namespace, then global). A navigation listing for a relation whose class
+    /// another document declares; rename does not read it.
+    #[must_use]
+    pub fn class_relation_targets_at(
+        &self,
+        uri: &str,
+        source: &str,
+        analysis: &tcl_compiler::analyser::AnalysisResult,
+        cursor: u32,
+    ) -> Vec<(String, tcl_lexer::Span)> {
+        let Some(relation) = crate::original_oo::relation_word_at(source, analysis, cursor) else {
+            return Vec::new();
+        };
+        let declarations = self
+            .original_class_declarations()
+            .filter(|(owner, _)| *owner != uri)
+            .collect::<Vec<_>>();
+        relation
+            .lookup()
+            .first_matching_publications(
+                declarations
+                    .iter()
+                    .map(|(owner, declaration)| (declaration.name(), (*owner, *declaration))),
+            )
+            .into_iter()
+            .map(|(owner, declaration)| (owner.to_owned(), declaration.metadata().name_span))
+            .collect()
+    }
+
     /// Publications surviving an independently completed modeled source root.
     /// Document ownership is retained; no workspace load order or physical
     /// interpreter existence follows from this source inventory.

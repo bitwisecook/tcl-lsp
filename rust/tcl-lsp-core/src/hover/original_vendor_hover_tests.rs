@@ -23,7 +23,9 @@ use tcl_compiler::analyser::Analyser;
 fn original_vendor_header_hover_keeps_source_only_opaque_cards_after_ui_clear() {
     // Implementation contract: naming.vendor.original-source-declaration-consumers
     // docs/design/analysis/name-resolution-proofs/vendor-original-source-declaration-consumers.md
-    let source = "proc {p\\uD800} {argument} {return $argument}\n";
+    // A quoted word performs the escape; a brace group would not (tclsh
+    // 8.4.20 to 9.1.0 define `proc {p\uD800}` under a nine-character name).
+    let source = "proc \"p\\uD800\" {argument} {return $argument}\n";
     let mut analysis = Analyser::new().analyse(source, "f5-iapps");
     assert_eq!(analysis.original_vendor_procedure_declarations().count(), 1);
     analysis.all_procs.clear();

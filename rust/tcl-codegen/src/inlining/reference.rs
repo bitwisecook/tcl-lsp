@@ -89,7 +89,7 @@ pub(super) fn import(
         };
         // The definition is read as the module was: the same release and
         // metadata, and none of what the module's own text declares.
-        let Some((definition, inlinable)) = lower_definition(
+        let Some((definition, inlinable, _)) = lower_definition(
             text,
             spec,
             registry,
@@ -182,6 +182,14 @@ fn called_descriptors(
 /// Lower the actual body and join its produced declaration key through the
 /// Registry's descriptor lookup to this exact backing row. No descriptor
 /// punctuation is treated as a constructed-key or Native naming contract.
+/// A definition as a fresh interpreter of the release reads it: the procedure,
+/// what it splices in, and whether its body may be run again from its start.
+pub(super) type Definition = (
+    Procedure,
+    Option<super::InlineSpec>,
+    Result<(), tcl_compiler::command_binding::ReExecutionDecline>,
+);
+
 pub(super) fn lower_definition(
     text: &str,
     expected: &tcl_registry::CommandSpec,
@@ -189,7 +197,7 @@ pub(super) fn lower_definition(
     config: LexerConfig,
     profile: Option<&'static tcl_dialect::DialectProfile>,
     input: Option<&tcl_compiler::analyser::ResolvedAnalysisInput>,
-) -> Option<(Procedure, Option<super::InlineSpec>)> {
+) -> Option<Definition> {
     let mut lowered = match input {
         // A fresh interpreter of the caller's release evaluating the text.
         Some(input) => {
@@ -218,13 +226,20 @@ pub(super) fn lower_definition(
     }
     let id = *lowered.procedures.keys().next()?;
     let inlinable = super::reference_inline_spec(&lowered, registry);
+    let re_execution = tcl_compiler::command_binding::re_executable_body(
+        &lowered,
+        &lowered.procedures.get(&id)?.body,
+        registry,
+    );
     let proc = lowered.procedures.remove(&id)?;
     let selected = registry.get(&proc.qualified_name)?;
     if !std::ptr::eq(selected, expected) {
         return None;
     }
     // Without the body's text there is nothing for the runtime to compare.
-    proc.body_source.is_some().then_some((proc, inlinable))
+    proc.body_source
+        .is_some()
+        .then_some((proc, inlinable, re_execution))
 }
 
 /// Append `text` to the module's source and shift `proc` to where it now stands.
@@ -365,7 +380,7 @@ mod tests {
         let selected = registry.get("string").unwrap();
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
         let config = LexerConfig::for_file_grammar(profile.grammar);
-        let (declaration, _) = lower_definition(
+        let (declaration, _, _) = lower_definition(
             "proc string {x} {return $x}",
             selected,
             &registry,
@@ -410,5 +425,40 @@ mod tests {
             )
             .is_none()
         );
+    }
+
+    #[test]
+    fn a_definition_is_re_executable_only_where_its_declared_effects_stay_in_its_frame() {
+        use tcl_compiler::command_binding::ReExecutionDecline as Decline;
+        let registry = CommandRegistry::build_default();
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let config = LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::compile_service::fresh_document_input(&registry, config, profile)
+            .expect("a fresh reading of tcl9.0");
+        // The definition takes a name none of the bodies calls.
+        let selected = registry.get("format").unwrap();
+        for (body, verdict) in [
+            ("string toupper $x", Ok(())),
+            ("lindex $x 0", Ok(())),
+            ("set y $x; incr y; return $y", Ok(())),
+            ("return \"$x-$x\"", Ok(())),
+            ("puts $x", Err(Decline::Callback)),
+            // `expr` may substitute a command or call a math function.
+            ("expr {$x * 2}", Err(Decline::Callback)),
+            ("set ::g $x", Err(Decline::ForeignVariables)),
+            // `global` declares a link: a state transition of the frame.
+            ("global g; set g $x", Err(Decline::StateTransition)),
+        ] {
+            let (_, _, re_execution) = lower_definition(
+                &format!("proc format {{x}} {{{body}}}"),
+                selected,
+                &registry,
+                config,
+                Some(profile),
+                Some(&input),
+            )
+            .unwrap_or_else(|| panic!("{body}"));
+            assert_eq!(re_execution, verdict, "{body}");
+        }
     }
 }

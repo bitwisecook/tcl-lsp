@@ -176,12 +176,17 @@ fn o107_still_fires_on_genuinely_unreachable_method_code() {
     assert!(out.contains("::puts live"), "live code must survive: {out}");
 }
 
-/// Only the explicit actual private owner may discharge the expression's
-/// conversion/result differences. A normal source-analysis entry stays open.
+/// The ordinary optimiser folds a source literal into an expression operand
+/// under its own licence, not the closed native consumer's: the numeric
+/// reading of a source literal follows its string on every release
+/// (`expr_operand_literal_reading` in `optimiser_coverage`). tclsh 8.4.20,
+/// 8.6.18, 9.0.4 and 9.1.0 print `2` and `1` for the source and for
+/// `set x 1; puts 2; puts 1`.
 #[test]
-fn closed_native_consumer_does_not_grant_the_ordinary_optimiser() {
+fn the_ordinary_optimiser_folds_a_source_literal_operand() {
     let src = "set x 1\nputs [expr {$x + 1}]\nputs $x\n";
-    assert!(optimised(src, TCL).contains("[expr {$x + 1}]"));
+    let out = optimised(src, TCL);
+    assert!(out.contains("puts 2") && !out.contains("[expr"), "{out}");
 }
 
 #[test]
@@ -227,4 +232,36 @@ fn sharedvar_writes_are_kept() {
             assert!(!codes.iter().any(|c| c == code), "{code}: {codes:?}");
         }
     }
+}
+
+/// A handler body is advice (hosted-metadata ruling): its store gives the
+/// semantic facts the literal, read by diagnostics and display, and never
+/// gives `sccp.values` a constant, so no optimiser pass rewrites the read.
+/// The same body in a Tcl procedure is a proved constant and is rewritten.
+#[test]
+fn a_handler_store_is_a_semantic_fact_and_never_a_rewrite() {
+    use tcl_compiler::analyses::{ConstValue, LatticeValue};
+    let handler = "when HTTP_REQUEST {\nset x 1\nlog local0. \"v=$x\"\n}";
+    let registry = static_context_for("f5-irules").commands();
+    let cu = CompilationUnit::build_for_dialect(handler, registry, false, "f5-irules");
+    let function = cu
+        .analysable_functions()
+        .find(|function| function.name == "::when::HTTP_REQUEST")
+        .expect("handler function");
+    let symbol = function.ssa.var_symbol("x").expect("x is defined");
+    assert_eq!(
+        function.sccp.values.get(&(symbol, 1)),
+        Some(&LatticeValue::Overdefined)
+    );
+    assert_eq!(
+        function
+            .semantic_values()
+            .and_then(|facts| facts.contents((symbol, 1))),
+        Some(&LatticeValue::Const(ConstValue::Int(1)))
+    );
+    assert_eq!(opt_rewrites(handler, "f5-irules"), Vec::new());
+    assert_ne!(
+        opt_rewrites("proc p {} {\nset x 1\nputs \"v=$x\"\n}", TCL),
+        Vec::new()
+    );
 }

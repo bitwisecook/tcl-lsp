@@ -55,6 +55,12 @@ impl ProcedureId {
     pub const fn ordinal(self) -> u32 {
         self.ordinal
     }
+
+    /// The module that issued this body identity.
+    #[must_use]
+    pub const fn module(self) -> ProcedureModuleId {
+        ProcedureModuleId(self.scope)
+    }
 }
 
 #[derive(Debug)]

@@ -98,6 +98,7 @@ pub(crate) fn compile(
     ctx.emit_substitution(&arena);
     ctx.emit(Op::DONE, vec![]);
     super::layout::optimise_jumps(&mut ctx.instructions, &ctx.label_positions, 5);
+    ctx.widen_operands();
     let labels = super::layout::resolve_layout(&mut ctx.instructions, &ctx.label_positions);
     let mut function = ctx.into_function_asm("<subst>".into());
     function.labels = labels;

@@ -591,3 +591,61 @@ fn physical_caller_frame_does_not_invent_a_compiler_local_table() {
         context(NativeCompilationFrame::ScriptCode)
     );
 }
+
+/// `TclCompileUpvarCmd` takes a leading word as a level by its spelling under
+/// the release, never by the level current at compile time. Each row was
+/// measured with `tcl::unsupported::disassemble` of a fresh procedure
+/// `upvar WORD x y` (and `upvar WORD x y z`) on tclsh 8.5.19, 8.6.18, 9.0.4
+/// and 9.1.0: `L` compiles WORD as the level (the two-pair form only), `N`
+/// pushes `1` and compiles WORD as the other variable (the odd form only).
+#[test]
+fn upvar_level_words_compile_as_each_release_reads_them() {
+    use TclVersion::{V8_5, V8_6, V9_0, V9_1};
+    let rows: &[(&str, [u8; 4])] = &[
+        ("0", *b"LLLL"),
+        ("2", *b"LLLL"),
+        ("5", *b"LLLL"),
+        ("#0", *b"LLLL"),
+        ("#5", *b"LLLL"),
+        ("#+1", *b"LLLL"),
+        ("#0x1", *b"LLLL"),
+        ("0x10", *b"LLLL"),
+        ("0b1", *b"LLLL"),
+        ("2 ", *b"LLLL"),
+        ("4294967295", *b"LLLL"),
+        ("-1", *b"NLLL"),
+        ("+1", *b"NLLL"),
+        (" 2", *b"NLLL"),
+        ("4294967296", *b"NLLL"),
+        ("99999999999999999999", *b"NLLL"),
+        ("1.5", *b"NLNN"),
+        ("1e0", *b"NLNN"),
+        ("08", *b"NNLL"),
+        ("#08", *b"NNLL"),
+        ("#-1", *b"NNNL"),
+        ("#abc", *b"NNNL"),
+        ("#1.5", *b"NNNL"),
+        ("abc", *b"NNNN"),
+        ("", *b"NNNN"),
+        ("x#", *b"NNNN"),
+    ];
+    for &(word, expected) in rows {
+        for (version, kind) in [V8_5, V8_6, V9_0, V9_1].into_iter().zip(expected) {
+            let (pairs, odd) = if kind == b'L' {
+                (Ok(1), Err(NativeCompilationSelection::Generic))
+            } else {
+                (Err(NativeCompilationSelection::Generic), Ok(0))
+            };
+            assert_eq!(
+                original_upvar_level_width(word, 3, version),
+                pairs,
+                "{word:?} {version:?} x y"
+            );
+            assert_eq!(
+                original_upvar_level_width(word, 4, version),
+                odd,
+                "{word:?} {version:?} x y z"
+            );
+        }
+    }
+}

@@ -34,5 +34,5 @@
     "test://config:250:27:ltm:virtual:/Common/bad_vs"
   ],
   "summary": {},
-  "tmshScript": "# tcl-lsp BIG-IP cleanup\n# Sources: test://config\n# Roots (kept): 4 virtual server(s) / wide-IP(s)\n# Candidates: none \u2014 every object is referenced.\n"
+  "tmshScript": "# tcl-lsp BIG-IP cleanup\n# Sources: test://config\n# Roots (kept): 4 virtual server(s) / wide-IP(s)\n# Candidates: none \u2014 no eligible candidates in the supplied graph; unknown kinds and kept objects are excluded.\n"
 }

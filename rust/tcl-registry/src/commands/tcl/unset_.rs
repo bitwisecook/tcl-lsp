@@ -130,13 +130,17 @@ pub fn spec() -> CommandSpec {
         name: "unset",
         // tclsh 8.6/9.0: completes normally or with an error, including
         // through variable traces and reflected channel handlers.
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         // Deletion mutates only the selected cells; trace callbacks are the
         // explicit re-entry boundary, as for the other variable primitives.
-        world_effects: Some(crate::world_effect::WorldEffectDescriptor::VARIABLE_WRITE),
+        world_effects: crate::knowledge::Knowledge::Partial(
+            crate::world_effect::WorldEffectDescriptor::VARIABLE_WRITE,
+        ),
         successful_handler: Some(
             crate::native_compilation::SuccessfulHandlerSpec::VariableOperands,
         ),

@@ -397,6 +397,21 @@ impl Vm {
         self.finish_host_execution(completion)
     }
 
+    /// Evaluate a script value in the current frame, as C's `Tcl_EvalEx` does:
+    /// its text reaches the parser untranslated, so a lone CR in a braced word
+    /// stays a CR. [`Self::eval_source`] reads its text as a script file is
+    /// read (`-translation auto`), as `tclsh FILE` and `source` do.
+    pub fn eval_value_source(&mut self, src: &str) -> Result<Completion<Value>, TclError> {
+        self.host_execution_depth += 1;
+        let image = tcl_lexer::SourceImage::native(src.as_bytes().to_vec());
+        let result = self.eval_source_image_internal(&image);
+        self.host_execution_depth -= 1;
+        if let Some(refusal) = self.take_host_boundary_refusal() {
+            return Err(TclError::from_execution_failure(refusal));
+        }
+        result
+    }
+
     /// Evaluate original native source bytes in the current frame.
     /// Source bytes are neither decoded into Rust Unicode nor rewritten into
     /// escaped source. Native compilation obligations remain host refusals.

@@ -232,9 +232,11 @@ impl WorkspaceIndex {
                     })
                     .collect();
                 // Steps 2 + 3 to their own fixpoint over this fixed edge set.
+                // Each pass carries the constants one `source` hop further, so
+                // a chain needs as many passes as it has edges.
                 let mut next: HashMap<String, tcl_compiler::auto_path_eval::FoldedPathConstants> =
                     HashMap::new();
-                for _inner in 0..ROUND_CAP {
+                for _inner in 0..=edges.len() {
                     let mut candidates: HashMap<
                         &str,
                         Vec<tcl_compiler::auto_path_eval::FoldedPathConstants>,

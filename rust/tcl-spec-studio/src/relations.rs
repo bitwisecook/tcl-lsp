@@ -191,8 +191,10 @@ pub const CLUSTERS: &[Cluster] = &[
             "side_effects",
             "side_effects_knowledge",
             "world_effects",
+            "world_effects_knowledge",
             "state_transitions",
             "result_stability",
+            "result_stability_knowledge",
             "const_fold",
             "const_fold_versioned",
             "semantics",
@@ -390,7 +392,7 @@ pub const CLUSTERS: &[Cluster] = &[
     Cluster {
         name: "Completion",
         why: "How the call finishes, and what the editor offers after it.",
-        members: &["completion"],
+        members: &["completion", "completion_knowledge"],
     },
 ];
 

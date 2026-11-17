@@ -88,7 +88,14 @@ pub(super) fn inline_procedures(
         return module;
     }
 
-    let mut counter: usize = 0;
+    // A live compile's splice locals are anonymous slots named by prefixes
+    // the module's source never spells, so no name in it can reach them.
+    let first = match scope {
+        Inlining::Live(..) => super::first_unspelled_splice(module.source.bytes()),
+        Inlining::Everything | Inlining::Only(_) => 1,
+    };
+    // Each splice numbers itself one past the counter.
+    let mut counter: usize = first.saturating_sub(1);
     let top_caller = module.top_level_namespace.clone();
     if let Some(may_be_global_frame) = scope.top_level(&module) {
         let (new_top, _) = rewrite_script(
@@ -131,6 +138,10 @@ pub(super) fn inline_procedures(
         }
     }
     module.procedures = procedures;
+    if matches!(scope, Inlining::Live(..)) {
+        module.reference_bodies.hidden_local_prefixes =
+            (first..=counter).map(super::local_prefix).collect();
+    }
     module
 }
 

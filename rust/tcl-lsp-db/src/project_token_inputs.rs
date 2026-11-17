@@ -138,7 +138,8 @@ pub fn project_named_instance_index_for_inputs(
 }
 
 /// Current document tokens with checked per-file cross-document source facts.
-/// A missing current-file mapping or unavailable input returns no tokens.
+/// A missing current-file mapping returns no tokens; a missing overlay returns
+/// the document-level tokens from the plain registry.
 #[salsa::tracked(returns(clone))]
 pub fn semantic_tokens_project_for_inputs(
     db: &dyn TclDb,
@@ -149,7 +150,9 @@ pub fn semantic_tokens_project_for_inputs(
         return SemanticTokens::default();
     };
     let Ok(input) = document_analysis_input(db, file, config) else {
-        return SemanticTokens::default();
+        // A missing overlay: advise from the plain registry, as the
+        // document-level query does, rather than blanking.
+        return crate::semantic_tokens(db, file, config);
     };
     let registry = input.borrowed_context_registry().commands();
     let cu = document_compilation_unit_for(db, file, config);

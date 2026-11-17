@@ -83,7 +83,7 @@ fn original_source_model_substitution_access(
         || arena.image() != origin.source_image()
         || arena.config() != context.config
         || input.lexer_config() != context.config
-        || arena.image().bytes().get(site.span.as_range()) != Some(spelling.as_bytes())
+        || !written_at_site(arena.image(), site.span, spelling)
     {
         return None;
     }
@@ -93,6 +93,16 @@ fn original_source_model_substitution_access(
         context.registry,
         TraceOperation::Read,
     ))
+}
+
+/// The read's spelling is written at its site. A braced reference's site ends
+/// on its last inner character, one before the closer the spelling includes.
+fn written_at_site(image: &tcl_lexer::SourceImage, site: tcl_lexer::Span, spelling: &str) -> bool {
+    let start = site.start() as usize;
+    let Some(end) = start.checked_add(spelling.len()) else {
+        return false;
+    };
+    image.bytes().get(start..end) == Some(spelling.as_bytes()) && site.end() as usize <= end
 }
 
 /// Source compilation selection, separate from any command's inline opcode.

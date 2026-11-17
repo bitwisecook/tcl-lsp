@@ -305,7 +305,7 @@ impl ConditionalLogicalScalarStore {
         let after = &self.after;
         // A hosted F5 rule's advisory walk runs under its authored naming
         // simulation and handler context; the cell must still be the
-        // handler's own activation.
+        // handler's own.
         let hosted = self.input.has_hosted_source_name_context();
         if self.before.namespace_identity != after.namespace_identity
             || !matches!(
@@ -359,7 +359,13 @@ impl ConditionalLogicalScalarStore {
             CellOwner::Activation(activation) => {
                 after.activation.as_ref() == Some(activation) && cell.storage_domain.is_none()
             }
-            CellOwner::Namespace(_) | CellOwner::NamespaceIdentity(_) if hosted => false,
+            // A hosted handler's namespace cell is its own only at the global
+            // level, where the handler has no activation (`RULE_INIT`).
+            CellOwner::Namespace(_) | CellOwner::NamespaceIdentity(_)
+                if hosted && after.activation.is_some() =>
+            {
+                false
+            }
             CellOwner::Namespace(_) | CellOwner::NamespaceIdentity(_) => {
                 after.namespace_footprint(&place) == after.namespace_identity
                     && matches!(

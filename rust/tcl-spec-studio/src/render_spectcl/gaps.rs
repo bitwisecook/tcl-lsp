@@ -124,7 +124,13 @@ pub const GAPS: &[Gap] = &[
     // representation proofs; the loadable authoring surface cannot assert those.
     Gap {
         key: "completion",
-        spelling: "completion {CODE …}",
+        spelling: "completion {CODE …} ?-partial? ?-complete WINDOW?…",
+        kind: GapKind::DraftOpaque,
+    },
+    Gap {
+        // Spelled on the opaque `completion` row, so it travels with it.
+        key: "completion_knowledge",
+        spelling: "completion … -complete WINDOW",
         kind: GapKind::DraftOpaque,
     },
     Gap {
@@ -172,7 +178,14 @@ pub const GAPS: &[Gap] = &[
         // Unsupported typed world accesses withdraw strong semantics; they cannot
         // become an empty footprint or derive native write proof from a spelling.
         key: "world_effects",
-        spelling: "world_effects none|NAME|{ … }",
+        spelling: "world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…",
+        kind: GapKind::DraftOpaque,
+    },
+    Gap {
+        // Its completeness is spelled on the `world_effects` row itself, so
+        // it travels with that opaque row and has no row of its own.
+        key: "world_effects_knowledge",
+        spelling: "world_effects … -complete WINDOW",
         kind: GapKind::DraftOpaque,
     },
     // Every row of the block loads — `resolver` a body of the
@@ -245,7 +258,13 @@ pub const GAPS: &[Gap] = &[
     },
     Gap {
         key: "result_stability",
-        spelling: "result_stability Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}",
+        spelling: "result_stability Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}} ?-partial? ?-complete WINDOW?…",
+        kind: GapKind::DraftOpaque,
+    },
+    Gap {
+        // Spelled on the opaque `result_stability` row, so it travels with it.
+        key: "result_stability_knowledge",
+        spelling: "result_stability … -complete WINDOW",
         kind: GapKind::DraftOpaque,
     },
     // The draft has it; the loader does not read it yet.

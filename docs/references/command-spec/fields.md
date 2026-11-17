@@ -629,6 +629,16 @@ What state the command touches — variables, channels, files, network, logs, HT
 
 Which of Tcl's completion codes the command can finish with — normal return, `error`, `break`, `continue`, `return` — and what it promises about the result. `error` always raises; `break` only makes sense in a loop. This powers checks like "this `break` is outside any loop" and dead-code reasoning after a command that always raises.
 
+### `completion_knowledge` — Completion completeness
+
+*command and subcommand* — How completely the completion codes are known: unknown, partial (a lower bound), or complete for the release windows evidenced from the implementation.
+
+How much of the completion contract is known. **Unknown** claims nothing, and the call may finish with any code. **Partial** says the codes listed can occur and others may. **Complete** says they are every code the implementation can finish with, for the release windows you evidenced from its source; a complete contract of `Ok` and `Error` only is one of the four facts purity is derived from.
+
+```
+completion {Ok Error} -complete {8.4 9.1}
+```
+
 ### `command_table_effect` — Command-table effect
 
 *command and subcommand* — How the command mutates the interpreter's command table.
@@ -662,6 +672,18 @@ One release never vouches for another: a window outside the evidenced ones stays
 
 A compiler-oriented summary of the same idea as side effects: which broad domains of the running interpreter's world (variables, commands, namespaces, traces, channels …) the command reads, writes, or can call back into. Used by the optimiser to decide what survives across the call. Expression-valued; leave unset and the optimiser stays conservative.
 
+### `world_effects_knowledge` — World-effect completeness
+
+*command and subcommand* — How completely the world effects are known: unknown, partial (a lower bound), or complete for the release windows evidenced from the implementation.
+
+How much of the world-effect footprint is known. **Unknown** claims nothing. **Partial** says the footprint holds and there may be more. **Complete** says it is the whole footprint for the release windows you evidenced from the implementation's source; a complete, effect-free footprint is one of the four facts purity is derived from.
+
+```
+world_effects -complete {8.4 9.1} none
+```
+
+The flags sit on the `world_effects` row itself, so the completeness travels with the row. One release never vouches for another.
+
 ### `state_transitions` — State transitions
 
 *command and subcommand* — Target-neutral command, namespace, interpreter, trace, and alias transitions.
@@ -679,6 +701,16 @@ What must stay *unchanged* for the registry's knowledge about this command to re
 *command and subcommand* — Whether repeated calls return the same value, or depend on mutable or volatile state.
 
 Whether calling the command twice with the same arguments yields the same value. `string length` always does; `clock seconds` may not; `info commands` depends on what has been defined in the meantime. Purity says "no side effects"; this says "same answer again" — a command can be pure yet unstable (`clock seconds` changes nothing but its answer advances with the clock). The optimiser only reuses results it can prove stable.
+
+### `result_stability_knowledge` — Result-stability completeness
+
+*command and subcommand* — How completely the result stability is known: unknown, partial (stated), or complete for the release windows evidenced from the implementation.
+
+How much the result-stability claim is known. **Unknown** claims nothing, and a repeated call may return anything. **Partial** says the claim was stated without evidence. **Complete** says it holds for the release windows you evidenced from the implementation's source; a complete `ReferentiallyTransparent` is one of the four facts purity is derived from.
+
+```
+result_stability ReferentiallyTransparent -complete {8.4 9.1}
+```
 
 ## Compiler hooks
 

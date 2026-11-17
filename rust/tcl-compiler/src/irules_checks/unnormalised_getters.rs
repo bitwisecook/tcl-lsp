@@ -18,7 +18,7 @@
 
 //! IRULE3102: getters read without the normalisation their option vocabulary declares.
 
-use super::{IrulesCheckWarning, IrulesSourceQuery, is_irules};
+use super::{IrulesCheckPayload, IrulesCheckWarning, IrulesSourceQuery, is_irules};
 use crate::compilation_unit::CompilationUnit;
 #[cfg(test)]
 use crate::irules_checks::FunctionUnit;
@@ -178,6 +178,9 @@ fn original_getter_source_warnings(
                     span: Span::new(tokens.argv.first()?.start(), tokens.argv.last()?.end()),
                     code: DiagCode::Irule3102,
                     message: format_message(&candidate.command),
+                    payload: IrulesCheckPayload::UnnormalisedGetter {
+                        command: candidate.command.clone(),
+                    },
                     replacement: None,
                     fixes: Vec::new(),
                 });

@@ -239,8 +239,9 @@ pub(super) fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unreco
     );
     d.insert(
         "completion".into(),
-        lost.expr("completion", spec.completion.is_some()),
+        lost.expr("completion", !spec.completion.is_unknown()),
     );
+    d.insert("completion_knowledge".into(), knowledge(&spec.completion));
     d.insert(
         "lowering_hook".into(),
         spec.lowering_hook
@@ -257,38 +258,7 @@ pub(super) fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unreco
         spec.command_table_effect
             .map_or(Value::Null, |e| json!(catalogue::variant_name(&e))),
     );
-    d.insert(
-        "side_effects".into(),
-        nested_rows(
-            spec.side_effects.lower_bound(),
-            "side_effects",
-            lost,
-            side_effect,
-        ),
-    );
-    d.insert(
-        "side_effects_knowledge".into(),
-        knowledge(&spec.side_effects),
-    );
-    d.insert(
-        "world_effects".into(),
-        lost.expr("world_effects", spec.world_effects.is_some()),
-    );
-    d.insert(
-        "state_transitions".into(),
-        lost.expr("state_transitions", spec.state_transitions.is_some()),
-    );
-    d.insert(
-        "dispatch_dependencies".into(),
-        lost.expr(
-            "dispatch_dependencies",
-            spec.dispatch_dependencies.is_some(),
-        ),
-    );
-    d.insert(
-        "result_stability".into(),
-        lost.expr("result_stability", spec.result_stability.is_some()),
-    );
+    command_effects(d, spec, lost);
     d.insert(
         "native_result".into(),
         lost.expr("native_result", spec.native_result.is_some()),
@@ -314,6 +284,50 @@ pub(super) fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unreco
         "inferred_storage_type".into(),
         spec.inferred_storage_type
             .map_or(Value::Null, |t| json!(catalogue::variant_name(&t))),
+    );
+}
+
+/// The effect domains, and how completely each is known (issue #1712).
+fn command_effects(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
+    d.insert(
+        "side_effects".into(),
+        nested_rows(
+            spec.side_effects.lower_bound(),
+            "side_effects",
+            lost,
+            side_effect,
+        ),
+    );
+    d.insert(
+        "side_effects_knowledge".into(),
+        knowledge(&spec.side_effects),
+    );
+    d.insert(
+        "world_effects".into(),
+        lost.expr("world_effects", !spec.world_effects.is_unknown()),
+    );
+    d.insert(
+        "world_effects_knowledge".into(),
+        knowledge(&spec.world_effects),
+    );
+    d.insert(
+        "state_transitions".into(),
+        lost.expr("state_transitions", spec.state_transitions.is_some()),
+    );
+    d.insert(
+        "dispatch_dependencies".into(),
+        lost.expr(
+            "dispatch_dependencies",
+            spec.dispatch_dependencies.is_some(),
+        ),
+    );
+    d.insert(
+        "result_stability".into(),
+        lost.expr("result_stability", !spec.result_stability.is_unknown()),
+    );
+    d.insert(
+        "result_stability_knowledge".into(),
+        knowledge(&spec.result_stability),
     );
 }
 

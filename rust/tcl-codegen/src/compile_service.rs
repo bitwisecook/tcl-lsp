@@ -62,7 +62,7 @@ use tcl_runtime_api::{
 /// document: the profile's default availability over the caller's exact
 /// command store and its lexer configuration. `None` when the store's
 /// metadata cannot correspond to that profile's availability.
-fn fresh_document_input(
+pub(crate) fn fresh_document_input(
     registry: &CommandRegistry,
     config: LexerConfig,
     profile: &'static DialectProfile,
@@ -97,6 +97,12 @@ fn profile_less_engine() -> &'static DialectProfile {
     )
     .unit_profile()
 }
+
+/// Whether the VM's own compile of a procedure body splices pack reference
+/// bodies. Off until an error raised inside a spliced body presents as the
+/// called procedure's does (its `errorInfo` frame lines and errorstack entry,
+/// from the definition's own text); the splice itself is admitted and correct.
+pub const LIVE_REFERENCE_INLINING: bool = false;
 
 fn validate_native_function(function: &tcl_bytecode::FunctionAsm) -> Result<(), CompileError> {
     function
@@ -741,7 +747,8 @@ impl BytecodeCompileService {
         };
         // A pack's definition is spliced only where the whole function is
         // then admitted: otherwise the caller compiles as it would without it.
-        if entry.is_some()
+        if LIVE_REFERENCE_INLINING
+            && entry.is_some()
             && let Some(options) = options
             && let Some(inlined) = crate::inlining::inline_reference_bodies_live(
                 &ir,

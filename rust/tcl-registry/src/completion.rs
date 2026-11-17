@@ -265,6 +265,18 @@ impl CompletionPayloadObligations {
     };
 }
 
+impl crate::knowledge::Knowledge<CompletionDescriptor> {
+    /// The descriptor a consumer acts on: the stated one, or
+    /// [`CompletionDescriptor::CONSERVATIVE`] when nothing is known.
+    #[must_use]
+    pub const fn or_conservative(&self) -> CompletionDescriptor {
+        match self.stated() {
+            Some(descriptor) => descriptor,
+            None => CompletionDescriptor::CONSERVATIVE,
+        }
+    }
+}
+
 /// Target-neutral completion contract for a command, subcommand, or form.
 ///
 /// A form descriptor overrides a resolved subcommand descriptor, which in

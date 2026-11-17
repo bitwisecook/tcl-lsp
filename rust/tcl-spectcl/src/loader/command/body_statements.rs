@@ -21,7 +21,7 @@
 use super::super::block_descriptors::{
     IRULES_SOURCE_FLOWS, SIDE_SWITCH_TARGETS, body_scope_value, clause_grammar_value,
     data_collection_row, event_handler_priority_row, event_requirement_form_row, manufacturer_row,
-    result_stability_row,
+    result_stability_value,
 };
 use super::super::body_rows::{
     hover_block, option_effect_family_row, option_row, parse_callback_taint_input_table,
@@ -31,12 +31,12 @@ use super::super::subcommand::{load_subcommand, versioned_arg_value_row};
 use super::super::value_parsers::{
     ANALYSER_HOOKS, BODY_KINDS, CODEGEN_HOOKS, DEFAULT_FORM_FIRST_WORDS, FORM_KINDS, FORMAT_TYPES,
     INLINE_CODEGEN_HOOKS, LOWERING_HOOKS, RETURN_TYPE_HOOKS, STORAGE_TYPES, TCL_TYPES,
-    apply_availability, checked_lifecycle, completion_row, enum_by_name, lifecycle_flag,
-    list_words, next_text, object_class_row, parse_arity, parse_byte_array_effect,
-    parse_byte_array_payload, parse_defines_symbol, parse_deprecation_fix, parse_dialects,
-    parse_flag, parse_handle_binding, parse_representation_effect, parse_return_elements,
-    parse_semantic_operation, parse_setter_constraint, parse_taint, parse_traits, parse_tristate,
-    parse_var_elements_effect, parse_var_write_typing, place_stamp, stamp_gate,
+    apply_availability, checked_lifecycle, enum_by_name, lifecycle_flag, list_words, next_text,
+    object_class_row, parse_arity, parse_byte_array_effect, parse_byte_array_payload,
+    parse_defines_symbol, parse_deprecation_fix, parse_dialects, parse_flag, parse_handle_binding,
+    parse_representation_effect, parse_return_elements, parse_semantic_operation,
+    parse_setter_constraint, parse_taint, parse_traits, parse_tristate, parse_var_elements_effect,
+    parse_var_write_typing, place_stamp, stamp_gate,
 };
 use super::super::vocabulary_class::VocabularyClass;
 use super::super::{
@@ -45,7 +45,9 @@ use super::super::{
     allow_context, available, leak_one, leak_slice, leak_str, leak_strs, literals_valid,
     no_constraint_reports, semantics, sink_applies,
 };
-use super::effect_rows::{effects_row, frame_effect_row, option_relation_row, side_effect_row};
+use super::effect_rows::{
+    completion_value, effects_row, frame_effect_row, option_relation_row, side_effect_row,
+};
 use super::refinements::{load_refinement, variable_receivers_value};
 use super::role_resolvers::{
     arg_role_capabilities, index_list, native_count_role_resolver, native_id,
@@ -316,7 +318,7 @@ pub(in super::super) fn apply_command_stmt(
         "return_type" => {
             spec.return_type = enum_by_name(TCL_TYPES, &value, "return type", stmt.line, log);
         }
-        "completion" => spec.completion = completion_row(&value, stmt.line, log),
+        "completion" => spec.completion = completion_value(stmt, log),
         "var_write_typing" => {
             if let Some(typing) = parse_var_write_typing(&value, stmt.line, log) {
                 spec.var_write_typing = typing;
@@ -441,8 +443,9 @@ pub(in super::super) fn apply_command_stmt(
         }
         // The ratified words (design §6.2, §6.3's blind spot).
         "result_stability" => {
-            if let Some(stability) = result_stability_row(stmt, log) {
-                spec.result_stability = Some(stability);
+            let stability = result_stability_value(stmt, log);
+            if !stability.is_unknown() {
+                spec.result_stability = stability;
             }
         }
         "irules_source_flow" => {

@@ -78,6 +78,21 @@ pub(super) fn invoke_inner_context(
     Value::list(context)
 }
 
+/// The TIP 348 `INNER` context of a compiled instruction that failed after
+/// consuming `operands` (C's `TclGetInnerContext`): its name in the release's
+/// instruction set and those operands, as `{mult abc 2}`.
+fn instruction_inner_context(vm: &Vm, instruction: &Instruction, operands: &[Value]) -> Value {
+    let mnemonic = if vm.runtime_version().emits_wide_instructions_only() {
+        instruction.op.wide_mnemonic()
+    } else {
+        instruction.op.mnemonic()
+    };
+    let mut context = Vec::with_capacity(operands.len() + 1);
+    context.push(Value::string(mnemonic));
+    context.extend(operands.iter().cloned());
+    Value::list(context)
+}
+
 /// The `INNER` context of an `error` or `throw` C compiles to `returnImm`
 /// (`TclCompileErrorCmd`, `TclCompileThrowCmd`): one whose command word is
 /// literally the command, with the message and the options it builds.
@@ -173,35 +188,38 @@ impl Vm {
         }
         if c.code == Code::Error
             && let Some((text, line, context, enclosing)) = acts.last().and_then(|frame| {
-                frame
-                    .asm
-                    .instructions
-                    .get(frame.pc.saturating_sub(1))
-                    .map(|instruction| {
-                        let (logged, line, enclosing) = logged_command(instruction);
-                        let context = match instruction.error_stack_context.as_ref() {
-                            Some(ErrorStackContext::CommandResult { head, .. }) => {
-                                Value::list(vec![Value::string(head.as_str()), c.result.clone()])
-                            }
-                            Some(ErrorStackContext::ReturnImmediate { .. }) | None => {
-                                Value::from_native_string_bytes(
-                                    instruction.source_cmd_text.bytes().to_vec(),
-                                )
-                            }
-                        };
-                        let text = match instruction.error_stack_context.as_ref() {
-                            Some(ErrorStackContext::CommandResult {
-                                error_info_command, ..
-                            }) => error_info_command.clone(),
-                            Some(ErrorStackContext::ReturnImmediate { error_info_command })
-                                if !error_info_command.is_empty() =>
-                            {
-                                error_info_command.clone()
-                            }
-                            Some(ErrorStackContext::ReturnImmediate { .. }) | None => logged,
-                        };
-                        (text, line, context, enclosing)
-                    })
+                let index = frame.pc.saturating_sub(1);
+                frame.asm.instructions.get(index).map(|instruction| {
+                    let (logged, line, enclosing) = logged_command(instruction);
+                    let context = match instruction.error_stack_context.as_ref() {
+                        Some(ErrorStackContext::CommandResult { head, .. }) => {
+                            Value::list(vec![Value::string(head.as_str()), c.result.clone()])
+                        }
+                        None if let Some(operands) = frame.failed_operands_at(index)
+                            && instruction.evaluation
+                                != tcl_runtime_api::CommandEvaluation::Direct =>
+                        {
+                            instruction_inner_context(self, instruction, operands)
+                        }
+                        Some(ErrorStackContext::ReturnImmediate { .. }) | None => {
+                            Value::from_native_string_bytes(
+                                instruction.source_cmd_text.bytes().to_vec(),
+                            )
+                        }
+                    };
+                    let text = match instruction.error_stack_context.as_ref() {
+                        Some(ErrorStackContext::CommandResult {
+                            error_info_command, ..
+                        }) => error_info_command.clone(),
+                        Some(ErrorStackContext::ReturnImmediate { error_info_command })
+                            if !error_info_command.is_empty() =>
+                        {
+                            error_info_command.clone()
+                        }
+                        Some(ErrorStackContext::ReturnImmediate { .. }) | None => logged,
+                    };
+                    (text, line, context, enclosing)
+                })
             })
         {
             let message = c.result.string_bytes();
@@ -817,6 +835,9 @@ impl Vm {
     ) -> ChildCompletion {
         parent.tailcall_invocation = None;
         parent.tailcall_owners.clear();
+        if completion.code != Code::Error {
+            parent.failed_operands = None;
+        }
         if parent.subst.is_some() {
             return match self.fold_subst_bracket(parent, completion) {
                 SubstFold::Resume => ChildCompletion::Resume,

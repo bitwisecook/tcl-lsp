@@ -26,13 +26,61 @@ and byte extent. Deserialization accepts supported reporting data and never
 reconstructs the original semantic owner. Missing, malformed, mismatched-code,
 or future-version descriptions remain unknown.
 
+## Compiler-check payloads
+
+Every `tcl_compiler::compiler_checks::Diagnostic` carries one typed
+`CheckPayload`. `CheckPayloadKind::accepts` owns which family each code
+carries, and `CheckPayload::CODES` lists every code the pipeline emits. The
+message and fix descriptions are rendered from the producer's fields; no
+consumer reads them back.
+
+| Codes | Family | Fields |
+|---|---|---|
+| O100 | `ConstantBranch` | `value`: the proved condition value |
+| O105, O106 | `Redundancy` | `first_span`: the first computation; `expression`: the repeated expression text |
+| S100, S101, S110 | `Representation` | `variable`, `from_type`, `to_type`, `command`, `in_loop` |
+| S102 | `Oscillation` | `variable`, `first_type`, `second_type` |
+| S103 | `SharedCopy` | `variable`, `shared_with`, `command` |
+| T100–T106, W313, IRULE3001–IRULE3004, IRULE3101, IRULE3103 | `Taint` | `variable`, `sink_command`, and the retained source sink invocation when the producer has one |
+| W201 | `PathConcatenation` | `variable` |
+| IRULE1005 | `Irules::EventWithoutCollect` | `event`, `side`, `collect_commands` |
+| IRULE1006 | `Irules::PayloadWithoutCollect` | `protocol`, `side` |
+| IRULE1007 | `Irules::CollectWithoutRelease` | `protocol`, `side` |
+| IRULE1008 | `Irules::ReleaseWithoutCollect` | `protocol`, `side` |
+| IRULE1201 | `Irules::ContextAfterResponse` | `command`, `event` |
+| IRULE1202 | `Irules::RepeatedResponse` | `command`, `event` |
+| IRULE3102 | `Irules::UnnormalisedGetter` | `command` |
+| IRULE4002 | `Irules::GenericStaticName` | `source_name`, `pattern_name` |
+| IRULE4004 | `Irules::HoistableAssignment` | `variable` |
+| IRULE5002 | `Irules::UnguardedDrop` | `command` |
+| IRULE5004 | `Irules::UnguardedDnsReturn` | none beyond the code and span |
+
+Names in these fields are the producer's analysis subjects, not native lookup
+keys. `compiler_checks::payload_contract_tests` runs one source per code and
+asserts that every emitted diagnostic carries the family its code is assigned.
+
+On the wire, `tcl_lsp_core::check_payload::CheckPayloadData` is the
+version-one projection, shared by LSP `Diagnostic.data`, `tcl diag --json`
+and the MCP diagnostic object through `Finding::structured_data`. It holds the
+code, a `kind`-tagged payload with names as byte arrays, and, when the issuer
+retained source context for an action, the process-local `sourceAdvice`
+handle. Decoding requires version 1, the expected code, and a payload family
+that code is assigned; anything else stays unknown. The source sink of a
+taint payload does not travel. Each adapter has a round-trip test over
+`check_payload::family_fixtures`, which holds one diagnostic per family with
+quoted, spaced, qualified, control-character and non-ASCII names.
+
+## Adding a subject
+
 When adding a diagnostic subject, define its data at the emission owner,
 retain every independent naming input needed by its consumers, and extend this
 shared transport. Verify that changing the message or fixes does not change
 semantic behavior, that equal messages can describe distinct subjects, and
 that absent data cannot recover a name from presentation. Test protocol
-adapters against the same projection. The broader diagnostic-family contract
-is tracked in [#2426](https://github.com/bitwisecook/tcl-lsp/issues/2426).
+adapters against the same projection. A new compiler-check code takes a
+`CheckPayload` family (or a new one), an entry in `CheckPayload::CODES`, a
+fixture in `payload_contract_tests` and, for a new family, a variant in
+`CheckPayloadData` and in `family_fixtures`.
 
 The same rule holds for the other reports with rendered text. An optimiser
 rewrite receipt authorises the issued edit (code, span, replacement, group,

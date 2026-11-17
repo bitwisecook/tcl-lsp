@@ -245,8 +245,7 @@ fn compiler_check_memo_matches_uncached_argc_t100_controls() {
                 got.checks.iter().any(|check| {
                     check.code == DiagCode::T100
                         && check
-                            .taint_subject
-                            .as_ref()
+                            .taint_subject()
                             .is_some_and(|subject| subject.variable() == name)
                 }),
                 "missing T100 for {name}: {src}"

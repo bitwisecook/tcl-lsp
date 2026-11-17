@@ -431,6 +431,7 @@ impl SourceCommandBindings {
             roots.len(),
             self.declaration_layouts.len(),
         );
+        let share = ScopeAliasOwnershipShare::for_roots(&roots);
         let mut pending = Vec::new();
         for (site, observations) in roots {
             let Some(tokens) = declaration_tokens(&site, &observations[0]) else {
@@ -442,12 +443,14 @@ impl SourceCommandBindings {
                 &observations,
                 registry,
                 &mut pending,
+                &share,
             );
             pending.extend(unanimous_nested_layouts(
                 &site,
                 &tokens,
                 &observations,
                 registry,
+                &share,
             ));
         }
         #[cfg(any(test, debug_assertions))]
@@ -482,8 +485,13 @@ impl SourceCommandBindings {
                 continue;
             };
             for command in commands.iter() {
-                let retains_successor =
-                    self.retain_nested_layout_command(command, &parents, registry, &mut pending);
+                let retains_successor = self.retain_nested_layout_command(
+                    command,
+                    &parents,
+                    registry,
+                    &mut pending,
+                    &share,
+                );
                 depths.resize(pending.len(), depth + 1);
                 if !retains_successor {
                     break;
@@ -506,6 +514,7 @@ impl SourceCommandBindings {
         parents: &[DeclarationLayoutObservation],
         registry: &tcl_registry::CommandRegistry,
         pending: &mut Vec<(ExecutedScriptSource, Vec<DeclarationLayoutObservation>)>,
+        share: &ScopeAliasOwnershipShare,
     ) -> bool {
         let tokens = command.tokens.as_ref();
         let site = &command.site;
@@ -531,10 +540,17 @@ impl SourceCommandBindings {
                 retained.push(observation.clone());
             }
         }
-        self.retain_original_argument_layouts(site, tokens, &observations, registry, pending);
+        self.retain_original_argument_layouts(
+            site,
+            tokens,
+            &observations,
+            registry,
+            pending,
+            share,
+        );
         let originals = parent_declaration_layouts(site, tokens, &observations, registry);
         pending.extend(unanimous_nested_layouts_from_parents(
-            site, &originals, registry,
+            site, &originals, registry, share,
         ));
         originals.iter().all(|row| {
             row.original
@@ -611,6 +627,7 @@ impl SourceCommandBindings {
         parents: &[DeclarationLayoutObservation],
         registry: &tcl_registry::CommandRegistry,
         pending: &mut Vec<(ExecutedScriptSource, Vec<DeclarationLayoutObservation>)>,
+        share: &ScopeAliasOwnershipShare,
     ) {
         use crate::ir::{Provenance, WordExpr};
         let Some(input) = parents
@@ -687,7 +704,7 @@ impl SourceCommandBindings {
                 },
                 Box::new(child.clone()),
             );
-            if !self.retain_nested_layout_command(&command, parents, registry, pending) {
+            if !self.retain_nested_layout_command(&command, parents, registry, pending, share) {
                 return;
             }
         }
@@ -777,20 +794,22 @@ pub(super) fn unanimous_nested_layouts(
     tokens: &crate::ir::CommandTokens,
     parents: &[DeclarationLayoutObservation],
     registry: &tcl_registry::CommandRegistry,
+    share: &ScopeAliasOwnershipShare,
 ) -> Vec<(ExecutedScriptSource, Vec<DeclarationLayoutObservation>)> {
     let originals = parent_declaration_layouts(site, tokens, parents, registry);
-    unanimous_nested_layouts_from_parents(site, &originals, registry)
+    unanimous_nested_layouts_from_parents(site, &originals, registry, share)
 }
 
 pub(super) fn unanimous_nested_layouts_from_parents(
     site: &CommandAllocationSite,
     originals: &[ParentDeclarationLayout<'_>],
     registry: &tcl_registry::CommandRegistry,
+    share: &ScopeAliasOwnershipShare,
 ) -> Vec<(ExecutedScriptSource, Vec<DeclarationLayoutObservation>)> {
     let mut agreed: Option<Vec<ExecutedScriptSource>> = None;
     for row in originals {
         let sources = row.original.as_ref().map_or_else(Vec::new, |original| {
-            nested_conditional_layouts(site, row.parent, original, registry)
+            nested_conditional_layouts(site, row.parent, original, registry, share)
         });
         if agreed.as_ref().is_some_and(|previous| previous != &sources) {
             return Vec::new();
@@ -805,11 +824,107 @@ pub(super) fn unanimous_nested_layouts_from_parents(
         .collect()
 }
 
+/// The scope-alias names a parent body may write, shared by its sites while
+/// no command-table, namespace or alias transition separates them. A root
+/// body's span starts at its first site in source order; a nested body's
+/// observations already share their parent's entry snapshot.
+#[derive(Default)]
+pub(super) struct ScopeAliasOwnershipShare {
+    span_starts: HashMap<usize, Arc<SourceLookupSnapshot>>,
+    results: std::cell::RefCell<
+        HashMap<ScopeAliasOwnershipKey, Option<crate::ir_helpers::VariableWriteEffects>>,
+    >,
+}
+
+#[derive(PartialEq, Eq, Hash)]
+struct ScopeAliasOwnershipKey {
+    snapshot: usize,
+    source: ExecutedScriptSource,
+    namespace: super::super::SourceNamespaceKey,
+    config: tcl_lexer::LexerConfig,
+}
+
+type RootBodyKey<'a> = (
+    &'a ExecutedScriptSource,
+    &'a super::super::SourceNamespaceKey,
+    tcl_lexer::LexerConfig,
+);
+
+impl ScopeAliasOwnershipShare {
+    pub(super) fn for_roots(
+        roots: &[(CommandAllocationSite, Vec<DeclarationLayoutObservation>)],
+    ) -> Self {
+        let mut bodies: HashMap<RootBodyKey<'_>, Vec<(u32, &Arc<SourceLookupSnapshot>)>> =
+            HashMap::new();
+        for (site, observations) in roots {
+            for observation in observations {
+                bodies
+                    .entry((
+                        observation.entry.source(),
+                        &observation.namespace,
+                        observation.config,
+                    ))
+                    .or_default()
+                    .push((site.offset, &observation.snapshot));
+            }
+        }
+        let mut span_starts = HashMap::new();
+        for mut sites in bodies.into_values() {
+            sites.sort_by_key(|(offset, _)| *offset);
+            let mut start: Option<&Arc<SourceLookupSnapshot>> = None;
+            for (_, snapshot) in sites {
+                if !start.is_some_and(|start| {
+                    Arc::ptr_eq(start, snapshot)
+                        || start.state.same_command_world_tables(&snapshot.state)
+                }) {
+                    start = Some(snapshot);
+                }
+                span_starts
+                    .entry(Arc::as_ptr(snapshot) as usize)
+                    .or_insert_with(|| Arc::clone(start.expect("span start")));
+            }
+        }
+        Self {
+            span_starts,
+            results: std::cell::RefCell::default(),
+        }
+    }
+
+    fn scope_alias_ownership(
+        &self,
+        parent: &DeclarationLayoutObservation,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<crate::ir_helpers::VariableWriteEffects> {
+        let start = self
+            .span_starts
+            .get(&(Arc::as_ptr(&parent.snapshot) as usize))
+            .unwrap_or(&parent.snapshot);
+        let key = ScopeAliasOwnershipKey {
+            snapshot: Arc::as_ptr(start) as usize,
+            source: parent.entry.source().clone(),
+            namespace: parent.namespace.clone(),
+            config: parent.config,
+        };
+        if let Some(known) = self.results.borrow().get(&key) {
+            return known.clone();
+        }
+        let observation = DeclarationLayoutObservation {
+            snapshot: Arc::clone(start),
+            ..parent.clone()
+        };
+        let effects = observation
+            .source_body_name_ownership(registry, crate::script_binds::Ownership::ScopeAliases);
+        self.results.borrow_mut().insert(key, effects.clone());
+        effects
+    }
+}
+
 fn nested_conditional_layouts(
     site: &CommandAllocationSite,
     parent: &DeclarationLayoutObservation,
     original: &OriginalDeclarationLayout,
     registry: &tcl_registry::CommandRegistry,
+    share: &ScopeAliasOwnershipShare,
 ) -> Vec<ExecutedScriptSource> {
     let advice = &original.advice;
     let selected = &original.flow;
@@ -835,6 +950,7 @@ fn nested_conditional_layouts(
                 parent,
                 advice,
                 registry,
+                share,
             )
         }) {
             break;
@@ -883,6 +999,7 @@ fn condition_retains_original_lookup(
     parent: &DeclarationLayoutObservation,
     advice: &super::super::OriginalCompilationLookupAdvice,
     registry: &tcl_registry::CommandRegistry,
+    share: &ScopeAliasOwnershipShare,
 ) -> bool {
     use tcl_syntax::expr::ast::ExprNode;
     let Some(source) = original_nested_body(site, argument, effective, parent, advice) else {
@@ -913,11 +1030,8 @@ fn condition_retains_original_lookup(
                 if !matches!(reference, Ok(Some(reference)) if reference.index.is_none())
                     || tcl_syntax::naming::is_qualified(name.as_bytes())
                     || super::super::declaration_layout::local_read_scope_is_excluded(context, name)
-                    || parent
-                        .source_body_name_ownership(
-                            registry,
-                            crate::script_binds::Ownership::ScopeAliases,
-                        )
+                    || share
+                        .scope_alias_ownership(parent, registry)
                         .is_none_or(|effects| {
                             effects.opaque
                                 || effects.names.iter().any(|candidate| candidate == name)

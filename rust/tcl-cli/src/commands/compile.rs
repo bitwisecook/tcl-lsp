@@ -37,7 +37,7 @@ use tcl_cli_support::{
     write_binary_output, write_text_output,
 };
 use tcl_codegen::codegen::codegen_module;
-use tcl_codegen::codegen::format::format_module_asm;
+use tcl_codegen::codegen::format::format_module_asm_named;
 use tcl_codegen::codegen::wasm::{WasmCompileOptions, compile_wasm};
 use tcl_compiler::cfg_builder::build_cfg_codegen_with_registry;
 use tcl_compiler::compilation_unit::CompilationUnit;
@@ -101,7 +101,10 @@ pub fn run_dis(input: &InputArgs, optimise_on: bool) -> anyhow::Result<u8> {
     let cfg = build_cfg_codegen_with_registry(&ir, false, &registry);
     let mut module = codegen_module(&cfg, &ir, &registry)?;
     tcl_explorer::live_entry::recompile_through_live_entry(&ir, &mut module);
-    let disassembly = format_module_asm(&module);
+    let wide_names = dialect
+        .runtime_version()
+        .is_some_and(tcl_dialect::TclVersion::emits_wide_instructions_only);
+    let disassembly = format_module_asm_named(&module, wide_names);
 
     let target = OutputTarget::from_arg(input.output.as_deref());
     write_text_output(&target, &disassembly)?;

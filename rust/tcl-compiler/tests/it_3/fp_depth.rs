@@ -976,7 +976,9 @@ mod sty_depth {
         // (`"prefix$pat"`) the word is no longer a pure reference — a literal
         // pattern *was* expected there — so W306 still fires. Proves the
         // pure-var carve-out is shape-gated, not a blanket quoted-`$` exemption.
-        let src = "regexp \"prefix$pat\" $s\n";
+        // The variables are bound first: tclsh 8.6.18 raises `can't read
+        // "pat"` otherwise and never runs the `regexp`.
+        let src = "set pat x\nset s y\nregexp \"prefix$pat\" $s\n";
         assert!(
             fires(src, D, "W306"),
             "a concatenated `$pat` in a quoted regexp pattern must fire W306; emitted {:?}",

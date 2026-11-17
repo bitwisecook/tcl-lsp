@@ -35,7 +35,9 @@
 
 use crate::frame_effect::{FrameArgLayout, FrameEffectSpec};
 use crate::invocation_words::InvocationArguments;
+use crate::knowledge::Knowledge;
 use crate::side_effects::{SideEffect, SideEffectTarget};
+use tcl_dialect::model::SurfaceQuery;
 
 /// A mutable Tcl or host state domain used by common effect analyses.
 ///
@@ -989,6 +991,16 @@ const CELL_CALLBACK: CallbackEffect = CallbackEffect {
 };
 
 impl WorldEffectDescriptor {
+    /// Whether the descriptor states no world access, no callback and no
+    /// resolver.
+    #[must_use]
+    pub fn is_effect_free(self) -> bool {
+        self.static_footprint.accesses.is_empty()
+            && self.static_footprint.callback == CallbackEffect::NONE
+            && self.resolver.is_none()
+            && self.source_resolver.is_none()
+    }
+
     /// An explicitly effect-free, closed-world descriptor with no resolver.
     ///
     /// This is distinct from absent metadata, which resolves to
@@ -1087,12 +1099,12 @@ pub enum WorldEffectComposition {
 /// replaces the less-specific declaration.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ResolvedWorldEffects {
-    /// Parent command descriptor, when declared.
-    pub command: Option<WorldEffectDescriptor>,
-    /// Resolved subcommand descriptor, when declared.
-    pub subcommand: Option<WorldEffectDescriptor>,
-    /// Matched invocation-form descriptor, when declared.
-    pub form: Option<WorldEffectDescriptor>,
+    /// Parent command descriptor, and how completely it is known.
+    pub command: Knowledge<WorldEffectDescriptor>,
+    /// Resolved subcommand descriptor, and how completely it is known.
+    pub subcommand: Knowledge<WorldEffectDescriptor>,
+    /// Matched invocation-form descriptor, and how completely it is known.
+    pub form: Knowledge<WorldEffectDescriptor>,
 }
 
 impl ResolvedWorldEffects {
@@ -1104,7 +1116,42 @@ impl ResolvedWorldEffects {
     /// absent chain must remain a conservative unknown invocation.
     #[must_use]
     pub const fn is_declared(self) -> bool {
-        self.command.is_some() || self.subcommand.is_some() || self.form.is_some()
+        !self.command.is_unknown() || !self.subcommand.is_unknown() || !self.form.is_unknown()
+    }
+
+    /// The descriptors stated at each specificity, least specific first.
+    pub fn stated_layers(self) -> impl Iterator<Item = WorldEffectDescriptor> {
+        [self.command, self.subcommand, self.form]
+            .into_iter()
+            .filter_map(|layer| layer.stated())
+    }
+
+    /// Whether the chain is known to touch no world state at every point
+    /// `query` can resolve to (issue #1712).
+    ///
+    /// Every layer that contributes to the resolved chain, from the most
+    /// specific stated one down to the first that replaces what it inherits,
+    /// must be [`Knowledge::Complete`] there and effect-free. A chain with no
+    /// stated layer is never closed.
+    #[must_use]
+    pub fn complete_and_empty_at(self, query: Option<&SurfaceQuery<'_>>) -> bool {
+        let mut contributed = false;
+        for layer in [self.form, self.subcommand, self.command] {
+            if layer.is_unknown() {
+                continue;
+            }
+            match layer.complete_at(query) {
+                Some(descriptor) if descriptor.is_effect_free() => contributed = true,
+                _ => return false,
+            }
+            if layer
+                .stated()
+                .is_some_and(|descriptor| descriptor.composition == WorldEffectComposition::Replace)
+            {
+                break;
+            }
+        }
+        contributed
     }
 
     /// Whether writes declared beyond the variable-primitive role contract remain.
@@ -1118,10 +1165,7 @@ impl ResolvedWorldEffects {
         has_selected_write_roles: bool,
     ) -> bool {
         let mut uncovered = false;
-        for descriptor in [self.command, self.subcommand, self.form]
-            .into_iter()
-            .flatten()
-        {
+        for descriptor in self.stated_layers() {
             if descriptor.composition == WorldEffectComposition::Replace {
                 uncovered = false;
             }
@@ -1187,10 +1231,7 @@ impl ResolvedWorldEffects {
         coverage: &TransitionEffectCoverages,
     ) -> EffectFootprint {
         let mut footprint = EffectFootprint::default();
-        for descriptor in [self.command, self.subcommand, self.form]
-            .into_iter()
-            .flatten()
-        {
+        for descriptor in self.stated_layers() {
             let resolved = descriptor.resolve_with_transition_coverage(args, coverage);
             if descriptor.composition == WorldEffectComposition::Replace {
                 footprint = resolved;
@@ -1210,7 +1251,7 @@ mod tests {
     fn variable_role_baselines_do_not_cover_additional_store_declarations() {
         let arguments = InvocationArguments::literals(&["counter", "0"]);
         let baseline = ResolvedWorldEffects {
-            command: Some(WorldEffectDescriptor::VARIABLE_WRITE),
+            command: Knowledge::Partial(WorldEffectDescriptor::VARIABLE_WRITE),
             ..ResolvedWorldEffects::default()
         };
         assert!(!baseline.has_uncovered_variable_role_writes(arguments, true));
@@ -1223,12 +1264,12 @@ mod tests {
             ..WorldEffectDescriptor::EMPTY
         };
         let declared = ResolvedWorldEffects {
-            form: Some(extra),
+            form: Knowledge::Partial(extra),
             ..baseline
         };
         assert!(declared.has_uncovered_variable_role_writes(arguments, true));
         let replaced = ResolvedWorldEffects {
-            form: Some(WorldEffectDescriptor {
+            form: Knowledge::Partial(WorldEffectDescriptor {
                 composition: WorldEffectComposition::Replace,
                 ..WorldEffectDescriptor::EMPTY
             }),

@@ -360,6 +360,11 @@ pub struct ReferenceBodies {
     pub appendix_start: Option<usize>,
     /// The definitions appended, by what identifies each to the runtime.
     pub imports: Vec<ReferenceImport>,
+    /// Prefixes of the names a splice gave the locals of a body it inlined,
+    /// none of which the module's own source spells: codegen gives each such
+    /// name an anonymous slot, so the caller's frame holds no variable of that
+    /// name for anything to list, reach or collide with.
+    pub hidden_local_prefixes: Vec<String>,
 }
 
 /// One pack command's definition, as copied into a module.
@@ -497,6 +502,51 @@ impl Module {
                         .then_some((id, procedure))
                     }),
             )
+    }
+
+    /// Procedure bodies the source binding owner recovered from an evaluated
+    /// script (`namespace eval ::n [list proc writer {} {...}]`): an installed
+    /// or original-declaration unit whose declaration is not in this Module's
+    /// own source image. Each keeps its own issued ID.
+    pub fn recovered_procedure_bodies(&self) -> impl Iterator<Item = (&ProcedureId, &Procedure)> {
+        self.installed_procedure_body_units
+            .iter()
+            .chain(self.original_declaration_body_units.iter())
+            .filter_map(|(id, allocation)| {
+                let procedure = self.body_units.get(id)?;
+                (self.procedure_ids.owns(*id)
+                    && procedure.declaration_site.as_ref() == Some(&allocation.site)
+                    && !allocation
+                        .matches_source_declaration_image(&self.source, allocation.site.offset))
+                .then_some((id, procedure))
+            })
+    }
+
+    /// Every body with an issued summary coordinate: the original source
+    /// procedures and the recovered procedure bodies.
+    pub fn summary_procedure_bodies(&self) -> impl Iterator<Item = (&ProcedureId, &Procedure)> {
+        self.original_source_procedure_bodies()
+            .chain(self.recovered_procedure_bodies())
+    }
+
+    /// The recovered body a procedure target's exact implementation
+    /// allocation selects. An allocation shared by more than one body declines.
+    pub(crate) fn recovered_procedure_for_target(
+        &self,
+        target: &crate::command_binding::SourceCommandTarget,
+    ) -> Option<(ProcedureId, &Procedure)> {
+        if target.registry_backed || target.kind != crate::command_binding::BindingKind::Proc {
+            return None;
+        }
+        let allocation = target.implementation_allocation.as_ref()?;
+        let mut matching = self.recovered_procedure_bodies().filter(|(id, _)| {
+            self.installed_procedure_body_units
+                .get(id)
+                .or_else(|| self.original_declaration_body_units.get(id))
+                == Some(allocation)
+        });
+        let (id, procedure) = matching.next()?;
+        matching.next().is_none().then_some((*id, procedure))
     }
 
     /// Report an original body's source label after its actual issued ID and

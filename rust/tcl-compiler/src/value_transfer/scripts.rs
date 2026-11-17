@@ -258,19 +258,24 @@ impl LatticeDriver<'_> {
             // ownership cannot reopen the standalone catalogue route.
             let original = original?;
             if module.has_original_native_source() {
-                return module.with_original_native_value(original, |operation, schema| {
-                    let cooked = self.operation_arguments(operation)?;
-                    let written = (0..cooked.len())
-                        .map(|index| operation.effective.written_argument(index))
-                        .collect();
-                    self.run_resolved_command(
-                        head,
-                        schema,
-                        (&cooked, written, Some(original)),
-                        lattice,
-                        under,
-                    )
-                });
+                let writes_land = !matches!(under.1, NestedPolicy::EffectFreeOnly);
+                return module.with_original_native_value(
+                    original,
+                    writes_land,
+                    |operation, schema| {
+                        let cooked = self.operation_arguments(operation)?;
+                        let written = (0..cooked.len())
+                            .map(|index| operation.effective.written_argument(index))
+                            .collect();
+                        self.run_resolved_command(
+                            head,
+                            schema,
+                            (&cooked, written, Some(original)),
+                            lattice,
+                            under,
+                        )
+                    },
+                );
             }
             return module.with_original_operation(original, |operation, schema| {
                 let cooked = self.operation_arguments(operation)?;

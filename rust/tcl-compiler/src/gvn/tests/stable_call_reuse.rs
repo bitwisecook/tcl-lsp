@@ -599,10 +599,12 @@ fn versioned_world_results_key_on_the_read_domain_version() {
     registry.insert(tcl_registry::CommandSpec {
         name: "test::versioned",
         traits: Traits::PURE | Traits::CSE_CANDIDATE,
-        result_stability: Some(ResultStability::ReadsVersionedWorld(&[
-            tcl_registry::WorldStateDomain::VariableStore,
-        ])),
-        world_effects: Some(tcl_registry::WorldEffectDescriptor::EMPTY),
+        result_stability: tcl_registry::knowledge::Knowledge::Partial(
+            ResultStability::ReadsVersionedWorld(&[tcl_registry::WorldStateDomain::VariableStore]),
+        ),
+        world_effects: tcl_registry::knowledge::Knowledge::Partial(
+            tcl_registry::WorldEffectDescriptor::EMPTY,
+        ),
         state_transitions: Some(tcl_registry::StateTransitionDescriptor::EMPTY),
         ..tcl_registry::CommandSpec::DEFAULT
     });

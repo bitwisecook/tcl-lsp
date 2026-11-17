@@ -43,19 +43,22 @@ pub(in super::super) fn emit_regexp_pattern_warnings<S: std::hash::BuildHasher>(
         None if source.allows_nominal_metadata() => None,
         None => return,
     };
-    let Some(normal) =
-        crate::registry_invocation::normal_representation_invocation_with_metadata_context(
-            registry,
-            metadata,
-            source_tokens,
-        )
-    else {
+    let normal = crate::registry_invocation::normal_representation_invocation_with_metadata_context(
+        registry,
+        metadata,
+        source_tokens,
+    );
+    let selected = match normal.as_ref() {
+        Some(normal) => normal
+            .possible_pattern_source_argument_indices(registry)
+            .map(|indices| (indices, normal.diagnostic_command().to_owned())),
+        None => metadata
+            .and_then(|context| hosted_pattern_argument_indices(registry, context, source_tokens)),
+    };
+    let Some((pattern_indices, display_command)) = selected else {
         return;
     };
-    let Some(pattern_indices) = normal.possible_pattern_source_argument_indices(registry) else {
-        return;
-    };
-    let display_command = normal.diagnostic_command();
+    let display_command = display_command.as_str();
     let mut possible_names = HashSet::new();
     for pattern_idx in pattern_indices {
         let first_warning = warnings.len();
@@ -77,6 +80,41 @@ pub(in super::super) fn emit_regexp_pattern_warnings<S: std::hash::BuildHasher>(
             }
         }
     }
+}
+
+/// Pattern positions of a handler's command, read from its hosted row alone:
+/// advice for this diagnostic, with no handler target or dispatch.
+fn hosted_pattern_argument_indices(
+    registry: &CommandRegistry,
+    context: crate::registry_invocation::InvocationMetadataContext<'_>,
+    tokens: &CommandTokens,
+) -> Option<(Vec<usize>, String)> {
+    let hosted = crate::registry_invocation::hosted_source_taint_invocation(registry, tokens)?;
+    let shape = hosted.metadata.shape();
+    if shape
+        .original_words()
+        .iter()
+        .any(|word| word.group().expand)
+    {
+        return None;
+    }
+    let command = shape.command().to_owned();
+    let input = context.source_analysis_input()?;
+    let words = crate::registry_invocation::source_structure::original_vendor_registry_words(
+        input.borrowed_context_registry(),
+        tokens,
+        hosted.metadata,
+    )?;
+    let arguments = words
+        .arguments()
+        .iter()
+        .map(crate::registry_invocation::EffectiveInvocationWord::as_registry_word)
+        .collect::<Vec<_>>();
+    let indices = registry.possible_pattern_argument_indices_words(
+        &command,
+        tcl_registry::InvocationArguments::structured(&arguments),
+    )?;
+    Some((indices, command))
 }
 
 fn emit_pattern_operand_warnings<S: std::hash::BuildHasher>(

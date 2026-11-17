@@ -233,7 +233,7 @@ mod shell_atom {
     #[test]
     fn shell_atom_lost_at_phi_with_generic() {
         // Both paths tainted → T100 fires regardless of the lost colour.
-        let source = "set a [IP::client_addr]\nset g [HTTP::payload]\nif {$cond} {\n    set x $a\n} else {\n    set x $g\n}\neval $x\n";
+        let source = "set a [IP::client_addr]\nset g [HTTP::payload]\nif {[HTTP::header exists X-Branch]} {\n    set x $a\n} else {\n    set x $g\n}\neval $x\n";
         assert_ne!(
             of_code(source, IR, "T100"),
             [] as [tcl_compiler::taint::TaintWarning; 0]

@@ -265,6 +265,61 @@ impl ModuleCommandBindings {
     }
 }
 
+/// After a constructor's `Define { kind: Instance }` installed its literal
+/// name as an object command, mark that exact binding as an instance of the
+/// constructor `factory`, so a call through it dispatches the factory's
+/// declared instance methods.
+pub(in super::super) fn retag_instance_definition(
+    bindings: &mut ModuleCommandBindings,
+    transition: &CommandBindingTransition,
+    namespace: &crate::ir_helpers::ExecutionNamespace,
+    declaration: u32,
+    factory: &str,
+) {
+    let CommandBindingTransition::Define {
+        name,
+        kind: CommandBindingDefinitionKind::Instance,
+    } = transition
+    else {
+        return;
+    };
+    let Some(name) = name.literal() else {
+        return;
+    };
+    let Some(factory) = bindings
+        .baseline
+        .registry_owner
+        .as_ref()
+        .and_then(|owner| owner.registry().get(factory))
+        .map(|spec| spec.name)
+    else {
+        return;
+    };
+    let Some(context) = namespace.for_head_context(name) else {
+        return;
+    };
+    let Some(key) = bindings.publication_key_at(
+        context.as_ref(),
+        name,
+        namespace_slots::PublicationPurpose::Command,
+    ) else {
+        return;
+    };
+    let alternatives = bindings.binding_alternatives(&key);
+    let [MayBinding::Target(target)] = alternatives.iter().collect::<Vec<_>>()[..] else {
+        return;
+    };
+    if target.kind != BindingKind::Class
+        || target.registry_backed
+        || target.implementation_generation != declaration
+    {
+        return;
+    }
+    let mut instance = target.clone();
+    instance.kind = BindingKind::Instance { factory };
+    bindings.replace(key, BTreeSet::from([MayBinding::Target(instance)]));
+}
+
 // Exhaustive interpreter of registry command-binding transitions.
 #[allow(clippy::too_many_lines)]
 pub(in super::super) fn apply_may_binding_transition(
@@ -546,7 +601,11 @@ pub(in super::super) fn apply_may_binding_transition(
                         command: label.clone(),
                         prepended: Vec::new(),
                         registry_backed: false,
-                        kind: if *kind == CommandBindingDefinitionKind::Object {
+                        kind: if matches!(
+                            kind,
+                            CommandBindingDefinitionKind::Object
+                                | CommandBindingDefinitionKind::Instance
+                        ) {
                             BindingKind::Class
                         } else {
                             BindingKind::Command

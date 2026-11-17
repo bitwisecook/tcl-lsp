@@ -802,10 +802,21 @@ fn exact_parent_layout_reuse_keeps_guarded_children_and_successor_decisions() {
                 .collect();
         assert!(!parents.is_empty(), "{source}");
         let originals = parent_declaration_layouts(site, &tokens, &parents, registry);
-        let children = unanimous_nested_layouts_from_parents(site, &originals, registry);
+        let children = unanimous_nested_layouts_from_parents(
+            site,
+            &originals,
+            registry,
+            &super::nested_layouts::ScopeAliasOwnershipShare::default(),
+        );
         assert_eq!(
             children,
-            unanimous_nested_layouts(site, &tokens, &parents, registry),
+            unanimous_nested_layouts(
+                site,
+                &tokens,
+                &parents,
+                registry,
+                &super::nested_layouts::ScopeAliasOwnershipShare::default()
+            ),
             "{source}"
         );
         assert_eq!(children.len(), child_count, "{source}");
@@ -865,7 +876,12 @@ fn exact_parent_layout_reuse_refuses_lost_original_source_or_frame() {
         let rows = parent_declaration_layouts(site, &tokens, &changed, registry);
         assert!(rows[0].original.is_none());
         assert_eq!(
-            unanimous_nested_layouts_from_parents(site, &rows, registry),
+            unanimous_nested_layouts_from_parents(
+                site,
+                &rows,
+                registry,
+                &super::nested_layouts::ScopeAliasOwnershipShare::default()
+            ),
             [] as [(
                 crate::command_binding::executed_script_source::ExecutedScriptSource,
                 std::vec::Vec<
@@ -890,7 +906,14 @@ fn nested_layout_key_fixture() -> (ExecutedScriptSource, Vec<DeclarationLayoutOb
         .cloned()
         .collect();
     let tokens = declaration_tokens(site, &parents[0]).unwrap();
-    unanimous_nested_layouts(site, &tokens, &parents, registry).remove(0)
+    unanimous_nested_layouts(
+        site,
+        &tokens,
+        &parents,
+        registry,
+        &super::nested_layouts::ScopeAliasOwnershipShare::default(),
+    )
+    .remove(0)
 }
 
 #[test]
@@ -1143,7 +1166,12 @@ fn nested_declared_layout_declines_lookup_after_unknown_variable_observers() {
     let originals = parent_declaration_layouts(site, &condition, &parents, registry);
     assert!(originals.iter().all(|parent| parent.original.is_some()));
     assert_eq!(
-        unanimous_nested_layouts_from_parents(site, &originals, registry),
+        unanimous_nested_layouts_from_parents(
+            site,
+            &originals,
+            registry,
+            &super::nested_layouts::ScopeAliasOwnershipShare::default()
+        ),
         [] as [(
             crate::command_binding::executed_script_source::ExecutedScriptSource,
             std::vec::Vec<crate::command_binding::declaration_layout::DeclarationLayoutObservation>

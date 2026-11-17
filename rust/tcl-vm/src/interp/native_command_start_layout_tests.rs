@@ -97,6 +97,13 @@ const CASES: &[Case] = &[
         compact: Some(""),
     },
     Case {
+        name: "folded_error_in_compiled_argument",
+        params: "",
+        body: "list [expr {1/0}]",
+        skeleton: "",
+        compact: None,
+    },
+    Case {
         name: "commands_starting_together_redefined",
         params: "x",
         body: "rename ::expr ::oldexpr; proc ::expr args {return [list hijack $args]}; \
@@ -266,7 +273,8 @@ fn a_redefined_command_starting_with_others_replays_the_outermost() {
 
 /// `for {} {$i > 0} {incr i -1} {puts $i}` on tclsh: 8.5.19 keeps the empty
 /// start's `push1; pop`, which the optimiser of 8.6.18 and 9.0.4 blanks to
-/// three `nop`s ahead of the first jump. No release has a marker there.
+/// three `nop`s ahead of the first jump, and 9.1.0, whose `push` is five
+/// bytes, to six. No release has a marker there.
 #[test]
 fn the_optimiser_blanks_an_empty_for_start_from_8_6() {
     let case = Case {
@@ -276,7 +284,7 @@ fn the_optimiser_blanks_an_empty_for_start_from_8_6() {
         skeleton: "",
         compact: None,
     };
-    for (profile, blanked) in [("tcl8.5", false), ("tcl8.6", true), ("tcl9.0", true)] {
+    for (profile, nops) in [("tcl8.5", 0), ("tcl8.6", 3), ("tcl9.0", 3), ("tcl9.1", 6)] {
         let asm = compiled_body(profile, &case);
         let start: Vec<_> = asm
             .instructions
@@ -284,14 +292,13 @@ fn the_optimiser_blanks_an_empty_for_start_from_8_6() {
             .map(|instruction| instruction.op)
             .take_while(|op| !matches!(*op, Op::JUMP1 | Op::JUMP4))
             .collect();
-        let nops = start.iter().filter(|op| **op == Op::NOP).count();
         assert_eq!(
             (
                 start.contains(&Op::POP),
-                nops >= 3,
+                start.iter().filter(|op| **op == Op::NOP).count(),
                 start.contains(&Op::START_CMD)
             ),
-            (!blanked, blanked, false),
+            (nops == 0, nops, false),
             "{profile}: {start:?}"
         );
     }

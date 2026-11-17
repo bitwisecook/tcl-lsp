@@ -372,6 +372,48 @@ puts $i
     );
 }
 
+/// A loop the analysis keeps as one opaque call still writes what its body
+/// writes (#2385). Each prints the same before and after rewriting on tclsh
+/// 8.4.20 through 9.1.0 (`lmap` from 8.6, `dict for` from 8.5): 6, 3, 3, 3,
+/// 01, 2, 2 and 3.
+#[test]
+fn issue_2385_loop_bodies_keep_their_writes() {
+    for (source, first) in [
+        (
+            "set i 0\nforeach {::x y} {1 2 3 4} {incr i $y}\nputs $i\n",
+            "8.4",
+        ),
+        ("set i 0\nlmap ::x {1 2} {incr i $::x}\nputs $i\n", "8.6"),
+        (
+            "set i 0\nforeach a(k) {1 2} {incr i $a(k)}\nputs $i\n",
+            "8.4",
+        ),
+        (
+            "namespace eval ::n {variable v 0}\nnamespace eval ::n {\n    set i 0\n    \
+             foreach ::n::v {1 2} {incr i $::n::v}\n    puts $i\n}\n",
+            "8.4",
+        ),
+        (
+            "proc p {l} {set i 0; foreach ::x $l {set i 1}; return $i}\nputs [p {}][p {a}]\n",
+            "8.4",
+        ),
+        (
+            "set i 0\nset ::n 0\nwhile {$::n < 2} {incr ::n; incr i}\nputs $i\n",
+            "8.4",
+        ),
+        (
+            "set i 0\nfor {set ::n 0} {$::n < 2} {incr ::n} {incr i}\nputs $i\n",
+            "8.4",
+        ),
+        (
+            "set i 0\ndict for {::k v} {a 1 b 2} {incr i $v}\nputs $i\n",
+            "8.5",
+        ),
+    ] {
+        preserves(source, first);
+    }
+}
+
 #[test]
 fn issue_2386() {
     preserves(
@@ -1092,5 +1134,19 @@ fn issue_2218_unknown_future_target_preserves_execution() {
             original,
             observed(&jim.path, &format!("{rewritten}{driver}"))
         );
+    }
+}
+
+/// Neighbours of `issue_2262`: the code after a loop over a substituted list
+/// runs, a constant-false arm does not, and code after a `return` does not.
+#[test]
+fn code_after_a_region_and_dead_code_keep_what_runs() {
+    for source in [
+        "proc p {} {set n 1; foreach v [list 2] {puts $v}; puts $n}\np\n",
+        "proc p {} {set n 1; foreach {a b} [list 1 2 3] {incr n}; puts $n}\np\n",
+        "proc p {} {if {0} {puts never}; puts after}\np\n",
+        "proc p {} {return 1; puts never}\nputs [p]\n",
+    ] {
+        preserves(source, "8.4");
     }
 }

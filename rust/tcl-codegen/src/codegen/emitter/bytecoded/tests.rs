@@ -1101,10 +1101,13 @@ fn standalone_upvar_uses_the_shared_compiler_probe_before_emission() {
             .iter()
             .any(|instruction| instruction.op == Op::UPVAR)
     );
+    // A first word that is no level with two words after it is left to the
+    // invoked command: tclsh 8.5.19-9.1.0 disassemble `upvar abc other local`
+    // as invokeStk (`upvar 12 other local` compiles with the level 12).
     let mut unavailable = CodegenCtx::new(true, &[], &registry);
     assert!(!upvar_cmd(
         &mut unavailable,
-        &["12".into(), "other".into(), "local".into()]
+        &["abc".into(), "other".into(), "local".into()]
     ));
     assert_eq!(
         unavailable.instructions,

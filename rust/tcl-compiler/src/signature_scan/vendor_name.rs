@@ -225,6 +225,38 @@ mod tests {
     use tcl_dialect::model::bigip_execution_context::BigIpExecutionContext;
     use tcl_syntax::naming::VendorSourceNameAuthority;
 
+    /// `expr` evaluates a command substitution inside a quoted operand of a
+    /// braced expression, so it is a source command like a bare one.
+    ///
+    /// tclsh 8.4.20 and 9.0.4 print `ran yes` for
+    /// `proc class args {puts -nonewline "ran "; return 1};
+    /// if {"[class a]"} {puts yes}`.
+    #[test]
+    fn a_command_in_a_quoted_expression_operand_is_a_source_command() {
+        for (source, head) in [
+            (
+                "when HTTP_REQUEST {\n  if {\"[class match ignored equals /Common/inert_dg]\"} { set inert 1 }\n}\n",
+                "class",
+            ),
+            (
+                "when HTTP_REQUEST {\n  if {[class match ignored equals /Common/inert_dg]} { set inert 1 }\n}\n",
+                "class",
+            ),
+        ] {
+            let analysis = crate::analyser::Analyser::new().analyse(source, "f5-irules");
+            let at = u32::try_from(source.find(head).unwrap()).unwrap();
+            assert!(
+                analysis
+                    .original_vendor_source_names()
+                    .any(|occurrence| occurrence
+                        .original_words()
+                        .first()
+                        .is_some_and(|word| word.span().start() == at)),
+                "{source}"
+            );
+        }
+    }
+
     #[test]
     // Implementation contract: naming.vendor.original-source-context-input
     // docs/design/analysis/name-resolution-proofs/vendor-original-source-context-input.md

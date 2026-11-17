@@ -208,6 +208,42 @@ impl Vm {
         None
     }
 
+    /// Replay the outermost command a body's first instruction starts and
+    /// resume just after it, as C re-evaluates a stale command from there.
+    pub(super) fn replay_start_host(
+        &mut self,
+        frame: &mut Frame,
+        asm: &FunctionAsm,
+        host: &tcl_bytecode::CommandStartHost,
+    ) -> Tick {
+        let Some(continuation) = label_to_idx(asm, &frame.off2idx, &host.end) else {
+            return Tick::Return(err("native command host has no valid continuation"));
+        };
+        let context = host.replay_namespace_context();
+        if self.resolve_compiled_namespace_context(&context).is_none() {
+            return Tick::Return(err("native replay namespace context is unavailable"));
+        }
+        let child = match self.compile_plain_function_cached_bytes(
+            tcl_runtime_api::ScriptCompileTargetBytes {
+                source: &host.source,
+                namespace: &host.namespace,
+            },
+        ) {
+            Ok(child) => child,
+            Err(error) => {
+                return Tick::Return(crate::command::completion_from_tcl_error(self, error));
+            }
+        };
+        frame.pc = continuation;
+        Tick::PushScript {
+            script: Box::new(self.compiled_unit(child, host.namespace.clone())),
+            label: None,
+            cleanup_proc: None,
+            fatal_tail: None,
+            namespace: ScriptNamespace::CommandBoundary(context),
+        }
+    }
+
     /// Select an independently audited native compiler operation.
     /// The range records selection, rather than repeatedly consulting a live
     /// callable during substitutions that may replace that very callable.
@@ -247,6 +283,9 @@ impl Vm {
         if !entered.is_empty() {
             frame.entered_native_compiler_selections.extend(entered);
             return None;
+        }
+        if let Some(host) = instruction.start_hosts.first() {
+            return Some(self.replay_start_host(frame, asm, host));
         }
         let own_end = match &instruction.native_compiler_selection {
             Some(site) => Some(site.end.as_str()),

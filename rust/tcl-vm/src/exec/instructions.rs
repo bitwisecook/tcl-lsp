@@ -138,10 +138,14 @@ fn is_variable_op(op: Op) -> bool {
             | Op::STORE_SCALAR4
             | Op::INCR_SCALAR1
             | Op::INCR_SCALAR1_IMM
+            | Op::INCR_SCALAR4
+            | Op::INCR_SCALAR4_IMM
             | Op::INCR_ARRAY_STK_IMM
             | Op::INCR_ARRAY_STK
             | Op::INCR_ARRAY1
             | Op::INCR_ARRAY1_IMM
+            | Op::INCR_ARRAY4
+            | Op::INCR_ARRAY4_IMM
             | Op::EXIST_SCALAR
             | Op::EXIST_STK
             | Op::EXIST_ARRAY
@@ -220,10 +224,14 @@ fn is_scalar_variable_op(op: Op) -> bool {
             | Op::STORE_SCALAR4
             | Op::INCR_SCALAR1
             | Op::INCR_SCALAR1_IMM
+            | Op::INCR_SCALAR4
+            | Op::INCR_SCALAR4_IMM
             | Op::INCR_ARRAY_STK_IMM
             | Op::INCR_ARRAY_STK
             | Op::INCR_ARRAY1
             | Op::INCR_ARRAY1_IMM
+            | Op::INCR_ARRAY4
+            | Op::INCR_ARRAY4_IMM
             | Op::LOAD_ARRAY_STK
             | Op::STORE_ARRAY_STK
             | Op::LOAD_ARRAY1
@@ -503,6 +511,9 @@ impl Vm {
         asm: &Rc<FunctionAsm>,
         instr: &Instruction,
     ) -> Tick {
+        if let Some(host) = instr.start_hosts.first() {
+            return self.replay_start_host(f, asm, host);
+        }
         if self
             .resolve_compiled_namespace_context(&instr.source_namespace_context())
             .is_none()

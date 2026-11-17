@@ -889,8 +889,8 @@ fn push_row(
         || sub.is_some_and(SubCommand::is_pure)
         || traits.contains(Traits::CSE_CANDIDATE)
         || matches!(
-            sub.and_then(|s| s.result_stability)
-                .or(spec.result_stability),
+            sub.and_then(|s| s.result_stability.stated())
+                .or(spec.result_stability.stated()),
             Some(ResultStability::ReferentiallyTransparent)
         );
     let mut gaps = Vec::new();

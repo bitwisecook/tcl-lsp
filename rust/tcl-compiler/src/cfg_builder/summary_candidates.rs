@@ -107,7 +107,10 @@ impl OriginalProcedureSummaryOwners {
             .iter()
             .filter(|target| !target.registry_backed)
             .map(|target| {
-                let (id, _) = module?.original_source_procedure_for_target(target)?;
+                let module = module?;
+                let (id, _) = module
+                    .original_source_procedure_for_target(target)
+                    .or_else(|| module.recovered_procedure_for_target(target))?;
                 Some((
                     id,
                     crate::registry_invocation::effective_words_for_target(tokens, target)?,
@@ -168,8 +171,16 @@ pub(super) fn original_head(tokens: &CommandTokens) -> Option<String> {
     let original = site
         .source
         .original_lexical_command(tokens.words(), site.offset, config)?;
-    String::from_utf8(tcl_syntax::word_rules::original_static_word_source_bytes(
+    let bytes = match tcl_syntax::word_rules::original_static_word_source_bytes(
         original.native_words().first()?,
-    )?)
-    .ok()
+    ) {
+        Some(bytes) => bytes,
+        // A script evaluated from a value has no Document channel; its head
+        // is the binding's own original name input.
+        None => binding
+            .original_written_name_input(tokens, 0)?
+            .bytes()
+            .to_vec(),
+    };
+    String::from_utf8(bytes).ok()
 }

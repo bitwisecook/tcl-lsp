@@ -638,6 +638,29 @@ fn a_scope_alias_poisons_every_bound_name() {
     assert!(!constants.contains_key("dir"), "{constants:?}");
 }
 
+/// A command the scan cannot read substitutes its words before it runs, so
+/// its own operand still reads the constant; a nested command substitution
+/// runs first and may write it.
+///
+/// tclsh 8.4.20, 8.6.18, 9.0.4 and 9.1.0 print `source /s/x` for
+/// `set dir /s; puts [list source $dir/x]`.
+#[test]
+fn an_unread_command_reads_the_constant_in_its_own_words() {
+    let profile = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+    let source = "set dir /s\n$loader $dir/shared.tcl\n";
+    let constants = constant_path_vars(source, profile, None);
+    let operand = u32::try_from(source.find("$dir").unwrap()).unwrap();
+    assert_eq!(constants.lookup_at("dir", operand).as_deref(), Some("/s"));
+    assert_eq!(
+        constants.lookup_at("dir", u32::try_from(source.len()).unwrap()),
+        None
+    );
+    let source = "set dir /s\n$loader [unknown_writer]$dir/shared.tcl\n";
+    let constants = constant_path_vars(source, profile, None);
+    let operand = u32::try_from(source.find("$dir").unwrap()).unwrap();
+    assert_eq!(constants.lookup_at("dir", operand), None);
+}
+
 #[test]
 fn a_scope_alias_withdraws_subsequent_lookups_and_exports() {
     let source = "set dir /a\nupvar 1 elsewhere dir\n";

@@ -182,7 +182,7 @@ pub(super) fn import<'a>(
         let Some(facts) = tcl_compiler::site_claims::reference_body_facts(registry, spec) else {
             continue;
         };
-        let Some((definition, Some(inlinable))) = reference::lower_definition(
+        let Some((definition, Some(inlinable), re_execution)) = reference::lower_definition(
             text,
             spec,
             registry,
@@ -192,6 +192,9 @@ pub(super) fn import<'a>(
         ) else {
             continue;
         };
+        if re_execution.is_err() {
+            continue;
+        }
         let qualified = definition.qualified_name.clone();
         if module.procedures.has_display(&qualified)
             || module.redefined_procedures.contains(&qualified)

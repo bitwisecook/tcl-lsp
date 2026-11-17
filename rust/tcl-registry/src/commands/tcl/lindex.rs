@@ -33,10 +33,12 @@ pub fn spec() -> CommandSpec {
         native_result: Some(crate::native_result::NativeResultContract::StockResult),
         // tclsh 8.6/9.0: completes normally or with an error, including
         // through variable traces and reflected channel handlers.
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         representation_effect: Some(RepresentationEffect::CoerceOrdinaryListIndices {
             operand: 0,
             indices_from: 1,

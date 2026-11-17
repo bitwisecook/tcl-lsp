@@ -21,14 +21,14 @@
 use super::*;
 
 /// A body the splice renames nothing in, spliced by the VM's own compile of
-/// its caller under the live native entry: the spliced `expr` keeps the native
+/// its caller under the live native entry: the spliced command keeps the native
 /// selection the runtime replays, so the function runs as compiled where the
 /// pack's facts are held, and is refused and recompiled plain where they are not.
 #[test]
 fn a_body_with_nothing_to_rename_is_spliced_by_the_live_compile() {
     let pack = Spliced::new(
         "splice-live-verbatim",
-        &[("vthree", 0, "proc vthree {} {expr {1 + 2}}")],
+        &[("vthree", 0, "proc vthree {} {string length abc}")],
     );
     let caller = "proc caller {} {vthree}";
     assert_eq!(
@@ -37,7 +37,7 @@ fn a_body_with_nothing_to_rename_is_spliced_by_the_live_compile() {
             code: Code::Ok,
             answer: "3".to_owned(),
             plain: 0,
-            spliced: 1
+            spliced: live_splices(1)
         }
     );
     let mut vm = vm_for_overlay();
@@ -47,8 +47,8 @@ fn a_body_with_nothing_to_rename_is_spliced_by_the_live_compile() {
         Outcome {
             code: Code::Ok,
             answer: "3".to_owned(),
-            plain: 1,
-            spliced: 1
+            plain: live_splices(1),
+            spliced: live_splices(1)
         },
         "no facts held: refused, recompiled plain"
     );
@@ -269,8 +269,8 @@ fn a_braced_word_in_an_inlined_body_stays_literal() {
         ],
     );
     for (name, answer, inlined, live) in [
-        ("vlit", "2", 1, 1),
-        ("vbrace", "$x", 1, 1),
+        ("vlit", "2", 1, live_splices(1)),
+        ("vbrace", "$x", 1, live_splices(1)),
         ("vnested", "2", 0, 0),
     ] {
         let caller = format!("proc caller {{n}} {{{name} $n}}");
@@ -610,7 +610,7 @@ fn a_definition_in_a_namespace_resolves_its_commands_as_it_did() {
             code: Code::Ok,
             answer: "3".to_owned(),
             plain: 0,
-            spliced: 1
+            spliced: live_splices(1)
         }
     );
 }

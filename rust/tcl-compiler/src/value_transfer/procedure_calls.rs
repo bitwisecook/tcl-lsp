@@ -459,7 +459,7 @@ impl<'a> LatticeDriver<'a> {
             // The top level has no parameters, and no entry rule.
             let entry = self
                 .body_id
-                .and_then(|body| body.procedure_id())
+                .and_then(crate::sccp::AnalysisBody::procedure_id)
                 .and_then(|id| module.params_of(&id))
                 .filter(|_| prior == 0)
                 .map(|params| {

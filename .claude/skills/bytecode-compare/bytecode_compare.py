@@ -29,8 +29,9 @@ Usage:
     python3 .claude/skills/bytecode-compare/bytecode_compare.py [-v VERSION] <subcommand> [args...]
 
 Options:
-    -v, --version VERSION   Tcl version to compare against (8.4, 8.5, 8.6, 9.0).
-                            Default: 9.0
+    -v, --version VERSION   Tcl version to compare against (8.4, 8.5, 8.6, 9.0, 9.1).
+                            Default: 9.0. 9.1 compares `tcl dis --dialect tcl9.1`
+                            output, since only a 9.1 compile has 9.1's widths.
 
 Subcommands:
     all                  Compare all snippets, show detailed diffs
@@ -66,8 +67,13 @@ SNIPPETS_DIR = (
 # `<version>/` subdirectories. Generated, not checked in.
 REF_BASE = REPO_ROOT / "tests" / "bytecode_reference"
 
-AVAILABLE_VERSIONS = ["8.4", "8.5", "8.6", "9.0"]
+AVAILABLE_VERSIONS = ["8.4", "8.5", "8.6", "9.0", "9.1"]
 DEFAULT_VERSION = "9.0"
+
+# Releases whose operand widths differ from the goldens' compile (Tcl 9.1
+# compiles only four-byte operand forms): our side is a `tcl dis` of the
+# snippet under that release's dialect, cached beside the references.
+DIALECT_COMPILED = {"9.1": "tcl9.1"}
 
 # Instruction extraction
 
@@ -196,6 +202,24 @@ def ours_path(name: str) -> Path:
     return SNIPPETS_DIR / f"{name}.golden"
 
 
+def ours_text(name: str, version: str) -> str:
+    """Our disassembly of `name` for comparison against `version`."""
+    dialect = DIALECT_COMPILED.get(version)
+    if dialect is None:
+        return load_disasm(ours_path(name))
+    cached = REF_BASE / f"ours-{version}" / f"{name}.disasm"
+    source = SNIPPETS_DIR / f"{name}.tcl"
+    if not cached.exists() or cached.stat().st_mtime < source.stat().st_mtime:
+        cmd = ["cargo", "run", "-q", "-p", "tcl-cli", "--bin", "tcl", "--",
+               "dis", "--dialect", dialect, str(source)]
+        proc = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True, check=False)
+        if proc.returncode != 0:
+            sys.exit(f"tcl dis failed for {name}: {proc.stderr.strip()}")
+        cached.parent.mkdir(parents=True, exist_ok=True)
+        cached.write_text(proc.stdout)
+    return cached.read_text()
+
+
 def ref_dir(version: str) -> Path:
     return REF_BASE / version
 
@@ -221,13 +245,13 @@ def compare_snippet(name: str, version: str = DEFAULT_VERSION) -> dict:
     """Compare one snippet against a specific Tcl version."""
     ref_path = ref_dir(version) / f"{name}.disasm"
 
-    ours_text = load_disasm(ours_path(name))
+    ours = ours_text(name, version)
     ref_text = load_disasm(ref_path)
 
-    ours_instrs = extract_instructions(ours_text)
+    ours_instrs = extract_instructions(ours)
     ref_instrs = extract_instructions(ref_text)
 
-    ours_ops = extract_opcodes(ours_text)
+    ours_ops = extract_opcodes(ours)
     ref_ops = extract_opcodes(ref_text)
 
     ours_norm = [normalise_instruction(i) for i in ours_instrs]

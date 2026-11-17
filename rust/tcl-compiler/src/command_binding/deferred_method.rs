@@ -323,6 +323,43 @@ impl SourceCommandBindings {
         }
         true
     }
+    /// The methods a closed class configuration declares, recorded as that
+    /// configuration's observation of the class, as a creation's body is.
+    pub(super) fn record_configured_class_method_references(
+        &mut self,
+        configuration: &super::closed_class_configuration::ClosedClassConfiguration,
+        state: &ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) {
+        let definition = &configuration.body;
+        let map =
+            tcl_lexer::SourceMap::from_image(&definition.text).with_base(definition.base(), 0, 0);
+        let phases = crate::segmenter::segment_commands_image_with_offset_and_config(
+            &definition.text,
+            definition.base(),
+            context.config,
+        )
+        .and_then(|segments| {
+            capture_definition_method_references(
+                configuration.grammar,
+                definition,
+                &map,
+                &segments,
+                state,
+                DefinitionReferenceScope {
+                    parameters: configuration.parameters,
+                    receiver: SourceMethodReceiver::Instance,
+                },
+                context,
+            )
+        });
+        self.replace_standalone_definition_method_references(
+            &configuration.class,
+            configuration.site.clone(),
+            phases,
+        );
+    }
+
     pub(super) fn register_original_method_bodies(
         &mut self,
         grammar: &tcl_registry::definer::DefinitionBodyGrammar,

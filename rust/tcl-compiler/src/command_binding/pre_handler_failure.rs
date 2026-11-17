@@ -398,3 +398,53 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod entered_site_tests {
+    use crate::command_binding::{SourceAnalysisOptions, SourceCommandBindings};
+
+    /// A command whose own words raised was begun; the command after it was
+    /// not. tclsh 8.4.20 to 9.1.0 raise `can't read "never": no such
+    /// variable` for `puts $never; puts after`, `boom` for
+    /// `set y [error boom]; return $x`, and `can't read
+    /// "y": no such variable` from `f` with its zero-trip `for`.
+    #[test]
+    fn a_command_whose_words_raised_was_entered_and_the_next_was_not() {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        // A raising nested command is a dispatch of its own inside the
+        // host's words, so the host counts as reached there already.
+        for (source, entered, word_raised, never) in [
+            (
+                "puts $never\nputs after\n",
+                "puts $never",
+                true,
+                "puts after",
+            ),
+            ("set y [error boom]\nreturn $x\n", "set y", false, "return"),
+            (
+                "proc f {} {\n for {set i 5} {$i < 3} {incr i} {set y $i}\n puts $y\n puts after\n}\n",
+                "puts $y",
+                true,
+                "puts after",
+            ),
+        ] {
+            let bindings = SourceCommandBindings::analyse_with_options(
+                source,
+                tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                registry,
+                SourceAnalysisOptions {
+                    invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                    native_compilation: crate::environment_ingress::authoring_native_compilation(),
+                    ..Default::default()
+                },
+            );
+            let at = |text: &str| u32::try_from(source.find(text).unwrap()).unwrap();
+            if word_raised {
+                assert!(!bindings.reached_site(at(entered)), "{source}");
+            }
+            assert!(bindings.entered_site(at(entered)), "{source}");
+            assert!(!bindings.entered_site(at(never)), "{source}");
+        }
+    }
+}

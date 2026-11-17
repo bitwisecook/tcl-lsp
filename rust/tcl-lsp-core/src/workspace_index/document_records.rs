@@ -507,6 +507,12 @@ impl DocumentRecords {
                 classes.push((original.metadata(), Some(original)));
             }
         }
+        classes.extend(
+            analysis
+                .external_class_contributions
+                .values()
+                .map(|contribution| (contribution, None)),
+        );
         classes
             .sort_by_key(|(class_def, _)| (class_def.name_span.start(), class_def.name_span.end()));
         for (class_def, original) in classes {

@@ -47,7 +47,9 @@ pub fn spec() -> CommandSpec {
             | Traits::TRANSFERS_CONTROL
             | Traits::NEEDS_START_CMD,
         arity: Arity::exact(0),
-        completion: Some(CompletionDescriptor::exact(COMPLETION_CODES)),
+        completion: crate::knowledge::Knowledge::Partial(CompletionDescriptor::exact(
+            COMPLETION_CODES,
+        )),
         return_type: Some(TclType::String),
         hover: Some(HoverSnippet {
             summary: "Abort execution of the innermost enclosing loop.",
@@ -64,7 +66,7 @@ pub fn spec() -> CommandSpec {
         // completion descriptor above already carries: it changes no
         // interpreter state a dispatch proof could depend on, so its world
         // footprint is closed and empty.
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(StateTransitionDescriptor::EMPTY),
         forms: FORMS,
         ..CommandSpec::DEFAULT

@@ -21,6 +21,10 @@
 use super::*;
 use tcl_dialect::TclVersion;
 
+/// What both runs define besides the pack's definitions: a procedure that
+/// looks into its caller's frame.
+const SETUP: &str = "proc peek {} {uplevel 1 {info locals}}";
+
 /// A pack of the shapes: `(name, arity, formal count, definition)`.
 const SHAPES: &[(&str, &str, usize, &str)] = &[
     ("vthree", "0", 0, "proc vthree {} {expr {1 + 2}}"),
@@ -29,27 +33,61 @@ const SHAPES: &[(&str, &str, usize, &str)] = &[
     ("vapply", "2", 2, "proc vapply {cmd x} {$cmd $x}"),
     ("vdef", "1..2", 2, "proc vdef {x {y 10}} {expr {$x + $y}}"),
     ("vcount", "0..", 0, "proc vcount {args} {llength $args}"),
+    ("vformat", "1", 1, "proc vformat {x} {format %d $x}"),
 ];
 
 /// Each shape's caller, the calls made of it, and how many definitions the
 /// VM's compile of the caller splices in where the release splices at all: as
-/// many as the release-unit compile splices. A body that runs a parameter as a
+/// many as the release-unit compile splices, where the body may be run again
+/// from its start (`re_executable_body`). A body that runs a parameter as a
 /// command stays a call by decision: the command it runs is a value only the
-/// call knows, so no splice can bind it.
+/// call knows, so no splice can bind it. A body using `expr` stays a call while
+/// the registry declares every expression able to call back.
 const CASES: &[(&str, &[&str], usize)] = &[
-    ("proc caller {} {vthree}", &["caller"], 1),
+    ("proc caller {} {vthree}", &["caller"], 0),
     ("proc caller {n} {vupper $n}", &["caller abc"], 1),
     (
         "proc caller {n} {vdouble $n}",
         &["caller 21", "caller abc"],
-        1,
+        0,
     ),
     (
         "proc caller {c n} {vapply $c $n}",
         &["caller llength {a b c}", "caller nosuch x"],
         0,
     ),
-    ("proc caller {n} {vdef $n}", &["caller 5", "caller x"], 1),
+    ("proc caller {n} {vdef $n}", &["caller 5", "caller x"], 0),
+    // An error inside a body that is spliced.
+    (
+        "proc caller {n} {vformat $n}",
+        &["caller 7", "caller abc"],
+        1,
+    ),
+    // The caller's frame after the call holds only the caller's variables,
+    // whoever looks: the caller itself, or a procedure it calls next.
+    ("proc caller {n} {vupper $n; info locals}", &["caller 2"], 1),
+    (
+        "proc caller {n} {vupper $n; lsort [info vars]}",
+        &["caller 2"],
+        1,
+    ),
+    ("proc caller {n} {vupper $n; peek}", &["caller 2"], 1),
+    // A caller's own variables spelled as a splice would name its locals,
+    // written and read directly and through a computed name around the call.
+    (
+        "proc caller {n} {set __inline_0__x 5; set __inline_1__x 6; vupper $n; \
+         list $__inline_0__x $__inline_1__x}",
+        &["caller 2"],
+        1,
+    ),
+    (
+        "proc caller {n} {set v __inline_; append v 1__x; set $v 5; vupper $n; \
+         list [set $v] [info exists __inline_0__x]}",
+        &["caller 2"],
+        1,
+    ),
+    // The call's own argument count is wrong.
+    ("proc caller {n} {vdouble $n $n}", &["caller 1"], 0),
     (
         "proc caller {a b} {vcount $a $b}",
         &["caller 1 2", "caller {} {}"],
@@ -75,6 +113,25 @@ fn shapes_pack() -> String {
     pack
 }
 
+/// What a call reports, as a Tcl list, the same text run by the VM and by
+/// tclsh: its code and result and, when it fails, `errorInfo`, `errorCode`,
+/// the `-errorstack` of its options and `info errorstack` where the release
+/// has them (8.4 has no options dictionary).
+fn report(version: TclVersion, call: &str) -> String {
+    if version == TclVersion::V8_4 {
+        return format!(
+            "set c [catch {{{call}}} r]; set out [list $c $r]; \
+             if {{$c}} {{lappend out $::errorInfo $::errorCode}}; set out"
+        );
+    }
+    format!(
+        "set c [catch {{{call}}} r o]; set out [list $c $r]; \
+         if {{$c}} {{lappend out $::errorInfo $::errorCode; \
+         if {{[dict exists $o -errorstack]}} {{lappend out [dict get $o -errorstack]}}; \
+         if {{![catch {{info errorstack}} s]}} {{lappend out $s}}}}; set out"
+    )
+}
+
 /// `caller` and `call` run by a VM of `version` whose compile service inlines
 /// the pack's bodies and which holds the pack's facts: the call's completion as
 /// a list of its code and its result, which is what tclsh prints for the same.
@@ -92,11 +149,11 @@ fn run_inlined(set: &PackSet, version: TclVersion, caller: &str, call: &str) -> 
         let completion = vm.eval_source(definition).expect("compiles");
         assert_eq!(completion.code, Code::Ok, "{definition}");
     }
-    let completion = vm.eval_source(caller).expect("compiles");
-    assert_eq!(completion.code, Code::Ok, "{caller}");
-    let completion = vm
-        .eval_source(&format!("list [catch {{{call}}} r] $r"))
-        .expect("compiles");
+    for script in [SETUP, caller] {
+        let completion = vm.eval_source(script).expect("compiles");
+        assert_eq!(completion.code, Code::Ok, "{script}");
+    }
+    let completion = vm.eval_source(&report(version, call)).expect("compiles");
     Outcome {
         code: completion.code,
         answer: completion.result.to_str().to_string(),
@@ -106,17 +163,18 @@ fn run_inlined(set: &PackSet, version: TclVersion, caller: &str, call: &str) -> 
 }
 
 /// The same under tclsh.
-fn run_tclsh(tclsh: &std::path::Path, caller: &str, call: &str) -> String {
+fn run_tclsh(tclsh: &tcl_test_support::Tclsh, caller: &str, call: &str) -> String {
     let definitions: Vec<&str> = SHAPES
         .iter()
         .map(|(_, _, _, definition)| *definition)
         .collect();
     let script = format!(
-        "{}\n{caller}\nputs -nonewline [list [catch {{{call}}} r] $r]\n",
-        definitions.join("\n")
+        "{}\n{SETUP}\n{caller}\nputs -nonewline [{}]\n",
+        definitions.join("\n"),
+        report(tclsh.version, call)
     );
-    let outcome = tcl_test_support::run_script(tclsh, script.as_bytes()).expect("tclsh runs");
-    assert!(outcome.success(), "{script}");
+    let outcome = tcl_test_support::run_script(&tclsh.path, script.as_bytes()).expect("tclsh runs");
+    assert!(outcome.success() && outcome.stderr.is_empty(), "{script}");
     String::from_utf8(outcome.stdout).expect("tclsh prints text")
 }
 
@@ -130,31 +188,42 @@ fn run_tclsh(tclsh: &std::path::Path, caller: &str, call: &str) -> String {
 #[test]
 fn each_shape_spliced_by_the_live_compile_answers_as_tclsh_does() {
     let (set, _registry) = bundled_source("live-differential", &shapes_pack());
+    let mut disagreements = Vec::new();
     for version in TclVersion::ALL {
         let Some(tclsh) = tcl_test_support::witness_tclsh(version) else {
             continue;
         };
         for (caller, calls, spliced) in CASES {
             for call in *calls {
-                let want = run_tclsh(&tclsh.path, caller, call);
-                let got = run_inlined(&set, version, caller, call);
-                let spliced = if version.revalidates_running_bytecode() {
-                    *spliced
-                } else {
-                    0
-                };
-                assert_eq!(
-                    got,
-                    Outcome {
-                        code: Code::Ok,
-                        answer: want,
-                        plain: 0,
-                        spliced,
+                let want = Outcome {
+                    code: Code::Ok,
+                    answer: run_tclsh(&tclsh, caller, call),
+                    plain: 0,
+                    spliced: if version.revalidates_running_bytecode() {
+                        live_splices(*spliced)
+                    } else {
+                        0
                     },
-                    "{} {caller}: {call}",
-                    version.version_string()
-                );
+                };
+                let mut got = run_inlined(&set, version, caller, call);
+                // A plain recompile says a splice was refused; where nothing
+                // is spliced the VM's own recompiles are not this test's.
+                if want.spliced == 0 {
+                    got.plain = 0;
+                }
+                if got != want {
+                    disagreements.push(format!(
+                        "{} {caller}: {call}\n    tclsh {want:?}\n    vm    {got:?}",
+                        version.version_string()
+                    ));
+                }
             }
         }
     }
+    assert!(
+        disagreements.is_empty(),
+        "{} disagreement(s):\n{}",
+        disagreements.len(),
+        disagreements.join("\n")
+    );
 }

@@ -21,8 +21,8 @@
 use super::flow_inventory::original_irules_flow_commands;
 use super::flow_walk::{unreached_statements, walk_flow};
 use super::{
-    CodeFix, DropFlowState, FlowDispatch, IrulesCheckWarning, IrulesSourceQuery,
-    OriginalEventPresence, OriginalIrulesFlowCommand, is_irules,
+    CodeFix, DropFlowState, FlowDispatch, IrulesCheckPayload, IrulesCheckWarning,
+    IrulesSourceQuery, OriginalEventPresence, OriginalIrulesFlowCommand, is_irules,
 };
 use crate::compilation_unit::CompilationUnit;
 use crate::ir::{Script, Statement};
@@ -137,6 +137,9 @@ pub fn find_unguarded_drop_warnings(
                          priorities in this event will still execute, which may cause TCL errors.",
                         st.drop_cmd,
                     ),
+                    payload: IrulesCheckPayload::UnguardedDrop {
+                        command: st.drop_cmd.clone(),
+                    },
                     replacement: None,
                     // Insert `event disable all` + `return` right after the drop
                     // (a zero-width edit at the drop command's end).
@@ -158,6 +161,7 @@ pub fn find_unguarded_drop_warnings(
                     code: DiagCode::Irule5004,
                     message: "'DNS::return' must be followed by 'return' to stop iRule processing."
                         .to_owned(),
+                    payload: IrulesCheckPayload::UnguardedDnsReturn,
                     replacement: None,
                     // Insert `return` right after `DNS::return`.
                     fixes: vec![CodeFix {

@@ -103,7 +103,27 @@ pub(super) fn positioned_class_hover(
 ) -> Option<Hover> {
     crate::original_oo::positioned_class_at(source, analysis, cursor)
         .map(|class| Hover::markdown(class_hover_text(analysis, class.metadata())))
+        .or_else(|| relation_class_hover(source, analysis, cursor))
         .or_else(|| counted_class_source_hover(source, analysis, cursor))
+}
+
+/// A `superclass` / `mixin` word hovers as the class its own recorded lookup
+/// selects among the document's class declarations (current namespace, then
+/// global). Display only.
+fn relation_class_hover(source: &str, analysis: &AnalysisResult, cursor: u32) -> Option<Hover> {
+    let relation = crate::original_oo::relation_word_at(source, analysis, cursor)?;
+    let selected = relation.lookup().first_matching_publications(
+        analysis
+            .original_class_declarations()
+            .map(|record| (record.name(), record)),
+    );
+    let [class] = selected.as_slice() else {
+        return None;
+    };
+    Some(Hover::markdown(class_hover_text(
+        analysis,
+        class.metadata(),
+    )))
 }
 
 pub(super) fn original_property_source_hover(

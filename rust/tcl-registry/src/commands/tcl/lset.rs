@@ -99,10 +99,12 @@ pub fn spec() -> CommandSpec {
         name: "lset",
         // tclsh 8.6/9.0: completes normally or with an error, including
         // through variable traces and reflected channel handlers.
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         semantic_operation: Some(crate::SemanticOperationId::Intrinsic(
             crate::IntrinsicId::ListSet,
         )),
@@ -160,7 +162,9 @@ pub fn spec() -> CommandSpec {
         codegen_hook: Some(CodegenHookId::Lset),
         command_forms: &[LSET_REPLACE, LSET_SINGLE_INDEX, LSET_FLAT_PATH],
         forms: FORMS,
-        world_effects: Some(crate::WorldEffectDescriptor::VARIABLE_READ_MODIFY_WRITE),
+        world_effects: crate::knowledge::Knowledge::Partial(
+            crate::WorldEffectDescriptor::VARIABLE_READ_MODIFY_WRITE,
+        ),
         side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         arg_types: &[(
             0,

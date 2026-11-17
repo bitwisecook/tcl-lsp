@@ -294,10 +294,14 @@ impl Finding {
         if let Some(original) = self.original_analyser_diagnostic() {
             return crate::diagnostic_subject::diagnostic_subject_data(original);
         }
-        crate::code_actions::ContextDiagnosticData::from_compiler_diagnostic(
-            self.original_compiler_diagnostic()?,
-        )
-        .map(|subject| subject.to_value())
+        let original = self.original_compiler_diagnostic()?;
+        let data = crate::check_payload::CheckPayloadData::from_diagnostic(original);
+        let data =
+            match crate::code_actions::ContextDiagnosticData::from_compiler_diagnostic(original) {
+                Some(advice) => data.with_source_advice(advice.to_value()),
+                None => data,
+            };
+        data.to_value()
     }
 
     /// A source-style or byte-integrity finding.

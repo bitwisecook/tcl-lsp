@@ -89,6 +89,26 @@ fn w210_provably_no_match_regexp_scan() {
     );
 }
 
+/// `%b` reads binary digits from Tcl 8.6 on: tclsh 8.6.18 and 9.0.4 return 0
+/// for `scan 2 %b n` and leave `n` unset, while 8.4.20 and 8.5.19 reject the
+/// conversion (`bad scan conversion character "b"`), so nothing is read there.
+#[test]
+fn w210_scan_binary_conversion_no_match_follows_the_release() {
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        assert!(
+            w210_codes_in_dialect("proc f {} { scan 2 %b n\n puts $n }", dialect)
+                .iter()
+                .any(|m| m.contains("'n'")),
+            "{dialect}"
+        );
+    }
+    assert!(
+        w210_codes_in_dialect("proc f {} { scan 1 %b n\n puts $n }", "tcl8.6")
+            .iter()
+            .all(|m| !m.contains("'n'"))
+    );
+}
+
 #[test]
 fn w210_regexp_expanded_whitespace_pattern_silent() {
     // `-expanded` ignores whitespace, so `{a b}` matches `ab` and writes

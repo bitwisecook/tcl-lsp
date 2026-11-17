@@ -144,7 +144,7 @@ fn incomplete_effect_and_transition_blocks_cannot_claim_empty_semantics() {
         spec.state_transitions.unwrap().composition,
         tcl_registry::state_transition::StateTransitionComposition::Replace
     );
-    let effects = spec.world_effects.unwrap();
+    let effects = spec.world_effects.stated().unwrap();
     assert!(effects.static_footprint.accesses.is_empty());
     assert_eq!(
         effects.static_footprint.callback,
@@ -274,7 +274,10 @@ fn assert_transition_composition_controls() {
     );
     assert!(descriptor.resolver.is_none(), "`resolver none`");
     assert_eq!(
-        spec.world_effects.expect("a descriptor").composition,
+        spec.world_effects
+            .stated()
+            .expect("a descriptor")
+            .composition,
         tcl_registry::world_effect::WorldEffectComposition::Replace
     );
 }
@@ -422,7 +425,7 @@ fn the_ratified_words_reach_their_model_fields() {
         .find(|command| command.spec.name == "probe::collect")
         .expect("the collect command loads");
     assert_eq!(
-        collect.spec.result_stability,
+        collect.spec.result_stability.stated(),
         Some(ResultStability::Volatile)
     );
     assert_eq!(
@@ -456,7 +459,7 @@ fn the_ratified_words_reach_their_model_fields() {
         .find(|command| command.spec.name == "probe::read")
         .expect("the read command loads");
     assert_eq!(
-        read.spec.result_stability,
+        read.spec.result_stability.stated(),
         Some(ResultStability::ReadsVersionedWorld(&[
             WorldStateDomain::CommandBindings,
             WorldStateDomain::NamespaceLookup,
@@ -475,7 +478,7 @@ fn the_ratified_words_reach_their_model_fields() {
             .subcommands
             .iter()
             .find(|sub| sub.name == "line")
-            .and_then(|sub| sub.result_stability),
+            .and_then(|sub| sub.result_stability.stated()),
         Some(ResultStability::ReferentiallyTransparent)
     );
 }
@@ -531,8 +534,118 @@ fn a_malformed_ratified_row_is_dropped_with_a_notice() {
         .iter()
         .find(|command| command.spec.name == "probe::bad")
         .expect("the command still loads");
-    assert_eq!(command.spec.result_stability, None);
+    assert!(command.spec.result_stability.is_unknown());
     assert_eq!(command.spec.event_handler_priority, None);
     assert_eq!(command.spec.data_collection, None);
     assert_eq!(pack.notices.len(), 3, "{:?}", pack.notices);
+}
+
+/// Issue #1712: a `world_effects` row's trailing flags state how completely
+/// its descriptor is known. Tcl 8.4–9.1 and the DSL's own vocabulary are
+/// the same here, so the probe names no release.
+#[test]
+fn world_effects_rows_state_their_completeness_issue_1712() {
+    use tcl_dialect::model::{Family, SurfaceQuery};
+    use tcl_registry::knowledge::KnowledgeLevel;
+    let load = |row: &str| {
+        let pack = evaluate_pack(&format!("speclib probe 2.2 {{ command demo {{ {row} }} }}"));
+        (
+            pack.command("demo").unwrap().spec.world_effects,
+            pack.notices,
+        )
+    };
+    let at = |release| SurfaceQuery::core(Family::Tcl, release);
+
+    let (absent, _) = load("arity 0");
+    assert!(absent.is_unknown(), "no row states nothing");
+
+    let (stated, _) = load("world_effects none");
+    assert_eq!(stated.level(), KnowledgeLevel::Partial);
+    assert!(
+        stated
+            .stated()
+            .is_some_and(WorldEffectDescriptor::is_effect_free)
+    );
+
+    let (complete, notices) = load("world_effects none -complete {8.4 9.1}");
+    assert!(notices.is_empty(), "{notices:?}");
+    for release in ["8.4", "8.5", "8.6", "9.0", "9.1"] {
+        assert!(
+            complete.complete_at(Some(&at(release))).is_some(),
+            "{release}"
+        );
+    }
+
+    let (narrow, _) = load("world_effects none -complete {9.0 9.0}");
+    assert!(narrow.complete_at(Some(&at("9.0"))).is_some());
+    assert!(narrow.complete_at(Some(&at("8.6"))).is_none());
+    assert!(
+        narrow
+            .complete_at(Some(&SurfaceQuery::any_release(Family::Tcl)))
+            .is_none()
+    );
+
+    let (unreadable, notices) = load("world_effects none -complete {9.1 8.4}");
+    assert_eq!(unreadable.level(), KnowledgeLevel::Partial);
+    assert!(
+        notices
+            .iter()
+            .any(|notice| notice.message.contains("`world_effects -complete` takes")),
+        "{notices:?}"
+    );
+}
+
+/// Issue #1712: a `completion` row's trailing flags state how completely its
+/// codes are known; the row alone is a lower bound and no row states nothing.
+#[test]
+fn completion_rows_state_their_completeness_issue_1712() {
+    use tcl_dialect::model::{Family, SurfaceQuery};
+    use tcl_registry::completion::{CompletionCode, CompletionCodeDomain};
+    use tcl_registry::knowledge::KnowledgeLevel;
+    let load = |row: &str| {
+        let pack = evaluate_pack(&format!("speclib probe 2.2 {{ command demo {{ {row} }} }}"));
+        (pack.command("demo").unwrap().spec.completion, pack.notices)
+    };
+    let (absent, _) = load("arity 0");
+    assert!(absent.is_unknown());
+    let (stated, _) = load("completion {Ok Error}");
+    assert_eq!(stated.level(), KnowledgeLevel::Partial);
+    let (complete, notices) = load("completion {Ok Error} -complete {8.4 9.1}");
+    assert!(notices.is_empty(), "{notices:?}");
+    let at = SurfaceQuery::any_release(Family::Tcl);
+    let descriptor = complete
+        .complete_at(Some(&at))
+        .expect("complete over the ladder");
+    assert_eq!(
+        descriptor.codes,
+        CompletionCodeDomain::Exact(&[CompletionCode::Ok, CompletionCode::Error])
+    );
+}
+
+/// Issue #1712: a `result_stability` row's trailing flags state how completely
+/// its claim is known; the row alone is a lower bound and no row states
+/// nothing.
+#[test]
+fn result_stability_rows_state_their_completeness_issue_1712() {
+    use tcl_dialect::model::{Family, SurfaceQuery};
+    use tcl_registry::knowledge::KnowledgeLevel;
+    let load = |row: &str| {
+        let pack = evaluate_pack(&format!("speclib probe 2.2 {{ command demo {{ {row} }} }}"));
+        (
+            pack.command("demo").unwrap().spec.result_stability,
+            pack.notices,
+        )
+    };
+    let (absent, _) = load("arity 0");
+    assert!(absent.is_unknown());
+    let (stated, _) = load("result_stability ReferentiallyTransparent");
+    assert_eq!(stated.level(), KnowledgeLevel::Partial);
+    let (complete, notices) = load("result_stability ReferentiallyTransparent -complete {8.6 9.1}");
+    assert!(notices.is_empty(), "{notices:?}");
+    let at = |release| SurfaceQuery::core(Family::Tcl, release);
+    assert_eq!(
+        complete.complete_at(Some(&at("9.0"))),
+        Some(&ResultStability::ReferentiallyTransparent)
+    );
+    assert!(complete.complete_at(Some(&at("8.5"))).is_none());
 }

@@ -576,7 +576,7 @@ mod tests {
         assert!(declined.conditional_source_single_loop_binding().is_none());
         let mut explicit_world = selected;
         explicit_world.semantics.world_effects.form =
-            Some(crate::world_effect::WorldEffectDescriptor::EMPTY);
+            crate::knowledge::Knowledge::Partial(crate::world_effect::WorldEffectDescriptor::EMPTY);
         assert!(
             explicit_world
                 .conditional_source_single_loop_binding()

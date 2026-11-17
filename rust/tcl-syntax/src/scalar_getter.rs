@@ -744,6 +744,14 @@ impl NativeScalarGetterProtocol {
             target.ok_or(NativeScalarGetterTargetUnavailable)?;
             return Ok(self.cached_long64(cache));
         }
+        if let NativeScalarCache::Number(number @ Number::Big { .. }) = cache
+            && self.int_reads_native_long(kind)
+            && target.is_some()
+        {
+            return Ok(Some(
+                self.narrow_int(convert(None, self.long64_value(number))),
+            ));
+        }
         Ok(self.cached_conversion_known(kind, cache))
     }
 
@@ -932,6 +940,18 @@ impl NativeScalarGetterProtocol {
         }
     }
 
+    /// C 9.x `Tcl_GetIntFromObj` is `Tcl_GetLongFromObj` then an
+    /// `INT_MIN..=UINT_MAX` check, so with the LP64 target a bignum within
+    /// `ULONG_MAX` reads modulo 2^64 rather than overflowing as a wide read
+    /// does. Without the target only the target-free overflow is reported.
+    #[must_use]
+    pub fn int_reads_native_long(self, kind: NativeScalarGetterKind) -> bool {
+        kind == NativeScalarGetterKind::Int
+            && self
+                .tcl_version()
+                .is_some_and(|version| version >= TclVersion::V9_0)
+    }
+
     fn cached_long64(self, cache: &NativeScalarCache) -> Option<NativeScalarGetterConversion> {
         if self.is_jim084() {
             return match cache {
@@ -1113,6 +1133,18 @@ impl NativeScalarGetterProtocol {
                 materialized,
                 target,
             )));
+        }
+        if self.int_reads_native_long(kind) {
+            let Some(mut conversion) = self.fresh_conversion(kind, materialized) else {
+                return Ok(None);
+            };
+            if let Some(NativeScalarCache::Number(number @ Number::Big { .. })) = &conversion.cache
+                && target.is_some()
+            {
+                conversion.outcome = self.long64_value(number);
+                conversion = self.narrow_int(conversion);
+            }
+            return Ok(Some(conversion));
         }
         if kind != NativeScalarGetterKind::Long || self.tcl_version() == Some(TclVersion::V8_4) {
             return Ok(self.fresh_conversion(kind, materialized));

@@ -360,7 +360,7 @@ fn taint_subject_actions(
     let Some(diagnostic) = data.diagnostic() else {
         return Vec::new();
     };
-    let Some(subject) = diagnostic.taint_subject.as_ref() else {
+    let Some(subject) = diagnostic.taint_subject() else {
         return Vec::new();
     };
     let Some(command) = diagnostic_context::selected_sink(commands, analysis, diagnostic) else {

@@ -125,10 +125,10 @@ fn closed_empty_transitions(
 fn closed_single_index_effects(selected: &ResolvedInvocation<'_, '_>) -> bool {
     let world = selected.semantics.world_effects;
     let transitions = selected.semantics.state_transitions;
-    closed_empty_world(selected.selected.spec.world_effects)
-        && closed_empty_world(world.command)
-        && world.subcommand.is_none()
-        && world.form.is_none()
+    closed_empty_world(selected.selected.spec.world_effects.stated())
+        && closed_empty_world(world.command.stated())
+        && world.subcommand.is_unknown()
+        && world.form.is_unknown()
         && closed_empty_transitions(selected.selected.spec.state_transitions)
         && closed_empty_transitions(transitions.command)
         && transitions.subcommand.is_none()
@@ -472,7 +472,9 @@ mod tests {
             StateTransitions::unknown_invocation()
         }
         match mutation {
-            IndexEffectMutation::DirectWorldWrite => spec.world_effects = Some(DIRECT_WRITE),
+            IndexEffectMutation::DirectWorldWrite => {
+                spec.world_effects = crate::knowledge::Knowledge::Partial(DIRECT_WRITE);
+            }
             IndexEffectMutation::VariableCellTransition => {
                 spec.state_transitions = Some(StateTransitionDescriptor {
                     resolver: Some(variable_transition),

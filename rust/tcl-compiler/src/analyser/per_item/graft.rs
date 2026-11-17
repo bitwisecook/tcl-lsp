@@ -139,6 +139,9 @@ impl Analyser {
         for (qualified, class) in std::mem::take(&mut r.all_classes) {
             self.result.retain_class_declaration(qualified, class);
         }
+        self.result
+            .external_class_contributions
+            .extend(std::mem::take(&mut r.external_class_contributions));
         self.merge_body_variables(std::mem::take(&mut r.all_variables), shell_var_keys);
         self.result
             .command_aliases

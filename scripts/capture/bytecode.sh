@@ -22,7 +22,7 @@
 # Usage:
 #   ./scripts/capture/bytecode.sh
 #
-# Automatically runs against tclsh8.5, tclsh8.6, and tclsh9.0,
+# Automatically runs against tclsh8.5, tclsh8.6, tclsh9.0 and tclsh9.1,
 # skipping any that are not found in PATH.
 #
 # For Tcl 8.4, use the dedicated script:
@@ -39,7 +39,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SNIPPETS_DIR="$REPO_ROOT/rust/tcl-compiler/tests/fixtures/codegen/matching"
 DISASM_SCRIPT="$SCRIPT_DIR/disasm.tcl"
 
-TCLSH_VERSIONS=(tclsh8.5 tclsh8.6 tclsh9.0)
+TCLSH_VERSIONS=(tclsh8.5 tclsh8.6 tclsh9.0 tclsh9.1)
 
 capture_for_tclsh() {
     local TCLSH="$1"

@@ -299,13 +299,13 @@ pub struct SubCommand {
 
     /// Target-neutral completion semantics for this subcommand.
     ///
-    /// A matching subcommand form takes precedence. `None` inherits the
+    /// A matching subcommand form takes precedence. `Unknown` inherits the
     /// parent command's descriptor.
-    pub completion: Option<crate::completion::CompletionDescriptor>,
+    pub completion: crate::knowledge::Knowledge<crate::completion::CompletionDescriptor>,
 
-    /// Result-dependency refinement for this subcommand. `None` inherits the
-    /// parent command declaration.
-    pub result_stability: Option<crate::result_stability::ResultStability>,
+    /// Result-dependency refinement for this subcommand. `Unknown` inherits
+    /// the parent command declaration.
+    pub result_stability: crate::knowledge::Knowledge<crate::result_stability::ResultStability>,
 
     /// Native result dependency; runtime identity and completion remain required.
     pub native_result: Option<crate::native_result::NativeResultContract>,
@@ -431,7 +431,9 @@ pub struct SubCommand {
     /// A matching form is applied after this descriptor.  When absent,
     /// resolution simply retains the parent command's descriptor; otherwise
     /// it extends by default or explicitly replaces inherited facts.
-    pub world_effects: Option<WorldEffectDescriptor>,
+    /// How completely it is known is the field's [`crate::knowledge::Knowledge`]:
+    /// `Unknown` states nothing here, and only `Complete` closes the domain.
+    pub world_effects: crate::knowledge::Knowledge<WorldEffectDescriptor>,
 
     /// Target-neutral transitions specific to this subcommand.
     pub state_transitions: Option<StateTransitionDescriptor>,

@@ -211,10 +211,10 @@ fn empty_map_keeps_selected_worker_during_subject_evaluation() {
         .iter()
         .find(|m| m.source.bytes() == b"string map {{} x} [mutate]")
         .expect("exact source module");
-    assert!(module.top_level.instructions.iter().any(|i| i.native_compiler_selection.as_ref().is_some_and(|site| match &site.prerequisite {
+    assert!(module.top_level.instructions.iter().flat_map(tcl_bytecode::Instruction::native_compiler_selections).any(|site| match &site.prerequisite {
         tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite::Ensemble(required) => required.selected_worker.as_ref().and_then(|w| w.compiler.as_ref()).is_some_and(|c| c.registry_identity.trim_start_matches("::") == "tcl::string::map"),
         _ => false,
-    })), "selected worker receipt");
+    }), "selected worker receipt");
     assert!(
         !module
             .top_level

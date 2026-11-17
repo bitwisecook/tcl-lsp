@@ -275,7 +275,7 @@ pub fn spec() -> CommandSpec {
         }),
         required_package: Some("tcltest"),
         options: OPTIONS,
-        world_effects: Some(WorldEffectDescriptor {
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor {
             resolver: Some(configuration_effects),
             dynamic_fallback: WorldEffectDynamicFallback::Declared(CONFIGURATION_WRITES),
             ..WorldEffectDescriptor::EMPTY

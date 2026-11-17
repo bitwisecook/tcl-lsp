@@ -634,16 +634,18 @@ fn tk_ensemble_configure_splice_resolves_to_the_real_target_not_a_decoy() {
     let uri = unique_uri("tcl");
     lsp.open_ready(
         &uri,
-        "namespace eval ::decoy {\n    proc systray {args} { return \"DECOY\" }\n}\nproc ::tk::systray {args} { return \"real systray: $args\" }\nnamespace ensemble configure tk -map [dict merge [namespace ensemble configure tk -map] {systray ::tk::systray}]\ntk systray create -image book\n",
+        // `::tk` exists only once Tk is loaded (tclsh 8.6.18–9.1.0 without
+        // it: `can't create procedure "::tk::systray": unknown namespace`).
+        "package require Tk\nnamespace eval ::decoy {\n    proc systray {args} { return \"DECOY\" }\n}\nproc ::tk::systray {args} { return \"real systray: $args\" }\nnamespace ensemble configure tk -map [dict merge [namespace ensemble configure tk -map] {systray ::tk::systray}]\ntk systray create -image book\n",
     );
-    // Line 5: `tk systray create -image book` — cursor on "systray".
-    let result = lsp.definition(&uri, 5, 5);
+    // Line 6: `tk systray create -image book` — cursor on "systray".
+    let result = lsp.definition(&uri, 6, 5);
     let locs = locations(&result);
     assert_eq!(locs.len(), 1, "{locs:?}");
     assert_eq!(
         start_line(&locs[0]),
-        3,
-        "must resolve to the real `proc ::tk::systray` (line 3), not the same-tail-name decoy inside ::decoy (line 1): {locs:?}"
+        4,
+        "must resolve to the real `proc ::tk::systray` (line 4), not the same-tail-name decoy inside ::decoy (line 2): {locs:?}"
     );
 }
 

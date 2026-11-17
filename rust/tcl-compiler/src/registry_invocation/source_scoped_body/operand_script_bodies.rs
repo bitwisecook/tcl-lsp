@@ -740,12 +740,17 @@ fn source_expression_script_bodies_for_argument(
     }
     let terms = tcl_lexer::expression_terms(expression, &tokens, config)?;
     let source = Arc::new(words.clone());
-    terms
-        .into_iter()
+    let mut bodies = terms
+        .iter()
         .filter(|term| term.kind == tcl_lexer::ExprTermKind::Command)
-        .map(|term| {
-            let start = geometry.content.start().checked_add(term.value.start)?;
-            let end = geometry.content.start().checked_add(term.value.end)?;
+        .map(|term| term.value.clone())
+        .collect::<Vec<_>>();
+    bodies.extend(quoted_operand_commands(expression, &terms, profile, config));
+    bodies
+        .into_iter()
+        .map(|body| {
+            let start = geometry.content.start().checked_add(body.start)?;
+            let end = geometry.content.start().checked_add(body.end)?;
             let command_span = Span::new(start, end);
             (start <= end && end <= geometry.content.end()).then_some(OriginalSourceScriptBody {
                 source: Arc::clone(&source),
@@ -756,6 +761,44 @@ fn source_expression_script_bodies_for_argument(
             })
         })
         .collect()
+}
+
+/// The bodies of the command substitutions `expr` evaluates inside a quoted
+/// operand (`{"[class match a equals b]"}`), which the term scan leaves in
+/// one string term. The expression owner says which ones are live.
+fn quoted_operand_commands(
+    expression: &[u8],
+    terms: &[tcl_lexer::ExprTerm],
+    profile: &'static tcl_dialect::DialectProfile,
+    config: tcl_lexer::LexerConfig,
+) -> Vec<std::ops::Range<u32>> {
+    let quoted = terms
+        .iter()
+        .filter(|term| term.kind == tcl_lexer::ExprTermKind::EscapedString)
+        .map(|term| term.value.clone())
+        .collect::<Vec<_>>();
+    if quoted.is_empty() {
+        return Vec::new();
+    }
+    let Ok(text) = std::str::from_utf8(expression) else {
+        return Vec::new();
+    };
+    let surface = tcl_registry::expr_surface::RuntimeExprSurface::for_profile(profile);
+    tcl_syntax::expr::live_expression_substitutions(text, profile, config, |parsed| {
+        surface.validate(parsed).is_ok()
+    })
+    .commands
+    .into_iter()
+    .filter(|command| {
+        expression.get(command.start() as usize) == Some(&b'[')
+            && command.end() > command.start() + 1
+            && expression.get(command.end() as usize - 1) == Some(&b']')
+            && quoted
+                .iter()
+                .any(|operand| operand.start <= command.start() && command.end() <= operand.end)
+    })
+    .map(|command| command.start() + 1..command.end() - 1)
+    .collect()
 }
 
 fn retain_source_case_bodies(

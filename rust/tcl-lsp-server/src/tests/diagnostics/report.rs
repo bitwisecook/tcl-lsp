@@ -27,7 +27,9 @@ async fn default_off_w242_hidden_by_default_enableable_via_config() {
     // per-code enable path).
     let backend = test_backend();
     let uri = Uri::from_str("file:///w242.tcl").unwrap();
-    let src = "while {$x < 10} {puts hi}\n"; // emits W242 from the analyser
+    // tclsh 8.6.18: a bare `while {$x < 10} ...` raises `can't read "x"`
+    // before the loop runs, so `x` is a parameter; `p 20` returns cleanly.
+    let src = "proc p {x} {\n    while {$x < 10} {puts hi}\n}\n"; // emits W242 from the analyser
     register(&backend, &uri, src).await;
 
     let off = backend
@@ -111,9 +113,9 @@ fn report_publication_retains_unavailable_generation_status() {
 /// published diagnostic set.
 #[test]
 fn the_report_surfaces_compiler_check_codes() {
-    let registry = CommandRegistry::build_default();
+    let registry = tcl_lsp_core::registry_for_dialect("tcl8.6");
     let src = "if {1} { set x 1 } else { set y 2 }\n";
-    let diags = lifted_compiler_set(src, &registry, "", &open_policy());
+    let diags = lifted_compiler_set(src, registry, "tcl8.6", &open_policy());
     assert!(
         has_code(&diags, "O100"),
         "expected an O100 constant-branch diagnostic, got: {:?}",
@@ -392,14 +394,14 @@ async fn xc_findings_refuse_an_analysis_of_other_source() {
 /// and cannot be independently applied.
 #[test]
 fn a_grouped_optimisation_is_never_independently_applicable_issue_2149() {
-    let registry = CommandRegistry::build_default();
+    let registry = tcl_lsp_core::registry_for_dialect("tcl8.6");
     // O127 fires on a *computed* single-use assignment.
     let src = "proc p {y} {\n    set x [llength $y]\n    puts $x\n}\n";
     // O127 abstains without a resolved dialect profile (it cannot prove
     // its alias-safety gate under "every dialect at once"), so the
     // fixture must state one.
     let diags =
-        tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "tcl8.6", None, None);
+        tcl_lsp_db::compiler_check_diagnostics_uncached(src, registry, "tcl8.6", None, None);
     let grouped: Vec<_> = diags
         .optimisations
         .iter()
@@ -852,4 +854,51 @@ async fn style_line_length_setting_drives_w111() {
                 .any(|d| matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "W111")),
             "W111 should fire once the style line length is lowered: {some:?}",
         );
+}
+
+#[cfg(test)]
+mod check_payload_wire_tests {
+    use super::*;
+    use tcl_lsp_core::check_payload::{CheckPayloadData, family_fixtures};
+
+    /// Implementation contract: every compiler-check family's payload
+    /// survives the LSP `Diagnostic.data` field, as JSON text, without the message.
+    #[test]
+    fn every_check_family_payload_survives_lsp_diagnostic_data() {
+        let fixtures = family_fixtures();
+        let source = "x".repeat(64);
+        let report = core_policy::Report::new(
+            fixtures
+                .iter()
+                .cloned()
+                .map(|diagnostic| {
+                    (
+                        core_policy::Finding::from(diagnostic),
+                        core_policy::Outcome::Shown {
+                            severity: tcl_compiler::analyser::Severity::Warning,
+                            tag: None,
+                        },
+                    )
+                })
+                .collect(),
+        );
+        let lifted = lift_report(&source, &report);
+        assert_eq!(lifted.len(), fixtures.len());
+        for diagnostic in lifted {
+            let text = serde_json::to_string(&diagnostic).unwrap();
+            let parsed: tower_lsp_server::ls_types::Diagnostic =
+                serde_json::from_str(&text).unwrap();
+            let Some(tower_lsp_server::ls_types::NumberOrString::String(code)) = &parsed.code
+            else {
+                panic!("string code: {text}");
+            };
+            let decoded = CheckPayloadData::from_value(parsed.data.as_ref().unwrap(), code)
+                .unwrap_or_else(|| panic!("{code}: {text}"));
+            let original = fixtures
+                .iter()
+                .find(|fixture| fixture.code.as_str() == code)
+                .unwrap();
+            assert!(decoded.describes(&original.payload), "{text}");
+        }
+    }
 }

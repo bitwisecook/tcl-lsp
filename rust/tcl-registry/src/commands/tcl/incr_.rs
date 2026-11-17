@@ -64,10 +64,12 @@ pub fn spec() -> CommandSpec {
             ),
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         runtime_backing: RuntimeBacking::shipped("incr"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
@@ -111,7 +113,9 @@ pub fn spec() -> CommandSpec {
         inline_codegen_hook: Some(InlineCodegenHookId::Incr),
         command_forms: &[INCR_IMPLICIT, INCR_EXPLICIT],
         forms: FORMS,
-        world_effects: Some(crate::WorldEffectDescriptor::VARIABLE_READ_MODIFY_WRITE),
+        world_effects: crate::knowledge::Knowledge::Partial(
+            crate::WorldEffectDescriptor::VARIABLE_READ_MODIFY_WRITE,
+        ),
         side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         ..CommandSpec::DEFAULT
     }

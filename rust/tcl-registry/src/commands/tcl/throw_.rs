@@ -93,7 +93,9 @@ pub fn spec() -> CommandSpec {
             | Traits::TERMINATES_BLOCK
             | Traits::CATCHABLE_THROW,
         arity: Arity::exact(2),
-        completion: Some(CompletionDescriptor::exact(COMPLETION_CODES)),
+        completion: crate::knowledge::Knowledge::Partial(CompletionDescriptor::exact(
+            COMPLETION_CODES,
+        )),
         return_type: Some(TclType::String),
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::InterpState,

@@ -636,7 +636,7 @@ fn invocation_facts_are_owned_and_target_neutral() {
         name: "world-effect-fixture",
         arity: Arity::any(),
         subcommands: WORLD_SUBCOMMANDS,
-        world_effects: Some(COMMAND_WORLD),
+        world_effects: crate::knowledge::Knowledge::Partial(COMMAND_WORLD),
         ..CommandSpec::DEFAULT
     });
     let invocation = registry

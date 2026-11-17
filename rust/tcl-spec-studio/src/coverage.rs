@@ -384,7 +384,10 @@ pub const COMMAND_SPEC: &[Field] = &[
         "semantic_operation_windows",
         Surface::Key("semantic_operation_windows"),
     ),
-    f("completion", Surface::Key("completion")),
+    f(
+        "completion",
+        Surface::Keys(&["completion", "completion_knowledge"]),
+    ),
     f("assigns_variable_at", Surface::Key("assigns_variable_at")),
     f("safe_on_uninit", Surface::Key("safe_on_uninit")),
     f("const_fold", Surface::Key("const_fold")),
@@ -410,13 +413,19 @@ pub const COMMAND_SPEC: &[Field] = &[
         "side_effects",
         Surface::Keys(&["side_effects", "side_effects_knowledge"]),
     ),
-    f("world_effects", Surface::Key("world_effects")),
+    f(
+        "world_effects",
+        Surface::Keys(&["world_effects", "world_effects_knowledge"]),
+    ),
     f("state_transitions", Surface::Key("state_transitions")),
     f(
         "dispatch_dependencies",
         Surface::Key("dispatch_dependencies"),
     ),
-    f("result_stability", Surface::Key("result_stability")),
+    f(
+        "result_stability",
+        Surface::Keys(&["result_stability", "result_stability_knowledge"]),
+    ),
     f("native_result", Surface::Key("native_result")),
     f(
         "literal_argument_validator",
@@ -765,7 +774,10 @@ pub const SUB_COMMAND: &[Field] = &[
         "semantic_operation_windows",
         Surface::Key("semantic_operation_windows"),
     ),
-    f("completion", Surface::Key("completion")),
+    f(
+        "completion",
+        Surface::Keys(&["completion", "completion_knowledge"]),
+    ),
     f("surface", Surface::Key("surface")),
     f("lifecycle", Surface::Keys(LIFECYCLE_KEYS)),
     f("safe_on_uninit", Surface::Key("safe_on_uninit")),
@@ -810,13 +822,19 @@ pub const SUB_COMMAND: &[Field] = &[
         "side_effects",
         Surface::Keys(&["side_effects", "side_effects_knowledge"]),
     ),
-    f("world_effects", Surface::Key("world_effects")),
+    f(
+        "world_effects",
+        Surface::Keys(&["world_effects", "world_effects_knowledge"]),
+    ),
     f("state_transitions", Surface::Key("state_transitions")),
     f(
         "dispatch_dependencies",
         Surface::Key("dispatch_dependencies"),
     ),
-    f("result_stability", Surface::Key("result_stability")),
+    f(
+        "result_stability",
+        Surface::Keys(&["result_stability", "result_stability_knowledge"]),
+    ),
     f("native_result", Surface::Key("native_result")),
     f(
         "literal_argument_validator",

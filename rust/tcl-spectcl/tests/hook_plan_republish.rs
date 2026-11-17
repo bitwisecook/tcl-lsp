@@ -27,7 +27,7 @@ use std::path::PathBuf;
 
 use tcl_spectcl::discovery::{Origin, PackFile, Tier};
 
-const HOOKED: &str = r#"
+const HOOKED: &str = r"
 speclib hooked 2.0 {
     command hooked::last {
         arity 0..
@@ -38,15 +38,15 @@ speclib hooked 2.0 {
         arg_role_resolver_roles Body
     }
 }
-"#;
+";
 
-const PLAIN: &str = r#"
+const PLAIN: &str = r"
 speclib plain 2.0 {
     command plain::noop {
         arity 1
     }
 }
-"#;
+";
 
 fn pack(path: &str, source: &str) -> (PackFile, String) {
     (

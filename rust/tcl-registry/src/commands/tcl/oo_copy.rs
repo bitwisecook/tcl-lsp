@@ -196,7 +196,7 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
-        world_effects: Some(COPY_EFFECTS),
+        world_effects: crate::knowledge::Knowledge::Partial(COPY_EFFECTS),
         state_transitions: Some(COPY_TRANSITIONS),
         ..CommandSpec::DEFAULT
     }

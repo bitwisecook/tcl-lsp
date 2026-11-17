@@ -330,6 +330,7 @@ pub(super) fn fragment_needs_original_source_owner(fragment: &BodyFragment) -> b
         || !fragment.pending_next_arity.is_empty()
         || !result.all_procs.is_empty()
         || !result.all_classes.is_empty()
+        || !result.external_class_contributions.is_empty()
         || !result.original_procedure_metadata.is_empty()
         || !result.original_class_metadata.is_empty()
         || !result.original_counted_class_metadata.is_empty()

@@ -91,6 +91,7 @@ mod source_unavailability_advice;
 pub use default_manufacture_advice::OriginalDefaultManufactureShape;
 pub use original_callback_lookup::OriginalCallbackPrefix;
 mod insertion_template;
+mod literal_word_script;
 mod original_command_mutation;
 mod original_command_table;
 mod original_delegated_script;
@@ -256,7 +257,9 @@ pub(crate) use analysis_body_correspondence::AnalyticalBodyCorrespondence;
 mod allocation_relocation;
 pub use allocation_relocation::{for_each_script_allocation_site_mut, relocate_script};
 mod body_template;
+mod re_execution;
 pub use body_template::{BodyProofScope, BodySourceProofs, NativeBodyTemplate};
+pub use re_execution::{ReExecutionDecline, re_executable_body};
 mod command_publication;
 mod compiled_invocation;
 mod ensemble_compilation;
@@ -424,12 +427,34 @@ pub enum BindingKind {
     /// object method — is only modelled as a deletion for names that
     /// actually denote objects.
     Class,
+    /// An instance of a registry object class (a Tk widget's path), created
+    /// by the constructor command `factory`. A call through it dispatches
+    /// that class's declared instance methods; it is never a `TclOO` class,
+    /// and its methods include no `destroy` deletion.
+    Instance {
+        /// The constructor's canonical registry command.
+        factory: &'static str,
+    },
     /// An `interp alias` (`target` = the alias target name).
     Alias,
     /// Renamed/deleted-away or never-defined → dispatches to `unknown`.
     Opaque,
     /// ⊤ — conflicting bindings at a merge, or dynamic mutation.
     Unknown,
+}
+
+impl BindingKind {
+    /// The binding a registry definition installs before any instance
+    /// refinement: an instance is first published as an object command.
+    #[must_use]
+    pub const fn of_definition(kind: tcl_registry::CommandBindingDefinitionKind) -> Self {
+        match kind {
+            tcl_registry::CommandBindingDefinitionKind::Procedure => Self::Proc,
+            tcl_registry::CommandBindingDefinitionKind::Object
+            | tcl_registry::CommandBindingDefinitionKind::Instance => Self::Class,
+            tcl_registry::CommandBindingDefinitionKind::Command => Self::Command,
+        }
+    }
 }
 
 /// A command-name binding: its [`BindingKind`] plus an optional target
@@ -793,6 +818,7 @@ mod binding_projection;
 mod binding_restoration;
 mod cfg_lattice;
 mod command_identity;
+mod command_world_tables;
 mod compilation_lookup_advice;
 mod deferred_entries;
 mod invocation_binding;

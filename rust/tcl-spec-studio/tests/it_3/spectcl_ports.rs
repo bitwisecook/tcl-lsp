@@ -89,6 +89,23 @@ const OO_CLASS_FACTORY_DESCRIPTORS: &str = "the shipped subcommand's `world_effe
      `defines_command_at` facts instead";
 const NO_SUBS: &[(&str, &str, &str)] = &[];
 
+/// Why a port's `world_effects_knowledge` differs wherever its
+/// `world_effects` is a descriptor the port does not transcribe: the
+/// completeness travels on the `world_effects` row, so a port without the
+/// row states none (issue #1712).
+/// The same for `result_stability_knowledge` beside an untranscribed
+/// `result_stability`.
+const UNTRANSCRIBED_STABILITY_KNOWLEDGE: &str = "the completeness of a shipped \
+     `result_stability` claim the port does not transcribe; it is spelled on that \
+     row, so the port states none";
+/// The same for `completion_knowledge` beside an untranscribed `completion`.
+const UNTRANSCRIBED_COMPLETION_KNOWLEDGE: &str = "the completeness of a shipped \
+     `completion` descriptor the port does not transcribe; it is spelled on that \
+     row, so the port states none";
+const UNTRANSCRIBED_WORLD_KNOWLEDGE: &str = "the completeness of a shipped \
+     `world_effects` descriptor the port does not transcribe; it is spelled on that \
+     row, so the port states none";
+
 /// Why a port leaves out a shipped `successful_handler`: the DSL recognises
 /// `successful_handler -native …`, but deliberately excludes it from
 /// pack-authored strong analysis — a catalogue pack cannot certify the
@@ -176,14 +193,17 @@ const PORTS: &[Port] = &[
         commands: &[PortedCommand {
             name: "upvar",
             dialect: "tcl9.1",
-            unequal: &[(
-                "__unrenderable",
-                "the shipped spec carries the compiler-owned `native_lowering` \
+            unequal: &[
+                (
+                    "__unrenderable",
+                    "the shipped spec carries the compiler-owned `native_lowering` \
                  descriptor (the native-tier shape stamped beside the lowering \
                  hook); SpecTcl has no surface for it, so it stays on the \
                  unrenderable list and the port does not transcribe it. Every \
                  field the port does carry matches",
-            )],
+                ),
+                ("completion_knowledge", UNTRANSCRIBED_COMPLETION_KNOWLEDGE),
+            ],
             unequal_subcommand: NO_SUBS,
             subcommand_subset: ALL_SUBS,
         }],
@@ -253,12 +273,15 @@ const PORTS: &[Port] = &[
         commands: &[PortedCommand {
             name: "return",
             dialect: "tcl9.1",
-            unequal: &[(
-                "__unrenderable",
-                "the shipped spec carries the compiler-owned `native_lowering` \
+            unequal: &[
+                (
+                    "__unrenderable",
+                    "the shipped spec carries the compiler-owned `native_lowering` \
                  descriptor, unrenderable in SpecTcl exactly as for `if` and \
                  `upvar`; every field the port does carry matches",
-            )],
+                ),
+                ("world_effects_knowledge", UNTRANSCRIBED_WORLD_KNOWLEDGE),
+            ],
             unequal_subcommand: NO_SUBS,
             subcommand_subset: ALL_SUBS,
         }],
@@ -288,7 +311,22 @@ const PORTS: &[Port] = &[
             )],
             unequal_subcommand: &[
                 ("create", "__unrenderable", OO_CLASS_FACTORY_DESCRIPTORS),
+                (
+                    "create",
+                    "world_effects_knowledge",
+                    UNTRANSCRIBED_WORLD_KNOWLEDGE,
+                ),
                 ("new", "__unrenderable", OO_CLASS_FACTORY_DESCRIPTORS),
+                (
+                    "new",
+                    "world_effects_knowledge",
+                    UNTRANSCRIBED_WORLD_KNOWLEDGE,
+                ),
+                (
+                    "createWithNamespace",
+                    "world_effects_knowledge",
+                    UNTRANSCRIBED_WORLD_KNOWLEDGE,
+                ),
                 (
                     "createWithNamespace",
                     "__unrenderable",
@@ -323,6 +361,21 @@ const PORTS: &[Port] = &[
                      `string length`; unrenderable for the same reason",
                 ),
                 ("length", "successful_handler", SUCCESSFUL_HANDLER),
+                (
+                    "length",
+                    "world_effects_knowledge",
+                    UNTRANSCRIBED_WORLD_KNOWLEDGE,
+                ),
+                (
+                    "length",
+                    "completion_knowledge",
+                    UNTRANSCRIBED_COMPLETION_KNOWLEDGE,
+                ),
+                (
+                    "length",
+                    "result_stability_knowledge",
+                    UNTRANSCRIBED_STABILITY_KNOWLEDGE,
+                ),
                 ("is", "__unrenderable", NATIVE_COMPILATION),
                 (
                     "map",
@@ -333,7 +386,37 @@ const PORTS: &[Port] = &[
                      unrenderable for the same reason",
                 ),
                 ("map", "successful_handler", SUCCESSFUL_HANDLER),
+                (
+                    "map",
+                    "world_effects_knowledge",
+                    UNTRANSCRIBED_WORLD_KNOWLEDGE,
+                ),
+                (
+                    "map",
+                    "completion_knowledge",
+                    UNTRANSCRIBED_COMPLETION_KNOWLEDGE,
+                ),
+                (
+                    "map",
+                    "result_stability_knowledge",
+                    UNTRANSCRIBED_STABILITY_KNOWLEDGE,
+                ),
                 ("range", "successful_handler", SUCCESSFUL_HANDLER),
+                (
+                    "range",
+                    "world_effects_knowledge",
+                    UNTRANSCRIBED_WORLD_KNOWLEDGE,
+                ),
+                (
+                    "range",
+                    "completion_knowledge",
+                    UNTRANSCRIBED_COMPLETION_KNOWLEDGE,
+                ),
+                (
+                    "range",
+                    "result_stability_knowledge",
+                    UNTRANSCRIBED_STABILITY_KNOWLEDGE,
+                ),
                 (
                     "range",
                     "__unrenderable",

@@ -3540,3 +3540,37 @@ its citation and a regression that reads the recorded lines.
       server name `a b\r\nc`): claimed a DNS name with no whitespace or
       control characters (`FQDN`). If TMM passes the bytes through, the
       colour has to go.
+17. **A source literal read numerically after another command read it.** Not
+    a naming question; the optimiser's (`expr_operand_literal_reading` in
+    `rust/tcl-compiler/tests/it_5/optimiser_coverage/constant_folding.rs`).
+    On every tclsh from 8.4.20 to 9.1.0 the numeric reading of a variable
+    holding a source literal follows its string whatever read the shared
+    object first, so the optimiser folds `$a` into an expression there. F5
+    units stay declined until TMM answers. In `when HTTP_REQUEST`, log the
+    result of each:
+    - `set a 1; format %f $a; log local0. [expr {$a + 1}]`
+    - `set a 1; format %e $a; log local0. [expr {$a + 1}]`
+    - `set a 1; lsort -real [list $a 0]; log local0. [expr {$a + 1}]`
+    - `set a 1; binary format d $a; log local0. [expr {$a + 1}]`
+    - `set a 1; expr {double($a)}; log local0. [expr {$a + 1}]`
+    - `set a 010; format %f $a; log local0. [expr {$a + 1}]`
+    - and the same with a `proc g {} {format %f 1}` defined in the rule and
+      `call g` before `set a 1`.
+    tclsh 8.4.20 prints `2` for each of the first five and `9` for the
+    sixth. If TMM prints `2.0` for any, F5 must keep declining; if it
+    prints what 8.4 does, F5 units may take the 8.4 fold once it exists.
+18. **A top-level statement whose head is a rule procedure.** Not on record.
+    BIGIP-NAME-057 (c) measured a direct call of a top-level proc from inside
+    an event (rejected, `undefined procedure`); a bare statement at the top
+    level of the rule was not measured. The rule loader's refusal
+    (`rule_loader_rejection` in `rust/tcl-compiler/src/command_binding/rule_declaration.rs`)
+    covers a registry-backed head the loader refuses and an unknown literal
+    head, not a head bound to the rule's own proc, so the walk enters such a
+    call. Load each as its own rule and record ACCEPT or REJECT with the
+    loader message:
+    - `proc bnq18p {} { return 1 }\nbnq18p\nwhen RULE_INIT { log local0. x }`
+    - `proc bnq18p {} { return 1 }\nwhen RULE_INIT { log local0. [call bnq18p] }`
+      (the control that must be accepted)
+    - `bnq18nosuch\nwhen RULE_INIT { log local0. x }`
+    Until answered, the walk keeps entering the call and the consumers that
+    need a refusal stay conservative.

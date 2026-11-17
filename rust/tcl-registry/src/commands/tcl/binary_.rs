@@ -448,10 +448,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 lookup: &BINARY_FORMAT_LOOKUP,
             },
         ),
-        completion: Some(crate::completion::CompletionDescriptor::exact(&[
-            crate::completion::CompletionCode::Ok,
-            crate::completion::CompletionCode::Error,
-        ])),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         arity: Arity::at_least(1),
         detail: "Build a binary string from Tcl values, laid out by a cursor-driven format specification.",
         synopsis: "binary format formatString ?arg ...?",

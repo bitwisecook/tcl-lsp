@@ -204,13 +204,29 @@ fn splice_v3(
         return None;
     }
 
-    let (cid, mut rename, bindings) = build_param_bindings(call, proc, rules, config, counter)?;
+    // A live splice evaluates the call's words once, into anonymous slots,
+    // before anything of the body runs, and binds the formals from them: the
+    // runtime invokes those very words if the splice has to be abandoned.
+    let (words, replaced) = match renamed {
+        Some(_) => {
+            let (words, replaced) = evaluated_words(call, *counter + 1)?;
+            (words, Some(replaced))
+        }
+        None => (Vec::new(), None),
+    };
+    let (cid, mut rename, bindings) = build_param_bindings(
+        replaced.as_ref().unwrap_or(call),
+        proc,
+        rules,
+        config,
+        counter,
+    )?;
 
     // Mangle every locally-written variable too.
     for name in collect_local_names(&proc.body) {
         rename
             .entry(name.clone())
-            .or_insert_with(|| format!("__inline_{cid}__{name}"));
+            .or_insert_with(|| format!("{}{name}", super::local_prefix(cid)));
     }
 
     let renamed_body = match renamed {
@@ -218,7 +234,8 @@ fn splice_v3(
         None => rename::rewrite_script(&proc.body, &rename, config),
     };
 
-    let mut out = bindings;
+    let mut out = words;
+    out.extend(bindings);
     if body_has_non_trailing_return {
         // Capture the implicit-trailing-return value when the body falls
         // off the end without an explicit `return`.
@@ -226,7 +243,7 @@ fn splice_v3(
         if !body_has_trailing_return && let Some(trailing) = renamed_body.statements.last() {
             implicit = Some(capture_implicit_return_value(trailing)?);
         }
-        let result_var = format!("__inline_{cid}__RESULT");
+        let result_var = format!("{}RESULT", super::local_prefix(cid));
         let mut wrapped = wrap_with_irreturn_loop(&renamed_body, &result_var, span, implicit);
         if tail == Tail::Returned {
             // The value is the result's, which is read as the lowering spells a
@@ -250,7 +267,7 @@ fn splice_v3(
     if body_has_trailing_return && tail != Tail::Returned {
         // Trailing return where the value is not the procedure's — wrap so it
         // doesn't short-circuit the rest of the caller's body.
-        let result_var = format!("__inline_{cid}__RESULT");
+        let result_var = format!("{}RESULT", super::local_prefix(cid));
         out.extend(wrap_with_irreturn_loop(
             &renamed_body,
             &result_var,
@@ -269,6 +286,88 @@ fn splice_v3(
         command_binding_sites: expansion.command_binding_sites,
         procedure_bindings: expansion.procedure_bindings,
     })
+}
+
+/// The name of the anonymous slot that holds word `index` of splice `cid`'s
+/// call, its command word first.
+pub(super) fn word_slot(cid: usize, index: usize) -> String {
+    format!("{}w{index}", super::local_prefix(cid))
+}
+
+/// The statements that evaluate `call`'s words, once and in order, into the
+/// slots of splice `cid`, and the call with each argument read back from its
+/// slot. `None` for a call whose command word is not a literal, or that
+/// expands a word.
+fn evaluated_words(call: &Statement, cid: usize) -> Option<(Vec<Statement>, Statement)> {
+    let Statement::Call {
+        span,
+        command,
+        canonical_command,
+        args,
+        defs,
+        reads,
+        reads_own_defs,
+        safe_on_uninit,
+        tokens,
+        foreach_groups,
+    } = call
+    else {
+        return None;
+    };
+    let tokens = tokens.as_ref()?;
+    if tokens
+        .expand_word
+        .as_ref()
+        .is_some_and(|expand| expand.iter().any(|&word| word))
+    {
+        return None;
+    }
+    let tcl_compiler::ir::WordExpr::Literal { text: head, .. } = tokens.words().first()? else {
+        return None;
+    };
+    let mut words = vec![Statement::AssignConst {
+        span: *span,
+        name: word_slot(cid, 0),
+        name_braced: false,
+        value: head.clone(),
+        value_span: None,
+    }];
+    let mut read_back = Vec::with_capacity(args.len());
+    for (index, arg) in args.iter().enumerate() {
+        let name = word_slot(cid, index + 1);
+        words.push(if tokens.arg_is_braced_literal(index) {
+            Statement::AssignConst {
+                span: *span,
+                name: name.clone(),
+                name_braced: false,
+                value: arg.clone(),
+                value_span: None,
+            }
+        } else {
+            Statement::AssignValue {
+                span: *span,
+                name: name.clone(),
+                name_braced: false,
+                value: arg.clone(),
+                value_needs_backsubst: arg.contains('\\'),
+                tokens: None,
+            }
+        });
+        read_back.push(format!("${{{name}}}"));
+    }
+    let replaced = Statement::Call {
+        span: *span,
+        command: command.clone(),
+        canonical_command: canonical_command.clone(),
+        args: read_back,
+        defs: defs.clone(),
+        reads: reads.clone(),
+        reads_own_defs: *reads_own_defs,
+        safe_on_uninit: *safe_on_uninit,
+        tokens: None,
+        foreach_groups: foreach_groups.clone(),
+    };
+    Some((words, replaced))
 }
 
 /// The statements of a wrapped body. A body lowered under a live entry keeps

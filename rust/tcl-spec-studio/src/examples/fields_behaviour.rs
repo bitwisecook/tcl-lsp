@@ -414,6 +414,24 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
         },
     ),
     (
+        "completion_knowledge",
+        Example {
+            code: "set n [llength $items]\nputs $n",
+            focuses: &[
+                focus(
+                    0,
+                    "llength",
+                    "completes only normally or with an error, complete from the 8.4–9.1 sources",
+                ),
+                focus(
+                    1,
+                    "puts",
+                    "so control reaches the next command whenever it succeeds",
+                ),
+            ],
+        },
+    ),
+    (
         "const_fold",
         Example {
             code: "set order [lreverse {c b a}]",
@@ -687,6 +705,24 @@ append log $line",
         },
     ),
     (
+        "world_effects_knowledge",
+        Example {
+            code: "set n [llength $items]\nset items [linsert $items 0 head]",
+            focuses: &[
+                focus(
+                    0,
+                    "llength",
+                    "complete and effect-free from the 8.4–9.1 sources: it touches no variable, command or channel",
+                ),
+                focus(
+                    1,
+                    "linsert",
+                    "so moving it past this write cannot change what it reads",
+                ),
+            ],
+        },
+    ),
+    (
         "state_transitions",
         Example {
             code: "proc greet {} { puts hi }\ninterp alias {} hi {} greet",
@@ -738,6 +774,20 @@ append log $line",
                     "[string length $s]",
                     "referentially transparent: a second call may reuse this",
                 ),
+            ],
+        },
+    ),
+    (
+        "result_stability_knowledge",
+        Example {
+            code: "set a [string length $s]\nset b [string length $s]",
+            focuses: &[
+                focus(
+                    0,
+                    "string",
+                    "its result depends only on its argument, complete from the 8.4–9.1 sources",
+                ),
+                focus(1, "string", "so the repeat can reuse the first result"),
             ],
         },
     ),

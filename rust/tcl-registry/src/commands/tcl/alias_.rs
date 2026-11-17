@@ -46,7 +46,7 @@ pub fn spec() -> CommandSpec {
         arg_roles: &[(0, ArgRole::Name), (1, ArgRole::Name)],
         return_type: Some(TclType::String),
         traits: Traits::INSTALLS_NAMED_DEFINITION | Traits::REFLECTS_COMMAND_NAMES,
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(crate::state_transition::command_binding::CREATES_CALLER_ALIASES),
         forms: &[FormSpec {
             synopsis: "alias newname command ?args ...?",
