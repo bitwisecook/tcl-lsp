@@ -658,6 +658,69 @@ impl SourceAnalysisEntry {
             ..Self::default()
         }
     }
+
+    /// The entry of a supplied document whose embedding host registers its
+    /// own native commands, under the input `dialect` resolves.
+    fn extensible_host_for_test(
+        registry: &tcl_registry::CommandRegistry,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Self {
+        let profile = input.unit_profile();
+        Self {
+            host_extensible_command_table: true,
+            ..Self::for_supplied_source(registry, input, input.lexer_config(), Some(profile))
+        }
+    }
+
+    /// Analyse `source` as an embedding host that registers its own native
+    /// commands enters it: its object types may carry conversion hooks.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn analyse_in_extensible_host_for_test(
+        source: &str,
+        dialect: &str,
+    ) -> crate::analyser::AnalysisResult {
+        let input = crate::analyser::Analyser::new()
+            .analyse(source, dialect)
+            .resolved_input
+            .expect("a supplied document resolves its input");
+        let entry =
+            Self::extensible_host_for_test(input.borrowed_context_registry().commands(), &input);
+        crate::analyser::Analyser::new()
+            .with_resolved_input(input.clone())
+            .with_source_analysis_entry(Arc::new(entry))
+            .analyse(source, dialect)
+    }
+
+    /// Build `source` over `registry`, the command store of `dialect`'s
+    /// default context, as an embedding host that registers its own native
+    /// commands enters it.
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn build_unit_in_extensible_host_for_test(
+        source: &str,
+        registry: &tcl_registry::CommandRegistry,
+        dialect: &str,
+    ) -> crate::compilation_unit::CompilationUnit {
+        let context =
+            tcl_registry::model::ingress::resolve_environment(dialect).default_context_registry();
+        let profile = registry.profile().expect("a dialect's command store");
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(profile, profile, context, config);
+        crate::compilation_unit::CompilationUnit::build_with_entry_and_input_for_test(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            &Self::extensible_host_for_test(registry, &input),
+            &input,
+        )
+    }
 }
 
 #[cfg(test)]

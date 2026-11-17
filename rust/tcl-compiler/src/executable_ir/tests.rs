@@ -311,6 +311,36 @@ fn build(source: &str, id: usize) -> ExecutableFunction {
     function
 }
 
+/// [`build`] for an embedding host that registers its own native commands:
+/// its object types may carry conversion hooks that run anything.
+fn build_hosted(source: &str, id: usize) -> ExecutableFunction {
+    let context =
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+    let profile = context.commands().profile().unwrap();
+    let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+    let input = crate::analyser::ResolvedAnalysisInput::new(
+        profile,
+        profile,
+        std::sync::Arc::clone(&context),
+        config,
+    );
+    let module = crate::lowering::lower_to_ir_with(
+        crate::lowering::Lowerer::with_config(context.commands(), config)
+            .with_resolved_analysis_input(input)
+            .with_host_extensible_command_table(),
+        source,
+    );
+    let function = build_linear_executable_ir(
+        context.commands(),
+        Some(test_context()),
+        ExecutableFunctionId::new(id),
+        &module.top_level,
+    )
+    .expect("structured control remains executable");
+    function.validate().expect("valid executable IR");
+    function
+}
+
 fn instructions(function: &ExecutableFunction) -> Vec<&ExecutableInstruction> {
     function
         .blocks
@@ -1132,7 +1162,7 @@ fn a_structured_region_still_isolates_the_statements_around_it() {
 
 #[test]
 fn unknown_foreach_conversion_preserves_generic_later_dispatch() {
-    let function = build(
+    let function = build_hosted(
         "set items [gets stdin]\nset total 0\nforeach item $items {incr total $item}\nreturn $total",
         217,
     );

@@ -226,7 +226,11 @@ fn retained_substitution_procedure_folding_preserves_arity_and_argument_effects(
 fn retained_substitution_native_object_callbacks_withdraw_builtin_erasure() {
     let registry = tcl_registry::model::ingress::static_context_for("tcl9.1").commands();
     let source = "proc f {input} {puts [llength $input]}";
-    let cu = CompilationUnit::build_for_dialect(source, registry, false, "tcl9.1");
+    // Entered by an embedding host that registers its own native commands:
+    // its object types may carry conversion hooks that run anything.
+    let cu = crate::command_binding::SourceAnalysisEntry::build_unit_in_extensible_host_for_test(
+        source, registry, "tcl9.1",
+    );
     let statement = &cu
         .ir_module
         .procedures

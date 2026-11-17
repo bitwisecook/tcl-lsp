@@ -36,6 +36,20 @@ pub(crate) enum ObjectCallbackEffects {
 
 pub(super) type ObjectCallbackInventory = BTreeMap<CommandAllocationSite, ObjectCallbackEffects>;
 
+/// A fresh interpreter of the dialect holds only its own object types, whose
+/// conversion hooks run no script. A foreign type needs native code, which
+/// arrives through a host entry (an embedding that registers its own
+/// commands included) or through a command the walk cannot name; either one
+/// ends this.
+fn only_stock_object_types(state: &ModuleCommandBindings) -> bool {
+    state.baseline.source_point_entry.is_none()
+        && !state.baseline.host_extensible_command_table
+        && state.original_command_world.selected_policy().is_some()
+        && !state.unclosed_command_world
+        && !state.original_command_world.is_withdrawn()
+        && super::original_namespace_body::quiet(state)
+}
+
 #[derive(Clone, Copy)]
 pub(super) enum ObjectInputProtocol {
     Ordinary,
@@ -70,7 +84,7 @@ impl SourceCommandBindings {
         offset: u32,
         closed: bool,
     ) {
-        let effects = if closed {
+        let effects = if closed || only_stock_object_types(state) {
             ObjectCallbackEffects::Closed
         } else {
             ObjectCallbackEffects::Unknown
@@ -244,7 +258,7 @@ impl SourceCommandBindings {
         offset: u32,
         closed: bool,
     ) {
-        let effects = if closed {
+        let effects = if closed || only_stock_object_types(state) {
             ObjectCallbackEffects::Closed
         } else {
             ObjectCallbackEffects::Unknown
@@ -512,6 +526,23 @@ mod tests {
         source: &str,
         dialect: &str,
     ) -> (SourceCommandBindings, Arc<tcl_registry::CommandRegistry>) {
+        analyse_entered(source, dialect, false)
+    }
+
+    /// Entered by an embedding host that registers its own native commands:
+    /// its object types may carry conversion hooks that run anything.
+    fn analyse_hosted(
+        source: &str,
+        dialect: &str,
+    ) -> (SourceCommandBindings, Arc<tcl_registry::CommandRegistry>) {
+        analyse_entered(source, dialect, true)
+    }
+
+    fn analyse_entered(
+        source: &str,
+        dialect: &str,
+        host_extensible_command_table: bool,
+    ) -> (SourceCommandBindings, Arc<tcl_registry::CommandRegistry>) {
         let registry =
             Arc::clone(tcl_registry::model::ingress::static_context_for(dialect).commands());
         let profile = registry.profile().unwrap();
@@ -520,6 +551,7 @@ mod tests {
             tcl_lexer::LexerConfig::for_profile(Some(profile)),
             &registry,
             SourceAnalysisOptions {
+                host_extensible_command_table,
                 invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
                 native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                     mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
@@ -617,7 +649,7 @@ mod tests {
 
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
             let source = "proc f {items} {set keep SAFE; foreach item $items {}; set answer $keep}";
-            let (bindings, _) = analyse(source, dialect);
+            let (bindings, _) = analyse_hosted(source, dialect);
             let foreach = bindings.invocation_at_source(
                 "foreach",
                 u32::try_from(source.find("foreach").unwrap()).unwrap(),
@@ -690,7 +722,7 @@ mod tests {
 
         let source = "proc f {input} {set keep SAFE; llength $input; set answer $keep}";
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
-            let (bindings, registry) = analyse(source, dialect);
+            let (bindings, registry) = analyse_hosted(source, dialect);
             let offset = u32::try_from(source.find("llength").unwrap()).unwrap();
             let call = bindings.invocation_at_source("llength", offset);
             let after = bindings.invocation_at_source(
@@ -727,7 +759,7 @@ mod tests {
                 let source = format!(
                     "proc f {{count}} {{set keep SAFE; {setup} llength $input; set answer $keep}}"
                 );
-                let (bindings, _) = analyse(&source, dialect);
+                let (bindings, _) = analyse_hosted(&source, dialect);
                 let call = bindings.invocation_at_source(
                     "llength",
                     u32::try_from(source.find("llength").unwrap()).unwrap(),
@@ -824,6 +856,51 @@ mod tests {
                     );
                 }
             }
+        }
+    }
+
+    /// A fresh interpreter holds only its own object types, whose conversion
+    /// hooks run no script, so a list or numeric command over a value of
+    /// unknown contents leaves the command world as it found it. Native code
+    /// that could register a foreign type arrives through `load`, which ends
+    /// the claim.
+    ///
+    /// ```tcl
+    /// proc p {n} {incr n; lindex $n 0; llength $n; nosuch}
+    /// catch {p 3} m; puts $m
+    /// proc q {} {global g; set y [incr g]; nosuch}
+    /// catch {q} m; puts $m
+    /// ```
+    ///
+    /// tclsh 8.4.20 to 9.1.0 print `invalid command name "nosuch"` for `p`;
+    /// for `q`, 8.5.19 to 9.1.0 print the same and 8.4.20, whose `incr`
+    /// needs an existing variable, `can't read "g": no such variable`.
+    #[test]
+    fn a_list_or_numeric_command_over_unknown_contents_keeps_the_command_world() {
+        let unresolved = |source: &str, release: &str| {
+            crate::analyser::Analyser::new()
+                .analyse(source, release)
+                .diagnostics
+                .iter()
+                .filter(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::W123)
+                .count()
+        };
+        for release in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            for source in [
+                "proc p {n} {incr n; lindex $n 0; llength $n; nosuch}\n",
+                "set n [gets stdin]\nset k [llength $n]\nnosuch\n",
+                "proc p {} {global g; set y [incr g]; nosuch}\n",
+            ] {
+                assert_eq!(unresolved(source, release), 1, "{release}: {source}");
+            }
+            assert_eq!(
+                unresolved(
+                    "catch {load ./ext.so} e\nset n [gets stdin]\nset k [llength $n]\nnosuch\n",
+                    release
+                ),
+                0,
+                "{release}"
+            );
         }
     }
 

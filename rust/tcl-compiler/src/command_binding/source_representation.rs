@@ -893,12 +893,23 @@ mod tests {
     use tcl_syntax::value::ValueRepresentation;
 
     fn analyse(source: &str) -> SourceCommandBindings {
+        analyse_entered(source, false)
+    }
+
+    /// Entered by an embedding host that registers its own native commands:
+    /// its object types may carry conversion hooks that run anything.
+    fn analyse_hosted(source: &str) -> SourceCommandBindings {
+        analyse_entered(source, true)
+    }
+
+    fn analyse_entered(source: &str, host_extensible_command_table: bool) -> SourceCommandBindings {
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
         SourceCommandBindings::analyse_with_options(
             source,
             tcl_lexer::LexerConfig::from_grammar(profile.grammar),
             tcl_registry::model::ingress::static_context_for("tcl8.6").commands(),
             SourceAnalysisOptions {
+                host_extensible_command_table,
                 invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
                 native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                     mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
@@ -1295,7 +1306,7 @@ mod tests {
         // inputs: tcl-syntax/tests/data/native_list_methods/string-callbacks/README.md.
         let source = "proc f {items} {foreach x $items {set d [dict create k $x]; llength $d}}";
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
-        let bindings = analyse(source);
+        let bindings = analyse_hosted(source);
         let point = bindings.invocation_at_source(
             "llength",
             u32::try_from(source.rfind("llength").unwrap()).unwrap(),

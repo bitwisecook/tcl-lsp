@@ -17,6 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use tcl_compiler::analyser::Analyser;
+use tcl_compiler::command_binding::SourceAnalysisEntry;
 use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
 use tcl_compiler::shimmer::{ShimmerWarning, find_shimmer_warnings_for_cu};
 use tcl_core_types::DiagCode;
@@ -32,6 +33,14 @@ fn warnings_for(source: &str, dialect: &str) -> Vec<ShimmerWarning> {
     })
 }
 
+/// [`warnings_for`] for an embedding host that registers its own native
+/// commands: its object types may carry conversion hooks that run anything.
+fn warnings_in_extensible_host(source: &str, dialect: &str) -> Vec<ShimmerWarning> {
+    with_unit_entered(source, dialect, true, |unit, registry, _| {
+        find_shimmer_warnings_for_cu(unit, registry)
+    })
+}
+
 fn with_unit<T>(
     source: &str,
     dialect: &str,
@@ -41,12 +50,37 @@ fn with_unit<T>(
         &'static tcl_dialect::DialectProfile,
     ) -> T,
 ) -> T {
-    let mut analyser = Analyser::new();
-    let _analysis = analyser.analyse(source, dialect);
-    let input = analyser.resolved_analysis_input();
-    let settings = analyser.source_compilation_settings();
+    with_unit_entered(source, dialect, false, check)
+}
+
+fn with_unit_entered<T>(
+    source: &str,
+    dialect: &str,
+    host_extensible_command_table: bool,
+    check: impl FnOnce(
+        &CompilationUnit,
+        &tcl_registry::CommandRegistry,
+        &'static tcl_dialect::DialectProfile,
+    ) -> T,
+) -> T {
+    let input = Analyser::new()
+        .analyse(source, dialect)
+        .resolved_input
+        .unwrap();
     let registry = input.borrowed_context_registry().commands();
     let profile = input.unit_profile();
+    let entry = host_extensible_command_table.then(|| SourceAnalysisEntry {
+        host_extensible_command_table: true,
+        ..SourceAnalysisEntry::for_supplied_source(
+            registry,
+            &input,
+            input.lexer_config(),
+            Some(profile),
+        )
+    });
+    let mut analyser = Analyser::new().with_resolved_input(input.clone());
+    let _analysis = analyser.analyse(source, dialect);
+    let settings = analyser.source_compilation_settings();
     let options = UnitBuildOptions {
         registry,
         defer_top_level: false,
@@ -56,7 +90,11 @@ fn with_unit<T>(
         declared_commands: None,
     };
     let unit = CompilationUnit::build_with_analysis_input_and_source_settings(
-        source, options, None, &input, &settings,
+        source,
+        options,
+        entry.as_ref(),
+        &input,
+        &settings,
     )
     .with_interprocedural(registry, Some(profile));
     check(&unit, registry, profile)
@@ -68,7 +106,9 @@ fn compiler_checks_preserve_conditional_shimmer_without_action_authority() {
         ("set s abc; set n [string length $s]; lindex $n 0", 1),
         ("set n {1 2}; lindex $n 0", 0),
     ] {
-        with_unit(source, "tcl8.6", |unit, registry, profile| {
+        // An embedding host's object types may carry hooks, so the
+        // conversion stays conditional advice.
+        with_unit_entered(source, "tcl8.6", true, |unit, registry, profile| {
             let warnings = find_shimmer_warnings_for_cu(unit, registry);
             let checks =
                 tcl_compiler::compiler_checks::run_all_checks(unit, registry, Some(profile));
@@ -148,7 +188,7 @@ fn pure_and_pooled_literals_do_not_supply_integer_representation() {
         "set n 123; lindex $n 0",
     ] {
         for version in tcl_dialect::TclVersion::ALL {
-            let found = warnings_for(source, version.dialect_profile_name());
+            let found = warnings_in_extensible_host(source, version.dialect_profile_name());
             assert!(
                 !found.iter().any(|warning| warning.variable == "n"),
                 "{version:?} {source}: {found:?}"
@@ -159,8 +199,10 @@ fn pure_and_pooled_literals_do_not_supply_integer_representation() {
 
 #[test]
 fn forwarded_copy_warns_before_later_scope_refusal() {
+    // An embedding host's object types may carry hooks, so the first
+    // conversion ends what the later `lindex` may be told.
     let source = "set s abc; set n [string length $s]; set m $n; lindex $m 0; lindex $n 0";
-    let found = warnings(source);
+    let found = warnings_in_extensible_host(source, "tcl8.6");
     let converted: Vec<_> = found
         .iter()
         .filter(|warning| {

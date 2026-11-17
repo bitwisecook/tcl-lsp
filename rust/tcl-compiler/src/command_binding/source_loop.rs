@@ -426,6 +426,23 @@ mod tests {
         source: &str,
         dialect: &str,
     ) -> (SourceCommandBindings, tcl_registry::CommandRegistry) {
+        analyse_entered(source, dialect, false)
+    }
+
+    /// Entered by an embedding host that registers its own native commands:
+    /// its object types may carry conversion hooks that run anything.
+    fn analyse_hosted(
+        source: &str,
+        dialect: &str,
+    ) -> (SourceCommandBindings, tcl_registry::CommandRegistry) {
+        analyse_entered(source, dialect, true)
+    }
+
+    fn analyse_entered(
+        source: &str,
+        dialect: &str,
+        host_extensible_command_table: bool,
+    ) -> (SourceCommandBindings, tcl_registry::CommandRegistry) {
         let profile = tcl_dialect::DialectProfile::find(dialect).unwrap();
         let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
         let bindings = SourceCommandBindings::analyse_with_options(
@@ -433,6 +450,7 @@ mod tests {
             tcl_lexer::LexerConfig::from_grammar(profile.grammar),
             &registry,
             super::super::SourceAnalysisOptions {
+                host_extensible_command_table,
                 invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
                 native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                     mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
@@ -462,7 +480,7 @@ mod tests {
             ),
         ] {
             let source = "proc f {items} {foreach i $items {lappend r $i}; puts READY; return $r}";
-            let (bindings, registry) = analyse_in(source, dialect);
+            let (bindings, registry) = analyse_hosted(source, dialect);
             let site = u32::try_from(source.rfind("return").unwrap()).unwrap();
             let reads = bindings.variable_accesses_for_invocation_args(site);
             let read = reads
@@ -536,7 +554,7 @@ mod tests {
         // Their bytes alone cannot establish current object-method provenance.
         let source = "if {[expr {rand() > 0.5}]} {set items [list]} else {set items [list ITEM]}; foreach i $items {lappend r $i}; set result $r";
         for dialect in ["tcl8.6", "tcl9.0"] {
-            let (bindings, _) = analyse_in(source, dialect);
+            let (bindings, _) = analyse_hosted(source, dialect);
             let site = u32::try_from(source.rfind("set result").unwrap()).unwrap();
             let reads = bindings.variable_accesses_for_invocation_args(site);
             let read = reads

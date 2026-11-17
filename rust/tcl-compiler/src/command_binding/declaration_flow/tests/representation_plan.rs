@@ -23,7 +23,11 @@ use super::*;
 #[test]
 fn conditional_root_naming_is_scoped_to_the_original_command() {
     let source = "set s abc; set n [string length $s]; set m $n; lindex $m 0; lindex $n 0";
-    let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+    // An embedding host's object types may carry hooks, so the first
+    // `lindex` ends what the root may name.
+    let analysis = crate::command_binding::SourceAnalysisEntry::analyse_in_extensible_host_for_test(
+        source, "tcl8.6",
+    );
     let input = analysis.resolved_input.as_ref().unwrap();
     let registry = input.borrowed_context_registry().commands();
     let config = input.lexer_config();

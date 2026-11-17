@@ -46,9 +46,31 @@ fn conditional_representation_report(source: &str) -> Arc<DeclarationFlowReport>
 }
 
 fn report(source: &str) -> Arc<DeclarationFlowReport> {
+    report_entered(source, false)
+}
+
+/// [`report`] for an embedding host that registers its own native commands:
+/// its object types may carry conversion hooks that run anything.
+fn report_in_extensible_host(source: &str) -> Arc<DeclarationFlowReport> {
+    report_entered(source, true)
+}
+
+fn report_entered(source: &str, host_extensible_command_table: bool) -> Arc<DeclarationFlowReport> {
     let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
     let config = tcl_lexer::LexerConfig::from_grammar(registry.profile().unwrap().grammar);
-    let bindings = super::super::SourceCommandBindings::analyse(source, config, registry);
+    let bindings = super::super::SourceCommandBindings::analyse_with_options(
+        source,
+        config,
+        registry,
+        super::super::SourceAnalysisOptions {
+            host_extensible_command_table,
+            invocation_dialect: Some(crate::environment_ingress::authoring_invocation_dialect(
+                registry, None, config,
+            )),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..super::super::SourceAnalysisOptions::default()
+        },
+    );
     let original = "set anchor 1";
     let offset = u32::try_from(source.find(original).unwrap()).unwrap();
     let segment =

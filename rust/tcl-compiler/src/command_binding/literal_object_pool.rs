@@ -439,13 +439,17 @@ mod tests {
     #[test]
     fn scalar_list_length_needs_input_class_on_every_c_release() {
         // #2427: a bare undefined command no longer widens the command table; an autoload index entry in view keeps this device unbounded.
+        // A formal's contents are unknown; only a host that registers its own
+        // native commands, whose object types may carry hooks, leaves its
+        // class open.
         for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
-            for (source, closed) in [
-                ("set items {a b}; llength $items", true),
-                ("proc f {items} {llength $items}", false),
+            for (source, host_extensible_command_table, closed) in [
+                ("set items {a b}; llength $items", false, true),
+                ("proc f {items} {llength $items}", true, false),
                 (
                     "set items {a b}; set ::auto_index(unknown_host) {source lib.tcl}; unknown_host $items; llength $items",
+                    false,
                     false,
                 ),
             ] {
@@ -454,6 +458,7 @@ mod tests {
                     tcl_lexer::LexerConfig::for_profile(registry.profile()),
                     registry,
                     SourceAnalysisOptions {
+                        host_extensible_command_table,
                         invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
                             registry.profile().unwrap(),
                         )),

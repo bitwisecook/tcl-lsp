@@ -509,12 +509,13 @@ fn an_unknown_or_replaced_constructor_cannot_donate_native_range_representation(
 
 #[test]
 fn an_unknown_abstract_input_does_not_close_the_result_store() {
+    // Entered by an embedding host that registers its own native commands:
+    // its object types may carry conversion hooks that run anything.
     let registry = tcl_registry::model::ingress::static_context_for("tcl9.1").commands();
-    let unit = CompilationUnit::build_for_profile(
+    let unit = crate::command_binding::SourceAnalysisEntry::build_unit_in_extensible_host_for_test(
         "proc f {lst} {set x [llength $lst]; lindex $x 0}",
         registry,
-        false,
-        registry.profile().expect("actual native fixture profile"),
+        "tcl9.1",
     );
     let warnings = super::super::find_shimmer_warnings_for_cu(&unit, registry);
     assert!(warnings.is_empty(), "unknown callback world: {warnings:?}");

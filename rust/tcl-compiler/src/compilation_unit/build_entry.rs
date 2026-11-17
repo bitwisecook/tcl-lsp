@@ -567,6 +567,18 @@ impl CompilationUnit {
         ))
     }
 
+    /// Build under a supplied entry and the input it was resolved from, as
+    /// a whole-document build does for a fresh interpreter.
+    #[cfg(test)]
+    pub(crate) fn build_with_entry_and_input_for_test(
+        source: &str,
+        options: UnitBuildOptions<'_>,
+        entry: &crate::command_binding::SourceAnalysisEntry,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Self {
+        Self::build_with_retained_entry(source, options, None, None, Some(entry), None, Some(input))
+    }
+
     pub(super) fn build_with_entry(
         source: &str,
         options: UnitBuildOptions<'_>,

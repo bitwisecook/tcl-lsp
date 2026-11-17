@@ -549,8 +549,10 @@ fn declared_loop_first_entry_does_not_supply_runtime_zero_trip_proof() {
             "{source}"
         );
     }
+    // An embedding host's object types may carry hooks, so the condition's
+    // conversion leaves the successor's entry unavailable.
     let source = "proc p {n} {set anchor 1; while {$n > 0} {set x 1; incr n -1}; puts $x}";
-    let result = report(source);
+    let result = report_in_extensible_host(source);
     let site = CommandAllocationSite {
         source: Arc::clone(&result.source),
         offset: u32::try_from(source.rfind("puts").unwrap()).unwrap(),
@@ -558,6 +560,13 @@ fn declared_loop_first_entry_does_not_supply_runtime_zero_trip_proof() {
     assert!(result.declared_argument_entry(&site));
     assert_eq!(result.invocation_may_be_reached(&site), None);
     assert!(!result.local_store_may_be_unread(&site, "x"));
+    // A fresh interpreter's stock types run no script on conversion.
+    let fresh = report(source);
+    let site = CommandAllocationSite {
+        source: Arc::clone(&fresh.source),
+        offset: site.offset,
+    };
+    assert_eq!(fresh.invocation_may_be_reached(&site), Some(true));
 }
 
 #[test]
