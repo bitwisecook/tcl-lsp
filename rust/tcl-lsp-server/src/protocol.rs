@@ -20,7 +20,7 @@
 
 use std::future::Future;
 use tower_lsp_server::jsonrpc;
-use tower_lsp_server::ls_types::Position;
+use tower_lsp_server::ls_types::{Position, Range};
 
 mod capabilities;
 mod lifts;
@@ -116,6 +116,14 @@ pub(super) fn position_within_line(source: &str, position: Position) -> Position
     } else {
         position
     }
+}
+
+/// [`position_within_line`] applied to both ends of `range`.
+pub(super) fn range_within_lines(source: &str, range: Range) -> Range {
+    Range::new(
+        position_within_line(source, range.start),
+        position_within_line(source, range.end),
+    )
 }
 
 /// Byte offset of the LSP `(line, character)` cursor in `source`.

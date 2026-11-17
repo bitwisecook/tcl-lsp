@@ -160,7 +160,10 @@ impl Backend {
             .text_document
             .uri
             .clone();
-        let pos = params.text_document_position_params.position;
+        let Some(doc) = self.read_document(&uri).await? else {
+            return Ok(None);
+        };
+        let pos = position_within_line(&doc.text, params.text_document_position_params.position);
         let source_epoch = self.diag_inputs_epoch();
         let caller_generation = self.live_publication_uri_generation(&uri);
         let Some(doc) = self.read_document(&uri).await? else {
@@ -929,12 +932,12 @@ impl Backend {
             .text_document
             .uri
             .clone();
-        let pos = params.text_document_position_params.position;
         let source_epoch = self.diag_inputs_epoch();
         let source_generation = self.live_publication_uri_generation(&uri);
         let Some(doc) = self.read_document(&uri).await? else {
             return Ok(None);
         };
+        let pos = position_within_line(&doc.text, params.text_document_position_params.position);
         // Run the provider over the memoised `file_analysis` query (no separate
         // hover result cache — walking the cached analysis is cheap, and the
         // query graph already avoids re-analysing).  Worker-offload via

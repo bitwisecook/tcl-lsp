@@ -27,6 +27,7 @@ use crate::{
     core_bigip, core_completion, core_definition, core_document_links, core_formatting,
     core_inlay_hints, core_symbols, formatter_config_from, jsonrpc, lift_bigip_range,
     lift_completion_item, lift_document_symbol, lift_folding_range, lift_lsp_range,
+    position_within_line,
 };
 use std::str::FromStr;
 
@@ -195,7 +196,7 @@ impl Backend {
         let Some(doc) = self.read_document(&uri).await? else {
             return Ok(None);
         };
-        let pos = params.text_document_position.position;
+        let pos = position_within_line(&doc.text, params.text_document_position.position);
         // Fetch the cached per-dialect registry on the async
         // path before spawning so the worker can read built-in
         // command names alongside the user-defined procs the

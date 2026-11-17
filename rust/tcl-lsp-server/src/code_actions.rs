@@ -21,7 +21,7 @@
 use super::configuration::PolicyLayers;
 use super::diagnostics::{published_findings, published_report};
 use super::documents::DocumentSourceResult;
-use super::protocol::lift_lsp_range;
+use super::protocol::{lift_lsp_range, range_within_lines};
 use super::semantic_tokens::core_semantic_range;
 use super::{Backend, DocumentState, readonly_reference_reports};
 use std::collections::HashSet;
@@ -324,11 +324,12 @@ impl Backend {
         let Some(doc) = self.read_document(uri).await? else {
             return Ok(ControlFlow::Break(None));
         };
-        let range = core_semantic_range(params.range);
+        let requested = range_within_lines(&doc.text, params.range);
+        let range = core_semantic_range(requested);
         // The dedicated BIG-IP adapter retains its existing routing. Ordinary
         // source edits require an actual open, versioned document receipt.
         let ControlFlow::Continue(source) = self
-            .code_action_source_for_range(uri, &doc, params.range)
+            .code_action_source_for_range(uri, &doc, requested)
             .await?
         else {
             return Ok(ControlFlow::Break(None));
