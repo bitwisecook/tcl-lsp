@@ -67,3 +67,34 @@ fn a_head_holding_a_created_widget_path_is_a_present_command() {
         );
     }
 }
+
+/// A Tk constructor returns its path as a fresh window object
+/// (`TkNewWindowObj`, Tk 8.4.20–9.0.4), so a head holding that result names
+/// the widget and W307 stays quiet; the call is never folded away, since
+/// constructing the widget is the point (#2324). Tcl 8.6 and 9.0.
+#[test]
+fn a_head_holding_a_constructor_result_names_the_widget() {
+    for release in ["tcl8.6", "tcl9.0"] {
+        for source in [
+            "package require Tk\nset e [entry .e]\n$e configure -width 4\n",
+            "package require Tk\nset e [ttk::entry .e]\nputs [$e configure]\n",
+            "package require Tk\nputs [[ttk::entry .e] configure]\n",
+        ] {
+            let analysis = analyse(source, release, &[Provider::Tk]);
+            assert!(
+                analysis
+                    .diagnostics
+                    .iter()
+                    .all(|d| d.code != tcl_core_types::DiagCode::W307),
+                "{release}: {source}: {:?}",
+                analysis.diagnostics
+            );
+        }
+        let profile = tcl_registry::model::ingress::resolve_environment(release).analyser_profile();
+        let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
+        let source = "package require Tk\nset e [entry .e]\nputs $e\n";
+        let (optimised, _) =
+            crate::optimiser::optimise_source_multipass(source, &registry, Some(profile), 4);
+        assert!(optimised.contains("[entry .e]"), "{release}: {optimised}");
+    }
+}

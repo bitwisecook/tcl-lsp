@@ -896,6 +896,20 @@ fn selected_result_representation(
     }
 }
 
+/// The representation the selected native result creates, when it creates one.
+fn created_representation(
+    selection: NativeResultSelection,
+    before: &ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+) -> tcl_syntax::value::ValueRepresentation {
+    before
+        .baseline
+        .dialect
+        .map_or(tcl_syntax::value::ValueRepresentation::Unknown, |dialect| {
+            selection.created_representation(dialect, context.compilation())
+        })
+}
+
 fn selected_result(
     selection: NativeResultSelection,
     arguments: tcl_registry::InvocationArguments<'_>,
@@ -903,14 +917,12 @@ fn selected_result(
     after: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
 ) -> Option<EvaluatedSourceValue> {
-    let mut representation = before
-        .baseline
-        .dialect
-        .map_or(tcl_syntax::value::ValueRepresentation::Unknown, |dialect| {
-            selection.created_representation(dialect, context.compilation())
-        });
+    let mut representation = created_representation(selection, before, context);
     let text = match selection {
-        NativeResultSelection::Argument(index) => arguments.literal_at(index)?.to_owned(),
+        NativeResultSelection::Argument(index)
+        | NativeResultSelection::FreshArgumentString(index) => {
+            arguments.literal_at(index)?.to_owned()
+        }
         NativeResultSelection::EmptyString => String::new(),
         NativeResultSelection::ListArguments { from, len } => {
             let values = (from..from.checked_add(len)?)

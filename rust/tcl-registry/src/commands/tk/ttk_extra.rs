@@ -184,7 +184,11 @@ fn checkbutton() -> CommandSpec {
         subcommands: CHECKBUTTON_METHODS,
         object_class: Some(&CHECKBUTTON_CLASS),
         creates_instance_at: Some(0),
+        return_type: Some(crate::TclType::Object),
         state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+        native_result: Some(
+            crate::native_result::NativeResultContract::FreshArgumentString { at: 0 },
+        ),
         ..CommandSpec::DEFAULT
     }
 }
@@ -307,7 +311,11 @@ fn menubutton() -> CommandSpec {
         subcommands: MENUBUTTON_METHODS,
         object_class: Some(&MENUBUTTON_CLASS),
         creates_instance_at: Some(0),
+        return_type: Some(crate::TclType::Object),
         state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+        native_result: Some(
+            crate::native_result::NativeResultContract::FreshArgumentString { at: 0 },
+        ),
         ..CommandSpec::DEFAULT
     }
 }
@@ -442,7 +450,11 @@ fn panedwindow() -> CommandSpec {
         subcommands: PANEDWINDOW_METHODS,
         object_class: Some(&PANEDWINDOW_CLASS),
         creates_instance_at: Some(0),
+        return_type: Some(crate::TclType::Object),
         state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+        native_result: Some(
+            crate::native_result::NativeResultContract::FreshArgumentString { at: 0 },
+        ),
         ..CommandSpec::DEFAULT
     }
 }
@@ -587,7 +599,11 @@ fn radiobutton() -> CommandSpec {
         subcommands: RADIOBUTTON_METHODS,
         object_class: Some(&RADIOBUTTON_CLASS),
         creates_instance_at: Some(0),
+        return_type: Some(crate::TclType::Object),
         state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+        native_result: Some(
+            crate::native_result::NativeResultContract::FreshArgumentString { at: 0 },
+        ),
         ..CommandSpec::DEFAULT
     }
 }
@@ -899,7 +915,11 @@ fn spinbox() -> CommandSpec {
         subcommands: SPINBOX_METHODS,
         object_class: Some(&SPINBOX_CLASS),
         creates_instance_at: Some(0),
+        return_type: Some(crate::TclType::Object),
         state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+        native_result: Some(
+            crate::native_result::NativeResultContract::FreshArgumentString { at: 0 },
+        ),
         ..CommandSpec::DEFAULT
     }
 }

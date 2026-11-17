@@ -136,7 +136,11 @@ pub fn spec() -> CommandSpec {
         subcommands: SUBCOMMANDS,
         object_class: Some(&CLASS),
         creates_instance_at: Some(0),
+        return_type: Some(crate::TclType::Object),
         state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+        native_result: Some(
+            crate::native_result::NativeResultContract::FreshArgumentString { at: 0 },
+        ),
         ..CommandSpec::DEFAULT
     }
 }

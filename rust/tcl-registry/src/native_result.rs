@@ -211,6 +211,13 @@ pub enum NativeResultContract {
         /// List operand relative to the selected form; the separator follows.
         list_at: u8,
     },
+    /// A new string object whose bytes equal one operand: a Tk widget
+    /// constructor returns its path as a fresh `Tk_PathName` object, never the
+    /// operand object, so the result shares no identity or representation.
+    FreshArgumentString {
+        /// Operand relative to the selected form.
+        at: u8,
+    },
 }
 
 #[cfg(test)]
@@ -1121,6 +1128,9 @@ pub enum NativeResultSelection {
     },
     /// An existing operand value, retaining its representation.
     Argument(usize),
+    /// A fresh string equal to one operand's bytes, sharing no identity or
+    /// representation with it.
+    FreshArgumentString(usize),
     /// The command's omitted result is the empty string.
     EmptyString,
     /// Native argument validation fails; no successful result is promised.
@@ -1802,6 +1812,14 @@ impl NativeResultContract {
                 last_at,
             } => select_list_range(count, argument_offset, [list_at, first_at, last_at]),
             Self::StockResult => NativeResultSelection::StockResult,
+            Self::FreshArgumentString { at } => {
+                let at = argument_offset + usize::from(at);
+                if at < count {
+                    NativeResultSelection::FreshArgumentString(at)
+                } else {
+                    NativeResultSelection::InvalidArguments
+                }
+            }
             Self::ListSort
             | Self::ListConcat { .. }
             | Self::StringJoin { .. }
