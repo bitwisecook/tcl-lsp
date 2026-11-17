@@ -487,8 +487,10 @@ fn non_ascii_literal_folds_only_where_the_release_reads_source_as_utf8() {
 /// 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 all print `2`. Read the same way,
 /// `010` gives 9 on 8.4 to 8.6 and 11 on 9.0 and 9.1, and `1.0` gives 2.0.
 /// The fold is taken where the release has the integer protocol it reads
-/// with (8.5 on); 8.4 and F5 units, and the double literal, keep the
-/// expression.
+/// with (8.5 on). 8.4 keeps the expression because that protocol's gate is
+/// about 8.4's arithmetic, which other proofs share, not because 8.4 reads
+/// the literal differently; F5 units keep it until a device answers
+/// (`bigip-name-checks.md` item 17), and so does the double literal.
 #[test]
 fn expr_operand_literal_reading() {
     for (dialect, source, expected) in [
