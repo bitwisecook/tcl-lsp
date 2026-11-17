@@ -94,6 +94,13 @@ The second pass, after the failing tests, takes the passing ones through the exa
 ## Rulings made during the scrub
 
 - *Tests of `inlining::inline_module`* (23, no production caller): read per test by the live-inlining session. "The inlined program answers as the original" is `KEEP-ORACLE`; an assertion on the inliner's internal shape is `REWRITE` to the differential or `MERGE` into a `live_differential` row; an assertion that names the renamed locals is `FIX-EXPECTATION`, since they become anonymous slots.
+- *A procedure body is never rewritten from call-site facts.* The procedure stays callable with other arguments from another file, a later `source`, a callback or an interactive session. The call site may fold; the body may not. The product does this today (`proc add {a b} {...}` becomes `return 7` from its one in-file call): a wrong rewrite, top of the dataflow fix list.
+- *Store removal by liveness in a `when` body is not a licensed rewrite.* Handler variables are connection-scoped and what hosted commands read is advice; the finding may be offered as advice, never applied. The same-event case gets a BIG-IP check row.
+- *A binding's target is the command as tclsh names it.* After `rename a b` it is `::b`; the defining declaration is the binding's definition record.
+- *A proof nothing consumes is not behaviour.* Range joins that only the sealed four-statement add could use, on sources it can never select, are retired; the unconsumed code is noted for removal or a consumer.
+- *An unknown head is bounded when the `unknown` handler in force is a proved document procedure* (and no `namespace unknown` applies): the call's effect is that procedure's.
+- *Reads in a body the analysis did not enter are display facts:* the occurrence is recorded, with no version.
+- *The Unavailable metadata context is a product state* (a missing overlay abstains); its tests are kept and reach it by the real route. A profile-less registry is a supported input only if production code builds one.
 
 ## Families by session
 
