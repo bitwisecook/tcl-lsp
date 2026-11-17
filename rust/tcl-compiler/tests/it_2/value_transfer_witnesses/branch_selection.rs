@@ -34,6 +34,9 @@ fn the_flattened_form_yields_o107() {
     let source = "set acc \"\"; append acc foo; append acc bar\nswitch -- $acc {\n    baz     { puts never }\n    default { puts always }\n}\n";
     let pattern = u32::try_from(source.find("baz").expect("the dead arm")).expect("an offset");
     for dialect in DIALECTS {
+        if f5_refuses_top_level(source, dialect) {
+            continue;
+        }
         let diagnostics = tcl_compiler::analyser::Analyser::new()
             .analyse(source, dialect)
             .diagnostics;
@@ -109,6 +112,9 @@ fn program_four_yields_o112_and_i231_for_every_form() {
             dead_arms.push(dead("qux"));
         }
         for dialect in DIALECTS {
+            if f5_refuses_top_level(&source, dialect) {
+                continue;
+            }
             let has_the_form = first == "8.4" || !matches!(dialect, "tcl8.4" | "f5-irules" | "tcl");
             let diagnostics = tcl_compiler::analyser::Analyser::new()
                 .analyse(&source, dialect)
@@ -217,6 +223,9 @@ fn a_decided_loop_header_gives_w240_or_w241() {
     ];
     for source in never {
         for dialect in DIALECTS {
+            if f5_refuses_top_level(source, dialect) {
+                continue;
+            }
             assert_eq!(codes(source, dialect), ["W240"], "{dialect}\n{source}");
         }
         prints_under_every_release(source, "done\n");
@@ -229,6 +238,9 @@ fn a_decided_loop_header_gives_w240_or_w241() {
     ];
     for source in infinite {
         for dialect in DIALECTS {
+            if f5_refuses_top_level(source, dialect) {
+                continue;
+            }
             assert_eq!(codes(source, dialect), ["W241"], "{dialect}\n{source}");
         }
     }

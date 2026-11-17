@@ -337,6 +337,15 @@ fn removes_store(source: &str, dialect: &str, store: &str) -> bool {
 
 /// Whether the analyser reports `code` anywhere in `source` under
 /// `dialect`.
+/// Whether `dialect` is f5-irules and refuses `source` at the rule's top
+/// level. iRules accepts only declarations there (IRULE5007, "Executable
+/// command used on iRules' declaration-only top level"), so a top-level
+/// program never runs under f5-irules and no Tcl folding is owed for it
+/// (ruling of 17 November on per-dialect f5 rows).
+fn f5_refuses_top_level(source: &str, dialect: &str) -> bool {
+    dialect == "f5-irules" && reports(source, dialect, DiagCode::Irule5007)
+}
+
 fn reports(source: &str, dialect: &str, code: DiagCode) -> bool {
     tcl_compiler::analyser::Analyser::new()
         .analyse(source, dialect)
