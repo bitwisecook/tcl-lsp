@@ -138,6 +138,17 @@ These go ahead of missing facts once the ledgers are in.
 | I231 on a `switch` whose subject a release may read as an option, under a profile that names no release | diagnostics |
 | W210 on a variable an existence guard has just set (false positive) | diagnostics |
 | W210 at reads after an undefined command, which raises first | diagnostics, with dataflow |
+| A procedure recorded under the raw text `::${c}` when its name is a substitution inside a `foreach` | diagnostics |
+| Two `helper` procedures created in two child interpreters share one key (`@interp@${s}`); navigation crosses between them | diagnostics |
+| False W001 on `dict is_dict` and false W214 after the `dict` ensemble's `-map` is reconfigured | diagnostics |
+
+## Passing tests the oracle contradicts
+
+Found while triaging the failing ones; they pass today and hold the product to a wrong answer.
+
+| Test | What tclsh shows | Area |
+| --- | --- | --- |
+| `tcl-compiler` `it_4` `list_wrapped_namespace_unknown_installer_suppresses_w123` and the `…via_namespace_inscope…` twin | A `namespace unknown` set in `::target` does not cover a call from `::`; tclsh raises `invalid command name "mystery_cmd"`, so W123 is right there | diagnostics |
 
 ## Families by session
 
@@ -166,7 +177,7 @@ Updated at the hourly check from the ledgers on `work`.
 
 | Session | Failing tests to triage (about) | Rows in ledger | Sampled by the coordinator |
 | --- | ---: | ---: | --- |
-| diagnostics | 405 | 139 (KEEP-ORACLE 65, KEEP-CONTRACT 30, FIX-FIXTURE 22, KEEP-F5 14, FIX-EXPECTATION 5, REWRITE 3); 20 merge groups among passing tests | parts 1 and 2 sampled 21:10 UTC: accepted |
+| diagnostics | 405 | 291; the last 106 in progress | parts 1 to 4 read; accepted so far |
 | analyser-binding | 330 | 0 | |
 | class-facts | 250 (with the 44 class-factory tests) | 0 (started 20:45 UTC) | |
 | dataflow-optimiser | 423 | 423, complete (FIX-FIXTURE 142, KEEP-CONTRACT 103, KEEP-ORACLE 82, REWRITE 50, FIX-EXPECTATION 30, MERGE 10, RETIRE 5, KEEP-F5 1) | signed off 20:55 UTC |
