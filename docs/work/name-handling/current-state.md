@@ -10,18 +10,18 @@ Every hand-written Rust file under `rust/` and `runtime/rust/` is at most 2,000 
 
 The owner asked for a deep evaluation of the tests: what overlaps, and which failing tests are worth making pass. Method, inventory, verdicts and the families each session triages are in [`docs/work/test-scrub/README.md`](../test-scrub/README.md). Every session finishes what it has in hand and then writes its ledger before any further fix; nothing is deleted until the coordinator has sampled the ledger. First reading: 37,567 tests, 3,743 failing by the morning's lists; of the failing, 564 cite tclsh or Jim, 497 cite an issue or contract, 2,333 run Tcl source and cite nothing, 349 hold an internal structure.
 
-## Scoreboard, 17 November 2026, 19:55 UTC
+## Scoreboard, 17 November 2026, 20:55 UTC
 
 Failing tests by area on the restructured tree, from the successor sessions' baselines and first pushes.
 
 **Regression closed and its cause fixed, 18:25 UTC.** The source optimiser dropped a statement that runs: for `proc p {} {set n 1; foreach v [incr n] {}; puts $n}; p` the rewrite lost `puts $n` (tclsh 8.4.20 prints `2` then `0 {}`). `2743377c7` had let unreachable-code deletion (O107) fire again, and a second fault made it wrong: a loop over a substituted list is lowered as a possible-body region whose exit is reachable only through `cfg.analysis_edges`, which the SCCP solver never followed, so everything after such a loop was judged unexecutable. A guard had been hiding that by dropping every O107. Reverted in `c28e66c38`, then fixed in `a6898fb9e` (the solver follows an analysis edge from an executable block that completes normally; test `loops::the_code_after_a_substituted_loop_list_runs` on every tclsh) with O107 restored. `release_optimiser_safety` is 65 of 66 and runs before each of the dataflow area's pushes.
 
-**Open wrong rewrite, since before 17 November:** `release_optimiser_safety::issue_2385`. For `set i 0; foreach ::x {1 2} {incr i $::x}; puts $i` O100 rewrites `puts $i` to `puts 0` (tclsh 8.4.20 prints 3): with a qualified binder the CFG builder keeps the `foreach` as one opaque call whose defs omit the body's writes. The `bytecode` issue session has it (fail closed first, then the expansion), announcing its `cfg_builder` changes to the dataflow area.
+**Wrong rewrite closed, 20:19 UTC:** `release_optimiser_safety` is 68 of 68, `issue_2385` included. The test scrub has since found eight more wrong answers (list in `docs/work/test-scrub/README.md`); they are fixed before missing facts. `xtask` gates: 37 of 38 at 20:45 (`owner-resolution`, from `221241b6`; with analysis-performance). Earlier: `release_optimiser_safety::issue_2385`. For `set i 0; foreach ::x {1 2} {incr i $::x}; puts $i` O100 rewrites `puts $i` to `puts 0` (tclsh 8.4.20 prints 3): with a qualified binder the CFG builder keeps the `foreach` as one opaque call whose defs omit the body's writes. The `bytecode` issue session has it (fail closed first, then the expansion), announcing its `cfg_builder` changes to the dataflow area.
 
 | Area | Failing | Of | Session |
 | --- | --- | --- | --- |
-| `tcl-compiler` (all areas below share this suite) | 2,118 at 18:55, with six tests added (areas: values 296, taint about 180; includes the accepted exposures of the stock-object-type rule) | 13,153 | analyser-binding, class-facts, diagnostics, dataflow-optimiser, values, taint, tk-oo |
-| `tcl-lsp-core` library | 493 (semantic tokens 14; the 43 minifier naming-pass expectations are being retired by owner decision) | 3,653 | lsp-features |
+| `tcl-compiler` (all areas below share this suite) | 2,078 at 20:19 (areas: values 296, taint about 180; includes the accepted exposures of the stock-object-type rule) | 13,153 | analyser-binding, class-facts, diagnostics, dataflow-optimiser, values, taint, tk-oo |
+| `tcl-lsp-core` library | 492 (semantic tokens 14; the 43 minifier naming-pass expectations are being retired by owner decision) | 3,653 | lsp-features |
 | `tcl-lsp-server` end to end | 265 | 1,651 | lsp-features (navigation), server-e2e-db |
 | `tcl-lsp-server` library unit tests | 109 | 1,002 | server-e2e-db (navigation reports to lsp-features) |
 | `tcl-lsp-db` | 75 (16 November; not yet re-measured) | 248 | server-e2e-db; the memo tests wait on analysis-performance |
