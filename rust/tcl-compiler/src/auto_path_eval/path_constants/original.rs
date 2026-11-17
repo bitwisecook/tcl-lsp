@@ -18,7 +18,7 @@
 
 //! Explicit path source advice from one complete retained analysis.
 
-use super::{PathConstantAssignments, PathConstantValue, PathConstantWrite, Scope};
+use super::{PathConstantAssignments, PathConstantValue, PathConstantWrite, Scope, effect_barrier};
 use crate::analyser::AnalysisResult;
 use crate::registry_invocation::source_structure::{OriginalRegistryWords, source_registry_words};
 use tcl_lexer::{LexerConfig, NativeWord, SourceImage};
@@ -249,7 +249,7 @@ impl PathSourceContext<'_> {
         while let Some((command, scope)) = pending.pop() {
             let at = command.span.start();
             let Some(words) = source_registry_words(self.source, self.analysis, &command) else {
-                out.barriers.push(at);
+                out.barriers.push(effect_barrier(&command));
                 continue;
             };
             let Some((namespace, assignments, traits, lowering)) =
@@ -262,7 +262,7 @@ impl PathSourceContext<'_> {
                     )
                 })
             else {
-                out.barriers.push(at);
+                out.barriers.push(effect_barrier(&command));
                 continue;
             };
             if let Some(layout) = namespace {
@@ -303,7 +303,7 @@ impl PathSourceContext<'_> {
                 out.barriers.push(command.span.end());
             }
             let Some(pairs) = assignments else {
-                out.barriers.push(at);
+                out.barriers.push(effect_barrier(&command));
                 continue;
             };
             let declares = traits.contains(tcl_registry::Traits::CREATES_SCOPE_ALIAS);
