@@ -31,6 +31,7 @@ use crate::protocol::bounded_client_request;
 use crate::tracked_locks::TrackedMutex;
 use crate::workspace::{EvidenceHandles, refresh_cross_file_evidence};
 
+use super::admission::{Admitted, AnalysisAdmission};
 use super::run::run_diagnostics_core;
 use super::{DiagInputs, DiagSlot};
 
@@ -162,6 +163,17 @@ pub(in super::super) async fn stable_diagnostics_generation(
 
 fn spawn_diagnostics_worker(slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>, uri: Uri) {
     crate::rt::spawn(async move {
+        let Some(admission) = slots.lock().await.get(&uri).map(|slot| {
+            slot.admission
+                .clone()
+                .unwrap_or_else(AnalysisAdmission::shared)
+        }) else {
+            return;
+        };
+        // Held from admission until this document's run (and its evidence
+        // refresh) is done, including across a re-debounce, so a document
+        // still being edited keeps its turn instead of rejoining the queue.
+        let mut admitted: Option<Admitted> = None;
         loop {
             // A true trailing-edge debounce. Starting analysis every fixed
             // interval *during* a long typing burst makes each salsa write
@@ -170,6 +182,12 @@ fn spawn_diagnostics_worker(slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>, uri: Uri)
             let Some(generation) = stable_diagnostics_generation(&slots, &uri).await else {
                 return;
             };
+            if admitted.is_none() {
+                // Waiting here costs no thread. The inputs are taken after
+                // admission, so a document that waited analyses its latest
+                // state, never the one it had when it joined the queue.
+                admitted = Some(admission.admit().await);
+            }
             let inputs = {
                 let mut guard = slots.lock().await;
                 let Some(slot) = guard.get_mut(&uri) else {
@@ -236,6 +254,7 @@ fn spawn_diagnostics_worker(slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>, uri: Uri)
                 if let Some(slot) = slots.lock().await.get_mut(&uri) {
                     slot.mark_dirty();
                 }
+                admitted = None;
                 continue;
             }
             // `run_diagnostics_core` can also settle by declining to publish a
@@ -245,6 +264,7 @@ fn spawn_diagnostics_worker(slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>, uri: Uri)
             // here would derive it from an obsolete run while contending with
             // the queued document writes that made the run obsolete.
             if slots.lock().await.get(&uri).is_some_and(|slot| slot.dirty) {
+                admitted = None;
                 continue;
             }
             // Refresh the project's cross-file call-site evidence *after*
@@ -262,6 +282,7 @@ fn spawn_diagnostics_worker(slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>, uri: Uri)
             // memoisation makes the second pass cheap apart from what the
             // evidence genuinely invalidated.
             refresh_cross_file_evidence(&evidence_handles, &slots, &uri).await;
+            admitted = None;
         }
     });
 }
@@ -492,6 +513,7 @@ impl Backend {
                 slot.latest_inputs = Some(inputs);
                 slot.inputs_epoch = epoch;
             }
+            slot.admission = Some(Arc::clone(&self.diagnostics_admission));
             slot.mark_dirty();
             if slot.running {
                 false

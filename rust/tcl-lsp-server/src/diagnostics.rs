@@ -40,6 +40,7 @@ use super::workspace_diagnostic_sources::WorkspaceDiagnosticSources;
 use crate::documents::DocumentStore;
 use crate::{fresh_analysis_cache, provider_source, rewrite_wire, vfs};
 
+mod admission;
 mod analysis_passes;
 mod closed_files;
 mod command_refinement;
@@ -58,6 +59,7 @@ mod run;
 mod scheduling;
 
 #[cfg(test)]
+pub(super) use admission::AnalysisAdmission;
 pub(super) use analysis_passes::overlay_miss_message;
 pub(super) use analysis_passes::{
     PreparedCompletenessInput, compute_base_analysis,
@@ -242,6 +244,9 @@ pub(super) struct DiagSlot {
     /// into the past). Without the second, the reuse check above would go on to
     /// call the older snapshot current.
     pub(super) inputs_epoch: u64,
+    /// The admission the worker waits on before it analyses; the process's
+    /// shared one when the slot was not scheduled through a backend.
+    pub(super) admission: Option<std::sync::Arc<AnalysisAdmission>>,
 }
 
 impl DiagSlot {

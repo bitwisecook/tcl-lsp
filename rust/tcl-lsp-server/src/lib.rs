@@ -550,6 +550,10 @@ pub struct BackendState {
     /// cancelled mid-flight).  This guarantees the final version's diagnostics
     /// are always published even under heavy edit bursts / CPU load.
     diag_slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>,
+    /// Bounds how many documents' diagnostics analyses run at once, so a
+    /// reload that reschedules every open document queues them instead of
+    /// running them all side by side on the blocking pool.
+    diagnostics_admission: Arc<diagnostics::AnalysisAdmission>,
     /// Fallback dialect string used when ``did_open`` cannot derive
     /// one from the ``languageId`` and no per-session
     /// ``workspace/didChangeConfiguration`` has been received yet.
@@ -1194,6 +1198,7 @@ impl Backend {
             ),
             documents: Arc::new(DocumentStore::default()),
             diag_slots: Arc::new(Mutex::new(HashMap::new())),
+            diagnostics_admission: diagnostics::AnalysisAdmission::shared(),
             default_dialect: Arc::new(Mutex::new(DEFAULT_SESSION_DIALECT.to_owned())),
             default_dialect_explicit: Mutex::new(false),
             warned_session_dialect: Mutex::new(None),
