@@ -487,6 +487,63 @@ p; unset ::x; q; r
     prints_under_every_release(source, "yes\nyes\ngone\n");
 }
 
+/// A call nothing can resolve ends every refinement of the caller's frame:
+/// a head computed from a value the analysis cannot know (`clock seconds`
+/// is mapped out of `cleanup`, so `tclsh` always runs `cleanup`), and a
+/// name a `rename` with such a source binds. The procedures are defined
+/// before that `rename`, which might otherwise have renamed `proc` itself;
+/// it may still have renamed `set`, so there `x` need not be tracked at
+/// all, which claims nothing. The handler unsets the
+/// caller's `x`, so `x` is not proved bound after the call, no condition
+/// is decided and both arms stay. tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and
+/// 9.1.0 print `gone` for both programs.
+#[test]
+fn an_unresolvable_head_ends_every_refinement() {
+    let computed = "\
+proc cleanup {} { uplevel 1 {unset x} }
+proc p {} {
+    set x 1
+    [string map [list [clock seconds] {}] cleanup]
+    if {[info exists x]} { puts still } else { puts gone }
+}
+p
+";
+    let renamed = "\
+proc cleanup {} { uplevel 1 {unset x} }
+proc p {} {
+    set x 1
+    step
+    if {[info exists x]} { puts still } else { puts gone }
+}
+rename [string map [list [clock seconds] {}] cleanup] step
+p
+";
+    for source in [computed, renamed] {
+        for dialect in RELEASE_DIALECTS {
+            let unit = unit_of(source, dialect);
+            let function = &unit.procedures[&fixture_id(&unit.procedures, "::p")];
+            let fact = function
+                .ssa
+                .var_symbol("x")
+                .and_then(|_| last_existence(&unit, "::p", "x"));
+            assert!(
+                existence_agrees(fact, (false, false)),
+                "{dialect}: `x` is proved bound after the call:\n{source}"
+            );
+            assert!(
+                condition_claims(source, dialect).is_empty(),
+                "{dialect}: a condition is decided:\n{source}"
+            );
+            let (rewritten, rewrites) = optimised(source, dialect);
+            assert!(
+                rewritten.contains("puts still") && rewritten.contains("puts gone"),
+                "{dialect}: an arm is folded away:\n{rewritten}\n{rewrites:#?}"
+            );
+        }
+        prints_under_every_release(source, "gone\n");
+    }
+}
+
 /// The absent-start chain anchor reads the fact at the statement: after a
 /// non-lowered `switch` whose arm may bind
 /// `l`, the per-version fact of `l`'s version 0 is still `Unbound`, but
