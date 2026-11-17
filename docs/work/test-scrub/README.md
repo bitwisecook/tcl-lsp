@@ -118,6 +118,7 @@ The ledger gains a `status` column (open, repaired, fixed, deleted) and is kept 
 - *A passing test that cannot fail is vacuous.* Negative tests on a helper that refuses for want of its inputs (48 optimiser library tests build a pass context with no registry or module) check nothing; they are listed in the second pass.
 - *O101 declines on 8.4 for a shift count outside the word width.* What one build of tclsh 8.4 printed for undefined C behaviour is not the release's behaviour.
 - *Precision at a call site is sound; a procedure's own summary stays pessimistic.* A caller passing a written name to `upvar 1 $n a` has exactly that variable touched; with the interprocedural step off no caller is consulted and the answer is unbounded.
+- *A diagnostic about one argument's value is anchored on that argument's word.* The statement is the anchor only when the fault is the command as a whole or the word cannot be located. One site reports once: the pass with the narrower anchor owns it.
 
 ## Wrong answers found by the scrub
 
@@ -133,6 +134,10 @@ These go ahead of missing facts once the ledgers are in.
 | `try {set x [expr {1 / $d}]; error boom} on error {} {}` then `info exists x`: the rewrite drops the `yes` path | values |
 | A write made by an `after` callback is folded away (original prints 1, rewrite 0; 8.4.20, 8.6.18, 9.0.4) | values |
 | `expr {1 << 70}` folded to 0 under 8.4, where the shift is C's and a count beyond the word width differs by platform and build | values |
+| I231 calls a `switch` arm always false when its pattern is written with a backslash escape (`a\nb`); every release runs that arm | diagnostics |
+| I231 on a `switch` whose subject a release may read as an option, under a profile that names no release | diagnostics |
+| W210 on a variable an existence guard has just set (false positive) | diagnostics |
+| W210 at reads after an undefined command, which raises first | diagnostics, with dataflow |
 
 ## Families by session
 
@@ -161,7 +166,7 @@ Updated at the hourly check from the ledgers on `work`.
 
 | Session | Failing tests to triage (about) | Rows in ledger | Sampled by the coordinator |
 | --- | ---: | ---: | --- |
-| diagnostics | 405 | 0 (started 21:00 UTC) | |
+| diagnostics | 405 | 139 (KEEP-ORACLE 65, KEEP-CONTRACT 30, FIX-FIXTURE 22, KEEP-F5 14, FIX-EXPECTATION 5, REWRITE 3); 20 merge groups among passing tests | parts 1 and 2 sampled 21:10 UTC: accepted |
 | analyser-binding | 330 | 0 | |
 | class-facts | 250 (with the 44 class-factory tests) | 0 (started 20:45 UTC) | |
 | dataflow-optimiser | 423 | 423, complete (FIX-FIXTURE 142, KEEP-CONTRACT 103, KEEP-ORACLE 82, REWRITE 50, FIX-EXPECTATION 30, MERGE 10, RETIRE 5, KEEP-F5 1) | signed off 20:55 UTC |
