@@ -720,7 +720,7 @@ mod tests {
     #[test]
     fn what_the_pack_declares_reaches_the_probe() {
         let source = "speclib demo 2.0 {\n    command demo::two {\n        arity 1..2\n        \
-                      required_package demo\n        traits {CSE_CANDIDATE}\n        return_type Int\n        \
+                      required_package demo\n        effects -complete {package demo}\n        world_effects none -complete {package demo}\n        completion {Ok Error} -complete {package demo}\n        result_stability ReferentiallyTransparent -complete {package demo}\n        return_type Int\n        \
                       hover {\n            summary {Two.}\n            example {demo::two 1}\n            \
                       example {# a comment}\n            example {demo::two 1 2}\n        }\n    }\n    \
                       command demo::open {\n        arity 0..\n        required_package demo\n    }\n}\n";

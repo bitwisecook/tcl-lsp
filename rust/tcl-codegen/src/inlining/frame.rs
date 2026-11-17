@@ -720,10 +720,24 @@ fn works_on_values(head: &str, registry: &CommandRegistry) -> bool {
     !head.is_empty()
         && !head.contains(['$', '[', ']', '\\', '{', '}', '"'])
         && registry.get(head).is_some_and(|spec| {
-            let query = registry
-                .profile()
-                .map(tcl_dialect::DialectProfile::surface_query);
-            registry.is_splice_safe(head) || spec.is_pure_at(query.as_ref())
+            registry.is_splice_safe(head)
+                || registry.profile().map_or_else(
+                    // With no release, pure at every Tcl release that has it.
+                    || {
+                        tcl_dialect::model::Family::Tcl
+                            .releases()
+                            .iter()
+                            .all(|step| {
+                                let at = tcl_dialect::model::SurfaceQuery::core(
+                                    tcl_dialect::model::Family::Tcl,
+                                    step.as_str(),
+                                );
+                                !spec.supports_dialect(Some(at.clone()))
+                                    || spec.is_pure_at(Some(&at))
+                            })
+                    },
+                    |profile| spec.is_pure_at(Some(&profile.surface_query())),
+                )
         })
 }
 
