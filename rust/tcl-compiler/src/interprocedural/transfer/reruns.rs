@@ -288,10 +288,15 @@ impl<'a> ModuleProcedures<'a> {
         callee: &crate::ir::ProcedureId,
     ) -> Option<(&'a CfgFunction, Rc<SsaFunction>)> {
         let declared = self.procedures.get(callee)?;
-        let unit = self.units.and_then(|units| units.get(callee));
-        let cfg = match unit {
-            Some(unit) => &unit.cfg,
-            None => self.cfg.procedures.get(callee)?,
+        let declared_frame = self.cfg.declared_frame_procedures.get(callee);
+        let unit = self
+            .units
+            .and_then(|units| units.get(callee))
+            .filter(|_| declared_frame.is_none());
+        let cfg = match (declared_frame, unit) {
+            (Some(cfg), _) => cfg,
+            (None, Some(unit)) => &unit.cfg,
+            (None, None) => self.cfg.procedures.get(callee)?,
         };
         if crate::ssa::is_complexity_guarded(cfg)
             || unit.is_some_and(|unit| unit.complexity_guarded)

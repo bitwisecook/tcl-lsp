@@ -42,7 +42,7 @@ impl ModuleProcedures<'_> {
         qname: &crate::ir::ProcedureId,
         inputs: &ModuleInputs<'_>,
     ) -> Option<Vec<OuterArgument>> {
-        let cfg = inputs.cfg.procedures.get(qname)?;
+        let cfg = inputs.summary_cfg(qname)?;
         let source = self.source.as_ref()?;
         let linked = linked_locals(cfg, qname, source)?;
         let mut found = Vec::new();

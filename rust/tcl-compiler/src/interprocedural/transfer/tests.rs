@@ -307,13 +307,14 @@ fn a_name_argument_naming_an_outer_place_is_a_global_write() {
     );
 }
 
-/// A release unit summarises a procedure walked in its own declared
-/// frame: a write to a qualified name and one through `global` are
-/// may-binds of the global place, a procedure that names no outer place
-/// has a summary, and a parameter a body links with `upvar` may end in
-/// any state, since the release SSA stores through the link rather than
-/// defining the local. A procedure the module calls is walked in its
-/// callers' activations, so it has none, and neither has its caller.
+/// A release unit summarises each procedure from its body as its own
+/// declared frame runs it: a write to a qualified name and one through
+/// `global` are may-binds of the global place, a procedure that names no
+/// outer place has a summary, and a parameter a body links with `upvar` may
+/// end in any state, since the release SSA stores through the link rather
+/// than defining the local. A procedure the module calls, walked in its
+/// callers' activations too, is summarised from its body lowered again in
+/// its declared frame, and its caller's summary rests on it.
 #[test]
 fn release_units_summarise_their_procedures() {
     let source = "proc g {} {set ::counter 5}\n\
@@ -321,7 +322,8 @@ fn release_units_summarise_their_procedures() {
             proc a {} {set x 0; incr x; return $x}\n\
             proc bump {name} {upvar 1 $name v; incr v}\n\
             proc callee {} {return 1}\n\
-            proc caller {} {callee}\n";
+            proc caller {} {callee}\n\
+            proc user {} {set y 0; bump y}\n";
     for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let context = tcl_registry::model::ingress::static_context_for(environment);
         let unit =
@@ -339,8 +341,17 @@ fn release_units_summarise_their_procedures() {
             "{environment}"
         );
         assert!(summaries["::a"].globals.is_empty(), "{environment}");
-        assert!(!summaries.contains_key("::callee"), "{environment}");
-        assert!(!summaries.contains_key("::caller"), "{environment}");
+        assert!(summaries["::callee"].globals.is_empty(), "{environment}");
+        assert_eq!(
+            summaries["::caller"]
+                .evidence
+                .bindings
+                .iter()
+                .map(|binding| binding.name.as_str())
+                .collect::<Vec<_>>(),
+            ["::callee"],
+            "{environment}"
+        );
         assert_eq!(
             summaries["::bump"].params,
             [name(&ANY_OUTCOME)],

@@ -41,7 +41,7 @@ impl ModuleProcedures<'_> {
         inputs: &ModuleInputs<'_>,
     ) -> Option<Vec<ParamRole>> {
         let declared = inputs.ir.procedures.get(qname)?;
-        let cfg = inputs.cfg.procedures.get(qname)?;
+        let cfg = inputs.summary_cfg(qname)?;
         let links = links_of(qname, declared, &self.frame_facts);
         if links.is_empty() {
             return Some(value_roles(qname, declared, inputs));
@@ -206,7 +206,7 @@ fn value_roles(
     declared: &crate::ir::Procedure,
     inputs: &ModuleInputs<'_>,
 ) -> Vec<ParamRole> {
-    let Some(cfg) = inputs.cfg.procedures.get(qname) else {
+    let Some(cfg) = inputs.summary_cfg(qname) else {
         return vec![ParamRole::Value; declared.params.len()];
     };
     let ssa = crate::ssa::build_ssa_with_context_for_entry_and_metadata(

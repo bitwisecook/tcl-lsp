@@ -256,6 +256,21 @@ pub(crate) struct ModuleInputs<'a> {
     pub(crate) analysis_context: &'a crate::value_transfer::AnalysisContextKey,
 }
 
+impl<'a> ModuleInputs<'a> {
+    /// `id`'s flow graph as its own declared frame runs it: the graph of its
+    /// body lowered again in that frame where the walk also entered it from
+    /// a caller, else the module's.
+    pub(crate) fn summary_cfg(
+        &self,
+        id: &crate::ir::ProcedureId,
+    ) -> Option<&'a crate::cfg::Function> {
+        self.cfg
+            .declared_frame_procedures
+            .get(id)
+            .or_else(|| self.cfg.procedures.get(id))
+    }
+}
+
 /// The module's procedures as a lattice run reads them: their parameters
 /// and defaults, whether a name still denotes one, and their transfer
 /// summaries.

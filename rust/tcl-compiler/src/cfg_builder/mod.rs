@@ -1035,7 +1035,18 @@ fn build_cfg_inner_with_context(
     let top_cfg = top_builder.build_function("::top", &module.top_level);
 
     let mut proc_cfgs = HashMap::new();
-    for (qname, proc) in &module.procedures {
+    let mut declared_cfgs = HashMap::new();
+    let declared = module
+        .declared_frame_bodies
+        .iter()
+        .filter(|_| faithful)
+        .map(|(qname, proc)| (qname, proc, true));
+    for (qname, proc, declared_frame) in module
+        .procedures
+        .iter()
+        .map(|(qname, proc)| (qname, proc, false))
+        .chain(declared)
+    {
         let namespace = proc
             .body
             .execution_namespace(crate::ir::ExecutionNamespace::RuntimeSelected);
@@ -1058,15 +1069,18 @@ fn build_cfg_inner_with_context(
         let mut builder = new_builder(true)
             .with_invocation_namespace(namespace)
             .with_source_binding_timeline(timeline);
-        proc_cfgs.insert(
-            *qname,
-            builder.build_function(&proc.qualified_name, &proc.body),
-        );
+        let cfg = builder.build_function(&proc.qualified_name, &proc.body);
+        if declared_frame {
+            declared_cfgs.insert(*qname, cfg);
+        } else {
+            proc_cfgs.insert(*qname, cfg);
+        }
     }
 
     CfgModule {
         top_level: top_cfg,
         procedures: proc_cfgs,
+        declared_frame_procedures: declared_cfgs,
     }
 }
 

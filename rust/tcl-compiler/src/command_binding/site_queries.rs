@@ -458,11 +458,16 @@ impl SourceCommandBindings {
         &self,
         offset: u32,
     ) -> impl Iterator<Item = &SourceBindingPoint> {
+        let view = self
+            .declared_frame_view
+            .as_deref()
+            .filter(|view| view.covers(offset));
         self.dispatch_points
             .get(&offset)
             .into_iter()
             .flatten()
             .map(|index| &self.points[*index])
+            .filter(move |point| view.is_none_or(|view| view.admits(point)))
     }
 
     pub(super) fn query_points<'a>(

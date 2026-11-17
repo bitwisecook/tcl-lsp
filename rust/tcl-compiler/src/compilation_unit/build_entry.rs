@@ -43,6 +43,7 @@ impl CompilationUnit {
                 carried_installed_lowerings: crate::ir::CarriedInstalledLowerings::default(),
                 original_declaration_body_units: std::collections::BTreeMap::default(),
                 original_native_declaration_body_units: std::collections::BTreeMap::default(),
+                declared_frame_bodies: std::collections::BTreeMap::default(),
                 original_logical_declaration_body_units: std::collections::BTreeMap::default(),
                 original_hosted_declaration_body_units: std::collections::BTreeMap::default(),
                 original_authored_declaration_body_units: std::collections::BTreeMap::default(),
@@ -84,6 +85,7 @@ impl CompilationUnit {
             cfg_module: crate::cfg::CfgModule {
                 top_level: fu.cfg.clone(),
                 procedures: HashMap::new(),
+                declared_frame_procedures: HashMap::new(),
             },
             command_mutations: crate::command_binding::ModuleCommandMutations::default(),
             source_class_facts: None,

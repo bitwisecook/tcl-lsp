@@ -199,7 +199,7 @@ impl<'a> SourceSummaryContext<'a> {
                     procedure,
                     self.module.source_metadata_input.as_ref()?,
                 )?;
-            let commands = self.same_frame_commands(procedure)?;
+            let commands = self.same_frame_commands(self.declared_frame_procedure(id)?)?;
             commands
                 .iter()
                 .all(|tokens| {
@@ -240,6 +240,22 @@ impl<'a> SourceSummaryContext<'a> {
             .as_ref()?
             .matches_original_procedure_summary(*id, procedure))
         .then_some(procedure)
+    }
+
+    /// The procedure as its own declared frame runs it: its body lowered
+    /// again in that frame where the walk also entered it from a caller,
+    /// else the module's. Its declaration is the module's procedure.
+    pub(super) fn declared_frame_procedure(
+        &self,
+        id: &crate::ir::ProcedureId,
+    ) -> Option<&'a Procedure> {
+        let procedure = self.procedure(id)?;
+        Some(
+            self.module
+                .declared_frame_bodies
+                .get(id)
+                .unwrap_or(procedure),
+        )
     }
 
     pub(super) fn metadata<'w>(
@@ -379,11 +395,13 @@ impl<'a> SourceSummaryContext<'a> {
     fn authored_frame(&self, tokens: &CommandTokens) -> Option<AuthoredFrame> {
         let mut owner = None;
         for id in self.module.procedures.keys() {
-            let Some(procedure) = self.procedure(id) else {
+            let (Some(procedure), Some(body)) =
+                (self.procedure(id), self.declared_frame_procedure(id))
+            else {
                 continue;
             };
             if self
-                .same_frame_commands(procedure)?
+                .same_frame_commands(body)?
                 .iter()
                 .any(|command| command == tokens)
             {
@@ -483,7 +501,7 @@ impl<'a> SourceSummaryContext<'a> {
         {
             return None;
         }
-        let procedure = self.procedure(id)?;
+        let procedure = self.declared_frame_procedure(id)?;
         if runs_another_frame(
             &procedure.body,
             procedure.body.namespace_context.as_deref()?,
@@ -914,8 +932,8 @@ impl<'a> SourceSummaryContext<'a> {
         )?;
         let end = base.checked_add(u32::try_from(script.len()).ok()?)?;
         let mut selected: Option<Vec<CommandTokens>> = None;
-        for (id, procedure) in self.module.procedures.iter() {
-            self.procedure(id)?;
+        for id in self.module.procedures.keys() {
+            let procedure = self.declared_frame_procedure(id)?;
             let mut pending = vec![&procedure.body];
             while let Some(body) = pending.pop() {
                 for statement in &body.statements {
@@ -991,7 +1009,7 @@ impl<'a> SourceSummaryContext<'a> {
     ) -> Option<CommandTokens> {
         let mut pending = Vec::new();
         match body_id {
-            Some(id) => pending.push(&self.procedure(&id)?.body),
+            Some(id) => pending.push(&self.declared_frame_procedure(&id)?.body),
             None => pending.push(&self.module.top_level),
         }
         if pending.is_empty() {
@@ -1025,7 +1043,7 @@ impl<'a> SourceSummaryContext<'a> {
         &self,
         qname: &crate::ir::ProcedureId,
     ) -> Option<Vec<CommandTokens>> {
-        let procedure = self.procedure(qname)?;
+        let procedure = self.declared_frame_procedure(qname)?;
         let mut commands = Vec::new();
         let mut pending: Vec<&Script> = vec![&procedure.body];
         while let Some(script) = pending.pop() {

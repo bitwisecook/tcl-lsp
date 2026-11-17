@@ -82,7 +82,7 @@ impl ModuleProcedures<'_> {
         qname: &crate::ir::ProcedureId,
         inputs: &ModuleInputs<'_>,
     ) -> Option<BTreeSet<crate::ir::ProcedureId>> {
-        let cfg = inputs.cfg.procedures.get(qname)?;
+        let cfg = inputs.summary_cfg(qname)?;
         let source = self.source.as_ref()?;
         let declared = source.procedure(qname)?;
         if !source.walked_in_declared_frame(qname) {
