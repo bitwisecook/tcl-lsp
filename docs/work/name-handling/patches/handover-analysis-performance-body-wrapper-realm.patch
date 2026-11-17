@@ -145,7 +145,7 @@ index 4ddfea65..eab9bfb0 100644
  mod tests;
  
 diff --git a/rust/tcl-compiler/src/analyser/per_item/body_pass.rs b/rust/tcl-compiler/src/analyser/per_item/body_pass.rs
-index 539e9526..98715bb5 100644
+index 539e9526..efaa5ac4 100644
 --- a/rust/tcl-compiler/src/analyser/per_item/body_pass.rs
 +++ b/rust/tcl-compiler/src/analyser/per_item/body_pass.rs
 @@ -108,7 +108,7 @@ impl Analyser {
@@ -180,6 +180,41 @@ index 539e9526..98715bb5 100644
                  self.per_item_fallback = Some(PerItemFallback::OriginalSourceOwnership);
                  return Err(Box::new(self.fresh_full_analyse(source, dialect)));
              }
+@@ -345,8 +352,8 @@ pub(super) fn fragment_needs_original_source_owner(fragment: &BodyFragment) -> b
+         || !result.original_vendor_class_metadata.is_empty()
+         || !result.original_vendor_symbol_metadata.is_empty()
+         || !result.original_symbol_metadata.is_empty()
+-        || !result.original_scoped_bodies.is_empty()
+-        || !result.original_conditional_registry_metadata.is_empty()
++        || (fragment.issuer_replays.is_empty() && !result.original_scoped_bodies.is_empty())
++        || (fragment.issuer_replays.is_empty() && !result.original_conditional_registry_metadata.is_empty())
+         || !result.command_aliases.is_empty()
+         || !result.renamed_commands.is_empty()
+         || !result.package_requires.is_empty()
+@@ -359,10 +366,19 @@ pub(super) fn fragment_needs_original_source_owner(fragment: &BodyFragment) -> b
+         || result.command_invocations.iter().any(|invocation| {
+             invocation.original_callback_signature_lookup.is_some()
+                 || invocation.original_callback_prefix.is_some()
+-                || invocation.original_name_input.is_some()
+-                || invocation.original_lookup.is_some()
+-                || invocation.resolved_command_reference.is_some()
+-                || invocation.resolved_definition.is_some()
++                || (!fragment.issuer_replays.is_empty()
++                    && !matches!(
++                        invocation.lookup,
++                        crate::signature_scan::types::SignatureCommandLookup::InvocationHead
++                            | crate::signature_scan::types::SignatureCommandLookup::ConsumedName { .. }
++                    )
++                    && (invocation.original_name_input.is_some()
++                        || invocation.original_lookup.is_some()))
++                || (fragment.issuer_replays.is_empty()
++                    && (invocation.original_name_input.is_some()
++                        || invocation.original_lookup.is_some()
++                        || invocation.resolved_command_reference.is_some()
++                        || invocation.resolved_definition.is_some()))
+                 || (invocation.indirect && invocation.lookup.is_execution_site())
+         })
+         || result.diagnostics.iter().any(|diagnostic| {
 diff --git a/rust/tcl-compiler/src/analyser/per_item/graft.rs b/rust/tcl-compiler/src/analyser/per_item/graft.rs
 index 9f2185e7..79c739bf 100644
 --- a/rust/tcl-compiler/src/analyser/per_item/graft.rs

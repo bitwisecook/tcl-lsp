@@ -1,20 +1,19 @@
-     Summary [ 153.225s] 86 tests run: 51 passed (1 slow), 35 failed, 10231 skipped
+# per_item group with PROBE_WRAP=1 (narrowed gate), against the unpatched tree
+# newly failing:
 analyser::diagnostics::security::source_paths::tests::original_path_advice_has_whole_source_and_per_item_value_parity
 analyser::diagnostics::security::source_patterns::tests::original_pattern_shape_keeps_whole_source_and_per_item_parity
-analyser::per_item::tests::computed_body_head_keeps_genuine_whole_document_value_owner
 analyser::per_item::tests::counted_class_metadata_requires_original_owner_in_per_item_body
 analyser::per_item::tests::duplicate_proc_same_local_last_wins
 analyser::per_item::tests::duplicate_proc_unique_locals_unioned
-analyser::per_item::tests::dynamic_namespace_eval_in_body_rebases_dynns_identity
-analyser::per_item::tests::in_body_interp_alias_feeds_w123_of_sibling_body
 analyser::per_item::tests::instance_creation_before_class_definition_stays_unresolved
 analyser::per_item::tests::instance_creation_in_proc_body
-analyser::per_item::tests::namespace_unknown_handler_suppression_matches
-analyser::per_item::tests::nested_opaque_declarations_use_full_original_source_owner
-analyser::per_item::tests::nested_proc_in_body
-analyser::per_item::tests::original_lexical_member_body_keeps_the_whole_source_owner
-analyser::per_item::tests::original_next_advice_reconstructs_whole_source_after_preceding_edits
-analyser::per_item::tests::registry_defined_command_names_match
-analyser::per_item::tests::top_level_creation_sees_class_defined_in_earlier_body
 analyser::per_item::tests::top_level_global_read_in_body
-analyser::per_item::tests::w103_dynamic_open_in_body_matches
+# newly passing:
+analyser::per_item::tests::many_small_bodies_totalling_over_the_threshold_stay_fast
+analyser::per_item::tests::ordinary_large_body_stays_on_the_fast_path
+analyser::per_item::tests::private_source_advice_requires_whole_document_owner
+analyser::per_item::tests::tk_gate_fp_comments_strings_and_regexes_mentioning_tk
+analyser::per_item::tests::tk_gate_fp_package_provide_tk_and_require_tcl
+analyser::per_item::tests::tk_gate_fp_three_words_scattered_across_unrelated_commands
+analyser::per_item::tests::tk_gate_tn_dynamic_package_name_does_not_activate
+analyser::per_item::tests::tk_gate_tn_renamed_package_command_does_not_activate
