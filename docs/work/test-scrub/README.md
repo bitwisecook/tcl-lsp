@@ -100,7 +100,19 @@ The second pass, after the failing tests, takes the passing ones through the exa
 4. `REWRITE`, re-pointed at the named observable, by cause.
 5. The `KEEP` causes, ranked by tests blocked.
 
-The ledger gains a `status` column (open, repaired, fixed, deleted) and is kept current, so the number of distinct failing behaviours can always be read from it.
+The ledger gains a `status` column and a free `note` column after it, and is kept current, so progress can be counted. A status is exactly one word:
+
+| Status | Meaning |
+| --- | --- |
+| `open` (or empty) | nothing done yet |
+| `repaired` | the test was wrong, was corrected, and passes |
+| `exposed` | the test was corrected and now fails on a product fault (its verdict is re-read to a `KEEP` with the cause) |
+| `fixed` | the product was fixed and the test passes |
+| `deleted` | merged into its survivor or retired |
+| `blocked` | waits on a named row or session (named in `note`) |
+| `routed` | moved to another session's ledger |
+
+Commit ids, what the repaired test now shows, and who it waits on go in `note`. `python3 docs/work/test-scrub/tools/ledger_status.py docs/work/test-scrub/ledger` prints the table; `--check` fails on any other word.
 
 ## Rulings made during the scrub
 

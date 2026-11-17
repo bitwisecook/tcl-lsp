@@ -10,9 +10,10 @@ test = ["pytest"]
 
 [project.scripts]
 scrub-inventory = "scrub_inventory:main"
+ledger-status = "ledger_status:main"
 
 [tool.setuptools]
-py-modules = ["scrub_inventory"]
+py-modules = ["scrub_inventory", "ledger_status"]
 
 [tool.pytest.ini_options]
-python_files = ["test_scrub_inventory.py"]
+python_files = ["test_scrub_inventory.py", "test_ledger_status.py"]
