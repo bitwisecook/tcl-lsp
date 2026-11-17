@@ -635,9 +635,11 @@ fn lexical_minifier_keeps_explicit_authoring_compaction_separate() {
             ..MinifyOptions::default()
         },
     );
-    assert!(result.refusals.is_empty(), "{:?}", result.refusals);
-    assert!(!result.symbol_map.variables.is_empty());
-    assert!(!result.source.contains("longvar"));
+    // Naming passes are refused until a shared transactional rename
+    // planner exists, so the formal keeps its name.
+    assert_eq!(result.refusals, [MinifyRefusal::MissingAlphaRenameContract]);
+    assert!(result.symbol_map.variables.is_empty());
+    assert!(result.source.contains("$longvar"), "{}", result.source);
 }
 #[test]
 fn isolated_logical_formal_alpha_uses_general_bindings_and_preserves_defaults() {
@@ -655,18 +657,11 @@ fn isolated_logical_formal_alpha_uses_general_bindings_and_preserves_defaults() 
             ..MinifyOptions::default()
         },
     );
-    assert!(result.refusals.is_empty(), "{:?}", result.refusals);
-    let mapping = result
-        .symbol_map
-        .variables
-        .values()
-        .next()
-        .expect("general formal binding map");
-    assert_eq!(mapping.len(), 2);
-    assert!(mapping.contains_key("longleft"));
-    assert!(mapping.contains_key("longright"));
-    assert!(!result.source.contains("$longleft"), "{}", result.source);
-    assert!(!result.source.contains("$longright"), "{}", result.source);
+    // Naming passes are refused until a shared transactional rename
+    // planner exists: the formals keep their names and the default its text.
+    assert_eq!(result.refusals, [MinifyRefusal::MissingAlphaRenameContract]);
+    assert!(result.symbol_map.variables.is_empty());
+    assert!(result.source.contains("$longleft"), "{}", result.source);
     assert!(
         result.source.contains("longleft}"),
         "literal default is unchanged: {}",
