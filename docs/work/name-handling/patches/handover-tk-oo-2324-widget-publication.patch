@@ -1,0 +1,533 @@
+diff --git a/rust/tcl-compiler/src/analyser/diagnostics/var_command.rs b/rust/tcl-compiler/src/analyser/diagnostics/var_command.rs
+index 8aff06200..78f7bb7f1 100644
+--- a/rust/tcl-compiler/src/analyser/diagnostics/var_command.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics/var_command.rs
+@@ -4058,3 +4058,55 @@ mod logical_enclosing_member_inventory_tests {
+         }
+     }
+ }
++
++#[cfg(test)]
++mod tk_widget_path_tests {
++    use crate::provider_fixtures::{Provider, analyse};
++
++    /// A Tk widget constructor binds its window path as the widget's object
++    /// command (`Tcl_CreateObjCommand` in `tkEntry.c`, Tk 8.4.20–9.0.4), so a
++    /// head whose value is that path names a present command and W307 stays
++    /// quiet, at statement level and inside a substitution (#2324). Tcl 8.6
++    /// and 9.0 under the Tk provider.
++    #[test]
++    fn a_head_holding_a_created_widget_path_is_a_present_command() {
++        for release in ["tcl8.6", "tcl9.0"] {
++            for constructor in ["entry", "ttk::entry"] {
++                for use_site in ["puts [$e configure]", "$e configure -width 4"] {
++                    let source =
++                        format!("package require Tk\nset e .e\n{constructor} $e\n{use_site}\n");
++                    let analysis = analyse(&source, release, &[Provider::Tk]);
++                    let realm = analysis.retained_command_realm().unwrap();
++                    let at = u32::try_from(source.find(use_site).unwrap()).unwrap();
++                    assert_eq!(
++                        realm
++                            .invocation_at_source("", at)
++                            .lookup_command_word(".e")
++                            .selected_slot_presence(),
++                        crate::command_binding::SourceCommandSlotPresence::Present,
++                        "{release}: {source}"
++                    );
++                    assert!(
++                        analysis.diagnostics.iter().all(|d| d.code != tcl_core_types::DiagCode::W307),
++                        "{release}: {source}: {:?}",
++                        analysis.diagnostics
++                    );
++                }
++            }
++            // Before the constructor runs, the path names nothing.
++            let source = "package require Tk\nset e .e\n$e configure\nentry $e\n";
++            let analysis = analyse(source, release, &[Provider::Tk]);
++            let at = u32::try_from(source.find("$e configure").unwrap()).unwrap();
++            assert_ne!(
++                analysis
++                    .retained_command_realm()
++                    .unwrap()
++                    .invocation_at_source("", at)
++                    .lookup_command_word(".e")
++                    .selected_slot_presence(),
++                crate::command_binding::SourceCommandSlotPresence::Present,
++                "{release}"
++            );
++        }
++    }
++}
+diff --git a/rust/tcl-registry/src/commands/tk/button.rs b/rust/tcl-registry/src/commands/tk/button.rs
+index a083f00d0..a3fb68d77 100644
+--- a/rust/tcl-registry/src/commands/tk/button.rs
++++ b/rust/tcl-registry/src/commands/tk/button.rs
+@@ -427,6 +427,7 @@ pub fn spec() -> CommandSpec {
+         side_effects: SIDE_EFFECTS,
+         object_class: Some(&BUTTON_CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+diff --git a/rust/tcl-registry/src/commands/tk/canvas.rs b/rust/tcl-registry/src/commands/tk/canvas.rs
+index 5e4c556bd..2686b5c75 100644
+--- a/rust/tcl-registry/src/commands/tk/canvas.rs
++++ b/rust/tcl-registry/src/commands/tk/canvas.rs
+@@ -606,6 +606,7 @@ pub fn spec() -> CommandSpec {
+         subcommands: &SUBCOMMANDS,
+         object_class: Some(&CANVAS_CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+diff --git a/rust/tcl-registry/src/commands/tk/checkbutton.rs b/rust/tcl-registry/src/commands/tk/checkbutton.rs
+index 760672326..56652c2e9 100644
+--- a/rust/tcl-registry/src/commands/tk/checkbutton.rs
++++ b/rust/tcl-registry/src/commands/tk/checkbutton.rs
+@@ -537,6 +537,7 @@ pub fn spec() -> CommandSpec {
+         subcommands: &SUBCOMMANDS,
+         object_class: Some(&CHECKBUTTON_CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+diff --git a/rust/tcl-registry/src/commands/tk/entry.rs b/rust/tcl-registry/src/commands/tk/entry.rs
+index be40ab26b..9189a4e2d 100644
+--- a/rust/tcl-registry/src/commands/tk/entry.rs
++++ b/rust/tcl-registry/src/commands/tk/entry.rs
+@@ -580,6 +580,7 @@ pub fn spec() -> CommandSpec {
+         subcommands: &SUBCOMMANDS,
+         object_class: Some(&ENTRY_CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+diff --git a/rust/tcl-registry/src/commands/tk/frame.rs b/rust/tcl-registry/src/commands/tk/frame.rs
+index ea8ef4291..14a74ce66 100644
+--- a/rust/tcl-registry/src/commands/tk/frame.rs
++++ b/rust/tcl-registry/src/commands/tk/frame.rs
+@@ -255,6 +255,7 @@ pub fn spec() -> CommandSpec {
+         side_effects: SIDE_EFFECTS,
+         object_class: Some(&FRAME_CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+diff --git a/rust/tcl-registry/src/commands/tk/label.rs b/rust/tcl-registry/src/commands/tk/label.rs
+index b09e20af0..cdfe3d5ae 100644
+--- a/rust/tcl-registry/src/commands/tk/label.rs
++++ b/rust/tcl-registry/src/commands/tk/label.rs
+@@ -332,6 +332,7 @@ pub fn spec() -> CommandSpec {
+         side_effects: SIDE_EFFECTS,
+         object_class: Some(&LABEL_CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+diff --git a/rust/tcl-registry/src/commands/tk/labelframe.rs b/rust/tcl-registry/src/commands/tk/labelframe.rs
+index 2a20e31ee..18348dbd6 100644
+--- a/rust/tcl-registry/src/commands/tk/labelframe.rs
++++ b/rust/tcl-registry/src/commands/tk/labelframe.rs
+@@ -285,6 +285,7 @@ pub fn spec() -> CommandSpec {
+         side_effects: SIDE_EFFECTS,
+         object_class: Some(&LABELFRAME_CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+diff --git a/rust/tcl-registry/src/commands/tk/listbox.rs b/rust/tcl-registry/src/commands/tk/listbox.rs
+index a0baaeb42..4d984bf0d 100644
+--- a/rust/tcl-registry/src/commands/tk/listbox.rs
++++ b/rust/tcl-registry/src/commands/tk/listbox.rs
+@@ -562,6 +562,7 @@ pub fn spec() -> CommandSpec {
+         subcommands: &SUBCOMMANDS,
+         object_class: Some(&LISTBOX_CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+diff --git a/rust/tcl-registry/src/commands/tk/menu.rs b/rust/tcl-registry/src/commands/tk/menu.rs
+index 7f4e9e104..524ce6c5b 100644
+--- a/rust/tcl-registry/src/commands/tk/menu.rs
++++ b/rust/tcl-registry/src/commands/tk/menu.rs
+@@ -534,6 +534,7 @@ pub fn spec() -> CommandSpec {
+         subcommands: &SUBCOMMANDS,
+         object_class: Some(&MENU_CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+diff --git a/rust/tcl-registry/src/commands/tk/menubutton.rs b/rust/tcl-registry/src/commands/tk/menubutton.rs
+index 05abc6a1c..9ea4184ae 100644
+--- a/rust/tcl-registry/src/commands/tk/menubutton.rs
++++ b/rust/tcl-registry/src/commands/tk/menubutton.rs
+@@ -355,6 +355,7 @@ pub fn spec() -> CommandSpec {
+         side_effects: SIDE_EFFECTS,
+         object_class: Some(&MENUBUTTON_CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+diff --git a/rust/tcl-registry/src/commands/tk/message.rs b/rust/tcl-registry/src/commands/tk/message.rs
+index 23d0de9b4..ccdce847b 100644
+--- a/rust/tcl-registry/src/commands/tk/message.rs
++++ b/rust/tcl-registry/src/commands/tk/message.rs
+@@ -235,6 +235,7 @@ pub fn spec() -> CommandSpec {
+         side_effects: SIDE_EFFECTS,
+         object_class: Some(&MESSAGE_CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+diff --git a/rust/tcl-registry/src/commands/tk/panedwindow.rs b/rust/tcl-registry/src/commands/tk/panedwindow.rs
+index 45724dc24..efddbc919 100644
+--- a/rust/tcl-registry/src/commands/tk/panedwindow.rs
++++ b/rust/tcl-registry/src/commands/tk/panedwindow.rs
+@@ -342,6 +342,7 @@ pub fn spec() -> CommandSpec {
+         subcommands: &SUBCOMMANDS,
+         object_class: Some(&PANEDWINDOW_CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+diff --git a/rust/tcl-registry/src/commands/tk/radiobutton.rs b/rust/tcl-registry/src/commands/tk/radiobutton.rs
+index ff9a3fc59..0791bebc9 100644
+--- a/rust/tcl-registry/src/commands/tk/radiobutton.rs
++++ b/rust/tcl-registry/src/commands/tk/radiobutton.rs
+@@ -517,6 +517,7 @@ pub fn spec() -> CommandSpec {
+         subcommands: &SUBCOMMANDS,
+         object_class: Some(&RADIOBUTTON_CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+diff --git a/rust/tcl-registry/src/commands/tk/scale.rs b/rust/tcl-registry/src/commands/tk/scale.rs
+index 463d76b54..ffc9140fc 100644
+--- a/rust/tcl-registry/src/commands/tk/scale.rs
++++ b/rust/tcl-registry/src/commands/tk/scale.rs
+@@ -431,6 +431,7 @@ pub fn spec() -> CommandSpec {
+         object_class: Some(&CLASS),
+         side_effects: SIDE_EFFECTS,
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+diff --git a/rust/tcl-registry/src/commands/tk/scrollbar.rs b/rust/tcl-registry/src/commands/tk/scrollbar.rs
+index 263a5e643..e6d18b523 100644
+--- a/rust/tcl-registry/src/commands/tk/scrollbar.rs
++++ b/rust/tcl-registry/src/commands/tk/scrollbar.rs
+@@ -319,6 +319,7 @@ pub fn spec() -> CommandSpec {
+         side_effects: SIDE_EFFECTS,
+         object_class: Some(&SCROLLBAR_CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+diff --git a/rust/tcl-registry/src/commands/tk/spinbox.rs b/rust/tcl-registry/src/commands/tk/spinbox.rs
+index 1ac9c51a5..dda78940e 100644
+--- a/rust/tcl-registry/src/commands/tk/spinbox.rs
++++ b/rust/tcl-registry/src/commands/tk/spinbox.rs
+@@ -754,6 +754,7 @@ pub fn spec() -> CommandSpec {
+         subcommands: &SUBCOMMANDS,
+         object_class: Some(&SPINBOX_CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+diff --git a/rust/tcl-registry/src/commands/tk/text.rs b/rust/tcl-registry/src/commands/tk/text.rs
+index 568151a2a..c960cc45b 100644
+--- a/rust/tcl-registry/src/commands/tk/text.rs
++++ b/rust/tcl-registry/src/commands/tk/text.rs
+@@ -999,6 +999,7 @@ pub fn spec() -> CommandSpec {
+         subcommands: &SUBCOMMANDS,
+         object_class: Some(&TEXT_CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+diff --git a/rust/tcl-registry/src/commands/tk/toplevel.rs b/rust/tcl-registry/src/commands/tk/toplevel.rs
+index 491bab508..5ba08639a 100644
+--- a/rust/tcl-registry/src/commands/tk/toplevel.rs
++++ b/rust/tcl-registry/src/commands/tk/toplevel.rs
+@@ -275,6 +275,7 @@ pub fn spec() -> CommandSpec {
+         side_effects: SIDE_EFFECTS,
+         object_class: Some(&TOPLEVEL_CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+diff --git a/rust/tcl-registry/src/commands/tk/ttk__button.rs b/rust/tcl-registry/src/commands/tk/ttk__button.rs
+index bc4b15927..67db9e5bc 100644
+--- a/rust/tcl-registry/src/commands/tk/ttk__button.rs
++++ b/rust/tcl-registry/src/commands/tk/ttk__button.rs
+@@ -219,6 +219,7 @@ pub fn spec() -> CommandSpec {
+         subcommands: SUBCOMMANDS,
+         object_class: Some(&CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+diff --git a/rust/tcl-registry/src/commands/tk/ttk__combobox.rs b/rust/tcl-registry/src/commands/tk/ttk__combobox.rs
+index b92d8bcba..2ad2dd4f7 100644
+--- a/rust/tcl-registry/src/commands/tk/ttk__combobox.rs
++++ b/rust/tcl-registry/src/commands/tk/ttk__combobox.rs
+@@ -384,6 +384,7 @@ pub fn spec() -> CommandSpec {
+         subcommands: SUBCOMMANDS,
+         object_class: Some(&CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+diff --git a/rust/tcl-registry/src/commands/tk/ttk__entry.rs b/rust/tcl-registry/src/commands/tk/ttk__entry.rs
+index 28dd9a71f..118885beb 100644
+--- a/rust/tcl-registry/src/commands/tk/ttk__entry.rs
++++ b/rust/tcl-registry/src/commands/tk/ttk__entry.rs
+@@ -362,6 +362,7 @@ pub fn spec() -> CommandSpec {
+         subcommands: SUBCOMMANDS,
+         object_class: Some(&CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+diff --git a/rust/tcl-registry/src/commands/tk/ttk__frame.rs b/rust/tcl-registry/src/commands/tk/ttk__frame.rs
+index 13d6623d9..b19118cc6 100644
+--- a/rust/tcl-registry/src/commands/tk/ttk__frame.rs
++++ b/rust/tcl-registry/src/commands/tk/ttk__frame.rs
+@@ -147,6 +147,7 @@ pub fn spec() -> CommandSpec {
+         subcommands: SUBCOMMANDS,
+         object_class: Some(&CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+diff --git a/rust/tcl-registry/src/commands/tk/ttk__label.rs b/rust/tcl-registry/src/commands/tk/ttk__label.rs
+index 969527c3a..8f8918288 100644
+--- a/rust/tcl-registry/src/commands/tk/ttk__label.rs
++++ b/rust/tcl-registry/src/commands/tk/ttk__label.rs
+@@ -256,6 +256,7 @@ pub fn spec() -> CommandSpec {
+         subcommands: SUBCOMMANDS,
+         object_class: Some(&CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+diff --git a/rust/tcl-registry/src/commands/tk/ttk__labelframe.rs b/rust/tcl-registry/src/commands/tk/ttk__labelframe.rs
+index 17c204158..65972332f 100644
+--- a/rust/tcl-registry/src/commands/tk/ttk__labelframe.rs
++++ b/rust/tcl-registry/src/commands/tk/ttk__labelframe.rs
+@@ -136,6 +136,7 @@ pub fn spec() -> CommandSpec {
+         subcommands: SUBCOMMANDS,
+         object_class: Some(&CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+diff --git a/rust/tcl-registry/src/commands/tk/ttk__notebook.rs b/rust/tcl-registry/src/commands/tk/ttk__notebook.rs
+index 4a1439d98..c362bb50a 100644
+--- a/rust/tcl-registry/src/commands/tk/ttk__notebook.rs
++++ b/rust/tcl-registry/src/commands/tk/ttk__notebook.rs
+@@ -351,6 +351,7 @@ pub fn spec() -> CommandSpec {
+         subcommands: &SUBCOMMANDS,
+         object_class: Some(&TTK_NOTEBOOK_CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+diff --git a/rust/tcl-registry/src/commands/tk/ttk__progressbar.rs b/rust/tcl-registry/src/commands/tk/ttk__progressbar.rs
+index 82878c706..5c196be56 100644
+--- a/rust/tcl-registry/src/commands/tk/ttk__progressbar.rs
++++ b/rust/tcl-registry/src/commands/tk/ttk__progressbar.rs
+@@ -243,6 +243,7 @@ pub fn spec() -> CommandSpec {
+         subcommands: SUBCOMMANDS,
+         object_class: Some(&CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+diff --git a/rust/tcl-registry/src/commands/tk/ttk__scale.rs b/rust/tcl-registry/src/commands/tk/ttk__scale.rs
+index 9d4abacca..95912a241 100644
+--- a/rust/tcl-registry/src/commands/tk/ttk__scale.rs
++++ b/rust/tcl-registry/src/commands/tk/ttk__scale.rs
+@@ -211,6 +211,7 @@ pub fn spec() -> CommandSpec {
+         subcommands: SUBCOMMANDS,
+         object_class: Some(&CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+diff --git a/rust/tcl-registry/src/commands/tk/ttk__scrollbar.rs b/rust/tcl-registry/src/commands/tk/ttk__scrollbar.rs
+index e9f4a0e30..8a4da19c6 100644
+--- a/rust/tcl-registry/src/commands/tk/ttk__scrollbar.rs
++++ b/rust/tcl-registry/src/commands/tk/ttk__scrollbar.rs
+@@ -157,6 +157,7 @@ pub fn spec() -> CommandSpec {
+         subcommands: SUBCOMMANDS,
+         object_class: Some(&CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+diff --git a/rust/tcl-registry/src/commands/tk/ttk__separator.rs b/rust/tcl-registry/src/commands/tk/ttk__separator.rs
+index aeed2073e..b7a3c0f65 100644
+--- a/rust/tcl-registry/src/commands/tk/ttk__separator.rs
++++ b/rust/tcl-registry/src/commands/tk/ttk__separator.rs
+@@ -107,6 +107,7 @@ pub fn spec() -> CommandSpec {
+         subcommands: SUBCOMMANDS,
+         object_class: Some(&CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+diff --git a/rust/tcl-registry/src/commands/tk/ttk__sizegrip.rs b/rust/tcl-registry/src/commands/tk/ttk__sizegrip.rs
+index ac972e79e..82a8f7853 100644
+--- a/rust/tcl-registry/src/commands/tk/ttk__sizegrip.rs
++++ b/rust/tcl-registry/src/commands/tk/ttk__sizegrip.rs
+@@ -97,6 +97,7 @@ pub fn spec() -> CommandSpec {
+         subcommands: SUBCOMMANDS,
+         object_class: Some(&CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+diff --git a/rust/tcl-registry/src/commands/tk/ttk__toggleswitch.rs b/rust/tcl-registry/src/commands/tk/ttk__toggleswitch.rs
+index 75d0ec4f9..eb7866d1b 100644
+--- a/rust/tcl-registry/src/commands/tk/ttk__toggleswitch.rs
++++ b/rust/tcl-registry/src/commands/tk/ttk__toggleswitch.rs
+@@ -235,6 +235,7 @@ pub fn spec() -> CommandSpec {
+         subcommands: SUBCOMMANDS,
+         object_class: Some(&CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+diff --git a/rust/tcl-registry/src/commands/tk/ttk__treeview.rs b/rust/tcl-registry/src/commands/tk/ttk__treeview.rs
+index 4d6f5dca0..1b8df30fe 100644
+--- a/rust/tcl-registry/src/commands/tk/ttk__treeview.rs
++++ b/rust/tcl-registry/src/commands/tk/ttk__treeview.rs
+@@ -1500,6 +1500,7 @@ pub fn spec() -> CommandSpec {
+         subcommands: &SUBCOMMANDS,
+         object_class: Some(&TTK_TREEVIEW_CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         return_type: Some(TclType::String),
+         ..CommandSpec::DEFAULT
+     }
+diff --git a/rust/tcl-registry/src/commands/tk/ttk_extra.rs b/rust/tcl-registry/src/commands/tk/ttk_extra.rs
+index 95aa46a59..c9a21350f 100644
+--- a/rust/tcl-registry/src/commands/tk/ttk_extra.rs
++++ b/rust/tcl-registry/src/commands/tk/ttk_extra.rs
+@@ -184,6 +184,7 @@ fn checkbutton() -> CommandSpec {
+         subcommands: CHECKBUTTON_METHODS,
+         object_class: Some(&CHECKBUTTON_CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+@@ -306,6 +307,7 @@ fn menubutton() -> CommandSpec {
+         subcommands: MENUBUTTON_METHODS,
+         object_class: Some(&MENUBUTTON_CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+@@ -440,6 +442,7 @@ fn panedwindow() -> CommandSpec {
+         subcommands: PANEDWINDOW_METHODS,
+         object_class: Some(&PANEDWINDOW_CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+@@ -584,6 +587,7 @@ fn radiobutton() -> CommandSpec {
+         subcommands: RADIOBUTTON_METHODS,
+         object_class: Some(&RADIOBUTTON_CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+@@ -895,6 +899,7 @@ fn spinbox() -> CommandSpec {
+         subcommands: SPINBOX_METHODS,
+         object_class: Some(&SPINBOX_CLASS),
+         creates_instance_at: Some(0),
++        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+         ..CommandSpec::DEFAULT
+     }
+ }
+diff --git a/rust/tcl-registry/src/state_transition.rs b/rust/tcl-registry/src/state_transition.rs
+index 1fa030a18..3ae092034 100644
+--- a/rust/tcl-registry/src/state_transition.rs
++++ b/rust/tcl-registry/src/state_transition.rs
+@@ -2238,6 +2238,40 @@ pub mod command_binding {
+         commit: StateTransitionCommit::OnOkOnly,
+     };
+ 
++    /// A Tk widget constructor `CLASS pathName ?option value …?` binds the
++    /// window path as the widget's object command, and destroys the window
++    /// (deleting the command) when configuration fails (`Tcl_CreateObjCommand`
++    /// then `Tk_DestroyWindow` in `tkEntry.c`, Tk 8.4.20–9.0.4).
++    pub const CREATES_WIDGET: StateTransitionDescriptor = StateTransitionDescriptor {
++        logical_source_resolver: None,
++        composition: StateTransitionComposition::Extend,
++        success_resolver: None,
++        resolver: Some(creates_widget),
++        argument_shape: StateTransitionArgumentShape::Positional,
++        // `Tk_CreateWindowFromPath` needs a `.` and an existing parent, and
++        // every window descends from `.`, so a path that succeeds starts with
++        // `.`. A computed path can only bind such a name, so it states nothing
++        // rather than withdrawing the whole command table.
++        dynamic_widening: &[],
++        effect_coverage: ALIAS_COVERAGE,
++        commit: StateTransitionCommit::OnOkOnly,
++    };
++
++    fn creates_widget(arguments: InvocationArguments<'_>) -> StateTransitions {
++        let mut transitions = StateTransitions::default();
++        if let Some(name) = TransitionSubject::from_argument(arguments, 0)
++            && name.literal().is_some_and(|path| path.starts_with('.'))
++        {
++            transitions.push(StateTransition::CommandBinding(
++                CommandBindingTransition::Define {
++                    name,
++                    kind: CommandBindingDefinitionKind::Object,
++                },
++            ));
++        }
++        transitions
++    }
++
+     fn creates_caller_aliases(arguments: InvocationArguments<'_>) -> StateTransitions {
+         let mut transitions = StateTransitions::default();
+         if arguments.len() < 2 {
