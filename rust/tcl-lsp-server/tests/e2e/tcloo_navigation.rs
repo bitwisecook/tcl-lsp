@@ -314,7 +314,8 @@ fn tp_list_built_self_bind_callback_is_a_method_reference_everywhere() {
              method anim {wl} {\n\
                  bind $wl <ButtonPress-1> [list [self] animTick %x %y]\n\
              }\n\
-         }\n",
+         }\n\
+         [Test new] anim .\n",
     );
 
     let refs = lsp.references(&uri, 2, 11, false);
@@ -421,7 +422,8 @@ fn tp_inherited_list_built_self_callback_joins_the_provider_family() {
              method wire {} {\n\
                  after idle [list [self] tick]\n\
              }\n\
-         }\n";
+         }\n\
+         [Child new] wire\n";
     let callback_char = u32::try_from(src.lines().nth(6).unwrap().rfind("tick").unwrap()).unwrap();
     lsp.open_ready(&uri, src);
 
@@ -514,7 +516,8 @@ fn tp_overriding_receiver_keeps_its_callback_in_its_own_family() {
              method wire {} {\n\
                  after idle [list [self] tick]\n\
              }\n\
-         }\n";
+         }\n\
+         [Child new] wire\n";
     let callback_char = u32::try_from(src.lines().nth(7).unwrap().rfind("tick").unwrap()).unwrap();
     lsp.open_ready(&uri, src);
 
@@ -545,7 +548,7 @@ fn tp_cross_file_inherited_self_callback_agrees_everywhere() {
         &base,
         "oo::class create Base {\n    method tick {} { return 1 }\n}\n",
     );
-    let child_src = "oo::class create Child {\n    superclass Base\n    method wire {} {\n        after idle [list [self] tick]\n    }\n}\n";
+    let child_src = "oo::class create Child {\n    superclass Base\n    method wire {} {\n        after idle [list [self] tick]\n    }\n}\n[Child new] wire\n";
     let callback_char =
         u32::try_from(child_src.lines().nth(3).unwrap().rfind("tick").unwrap()).unwrap();
     lsp.open_ready(&child, child_src);
@@ -590,7 +593,7 @@ fn tp_cross_file_receiver_reexport_revives_the_inherited_callback() {
         &base,
         "oo::class create Base {\n    method tock {} { return 1 }\n    unexport tock\n}\n",
     );
-    let child_src = "oo::class create Child {\n    superclass Base\n    export tock\n    method wire {} {\n        after idle [list [self] tock]\n    }\n}\n";
+    let child_src = "oo::class create Child {\n    superclass Base\n    export tock\n    method wire {} {\n        after idle [list [self] tock]\n    }\n}\n[Child new] wire\n";
     let callback_char =
         u32::try_from(child_src.lines().nth(4).unwrap().rfind("tock").unwrap()).unwrap();
     lsp.open_ready(&child, child_src);
@@ -646,7 +649,8 @@ fn tp_namespace_wrapped_my_callback_agrees_across_navigation_providers() {
              method wire {chan} {\n\
                  fileevent $chan readable [namespace code [list my read]]\n\
              }\n\
-         }\n",
+         }\n\
+         [C new] wire stdin\n",
     );
 
     let refs = lsp.references(&uri, 2, 11, false);
@@ -686,7 +690,7 @@ fn tp_cross_file_inherited_wrapped_my_callback_agrees_everywhere() {
     );
     lsp.open_ready(
         &child,
-        "oo::class create Child {\n    superclass Base\n    method wire {chan} {\n        fileevent $chan readable [namespace code [list my read]]\n    }\n}\n",
+        "oo::class create Child {\n    superclass Base\n    method wire {chan} {\n        fileevent $chan readable [namespace code [list my read]]\n    }\n}\n[Child new] wire stdin\n",
     );
 
     assert_eq!(
