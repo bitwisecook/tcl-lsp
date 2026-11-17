@@ -459,12 +459,7 @@ fn extend_symbol_reference_candidates(
         ) {
             continue;
         }
-        let Some(root) = accessible_name(
-            occurrence,
-            namespace,
-            frame,
-            &analysis.original_variable_symbols,
-        ) else {
+        let Some(root) = accessible_name(occurrence, namespace, frame) else {
             continue;
         };
         let element = if arrays {
@@ -624,7 +619,6 @@ fn accessible_name(
     occurrence: &SignatureSourceVariableOccurrence,
     namespace: Option<&SignatureNamespaceScope>,
     frame: Option<&SourceOriginalVariableFrame>,
-    symbols: &[SignatureSourceVariableOccurrence],
 ) -> Option<NameBytes> {
     if let Some((owner, local)) = occurrence.original_local_alias() {
         return (Some(owner) == frame).then(|| local.clone());
@@ -651,21 +645,13 @@ fn accessible_name(
                         | VariableExecutionFrame::NamespaceActivation { .. }
                 )
             });
+            // A root name is offered rooted from a namespace frame. Tcl 8.x
+            // would also resolve the bare spelling through the global
+            // fallback (tclsh 8.6.18: `set flag 1; namespace eval foo {set flag}`
+            // answers 1; 9.0 raises `can't read "flag"`), but the rooted
+            // spelling is valid in every release.
             let here = namespace == Some(&SignatureNamespaceScope::C(home.clone()));
-            // Tcl 8.x (before TIP 278) resolves an unqualified namespace-scope
-            // variable the current namespace does not hold in the global
-            // namespace; tclsh 8.6: `set flag 1; namespace eval foo {set flag}`
-            // answers 1, tclsh 9.0 raises `can't read "flag"`.
-            let global_fallback = namespace_level
-                && !here
-                && home.is_root()
-                && matches!(protocol, tcl_syntax::naming::NativeNameProtocol::C(version)
-                    if version.namespace_var_global_fallback())
-                && matches!(namespace, Some(SignatureNamespaceScope::C(current)) if !current.is_root()
-                    && !symbols.iter().any(|other| matches!(other.symbol().slot(),
-                        SignatureSourceVariableSlot::C { namespace: owner, simple: name }
-                            if owner == current && name == simple)));
-            let bare = namespace_level && (here || global_fallback);
+            let bare = namespace_level && here;
             let input = if bare {
                 simple.as_bytes().to_vec()
             } else {

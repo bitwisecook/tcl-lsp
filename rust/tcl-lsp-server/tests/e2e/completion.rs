@@ -522,7 +522,8 @@ fn dollar_global_var_from_namespace_offers_qualified() {
     let uri = unique_uri("tcl");
     let src = "set ::globalvar 9\nnamespace eval ::myns {\n    puts $\n}\n";
     lsp.open_ready(&uri, src);
-    assert!(labels(&mut lsp, &uri, 2, 10).contains(&"$::globalvar".to_owned()));
+    let ls = labels(&mut lsp, &uri, 2, 10);
+    assert!(ls.contains(&"$::globalvar".to_owned()), "labels={ls:?}");
 }
 
 #[test]
