@@ -361,48 +361,49 @@ fn t102_suppressed_with_terminator() {
 #[test]
 fn t102_uses_ensemble_subcommand_label_and_t103_for_regexp() {
     use crate::compilation_unit::CompilationUnit;
-    let registry = CommandRegistry::build_default();
-    // `file delete $u` → T102 labelled "file delete" (ensemble
-    // subcommand, via resolve_option_terminator). `regexp $u …` →
-    // T103 (regex injection) then T102 (regexp also takes `--`).
-    let cu = CompilationUnit::build_for(
-        "set u [gets stdin]\nfile delete $u\nregexp $u \"abc\"",
-        &registry,
-        false,
-    );
-    let fu = cu.function("::top").unwrap();
-    let warnings = find_taint_warnings(
-        &fu.cfg,
-        &fu.ssa,
-        &fu.taints,
-        &fu.sccp.executable_blocks,
-        &registry,
-        Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
-        &HashSet::new(),
-    );
-    let t102 = warnings.iter().find(|w| w.code == DiagCode::T102);
-    assert!(
-        t102.is_some_and(|w| w.sink_command == "file delete"),
-        "expected a T102 with ensemble label 'file delete', got {warnings:?}",
-    );
-    assert!(
-        warnings
+    for (release, registry) in release_registries() {
+        // `file delete $u` → T102 labelled "file delete" (ensemble
+        // subcommand, via resolve_option_terminator). `regexp $u …` →
+        // T103 (regex injection) then T102 (regexp also takes `--`).
+        let cu = CompilationUnit::build_for(
+            "set u [gets stdin]\nfile delete $u\nregexp $u \"abc\"",
+            &registry,
+            false,
+        );
+        let fu = cu.function("::top").unwrap();
+        let warnings = find_taint_warnings(
+            &fu.cfg,
+            &fu.ssa,
+            &fu.taints,
+            &fu.sccp.executable_blocks,
+            &registry,
+            Some(tcl_registry::model::ingress::resolve_environment(release).analyser_profile()),
+            &HashSet::new(),
+        );
+        let t102 = warnings.iter().find(|w| w.code == DiagCode::T102);
+        assert!(
+            t102.is_some_and(|w| w.sink_command == "file delete"),
+            "{release}: expected a T102 with ensemble label 'file delete', got {warnings:?}",
+        );
+        assert!(
+            warnings
+                .iter()
+                .any(|w| w.code == DiagCode::T103 && w.sink_command == "regexp"),
+            "{release}: expected T103 for tainted regexp pattern, got {warnings:?}",
+        );
+        // T103 must precede the regexp T102 (the pattern check is
+        // emitted before the sink loop).
+        let regexp_codes: Vec<&str> = warnings
             .iter()
-            .any(|w| w.code == DiagCode::T103 && w.sink_command == "regexp"),
-        "expected T103 for tainted regexp pattern, got {warnings:?}",
-    );
-    // T103 must precede the regexp T102 (the pattern check is
-    // emitted before the sink loop).
-    let regexp_codes: Vec<&str> = warnings
-        .iter()
-        .filter(|w| w.sink_command == "regexp")
-        .map(|w| w.code.as_str())
-        .collect();
-    assert_eq!(
-        regexp_codes,
-        vec!["T103", "T102"],
-        "regexp warnings must be ordered T103 then T102",
-    );
+            .filter(|w| w.sink_command == "regexp")
+            .map(|w| w.code.as_str())
+            .collect();
+        assert_eq!(
+            regexp_codes,
+            vec!["T103", "T102"],
+            "{release}: regexp warnings must be ordered T103 then T102",
+        );
+    }
 }
 
 #[test]

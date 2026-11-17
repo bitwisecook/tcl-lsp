@@ -142,16 +142,17 @@ fn inline_sanitiser_mitigation_requires_its_retained_implementation() {
 #[test]
 fn t103_not_cleared_by_an_escaped_bracket_that_never_calls_the_quoter() {
     use crate::compilation_unit::CompilationUnit;
-    let registry = CommandRegistry::build_default();
-    let source = "proc f {} {\n  set p [gets stdin]\n  \
+    for (release, registry) in release_registries() {
+        let source = "proc f {} {\n  set p [gets stdin]\n  \
                       regexp -- \"\\[regex::quote $p]\" $line\n}\n";
-    let cu =
-        CompilationUnit::build_for(source, &registry, false).with_interprocedural(&registry, None);
-    let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
-    assert!(
-        warnings.iter().any(|w| w.code == DiagCode::T103),
-        "an escaped bracket is not a call, so T103 must stand: {warnings:?}",
-    );
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert!(
+            warnings.iter().any(|w| w.code == DiagCode::T103),
+            "{release}: an escaped bracket is not a call, so T103 must stand: {warnings:?}",
+        );
+    }
 }
 
 /// T103's `[regex::quote …]` mitigation reads the same whether the quote
@@ -167,22 +168,23 @@ fn t103_not_cleared_by_an_escaped_bracket_that_never_calls_the_quoter() {
 #[test]
 fn t103_cleared_by_an_inline_regex_quote_in_the_pattern_slot() {
     use crate::compilation_unit::CompilationUnit;
-    let registry = CommandRegistry::build_default();
-    let cases: [(&str, bool); 5] = [
-        ("regexp -- $p $line", true),
-        ("set q [regex::quote $p]\n  regexp -- $q $line", false),
-        ("regexp -- [regex::quote $p] $line", false),
-        ("regexp -- [regex::quote $p] $p", false),
-        // `string range` carries no transform, so it proves nothing.
-        ("regexp -- [string range $p 0 5] $line", true),
-    ];
-    for (tail, expected) in cases {
-        let source = format!("proc f {{}} {{\n  set p [gets stdin]\n  {tail}\n}}\n");
-        let cu = CompilationUnit::build_for(&source, &registry, false)
-            .with_interprocedural(&registry, None);
-        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
-        let got = warnings.iter().any(|w| w.code == DiagCode::T103);
-        assert_eq!(got, expected, "for {tail:?}, got {warnings:?}");
+    for (release, registry) in release_registries() {
+        let cases: [(&str, bool); 5] = [
+            ("regexp -- $p $line", true),
+            ("set q [regex::quote $p]\n  regexp -- $q $line", false),
+            ("regexp -- [regex::quote $p] $line", false),
+            ("regexp -- [regex::quote $p] $p", false),
+            // `string range` carries no transform, so it proves nothing.
+            ("regexp -- [string range $p 0 5] $line", true),
+        ];
+        for (tail, expected) in cases {
+            let source = format!("proc f {{}} {{\n  set p [gets stdin]\n  {tail}\n}}\n");
+            let cu = CompilationUnit::build_for(&source, &registry, false)
+                .with_interprocedural(&registry, None);
+            let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+            let got = warnings.iter().any(|w| w.code == DiagCode::T103);
+            assert_eq!(got, expected, "{release}: for {tail:?}, got {warnings:?}");
+        }
     }
 }
 
@@ -200,41 +202,42 @@ fn t103_cleared_by_an_inline_regex_quote_in_the_pattern_slot() {
 #[test]
 fn t101_cleared_only_by_a_mapping_that_deletes_crlf() {
     use crate::compilation_unit::CompilationUnit;
-    let registry = CommandRegistry::build_default();
-    let crlf = r#"{"\n" "" "\r" ""}"#;
-    let cases: &[(&str, bool)] = &[
-        ("puts $x", true),
-        (&format!("puts [string map {crlf} $x]"), false),
-        (&format!("set s [string map {crlf} $x]\n  puts $s"), false),
-        ("puts [string map {a b} $x]", true),
-        // Only half the pair: an LF is deleted but a CR still survives.
-        (r#"puts [string map {"\n" ""} $x]"#, true),
-        // The mapping is dynamic and the *subject* is the braced word, so
-        // the rewriting is exactly what cannot be seen. tclsh 8.6.18 and
-        // 9.0.4: `set m [list X "a\nb"]; string map $m {"\n" "" "\r" ""
-        // X}` yields a string containing a newline.
-        (&format!("puts [string map $x {crlf}]"), true),
-        // A later `string map` puts a newline back, so the earlier proof
-        // no longer describes what reaches `puts` — in either spelling.
-        (
-            &format!("set s [string map {crlf} $x]\n  puts [string map {{\"|\" \"\\n\"}} $s]"),
-            true,
-        ),
-        (
-            &format!(
-                "set s [string map {crlf} $x]\n  \
-                     set t [string map {{\"|\" \"\\n\"}} $s]\n  puts $t"
+    for (release, registry) in release_registries() {
+        let crlf = r#"{"\n" "" "\r" ""}"#;
+        let cases: &[(&str, bool)] = &[
+            ("puts $x", true),
+            (&format!("puts [string map {crlf} $x]"), false),
+            (&format!("set s [string map {crlf} $x]\n  puts $s"), false),
+            ("puts [string map {a b} $x]", true),
+            // Only half the pair: an LF is deleted but a CR still survives.
+            (r#"puts [string map {"\n" ""} $x]"#, true),
+            // The mapping is dynamic and the *subject* is the braced word, so
+            // the rewriting is exactly what cannot be seen. tclsh 8.6.18 and
+            // 9.0.4: `set m [list X "a\nb"]; string map $m {"\n" "" "\r" ""
+            // X}` yields a string containing a newline.
+            (&format!("puts [string map $x {crlf}]"), true),
+            // A later `string map` puts a newline back, so the earlier proof
+            // no longer describes what reaches `puts` — in either spelling.
+            (
+                &format!("set s [string map {crlf} $x]\n  puts [string map {{\"|\" \"\\n\"}} $s]"),
+                true,
             ),
-            true,
-        ),
-    ];
-    for &(tail, expected) in cases {
-        let source = format!("proc f {{}} {{\n  set x [gets stdin]\n  {tail}\n}}\n");
-        let cu = CompilationUnit::build_for(&source, &registry, false)
-            .with_interprocedural(&registry, None);
-        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
-        let got = warnings.iter().any(|w| w.code == DiagCode::T101);
-        assert_eq!(got, expected, "for {tail:?}, got {warnings:?}");
+            (
+                &format!(
+                    "set s [string map {crlf} $x]\n  \
+                     set t [string map {{\"|\" \"\\n\"}} $s]\n  puts $t"
+                ),
+                true,
+            ),
+        ];
+        for &(tail, expected) in cases {
+            let source = format!("proc f {{}} {{\n  set x [gets stdin]\n  {tail}\n}}\n");
+            let cu = CompilationUnit::build_for(&source, &registry, false)
+                .with_interprocedural(&registry, None);
+            let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+            let got = warnings.iter().any(|w| w.code == DiagCode::T101);
+            assert_eq!(got, expected, "{release}: for {tail:?}, got {warnings:?}");
+        }
     }
 }
 

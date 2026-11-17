@@ -117,6 +117,20 @@ fn plain_taints(
     )
 }
 
+/// The core releases a dialect-blind fixture runs on: a registry with no
+/// profile knows no release, so it names no builtin at all.
+fn release_registries() -> impl Iterator<Item = (&'static str, CommandRegistry)> {
+    ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"]
+        .into_iter()
+        .map(|release| {
+            let profile = tcl_dialect::DialectProfile::find(release).expect(release);
+            (
+                release,
+                CommandRegistry::build_default().project_for_profile(profile),
+            )
+        })
+}
+
 /// Wire `set x [gets stdin]` (a taint source) followed by `sink`
 /// (which uses `$x`) and return the taint warnings.  Shared by the
 /// T104 / T105 sink tests.
