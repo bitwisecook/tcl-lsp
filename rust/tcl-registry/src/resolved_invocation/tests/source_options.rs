@@ -484,3 +484,34 @@ fn source_diagnostic_options_keep_nested_prefixes_and_unknown_boundaries() {
         super::super::AuthoredSourceOptionBoundary::Dynamic(1)
     );
 }
+
+/// A word whose literal prefix is not `-` can never be an option, so the
+/// option run ends there: tclsh 8.6.18 and 9.0.4 read `regexp "prefix$pat" $s`
+/// (pat x, s y) as the pattern and answer 0.
+#[test]
+fn a_dynamic_word_with_a_literal_prefix_ends_the_option_run_as_a_positional() {
+    let registry = crate::CommandRegistry::build_default();
+    let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+    let args = [
+        crate::InvocationWord::Literal("-nocase"),
+        crate::InvocationWord::DynamicNonOption,
+        crate::InvocationWord::Dynamic,
+    ];
+    let invocation = registry
+        .resolve_structured_invocation(
+            crate::InvocationWords::structured(crate::InvocationWord::Literal("regexp"), &args)
+                .with_dialect(dialect),
+            Some(tcl_dialect::model::SurfaceQuery::core(
+                tcl_dialect::model::Family::Tcl,
+                "8.6",
+            )),
+        )
+        .resolved()
+        .unwrap();
+    let scan = invocation.authored_source_diagnostic_options().unwrap();
+    assert_eq!(scan.options.len(), 1);
+    assert_eq!(
+        scan.boundary,
+        super::super::AuthoredSourceOptionBoundary::Positional(1)
+    );
+}
