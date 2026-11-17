@@ -922,6 +922,7 @@ mod completion;
 mod control_activations;
 mod dispatch;
 mod instructions;
+mod splice;
 
 pub(crate) use completion::LoggedCommand;
 #[cfg(test)]

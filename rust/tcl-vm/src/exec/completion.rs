@@ -202,6 +202,11 @@ impl Vm {
         acts: &mut Vec<Frame>,
         c: Completion<Value>,
     ) -> Option<Completion<Value>> {
+        if let Some(f) = acts.last_mut()
+            && self.leaves_splice_range(f, &c)
+        {
+            return None;
+        }
         let c = match self.publish_and_log_completion(acts, c) {
             Ok(completion) => completion,
             Err(completion) => return Some(completion),
@@ -863,6 +868,9 @@ impl Vm {
                     match self.absorb_catch_range(parent, c) {
                         Ok(()) => return None,
                         Err(back) => c = back,
+                    }
+                    if self.leaves_splice_range(parent, &c) {
+                        return None;
                     }
                     // A child activation that leaves an unhandled
                     // `break`/`continue` delivers it to the enclosing frame's

@@ -446,17 +446,20 @@ impl FunctionAsm {
 ///
 /// Codegen evaluates the call's words once, into the anonymous locals
 /// `words` (command word first), before `start`; the body then runs on
-/// anonymous locals only. If a guard or selection inside `[start, end)` fails,
-/// or a completion other than OK leaves the range, the executor drops the
-/// operand stack to `entry_depth`, invokes `words` as an ordinary command at
-/// the call site and resumes at `end`, pushing that command's result when
-/// `resumes_with_value`. The real procedure frame then presents the call's
-/// `errorInfo`, `-errorstack` entry, codes and introspection exactly.
+/// anonymous locals only and jumps past `end` when it completes. At `end`
+/// codegen emits the fallback: the `words` loaded and invoked by the call's
+/// own instruction (its source text and line), the result popped unless
+/// `resumes_with_value`. If a guard inside `[start, end)` fails, or a
+/// completion other than OK leaves the range without a catch range the body
+/// opened, the executor drops the state the body built (operand stack to
+/// `entry_depth`), forgets its error and resumes at `end`. The real procedure
+/// frame then presents the call's `errorInfo`, `-errorstack` entry, codes and
+/// introspection exactly.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpliceRange {
     /// Label of the first spliced instruction.
     pub start: String,
-    /// Label where the call's result is on the stack after the splice.
+    /// Label of the fallback invocation, just past the spliced body.
     pub end: String,
     /// Operand stack depth at `start`.
     pub entry_depth: u32,

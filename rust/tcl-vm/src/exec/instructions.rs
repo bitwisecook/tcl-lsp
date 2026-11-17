@@ -458,6 +458,8 @@ impl Vm {
         {
             if self.active_native_bindings_match(f, &asm) && !self.step_trace_active() {
                 f.command_epoch = self.trace_deopt_epoch();
+            } else if self.leave_stale_splice_range(f) {
+                return ControlFlow::Break(Tick::Continue);
             } else {
                 return ControlFlow::Break(self.replay_stale_command(f, &asm, instr));
             }
