@@ -140,6 +140,18 @@ class ProcSample:
         }
 
 
+def latency_summary(latencies: list[float]) -> dict[str, float]:
+    """Median, 95th percentile and maximum of the probe latencies, in seconds."""
+    if not latencies:
+        return {}
+    ordered = sorted(latencies)
+
+    def at(fraction: float) -> float:
+        return round(ordered[min(len(ordered) - 1, int(fraction * len(ordered)))], 3)
+
+    return {"median": at(0.5), "p95": at(0.95), "max": round(ordered[-1], 3)}
+
+
 def classify_wedge(delta: dict[str, int]) -> str:
     """Name the shape of an unanswered probe from a `/proc` delta.
 
@@ -253,6 +265,7 @@ class Probe:
     answered: int = 0
     max_latency: float = 0.0
     wedged_at: float | None = None
+    latencies: list[float] = field(default_factory=list)
     stop: threading.Event = field(default_factory=threading.Event)
     # One thread sends every request, so the client's ids never race: the
     # churn loop asks for an extra command through `ask`.
@@ -296,6 +309,7 @@ class Probe:
             latency = time.monotonic() - started
             self.answered += 1
             self.max_latency = max(self.max_latency, latency)
+            self.latencies.append(latency)
             self.stop.wait(self.interval)
 
 
@@ -342,6 +356,7 @@ def measure_rss(
         rss_kib=before,
         trimmed_kib=after,
         threads=thread_count(pid),
+        cpu_ticks=sample_proc(pid).cpu_ticks,
     )
 
 
@@ -473,6 +488,7 @@ def run(args: argparse.Namespace) -> int:
             status=status,
             answered=probe.answered,
             max_latency=round(probe.max_latency, 3),
+            latency=latency_summary(probe.latencies),
         )
     finally:
         probe.stop.set()
