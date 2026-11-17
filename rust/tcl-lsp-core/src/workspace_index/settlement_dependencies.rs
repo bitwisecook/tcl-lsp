@@ -82,7 +82,8 @@ pub(super) struct SettlementDependencies {
     pub(super) sources: Vec<WorkspaceSource>,
     /// A changed constant can change which child a computed source row
     /// resolves to, so the raw assignments are resolution-relevant exactly
-    /// as the source rows themselves are.
+    /// as the source rows themselves are: in a document with a `source`
+    /// row, and nowhere else.
     pub(super) path_constant_assignments: tcl_compiler::auto_path_eval::PathConstantAssignments,
     pub(super) package_requires: Vec<WorkspacePackageRequire>,
     pub(super) package_provides: Vec<WorkspacePackageProvide>,
@@ -159,7 +160,13 @@ impl DocumentRecords {
                 })
                 .collect(),
             sources: self.sources.clone(),
-            path_constant_assignments: self.path_constant_assignments.clone(),
+            // Read only through this document's own `source` rows, and they
+            // carry the source image, which every body edit changes.
+            path_constant_assignments: if self.sources.is_empty() {
+                tcl_compiler::auto_path_eval::PathConstantAssignments::default()
+            } else {
+                self.path_constant_assignments.clone()
+            },
             package_requires: self.package_requires.clone(),
             package_provides: self.package_provides.clone(),
             package_ifneededs: self.package_ifneededs.clone(),

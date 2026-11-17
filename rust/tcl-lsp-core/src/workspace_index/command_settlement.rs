@@ -757,9 +757,10 @@ impl WorkspaceIndex {
                     .and_then(|definition| self.original_definition_target(definition))
                     .or_else(|| {
                         let slot = reference.original_slot()?;
-                        let name =
-                            String::from_utf8(tcl_syntax::naming::native_command_full_name_bytes(slot))
-                                .ok()?;
+                        let name = String::from_utf8(
+                            tcl_syntax::naming::native_command_full_name_bytes(slot),
+                        )
+                        .ok()?;
                         Self::linked_name_target(&name, links, defined)
                     })
             } else {
