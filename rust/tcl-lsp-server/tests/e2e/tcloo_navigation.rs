@@ -365,7 +365,9 @@ fn tp_list_built_self_bind_callback_is_a_method_reference_everywhere() {
 }
 
 /// A one-hop local constant carries a registry-declared callback
-/// prefix.  Every navigation provider must use the builder method span, not
+/// prefix. `after` runs its script at global level, so the prefix is wrapped
+/// in `namespace code`: a bare `[list my tick]` raises `invalid command name
+/// "my"` (tclsh 8.6.18, 9.0.4, 9.1.0).  Every navigation provider must use the builder method span, not
 /// the later `$cb` registration as a guessed command reference.
 #[test]
 fn tp_stored_callback_prefix_agrees_across_navigation_providers() {
@@ -374,7 +376,7 @@ fn tp_stored_callback_prefix_agrees_across_navigation_providers() {
     let src = "oo::class create Test {\n\
              method tick {} { return {} }\n\
              method wire {} {\n\
-                 set cb [list my tick]\n\
+                 set cb [namespace code [list my tick]]\n\
                  after 0 $cb\n\
              }\n\
          }\n";
