@@ -146,6 +146,8 @@ These go ahead of missing facts once the ledgers are in.
 | False W001 on `dict is_dict` and false W214 after the `dict` ensemble's `-map` is reconfigured | diagnostics |
 | A debug assertion in the lexer's variable scan fires on a backslash-continued parameter list (a caller passes an offset that is not at a `$`); a silent misread in a release build | diagnostics to name the caller |
 | W304 (information) on a value proved to be a constant that cannot be read as an option | diagnostics |
+| IRULE5001 fires where the setup event sets the flag (three tests) | taint |
+| IRULE3102 reported inside an event body the rule loader rejects | taint |
 
 ## Passing tests the oracle contradicts
 
@@ -187,7 +189,7 @@ Updated at the hourly check from the ledgers on `work`.
 | class-facts | 250 (with the 44 class-factory tests) | 0 (started 20:45 UTC) | |
 | dataflow-optimiser | 423 | 423, complete (FIX-FIXTURE 142, KEEP-CONTRACT 103, KEEP-ORACLE 82, REWRITE 50, FIX-EXPECTATION 30, MERGE 10, RETIRE 5, KEEP-F5 1) | signed off 20:55 UTC |
 | values | 218 | 218, complete (KEEP-ORACLE 123, KEEP-CONTRACT 32, KEEP-F5 30, FIX-FIXTURE 20, FIX-EXPECTATION 6, REWRITE 6, RETIRE 1) | signed off 21:07 UTC |
-| taint | 171 | 36 (FIX-FIXTURE 34 on one cause: helpers build a unit with no dialect; KEEP-CONTRACT 1, UNDECIDED 1); BIG-IP check 071 | |
+| taint | 171 | 55 (FIX-FIXTURE 34 on one cause: helpers build a unit with no dialect; KEEP-F5 12; REWRITE 6; KEEP-CONTRACT 2; UNDECIDED 1); BIG-IP checks 049, 071, 072 | |
 | analysis-performance | 30 | 0 | |
 | lsp-features | 500 | 0 | |
 | server-e2e-db | 216 (plus 214 routed: 181 navigation to lsp-features, 33 memo to analysis-performance) | 216, complete (KEEP-CONTRACT 163, KEEP-ORACLE 29, MERGE 10, KEEP-F5 10, REWRITE 2, FIX-FIXTURE 1, UNDECIDED 1 ruled) | signed off 21:12 UTC; three publication faults first |
