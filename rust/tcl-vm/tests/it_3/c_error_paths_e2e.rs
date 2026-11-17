@@ -830,3 +830,27 @@ lmap s {{caller abc} c3 c4 c5} {catch $s m o; dict get $o -errorstack}";
         "{INNER {mult abc 2} CALL {vdouble abc} CALL {caller abc}} {INNER {uminus abc} CALL c3} {INNER {add abc 1} CALL c4} {INNER {bitnot abc} CALL c5}",
     );
 }
+
+/// A compiled instruction that fails is `INNER` by its name alone, except the
+/// operators and string comparisons C lists with their stack operands
+/// (`TclGetInnerContext`). tclsh 8.6.18/9.0.4/9.1.0 (9.1 names the wide forms).
+#[test]
+fn error_stack_inner_names_a_failing_instruction_alone() {
+    let src = r"proc vfirst {x} {lindex $x 0}
+proc v2 {x i} {lindex $x $i}
+proc v4 {x} {llength $x}
+proc a {} {set x $y}
+proc e {} {dict get {a 1} b}
+proc f {} {string index abc x}
+lmap s {{vfirst \{a} {v2 \{a 0} {v4 \{a} a e f} {catch $s m o; dict get $o -errorstack}";
+    assert_releases(
+        &[TclVersion::V8_6, TclVersion::V9_0],
+        src,
+        r"{INNER listIndexImm CALL {vfirst \{a}} {INNER listIndex CALL {v2 \{a 0}} {INNER listLength CALL {v4 \{a}} {INNER loadScalar1 CALL a} {INNER dictGet CALL e} {INNER {strindex abc x} CALL f}",
+    );
+    assert_releases(
+        &[TclVersion::V9_1],
+        src,
+        r"{INNER listIndexImm CALL {vfirst \{a}} {INNER listIndex CALL {v2 \{a 0}} {INNER listLength CALL {v4 \{a}} {INNER loadScalar CALL a} {INNER dictGet CALL e} {INNER {strindex abc x} CALL f}",
+    );
+}

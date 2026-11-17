@@ -879,13 +879,13 @@ macro_rules! variable_try_logged {
                 if c.code == Code::Error {
                     let (text, line, enclosing) = logged_command($instr);
                     let message = c.result.string_bytes();
-                    $vm.log_command_with_enclosing(
-                        &text,
-                        Value::from_native_string_bytes(text.clone()),
-                        &enclosing,
-                        &message,
-                        line,
-                    );
+                    let context = if $instr.evaluation == tcl_runtime_api::CommandEvaluation::Direct
+                    {
+                        Value::from_native_string_bytes(text.clone())
+                    } else {
+                        crate::exec::completion::instruction_inner_context(&$vm, $instr, &[])
+                    };
+                    $vm.log_command_with_enclosing(&text, context, &enclosing, &message, line);
                 }
                 return Tick::Return(c);
             }

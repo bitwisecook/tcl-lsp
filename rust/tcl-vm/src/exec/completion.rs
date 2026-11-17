@@ -81,7 +81,11 @@ pub(super) fn invoke_inner_context(
 /// The TIP 348 `INNER` context of a compiled instruction that failed after
 /// consuming `operands` (C's `TclGetInnerContext`): its name in the release's
 /// instruction set and those operands, as `{mult abc 2}`.
-fn instruction_inner_context(vm: &Vm, instruction: &Instruction, operands: &[Value]) -> Value {
+pub(super) fn instruction_inner_context(
+    vm: &Vm,
+    instruction: &Instruction,
+    operands: &[Value],
+) -> Value {
     let mnemonic = if vm.runtime_version().emits_wide_instructions_only() {
         instruction.op.wide_mnemonic()
     } else {
@@ -89,8 +93,57 @@ fn instruction_inner_context(vm: &Vm, instruction: &Instruction, operands: &[Val
     };
     let mut context = Vec::with_capacity(operands.len() + 1);
     context.push(Value::string(mnemonic));
-    context.extend(operands.iter().cloned());
+    let taken = inner_operand_count(instruction.op);
+    if taken > 0 && operands.len() == taken {
+        context.extend(operands.iter().cloned());
+    }
     Value::list(context)
+}
+
+/// How many stack operands C's `TclGetInnerContext` lists after an
+/// instruction's name; any other failing instruction is named alone.
+/// tclsh 8.6.18/9.0.4/9.1.0: `INNER {strindex abc x}`, `INNER listIndexImm`.
+const fn inner_operand_count(op: Op) -> usize {
+    match op {
+        Op::STR_LEN
+        | Op::LNOT
+        | Op::NOT
+        | Op::BITNOT
+        | Op::UMINUS
+        | Op::UPLUS
+        | Op::TRY_CVT_TO_NUMERIC
+        | Op::EXPAND_STKTOP
+        | Op::EXPR_STK
+        | Op::RETURN_STK => 1,
+        Op::LIST_IN
+        | Op::LIST_NOT_IN
+        | Op::STR_EQ
+        | Op::STR_NEQ
+        | Op::STR_CMP
+        | Op::STR_INDEX
+        | Op::STR_MATCH
+        | Op::REGEXP
+        | Op::EQ
+        | Op::NEQ
+        | Op::LT
+        | Op::GT
+        | Op::LE
+        | Op::GE
+        | Op::MOD
+        | Op::LSHIFT
+        | Op::RSHIFT
+        | Op::BITOR
+        | Op::BITXOR
+        | Op::BITAND
+        | Op::EXPON
+        | Op::ADD
+        | Op::SUB
+        | Op::DIV
+        | Op::MULT
+        | Op::SYNTAX
+        | Op::RETURN_IMM => 2,
+        _ => 0,
+    }
 }
 
 /// The `INNER` context of an `error` or `throw` C compiles to `returnImm`
@@ -195,11 +248,14 @@ impl Vm {
                         Some(ErrorStackContext::CommandResult { head, .. }) => {
                             Value::list(vec![Value::string(head.as_str()), c.result.clone()])
                         }
-                        None if let Some(operands) = frame.failed_operands_at(index)
-                            && instruction.evaluation
-                                != tcl_runtime_api::CommandEvaluation::Direct =>
+                        None if instruction.evaluation
+                            != tcl_runtime_api::CommandEvaluation::Direct =>
                         {
-                            instruction_inner_context(self, instruction, operands)
+                            instruction_inner_context(
+                                self,
+                                instruction,
+                                frame.failed_operands_at(index).unwrap_or_default(),
+                            )
                         }
                         Some(ErrorStackContext::ReturnImmediate { .. }) | None => {
                             Value::from_native_string_bytes(
