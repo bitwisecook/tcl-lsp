@@ -49,6 +49,77 @@ impl ModuleCommandBindings {
         self.original_command_key_for_slot(&slot, input.policy())
     }
 
+    /// The definition key, after making the qualifier namespaces a `TclOO`
+    /// object publication creates when they are missing.
+    pub(super) fn original_created_definition_key(
+        &mut self,
+        current: &SourceNamespaceKey,
+        input: &SignatureSourceNameInput,
+        kind: CommandBindingDefinitionKind,
+        declaration: u32,
+    ) -> Option<SourceCommandKey> {
+        if let Some(key) = self.original_definition_key(current, input, kind) {
+            return Some(key);
+        }
+        self.ensure_object_qualifier_namespaces(current, input, kind, declaration)?;
+        self.original_definition_key(current, input, kind)
+    }
+
+    /// A `TclOO` object publication creates the missing qualifier namespaces
+    /// of its name (tclsh 8.6–9.1), where `proc` raises `unknown namespace`.
+    /// The namespaces are made in the bindings and the original command world
+    /// before the definition key is selected again.
+    fn ensure_object_qualifier_namespaces(
+        &mut self,
+        current: &SourceNamespaceKey,
+        input: &SignatureSourceNameInput,
+        kind: CommandBindingDefinitionKind,
+        declaration: u32,
+    ) -> Option<()> {
+        if !matches!(
+            kind,
+            CommandBindingDefinitionKind::Object | CommandBindingDefinitionKind::Instance
+        ) {
+            return None;
+        }
+        let scope = if tcl_syntax::naming::is_absolute_bytes(input.bytes()) {
+            SignatureNamespaceScope::root(Some(input.policy()))
+        } else {
+            self.original_namespace_geometry(current, input.policy())?
+        };
+        let slot = super::super::source_command_world::publication_slot(&scope, input, kind)?;
+        if slot.namespace.is_root() {
+            return None;
+        }
+        if let SourceNamespaceKey::Authored(_) = current {
+            let mut prefix = tcl_core_types::ByteNamespacePath::root();
+            for component in slot.namespace.as_segments() {
+                prefix.push(component.clone());
+                let label = tcl_syntax::naming::checked_namespace_path_key(&prefix)?;
+                std::sync::Arc::make_mut(&mut self.namespaces)
+                    .insert(SourceNamespaceKey::authored(label.as_str()));
+                super::super::source_command_world::OriginalSourceCommandWorld::ensure_authored_namespace(
+                    self, &label,
+                );
+            }
+            return Some(());
+        }
+        let site = super::super::CommandAllocationSite {
+            source: std::sync::Arc::clone(self.current_source_origin.as_ref()?),
+            offset: declaration,
+        };
+        self.allocate_native_namespace_path(&slot.namespace, &site)?;
+        let mut prefix = tcl_core_types::ByteNamespacePath::root();
+        for component in slot.namespace.as_segments() {
+            prefix.push(component.clone());
+            let key = self.namespace_key_for_path(&prefix)?;
+            super::super::source_command_world::OriginalSourceCommandWorld::ensure_allocated_namespace(
+                self, &key, &site,
+            );
+        }
+        Some(())
+    }
+
     /// Conditional declaration namespace geometry from a genuine original
     /// operand. The original observation/frame owner must admit the caller.
     /// Current table existence, installation and Normal completion remain

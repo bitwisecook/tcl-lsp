@@ -833,7 +833,9 @@ impl OriginalCommandOperands {
     ) -> Option<()> {
         match transition {
             CommandBindingTransition::Define { name, kind } => {
-                let key = state.original_definition_key(current, self.input(name)?, *kind)?;
+                let input = self.input(name)?;
+                let key =
+                    state.original_created_definition_key(current, input, *kind, declaration)?;
                 if *kind == CommandBindingDefinitionKind::Procedure && !self.procedure_body {
                     return None;
                 }

@@ -683,6 +683,28 @@ impl OriginalSourceCommandWorld {
             });
     }
 
+    /// The geometry of a namespace a source command allocated at `site`, such
+    /// as a qualifier a `TclOO` object publication creates.
+    pub(super) fn ensure_allocated_namespace(
+        state: &mut ModuleCommandBindings,
+        key: &SourceNamespaceKey,
+        site: &CommandAllocationSite,
+    ) {
+        let Some(path) = key.exact_native_path().cloned() else {
+            return;
+        };
+        if state.original_command_world.namespaces.has_key(key) {
+            return;
+        }
+        Arc::make_mut(&mut state.original_command_world)
+            .namespaces
+            .push(NamespaceGeometry {
+                key: key.clone(),
+                scope: SignatureNamespaceScope::C(path),
+                allocation: Some(site.clone()),
+            });
+    }
+
     /// Original source creation lineage, independent of namespace existence,
     /// command cleanup, variable allocation or successful deletion.
     pub(super) fn source_namespace_creation(

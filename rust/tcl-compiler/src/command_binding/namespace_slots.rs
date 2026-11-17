@@ -405,7 +405,15 @@ impl ModuleCommandBindings {
             )
             .ok()?;
         let source = Arc::clone(self.current_source_origin.as_ref()?);
-        let site = CommandAllocationSite { source, offset };
+        self.allocate_native_namespace_path(&path, &CommandAllocationSite { source, offset })
+    }
+
+    /// Allocate each namespace of `path` that does not exist yet, at `site`.
+    pub(super) fn allocate_native_namespace_path(
+        &mut self,
+        path: &ByteNamespacePath,
+        site: &CommandAllocationSite,
+    ) -> Option<SourceNamespaceKey> {
         let mut parent = ByteNamespacePath::root();
         let mut result = self.native_root_namespace_key()?;
         for component in path.as_segments() {
