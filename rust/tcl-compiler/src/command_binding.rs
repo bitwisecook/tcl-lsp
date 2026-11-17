@@ -253,6 +253,8 @@ pub use executed_expression_source::ExecutedExpressionSource;
 pub use executed_script_source::{ExecutedScriptMapping, ExecutedScriptSource};
 mod analysis_body_correspondence;
 pub(crate) use analysis_body_correspondence::AnalyticalBodyCorrespondence;
+mod allocation_relocation;
+pub use allocation_relocation::{for_each_script_allocation_site_mut, relocate_script};
 mod body_template;
 pub use body_template::{BodyProofScope, BodySourceProofs, NativeBodyTemplate};
 mod command_publication;
