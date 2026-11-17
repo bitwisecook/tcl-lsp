@@ -144,7 +144,11 @@ cannot reach, and the report stands.
 Off by default, opt in with `tclLsp.features.crossFileResolution`: every
 `proc` and class the **workspace** defines, whether or not anything links the
 two files. It is a setting because a workspace is not always one program — two
-unrelated scripts in the same folder each have their own `helper`.
+unrelated scripts in the same folder each have their own `helper`. The
+setting does not override a pinned release's proof of absence: under a named
+release (Tcl 8.4 to 9.1, Jim) indexed source does not prove that a file is
+loaded, so the report stands there, and the setting applies to the lenient
+`tcl` environment.
 
 A name nothing in the workspace defines is still reported either way.
 

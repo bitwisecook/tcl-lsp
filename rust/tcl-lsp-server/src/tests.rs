@@ -351,16 +351,22 @@ async fn one_edit_turn_released(backend: &Backend) -> bool {
 }
 
 async fn register(backend: &Backend, uri: &Uri, src: &str) {
+    register_in_dialect(backend, uri, src, "tcl8.6").await;
+}
+
+/// [`register`] under a named dialect, for a fixture whose caller and
+/// provider must share one recipe (the lenient `tcl` environment).
+async fn register_in_dialect(backend: &Backend, uri: &Uri, src: &str, dialect: &str) {
     backend.documents.lock("test").await.insert(
         uri.clone(),
-        DocumentState::new(src.to_owned(), "tcl8.6".to_owned()),
+        DocumentState::new(src.to_owned(), dialect.to_owned()),
     );
     backend
-        .db_set_source(uri, src, "tcl8.6".to_owned())
+        .db_set_source(uri, src, dialect.to_owned())
         .await
         .expect("the fixture retains its actual checked SourceFile owner");
     let analysis = backend
-        .analysis_for(uri, Arc::from(src), "tcl8.6".to_owned())
+        .analysis_for(uri, Arc::from(src), dialect.to_owned())
         .await
         .expect("the fixture analyses its actual current source and full input");
     backend
