@@ -37,6 +37,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import json
+import queue
 import random
 import shutil
 import subprocess
@@ -57,10 +58,15 @@ FILE_CHANGE_CHANGED = 2
 FILE_CHANGE_DELETED = 3
 
 
-def select_documents(root: Path, max_bytes: int) -> list[Path]:
-    """Every `.tcl` file under *root* smaller than *max_bytes*, sorted."""
+def select_documents(
+    root: Path, max_bytes: int, extensions: tuple[str, ...] = ("tcl",)
+) -> list[Path]:
+    """Every file under *root* with one of *extensions*, smaller than *max_bytes*."""
+    suffixes = {f".{extension}" for extension in extensions}
     return sorted(
-        p for p in root.rglob("*.tcl") if p.is_file() and p.stat().st_size < max_bytes
+        p
+        for p in root.rglob("*")
+        if p.suffix in suffixes and p.is_file() and p.stat().st_size < max_bytes
     )
 
 
@@ -161,6 +167,10 @@ def rss_kib(pid: int) -> int | None:
     return parse_status_kib((Path("/proc") / str(pid) / "status").read_text(), "VmRSS")
 
 
+def thread_count(pid: int) -> int:
+    return sum(1 for _ in (Path("/proc") / str(pid) / "task").iterdir())
+
+
 def thread_states(pid: int) -> list[dict[str, str]]:
     """Name, state, wait channel and syscall line of every thread."""
     rows = []
@@ -189,9 +199,12 @@ def gdb_batch(pid: int, commands: list[str], timeout: float = 300.0) -> str:
     argv = ["gdb", "-p", str(pid), "-batch", "-nx"]
     for command in commands:
         argv += ["-ex", command]
-    done = subprocess.run(
-        argv, capture_output=True, text=True, timeout=timeout, check=False
-    )
+    try:
+        done = subprocess.run(
+            argv, capture_output=True, text=True, timeout=timeout, check=False
+        )
+    except subprocess.TimeoutExpired:
+        return f"gdb timed out after {timeout:.0f}s"
     return done.stdout + done.stderr
 
 
@@ -202,13 +215,24 @@ def import_client() -> Any:
     return lsp_client
 
 
-def make_client_class(lsp_client: Any) -> type:
+def make_client_class(lsp_client: Any, settings: dict | None = None) -> type:
     class SerialisedClient(lsp_client.LspClient):
         """Serialises writes: the probe thread and the churn loop both send."""
 
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             super().__init__(*args, **kwargs)
             self._send_lock = threading.Lock()
+
+        def _answer_server_request(
+            self, method: str, request_id: int, params: dict | None
+        ) -> None:
+            if settings is None or method != "workspace/configuration":
+                super()._answer_server_request(method, request_id, params)
+                return
+            items = len((params or {}).get("items", [])) or 1
+            self._send(
+                {"jsonrpc": "2.0", "id": request_id, "result": [settings] * items}
+            )
 
         def _send(self, data: dict, timeout: float = 30.0) -> None:
             with self._send_lock:
@@ -230,16 +254,38 @@ class Probe:
     max_latency: float = 0.0
     wedged_at: float | None = None
     stop: threading.Event = field(default_factory=threading.Event)
+    # One thread sends every request, so the client's ids never race: the
+    # churn loop asks for an extra command through `ask`.
+    _asked: queue.Queue = field(default_factory=lambda: queue.Queue(maxsize=1))
+    _answers: queue.Queue = field(default_factory=lambda: queue.Queue(maxsize=1))
+
+    def ask(self, command: str, wait: float) -> Any:
+        """Run `command` from the probe thread; `None` if it does not answer."""
+        self._asked.put(command)
+        try:
+            return self._answers.get(timeout=wait)
+        except queue.Empty:
+            return None
+
+    def _execute(self, command: str) -> Any:
+        return self.client.send_request(
+            "workspace/executeCommand",
+            {"command": command, "arguments": []},
+            timeout=self.timeout,
+        )
 
     def run(self) -> None:
         while not self.stop.is_set():
+            with contextlib.suppress(queue.Empty):
+                command = self._asked.get_nowait()
+                try:
+                    answer = self._execute(command)
+                except (TimeoutError, RuntimeError) as error:
+                    answer = {"error": str(error)}
+                self._answers.put(answer)
             started = time.monotonic()
             try:
-                self.client.send_request(
-                    "workspace/executeCommand",
-                    {"command": "tcl-lsp.getEffectiveConfig", "arguments": []},
-                    timeout=self.timeout,
-                )
+                self._execute("tcl-lsp.getEffectiveConfig")
             except TimeoutError:
                 self.wedged_at = time.time()
                 return
@@ -275,13 +321,28 @@ def report_wedge(pid: int, log: EventLog, sample_seconds: float, use_gdb: bool) 
         log("stacks", text=gdb_batch(pid, ["thread apply all bt"]))
 
 
-def measure_rss(pid: int, log: EventLog, round_no: int, trim: bool) -> None:
+def measure_rss(
+    pid: int,
+    log: EventLog,
+    round_no: int,
+    trim: bool,
+    probe: Probe | None = None,
+    memory_command: str | None = None,
+) -> None:
+    if probe is not None and memory_command:
+        log("memory", round=round_no, report=probe.ask(memory_command, 300.0))
     before = rss_kib(pid)
     after = None
     if trim:
         gdb_batch(pid, ["call (int) malloc_trim(0)"])
         after = rss_kib(pid)
-    log("rss", round=round_no, rss_kib=before, trimmed_kib=after)
+    log(
+        "rss",
+        round=round_no,
+        rss_kib=before,
+        trimmed_kib=after,
+        threads=thread_count(pid),
+    )
 
 
 def prepare_workspace(fixture: Path, workdir: Path) -> Path:
@@ -305,15 +366,40 @@ def churn_once(client: Any, pack: Path, round_no: int, *, distinct: bool) -> str
     return action
 
 
+def reopen_batch(documents: list[Path], count: int, rng: random.Random) -> list[Path]:
+    """The documents to close and reopen this round: an editor restoring tabs."""
+    return rng.sample(documents, min(count, len(documents)))
+
+
+def close_all(client: Any, lsp_client: Any, paths: list[Path]) -> None:
+    for path in paths:
+        client.send_notification(
+            "textDocument/didClose",
+            {"textDocument": {"uri": lsp_client.document_uri(str(path))}},
+        )
+
+
+def reopen(client: Any, lsp_client: Any, paths: list[Path]) -> None:
+    for path in paths:
+        client.send_notification(
+            "textDocument/didClose",
+            {"textDocument": {"uri": lsp_client.document_uri(str(path))}},
+        )
+    for path in paths:
+        lsp_client.open_document(client, str(path))
+
+
 def run(args: argparse.Namespace) -> int:
     lsp_client = import_client()
     log = EventLog(args.log)
     rng = random.Random(args.seed)
     workdir = Path(tempfile.mkdtemp(prefix="pack-churn-", dir=args.workdir))
     workspace = prepare_workspace(args.fixture, workdir)
-    documents = select_documents(workspace, args.max_bytes)
+    documents = select_documents(
+        workspace, args.max_bytes, tuple(args.extensions.split(","))
+    )[: args.max_documents]
     server = lsp_client.find_native_server(args.server_bin)
-    client = make_client_class(lsp_client)(str(workspace), [server])
+    client = make_client_class(lsp_client, args.settings)(str(workspace), [server])
     client.start()
     pid = client.process.pid
     log(
@@ -341,10 +427,25 @@ def run(args: argparse.Namespace) -> int:
                 log("probe-died", round=round_no)
                 status = 1
                 break
-            action = churn_once(client, pack, round_no, distinct=args.distinct_bodies)
+            try:
+                action = churn_once(
+                    client, pack, round_no, distinct=args.distinct_bodies
+                )
+                if args.reopen:
+                    reopen(
+                        client, lsp_client, reopen_batch(documents, args.reopen, rng)
+                    )
+            except TimeoutError as blocked:
+                # The server stopped reading stdin: as much a wedge as an
+                # unanswered probe.
+                log("send-blocked", round=round_no, error=str(blocked))
+                probe.wedged_at = time.time()
+                break
             client.drop_notifications()
             if round_no % args.rss_every == 0:
-                measure_rss(pid, log, round_no, args.malloc_trim)
+                measure_rss(
+                    pid, log, round_no, args.malloc_trim, probe, args.memory_command
+                )
                 log(
                     "round",
                     round=round_no,
@@ -354,7 +455,13 @@ def run(args: argparse.Namespace) -> int:
                 )
             time.sleep(rng.uniform(args.min_interval, args.max_interval))
         else:
-            measure_rss(pid, log, args.rounds, args.malloc_trim)
+            measure_rss(
+                pid, log, args.rounds, args.malloc_trim, probe, args.memory_command
+            )
+        if args.close_at_end and probe.wedged_at is None:
+            close_all(client, lsp_client, documents)
+            time.sleep(args.settle)
+            measure_rss(pid, log, -1, True, probe, args.memory_command)
         if probe.wedged_at is None and prober.is_alive():
             # A wedge late in the last interval still counts.
             prober.join(timeout=args.probe_interval * 2)
@@ -392,6 +499,36 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--rounds", type=int, default=250)
     parser.add_argument("--max-bytes", type=int, default=60_000)
+    parser.add_argument(
+        "--extensions",
+        default="tcl",
+        help="comma-separated source extensions to open, e.g. tcl,irul,tm,exp",
+    )
+    parser.add_argument(
+        "--max-documents", type=int, default=None, help="open at most this many"
+    )
+    parser.add_argument(
+        "--reopen",
+        type=int,
+        default=0,
+        help="close and reopen this many documents each round",
+    )
+    parser.add_argument(
+        "--memory-command",
+        help="a workspace/executeCommand whose reply is logged before each RSS reading",
+    )
+    parser.add_argument(
+        "--close-at-end",
+        action="store_true",
+        help="close every document, wait --settle seconds, then trim and measure (round -1)",
+    )
+    parser.add_argument("--settle", type=float, default=30.0)
+    parser.add_argument(
+        "--settings",
+        type=json.loads,
+        default=None,
+        help="tclLsp settings object answered to workspace/configuration",
+    )
     parser.add_argument("--min-interval", type=float, default=1.0)
     parser.add_argument("--max-interval", type=float, default=2.0)
     parser.add_argument("--warm-up", type=float, default=5.0)

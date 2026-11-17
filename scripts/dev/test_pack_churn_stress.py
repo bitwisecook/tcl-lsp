@@ -38,6 +38,13 @@ def test_select_documents_keeps_small_tcl_files_sorted(tmp_path: Path) -> None:
     assert got == sorted([tmp_path / "b.tcl", tmp_path / "sub" / "a.tcl"])
 
 
+def test_select_documents_takes_every_named_extension(tmp_path: Path) -> None:
+    for name in ("a.tcl", "b.irul", "c.tm", "d.json"):
+        (tmp_path / name).write_text("x\n")
+    got = churn.select_documents(tmp_path, 50, ("tcl", "irul", "tm"))
+    assert [p.name for p in got] == ["a.tcl", "b.irul", "c.tm"]
+
+
 @pytest.mark.parametrize(
     ("round_no", "existed", "want"),
     [
@@ -118,3 +125,35 @@ def test_proc_sample_delta() -> None:
 def test_parse_args_rejects_a_zero_rss_interval() -> None:
     with pytest.raises(SystemExit):
         churn.parse_args(["--rss-every", "0"])
+
+
+def test_reopen_batch_is_seeded_and_bounded(tmp_path: Path) -> None:
+    docs = [tmp_path / f"{n}.tcl" for n in range(5)]
+    first = churn.reopen_batch(docs, 3, churn.random.Random(7))
+    assert first == churn.reopen_batch(docs, 3, churn.random.Random(7))
+    assert len(set(first)) == 3
+    assert set(first) <= set(docs)
+    assert sorted(churn.reopen_batch(docs, 9, churn.random.Random(7))) == docs
+
+
+class FakeClient:
+    def __init__(self) -> None:
+        self.commands: list[str] = []
+
+    def send_request(self, method: str, params: dict, timeout: float) -> dict:
+        self.commands.append(params["command"])
+        return {"ran": params["command"]}
+
+
+def test_probe_runs_an_asked_command_on_its_own_thread() -> None:
+    client = FakeClient()
+    probe = churn.Probe(client, timeout=1.0, interval=0.01)
+    thread = churn.threading.Thread(target=probe.run, daemon=True)
+    thread.start()
+    try:
+        assert probe.ask("tcl-lsp.debugMemory", 5.0) == {"ran": "tcl-lsp.debugMemory"}
+    finally:
+        probe.stop.set()
+        thread.join(timeout=5.0)
+    assert "tcl-lsp.getEffectiveConfig" in client.commands
+    assert probe.answered >= 1
