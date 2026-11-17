@@ -205,6 +205,7 @@ impl SourceCommandBindings {
         {
             return Err(Box::new(outcomes));
         }
+        let class_configuration = Self::closed_class_configuration(native, facts, state, context);
         let class_transfer = original_class_factory_transfer::OriginalClassFactoryTransfer::capture(
             native, facts, state, context,
         );
@@ -229,6 +230,18 @@ impl SourceCommandBindings {
         } else {
             route
         };
+        if let Some(configuration) = class_configuration {
+            self.register_closed_class_configuration(&configuration, state, context);
+            let mut outcomes = SourceOutcomes::native_invocation(
+                incoming,
+                state,
+                tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
+                    tcl_registry::CompletionCode::Ok,
+                ),
+            );
+            outcomes.retain_closed_native_handler_completion(native, facts, context);
+            return Err(Box::new(outcomes));
+        }
         let deferred_class = self.register_bounded_methods(native, state, context, facts);
         if state.record_bounded_class(facts, native.words, native.target, context) || deferred_class
         {

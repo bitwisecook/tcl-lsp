@@ -159,7 +159,7 @@ impl SourceCommandBindings {
 /// Whether the definition is the script layout's body operand. Otherwise the
 /// inline member layout needs every selected role resolved; its words are
 /// separately required to be static literals.
-fn own_object_definition_layout(
+pub(super) fn own_object_definition_layout(
     native: SourceNativeInvocation<'_>,
     facts: &InvocationFacts,
 ) -> Option<bool> {
@@ -169,7 +169,7 @@ fn own_object_definition_layout(
 }
 
 /// The definition script either layout evaluates.
-fn own_object_definition(
+pub(super) fn own_object_definition(
     script_layout: bool,
     native: SourceNativeInvocation<'_>,
     grammar: &tcl_registry::definer::DefinitionBodyGrammar,
@@ -244,6 +244,15 @@ fn inline_member_definition(
 }
 
 fn own_object_configuration_target(facts: &InvocationFacts) -> Option<usize> {
+    configuration_target(facts, ObjectDispatchLayer::Object)
+}
+
+/// The one operand a definer configures on `layer`, when its declared
+/// transitions name nothing else.
+pub(super) fn configuration_target(
+    facts: &InvocationFacts,
+    layer: ObjectDispatchLayer,
+) -> Option<usize> {
     let transitions = facts.state_transitions.declared()?;
     let mut targets = transitions
         .facts()
@@ -251,8 +260,8 @@ fn own_object_configuration_target(facts: &InvocationFacts) -> Option<usize> {
         .filter_map(|fact| match &fact.transition {
             StateTransition::ObjectDispatch(ObjectDispatchTransition::Configure {
                 target,
-                layer: ObjectDispatchLayer::Object,
-            }) => Some(target),
+                layer: configured,
+            }) if *configured == layer => Some(target),
             _ => None,
         });
     let target = targets.next()?;
@@ -265,8 +274,8 @@ fn own_object_configuration_target(facts: &InvocationFacts) -> Option<usize> {
         .any(|fact| match &fact.transition {
             StateTransition::ObjectDispatch(ObjectDispatchTransition::Configure {
                 target: candidate,
-                layer: ObjectDispatchLayer::Object,
-            }) => candidate != target,
+                layer: configured,
+            }) => *configured != layer || candidate != target,
             StateTransition::Widen(widening) => {
                 widening.subject != *target
                     || widening.domains.iter().any(|domain| {

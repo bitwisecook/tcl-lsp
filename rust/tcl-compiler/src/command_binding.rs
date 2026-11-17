@@ -55,6 +55,7 @@ use tcl_registry::{
 use tcl_registry::{NamespaceTransition, TransitionSubject};
 
 mod called_static_layouts;
+mod closed_class_configuration;
 mod default_manufacture_advice;
 mod deferred_body_index;
 mod deferred_namespace_index;
