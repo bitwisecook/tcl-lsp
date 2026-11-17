@@ -38,6 +38,7 @@ pub(in super::super) fn emit_double_encode_warnings<S: std::hash::BuildHasher>(
     warnings: &mut Vec<TaintWarning>,
     ctx: TaintCtx<'_>,
     quoted_uses: &HashSet<Symbol>,
+    condition_args: Option<&[String]>,
 ) {
     let Some(spec) = ctx.registry.get(command) else {
         return;
@@ -48,7 +49,11 @@ pub(in super::super) fn emit_double_encode_warnings<S: std::hash::BuildHasher>(
     // A conditional transform encodes only on the calls that satisfy it, so
     // only those can encode twice (`regsub` escapes only in its quoting form).
     if spec.taint_transform_when.is_some() {
-        let args: Vec<&str> = call_args.iter().map(String::as_str).collect();
+        let args: Vec<&str> = condition_args
+            .unwrap_or(call_args)
+            .iter()
+            .map(String::as_str)
+            .collect();
         if transform_colour(ctx.registry, command, &args).is_none() {
             return;
         }

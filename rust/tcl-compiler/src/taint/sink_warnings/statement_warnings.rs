@@ -38,6 +38,7 @@ use super::option_injection::emit_option_injection;
 use super::pattern_operands::emit_regexp_pattern_warnings;
 use super::sink_emission::emit_sink_warnings;
 use super::source_reads::SourceWarningMetadata;
+use super::super::substitution_taint::hosted_argument_spellings;
 
 fn emit_original_assign_value_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>(
     ssa_stmt: &SsaStatement,
@@ -656,6 +657,17 @@ fn emit_resolved_statement_warnings<S: std::hash::BuildHasher, H: std::hash::Bui
         word_offset: None,
         source_word: None,
     };
+    // A handler's encoder condition reads its written spellings.
+    let condition_args = sink_call
+        .source_read
+        .filter(|read| {
+            matches!(
+                read.metadata.invocation_metadata(),
+                SourceWarningMetadata::Hosted(_)
+            )
+        })
+        .and(sink_call.effective)
+        .map(|effective| hosted_argument_spellings(effective, call_args));
     emit_double_encode_warnings(
         command,
         call_args,
@@ -665,6 +677,7 @@ fn emit_resolved_statement_warnings<S: std::hash::BuildHasher, H: std::hash::Bui
         warnings,
         dbl_ctx,
         &ssa_stmt.quoted_uses,
+        condition_args.as_deref(),
     );
 
     // Primary sink classification (T100 code-exec / T101 + iRules output / log).

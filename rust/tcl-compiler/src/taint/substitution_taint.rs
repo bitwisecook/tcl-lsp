@@ -408,7 +408,7 @@ fn classify_substitution_taint(
             Some(taint) => Err(taint),
             None => Ok(Box::new(SubstitutionTaintPlan {
                 cmd: hosted.metadata.shape().command().to_owned(),
-                hosted: true,
+                hosted: Some(hosted.effective.clone()),
                 effective_args,
                 effective,
                 normal,
@@ -445,7 +445,7 @@ fn classify_substitution_taint(
     }
     Ok(Box::new(SubstitutionTaintPlan {
         cmd: cmd.to_owned(),
-        hosted: false,
+        hosted: None,
         effective_args,
         effective,
         normal,
@@ -456,8 +456,9 @@ fn classify_substitution_taint(
 /// What [`substitution_word_taint`] carries across its recursive argument walk.
 struct SubstitutionTaintPlan {
     cmd: String,
-    /// `cmd` is a handler's vendor command, classified from its hosted row.
-    pub(super) hosted: bool,
+    /// `cmd` is a handler's vendor command, classified from its hosted row;
+    /// the effective words of that row.
+    pub(super) hosted: Option<crate::registry_invocation::EffectiveCommandWords>,
     pub(super) effective_args: Option<Vec<String>>,
     pub(super) effective: Option<crate::registry_invocation::EffectiveCommandWords>,
     normal: Option<crate::registry_invocation::NormalTaintInvocation>,
@@ -509,6 +510,37 @@ pub(super) fn substitution_word_taint<S: std::hash::BuildHasher>(
         (plan.nested.as_ref(), ctx),
         depth,
     );
-    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    finish_substitution_taint(t, plan.normal.as_ref(), ctx, (cmd, plan.hosted), &arg_refs)
+    let values = plan
+        .hosted
+        .as_ref()
+        .map(|effective| hosted_argument_spellings(effective, args));
+    let arg_refs: Vec<&str> = values
+        .as_deref()
+        .unwrap_or(args)
+        .iter()
+        .map(String::as_str)
+        .collect();
+    finish_substitution_taint(
+        t,
+        plan.normal.as_ref(),
+        ctx,
+        (cmd, plan.hosted.is_some()),
+        &arg_refs,
+    )
+}
+
+/// A handler command's arguments as its transform condition reads them: the
+/// written spelling, with a brace group's braces, which the raw condition
+/// requires before it trusts a word's text as its value.
+pub(super) fn hosted_argument_spellings(
+    effective: &crate::registry_invocation::EffectiveCommandWords,
+    args: &[String],
+) -> Vec<String> {
+    args.iter()
+        .enumerate()
+        .map(|(index, spelling)| match effective.words.get(index + 1) {
+            Some(crate::ir::WordExpr::BracedLiteral { text, .. }) => format!("{{{text}}}"),
+            _ => spelling.clone(),
+        })
+        .collect()
 }
