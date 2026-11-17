@@ -191,9 +191,11 @@ fn apply_namespace_path(
     }
     let Some(path) = path
         .literal()
-        // dialect-drift-ok: unreviewed. The gate stopped reading the old file at a test-module
-        // line above this split; the file split of 16 November 2026 brought it into view.
-        .and_then(|value| tcl_syntax::list::split_list(value).ok())
+        .zip(state.baseline.dialect)
+        .and_then(|(value, dialect)| {
+            let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
+            tcl_syntax::list::split_list_with_syntax(value, config.list_parse, config.escapes).ok()
+        })
     else {
         Arc::make_mut(&mut state.unknown_namespace_paths).insert(name);
         return;
