@@ -983,3 +983,39 @@ mod oo_define_configuration {
         }
     }
 }
+
+mod reopened_classes {
+    use super::super::Analyser;
+
+    #[test]
+    fn a_class_another_file_declares_receives_a_contribution_not_a_class() {
+        // a.tcl: `oo::class create ::C { self { method cm {} { return 1 } } }`.
+        // tclsh 8.6.18, 9.0.4 and 9.1.0: `source a.tcl; source b.tcl; ::C cm`
+        // raises `unknown method "cm"`, so b.tcl's members reach the class
+        // a.tcl declares; b.tcl alone raises `::C does not refer to an
+        // object`, so b.tcl declares no class. Its members are a contribution
+        // keyed by the first path the original lookup tries.
+        let rows = [
+            ("oo::define ::C { self unexport cm }\n", "::C"),
+            (
+                "namespace eval a {\n    oo::define C { self unexport cm }\n}\n",
+                "::a::C",
+            ),
+        ];
+        for release in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            for (src, key) in rows {
+                let analysis = Analyser::new().analyse(src, release);
+                assert!(analysis.all_classes.is_empty(), "{release}: {src}");
+                let contribution = analysis
+                    .external_class_contributions
+                    .get(key)
+                    .unwrap_or_else(|| panic!("{release}: no {key} contribution for {src}"));
+                assert!(
+                    contribution.class_unexports.contains("cm"),
+                    "{release}: {src}: {:?}",
+                    contribution.class_unexports
+                );
+            }
+        }
+    }
+}

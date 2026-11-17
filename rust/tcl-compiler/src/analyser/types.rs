@@ -206,6 +206,12 @@ pub struct AnalysisResult {
     pub superseded_procs: HashMap<String, Vec<ProcDef>>,
     /// Classes keyed by qualified name.
     pub all_classes: HashMap<String, ClassDef>,
+    /// Members an `oo::define` adds to a class this document does not
+    /// declare, keyed by the class's qualified name. Advisory and
+    /// cross-document only: no class of this document, read by the
+    /// workspace index when it merges them into the declaring document's
+    /// class, never by a proof consumer.
+    pub external_class_contributions: HashMap<String, ClassDef>,
     /// Genuine Logical headers retain insertion names separately from report labels.
     pub(super) logical_procedure_declarations: Vec<LogicalSourceProcedureDeclaration>,
     /// Completed Logical class walks retain source membership without Native identity.
@@ -669,6 +675,7 @@ impl PartialEq for AnalysisResult {
             proc_declaration_sites,
             superseded_procs,
             all_classes,
+            external_class_contributions,
             logical_procedure_declarations,
             logical_class_declarations,
             original_class_metadata,
@@ -772,6 +779,7 @@ macro_rules! analysis_result_mismatch_fields {
                 proc_declaration_sites,
                 superseded_procs,
                 all_classes,
+                external_class_contributions,
                 logical_procedure_declarations,
                 logical_class_declarations,
                 original_class_metadata,
