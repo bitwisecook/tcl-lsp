@@ -1,0 +1,88 @@
+diff --git a/rust/tcl-lsp-server/tests/e2e/irules.rs b/rust/tcl-lsp-server/tests/e2e/irules.rs
+index a375e0c6..ece15bcc 100644
+--- a/rust/tcl-lsp-server/tests/e2e/irules.rs
++++ b/rust/tcl-lsp-server/tests/e2e/irules.rs
+@@ -39,6 +39,20 @@ fn open_irule(lsp: &mut Lsp, source: &str) -> String {
+     uri
+ }
+ 
++/// Open an iRule and return the diagnostics the server published for `code`.
++/// A quick fix answers only for a diagnostic the server issued for the
++/// current document, so the tests hand back what was published.
++fn open_irule_with(lsp: &mut Lsp, source: &str, code: &str) -> (String, Vec<Value>) {
++    let uri = unique_uri("irule");
++    let published = lsp
++        .open_ready_lang(&uri, source, "tcl-irule")
++        .into_iter()
++        .filter(|d| d.get("code").and_then(Value::as_str) == Some(code))
++        .collect::<Vec<_>>();
++    assert!(!published.is_empty(), "no {code} published for {source:?}");
++    (uri, published)
++}
++
+ /// Completion labels at a position.
+ fn labels(lsp: &mut Lsp, uri: &str, line: u32, ch: u32) -> Vec<String> {
+     completion_labels(&lsp.completion(uri, line, ch))
+@@ -332,16 +346,12 @@ fn argument_value_has_documentation() {
+ #[test]
+ fn irule1005_adds_only_registered_collect_bootstrap() {
+     let mut lsp = Lsp::irules();
+-    let uri = open_irule(
++    let (uri, published) = open_irule_with(
+         &mut lsp,
+         "when HTTP_REQUEST_DATA {\n    set payload [HTTP::payload]\n}\n",
+-    );
+-    let d = diag(
+         "IRULE1005",
+-        "'HTTP_REQUEST_DATA' will never fire without a client HTTP::collect call in another event.",
+-        (0, 5),
+-        (0, 22),
+     );
++    let d = published[0].clone();
+     let actions = lsp.code_actions(&uri, range((0, 5), (0, 22)), json!([d]));
+     let snippets = ca_new_texts(&actions);
+     assert!(
+@@ -359,13 +369,12 @@ fn irule1005_adds_only_registered_collect_bootstrap() {
+ #[test]
+ fn irule1006_prefers_server_ssl_handshake_bootstrap() {
+     let mut lsp = Lsp::irules();
+-    let uri = open_irule(&mut lsp, "when SERVERSSL_DATA {\n    SSL::payload\n}\n");
+-    let d = diag(
++    let (uri, published) = open_irule_with(
++        &mut lsp,
++        "when SERVERSSL_DATA {\n    SSL::payload\n}\n",
+         "IRULE1006",
+-        "'SSL::payload' without a SSL::collect call. The payload buffer will be empty.",
+-        (1, 4),
+-        (1, 16),
+     );
++    let d = published[0].clone();
+     let actions = lsp.code_actions(&uri, range((1, 4), (1, 16)), json!([d]));
+     let snippets = ca_new_texts(&actions);
+     assert!(
+@@ -839,22 +848,13 @@ fn rule_init_only_no_action() {
+ #[test]
+ fn irule1006_bootstrap_action_is_deduplicated() {
+     let mut lsp = Lsp::irules();
+-    let uri = open_irule(
++    let (uri, published) = open_irule_with(
+         &mut lsp,
+         "when CLIENT_DATA {\n    set a [TCP::payload]\n    set b [TCP::payload]\n}\n",
+-    );
+-    let first = diag(
+-        "IRULE1006",
+-        "'TCP::payload' without a TCP::collect call.",
+-        (1, 11),
+-        (1, 23),
+-    );
+-    let second = diag(
+         "IRULE1006",
+-        "'TCP::payload' without a TCP::collect call.",
+-        (2, 11),
+-        (2, 23),
+     );
++    assert_eq!(published.len(), 2, "{published:?}");
++    let (first, second) = (published[0].clone(), published[1].clone());
+     let actions = lsp.code_actions(&uri, range((1, 11), (1, 23)), json!([first, second]));
+     let collect: Vec<Value> = actions
+         .as_array()

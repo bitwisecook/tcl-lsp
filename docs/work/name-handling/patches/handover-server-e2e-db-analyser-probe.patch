@@ -1,0 +1,129 @@
+diff --git a/rust/tcl-lsp-core/tests/zz_probe/main.rs b/rust/tcl-lsp-core/tests/zz_probe/main.rs
+new file mode 100644
+index 00000000..74255771
+--- /dev/null
++++ b/rust/tcl-lsp-core/tests/zz_probe/main.rs
+@@ -0,0 +1,123 @@
++use tcl_compiler::analyser::Analyser;
++
++#[test]
++fn probe() {
++    let path = std::env::var("PROBE_FILE").unwrap();
++    let dialect = std::env::var("PROBE_DIALECT").unwrap_or_else(|_| "tcl".into());
++    let source = std::fs::read_to_string(path).unwrap();
++    let analysis = Analyser::new().analyse(&source, &dialect);
++    eprintln!("resolved_input={}", analysis.resolved_input.is_some());
++    eprintln!("body_lexer_config={}", analysis.body_lexer_config.is_some());
++    eprintln!("realm={}", analysis.retained_command_realm().is_some());
++    if let Some(realm) = analysis.retained_command_realm() {
++        eprintln!("image={}", realm.original_source_image().is_some());
++    }
++    for d in &analysis.diagnostics {
++        eprintln!("DIAG {:?} {:?} {} FIXES={:?}", d.code, d.span, d.message, d.fixes.iter().map(|f| (f.safety.as_str(), f.new_text.clone())).collect::<Vec<_>>());
++    }
++    let syms = tcl_lsp_core::document_symbols::document_symbols_from_analysis(&source, &analysis);
++    eprintln!(
++        "symbols={}",
++        syms.iter()
++            .map(|s| s.name.clone())
++            .collect::<Vec<_>>()
++            .join(",")
++    );
++}
++
++#[test]
++fn segs() {
++    let path = std::env::var("PROBE_FILE").unwrap();
++    let source = std::fs::read_to_string(path).unwrap();
++    let known: std::collections::HashSet<&str> =
++        ["set", "proc", "puts", "string"].into_iter().collect();
++    let cmds = tcl_compiler::segmenter::segment_commands_with_recovery_and_config(
++        &source,
++        &known,
++        tcl_lexer::LexerConfig::default(),
++    );
++    for c in &cmds {
++        eprintln!(
++            "CMD partial={} {:?} delim={:?} texts={:?} last={:?}",
++            c.is_partial,
++            c.span,
++            c.partial_delimiter,
++            c.texts,
++            c.argv.last()
++        );
++    }
++}
++
++#[test]
++fn deep() {
++    for depth in [10usize, 20, 40, 80] {
++        let source = format!(
++            "{}puts x\n{}",
++            "if {1} {\n".repeat(depth),
++            "}\n".repeat(depth)
++        );
++        for dialect in ["tcl", "tcl8.6"] {
++            let t = std::time::Instant::now();
++            let a = Analyser::new().analyse(&source, dialect);
++            eprintln!(
++                "X depth={depth} {dialect} analyse_ms={} diags={}",
++                t.elapsed().as_millis(),
++                a.diagnostics.len()
++            );
++        }
++    }
++}
++
++#[test]
++fn sig() {
++    let path = std::env::var("PROBE_FILE").unwrap();
++    let source = std::fs::read_to_string(path).unwrap();
++    let profile = tcl_lsp_core::profile_for_dialect("tcl");
++    let registry = tcl_lsp_core::registry_for_dialect_profile(profile);
++    let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
++    eprintln!(
++        "X complete={:?}",
++        tcl_lexer::script_image_is_complete(&tcl_lexer::SourceImage::document(&source), config)
++    );
++    let sig =
++        tcl_compiler::signature_scan::extract_signatures_with_config(&source, config, registry);
++    for p in &sig.procedure_declarations {
++        eprintln!(
++            "X proc {} q={} name_range={:?} body={:?}",
++            p.name, p.qualified_name, p.name_range, p.body_range
++        );
++    }
++}
++
++#[test]
++fn peritem() {
++    for source in [
++        "proc a {} { set x 11111 }\nproc b {} { set y 22222 }\n",
++        "proc a {} { set x 11111 }\n",
++        "oo::class create K { method m {a} { set n $a }\n method n {} { set q 1 } }\n",
++    ] {
++        for dialect in ["tcl", "tcl8.6"] {
++            let mut analyser = Analyser::new();
++            let _ = analyser.analyse_per_item(source, dialect);
++            eprintln!("X {dialect} fallback={:?} {source:?}", analyser.per_item_fallback);
++        }
++    }
++}
++
++#[test]
++fn hovers() {
++    let cases: [(&str, u32, u32); 5] = [
++        ("namespace eval myns {\n    variable nsVar 1\n    puts $nsVar\n}\n", 2, 10),
++        ("socket \"a;b\" -server accept 8080\n", 0, 15),
++        ("socket host -server accept 8080\n", 0, 14),
++        ("namespace eval z {\n    proc helper {a} { return 26 }\n}\nnamespace eval a {\n    proc helper {b} { return 1 }\n}\nhelper 1\n", 6, 2),
++        ("proc ::tk::SourceLibFile {file} {\n    namespace eval :: [list source [file join $::tk_library $file.tcl]]\n}\n", 0, 26),
++    ];
++    for (source, line, col) in cases {
++        for dialect in ["tcl", "tcl8.6"] {
++            let analysis = Analyser::new().analyse(source, dialect);
++            let hover = tcl_lsp_core::hover::hover(source, line, col, &analysis, None);
++            eprintln!("X {dialect} {:?} -> {:?}", &source[..source.len().min(40)], hover.map(|h| h.value.chars().take(150).collect::<String>()));
++        }
++    }
++}

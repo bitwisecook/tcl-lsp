@@ -1,0 +1,135 @@
+diff --git a/tmp/server-e2e-db-tools/mini.py b/tmp/server-e2e-db-tools/mini.py
+new file mode 100644
+index 00000000..b0c0ff52
+--- /dev/null
++++ b/tmp/server-e2e-db-tools/mini.py
+@@ -0,0 +1,85 @@
++#!/usr/bin/env python3
++"""Minimal LSP driver. usage: mini.py spec.py  — spec defines CASES=[(name, lang, src, [requests])].
++request: ("hover", line, col) | ("completion", line, col) | ("symbols",) | ("sig", line, col)"""
++import json, subprocess, sys, os, time, select, tempfile, runpy
++BIN='/home/user/tcl-lsp/target/debug/tcl-lsp-server'
++class C:
++    def __init__(s, root, settings=None):
++        s.p=subprocess.Popen([BIN],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,cwd=root)
++        s.id=0; s.diags={}; s.buf=b''; s.cfg=settings or {'features':{'linkedEditingRange':True}}
++        s.req('initialize',{'processId':os.getpid(),'rootUri':'file://'+root,'capabilities':{'workspace':{'configuration':True},'textDocument':{'publishDiagnostics':{}}},'initializationOptions':settings or {}})
++        s.note('initialized',{}); s.note('workspace/didChangeConfiguration',{'settings':{}})
++    def send(s,m):
++        b=json.dumps(m).encode(); s.p.stdin.write(b'Content-Length: %d\r\n\r\n'%len(b)+b); s.p.stdin.flush()
++    def note(s,m,p): s.send({'jsonrpc':'2.0','method':m,'params':p})
++    def read(s,timeout):
++        fd=s.p.stdout.fileno(); end=time.time()+timeout
++        while True:
++            i=s.buf.find(b'\r\n\r\n')
++            if i>=0:
++                n=int([l for l in s.buf[:i].split(b'\r\n') if l.lower().startswith(b'content-length')][0].split(b':')[1])
++                if len(s.buf)>=i+4+n:
++                    body=s.buf[i+4:i+4+n]; s.buf=s.buf[i+4+n:]; return json.loads(body)
++            t=end-time.time()
++            if t<=0 or not select.select([fd],[],[],t)[0]: return None
++            d=os.read(fd,65536)
++            if not d: return None
++            s.buf+=d
++    def handle(s,m):
++        if m.get('method')=='textDocument/publishDiagnostics':
++            s.diags[m['params']['uri']]=m['params']['diagnostics']
++        elif m.get('method')=='workspace/configuration':
++            s.send({'jsonrpc':'2.0','id':m['id'],'result':[s.cfg for _ in m['params']['items']]})
++        elif 'method' in m and 'id' in m:
++            s.send({'jsonrpc':'2.0','id':m['id'],'result':None})
++    def req(s,method,params,timeout=30):
++        s.id+=1; my=s.id; s.send({'jsonrpc':'2.0','id':my,'method':method,'params':params})
++        while True:
++            m=s.read(timeout)
++            if m is None: return {'error':'timeout'}
++            if m.get('id')==my and 'method' not in m: return m.get('result', m.get('error'))
++            s.handle(m)
++    def settle(s,uri,quiet=1.5,maxw=20):
++        end=time.time()+maxw; last=time.time()
++        while time.time()<end:
++            m=s.read(0.3)
++            if m is None:
++                if uri in s.diags and time.time()-last>quiet: break
++                continue
++            s.handle(m); last=time.time()
++        return s.diags.get(uri)
++    def open(s,uri,lang,src):
++        s.note('textDocument/didOpen',{'textDocument':{'uri':uri,'languageId':lang,'version':1,'text':src}})
++        return s.settle(uri)
++def fmt(d):
++    r=d['range']; return "%s %d:%d-%d:%d %s"%(d.get('code'),r['start']['line'],r['start']['character'],r['end']['line'],r['end']['character'],d['message'][:int(os.environ.get('MSG','110'))])
++def main():
++    spec=runpy.run_path(sys.argv[1]); only=sys.argv[2:] 
++    root=tempfile.mkdtemp(prefix='mini')
++    cfg=spec.get('SETTINGS') or {'features':{'linkedEditingRange':True}}
++    if os.environ.get('DIALECT'): cfg['dialect']=os.environ['DIALECT']
++    c=C(root, cfg); time.sleep(2)
++    ext={'tcl':'tcl','tcl-irule':'irule','tcl-iapp':'iapp','tcl-tmsh':'tmsh'}
++    for n,(name,lang,src,reqs) in enumerate(spec['CASES']):
++        if only and not any(o in name for o in only): continue
++        uri='file://%s/%d.%s'%(root,n,ext.get(lang,'tcl'))
++        ds=c.open(uri,lang,src)
++        print('## '+name+' ['+lang+']')
++        for d in (ds or []): print('   '+fmt(d))
++        if ds is None: print('   (no publish)')
++        for r in reqs:
++            pos=lambda: {'textDocument':{'uri':uri},'position':{'line':r[1],'character':r[2]}}
++            if r[0]=='hover': out=c.req('textDocument/hover',pos()); out=(out or {}).get('contents') if isinstance(out,dict) else out
++            elif r[0]=='completion':
++                out=c.req('textDocument/completion',pos()); items=out.get('items') if isinstance(out,dict) else (out or [])
++                out=[i['label'] for i in items][:int(os.environ.get('NC','40'))]
++            elif r[0]=='sig': out=c.req('textDocument/signatureHelp',pos())
++            elif r[0]=='symbols': out=c.req('textDocument/documentSymbol',{'textDocument':{'uri':uri}})
++            elif r[0]=='lens': out=c.req('textDocument/codeLens',{'textDocument':{'uri':uri}})
++            elif r[0]=='actions':
++                rng={'start':{'line':r[1],'character':r[2]},'end':{'line':r[3],'character':r[4]}}
++                out=c.req('textDocument/codeAction',{'textDocument':{'uri':uri},'range':rng,'context':{'diagnostics':ds or []}})
++                out=[(a.get('title'),a.get('kind')) for a in (out or [])] if isinstance(out,list) else out
++            print('   -> %s %s: %s'%(r[0],r[1:],json.dumps(out)[:int(os.environ.get('OUT','600'))]))
++    c.p.kill()
++main()
+diff --git a/tmp/server-e2e-db-tools/classify.py b/tmp/server-e2e-db-tools/classify.py
+new file mode 100644
+index 00000000..ba01e9d2
+--- /dev/null
++++ b/tmp/server-e2e-db-tools/classify.py
+@@ -0,0 +1,7 @@
++import re, sys
++log = open(sys.argv[1], errors='replace').read()
++out = {}
++for m in re.finditer(r"thread '([^']+)' \(\d+\) (panicked at .*?)(?=\n\s+note: run with|\n\s+(?:FAIL|TIMEOUT) \[)", log, re.S):
++    out.setdefault(m.group(1), ' '.join(m.group(2).split())[:int(sys.argv[2])])
++for k in sorted(out):
++    print(k, '||', out[k].replace('panicked at rust/tcl-lsp-server/tests/e2e/', ''))
+diff --git a/tmp/server-e2e-db-tools/body.py b/tmp/server-e2e-db-tools/body.py
+new file mode 100644
+index 00000000..a999350b
+--- /dev/null
++++ b/tmp/server-e2e-db-tools/body.py
+@@ -0,0 +1,13 @@
++import sys,re,os
++# usage: body.py module::test ...  -> prints function bodies (comments stripped)
++root='/home/user/tcl-lsp/rust/tcl-lsp-server/tests/e2e/'
++for t in sys.argv[1:]:
++    parts=t.split('::'); mod=parts[0]; fn=parts[-1]
++    path=root+mod+'.rs'
++    if len(parts)>2 and os.path.exists(root+mod+'/'+parts[1]+'.rs'): path=root+mod+'/'+parts[1]+'.rs'
++    s=open(path).read()
++    m=re.search(r'\nfn '+re.escape(fn)+r'\(\)[^{]*\{\n(.*?)\n\}\n', s, re.S)
++    print('=== '+t)
++    if m:
++        body='\n'.join(l for l in m.group(1).split('\n') if not l.strip().startswith('//'))
++        print(body[:int(os.environ.get('MAXB','900'))])
+diff --git a/tmp/server-e2e-db-tools/e2e.sh b/tmp/server-e2e-db-tools/e2e.sh
+new file mode 100755
+index 00000000..0a9eea9d
+--- /dev/null
++++ b/tmp/server-e2e-db-tools/e2e.sh
+@@ -0,0 +1,6 @@
++#!/bin/bash
++# usage: e2e.sh '<nextest filter expr body>' [extra args]
++cd /home/user/tcl-lsp
++source scripts/dev/agent-build-env.sh; export CARGO_BUILD_JOBS=2 CARGO_PROFILE_TEST_OPT_LEVEL=1 RUST_BACKTRACE=0
++F=$1; shift
++cargo nextest run -p tcl-compiler -p tcl-irules -p tcl-lsp-core -p tcl-lsp-server --test e2e -E "package(tcl-lsp-server) and ($F)" --no-fail-fast --status-level fail --final-status-level none --failure-output final "$@" 2>&1 | grep -vE '^\s*$|running 1 test|^\s+failures:|test result|RUST_BACKTRACE|stdout ───|stderr ───|FAILED$' | cut -c1-${COLS:-900}
