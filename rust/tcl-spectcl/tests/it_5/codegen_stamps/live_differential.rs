@@ -86,6 +86,25 @@ const CASES: &[(&str, &[&str], usize)] = &[
         &["caller 2"],
         1,
     ),
+    // A word with an effect is evaluated once, whether the body completes,
+    // takes `args`, or fails. Each stays a call for now: a word that writes a
+    // variable could fire a trace that rebinds the command, so the live entry
+    // proves no target for it.
+    (
+        "proc caller {} {set n 0; vupper [incr n]x; set n}",
+        &["caller"],
+        0,
+    ),
+    (
+        "proc caller {} {set n 0; vcount [incr n] [incr n]; set n}",
+        &["caller"],
+        0,
+    ),
+    (
+        "proc caller {} {set ::n 0; vformat [incr ::n]x}",
+        &["list [catch caller] $::n"],
+        0,
+    ),
     // The call's own argument count is wrong.
     ("proc caller {n} {vdouble $n $n}", &["caller 1"], 0),
     (
