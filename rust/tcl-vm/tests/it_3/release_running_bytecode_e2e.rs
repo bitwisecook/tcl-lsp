@@ -98,7 +98,41 @@ fn cases() -> Vec<Case> {
     let mut cases = expr_cases();
     cases.extend(command_cases());
     cases.extend(shape_cases());
+    cases.extend(deleted_interpreter_cases());
     cases
+}
+
+/// [`Case`]s that delete a child interpreter while it runs. Deleting it changes
+/// its compile epoch: 8.5 and later report the deletion at the next command
+/// (`INST_START_CMD`, then `TclInterpReady`); 8.4 reports it only at a command
+/// it invokes, and runs on through what its unit compiled.
+fn deleted_interpreter_cases() -> Vec<Case> {
+    const CHILD: &str = "interp create i; interp alias i retire {} interp delete i; ";
+    const REFUSED: &str = "1\nattempt to call eval in deleted interpreter\n0\n";
+    let case = |script: &str, v84: &'static str, v90: &'static str| {
+        (
+            format!(
+                "{CHILD}puts [catch {{interp eval i {{{script}}}}} m]; puts $m; \
+                 puts [interp exists i]"
+            ),
+            v84,
+            Some(v90),
+        )
+    };
+    vec![
+        case("retire; set x 5", "0\n5\n0\n", REFUSED),
+        case("retire; list a b", REFUSED, REFUSED),
+        case(
+            "proc q {} {retire; return after}; q",
+            "0\nafter\n0\n",
+            REFUSED,
+        ),
+        (
+            format!("{CHILD}catch {{interp eval i {{retire; list a b}}}}; puts $errorCode"),
+            "CORE IDELETE {attempt to call eval in deleted interpreter}\n",
+            Some("TCL IDELETE {attempt to call eval in deleted interpreter}\n"),
+        ),
+    ]
 }
 
 /// [`Case`]s whose word shapes decide whether 8.4 compiles the command, and

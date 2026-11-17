@@ -376,6 +376,9 @@ impl Vm {
     ) -> Result<Option<Tick>, Completion<Value>> {
         use tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent as Event;
         let (f, words) = invocation;
+        if let Some(deleted) = self.deleted_interpreter_refusal() {
+            return Err(deleted);
+        }
         if ordinary {
             self.reset_native_ensemble_rewrite(Event::BeforeOrdinaryLookup)?;
         }

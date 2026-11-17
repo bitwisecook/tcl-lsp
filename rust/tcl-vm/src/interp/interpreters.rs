@@ -130,6 +130,22 @@ impl Vm {
         r
     }
 
+    /// C's `TclInterpReady`: an interpreter deleted while it runs evaluates no
+    /// further command. `None` while the current interpreter is live, and for
+    /// an engine whose protocol does not say what it reports.
+    pub(crate) fn deleted_interpreter_refusal(
+        &self,
+    ) -> Option<tcl_runtime_api::Completion<crate::value::Value>> {
+        if !self.interps.get(self.cur.0).is_some_and(|slot| slot.dying) {
+            return None;
+        }
+        let (message, code) = self
+            .native_invocation_dialect()
+            .native_eval_object_protocol()?
+            .deleted_interpreter_error()?;
+        Some(crate::command::err_with_code(message, code))
+    }
+
     /// Whether `id` is torn down when the evaluation running in it unwinds: it
     /// was deleted, and that evaluation is its last in-flight one.
     pub(super) fn interp_retires_on_return(&self, id: InterpId) -> bool {

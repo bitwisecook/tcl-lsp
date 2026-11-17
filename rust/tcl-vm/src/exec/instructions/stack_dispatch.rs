@@ -118,6 +118,13 @@ impl Vm {
     ) -> Tick {
         match instr.op {
             Op::START_CMD => {
+                // Deleting an interpreter changes its compile epoch, so a
+                // release that checks the epoch here reports the deletion.
+                if self.runtime_version().revalidates_running_bytecode()
+                    && let Some(deleted) = self.deleted_interpreter_refusal()
+                {
+                    return Tick::Return(deleted);
+                }
                 let current_epoch = self.trace_deopt_epoch();
                 // Compiler-only markers have no exact owning Tcl command and
                 // therefore are not safe acknowledgement/replay points. Leave
