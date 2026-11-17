@@ -21,7 +21,6 @@
 use super::direct_calls::{DirectActualValue, DirectProcDecision};
 use super::semantic_calls::{
     SemanticCallArgument, SemanticCallDecision, semantic_operation_binding_is_trusted,
-    semantic_operation_has_execution_trace,
 };
 use super::{CommonAotEnvironment, DirectCallSiteId, ProcedureIdentity, SsaValueIdentity};
 use crate::analyses::LatticeValue;
@@ -238,6 +237,42 @@ fn closed_native_store_binding(input: &ClosedStatementInputs<'_>, statement: &St
             == Some(value.as_str())
 }
 
+/// The store's own original invocation answers the trace hazard, as a selected
+/// semantic call does; a store with no retained tokens is treated as traced.
+fn closed_store_has_execution_trace(
+    input: &ClosedStatementInputs<'_>,
+    statement: &Statement,
+) -> bool {
+    let Some(tokens) = crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
+        &input.function.cfg.command_binding_sites,
+        statement,
+    ) else {
+        return true;
+    };
+    let Some(metadata) = input
+        .function
+        .invocation_metadata_context_for_module(input.registry, &input.unit.ir_module)
+    else {
+        return true;
+    };
+    let Some(selected) =
+        crate::registry_invocation::resolved_handler_invocation_with_metadata_context(
+            input.registry,
+            Some(metadata),
+            tokens,
+        )
+    else {
+        return true;
+    };
+    crate::registry_invocation::original_invocation_has_execution_trace(
+        input.registry,
+        metadata,
+        tokens,
+        selected.facts.descriptor_key(),
+        &input.unit.ir_module.traced_commands,
+    )
+}
+
 fn cover_closed_constant_store(
     input: &ClosedStatementInputs<'_>,
     statement: &Statement,
@@ -250,11 +285,7 @@ fn cover_closed_constant_store(
             input.mutations,
             input.set_operation,
         )
-        || semantic_operation_has_execution_trace(
-            input.registry,
-            &input.unit.ir_module,
-            input.set_operation,
-        )
+        || closed_store_has_execution_trace(input, statement)
         || (matches!(statement, Statement::AssignConst { .. })
             && !closed_native_store_binding(input, statement))
     {

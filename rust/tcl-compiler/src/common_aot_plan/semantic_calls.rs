@@ -275,29 +275,3 @@ fn semantic_call_decision(input: &SemanticCallInputs<'_>) -> SemanticCallDecisio
         arguments,
     }))
 }
-
-fn command_has_execution_trace(
-    registry: &tcl_registry::CommandRegistry,
-    module: &crate::ir::Module,
-    command: tcl_registry::CanonicalCommandDescriptorKey<'_>,
-) -> bool {
-    // An implicit semantic operation has no actual called-slot receipt.
-    // Native inventories require token history; ambiguous authored descriptor
-    // punctuation likewise supplies no constructed-key encoding contract.
-    crate::registry_invocation::trace_set_requires_original_owner(
-        registry,
-        module,
-        crate::registry_invocation::InvocationMetadataContext::for_module(registry, module),
-    ) || (!module.traced_commands.is_empty() && tcl_syntax::naming::is_absolute(command.label()))
-        || module.traced_commands.contains(command.label())
-}
-
-pub(super) fn semantic_operation_has_execution_trace(
-    registry: &tcl_registry::CommandRegistry,
-    module: &crate::ir::Module,
-    operation: SemanticOperationId,
-) -> bool {
-    registry
-        .command_descriptor_keys_for_semantic_operation(operation)
-        .any(|command| command_has_execution_trace(registry, module, command))
-}

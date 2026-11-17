@@ -94,30 +94,6 @@ pub(crate) fn original_execution_trace_keys(
     (!keys.is_empty()).then_some(keys)
 }
 
-/// Implicit operations have no actual invocation receiver. Native spelling
-/// inventories, including an empty inventory, cannot supply token trace absence.
-/// Explicit Logical/standalone advice retains its authored spelling model.
-/// Authored simulation source advice cannot establish token trace absence.
-pub(crate) fn trace_set_requires_original_owner(
-    registry: &CommandRegistry,
-    module: &crate::ir::Module,
-    metadata: Option<InvocationMetadataContext<'_>>,
-) -> bool {
-    match metadata
-        .and_then(|metadata| module.original_invocation_source_purpose(registry, metadata))
-    {
-        Some(
-            crate::command_binding::OriginalInvocationSourcePurpose::Logical
-            | crate::command_binding::OriginalInvocationSourcePurpose::Standalone,
-        ) => false,
-        Some(
-            crate::command_binding::OriginalInvocationSourcePurpose::Execution
-            | crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation,
-        )
-        | None => true,
-    }
-}
-
 /// Trace hazard for the same actual selected invocation. Native absence comes
 /// from its retained token/entered/source observer owner, never the module's
 /// spelling inventory. The initial Native entry trace bit is checked even when
@@ -913,11 +889,6 @@ mod tests {
             &empty
         ));
         // A descriptor-only implicit operation has no actual original receiver.
-        assert!(trace_set_requires_original_owner(
-            registry,
-            &unit.ir_module,
-            Some(metadata)
-        ));
     }
     fn assert_same_jim_input_keeps_independent_driver_purposes(
         registry: &tcl_registry::CommandRegistry,
@@ -959,11 +930,6 @@ mod tests {
                 .original_invocation_source_purpose(registry, logical_metadata),
             Some(OriginalInvocationSourcePurpose::Logical)
         );
-        assert!(!trace_set_requires_original_owner(
-            registry,
-            &logical.ir_module,
-            Some(logical_metadata)
-        ));
         assert_eq!(
             original_trace_source_purpose(registry, logical_metadata, tokens),
             Some(OriginalInvocationSourcePurpose::Execution)
@@ -1015,11 +981,6 @@ mod tests {
             Some(OriginalInvocationSourcePurpose::Execution)
         );
         let empty = std::collections::BTreeSet::new();
-        assert!(trace_set_requires_original_owner(
-            registry,
-            &unit.ir_module,
-            Some(metadata)
-        ));
         assert!(!crate::gvn::is_pure_tokens_with_metadata_context(
             registry,
             Some(metadata),
@@ -1129,11 +1090,6 @@ mod tests {
             resolved_handler_invocation_with_metadata_context(registry, Some(metadata), tokens)
                 .expect("actual selected software-model command facts");
         let empty = std::collections::BTreeSet::new();
-        assert!(trace_set_requires_original_owner(
-            registry,
-            &unit.ir_module,
-            Some(metadata)
-        ));
         assert!(original_invocation_has_execution_trace(
             registry,
             metadata,

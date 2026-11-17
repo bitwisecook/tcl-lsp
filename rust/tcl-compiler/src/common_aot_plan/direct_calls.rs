@@ -18,9 +18,7 @@
 
 //! Direct procedure calls: the evidence and decline types, formal binding, body specialisation and the collector.
 
-use super::semantic_calls::{
-    semantic_operation_binding_is_trusted, semantic_operation_has_execution_trace,
-};
+use super::semantic_calls::semantic_operation_binding_is_trusted;
 use super::{
     AotMetadataSelection, CallCandidate, DirectCallSiteId, ProcedureIdentity, SsaValueIdentity,
     call_sites, function_units, nested_call_tokens,
@@ -626,7 +624,23 @@ pub fn original_direct_expression_body_operations(
     procedure: &Procedure,
     config: tcl_lexer::LexerConfig,
 ) -> Option<[SemanticOperationId; 2]> {
-    let metadata = metadata?;
+    let [nested, outer] =
+        original_direct_expression_body_invocations(registry, metadata?, procedure, config)?;
+    Some([nested.operation, outer.operation])
+}
+
+struct DirectBodyInvocation {
+    operation: SemanticOperationId,
+    tokens: CommandTokens,
+    selected: crate::registry_invocation::LogicalStructuredInvocation,
+}
+
+fn original_direct_expression_body_invocations(
+    registry: &tcl_registry::CommandRegistry,
+    metadata: InvocationMetadataContext<'_>,
+    procedure: &Procedure,
+    config: tcl_lexer::LexerConfig,
+) -> Option<[DirectBodyInvocation; 2]> {
     let [statement @ Statement::Return { expr: Some(_), .. }] =
         procedure.body.statements.as_slice()
     else {
@@ -635,7 +649,7 @@ pub fn original_direct_expression_body_operations(
     let original = procedure
         .body
         .retained_source_tokens_for_statement(statement)?;
-    let operation = |tokens: &CommandTokens, expected| {
+    let invocation = |tokens: &CommandTokens, expected| {
         if tokens.words().len() != 2 {
             return None;
         }
@@ -643,15 +657,18 @@ pub fn original_direct_expression_body_operations(
             crate::registry_invocation::logical_structured_invocation_with_metadata_context(
                 registry, metadata, tokens, None,
             )?;
-        (selected.lowering_hook() == Some(expected))
-            .then_some(SemanticOperationId::StructuredLowering(expected))
+        (selected.lowering_hook() == Some(expected)).then(|| DirectBodyInvocation {
+            operation: SemanticOperationId::StructuredLowering(expected),
+            tokens: tokens.clone(),
+            selected,
+        })
     };
-    let outer = operation(original, LoweringHookId::Return)?;
+    let outer = invocation(original, LoweringHookId::Return)?;
     let children = crate::word_subst::checked_lifted_calls(original, config)?;
     let [child] = children.as_slice() else {
         return None;
     };
-    let nested = operation(child.tokens.as_ref()?, LoweringHookId::Expr)?;
+    let nested = invocation(child.tokens.as_ref()?, LoweringHookId::Expr)?;
     Some([nested, outer])
 }
 
@@ -674,22 +691,37 @@ fn direct_body_decision(
         if !semantic_operation_binding_is_trusted(input.registry, input.mutations, operation) {
             return decline(DirectProcBodyDecline::InternalDispatchUntrusted { operation });
         }
-        if semantic_operation_has_execution_trace(input.registry, &input.unit.ir_module, operation)
-        {
-            return decline(DirectProcBodyDecline::InternalExecutionTrace { operation });
-        }
     }
     let Some(callee) = input.unit.function_for_body(Some(input.callee_id)) else {
         return decline(DirectProcBodyDecline::UnsupportedBodyShape);
     };
-    let Some(operations) = original_direct_expression_body_operations(
+    let Some(metadata) = input.callee_metadata else {
+        return decline(DirectProcBodyDecline::UnsupportedBodyShape);
+    };
+    let Some(invocations) = original_direct_expression_body_invocations(
         input.registry,
-        input.callee_metadata,
+        metadata,
         input.proc_def,
         callee.source_lexer_config(),
     ) else {
         return decline(DirectProcBodyDecline::UnsupportedBodyShape);
     };
+    // The trace hazard is the one the body's own original invocation meets,
+    // as for a selected semantic call.
+    for invocation in &invocations {
+        if crate::registry_invocation::original_invocation_has_execution_trace(
+            input.registry,
+            metadata,
+            &invocation.tokens,
+            invocation.selected.descriptor_key(),
+            &input.unit.ir_module.traced_commands,
+        ) {
+            return decline(DirectProcBodyDecline::InternalExecutionTrace {
+                operation: invocation.operation,
+            });
+        }
+    }
+    let operations = invocations.map(|invocation| invocation.operation);
     let [
         Statement::Return {
             expr: Some(expr), ..

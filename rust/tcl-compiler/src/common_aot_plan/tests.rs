@@ -1669,3 +1669,48 @@ fn exceptional_edges_decline_direct_and_slot_plans() {
         MaterialisableSlotDecision::Declined(MaterialisableSlotDecline::ExceptionalControlFlow)
     )));
 }
+
+fn sealed_plan(source: &str) -> CommonAotProofPlan {
+    plan_in_environment(source, enabled(), CommonAotEnvironment::SealedProgram)
+}
+
+#[test]
+fn a_procedure_with_an_execution_trace_keeps_its_body_unspecialised() {
+    // Tcl 9.0: the enter trace runs before `add`'s body, so neither the call
+    // nor the body may be replaced by a direct native sequence.
+    let traced = sealed_plan(&format!(
+        "proc cb args {{}}\ntrace add execution add enter cb\n{ADD}"
+    ));
+    assert!(
+        traced.direct_calls().all(|(_, decision)| !matches!(
+            decision,
+            DirectProcDecision::Selected(evidence)
+                if evidence.callee.qualified_name == "::add"
+                    && matches!(evidence.body, DirectProcBodyDecision::Selected(_))
+        )),
+        "{traced:#?}"
+    );
+    assert!(
+        matches!(
+            traced.closed_program_coverage(),
+            ClosedProgramCoverageDecision::Declined(_)
+        ),
+        "{traced:#?}"
+    );
+}
+
+#[test]
+fn a_constant_store_to_a_variable_with_a_write_trace_is_not_covered() {
+    // Tcl 9.0: `set d 2` runs the write trace, so the store is observable and
+    // cannot be folded into the sealed program as a direct actual constant.
+    let traced = sealed_plan(&format!(
+        "proc cb args {{}}\ntrace add variable d write cb\n{ADD}"
+    ));
+    assert!(
+        matches!(
+            traced.closed_program_coverage(),
+            ClosedProgramCoverageDecision::Declined(_)
+        ),
+        "{traced:#?}"
+    );
+}
