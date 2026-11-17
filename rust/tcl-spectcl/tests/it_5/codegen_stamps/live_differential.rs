@@ -161,6 +161,28 @@ const CASES: &[(&str, &[&str], usize)] = &[
         &["caller z", "list [caller z] tail"],
         0,
     ),
+    // What a script can watch of a spliced call: an execution trace on the
+    // command, set before the caller is compiled (the live entry sees it and
+    // keeps the call) or between two of its calls (the splice falls back to
+    // the call, which runs the trace), and a read trace on the word's variable,
+    // which keeps the call.
+    (
+        "proc hit {args} {incr ::hits}; set ::hits 0; \
+         trace add execution vupper enter hit; proc caller {n} {vupper $n}",
+        &["list [caller abc] $::hits"],
+        0,
+    ),
+    (
+        "proc hit {args} {incr ::hits}; set ::hits 0; proc caller {n} {vupper $n}",
+        &["caller x; trace add execution vupper enter hit; list [caller abc] $::hits"],
+        1,
+    ),
+    (
+        "proc hit {args} {incr ::hits}; set ::hits 0; \
+         proc caller {n} {trace add variable n read hit; vupper $n}",
+        &["list [caller abc] $::hits"],
+        0,
+    ),
     // The call's own argument count is wrong.
     ("proc caller {n} {vdouble $n $n}", &["caller 1"], 0),
     // A list command on a value the live entry cannot see may convert it
