@@ -108,3 +108,23 @@ session whose area note names it, and analyser-binding decides the rest.
 | irules-registry-tooling | `tcl-cli`, `tcl-spectcl`, `tcl-diagram`, `tcl-explorer`, `tcl-mcp`, `tcl-irules`, `tcl-spec-studio`, the F5 crates |
 | tk-oo | the tests its issues name |
 | live-inlining | `tcl-spectcl` `codegen_stamps` |
+
+## Progress
+
+Updated at the hourly check from the ledgers on `work`.
+
+| Session | Failing tests to triage (about) | Rows in ledger | Sampled by the coordinator |
+| --- | ---: | ---: | --- |
+| diagnostics | 470 | 0 | |
+| analyser-binding | 330 | 0 | |
+| class-facts | 190 | 0 | |
+| dataflow-optimiser | 440 | 0 | |
+| values | 230 | 0 | |
+| taint | 190 | 0 | |
+| analysis-performance | 30 | 0 | |
+| lsp-features | 500 | 0 | |
+| server-e2e-db | 400 | 0 | |
+| execution | 300 | 0 | |
+| irules-registry-tooling | 140 | 0 | |
+| tk-oo | 60 | 0 | |
+| live-inlining | 6 | 0 | |

@@ -6,6 +6,10 @@ Updated 15 November 2026. Results apply to their captured source and stated purp
 
 Every hand-written Rust file under `rust/` and `runtime/rust/` is at most 2,000 lines (`docs/work/file-split/README.md`); the split moved items without renaming them, and test paths gained a module, so failing lists are compared by last path segment. The sessions that worked until 16 November were paused for the split and then replaced on the owner's instruction. Each left a hand-over in `docs/work/name-handling/handover/<slug>.md`, its last failing list in `docs/work/name-handling/lists/<slug>-failing-2026-11-16.txt`, and any unfinished work as `docs/work/name-handling/patches/handover-<slug>-*.patch`. The new sessions, their models and how they work together are in `docs/work/name-handling/handover/successors.md`. The area sections below are the outgoing sessions' notes and name pre-split paths; a successor replaces its own section with a current snapshot after its first full run.
 
+## Test scrub ordered, 17 November 2026, 20:15 UTC
+
+The owner asked for a deep evaluation of the tests: what overlaps, and which failing tests are worth making pass. Method, inventory, verdicts and the families each session triages are in [`docs/work/test-scrub/README.md`](../test-scrub/README.md). Every session finishes what it has in hand and then writes its ledger before any further fix; nothing is deleted until the coordinator has sampled the ledger. First reading: 37,567 tests, 3,743 failing by the morning's lists; of the failing, 564 cite tclsh or Jim, 497 cite an issue or contract, 2,333 run Tcl source and cite nothing, 349 hold an internal structure.
+
 ## Scoreboard, 17 November 2026, 19:55 UTC
 
 Failing tests by area on the restructured tree, from the successor sessions' baselines and first pushes.
