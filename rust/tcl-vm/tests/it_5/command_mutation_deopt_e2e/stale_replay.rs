@@ -46,17 +46,21 @@ fn non_expr_lowering_hook_redispatches_after_replacement() {
 }
 
 #[test]
-fn escaped_head_stays_on_live_dispatch_after_replacement() {
+fn escaped_head_sees_the_replacement_at_its_start() {
     let (mut vm, _output) = vm();
     let compiled = BytecodeCompileService::default()
         .compile(r"proc p {} {mutate; se\x74 x OLD}")
         .expect("module compiles");
+    // Tcl 8.6.18, 9.0.4 and 9.1.0 compile the escaped head as `set`
+    // (`tcl::unsupported::disassemble proc p` shows `storeScalar1 %v0`);
+    // 8.5.19 invokes it. The default engine is 9.0, so the specialised store
+    // rests on the `set` it compiled.
     assert!(
-        !sole_compiled_procedure(&compiled)
+        sole_compiled_procedure(&compiled)
             .command_bindings
             .iter()
-            .any(|binding| binding.name == "set"),
-        "an unresolved escaped head must not acquire forged lowering provenance",
+            .any(|binding| binding.name == "set" && binding.identity == "set"),
+        "the escaped head is compiled as the `set` it spells",
     );
     eval_ok(&mut vm, r"proc p {} {mutate; se\x74 x OLD}");
     eval_ok(
@@ -64,9 +68,8 @@ fn escaped_head_stays_on_live_dispatch_after_replacement() {
         "proc mutate {} {rename set real_set; proc set args {return ESCAPED_OVERRIDE}}",
     );
 
-    // Tcl 9.0.4: ESCAPED_OVERRIDE. This spelling is intentionally not a typed
-    // lowering candidate yet, so its generic invoke resolves the replacement
-    // live without needing a speculative binding reconstructed from source.
+    // Tcl 8.4.20 to 9.1.0 and Jim 0.84: ESCAPED_OVERRIDE. The replacement is
+    // seen at the command's start, as for any compiled `set`.
     assert_eq!(eval_ok(&mut vm, "p"), "ESCAPED_OVERRIDE");
 }
 

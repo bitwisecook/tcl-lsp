@@ -31,12 +31,15 @@ struct PackRestingCompilerSvc {
     pub(super) plain_calls: Rc<Cell<usize>>,
 }
 
-impl CompileService for PackRestingCompilerSvc {
-    type Module = tcl_bytecode::ModuleAsm;
-
-    fn compile(&self, src: &str) -> Result<Self::Module, CompileError> {
-        let mut module = self.inner.compile(src)?;
-        if src.starts_with("# rests-on-pack") {
+impl PackRestingCompilerSvc {
+    /// The module this compiler states for `source`: a pack-fact claim when the
+    /// source says it rests on a pack, and a manifest listing both packs.
+    fn restate(
+        &self,
+        source: &[u8],
+        mut module: tcl_bytecode::ModuleAsm,
+    ) -> tcl_bytecode::ModuleAsm {
+        if source.starts_with(b"# rests-on-pack") {
             module
                 .top_level
                 .site_claims
@@ -46,12 +49,81 @@ impl CompileService for PackRestingCompilerSvc {
             std::sync::Arc::make_mut(module.manifest.as_mut().expect("the compiler states one"));
         manifest.packs = vec![self.claimed.clone(), self.also_listed.clone()];
         manifest.packs.sort();
-        Ok(module)
+        module
+    }
+
+    fn count_plain(&self) {
+        self.plain_calls.set(self.plain_calls.get() + 1);
+    }
+}
+
+// The VM compiles a function through the entry-aware script paths; each is
+// restated here, so the claim and the manifest reach the code under test, and
+// every plain path is counted.
+impl CompileService for PackRestingCompilerSvc {
+    type Module = tcl_bytecode::ModuleAsm;
+
+    fn compile(&self, src: &str) -> Result<Self::Module, CompileError> {
+        Ok(self.restate(src.as_bytes(), self.inner.compile(src)?))
+    }
+
+    fn compile_script_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, CompileError> {
+        let module = self
+            .inner
+            .compile_script_with_entry(target, profile, entry)?;
+        Ok(self.restate(target.source.as_bytes(), module))
+    }
+
+    fn compile_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, CompileError> {
+        let module = self
+            .inner
+            .compile_script_bytes_with_entry(target, profile, entry)?;
+        Ok(self.restate(target.source.bytes(), module))
     }
 
     fn compile_traced(&self, src: &str) -> Result<Self::Module, CompileError> {
-        self.plain_calls.set(self.plain_calls.get() + 1);
+        self.count_plain();
         self.inner.compile_traced(src)
+    }
+
+    fn compile_plain_script_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, CompileError> {
+        self.count_plain();
+        self.inner.compile_plain_script_for_profile(target, profile)
+    }
+
+    fn compile_plain_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, CompileError> {
+        self.count_plain();
+        self.inner
+            .compile_plain_script_bytes_for_profile(target, profile)
+    }
+
+    fn compile_plain_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, CompileError> {
+        self.count_plain();
+        self.inner
+            .compile_plain_script_bytes_with_entry(target, profile, entry)
     }
 }
 
