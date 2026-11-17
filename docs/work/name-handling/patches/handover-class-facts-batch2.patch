@@ -1,0 +1,440 @@
+From 6a149988b303451e576ed523bfec282b9e79a8fb Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 16 Nov 2026 11:21:59 +0000
+Subject: [PATCH] WIP class facts batch 2: class variables in method bodies,
+ object storage, bodiless members, workspace factory index at a release
+
+Not pushed. Suite on a2df29e1 before the last two edits: fixed 5, new 1
+(objdefine_method_body_unbound_read_now_flags_w210, addressed by leaving
+bodies with no single class definition untouched); the rerun was stopped
+by the pause.
+
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_017u5g3JzuPiZKPQt1QkNjnk
+---
+ docs/work/name-handling/current-state.md      | 30 +++++++
+ .../src/analyser/diagnostics/dataflow.rs      | 14 +++-
+ .../src/analyser/diagnostics/tests.rs         |  2 +-
+ rust/tcl-compiler/src/analyser/handlers.rs    |  9 +-
+ rust/tcl-compiler/src/analyser/mod.rs         |  1 +
+ .../src/analyser/workspace_class_factory.rs   | 76 +++++++++++++++++
+ rust/tcl-compiler/src/command_binding.rs      |  1 +
+ .../src/command_binding/receiver_self.rs      | 51 ++++++++++++
+ rust/tcl-compiler/src/lowering/mod.rs         | 14 +++-
+ rust/tcl-compiler/tests/it_4/analyser.rs      | 82 +++++++++++++++++++
+ 10 files changed, 272 insertions(+), 8 deletions(-)
+ create mode 100644 rust/tcl-compiler/src/analyser/workspace_class_factory.rs
+
+diff --git a/docs/work/name-handling/current-state.md b/docs/work/name-handling/current-state.md
+index 3d8ce2cd..1a77a866 100644
+--- a/docs/work/name-handling/current-state.md
++++ b/docs/work/name-handling/current-state.md
+@@ -830,6 +830,36 @@ The server's `irules` (24), `spec_packs` (10), `sslictcl` (1) and `jim` (1) grou
+ 
+ The counts by cause are a first reading of each test's first failing assertion; a test moves rows when its cause is proven.
+ 
++## Class and object facts area, 16 November 2026
++
++Area: class, object and method facts in `tcl-compiler` (class factories, definition scripts, method bodies, named instances, the lenient `tcl` environment's display facts, widget constructors as receivers). Measured with `cargo nextest run -p tcl-compiler`, test profile `opt-level 1`.
++
++| Point | Run | Failing | `class_factories` |
++| --- | --- | --- | --- |
++| Baseline at `c8099ccc` | 13,123 | 2,355 | 50 |
++| First batch on that base | 13,123 | 2,352 (fixed 3, new 0) | 48 |
++| `a2df29e1` (first batch pushed; other sessions' fixes included) | 13,129 | 2,247 | 48 |
++| Second batch on `a2df29e1` | 13,130 | see the push report | 44 |
++
++Fixed:
++
++- **A class declared in a `namespace eval` body was invisible afterwards.** The source advice merged every body's effects as a possibility, so `namespace eval ::n {oo::class create C {method m {} {}}}; ::n::C create x; x nosuch` had no class cell at the top level: no instance, no W308, no class made by a metaclass declared in a namespace. A literal namespace body runs once in its command's invocation, so its command world is the enclosing script's own (`BodyWalk::regions`, Native policy only). The body walk also answers a class-relation query for a parent it retains, and a TclOO definer whose script only declares members leaves no blanket footprint inside a body, as at the top level. `c_source_namespace_class_after_unentered_definition_body_keeps_unknown_mutation` expected an unknown mutation after a members-only class body; tclsh 8.6.18 and 9.0.4 change nothing but the class, so only its `uplevel` row keeps the obligation.
++- **Named-instance display labels** (`OriginalProjectClassCards::named_instance_display_reports`) were withheld for any document that constructs an object, because each construction marks the catalogue as following an unread operation. A label now needs only that every unread operation is a construction of, or a call on, a source class of the catalogue (`labels_complete`); class cards keep the strict flag. Decision taken under the display and proof policy.
++- **`instance_classes` under the lenient `tcl` input** reads the retained logical constructor shape and class declaration.
++- **A class-declared variable in an uncalled method, constructor or destructor body** was a fresh local that is definitely unset, so `$_x` was a proved error and every later read of the body was dropped. `seed_declared_receiver_variables` (`command_binding/receiver_self.rs`, called from `seed_deferred_inputs`) makes the declared names cells of the declaring class with unknown contents, shared by its bodies; a formal of the same name keeps its slot. tclsh 8.6.18, 9.0.4 and 9.1.0 records are on `it_4 analyser::method_bodies::a_class_variable_is_object_state_in_every_body_of_its_class`.
++- **A store to object storage is not W211 or W220** (`written_object_storage`): another body of the object reads it.
++- **A bodiless member flagged the module as holding unretained executable roots** (`Lowerer::extract_one_member`), which marks every binding of the file opaque. `variable` and `superclass` have no body word.
++- **The workspace factory index under a pinned release.** `class_factory_for_command` read the index only for a logical input. `analyser/workspace_class_factory.rs` reads it when the head is a written word absent from the document's closed command world, through the head's ordered lookup candidates.
++
++Open, with the cause where it is established:
++
++- **A relative head in a TclOO method body** (`method m {} {return $neverBound}`): the unit is `trivial_guarded` whenever the body's namespace is runtime-selected and any head is relative (`build_method_units`, `requires_runtime_command_namespace`), so no flow diagnostic runs. An uncalled body already resolves such heads through the receiver path when the command world is known (`original_receiver_command_lookup`). Asked the analyser and binding session whether an uncalled receiver method may be read against the fresh-receiver path in the end-of-load world.
++- **TclOO creation under a namespace that does not exist** (`oo::class create ::nope::X {…}`) withdraws the command world; tclsh 8.6.18, 9.0.4 and 9.1.0 create every missing namespace. Handed to the analyser and binding session. It starves `a_metaclass_file_publishes_exactly_one_factory` and the cross-file tests that read `META_FILE`.
++- **Every command after `oo::define C {…}` or `oo::define C method …` is unknown** (item 2). `oo::class create` takes the preserving-publication route (`PreservingCommandPublication`, `definition_has_only_deferred_members`); `oo::define` has no counterpart, so its script is entered as an ordinary body where `method` fails the compile preflight, and the command world is unclosed for the rest of the file (no W308, no typed call). Not started.
++- **`next` in an entered TclOO method body draws W123**: the presence query looks the head up from `::` without `::oo::Helpers`. Handed to the analyser and binding session; keeps `a_provably_direct_body_keeps_method_checks_live` failing.
++- **A class made by a user metaclass has no relation providers**, so it never publishes a factory of its own (`a_computed_metaclass_name_resolves_through_a_literal_call_site`, the replayed-creation tests): its definition body has no owner, because `original_class_definition_body_in_analysis` requires a registry definer's body grammar at the creation call.
++- Not started: registry widget constructors as receivers (item 6), `package require Tk` under a logical input (item 5), the clay inventory tests.
++
+ ## Scope and publication
+ 
+ Work is paused at the user's request after finishing the current autoload repair. All parallel investigations are stopped. Source/status checkpoints have been published to work and the periodic publisher is stopped. The final one-shot sync publishes this paused snapshot. The release verdict remains unchanged.
+diff --git a/rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs b/rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs
+index b4a28b11..aeb99d9f 100644
+--- a/rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs
+@@ -374,6 +374,16 @@ fn written_namespace_storage(cell_name: &crate::var_resolve::VariableCellKey, va
+         && tcl_syntax::naming::is_qualified(var.as_bytes())
+ }
+ 
++/// A cell of an object's own storage: every method body of the object reads
++/// it, so one body's reads alone never prove a store unused.
++fn written_object_storage(cell_name: &crate::var_resolve::VariableCellKey) -> bool {
++    matches!(
++        cell_name.root(),
++        crate::var_resolve::VariableCellKey::Instance { .. }
++            | crate::var_resolve::VariableCellKey::AllocatedInstance { .. }
++    )
++}
++
+ /// Scope facts that make a store observable outside its local SSA chain.
+ struct DeadStoreVisibility<'a> {
+     scope_aliases: &'a HashSet<String>,
+@@ -390,7 +400,7 @@ fn dead_store_has_visible_or_synthetic_effects(
+     visibility: &DeadStoreVisibility<'_>,
+ ) -> bool {
+     // Globals (``::``-prefixed) are externally consumed.
+-    if written_namespace_storage(cell_name, var) {
++    if written_namespace_storage(cell_name, var) || written_object_storage(cell_name) {
+         return true;
+     }
+     // Interpreter-provided special variables (``auto_path``, ``env``,
+@@ -1287,7 +1297,7 @@ is renamed or deleted in this file."
+             let var = fu.ssa.var_name(symbol);
+             // Namespace storage is visible beyond this unit. Local keys with
+             // qualified-looking labels do not acquire namespace membership.
+-            if written_namespace_storage(cell_name, var) {
++            if written_namespace_storage(cell_name, var) || written_object_storage(cell_name) {
+                 continue;
+             }
+             if scope_aliases.contains(var) {
+diff --git a/rust/tcl-compiler/src/analyser/diagnostics/tests.rs b/rust/tcl-compiler/src/analyser/diagnostics/tests.rs
+index bf1f85e2..37f28896 100644
+--- a/rust/tcl-compiler/src/analyser/diagnostics/tests.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics/tests.rs
+@@ -7655,7 +7655,7 @@ fn method_body_read_before_set_now_flags_w210() {
+     // absolute command heads to isolate that Tcl 9.0.4 read-before-set fact
+     // from runtime-selected method-relative command lookup.
+     let src = "oo::class create Vector3d {\n    variable _x\n    constructor {x} { ::set _x $x }\n    method DotProduct {other} { ::return [::expr {$_x * $other}] }\n    method Buggy {type} { ::return [::expr {$_x * $other}] }\n}\n";
+-    let codes = codes_for(src);
++    let codes = codes_for_in(src, "tcl9.0");
+     assert_eq!(
+         codes,
+         vec!["W210".to_string()],
+diff --git a/rust/tcl-compiler/src/analyser/handlers.rs b/rust/tcl-compiler/src/analyser/handlers.rs
+index 7b20496c..c3ced5e9 100644
+--- a/rust/tcl-compiler/src/analyser/handlers.rs
++++ b/rust/tcl-compiler/src/analyser/handlers.rs
+@@ -11150,7 +11150,7 @@ impl Analyser {
+         ))
+     }
+ 
+-    fn foreign_factory_at_call(
++    pub(super) fn foreign_factory_at_call(
+         &self,
+         foreign: &ClassFactory,
+         arg_tokens: &[Token],
+@@ -11277,7 +11277,12 @@ impl Analyser {
+         let user_factory = if registry_definer.is_some() {
+             None
+         } else {
+-            Some(self.class_factory_for_command(args, arg_tokens, cmd_tok.span.start())?)
++            Some(
++                self.class_factory_for_command(args, arg_tokens, cmd_tok.span.start())
++                    .or_else(|| {
++                        self.workspace_class_factory_at_release(args, arg_tokens, cmd_tok)
++                    })?,
++            )
+         };
+         let manufacturer = match user_factory.as_ref() {
+             None => tcl_registry::CommandRegistry::manufacturer_method_for_descriptor(
+diff --git a/rust/tcl-compiler/src/analyser/mod.rs b/rust/tcl-compiler/src/analyser/mod.rs
+index 6f9ad5ef..cfcb7f09 100644
+--- a/rust/tcl-compiler/src/analyser/mod.rs
++++ b/rust/tcl-compiler/src/analyser/mod.rs
+@@ -83,6 +83,7 @@ pub mod types;
+ pub mod utils;
+ mod variable_alias_templates;
+ mod variable_source_declarations;
++mod workspace_class_factory;
+ 
+ pub use variable_source_declarations::OriginalVariableSourceDeclaration;
+ 
+diff --git a/rust/tcl-compiler/src/analyser/workspace_class_factory.rs b/rust/tcl-compiler/src/analyser/workspace_class_factory.rs
+new file mode 100644
+index 00000000..31c086e4
+--- /dev/null
++++ b/rust/tcl-compiler/src/analyser/workspace_class_factory.rs
+@@ -0,0 +1,76 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
++//
++// This program is free software: you can redistribute it and/or modify
++// it under the terms of the GNU Affero General Public License as published by
++// the Free Software Foundation, either version 3 of the License, or
++// (at your option) any later version.
++//
++// This program is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++// GNU Affero General Public License for more details.
++//
++// You should have received a copy of the GNU Affero General Public License
++// along with this program.  If not, see <https://www.gnu.org/licenses/>.
++//
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++//! The workspace factory index read under a pinned release.
++
++use super::state::Analyser;
++use super::types::ClassFactory;
++use tcl_lexer::Token;
++
++impl Analyser {
++    /// The workspace factory a head names under a pinned release: the head
++    /// is absent from this document's closed command world, and the first of
++    /// its ordered lookup candidates the workspace index carries is a
++    /// metaclass another document publishes. A head this document may bind,
++    /// an unknown command world or a computed word abstain.
++    pub(super) fn workspace_class_factory_at_release(
++        &self,
++        args: &[String],
++        arg_tokens: &[Token],
++        cmd_tok: Token,
++    ) -> Option<(ClassFactory, Vec<tcl_lexer::NativeWord>)> {
++        let index = self.workspace_class_factories.as_ref()?;
++        let argv = std::iter::once(cmd_tok)
++            .chain(arg_tokens.iter().copied())
++            .collect::<Vec<_>>();
++        let tokens = self.retained_invocation_tokens(cmd_tok.span.start(), &argv)?;
++        let binding = tokens.source_binding.as_ref()?;
++        (binding.targets.is_empty() && binding.may_be_absent).then_some(())?;
++        let input = binding.original_head_name_input(&tokens)?;
++        matches!(
++            input,
++            crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(_)
++        )
++        .then_some(())?;
++        let lookup = binding.original_command_lookup(&tokens, &input)?;
++        let [candidates] = lookup.candidates() else {
++            return None;
++        };
++        let recipe = lookup.policy().recipe();
++        let foreign = candidates.iter().find_map(|slot| {
++            index.get(&tcl_syntax::naming::native_command_source_spelling(
++                recipe, slot,
++            )?)
++        })?;
++        let image = tcl_lexer::SourceImage::document(&self.source);
++        let config = self.file_lexer_config();
++        let words = argv
++            .iter()
++            .map(|token| {
++                self.head_identities
++                    .original_written_word_at_span_in_source(&image, token.span, config)
++                    .map(|(word, _)| word)
++            })
++            .collect::<Option<Vec<_>>>()?;
++        super::original_definer::logical_arguments_match(&words, args, arg_tokens).then_some(())?;
++        Some((
++            self.foreign_factory_at_call(foreign, arg_tokens)?,
++            words.into_iter().skip(1).collect(),
++        ))
++    }
++}
+diff --git a/rust/tcl-compiler/src/command_binding.rs b/rust/tcl-compiler/src/command_binding.rs
+index 4538ecb3..4e9b2756 100644
+--- a/rust/tcl-compiler/src/command_binding.rs
++++ b/rust/tcl-compiler/src/command_binding.rs
+@@ -4506,6 +4506,7 @@ fn seed_deferred_inputs(
+         branch.variable_frame = frame.clone();
+         Arc::make_mut(&mut branch.source_variables).widen_deferred_namespace_inputs();
+         Arc::make_mut(&mut branch.source_variables).restart_representation_world();
++        branch.seed_declared_receiver_variables(root);
+         if let Some(statics) = &root.statics {
+             Arc::make_mut(&mut branch.source_variables).install_callable_statics(statics, registry);
+         }
+diff --git a/rust/tcl-compiler/src/command_binding/receiver_self.rs b/rust/tcl-compiler/src/command_binding/receiver_self.rs
+index 81a52163..aded64ca 100644
+--- a/rust/tcl-compiler/src/command_binding/receiver_self.rs
++++ b/rust/tcl-compiler/src/command_binding/receiver_self.rs
+@@ -120,6 +120,57 @@ impl ModuleCommandBindings {
+         }
+     }
+ 
++    /// A method body read without a call has no receiver, but its class's
++    /// declared variables are still object state: another method, the
++    /// constructor or a caller may have stored them. They become cells of the
++    /// declaring class with unknown contents, shared by its method bodies; a
++    /// formal of the same name keeps its own slot. A body no single class
++    /// definition holds (an `oo::objdefine` method, a redefined class) is left
++    /// as it was.
++    pub(super) fn seed_declared_receiver_variables(&mut self, body: &super::DeferredSourceBody) {
++        if !body.receiver_method {
++            return;
++        }
++        let declared = body.executed_script.as_ref().and_then(|(_, _, source)| {
++            let mut owners = self.class_definitions.iter().filter(|(_, definition)| {
++                definition
++                    .receiver_method_entries
++                    .iter()
++                    .any(|((receiver, _), entry)| {
++                        *receiver == super::deferred_method::SourceMethodReceiver::Instance
++                            && entry.body() == source
++                    })
++                    || [&definition.constructor_entry, &definition.destructor_entry]
++                        .into_iter()
++                        .flatten()
++                        .any(|entry| entry.body() == source)
++            });
++            let (identity, definition) = owners.next()?;
++            owners.next().is_none().then_some(())?;
++            let names = definition
++                .instance_variables
++                .as_ref()?
++                .declarations()
++                .iter()
++                .map(|input| std::str::from_utf8(input.bytes()).map(str::to_owned))
++                .collect::<Result<Vec<_>, _>>()
++                .ok()?;
++            Some((
++                format!("{}@{}", identity.origin, identity.declaration),
++                names,
++            ))
++        });
++        let Some((owner, names)) = declared else {
++            return;
++        };
++        let variables = Arc::make_mut(&mut self.source_variables);
++        variables.instance_vars = names
++            .into_iter()
++            .filter(|name| !body.parameters.iter().any(|formal| formal.name == *name))
++            .collect();
++        variables.instance_owner = owner;
++    }
++
+     /// A fresh receiver's private namespace contains only its stock dispatcher.
+     /// Its authored helper path precedes global lookup. No namespace name is
+     /// invented; mutation of the receiver-local command world revokes this route.
+diff --git a/rust/tcl-compiler/src/lowering/mod.rs b/rust/tcl-compiler/src/lowering/mod.rs
+index 542fe945..88eca69a 100644
+--- a/rust/tcl-compiler/src/lowering/mod.rs
++++ b/rust/tcl-compiler/src/lowering/mod.rs
+@@ -6524,13 +6524,21 @@ impl<'r> Lowerer<'r> {
+         let surface = Some(context.context().authoring_query());
+         // Argument layout comes from the grammar: which relative index (0-
+         // based after the keyword) is the body / name / parameter list.
+-        let Some(body_rel) = self
+-            .source_member_body_indices(call.grammar, kw, seg, base)
+-            .and_then(|indices| indices.into_iter().find(|&index| index < args.len()))
++        let Some(body_indices) = self.source_member_body_indices(call.grammar, kw, seg, base)
+         else {
+             self.module.oo_evidence.unretained_executable_roots = true;
+             return;
+         };
++        let Some(body_rel) = body_indices
++            .iter()
++            .copied()
++            .find(|&index| index < args.len())
++        else {
++            // A member whose layout has no body word (`variable`,
++            // `superclass`) is no executable root.
++            self.module.oo_evidence.unretained_executable_roots |= !body_indices.is_empty();
++            return;
++        };
+         let kind = match frame {
+             MemberFrame::Opens(kind) => kind,
+             MemberFrame::NoFrame => {
+diff --git a/rust/tcl-compiler/tests/it_4/analyser.rs b/rust/tcl-compiler/tests/it_4/analyser.rs
+index bccc30e1..94889fa3 100644
+--- a/rust/tcl-compiler/tests/it_4/analyser.rs
++++ b/rust/tcl-compiler/tests/it_4/analyser.rs
+@@ -4662,6 +4662,88 @@ mod report_scoped_commands {
+ //   `method $m {*}[info class definition ::Base $m]` are equally real but
+ //   carry no statically-knowable element list.
+ // * `set ns tc; ${ns}::setdef …` dispatches to `::tc::setdef`.
++mod method_bodies {
++    use super::*;
++
++    const RELEASES: [&str; 3] = ["tcl8.6", "tcl9.0", "tcl9.1"];
++
++    /// The `(code, variable)` pairs of the variable-lifecycle diagnostics.
++    fn variable_diagnostics(src: &str, release: &str) -> Vec<(String, String)> {
++        let mut found: Vec<(String, String)> = analyser_diags(src, release)
++            .into_iter()
++            .filter(|(code, _, _)| matches!(code.as_str(), "W210" | "W211" | "W220"))
++            .map(|(code, message, _)| {
++                let variable = message.split('\'').nth(1).unwrap_or_default().to_owned();
++                (code, variable)
++            })
++            .collect();
++        found.sort();
++        found
++    }
++
++    #[test]
++    fn a_class_variable_is_object_state_in_every_body_of_its_class() {
++        // A class-level `variable` is linked in every method, constructor
++        // and destructor of the class, and another body may have stored it:
++        // reading it is no defect, storing it is no dead store, and a read
++        // after it is still examined. Each row is the body set of one class
++        // and the diagnostics the release's own interpreter confirms:
++        // tclsh 8.6.18, 9.0.4 and 9.1.0 raise `can't read "other"` from
++        // `Buggy`, `can't read "nope"` from the constructor and
++        // `can't read "gone"` from the destructor, and nothing else.
++        let table: [(&str, &[(&str, &str)]); 3] = [
++            (
++                concat!(
++                    "oo::class create Vector3d {\n",
++                    "    variable _x\n",
++                    "    constructor {x} { ::set _x $x }\n",
++                    "    method DotProduct {other} { ::return [::expr {$_x * $other}] }\n",
++                    "    method Buggy {type} { ::return [::expr {$_x * $other}] }\n",
++                    "}\n",
++                ),
++                &[("W210", "other")],
++            ),
++            (
++                concat!(
++                    "oo::class create K {\n",
++                    "    variable _x\n",
++                    "    constructor {a} { ::set _x $a; ::set tmp $nope }\n",
++                    "    destructor { ::set q $gone; ::set _x }\n",
++                    "}\n",
++                ),
++                &[("W210", "gone"), ("W210", "nope")],
++            ),
++            // The same class once an object is created and the method runs:
++            // the constructor's store reaches the method's read.
++            (
++                concat!(
++                    "oo::class create C {\n",
++                    "    variable _x\n",
++                    "    constructor {} { ::set _x 1 }\n",
++                    "    method m {} { ::return [::expr {$_x * $other}] }\n",
++                    "}\n",
++                    "C create c\n",
++                    "c m\n",
++                ),
++                &[("W210", "other")],
++            ),
++        ];
++        for release in RELEASES {
++            for (src, expected) in table {
++                let expected: Vec<(String, String)> = expected
++                    .iter()
++                    .map(|(code, variable)| ((*code).to_owned(), (*variable).to_owned()))
++                    .collect();
++                assert_eq!(
++                    variable_diagnostics(src, release),
++                    expected,
++                    "{release}: {src}"
++                );
++            }
++        }
++    }
++}
++
+ mod class_factories {
+     use super::*;
+     use tcl_compiler::analyser::{AnalysisResult, ClassDef, MetaclassProvenance};
+-- 
+2.43.0
+
