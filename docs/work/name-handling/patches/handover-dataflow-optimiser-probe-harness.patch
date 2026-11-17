@@ -1,0 +1,227 @@
+diff --git a/rust/tcl-compiler/tests/it_3/main.rs b/rust/tcl-compiler/tests/it_3/main.rs
+index 67a67d04..7efd1d8b 100644
+--- a/rust/tcl-compiler/tests/it_3/main.rs
++++ b/rust/tcl-compiler/tests/it_3/main.rs
+@@ -39,3 +39,4 @@ mod tcl_expr_eval;
+ mod type_propagation;
+ mod var_escape_residual2;
+ mod w210_short_circuit;
++mod zz_probe;
+diff --git a/rust/tcl-compiler/tests/it_3/zz_probe.rs b/rust/tcl-compiler/tests/it_3/zz_probe.rs
+new file mode 100644
+index 00000000..dce01f59
+--- /dev/null
++++ b/rust/tcl-compiler/tests/it_3/zz_probe.rs
+@@ -0,0 +1,212 @@
++// Local probe harness. Not committed.
++use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
++use tcl_registry::model::ingress::static_context_for;
++
++fn dump(fu: &FunctionUnit) {
++    println!("== function {} blocks={}", fu.name, fu.cfg.blocks.len());
++    if let Ok(var) = std::env::var("PROBE_VAR") {
++        println!("  var_symbol({var}) = {:?}", fu.ssa.var_symbol(&var));
++    }
++    let mut values: Vec<String> = fu
++        .sccp
++        .values
++        .iter()
++        .map(|((sym, ver), v)| format!("{}#{ver} = {v:?}", fu.ssa.var_name(*sym)))
++        .collect();
++    values.sort();
++    for v in values {
++        println!("  sccp {}", &v[..v.len().min(200)]);
++    }
++    let mut types: Vec<String> = fu
++        .types
++        .iter()
++        .map(|((sym, ver), t)| format!("{}#{ver} : {t}", fu.ssa.var_name(*sym)))
++        .collect();
++    types.sort();
++    for t in types {
++        println!("  type {t}");
++    }
++    if std::env::var_os("PROBE_WHY").is_some() {
++        for explanation in &fu.sccp.explanations {
++            let text = format!("{explanation:?}");
++            println!("  why {}", &text[..text.len().min(600)]);
++        }
++    }
++    if std::env::var_os("PROBE_CFG").is_some() {
++        for (id, block) in &fu.cfg.blocks {
++            println!("  block {id:?}");
++            for statement in &block.statements {
++                let text = format!("{statement:?}");
++                println!("    {}", &text[..text.len().min(300)]);
++            }
++        }
++    }
++}
++
++#[test]
++fn zz_probe() {
++    let Ok(src) = std::env::var("PROBE_SRC") else {
++        return;
++    };
++    let src = src.replace("\\n", "\n");
++    let profile = std::env::var("PROBE_PROFILE").unwrap_or_default();
++    println!("profile={profile:?} src={src:?}");
++    let owned;
++    let registry = if profile.is_empty() {
++        owned = tcl_registry::CommandRegistry::build_default();
++        &owned
++    } else {
++        static_context_for(&profile).commands()
++    };
++    let cu = if std::env::var_os("PROBE_DIALECT_BUILD").is_some() {
++        CompilationUnit::build_for_dialect(&src, registry, false, &profile)
++    } else {
++        CompilationUnit::build_for(&src, registry, false)
++    };
++    dump(&cu.top_level);
++    for (id, fu) in &cu.procedures {
++        println!("-- id {id:?}");
++        dump(fu);
++    }
++    if std::env::var_os("PROBE_OBJ").is_some() {
++        let mut classes: Vec<_> = tcl_compiler::object_types::object_handle_classes(&cu, registry)
++            .into_iter()
++            .collect();
++        classes.sort_by(|a, b| a.0.cmp(&b.0));
++        println!("  objects {classes:?}");
++        let mut collections: Vec<_> = tcl_compiler::object_types::object_collection_classes(&cu)
++            .into_iter()
++            .collect();
++        collections.sort_by(|a, b| a.0.cmp(&b.0));
++        println!("  collections {collections:?}");
++    }
++    for (id, fu) in &cu.methods {
++        println!("-- method {id:?}");
++        dump(fu);
++    }
++    if std::env::var_os("PROBE_ESC").is_some() {
++        for fu in cu.procedures.values() {
++            let context = fu.invocation_metadata_context(registry);
++            let mut names: Vec<String> =
++                tcl_compiler::var_observability::analyse_var_observability_with_metadata_context(
++                    &fu.cfg, registry, context,
++                )
++                .escaping_var_names()
++                .into_iter()
++                .collect();
++            names.sort();
++            println!("  escaping {} context={} {names:?}", fu.name, context.is_some());
++        }
++    }
++    let dialect = (!profile.is_empty())
++        .then(|| tcl_registry::model::ingress::resolve_environment(&profile).analyser_profile());
++    let opts = tcl_compiler::optimiser::optimise_with_dialect(&src, registry, dialect);
++    for o in &opts {
++        println!(
++            "  opt {} {:?} -> {:?} hint={}",
++            o.code.as_str(),
++            o.span,
++            o.replacement,
++            o.hint_only
++        );
++    }
++    println!(
++        "  optimised: {:?}",
++        tcl_compiler::optimiser::apply_optimisations(&src, &opts)
++    );
++    for w in tcl_compiler::taint::find_taint_warnings_for_cu(&cu, registry, dialect) {
++        println!(
++            "  taint {} var={} sink={}",
++            w.code, w.variable, w.sink_command
++        );
++    }
++}
++
++#[test]
++fn zz_expr() {
++    let Ok(exprs) = std::env::var("PROBE_EXPR") else {
++        return;
++    };
++    let profile = std::env::var("PROBE_PROFILE").unwrap_or_default();
++    for expr in exprs.split(";;") {
++        let value = if profile.is_empty() {
++            tcl_compiler::tcl_expr_eval::eval_tcl_expr(
++                &tcl_compiler::expr_parser::parse_expr(expr, None),
++                &tcl_compiler::Env::new(),
++            )
++        } else {
++            tcl_compiler::tcl_expr_eval::eval_tcl_expr_in_dialect(
++                &tcl_compiler::expr_parser::parse_expr(expr, Some(&profile)),
++                &tcl_compiler::Env::new(),
++                tcl_registry::model::ingress::resolve_environment(&profile).analyser_profile(),
++            )
++        };
++        println!("  expr[{profile}] {expr} => {value:?}");
++    }
++}
++
++#[test]
++fn zz_expr_env() {
++    let Ok(exprs) = std::env::var("PROBE_EXPR_ENV") else {
++        return;
++    };
++    let profile = std::env::var("PROBE_PROFILE").unwrap_or_default();
++    let mut env = tcl_compiler::Env::new();
++    for pair in std::env::var("PROBE_ENV").unwrap_or_default().split(";;") {
++        if let Some((name, value)) = pair.split_once('=') {
++            env.insert(
++                name.to_owned(),
++                tcl_compiler::EnvValue::Str(value.to_owned()),
++            );
++        }
++    }
++    let dialect = tcl_registry::model::ingress::resolve_environment(&profile).analyser_profile();
++    for expr in exprs.split(";;") {
++        let node = tcl_compiler::expr_parser::parse_expr(expr, Some(&profile));
++        let strict = tcl_compiler::tcl_expr_eval::eval_tcl_expr_in_dialect(&node, &env, dialect);
++        let analysed = tcl_compiler::tcl_expr_eval::analyse_tcl_expr_with_resolved_math_bindings(
++            &node,
++            &env,
++            tcl_compiler::tcl_expr_eval::FoldPolicy::for_profile(
++                tcl_compiler::tcl_expr_eval::leading_zero_is_octal(dialect),
++                Some(dialect),
++            ),
++            &|_, _| None,
++            None,
++        );
++        println!(
++            "  exprenv[{profile}] {expr} => strict {strict:?} analysed {:?} coercions {:?}",
++            analysed.as_ref().map(|e| &e.value),
++            analysed.as_ref().map(|e| e.coercions.len())
++        );
++    }
++}
++
++#[test]
++fn zz_bytecode() {
++    let Ok(src) = std::env::var("PROBE_BC") else {
++        return;
++    };
++    let src = src.replace("\\n", "\n");
++    let profile = std::env::var("PROBE_PROFILE").unwrap_or_default();
++    let registry = static_context_for(&profile).commands();
++    let dialect = tcl_registry::model::ingress::resolve_environment(&profile).analyser_profile();
++    let module = tcl_compiler::lowering::lower_script_module_for_bytecode(
++        &src,
++        "::",
++        registry,
++        tcl_lexer::LexerConfig::for_profile(Some(dialect)),
++        Some(dialect),
++        false,
++    );
++    for statement in &module.top_level.statements {
++        let text = format!("{statement:?}");
++        println!("  top {}", &text[..text.len().min(120)]);
++    }
++    for (id, procedure) in &module.procedures {
++        for statement in &procedure.body.statements {
++            let text = format!("{statement:?}");
++            println!("  proc {id:?} {}", &text[..text.len().min(120)]);
++        }
++    }
++}
