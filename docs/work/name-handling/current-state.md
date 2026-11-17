@@ -6,19 +6,19 @@ Updated 15 November 2026. Results apply to their captured source and stated purp
 
 Every hand-written Rust file under `rust/` and `runtime/rust/` is at most 2,000 lines (`docs/work/file-split/README.md`); the split moved items without renaming them, and test paths gained a module, so failing lists are compared by last path segment. The sessions that worked until 16 November were paused for the split and then replaced on the owner's instruction. Each left a hand-over in `docs/work/name-handling/handover/<slug>.md`, its last failing list in `docs/work/name-handling/lists/<slug>-failing-2026-11-16.txt`, and any unfinished work as `docs/work/name-handling/patches/handover-<slug>-*.patch`. The new sessions, their models and how they work together are in `docs/work/name-handling/handover/successors.md`. The area sections below are the outgoing sessions' notes and name pre-split paths; a successor replaces its own section with a current snapshot after its first full run.
 
-## Scoreboard, 17 November 2026, 10:55 UTC
+## Scoreboard, 17 November 2026, 11:55 UTC
 
 Failing tests by area on the restructured tree, from the successor sessions' baselines and first pushes. The start-of-work figure for the whole workspace was about 4,940.
 
 | Area | Failing | Of | Session |
 | --- | --- | --- | --- |
-| `tcl-compiler` (all areas below share this suite) | 2,223 (values 325, class factories 48) | 13,130 | analyser-binding, class-facts, diagnostics, dataflow-optimiser, values, taint, tk-oo |
-| `tcl-lsp-core` library | 518 (semantic tokens 14 of 239) | 3,642 | lsp-features |
+| `tcl-compiler` (all areas below share this suite) | 2,194 (seven of them accepted exposures of the stock-object-type rule) | 13,133 | analyser-binding, class-facts, diagnostics, dataflow-optimiser, values, taint, tk-oo |
+| `tcl-lsp-core` library | 514 (semantic tokens 14 of 239) | 3,642 | lsp-features |
 | `tcl-lsp-server` end to end | 278 (navigation family about 130) | 1,651 | lsp-features (navigation), server-e2e-db |
 | `tcl-lsp-db` | 75 (16 November; not yet re-measured) | 248 | server-e2e-db; the memo tests wait on analysis-performance |
-| Execution (`tcl-codegen`, `tcl-vm`, engines, `tcl-cshim`, `tcl-spec-hooks`) | 310 | 5,482 | execution |
+| Execution (`tcl-codegen`, `tcl-vm`, engines, `tcl-cshim`, `tcl-spec-hooks`) | about 302 | 5,482 | execution; live inlining of pack reference bodies with `live-inlining` |
 | Tooling (17 November on `30783a0e`: `tcl-cli` 40, `tcl-diagram` 14, `tcl-explorer` 13, `tcl-spectcl` 29, `tcl-mcp` 3, `tcl-irules` 3, `tcl-spec-studio` 3, `tcl-sslictcl` 1, `tcl-registry` 1; plus 4 `rule_declaration` tests in `tcl-compiler`; list `lists/irules-registry-tooling-failing-2026-11-17.txt`) | 104 | | tooling |
-| Server end to end, `irules`, `spec_packs`, `sslictcl`, `jim` groups (within the 319 above) | 33 | 131 | tooling |
+| Server end to end, `irules`, `spec_packs`, `sslictcl`, `jim` groups (within the server row above) | 32 | 131 | irules-registry-tooling |
 | `tcl-lexer`, `tcl-syntax`, `tcl-core-types`, `tcl-dialect` | 0 | 2,005 | no session; the coordinator rules |
 | `xtask` (38 drift gates) | 0 | | coordinator |
 
