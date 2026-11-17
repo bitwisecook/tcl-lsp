@@ -305,6 +305,11 @@ pub struct Instruction {
     /// It remains valid through its continuation even if an argument replaces
     /// or removes the callable that supplied the compiler hook.
     pub native_compiler_selection: Option<NativeCompilerSelectionSite>,
+    /// Compiler selections of commands nested in this instruction's command
+    /// that start on the same instruction, where C's `INST_START_CMD` counts
+    /// them together. They are checked with this instruction's own selection,
+    /// and when any fails the whole outermost command is replayed.
+    pub joined_compiler_selections: Vec<NativeCompilerSelectionSite>,
     /// Selected stock operations guard their actual prerequisites before argv.
     /// Several nested operations may share their first operand instruction.
     pub native_operation_selections: Vec<NativeOperationSelectionSite>,
@@ -367,6 +372,19 @@ pub struct ReleaseCompiled {
 }
 
 impl Instruction {
+    /// This instruction's own compiler selection and those joined to it.
+    pub fn native_compiler_selections(&self) -> impl Iterator<Item = &NativeCompilerSelectionSite> {
+        self.native_compiler_selection
+            .iter()
+            .chain(&self.joined_compiler_selections)
+    }
+
+    /// Whether any compiler selection is made on this instruction.
+    #[must_use]
+    pub fn selects_native_compiler(&self) -> bool {
+        self.native_compiler_selection.is_some() || !self.joined_compiler_selections.is_empty()
+    }
+
     /// Original command namespace for transparent stale-command replay.
     #[must_use]
     pub fn source_namespace_context(&self) -> tcl_runtime_api::CompiledNamespaceContext {
@@ -422,6 +440,7 @@ impl Instruction {
             release_body_entry: None,
             entered_command: None,
             native_compiler_selection: None,
+            joined_compiler_selections: Vec::new(),
             native_operation_selections: Vec::new(),
             catch_target: None,
             catch_start: None,

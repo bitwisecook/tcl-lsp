@@ -150,10 +150,9 @@ impl Vm {
                 parent.map_or(0, |frame| frame.procedure_level) + u32::from(frame.is_proc);
             self.jim_errors.stack.mark_reset();
         }
-        for required in frame.asm.instructions.iter().filter_map(|instruction| {
+        for required in frame.asm.instructions.iter().flat_map(|instruction| {
             instruction
-                .native_compiler_selection
-                .as_ref()
+                .native_compiler_selections()
                 .map(|site| &site.prerequisite)
         }) {
             if required.guard() == tcl_runtime_api::CommandBindingGuard::ChunkEntry

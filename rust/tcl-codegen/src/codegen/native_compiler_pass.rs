@@ -122,7 +122,9 @@ pub(super) fn omit_command_markers(ctx: &mut CodegenCtx<'_>) {
 ///
 /// A marker that C omits gives its replay metadata to the next instruction,
 /// which the VM checks as the same source boundary. Where that instruction
-/// already owns another command's metadata the marker stays.
+/// already owns another command's metadata the marker stays. A nested
+/// command's selection that starts on a marker joins it, and the marker's
+/// count grows, so a stale one replays the outermost command as C's does.
 pub(super) fn place_command_starts(ctx: &mut CodegenCtx<'_>) {
     collapse_repeated_starts(ctx);
     let revalidates = ctx
@@ -164,6 +166,16 @@ pub(super) fn place_command_starts(ctx: &mut CodegenCtx<'_>) {
                 .native_operation_selections
                 .is_empty();
         if !covered && !receives_marker(&ctx.instructions, index) {
+            if merged && joins_previous(&ctx.instructions, index) {
+                let marker = ctx.instructions.remove(index);
+                for position in ctx.label_positions.values_mut() {
+                    if *position > index {
+                        *position -= 1;
+                    }
+                }
+                join_start(marker, &mut ctx.instructions[index - 1]);
+                continue;
+            }
             if selection && !ctx.compact_compiler_pass && index > 0 && !follows_start {
                 materialise_start(&mut ctx.instructions[index]);
             }
@@ -300,6 +312,42 @@ fn receives_marker(instructions: &[tcl_bytecode::Instruction], index: usize) -> 
         && next.source_command_namespace_context == marker.source_command_namespace_context
 }
 
+/// Whether the selection at `index` belongs to a command nested in the
+/// command whose marker precedes it, so C's one `INST_START_CMD` counts both.
+fn joins_previous(instructions: &[tcl_bytecode::Instruction], index: usize) -> bool {
+    let marker = &instructions[index];
+    let host = &instructions[index - 1];
+    marker.native_compiler_selection.is_some()
+        && marker.entered_command.is_none()
+        && marker.completion_option_scope.is_none()
+        && marker.source_cmd_text != host.source_cmd_text
+        && nests_in(host, marker)
+}
+
+fn nests_in(outer: &tcl_bytecode::Instruction, inner: &tcl_bytecode::Instruction) -> bool {
+    outer
+        .source_span
+        .zip(inner.source_span)
+        .is_some_and(|(outer, inner)| outer.start() <= inner.start() && inner.end() <= outer.end())
+}
+
+/// Fold a nested command's selection into the marker it starts with. The
+/// host's own operation selections stay first, so the outermost is checked
+/// first.
+fn join_start(mut marker: tcl_bytecode::Instruction, host: &mut tcl_bytecode::Instruction) {
+    let count = start_count(&marker);
+    if let Some(Operand::Imm(previous)) = host.operands.get_mut(1) {
+        *previous += count;
+    }
+    host.native_operation_selections
+        .append(&mut marker.native_operation_selections);
+    host.joined_compiler_selections
+        .extend(marker.native_compiler_selection);
+    host.joined_compiler_selections
+        .append(&mut marker.joined_compiler_selections);
+    host.no_fold |= marker.no_fold;
+}
+
 fn give_marker(mut marker: tcl_bytecode::Instruction, next: &mut tcl_bytecode::Instruction) {
     marker
         .native_operation_selections
@@ -308,6 +356,8 @@ fn give_marker(mut marker: tcl_bytecode::Instruction, next: &mut tcl_bytecode::I
     if marker.native_compiler_selection.is_some() {
         next.native_compiler_selection = marker.native_compiler_selection;
     }
+    next.joined_compiler_selections
+        .append(&mut marker.joined_compiler_selections);
     if marker.entered_command.is_some() {
         next.entered_command = marker.entered_command;
     }

@@ -302,6 +302,7 @@ fn instruction_is_closed(instruction: &Instruction, body: bool) -> bool {
         release_body_entry,
         entered_command,
         native_compiler_selection,
+        joined_compiler_selections,
         native_operation_selections,
         catch_target,
         catch_start,
@@ -344,6 +345,7 @@ fn instruction_is_closed(instruction: &Instruction, body: bool) -> bool {
         && release_body_entry.is_none()
         && entered_command.is_none()
         && native_compiler_selection.is_none()
+        && joined_compiler_selections.is_empty()
         && native_operation_selections.is_empty()
         && catch_target.is_none()
         && catch_start.is_none()

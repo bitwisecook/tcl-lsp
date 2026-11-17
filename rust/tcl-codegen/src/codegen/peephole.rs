@@ -238,7 +238,7 @@ impl CodegenCtx<'_> {
         while i < self.instructions.len() {
             let is_empty = self.instructions[i].op == Op::START_CMD
                 && self.instructions[i].native_operation_selections.is_empty()
-                && self.instructions[i].native_compiler_selection.is_none()
+                && !self.instructions[i].selects_native_compiler()
                 && self.instructions[i].entered_command.is_none()
                 && self.instructions[i]
                     .operands

@@ -222,7 +222,7 @@ impl Vm {
                     };
                     let discard = asm.instructions.get(f.pc).is_some_and(|next| {
                         next.op == Op::POP
-                            && next.native_compiler_selection.is_none()
+                            && !next.selects_native_compiler()
                             && next.native_operation_selections.is_empty()
                             && !next.source_command_boundary.is_start()
                             && next.completion_option_scope.is_none()
