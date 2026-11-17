@@ -235,7 +235,7 @@ impl NavigationVariable<'_> {
             Self::Original(occurrence) => hover_text(analysis, occurrence),
             Self::LogicalRootSourceReference(_) | Self::NativeRootSourceReference(_) => None,
             Self::Alias(template) => Some(format!(
-                "**Conditional variable alias** `{}` → `{}`\n\nThe original declaration relates these names. Target element, successful alias and binding continuity are unproved.",
+                "**Variable** `{}`\n\nConditional variable alias → `{}`. The original declaration relates these names. Target element, successful alias and binding continuity are unproved.",
                 tcl_syntax::native_string::resident_name_label(template.local_name().as_bytes()),
                 tcl_syntax::native_string::resident_name_label(
                     template.target_name_input().bytes()
