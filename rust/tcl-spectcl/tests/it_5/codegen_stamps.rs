@@ -58,6 +58,7 @@ use tcl_runtime_api::{
 use tcl_spectcl::PackSet;
 use tcl_vm::{Code, CompileService, Vm};
 
+mod live_differential;
 mod reference_bodies;
 mod splice_matrix;
 mod spliced_bodies;
@@ -97,6 +98,9 @@ fn fixture_procedure<'a>(
 struct PlainCounting {
     inner: BytecodeCompileService,
     plain: Rc<Cell<usize>>,
+    /// The pack definitions the VM's own optimised compiles of procedure
+    /// bodies spliced in: the procedure bindings those functions record.
+    spliced: Rc<Cell<usize>>,
     /// What every reference-body claim of an optimised compile is rewritten to
     /// state, for a service that stands in for a compiler that made a claim
     /// the artefact contradicts.
@@ -124,13 +128,25 @@ impl PlainCounting {
         inner: BytecodeCompileService,
         forged: Option<Forgery>,
     ) -> Rc<Cell<usize>> {
+        Self::installed_counting(vm, inner, forged).0
+    }
+
+    /// [`Self::installed_with`], with the count of definitions the VM's own
+    /// compiles spliced in as well.
+    fn installed_counting(
+        vm: &mut Vm,
+        inner: BytecodeCompileService,
+        forged: Option<Forgery>,
+    ) -> (Rc<Cell<usize>>, Rc<Cell<usize>>) {
         let plain = Rc::new(Cell::new(0));
+        let spliced = Rc::new(Cell::new(0));
         vm.set_compiler(Box::new(Self {
             inner,
             plain: Rc::clone(&plain),
+            spliced: Rc::clone(&spliced),
             forged,
         }));
-        plain
+        (plain, spliced)
     }
 
     fn count(&self) {
@@ -352,6 +368,10 @@ impl CompileService for PlainCounting {
         }
         self.inner
             .compile_procedure_bytes_with_entry(target, profile, entry, dispatch)
+            .inspect(|module| {
+                self.spliced
+                    .set(self.spliced.get() + module.top_level_body.procedure_bindings.len());
+            })
             .map(|module| self.forge(module))
     }
 
@@ -561,13 +581,15 @@ fn bodies_pack(commands: &[(&str, usize, &str)]) -> String {
     pack
 }
 
-/// What a script answered, and how many plain recompiles the VM asked for: none
-/// when the inlined function ran as compiled.
+/// What a script answered, how many plain recompiles the VM asked for (none
+/// when the inlined function ran as compiled), and how many pack definitions
+/// the VM's own compiles of procedure bodies spliced in.
 #[derive(Debug, PartialEq, Eq)]
 struct Outcome {
     code: Code,
     answer: String,
     plain: usize,
+    spliced: usize,
 }
 
 /// A pack of procedure-backed commands, loaded.
@@ -602,19 +624,28 @@ impl Spliced {
     /// bodies and which holds the pack's facts.
     fn inlined(&self, setup: &[&str], script: &str) -> Outcome {
         let mut vm = vm_for_overlay();
-        let plain = PlainCounting::installed_with(&mut vm, service_for(&self.set), None);
+        let (plain, spliced) =
+            PlainCounting::installed_counting(&mut vm, service_for(&self.set), None);
         vm.set_pack_facts(facts(&self.set));
-        self.drive(&mut vm, &plain, setup, script)
+        self.drive(&mut vm, &plain, &spliced, setup, script)
     }
 
     /// The same run with nothing inlined: what the call means.
     fn reference(&self, setup: &[&str], script: &str) -> Outcome {
         let mut vm = vm_for_overlay();
-        let plain = PlainCounting::installed_on(&mut vm);
-        self.drive(&mut vm, &plain, setup, script)
+        let (plain, spliced) =
+            PlainCounting::installed_counting(&mut vm, BytecodeCompileService::default(), None);
+        self.drive(&mut vm, &plain, &spliced, setup, script)
     }
 
-    fn drive(&self, vm: &mut Vm, plain: &Rc<Cell<usize>>, setup: &[&str], script: &str) -> Outcome {
+    fn drive(
+        &self,
+        vm: &mut Vm,
+        plain: &Rc<Cell<usize>>,
+        spliced: &Rc<Cell<usize>>,
+        setup: &[&str],
+        script: &str,
+    ) -> Outcome {
         for source in self
             .prelude
             .iter()
@@ -635,6 +666,7 @@ impl Spliced {
             code: completion.code,
             answer: completion.result.to_str().to_string(),
             plain: plain.get(),
+            spliced: spliced.get(),
         }
     }
 

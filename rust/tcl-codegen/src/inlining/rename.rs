@@ -93,6 +93,25 @@ fn rewrite_script_in(script: &Script, rename: &Rename<'_>) -> Script {
     }
 }
 
+/// A variable reference as written (`$x`, `${x}`, `$a($i)`) with `names`
+/// applied, as the splice renames the reads of the body it rewrites.
+pub(super) fn rename_reference(
+    spelling: &str,
+    names: &HashMap<String, String>,
+    config: tcl_lexer::LexerConfig,
+) -> String {
+    rewrite_value_string(spelling, &Rename { names, config })
+}
+
+/// A name a command writes with `names` applied, as the splice renames it.
+pub(super) fn rename_written(
+    name: &str,
+    names: &HashMap<String, String>,
+    config: tcl_lexer::LexerConfig,
+) -> String {
+    rename_var_name(name, &Rename { names, config })
+}
+
 /// Apply `rename` to a variable-name field, handling array-element
 /// references. For `arr(idx)` shapes the array base carries the binding
 /// identity and the `(idx)` suffix is a substituted context whose own `$var`

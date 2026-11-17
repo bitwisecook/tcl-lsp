@@ -20,6 +20,40 @@
 
 use super::*;
 
+/// A body the splice renames nothing in, spliced by the VM's own compile of
+/// its caller under the live native entry: the spliced `expr` keeps the native
+/// selection the runtime replays, so the function runs as compiled where the
+/// pack's facts are held, and is refused and recompiled plain where they are not.
+#[test]
+fn a_body_with_nothing_to_rename_is_spliced_by_the_live_compile() {
+    let pack = Spliced::new(
+        "splice-live-verbatim",
+        &[("vthree", 0, "proc vthree {} {expr {1 + 2}}")],
+    );
+    let caller = "proc caller {} {vthree}";
+    assert_eq!(
+        pack.inlined(&[caller], "caller"),
+        Outcome {
+            code: Code::Ok,
+            answer: "3".to_owned(),
+            plain: 0,
+            spliced: 1
+        }
+    );
+    let mut vm = vm_for_overlay();
+    let (plain, spliced) = PlainCounting::installed_counting(&mut vm, service_for(&pack.set), None);
+    assert_eq!(
+        pack.drive(&mut vm, &plain, &spliced, &[caller], "caller"),
+        Outcome {
+            code: Code::Ok,
+            answer: "3".to_owned(),
+            plain: 1,
+            spliced: 1
+        },
+        "no facts held: refused, recompiled plain"
+    );
+}
+
 /// A body with a `return` before its end, spliced where its value is the
 /// procedure's own, answers the value it returned.
 #[test]
@@ -47,7 +81,8 @@ fn a_body_with_a_return_before_its_end_answers_through_the_splice() {
             Outcome {
                 code: Code::Ok,
                 answer: answer.to_owned(),
-                plain: 0
+                plain: 0,
+                spliced: 0
             },
             "{script}"
         );
@@ -72,7 +107,8 @@ fn an_inlined_body_inside_a_static_eval_keeps_its_value() {
             Outcome {
                 code: Code::Ok,
                 answer: answer.to_owned(),
-                plain: 0
+                plain: 0,
+                spliced: 0
             },
             "{script}"
         );
@@ -99,7 +135,8 @@ fn an_inlined_body_resolves_the_commands_it_calls_as_its_definition_did() {
         Outcome {
             code: Code::Ok,
             answer: "3".to_owned(),
-            plain: 0
+            plain: 0,
+            spliced: 0
         }
     );
     // The shadow is made after the caller was compiled, which no compile can see.
@@ -154,7 +191,8 @@ fn a_body_that_substitutes_a_command_is_not_given_the_callers_namespace_to_resol
             Outcome {
                 code: Code::Ok,
                 answer: answer.to_owned(),
-                plain: 0
+                plain: 0,
+                spliced: 0
             },
             "{name}"
         );
@@ -205,7 +243,8 @@ fn an_inlined_body_reads_only_what_its_definition_binds() {
             Outcome {
                 code,
                 answer: answer.to_owned(),
-                plain: 0
+                plain: 0,
+                spliced: 0
             },
             "{script}"
         );
@@ -229,7 +268,11 @@ fn a_braced_word_in_an_inlined_body_stays_literal() {
             ),
         ],
     );
-    for (name, answer, inlined) in [("vlit", "2", 1), ("vbrace", "$x", 1), ("vnested", "2", 0)] {
+    for (name, answer, inlined, live) in [
+        ("vlit", "2", 1, 1),
+        ("vbrace", "$x", 1, 1),
+        ("vnested", "2", 0, 0),
+    ] {
         let caller = format!("proc caller {{n}} {{{name} $n}}");
         assert_eq!(pack.bindings(&caller, "::caller"), inlined, "{name}");
         assert_eq!(
@@ -237,7 +280,8 @@ fn a_braced_word_in_an_inlined_body_stays_literal() {
             Outcome {
                 code: Code::Ok,
                 answer: answer.to_owned(),
-                plain: 0
+                plain: 0,
+                spliced: live
             },
             "{name}"
         );
@@ -278,7 +322,8 @@ fn a_body_that_reads_through_an_operand_kept_as_text_stays_a_call() {
             Outcome {
                 code: Code::Ok,
                 answer: answer.to_owned(),
-                plain: 0
+                plain: 0,
+                spliced: 0
             },
             "{name}"
         );
@@ -420,7 +465,8 @@ fn an_inlined_body_in_an_lmap_body_gives_the_list_each_iterations_value() {
             Outcome {
                 code: Code::Ok,
                 answer: answer.to_owned(),
-                plain: 0
+                plain: 0,
+                spliced: 0
             },
             "{label}"
         );
@@ -472,7 +518,8 @@ pub(super) fn a_braced_literal_stays_literal_through_the_wrap() {
             Outcome {
                 code: Code::Ok,
                 answer: answer.to_owned(),
-                plain: 0
+                plain: 0,
+                spliced: 0
             },
             "{name}"
         );
@@ -526,7 +573,8 @@ fn a_definition_in_a_namespace_resolves_its_commands_as_it_did() {
                 Outcome {
                     code: Code::Ok,
                     answer: answer.to_owned(),
-                    plain: 0
+                    plain: 0,
+                    spliced: 0
                 },
                 "{call} with {setup:?}"
             );
@@ -561,7 +609,8 @@ fn a_definition_in_a_namespace_resolves_its_commands_as_it_did() {
         Outcome {
             code: Code::Ok,
             answer: "3".to_owned(),
-            plain: 0
+            plain: 0,
+            spliced: 1
         }
     );
 }
@@ -601,7 +650,8 @@ fn a_variable_a_substituted_command_names_is_the_definitions_own() {
             Outcome {
                 code: Code::Ok,
                 answer: answer.to_owned(),
-                plain: 0
+                plain: 0,
+                spliced: 0
             },
             "{name}"
         );
@@ -645,7 +695,8 @@ fn a_call_whose_body_is_a_branch_is_not_given_the_value_of_an_arm() {
             Outcome {
                 code: Code::Ok,
                 answer: "pos".to_owned(),
-                plain: 0
+                plain: 0,
+                spliced: 0
             },
             "{label}"
         );
