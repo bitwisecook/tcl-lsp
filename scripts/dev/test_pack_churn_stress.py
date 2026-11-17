@@ -118,3 +118,12 @@ def test_proc_sample_delta() -> None:
 def test_parse_args_rejects_a_zero_rss_interval() -> None:
     with pytest.raises(SystemExit):
         churn.parse_args(["--rss-every", "0"])
+
+
+def test_reopen_batch_is_seeded_and_bounded(tmp_path: Path) -> None:
+    docs = [tmp_path / f"{n}.tcl" for n in range(5)]
+    first = churn.reopen_batch(docs, 3, churn.random.Random(7))
+    assert first == churn.reopen_batch(docs, 3, churn.random.Random(7))
+    assert len(set(first)) == 3
+    assert set(first) <= set(docs)
+    assert sorted(churn.reopen_batch(docs, 9, churn.random.Random(7))) == docs
