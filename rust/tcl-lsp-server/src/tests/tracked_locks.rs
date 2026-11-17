@@ -221,8 +221,8 @@ async fn the_workspace_index_clause_names_holders_phases_and_waiters() {
     assert!(
         clause.contains("held for write by ")
             && clause.contains("`publish_diagnostics_result: replace_document`")
-            && clause.contains("lib.rs:"),
-        "a writer is named with its site and phase: {clause}",
+            && clause.contains("tracked_locks.rs:"),
+        "a writer is named with the call site that took the lock, and its phase: {clause}",
     );
 
     let (queued_tx, queued_rx) = tokio::sync::oneshot::channel();
