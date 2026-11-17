@@ -210,13 +210,24 @@ def import_client() -> Any:
     return lsp_client
 
 
-def make_client_class(lsp_client: Any) -> type:
+def make_client_class(lsp_client: Any, settings: dict | None = None) -> type:
     class SerialisedClient(lsp_client.LspClient):
         """Serialises writes: the probe thread and the churn loop both send."""
 
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             super().__init__(*args, **kwargs)
             self._send_lock = threading.Lock()
+
+        def _answer_server_request(
+            self, method: str, request_id: int, params: dict | None
+        ) -> None:
+            if settings is None or method != "workspace/configuration":
+                super()._answer_server_request(method, request_id, params)
+                return
+            items = len((params or {}).get("items", [])) or 1
+            self._send(
+                {"jsonrpc": "2.0", "id": request_id, "result": [settings] * items}
+            )
 
         def _send(self, data: dict, timeout: float = 30.0) -> None:
             with self._send_lock:
@@ -355,6 +366,14 @@ def reopen_batch(documents: list[Path], count: int, rng: random.Random) -> list[
     return rng.sample(documents, min(count, len(documents)))
 
 
+def close_all(client: Any, lsp_client: Any, paths: list[Path]) -> None:
+    for path in paths:
+        client.send_notification(
+            "textDocument/didClose",
+            {"textDocument": {"uri": lsp_client.document_uri(str(path))}},
+        )
+
+
 def reopen(client: Any, lsp_client: Any, paths: list[Path]) -> None:
     for path in paths:
         client.send_notification(
@@ -373,7 +392,7 @@ def run(args: argparse.Namespace) -> int:
     workspace = prepare_workspace(args.fixture, workdir)
     documents = select_documents(workspace, args.max_bytes)[: args.max_documents]
     server = lsp_client.find_native_server(args.server_bin)
-    client = make_client_class(lsp_client)(str(workspace), [server])
+    client = make_client_class(lsp_client, args.settings)(str(workspace), [server])
     client.start()
     pid = client.process.pid
     log(
@@ -432,6 +451,10 @@ def run(args: argparse.Namespace) -> int:
             measure_rss(
                 pid, log, args.rounds, args.malloc_trim, probe, args.memory_command
             )
+        if args.close_at_end and probe.wedged_at is None:
+            close_all(client, lsp_client, documents)
+            time.sleep(args.settle)
+            measure_rss(pid, log, -1, True, probe, args.memory_command)
         if probe.wedged_at is None and prober.is_alive():
             # A wedge late in the last interval still counts.
             prober.join(timeout=args.probe_interval * 2)
@@ -481,6 +504,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--memory-command",
         help="a workspace/executeCommand whose reply is logged before each RSS reading",
+    )
+    parser.add_argument(
+        "--close-at-end",
+        action="store_true",
+        help="close every document, wait --settle seconds, then trim and measure (round -1)",
+    )
+    parser.add_argument("--settle", type=float, default=30.0)
+    parser.add_argument(
+        "--settings",
+        type=json.loads,
+        default=None,
+        help="tclLsp settings object answered to workspace/configuration",
     )
     parser.add_argument("--min-interval", type=float, default=1.0)
     parser.add_argument("--max-interval", type=float, default=2.0)
