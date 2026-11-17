@@ -206,4 +206,4 @@ Updated at the hourly check from the ledgers on `work`.
 | execution | 264 (23 routed to live-inlining) | 264, complete (KEEP-ORACLE 109, KEEP-CONTRACT 56, MERGE 49, REWRITE 33, RETIRE 8, FIX-EXPECTATION 4, FIX-FIXTURE 3, KEEP-F5 2) | signed off 21:20 UTC, after the receipt-ordering retirements were redone test by test (26 back to KEEP-CONTRACT) |
 | irules-registry-tooling | 151 | 151, complete (KEEP-F5 48, KEEP-CONTRACT 47, KEEP-ORACLE 40, MERGE 15, FIX-FIXTURE 1); BIG-IP checks TS-01 to TS-10 | signed off 21:00 UTC |
 | tk-oo | 60 | 0 | |
-| live-inlining | 29 (23 inliner tests routed from execution) | 23 routed rows, unread | |
+| live-inlining | 29 | 29, complete (REWRITE 13, KEEP-CONTRACT 8, FIX-EXPECTATION 4, KEEP-ORACLE 2, FIX-FIXTURE 1, MERGE 1); the splice matrix (1,449 VM pairs, 20 minutes) to become 142 cells holding the same shapes | signed off 21:45 UTC |
