@@ -141,10 +141,27 @@ fn catch_body_set_escapes_touched_name() {
 
 #[test]
 fn catch_body_incr_escapes_counter() {
-    let r = cfg_result("catch {incr n 2}");
+    // The opaque catch body escapes every name it writes, as for `set` above.
+    let r = opaque_catch_result("catch {incr n 2}");
     assert!(
         is_frame(&r, "n"),
         "catch'd incr escapes n: {:?}",
+        r.name_tags
+    );
+}
+
+#[test]
+fn a_flattened_top_level_catch_incr_is_a_local_increment() {
+    // A unit flattens a literal top-level `catch {incr n 2}` to a typed
+    // increment of a top-level name, which escapes nothing. tclsh:
+    // `puts [list [catch {incr n 2} m] [info exists n] $m]` prints
+    // `1 0 {can't read "n": no such variable}` on 8.4.20 (the absent cell
+    // raises and is caught) and `0 1 2` on 8.5.19, 8.6.18, 9.0.4 and 9.1.0.
+    let r = cfg_result("catch {incr n 2}");
+    assert_eq!(
+        r.name_tags.get("n").copied().unwrap_or(EscapeTag::Local),
+        EscapeTag::Local,
+        "{:?}",
         r.name_tags
     );
 }
