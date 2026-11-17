@@ -877,3 +877,28 @@ fn written_component_extents_share_segmentation_and_preserve_original_byte_geome
         );
     }
 }
+
+/// A computed neighbour can lengthen an edge separator run but cannot join a
+/// component across one: tclsh 8.4.20 and 9.0.4 create
+/// `::other::mypkg::version` for `set ::other::$n 2` with n `::mypkg::version`,
+/// `mypkg::version` or `:::mypkg::version`.
+#[test]
+fn written_fragments_fix_only_components_their_own_separators_bound() {
+    type Case<'a> = (&'a [u8], bool, &'a [&'a [u8]], Option<&'a [u8]>);
+    let cases: [Case<'_>; 8] = [
+        (b"::other::", true, &[b"other"], Some(b"")),
+        (b"::other:", true, &[], Some(b"other:")),
+        (b":::a::b:::", true, &[b"a", b"b"], Some(b"")),
+        (b"::my", true, &[], Some(b"my")),
+        (b"::counter", true, &[], Some(b"counter")),
+        (b"x::counter", false, &[b"x"], Some(b"counter")),
+        (b"ver", false, &[], None),
+        (b"other::", false, &[b"other"], Some(b"")),
+    ];
+    for (fragment, rooted, closed, tail) in cases {
+        let parts = super::written_fragment_components(fragment);
+        assert_eq!(parts.rooted, rooted, "{fragment:?}");
+        assert_eq!(parts.closed, closed, "{fragment:?}");
+        assert_eq!(parts.tail_after_separator, tail, "{fragment:?}");
+    }
+}

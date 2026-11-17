@@ -109,9 +109,10 @@ pub use variable_references::{
     whole_variable_reference_literal_name,
 };
 pub use written_names::{
-    WrittenCommandParts, ends_with_separator, is_absolute, is_absolute_bytes, is_qualified,
-    qualifier_component_extents, qualifier_segments, qualifier_segments_owned,
-    written_command_parts, written_command_tail, written_separator_extent,
+    WrittenCommandParts, WrittenFragmentComponents, ends_with_separator, is_absolute,
+    is_absolute_bytes, is_qualified, qualifier_component_extents, qualifier_segments,
+    qualifier_segments_owned, written_command_parts, written_command_tail,
+    written_fragment_components, written_separator_extent,
 };
 
 /// Literal namespace-prefix tail for conditional authoring hints.
