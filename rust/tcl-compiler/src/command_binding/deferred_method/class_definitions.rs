@@ -469,29 +469,16 @@ impl ModuleCommandBindings {
         );
         Some(created.clone())
     }
-    /// The class definition a closed class configuration leaves: the receipt
-    /// from before it, with the instance methods it declares added. A
-    /// configuration that declares anything else (a variable, a lifecycle
-    /// body, a forward, a relation, a class method) leaves the class with no
-    /// retained definition, as an opaque configuration does.
-    pub(in super::super) fn retain_configured_class_definition(
-        &mut self,
+    /// The instance methods a closed class configuration adds, when that is
+    /// all it does: no other member, no redefinition, and no method the
+    /// grammar dispatches every unmatched name to.
+    fn configured_class_methods(
+        &self,
         configuration: &super::super::closed_class_configuration::ClosedClassConfiguration,
         context: SourceExecutionContext<'_>,
-    ) {
-        // The definer's declared transition taints every class when its
-        // operand is not an exact literal; this configuration changed the one
-        // class below and nothing else.
-        if !configuration.tainted_all {
-            Arc::make_mut(&mut self.tainted_object_dispatch).remove("*");
-        }
-        let Some(identity) = configuration.class.identity.clone() else {
-            return;
-        };
+    ) -> Option<RetainedClassEntries> {
         let definition = &configuration.body;
-        let Ok(text) = definition.text.try_text() else {
-            return;
-        };
+        let text = definition.text.try_text().ok()?;
         let declares_methods =
             super::super::module_bindings::definition_body_command_tokens(text, context.config)
                 .all(|words| {
@@ -509,24 +496,19 @@ impl ModuleCommandBindings {
                     })
                 });
         if !declares_methods {
-            return;
+            return None;
         }
         let map =
             tcl_lexer::SourceMap::from_image(&definition.text).with_base(definition.base(), 0, 0);
-        let Some(segments) = crate::segmenter::segment_commands_image_with_offset_and_config(
+        let segments = crate::segmenter::segment_commands_image_with_offset_and_config(
             &definition.text,
             definition.base(),
             context.config,
-        ) else {
-            return;
-        };
-        let Some(policy) = self
+        )?;
+        let policy = self
             .baseline
             .execution_name_policy
-            .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
-        else {
-            return;
-        };
+            .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)?;
         let entries = super::retained_class_entries(
             configuration.grammar,
             definition,
@@ -555,7 +537,20 @@ impl ModuleCommandBindings {
                 });
         // A redefinition replaces a body other classes may inherit or
         // instances may already have dispatched; only new methods are added.
+        // A method the grammar dispatches every unmatched name to leaves the
+        // class's method table no longer bounding its dispatch.
+        let declares_unknown_dispatch =
+            configuration
+                .grammar
+                .unknown_dispatch_method
+                .is_some_and(|name| {
+                    entries
+                        .receiver_method_entries
+                        .keys()
+                        .any(|(_, declared)| declared.as_bytes() == name.as_bytes())
+                });
         if !declares_only_methods
+            || declares_unknown_dispatch
             || entries.receiver_method_entries.keys().any(|key| {
                 configuration
                     .receipt
@@ -563,8 +558,28 @@ impl ModuleCommandBindings {
                     .contains_key(key)
             })
         {
-            return;
+            return None;
         }
+        Some(entries)
+    }
+
+    /// The class definition a closed class configuration leaves: the receipt
+    /// from before it, with the instance methods it declares added. A
+    /// configuration that declares anything else (a variable, a lifecycle
+    /// body, a forward, a relation, a class method) leaves the class with no
+    /// retained definition, as an opaque configuration does. Whether the
+    /// definition was kept.
+    pub(in super::super) fn retain_configured_class_definition(
+        &mut self,
+        configuration: &super::super::closed_class_configuration::ClosedClassConfiguration,
+        context: SourceExecutionContext<'_>,
+    ) -> bool {
+        let Some(identity) = configuration.class.identity.clone() else {
+            return false;
+        };
+        let Some(entries) = self.configured_class_methods(configuration, context) else {
+            return false;
+        };
         // A method table that was not known stays unknown, and so does one
         // this configuration's members leave unknown.
         let mut receipt = configuration.receipt.clone();
@@ -589,8 +604,16 @@ impl ModuleCommandBindings {
         if let Some(bounded) = &configuration.bounded {
             Arc::make_mut(&mut self.bounded_constructions).insert(identity, bounded.clone());
         }
+        // The definer's declared transition taints the configured class, or
+        // every class when its operand is not an exact literal; this
+        // configuration changed the one class above and nothing else.
+        let tainted = Arc::make_mut(&mut self.tainted_object_dispatch);
         if !configuration.tainted {
-            Arc::make_mut(&mut self.tainted_object_dispatch).remove(&configuration.class.command);
+            tainted.remove(&configuration.class.command);
         }
+        if !configuration.tainted_all {
+            tainted.remove("*");
+        }
+        true
     }
 }

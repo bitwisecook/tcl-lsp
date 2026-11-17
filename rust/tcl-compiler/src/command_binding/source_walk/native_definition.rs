@@ -209,9 +209,7 @@ impl SourceCommandBindings {
         let class_transfer = original_class_factory_transfer::OriginalClassFactoryTransfer::capture(
             native, facts, state, context,
         );
-        if class_configuration.is_none() {
-            self.retain_standalone_definition_references(native, facts, state, context);
-        }
+        self.retain_standalone_definition_references(native, facts, state, context);
         let definition = match transfer_native_definition(native, state, context, facts) {
             Ok(definition) => definition,
             Err(crate::raw_binding::StaticCaptureResult::Invalid) => {

@@ -128,15 +128,26 @@ impl SourceCommandBindings {
     }
 
     /// Keep the configured class's definition with the methods it now
-    /// declares, and record those declarations. A method body no call
-    /// reaches stays unentered here, as a body no configuration closed is.
+    /// declares, and record those declarations; a body no call reaches stays
+    /// unentered, as one no configuration closed is. When the definition
+    /// cannot be kept (a redefinition, a member other than a method), the
+    /// declared bodies are walked as deferred roots instead.
     pub(super) fn register_closed_class_configuration(
         &mut self,
         configuration: &ClosedClassConfiguration,
         state: &mut ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
     ) {
-        state.retain_configured_class_definition(configuration, context);
-        self.record_configured_class_method_references(configuration, state, context);
+        if state.retain_configured_class_definition(configuration, context) {
+            self.record_configured_class_method_references(configuration, state, context);
+        } else {
+            self.register_original_method_bodies(
+                configuration.grammar,
+                &configuration.body,
+                state.baseline.dialect,
+                configuration.parameters,
+                context,
+            );
+        }
     }
 }

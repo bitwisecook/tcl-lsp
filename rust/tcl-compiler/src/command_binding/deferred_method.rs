@@ -353,7 +353,7 @@ impl SourceCommandBindings {
                 context,
             )
         });
-        self.record_standalone_definition_method_references(
+        self.replace_standalone_definition_method_references(
             &configuration.class,
             configuration.site.clone(),
             phases,
