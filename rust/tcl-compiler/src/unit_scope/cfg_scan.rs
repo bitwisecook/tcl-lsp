@@ -25,6 +25,21 @@ use super::{CallSiteEvidence, CallSiteScanCtx, CallerFrame, CallerScopeId};
 use crate::cfg::Function as CfgFunction;
 use crate::ir::Statement;
 
+/// A marker that widens the caller frame for, or states the substitution
+/// effects of, the host statement beside it, which performs (and is scanned
+/// for) the invocation.
+fn accompanies_a_scanned_host(statement: &Statement) -> bool {
+    statement.tokens().is_some_and(|tokens| {
+        matches!(
+            tokens.synthetic,
+            Some(
+                crate::ir::SyntheticMarker::CallerFrameOpaque
+                    | crate::ir::SyntheticMarker::WordEffects(_)
+            )
+        )
+    })
+}
+
 /// Walk each `(caller qname, CFG)` pair's flattened statements, recording
 /// every `Call`/`Barrier` as a call site.  Shared by the in-unit scan and
 /// [`scan_source_call_sites`] so the two can never diverge on what counts.
@@ -74,18 +89,7 @@ pub(super) fn scan_cfg_callers<'a>(
                 {
                     continue;
                 }
-                if stmt.tokens().is_some_and(|tokens| {
-                    matches!(
-                        tokens.synthetic,
-                        Some(
-                            crate::ir::SyntheticMarker::CallerFrameOpaque
-                                | crate::ir::SyntheticMarker::WordEffects(_)
-                        )
-                    )
-                }) {
-                    // Widens the caller frame for, or states the substitution
-                    // effects of, the host beside it, which performs (and is
-                    // scanned for) the invocation.
+                if accompanies_a_scanned_host(stmt) {
                     continue;
                 }
                 if crate::ssa::is_unseen_call_marker(stmt)
