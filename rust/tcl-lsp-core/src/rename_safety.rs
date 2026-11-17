@@ -1132,7 +1132,7 @@ fn computed_namespace_beside_tail(
     roles: &[(usize, tcl_registry::ArgRole)],
     cell: &str,
 ) -> Option<Span> {
-    let tail = cell.rsplit("::").next()?;
+    let (_, tail) = tcl_syntax::naming::key_holder_and_tail(cell);
     let literal = |ordinal: usize| {
         cmd.single_token_word.get(ordinal + 1) == Some(&true)
             && cmd
