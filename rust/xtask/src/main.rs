@@ -125,6 +125,7 @@ mod resolution_drift;
 mod retired_api_gate;
 mod runtime_stdlib;
 mod segmentation_drift;
+mod semantics_matrix;
 mod sslictcl_data;
 mod tcltest_sweep;
 mod tzdata_bundle;
@@ -501,6 +502,15 @@ enum Command {
         check: bool,
     },
 
+    /// Generate or verify the coverage matrix of the four purity domains
+    /// (`docs/generated/semantics-coverage.md`).
+    #[command(name = "semantics-matrix")]
+    SemanticsMatrix {
+        /// Verify the committed matrix instead of rewriting it.
+        #[arg(long)]
+        check: bool,
+    },
+
     /// Flag a word the registry declares — a command, subcommand, option
     /// spelling, member keyword, clause keyword, or special variable —
     /// compared outside `tcl-registry`, and generate or verify the per-axis
@@ -699,6 +709,7 @@ fn dispatch(command: Command) -> anyhow::Result<ExitCode> {
         Command::OwnerResolution => owner_resolution::run(),
         Command::ValueTransfers { check } => value_transfers::run(check),
         Command::RegistryAxes { check } => registry_axes::run(check),
+        Command::SemanticsMatrix { check } => semantics_matrix::run(check),
         Command::PackGoldens { check } => Ok(pack_goldens::run(check)),
         Command::SslictclData {
             operation,

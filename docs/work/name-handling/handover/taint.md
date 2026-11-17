@@ -36,7 +36,7 @@ cargo nextest run -p tcl-compiler -p tcl-irules -p tcl-lsp-core -p tcl-lsp-serve
 
 Keep the four-package selection; another selection rebuilds every dependency under different features and fills the disk. Compare two `fail.txt` lists with `comm -23 old new` (fixed) and `comm -13 old new` (new). The baseline list below was taken before the file split, so compare against it by the last path segment of each name. A name that is new but belongs to a test added upstream after the baseline is not a regression: check with `git log -S<test name>`.
 
-Gates before a push, after the final rebase: `cargo fmt -p tcl-compiler -- --check`; `CARGO_PROFILE_TEST_INCREMENTAL=false cargo clippy -p tcl-compiler --all-targets -- -D warnings -A clippy::assert_is_empty`; `make xtask-gates` (38 gates) when `tcl-registry` or a gate-listed file is touched.
+Gates before a push, after the final rebase: `cargo fmt -p tcl-compiler -- --check`; `CARGO_PROFILE_TEST_INCREMENTAL=false cargo clippy -p tcl-compiler --all-targets -- -D warnings -A clippy::assert_is_empty`; `make xtask-gates` (39 gates) when `tcl-registry` or a gate-listed file is touched.
 
 ## Current numbers
 

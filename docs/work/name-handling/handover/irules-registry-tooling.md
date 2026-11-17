@@ -48,7 +48,7 @@ grep -E "^\s+(FAIL|TIMEOUT|SIGKILL|SIGABRT|SIGSEGV|SIGTERM)" LOG | sed -E 's/^\s
 
 and `comm` against the baseline list. Since the file split a test path gained a module, so compare by crate plus last path segment. Report "fixed N, new 0".
 
-Gates before a push: `cargo fmt --all -- --check`, `cargo clippy --no-deps -p <crates> --all-targets -- -D warnings -A clippy::assert_is_empty` (`--no-deps` because an upstream crate may not be lint-clean), `make xtask-gates` (38 gates, about four minutes), and `cargo xtask pack-goldens` after any change to a spec or a port under `docs/design/spec-dsl-examples/`.
+Gates before a push: `cargo fmt --all -- --check`, `cargo clippy --no-deps -p <crates> --all-targets -- -D warnings -A clippy::assert_is_empty` (`--no-deps` because an upstream crate may not be lint-clean), `make xtask-gates` (39 gates, about four minutes), and `cargo xtask pack-goldens` after any change to a spec or a port under `docs/design/spec-dsl-examples/`.
 
 ## Current numbers
 
