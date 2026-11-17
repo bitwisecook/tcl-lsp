@@ -517,6 +517,7 @@ is the last field of the `BNC|…` line. "empty" means the result field is empty
 | BIGIP-NAME-070 | iRules in TMM | A backslash inside a braced argument | TMM HTTP_REQUEST | no |
 | BIGIP-NAME-071 | iRules in TMM | What runs after a response, a drop or a DNS answer, and payload without collect | TMM HTTP_REQUEST, DNS_REQUEST | no |
 | BIGIP-NAME-072 | iRules in TMM | A plain variable across the events of one connection, and `global` | TMM CLIENT_ACCEPTED + HTTP_REQUEST | no |
+| BIGIP-NAME-073 | iRules in TMM | Is there an `env` array in TMM | TMM RULE_INIT + HTTP_REQUEST | no |
 | BIGIP-NAME-060 | tmsh, iApp and iCall | Execution namespace and frame of tmsh-hosted scripts | tmsh cli script | partly |
 | BIGIP-NAME-061 | tmsh, iApp and iCall | The `tmsh::` command namespace | tmsh cli script | partly |
 | BIGIP-NAME-062 | tmsh, iApp and iCall | Where procs defined in a cli script live | tmsh cli script | partly |
@@ -3033,6 +3034,25 @@ when HTTP_REQUEST {
 | `conn` on both requests of the first connection | `1` and that connection's client port | IRULE4003/IRULE5001 claim |
 | `conn` on the second connection | `1` and the new connection's port | IRULE4003 claim |
 | `glob` | counts every connection on the TMM | IRULE6001 claim |
+
+| Observed result | BIG-IP build | Environment | Date | Verdict |
+|---|---|---|---|---|
+| | | | | |
+
+#### BIGIP-NAME-073 — Is there an `env` array in TMM
+
+- **Question.** Does `::env` exist in TMM, and if so what does it hold?
+- **Why the toolchain needs it.** `env` is a taint source under the Tcl releases (tclsh 8.4.20 to 9.1.0 print `1` for `info exists env` at file level); the test `it_3 taint::sources::special_variable_sources::env_is_not_a_source_in_irules` claims it is not one under f5-irules. Not measured.
+- **Environments.** TMM `RULE_INIT` and `HTTP_REQUEST`.
+
+```tcl
+when RULE_INIT { log local0. "BNC|BIGIP-NAME-073|init|[info exists ::env]|[expr {[info exists ::env] ? [array size ::env] : {}}]" }
+when HTTP_REQUEST { log local0. "BNC|BIGIP-NAME-073|req|[info exists ::env]" }
+```
+
+| Label | Tcl 8.4 | Basis |
+| --- | --- | --- |
+| `init`, `req` | `1` and the process environment | tclsh 8.4.20 |
 
 | Observed result | BIG-IP build | Environment | Date | Verdict |
 |---|---|---|---|---|
