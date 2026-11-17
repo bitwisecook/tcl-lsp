@@ -427,6 +427,14 @@ pub enum BindingKind {
     /// object method — is only modelled as a deletion for names that
     /// actually denote objects.
     Class,
+    /// An instance of a registry object class (a Tk widget's path), created
+    /// by the constructor command `factory`. A call through it dispatches
+    /// that class's declared instance methods; it is never a `TclOO` class,
+    /// and its methods include no `destroy` deletion.
+    Instance {
+        /// The constructor's canonical registry command.
+        factory: &'static str,
+    },
     /// An `interp alias` (`target` = the alias target name).
     Alias,
     /// Renamed/deleted-away or never-defined → dispatches to `unknown`.

@@ -98,3 +98,34 @@ fn a_head_holding_a_constructor_result_names_the_widget() {
         assert!(optimised.contains("[entry .e]"), "{release}: {optimised}");
     }
 }
+
+/// A call through a created widget takes the selected instance method's
+/// declared effects, so the command world after `puts [$e configure]` is
+/// still known; an unknown method stays an unknown call and leaves it
+/// unknown (#2324). Tcl 8.6 and 9.0 under the Tk provider.
+#[test]
+fn a_widget_method_call_keeps_the_command_world_it_declares() {
+    for release in ["tcl8.6", "tcl9.0"] {
+        for (call, known) in [
+            ("puts [$e configure]", true),
+            ("$e configure -width 4", true),
+            ("$e bogus", false),
+            ("$e $method", false),
+        ] {
+            let source = format!("package require Tk\nset e .e\nentry $e\n{call}\nputs done\n");
+            let analysis = analyse(&source, release, &[Provider::Tk]);
+            let at = u32::try_from(source.find("puts done").unwrap()).unwrap();
+            let presence = analysis
+                .retained_command_realm()
+                .unwrap()
+                .invocation_at_source("", at)
+                .lookup_command_word(".e")
+                .selected_slot_presence();
+            assert_eq!(
+                presence == crate::command_binding::SourceCommandSlotPresence::Present,
+                known,
+                "{release}: {source}: {presence:?}"
+            );
+        }
+    }
+}

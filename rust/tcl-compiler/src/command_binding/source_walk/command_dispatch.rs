@@ -326,7 +326,11 @@ impl SourceCommandBindings {
                 *selected_context
             };
             let context = &conditional;
-            let mut result = if target.registry_backed {
+            // A registry widget's methods are declared like a registry
+            // command's, so its call walks through the registry facts.
+            let mut result = if target.registry_backed
+                || matches!(target.kind, super::super::BindingKind::Instance { .. })
+            {
                 self.walk_source_target(
                     segment,
                     &projected.words,
@@ -452,7 +456,11 @@ impl SourceCommandBindings {
         let context = &selected_context;
         for target in &binding.targets {
             let mut alternative = boxed_source_branch(&incoming);
-            let mut result = if target.registry_backed {
+            // A registry widget's methods are declared like a registry
+            // command's, so its call walks through the registry facts.
+            let mut result = if target.registry_backed
+                || matches!(target.kind, super::super::BindingKind::Instance { .. })
+            {
                 self.walk_source_target(
                     segment,
                     words,
