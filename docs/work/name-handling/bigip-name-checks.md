@@ -3559,3 +3559,18 @@ its citation and a regression that reads the recorded lines.
     tclsh 8.4.20 prints `2` for each of the first five and `9` for the
     sixth. If TMM prints `2.0` for any, F5 must keep declining; if it
     prints what 8.4 does, F5 units may take the 8.4 fold once it exists.
+18. **A top-level statement whose head is a rule procedure.** Not on record.
+    BIGIP-NAME-057 (c) measured a direct call of a top-level proc from inside
+    an event (rejected, `undefined procedure`); a bare statement at the top
+    level of the rule was not measured. The rule loader's refusal
+    (`rule_loader_rejection` in `rust/tcl-compiler/src/command_binding/rule_declaration.rs`)
+    covers a registry-backed head the loader refuses and an unknown literal
+    head, not a head bound to the rule's own proc, so the walk enters such a
+    call. Load each as its own rule and record ACCEPT or REJECT with the
+    loader message:
+    - `proc bnq18p {} { return 1 }\nbnq18p\nwhen RULE_INIT { log local0. x }`
+    - `proc bnq18p {} { return 1 }\nwhen RULE_INIT { log local0. [call bnq18p] }`
+      (the control that must be accepted)
+    - `bnq18nosuch\nwhen RULE_INIT { log local0. x }`
+    Until answered, the walk keeps entering the call and the consumers that
+    need a refusal stay conservative.
