@@ -86,6 +86,7 @@ pub fn document_analysis_input(
     document_analyser_without_factory_oracle(db, file, config)
         .prepare_analysis_input(file.dialect(db))
         .map(Arc::new)
+        .inspect_err(|miss| crate::overlay_generations().record(miss))
 }
 
 fn unavailable_document_analysis(dialect: &str, miss: OverlayMiss) -> Arc<AnalysisResult> {

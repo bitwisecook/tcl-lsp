@@ -96,6 +96,10 @@ fn namespace_command_queries_match_original_portable_source_reports() {
         let mut interp = Interp::with_native_core(host.clone(),
             tcl_registry::model::resolve_environment(environment).unit_profile(),
             tcl_registry::special_vars::NativeBootstrapInputs::default()).unwrap();
+        // jimsh loads its static extensions before it reads a script.
+        for &library in tcl_registry::native_scripted_distribution::NativeScriptedLibrary::ALL {
+            interp.install_scripted_library(library);
+        }
         assert_eq!(interp.eval_str(source), Code::Ok, "{environment}: result={:?}; refusal={:?}; stdout={:?}", interp.result_bytes(), interp.native_execution_refusal(), host.stdout.borrow());
         assert!(!interp.host_refusal_pending(), "{environment}");
         assert!(host.stderr.borrow().is_empty(), "{environment}: {:?}", host.stderr.borrow());
@@ -139,6 +143,11 @@ fn compare_reports_with_setup(
         tcl_registry::special_vars::NativeBootstrapInputs::default(),
     )
     .unwrap();
+    // jimsh loads its static extensions before it reads a script; the C
+    // releases have no scripted library.
+    for &library in tcl_registry::native_scripted_distribution::NativeScriptedLibrary::ALL {
+        interp.install_scripted_library(library);
+    }
     setup(&mut interp);
     assert_eq!(
         interp.eval_str(source),

@@ -116,6 +116,19 @@ fn every_body_argument_of_every_irules_command_is_walked() {
         // `while 1 {set r ran} x` leaves `r` unset), so it is not a body.
         for argc in 1..=5usize {
             for probe_at in 0..argc {
+                // `eval` and `uplevel` run the concatenation of every trailing
+                // word, so a script word followed by another is a fragment,
+                // never a body of its own: tclsh 8.4, 8.6 and 9.0 print
+                // `wrong # args: should be "set varName ?newValue?"` for
+                // `eval {set r ran} x` and leave `r` unset.
+                if probe_at + 1 < argc
+                    && registry.get(command).is_some_and(|spec| {
+                        spec.traits
+                            .contains(tcl_registry::Traits::SCRIPT_CONCATENATES_ARGS)
+                    })
+                {
+                    continue;
+                }
                 let mut words: Vec<String> = vec!["x".to_owned(); argc];
                 words[probe_at] = format!("{{ pool {PROBE} }}");
                 let argv: Vec<&str> = words.iter().map(String::as_str).collect();

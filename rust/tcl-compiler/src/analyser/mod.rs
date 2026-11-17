@@ -110,7 +110,7 @@ pub use diagnostic_subject::{
     SourceUnresolvedCommandSubject, SourceUnresolvedMathFunctionSubject,
     SourceUserCallAritySubject,
 };
-pub use input::ResolvedAnalysisInput;
+pub use input::{EntryProcedureFrame, ResolvedAnalysisInput};
 pub use interp_visibility::{
     ConditionalInterpreterVisibilitySubject, InterpreterVisibilityObligation,
     OriginalInterpreterSourceDomain, OriginalInterpreterSourceLoad,

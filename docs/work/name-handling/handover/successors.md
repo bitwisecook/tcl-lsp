@@ -18,9 +18,11 @@ The burn-down continues with new sessions. This file is what every one of them r
 | `server-e2e-db` | LSP server end to end and `tcl-lsp-db` | Sonnet | `session_017u5g3KHQpTL4RNf7ZN9wiQ` |
 | `irules-registry-tooling` | iRules, registry, SpecTcl, tooling | Sonnet | `session_017u5g3GuvSUJA9Qanj2AVvk` |
 | `tk-oo` | Tk and TclOO issues (#2324, #2427, #1956, #1655, #832) | Opus | `session_017u5g3KsHnGzMmqgP3e6dJj` |
-| `live-inlining` | Pack reference bodies inlined on the VM's live compile (owner's instruction, 17 November) | Opus | `session_017u5g3KCTRHzSduK23yDtc2` |
+| `live-inlining` | Pack reference bodies inlined on the VM's live compile (done, 17 November); now discrete command-binding items handed over by `analyser-binding`, which reviews them | Opus | `session_017u5g3KCTRHzSduK23yDtc2` |
 
 The coordinator is session `session_017u5g3KpKgjfMZcPMj8rx4F`. It rules on questions, keeps the scoreboard and does not write area code. `tcl-syntax::naming`, `tcl-lexer` and `xtask` have no session: a session that needs a change there asks the coordinator, then makes it as one small separate commit with the tclsh oracle in the test, after the `tcl-syntax` and `tcl-lexer` suites, `make xtask-gates` and the whole `tcl-compiler` suite against its baseline, and tells the analyser-binding session before pushing.
+
+The owner's open issues are worked by a separate set of sessions under their own orchestrator (session `session_017u5g3KDVBH5v5PXpMYy7KP`); their roster and hand-overs are in `docs/work/issue-sessions/`. They push to `work` too and announce changes in an area's files to that area's session: answer them directly. Issues #2324, #1956 and #1655 stay with `tk-oo`; queue item "No procedure has a transfer summary" of `dataflow-optimiser` is the issue session `dataflow`'s (#2408, #1796).
 
 ## Starting
 
@@ -34,6 +36,8 @@ The coordinator is session `session_017u5g3KpKgjfMZcPMj8rx4F`. It rules on quest
 - After the final rebase and before every push: `cargo check` on the crates you touched and their dependents, then clippy. `work` did not compile twice because a push was measured before its rebase.
 - `make xtask-gates` runs 38 gates. `cargo xtask file-sizes --check` refuses a Rust file over 2,000 lines: put new code in the module it belongs to or a new named module, never `part2`, `misc` or `helpers`. A new module imports each name from the module that defines it, not through `use super::*;` (test modules may keep it). An import used under one configuration only is gated like its use.
 - `work` is never force-pushed. A shallow fetch can print `forced update` or leave your branch looking diverged when the shallow boundary moves: deepen it (`git fetch --depth=200 origin work`) and rebase. Never `git reset --hard` over local commits, and never tell another session to.
+- A change to binding, class, member, instance or reference facts is also measured on the proof consumers that read them, before the push: `cargo nextest run -p tcl-lsp-core --lib -E 'test(rename) | test(refactor) | test(references) | test(definition)'` against a baseline. A rename or refactor that newly accepts what it refused is a safety regression and is fixed before anything else. A change to the naming owner is measured on the `tcl-lsp-core` library and the `tcl-lsp-server` unit tests as well.
+- `make xtask-gates` before every push that touches `tcl-registry`, `tcl-spectcl`, `tcl-dialect`, a pack, `xtask` or anything a gate reads.
 - One cause per commit, with the tclsh or jimsh evidence in the test or the message. Report every push as "fixed N, new 0" against your list. A change that fixes some tests and breaks others is not done.
 - Never weaken an assertion, never `#[ignore]`, no `#[allow]`, no known-failure list. When two tests contradict, send both to the coordinator.
 - A fact another area owns is that area's fix: send the smallest fixture and what tclsh prints, by `send_message` to its session, and carry on with your next item. Do not work round it and do not edit that area's files beyond a small, separate, announced commit.

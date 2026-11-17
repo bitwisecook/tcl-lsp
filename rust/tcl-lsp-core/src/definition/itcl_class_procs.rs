@@ -34,6 +34,17 @@ pub(crate) fn class_definer_family(
     definer_family_in_registry(class, class_family_registry(analysis)?)
 }
 
+/// The definition-body grammar of the family that declared `class`, from the
+/// analysis's own registry.
+pub(crate) fn class_definition_grammar(
+    analysis: &AnalysisResult,
+    class: &tcl_compiler::analyser::types::ClassDef,
+) -> Option<&'static tcl_registry::definer::DefinitionBodyGrammar> {
+    class_family_registry(analysis)?
+        .get(&class.metaclass)?
+        .definition_body
+}
+
 fn class_family_registry(analysis: &AnalysisResult) -> Option<&CommandRegistry> {
     if analysis.analysis_context_unavailable.is_some() {
         return None;

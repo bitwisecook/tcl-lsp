@@ -24,7 +24,7 @@ use super::return_routing::{
 };
 use super::rewrite::{Site, Tail};
 use super::{InlineSpec, MAX_INLINING_WALK_DEPTH, heads, rename};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use tcl_compiler::ir::{CommandBindingSite, Procedure, Script, Statement};
 use tcl_lexer::{LexerConfig, Span};
 use tcl_syntax::word_rules::WordValueRules;
@@ -61,6 +61,10 @@ impl InlineExpansion {
     }
 }
 
+/// The body of a parameterised definition with a site's renames applied, where
+/// the splice cannot rename the IR alone: `None` keeps the call.
+pub(super) type RenamedBody<'a> = dyn Fn(&HashMap<String, String>) -> Option<Script> + 'a;
+
 /// Produce the inlined statements and their script-owned metadata for a single
 /// call site, or `None` to decline (keep the call).
 ///
@@ -72,6 +76,8 @@ pub(super) fn splice_call_site(
     resolution_namespace: &str,
     counter: &mut usize,
     site: Site,
+    live: bool,
+    renamed: Option<&RenamedBody<'_>>,
 ) -> Option<InlineExpansion> {
     let Statement::Call {
         command,
@@ -95,6 +101,11 @@ pub(super) fn splice_call_site(
         && defined_in != "::"
         && heads::names_a_command(spec.body_statements(), spec.lexer_config())
     {
+        return None;
+    }
+    // A live compile lowered the body under the caller's own entry, which
+    // resolves its commands where the caller runs.
+    if foreign && live {
         return None;
     }
     let mut expansion = match spec {
@@ -134,7 +145,7 @@ pub(super) fn splice_call_site(
             })
         }
         InlineSpec::Parameterised(proc, rules, config) => {
-            splice_v3(call, proc, *rules, *config, counter, site.tail)
+            splice_v3(call, proc, *rules, *config, counter, site.tail, renamed)
         }
     }?;
     // A definition in the global namespace resolved each command it names there. A
@@ -172,6 +183,7 @@ fn splice_v3(
     config: LexerConfig,
     counter: &mut usize,
     tail: Tail,
+    renamed: Option<&RenamedBody<'_>>,
 ) -> Option<InlineExpansion> {
     let span = call.span();
     let body_stmts = &proc.body.statements;
@@ -201,7 +213,10 @@ fn splice_v3(
             .or_insert_with(|| format!("__inline_{cid}__{name}"));
     }
 
-    let renamed_body = rename::rewrite_script(&proc.body, &rename, config);
+    let renamed_body = match renamed {
+        Some(renamed) => renamed(&rename)?,
+        None => rename::rewrite_script(&proc.body, &rename, config),
+    };
 
     let mut out = bindings;
     if body_has_non_trailing_return {
@@ -229,7 +244,7 @@ fn splice_v3(
             });
         }
         out.extend(wrapped);
-        return Some(InlineExpansion::without_bindings(out));
+        return Some(wrapped_expansion(out, &renamed_body, renamed.is_some()));
     }
 
     if body_has_trailing_return && tail != Tail::Returned {
@@ -242,7 +257,7 @@ fn splice_v3(
             span,
             None,
         ));
-        return Some(InlineExpansion::without_bindings(out));
+        return Some(wrapped_expansion(out, &renamed_body, renamed.is_some()));
     }
 
     // No return, or a trailing return where the value is the procedure's — flat
@@ -254,6 +269,18 @@ fn splice_v3(
         command_binding_sites: expansion.command_binding_sites,
         procedure_bindings: expansion.procedure_bindings,
     })
+}
+
+/// The statements of a wrapped body. A body lowered under a live entry keeps
+/// its binding sites: the commands its typed operations were folded from are
+/// held to the live command through them.
+fn wrapped_expansion(statements: Vec<Statement>, body: &Script, live: bool) -> InlineExpansion {
+    if !live {
+        return InlineExpansion::without_bindings(statements);
+    }
+    let mut expansion = InlineExpansion::from_script(body.clone());
+    expansion.statements = statements;
+    expansion
 }
 
 /// Clone `stmt` (a [`Statement::Call`]) with its span replaced. Used to
@@ -291,7 +318,7 @@ fn with_span(stmt: &Statement, span: Span) -> Statement {
 
 /// Return the union of every local-variable name written inside `script`.
 /// Array-element writes contribute the array base name.
-fn collect_local_names(script: &Script) -> HashSet<String> {
+pub(super) fn collect_local_names(script: &Script) -> HashSet<String> {
     let mut names = HashSet::new();
     walk_local_writes(script, &mut names, 0);
     names

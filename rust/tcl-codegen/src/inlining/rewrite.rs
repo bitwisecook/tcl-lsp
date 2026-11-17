@@ -70,14 +70,18 @@ pub(super) fn inline_procedures(
         escapes: &escape,
         reference_sites: match scope {
             Inlining::Everything => None,
-            Inlining::Only(imported) => Some(&imported.sites),
+            Inlining::Only(imported) | Inlining::Live(imported, _) => Some(&imported.sites),
+        },
+        live: match scope {
+            Inlining::Live(_, bodies) => Some(bodies),
+            Inlining::Everything | Inlining::Only(_) => None,
         },
     };
     // An imported definition was proved in the module it was lowered in: here
     // its text is an appendix no source binding of this module describes.
     let mut inlinable = match scope {
         Inlining::Everything => build_inlinable_map(&catalogue, &summaries, registry),
-        Inlining::Only(imported) => imported.inlinable.clone(),
+        Inlining::Only(imported) | Inlining::Live(imported, _) => imported.inlinable.clone(),
     };
     inlinable.retain(|id, _| scope.admits(id));
     if inlinable.is_empty() {
@@ -101,7 +105,8 @@ pub(super) fn inline_procedures(
 
     let mut procedures = std::mem::take(&mut module.procedures);
     for (qname, proc) in &mut procedures {
-        if matches!(scope, Inlining::Only(imported) if imported.ids.contains(qname)) {
+        if matches!(scope, Inlining::Only(imported) | Inlining::Live(imported, _) if imported.ids.contains(qname))
+        {
             continue;
         }
         let Some(caller_namespace) = proc
@@ -249,7 +254,20 @@ pub(super) fn rewrite_stmt(
                 return None;
             }
             let spec = inlinable.get(&target)?;
-            splice_call_site(stmt, spec, caller_qname, counter, site)
+            let renamed = summaries
+                .live
+                .map(|bodies| move |names: &HashMap<String, String>| bodies.renamed(target, names));
+            splice_call_site(
+                stmt,
+                spec,
+                caller_qname,
+                counter,
+                site,
+                summaries.live.is_some(),
+                renamed
+                    .as_ref()
+                    .map(|renamed| renamed as &super::splice::RenamedBody<'_>),
+            )
         }
         Statement::Block { .. } => rewrite_block_stmt(
             stmt,

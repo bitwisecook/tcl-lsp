@@ -225,9 +225,9 @@ impl FormattingSourceLayout {
                 .retained_command_realm()
                 .cloned()
                 .unwrap_or_default(),
+            original: super::analysis_layout::AnalysisFormattingLayout::capture(source, &analysis),
             analysis: Some(analysis),
             input: input.clone(),
-            original: None,
             decoded_phase: None,
             conditional_phase: None,
         }

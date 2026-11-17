@@ -717,25 +717,45 @@ impl BytecodeCompileService {
             ),
         }
         .map_err(native_word_compile_error)?;
-        let prepared = prepare_cfg_context_bundle(&ir, registry);
-        let cfg =
-            build_cfg_codegen_with_registry_and_context(&ir, false, registry, &prepared, config);
-        let mutations = tcl_compiler::command_binding::scan_module_command_mutations_with_bindings(
-            &ir,
-            registry,
-            prepared.command_bindings(),
-        );
-        let mut module = codegen_procedure_module_with_emission_scope(
-            &cfg,
-            &ir,
-            target.parameters,
-            registry,
-            &mutations,
-            ModuleEmissionScope::EnteredSource,
-        )?;
-        module.profile = profile;
-        validate_native_function(&module.top_level_body)?;
-        Ok(module)
+        let emit = |ir: &tcl_compiler::ir::Module| {
+            let prepared = prepare_cfg_context_bundle(ir, registry);
+            let cfg =
+                build_cfg_codegen_with_registry_and_context(ir, false, registry, &prepared, config);
+            let mutations =
+                tcl_compiler::command_binding::scan_module_command_mutations_with_bindings(
+                    ir,
+                    registry,
+                    prepared.command_bindings(),
+                );
+            let mut module = codegen_procedure_module_with_emission_scope(
+                &cfg,
+                ir,
+                target.parameters,
+                registry,
+                &mutations,
+                ModuleEmissionScope::EnteredSource,
+            )?;
+            module.profile = profile;
+            validate_native_function(&module.top_level_body)?;
+            Ok(module)
+        };
+        // A pack's definition is spliced only where the whole function is
+        // then admitted: otherwise the caller compiles as it would without it.
+        if entry.is_some()
+            && let Some(options) = options
+            && let Some(inlined) = crate::inlining::inline_reference_bodies_live(
+                &ir,
+                registry,
+                config,
+                profile,
+                options,
+                || fresh_document_input(registry, config, profile),
+            )
+            && let Ok(module) = emit(&inlined)
+        {
+            return Ok(module);
+        }
+        emit(&ir)
     }
 }
 

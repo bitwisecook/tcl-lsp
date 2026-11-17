@@ -22,11 +22,11 @@ use super::super::{
     CapturedNativeCommand, EnteredCommand, EnteredNativeOperation, Frame, ScriptNamespace,
     SelectedNativeExecutionTraces, Tick,
 };
-use super::operands::label_to_idx;
+use super::operands::{label_to_idx, label0};
 use crate::command::Command;
 use crate::interp::{CommandSidecarKey, Vm, err};
 use crate::value::Value;
-use tcl_bytecode::{FunctionAsm, Instruction};
+use tcl_bytecode::{FunctionAsm, Instruction, Op};
 use tcl_runtime_api::Completion;
 
 impl Vm {
@@ -211,32 +211,54 @@ impl Vm {
     /// Select an independently audited native compiler operation.
     /// The range records selection, rather than repeatedly consulting a live
     /// callable during substitutions that may replace that very callable.
+    /// Selections joined to the instruction are checked with its own, as C's
+    /// one `INST_START_CMD` checks every command starting there; when any
+    /// fails the instruction's own, outermost command is replayed.
     pub(super) fn enter_native_compiler_selection(
         &mut self,
         frame: &mut Frame,
         asm: &FunctionAsm,
         instruction: &Instruction,
     ) -> Option<Tick> {
-        let site = instruction.native_compiler_selection.as_ref()?;
-        let Some(continuation) = label_to_idx(asm, &frame.off2idx, &site.end) else {
+        if !instruction.selects_native_compiler() {
+            return None;
+        }
+        let mut entered = Vec::new();
+        for site in instruction.native_compiler_selections() {
+            let Some(continuation) = label_to_idx(asm, &frame.off2idx, &site.end) else {
+                return Some(Tick::Return(err(
+                    "native compiler selection has no valid continuation",
+                )));
+            };
+            let selected = match site.prerequisite.guard() {
+                tcl_runtime_api::CommandBindingGuard::ChunkEntry => frame
+                    .chunk_native_compiler_selections
+                    .contains(&site.prerequisite),
+                tcl_runtime_api::CommandBindingGuard::BeforeArguments => {
+                    self.native_compiler_selection_prerequisite_matches_at(&site.prerequisite)
+                }
+            };
+            if !selected {
+                entered.clear();
+                break;
+            }
+            entered.push((frame.pc, continuation));
+        }
+        if !entered.is_empty() {
+            frame.entered_native_compiler_selections.extend(entered);
+            return None;
+        }
+        let own_end = match &instruction.native_compiler_selection {
+            Some(site) => Some(site.end.as_str()),
+            None if instruction.op == Op::START_CMD => label0(instruction),
+            None => None,
+        };
+        let Some(continuation) = own_end.and_then(|end| label_to_idx(asm, &frame.off2idx, end))
+        else {
             return Some(Tick::Return(err(
                 "native compiler selection has no valid continuation",
             )));
         };
-        let selected = match site.prerequisite.guard() {
-            tcl_runtime_api::CommandBindingGuard::ChunkEntry => frame
-                .chunk_native_compiler_selections
-                .contains(&site.prerequisite),
-            tcl_runtime_api::CommandBindingGuard::BeforeArguments => {
-                self.native_compiler_selection_prerequisite_matches_at(&site.prerequisite)
-            }
-        };
-        if selected {
-            frame
-                .entered_native_compiler_selections
-                .push((frame.pc, continuation));
-            return None;
-        }
         if self
             .resolve_compiled_namespace_context(&instruction.source_namespace_context())
             .is_none()

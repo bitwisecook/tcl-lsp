@@ -88,6 +88,7 @@ mod eval_;
 mod exec_;
 mod exists_;
 mod exit_;
+mod jim_arithmetic;
 pub use exists_::{NativeJimExistsKind, NativeJimExistsProtocol};
 mod expr_;
 mod fblocked;
@@ -253,6 +254,8 @@ use crate::spec::CommandSpec;
 pub fn tcl_command_specs() -> Vec<CommandSpec> {
     let mut specs = tcl_specs_a_through_l();
     specs.extend(tcl_specs_m_through_z());
+    // Jim's global `+ - * /` commands.
+    specs.extend(jim_arithmetic::specs());
     // The `tcl::mathop` operator ensemble (every spelling).
     specs.extend(mathop_generated::specs());
     // The `tcl::mathfunc` math-function ensemble (both qualified spellings).

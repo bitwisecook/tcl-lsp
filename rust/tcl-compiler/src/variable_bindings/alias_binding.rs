@@ -338,6 +338,39 @@ pub(super) fn bind_authored_alias_values(
     bind_alias_values_with_compiled_local(state, alias, registry, None, None);
 }
 
+/// Install `global NAME` in a procedure frame a driver evaluates a document
+/// inside, as the `global` command would before the document's first line:
+/// the local slot NAME resolves to in that frame aliases the global cell.
+pub(crate) fn bind_entry_global_link(
+    state: &mut ResolveContext,
+    name: &str,
+    registry: &CommandRegistry,
+) {
+    let subject = tcl_registry::TransitionSubject::Literal(name.to_owned());
+    let alias = VariableCellAliasTransition {
+        destination: tcl_registry::VariableAliasDestination::ProcedureLocal,
+        local: subject.clone(),
+        target: tcl_registry::VariableAliasTarget::Global { variable: subject },
+        writes_value: false,
+        words: tcl_registry::AliasWords::same(0),
+    };
+    let slot = crate::var_resolve::resolve_alias_destination_slot(name, state, registry);
+    let target = alias_target(state, &alias.target, registry);
+    if slot.kind == PlaceKind::Unknown || target.kind == PlaceKind::Unknown {
+        state.widen();
+        return;
+    }
+    install_alias_binding(
+        state,
+        (&alias).into(),
+        registry,
+        Some(&slot),
+        cell_key(&slot),
+        target,
+        None,
+    );
+}
+
 pub(super) fn bind_alias_with_compiled_local(
     state: &mut ResolveContext,
     alias: &VariableCellAliasTransition,

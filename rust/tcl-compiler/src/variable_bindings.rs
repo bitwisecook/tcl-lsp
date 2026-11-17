@@ -51,7 +51,9 @@ use alias_binding::bind_alias_with_compiled_local;
 pub use alias_binding::{
     AliasBindingValidity, CallerReferenceBinding, alias_binding_validity, bind_caller_reference,
 };
-pub(crate) use alias_binding::{alias_destination_is_direct, alias_registration_is_closed};
+pub(crate) use alias_binding::{
+    alias_destination_is_direct, alias_registration_is_closed, bind_entry_global_link,
+};
 #[cfg(test)]
 use alias_binding::{alias_value_binding_validity, bind_authored_alias_values};
 #[cfg(test)]

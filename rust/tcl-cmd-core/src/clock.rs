@@ -408,6 +408,12 @@ where
         Ok(_) | Err(ValueError::IntegerOverflow) => {
             Err(bad_option("integer value too large to represent", &word))
         }
+        Err(ValueError::NativeScalarGetter(error))
+            if error.failure_origin()
+                == tcl_syntax::scalar_getter::NativeScalarGetterFailure::IntegerOverflow =>
+        {
+            Err(bad_option("integer value too large to represent", &word))
+        }
         Err(_) if word == "now" || word == "-now" => Ok(now),
         Err(_) => Err(bad_option(
             format!("bad seconds \"{word}\": must be now or integer"),

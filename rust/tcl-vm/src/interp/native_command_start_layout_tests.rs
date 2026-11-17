@@ -83,6 +83,29 @@ const CASES: &[Case] = &[
         compact: None,
     },
     Case {
+        name: "commands_starting_together",
+        params: "x",
+        body: "puts $x; set y [expr {[string length $x]+1}]; return $y",
+        skeleton: "I S3 S1",
+        compact: None,
+    },
+    Case {
+        name: "commands_starting_together_at_the_start",
+        params: "x",
+        body: "set a [expr {$x+1}]; set b [string length $a]",
+        skeleton: "S2",
+        compact: Some(""),
+    },
+    Case {
+        name: "commands_starting_together_redefined",
+        params: "x",
+        body: "rename ::expr ::oldexpr; proc ::expr args {return [list hijack $args]}; \
+               set y [expr {[string length $x]+1}]; rename ::expr {}; rename ::oldexpr ::expr; \
+               return $y",
+        skeleton: "I I S3 I I S1",
+        compact: None,
+    },
+    Case {
         name: "catch_break",
         params: "",
         body: "catch {break} code",
@@ -169,6 +192,76 @@ fn procedure_bodies_place_start_command_like_c() {
         }
     }
     assert!(mismatches.is_empty(), "{}", mismatches.join("\n"));
+}
+
+/// Tcl 8.4.20 has no `INST_START_CMD` (tclCompile.h): its bytecode checks
+/// the compile epoch only on entry, so a compiled command redefined part way
+/// through a body keeps running there, as tclsh 8.4.20 shows.
+#[test]
+fn tcl_8_4_bodies_have_no_start_command() {
+    for case in CASES {
+        let asm = compiled_body("tcl8.4", case);
+        assert!(
+            asm.instructions
+                .iter()
+                .all(|instruction| instruction.op != Op::START_CMD),
+            "tcl8.4/{}: {}",
+            case.name,
+            skeleton(&asm)
+        );
+    }
+    let mut vm = crate::native_fixture::interpreter(
+        tcl_dialect::DialectProfile::find("tcl8.4").expect("release profile"),
+    );
+    let completion = vm
+        .try_eval_source(
+            "proc p {} {set a 1; rename ::incr ::oldincr; proc ::incr args {return hijack}; \
+             set r [incr a]; rename ::incr {}; rename ::oldincr ::incr; return $r}; p",
+        )
+        .expect("tcl8.4 evaluation");
+    assert_eq!(completion.result.string_bytes().as_ref(), b"2");
+}
+
+/// Commands that start on one `startCommand` are checked together; when one
+/// is redefined before it runs, C re-evaluates the outermost command from
+/// there, once. tclsh 8.5.19 through 9.1.0 answer `{hijack {{[string length
+/// $x]+1}}} 42 2`; 8.4.20, which has no `startCommand`, answers `4 4 0`.
+#[test]
+fn a_redefined_command_starting_with_others_replays_the_outermost() {
+    let script = r"
+        set n 0
+        proc t x {
+            rename ::expr ::oldexpr; proc ::expr args {incr ::n; return [list hijack $args]}
+            set y [expr {[string length $x]+1}]
+            rename ::expr {}; rename ::oldexpr ::expr; return $y
+        }
+        proc u x {
+            rename ::string ::oldstring; proc ::string args {incr ::n; return 41}
+            set y [expr {[string length $x]+1}]
+            rename ::string {}; rename ::oldstring ::string; return $y
+        }
+        list [t abc] [u abc] $n
+    ";
+    let replayed = "{hijack {{[string length $x]+1}}} 42 2";
+    for (profile, expected) in [
+        ("tcl8.4", "4 4 0"),
+        ("tcl8.5", replayed),
+        ("tcl8.6", replayed),
+        ("tcl9.0", replayed),
+        ("tcl9.1", replayed),
+    ] {
+        let mut vm = crate::native_fixture::interpreter(
+            tcl_dialect::DialectProfile::find(profile).expect("release profile"),
+        );
+        let completion = vm
+            .try_eval_source(script)
+            .unwrap_or_else(|error| panic!("{profile}: {error:?}"));
+        assert_eq!(
+            String::from_utf8_lossy(completion.result.string_bytes().as_ref()),
+            expected,
+            "{profile}"
+        );
+    }
 }
 
 /// `for {} {$i > 0} {incr i -1} {puts $i}` on tclsh: 8.5.19 keeps the empty

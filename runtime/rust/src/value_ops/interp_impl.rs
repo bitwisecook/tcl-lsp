@@ -599,6 +599,9 @@ impl ValueOps for Interp {
     }
 
     fn string_compare_length(&mut self, v: &*mut TclObj) -> Result<Option<usize>, ValueError> {
+        if let Some(error) = crate::typed_value::held_double(*v) {
+            return Err(value_error(*v, &error));
+        }
         let operation = ValueCoercion::enter(self, *v)?;
         match operation.integer_number()? {
             Some(Number::Int(integer)) => Ok(usize::try_from(integer).ok()),

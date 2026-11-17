@@ -182,7 +182,7 @@ fn called_descriptors(
 /// Lower the actual body and join its produced declaration key through the
 /// Registry's descriptor lookup to this exact backing row. No descriptor
 /// punctuation is treated as a constructed-key or Native naming contract.
-fn lower_definition(
+pub(super) fn lower_definition(
     text: &str,
     expected: &tcl_registry::CommandSpec,
     registry: &CommandRegistry,
@@ -229,27 +229,43 @@ fn lower_definition(
 
 /// Append `text` to the module's source and shift `proc` to where it now stands.
 fn append(module: &mut Module, text: &str, mut proc: Procedure) -> Option<Procedure> {
+    let (start, image) = appended(module, text)?;
+    tcl_compiler::lattice_rebase::rebase_script(&mut proc.body, i64::from(start));
+    shift_definition(&mut proc, start);
+    commit(module, image);
+    Some(proc)
+}
+
+/// Where `text` starts once appended to the module's source, and the source
+/// it makes; `None` when a span past it would not fit an offset.
+pub(super) fn appended(module: &Module, text: &str) -> Option<(u32, tcl_lexer::SourceImage)> {
     let start = module.source.len() + 1;
-    let end = start.checked_add(text.len())?;
-    if u32::try_from(end).is_err() {
-        return None;
-    }
-    let delta = i64::try_from(start).ok()?;
-    tcl_compiler::lattice_rebase::rebase_script(&mut proc.body, delta);
+    u32::try_from(start.checked_add(text.len())?).ok()?;
+    let mut source = module.source.bytes().to_vec();
+    source.push(b'\n');
+    source.extend_from_slice(text.as_bytes());
+    Some((
+        u32::try_from(start).ok()?,
+        tcl_lexer::SourceImage::from_bytes(source, module.source.channel()),
+    ))
+}
+
+/// Shift a definition's own span and body offset, not its body, by `start`.
+pub(super) fn shift_definition(proc: &mut Procedure, start: u32) {
     proc.span = Span::new(
-        proc.span.start().saturating_add(u32::try_from(start).ok()?),
-        proc.span.end().saturating_add(u32::try_from(start).ok()?),
+        proc.span.start().saturating_add(start),
+        proc.span.end().saturating_add(start),
     );
-    proc.body_offset = proc.body_offset.saturating_add(u32::try_from(start).ok()?);
+    proc.body_offset = proc.body_offset.saturating_add(start);
+}
+
+/// Make `image`, made by [`appended`], the module's source.
+pub(super) fn commit(module: &mut Module, image: tcl_lexer::SourceImage) {
     module
         .reference_bodies
         .appendix_start
         .get_or_insert(module.source.len());
-    let mut source = module.source.bytes().to_vec();
-    source.push(b'\n');
-    source.extend_from_slice(text.as_bytes());
-    module.source = tcl_lexer::SourceImage::from_bytes(source, module.source.channel());
-    Some(proc)
+    module.source = image;
 }
 
 /// The claim a function's procedure binding makes when it came from a

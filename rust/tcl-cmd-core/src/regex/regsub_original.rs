@@ -27,7 +27,7 @@ use super::regsub_command::{
 };
 use super::{
     Common, NO_MATCH, RegMatch, RegexEngine, RegexError, Run, completed_matches, decode_utf8,
-    notbol_at, resolve_start_checked, wrong_args,
+    notbol_at, resolve_start_original, wrong_args,
 };
 use tcl_dialect::TclVersion;
 use tcl_syntax::value::{ValueError, ValueOps};
@@ -65,13 +65,12 @@ pub fn regsub_prepare_original<'a, O: NativeRegexSource>(
                 .map_err(|error| RegexError::from(crate::CmdError::from(error)))?;
             let command_start = if recipe.is_some() {
                 common
-                    .start
-                    .as_ref()
-                    .map(|spec| {
+                    .start_at
+                    .map(|_| {
                         let length = ops
                             .index_character_count(&originals[1])
                             .map_err(RegexError::from)?;
-                        resolve_start_checked(ops, spec, length)
+                        resolve_start_original(ops, args, &common, length)
                     })
                     .transpose()?
             } else {
@@ -89,9 +88,7 @@ pub fn regsub_prepare_original<'a, O: NativeRegexSource>(
                 command_start.unwrap_or(0)
             } else {
                 let (characters, _) = decode_utf8(&rest[1]);
-                common.start.as_ref().map_or(Ok(0), |spec| {
-                    resolve_start_checked(ops, spec, characters.len())
-                })?
+                resolve_start_original(ops, args, &common, characters.len())?
             };
             Ok(OriginalRegsubPreparation {
                 version,

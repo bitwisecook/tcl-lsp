@@ -157,10 +157,23 @@ async fn a_wish_document_reads_the_workspace_packs_like_any_other() {
                     && d.message.contains("wishcmd")
             })
     };
-    assert!(
-        unknown().await,
-        "control: before the packs install, the command is unknown"
-    );
+    {
+        // tclsh cannot decide this: a SpecTcl pack command does not exist
+        // there. The design decision pinned is that an overlay whose packs
+        // are not installed is a typed miss and the analysis abstains, so no
+        // W123 flickers for a command the pack is about to define.
+        let db = db.lock().await;
+        let before = tcl_lsp_db::file_analysis_incremental(&*db, file, config);
+        assert_eq!(
+            before
+                .analysis_context_unavailable
+                .as_ref()
+                .map(|miss| miss.overlay),
+            Some(packs.key),
+            "control: before the packs install, the analysis is unavailable for the overlay"
+        );
+        assert!(before.diagnostics.is_empty());
+    }
     let _ = tcl_lsp_db::take_overlay_misses();
 
     install_pack_overlays(&packs);

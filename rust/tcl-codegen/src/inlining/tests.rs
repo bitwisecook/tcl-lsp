@@ -125,6 +125,7 @@ fn inlined_native_top(source: &str) -> Vec<Statement> {
             registry,
             escapes: &summaries,
             reference_sites: None,
+            live: None,
         };
         let catalogue = build_inlinable_map(&module, &bound, registry);
         eprintln!(
@@ -884,6 +885,7 @@ fn classify_large_single_call_is_if_single_call() {
         registry: fixture_registry(),
         escapes: &summaries,
         reference_sites: None,
+        live: None,
     };
     let counts = count_static_calls(&module, &bound);
     let proc = &module
@@ -1693,6 +1695,7 @@ fn original_inlining_eligibility_retains_whole_module_and_selected_frame_context
         registry: context.commands(),
         escapes: &summaries,
         reference_sites: None,
+        live: None,
     };
     assert!(
         build_inlinable_map(&module, &bound, context.commands())

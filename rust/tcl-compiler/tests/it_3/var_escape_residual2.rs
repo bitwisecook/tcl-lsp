@@ -1101,7 +1101,12 @@ fn cu_eval_body_global_tags_concrete_ssa_version() {
 #[test]
 fn cu_top_level_eval_body_escapes_via_cu_map() {
     // The whole-CU map keys the top-level eval body under TOP_LEVEL_QNAME and the
-    // proc under its qname; both eval bodies escape independently.
+    // proc under its qname. In the procedure the eval body's `global` escapes;
+    // at level 0 `global tg` names the cell a plain top-level variable already
+    // is, so `tg` stays Local like any other top-level name. tclsh 8.5.19,
+    // 8.6.18, 9.0.4 and 9.1.0: `eval {if 1 {global tg\n incr tg}}; puts [list
+    // $tg $::tg [info level]]` prints `1 1 0`; 8.4.20 raises at the `incr` of
+    // the absent `tg`.
     let s = escape_cu(
         "eval {if 1 {global tg\n incr tg}}\nproc ::p {} { eval {if 1 {global pg\n incr pg}} }",
     );
@@ -1109,9 +1114,10 @@ fn cu_top_level_eval_body_escapes_via_cu_map() {
         s.by_body.contains_key(&s.fixture_body(TOP_LEVEL_QNAME)),
         "top-level key present"
     );
-    assert!(
-        summary(&s, TOP_LEVEL_QNAME).is_frame("tg"),
-        "top-level eval global escapes"
+    assert_eq!(
+        summary(&s, TOP_LEVEL_QNAME).tag("tg"),
+        EscapeTag::Local,
+        "a top-level global declaration is a top-level name"
     );
     assert!(
         summary(&s, "::p").is_frame("pg"),

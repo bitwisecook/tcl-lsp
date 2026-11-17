@@ -31,6 +31,7 @@ use tcl_lsp_db::{
     file_analysis_incremental, folding_ranges, semantic_tokens, semantic_tokens_project,
     set_overlay_epoch,
 };
+use tcl_registry::model::OverlayMiss;
 
 /// An `expect` document whose `-brace` pattern list and `default` arm are
 /// foldable regions only the `expect` grammar exposes.
@@ -287,12 +288,17 @@ const SPREAD_PACK: &str = "speclib spread 2.0 {\n    \
      }\n\
  }\n";
 
-/// The analysis reads the plain registry while the packs are not installed
-/// and runs again once they are, with the document untouched: `spreadout`
-/// is an unknown command to the analyser until the overlay its key names is
-/// installed and the host moves the overlay epoch, and a known one after. The
-/// rerun rides on the unit query, which reads the epoch and which the analysis
-/// reads.
+/// While the packs an overlay key names are not installed the analysis
+/// abstains: it is unavailable for that overlay (a typed miss), publishes no
+/// diagnostic of its own, and in particular no W123 for `spreadout`, a
+/// command the pack is about to define. Once the host installs the packs and
+/// moves the overlay epoch, with the document untouched, the same query
+/// reads them and `spreadout` is known. The rerun rides on the unit query,
+/// which reads the epoch and which the analysis reads.
+///
+/// tclsh cannot decide the first half (`spreadout` is invalid there either
+/// way, and a SpecTcl pack command does not exist in it); the test pins the
+/// design decision that a W123 shown before the packs load would flicker.
 #[test]
 fn the_analysis_reads_the_packs_once_they_install() {
     const SRC: &str = "spreadout {1 2} a\nputs $a\n";
@@ -316,9 +322,18 @@ fn the_analysis_reads_the_packs_once_they_install() {
             .iter()
             .any(|d| d.code == DiagCode::W123 && d.message.contains("spreadout"))
     };
+    let before = file_analysis_incremental(&db, file, config);
+    assert_eq!(
+        before.analysis_context_unavailable,
+        Some(OverlayMiss {
+            environment: "tcl9.0".to_owned(),
+            overlay: packs.key,
+        }),
+        "the packs are keyed but not installed: the analysis is unavailable for that overlay"
+    );
     assert!(
-        unknown(&db),
-        "the packs are keyed but not installed: the plain registry does not know the command"
+        before.diagnostics.is_empty(),
+        "and it reports nothing, not a W123 for a command the pack defines"
     );
 
     let _registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl9.0", &packs);

@@ -1163,7 +1163,9 @@ mod tests {
 
     #[test]
     fn a_getter_called_with_only_its_own_flags_keeps_its_colour() {
-        let registry = CommandRegistry::build_default();
+        // The flag list is the iRules spec's own, so the iRules commands are loaded.
+        let mut registry = CommandRegistry::build_default();
+        registry.load_irules();
         let flagged = taint_source_colour(&registry, "HTTP::path", &["-normalized"], None).unwrap();
         assert!(flagged.contains(TaintColour::TAINTED | TaintColour::PATH_PREFIXED));
         // An operand that is not one of the command's flags is not the getter form.

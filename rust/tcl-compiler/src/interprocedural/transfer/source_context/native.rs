@@ -265,27 +265,75 @@ impl<'a> NativeSummaryContext<'a> {
         ssa: &SsaFunction,
     ) -> Option<()> {
         use tcl_registry::native_compilation::VariableOperandBindingPhase;
-        // One written variable, at whichever argument the command names it:
-        // `set x [cmd]` at 0, `dict unset d a` at 1, after its subcommand.
+        // Every written variable, at whichever arguments the command names
+        // them: `set x [cmd]` at 0, `dict unset d a` at 1, after its
+        // subcommand, `scan 12 %d%d a b` at 2 and 3.
         let roles = normal.variable_roles();
-        let receiver = match roles.as_slice() {
-            [(receiver, tcl_registry::ArgRole::VarWrite)]
-                if normal.variable_binding_phase()
-                    == VariableOperandBindingPhase::AfterArguments =>
-            {
-                *receiver
-            }
-            _ => return n17_native_option("receiver.phase-or-roles", None),
-        };
-        let [(display, (symbol, version))] = defs else {
-            return n17_native_option("receiver.single-definition", None);
-        };
+        if n17_native_decline(
+            "receiver.phase-or-roles",
+            roles.is_empty()
+                || roles
+                    .iter()
+                    .any(|(_, role)| *role != tcl_registry::ArgRole::VarWrite)
+                || normal.variable_binding_phase() != VariableOperandBindingPhase::AfterArguments,
+        ) {
+            return None;
+        }
+        if n17_native_decline("receiver.definitions", defs.is_empty()) {
+            return None;
+        }
         let binding = n17_native_option("receiver.binding", tokens.source_binding.as_ref())?;
         // A stored word (`set x [cmd]`) is the sole substitution the value
         // comes from; a keyed update (`dict unset d a`) has none.
         if let Some(word) = normal.stored_value_word(&binding.variable_context, self.registry) {
             n17_native_option("receiver.stored-child", word.sole_command_substitution())?;
         }
+        let mut proved = std::collections::HashSet::new();
+        for (receiver, _) in &roles {
+            let symbol = self.receiver_symbol(*receiver, normal, binding, defs, ssa)?;
+            proved.insert(symbol);
+        }
+        // A repeated target (`regexp (a)(b) ab x x x`) is one definition.
+        if n17_native_decline("receiver.every-definition", proved.len() != defs.len()) {
+            return None;
+        }
+        let mut point = None;
+        for (_, (symbol, version)) in defs {
+            let name = ssa.var_name(*symbol).to_owned();
+            for (&block, ssa_block) in &ssa.blocks {
+                for (index, statement) in ssa_block.statements.iter().enumerate() {
+                    if statement.defs.get(symbol) != Some(version) {
+                        continue;
+                    }
+                    if n17_native_decline(
+                        "receiver.current-point",
+                        point.is_some_and(|owned| owned != (block, index))
+                            || statement.defs.len() != defs.len()
+                            || statement.may_defs.contains(symbol)
+                            || statement.statement.tokens() != Some(tokens)
+                            || self.statement_tokens(body, &statement.statement).as_ref()
+                                != Some(tokens)
+                            || ssa.var_symbol_at(block, index, &name) != Some(*symbol),
+                    ) {
+                        return None;
+                    }
+                    point = Some((block, index));
+                }
+            }
+        }
+        n17_native_option("receiver.owned-point", point.map(|_| ()))
+    }
+
+    /// The definition one written argument proves: a literal scalar name
+    /// whose place, canonical key and SSA cell are the definition's own.
+    fn receiver_symbol(
+        &self,
+        receiver: usize,
+        normal: &NormalTransferInvocation,
+        binding: &crate::command_binding::SourceInvocationBinding,
+        defs: &[(String, ValueKey)],
+        ssa: &SsaFunction,
+    ) -> Option<crate::ssa::Symbol> {
         let place = n17_native_option(
             "receiver.place",
             normal.variable_operand_place(receiver, &binding.variable_context, self.registry),
@@ -303,10 +351,14 @@ impl<'a> NativeSummaryContext<'a> {
             "receiver.canonical-key",
             crate::var_resolve::canonical_binding_value_key(&place),
         )?;
+        let name = n17_native_option("receiver.literal-name", normal.argument_literal(receiver))?;
+        let (display, (symbol, _)) = n17_native_option(
+            "receiver.definition",
+            defs.iter().find(|(display, _)| *display == name),
+        )?;
         if n17_native_decline("receiver.SSA-cell-key", ssa.cell_key(*symbol) != Some(&key)) {
             return None;
         }
-        let name = n17_native_option("receiver.literal-name", normal.argument_literal(receiver))?;
         if n17_native_decline(
             "receiver.name-projection",
             name != *display
@@ -316,28 +368,7 @@ impl<'a> NativeSummaryContext<'a> {
         ) {
             return None;
         }
-        let mut point = None;
-        for (&block, ssa_block) in &ssa.blocks {
-            for (index, statement) in ssa_block.statements.iter().enumerate() {
-                if statement.defs.get(symbol) != Some(version) {
-                    continue;
-                }
-                if n17_native_decline(
-                    "receiver.current-point",
-                    point.is_some()
-                        || statement.defs.len() != 1
-                        || statement.may_defs.contains(symbol)
-                        || statement.statement.tokens() != Some(tokens)
-                        || self.statement_tokens(body, &statement.statement).as_ref()
-                            != Some(tokens)
-                        || ssa.var_symbol_at(block, index, &name) != Some(*symbol),
-                ) {
-                    return None;
-                }
-                point = Some((block, index));
-            }
-        }
-        n17_native_option("receiver.owned-point", point.map(|_| ()))
+        Some(*symbol)
     }
 
     /// Whether a variable trace the module installs may be on `name`'s

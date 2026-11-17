@@ -563,6 +563,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
             writes: true,
             ..SideEffect::DEFAULT
         }]),
+        // `string is class ?-strict? ?-failindex varName? string`: the class
+        // precedes the option run and the tested string follows it.
+        option_prefix_words: 1,
+        reserved_trailing_words: 1,
         options: const {
             &[
                 OptionSpec {

@@ -40,6 +40,10 @@ fn namespace_queries_match_original_source_reports() {
             tcl_registry::model::resolve_environment(environment).unit_profile(),
             tcl_registry::special_vars::NativeBootstrapInputs::default(),
         ).expect("selected original core");
+        // jimsh loads its static extensions before it reads a script.
+        for &library in tcl_registry::native_scripted_distribution::NativeScriptedLibrary::ALL {
+            interp.install_scripted_library(library);
+        }
         assert_eq!(interp.eval_str(source), Code::Ok, "{environment}: {:?}", interp.result_bytes());
         assert!(interp.native_access_refusal().is_none(), "{environment}: {:?}", interp.native_access_refusal());
         let actual_bytes = interp.result_bytes();

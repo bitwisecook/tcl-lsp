@@ -1,5 +1,113 @@
+diff --git a/rust/tcl-compiler/src/analyser/commands.rs b/rust/tcl-compiler/src/analyser/commands.rs
+index 740ee4ef..8cd10b90 100644
+--- a/rust/tcl-compiler/src/analyser/commands.rs
++++ b/rust/tcl-compiler/src/analyser/commands.rs
+@@ -354,6 +354,12 @@ impl Analyser {
+         // *this* command level skips the substitution re-walks below.
+         let presubstituted_args = std::mem::take(&mut self.presubstituted_args);
+         if !presubstituted_args {
++            if let Some(replays) = &mut self.issuer_replays {
++                replays.push(super::per_item::IssuerReplay::CommandPrologue {
++                    tokens: arg_tokens_in.to_vec(),
++                    scope_path: scope_path.to_vec(),
++                });
++            }
+             self.retain_original_static_source_names(arg_tokens_in);
+         }
+         report_phase("original-names");
+diff --git a/rust/tcl-compiler/src/analyser/commands/argument_role_facts.rs b/rust/tcl-compiler/src/analyser/commands/argument_role_facts.rs
+index 69a05f50..6965f545 100644
+--- a/rust/tcl-compiler/src/analyser/commands/argument_role_facts.rs
++++ b/rust/tcl-compiler/src/analyser/commands/argument_role_facts.rs
+@@ -49,7 +49,7 @@ impl Analyser {
+         );
+     }
+ 
+-    pub(super) fn record_original_scoped_body_advice(
++    pub(in super::super) fn record_original_scoped_body_advice(
+         &mut self,
+         invocation_offset: u32,
+         argument_tokens: &[Token],
+@@ -114,12 +114,20 @@ impl Analyser {
+         }
+     }
+ 
+-    pub(super) fn record_original_variable_receivers(
++    pub(in super::super) fn record_original_variable_receivers(
+         &mut self,
+         invocation_offset: u32,
+         argument_tokens: &[Token],
+         scope_path: &[usize],
+     ) {
++        if let Some(replays) = &mut self.issuer_replays {
++            replays.push(super::super::per_item::IssuerReplay::VariableReceivers {
++                offset: invocation_offset,
++                argument_tokens: argument_tokens.to_vec(),
++                scope_path: scope_path.to_vec(),
++                body_depth: self.body_depth,
++            });
++        }
+         let generation = self.analysis_context();
+         let registry = generation.commands();
+         let Some(tokens) = self.retained_invocation_tokens(invocation_offset, argument_tokens)
+diff --git a/rust/tcl-compiler/src/analyser/commands/original_source.rs b/rust/tcl-compiler/src/analyser/commands/original_source.rs
+index 84a385ef..731b0d23 100644
+--- a/rust/tcl-compiler/src/analyser/commands/original_source.rs
++++ b/rust/tcl-compiler/src/analyser/commands/original_source.rs
+@@ -37,7 +37,7 @@ pub(in crate::analyser) struct OriginalFormatTemplate {
+ }
+ 
+ impl Analyser {
+-    pub(super) fn retain_original_static_source_names(&mut self, argument_tokens: &[Token]) {
++    pub(in super::super) fn retain_original_static_source_names(&mut self, argument_tokens: &[Token]) {
+         let Some(first) = argument_tokens.first() else {
+             return;
+         };
+diff --git a/rust/tcl-compiler/src/analyser/per_item.rs b/rust/tcl-compiler/src/analyser/per_item.rs
+index 4ddfea65..aa129da7 100644
+--- a/rust/tcl-compiler/src/analyser/per_item.rs
++++ b/rust/tcl-compiler/src/analyser/per_item.rs
+@@ -599,6 +599,11 @@ pub(super) struct CapturedBodyGlobalRead {
+ #[derive(Clone, PartialEq)]
+ pub struct BodyFragment {
+     result: AnalysisResult,
++    /// Original issuers the isolated walk ran against its scheduling realm,
++    /// rerun at graft against the document realm (body-relative until then).
++    issuer_replays: Vec<IssuerReplay>,
++    /// The isolated proc scope's path, which the graft maps onto the shell's.
++    proc_path: Vec<usize>,
+     proc_scope: super::types::Scope,
+     ensembles: std::collections::HashSet<String>,
+     pending_arity: Vec<(String, String, bool, super::types::Diagnostic)>,
+@@ -708,6 +713,26 @@ pub struct BodyFragment {
+     minted_synthetics: std::collections::HashSet<String>,
+ }
+ 
++/// One original issuer call an isolated body made, recorded with the inputs
++/// the issuer reads besides the realm and the result, so the graft reissues
++/// its receipt from the document's own realm.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub(crate) enum IssuerReplay {
++    /// `process_command`'s original prologue: the head's static source
++    /// names, then its scoped-body advice and conditional registry metadata.
++    CommandPrologue {
++        tokens: Vec<Token>,
++        scope_path: Vec<usize>,
++    },
++    /// A command's original variable receivers, write advice and aliases.
++    VariableReceivers {
++        offset: u32,
++        argument_tokens: Vec<Token>,
++        scope_path: Vec<usize>,
++        body_depth: u32,
++    },
++}
++
+ #[cfg(test)]
+ mod tests;
+ 
 diff --git a/rust/tcl-compiler/src/analyser/per_item/body_pass.rs b/rust/tcl-compiler/src/analyser/per_item/body_pass.rs
-index 539e9526..b231e2f3 100644
+index 539e9526..2ad57386 100644
 --- a/rust/tcl-compiler/src/analyser/per_item/body_pass.rs
 +++ b/rust/tcl-compiler/src/analyser/per_item/body_pass.rs
 @@ -108,7 +108,7 @@ impl Analyser {
@@ -16,7 +124,7 @@ index 539e9526..b231e2f3 100644
              // instance variables pre-bound (see `analyse_proc_body_isolated`).
              let frag = body_fn(db);
 +            if std::env::var_os("PROBE_SKIP_OWNER").is_some() {
-+                if true { eprintln!("FRAG body={:?} vars={:?} invs={} diags={:?} scopevars={:?}", db.body_text, frag.result.all_variables.keys().collect::<Vec<_>>(), frag.result.command_invocations.len(), frag.result.diagnostics.iter().map(|d| d.message.clone()).collect::<Vec<_>>(), frag.proc_scope.variables.keys().collect::<Vec<_>>()); }
++                if false { eprintln!("FRAG body={:?} vars={:?} invs={} diags={:?} scopevars={:?}", db.body_text, frag.result.all_variables.keys().collect::<Vec<_>>(), frag.result.command_invocations.len(), frag.result.diagnostics.iter().map(|d| d.message.clone()).collect::<Vec<_>>(), frag.proc_scope.variables.keys().collect::<Vec<_>>()); }
 +            }
              // A body that defines a proc whose name is defined elsewhere is a
              // duplicate at the shared `all_procs` key — the graft can't reproduce
@@ -31,7 +139,7 @@ index 539e9526..b231e2f3 100644
                  return Err(Box::new(self.fresh_full_analyse(source, dialect)));
              }
 diff --git a/rust/tcl-compiler/src/analyser/per_item/graft.rs b/rust/tcl-compiler/src/analyser/per_item/graft.rs
-index 9f2185e7..99308354 100644
+index 9f2185e7..c5eaccec 100644
 --- a/rust/tcl-compiler/src/analyser/per_item/graft.rs
 +++ b/rust/tcl-compiler/src/analyser/per_item/graft.rs
 @@ -71,7 +71,8 @@ impl Analyser {
@@ -44,8 +152,73 @@ index 9f2185e7..99308354 100644
          let line_delta = self.line_offsets.as_deref().map_or(0, |lo| {
              super::super::state::line_at_offset(lo, delta as usize)
          });
+@@ -102,9 +103,64 @@ impl Analyser {
+         }
+         let r = std::mem::take(&mut frag.result);
+         self.merge_fragment_result(r, shell_var_keys);
++        self.replay_body_issuers(db, &mut frag, delta);
+         self.graft_fragment_pending(db, frag, delta);
+     }
+ 
++    /// Rerun the isolated body's original issuers against the document realm,
++    /// at the body's real offsets and in the shell's scope tree.
++    fn replay_body_issuers(&mut self, db: &DeferredBody, frag: &mut BodyFragment, delta: u32) {
++        let shell_path = |path: &[usize]| -> Option<Vec<usize>> {
++            let rest = path.strip_prefix(frag.proc_path.as_slice())?;
++            Some(db.scope_path.iter().chain(rest).copied().collect())
++        };
++        let shift_tokens = |tokens: Vec<tcl_lexer::Token>| -> Vec<tcl_lexer::Token> {
++            tokens
++                .into_iter()
++                .map(|mut token| {
++                    token.span = super::rebase::shift(token.span, delta);
++                    token
++                })
++                .collect()
++        };
++        for replay in std::mem::take(&mut frag.issuer_replays) {
++            match replay {
++                super::IssuerReplay::CommandPrologue { tokens, scope_path } => {
++                    let Some(scope_path) = shell_path(&scope_path) else {
++                        continue;
++                    };
++                    let tokens = shift_tokens(tokens);
++                    let Some((head, arguments)) = tokens.split_first() else {
++                        continue;
++                    };
++                    self.retain_original_static_source_names(&tokens);
++                    self.record_original_scoped_body_advice(
++                        head.span.start(),
++                        arguments,
++                        &scope_path,
++                    );
++                }
++                super::IssuerReplay::VariableReceivers {
++                    offset,
++                    argument_tokens,
++                    scope_path,
++                    body_depth,
++                } => {
++                    let Some(scope_path) = shell_path(&scope_path) else {
++                        continue;
++                    };
++                    let shell_depth = std::mem::replace(&mut self.body_depth, body_depth);
++                    self.record_original_variable_receivers(
++                        offset + delta,
++                        &shift_tokens(argument_tokens),
++                        &scope_path,
++                    );
++                    self.body_depth = shell_depth;
++                }
++            }
++        }
++    }
++
+     /// The [`Self::graft_proc_body`] half that merges a rebased fragment's
+     /// `AnalysisResult` collections into the shell's.  Split out only to
+     /// keep each function within the line budget.
 diff --git a/rust/tcl-compiler/src/analyser/per_item/isolated_body.rs b/rust/tcl-compiler/src/analyser/per_item/isolated_body.rs
-index 827e51a8..c15f19df 100644
+index 827e51a8..b28fff82 100644
 --- a/rust/tcl-compiler/src/analyser/per_item/isolated_body.rs
 +++ b/rust/tcl-compiler/src/analyser/per_item/isolated_body.rs
 @@ -22,6 +22,8 @@ use super::super::state::Analyser;
@@ -68,7 +241,7 @@ index 827e51a8..c15f19df 100644
      // The isolated pass has no whole-file view, so the constant
      // command-substitution fold may trust only the snapshot
      // the shell attached — and must distrust EVERYTHING when none was
-@@ -130,7 +136,24 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
+@@ -130,11 +136,31 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
          kind,
      );
      seed_isolated_frame_state(&mut a, db, &proc_path);
@@ -82,6 +255,7 @@ index 827e51a8..c15f19df 100644
 +        a.head_identities = a.document_command_realm(&wrapper);
 +        a.result.command_realm = Some(std::sync::Arc::new(a.head_identities.clone()));
 +        a.record_original_formal_variables();
++        a.issuer_replays = Some(Vec::new());
 +        a.line_offsets = Some(super::super::state::compute_line_offsets(&wrapper));
 +        a.cached_line_index = tcl_lexer::LineIndex::new(&wrapper);
 +        a.cached_line_index_source_len = wrapper.len();
@@ -94,11 +268,34 @@ index 827e51a8..c15f19df 100644
      let proc_scope = super::super::scope::scope_at_mut(&mut a.result.global_scope, &proc_path)
          .expect("reconstructed proc scope")
          .clone();
+     BodyFragment {
++        issuer_replays: a.issuer_replays.take().unwrap_or_default(),
++        proc_path,
+         result: a.result,
+         proc_scope,
+         ensembles: a.ensemble_namespaces,
+diff --git a/rust/tcl-compiler/src/analyser/per_item/rebase.rs b/rust/tcl-compiler/src/analyser/per_item/rebase.rs
+index 4418831f..6f0c46b4 100644
+--- a/rust/tcl-compiler/src/analyser/per_item/rebase.rs
++++ b/rust/tcl-compiler/src/analyser/per_item/rebase.rs
+@@ -135,6 +135,12 @@ pub(super) fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32)
+     for inv in &mut r.command_invocations {
+         inv.range = shift(inv.range, d);
+         inv.lookup = inv.lookup.rebased(d);
++        if std::env::var_os("PROBE_WRAP").is_some() {
++            inv.original_name_input = None;
++            inv.original_lookup = None;
++            inv.resolved_definition = None;
++            inv.resolved_command_reference = None;
++        }
+     }
+     for x in &mut r.package_requires {
+         x.range = shift(x.range, d);
 diff --git a/rust/tcl-compiler/src/analyser/per_item/tests.rs b/rust/tcl-compiler/src/analyser/per_item/tests.rs
-index ee35ba35..c376f80a 100644
+index ee35ba35..642c74f9 100644
 --- a/rust/tcl-compiler/src/analyser/per_item/tests.rs
 +++ b/rust/tcl-compiler/src/analyser/per_item/tests.rs
-@@ -1066,3 +1066,27 @@ fn param_list_with_backslash_continuation_no_spurious_w215() {
+@@ -1066,3 +1066,32 @@ fn param_list_with_backslash_continuation_no_spurious_w215() {
      // Method form (instance vars + params rebind under the same suppression).
      eq("oo::class create K {\n  method m {a b\\\n    c} { return $a }\n}\n");
  }
@@ -121,8 +318,39 @@ index ee35ba35..c376f80a 100644
 +            let want = Analyser::new().analyse(src, d);
 +            eprintln!("=== {src:?} gate={:?} eq={}", a.per_item_fallback, got == want);
 +            if got != want {
-+                eprintln!("{}", got.bounded_mismatch_summary(&want));
++                let mut gk: Vec<_> = got.original_conditional_registry_metadata.iter().map(|(k, v)| (*k, v.is_some())).collect();
++                let mut wk: Vec<_> = want.original_conditional_registry_metadata.iter().map(|(k, v)| (*k, v.is_some())).collect();
++                gk.sort(); wk.sort();
++                eprintln!("CRM got={gk:?} want={wk:?}");
++                eprintln!("VSYM got={:?} want={:?}", got.original_variable_symbols.iter().map(|s| s.span()).collect::<Vec<_>>(), want.original_variable_symbols.iter().map(|s| s.span()).collect::<Vec<_>>());
++                if std::env::var_os("PROBE_FULLDIFF").is_some() { eprintln!("{}", got.bounded_mismatch_summary(&want)); }
 +            }
 +        }
 +    }
 +}
+diff --git a/rust/tcl-compiler/src/analyser/state.rs b/rust/tcl-compiler/src/analyser/state.rs
+index 327800df..1c54dc9c 100644
+--- a/rust/tcl-compiler/src/analyser/state.rs
++++ b/rust/tcl-compiler/src/analyser/state.rs
+@@ -976,6 +976,9 @@ pub struct Analyser {
+     /// presentation maps never admit a receiver. Whole-document scans use the
+     /// same issuer inline.
+     pub(super) pending_bareword_dispatch_sites: Option<Vec<VarCommandSite>>,
++    /// `Some` in an isolated body walk: the original issuer calls to rerun
++    /// against the document realm at graft.
++    pub(super) issuer_replays: Option<Vec<super::per_item::IssuerReplay>>,
+     /// **Experimental probe flag.**  When `true`, the per-item path does *not*
+     /// take the duplicate-definition fallback, to measure the residual
+     /// divergence the duplicate fast-path must still close.  Defaults to `false`.
+diff --git a/rust/tcl-compiler/src/analyser/state/configuration.rs b/rust/tcl-compiler/src/analyser/state/configuration.rs
+index bcd44af6..2a5e7d83 100644
+--- a/rust/tcl-compiler/src/analyser/state/configuration.rs
++++ b/rust/tcl-compiler/src/analyser/state/configuration.rs
+@@ -164,6 +164,7 @@ impl Analyser {
+             pending_instances: None,
+             deferred_instance_replays: Vec::new(),
+             pending_bareword_dispatch_sites: None,
++            issuer_replays: None,
+             probe_skip_enclosing_fallback: false,
+             probe_skip_duplicate_fallback: false,
+             took_fast_path: false,

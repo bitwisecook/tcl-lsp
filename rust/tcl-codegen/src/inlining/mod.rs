@@ -77,7 +77,10 @@
 
 mod frame;
 mod heads;
+mod live;
+mod live_rename;
 pub(crate) mod reference;
+use live::LiveEntry;
 mod rename;
 
 use std::collections::HashMap;
@@ -109,6 +112,9 @@ struct InliningSummaries<'a> {
     escapes: &'a HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary>,
     /// The calls a pack's reference body answers, by where each stands.
     reference_sites: Option<&'a reference::Sites>,
+    /// The definitions a live compile imported, whose parameterised bodies
+    /// each site lowers again from their renamed text.
+    live: Option<&'a live::LiveBodies<'a>>,
 }
 
 impl InliningSummaries<'_> {
@@ -536,6 +542,7 @@ fn reference_inline_spec(definition: &Module, registry: &CommandRegistry) -> Opt
         registry,
         escapes: &escape,
         reference_sites: None,
+        live: None,
     };
     build_inlinable_map(definition, &summaries, registry)
         .into_values()
@@ -617,6 +624,43 @@ pub fn inline_reference_bodies(
     module
 }
 
+/// [`inline_reference_bodies`] for a procedure body the runtime compiles under
+/// its live native entry (`options`): the definitions are spliced with the
+/// native selections that entry gives their commands, so the runtime can
+/// replay each. `fresh` reads a definition as a fresh interpreter of the
+/// release does, to decide what it splices in. `None` when the module calls
+/// no command a pack defines with a body it can import.
+#[must_use]
+pub(crate) fn inline_reference_bodies_live(
+    module: &Module,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    profile: &'static tcl_dialect::DialectProfile,
+    options: tcl_compiler::command_binding::SourceAnalysisOptions<'_>,
+    fresh: impl FnOnce() -> Option<tcl_compiler::analyser::ResolvedAnalysisInput>,
+) -> Option<Module> {
+    if module.plain_command_dispatch || !profile.vm_runtime_version.revalidates_running_bytecode() {
+        return None;
+    }
+    let called = live::called_commands(module, registry)?;
+    let fresh = fresh()?;
+    let mut module = module.clone();
+    let entry = LiveEntry {
+        options,
+        fresh: &fresh,
+    };
+    let (imported, bodies) = live::import(&mut module, registry, config, profile, entry, &called);
+    if imported.ids.is_empty() {
+        return None;
+    }
+    let mut module = inline_procedures(module, registry, &Inlining::Live(&imported, &bodies));
+    module
+        .procedures
+        .retain(|name, _| !imported.ids.contains(name));
+    module.source = bodies.into_image();
+    Some(module)
+}
+
 /// Which procedures a pass inlines the calls to.
 enum Inlining<'a> {
     /// Every procedure the module defines that the policy admits.
@@ -624,13 +668,15 @@ enum Inlining<'a> {
     /// Only the procedures the importer added: the module's own are neither
     /// inlined nor rewritten.
     Only(&'a reference::Imported),
+    /// [`Self::Only`], for a module lowered under a live native entry.
+    Live(&'a reference::Imported, &'a live::LiveBodies<'a>),
 }
 
 impl Inlining<'_> {
     fn admits(&self, id: &tcl_compiler::ir::ProcedureId) -> bool {
         match self {
             Self::Everything => true,
-            Self::Only(imported) => imported.ids.contains(id),
+            Self::Only(imported) | Self::Live(imported, _) => imported.ids.contains(id),
         }
     }
 
@@ -643,7 +689,7 @@ impl Inlining<'_> {
     fn top_level(&self, module: &Module) -> Option<bool> {
         match self {
             Self::Everything => Some(true),
-            Self::Only(_) => (module.top_level_kind
+            Self::Only(_) | Self::Live(..) => (module.top_level_kind
                 == tcl_compiler::ir::TopLevelKind::ProcedureBody)
                 .then_some(false),
         }

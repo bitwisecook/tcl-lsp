@@ -152,28 +152,31 @@ struct UnitCommandResolver<'a> {
     logical_definitions: Option<HashSet<String>>,
     logical_input: Option<crate::analyser::ResolvedAnalysisInput>,
     logical_realm: Option<std::sync::Arc<crate::realm::CommandBindingRealm>>,
+    /// The walk's realm, for the lookup state at a site with no execution
+    /// proof, where the Logical declaration path is not in use.
+    realm: Option<std::sync::Arc<crate::realm::CommandBindingRealm>>,
 }
 
 impl UnitCommandResolver<'_> {
     fn resolves(&self, statement: &crate::ir::Statement) -> bool {
-        if let Some(target) = statement
+        let binding = statement
             .tokens()
-            .and_then(|tokens| tokens.source_binding.as_ref())
+            .and_then(|tokens| tokens.source_binding.as_ref());
+        if let Some(target) = binding
             .and_then(crate::command_binding::SourceInvocationBinding::proved_execution_target)
         {
-            if target.registry_backed {
-                return target.registry_identity().is_some_and(|identity| {
-                    self.generation
-                        .context()
-                        .resolve_spec(self.registry, identity)
-                        .is_some()
-                });
-            }
-            return target.kind == crate::command_binding::BindingKind::Proc
-                && target
-                    .implementation_allocation
-                    .as_ref()
-                    .is_some_and(|allocation| self.procedures.contains(&allocation.site));
+            return self.target_resolves(target);
+        }
+        // A site with no execution proof (one the walk reached only
+        // conditionally, or never because an earlier read raised) reads, for
+        // diagnostics only, the lookup in the state the walk had there. Only a
+        // registry command qualifies: its name effects are the registry's,
+        // while a procedure's come from summaries applied at proved sites.
+        if let Some(target) = self
+            .projected_site_target(statement, binding)
+            .filter(|target| target.registry_backed)
+        {
+            return self.target_resolves(&target);
         }
         let Some(input) = &self.logical_input else {
             return false;
@@ -238,6 +241,39 @@ impl UnitCommandResolver<'_> {
                 .as_ref()
                 .is_some_and(|definitions| definitions.contains(&target.command))
     }
+
+    fn target_resolves(&self, target: &crate::command_binding::SourceCommandTarget) -> bool {
+        if target.registry_backed {
+            return target.registry_identity().is_some_and(|identity| {
+                self.generation
+                    .context()
+                    .resolve_spec(self.registry, identity)
+                    .is_some()
+            });
+        }
+        target.kind == crate::command_binding::BindingKind::Proc
+            && target
+                .implementation_allocation
+                .as_ref()
+                .is_some_and(|allocation| self.procedures.contains(&allocation.site))
+    }
+
+    fn projected_site_target(
+        &self,
+        statement: &crate::ir::Statement,
+        binding: Option<&crate::command_binding::SourceInvocationBinding>,
+    ) -> Option<crate::command_binding::SourceCommandTarget> {
+        let crate::ir::Statement::Call { command, .. } = statement else {
+            return None;
+        };
+        let site = binding?.invocation_site()?;
+        self.realm
+            .as_deref()?
+            .source_bindings_ref()
+            .projection_at_source(command, site.offset)
+            .proved_target()
+            .cloned()
+    }
 }
 
 impl Analyser {
@@ -265,6 +301,9 @@ impl Analyser {
             logical_realm: self
                 .result
                 .allows_retained_logical_declaration_advice()
+                .then(|| self.result.retained_command_realm_arc().cloned())
+                .flatten(),
+            realm: (!self.result.allows_retained_logical_declaration_advice())
                 .then(|| self.result.retained_command_realm_arc().cloned())
                 .flatten(),
         }

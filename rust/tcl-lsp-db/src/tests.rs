@@ -255,12 +255,17 @@ mod cross_file_call_sites {
     #[test]
     fn slice_carries_only_other_files_calls_to_this_files_procs() {
         let db = TclDatabase::default();
-        let lib = SourceFile::new(&db, LIB.to_owned(), "tcl8.6".to_owned(), None);
+        let lib = SourceFile::new(
+            &db,
+            LIB.to_owned(),
+            "tcl8.6".to_owned(),
+            Some("/w/lib.tcl".to_owned()),
+        );
         let main = SourceFile::new(
             &db,
-            "proc other {x} { return $x }\nother 1\nhelper dev\n".to_owned(),
+            "source lib.tcl\nproc other {x} { return $x }\nother 1\nhelper dev\n".to_owned(),
             "tcl8.6".to_owned(),
-            None,
+            Some("/w/main.tcl".to_owned()),
         );
         let project = Project::new(&db, vec![lib, main]);
         let lib_slice = file_external_call_sites(&db, lib, project);

@@ -20,8 +20,7 @@
 
 use super::{
     Arc, BTreeMap, CfgFunction, CommandRegistry, InvocationFacts, ModuleCommandBindings, Script,
-    SourceInvocationBinding, SourceOriginId, SourceOriginKind, SourceVariableEvaluationOwner,
-    Statement,
+    SourceInvocationBinding, SourceOriginId, SourceOriginKind, Statement,
 };
 use crate::registry_invocation::{InvocationMetadataInput, OwnedInvocationMetadataContext};
 
@@ -833,57 +832,8 @@ pub(super) fn normalize_native_tokens(
         proof.lookup_state = None;
         proof.compiler_lookup_state = None;
         proof.compiler_policy = None;
-        if let Some(site) = &mut proof.dispatch_site {
-            relocate_allocation_site(site, scope, origin);
-        }
-        if let Some(reads) = &mut proof.invocation_variable_reads {
-            for access in &mut Arc::make_mut(reads).substitutions {
-                relocate_read_owner(&mut access.owner, scope, origin);
-            }
-        }
-        for compiled in &mut proof.compiled_candidates {
-            relocate_allocation_site(&mut compiled.compilation_site, scope, origin);
-        }
-        for named in &mut proof.compiled_named_candidates {
-            relocate_allocation_site(&mut named.compilation_site, scope, origin);
-        }
-        if let Some(admission) = &mut proof.native_compiler_admission {
-            match Arc::make_mut(admission) {
-                super::compiled_invocation::SourceNativeCompilerAdmission::Inline(compiled) => {
-                    relocate_allocation_site(&mut compiled.compilation_site, scope, origin);
-                }
-                super::compiled_invocation::SourceNativeCompilerAdmission::Named(named) => {
-                    relocate_allocation_site(&mut named.compilation_site, scope, origin);
-                }
-            }
-        }
     }
-    for access in &mut tokens.variable_accesses {
-        relocate_read_owner(&mut access.owner, scope, origin);
-    }
-}
-
-fn relocate_read_owner(
-    owner: &mut SourceVariableEvaluationOwner,
-    scope: BodyProofScope<'_>,
-    origin: &Arc<SourceOriginId>,
-) {
-    match owner {
-        SourceVariableEvaluationOwner::InvocationArguments { invocation, parent }
-        | SourceVariableEvaluationOwner::NativeExpression { invocation, parent }
-        | SourceVariableEvaluationOwner::InvocationBody { invocation, parent } => {
-            relocate_allocation_site(invocation, scope, origin);
-            if let Some(parent) = parent {
-                relocate_read_owner(Arc::make_mut(parent), scope, origin);
-            }
-        }
-        SourceVariableEvaluationOwner::Alternatives(owners) => {
-            for owner in owners {
-                relocate_read_owner(owner, scope, origin);
-            }
-        }
-        SourceVariableEvaluationOwner::Unspecified => {}
-    }
+    tokens.for_each_allocation_site_mut(&mut |site| relocate_allocation_site(site, scope, origin));
 }
 
 fn relocate_allocation_site(

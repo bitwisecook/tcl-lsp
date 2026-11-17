@@ -74,11 +74,18 @@ fn original_inherited_method_candidates_use_byte_relations_after_reporting_clear
             b"own".to_vec()
         ]
     );
-    assert!(
-        items
-            .iter()
-            .all(|item| item.detail.as_deref() == Some("method — source declaration candidate"))
-    );
+    // An inherited member names its providing class; an own one does not.
+    for item in &items {
+        let detail = item.detail.as_deref().unwrap_or_default();
+        if item.label == "own" {
+            assert_eq!(detail, "method — source declaration candidate");
+        } else if item.label != "destroy" {
+            assert!(
+                detail.starts_with("method — source declaration candidate, inherited from "),
+                "{detail}"
+            );
+        }
+    }
 }
 
 #[test]
@@ -92,12 +99,14 @@ fn original_property_accessor_candidates_follow_typed_source_inheritance_only() 
         .find(|record| record.name_input().bytes() == b"Child")
         .unwrap();
     let items = original_method_candidate_items(&analysis, record, "", MemberSide::Instance);
+    // tclsh 9.0.4 and 9.1.0: lsort [info object methods [Child new] -all]
+    //   ->  configure destroy own
     assert_eq!(
         items
             .iter()
             .map(|item| item.label.as_str())
             .collect::<Vec<_>>(),
-        ["configure", "own"]
+        ["configure", "destroy", "own"]
     );
     assert_eq!(
         items[0].detail.as_deref(),

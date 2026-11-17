@@ -804,11 +804,34 @@ fn resolve_start_checked<O: NativeIndexOps>(
     Ok(usize::try_from(idx).unwrap_or(0))
 }
 
+/// Resolve the original `-start` word as C's `TclGetIntForIndexM` reads it:
+/// the same object, so a bignum offset saturates under 9.x as `lindex` does.
+fn resolve_start_original<O: NativeIndexOps>(
+    ops: &mut O,
+    args: &[O::Value],
+    common: &Common,
+    char_len: usize,
+) -> Result<usize, RegexError> {
+    let (Some(spec), Some(at)) = (common.start.as_deref(), common.start_at) else {
+        return Ok(0);
+    };
+    let syntax = ops
+        .index_syntax()
+        .ok_or_else(|| RegexError::new(b"regex offset dialect is not selected".to_vec()))?;
+    if syntax.regex_start_grammar() == tcl_dialect::RegexStartGrammar::Integer {
+        return resolve_start_checked(ops, spec, char_len);
+    }
+    let idx = crate::index::resolve_value(ops, &args[at], char_len).map_err(RegexError::from)?;
+    Ok(usize::try_from(idx).unwrap_or(0))
+}
+
 /// The compile flags + `-all`/`-start` shared by both commands' option sets.
 struct Common {
     all: bool,
     flags: RegexFlags,
     start: Option<Vec<u8>>,
+    /// The `-start` word's position among the command's arguments.
+    start_at: Option<usize>,
 }
 
 impl Common {
@@ -817,6 +840,7 @@ impl Common {
             all: false,
             flags: RegexFlags::for_release(version),
             start: None,
+            start_at: None,
         }
     }
 }

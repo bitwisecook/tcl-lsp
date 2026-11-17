@@ -175,7 +175,15 @@ fn original_method_candidate_items_with_own_at(
     )>::new();
     let mut items = Vec::new();
     extend_original_own_method_items(analysis, partial, edit_context, own, &mut names, &mut items);
-    for provider in providers {
+    for provider in providers.iter().copied() {
+        let detail = if provider.declaration_site() == root.declaration_site() {
+            "method — source declaration candidate".to_owned()
+        } else {
+            format!(
+                "method — source declaration candidate, inherited from {}",
+                provider.metadata().qualified_name
+            )
+        };
         for method in provider
             .metadata()
             .original_members
@@ -219,7 +227,7 @@ fn original_method_candidate_items_with_own_at(
                 label,
                 spelling,
                 edit_context,
-                "method — source declaration candidate",
+                &detail,
             ) else {
                 continue;
             };
@@ -236,8 +244,64 @@ fn original_method_candidate_items_with_own_at(
             &mut items,
         );
     }
+    if side == MemberSide::Instance {
+        extend_builtin_instance_method_items(analysis, &providers, partial, &mut items);
+    }
     items.sort_by(|left, right| left.label.cmp(&right.label));
     items
+}
+
+/// The family's exported built-in object methods (`destroy` for `TclOO`),
+/// which every instance answers through its own command, from the registry.
+/// The nearest provider in resolution order that exports or unexports the
+/// name decides its visibility, as `info object methods $o -all` reports.
+fn extend_builtin_instance_method_items(
+    analysis: &AnalysisResult,
+    providers: &[&tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
+        tcl_compiler::analyser::ClassDef,
+    >],
+    partial: &str,
+    items: &mut Vec<CompletionItem>,
+) {
+    use tcl_registry::definer::{BuiltinMethodReceiver, MethodReach};
+    let Some(root) = providers.first() else {
+        return;
+    };
+    let Some(grammar) = crate::definition::class_definition_grammar(analysis, root.metadata())
+    else {
+        return;
+    };
+    for builtin in grammar.builtin_object_methods {
+        let exported = providers
+            .iter()
+            .find_map(|provider| {
+                let class = provider.metadata();
+                if class.unexports.contains(builtin.name) {
+                    Some(false)
+                } else if class.exports.contains(builtin.name) {
+                    Some(true)
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(true);
+        if !exported
+            || !builtin.name.starts_with(partial)
+            || items.iter().any(|item| item.label == builtin.name)
+            || grammar
+                .builtin_object_method(builtin.name, MethodReach::ObjectCommand)
+                .is_none_or(|method| method.receiver != BuiltinMethodReceiver::AnyObject)
+        {
+            continue;
+        }
+        items.push(CompletionItem {
+            label: builtin.name.to_owned(),
+            insert_text: builtin.name.to_owned(),
+            kind: CompletionKind::Function,
+            detail: Some(format!("method — {}", builtin.detail)),
+            ..CompletionItem::default()
+        });
+    }
 }
 
 fn original_method_candidate_item(

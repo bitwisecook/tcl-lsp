@@ -256,6 +256,22 @@ fn w210_first_iteration_read_in_a_loop_body_fires() {
     );
 }
 
+/// Over a literal list the body runs, and its first read raises before the
+/// `lappend` after it: that dead `lappend` is still the registry's command,
+/// not an unseen callee that could set `r` by name. tclsh 8.4.20, 8.6.18 and
+/// 9.0.4: `f` raises `can't read "r": no such variable`.
+#[test]
+fn w210_first_iteration_read_before_a_dead_lappend_fires() {
+    let inbody = w210_codes_in_dialect(
+        "proc f {} { foreach i {a b} { puts $r; lappend r $i } }",
+        "tcl8.6",
+    );
+    assert!(
+        inbody.iter().any(|m| m.contains("'r'")),
+        "the read before the dead lappend must fire; got {inbody:?}"
+    );
+}
+
 #[test]
 fn w210_c9_loop_accumulator_distinguishes_custom_inputs_from_ordinary_empty_lists() {
     // A custom C9 list can write caller locals from its Length/Elements/Dup

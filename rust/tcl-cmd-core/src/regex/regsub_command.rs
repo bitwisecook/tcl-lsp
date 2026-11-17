@@ -170,6 +170,7 @@ pub(super) fn regsub_option_scan(
             "-start" => match (i < args.len()).then(|| args.bytes(i)).transpose()? {
                 Some(v) => {
                     c.start = Some(v);
+                    c.start_at = Some(i);
                     i += 1;
                 }
                 // A trailing `-start` ends the options (C's `goto
