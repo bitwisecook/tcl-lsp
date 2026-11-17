@@ -17,7 +17,7 @@ Failing tests by area, from each session's last full run on `work`. The start-of
 | `tcl-lsp-server` end to end | 319 | 1,651 | LSP features (navigation), LSP server and database |
 | `tcl-lsp-db` | about 80 | not re-measured | LSP server and database |
 | Execution (`tcl-codegen`, `tcl-vm`, engines, `tcl-cshim`, `tcl-spec-hooks`) | 329 | 5,480 | execution |
-| Tooling (`tcl-cli` 42, `tcl-spectcl` 29, `tcl-explorer` 14, `tcl-diagram` 14, `tcl-mcp` 3, `tcl-irules` 3, `tcl-spec-studio` 1, `tcl-sslictcl` 1, `tcl-registry` 0; re-run on `631529c9`, 16 November) | 107 | | tooling |
+| Tooling (17 November on `30783a0e`: `tcl-cli` 40, `tcl-diagram` 14, `tcl-explorer` 13, `tcl-spectcl` 29, `tcl-mcp` 3, `tcl-irules` 3, `tcl-spec-studio` 3, `tcl-sslictcl` 1, `tcl-registry` 1; plus 4 `rule_declaration` tests in `tcl-compiler`; list `lists/irules-registry-tooling-failing-2026-11-17.txt`) | 104 | | tooling |
 | Server end to end, `irules`, `spec_packs`, `sslictcl`, `jim` groups (within the 319 above) | 33 | 131 | tooling |
 | `tcl-lexer`, `tcl-syntax`, `tcl-core-types`, `tcl-dialect` | 0 | 2,005 | coordinator |
 | `xtask` (38 drift gates) | 0 | | coordinator |

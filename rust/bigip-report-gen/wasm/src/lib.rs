@@ -289,7 +289,8 @@ pub fn generate_report(
             .unwrap_or("")
             .to_owned()
     };
-    let architecture = Some(text(&options, "architectureManifest")).filter(|m| !m.trim().is_empty());
+    let architecture =
+        Some(text(&options, "architectureManifest")).filter(|m| !m.trim().is_empty());
     let settings = options.get("settings").unwrap_or(&serde_json::Value::Null);
     let setting = |key: &str| text(settings, key);
     let opts = RenderOptions {
@@ -350,8 +351,8 @@ mod tests {
           ["memory://iapp/presentation.apl", "#include \"missing.inc\"\nsection basic {\n  string addr\n  string port\n}\n"],
           ["memory://iapp/implementation.impl", "set ok $::basic__addr\nset missing $::basic__missing\n"]
         ]"##;
-        let html = generate_report(sources, "", "", "iApp", "", false, "", "", "")
-            .expect("render iApp report");
+        let html =
+            generate_report(sources, "", "", r#"{"title":"iApp"}"#).expect("render iApp report");
         for code in ["IAPP7001", "IAPP7002", "IAPP7003"] {
             assert!(html.contains(code), "{code} is retained by the wasm report");
         }
