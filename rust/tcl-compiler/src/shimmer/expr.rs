@@ -1408,18 +1408,22 @@ mod tests {
     }
 
     /// An arithmetic shimmer inside a loop body is a per-iteration cost
-    /// (S101); the same shimmer outside a loop is one-time (S100).
+    /// (S101); the same shimmer outside a loop is one-time (S100). Each pass
+    /// reads `l` as a list and then as a number, so it converts both ways
+    /// every iteration; tclsh 8.6.18, 9.0.4 and 9.1.0, the representation of
+    /// `l` after `lindex` and after `expr` on each of two passes:
+    /// `list int list int`.
     #[test]
     fn expr_shimmer_in_loop_is_s101() {
         let cu = CompilationUnit::build_for(
-            "proc f {l} {\n  foreach x $l {\n    set y [expr {$x + 1}]\n  }\n}\n",
+            "set l [list 5]\nfor {set i 0} {$i < 2} {incr i} {\n  lindex $l 0\n  expr {$l + 1}\n}\n",
             &registry(),
             false,
         );
-        let fu = cu.function("::f").unwrap();
+        let fu = cu.function("::top").unwrap();
         let w = expr_shimmers(fu, &registry());
-        let s = w.iter().find(|sw| sw.variable == "x");
-        assert!(s.is_some(), "expected expr shimmer for x in loop: {w:?}");
+        let s = w.iter().find(|sw| sw.variable == "l");
+        assert!(s.is_some(), "expected expr shimmer for l in loop: {w:?}");
         let s = s.unwrap();
         assert_eq!(
             s.code,
