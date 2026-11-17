@@ -489,7 +489,11 @@ pub(super) fn select_invocation(
     // The positively retained source-only input requests lexical continuation,
     // not a Native compiler outcome. Its validated ingress excludes Native,
     // hosted and independently authored execution policies.
-    if state.logical_source_name_advice_input().is_some() {
+    // A hosted rule's advisory handler walk is a source interpretation too:
+    // a body it enters (`if`, `foreach`) has no compiler outcome of its own.
+    if state.logical_source_name_advice_input().is_some()
+        || super::logical_definition::hosted_entry(state, context).is_some()
+    {
         return CompiledInvocationSelection {
             admission: None,
             ..CompiledInvocationSelection::default()
