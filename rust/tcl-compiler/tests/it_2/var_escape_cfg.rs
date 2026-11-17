@@ -112,6 +112,15 @@ fn cfg_result(src: &str) -> CfgEscapeResult {
     )
 }
 
+/// The same analysis over the body of `proc p {} {<src>}`: a `global` or
+/// `variable` link only means something in a procedure frame, since at `#0`
+/// the frame is the global one and a top-level variable is Local.
+fn proc_cfg_result(src: &str) -> CfgEscapeResult {
+    let cu = CompilationUnit::build_for(&format!("proc p {{}} {{{src}}}"), registry(), false);
+    let function = &cu.procedures[&crate::body_identity::fixture_id(&cu.procedures, "::p")];
+    analyse_cfg_function(&function.cfg, &function.ssa, std::iter::empty::<String>())
+}
+
 /// Fetch the summary for a proc qname, panicking with the available keys
 /// if it is missing.
 fn summary<'a>(map: &'a FixtureEscapes, qname: &str) -> &'a ProcEscapeSummary {
@@ -888,7 +897,7 @@ fn cfg_result_to_summary_preserves_tags_and_clears_pure_leaf() {
     // ssa_tags across, sets `frame_needed`, and (by contract) leaves
     // `pure_leaf` false — the inlining predicate is only computed on the IR
     // walk.
-    let r = cfg_result("global g");
+    let r = proc_cfg_result("global g");
     assert_eq!(r.name_tags.get("g"), Some(&EscapeTag::Frame));
     let summ = cfg_result_to_summary(&r);
     assert!(summ.is_frame("g"), "tag carried into the summary");
