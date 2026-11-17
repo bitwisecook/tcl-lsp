@@ -520,6 +520,7 @@ fn emit_block_statements(
         .values()
         .any(|info| info.catch_end == *bname);
     for (stmt_idx, stmt) in blk.statements.iter().enumerate() {
+        ctx.splice_boundary(stmt.span());
         ctx.pending_math_source = cfg
             .block_id(bname)
             .and_then(|id| cfg.statement_sources.get(&(id, stmt_idx)))
@@ -588,6 +589,7 @@ fn emit_block_statements(
         }
         ctx.emit_stmt_with_start_cmd(stmt, None, None);
     }
+    ctx.close_splice();
 }
 
 /// Emit the owning command boundary for a structured block that CFG lowering
@@ -1299,7 +1301,7 @@ fn finalize_function(
         body_base_line: 0,
         proc_body_src: None,
         error_regions,
-        splice_ranges: Vec::new(),
+        splice_ranges: std::mem::take(&mut ctx.splices).into_ranges(),
         plain_command_dispatch: ctx.plain_command_dispatch,
         command_bindings: std::mem::take(&mut ctx.command_binding_requirements)
             .into_iter()

@@ -80,9 +80,9 @@ const CASES: &[(&str, &[&str], usize)] = &[
         0,
     ),
     ("proc caller {n} {vdef $n}", &["caller 5", "caller x"], 1),
-    // An expression calling a function the release provides, and one the
-    // caller's script has replaced with a procedure, which stays a call.
-    ("proc caller {n} {vabs $n}", &["caller -4"], 1),
+    // An expression calling a function stays a call: the live entry proves
+    // no target for it, even where the caller's script has not replaced it.
+    ("proc caller {n} {vabs $n}", &["caller -4"], 0),
     (
         "set ::calls 0; namespace eval ::tcl::mathfunc {}; \
          proc ::tcl::mathfunc::abs {v} {incr ::calls; return 7}; \
@@ -163,10 +163,12 @@ const CASES: &[(&str, &[&str], usize)] = &[
     ),
     // The call's own argument count is wrong.
     ("proc caller {n} {vdouble $n $n}", &["caller 1"], 0),
+    // A list command on a value the live entry cannot see may convert it
+    // through a host callback, so it stays a call.
     (
         "proc caller {a b} {vcount $a $b}",
         &["caller 1 2", "caller {} {}"],
-        1,
+        0,
     ),
 ];
 

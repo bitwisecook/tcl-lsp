@@ -129,25 +129,29 @@ pub(super) fn splice_call_site(
             if !args.is_empty() {
                 return None;
             }
-            // Re-attribute each spliced call to the call site for diagnostics.
-            let statements = body
-                .statements
-                .iter()
-                .map(|inner| match inner {
-                    Statement::Call { .. } => with_span(inner, span),
-                    other => other.clone(),
-                })
-                .collect();
-            Some(InlineExpansion {
-                statements,
-                command_binding_sites: body.command_binding_sites.iter().cloned().collect(),
-                procedure_bindings: body
-                    .procedure_binding_requirements
+            if live {
+                verbatim_live_expansion(call, body, counter, site.tail)
+            } else {
+                // Re-attribute each spliced call to the call site for diagnostics.
+                let statements = body
+                    .statements
                     .iter()
-                    .cloned()
-                    .collect(),
-                splice: None,
-            })
+                    .map(|inner| match inner {
+                        Statement::Call { .. } => with_span(inner, span),
+                        other => other.clone(),
+                    })
+                    .collect();
+                Some(InlineExpansion {
+                    statements,
+                    command_binding_sites: body.command_binding_sites.iter().cloned().collect(),
+                    procedure_bindings: body
+                        .procedure_binding_requirements
+                        .iter()
+                        .cloned()
+                        .collect(),
+                    splice: None,
+                })
+            }
         }
         InlineSpec::Parameterised(proc, rules, config) => {
             splice_v3(call, proc, *rules, *config, counter, site.tail, renamed)
@@ -563,4 +567,32 @@ pub(super) fn walk_local_writes(script: &Script, names: &mut HashSet<String>, de
             _ => {}
         }
     }
+}
+
+/// A body with nothing to rename, spliced by a live compile: the call's
+/// command word is evaluated into its slot first, the body keeps the spans it
+/// was lowered at, and the splice records the call it falls back to.
+fn verbatim_live_expansion(
+    call: &Statement,
+    body: &Script,
+    counter: &mut usize,
+    tail: Tail,
+) -> Option<InlineExpansion> {
+    *counter += 1;
+    let cid = *counter;
+    let (words, _) = evaluated_words(call, cid)?;
+    let first = body.statements.first()?.span();
+    let last = body.statements.last()?.span();
+    let splice = tcl_compiler::ir::SpliceSite {
+        call_span: call.span(),
+        body_region: Span::new(first.start(), last.end()),
+        words: vec![word_slot(cid, 0)],
+        resumes_with_value: tail != Tail::Dropped,
+    };
+    let mut expansion = InlineExpansion::from_script(body.clone());
+    let mut statements = words;
+    statements.append(&mut expansion.statements);
+    expansion.statements = statements;
+    expansion.splice = Some(splice);
+    Some(expansion)
 }

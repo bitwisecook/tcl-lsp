@@ -71,6 +71,7 @@ mod error_info;
 mod release_evaluation;
 mod site_bindings;
 mod source_sites;
+mod splice_emission;
 
 // Emission context.
 
@@ -232,6 +233,8 @@ pub struct CodegenCtx<'r> {
     pub literals: LiteralTable,
     /// Local variable table.
     pub lvt: LocalVarTable,
+    /// The live splices this function's statements stand in.
+    pub(crate) splices: splice_emission::SpliceEmission,
     /// Instruction stream (append-only during emission).
     pub instructions: Vec<Instruction>,
     /// Label name → instruction index (populated by [`place_label`]).
@@ -446,6 +449,23 @@ pub struct CodegenCtx<'r> {
     native_compilation: tcl_registry::native_compilation::NativeCompilationContext,
 }
 
+/// The native compilation a function starts in: a bytecode object for a
+/// procedure's code or a script's, outside any loop or `catch`.
+const fn initial_native_compilation(
+    is_proc: bool,
+) -> tcl_registry::native_compilation::NativeCompilationContext {
+    tcl_registry::native_compilation::NativeCompilationContext {
+        mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
+        frame: if is_proc {
+            tcl_registry::native_compilation::NativeCompilationFrame::ProcedureCode
+        } else {
+            tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode
+        },
+        loop_depth: 0,
+        catch_depth: Some(0),
+    }
+}
+
 impl<'r> CodegenCtx<'r> {
     /// Parse an `expr` body the way this compile reads expressions: under
     /// [`Self::expr_grammar`] for a named dialect, under the ambient runtime
@@ -493,6 +513,7 @@ impl<'r> CodegenCtx<'r> {
             expr_grammar: None,
             literals: LiteralTable::new(),
             lvt,
+            splices: splice_emission::SpliceEmission::default(),
             instructions: Vec::new(),
             label_positions: HashMap::new(),
             label_counter: 0,
@@ -566,16 +587,7 @@ impl<'r> CodegenCtx<'r> {
             source_proofs: None,
             native_operation_origins: HashMap::new(),
             inline_body_source_base: None,
-            native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
-                mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
-                frame: if is_proc {
-                    tcl_registry::native_compilation::NativeCompilationFrame::ProcedureCode
-                } else {
-                    tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode
-                },
-                loop_depth: 0,
-                catch_depth: Some(0),
-            },
+            native_compilation: initial_native_compilation(is_proc),
         }
     }
 

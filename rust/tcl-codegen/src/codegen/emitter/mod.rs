@@ -110,6 +110,8 @@ struct ModuleEmit<'a> {
     references: &'a [tcl_compiler::ir::ReferenceImport],
     /// See [`tcl_compiler::ir::ReferenceBodies::hidden_local_prefixes`].
     hidden_local_prefixes: &'a [String],
+    /// See [`tcl_compiler::ir::ReferenceBodies::splices`].
+    splices: &'a [tcl_compiler::ir::SpliceSite],
     /// The spans of the top level's own commands where the release evaluates
     /// them without compiling them ([`IrModule::top_level_evaluation`]).
     direct_commands: Vec<tcl_lexer::Span>,
@@ -159,6 +161,7 @@ fn configured_codegen_context<'a>(
             .map(|prefix| tcl_runtime_api::NameBytes::from(prefix.as_bytes()))
             .collect(),
     );
+    ctx.splices = super::splice_emission::SpliceEmission::new(module.splices.to_vec());
     ctx.command_bindings = Some(module.command_bindings);
     ctx.plain_command_dispatch = module.plain_command_dispatch;
     ctx.source_proofs = Some(std::sync::Arc::clone(&module.source_proofs));
@@ -581,6 +584,7 @@ fn module_emission_context<'a>(
         source_proofs: std::sync::Arc::new(source_proofs),
         references: &ir_module.reference_bodies.imports,
         hidden_local_prefixes: &ir_module.reference_bodies.hidden_local_prefixes,
+        splices: &ir_module.reference_bodies.splices,
         direct_commands: if ir_module.top_level_evaluation
             == tcl_compiler::ir::CommandEvaluation::Direct
         {
