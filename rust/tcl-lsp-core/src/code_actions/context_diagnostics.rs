@@ -23,6 +23,7 @@ use super::{ActionKind, CodeAction, diagnostic_context};
 use crate::definition::LspRange;
 use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::AnalysisResult;
+use tcl_compiler::compiler_checks::ContextActionTier;
 use tcl_lexer::LineIndex;
 use tcl_registry::events::{DataCollectionAction, EventRegistry};
 
@@ -93,12 +94,16 @@ pub fn context_diagnostic_actions_in_analysis(
         if !data.matches(source, analysis, registry, diagnostic) {
             continue;
         }
-        out.extend(taint_subject_actions(
-            source, analysis, registry, &commands, data,
-        ));
-        out.extend(collect_bootstrap_actions_current(
-            source, analysis, registry, &commands, data,
-        ));
+        let mut bootstrap =
+            collect_bootstrap_actions_current(source, analysis, registry, &commands, data);
+        if data.action_tier() == ContextActionTier::SingleNotPreferred {
+            bootstrap.truncate(1);
+        } else {
+            out.extend(taint_subject_actions(
+                source, analysis, registry, &commands, data,
+            ));
+        }
+        out.extend(bootstrap);
     }
     deduplicate_context_actions(&mut out);
     out

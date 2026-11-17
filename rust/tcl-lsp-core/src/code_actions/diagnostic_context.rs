@@ -52,7 +52,7 @@ impl ContextDiagnosticData {
     #[must_use]
     pub fn from_compiler_diagnostic(diagnostic: &Diagnostic) -> Option<Self> {
         let context = diagnostic.source_context.as_ref()?;
-        if !context.allows_context_action_subject() {
+        if context.context_action_tier() == tcl_compiler::compiler_checks::ContextActionTier::None {
             return None;
         }
         if diagnostic.span.start() > diagnostic.span.end()
@@ -155,6 +155,17 @@ impl ContextDiagnosticData {
 
     pub(super) fn diagnostic(&self) -> Option<&Diagnostic> {
         self.diagnostic.as_deref()
+    }
+
+    /// What the retained subject may build; a typed notice is ordinary.
+    pub(super) fn action_tier(&self) -> tcl_compiler::compiler_checks::ContextActionTier {
+        use tcl_compiler::compiler_checks::ContextActionTier;
+        self.diagnostic
+            .as_ref()
+            .and_then(|diagnostic| diagnostic.source_context.as_ref())
+            .map_or(ContextActionTier::Ordinary, |context| {
+                context.context_action_tier()
+            })
     }
 
     pub(super) fn matches(
@@ -390,7 +401,7 @@ pub(super) fn helper_publication_proposal(
 #[cfg(test)]
 mod tests {
     #[test]
-    fn conditional_collection_advice_cannot_mint_a_bootstrap_action_subject() {
+    fn conditional_collection_advice_mints_one_not_preferred_bootstrap_subject() {
         let source = "when HTTP_REQUEST {HTTP::payload}";
         let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
         let context = environment.default_context_registry();
@@ -437,21 +448,24 @@ mod tests {
                 registry,
                 std::slice::from_mut(&mut diagnostic),
             );
-            assert!(super::ContextDiagnosticData::from_compiler_diagnostic(&diagnostic).is_none());
+            let data = super::ContextDiagnosticData::from_compiler_diagnostic(&diagnostic)
+                .expect("conditional collection advice keeps a single-action subject");
+            assert_eq!(
+                data.action_tier(),
+                tcl_compiler::compiler_checks::ContextActionTier::SingleNotPreferred
+            );
             let projected = super::super::ContextDiagnostic {
                 code: diagnostic.code.as_str().to_owned(),
                 message: diagnostic.message.clone(),
-                data: None,
+                data: Some(data),
                 range: crate::definition::span_to_range(
                     source,
                     &tcl_lexer::LineIndex::new(source),
                     diagnostic.span,
                 ),
             };
-            assert_eq!(
-                actions(source, &analysis, &projected),
-                [] as [crate::code_actions::CodeAction; 0]
-            );
+            let offered = actions(source, &analysis, &projected);
+            assert_eq!(offered.len(), 1, "{offered:?}");
         }
     }
 
