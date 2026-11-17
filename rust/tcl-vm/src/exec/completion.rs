@@ -94,7 +94,9 @@ pub(super) fn instruction_inner_context(
     let mut context = Vec::with_capacity(operands.len() + 1);
     context.push(Value::string(mnemonic));
     let taken = inner_operand_count(instruction.op);
-    if taken > 0 && operands.len() == taken {
+    if matches!(instruction.op, Op::INVOKE_STK1 | Op::INVOKE_STK4)
+        || (taken > 0 && operands.len() == taken)
+    {
         context.extend(operands.iter().cloned());
     }
     Value::list(context)
@@ -1098,22 +1100,25 @@ impl Vm {
         {
             self.log_tailcall_invocation(&words, c);
         }
+        // The caller logs the command that invoked the procedure: its
+        // TIP 348 context is the invoke and the words it was called with
+        // (`invokeStk1 vret x`), and when nothing logged the error yet its
+        // message seeds errorInfo (8.5's `return -code error`).
         if c.code == Code::Error
-            && let Some((cmd, line, enclosing)) = acts.last().and_then(|parent| {
-                parent
-                    .asm
-                    .instructions
-                    .get(parent.pc.saturating_sub(1))
-                    .map(logged_command)
+            && let Some((cmd, line, enclosing, context)) = acts.last().and_then(|parent| {
+                let index = parent.pc.saturating_sub(1);
+                parent.asm.instructions.get(index).map(|instruction| {
+                    let (cmd, line, enclosing) = logged_command(instruction);
+                    let context = match parent.failed_operands_at(index) {
+                        Some(words) => invoke_inner_context(self, instruction, words, &cmd),
+                        None => Value::from_native_string_bytes(cmd.clone()),
+                    };
+                    (cmd, line, enclosing, context)
+                })
             })
         {
-            self.log_command_with_enclosing(
-                &cmd,
-                Value::from_native_string_bytes(cmd.clone()),
-                &enclosing,
-                b"",
-                line,
-            );
+            let message = c.result.string_bytes();
+            self.log_command_with_enclosing(&cmd, context, &enclosing, &message, line);
         }
     }
 
