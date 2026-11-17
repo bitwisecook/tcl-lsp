@@ -297,7 +297,7 @@ const SPREAD_PACK: &str = "speclib spread 2.0 {\n    \
 /// which reads the epoch and which the analysis reads.
 ///
 /// tclsh cannot decide the first half (`spreadout` is invalid there either
-/// way, and a SpecTcl pack command does not exist in it); the test pins the
+/// way, and a `SpecTcl` pack command does not exist in it); the test pins the
 /// design decision that a W123 shown before the packs load would flicker.
 #[test]
 fn the_analysis_reads_the_packs_once_they_install() {
