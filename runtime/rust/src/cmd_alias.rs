@@ -281,12 +281,8 @@ pub(crate) fn resolve_interp_option(
 /// The `interp` ensemble. `alias`, `aliases`, `create`, `delete`, `eval`,
 /// `exists`, `hide`, `expose`, `hidden`, `invokehidden`, `issafe`,
 /// `marktrusted`, `recursionlimit`, `bgerror`, `debug`, `limit`, and `target`
-/// dispatch here. `cancel` (script cancellation), `share`, and `transfer`
-/// (cross-interp channel sharing) are tclsh subcommands this runtime has no
-/// infrastructure for — no cancellation flag on eval, no channel-table
-/// sharing between interps — so, unlike `target`, implementing them is not
-/// cheap; the bad-option list below advertises only what actually dispatches
-/// here, rather than tclsh's full list.
+/// dispatch here. The option list is the release's own; `cancel`, `share`
+/// and `transfer` resolve but have no worker in this runtime yet.
 fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let arguments = match OriginalArguments::enter(interp, argv) {
         Ok(arguments) => arguments,

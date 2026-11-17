@@ -97,40 +97,26 @@ fn rename_across_namespaces_rehomes_a_proc() {
     assert_eq!(interp.result_bytes(), b"::dst".as_slice());
 }
 
-/// `interp`'s bad-option list must advertise only subcommands it
-/// dispatches. `target` is cheap (this runtime's two alias shapes make the
-/// interp-path trivial to compute) and now has an arm; `cancel`/`share`/
-/// `transfer` need infrastructure this runtime has none of (script
-/// cancellation, cross-interp channel sharing) and are dropped from the
-/// list rather than left advertised-but-undispatchable.
+/// `interp`'s bad-option list is the release's own, resolved by one
+/// `Tcl_GetIndexFromObj` matcher.
 ///
-/// tclsh9.0.4 (for contrast — this runtime's list intentionally differs,
-/// naming only what it implements):
+/// tclsh9.0.4:
 ///   catch {interp bogus} e
 ///   => bad option "bogus": must be alias, aliases, bgerror, cancel,
 ///      children, create, debug, delete, eval, exists, expose, hide,
 ///      hidden, issafe, invokehidden, limit, marktrusted, recursionlimit,
 ///      share, target, or transfer
 #[test]
-fn interp_bad_option_list_advertises_only_dispatched_subcommands() {
+fn interp_bad_option_list_is_the_releases() {
     let mut interp = Interp::new();
     assert_eq!(interp.eval_str(b"catch {interp bogus} e; set e"), Code::Ok);
     assert_eq!(
         interp.result_bytes(),
-        b"bad option \"bogus\": must be alias, aliases, bgerror, children, \
+        b"bad option \"bogus\": must be alias, aliases, bgerror, cancel, children, \
           create, debug, delete, eval, exists, expose, hide, hidden, issafe, \
-          invokehidden, limit, marktrusted, recursionlimit, or target"
+          invokehidden, limit, marktrusted, recursionlimit, share, target, or transfer"
             .as_slice()
     );
-    // Every name still in the list dispatches — `cancel`/`share`/`transfer`
-    // must not appear (removed from the option list, not silently rejected
-    // via the fallthrough).
-    assert_eq!(interp.eval_str(b"catch {interp cancel} e; set e"), Code::Ok);
-    assert!(interp.result_bytes().starts_with(b"bad option \"cancel\""));
-    // The list is shortened, but it is still resolved by the one
-    // `Tcl_GetIndexFromObj` matcher, so tclsh's abbreviation and ambiguity
-    // verdicts hold over it.
-    //
     // tclsh9.0.4:
     //   interp cr j -> j   ;  interp c j -> ambiguous option "c": must be …
     //   interp {}   -> ambiguous option "": must be …
