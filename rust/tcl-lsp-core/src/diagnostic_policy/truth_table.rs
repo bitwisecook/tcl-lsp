@@ -737,10 +737,10 @@ const TRAILING: &str = "set x 1   \nputs $y\n";
 /// An unset variable on line 1 (W210).
 const UNSET: &str = "puts $y\n";
 /// A loop whose termination cannot be proven (W242, default-off, on line 2).
-/// `x` is set first: tclsh raises on the unset read in the condition of a bare
-/// `while {$x < 10} {puts hi}` before any iteration, so no loop would be left
-/// to report.
-const LOOP: &str = "set x 0\nwhile {$x < 10} {puts hi}\n";
+/// `x` is read from input first: a bare `while {$x < 10} {puts hi}` raises on
+/// the unset read in tclsh before any iteration, and a literal `set x 0` makes
+/// the loop provably infinite (W241), not unproven.
+const LOOP: &str = "set x [gets stdin]\nwhile {$x < 10} {puts hi}\n";
 /// A string incremented as an integer (S100 on line 2).
 const SHIMMER: &str = "set x hello\nincr x\n";
 /// A constant expression the optimiser folds (O101).
