@@ -569,6 +569,28 @@ impl Analyser {
         }
     }
 
+    /// W304 defends against a value that could be read as an option. A word
+    /// the lattice proves to be a constant that does not begin with `-`
+    /// cannot be one, so the written-word advice on it is withdrawn; a proved
+    /// dash-led value keeps it.
+    fn withdraw_w304_settled_by_proof(
+        &mut self,
+        proven: &crate::analyser::diagnostic_registry::OriginalDiagnosticInvocation,
+    ) {
+        let settled: Vec<Span> = proven
+            .supplemental_literals()
+            .iter()
+            .filter(|(_, value)| !value.starts_with('-'))
+            .filter_map(|(index, _)| proven.word(*index).map(tcl_lexer::NativeWord::span))
+            .collect();
+        if settled.is_empty() {
+            return;
+        }
+        self.result.diagnostics.retain(|diagnostic| {
+            diagnostic.code != DiagCode::W304 || !settled.contains(&diagnostic.span)
+        });
+    }
+
     /// The checks over one site's proven words.
     fn rerun_literal_checks(
         &mut self,
@@ -589,6 +611,7 @@ impl Analyser {
         };
         self.refine_original_path_arguments(&written, &original);
         self.refine_original_pattern_arguments(&written, &original);
+        self.withdraw_w304_settled_by_proof(&original);
         let marks = (
             self.result.diagnostics.len(),
             self.dsl_gate_sites.len(),
