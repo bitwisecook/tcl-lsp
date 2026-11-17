@@ -214,7 +214,9 @@ impl Backend {
                 || local_facts.implicit_declarations > 0;
             if proposed != *symbol && occupied {
                 return Err(core_rename_safety::RenameRefusal {
-                    reason: "cannot rename onto another namespace in this workspace".into(),
+                    reason: "cannot rename onto another namespace: the target namespace already \
+                             exists in this workspace"
+                        .into(),
                     range: None,
                 });
             }
