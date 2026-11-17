@@ -1103,14 +1103,34 @@ fn finalize_function(
         }
     }
 
-    let direct_commands = std::mem::take(&mut ctx.direct_commands);
-    for instruction in &mut ctx.instructions {
-        instruction.script_command = instruction.source_command_boundary.is_start()
-            && instruction
-                .source_span
-                .is_some_and(|span| direct_commands.contains(&span));
+    // Each direct command's first instruction names it, even one of a
+    // command nested in it: a folded `if {1} {break}` runs only `break`.
+    let mut script_commands = Vec::new();
+    let mut current = None;
+    for (index, instruction) in ctx.instructions.iter().enumerate() {
+        let Some(own) = instruction.source_span else {
+            continue;
+        };
+        let Some(&command) = ctx
+            .direct_commands
+            .iter()
+            .find(|command| command.start() <= own.start() && own.end() <= command.end())
+        else {
+            continue;
+        };
+        if current != Some(command) {
+            current = Some(command);
+            script_commands.push((index, command));
+        }
     }
-    ctx.direct_commands = direct_commands;
+    for (index, span) in script_commands {
+        let command = tcl_bytecode::ScriptCommand {
+            span,
+            text: ctx.source_text(span),
+            line: ctx.source_line(span),
+        };
+        ctx.instructions[index].script_command = Some(command);
+    }
 
     stamp_release_units(ctx, cfg, block_order);
 

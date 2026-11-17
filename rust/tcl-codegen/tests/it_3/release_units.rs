@@ -188,13 +188,8 @@ fn a_directly_evaluated_script_marks_its_own_commands() {
         .top_level
         .instructions
         .iter()
-        .filter(|instruction| instruction.script_command)
-        .map(|instruction| {
-            instruction
-                .source_cmd_text
-                .try_text()
-                .expect("utf-8 command")
-        })
+        .filter_map(|instruction| instruction.script_command.as_ref())
+        .map(|command| command.text.try_text().expect("utf-8 command"))
         .collect();
     assert_eq!(
         marked,
@@ -204,7 +199,7 @@ fn a_directly_evaluated_script_marks_its_own_commands() {
         named_procedure(&direct.procedures, "::p")
             .instructions
             .iter()
-            .all(|instruction| !instruction.script_command),
+            .all(|instruction| instruction.script_command.is_none()),
         "a procedure body is not the script's"
     );
     let compiled = compile(CommandEvaluation::Compiled);
@@ -213,6 +208,6 @@ fn a_directly_evaluated_script_marks_its_own_commands() {
             .top_level
             .instructions
             .iter()
-            .all(|instruction| !instruction.script_command)
+            .all(|instruction| instruction.script_command.is_none())
     );
 }

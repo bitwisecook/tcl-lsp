@@ -475,7 +475,7 @@ impl Vm {
         {
             f.last_options = Value::empty();
         }
-        if instr.script_command {
+        if instr.script_command.is_some() {
             f.script_command = Some(f.pc);
         }
         // C counts a command it compiled inline at `INST_START_CMD`, and one it

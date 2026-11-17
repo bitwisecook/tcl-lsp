@@ -172,7 +172,8 @@ impl Vm {
         self.pending.top_level_invocation = self.pending.bottom_activation
             && f.script_command
                 .and_then(|start| f.asm.instructions.get(start))
-                .is_none_or(|start| start.source_cmd_text == instr.source_cmd_text);
+                .and_then(|start| start.script_command.as_ref())
+                .is_none_or(|command| command.text == instr.source_cmd_text);
         let dispatched = self.dispatch_words_with_entered(f, &words, entered.as_ref());
         self.pending.top_level_invocation = false;
         self.pending.release_compiled = None;

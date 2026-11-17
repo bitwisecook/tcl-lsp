@@ -799,12 +799,9 @@ impl Vm {
                     match act
                         .script_command
                         .and_then(|start| act.asm.instructions.get(start))
+                        .and_then(|start| start.script_command.as_ref())
                     {
-                        Some(start) => Some((
-                            start.source_cmd_text.bytes().to_vec(),
-                            start.source_line,
-                            Vec::new(),
-                        )),
+                        Some(command) => Some((command.text.bytes().to_vec(), command.line, Vec::new())),
                         None => act
                             .asm
                             .instructions
