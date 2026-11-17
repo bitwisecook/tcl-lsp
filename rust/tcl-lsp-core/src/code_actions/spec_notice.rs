@@ -44,7 +44,7 @@ pub enum SpecPackNoticeKind {
 /// Original source geometry and supplied notice-kind metadata. This does not
 /// certify that the loader rejected the word or grant an edit: diagnostic and
 /// actual current document grammar admission remain independent.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct SpecPackNoticeSubject {
     image: SourceImage,
     config: LexerConfig,
@@ -53,6 +53,16 @@ pub struct SpecPackNoticeSubject {
     span: Span,
     line: u32,
     original: Option<tcl_compiler::parsing::spectcl_source::OriginalPackSourceWord>,
+}
+
+impl std::fmt::Debug for SpecPackNoticeSubject {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SpecPackNoticeSubject")
+            .field("kind", &self.kind)
+            .field("word", &self.word)
+            .field("line", &self.line)
+            .finish_non_exhaustive()
+    }
 }
 #[derive(Clone, Copy)]
 struct LoaderNoticeSite<'a> {
