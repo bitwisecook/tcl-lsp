@@ -1136,11 +1136,7 @@ pub(super) fn script_has_dynamic_write_target(script: &Script) -> bool {
 
 /// Record a known global-frame destination under the shared observation purpose.
 fn record_global_frame_write(name: &str, info: &mut GlobalWriteInfo) {
-    crate::variable_observation_names::record_variable_write_name(
-        &mut info.names,
-        literal_root(name),
-        crate::variable_observation_names::VariableWriteObservationPurpose::OuterScope,
-    );
+    insert_outer_name(&mut info.names, literal_root(name));
 }
 
 fn accumulate_state(
@@ -1518,10 +1514,16 @@ fn collect_write_targets(
 /// call site applies the summary's names as its own definitions, and a
 /// definition of `::hits` alone leaves the caller's `hits` forwarding a
 /// stale constant across the call.
+///
+/// A rooted spelling is first the naming owner's qualified name, so a colon
+/// run (`global ::::g`) records the same global as `global ::g`.
 fn insert_outer_name(names: &mut BTreeSet<String>, name: &str) {
+    let qualified = name
+        .starts_with("::")
+        .then(|| tcl_syntax::naming::normalise_qualified_name(name));
     crate::variable_observation_names::record_variable_write_name(
         names,
-        name,
+        qualified.as_deref().unwrap_or(name),
         crate::variable_observation_names::VariableWriteObservationPurpose::OuterScope,
     );
 }
