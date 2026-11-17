@@ -25,14 +25,14 @@ edited.
 
 | Verdict | Tests |
 | --- | ---: |
-| KEEP-ORACLE | 121 |
-| KEEP-CONTRACT | 28 |
+| KEEP-ORACLE | 123 |
+| KEEP-CONTRACT | 32 |
 | KEEP-F5 | 30 |
 | FIX-FIXTURE | 20 |
-| UNDECIDED | 10 |
-| FIX-EXPECTATION | 5 |
-| REWRITE | 3 |
+| FIX-EXPECTATION | 6 |
+| REWRITE | 6 |
 | RETIRE | 1 |
+| UNDECIDED | 0 |
 | MERGE | 0 |
 
 Behaviour rows checked on tclsh here say which releases (8.4.20 to 9.1.0 where checked). A class C
@@ -42,7 +42,7 @@ row that is kept still needs its citation written into the test; the evidence co
 
 | Tests | Cause | Owner | What fails |
 | ---: | --- | --- | --- |
-| 36 | `binding-substitution-word-no-layout` | analyser-binding | A procedure-body statement whose words hold a substitution gets no declared layout: `set d [expr {sqrt($x)}]` stays `Call set` with no definition of `d`, `set a($k) 9` raises every dynamic-name flag |
+| 37 | `binding-substitution-word-no-layout` | analyser-binding | A procedure-body statement whose words hold a substitution gets no declared layout: `set d [expr {sqrt($x)}]` stays `Call set` with no definition of `d`, `set a($k) 9` raises every dynamic-name flag |
 | 21 | `f5-rule-procedure-frame` | taint (queue item 1) | Under f5-irules a rule procedure called at the top level gets no SSA definitions, or names its variables by a frame identity (`@frame:47:::p@0/…:r`) |
 | 12 | `unknown-head-untrust` | dataflow, then values | Ruling of 17 November: untrust after an unknown head is flow-sensitive and fixtures say bounded or unbounded. Eleven `handler_widening` fixtures must be restated (FIX-FIXTURE) |
 | 10 | `binding-caller-frame-opaque-builtin` | analyser-binding | A builtin whose binding is not proved at its site (a top-level `switch`, `puts` in an f5 procedure) is followed by a `<caller-frame-opaque>` barrier, "switch upvar-aliases a dynamic caller variable"; no selection, branch or merge facts |
@@ -60,8 +60,8 @@ row that is kept still needs its citation written into the test; the evidence co
 | 4 | `ssa-link-statement-version` | dataflow issue session | Which SSA version a link statement defines (REWRITE three to the observable, RETIRE one) |
 | 3 | `binding-catch-result-variable-no-place` | analyser-binding | `catch {…} m ?opts?`: the result variable gets no place (root found by analyser-binding: the walk is widened after a raising catch body) |
 | 3 each | `edge-refinement`, `escape-catch-body-walk`, `rebase-memoised-receipts` | dataflow, values, analysis-performance | |
-| 2 each | `binding-catch-body-children-unavailable`, `binding-conditional-alias-join`, `binding-renamed-builtin-head`, `class-facts-object-element`, `escape-param-upvar-source-precision`, `escape-registry-premise-puts`, `existence-chain-fold`, `expr-decline-reason`, `fixture-body-absent`, `ordered-nested-write`, `orig-diagnostic-refusal`, `release-tower-fold`, `wrong-rewrite-callback-write` | | |
-| 1 each | 26 more, listed in the ledger | | |
+| 2 each | `binding-catch-body-children-unavailable`, `binding-conditional-alias-join`, `binding-renamed-builtin-head`, `class-facts-object-element`, `escape-param-upvar-source-precision`, `escape-entry-point-ignores-registry`, `existence-chain-fold`, `expr-decline-reason`, `fixture-body-absent`, `ordered-nested-write`, `orig-diagnostic-refusal`, `wrong-rewrite-callback-write` | | |
+| 1 each | 28 more, listed in the ledger, among them `wrong-rewrite-try-error-path`, `wrong-rewrite-shift-beyond-width`, `release-tower-fold` and `panics-before-assertion` | | |
 
 By owner of the cause: analyser-binding 90, values 67, dataflow 21 and its issue session 12, taint
 21, analysis-performance 4, class-facts 3 (the 12 unknown-head rows count under dataflow; their
@@ -76,35 +76,42 @@ What is worth fixing, one line each; the wrong rewrites first.
    `info exists x`: the rewrite drops the `yes` path (original prints no, yes; rewrite no, no).
 2. **Wrong rewrite:** a write made by an `after` callback (`tick`, or `{*}[list set done 1]`) is
    folded away; the original prints 1, the rewrite 0 (8.4.20, 8.6.18, 9.0.4).
-3. A declined declared route is still folded by O129 (outputs agree on the releases present; the
+3. **Wrong rewrite:** `expr {1 << 70}` is folded under 8.4, where a shift count beyond the word
+   width is undefined in C and differs by build (ruling of 17 November: O101 declines there).
+4. A declined declared route is still folded by O129 (outputs agree on the releases present; the
    route did not prove it).
-4. Procedure-body statements with substituted words define nothing (types, values, shimmer, escape).
-5. A rule procedure called at the iRules top level has no definitions.
-6. Commands in an iRules `when` body are unbound (S110 payload rows, handler types).
-7. `foreach` over a literal list is not enumerated.
-8. `switch` and `case` select nothing.
-9. Scripts run at another frame (`uplevel`, alias to `uplevel`/`eval`) are unread.
-10. Writes through `upvar 1 $name` do not reach the callee's summary.
-11. The `catch` result and options variables have no place; catch and try bodies transfer no state.
-12. Flow-sensitive untrust after an unknown head (dataflow), then the restated fixtures.
-13. Edge refinements in `if` arms and merges.
-14. Escape walker: the `eval` join, a `try` handler, a `switch` arm over-tagging, literal tracking of
+5. Procedure-body statements with substituted words define nothing (types, values, shimmer, escape).
+6. A rule procedure called at the iRules top level has no definitions.
+7. Commands in an iRules `when` body are unbound (S110 payload rows, handler types).
+8. `foreach` over a literal list is not enumerated.
+9. `switch` and `case` select nothing.
+10. Scripts run at another frame (`uplevel`, alias to `uplevel`/`eval`) are unread.
+11. Writes through `upvar 1 $name` do not reach the callee's summary.
+12. The `catch` result and options variables have no place; catch and try bodies transfer no state.
+13. Flow-sensitive untrust after an unknown head (dataflow), then the restated fixtures.
+14. Edge refinements in `if` arms and merges.
+15. Escape walker: the `eval` join, a `try` handler, a `switch` arm over-tagging, literal tracking of
     `set $target`.
-15. Global summaries: conditional alias joins, a renamed `set` behind an alias, an alias that
+16. Global summaries: conditional alias joins, a renamed `set` behind an alias, an alias that
     creates its namespace, a dynamic local linked to the global named "".
-16. Smaller single rows: increment amount words, release-dependent `try` handler numerals, stub
+17. Smaller single rows: increment amount words, release-dependent `try` handler numerals, stub
     frame effects, chained dead-list writes (O130), the `split ""` fold.
 
-## Undecided, for the coordinator
+## Rulings of 17 November on the ten undecided rows
 
-- `escape-param-upvar-source-precision` (2): `upvar 1 $n a` with `n` a formal; the tests expect an
-  unbounded source, while the parameter is resolvable at each call site.
-- `escape-registry-premise-puts` (2): whether f5-irules and tcl8.6 still disagree about `puts`.
-- `release-tower-fold` `o101_rewrites_only_what_the_route_proves`: tclsh 8.4.20 prints 0 for
-  `expr {1 << 70}`, which is what the rewrite folds to; the test forbids the fold under 8.4.
-- Internal-API rows with no cited contract: `gwi-source-footprint-missing`,
-  `binding-catch-body-children-unavailable` (global_write_info), `memo-trust-key`,
-  `traced-alias-store-receipts`, `jim-native-entry-alias-metadata`.
+- `o101_rewrites_only_what_the_route_proves`: KEEP-ORACLE, the 8.4 shift fold is a wrong answer
+  (`wrong-rewrite-shift-beyond-width`).
+- `escape-param-upvar-source-precision`: with the interprocedural step on the precise caller answer is
+  sound (FIX-EXPECTATION); with it off the unbounded answer stands (KEEP-CONTRACT).
+- `escape-entry-point-ignores-registry` (2): KEEP-CONTRACT. The premise holds on this tree: f5-irules
+  `puts` is not frameless, tcl8.6 `puts` is.
+- The two `global_write_info` internal-carrier rows and `memo-trust-key`: REWRITE to the observable the
+  ruling names.
+- `actual_traced_alias_store_preserves_only_a_closed_unchanged_value`: the count is the two writes of
+  `dictionary` and the test already asserts the type answer (tclsh 8.6.18, 9.0.4: a dict unless the
+  callback writes "altered"); KEEP-ORACLE under `binding-substitution-word-no-layout`.
+- `native_jim_alias_metadata_cannot_use_raw_logical_name_eligibility`: KEEP-CONTRACT,
+  `panics-before-assertion`.
 
 ## Exact and overlap groups touching these families
 
