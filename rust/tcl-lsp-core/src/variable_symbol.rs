@@ -251,6 +251,22 @@ impl NavigationVariable<'_> {
     }
 }
 
+/// Readonly reference spans for the variable at the cursor through the
+/// navigation selector: original occurrences, alias templates, formals and
+/// caller-frame bindings, as find-references lists them. `Break(None)` is a
+/// definitive empty answer; `Continue` leaves the position to other tiers.
+pub fn navigation_reference_spans(
+    source: &str,
+    analysis: &AnalysisResult,
+    (line, character): (u32, u32),
+    resolution: crate::definition::CallResolution<'_>,
+    include_declaration: bool,
+) -> ControlFlow<Option<Vec<Span>>> {
+    select_navigation(source, analysis, line, character, resolution).map_break(|selected| {
+        selected.map(|variable| variable.reference_spans(source, analysis, include_declaration))
+    })
+}
+
 /// Select current original variable navigation, allowing an undeclared read
 /// only when the independently sealed caller template joins the call and
 /// read in their actual source frame. Unavailable original operands remain

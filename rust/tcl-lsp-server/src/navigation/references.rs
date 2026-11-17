@@ -149,6 +149,71 @@ impl Backend {
         self.resolve_target_locations(targets).await
     }
 
+    /// The variable reference listing a release profile answers at the
+    /// cursor: a declared original occurrence's own symbol, otherwise the
+    /// navigation selector's listing (namespace variable reads, linked
+    /// locals, caller-frame reads), as core find-references lists them.
+    async fn retained_variable_reference_spans(
+        &self,
+        uri: &Uri,
+        doc: &DocumentState,
+        analysis: &AnalysisResult,
+        position: Position,
+        include_declaration: bool,
+    ) -> std::ops::ControlFlow<Option<Vec<tcl_lexer::Span>>> {
+        let selected = tcl_lsp_core::variable_symbol::select(
+            &doc.text,
+            analysis,
+            position.line,
+            position.character,
+        );
+        let declared = |occurrence: &tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableOccurrence| {
+            !tcl_lsp_core::variable_symbol::declaration_spans(analysis, occurrence.symbol())
+                .is_empty()
+        };
+        if let std::ops::ControlFlow::Break(Some(occurrence)) = selected
+            && declared(occurrence)
+        {
+            std::ops::ControlFlow::Break(Some(tcl_lsp_core::variable_symbol::reference_spans(
+                analysis,
+                occurrence.symbol(),
+                include_declaration,
+            )))
+        } else {
+            // A read with no declared original occurrence of its own (a
+            // namespace variable read inside `namespace eval`, a linked local,
+            // a caller-frame read) is listed through the navigation selector,
+            // as core find-references does.
+            let exports = self.export_snapshot().await;
+            match tcl_lsp_core::variable_symbol::navigation_reference_spans(
+                &doc.text,
+                analysis,
+                (position.line, position.character),
+                core_definition::CallResolution {
+                    registry: None,
+                    program: Some(core_definition::ProgramExports {
+                        uri: uri.as_str(),
+                        oracle: exports.as_ref(),
+                    }),
+                },
+                include_declaration,
+            ) {
+                std::ops::ControlFlow::Break(Some(spans)) if !spans.is_empty() => {
+                    std::ops::ControlFlow::Break(Some(spans))
+                }
+                _ => selected.map_break(|selected| {
+                    selected.map(|occurrence| {
+                        tcl_lsp_core::variable_symbol::reference_spans(
+                            analysis,
+                            occurrence.symbol(),
+                            include_declaration,
+                        )
+                    })
+                }),
+            }
+        }
+    }
+
     async fn retained_reference_locations(
         &self,
         uri: &Uri,
@@ -157,13 +222,11 @@ impl Backend {
         position: Position,
         include_declaration: bool,
     ) -> DocumentSourceResult<Vec<Location>> {
-        if let std::ops::ControlFlow::Break(selected) = tcl_lsp_core::variable_symbol::select(
-            &doc.text,
-            analysis,
-            position.line,
-            position.character,
-        ) {
-            let Some(occurrence) = selected else {
+        let listed = self
+            .retained_variable_reference_spans(uri, doc, analysis, position, include_declaration)
+            .await;
+        if let std::ops::ControlFlow::Break(listed) = listed {
+            let Some(spans) = listed else {
                 return Ok(Vec::new());
             };
             let Some(config) = analysis.body_lexer_config else {
@@ -175,17 +238,13 @@ impl Backend {
                 return Ok(Vec::new());
             }
             let index = tcl_lexer::LineIndex::new(&doc.text);
-            let mut locations = tcl_lsp_core::variable_symbol::reference_spans(
-                analysis,
-                occurrence.symbol(),
-                include_declaration,
-            )
-            .into_iter()
-            .map(|span| Location {
-                uri: uri.clone(),
-                range: lift_lsp_range(core_definition::span_to_range(&doc.text, &index, span)),
-            })
-            .collect::<Vec<_>>();
+            let mut locations = spans
+                .into_iter()
+                .map(|span| Location {
+                    uri: uri.clone(),
+                    range: lift_lsp_range(core_definition::span_to_range(&doc.text, &index, span)),
+                })
+                .collect::<Vec<_>>();
             locations.extend(
                 self.cross_document_variable_references(
                     &doc.text,
