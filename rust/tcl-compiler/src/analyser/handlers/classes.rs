@@ -32,6 +32,7 @@ mod parameterised_creations;
 mod static_provenance;
 mod static_reachability;
 mod unknown_dispatch;
+mod workspace_class_factory;
 
 #[cfg(test)]
 pub(super) use class_definitions::original_class_definition_body_in_analysis;

@@ -75,6 +75,16 @@ pub(super) fn written_namespace_storage(
         && tcl_syntax::naming::is_qualified(var.as_bytes())
 }
 
+/// A cell of an object's own storage: every method body of the object reads
+/// it, so one body's reads alone never prove a store unused.
+pub(super) fn written_object_storage(cell_name: &crate::var_resolve::VariableCellKey) -> bool {
+    matches!(
+        cell_name.root(),
+        crate::var_resolve::VariableCellKey::Instance { .. }
+            | crate::var_resolve::VariableCellKey::AllocatedInstance { .. }
+    )
+}
+
 /// Scope facts that make a store observable outside its local SSA chain.
 struct DeadStoreVisibility<'a> {
     pub(super) scope_aliases: &'a HashSet<String>,
@@ -91,7 +101,7 @@ fn dead_store_has_visible_or_synthetic_effects(
     visibility: &DeadStoreVisibility<'_>,
 ) -> bool {
     // Globals (``::``-prefixed) are externally consumed.
-    if written_namespace_storage(cell_name, var) {
+    if written_namespace_storage(cell_name, var) || written_object_storage(cell_name) {
         return true;
     }
     // Interpreter-provided special variables (``auto_path``, ``env``,

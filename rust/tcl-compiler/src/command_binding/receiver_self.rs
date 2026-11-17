@@ -120,6 +120,57 @@ impl ModuleCommandBindings {
         }
     }
 
+    /// A method body read without a call has no receiver, but its class's
+    /// declared variables are still object state: another method, the
+    /// constructor or a caller may have stored them. They become cells of the
+    /// declaring class with unknown contents, shared by its method bodies; a
+    /// formal of the same name keeps its own slot. A body no single class
+    /// definition holds (an `oo::objdefine` method, a redefined class) is left
+    /// as it was.
+    pub(super) fn seed_declared_receiver_variables(&mut self, body: &super::DeferredSourceBody) {
+        if !body.receiver_method {
+            return;
+        }
+        let declared = body.executed_script.as_ref().and_then(|(_, _, source)| {
+            let mut owners = self.class_definitions.iter().filter(|(_, definition)| {
+                definition
+                    .receiver_method_entries
+                    .iter()
+                    .any(|((receiver, _), entry)| {
+                        *receiver == super::deferred_method::SourceMethodReceiver::Instance
+                            && entry.body() == source
+                    })
+                    || [&definition.constructor_entry, &definition.destructor_entry]
+                        .into_iter()
+                        .flatten()
+                        .any(|entry| entry.body() == source)
+            });
+            let (identity, definition) = owners.next()?;
+            owners.next().is_none().then_some(())?;
+            let names = definition
+                .instance_variables
+                .as_ref()?
+                .declarations()
+                .iter()
+                .map(|input| std::str::from_utf8(input.bytes()).map(str::to_owned))
+                .collect::<Result<Vec<_>, _>>()
+                .ok()?;
+            Some((
+                format!("{}@{}", identity.origin, identity.declaration),
+                names,
+            ))
+        });
+        let Some((owner, names)) = declared else {
+            return;
+        };
+        let variables = Arc::make_mut(&mut self.source_variables);
+        variables.instance_vars = names
+            .into_iter()
+            .filter(|name| !body.parameters.iter().any(|formal| formal.name == *name))
+            .collect();
+        variables.instance_owner = owner;
+    }
+
     /// A fresh receiver's private namespace contains only its stock dispatcher.
     /// Its authored helper path precedes global lookup. No namespace name is
     /// invented; mutation of the receiver-local command world revokes this route.

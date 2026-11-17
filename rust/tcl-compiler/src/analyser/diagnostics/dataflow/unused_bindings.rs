@@ -18,7 +18,9 @@
 
 //! W211 unused variables and W214 unused parameters, with the dispatch-protocol peers that excuse a parameter.
 
-use super::dead_stores::{original_unrepresented_use_advice, written_namespace_storage};
+use super::dead_stores::{
+    original_unrepresented_use_advice, written_namespace_storage, written_object_storage,
+};
 use super::find_case_mismatch;
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
@@ -186,7 +188,7 @@ impl Analyser {
             let var = fu.ssa.var_name(symbol);
             // Namespace storage is visible beyond this unit. Local keys with
             // qualified-looking labels do not acquire namespace membership.
-            if written_namespace_storage(cell_name, var) {
+            if written_namespace_storage(cell_name, var) || written_object_storage(cell_name) {
                 continue;
             }
             if scope_aliases.contains(var) {

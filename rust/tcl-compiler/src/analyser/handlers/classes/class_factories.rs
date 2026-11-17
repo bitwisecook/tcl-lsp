@@ -511,7 +511,7 @@ impl Analyser {
         ))
     }
 
-    fn foreign_factory_at_call(
+    pub(super) fn foreign_factory_at_call(
         &self,
         foreign: &ClassFactory,
         arg_tokens: &[Token],
@@ -610,7 +610,12 @@ impl Analyser {
         let user_factory = if registry_definer.is_some() {
             None
         } else {
-            Some(self.class_factory_for_command(args, arg_tokens, cmd_tok.span.start())?)
+            Some(
+                self.class_factory_for_command(args, arg_tokens, cmd_tok.span.start())
+                    .or_else(|| {
+                        self.workspace_class_factory_at_release(args, arg_tokens, cmd_tok)
+                    })?,
+            )
         };
         let manufacturer = match user_factory.as_ref() {
             None => tcl_registry::CommandRegistry::manufacturer_method_for_descriptor(

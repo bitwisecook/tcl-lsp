@@ -598,11 +598,19 @@ impl Lowerer<'_> {
         let surface = Some(context.context().authoring_query());
         // Argument layout comes from the grammar: which relative index (0-
         // based after the keyword) is the body / name / parameter list.
-        let Some(body_rel) = self
-            .source_member_body_indices(call.grammar, kw, seg, base)
-            .and_then(|indices| indices.into_iter().find(|&index| index < args.len()))
+        let Some(body_indices) = self.source_member_body_indices(call.grammar, kw, seg, base)
         else {
             self.module.oo_evidence.unretained_executable_roots = true;
+            return;
+        };
+        let Some(body_rel) = body_indices
+            .iter()
+            .copied()
+            .find(|&index| index < args.len())
+        else {
+            // A member whose layout has no body word (`variable`,
+            // `superclass`) is no executable root.
+            self.module.oo_evidence.unretained_executable_roots |= !body_indices.is_empty();
             return;
         };
         let kind = match frame {

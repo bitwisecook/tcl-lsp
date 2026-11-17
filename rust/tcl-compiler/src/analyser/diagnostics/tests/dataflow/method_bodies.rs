@@ -30,7 +30,7 @@ fn method_body_read_before_set_now_flags_w210() {
     // absolute command heads to isolate that Tcl 9.0.4 read-before-set fact
     // from runtime-selected method-relative command lookup.
     let src = "oo::class create Vector3d {\n    variable _x\n    constructor {x} { ::set _x $x }\n    method DotProduct {other} { ::return [::expr {$_x * $other}] }\n    method Buggy {type} { ::return [::expr {$_x * $other}] }\n}\n";
-    let codes = codes_for(src);
+    let codes = codes_for_in(src, "tcl9.0");
     assert_eq!(
         codes,
         vec!["W210".to_string()],

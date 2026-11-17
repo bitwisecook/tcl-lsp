@@ -157,3 +157,4 @@ fn w210_for(src: &str, var: &str) -> usize {
 //   carry no statically-knowable element list.
 // * `set ns tc; ${ns}::setdef …` dispatches to `::tc::setdef`.
 mod class_factories;
+mod method_bodies;
