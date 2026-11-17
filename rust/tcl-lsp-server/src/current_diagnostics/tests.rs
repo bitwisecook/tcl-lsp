@@ -309,6 +309,9 @@ fn assert_document_rewrites(
 }
 
 async fn open_source(backend: &Backend, expected: &DiagnosticSourceExpectation) {
+    // A running server has finished its startup scan before a current report
+    // can settle; the fixture models that, as the scan-dependent tests do.
+    backend.workspace_scan_ready.mark_complete();
     backend
         .documents
         .lock("diagnostic_completion_fixture")
@@ -324,6 +327,9 @@ async fn open_source(backend: &Backend, expected: &DiagnosticSourceExpectation) 
 }
 
 async fn run_provider(backend: &Backend, uri: &Uri) {
+    // A running server has finished its startup scan before a current report
+    // can settle; the fixture models that, as the scan-dependent tests do.
+    backend.workspace_scan_ready.mark_complete();
     // Select the provider profile from the actual published Salsa source,
     // and require it to agree with the live document before dispatch.
     let document = backend
