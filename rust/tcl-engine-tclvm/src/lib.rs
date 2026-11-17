@@ -88,9 +88,7 @@ mod value_conversion;
 #[cfg(test)]
 use original_recovery::recover_original_result;
 #[cfg(test)]
-use original_recovery::{
-    checked_list_backing, recover_dictionary_children, recover_original_result_in,
-};
+use original_recovery::{recover_dictionary_children, recover_original_result_in};
 pub use registration::register_host_command;
 use registration::{
     define_host_command, define_prepared_host_command, open_publication_service,

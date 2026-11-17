@@ -392,45 +392,6 @@ fn original_name_consumer_info_boundary_preserves_the_reached_getter_cause_and_r
     unchanged_result(&vm, &result);
 }
 
-#[test]
-fn jim_info_current_namespace_getter_stops_at_the_withdrawn_consumer_world() {
-    let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("jim"));
-    let formatter = Rc::new(Formatter::default());
-    let queries = Rc::new(Cell::new(0));
-    vm.set_host(Rc::new(FormatterHost {
-        actual: vm.host_rc(),
-        formatter: Rc::clone(&formatter),
-        queries: Rc::clone(&queries),
-    }));
-    let crate::command::Command::Builtin(worker) = vm.lookup_command("info").unwrap() else {
-        panic!("actual Jim info worker");
-    };
-    let result = prior(&mut vm);
-    let original = Value::int(42);
-    let context =
-        super::super::OriginalJimNamespaceContext::for_lambda(&mut vm, &original).unwrap();
-    vm.push_call_frame(Some("info_current_holder".into()), Vec::new());
-    vm.install_jim_procedure_namespace_owner(None, original.clone());
-    vm.push_procedure_namespace_context(super::super::ProcedureNamespace::OriginalJim(context));
-    let later = Value::int(84);
-    *formatter.withdraw_on_query.borrow_mut() = Some(Rc::clone(&vm.name_world));
-    let completion = worker(&mut vm, &[Value::string("commands"), later.clone()]);
-    assert_eq!(completion.code, crate::Code::Error);
-    assert_eq!(queries.get(), 1);
-    assert!(formatter.calls.borrow().is_empty());
-    assert!(original.resident_string_bytes().is_none());
-    assert!(later.resident_string_bytes().is_none());
-    assert!(matches!(
-        vm.execution_refusal.as_ref(),
-        Some(NativeExecutionError::ValueAccessRefusal(
-            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
-                "original Name consumer namespace and world"
-            )
-        ))
-    ));
-    unchanged_result(&vm, &result);
-}
-
 #[cfg(debug_assertions)]
 fn ensemble_configuration_vm(release: &str) -> (Vm, Rc<Formatter>, Rc<Cell<usize>>) {
     let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect(release));

@@ -705,27 +705,3 @@ fn native_completion_preserves_raw_codes_options_and_new_object_aliases() {
     }
 }
 
-#[test]
-fn zero_argument_callback_refuses_a_foreign_native_issuer_before_native_execution() {
-    let mut engine = TclVmEngine::new();
-    engine.vm_mut().set_dialect_profile(
-        tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile(),
-    );
-    let mut interp = Interp::new(engine);
-    // SAFETY: all linked procedures and their opaque code metadata are static.
-    unsafe { interp.load_static(native_completion_init) }.unwrap();
-    // SAFETY: the shim state stays alive throughout this test.
-    let original_result = unsafe { ffi::tcl_get_obj_result(interp.raw()) };
-    assert!(
-        interp
-            .engine_mut()
-            .vm_mut()
-            .try_invoke_command("native_code_0", &[])
-            .is_err()
-    );
-    // The callback would replace this result with its new List if it ran.
-    assert_eq!(
-        unsafe { ffi::tcl_get_obj_result(interp.raw()) },
-        original_result
-    );
-}

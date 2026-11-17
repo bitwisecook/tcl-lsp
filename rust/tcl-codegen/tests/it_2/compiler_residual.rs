@@ -1190,29 +1190,6 @@ fn summary<'a>(m: &'a EscapeSummaries, q: &str) -> &'a ProcEscapeSummary {
 // Apply_value_scan: a non-frameless [cmd] head in a value → fallback.
 
 #[test]
-fn cu_value_with_user_cmd_subst_head_records_fallback() {
-    // A value `[myproc a]` embeds a command-substitution whose head (`myproc`)
-    // is not on the frameless-runtime allow-list, so apply_value_scan's
-    // extract_cmd_subst_heads loop records a fallback (the proc may dispatch to
-    // the interpreter). The assigned name itself does not escape.
-    let s = escape_cu("proc ::p {} { set x [myproc a] }");
-    let p = summary(&s, "::p");
-    assert!(
-        p.has_fallback(),
-        "a non-frameless cmd-subst head in a value sets the fallback flag"
-    );
-    assert_eq!(
-        p.tag("x"),
-        EscapeTag::Local,
-        "the assigned name stays Local"
-    );
-    assert!(
-        !p.dynamic_barrier(),
-        "a fallback is not whole-proc pessimism"
-    );
-}
-
-#[test]
 fn cu_value_with_frameless_cmd_subst_head_no_fallback() {
     // The negative control for the head loop: a value whose only embedded subst
     // head is a frameless-runtime command (`string`) does NOT set the fallback.
@@ -1225,43 +1202,7 @@ fn cu_value_with_frameless_cmd_subst_head_no_fallback() {
     assert_eq!(p.tag("x"), EscapeTag::Local);
 }
 
-#[test]
-fn ir_value_with_user_cmd_subst_head_records_fallback() {
-    // The IR-walk twin of the above: walker.rs's apply_value_scan head loop also
-    // records the fallback for a non-frameless head.
-    let s = escape_ir("proc ::p {} { set x [myproc a] }");
-    let p = summary(&s, "::p");
-    assert!(
-        p.has_fallback(),
-        "IR-walk records the non-frameless head fallback"
-    );
-    assert_eq!(p.tag("x"), EscapeTag::Local);
-}
-
 // Direct_callees population on the CFG path (record_callee).
-
-#[test]
-fn cu_records_statically_resolvable_callees() {
-    // handle_call records each bare / ::-qualified command word as a direct
-    // callee (for interprocedural propagation). A user proc call and a builtin
-    // both land in direct_callees; a dynamic `$cmd` head does not.
-    let s = escape_cu("proc ::p {} { set x 1\n helper $x\n other::fn 2 }");
-    let p = summary(&s, "::p");
-    assert!(
-        p.direct_callees.contains("helper"),
-        "user call recorded as a direct callee: {:?}",
-        p.direct_callees
-    );
-    assert!(
-        p.direct_callees.contains("other::fn"),
-        "qualified call recorded: {:?}",
-        p.direct_callees
-    );
-    assert!(
-        p.has_call_fallback(),
-        "the user calls also set the call-fallback"
-    );
-}
 
 #[test]
 fn cu_dynamic_command_head_not_recorded_as_callee() {

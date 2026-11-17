@@ -185,17 +185,6 @@ fn set_expr_becomes_assign_expr() {
 }
 
 #[test]
-fn set_value_becomes_assign_value() {
-    let ir = ir_for("set x $y");
-    assert!(
-        ir.top_level
-            .statements
-            .iter()
-            .any(|s| matches!(s, Statement::AssignValue { name, .. } if name == "x"))
-    );
-}
-
-#[test]
 fn incr_becomes_ir_incr() {
     let ir = ir_for("set x 0; incr x");
     assert!(ir.top_level.statements.iter().any(

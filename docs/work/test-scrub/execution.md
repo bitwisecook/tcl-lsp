@@ -19,7 +19,8 @@ Failing tests of `tcl-codegen`, `tcl-vm`, `tcl-runtime`, the engines, `tcl-cshim
 
 ## Status (the ledger's `status` column)
 
-256 open, 5 fixed, 4 repaired, as of 17 November 2026 night:
+248 open, 5 fixed, 4 repaired, 8 deleted, as of 17 November 2026 night:
+- Deleted: the 8 `RETIRE` rows (G9 analysis records, G12 self-referential golden, and the three per-test G16 retirements).
 - Fixed: `errorstack-inner-uplevel-and-fold-options` (8c92829a, the folded syntax options), `bad-option-wording-below-8.6` (ec05d9fc: `encoding` below 8.6 was a product fault, the expectation half right) and the three `optimiser-drops-effectful-foreach-list` rows (fixed upstream).
 - Repaired: `delete-proc-runs-in-delete-command` (42cde941), `interp-option-list` (f4452996) and two `fixture-body-identity-lookup` rows (a release registry defines `proc`). The third, `procedure_target_matches_static_proc_across_profiles_and_dispatches`, needed `namespace eval ::matrix` first (tclsh refuses `proc ::matrix::p` in an unknown namespace) and now shows a product fault: `KEEP-CONTRACT` `procedure-target-folds-less-than-static`.
 - Re-read: `switch_exact_return_arms_jump_table` is `KEEP-ORACLE` (`switch-exact-jump-table-declined`), not `FIX-EXPECTATION`. tclsh 8.5-9.1 compile the test's own `switch -exact -- $cmd {...}` to a `jumpTable`; only the form without `--` is invoked. The codegen invokes it.
