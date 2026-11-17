@@ -83,6 +83,9 @@ Rules:
 - A class C test that is kept gets its citation: the tclsh rows or the contract path go into the test.
 - The coordinator samples every ledger before anything is deleted. `RETIRE` and `MERGE` then land in
   commits of their own that name the ledger rows, never mixed with a fix.
+- Oracles in the tree: tclsh 8.4.20 to 9.1.0 under `tmp/tcl*/unix/tclsh`; Jim through `scripts/dev/ensure-jim-oracle.sh` (prints `TCL_LSP_JIMSH`); tcllib 2.0 at `tmp/tcllib-2.0` (add it to `auto_path`). "No interpreter here" is not a reason for `UNDECIDED`.
+- A test of an internal record with no cited observable is decided by its consumer: if the record can reach a diagnostic, a fold, a rewrite or an editor answer, write the Tcl source that shows the wrong answer and the verdict is `REWRITE` to that observable; if no path to a consumer answer can be shown, it is `RETIRE` with that argument written down.
+- A cause that makes the product give a wrong answer (a fold tclsh contradicts, a rewrite that changes behaviour, an edit that breaks code) gets its own slug and goes to the top of the fix list: wrong answers before missing ones.
 - Each area ends with `<area>.md`: counts by verdict, the causes ranked by tests blocked, and the list
   of distinct behaviours that are failing. That list is what is worth fixing.
 
@@ -118,7 +121,7 @@ Updated at the hourly check from the ledgers on `work`.
 | diagnostics | 470 | 0 | |
 | analyser-binding | 330 | 0 | |
 | class-facts | 190 | 0 | |
-| dataflow-optimiser | 440 | 0 | |
+| dataflow-optimiser | 432 | 73 (FIX-FIXTURE 23, KEEP-CONTRACT 21, REWRITE 16, KEEP-ORACLE 8, UNDECIDED 4, KEEP-F5 1) | part 1 sampled, 20:35 UTC: accepted |
 | values | 230 | 0 | |
 | taint | 190 | 0 | |
 | analysis-performance | 30 | 0 | |
