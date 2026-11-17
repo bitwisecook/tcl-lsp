@@ -693,7 +693,9 @@ pub(crate) fn inline_reference_bodies_live(
     module
         .procedures
         .retain(|name, _| !imported.ids.contains(name));
-    module.source = bodies.into_image();
+    let (image, splices) = bodies.into_parts();
+    module.source = image;
+    module.reference_bodies.splices = splices;
     Some(module)
 }
 

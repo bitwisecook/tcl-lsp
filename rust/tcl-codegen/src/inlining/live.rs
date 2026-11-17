@@ -100,6 +100,8 @@ pub(super) struct LiveBodies<'a> {
     /// The statements that stand directly in a compiled script, where the
     /// operand stack is empty between commands.
     body_level: HashSet<Span>,
+    /// The calls spliced, in the order the rewrite made them.
+    splices: RefCell<Vec<tcl_compiler::ir::SpliceSite>>,
 }
 
 impl LiveBodies<'_> {
@@ -110,9 +112,14 @@ impl LiveBodies<'_> {
         self.body_level.contains(&span)
     }
 
-    /// The source the module ends with.
-    pub(super) fn into_image(self) -> SourceImage {
-        self.image.into_inner()
+    /// The source the module ends with, and the calls spliced.
+    pub(super) fn into_parts(self) -> (SourceImage, Vec<tcl_compiler::ir::SpliceSite>) {
+        (self.image.into_inner(), self.splices.into_inner())
+    }
+
+    /// Record a call the rewrite spliced.
+    pub(super) fn spliced(&self, site: tcl_compiler::ir::SpliceSite) {
+        self.splices.borrow_mut().push(site);
     }
 
     /// The body of `id` with `names` applied, lowered under the live entry
@@ -247,6 +254,7 @@ pub(super) fn import<'a>(
         renamed,
         image: RefCell::new(module.source.clone()),
         body_level,
+        splices: RefCell::new(Vec::new()),
     };
     (imported, bodies)
 }

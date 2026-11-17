@@ -37,6 +37,8 @@ pub(super) struct InlineExpansion {
     pub(super) statements: Vec<Statement>,
     pub(super) command_binding_sites: Vec<CommandBindingSite>,
     pub(super) procedure_bindings: Vec<tcl_runtime_api::ProcedureBindingIdentity>,
+    /// The call a live splice falls back to.
+    pub(super) splice: Option<tcl_compiler::ir::SpliceSite>,
 }
 
 impl InlineExpansion {
@@ -45,6 +47,7 @@ impl InlineExpansion {
             statements,
             command_binding_sites: Vec::new(),
             procedure_bindings: Vec::new(),
+            splice: None,
         }
     }
 
@@ -57,6 +60,7 @@ impl InlineExpansion {
                 .iter()
                 .cloned()
                 .collect(),
+            splice: None,
         }
     }
 }
@@ -142,6 +146,7 @@ pub(super) fn splice_call_site(
                     .iter()
                     .cloned()
                     .collect(),
+                splice: None,
             })
         }
         InlineSpec::Parameterised(proc, rules, config) => {
@@ -234,6 +239,25 @@ fn splice_v3(
         None => rename::rewrite_script(&proc.body, &rename, config),
     };
 
+    // A live splice is one straight run of the body's commands, which its
+    // range brackets; a body wrapped to capture an early return is not.
+    let wrapped =
+        body_has_non_trailing_return || (body_has_trailing_return && tail != Tail::Returned);
+    if renamed.is_some() && wrapped {
+        return None;
+    }
+    let splice = replaced.as_ref().and_then(|_| {
+        let first = renamed_body.statements.first()?.span();
+        let last = renamed_body.statements.last()?.span();
+        Some(tcl_compiler::ir::SpliceSite {
+            call_span: span,
+            body_region: Span::new(first.start(), last.end()),
+            words: (0..=args_len(call))
+                .map(|index| word_slot(cid, index))
+                .collect(),
+            resumes_with_value: tail != Tail::Dropped,
+        })
+    });
     let mut out = words;
     out.extend(bindings);
     if body_has_non_trailing_return {
@@ -285,7 +309,16 @@ fn splice_v3(
         statements: out,
         command_binding_sites: expansion.command_binding_sites,
         procedure_bindings: expansion.procedure_bindings,
+        splice,
     })
+}
+
+/// How many arguments `call` passes.
+fn args_len(call: &Statement) -> usize {
+    match call {
+        Statement::Call { args, .. } => args.len(),
+        _ => 0,
+    }
 }
 
 /// The name of the anonymous slot that holds word `index` of splice `cid`'s

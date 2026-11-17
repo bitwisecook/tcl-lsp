@@ -195,8 +195,11 @@ pub(super) fn rewrite_script(
             caller_may_be_global_frame,
         ) {
             None => out.push(stmt.clone()),
-            Some(replacement) => {
+            Some(mut replacement) => {
                 changed = true;
+                if let (Some(site), Some(bodies)) = (replacement.splice.take(), summaries.live) {
+                    bodies.spliced(site);
+                }
                 out.extend(replacement.statements);
                 command_binding_sites.extend(replacement.command_binding_sites);
                 procedure_binding_requirements.extend(replacement.procedure_bindings);
