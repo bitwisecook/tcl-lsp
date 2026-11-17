@@ -157,7 +157,7 @@ fn call_edges(
     registry: &CommandRegistry,
 ) -> CallEdges {
     module
-        .original_source_procedure_bodies()
+        .summary_procedure_bodies()
         .map(|(id, procedure)| {
             (
                 *id,
@@ -228,20 +228,18 @@ fn caller_frame_summaries(
         .as_ref()
         .filter(|owner| owner.matches_module(module, registry));
     let mut summaries: HashMap<_, _> = module
-        .original_source_procedure_bodies()
+        .summary_procedure_bodies()
         .map(|(id, procedure)| {
             let namespace = procedure.body.namespace_context.as_deref();
             let mut info = if let Some(namespace) = namespace.filter(|_| {
                 module.procedure_ids.owns(*id)
-                    && owner.is_some_and(|owner| {
-                        owner.matches_original_procedure_summary(*id, procedure)
-                    })
+                    && owner.is_some_and(|owner| owner.matches_summary_body(*id, procedure))
             }) {
                 upvar_info::collect_upvar_targets_with_bindings(
                     &procedure.body,
                     &procedure.params,
                     registry,
-                    bindings,
+                    &bindings.entered_body_namespace(namespace),
                     namespace,
                     module,
                 )

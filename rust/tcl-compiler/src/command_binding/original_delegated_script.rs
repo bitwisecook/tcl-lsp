@@ -21,8 +21,9 @@
 //! `eval {script}` and `uplevel ?level? {script}` do nothing of their own
 //! beyond running that script in the selected frame, so the handler's
 //! footprint is the script's, which the common body walker accounts for
-//! command by command. A computed script or level keeps the conservative
-//! footprint: nothing here admits it.
+//! command by command. A script built by one substitution of literal words
+//! (`eval [list set a 1]`) is admitted the same way once its value is exact;
+//! any other computed script or level keeps the conservative footprint.
 
 use super::{
     Arc, CommandAllocationSite, ModuleCommandBindings, SourceCommandTarget, SourceExecutionContext,
@@ -85,11 +86,16 @@ fn literal_script(
     {
         return None;
     }
-    let crate::ir::WordExpr::BracedLiteral { .. } =
-        native.script_operands().written_word(argument_offset)?
-    else {
+    if !matches!(
+        native.script_operands().written_word(argument_offset)?,
+        crate::ir::WordExpr::BracedLiteral { .. }
+    ) && !super::literal_word_script::is_exact_literal_word_script(
+        native,
+        argument_offset,
+        context.config,
+    ) {
         return None;
-    };
+    }
     let body = super::retained_script_operand(
         argument_offset,
         native.script_operands(),

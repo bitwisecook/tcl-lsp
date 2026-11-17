@@ -94,7 +94,7 @@ fn ensured_namespace_scope(
     facts: &tcl_registry::InvocationFacts,
     state: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
-    body_policy: tcl_syntax::naming::NamePolicyProtocol,
+    body_policy: Option<tcl_syntax::naming::NamePolicyProtocol>,
 ) -> Option<SignatureNamespaceScope> {
     use tcl_registry::{NamespaceTransition, NamespaceTransitionTarget, StateTransition};
     let transitions = facts.state_transitions.declared()?;
@@ -113,7 +113,7 @@ fn ensured_namespace_scope(
     let tcl_syntax::naming::NativeNameProtocol::C(version) = policy.recipe() else {
         return None;
     };
-    if body_policy != policy {
+    if body_policy.is_some_and(|body_policy| body_policy != policy) {
         return None;
     }
     let dialect = tcl_registry::InvocationDialect::for_version(version);
@@ -159,11 +159,22 @@ impl OriginalNamespaceBodyDelegation {
         if native.invocation.arguments().exact_argv_len()? != argument_offset.checked_add(1)? {
             return None;
         }
-        let body_input = native
-            .original_variable_operands
-            .input(argument_offset, variables)?;
-        let SignatureSourceNameInput::OriginalWord(_) = body_input else {
-            return None;
+        // A literal-word substitution body has no name policy of its own;
+        // the namespace operand supplies it.
+        let body_policy = if super::literal_word_script::is_exact_literal_word_script(
+            native,
+            argument_offset,
+            context.config,
+        ) {
+            None
+        } else {
+            let body_input = native
+                .original_variable_operands
+                .input(argument_offset, variables)?;
+            let SignatureSourceNameInput::OriginalWord(_) = body_input else {
+                return None;
+            };
+            Some(body_input.policy())
         };
         let body = super::retained_script_operand(
             argument_offset,
@@ -172,8 +183,7 @@ impl OriginalNamespaceBodyDelegation {
             native.segment.span.start(),
             context.config,
         )?;
-        let namespace_scope =
-            ensured_namespace_scope(native, facts, state, context, body_input.policy())?;
+        let namespace_scope = ensured_namespace_scope(native, facts, state, context, body_policy)?;
         Some(Self {
             site: CommandAllocationSite {
                 source: Arc::clone(state.current_source_origin.as_ref()?),

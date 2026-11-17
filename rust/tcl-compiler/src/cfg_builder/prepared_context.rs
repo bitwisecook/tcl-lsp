@@ -62,7 +62,7 @@ pub(crate) fn entered_procedures(
 ) -> Option<std::collections::HashSet<crate::ir::ProcedureId>> {
     let owners = OriginalProcedureSummaryOwners::for_module(module, registry);
     let bodies: HashMap<_, _> = module
-        .original_source_procedure_bodies()
+        .summary_procedure_bodies()
         .map(|(id, procedure)| (*id, &procedure.body))
         .collect();
     let roots = std::iter::once(&module.top_level)
@@ -167,7 +167,7 @@ pub fn prepare_cfg_context_bundle(
         global: global_write_procs,
     } = frame_effects::detect_frame_effect_bodies(module, registry);
     let proc_params = module
-        .original_source_procedure_bodies()
+        .summary_procedure_bodies()
         .filter(|(id, procedure)| {
             module.procedure_ids.owns(**id)
                 && module
@@ -175,7 +175,7 @@ pub fn prepare_cfg_context_bundle(
                     .as_ref()
                     .is_some_and(|owner| {
                         owner.matches_module(module, registry)
-                            && owner.matches_original_procedure_summary(**id, procedure)
+                            && owner.matches_summary_body(**id, procedure)
                     })
         })
         .map(|(id, procedure)| (*id, procedure.params.clone()))

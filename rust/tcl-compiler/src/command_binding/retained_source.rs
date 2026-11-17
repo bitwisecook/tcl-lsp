@@ -744,6 +744,17 @@ impl RetainedSourceModuleBindings {
         original.matches_summary(procedure)
     }
 
+    /// Whether a summary body still matches the source issued under its ID,
+    /// as an original procedure or as an installed recovered body.
+    pub(crate) fn matches_summary_body(
+        &self,
+        id: crate::ir::ProcedureId,
+        procedure: &Procedure,
+    ) -> bool {
+        self.matches_original_procedure_summary(id, procedure)
+            || self.matches_installed_procedure_summary(id, procedure)
+    }
+
     /// Installed analysis source under its separately issued body ID.
     pub(crate) fn matches_installed_procedure_summary(
         &self,

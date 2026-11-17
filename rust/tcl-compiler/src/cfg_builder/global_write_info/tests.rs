@@ -1340,16 +1340,25 @@ fn embedded_proc_call_in_assign_value_propagates_global_write() {
     assert!(info[&summary_id(&m, "::outer")].names.contains("x"));
 }
 
+/// #1797. tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 set `::g` to `1`
+/// through `caller`: the list-built script defines `::n::writer`, and its
+/// recovered body's summary joins the call precisely.
 #[test]
-fn recovered_procedure_without_a_published_summary_is_opaque() {
-    let registry = CommandRegistry::build_default();
-    let m = module_with_registry(
-        "namespace eval ::n [list proc writer {} {global g; set g 1}]\n\
-             proc ::caller {} {::n::writer}",
-        &registry,
-    );
-    let info = detect_global_write_procs_with_registry(&m, &registry);
-    assert!(info[&summary_id(&m, "::caller")].opaque_global_frame);
+fn a_recovered_procedure_body_has_a_precise_global_summary() {
+    for release in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let registry = CommandRegistry::build_default().project_for_profile(
+            tcl_registry::model::ingress::resolve_environment(release).analyser_profile(),
+        );
+        let m = module_with_registry(
+            "namespace eval ::n [list proc writer {} {global g; set g 1}]\n\
+                 proc ::caller {} {::n::writer}",
+            &registry,
+        );
+        let info = detect_global_write_procs_with_registry(&m, &registry);
+        let caller = &info[&summary_id(&m, "::caller")];
+        assert!(!caller.opaque_global_frame, "{release}");
+        assert!(caller.names.contains("g"), "{release}");
+    }
 }
 
 /// #1797. tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0: after

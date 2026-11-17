@@ -378,25 +378,90 @@ fn each_call_joins_only_its_own_procedure_generation() {
     assert!(!caller_old.alias_observed_vars.contains("x"));
 }
 
-/// tclsh 8.4.20 through 9.1.0 all return `2` from `caller` once the
-/// computed `namespace eval` has defined `::n::writer`. A computed script
-/// may rebind `proc` itself, so lowering publishes no `proc` written after
-/// it; `caller` is written first so that its own body is retained.
+fn lower_for_release(release: &str, src: &str) -> Module {
+    let registry = CommandRegistry::build_default().project_for_profile(
+        tcl_registry::model::ingress::resolve_environment(release).analyser_profile(),
+    );
+    crate::lowering::lower_to_ir(src, &registry)
+}
+
+/// #1797. tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 all return `2`
+/// from `caller` (`proc caller {} {::n::writer; return $x}`): the
+/// list-built script defines `::n::writer`, whose `upvar` writes the
+/// caller's `x`. The binding owner recovers that body under its own ID,
+/// and the call joins its precise summary.
 #[test]
-fn recovered_procedure_without_a_published_summary_is_opaque() {
-    let module = lower_module(
-        "proc caller {} {::n::writer}\n\
+fn a_recovered_procedure_body_has_a_precise_summary() {
+    for release in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let module = lower_for_release(
+            release,
+            "proc caller {} {::n::writer}\n\
              namespace eval ::n [list proc writer {} {upvar 1 x y; ::set y 2}]",
-    );
-    assert!(fixture_id_if_present(&module.procedures, "::n::writer").is_none());
-    let cfg = build_cfg(&module, false);
-    assert!(
-        cfg.procedures
+        );
+        let recovered: Vec<_> = module
+            .recovered_procedure_bodies()
+            .map(|(id, _)| *id)
+            .collect();
+        let [writer] = recovered.as_slice() else {
+            panic!("{release}: one recovered body, got {recovered:?}");
+        };
+        let summaries = detect_upvar_procs(&module);
+        assert_eq!(
+            summaries[writer]
+                .literal_targets
+                .get("y")
+                .map(String::as_str),
+            Some("x"),
+            "{release}"
+        );
+        assert!(
+            !summaries[writer].caller_frame_barrier().writes,
+            "{release}"
+        );
+        let cfg = build_cfg(&module, false);
+        let caller = cfg
+            .procedures
             .get(&fixture_id(&cfg.procedures, "::caller"))
-            .expect("authored fixture body")
-            .caller_frame_barrier
-            .writes
+            .expect("authored fixture body");
+        assert!(!caller.caller_frame_barrier.writes, "{release}");
+        assert!(caller.alias_observed_vars.contains("x"), "{release}");
+    }
+}
+
+/// tclsh 8.4.20 through 9.1.0: inside `::m`, `proc` names `::m::proc`, so
+/// `namespace eval ::m [list proc writer ...]` calls it and creates no
+/// `::m::writer` (`info commands ::m::writer` is empty). The recovered
+/// script's `proc` is resolved in the command world current when it runs.
+#[test]
+fn a_recovered_script_publishes_no_body_through_a_shadowed_proc() {
+    let module = lower_module(
+        "namespace eval ::m {proc proc args {}}\n\
+         namespace eval ::m [list proc writer {} {upvar 1 x y; ::set y 2}]",
     );
+    assert_eq!(module.recovered_procedure_bodies().count(), 0);
+}
+
+/// A literal-list script keeps later `proc`s published exactly when the
+/// body walk shows it cannot rebind `proc`. tclsh 8.4.20 through 9.1.0
+/// return `ok` from `after_k` after `namespace eval ::k [list proc proc
+/// args {}]`: that defines `::k::proc` and leaves the global `proc` alone.
+#[test]
+fn literal_list_scripts_keep_proc_publication_unless_they_rebind_it() {
+    for (prefix, published) in [
+        ("namespace eval ::n [list set a 1]", true),
+        ("eval [list set a 1]", true),
+        ("namespace eval ::k [list proc proc args {}]", true),
+        ("namespace eval ::n [list rename proc other]", false),
+        ("namespace eval ::n $script", false),
+        ("set s [list set a 1]\nnamespace eval ::n $s", false),
+    ] {
+        let module = lower_module(&format!("{prefix}\nproc after_k {{}} {{return ok}}"));
+        assert_eq!(
+            fixture_id_if_present(&module.procedures, "::after_k").is_some(),
+            published,
+            "{prefix}"
+        );
+    }
 }
 
 // A wrapper proc

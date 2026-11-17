@@ -91,6 +91,7 @@ mod source_unavailability_advice;
 pub use default_manufacture_advice::OriginalDefaultManufactureShape;
 pub use original_callback_lookup::OriginalCallbackPrefix;
 mod insertion_template;
+mod literal_word_script;
 mod original_command_mutation;
 mod original_command_table;
 mod original_delegated_script;

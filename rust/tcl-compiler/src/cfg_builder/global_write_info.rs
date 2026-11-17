@@ -40,6 +40,7 @@ use crate::registry_invocation::{InvocationMetadataContext, InvocationMetadataIn
 use crate::var_observability::{State, stmt_gen_with_metadata_context};
 
 /// Exact borrowed input for conditional global/caller-frame source summaries.
+#[derive(Clone)]
 struct GlobalWriteSemantics<'a> {
     module: Option<&'a Module>,
     registry: &'a tcl_registry::CommandRegistry,
@@ -406,21 +407,28 @@ pub(super) fn global_frame_summaries(
             }
         });
     let mut rows = HashMap::new();
-    for (id, procedure) in module.original_source_procedure_bodies() {
+    for (id, procedure) in module.summary_procedure_bodies() {
         let namespace = procedure
             .body
             .namespace_context
             .as_deref()
             .and_then(crate::command_binding::SourceNamespaceKey::advisory_key);
-        let mut info = match (semantics.as_ref(), namespace) {
+        let entered = procedure
+            .body
+            .namespace_context
+            .as_deref()
+            .map(|key| bindings.entered_body_namespace(key));
+        let body_semantics = semantics.as_ref().map(|semantics| GlobalWriteSemantics {
+            aliases: entered.as_deref().unwrap_or(bindings),
+            ..semantics.clone()
+        });
+        let mut info = match (body_semantics.as_ref(), namespace) {
             (Some(semantics), Some(namespace))
                 if module.procedure_ids.owns(*id)
                     && module
                         .retained_source_bindings
                         .as_ref()
-                        .is_some_and(|owner| {
-                            owner.matches_original_procedure_summary(*id, procedure)
-                        }) =>
+                        .is_some_and(|owner| owner.matches_summary_body(*id, procedure)) =>
             {
                 own_body_global_writes(&procedure.body, semantics, &namespace)
             }

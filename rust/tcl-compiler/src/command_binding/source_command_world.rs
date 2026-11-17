@@ -454,6 +454,37 @@ impl OriginalSourceCommandWorld {
         self.unavailable
     }
 
+    /// Retain the geometry of an authored C namespace a procedure body is
+    /// executing in. The body runs only while its namespace exists; this
+    /// records nothing about the namespace's commands.
+    pub(super) fn enter_authored_namespace(
+        &mut self,
+        key: &SourceNamespaceKey,
+        policy: NamePolicyProtocol,
+    ) {
+        let SourceNamespaceKey::Authored(path) = key else {
+            return;
+        };
+        if self.unavailable
+            || self.policy != Some(policy)
+            || !matches!(policy.recipe(), NativeNameProtocol::C(_))
+            || self.namespaces.has_key(key)
+        {
+            return;
+        }
+        let Ok(address) = policy.recipe().namespace_address_path(
+            tcl_syntax::naming::NativeNameContext::root(),
+            path.as_bytes(),
+        ) else {
+            return;
+        };
+        self.namespaces.push(NamespaceGeometry {
+            key: key.clone(),
+            scope: SignatureNamespaceScope::C(address),
+            allocation: None,
+        });
+    }
+
     pub(super) fn withdraw(&mut self) {
         self.unavailable = true;
     }

@@ -29,6 +29,7 @@ use super::super::{
 };
 use crate::naming::normalise_qualified_name as nqn;
 use std::collections::BTreeSet;
+use std::sync::Arc;
 use tcl_registry::CommandRegistry;
 
 impl ModuleCommandBindings {
@@ -201,6 +202,40 @@ impl ModuleCommandBindings {
         namespace: &(impl NamespaceKeyQuery + ?Sized),
     ) -> bool {
         self.has_opaque_domain() || self.target_resolution_may_be_unknown(name, namespace)
+    }
+
+    /// The state a procedure body executing in `namespace` observes. Tcl
+    /// deletes a namespace's procedures with the namespace, so the body's
+    /// namespace and its ancestors exist whenever it runs, even where a joined
+    /// history includes points before `namespace eval` created them.
+    #[must_use]
+    pub(crate) fn entered_body_namespace(
+        &self,
+        namespace: &SourceNamespaceKey,
+    ) -> std::borrow::Cow<'_, Self> {
+        let SourceNamespaceKey::Authored(path) = namespace else {
+            return std::borrow::Cow::Borrowed(self);
+        };
+        if self.has_opaque_domain() || namespace.is_root() {
+            return std::borrow::Cow::Borrowed(self);
+        }
+        let mut entered = self.clone();
+        let policy = self
+            .baseline
+            .execution_name_policy
+            .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe);
+        let mut current = path.as_str();
+        while current != "::" && !current.is_empty() {
+            let key = SourceNamespaceKey::authored(current);
+            if let Some(policy) = policy {
+                Arc::make_mut(&mut entered.original_command_world)
+                    .enter_authored_namespace(&key, policy);
+            }
+            Arc::make_mut(&mut entered.namespaces).insert(key);
+            let (holder, _) = tcl_syntax::naming::key_holder_and_tail(current);
+            current = holder;
+        }
+        std::borrow::Cow::Owned(entered)
     }
 
     /// Whether this exact source spelling's resolved binding may be unknown,
