@@ -233,3 +233,35 @@ fn sharedvar_writes_are_kept() {
         }
     }
 }
+
+/// A handler body is advice (hosted-metadata ruling): its store gives the
+/// semantic facts the literal, read by diagnostics and display, and never
+/// gives `sccp.values` a constant, so no optimiser pass rewrites the read.
+/// The same body in a Tcl procedure is a proved constant and is rewritten.
+#[test]
+fn a_handler_store_is_a_semantic_fact_and_never_a_rewrite() {
+    use tcl_compiler::analyses::{ConstValue, LatticeValue};
+    let handler = "when HTTP_REQUEST {\nset x 1\nlog local0. \"v=$x\"\n}";
+    let registry = static_context_for("f5-irules").commands();
+    let cu = CompilationUnit::build_for_dialect(handler, registry, false, "f5-irules");
+    let function = cu
+        .analysable_functions()
+        .find(|function| function.name == "::when::HTTP_REQUEST")
+        .expect("handler function");
+    let symbol = function.ssa.var_symbol("x").expect("x is defined");
+    assert_eq!(
+        function.sccp.values.get(&(symbol, 1)),
+        Some(&LatticeValue::Overdefined)
+    );
+    assert_eq!(
+        function
+            .semantic_values()
+            .and_then(|facts| facts.contents((symbol, 1))),
+        Some(&LatticeValue::Const(ConstValue::Int(1)))
+    );
+    assert_eq!(opt_rewrites(handler, "f5-irules"), Vec::new());
+    assert_ne!(
+        opt_rewrites("proc p {} {\nset x 1\nputs \"v=$x\"\n}", TCL),
+        Vec::new()
+    );
+}
