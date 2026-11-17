@@ -278,6 +278,18 @@ Sent, waiting:
 - `values`: the `info_exists_*` folds under a native Direct entry: SCCP applies the branch but keeps the not-taken block executable, and the advisory solve has no branch.
 - `analysis-performance`: superlinear time in `if` nesting depth.
 
+## Tk and TclOO issues area, 17 November 2026
+
+Session `session_017u5g3KsHnGzMmqgP3e6dJj` (successor). Area and queue: [handover/tk-oo.md](handover/tk-oo.md). Baseline before any change: `tcl-compiler --lib --tests` 2,229 of 13,129 failing, `tcl-lsp-core --lib` 530 of 3,642 (`lists/tk-oo-failing-2026-11-17.txt`).
+
+Landed: #1956 (`9ad2184c`, unentered callback selectors as read-only references; lsp-core fixed 12, new 0; the patch's textual `proc`/`rename`/`alias` scan replaced by the analysis's recorded procedures, aliases, renames and load-level deletions). `catch_in_while_condition` (fixture defines `some_op`; with it undefined tclsh loops forever). #832 compiler half (`23842515`, `EntryProcedureFrame` on `ResolvedAnalysisInput`, new 0).
+
+Open:
+
+- #832 lsp-core half: the `tclIndex` survey passes the frame (`dir` = the directory); the server e2e passes and `original_index_keeps_counted_literal_names_and_does_not_trim_indices` turns green. Held for three `original_names::tests` rows lsp-features ruled on: multirow row becomes 2 entries (done), the `$missing` fallback row is retitled with a separate genuinely unknown row, and the two authenticated fast-path rows (`filename_layout_activation_accepts_conditional_mixed_rows`, `invalid_filename_layout_matches_full_registration_vectors`) still abstain under the frame, cause not found yet. `pkgIndex.tcl` stays unframed (five pkgIndex consumer tests break with it). Known gap: a write through a loader's pre-installed `global` link to a global that did not exist yet is not visible through `::` (with analyser-binding).
+- #2324 part 1 (widget publication) ready: `CREATES_WIDGET` on 37 Tk constructors; the advice graph lets a registered instance refine its own factory's opaque definition; the variable-write projection keeps role writes when the declared facts are command-binding only. Parts (a) `Instance` binding kind and (b) fresh-string result selection follow.
+- #1655 not started.
+
 ## Analysis performance, 17 November 2026
 
 Session `session_017u5g3LmJPuBQtB5DVx5VsA`. Baseline at `30783a0e`, one 4-core Linux host, test profile `opt-level 1`: `tcl-compiler` 13,130 run, 2,229 failing; `tcl-lsp-db` 248 run, 76 failing. Both lists are in `lists/analysis-performance-failing-2026-11-17.txt` (`<binary> <test path>`).
