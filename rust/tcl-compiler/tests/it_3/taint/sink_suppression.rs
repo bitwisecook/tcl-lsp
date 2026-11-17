@@ -388,8 +388,13 @@ mod t106_double_encoding {
 
     #[test]
     fn double_regex_quote() {
-        let source =
-            "set raw [HTTP::payload]\nset esc [regex::quote $raw]\nset double [regex::quote $esc]";
+        // No dialect catalogues `regex::quote`; the regex-escaping form the
+        // registry does catalogue is `regsub` over the metacharacter class
+        // (tclsh 8.4.20 to 9.1.0: `regsub -all {[][{}()*+?.\\^$|]} a.b {\\&}`
+        // prints `a\.b`, and applied again `a\\\.b`).
+        let source = "set raw [HTTP::payload]\n\
+            set esc [regsub -all {[][{}()*+?.\\\\^$|]} $raw {\\\\&}]\n\
+            set double [regsub -all {[][{}()*+?.\\\\^$|]} $esc {\\\\&}]";
         let ws = of_code(source, IR, "T106");
         assert_ne!(ws, [] as [tcl_compiler::taint::TaintWarning; 0]);
         assert!(ws[0].message.contains("regex-escaped"));
