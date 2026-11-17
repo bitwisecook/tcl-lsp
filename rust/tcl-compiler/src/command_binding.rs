@@ -435,6 +435,20 @@ pub enum BindingKind {
     Unknown,
 }
 
+impl BindingKind {
+    /// The binding a registry definition installs before any instance
+    /// refinement: an instance is first published as an object command.
+    #[must_use]
+    pub const fn of_definition(kind: tcl_registry::CommandBindingDefinitionKind) -> Self {
+        match kind {
+            tcl_registry::CommandBindingDefinitionKind::Procedure => Self::Proc,
+            tcl_registry::CommandBindingDefinitionKind::Object
+            | tcl_registry::CommandBindingDefinitionKind::Instance => Self::Class,
+            tcl_registry::CommandBindingDefinitionKind::Command => Self::Command,
+        }
+    }
+}
+
 /// A command-name binding: its [`BindingKind`] plus an optional target
 /// (the proc qname for [`BindingKind::Proc`], the alias target for
 /// [`BindingKind::Alias`]).

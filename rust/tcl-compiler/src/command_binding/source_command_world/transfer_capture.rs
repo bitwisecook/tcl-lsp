@@ -153,7 +153,8 @@ impl SourceWorldCapture<'_> {
                         CommandBindingDefinitionKind::Procedure => {
                             OriginalCommandPublicationKind::Procedure
                         }
-                        CommandBindingDefinitionKind::Object => {
+                        CommandBindingDefinitionKind::Object
+                        | CommandBindingDefinitionKind::Instance => {
                             OriginalCommandPublicationKind::Object
                         }
                         CommandBindingDefinitionKind::Command => {
@@ -448,7 +449,10 @@ pub(in super::super) fn publication_slot(
     }
     let recipe = input.policy().recipe();
     let context = scope.context()?;
-    let slot = if kind == CommandBindingDefinitionKind::Object {
+    let slot = if matches!(
+        kind,
+        CommandBindingDefinitionKind::Object | CommandBindingDefinitionKind::Instance
+    ) {
         recipe
             .oo_object_publication_slot(context, input.bytes())
             .ok()?

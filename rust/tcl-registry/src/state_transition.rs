@@ -324,6 +324,10 @@ pub enum CommandBindingDefinitionKind {
     Procedure,
     /// A `TclOO`, snit, or other registry-described object/class command.
     Object,
+    /// An instance of the invoking constructor's registry object class (a
+    /// Tk widget's path): calls through it dispatch the class's declared
+    /// instance methods.
+    Instance,
 }
 
 /// A transition of a child interpreter's lifecycle or policy.
@@ -1228,7 +1232,7 @@ pub mod command_binding {
             transitions.push(StateTransition::CommandBinding(
                 CommandBindingTransition::Define {
                     name,
-                    kind: CommandBindingDefinitionKind::Object,
+                    kind: CommandBindingDefinitionKind::Instance,
                 },
             ));
         }

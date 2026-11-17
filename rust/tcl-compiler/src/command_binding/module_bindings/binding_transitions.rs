@@ -546,7 +546,11 @@ pub(in super::super) fn apply_may_binding_transition(
                         command: label.clone(),
                         prepended: Vec::new(),
                         registry_backed: false,
-                        kind: if *kind == CommandBindingDefinitionKind::Object {
+                        kind: if matches!(
+                            kind,
+                            CommandBindingDefinitionKind::Object
+                                | CommandBindingDefinitionKind::Instance
+                        ) {
                             BindingKind::Class
                         } else {
                             BindingKind::Command
