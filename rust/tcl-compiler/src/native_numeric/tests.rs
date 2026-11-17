@@ -566,11 +566,13 @@ fn numeric_conversion_retains_only_disjoint_stock_cache_history() {
                             .representation(),
                         expected
                     );
-                    assert_eq!(
+                    // The literal `0` converts as an integer whatever its
+                    // cached representation: tclsh 8.4.20 to 9.1.0 print `1`
+                    // for `set x 0; llength $x; puts [incr x]`.
+                    assert!(
                         converted
                             .contents_integer_increment_conversion_at(&place, registry)
-                            .is_some(),
-                        expected == tcl_syntax::value::ValueRepresentation::List
+                            .is_some()
                     );
                     assert!(
                         converted

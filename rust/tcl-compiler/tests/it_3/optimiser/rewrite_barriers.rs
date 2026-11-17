@@ -176,12 +176,17 @@ fn o107_still_fires_on_genuinely_unreachable_method_code() {
     assert!(out.contains("::puts live"), "live code must survive: {out}");
 }
 
-/// Only the explicit actual private owner may discharge the expression's
-/// conversion/result differences. A normal source-analysis entry stays open.
+/// The ordinary optimiser folds a source literal into an expression operand
+/// under its own licence, not the closed native consumer's: the numeric
+/// reading of a source literal follows its string on every release
+/// (`expr_operand_literal_reading` in `optimiser_coverage`). tclsh 8.4.20,
+/// 8.6.18, 9.0.4 and 9.1.0 print `2` and `1` for the source and for
+/// `set x 1; puts 2; puts 1`.
 #[test]
-fn closed_native_consumer_does_not_grant_the_ordinary_optimiser() {
+fn the_ordinary_optimiser_folds_a_source_literal_operand() {
     let src = "set x 1\nputs [expr {$x + 1}]\nputs $x\n";
-    assert!(optimised(src, TCL).contains("[expr {$x + 1}]"));
+    let out = optimised(src, TCL);
+    assert!(out.contains("puts 2") && !out.contains("[expr"), "{out}");
 }
 
 #[test]

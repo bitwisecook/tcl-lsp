@@ -3540,3 +3540,22 @@ its citation and a regression that reads the recorded lines.
       server name `a b\r\nc`): claimed a DNS name with no whitespace or
       control characters (`FQDN`). If TMM passes the bytes through, the
       colour has to go.
+17. **A source literal read numerically after another command read it.** Not
+    a naming question; the optimiser's (`expr_operand_literal_reading` in
+    `rust/tcl-compiler/tests/it_5/optimiser_coverage/constant_folding.rs`).
+    On every tclsh from 8.4.20 to 9.1.0 the numeric reading of a variable
+    holding a source literal follows its string whatever read the shared
+    object first, so the optimiser folds `$a` into an expression there. F5
+    units stay declined until TMM answers. In `when HTTP_REQUEST`, log the
+    result of each:
+    - `set a 1; format %f $a; log local0. [expr {$a + 1}]`
+    - `set a 1; format %e $a; log local0. [expr {$a + 1}]`
+    - `set a 1; lsort -real [list $a 0]; log local0. [expr {$a + 1}]`
+    - `set a 1; binary format d $a; log local0. [expr {$a + 1}]`
+    - `set a 1; expr {double($a)}; log local0. [expr {$a + 1}]`
+    - `set a 010; format %f $a; log local0. [expr {$a + 1}]`
+    - and the same with a `proc g {} {format %f 1}` defined in the rule and
+      `call g` before `set a 1`.
+    tclsh 8.4.20 prints `2` for each of the first five and `9` for the
+    sixth. If TMM prints `2.0` for any, F5 must keep declining; if it
+    prints what 8.4 does, F5 units may take the 8.4 fold once it exists.

@@ -450,18 +450,23 @@ impl StoredNativeRepresentation {
         let proof = SourceIntegerConvertibleContents::for_dialect(dialect)?;
         match self {
             Self::IntegerConvertibleContents(old) => old.agrees_with(dialect).then_some(*old),
+            // A source literal's numeric reading is a function of its string
+            // on every release measured, whatever read the shared object
+            // first: tclsh 8.4.20 to 9.1.0 print 2 for `set a 1; format %f $a;
+            // expr {$a + 1}` and after `format %e`, `lsort -real`,
+            // `binary format d`, `expr {double($a)}`, `string is double` and
+            // `incr a 0` (`expr_operand_literal_reading` in the optimiser
+            // tests holds the transcript).
             Self::StockLiteralObject(object) => (object.accepts_integer_contents(bytes?, dialect)
-                || (object.representation() != tcl_syntax::value::ValueRepresentation::Unknown
-                    && matches!(
-                        tcl_syntax::number::parse_whole_with(
-                            bytes?,
-                            tcl_syntax::number::ParseFlags::for_syntax(dialect.numbers)
-                        ),
-                        Some(
-                            tcl_syntax::number::Number::Int(_)
-                                | tcl_syntax::number::Number::Big { .. }
-                        )
-                    )))
+                || matches!(
+                    tcl_syntax::number::parse_whole_with(
+                        bytes?,
+                        tcl_syntax::number::ParseFlags::for_syntax(dialect.numbers)
+                    ),
+                    Some(
+                        tcl_syntax::number::Number::Int(_) | tcl_syntax::number::Number::Big { .. }
+                    )
+                ))
             .then_some(proof),
             Self::NumericShape(shape) => shape
                 .integer_contents

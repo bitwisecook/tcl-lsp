@@ -722,11 +722,13 @@ mod tests {
         assert_eq!(plan.expected_stdout(), b"2\n1\n");
         assert!(plan.accepts_candidate(plan.rewritten_source(), &registry));
         assert!(!plan.accepts_candidate("set x 1\nputs 3\nputs 1\n", &registry));
-        // A plan exposes no scope constructor or ordinary Optimisation.
+        // A plan exposes no scope constructor or ordinary Optimisation; the
+        // ordinary optimiser reaches the same fold under its own source
+        // literal licence (tclsh 8.4.20 to 9.1.0 print `2` and `1` for both).
         let open =
             crate::optimiser::manager::optimise_with_dialect(SOURCE, &registry, Some(profile()));
         let rewritten = crate::optimiser::manager::apply_optimisations(SOURCE, &open);
-        assert!(rewritten.contains("[expr {$x + 1}]"));
+        assert!(rewritten.contains("puts 2") && !rewritten.contains("[expr"));
     }
 
     #[test]
