@@ -239,18 +239,19 @@ fn empty_body_has_no_upvars() {
 #[test]
 fn standalone_alias_pairs_keep_original_reference_grammar_and_literal_data() {
     for (source, parameter) in [
-        ("upvar 1 ${odd name} local", "odd name"),
-        ("upvar 1 \"$source\" local", "source"),
+        (
+            "proc p {{{odd name}}} {upvar 1 ${odd name} local}",
+            "odd name",
+        ),
+        ("proc p {source} {upvar 1 \"$source\" local}", "source"),
     ] {
-        let body = lower(source);
-        let info = collect_upvar_targets(&body, &[parameter.to_owned()]);
+        let info = module_proc_info(source, "::p");
         assert_eq!(
             info.param_targets.get("local").map(String::as_str),
             Some(parameter)
         );
     }
-    let body = lower("upvar 1 {$source} local");
-    let info = collect_upvar_targets(&body, &["source".to_owned()]);
+    let info = module_proc_info("proc p {source} {upvar 1 {$source} local}", "::p");
     assert!(info.param_targets.is_empty());
     assert!(info.has_unresolvable_caller_target);
     let mut changed = lower("upvar 1 $source local");
@@ -285,8 +286,7 @@ fn multiple_literal_targets_recorded() {
 
 #[test]
 fn param_target_recorded_when_param_exists() {
-    let body = lower("upvar 1 $name x");
-    let info = collect_upvar_targets(&body, &["name".to_string()]);
+    let info = module_proc_info("proc p {name} {upvar 1 $name x}", "::p");
     assert_eq!(info.param_targets.get("x"), Some(&"name".to_string()));
     assert_eq!(info.literal_targets.len(), 0);
 }
@@ -308,24 +308,24 @@ fn fully_dynamic_source_widens_summary() {
     // `upvar 1 [pick] x` / an array-element source — the caller-side
     // name is runtime state; the flag must be set so the call site
     // widens to an opaque caller-frame clobber.
-    for src in ["upvar 1 [pick] x", "upvar 1 a($i) x"] {
-        let body = lower(src);
-        let info = collect_upvar_targets(&body, &[]);
+    for src in [
+        "proc f {} {upvar 1 [pick] x}",
+        "proc f {i} {upvar 1 a($i) x}",
+    ] {
+        let info = module_proc_info(src, "::f");
         assert!(
             info.has_unresolvable_caller_target,
             "{src} must widen the summary"
         );
     }
     // Resolvable shapes must NOT set the flag.
-    let body = lower("upvar 1 caller_x x\nupvar 1 $p y");
-    let info = collect_upvar_targets(&body, &["p".to_string()]);
+    let info = module_proc_info("proc f {p} {upvar 1 caller_x x\nupvar 1 $p y}", "::f");
     assert!(!info.has_unresolvable_caller_target);
 }
 
 #[test]
 fn args_tail_upvar_recorded() {
-    let body = lower("upvar 1 $args y");
-    let info = collect_upvar_targets(&body, &["args".to_string()]);
+    let info = module_proc_info("proc p {args} {upvar 1 $args y}", "::p");
     // `args` triggers the trailing-vararg path regardless of
     // its position in the param list.
     assert_eq!(info.args_tail_upvar, vec!["y".to_string()]);
@@ -835,11 +835,11 @@ fn dynamic_destination_with_literal_source_still_names_the_caller_var() {
 fn dynamic_destination_with_param_source_resolves_at_the_call_site() {
     // `upvar 1 $name $dst`: the caller-side name is the
     // value passed for `name`, exactly like `param_targets`.
-    let body = lower("upvar 1 $name $local");
-    let info = collect_upvar_targets(&body, &["name".to_string()]);
+    let info = module_proc_info("proc p {name local} {upvar 1 $name $local}", "::p");
     assert!(info.uplevel_param_writes.contains("name"), "got {info:?}");
     assert!(!info.has_unresolvable_caller_target, "got {info:?}");
-    let defs = info.caller_side_defs(&["target".to_string()], &["name".to_string()]);
+    let params = ["name".to_string(), "local".to_string()];
+    let defs = info.caller_side_defs(&["target".to_string(), "slot".to_string()], &params);
     assert_eq!(defs, vec!["target"]);
 }
 
