@@ -1801,3 +1801,42 @@ fn no_value_list_append_preserves_existing_cells_and_initialises_missing_cells()
         );
     }
 }
+
+/// The interpreter creates its startup variables before the document
+/// runs, so reading one at file level does not raise and what follows is
+/// reached.
+///
+/// tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 print `1 1 1 1 1 1` for
+/// `puts [list [info exists argv] [info exists argv0] [info exists env]
+/// [info exists tcl_version] [info exists tcl_platform] [info exists
+/// auto_path]]`, and `1` for `catch {set x $never_created}`.
+#[test]
+fn a_startup_variable_read_at_file_level_reaches_what_follows() {
+    let unresolved = |source: &str, release: &str| {
+        crate::analyser::Analyser::new()
+            .analyse(source, release)
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::W123)
+            .count()
+    };
+    for release in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        for read in [
+            "$argv",
+            "$argv0",
+            "$env(HOME)",
+            "$tcl_version",
+            "$tcl_platform(os)",
+            "$auto_path",
+        ] {
+            let source = format!("set seen {read}\nnosuch\n");
+            assert_eq!(unresolved(&source, release), 1, "{release}: {read}");
+        }
+        // A name the interpreter never created still ends the script.
+        assert_eq!(
+            unresolved("set seen $never_created\nnosuch\n", release),
+            0,
+            "{release}"
+        );
+    }
+}

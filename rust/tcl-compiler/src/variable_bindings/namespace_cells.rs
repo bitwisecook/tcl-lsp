@@ -505,7 +505,20 @@ pub fn fresh_namespace_cells(
     let present = tcl_registry::special_vars::SPECIAL_VARS
         .iter()
         .filter(|variable| variable.readable_at_startup_in(query))
-        .map(|variable| tcl_syntax::naming::qualify("::", variable.name))
+        // A global is addressed by its authored spelling or by its cell in
+        // the root namespace table; the interpreter creates one variable.
+        .flat_map(|variable| {
+            [
+                crate::var_resolve::VariableCellKey::Authored(tcl_syntax::naming::qualify(
+                    "::",
+                    variable.name,
+                )),
+                crate::var_resolve::VariableCellKey::Namespace {
+                    identity: crate::command_binding::SourceNamespaceKey::authored("::"),
+                    simple: tcl_core_types::NameBytes::from(variable.name.as_bytes()),
+                },
+            ]
+        })
         .collect();
     crate::var_resolve::NamespaceCellPresence {
         present,
