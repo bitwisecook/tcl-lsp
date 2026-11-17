@@ -458,58 +458,31 @@ Classification of what still fails (first failing assertion, one run):
 
 ## LSP server end-to-end and database area
 
-Updated 16 November 2026. Baseline at `288afd89`, one run of `tcl-lsp-server --test e2e` (1,651 tests, test profile `opt-level 1`): 1,338 pass, 313 fail. 132 of the failures are the navigation family (LSP features session); 181 are this area's. A second run at `09a7d2df` plus this area's outline change: 1,357 pass, 294 fail, 126 of them this area's after the hand-over below. `tcl-lsp-db` at the same head: 248 run, 173 pass, 75 fail.
+Updated 17 November 2026 (session `server-e2e-db`). Baseline on the split tree: `tcl-lsp-server --test e2e` 1,371 pass, 280 fail of 1,656 (5 ignored); `tcl-lsp-db` 75 fail (library 60, six integration targets 15). Lists: `lists/server-e2e-db-failing-2026-11-17.txt`. After this session's pushes the full e2e run was 1,377 pass, 274 fail, new 0; `nextest` could not be installed, runs use `cargo test`.
 
-Fixed, fixtures only, 9 tests, new 0:
+Landed this session (each with its own commit and measurement):
 
-- A request one column past the end of a line. The server answers only for an exact position in the current document (`CurrentSourcePosition`, `OriginalCodeActionSource::contains_range`), so the request was refused before a provider ran: `signature_help::proc_first_arg`, `proc_with_defaults_marks_optional`, and the E100, W003 and W004 quick-fix tests in `code_actions`. Open decision: LSP 3.17 says a character past the line end defaults to the line length; the server abstains instead.
-- A Tcl 9.0 command under the default profile: `document_symbols::property_symbol`, `class_detail_shows_metaclass` now use the 9.0 profile (tclsh 8.6.18 has neither `oo::abstract` nor `oo::configurable`).
-- A read of an unset variable that tclsh raises on before the code under test runs: `diagnostics::analyser_noqa_suppresses_an_analyser_code`, `value_position_still_fires_w216`.
+- A position past the end of a line is clamped to the line's length for hover, completion and the code-action range; the five fixtures that had been moved inside the line are back at their original columns.
+- Completion offers a global as `$::name` from a namespace frame under every release (`accessible_name`, `completion/original_variables.rs`).
+- An alias hover leads with `**Variable**`; the held patch is removed.
+- Hover answers a call head nothing resolves from the document's retained original procedure declarations (smallest qualified name, labelled `Possible procedure`, yields to a registry builtin); a declined source-view route no longer ends the hover request.
+- IRULE1005/1006 collect bootstrap is offered as one not-preferred action from conditional advice (`ContextActionTier::SingleNotPreferred`); never in fix-all.
+- A proc in a hosted outline is one symbol, not a vendor card plus a row.
+- Fixtures corrected with tclsh evidence in the test: `idx102` declares `::tk` first (`proc ::tk::X` in a nonexistent namespace is `unknown namespace`); the sourced-sibling hover allows the conditional-source marker (`source lib.tcl` is working-directory relative); the call-site slice fixture links its files with `source`.
 
-- Code regressed: the outline of the text after an unterminated delimiter (7 `recovery` tests), read from the recovered written words in `tcl-lsp-core` document symbols (`5ff27e53`).
+Open, by cause. "Sent" means the owner has the smallest fixture.
 
-`tcl-lsp-db`, 75 failing, by first failing assertion; none diagnosed further yet:
-
-| Group | Count | First failing assertion | Owner |
-| --- | --- | --- | --- |
-| Memo and re-run counts in `tests::` (`body_edit_recomputes_one_item`, `method_body_edit_recomputes_one_item`, `function_lattice_*`, `lower_proc_body_*`, `function_optimisations_*`, `taint_cascade_*`, `proc_summary_cascade_*`, `check_diagnostics_rerun_*`, `project_indexes_backdate_*`), `interned_gc` (2), `memory_growth` | about 20 | A cold build runs zero or the wrong number of per-body and per-procedure queries (`ProcBodyKey` is never interned, item bodies analysed 0 of 2), and an unrelated edit re-runs every lattice. | Coordinator ruling: the per-item path always falls back with `OriginalSourceOwnership` (every procedure scope carries `original_member_context`), so `file_analysis_incremental` is a whole-file analysis on every edit. |
-| `file_analysis_incremental_matches_full`, `file_analysis_incremental_carries_bigip_version_override`, optimiser memo transport (2), `readonly_source_optimisation_owner`, `<unnamed>` capsule equality | 6 | The incremental result differs from the whole-file one. | Mine, open |
-| `class_factory_fixpoint` | 7 | Only the first metaclass of a chain is recorded as a factory. | Not yet assigned |
-| `value_transfer_parity` | 11 | Direct and memoised lattices disagree, or both miss the fold. | Value transfers and types, to send |
-| `project_token_inputs` | 9 | Project class and receiver display cards. | Tokens (coordinating session), to send |
-| `tests::cross_file_call_sites`, callback project headers, direct logical calls | 9 | Cross-file caller seeds and project headers. | Not yet assigned |
-| `compiler_check_*` memo parity, `tests::compiler_check_*`, method-body checks, existence guard | 8 | The expected O1xx, O122, IRULE1201 or I230 is not produced on either path. | Compiler facts, to send |
-| `overlay_generations` (2), `dialect_seam`, metadata advice (2), `memory_alias_graph`, `merged_role_index`, regex retag | 8 | Singles. | Not yet assigned |
-
-- Fixture fault: `hover::socket_server_option_hover_ignores_semicolon_in_quoted_arg` wrote `socket "a;b" -server accept 8080`, which tclsh 8.6 rejects with a wrong-args error; it now writes `socket -myaddr "a;b" -server accept 8080`.
-
-Held local at the pause of 16 November, not pushed: a one-line change in `tcl-lsp-core` `variable_symbol.rs` that leads the alias hover with `**Variable** name` (fixes `hover::namespace_var_hover` end to end; its effect on the core `hover::` and `variable_symbol::` unit tests, 21 of 234 failing with it applied, was not compared with the tree without it).
-
-Open server tests, by cause. "Sent" means the owner has the smallest fixture; "waits" means the cause was already in flight.
-
-| Module (tests) | Count | Cause | Owner |
-| --- | --- | --- | --- |
-| `recovery` | 4 | 14 of 18 pass: the tail's outline is read from the recovered written words (this area) and its registry count errors come from the diagnostics session's tail pass (`854d58e7`). Open: the arity of a procedure declared before the cut (`my_helper`, `::myns::helper`; waits on the coordinator's ruling on prefix-declared heads), `if {$x > 5` whose unterminated brace swallows the tail (segmenter decision), and `namespace eval n {` on a release profile, whose analysis is unavailable as a whole. | Coordinator ruling; compiler |
-| `diagnostics` W210 | 9 | W210 withheld after a call to a procedure that uses `upvar`, a computed `set`, or sits in a loop condition; a constant-false `for`; two false positives (`argparse` locals, a default overridden at every call). | Compiler diagnostics, sent |
-| `diagnostics`, `diagnostic_matrix`, `precision_review`, `code_actions`, `vscode_parity` structural | 15 | E005 unpaired `switch`, trace callback arity, W128 after `destroy`, W123 beside a coroutine or glob import, W128 or W123 after `rename`, I230 blocked by an unresolved command, W216 lost to W210 for `${arr($i)}`, I230 and W308 message text, W220 dead stores. | Compiler diagnostics, sent |
-| `diagnostics`, `tcl91` dialect gating | 5 | iApps and tmsh documents publish no gating diagnostic; iRules `exec` draws W123, not W002. | Compiler diagnostics, sent |
-| `diagnostics` bodies not entered | 7 | itcl and snit method bodies, a TclOO method (`info exists`, `nextto`), `report::defstyle` body, created object names. | Waits on the unentered-body cause |
-| `issue996_stack_overflow` | 3 | Analysis time is superlinear in nesting depth (`if` × 80: 2.2 s in the library under `tcl8.6`, about 21 s to first publish through the server). | Compiler diagnostics, sent; server multiplier mine |
-| `diagnostics`, `diagnostic_matrix`, `precision_review`, `code_actions` shimmer | 10 | S100, S101, S102 not published. The procedure fixtures wait on the walk ending at a command over an unproved value (binding session); the file-level ones are the shimmer owner's. | Value transfers and types, sent |
-| `diagnostics`, `code_actions` literal proofs | 3 | W103 on a provably literal `open`; no W201: a quoted literal assignment does not reach the diagnostic as a proved value. | Dataflow, sent |
-| `diagnostics`, `vscode_parity` O102 | 2 | The execution walk stops at `uplevel #0 [list …]` in the callee, so the caller's statements are unseen calls. | Analyser walk, waits |
-| `diagnostic_matrix` octal fold | 1 | A constant expression in a `when` body does not fold; at file level it does. | Waits on handler bodies |
-| `commands` fix-all | 2 | W100 and O111 are published for `set n [expr abs(-2)]` and fix-all applies nothing; the compiler's optimiser emits no rewrite for it, so the server's own entry is the suspect. | Mine, open |
-| `commands` diagram | 2 | `unavailable: current-source-context`. | Tooling, waits |
-| `editor_features` lenses, `issue1019`, `issue1281`, `issue1302`, `issue1305`, two `diagnostics` rename tests | 18 | Code lens counts and command ids, references, rename and definition answers. | LSP features, sent |
-| `completion`, `vscode_parity`, `issue1312` | 12 | `$` completion omits `upvar` aliases, `try` bindings, `dict with` keys and the qualified global spelling; method completion lists. | Mine, open |
-| `hover`, `tcl91`, `issue1019` | 9 | No hover for a parameter declaration, a quoted-argument option, a namespace variable, a sourced sibling's procedure. | Mine, open |
-| `naming_*` | 9 | Not yet diagnosed. | Mine, open |
-| Others (`document_symbols` handler variables, `code_actions` refactors and package suggestion, `diagnostics` cross-file and package tests, `issue1331`, `issue1362`, `precision_review` manifest) | 12 | Not yet diagnosed. | Mine, open |
-
-The server's `irules` (24), `spec_packs` (10), `sslictcl` (1) and `jim` (1) groups moved to the tooling session on 16 November with what this area had found: the iRules quick-fix fixtures hand the server a diagnostic it never published, IRULE1005 and IRULE1006 are conditional advice with no action subject, and the outline of a declaration document stops at its root block.
-
-The counts by cause are a first reading of each test's first failing assertion; a test moves rows when its cause is proven.
+| Tests | Cause | Owner |
+| --- | --- | --- |
+| `hover::hover_on_a_parameter_named_after_a_builtin_is_a_variable_923_idx102` (read half) | `$file` inside `namespace eval :: [list puts $file]` records no reference. | Diagnostics (`namespace eval` handler), sent via analyser-binding |
+| `hover::a_wildcard_imported_textutil_submodule_command_hovers_qualified_923_idx3_idx4` | A bare head imported from a tcllib namespace has no registry binding; `tcltest` does. | Analyser binding, sent |
+| `tcl-lsp-db` `class_factory_fixpoint` (7) | The chain beyond the first metaclass is not a class factory, even in one file. | Class facts, sent |
+| `tcl-lsp-db` cross-file call sites (4) | Lib's slice keeps main's own `other` as an extra row; the expected branch fold is empty. | Values (`unit_scope.rs`), sent |
+| `tcl-lsp-db` memo and re-run counts (about 20) | Per-body incremental analysis falls back to a whole-file analysis. | Analysis performance (ruling 1); tests unchanged |
+| `tcl-lsp-db` `value_transfer_parity` (11), `project_token_inputs` (9), compiler-check memo parity (8), singles (8), incremental versus full (6) | Not yet diagnosed past the first assertion. | This area, then owners |
+| `document_symbols::variables_set_in_a_handler_nest_under_it`, `diagnostics` iRules and `when` bodies | Variables in a `when` body are unknown to the analysis (hover is empty too). | Analyser binding, not yet sent |
+| `diagnostics`, `diagnostic_matrix`, `precision_review`, `recovery`, `code_actions`, `vscode_parity`, `tcl91` compiler facts | W210, E005, trace arity, W128/W123 after `rename`, I230, S100 to S102, W103, O102, gating, bodies not entered, nesting-depth time. | Diagnostics, values, dataflow, taint, analyser binding; fixtures sent on 16 November |
+| Fixtures to correct once their compiler fact lands | `switch_flat_unpaired_pattern_is_checked` (`set s a`), `itcl_method_bodies_are_analysed_end_to_end` (`package require Itcl`), `defstyle_body_typo_still_w123` (`package require report`). | This area |
 
 ## Scope and publication
 
