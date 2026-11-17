@@ -314,7 +314,7 @@ fn a_name_argument_naming_an_outer_place_is_a_global_write() {
 /// end in any state, since the release SSA stores through the link rather
 /// than defining the local. A procedure the module calls, walked in its
 /// callers' activations too, is summarised from its body lowered again in
-/// its declared frame, and its caller's summary rests on it.
+/// its declared frame, and its callers' summaries rest on it.
 #[test]
 fn release_units_summarise_their_procedures() {
     let source = "proc g {} {set ::counter 5}\n\
@@ -352,6 +352,7 @@ fn release_units_summarise_their_procedures() {
             ["::callee"],
             "{environment}"
         );
+        assert!(summaries.contains_key("::user"), "{environment}");
         assert_eq!(
             summaries["::bump"].params,
             [name(&ANY_OUTCOME)],
