@@ -982,6 +982,29 @@ mod oo_define_configuration {
             }
         }
     }
+
+    #[test]
+    fn a_class_reached_through_a_substituted_word_is_no_closed_configuration() {
+        // tclsh 8.6.18, 9.0.4 and 9.1.0 run `oo::define $c …` on `C` too, but
+        // the class is selected by a value, a relation a rename cannot follow:
+        // the configuration stays open, so the instance keeps no method table
+        // and `obj nosuch` draws no W308.
+        let src = concat!(
+            "oo::class create C {method a {} {}}\n",
+            "set c C\n",
+            "oo::define $c {method b {} {return 1}}\n",
+            "C create obj\n",
+            "obj nosuch\n",
+        );
+        for release in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let codes: Vec<String> = analyser_diags(src, release)
+                .into_iter()
+                .map(|(code, _, _)| code)
+                .filter(|code| code == "W308")
+                .collect();
+            assert!(codes.is_empty(), "{release}: {codes:?}");
+        }
+    }
 }
 
 mod reopened_classes {

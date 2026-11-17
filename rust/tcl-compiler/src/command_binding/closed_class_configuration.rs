@@ -66,6 +66,14 @@ impl SourceCommandBindings {
             facts,
             ObjectDispatchLayer::Class,
         )?;
+        // A class reached through a substituted word (`oo::define $c …`) is a
+        // relation a rename cannot follow; only a written name is closed.
+        if !matches!(
+            native.words.get(target + 1),
+            Some(crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. })
+        ) {
+            return None;
+        }
         let name = native.invocation.arguments().literal_at(target)?;
         let proof = super::source_binding(state, name, &context.namespace_identity());
         let class_target = proof.proved_target()?;
