@@ -1094,3 +1094,17 @@ fn issue_2218_unknown_future_target_preserves_execution() {
         );
     }
 }
+
+/// Neighbours of `issue_2262`: the code after a loop over a substituted list
+/// runs, a constant-false arm does not, and code after a `return` does not.
+#[test]
+fn code_after_a_region_and_dead_code_keep_what_runs() {
+    for source in [
+        "proc p {} {set n 1; foreach v [list 2] {puts $v}; puts $n}\np\n",
+        "proc p {} {set n 1; foreach {a b} [list 1 2 3] {incr n}; puts $n}\np\n",
+        "proc p {} {if {0} {puts never}; puts after}\np\n",
+        "proc p {} {return 1; puts never}\nputs [p]\n",
+    ] {
+        preserves(source, "8.4");
+    }
+}
