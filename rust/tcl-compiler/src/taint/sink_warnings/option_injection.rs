@@ -189,6 +189,15 @@ pub(in super::super) fn option_injection_arguments(
         }
         return Some((label, options.arguments));
     }
+    if let Some(hosted) =
+        call.source_read
+            .and_then(|source| match source.metadata.invocation_metadata() {
+                SourceWarningMetadata::Hosted(hosted) => Some(hosted),
+                _ => None,
+            })
+    {
+        return hosted_option_injection_arguments(call, hosted);
+    }
     if let Some(context) = call.source.metadata {
         let tokens = call.tokens?;
         let (selected, options) =
@@ -240,6 +249,43 @@ pub(in super::super) fn option_injection_arguments(
     .collect::<Vec<_>>();
     region.sort_unstable();
     Some((label, region))
+}
+
+/// Option positions of a handler's command, read from its hosted row alone:
+/// advice for this diagnostic, with no handler target or dispatch.
+fn hosted_option_injection_arguments(
+    call: &SinkCall<'_>,
+    hosted: &crate::registry_invocation::OriginalConditionalVendorRegistryMetadata,
+) -> Option<(String, Vec<usize>)> {
+    let context = call.source.metadata?;
+    let input = context.source_analysis_input()?;
+    let tokens = call.tokens?;
+    if !context.matches_registry(call.registry)
+        || call.argument_offset != 0
+        || call.command != hosted.shape().command()
+        || hosted
+            .shape()
+            .original_words()
+            .iter()
+            .any(|word| word.group().expand)
+        || tokens.argv_texts.get(1..)? != call.args
+    {
+        return None;
+    }
+    let words = crate::registry_invocation::source_structure::original_vendor_registry_words(
+        input.borrowed_context_registry(),
+        tokens,
+        hosted.clone(),
+    )?;
+    let options = words.with_source_schema(input.borrowed_context_registry(), |schema| {
+        schema.authored_source_possible_option_arguments()
+    })??;
+    let mut label = hosted.shape().command().to_owned();
+    for selector in options.subcommands {
+        label.push(' ');
+        label.push_str(selector);
+    }
+    Some((label, options.arguments))
 }
 
 /// Emit `T102` (option injection) for tainted variables that sit in an
