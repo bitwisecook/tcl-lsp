@@ -311,19 +311,20 @@ Open, by owner:
 
 ## Analyser diagnostics area, 17 November 2026
 
-Session `session_017u5g3HXzMVEcpUS6bxGcmA` (successor). Area and queue: [handover/diagnostics.md](handover/diagnostics.md). Baseline on `30783a0e`: 13,130 run, 2,229 failing, 377 under this area's prefixes (`lists/diagnostics-failing-2026-11-17.txt`). Last full run (before the 17:30 rebase): 13,145 run, 2,139 failing.
+Session `session_017u5g3HXzMVEcpUS6bxGcmA` (successor). Area and queue: [handover/diagnostics.md](handover/diagnostics.md). Baseline on `30783a0e`: 13,130 run, 2,229 failing, 377 under this area's prefixes (`lists/diagnostics-failing-2026-11-17.txt`). Last full run (21:00, before the rebase onto `02bcb21f7`): 13,162 run, 2,104 failing; 449 in this area's scrub families (405 without `it_4 analyser::class_factories`).
 
-Landed: recovered tail checks a prefix-declared procedure's arity and the registry's selector errors (W001/W145/W002/W004); `7a1d1983` stays (without it eight server `recovery` outline tests fail); regex patterns through a variable on a release profile; a named child interpreter created inside a substitution; interp create fixtures analysed as source; interp alias target asserted per layer; a registry command's lookup at a site with no execution proof (diagnostics only); `namespace eval ns [list …]` operands read in the calling frame; scan `%b` no-match from 8.6; W306 leaves variable-only patterns alone; fixtures that read unset variables or imported from a namespace never created now bind or create them.
+Now: the scrub ledger (`docs/work/test-scrub/ledger/diagnostics.tsv`), before any further fix.
+
+Landed: recovered tail checks a prefix-declared procedure's arity and the registry's selector errors (W001/W145/W002/W004); `7a1d1983` stays; regex patterns through a variable on a release profile; a named child interpreter created inside a substitution; interp create fixtures analysed as source; interp alias target asserted per layer; a registry command's lookup at a site with no execution proof (diagnostics only); `namespace eval ns [list …]` operands read in the calling frame; scan `%b` no-match from 8.6; W306 leaves variable-only patterns alone; a concatenated eval-family script is trimmed as `Tcl_Concat` does, its declarations keep their written layout and its static commands get the registry's count errors; fixtures that read unset variables or imported from a namespace never created now bind or create them.
 
 Waiting on other areas (sent with fixtures and traces):
 
-- `analyser-binding`: loop-body lookup state (`foreach … $items` body, `for` clauses); W210 after a computed-name callee; `report` package bodies and object; child-interpreter `proc` (a design item); formal values at a raising read (param traits, lsp-features' token test); W123 presence for coroutine, `rename puts {}`, `namespace unknown`, `auto_path`; an entered/stopped site query and presence at unreached sites (W123, W125, W210 after a raising command); registry words for `tcl::idna` and under the lenient `tcl` profile (W120); the zero-trip `for` declaration flow.
-- `dataflow-optimiser`: `info exists` folds under a native Direct entry (SCCP keeps the not-taken block executable); a control statement's nested unseen-call marker has no clobber (`foreach y [operation x]`); `Incr` with a variable amount has no SSA definition (W242); O107 failing across optimiser suites.
-- `irules-registry-tooling`: a quoted word with a literal non-`-` first character is taken for a possible option (W304, no W306).
-- `analysis-performance`: nesting-depth timing; `phi_undef_memo::nested_if_stages_*_linear_time` regressed with the 17 November rebase.
-- `taint`: W201 (handed over by the previous session).
+- `analyser-binding`: loop-body lookup state (`foreach … $items` body, `for` clauses); W210 after a computed-name callee; `report` package bodies and object; child-interpreter `proc` (a design item); formal values at a raising read (param traits, lsp-features' token test); W123 presence for coroutine, `rename puts {}`, `namespace unknown`, `auto_path`; presence at unreached sites (W123, W125; `entered_site` landed in `9d663f53`, to be used here); registry words for `tcl::idna` and under the lenient `tcl` profile (W120); the zero-trip `for` declaration flow; a created Jim class instance or bodiless `oo::class create` instance draws W307 (the `set s [X new]` is not lowered as an assignment), cc class-facts; `"prefix$pat"` reaches the option scan as plain Dynamic (`EffectiveInvocationWord` drops the literal-prefix fact), so W304 fires and W306 is withheld.
+- `dataflow-optimiser`: `info exists` folds under a native Direct entry; a control statement's nested unseen-call marker has no clobber (`foreach y [operation x]`); `Incr` with a variable amount has no SSA definition (W242).
+- `analysis-performance`: nesting-depth timing; `phi_undef_memo::nested_if_stages_*_linear_time`.
+- `taint`: W201 emits nothing even with every read bound (`path_concat::tests` red too).
 
-Open here, not yet traced: `unresolved_class_name` on `::a::::p` (naming owner question), `const_cmd_subst_set_rhs` head resolution on a release, multi-word `namespace eval` E003, `namespace eval` dead store (W220), `report_scoped_commands` fixtures (held until the walk enters the body; adding the require would turn the passing W001 row red).
+Open here, not yet traced: `unresolved_class_name` on `::a::::p` (naming owner question), `const_cmd_subst_set_rhs` head resolution on a release, `namespace eval` dead store (W220), `report_scoped_commands` fixtures, `uplevel 1 set x 5` writing the caller's frame (the concatenated window is walked under a derived origin).
 
 ## Tk and TclOO issues area, 17 November 2026
 
