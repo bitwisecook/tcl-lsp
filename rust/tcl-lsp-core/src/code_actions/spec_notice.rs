@@ -92,7 +92,7 @@ fn collect_loader_notice_sites(
     config: LexerConfig,
     depth: u32,
     site: LoaderNoticeSite<'_>,
-    sites: &mut Vec<(u32, Span)>,
+    sites: &mut Vec<(u32, u32, Span)>,
 ) -> Option<()> {
     let LoaderNoticeSite {
         line,
@@ -129,7 +129,7 @@ fn collect_loader_notice_sites(
                     .is_some_and(|text| wanted.is_none_or(|wanted| wanted == text))
                 && word.group().kind != tcl_lexer::WordKind::Braced
             {
-                sites.push((word_line, word.content_span().ok()?));
+                sites.push((word_line, depth, word.content_span().ok()?));
             }
             if word.group().kind == tcl_lexer::WordKind::Braced {
                 let _ = collect_loader_notice_sites(
@@ -176,7 +176,7 @@ impl SpecPackNoticeSubject {
             },
             &mut sites,
         )?;
-        let [(_, span)] = sites.as_slice() else {
+        let [(_, _, span)] = sites.as_slice() else {
             return None;
         };
         Some(Self {
@@ -192,7 +192,8 @@ impl SpecPackNoticeSubject {
 
     /// The subject of a notice about each row of `source`, by the line its
     /// head word starts on: a line with exactly one plain literal row head
-    /// has an entry; computed, escaped and several-per-line heads have none.
+    /// has an entry, taken at the shallowest nesting that starts on the line;
+    /// computed, escaped and several-per-line heads have none.
     #[must_use]
     pub fn for_rows(source: &str, config: LexerConfig) -> BTreeMap<u32, Self> {
         let image = SourceImage::document(source);
@@ -218,13 +219,19 @@ impl SpecPackNoticeSubject {
         {
             return BTreeMap::new();
         }
-        let mut by_line = BTreeMap::<u32, Vec<Span>>::new();
-        for (line, span) in sites {
-            by_line.entry(line).or_default().push(span);
+        let mut by_line = BTreeMap::<u32, (u32, Vec<Span>)>::new();
+        for (line, depth, span) in sites {
+            let entry = by_line.entry(line).or_insert((depth, Vec::new()));
+            if depth < entry.0 {
+                *entry = (depth, Vec::new());
+            }
+            if depth == entry.0 {
+                entry.1.push(span);
+            }
         }
         by_line
             .into_iter()
-            .filter_map(|(line, spans)| {
+            .filter_map(|(line, (_, spans))| {
                 let [span] = spans.as_slice() else {
                     return None;
                 };
@@ -460,7 +467,8 @@ mod tests {
                 (3, "command"),
                 (4, "arity"),
                 (5, "arg"),
-                (6, "const_fold")
+                (6, "const_fold"),
+                (7, "set")
             ]
         );
         assert!(rows.values().all(|s| *s.kind() == SpecPackNoticeKind::Row));
