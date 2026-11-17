@@ -23,9 +23,6 @@
 //! `serialise_result` assembles the top-level object from the per-view
 //! `serialise_*` helpers.
 
-#[cfg(test)]
-use std::collections::BTreeMap;
-
 use serde_json::{Map, Value, json};
 
 #[cfg(test)]
@@ -415,7 +412,7 @@ pub fn serialise_result_with_optimisations(
     if let Some(interproc) = &result.unit.interproc {
         out.insert(
             "interprocedural".to_owned(),
-            serialise_interproc(interproc, &result.unit.caller_scope.param_constants_by_proc),
+            serialise_interproc(interproc, &result.unit.caller_scope.call_sites),
         );
     }
     out.insert("unitScope".to_owned(), serialise_unit_scope(result));

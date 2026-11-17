@@ -521,9 +521,12 @@ fn a_self_call_in_a_braced_expr_word_is_evidence() {
 fn a_braced_word_that_is_not_an_expression_runs_nothing() {
     let src =
         "proc id {v} { return $v }\nproc a {} { return [list {[id 9]}] }\nputs [id 7]\nputs [a]\n";
+    // tclsh 8.4-9.1: `7`, `{[id 9]}`; a later `id 9` returns 9, so the body
+    // keeps `return $v` whatever this file's only call passes.
+    let out = optimised(src, TCL);
     assert!(
-        optimised(src, TCL).contains("return 7"),
-        "`list {{[id 9]}}` passes literal text, so `id 7` really is the only call: {:?}",
+        out.contains("proc id {v} { return $v }") && !out.contains("return 7"),
+        "a body is never rewritten from its callers: {:?}",
         opt_rewrites(src, TCL)
     );
 }

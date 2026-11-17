@@ -638,9 +638,10 @@ mod call_by_name_dynamic_name_local {
     }
 }
 
-// Interprocedural seeding from callers: a procedure every caller passes the
-// same literal folds its condition (I230); any other caller, direct, through
-// `uplevel` or through a dispatched head, retracts the seed.
+// A procedure's condition over a formal is never constant (I230), even when
+// every call in the file passes the same literal: the body is analysed from a
+// generic entry, since a later `source`, a callback or an interactive session
+// can call it with another value.
 //   tclsh: `proc h {m} {expr {$m eq "prod"}}; list [h prod] [h dev]` ⇒ `1 0`
 mod caller_uniform_literal_seed {
     use super::super::*;
@@ -648,10 +649,10 @@ mod caller_uniform_literal_seed {
     const LIB: &str = "proc helper {mode} {\n    if {$mode eq \"prod\"} { set r 1 } else { set r 2 }\n    return $r\n}\nhelper prod\n";
 
     #[test]
-    fn agreeing_callers_fold_the_condition() {
+    fn agreeing_callers_leave_the_condition_open() {
         for other in ["helper prod", "set c helper; $c prod"] {
             let src = format!("{LIB}{other}\n");
-            assert!(fires(&src, D, "I230"), "`{other}`: {:?}", codes(&src, D));
+            assert!(!fires(&src, D, "I230"), "`{other}`: {:?}", codes(&src, D));
         }
     }
 

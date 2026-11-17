@@ -41,7 +41,7 @@ use tcl_registry::{ArgRole, CommandRegistry, Traits};
 /// inside its body argument at all. That's a *second* proc call this scan
 /// cannot see, exactly like the namespace-resolution gap: an invisible call
 /// site with a differing argument silently vanishes from
-/// [`params_constants_from_native_call_sites`]'s "every caller agrees" evidence.
+/// the evidence's "every caller agrees" answer.
 ///
 /// The command surface already knows which argument position of which
 /// command is a script body (`ArgRole::Body`, driving the identical recursive
@@ -439,7 +439,7 @@ pub(super) fn record_unresolved_word_dispatch(
 /// all invoke `helper` with runtime-supplied words appended, and `rename
 /// helper other` / `interp alias {} h {} helper` let a call reach `helper`
 /// under a name no scan attributed to it. Left out of the evidence entirely
-/// they read to [`params_constants_from_native_call_sites`] as "no caller
+/// they would read as "no caller
 /// disagrees". Recording them as opaque callers states the truth instead: a
 /// call site exists whose arguments are unknown.
 ///

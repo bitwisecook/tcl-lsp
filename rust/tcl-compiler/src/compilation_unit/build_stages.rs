@@ -22,7 +22,7 @@
 use super::SourcePipelineTrace;
 use super::lattice_request::ProcLatticeCache;
 use super::module_facts::{RetainedSourceClassFacts, connection_scoped_names};
-use super::procedure_units::{BuiltProcedureUnits, build_procedure_units, module_procedures};
+use super::procedure_units::{build_procedure_units, module_procedures};
 use super::source_lowering::{
     SourceSyntaxInputs, lower_and_build_cfg_with_original_caches, module_source_metadata_input,
     prepared_command_trust, resolve_unit_scope,
@@ -35,7 +35,7 @@ use super::{
 use crate::cfg::{CfgModule, Function as CfgFunction};
 use crate::cfg_builder::PreparedCfgContext;
 use crate::ir::Module as IrModule;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tcl_registry::CommandRegistry;
 
@@ -245,7 +245,7 @@ fn build_top_level_and_procedures(
     input: RetainedProcedureBuildInputs<'_, '_, '_>,
     cache: Option<&mut ProcLatticeCache<'_>>,
     #[cfg(any(test, debug_assertions))] phase_trace: &mut SourcePipelineTrace,
-) -> (FunctionUnit, BuiltProcedureUnits) {
+) -> (FunctionUnit, HashMap<crate::ir::ProcedureId, FunctionUnit>) {
     let RetainedProcedureBuildInputs {
         ir_module,
         cfg_module,
@@ -282,14 +282,6 @@ fn build_top_level_and_procedures(
     );
     #[cfg(any(test, debug_assertions))]
     phase_trace.phase("top-level-lattice");
-    let entered = crate::cfg_builder::entered_procedures(ir_module, registry);
-    let caller_view = crate::unit_scope::UnitCallerView {
-        linkage: facts.linkage,
-        has_cross_file_evidence: facts.has_cross_file_evidence,
-        proc_binding_trust: &facts.proc_binding_trust,
-        source: ir_module.source.try_text().ok(),
-        entered: entered.as_ref(),
-    };
     let built = build_procedure_units(
         &ProcedureBuildContext {
             ir_module,
@@ -297,8 +289,6 @@ fn build_top_level_and_procedures(
             cfg_context: facts.cfg_context.map(|prepared| &prepared.context),
             registry,
             dialect,
-            call_sites: &facts.call_site_constants,
-            caller_view: &caller_view,
             known_class_set,
             known_classes,
             traced_variable_names,
@@ -375,7 +365,6 @@ struct RetainedAnalysisStage<'a> {
     facts: RetainedModuleFacts<'a>,
     pub(super) top_level: FunctionUnit,
     pub(super) procedures: HashMap<crate::ir::ProcedureId, FunctionUnit>,
-    param_constants_by_proc: BTreeMap<crate::ir::ProcedureId, Vec<(String, u32, String)>>,
     pub(super) transfers: crate::interprocedural::TransferSummaries,
     pub(super) body_units: RetainedBodyUnits,
 }
@@ -385,7 +374,6 @@ struct RetainedPostAnalysisInput<'a, 'b> {
     facts: RetainedModuleFacts<'a>,
     pub(super) top_level: FunctionUnit,
     pub(super) procedures: HashMap<crate::ir::ProcedureId, FunctionUnit>,
-    param_constants_by_proc: BTreeMap<crate::ir::ProcedureId, Vec<(String, u32, String)>>,
     pub(super) transfers: crate::interprocedural::TransferSummaries,
     pub(super) options: UnitBuildOptions<'b>,
     pub(super) body_units: RetainedBodyUnits,
@@ -407,7 +395,6 @@ struct RetainedPostAnalysis {
     pub(super) body_units: HashMap<crate::ir::ProcedureId, FunctionUnit>,
     pub(super) source_body_cfgs: HashMap<crate::ir::ProcedureId, CfgFunction>,
     pub(super) connection_scope: Option<crate::connection_scope::ConnectionScope>,
-    param_constants_by_proc: BTreeMap<crate::ir::ProcedureId, Vec<(String, u32, String)>>,
     pub(super) transfers: crate::interprocedural::TransferSummaries,
 }
 
@@ -420,7 +407,6 @@ fn build_retained_post_analysis(
         facts,
         top_level,
         procedures,
-        param_constants_by_proc,
         transfers,
         options,
         body_units,
@@ -468,7 +454,6 @@ fn build_retained_post_analysis(
         body_units,
         source_body_cfgs,
         connection_scope,
-        param_constants_by_proc,
         transfers,
     }
 }
@@ -531,8 +516,7 @@ fn build_retained_analysis_stage<'a>(
         #[cfg(any(test, debug_assertions))]
         phase_trace,
     );
-    let procedures = built.procedures;
-    let param_constants_by_proc = built.param_constants_by_proc;
+    let procedures = built;
     let body_units =
         build_retained_body_units(ir_module, &facts, &module_procedures, options, cache);
     #[cfg(any(test, debug_assertions))]
@@ -542,7 +526,6 @@ fn build_retained_analysis_stage<'a>(
         facts,
         top_level,
         procedures,
-        param_constants_by_proc,
         transfers,
         body_units,
     }
@@ -607,7 +590,6 @@ impl CompilationUnit {
             facts,
             top_level,
             procedures,
-            param_constants_by_proc,
             transfers,
             body_units,
         } = build_retained_analysis_stage(
@@ -629,7 +611,6 @@ impl CompilationUnit {
                 facts,
                 top_level,
                 procedures,
-                param_constants_by_proc,
                 transfers,
                 options,
                 body_units,
@@ -653,7 +634,6 @@ impl CompilationUnit {
                 linkage: post.linkage,
                 has_cross_file_evidence: post.has_cross_file_evidence,
                 call_sites: post.call_site_constants,
-                param_constants_by_proc: post.param_constants_by_proc,
                 proc_binding_trust: post.proc_binding_trust,
             },
             declared_commands: options.declared_commands.cloned().unwrap_or_default(),

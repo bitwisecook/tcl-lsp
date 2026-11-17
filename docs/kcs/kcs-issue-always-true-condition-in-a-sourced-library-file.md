@@ -9,81 +9,43 @@ all-editors, tcl-lsp-cli
 
 ## Question
 
-Why does the editor say a condition in my library file is always true or
-always false, when the file's procedure is clearly called with different
+Why did the editor say a condition on a procedure parameter in my library file
+is always true or always false, when the procedure is called with different
 values from somewhere else?
 
 ## Symptoms
 
-- An `I230` hint on an `if` in a library file: `Condition '$mode eq "prod"'
-  is always true`.
-- The procedure the condition lives in really is called with more than one
-  value — just not from the file the hint appears in.
-- Opening the calling file makes the hint disappear.
+- An `I230` hint on an `if` inside a procedure: `Condition '$mode eq "prod"'
+  is always true`, where `$mode` is a parameter.
+- Every call in the file passes the same literal, but other files, callbacks
+  or an interactive session call the procedure with other values.
 
 ## Answer
 
-The compiler works out a parameter's value from the calls it can see. If
-every call agrees on one literal, the parameter is treated as a constant and
-conditions on it fold. That reasoning is only correct when the calls it can
-see are *all* the calls.
-
-A library file that is loaded by another file has callers the file itself
-does not contain:
+Earlier releases treated a parameter as a constant when every call in the
+file passed the same literal, and folded conditions on it. That was a false
+positive: a procedure stays callable from a later `source`, a callback or an
+interactive session, which no reading of one file or one workspace bounds.
 
 ```tcl
 # lib.tcl
 proc helper {mode} {
-    if {$mode eq "prod"} { ... } else { ... }
+    if {$mode eq "prod"} { set r 1 } else { set r 2 }
 }
 helper prod
 helper prod
 ```
 
-```tcl
-# main.tcl
-source lib.tcl
-helper dev
-```
+After `source lib.tcl`, tclsh 8.4 to 9.1 return `1 2` for
+`list [helper prod] [helper dev]`.
 
-The server reads the whole workspace, so with both files in the project it
-sees `helper dev` and does not fold. If you see the hint anyway, one of these
-is usually why:
-
-1. **The calling file is not in the workspace.** Open the folder that
-   contains both files (**File > Open Folder**), not just the single file.
-   Opening a single file gives the server no project to enumerate callers
-   from.
-2. **The calling file is outside the workspace entirely** — a vendored
-   script, or a separate project that `package require`s this one. The
-   server cannot enumerate callers it has never been shown. Add a
-   `package provide` line to the library: a file that declares itself a
-   package is never seeded from its own call sites, because its procedures
-   are public API by definition.
-3. **You are running the command line on one file.** `tcl diag lib.tcl` has
-   no project to consult. Pass every file — `tcl diag lib.tcl main.tcl`, or a
-   directory — and the calls are shared across them.
-
-If none of those apply, the hint is telling you something true: within
-everything the server can see, that parameter really does only ever take one
-value.
-
-To see exactly what the compiler decided and why, run:
-
-```
-tcl explore --show unitScope --text lib.tcl
-```
-
-It lists the boundaries the file crosses (`package provide`, `source`,
-`namespace export`, …), whether a cross-file view was available, and the
-verdict for each argument position.
-
-If the calling file *is* in the workspace and the hint still appears, collect
+A procedure body is now always analysed from a generic entry, so a condition
+over a parameter is never reported as constant, whatever the file's calls
+pass. If you still see such a hint on a condition over a parameter, collect
 the output channel log and open an issue.
 
 ## Related
 
+- [When does the analyser treat a proc parameter as a constant?](kcs-qa-when-is-a-proc-parameter-treated-as-a-constant.md)
 - [I230 — constant existence check](codes/kcs-diagnostic-i230-constant-existence-check.md)
-- [Compilation-unit scope](../design/compiler/compilation-unit-scope.md) —
-  the contract behind this behaviour.
 - [How to suppress diagnostics](kcs-howto-suppress-diagnostics.md)
