@@ -1,0 +1,93 @@
+diff --git a/rust/tcl-compiler/examples/zz_probe.rs b/rust/tcl-compiler/examples/zz_probe.rs
+new file mode 100644
+index 00000000..2b1bc4ae
+--- /dev/null
++++ b/rust/tcl-compiler/examples/zz_probe.rs
+@@ -0,0 +1,87 @@
++use tcl_compiler::analyser::Analyser;
++
++fn main() {
++    let mut args = std::env::args().skip(1);
++    let dialect = args.next().expect("dialect");
++    let source = match args.next() {
++        Some(path) => std::fs::read_to_string(path).expect("source file"),
++        None => std::io::read_to_string(std::io::stdin()).expect("stdin"),
++    };
++    let result = Analyser::new().analyse(&source, &dialect);
++    let mut classes: Vec<_> = result.all_classes.keys().collect();
++    classes.sort();
++    println!("classes {classes:?}");
++    println!(
++        "any_scope {:?} by_scope {:?} proven {}",
++        result.object_handle_facts.any_scope,
++        result.object_handle_facts.by_scope.len(),
++        result.object_handle_facts.proven_reads.len()
++    );
++    for d in &result.diagnostics {
++        println!(
++            "{} {:?} {}..{} {:?} :: {}",
++            d.code,
++            d.severity,
++            d.span.start(),
++            d.span.end(),
++            source.get(
++                d.span.start() as usize
++                    ..=(d.span.end() as usize).min(source.len().saturating_sub(1))
++            ),
++            d.message
++        );
++    }
++    if std::env::var_os("ZZTAINT").is_some() {
++        let registry = tcl_registry::model::ingress::static_context_for(&dialect).commands();
++        let cu = tcl_compiler::compilation_unit::CompilationUnit::build_for_dialect(
++            &source, registry, false, &dialect,
++        );
++        let profile =
++            tcl_registry::model::ingress::resolve_environment(&dialect).analyser_profile();
++        for w in tcl_compiler::taint::find_taint_warnings_for_cu(&cu, registry, Some(profile)) {
++            println!(
++                "TAINT {} {} {} {:?}",
++                w.code, w.variable, w.sink_command, w.span
++            );
++        }
++    }
++    if std::env::var_os("ZZOPT").is_some() {
++        let registry = tcl_registry::model::ingress::static_context_for(&dialect).commands();
++        let profile =
++            tcl_registry::model::ingress::resolve_environment(&dialect).analyser_profile();
++        for o in tcl_compiler::optimiser::manager::optimise_with_dialect(
++            &source,
++            registry,
++            Some(profile),
++        ) {
++            println!(
++                "OPT {} {:?} -> {:?}",
++                o.code.as_str(),
++                o.span,
++                o.replacement
++            );
++        }
++    }
++    if std::env::var_os("ZZCFG").is_some() {
++        let registry = tcl_registry::model::ingress::static_context_for(&dialect).commands();
++        let cu = tcl_compiler::compilation_unit::CompilationUnit::build_for_dialect(
++            &source, registry, false, &dialect,
++        );
++        for fu in cu.procedures.values() {
++            println!("CFG fn {}", fu.name);
++            for (id, b) in &fu.cfg.blocks {
++                for st in &b.statements {
++                    let d = format!("{st:?}");
++                    println!("CFG  {id:?} {}", d.chars().take(170).collect::<String>());
++                }
++                println!(
++                    "CFG  {id:?} term {}",
++                    format!("{:?}", b.terminator)
++                        .chars()
++                        .take(120)
++                        .collect::<String>()
++                );
++            }
++        }
++    }
++}
