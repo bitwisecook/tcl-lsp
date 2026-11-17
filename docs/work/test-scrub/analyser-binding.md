@@ -194,7 +194,7 @@ Wrong answers come first, then missing facts by tests blocked (this ledger plus 
 
 | Rank | Cause | Tests | Source |
 | ---: | --- | ---: | --- |
-| 1 | Generic entry and entry-independent binding for bodies not entered. Here: `uncalled-body-generic-entry` 26, `entry-independent-binding-missing` 5, `unentered-site-has-reached-lookup` 7. Routed: dataflow's uncalled-procedure rows 29, class-facts' `uncalled-body-nested-proc-not-registered` 7 | 72 | here, dataflow, class-facts; design accepted 21:57 |
+| 1 | Generic entry and entry-independent binding for bodies not entered. Here: `uncalled-body-generic-entry` 26, `entry-independent-binding-missing` 5, `unentered-site-has-reached-lookup` 7. Routed: dataflow's uncalled-procedure rows 29, class-facts' `uncalled-body-nested-proc-not-registered` 7 | 74 | here, dataflow, class-facts; design accepted 21:57 |
 | 2 | Cross-file source evidence: W123 after a resolved `source` of an open sibling | ~28 | server-e2e-db (trace first: world or wiring) |
 | 3 | Run-time compile admission under the VM's own entry | 20 | execution |
 | 4 | Walk presence family (`walk-w123-presence` 8, `walk-unreached-site-presence` 4, `walk-loop-body-lookup` 4, `walk-computed-callee` 4, `walk-zero-trip-loop` 3), here `slot-presence-unknown` 4 and the parked `namespace unknown` fix | 27 | diagnostics, here |
