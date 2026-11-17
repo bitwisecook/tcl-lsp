@@ -1752,7 +1752,8 @@ fn uplevel_caller_frame_is_not_a_global_write() {
     // writing procedure and must therefore widen this summary.
     let m = module("proc ::p {} { uplevel 1 { ::set n 1 } }");
     let info = detect_global_write_procs(&m);
-    assert!(info.get(&summary_id(&m, "::p")).unwrap().is_empty());
+    let row = info.get(&summary_id(&m, "::p")).unwrap();
+    assert!(row.is_empty(), "{row:?}");
 }
 
 #[test]
