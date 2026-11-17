@@ -359,6 +359,7 @@ impl Analyser {
         self.flush_version_gate_diagnostics();
         self.flush_dsl_gate_diagnostics();
         self.publish_recovered_tail_diagnostics();
+        self.publish_concatenated_script_diagnostics();
         self.apply_disabled_diagnostics();
         self.dedupe_diagnostics();
         self.canonicalize_result_order();

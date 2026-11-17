@@ -736,7 +736,7 @@ impl Analyser {
             // whose mis-extended body word drags real code into this arm)
             // must not lose the script to the decline.
             if first_tok.kind == TokenType::Str {
-                self.analyse_body(&words[0], *first_tok, scope_path);
+                self.analyse_concatenated_script(&words[0], *first_tok, scope_path);
                 return;
             }
             // Declining the walk must not lose the *reference* a `$cmd` script
@@ -749,7 +749,21 @@ impl Analyser {
         // `span.start() + content_offset`; the window's text starts at its
         // span's own first byte, so the anchor carries no delimiter to skip.
         let anchor = Token::new(TokenType::Str, span);
-        self.analyse_body(&script, anchor, scope_path);
+        self.analyse_concatenated_script(&script, anchor, scope_path);
+        self.concatenated_windows.push((script, span));
+    }
+
+    /// Walk one eval-family script that concatenation builds, marking its
+    /// commands as having no lowered source of their own.
+    pub(in crate::analyser) fn analyse_concatenated_script(
+        &mut self,
+        script: &str,
+        anchor: Token,
+        scope_path: &[usize],
+    ) {
+        let outer = std::mem::replace(&mut self.concatenated_script, true);
+        self.analyse_body(script, anchor, scope_path);
+        self.concatenated_script = outer;
     }
 
     /// Analyse a single body-role argument: fires `W105`, walks the script

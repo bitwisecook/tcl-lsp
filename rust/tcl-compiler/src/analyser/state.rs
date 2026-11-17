@@ -577,6 +577,13 @@ pub struct Analyser {
     /// recovery segmenter's. No interpreter runs such a document, so the
     /// interpretation holds nothing for the recovered tail.
     pub(super) recovered_source: bool,
+    /// Walking a script an eval-family command builds by concatenating its
+    /// words. The lowering retains no command at those source offsets, so
+    /// a declaration there keeps its written layout as in a recovered tail.
+    pub(super) concatenated_script: bool,
+    /// Every fully static concatenated script walked, by its in-place source
+    /// window, for the registry's count errors on its commands.
+    pub(super) concatenated_windows: Vec<(String, tcl_lexer::Span)>,
     /// The first syntax cut of such a document and the registry's verdicts
     /// on the commands recovered after it, published once every other
     /// emitter has run.

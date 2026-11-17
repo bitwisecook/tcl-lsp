@@ -77,6 +77,49 @@ impl Analyser {
         self.result.diagnostics.extend(verdicts);
     }
 
+    /// The registry's count errors for each command of a static concatenated
+    /// eval-family script. The lowering keeps no command there, so its words
+    /// are judged as written, as in a recovered tail, and only where no
+    /// namespace declares the head: the script's namespace (`uplevel`'s is
+    /// the caller's) is not tracked.
+    pub(in crate::analyser) fn publish_concatenated_script_diagnostics(&mut self) {
+        let Some(registry) = self.registry.clone() else {
+            return;
+        };
+        let config =
+            tcl_lexer::SourceSegmentationPurpose::NestedScript.config(self.file_lexer_config());
+        let windows = std::mem::take(&mut self.concatenated_windows);
+        let mut verdicts = Vec::new();
+        for (script, span) in &windows {
+            let commands = crate::segmenter::segment_commands_with_offset_and_config(
+                script,
+                span.start(),
+                config,
+            );
+            for command in commands.iter().filter(|command| !command.is_partial) {
+                let Some(head) = command.texts.first() else {
+                    continue;
+                };
+                let names_head =
+                    |name: &String| tcl_syntax::naming::key_tail(name) == head.as_str();
+                let declared_anywhere = self.result.all_procs.keys().any(names_head)
+                    || self.result.all_classes.keys().any(names_head)
+                    || self.result.command_aliases.keys().any(names_head);
+                if declared_anywhere
+                    || self.result.diagnostics.iter().any(|diagnostic| {
+                        diagnostic.code.is_error()
+                            && command.span.start() <= diagnostic.span.start()
+                            && diagnostic.span.end() <= command.span.end()
+                    })
+                {
+                    continue;
+                }
+                verdicts.extend(self.recovered_tail_verdict(&registry, command, span.start()));
+            }
+        }
+        self.result.diagnostics.extend(verdicts);
+    }
+
     /// Whether the reached prefix of the document may have rebound `head`:
     /// a procedure, alias, class, rename or deletion under that name, an
     /// import that could bring one in, or a provider the walk could not see.
