@@ -8,15 +8,15 @@ Ledger: [`ledger/irules-registry-tooling.tsv`](ledger/irules-registry-tooling.ts
 | --- | ---: |
 | `KEEP-ORACLE` | 40 |
 | `KEEP-F5` | 48 |
-| `KEEP-CONTRACT` | 43 |
+| `KEEP-CONTRACT` | 47 |
 | `FIX-EXPECTATION` | 0 |
 | `FIX-FIXTURE` | 1 |
-| `MERGE` | 17 |
+| `MERGE` | 15 |
 | `REWRITE` | 0 |
 | `RETIRE` | 0 |
-| `UNDECIDED` | 2 |
+| `UNDECIDED` | 0 |
 
-The two `UNDECIDED` rows are `tcl-spec-hooks` pack-family tests the execution session routed here (they hold a pack-family runtime path; I have not triaged them yet), so the ledger has 151 rows. No test is retired or rewritten here. Triage evidence is the failing output read today plus tclsh 8.4/8.6/9.0 where the row says so; **Jim rows are not confirmed on jimsh (none installed here)**, and the oracle rows state what the test asserts, not that I re-ran each expected value on tclsh: the ones that are, name it. `MERGE` rows are the 17 `value_transfers_cli` tests that repeat a compiler value-transfer witness through diag, opt and explore (ruling 6 of the earlier session keeps them while they fail); their survivor is the compiler test of the same program, to be named per row when that session's ledger lists it.
+The two `UNDECIDED` rows are `tcl-spec-hooks` pack-family tests the execution session routed here (triaged: both `KEEP-CONTRACT`; the `::tclvm` variants pass, the `::runtime` variants fail because `RuntimeEngine` does not implement `Engine::host_metadata_list_reader`, so `word_list_in` in `tcl-spec-hooks/src/emit.rs` refuses the list-valued argument of `prefix` and `invalid` and nothing is emitted; the fix is in the runtime engine, execution's area), so the ledger has 151 rows. No test is retired or rewritten here. Triage evidence is the failing output read today plus tclsh 8.4/8.6/9.0 where the row says so; the oracle rows below were run on tclsh 8.4.20, 8.5.19, 8.6.18 and 9.0.4 and on jimsh 0.84 (`scripts/dev/ensure-jim-oracle.sh`); every run agrees with what its tests expect, so no row is `FIX-EXPECTATION`. `MERGE` rows are the 17 `value_transfers_cli` tests that repeat a compiler value-transfer witness through diag, opt and explore (ruling 6 of the earlier session keeps them while they fail); 15 of them name their survivor, a `tcl-compiler` `it_2` `value_transfer_witnesses` test of the same program (see `survivor`), and two stay (below).
 
 ## Causes ranked by tests blocked
 
@@ -83,3 +83,32 @@ The remaining one-test causes are in the ledger (rename planner, optimiser spell
 ## Exact and overlap groups touching these families
 
 `ledger/irules-registry-tooling-clusters.tsv` lists every member (passing tests included, members in other crates too) of the groups in `data/clusters_exact.tsv` and `data/clusters_overlap.tsv` that contain a test of these crates: 1 exact group and 58 overlap groups. Within them: `tcl-explorer` `serialise::tests::irules_flow_empty_for_plain_tcl` and `event_order_empty_for_plain_tcl` are the same check on two views; `tcl-cli` `inspection_verbs::explore_summary_lists_views` and `smoke_explore_reports_summary_for_tiny_snippet` repeat each other (the smoke name is kept on purpose: the Makefile's smoke tier selects `smoke_*`); `tcl-irules` `walker::tests::extracts_refs_nested_in_body_and_command_substitution` repeats `tests/object_refs.rs`; `tcl-spectcl` export round-trip pairs (`a_canonical_environment_block_round_trips_byte_identically` and `an_environment_block_with_kind_and_short_name_round_trips_byte_identically`) differ by one input and are a table. These are second-pass work; none of them fails.
+
+## Oracle runs
+
+One script per cause group, run on the releases named. Every result agrees with the expectation of the tests in the group.
+
+**Numeric spellings and wide edges** (`optimiser-release-spellings`, `optimiser-jim-wide-int`, `optimiser-double-range`, `optimiser-hosted…` oracle side): `expr {-(-9223372036854775808)}`, `{(-9223372036854775807 - 1) / -1}`, `{(-9223372036854775807 - 1) % -1}`, `{4.9e-324}`, and `string is double` on `1.7976931348623157e308 0e999 0.0e-400 Inf`.
+- tclsh 8.4.20: `-8`, `-8`, then the interpreter dies with SIGFPE on the `%` line; `4.9e-324` raises `floating-point value too large to represent`; the four `string is double` answers are 1.
+- tclsh 8.5.19 and 9.0.4: `9223372036854775808`, `9223372036854775808`, `0`, `5e-324`, and 1 for each `string is double`.
+- jimsh 0.84: `-9223372036854775808` for both wide expressions (it wraps), `4.94065645841e-324`, `1e999` is `Inf`, and the interpreter dies with SIGFPE on the `%` line.
+So the folds are right only from 8.5 (the test's `folds` set), the 8.4 range-error literal must be left to run, and Jim must decline.
+
+**Return completions** (`diagram-return-completions`), tclsh 8.6.18 and 9.0.4 (`catch` options need 8.6): `return -level 0 -code 42 x` completes with code 42; `-code 4294967295` completes with code **-1**; `return -code bogus` raises `bad completion code "bogus": must be ok, error, return, break, continue, or an integer`; `try {…} on 42 {…}` catches the custom code; `try {error E {} {X Y}} trap {X Y}` matches the list as elements. tclsh 8.4.20 has no `catch` options dictionary.
+
+**`switch` arms** (`xc-switch-subject-lookup`), tclsh 8.6.18 and 9.0.4 (8.4 rejects the `{*}` in my script, not the semantics): `-glob` arms `/api/*`, `/static/*` falling through `-` to `*.css`, an exact `a.example.com`, `default`; `-regexp` `^/api/`; `-nocase -glob` on `WWW.EXAMPLE.COM` with `*.example.com`; and `/a*` as an exact (non-option) string without `-glob`. Each answers as the XC tests expect (A, CSS, CSS, EXACT, D, R, NC, LIT).
+
+**Namespace call resolution** (`diagram-call-resolution`, `explorer-function-rows`), tclsh 8.4.20, 8.6.18, 9.0.4: in `::beta`, `helper` is `::beta::helper`, `alpha::helper` falls back to `::alpha::helper` (relative lookup finds it from the global namespace), `::alpha::helper` is direct; in `::unrelated`, `helper` is `invalid command name "helper"`.
+
+**`throw`** (`registry-words-select-throw-under-84`): tclsh 8.4.20 `invalid command name "throw"`; 8.6.18 and 9.0.4 raise with the message.
+
+**Rename planner** (`rename-planner-alias-capture`, `rename-planner-foreach-list`), tclsh 8.4.20, 8.6.18, 9.0.4: after `interp alias {} assign {} set fixed`, renaming only the use `$fixed` to `$a` raises `can't read "a": no such variable`; `foreach {first second}` and `foreach {a second}` run identically when both the definition and the uses rename.
+
+**Jim documents** (`jim-document-diagnostics`, `jim-class-factory-walk`), jimsh 0.84: every program in the `jim_document.rs` tests runs without error. `proc counter {} {{n 0}} {return [incr n]}` counts 1, 2; `proc mix {a} {seed {n 0} &shared} {…}` returns 7; `proc pair {a b} {{n 0}} {…}` gives `120` and `wrong # args: should be "pair a b"` for 1 and 3 arguments; `proc {a b} {x} {…}` defines the two-word command (`{a b} 1` is 1, `{a c} 1` is `invalid command name "a c"`, `{a b}` is `wrong # args: should be "a b x"`); `class Point {x 0}` then `Point method clone {} {…}` and `[Point new]` work; the `JIM_PROGRAM` of the tests (class, method `proc {system model}`, `loop`, `sleep`, `set s [system new]`, `$s model`) prints `0 1 2` and an empty model; `system` alone is `invalid command name "system"` (the Expect command is unknown to Jim). tclsh 8.6 answers `invalid command name "class"`. So the findings those tests expect from the analyser (none for the Jim program, W123 for `system`) are what Jim itself shows.
+
+## `value_transfers_cli`
+
+15 rows are `MERGE` into a `tcl-compiler` `it_2` `value_transfer_witnesses` test of the same program (named in `survivor`; at merge time the survivor must be shown to assert the same value fact, which I have not compared line by line). Two stay as `KEEP-CONTRACT` because they hold what only the front end holds:
+- `decided_branches::program_four_reaches_diag_and_opt_in_every_form`: runs the program under tclsh and checks that `diag` (the printed diagnostics and exit code) and `opt` (the optimised text) agree; the witness holds the analysis facts.
+- `transfer_routes::explore_sccp_prints_the_route_tally`: the one test of the `explore sccp` text format (the tally lines and their order); `expressions::route_entries_are_counted_per_family` holds the counts.
+The CLI adds the printed format, the exit code and the flags (`--profile`, `--dialect`, `--json`); the other 15 assert only the value fact the witness holds. `release_spellings` (4) and `ordered_state::opt_prints_what_tclsh_prints_for_the_seven_ordered_state_programs` are `KEEP-ORACLE`: they run the release themselves.
