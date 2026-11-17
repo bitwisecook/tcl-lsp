@@ -457,10 +457,10 @@ where
             match classify(&text) {
                 Some(Incoming::Request(request)) => {
                     let method = request.method().to_owned();
-                    if method == "textDocument/didOpen" || method == "exit" {
-                        if let Some(trace) = &mut self.lifecycle_trace {
-                            trace.active = true;
-                        }
+                    if (method == "textDocument/didOpen" || method == "exit")
+                        && let Some(trace) = &mut self.lifecycle_trace
+                    {
+                        trace.active = true;
                     }
                     if self.lifecycle_trace.is_some() {
                         self.lifecycle_trace(&format!("route.{}", trace_method(&method)));

@@ -73,12 +73,14 @@
         JSON.stringify(sources),
         JSON.stringify(certFiles),
         JSON.stringify(forensicFiles),
-        opts.title,
-        opts.generatedAt,
-        opts.embedConsole,
-        opts.manifest,
-        opts.reportId,
-        JSON.stringify(opts.settings ?? {})
+        JSON.stringify({
+          title: opts.title,
+          generatedAt: opts.generatedAt,
+          embedConsole: opts.embedConsole,
+          architectureManifest: opts.manifest,
+          reportId: opts.reportId,
+          settings: opts.settings ?? {}
+        })
       );
       return { html, deviceCount: sources.length, locked: secretTotal > 0 && !opts.masterKey };
     }

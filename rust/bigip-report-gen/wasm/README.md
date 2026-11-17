@@ -37,7 +37,7 @@ engine as a **library** (PyO3), while this crate is the same generator
 | `extract_files(name, bytes, passphrase)` | UCS member inventory → JSON `[{path, size, sha256, isText, content?}]` (Forensics tab). |
 | `secret_count(scf)` | number of `$M$…` encrypted secrets. |
 | `decrypt_secrets(scf, master_key)` | decrypt `$M$…` secrets with the base64 `f5mku -K` key. |
-| `generate_report(sources_json, cert_files_json, files_json, title, generated_at, embed_console, architecture_manifest, report_id)` | ordered `[[uri, scf], …]` + extras → standalone HTML report. |
+| `generate_report(sources_json, cert_files_json, files_json, options_json)` | ordered `[[uri, scf], …]` + extras and a JSON options object (`title`, `generatedAt`, `embedConsole`, `architectureManifest`, `reportId`, `settings`) → standalone HTML report. |
 | `build_architecture(devices_json, manifest)` | re-run architecture/topology detection for the builder's GUI editor → `architecture` JSON. |
 | `manual(topic)` | the full `f5-query` manual text, for the report's reference panel. |
 | `engine_version()` | the report engine version string. |

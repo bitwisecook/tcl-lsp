@@ -315,6 +315,15 @@ fn push_json_string(s: &str, out: &mut String) {
     out.push('"');
 }
 
+/// The whole-file lexer config for an iRule, resolved once through the
+/// ingress: `}{` splits words and `{*}` is inert, so highlighting reads the
+/// rule as TMM does rather than as Tcl 9.
+pub(crate) fn irules_file_config() -> tcl_lexer::LexerConfig {
+    tcl_lexer::LexerConfig::for_file_grammar(
+        tcl_registry::model::resolve_environment("f5-irules").grammar(),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -413,13 +422,4 @@ mod tests {
         assert!(json.contains("\"severity\":\"hint\""));
         assert!(json.contains("tk-event"));
     }
-}
-
-/// The whole-file lexer config for an iRule, resolved once through the
-/// ingress: `}{` splits words and `{*}` is inert, so highlighting reads the
-/// rule as TMM does rather than as Tcl 9.
-pub(crate) fn irules_file_config() -> tcl_lexer::LexerConfig {
-    tcl_lexer::LexerConfig::for_file_grammar(
-        tcl_registry::model::resolve_environment("f5-irules").grammar(),
-    )
 }

@@ -310,8 +310,8 @@ pub(crate) fn hover_json(source: &str, offset: usize) -> Value {
     if !matches!(token.class, "command-word" | "property-flag") {
         return json!({ "found": false, "title": "", "body": "" });
     }
-    match token.statement.as_ref().and_then(|(head, word)| {
-        tcl_spec_studio::schema::DslDisplayContext::for_source(source).help(head, word)
+    match token.statement.as_ref().and_then(|(head, word, parent)| {
+        tcl_spec_studio::schema::DslDisplayContext::for_source(source).help(head, word, *parent)
     }) {
         Some((title, body)) => json!({ "found": true, "title": title, "body": body }),
         None => {

@@ -23,7 +23,7 @@ export interface GenerateOptions {
    * Report settings the builder persists / exports as JSON: the report *content*
    * copyright notice (distinct from the fixed tooling copyright), the Markdown
    * front-matter, and the logo. Serialised straight to the wasm `generate_report`
-   * settings argument. Empty object = no settings.
+   * `settings` option. Empty object = no settings.
    */
   settings?: ReportSettings;
 }
@@ -77,12 +77,7 @@ interface WasmBindgen {
     sourcesJson: string,
     certFilesJson: string,
     forensicFilesJson: string,
-    title: string,
-    generatedAt: string,
-    embedConsole: boolean,
-    manifest: string,
-    reportId: string,
-    settingsJson: string,
+    optionsJson: string,
   ): string;
   // Optional — guarded with a presence check until every wasm build exports them.
   build_architecture?(devicesJson: string, manifest: string): string;
@@ -183,12 +178,14 @@ export class WasmBackend implements ReportBackend {
       JSON.stringify(sources),
       JSON.stringify(certFiles),
       JSON.stringify(forensicFiles),
-      opts.title,
-      opts.generatedAt,
-      opts.embedConsole,
-      opts.manifest,
-      opts.reportId,
-      JSON.stringify(opts.settings ?? {}),
+      JSON.stringify({
+        title: opts.title,
+        generatedAt: opts.generatedAt,
+        embedConsole: opts.embedConsole,
+        architectureManifest: opts.manifest,
+        reportId: opts.reportId,
+        settings: opts.settings ?? {},
+      }),
     );
     return { html, deviceCount: sources.length, locked: secretTotal > 0 && !opts.masterKey };
   }
