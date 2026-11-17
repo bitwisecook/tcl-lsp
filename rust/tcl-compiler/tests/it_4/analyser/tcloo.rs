@@ -182,24 +182,29 @@ mod tcloo_classes {
 
     #[test]
     fn metaclass_variants() {
-        let cfg = class(
+        // oo::configurable, oo::abstract and oo::singleton exist from Tcl 9.0
+        // (tclsh 9.0.4 and 9.1.0 have them; 8.6.18 raises invalid command name).
+        let cfg = class_in(
             "oo::configurable create Point {\n    property x y\n}\n",
             "::Point",
+            "tcl9.0",
         );
         assert_eq!(cfg.metaclass, "oo::configurable");
         assert!(cfg.properties.contains_key("x") && cfg.properties.contains_key("y"));
         assert_eq!(
-            class(
+            class_in(
                 "oo::abstract create Shape {\n    method area {} { error \"abstract\" }\n}\n",
-                "::Shape"
+                "::Shape",
+                "tcl9.0"
             )
             .metaclass,
             "oo::abstract"
         );
         assert_eq!(
-            class(
+            class_in(
                 "oo::singleton create Logger {\n    method log {msg} { puts $msg }\n}\n",
-                "::Logger"
+                "::Logger",
+                "tcl9.0"
             )
             .metaclass,
             "oo::singleton"
