@@ -92,6 +92,16 @@ Rules:
 
 The second pass, after the failing tests, takes the passing ones through the exact and overlap groups.
 
+## After a ledger is signed off
+
+1. The wrong answers it found, each with its tclsh witness as a new test.
+2. The repairs: `FIX-FIXTURE` and `FIX-EXPECTATION`, by cause, one commit per cause naming the ledger rows and the evidence. A repaired test then passes or shows a real product fault; it is re-read in the ledger, never adjusted until green.
+3. `RETIRE` and `MERGE`, in commits of their own that name the rows; a merge only after the survivor asserts at least as much.
+4. `REWRITE`, re-pointed at the named observable, by cause.
+5. The `KEEP` causes, ranked by tests blocked.
+
+The ledger gains a `status` column (open, repaired, fixed, deleted) and is kept current, so the number of distinct failing behaviours can always be read from it.
+
 ## Rulings made during the scrub
 
 - *Tests of `inlining::inline_module`* (23, no production caller): read per test by the live-inlining session. "The inlined program answers as the original" is `KEEP-ORACLE`; an assertion on the inliner's internal shape is `REWRITE` to the differential or `MERGE` into a `live_differential` row; an assertion that names the renamed locals is `FIX-EXPECTATION`, since they become anonymous slots.
@@ -154,13 +164,13 @@ Updated at the hourly check from the ledgers on `work`.
 | diagnostics | 470 | 0 | |
 | analyser-binding | 330 | 0 | |
 | class-facts | 250 | 0 (started 20:45 UTC) | |
-| dataflow-optimiser | 423 | 423, complete, rulings applied (FIX-FIXTURE 142, KEEP-CONTRACT 102, KEEP-ORACLE 82, REWRITE 50, FIX-EXPECTATION 30, MERGE 10, RETIRE 5, KEEP-F5 1, UNDECIDED 1 being run) | sampled and accepted |
+| dataflow-optimiser | 423 | 423, complete (FIX-FIXTURE 142, KEEP-CONTRACT 103, KEEP-ORACLE 82, REWRITE 50, FIX-EXPECTATION 30, MERGE 10, RETIRE 5, KEEP-F5 1) | signed off 20:55 UTC |
 | values | 218 | 218, complete (KEEP-ORACLE 127, KEEP-CONTRACT 29, KEEP-F5 23, FIX-FIXTURE 20, UNDECIDED 10 since ruled, FIX-EXPECTATION 5, REWRITE 3, RETIRE 1) | sampled 20:50 UTC: accepted |
 | taint | 190 | 0 | |
 | analysis-performance | 30 | 0 | |
 | lsp-features | 500 | 0 | |
 | server-e2e-db | 400 | 0 | |
 | execution | 286 | 261 kept, 25 routed (KEEP-ORACLE 108, MERGE 48, RETIRE 36, REWRITE 32, KEEP-CONTRACT 28, FIX-EXPECTATION 4, FIX-FIXTURE 3, KEEP-F5 2) | G1 to G15 accepted; the 31 receipt-ordering retirements rejected (26 of 36 RETIRE rows cite a contract in the test) and sent back |
-| irules-registry-tooling | 140 | 0 | |
+| irules-registry-tooling | 151 | 151 (KEEP-F5 48, KEEP-CONTRACT 43, KEEP-ORACLE 40, MERGE 17, FIX-FIXTURE 1, UNDECIDED 2); BIG-IP checks TS-01 to TS-10 | first pass accepted 20:52 UTC; Jim runs, per-cause tclsh runs and named survivors to finish |
 | tk-oo | 60 | 0 | |
 | live-inlining | 6 | 0 | |
