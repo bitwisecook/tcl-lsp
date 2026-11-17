@@ -934,6 +934,12 @@ pub fn document_realm_bindings(
     dialect: &'static tcl_dialect::DialectProfile,
     registry: &CommandRegistry,
 ) -> CommandBindingRealm {
+    // A hosted F5 document names its commands only under its hosted source
+    // entry; without it no head is an original input and every one reads
+    // as rebound.
+    if let Some(realm) = hosted_document_realm_bindings(source, dialect, registry) {
+        return realm;
+    }
     let bindings = SourceCommandBindings::analyse_with_options(
         source,
         tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
@@ -949,6 +955,27 @@ pub fn document_realm_bindings(
         },
     );
     realm_from_source_bindings(bindings, registry)
+}
+
+fn hosted_document_realm_bindings(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    registry: &CommandRegistry,
+) -> Option<CommandBindingRealm> {
+    let context = std::sync::Arc::new(
+        tcl_registry::model::ingress::context_for_profile(dialect)
+            .with_command_store(registry.snapshot().shared_registry()),
+    );
+    let input = crate::analyser::ResolvedAnalysisInput::new(
+        dialect,
+        dialect,
+        context,
+        tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
+    );
+    if !input.has_hosted_source_name_context() {
+        return None;
+    }
+    document_realm_bindings_for_fresh_hosted_source(source, &input)
 }
 
 /// Build the projection under the source's already-resolved lexer policy.
