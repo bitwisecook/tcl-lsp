@@ -294,7 +294,7 @@ mod t102_suppression {
     #[test]
     fn phi_mixed_colours_preserves_non_dash() {
         // IP_ADDRESS and PORT both augment to NON_DASH_PREFIXED; T102 safe.
-        let source = "set a [IP::client_addr]\nset p [TCP::client_port]\nif {$cond} {\n    set x $a\n} else {\n    set x $p\n}\nregexp $x test\n";
+        let source = "set a [IP::client_addr]\nset p [TCP::client_port]\nif {[HTTP::header exists X-Branch]} {\n    set x $a\n} else {\n    set x $p\n}\nregexp $x test\n";
         assert_eq!(
             of_code(source, IR, "T102"),
             [] as [tcl_compiler::taint::TaintWarning; 0]
@@ -304,7 +304,7 @@ mod t102_suppression {
     #[test]
     fn phi_generic_with_coloured_loses() {
         // One branch generic taint, the other IP_ADDRESS → T102 fires.
-        let source = "set a [IP::client_addr]\nset g [HTTP::payload]\nif {$cond} {\n    set x $a\n} else {\n    set x $g\n}\nregexp $x test\n";
+        let source = "set a [IP::client_addr]\nset g [HTTP::payload]\nif {[HTTP::header exists X-Branch]} {\n    set x $a\n} else {\n    set x $g\n}\nregexp $x test\n";
         assert_ne!(
             of_code(source, IR, "T102"),
             [] as [tcl_compiler::taint::TaintWarning; 0]
