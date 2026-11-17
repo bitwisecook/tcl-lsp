@@ -27,7 +27,9 @@ async fn default_off_w242_hidden_by_default_enableable_via_config() {
     // per-code enable path).
     let backend = test_backend();
     let uri = Uri::from_str("file:///w242.tcl").unwrap();
-    let src = "while {$x < 10} {puts hi}\n"; // emits W242 from the analyser
+    // tclsh 8.6.18: a bare `while {$x < 10} ...` raises `can't read "x"`
+    // before the loop runs, so `x` is a parameter; `p 20` returns cleanly.
+    let src = "proc p {x} {\n    while {$x < 10} {puts hi}\n}\n"; // emits W242 from the analyser
     register(&backend, &uri, src).await;
 
     let off = backend
