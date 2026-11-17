@@ -104,7 +104,7 @@ The second pass, after the failing tests, takes the passing ones through the exa
 - *The Unavailable metadata context is a product state* (a missing overlay abstains); its tests are kept and reach it by the real route. A profile-less registry is a supported input only if production code builds one.
 - *Facts inside a never-called procedure.* A fact that depends on a caller's values is a fixture fault (call it). A fact that holds for every entry is kept: an uncalled procedure is still callable, so the walk gives it a generic entry (formals unknown, the command world under the entry-independent conditions, caller frame unknown) and proves what holds for every entry. Tests of that kind are not "fixed" by adding a call. Design with analyser-binding.
 - *A fold on the characters of a non-ASCII source literal* declines on 8.4 to 8.6 unless the script's encoding is proved (a script file is read in the system encoding there); on 9.0 and later the default is utf-8.
-- *A full constant `[expr {…}]` in a command substitution folds as O101 on every release* (the KCS page stands; a value's internal representation is not observable to a script). A statement-position `expr` is never replaced by a bare value.
+- *A full constant `[expr {…}]` in a command substitution folds as O101 on every release* (the KCS page stands; a value's internal representation is not observable to a script). A statement-position `expr {2+2}` becomes `expr 4`, which tclsh 8.4 to 9.1 run (verified; the KCS page's "Standalone expression limitation" was stale and is removed).
 - *A passing test that cannot fail is vacuous.* Negative tests on a helper that refuses for want of its inputs (48 optimiser library tests build a pass context with no registry or module) check nothing; they are listed in the second pass.
 - *O101 declines on 8.4 for a shift count outside the word width.* What one build of tclsh 8.4 printed for undefined C behaviour is not the release's behaviour.
 - *Precision at a call site is sound; a procedure's own summary stays pessimistic.* A caller passing a written name to `upvar 1 $n a` has exactly that variable touched; with the interprocedural step off no caller is consulted and the answer is unbounded.
@@ -120,7 +120,6 @@ These go ahead of missing facts once the ledgers are in.
 | A call through `interp alias {} via {} far x` not seen as a call of `far`; `return $x` folds to 1 where tclsh prints 2 | dataflow-optimiser |
 | `rename list mylist` / `rename llength myll` still fold where tclsh raises | analyser-binding (mutation scan) |
 | `string length` of U+1D11E folds to 2 under 8.6 where tclsh 8.6 prints 4 in an iso8859-1 locale | dataflow-optimiser |
-| A standalone `expr {2 + 3}` statement rewritten to the bare command `5` (documented as a limitation in the O101 KCS page; to verify) | dataflow-optimiser |
 | `try {set x [expr {1 / $d}]; error boom} on error {} {}` then `info exists x`: the rewrite drops the `yes` path | values |
 | A write made by an `after` callback is folded away (original prints 1, rewrite 0; 8.4.20, 8.6.18, 9.0.4) | values |
 | `expr {1 << 70}` folded to 0 under 8.4, where the shift is C's and a count beyond the word width differs by platform and build | values |
@@ -154,8 +153,8 @@ Updated at the hourly check from the ledgers on `work`.
 | --- | ---: | ---: | --- |
 | diagnostics | 470 | 0 | |
 | analyser-binding | 330 | 0 | |
-| class-facts | 190 | 0 | |
-| dataflow-optimiser | 424 | 424, all parts in (as first reported: FIX-FIXTURE 179, KEEP-ORACLE 78, KEEP-CONTRACT 60, REWRITE 49, FIX-EXPECTATION 23, UNDECIDED 24 since ruled, MERGE 10, KEEP-F5 1) | parts 1 to 3 sampled and accepted; rulings being applied |
+| class-facts | 250 | 0 (started 20:45 UTC) | |
+| dataflow-optimiser | 423 | 423, complete, rulings applied (FIX-FIXTURE 142, KEEP-CONTRACT 102, KEEP-ORACLE 82, REWRITE 50, FIX-EXPECTATION 30, MERGE 10, RETIRE 5, KEEP-F5 1, UNDECIDED 1 being run) | sampled and accepted |
 | values | 218 | 218, complete (KEEP-ORACLE 127, KEEP-CONTRACT 29, KEEP-F5 23, FIX-FIXTURE 20, UNDECIDED 10 since ruled, FIX-EXPECTATION 5, REWRITE 3, RETIRE 1) | sampled 20:50 UTC: accepted |
 | taint | 190 | 0 | |
 | analysis-performance | 30 | 0 | |
