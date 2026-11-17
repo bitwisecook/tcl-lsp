@@ -6,7 +6,7 @@ Failing tests of `tcl-codegen`, `tcl-vm`, `tcl-runtime`, the engines, `tcl-cshim
 
 | Verdict | Tests |
 | --- | ---: |
-| `KEEP-ORACLE` | 108 |
+| `KEEP-ORACLE` | 109 |
 | `MERGE` | 48 |
 | `RETIRE` | 36 |
 | `REWRITE` | 32 |
@@ -14,7 +14,7 @@ Failing tests of `tcl-codegen`, `tcl-vm`, `tcl-runtime`, the engines, `tcl-cshim
 | `FIX-EXPECTATION` | 4 |
 | `FIX-FIXTURE` | 3 |
 | `KEEP-F5` | 2 |
-| total kept here | 261 |
+| total kept here | 262 |
 | routed: live-inlining (inliner, `ledger/live-inlining.tsv`) | 23 |
 | routed: irules-registry-tooling (pack families) | 2 |
 
@@ -28,7 +28,7 @@ Failing tests of `tcl-codegen`, `tcl-vm`, `tcl-runtime`, the engines, `tcl-cshim
 | `per-release-script-divergence` | KEEP-ORACLE | 20 | tcl-runtime, tcl-vm |  |
 | `obs-native-tier-report` | MERGE | 17 | tcl-codegen | tcl-explorer lib serialise::tests::wasm_view_exposes_the_native_tier_lowering_record ; tcl-cli compile_verbs compwasm_codegen_passes_natively_lower_a_hot_loop |
 | `obs-redefinition-seen-at-next-command` | MERGE | 16 | tcl-codegen, tcl-vm | tcl-vm it_5 command_mutation_deopt_e2e::binding_revalidation::active_proc_frame_redispatches_after_nested_command_mutation |
-| `native-compiler-selection-declined` | KEEP-ORACLE | 13 | tcl-codegen |  |
+| `native-compiler-selection-declined` | KEEP-ORACLE | 14 | tcl-codegen |  |
 | `obs-wasm-module-answers-as-tclsh` | REWRITE | 12 | tcl-codegen | tcl-codegen it_5 wasm_execute::emitted_modules_run_under_wasmtime |
 | `embedding-contract` | KEEP-CONTRACT | 10 | tcl-cshim, tcl-engine-tclvm, tcl-runtime, tcl-vm |  |
 | `oracle-corpus-divergence` | KEEP-ORACLE | 10 | tcl-runtime, tcl-vm |  |
