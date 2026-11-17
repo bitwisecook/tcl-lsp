@@ -472,7 +472,11 @@ pub(super) fn selected_matcher_no_match_outputs(
                 && regexp_literal_no_match(pattern, input, &options)
         }
         NativeVariableOutputSpec::Scan => {
-            scan_literal_no_match(pattern, input, layout.outputs.len())
+            let binary = words
+                .dialect()
+                .and_then(|dialect| dialect.tcl_version)
+                .is_some_and(|version| version >= tcl_dialect::TclVersion::V8_6);
+            scan_literal_no_match(pattern, input, layout.outputs.len(), binary)
         }
     };
     if !no_match {
@@ -557,8 +561,9 @@ impl<'a> SourceMatcherLayout<'a> {
 }
 
 /// The shared parser validates the complete dialect-common plain conversion
-/// subset before the existing first-conversion no-match kernel is consulted.
-fn scan_literal_no_match(format: &str, input: &str, output_count: usize) -> bool {
+/// subset, and `%b` where the unit's release has it (8.6 and later), before
+/// the existing first-conversion no-match kernel is consulted.
+fn scan_literal_no_match(format: &str, input: &str, output_count: usize, binary: bool) -> bool {
     let chars = format.chars().collect::<Vec<_>>();
     let mut index = 0;
     let mut conversions = 0;
@@ -575,7 +580,8 @@ fn scan_literal_no_match(format: &str, input: &str, output_count: usize) -> bool
             || conversion.width.is_some()
             || conversion.size.is_some()
             || conversion.xpg_index.is_some()
-            || !matches!(conversion.verb, '%' | 'd' | 'o' | 'x' | 'X' | 's' | 'c')
+            || !(matches!(conversion.verb, '%' | 'd' | 'o' | 'x' | 'X' | 's' | 'c')
+                || binary && conversion.verb == 'b')
         {
             return false;
         }
