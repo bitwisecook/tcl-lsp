@@ -335,8 +335,19 @@ pub(crate) fn original_substitution_invocations(
 }
 
 pub(crate) fn statement_needs_original_substitution_inventory(statement: &Statement) -> bool {
+    // A literal or braced increment amount (`incr n 2`, `incr n {$k}`)
+    // substitutes nothing.
+    let literal_amount = matches!(
+        statement,
+        Statement::Incr {
+            amount: Some(amount),
+            amount_braced,
+            ..
+        } if *amount_braced || !is_dynamic_token(amount)
+    );
     statement.is_executable_invocation()
         && statement.synthetic_marker().is_none()
+        && !literal_amount
         && !matches!(
             statement,
             Statement::AssignConst { .. }
