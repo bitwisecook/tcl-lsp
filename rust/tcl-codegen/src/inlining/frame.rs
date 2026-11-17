@@ -722,19 +722,19 @@ fn works_on_values(head: &str, registry: &CommandRegistry) -> bool {
         && registry.get(head).is_some_and(|spec| {
             registry.is_splice_safe(head)
                 || registry.profile().map_or_else(
-                    // With no release, pure at every Tcl release that has it.
+                    // With no release, pure at every Tcl release that has it,
+                    // and some release has it.
                     || {
-                        tcl_dialect::model::Family::Tcl
+                        let family = tcl_dialect::model::Family::Tcl;
+                        let present: Vec<_> = family
                             .releases()
                             .iter()
-                            .all(|step| {
-                                let at = tcl_dialect::model::SurfaceQuery::core(
-                                    tcl_dialect::model::Family::Tcl,
-                                    step.as_str(),
-                                );
-                                !spec.supports_dialect(Some(at.clone()))
-                                    || spec.is_pure_at(Some(&at))
+                            .map(|step| {
+                                tcl_dialect::model::SurfaceQuery::core(family, step.as_str())
                             })
+                            .filter(|at| spec.supports_dialect(Some(at.clone())))
+                            .collect();
+                        !present.is_empty() && present.iter().all(|at| spec.is_pure_at(Some(at)))
                     },
                     |profile| spec.is_pure_at(Some(&profile.surface_query())),
                 )
