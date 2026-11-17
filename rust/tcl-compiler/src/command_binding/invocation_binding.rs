@@ -32,10 +32,10 @@ use super::source_walk::{boxed_source_branch, join_evaluated_words};
 use super::{
     BindingKind, DeferredImplementationId, OriginalSourceAnalysisOwner, ReceiverNamespaceContents,
     SourceCommandTarget, SourceConstructorEntry, SourceInvocationBinding, SourceLookupSnapshot,
-    compiled_invocation, original_compiler_effects,
+    compiled_invocation,
 };
 use std::hash::Hash;
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 use tcl_registry::CommandRegistry;
 
 impl SourceConstructorEntry {
@@ -863,10 +863,8 @@ impl SourceInvocationBinding {
             let snapshot = Arc::make_mut(state);
             snapshot.state.join(&incoming.state);
             // The joined state owns a new immutable semantic point. A cloned
-            // snapshot must not retain its predecessor's derived fingerprint.
-            snapshot.fingerprint = OnceLock::new();
-            snapshot.compiler_name_effects =
-                original_compiler_effects::SourceCompilerNameEffectsCache::default();
+            // snapshot must not retain its predecessor's derived memos.
+            snapshot.forget_derived();
         } else {
             self.lookup_state = None;
         }

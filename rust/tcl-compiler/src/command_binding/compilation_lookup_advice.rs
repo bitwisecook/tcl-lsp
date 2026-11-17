@@ -264,7 +264,16 @@ impl SourceLookupSnapshot {
             fingerprint: OnceLock::new(),
             compiler_name_effects:
                 original_compiler_effects::SourceCompilerNameEffectsCache::default(),
+            layout_projections: super::layout_projection_memo::LayoutProjectionMemo::default(),
         }
+    }
+
+    /// Drop every memo derived from the state, after the state changed in place.
+    pub(super) fn forget_derived(&mut self) {
+        self.fingerprint = OnceLock::new();
+        self.compiler_name_effects =
+            original_compiler_effects::SourceCompilerNameEffectsCache::default();
+        self.layout_projections = super::layout_projection_memo::LayoutProjectionMemo::default();
     }
 
     pub(super) fn fingerprint(&self) -> u64 {
@@ -658,13 +667,24 @@ fn original_site_layout_advice(
     }
     let projection = trace_rbs_operand_option(
         "site.static_projection",
-        original_static_layout_projection(
-            snapshot,
-            namespace,
-            head,
-            config,
-            dialect,
-            logical_source,
+        snapshot.layout_projections.get_or_project(
+            super::layout_projection_memo::LayoutProjectionKey {
+                namespace: namespace.clone(),
+                head: head.clone(),
+                config,
+                dialect,
+                logical_source,
+            },
+            |key| {
+                original_static_layout_projection(
+                    snapshot,
+                    &key.namespace,
+                    &key.head,
+                    key.config,
+                    key.dialect,
+                    key.logical_source,
+                )
+            },
         ),
     )?;
     #[cfg(test)]
@@ -691,7 +711,7 @@ fn original_site_layout_advice(
         site: site.clone(),
         words: Arc::from(tokens.words()),
         config,
-        targets: projection.targets,
+        targets: projection.targets.clone(),
         dialect,
         namespace: namespace.clone(),
         unknown: projection.unknown,

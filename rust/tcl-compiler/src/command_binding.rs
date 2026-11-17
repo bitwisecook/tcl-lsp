@@ -778,6 +778,7 @@ pub struct SourceLookupSnapshot {
     pub state: ModuleCommandBindings,
     fingerprint: OnceLock<u64>,
     compiler_name_effects: original_compiler_effects::SourceCompilerNameEffectsCache,
+    layout_projections: layout_projection_memo::LayoutProjectionMemo,
 }
 
 #[cfg(debug_assertions)]
@@ -793,6 +794,7 @@ mod command_identity;
 mod compilation_lookup_advice;
 mod deferred_entries;
 mod invocation_binding;
+mod layout_projection_memo;
 mod module_bindings;
 mod mutation_summary;
 mod site_queries;

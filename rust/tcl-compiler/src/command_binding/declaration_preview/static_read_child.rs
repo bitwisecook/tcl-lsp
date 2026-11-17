@@ -995,8 +995,7 @@ mod tests {
                 if axis == 0 {
                     snapshot.state.unclosed_command_world = !snapshot.state.unclosed_command_world;
                 }
-                snapshot.fingerprint = std::sync::OnceLock::new();
-                snapshot.compiler_name_effects = crate::command_binding::original_compiler_effects::SourceCompilerNameEffectsCache::default();
+                snapshot.forget_derived();
             }
             assert_eq!(
                 receipt.original_known_child_binding_scope(
