@@ -665,6 +665,10 @@ pub(crate) fn build_ssa_with_context_for_entry_and_metadata(
     let mut live = crate::slot_allocation::unseen_call_live_names(func, &initial, registry);
     for (block, barriers) in
         crate::slot_allocation::unavailable_metadata_effect_live_names(func, &initial, registry)
+            .into_iter()
+            .chain(crate::slot_allocation::unproved_store_live_names(
+                func, &initial, registry,
+            ))
     {
         let target = live.entry(block).or_default();
         for (index, symbols) in barriers {

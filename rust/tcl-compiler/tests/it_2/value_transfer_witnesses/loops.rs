@@ -824,3 +824,30 @@ fn a_computed_double_is_spelled_as_tcl_spells_it() {
     }
     prints_under_every_release(source, "3\n6\n");
 }
+
+/// A store in a `for` or `while` body reaches the read after the loop, and a
+/// `catch` or `try` around the loop sees the value stored on the iteration that
+/// raised, not the store before the loop. tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4
+/// and 9.1.0 print `2` for each program (`try` from 8.6). The loop-body store
+/// had no proved place, and the read after it was rewritten to `1`.
+#[test]
+fn a_store_in_a_loop_body_reaches_the_reads_after_the_loop() {
+    const FOO: &str = "proc foo {n} {if {$n == 2} {error x}}\n";
+    for body in [
+        "set x 1; for {set i 0} {$i < 3} {incr i} {set x $i}; puts $x",
+        "set x 1; set i 0; while {$i < 3} {set x $i; incr i}; puts $x",
+        "set x 1; foreach i {0 1 2} {set x $i}; puts $x",
+        "set x 1; catch {for {set i 0} {$i < 3} {incr i} {set x $i; foo $i}}; puts $x",
+        "set x 1; set i 0; catch {while {$i < 3} {set x $i; foo $i; incr i}}; puts $x",
+        "set x 1; catch {foreach i {0 1 2} {set x $i; foo $i}}; puts $x",
+    ] {
+        prints_under_every_release(&format!("{FOO}proc p {{}} {{{body}}}\np\n"), "2\n");
+    }
+    for body in [
+        "set x 1; try {for {set i 0} {$i < 3} {incr i} {set x $i; foo $i}} on error {} {puts $x}",
+        "set x 1; set i 0; try {while {$i < 3} {set x $i; foo $i; incr i}} on error {} {puts $x}",
+        "set x 1; try {foreach i {0 1 2} {set x $i; foo $i}} on error {} {puts $x}",
+    ] {
+        prints_under_releases_from(&format!("{FOO}proc p {{}} {{{body}}}\np\n"), "2\n", "8.6");
+    }
+}

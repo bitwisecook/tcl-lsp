@@ -359,6 +359,28 @@ pub(crate) fn unseen_call_live_names(
     })
 }
 
+/// Values live across a store the walk proved no place for. The store still
+/// runs and writes some variable, so every value live across it is refreshed,
+/// as at an unseen call: `set x $i` in a `for` body whose operands the walk
+/// did not retain otherwise left `x` holding the value from before the loop.
+pub(crate) fn unproved_store_live_names(
+    cfg: &cfg::Function,
+    ssa: &SsaFunction,
+    registry: &CommandRegistry,
+) -> HashMap<BlockId, HashMap<usize, HashSet<Symbol>>> {
+    live_names_at_effects(cfg, ssa, registry, |_, _, stmt| {
+        stmt.defs.is_empty()
+            && stmt.statement.is_executable_invocation()
+            && matches!(
+                stmt.statement,
+                crate::ir::Statement::AssignConst { .. }
+                    | crate::ir::Statement::AssignValue { .. }
+                    | crate::ir::Statement::AssignExpr { .. }
+                    | crate::ir::Statement::Incr { .. }
+            )
+    })
+}
+
 /// Values live across operations whose complete metadata owner is unavailable.
 /// These are analysis-only freshness barriers: they widen Value SSA, do not
 /// describe a Native write or supply a variable cell from source text. Explicit
