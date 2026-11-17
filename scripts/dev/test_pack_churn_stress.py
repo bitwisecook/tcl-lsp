@@ -127,3 +127,26 @@ def test_reopen_batch_is_seeded_and_bounded(tmp_path: Path) -> None:
     assert len(set(first)) == 3
     assert set(first) <= set(docs)
     assert sorted(churn.reopen_batch(docs, 9, churn.random.Random(7))) == docs
+
+
+class FakeClient:
+    def __init__(self) -> None:
+        self.commands: list[str] = []
+
+    def send_request(self, method: str, params: dict, timeout: float) -> dict:
+        self.commands.append(params["command"])
+        return {"ran": params["command"]}
+
+
+def test_probe_runs_an_asked_command_on_its_own_thread() -> None:
+    client = FakeClient()
+    probe = churn.Probe(client, timeout=1.0, interval=0.01)
+    thread = churn.threading.Thread(target=probe.run, daemon=True)
+    thread.start()
+    try:
+        assert probe.ask("tcl-lsp.debugMemory", 5.0) == {"ran": "tcl-lsp.debugMemory"}
+    finally:
+        probe.stop.set()
+        thread.join(timeout=5.0)
+    assert "tcl-lsp.getEffectiveConfig" in client.commands
+    assert probe.answered >= 1
