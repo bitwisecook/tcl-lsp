@@ -121,9 +121,12 @@ pub enum VendorSourceNamePurpose {
 }
 
 /// Plain ASCII source-literal units shared by the recorded hosted Tcl grammars.
-/// This deliberately supplies no Unicode, numeric escape, NUL, backslash,
-/// computed string or materialised-object producer recipe. Those sources remain
-/// owned, but their bytes are unavailable at this narrow projection.
+/// This deliberately supplies no Unicode, numeric escape, NUL, computed string
+/// or materialised-object producer recipe. Those sources remain owned, but
+/// their bytes are unavailable at this narrow projection. A backslash is
+/// literal only in a brace group with no backslash-newline, which is the one
+/// substitution a brace group performs (tclsh 8.4.20 to 9.1.0:
+/// `string length {a\\b}` is 4 and `string length {a\<newline>b}` is 3).
 #[must_use]
 pub fn vendor_source_literal_units(
     policy: VendorSourceNamePolicy,
@@ -144,7 +147,13 @@ pub fn vendor_source_literal_units(
     }
     let content = word.content_span().ok()?;
     let bytes = word.image().bytes().get(content.as_range())?;
-    (bytes.is_ascii() && !bytes.contains(&0) && !bytes.contains(&b'\\')).then_some(bytes)
+    let literal_backslashes = word.group().kind == tcl_lexer::WordKind::Braced
+        && word.written_bytes().first() == Some(&b'{')
+        && !bytes.windows(2).any(|pair| pair == b"\\\n");
+    (bytes.is_ascii()
+        && !bytes.contains(&0)
+        && (literal_backslashes || !bytes.contains(&b'\\')))
+    .then_some(bytes)
 }
 
 /// A formal's original source extent within its complete parameter-list word.
@@ -239,6 +248,44 @@ pub fn vendor_scalar_source_reference(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn literal_units(source: &[u8]) -> Option<Vec<u8>> {
+        let config = tcl_lexer::LexerConfig::default();
+        let image = tcl_lexer::SourceImage::native(source.to_vec());
+        let tokens = tcl_lexer::Lexer::with_source_image(&image, config)
+            .tokenise_all()
+            .unwrap();
+        let commands = tcl_lexer::group_commands_bytes(&tokens, image.bytes(), config);
+        let word =
+            tcl_lexer::NativeWord::from_group(image, config, &tokens, &commands[0].words[1])
+                .unwrap();
+        let policy = VendorSourceNamePolicy::authored(BigIpExecutionContext::TmmIRule).unwrap();
+        vendor_source_literal_units(policy, &word, VendorSourceNamePurpose::SourceName)
+            .map(<[u8]>::to_vec)
+    }
+
+    #[test]
+    fn only_a_brace_group_without_continuation_keeps_its_backslashes() {
+        // tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0: `string length {a\\b}`
+        // prints 4 and `binary scan {a\\b} H* h` gives 615c5c62; a brace group
+        // with backslash-newline prints 3 for `{a\<newline>b}`.
+        let rows: [(&[u8], Option<&[u8]>); 6] = [
+            (b"list {a\\\\b}", Some(b"a\\\\b")),
+            (b"list {[][{}()*+?.\\\\^$|]}", Some(b"[][{}()*+?.\\\\^$|]")),
+            (b"list {plain}", Some(b"plain")),
+            (b"list {a\\\nb}", None),
+            (b"list \"a\\\\b\"", None),
+            (b"list a\\\\b", None),
+        ];
+        for (source, expected) in rows {
+            assert_eq!(
+                literal_units(source).as_deref(),
+                expected,
+                "{}",
+                String::from_utf8_lossy(source)
+            );
+        }
+    }
 
     #[test]
     // Implementation contract: naming.vendor.original-source-context-input
