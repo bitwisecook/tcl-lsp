@@ -27,7 +27,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get packet counts.",
         synopsis: "IP::stats pkts ?in|out?",
-        pure: true,
         arg_values: &[(
             0,
             &[
@@ -57,7 +56,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get byte counts.",
         synopsis: "IP::stats bytes ?in|out?",
-        pure: true,
         arg_values: &[(
             0,
             &[
@@ -88,7 +86,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Get all inbound stats.",
         synopsis: "IP::stats in",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
@@ -103,7 +100,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Get all outbound stats.",
         synopsis: "IP::stats out",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,
@@ -118,7 +114,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Get connection age in ms.",
         synopsis: "IP::stats age",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::TcpState,
             reads: true,

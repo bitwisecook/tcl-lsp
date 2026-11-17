@@ -26,7 +26,6 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fileutil::lexnormalize",
-        traits: Traits::PURE,
         surface: None,
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {

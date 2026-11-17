@@ -27,7 +27,7 @@ const SELECT_FORMS: &[SubCommandForm] = &[SubCommandForm {
     name: "item",
     arity: Arity::exact(1),
     literal_argument_prefix: Some(LiteralArgumentPrefix::unique(&["item"])),
-    traits: Some(Traits::PURE),
+    traits: Some(Traits::empty()),
     mutator: Some(false),
     side_effects: Some(crate::knowledge::Knowledge::declared(
         super::common::TTK_WIDGET_READS,

@@ -109,9 +109,16 @@ fn function_level_gvn_maps_calls_inside_a_structured_conditional_body() {
 #[test]
 fn function_level_gvn_proves_exact_mapped_closed_pure_call() {
     let mut registry = release_registry("tcl8.6");
+    // Purity is derived from the four domains, complete at every release.
+    let (side_effects, world_effects, completion, result_stability) =
+        tcl_registry::purity::closed_domains(tcl_dialect::model::SpecSurface::ALL_TCL);
     registry.insert(tcl_registry::CommandSpec {
         name: "test::pure_cse",
-        traits: Traits::PURE | Traits::CSE_CANDIDATE,
+        traits: Traits::CSE_CANDIDATE,
+        side_effects,
+        world_effects,
+        completion,
+        result_stability,
         ..tcl_registry::CommandSpec::CLOSED_REFERENTIALLY_TRANSPARENT
     });
     let cu = crate::compilation_unit::CompilationUnit::build_for_profile(
@@ -282,7 +289,7 @@ fn function_level_gvn_declines_volatile_result_despite_closed_effects() {
     let mut registry = CommandRegistry::build_default();
     registry.insert(tcl_registry::CommandSpec {
         name: "test::volatile_cse",
-        traits: Traits::PURE | Traits::CSE_CANDIDATE,
+        traits: Traits::CSE_CANDIDATE,
         result_stability: tcl_registry::knowledge::Knowledge::Partial(ResultStability::Volatile),
         world_effects: tcl_registry::knowledge::Knowledge::Partial(
             tcl_registry::WorldEffectDescriptor::EMPTY,

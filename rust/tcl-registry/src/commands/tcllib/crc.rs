@@ -201,7 +201,6 @@ fn crc16_cmd(variant: &'static str, synopsis: &'static [&'static str]) -> Comman
             "cms" => "crc::cms",
             _ => unreachable!(),
         },
-        traits: Traits::PURE,
         arity: Arity::at_least(1),
         options: CRC16_OPTS,
         hover: Some(HoverSnippet {
@@ -315,7 +314,6 @@ fn crc32_family() -> Vec<CommandSpec> {
     vec![
         CommandSpec {
             name: "crc::crc32",
-            traits: Traits::PURE,
             arity: Arity::at_least(1),
             options: CRC32_OPTS,
             hover: Some(HoverSnippet {
@@ -365,7 +363,6 @@ fn cksum_family() -> Vec<CommandSpec> {
     vec![
         CommandSpec {
             name: "crc::cksum",
-            traits: Traits::PURE,
             arity: Arity::at_least(1),
             options: CKSUM_OPTS,
             hover: Some(HoverSnippet {
@@ -414,7 +411,6 @@ fn cksum_family() -> Vec<CommandSpec> {
 fn sum_cmd() -> CommandSpec {
     CommandSpec {
         name: "crc::sum",
-        traits: Traits::PURE,
         arity: Arity::at_least(1),
         options: SUM_OPTS,
         hover: Some(HoverSnippet {

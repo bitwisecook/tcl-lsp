@@ -94,6 +94,13 @@ struct RetiredPattern {
 /// static_document_context_for, static_document_context_for_profile}` and
 /// `ResolvedContext`'s query surface.
 const RETIRED: &[RetiredPattern] = &[
+    // Purity is derived from a call's complete effect domains
+    // (`CommandSpec::is_pure_at`, `InvocationFacts::is_pure`), never authored
+    // or read as a trait (#1712).
+    RetiredPattern {
+        needle: "Traits::PURE",
+        outside_registry_only: false,
+    },
     // The availability bitmask, and every projection that only made
     // sense as bits. Availability is stated as `SpecSurface` rows and asked
     // as a `SurfaceQuery` point.
@@ -490,31 +497,6 @@ const OWNED: &[OwnedPattern] = &[
     },
 ];
 
-/// An owned answer whose *construction* is free everywhere — a test fixture,
-/// a stub flag or a pack row may author the fact — but whose *reading*
-/// belongs to its owner. A hit counts only when the needle is the operand of
-/// a set-membership query, on its own line or opened on the line before.
-struct OwnedRead {
-    needle: &'static str,
-    owners: &'static [&'static str],
-}
-
-/// The read-owned answers.
-const OWNED_READS: &[OwnedRead] = &[
-    // **Is this command or invocation pure?** — one door per question in
-    // `tcl-registry` (`CommandSpec::is_pure`, `InvocationFacts::is_pure`,
-    // `is_cse_pure`, `evaluates_purely`, `withdraw_purity`,
-    // `DocumentCommandSurface::is_pure`), so purity can later be derived from a
-    // complete effect footprint in one place (#1712).
-    OwnedRead {
-        needle: "Traits::PURE",
-        owners: &["rust/tcl-registry/"],
-    },
-];
-
-/// The set-membership queries that read a trait.
-const READ_OPERATORS: &[&str] = &[".contains(", ".intersects(", ".remove(", ".difference("];
-
 /// Live seam names a retired needle is a prefix of — a hit whose
 /// identifier continues past the needle into one of these is the
 /// replacement itself, not a reintroduction.
@@ -684,25 +666,9 @@ fn scan_owned(text: &str, rel: impl AsRef<Path>) -> Vec<(usize, &'static str)> {
     let rel = rel.as_ref().to_string_lossy();
     let rel = Path::new(crate::util::test_sources::owning_source(&rel));
     let mut out = Vec::new();
-    let mut previous = "";
     for (idx, line) in text.lines().enumerate() {
         if line.trim_start().starts_with("//") {
             continue;
-        }
-        let opened_query = READ_OPERATORS
-            .iter()
-            .any(|op| previous.trim_end().ends_with(op));
-        let reads = opened_query || READ_OPERATORS.iter().any(|op| line.contains(op));
-        if !line.trim().is_empty() {
-            previous = line;
-        }
-        for pattern in OWNED_READS {
-            if reads
-                && !pattern.owners.iter().any(|owner| owner_covers(owner, rel))
-                && find_needle(line, pattern.needle)
-            {
-                out.push((idx + 1, pattern.needle));
-            }
         }
         for pattern in OWNED {
             if pattern.owners.iter().any(|owner| owner_covers(owner, rel)) {
@@ -839,6 +805,8 @@ mod tests {
             ("let a = detect_interp_alias(&args);", 1),
             ("let d = detect_interp_alias_delete(&args);", 1),
             ("if !is_interp_alias_shape(args) { return; }", 1),
+            ("if spec.traits.contains(Traits::PURE) { }", 1),
+            ("traits: Traits::PURE | Traits::CSE_CANDIDATE,", 1),
         ] {
             assert_eq!(scan(seeded, false).len(), findings, "{seeded}");
         }
@@ -854,6 +822,7 @@ mod tests {
             "let r = bundled::registry_for_dialect_from(dialect, &packs);",
             "let r = tcl_registry::registry_for_profile_with_overlay(p, key, |_| {});",
             "let g = registry_for_environment_if_built(&def, &id, &keyed, overlay);",
+            "if spec.traits.contains(Traits::PURE_EVALUATION) { }",
         ] {
             assert!(scan(ok, false).is_empty(), "{ok}");
         }
@@ -901,17 +870,6 @@ mod tests {
                 1,
             ),
             ("let declared = DeclaredSurface::new();", 1),
-            ("if spec.traits.contains(Traits::PURE) { }", 1),
-            (
-                "facts.traits.intersects(tcl_registry::Traits::PURE | Traits::PURE_EVALUATION)",
-                1,
-            ),
-            (
-                "facts.traits.remove(\n    tcl_registry::Traits::PURE\n);",
-                1,
-            ),
-            ("traits: Traits::PURE | Traits::CSE_CANDIDATE,", 0),
-            ("if spec.traits.contains(Traits::PURE_EVALUATION) { }", 0),
         ] {
             assert_eq!(scan_owned(seeded, outsider).len(), findings, "{seeded}");
         }

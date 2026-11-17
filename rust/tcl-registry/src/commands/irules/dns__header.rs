@@ -28,7 +28,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get/set the cd header field.",
         synopsis: "DNS::header cd ?value?",
-        pure: true,
         mutator: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::DnsState,
@@ -45,7 +44,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get/set the aa header field.",
         synopsis: "DNS::header aa ?value?",
-        pure: true,
         mutator: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::DnsState,
@@ -62,7 +60,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get/set the ra header field.",
         synopsis: "DNS::header ra ?value?",
-        pure: true,
         mutator: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::DnsState,
@@ -79,7 +76,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get/set the rd header field.",
         synopsis: "DNS::header rd ?value?",
-        pure: true,
         mutator: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::DnsState,
@@ -96,7 +92,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get/set the arcount header field.",
         synopsis: "DNS::header arcount ?value?",
-        pure: true,
         mutator: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::DnsState,
@@ -113,7 +108,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get/set the qdcount header field.",
         synopsis: "DNS::header qdcount ?value?",
-        pure: true,
         mutator: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::DnsState,
@@ -130,7 +124,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get/set the nscount header field.",
         synopsis: "DNS::header nscount ?value?",
-        pure: true,
         mutator: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::DnsState,
@@ -147,7 +140,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get/set the id header field.",
         synopsis: "DNS::header id ?value?",
-        pure: true,
         mutator: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::DnsState,
@@ -164,7 +156,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get/set the tc header field.",
         synopsis: "DNS::header tc ?value?",
-        pure: true,
         mutator: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::DnsState,
@@ -181,7 +172,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get/set the qr header field.",
         synopsis: "DNS::header qr ?value?",
-        pure: true,
         mutator: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::DnsState,
@@ -198,7 +188,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get/set the ancount header field.",
         synopsis: "DNS::header ancount ?value?",
-        pure: true,
         mutator: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::DnsState,
@@ -215,7 +204,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get/set the opcode header field.",
         synopsis: "DNS::header opcode ?value?",
-        pure: true,
         mutator: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::DnsState,
@@ -232,7 +220,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get/set the rcode header field.",
         synopsis: "DNS::header rcode ?value?",
-        pure: true,
         mutator: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::DnsState,
@@ -249,7 +236,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Get/set the ad header field.",
         synopsis: "DNS::header ad ?value?",
-        pure: true,
         mutator: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::DnsState,

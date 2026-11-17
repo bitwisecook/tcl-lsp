@@ -53,7 +53,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP2::stream",
-        traits: Traits::PURE,
         surface: Some(SpecSurface::IRULES),
         arity: Arity::new(0, 2),
         hover: Some(HoverSnippet {

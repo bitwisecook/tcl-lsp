@@ -27,7 +27,7 @@ const PROGRAM: &str = "speclib fleet 2.0 {
     proc fleet-command {name arity} {
         command math::fleet::$name {
             arity $arity
-            traits {PURE}
+            traits {CSE_CANDIDATE}
             option -verbose -detail {Report each step as it runs.}
 
             subcommand probe {

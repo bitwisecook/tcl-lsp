@@ -31,7 +31,6 @@ fn crypt(
 ) -> CommandSpec {
     CommandSpec {
         name,
-        traits: Traits::PURE,
         arity: Arity::exact(2),
         hover: Some(HoverSnippet {
             summary,

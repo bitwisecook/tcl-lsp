@@ -26,7 +26,6 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "math::statistics::t-test-mean",
-        traits: Traits::PURE,
         surface: None,
         arity: Arity::exact(4),
         hover: Some(HoverSnippet {

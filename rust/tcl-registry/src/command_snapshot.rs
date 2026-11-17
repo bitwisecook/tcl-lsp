@@ -91,7 +91,6 @@ const TRAIT_FLAGS: &[(&str, Traits)] = &[
     ("produces_canonical_list", Traits::PRODUCES_CANONICAL_LIST),
     ("builds_command_prefix", Traits::BUILDS_COMMAND_PREFIX),
     ("wraps_command_prefix", Traits::WRAPS_COMMAND_PREFIX),
-    ("pure", Traits::PURE),
     ("pure_evaluation", Traits::PURE_EVALUATION),
     ("reads_variable_before_write", Traits::READS_BEFORE_WRITE),
     ("returns_path", Traits::RETURNS_PATH),
@@ -161,7 +160,7 @@ fn all_option_names(spec: &CommandSpec) -> Vec<&'static str> {
 }
 
 /// The `forms` block. Per-form `arity` is always `null` and
-/// `pure`/`mutator` always `false` for the Tcl dialects; the only
+/// pure/`mutator` always `false` for the Tcl dialects; the only
 /// non-trivial per-form field is `options`, which (for the single-form
 /// common case) is the command's full option set.
 fn forms_json(spec: &CommandSpec) -> Json {
@@ -309,7 +308,10 @@ fn subcommands_json(spec: &CommandSpec, profile: &DialectProfile) -> Json {
             let mut m = BTreeMap::new();
             m.insert("name".to_owned(), Json::s(sub.name));
             m.insert("arity".to_owned(), arity_json(sub.arity));
-            m.insert("pure".to_owned(), Json::Bool(sub.pure));
+            m.insert(
+                "pure".to_owned(),
+                Json::Bool(sub.is_pure_at(spec, Some(&profile.surface_query()))),
+            );
             m.insert("mutator".to_owned(), Json::Bool(sub.mutator));
             m.insert("destructive".to_owned(), Json::Bool(sub.destructive));
             // `SubCommand` carries no deprecation field (no Tcl subcommand

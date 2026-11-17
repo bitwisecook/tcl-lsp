@@ -31,7 +31,6 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "html::html_entities",
-        traits: Traits::PURE,
         surface: None,
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {

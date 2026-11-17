@@ -10,7 +10,7 @@ command lsort {
     runtime_backing shipped-builtin lsort
     dialects {all-tcl f5-irules}
 
-    # NOT PURE/CSE_CANDIDATE: `-command cmdPrefix` names an arbitrary command
+    # Not pure nor CSE_CANDIDATE: `-command cmdPrefix` names an arbitrary command
     # that runs with the interpreter's full state as part of the sort, and the
     # purity classifier has no per-option carve-out.  FRAMELESS_RUNTIME stays:
     # cmd_lsort is a dedicated runtime helper and the comparator is dispatched

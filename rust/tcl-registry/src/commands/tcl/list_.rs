@@ -50,7 +50,6 @@ pub fn spec() -> CommandSpec {
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
-            | Traits::PURE
             | Traits::PRODUCES_CANONICAL_LIST
             | Traits::EXPANSION_ESCAPE_SAFE
             | Traits::BUILDS_COMMAND_PREFIX,

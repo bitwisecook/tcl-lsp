@@ -76,10 +76,7 @@ pub fn spec() -> CommandSpec {
         // needs `NOT_PROC_FACTORY` too. Deterministic given its
         // arguments, so a repeated call is worth flagging as redundant
         // like its `lindex`/`linsert`/`lsort` siblings (`CSE_CANDIDATE`).
-        traits: Traits::PURE
-            | Traits::BYTE_COMPILED
-            | Traits::NOT_PROC_FACTORY
-            | Traits::CSE_CANDIDATE,
+        traits: Traits::BYTE_COMPILED | Traits::NOT_PROC_FACTORY | Traits::CSE_CANDIDATE,
         surface: Some(SpecSurface::TCL90_PLUS),
         arity: Arity::at_least(1),
         return_type: Some(TclType::List),

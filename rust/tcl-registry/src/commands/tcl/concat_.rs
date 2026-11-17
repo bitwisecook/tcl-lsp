@@ -52,10 +52,7 @@ pub fn spec() -> CommandSpec {
         byte_array_effect: ByteArrayEffect::Coerces,
         const_fold: Some(|args| Some(crate::const_fold::fold_concat(args))),
         codegen_hook: Some(CodegenHookId::Concat),
-        traits: Traits::FRAMELESS_RUNTIME
-            | Traits::PURE
-            | Traits::EXPANSION_ESCAPE_SAFE
-            | Traits::BYTE_COMPILED,
+        traits: Traits::FRAMELESS_RUNTIME | Traits::EXPANSION_ESCAPE_SAFE | Traits::BYTE_COMPILED,
         arity: Arity::any(),
         return_type: Some(TclType::String),
         hover: Some(HoverSnippet {

@@ -8,7 +8,7 @@ speclib f5-irules 1.1 {
 
 command HTTP::header {
     dialects f5-irules
-    traits {PURE CSE_CANDIDATE DIAGRAM_ACTION}
+    traits {CSE_CANDIDATE DIAGRAM_ACTION}
     arity 1..
 
     option -noupdate -detail {Do not propagate the header mutation to subsequent BIG-IP filters.}
@@ -40,9 +40,10 @@ command HTTP::header {
         source   {https://clouddocs.f5.com/api/irules/HTTP__header.html}
     }
 
-    subcommand at       { arity 1 ;    detail {Get header name by index.} ; synopsis {HTTP::header at <index>} }
-    subcommand count    { arity 0..1 ; detail {Count headers.} ;           synopsis {HTTP::header count ?<name>?} }
-    subcommand exists   { arity 1 ;    detail {Check if header exists.} ;  synopsis {HTTP::header exists <name>} }
+    # The getters read the header storage and write nothing.
+    subcommand at       { arity 1 ;    detail {Get header name by index.} ; synopsis {HTTP::header at <index>} ; side_effect HttpHeader -reads -side Both }
+    subcommand count    { arity 0..1 ; detail {Count headers.} ;           synopsis {HTTP::header count ?<name>?} ; side_effect HttpHeader -reads -side Both }
+    subcommand exists   { arity 1 ;    detail {Check if header exists.} ;  synopsis {HTTP::header exists <name>} ; side_effect HttpHeader -reads -side Both }
 
     subcommand insert {
         arity 2..
@@ -63,10 +64,10 @@ command HTTP::header {
         mutator
     }
 
-    subcommand is_keepalive { arity 0 ; detail {Check if connection is keep-alive.} ; synopsis {HTTP::header is_keepalive} }
-    subcommand is_redirect  { arity 0 ; detail {Check if response is a redirect.} ;   synopsis {HTTP::header is_redirect} }
-    subcommand lws          { arity 0 ; detail {Returns 1 if a header with linear white space was encountered.} ; synopsis {HTTP::header lws} }
-    subcommand names        { arity 0 ; detail {List all header names.} ;           synopsis {HTTP::header names} }
+    subcommand is_keepalive { arity 0 ; detail {Check if connection is keep-alive.} ; synopsis {HTTP::header is_keepalive} ; side_effect HttpHeader -reads -side Both }
+    subcommand is_redirect  { arity 0 ; detail {Check if response is a redirect.} ;   synopsis {HTTP::header is_redirect} ; side_effect HttpHeader -reads -side Both }
+    subcommand lws          { arity 0 ; detail {Returns 1 if a header with linear white space was encountered.} ; synopsis {HTTP::header lws} ; side_effect HttpHeader -reads -side Both }
+    subcommand names        { arity 0 ; detail {List all header names.} ;           synopsis {HTTP::header names} ; side_effect HttpHeader -reads -side Both }
 
     subcommand remove {
         arity 1
@@ -91,8 +92,8 @@ command HTTP::header {
         mutator
     }
 
-    subcommand value  { arity 1 ; detail {Get first header value.} ;   synopsis {HTTP::header value <name>} }
-    subcommand values { arity 1 ; detail {Get all values for header.} ; synopsis {HTTP::header values <name>} }
+    subcommand value  { arity 1 ; detail {Get first header value.} ;   synopsis {HTTP::header value <name>} ; side_effect HttpHeader -reads -side Both }
+    subcommand values { arity 1 ; detail {Get all values for header.} ; synopsis {HTTP::header values <name>} ; side_effect HttpHeader -reads -side Both }
 }
 
 }

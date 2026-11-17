@@ -67,10 +67,7 @@ pub fn spec() -> CommandSpec {
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         const_fold: Some(crate::const_fold::fold_llength),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::LIST_LENGTH),
-        traits: Traits::FRAMELESS_RUNTIME
-            | Traits::BYTE_COMPILED
-            | Traits::PURE
-            | Traits::CSE_CANDIDATE,
+        traits: Traits::FRAMELESS_RUNTIME | Traits::BYTE_COMPILED | Traits::CSE_CANDIDATE,
         arity: Arity::exact(1),
         // Pinned Tcl_ListObjLength/Jim_ListLength ordinary-object conversion.
         // C 9 abstract-list callbacks and empty shortcuts remain separate.

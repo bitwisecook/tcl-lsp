@@ -59,7 +59,6 @@ fn otp(
 ) -> CommandSpec {
     CommandSpec {
         name,
-        traits: Traits::PURE,
         arity: Arity::at_least(3),
         options: OTP_OPTS,
         hover: Some(HoverSnippet {

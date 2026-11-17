@@ -30,7 +30,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "Match an item against a data group.",
         synopsis: "class match ?options? ?--? <item> <operator> <class>",
-        pure: true,
         options: const {
             &[
                 OptionSpec {
@@ -113,7 +112,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(0),
         detail: "Search a data group for an item.",
         synopsis: "class search ?options? ?--? <class> <operator> <item>",
-        pure: true,
         options: const {
             &[
                 OptionSpec {
@@ -197,7 +195,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Return the value paired with a name.",
         synopsis: "class lookup <name> <class>",
-        pure: true,
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -206,7 +203,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Return an element by index.",
         synopsis: "class element ?-value|-name? ?--? <index> <class>",
-        pure: true,
         options: const {
             &[
                 OptionSpec {
@@ -249,7 +245,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Return the data type of a data group.",
         synopsis: "class type <class>",
-        pure: true,
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -258,7 +253,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Check if a data group exists.",
         synopsis: "class exists <class>",
-        pure: true,
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -267,7 +261,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Return the number of elements.",
         synopsis: "class size <class>",
-        pure: true,
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -276,7 +269,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(1, 2),
         detail: "Return list of data group names.",
         synopsis: "class names ?-nocase? ?-list? ?--? <class> ?pattern?",
-        pure: true,
         options: const {
             &[
                 OptionSpec {
@@ -319,7 +311,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(1, 2),
         detail: "Return all elements as a list.",
         synopsis: "class get ?-nocase? ?-list? ?--? <class> ?pattern?",
-        pure: true,
         options: const {
             &[
                 OptionSpec {
@@ -440,7 +431,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Check if more elements remain.",
         synopsis: "class anymore <class> <search_id>",
-        pure: true,
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },

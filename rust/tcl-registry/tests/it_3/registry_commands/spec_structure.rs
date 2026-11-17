@@ -222,7 +222,7 @@ fn form_kind_variants_exist() {
     assert_ne!(FormKind::Default, FormKind::Setter);
 }
 
-/// `HTTP::uri` with no args is a pure getter; with one arg it is a mutating
+/// `HTTP::uri` with no args is a reusable getter; with one arg it is a mutating
 /// setter. `resolve_call` picks the matching form by arity.
 ///
 /// f5-dialect: `HTTP::uri` is not real Tcl. The getter→read / setter→write
@@ -230,9 +230,13 @@ fn form_kind_variants_exist() {
 #[test]
 fn http_uri_getter_setter_forms() {
     let (reg, ds) = reg_and_set("f5-irules");
-    // No-arg form resolves (getter); the spec is marked a pure taint source.
+    // No-arg form resolves (getter): a repeat in the same event reads the
+    // same URI, so the getter is a CSE candidate.
     let getter = reg.resolve_call("HTTP::uri", &[], ds).expect("getter form");
-    assert!(getter.spec.traits.contains(Traits::PURE), "getter is pure");
+    assert!(
+        getter.spec.traits.contains(Traits::CSE_CANDIDATE),
+        "getter is reusable"
+    );
     // Single-arg form resolves (setter) under the same command.
     let setter = reg
         .resolve_call("HTTP::uri", &["/new/path"], ds)

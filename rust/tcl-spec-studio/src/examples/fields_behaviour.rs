@@ -38,7 +38,7 @@ pub(super) const FIELD_TRAITS: Example = Example {
         focus(
             2,
             "[llength $items]",
-            "PURE: the call changes no state, so its result is all it does",
+            "CSE_CANDIDATE: a repeat with the same list can reuse this result",
         ),
     ],
 };
@@ -1617,24 +1617,6 @@ append log $line",
                     2,
                     "return -code error bad",
                     "directly in an event body the gate reports it",
-                ),
-            ],
-        },
-    ),
-    (
-        "pure",
-        Example {
-            code: "string length $name\nset n [string length $name]",
-            focuses: &[
-                focus(
-                    0,
-                    "string length $name",
-                    "result discarded: the call does nothing, so a warning fires",
-                ),
-                focus(
-                    1,
-                    "[string length $name]",
-                    "the optimiser may reuse this result for an identical call",
                 ),
             ],
         },

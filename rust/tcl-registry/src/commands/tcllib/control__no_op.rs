@@ -29,7 +29,6 @@ pub fn spec() -> CommandSpec {
         name: "control::no-op",
         surface: None,
         arity: Arity::any(),
-        traits: Traits::PURE,
         hover: Some(HoverSnippet {
             summary: "Take any number of arguments and do nothing.",
             synopsis: &["control::no-op ?arg arg ...?"],

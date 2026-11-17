@@ -162,7 +162,6 @@ static SUBCOMMANDS: [SubCommand; 6] = [
         arity: Arity::new(0, 1),
         detail: "With no id, return the ids of every pending timer/after handler. With an id, return a 2- or 3-element {script kind ?time?} list describing that handler (kind is idle, monotonic, or wallclock; time, present only for monotonic/wallclock, is the scheduled execution point in microseconds).",
         synopsis: "timer info ?id?",
-        pure: true,
         return_type: Some(TclType::List),
         // Overrides the command-level write default: `timer info` only
         // queries scheduler state ("This command returns information

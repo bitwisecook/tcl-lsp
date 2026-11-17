@@ -1229,7 +1229,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 2),
         detail: "Returns a list of all child namespaces.",
         synopsis: "namespace children ?name? ?pattern?",
-        pure: true,
         return_type: Some(TclType::List),
         // The optional first word names the namespace whose children are
         // listed (`namespace children ::tomato`); the optional
@@ -1252,7 +1251,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Captures the current namespace context for later execution.",
         synopsis: "namespace code script",
         native_result: Some(crate::native_result::NativeResultContract::NamespaceCommandPrefix),
-        pure: true,
         return_type: Some(TclType::String),
         // The captured script runs in the *current* namespace when the
         // callback fires, so analyse it in this scope — a `Body` — for its
@@ -1286,7 +1284,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Returns the fully-qualified name for the current namespace.",
         synopsis: "namespace current",
-        pure: true,
         return_type: Some(TclType::String),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
@@ -1421,7 +1418,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Test whether a namespace exists.",
         synopsis: "namespace exists namespace",
-        pure: true,
         return_type: Some(TclType::Boolean),
         // An existence probe of a namespace: the name navigates like any
         // other namespace reference, and no diagnostic asserts it exists
@@ -1564,7 +1560,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Returns the fully-qualified name of the original command.",
         synopsis: "namespace origin name",
-        pure: true,
         return_type: Some(TclType::String),
         // The single argument is a command name resolved (not called), so it
         // is a command reference navigation follows.
@@ -1578,7 +1573,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Returns the fully-qualified name of the parent namespace.",
         synopsis: "namespace parent ?namespace?",
-        pure: true,
         return_type: Some(TclType::String),
         // The optional word names the namespace whose parent is reported.
         arg_roles: &[(0, ArgRole::NamespaceName)],
@@ -1610,7 +1604,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Returns any leading namespace qualifiers for string.",
         synopsis: "namespace qualifiers string",
-        pure: true,
         return_type: Some(TclType::String),
         // Pure string arithmetic on the word — see [`fold_qualifiers`].
         const_fold: Some(fold_qualifiers),
@@ -1636,7 +1629,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Returns the simple name at the end of a qualified string.",
         synopsis: "namespace tail string",
-        pure: true,
         return_type: Some(TclType::String),
         // Pure string arithmetic on the word — see [`fold_tail`].
         const_fold: Some(fold_tail),
@@ -1758,7 +1750,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         reserved_trailing_words: 1,
         arg_role_layout_resolver: Some(namespace_which_arg_roles),
         arg_role_resolver_roles: &[ArgRole::VarRead, ArgRole::CommandNameProbe],
-        pure: true,
         return_type: Some(TclType::String),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT

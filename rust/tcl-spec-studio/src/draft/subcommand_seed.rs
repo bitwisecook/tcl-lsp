@@ -262,7 +262,6 @@ fn subcommand_types(d: &mut Draft, sub: &SubCommand) {
             .map_or(Value::Null, |e| json!(representation_effect_expr(e))),
     );
     d.insert("arg_types".into(), arg_type_map(sub.arg_types));
-    d.insert("pure".into(), json!(sub.pure));
     d.insert("mutator".into(), json!(sub.mutator));
 }
 

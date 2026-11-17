@@ -1203,7 +1203,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         variable_receivers: Some(&[(1, VariableReceiverOperandForm::TraceSubject)]),
         arg_role_layout_resolver: Some(trace_info_layout_roles),
         arg_role_resolver_roles: &[ArgRole::VarRead, ArgRole::CommandName],
-        pure: true,
         return_type: Some(TclType::List),
         result_stability: crate::knowledge::Knowledge::Partial(
             ResultStability::ReadsVersionedWorld(TRACE_INFO_RESULT_DOMAINS),
@@ -1342,7 +1341,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "trace vinfo name",
         variable_receivers: Some(&[(0, VariableReceiverOperandForm::TraceSubject)]),
         arg_roles: &[(0, ArgRole::VarRead)],
-        pure: true,
         return_type: Some(TclType::List),
         result_stability: crate::knowledge::Knowledge::Partial(
             ResultStability::ReadsVersionedWorld(&[WorldStateDomain::VariableTraces]),

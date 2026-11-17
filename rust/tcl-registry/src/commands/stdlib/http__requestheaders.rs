@@ -22,7 +22,6 @@ use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http::requestHeaders",
-        traits: Traits::PURE,
         surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::new(1, 2),
         return_type: Some(TclType::List),

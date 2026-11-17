@@ -366,7 +366,6 @@ Every command, subcommand, and declaring form, resolved through the value-transf
 | `binary format` | subcommand | bpf, cadence-eda-tcl, expect, f5-iapps, f5-irules, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (subcommand) · `binary-format` | direct `binary-format` | registry | yes | — | — | — |
 | `binary scan` | subcommand | bpf, cadence-eda-tcl, expect, f5-iapps, f5-irules, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (subcommand) · `binary-scan` | direct `binary-scan` | registry | yes | `VarWrite` (resolver) | — | — |
 | `break` | command | bpf, cadence-eda-tcl, expect, f5-iapps, f5-irules, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (command) · `break-complete` | direct `break-complete` | registry | yes | — | — | — |
-| `canvas cget` | subcommand | bpf, cadence-eda-tcl, expect, f5-iapps, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | — | pure, no route | — |
 | `case` | command | cadence-eda-tcl, expect, f5-iapps, f5-irules, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tk, xilinx-eda-tcl | declared (command) · `case-list:case` | none (unauthored) | — | no | — | — | — |
 | `catch` | command | tk | declared (command) · `catch-protected` | direct `catch-protected` | registry | yes | `VarWrite` (resolver) | — | — |
 | `chan blocked` | subcommand | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (subcommand) · `no-route:declared` | none (declared) | — | no | — | — | — |
@@ -559,7 +558,6 @@ Every command, subcommand, and declaring form, resolved through the value-transf
 | `info sharedlibextension` | subcommand | bpf, cadence-eda-tcl, expect, f5-iapps, f5-irules, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (subcommand) · `no-route:platform` | none (platform) | — | no | — | — | — |
 | `info tclversion` | subcommand | bpf, cadence-eda-tcl, expect, f5-iapps, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (subcommand) · `no-route:unauthored` | none (unauthored) | — | no | — | — | — |
 | `info vars` | subcommand | bpf, cadence-eda-tcl, expect, f5-iapps, f5-irules, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (subcommand) · `no-route:declared` | none (declared) | — | no | — | — | — |
-| `info version` | subcommand | tk | none | — | — | no | — | pure, no route | — |
 | `ini::commentchar` | command | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (command) · `no-route:declared` | none (declared) | — | no | — | — | — |
 | `ini::exists` | command | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (command) · `no-route:declared` | none (declared) | — | no | — | — | — |
 | `ini::filename` | command | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (command) · `no-route:declared` | none (declared) | — | no | — | — | — |
@@ -614,7 +612,6 @@ Every command, subcommand, and declaring form, resolved through the value-transf
 | `lreplace` | command | bpf, cadence-eda-tcl, expect, f5-iapps, f5-irules, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (command) · `no-route:unauthored` | none (unauthored) | — | no | — | — | — |
 | `lreverse` | command | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (command) · `no-route:unauthored` | none (unauthored) · callback fold | — | no | — | — | — |
 | `lsearch` | command | bpf, cadence-eda-tcl, expect, f5-iapps, f5-irules, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (command) · `no-route:unauthored` | none (unauthored) | — | no | — | — | — |
-| `lseq` | command | bpf, spectcl, sslictcl, tcl9.0, tcl9.1, tk | none | — | — | no | — | pure, no route | — |
 | `lset` | command | bpf, cadence-eda-tcl, expect, f5-iapps, f5-irules, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (command) · `list-update:set` | direct `list-set` | registry | yes | `VarWrite@0`, `assigns_variable_at 0` | — | — |
 | `lt` | command | bpf, spectcl, sslictcl, tcl9.0, tcl9.1, tk | declared (command) · `no-route:unauthored` | none (unauthored) | — | no | — | — | — |
 | `math::cov` | command | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (command) · `no-route:unauthored` | none (unauthored) | — | no | — | — | — |
@@ -987,7 +984,6 @@ Every command, subcommand, and declaring form, resolved through the value-transf
 | `tie::tie` | command | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (command) · `may_write` | none (callback) | — | no | `VarWrite@0` | descriptor without a route | — |
 | `tie::untie` | command | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (command) · `may_write` | none (callback) | — | no | `VarWrite@0` | descriptor without a route | — |
 | `timer info` | subcommand | tcl9.1, tk | declared (subcommand) · `no-route:declared` | none (declared) | — | no | — | — | — |
-| `tk::canvas cget` | subcommand | bpf, cadence-eda-tcl, expect, f5-iapps, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | none | — | — | no | — | pure, no route | — |
 | `tk::checkbutton cget` | subcommand | bpf, cadence-eda-tcl, expect, f5-iapps, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (subcommand) · `no-route:declared` | none (declared) | — | no | — | — | — |
 | `tk::entry bbox` | subcommand | bpf, cadence-eda-tcl, expect, f5-iapps, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (subcommand) · `no-route:declared` | none (declared) | — | no | — | — | — |
 | `tk::entry cget` | subcommand | bpf, cadence-eda-tcl, expect, f5-iapps, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (subcommand) · `no-route:declared` | none (declared) | — | no | — | — | — |
@@ -1159,25 +1155,25 @@ Commands and subcommands that declare no semantics, write no variable, and decla
 
 | Dialect | Rows |
 |---|---|
-| bpf | 2619 |
-| cadence-eda-tcl | 1193 |
-| expect | 2540 |
-| f5-iapps | 1019 |
+| bpf | 2622 |
+| cadence-eda-tcl | 1195 |
+| expect | 2542 |
+| f5-iapps | 1021 |
 | f5-irules | 1071 |
-| f5-tmsh | 1000 |
-| intel-quartus-eda-tcl | 2572 |
-| mentor-eda-tcl | 2837 |
-| microchip-libero-eda-tcl | 2753 |
-| spectcl | 2717 |
-| sslictcl | 2657 |
-| synopsys-eda-tcl | 2742 |
-| tcl8.4 | 970 |
-| tcl8.5 | 2347 |
-| tcl8.6 | 2526 |
-| tcl9.0 | 2595 |
-| tcl9.1 | 2612 |
-| tk | 2635 |
-| xilinx-eda-tcl | 3285 |
+| f5-tmsh | 1002 |
+| intel-quartus-eda-tcl | 2574 |
+| mentor-eda-tcl | 2839 |
+| microchip-libero-eda-tcl | 2755 |
+| spectcl | 2720 |
+| sslictcl | 2660 |
+| synopsys-eda-tcl | 2744 |
+| tcl8.4 | 972 |
+| tcl8.5 | 2349 |
+| tcl8.6 | 2528 |
+| tcl9.0 | 2598 |
+| tcl9.1 | 2615 |
+| tk | 2639 |
+| xilinx-eda-tcl | 3287 |
 
 ## Hand-written command knowledge outside the registry
 

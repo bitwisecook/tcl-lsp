@@ -22,9 +22,7 @@ use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::query",
-        traits: Traits::PURE
-            .union(Traits::CSE_CANDIDATE)
-            .union(Traits::UNNORMALISED_HTTP_GETTER),
+        traits: Traits::CSE_CANDIDATE.union(Traits::UNNORMALISED_HTTP_GETTER),
         surface: Some(SpecSurface::IRULES),
         arity: Arity::new(0, 1),
         options: const {

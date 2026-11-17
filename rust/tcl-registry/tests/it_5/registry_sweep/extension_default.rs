@@ -63,7 +63,15 @@ fn check_extension_default_spec(spec: &tcl_registry::CommandSpec) {
 
     let expected = extension_default_traits();
     assert_eq!(spec.traits, expected, "got {}", spec.traits);
-    assert!(!spec.traits.contains(Traits::PURE), "never pure");
+    for release in ["8.4", "8.5", "8.6", "9.0", "9.1"] {
+        assert!(
+            !spec.is_pure_at(Some(&tcl_dialect::model::SurfaceQuery::core(
+                tcl_dialect::model::Family::Tcl,
+                release
+            ))),
+            "never pure at {release}"
+        );
+    }
 
     assert_eq!(spec.arity, Arity::any());
     assert_eq!(
@@ -169,8 +177,8 @@ fn check_extension_default_narrowing() {
     let declared =
         DeclaredCommand::extension("ext_cmd".to_owned(), Vec::new(), Provenance::Document);
     assert_eq!(declared.traits, extension_default_traits());
-    let pure = declared.narrowed_by(Traits::PURE, Vec::new());
-    assert!(pure.traits.contains(Traits::PURE));
+    let pure = declared.narrowed_by(true, Traits::empty(), Vec::new());
+    assert!(pure.pure);
     assert!(
         !pure.traits.intersects(extension_default::EFFECT_AXES) && pure.side_effects.is_empty(),
         "purity replaces the effect axes: {}",

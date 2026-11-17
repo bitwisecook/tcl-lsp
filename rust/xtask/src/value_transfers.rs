@@ -65,8 +65,9 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use anyhow::{Context, Result, bail};
-use tcl_dialect::model::SpecSurface;
+use tcl_dialect::model::{Family, SpecSurface};
 use tcl_registry::forms::CommandForm;
+use tcl_registry::purity::PurityDomains;
 use tcl_registry::spec::{CommandSpec, SubCommand};
 use tcl_registry::value_transfer::{EvalRoute, EvaluatorOwner, resolve_semantics};
 use tcl_registry::{ArgRole, CommandRegistry, ResultStability, Traits};
@@ -885,8 +886,14 @@ fn push_row(
     let (targets, writes) = target_roles(spec, sub, form);
     let has_semantics = resolved.semantics().is_some();
     let traits = spec.traits | sub.map_or_else(Traits::empty, |s| s.traits);
-    let pure = spec.is_pure()
-        || sub.is_some_and(SubCommand::is_pure)
+    let pure = !PurityDomains::of_command(spec)
+        .pure_releases(Family::Tcl)
+        .is_empty()
+        || sub.is_some_and(|sub| {
+            !PurityDomains::of_subcommand(spec, sub)
+                .pure_releases(Family::Tcl)
+                .is_empty()
+        })
         || traits.contains(Traits::CSE_CANDIDATE)
         || matches!(
             sub.and_then(|s| s.result_stability.stated())

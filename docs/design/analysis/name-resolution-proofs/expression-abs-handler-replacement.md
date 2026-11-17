@@ -4,7 +4,7 @@ Kind: `native-observation`
 
 ## Problem statement
 
-The same expression function spelling can select a fixed builtin table or a mutable ordinary command. A generic PURE declaration or unchanged syntax cannot decide which handler survives replacement.
+The same expression function spelling can select a fixed builtin table or a mutable ordinary command. A generic purity fact or unchanged syntax cannot decide which handler survives replacement.
 
 ## Question
 

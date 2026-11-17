@@ -68,7 +68,7 @@ pub fn spec() -> CommandSpec {
         // trait is an audited claim about this workspace's own VM dispatch
         // (`registry::tests::frameless_runtime_covers_the_audited_allow_list`),
         // and `tcl-vm` has no `fpclassify` implementation to make it about.
-        traits: Traits::PURE | Traits::CSE_CANDIDATE,
+        traits: Traits::CSE_CANDIDATE,
         // `wrong # args: should be "fpclassify floatValue"` for both zero and
         // two arguments on tclsh 9.0.4 and 9.1b0 — exactly one word.
         arity: Arity::exact(1),

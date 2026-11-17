@@ -22,7 +22,7 @@ use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl_endOfWord",
-        traits: Traits::PURE | Traits::OVERRIDABLE_LIBRARY_PROC,
+        traits: Traits::OVERRIDABLE_LIBRARY_PROC,
         surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::exact(2),
         hover: Some(HoverSnippet {

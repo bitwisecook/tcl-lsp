@@ -40,7 +40,7 @@ fn call_stmt(cmd: &str, args: &[&str]) -> Statement {
 #[test]
 fn is_pure_command_picks_up_registry_pure_trait() {
     let registry = CommandRegistry::build_default();
-    // `expr` is marked PURE / PURE_EVALUATION in the registry.
+    // `expr` is marked pure / PURE_EVALUATION in the registry.
     assert!(is_pure_command(
         &registry,
         "expr",
@@ -99,12 +99,12 @@ fn is_pure_command_with_traces_traced_command_not_pure() {
 }
 
 /// `has_dynamic_trace=true` widens the gate to *every*
-/// command (even ones the registry marks PURE).
+/// command (even ones the registry marks pure).
 #[test]
 fn is_pure_command_with_traces_dynamic_trace_inhibits_all() {
     let registry = CommandRegistry::build_default();
     let traced = std::collections::BTreeSet::new();
-    // `expr` is PURE per the registry, but `has_dynamic_trace=true`
+    // `expr` is pure per the registry, but `has_dynamic_trace=true`
     // means any call could have a trace registered at runtime.
     assert!(!is_pure_command_with_traces(
         &registry,

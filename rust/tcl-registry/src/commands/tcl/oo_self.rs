@@ -131,8 +131,7 @@ pub fn spec() -> CommandSpec {
         // `self class`, `self caller`, `self next`, `self filter`, `self call`
         // and `self target` answer class names as data; a closed argument
         // value carries no traits of its own, so the whole command does.
-        traits: Traits::PURE
-            | Traits::REFLECTS_COMMAND_NAMES
+        traits: Traits::REFLECTS_COMMAND_NAMES
             | Traits::LANGUAGE_KEYWORD
             | Traits::TCLOO_INTROSPECTION
             | Traits::TCLOO_METHOD_CONTEXT

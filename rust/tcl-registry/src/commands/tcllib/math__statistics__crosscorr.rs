@@ -26,7 +26,6 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "math::statistics::crosscorr",
-        traits: Traits::PURE,
         surface: None,
         arity: Arity::exact(2),
         hover: Some(HoverSnippet {

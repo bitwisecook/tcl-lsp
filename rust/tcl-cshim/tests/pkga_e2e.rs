@@ -144,7 +144,13 @@ fn the_loaded_report_bridges_to_the_default_fact() {
             "{}",
             command.name
         );
-        assert!(!default.is_pure(), "{}", command.name);
+        assert!(
+            tcl_registry::purity::PurityDomains::of_command(&default)
+                .pure_releases(tcl_dialect::model::Family::Tcl)
+                .is_empty(),
+            "{}",
+            command.name
+        );
     }
 }
 

@@ -78,7 +78,6 @@ command ::apave::ObjectProperty {
             arity 1..2
             detail   {Get a property's value, or defvalue if unset.}
             synopsis {$obj getProperty name ?defvalue?}
-            pure
             arg 0 -role Name
             return_type String
             hover { summary {Return a property's value, or defvalue (default "") if it was never set.} source {obbit.tcl:1193-1204} }

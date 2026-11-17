@@ -225,7 +225,7 @@ mod textutil_submodule_vs_umbrella {
     /// Contract test: the umbrella alias
     /// and the submodule-qualified canonical name are the *same real tcllib
     /// command* under two different call spellings, so every trait
-    /// descriptor (`Traits::PURE` and any future one) must agree between
+    /// descriptor must agree between
     /// them — a consumer doing purity-based GVN/DCE must not see a different
     /// answer purely because of which spelling a call site happens to use.
     /// `rust/tcl-registry/src/commands/tcllib/misc_ext.rs`'s

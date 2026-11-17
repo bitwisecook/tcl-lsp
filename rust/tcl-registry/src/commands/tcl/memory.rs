@@ -108,7 +108,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Return a report of the total allocations and frees since Tcl started, the current packets and bytes allocated, and their historical maximums.",
         synopsis: "memory info",
-        pure: true,
         return_type: Some(TclType::String),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT

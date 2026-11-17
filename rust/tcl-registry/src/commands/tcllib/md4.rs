@@ -104,7 +104,6 @@ fn token_cmd(
 pub fn md4() -> CommandSpec {
     CommandSpec {
         name: "md4::md4",
-        traits: Traits::PURE,
         arity: Arity::at_least(1),
         options: MD4_OPTS,
         hover: Some(HoverSnippet {
@@ -129,7 +128,6 @@ pub fn md4() -> CommandSpec {
 pub fn hmac() -> CommandSpec {
     CommandSpec {
         name: "md4::hmac",
-        traits: Traits::PURE,
         arity: Arity::at_least(2),
         options: HMAC_OPTS,
         hover: Some(HoverSnippet {

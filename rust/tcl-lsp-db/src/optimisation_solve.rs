@@ -227,7 +227,7 @@ pub(super) fn solve_optimisations<'db>(
     // callee's whole `FunctionUnit` (`cu.procedures.get(callee)`), not just its
     // summary — a genuine cross-function *body* dependency the single-proc unit
     // cannot serve. Fall back to the whole-module optimise when any proc could be
-    // such a fold target: `pure` but not an argument-independent constant return
+    // such a fold target: pure but not an argument-independent constant return
     // (the latter is summary-level and the memo handles it).
     let has_arg_sensitive_target = cu.interproc.as_ref().is_some_and(|ia| {
         ia.procedures

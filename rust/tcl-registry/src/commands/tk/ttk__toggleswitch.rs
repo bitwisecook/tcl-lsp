@@ -30,7 +30,7 @@ const SWITCHSTATE_FORMS: &[SubCommandForm] = &[
     SubCommandForm {
         name: "query",
         arity: Arity::exact(0),
-        traits: Some(Traits::PURE.union(Traits::TAINT_SOURCE_ZERO_ARGS)),
+        traits: Some(Traits::TAINT_SOURCE_ZERO_ARGS),
         mutator: Some(false),
         side_effects: Some(crate::knowledge::Knowledge::declared(
             super::common::TTK_WIDGET_READS,
@@ -181,7 +181,6 @@ super::common::ttk_widget_class!(
         arity: Arity::new(0, 1),
         detail: "Return the current, minimum, maximum, or x-coordinate-derived internal slider value.",
         synopsis: "pathName get ?min|max|x?",
-        pure: true,
         return_type: Some(TclType::Double),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
@@ -203,7 +202,6 @@ super::common::ttk_widget_class!(
         detail: "Return the x coordinate for the current or supplied internal slider value.",
         synopsis: "pathName xcoord ?value?",
         traits: Traits::TAINT_SOURCE_ZERO_ARGS,
-        pure: true,
         return_type: Some(TclType::Double),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),

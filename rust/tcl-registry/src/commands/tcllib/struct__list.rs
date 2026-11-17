@@ -96,7 +96,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "equal",
-        traits: Traits::PURE,
         arity: Arity::at_least(2),
         detail: "Test if two lists are structurally equal.",
         synopsis: "struct::list equal ?-simple? a b",
@@ -128,7 +127,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "flatten",
-        traits: Traits::PURE,
         arity: Arity::at_least(1),
         detail: "Flatten nested lists by one or more levels.",
         synopsis: "struct::list flatten ?-full? ?--? sequence",
@@ -160,7 +158,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "iota",
-        traits: Traits::PURE,
         arity: Arity::exact(1),
         detail: "Generate a list of integers 0..n-1.",
         synopsis: "struct::list iota n",
@@ -171,7 +168,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "lcsInvert",
-        traits: Traits::PURE,
         arity: Arity::exact(3),
         detail: "Invert a longest-common-subsequence result.",
         synopsis: "struct::list lcsInvert lcsData len1 len2",
@@ -182,7 +178,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "longestCommonSubsequence",
-        traits: Traits::PURE,
         arity: Arity::new(2, 3),
         detail: "Find the longest common subsequence of two lists.",
         synopsis: "struct::list longestCommonSubsequence list1 list2 ?maxOccurs?",
@@ -217,7 +212,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "repeat",
-        traits: Traits::PURE,
         arity: Arity::at_least(2),
         detail: "Create a list by repeating elements.",
         synopsis: "struct::list repeat count element ?element ...?",
@@ -228,7 +222,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "reverse",
-        traits: Traits::PURE,
         arity: Arity::exact(1),
         detail: "Reverse the order of a list.",
         synopsis: "struct::list reverse sequence",
@@ -271,7 +264,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "longestCommonSubsequence2",
-        traits: Traits::PURE,
         arity: Arity::new(2, 3),
         detail: "Find the longest common subsequence (alternate algorithm).",
         synopsis: "struct::list longestCommonSubsequence2 list1 list2 ?maxOccurs?",
@@ -282,7 +274,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "lcsInvertMerge",
-        traits: Traits::PURE,
         arity: Arity::exact(3),
         detail: "Invert and merge a longest-common-subsequence result.",
         synopsis: "struct::list lcsInvertMerge lcsData len1 len2",
@@ -319,7 +310,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "repeatn",
-        traits: Traits::PURE,
         arity: Arity::at_least(1),
         detail: "Create a (nested) list by repeating a value.",
         synopsis: "struct::list repeatn value count ?count ...?",
@@ -330,7 +320,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "firstperm",
-        traits: Traits::PURE,
         arity: Arity::exact(1),
         detail: "Return the first permutation of a list.",
         synopsis: "struct::list firstperm list",
@@ -341,7 +330,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "nextperm",
-        traits: Traits::PURE,
         arity: Arity::exact(1),
         detail: "Return the next permutation in lexicographic order.",
         synopsis: "struct::list nextperm perm",
@@ -352,7 +340,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "permutations",
-        traits: Traits::PURE,
         arity: Arity::exact(1),
         detail: "Return all permutations of a list.",
         synopsis: "struct::list permutations list",

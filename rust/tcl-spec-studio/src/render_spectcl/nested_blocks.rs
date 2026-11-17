@@ -254,7 +254,6 @@ pub(super) fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft,
     enum_word(out_body, ctx, sub, "pattern_type");
     enum_word(out_body, ctx, sub, "format_string_type");
 
-    flag(out_body, ctx, sub, "pure");
     flag(out_body, ctx, sub, "mutator");
     flag(out_body, ctx, sub, "destructive");
     flag(out_body, ctx, sub, "returns_path");

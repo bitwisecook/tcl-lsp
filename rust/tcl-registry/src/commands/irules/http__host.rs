@@ -22,9 +22,7 @@ use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::host",
-        traits: Traits::PURE
-            .union(Traits::CSE_CANDIDATE)
-            .union(Traits::DIAGRAM_ACTION),
+        traits: Traits::CSE_CANDIDATE.union(Traits::DIAGRAM_ACTION),
         surface: Some(SpecSurface::IRULES),
         arity: Arity::new(0, 1),
         hover: Some(HoverSnippet {

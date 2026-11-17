@@ -51,7 +51,7 @@ macro_rules! arithmetic {
             }),
             arity: Arity::at_least($minimum),
             return_type: Some(TclType::Numeric),
-            traits: Traits::PURE.union(Traits::OPERATOR_COMMAND),
+            traits: Traits::OPERATOR_COMMAND,
             forms: &[FormSpec {
                 synopsis: $synopsis,
                 ..FormSpec::DEFAULT

@@ -25,7 +25,7 @@ const PROXY_FORMS: &[SubCommandForm] = &[SubCommandForm {
     name: "coord",
     arity: Arity::exact(1),
     literal_argument_prefix: Some(LiteralArgumentPrefix::unique(&["coord"])),
-    traits: Some(Traits::PURE),
+    traits: Some(Traits::empty()),
     mutator: Some(false),
     side_effects: Some(crate::knowledge::Knowledge::declared(
         super::common::TTK_WIDGET_READS,
@@ -37,7 +37,7 @@ const SASH_FORMS: &[SubCommandForm] = &[SubCommandForm {
     name: "coord",
     arity: Arity::exact(2),
     literal_argument_prefix: Some(LiteralArgumentPrefix::unique(&["coord"])),
-    traits: Some(Traits::PURE),
+    traits: Some(Traits::empty()),
     mutator: Some(false),
     side_effects: Some(crate::knowledge::Knowledge::declared(
         super::common::TTK_WIDGET_READS,

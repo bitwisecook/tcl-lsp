@@ -757,7 +757,7 @@ mod tests {
                 );
                 facts.refine_scalar_math_input_effects(words.arguments(), false);
                 assert!(facts.effects.requires_world_barrier());
-                assert!(!facts.traits.contains(crate::Traits::PURE));
+                assert!(!facts.is_pure());
                 facts.successful_handler = None;
                 assert!(
                     facts

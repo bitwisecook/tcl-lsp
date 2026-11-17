@@ -113,18 +113,17 @@ fn splice_safe_membership() {
 /// registry-metadata: frame-sensitivity is our classification (the
 /// `TERMINATES_BLOCK` | `TRANSFERS_CONTROL` | `CREATES_SCOPE_ALIAS` |
 /// `CREATES_BARRIER` trait union).
-/// Every `::tcl::mathop` operator command is `PURE`.
+/// Every `::tcl::mathop` operator command is pure at every release that has
+/// it.
 ///
-/// The namespace spec carried `PURE` but the commands generated under it did
-/// not, so `classify_side_effects` treated `[+ $a $b]` as impure and the GVN
-/// pass would neither hoist nor CSE it. Found by scanning all specs for trait
-/// pairs that never co-occur: `OPERATOR_COMMAND` (87 specs) and `PURE` (379)
-/// had no overlap at all, which for arithmetic is not a plausible fact.
-///
-/// Purity here is a statement about the command, not a policy: an operator
-/// reads its operands and returns a result, touching no variable, channel, or
-/// interpreter state. A bad operand raises an error, which the registry
-/// models as control flow rather than a side effect.
+/// The namespace spec once carried purity but the commands generated under
+/// it did not, so `classify_side_effects` treated `[+ $a $b]` as impure and
+/// the GVN pass would neither hoist nor CSE it. Purity is now derived from the
+/// four facts domains (issue #1712), which the C evidence closes for these
+/// commands from Tcl 8.5 on: `TclSingleOpCmd`, `TclVariadicOpCmd`,
+/// `TclNoIdentOpCmd` and `TclSortingOpCmd` in tcl8.5.19, tcl8.6.18,
+/// tcl9.0.4 and tcl9.1.0 run an expression tree whose leaves are their own
+/// argument values. A bad operand raises an error, which completion admits.
 #[test]
 fn operator_commands_are_pure() {
     let reg = CommandRegistry::build_default();
@@ -132,6 +131,15 @@ fn operator_commands_are_pure() {
         "!", "!=", "%", "&", "*", "**", "+", "-", "/", "<", "<<", "<=", "==", ">", ">=", ">>", "^",
         "eq", "ge", "gt", "in", "le", "lt", "ne", "ni", "|", "~",
     ];
+    // Pure at every release that has the operator: the string comparisons
+    // `lt` `le` `gt` `ge` arrive in Tcl 9.0 (tclsh8.6.18: `tcl::mathop::ge b a`
+    // is an invalid command name; tclsh9.0.4 returns 1).
+    let pure_at = |spec: &tcl_registry::CommandSpec| {
+        ["8.5", "8.6", "9.0", "9.1"].into_iter().all(|release| {
+            let at = SurfaceQuery::core(Family::Tcl, release);
+            !spec.supports_dialect(Some(at)) || spec.is_pure_at(Some(&at))
+        })
+    };
     for op in ops {
         let spec = reg
             .get(op)
@@ -141,18 +149,18 @@ fn operator_commands_are_pure() {
             "{op} is an operator command"
         );
         assert!(
-            spec.traits.contains(Traits::PURE),
-            "{op} computes a value with no side effect and must be PURE, or \
-             the optimiser cannot hoist or CSE it"
+            pure_at(spec),
+            "{op} computes a value with no side effect and must be pure at \
+             8.5-9.1, or the optimiser cannot hoist or CSE it"
         );
     }
-    // The qualified spellings carry the traits too — the optimiser sees
-    // whichever spelling the source used.
+    // The qualified spellings are pure too — the optimiser sees whichever
+    // spelling the source used.
     for name in ["::tcl::mathop::+", "tcl::mathop::eq"] {
         let spec = reg
             .get(name)
             .unwrap_or_else(|| panic!("{name} is registered"));
-        assert!(spec.traits.contains(Traits::PURE), "{name} must be PURE");
+        assert!(pure_at(spec), "{name} must be pure at 8.5-9.1");
     }
 }
 

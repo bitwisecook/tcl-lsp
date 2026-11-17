@@ -100,7 +100,6 @@ const fn normalise_sub(
         detail,
         synopsis,
         options: &PROFILE_OPTIONS,
-        pure: true,
         return_type: Some(TclType::String),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
@@ -137,14 +136,14 @@ static SUBCOMMANDS: [SubCommand; 4] = [
 /// checked individually rather than assumed from a neighbouring version).
 ///
 /// `Traits::CSE_CANDIDATE` alongside `BYTE_COMPILED`: every subcommand is
-/// an unconditionally pure, deterministic string transform (`pure: true`
+/// an unconditionally pure, deterministic string transform (pure
 /// on all four, no `mutator`), the same shape `string`/`dict` — both
 /// `CSE_CANDIDATE` — use for their pure subcommands; unlike `encoding`/
 /// `timer`, `unicode` has no impure/scheduling subcommand dragging the
 /// ensemble's average value down, so the whole command earns the trait.
-/// No `Traits::PURE`, matching every other ensemble in this codebase
+/// No purity, matching every other ensemble in this codebase
 /// (`string`/`dict`/`array`/`encoding`/`timer`): purity is expressed per
-/// subcommand (`pure: true` above) and `tcl_compiler::side_effects`
+/// subcommand (pure above) and `tcl_compiler::side_effects`
 /// deliberately reads that instead of a command-level blanket flag for
 /// ensembles.
 pub fn spec() -> CommandSpec {

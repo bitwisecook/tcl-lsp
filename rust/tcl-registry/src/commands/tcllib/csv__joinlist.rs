@@ -26,7 +26,6 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "csv::joinlist",
-        traits: Traits::PURE,
         surface: None,
         arity: Arity::new(1, 4),
         hover: Some(HoverSnippet {

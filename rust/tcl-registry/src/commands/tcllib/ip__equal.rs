@@ -26,7 +26,6 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "ip::equal",
-        traits: Traits::PURE,
         surface: None,
         arity: Arity::exact(2),
         hover: Some(HoverSnippet {

@@ -26,7 +26,6 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "cmdline::getArgv0",
-        traits: Traits::PURE,
         surface: None,
         arity: Arity::exact(0),
         hover: Some(HoverSnippet {

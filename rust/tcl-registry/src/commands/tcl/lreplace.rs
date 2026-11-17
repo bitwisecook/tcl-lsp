@@ -102,7 +102,7 @@
 // `Arity::at_least(3)` and the compiler's own inline-codegen guard
 // (`args.len() >= 3` in `tcl-codegen/src/codegen/cmd_subst.rs`) — and
 // reads/writes no variable: a flat function of its arguments with no
-// eval fallback, so `FRAMELESS_RUNTIME`/`PURE` (already set) are
+// eval fallback, so `FRAMELESS_RUNTIME` (already set) are
 // correct; it already appears in
 // `frameless_runtime_covers_the_audited_allow_list` in
 // `tcl-registry/src/registry.rs`. Its minimum call, `lreplace {list}
@@ -154,7 +154,6 @@ pub fn spec() -> CommandSpec {
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
-            | Traits::PURE
             | Traits::CSE_CANDIDATE,
         arity: Arity::at_least(3),
         return_type: Some(TclType::List),

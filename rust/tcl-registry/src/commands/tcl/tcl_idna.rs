@@ -114,7 +114,6 @@ static SUBCOMMANDS: [SubCommand; 4] = [
         detail: "Decode punycode-encoded sequences in hostname to the form displayed to a user. Similar-looking Unicode glyphs mean the result should still be shown to users with care.",
         synopsis: "tcl::idna decode hostname",
         return_type: Some(TclType::String),
-        pure: true,
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
@@ -126,7 +125,6 @@ static SUBCOMMANDS: [SubCommand; 4] = [
         detail: "Encode hostname, replacing any characters not permitted in a basic hostname with their punycode form.",
         synopsis: "tcl::idna encode hostname",
         return_type: Some(TclType::String),
-        pure: true,
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
@@ -138,7 +136,6 @@ static SUBCOMMANDS: [SubCommand; 4] = [
         detail: "Direct access to the punycode encoder/decoder for a single string (decode|encode), bypassing the hostname-aware decode/encode above.",
         synopsis: "tcl::idna puny decode|encode string ?case?",
         return_type: Some(TclType::String),
-        pure: true,
         // `puny` is itself a two-operation ensemble: the word after
         // `puny` selects `decode` or `encode` (idna.n: "It supports two
         // subcommands").
@@ -154,7 +151,6 @@ static SUBCOMMANDS: [SubCommand; 4] = [
         detail: "Return the tcl::idna package's version number.",
         synopsis: "tcl::idna version",
         return_type: Some(TclType::String),
-        pure: true,
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),

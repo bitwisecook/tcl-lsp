@@ -22,7 +22,7 @@ use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::payload",
-        traits: Traits::PURE.union(Traits::CSE_CANDIDATE),
+        traits: Traits::CSE_CANDIDATE,
         surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         data_collection: Some(HTTP_PAYLOAD),

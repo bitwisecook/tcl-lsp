@@ -22,7 +22,6 @@ use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::idna::decode",
-        traits: Traits::PURE,
         surface: Some(SpecSurface::TCL86_PLUS),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {

@@ -38,7 +38,6 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "exp_pid",
-        traits: Traits::PURE,
         surface: Some(SpecSurface::EXPECT),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {

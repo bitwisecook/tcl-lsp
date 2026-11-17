@@ -542,7 +542,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "List aliases.",
         synopsis: "interp aliases ?path?",
-        pure: true,
         return_type: Some(TclType::List),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
@@ -734,7 +733,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Check if interpreter exists.",
         synopsis: "interp exists ?path?",
-        pure: true,
         return_type: Some(TclType::Boolean),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
@@ -759,7 +757,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "List hidden commands.",
         synopsis: "interp hidden ?path?",
-        pure: true,
         return_type: Some(TclType::List),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
@@ -842,7 +839,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Check if interpreter is safe.",
         synopsis: "interp issafe ?path?",
-        pure: true,
         return_type: Some(TclType::Boolean),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
@@ -987,7 +983,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Get alias target.",
         synopsis: "interp target path alias",
-        pure: true,
         // The result is either the empty list (for an alias targeting the
         // invoking interpreter) or `{targetPath targetCmd}`.  It is not an
         // arbitrary string; callers may safely consume it as Tcl-list data.
@@ -1023,7 +1018,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Returns a Tcl list of the names of all the child interpreters.",
         synopsis: "interp slaves ?path?",
-        pure: true,
         return_type: Some(TclType::List),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
@@ -1037,7 +1031,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Returns a Tcl list of the names of all the child interpreters associated with the interpreter identified by path.",
         synopsis: "interp children ?path?",
-        pure: true,
         return_type: Some(TclType::List),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT

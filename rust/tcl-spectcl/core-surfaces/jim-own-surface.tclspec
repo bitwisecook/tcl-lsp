@@ -61,7 +61,6 @@ speclib jim-own-surface 2.0 {
 
     command + {
         available {jim 0.76-}
-        traits {PURE}
         arity 0..
         form Default {+ ?number ...?}
         hover {
@@ -73,7 +72,6 @@ speclib jim-own-surface 2.0 {
 
     command - {
         available {jim 0.76-}
-        traits {PURE}
         arity 1..
         form Default {- number ?number ...?}
         hover {
@@ -85,7 +83,6 @@ speclib jim-own-surface 2.0 {
 
     command * {
         available {jim 0.76-}
-        traits {PURE}
         arity 0..
         form Default {* ?number ...?}
         hover {
@@ -97,7 +94,6 @@ speclib jim-own-surface 2.0 {
 
     command / {
         available {jim 0.76-}
-        traits {PURE}
         arity 1..
         form Default {/ number ?number ...?}
         hover {
@@ -168,7 +164,6 @@ speclib jim-own-surface 2.0 {
 
     command range {
         available {jim 0.76-}
-        traits {PURE}
         arity 1..3
         return_type List
         form Default {range ?start? end ?step?}

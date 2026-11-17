@@ -59,7 +59,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Check if a session exists.",
         synopsis: "ACCESS::session exists ?-sid id?",
-        pure: true,
         options: OPTIONS_3,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::ApmState,
@@ -132,7 +131,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Get the session ID.",
         synopsis: "ACCESS::session sid",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::ApmState,
             reads: true,

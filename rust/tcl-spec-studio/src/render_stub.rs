@@ -124,10 +124,7 @@ fn flags(draft: &Draft) -> Vec<&'static str> {
     if has("HAS_LOOP_BODY") {
         out.push("-loop");
     }
-    if has("PURE") {
-        out.push("-pure");
-    }
-    if writes_state && !has("PURE") {
+    if writes_state {
         out.push("-mutator");
     }
     if has("UNSAFE")
@@ -368,10 +365,10 @@ mod tests {
         let mut d = drafted("my_eval");
         d.insert(
             "traits".into(),
-            json!(["CREATES_DYNAMIC_BARRIER", "HAS_LOOP_BODY", "PURE"]),
+            json!(["CREATES_DYNAMIC_BARRIER", "HAS_LOOP_BODY"]),
         );
         let line = stub_line(&d);
-        assert!(line.ends_with("-barrier -loop -pure"), "{line}");
+        assert!(line.ends_with("-barrier -loop"), "{line}");
     }
 
     #[test]

@@ -613,10 +613,7 @@ pub fn spec() -> CommandSpec {
         runtime_backing: RuntimeBacking::shipped("format"),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         byte_array_effect: ByteArrayEffect::Coerces,
-        traits: Traits::FRAMELESS_RUNTIME
-            | Traits::BYTE_COMPILED
-            | Traits::PURE
-            | Traits::CSE_CANDIDATE,
+        traits: Traits::FRAMELESS_RUNTIME | Traits::BYTE_COMPILED | Traits::CSE_CANDIDATE,
         // Index 0 is the %-string (the §6 argument-DSL rung: `%b` is
         // 8.6+, `%ll…u` is 9.0+).
         arg_roles: &[(0, ArgRole::FormatString)],

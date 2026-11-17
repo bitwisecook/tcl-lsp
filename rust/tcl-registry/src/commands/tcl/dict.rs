@@ -237,7 +237,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::stepped(0, Arity::UNLIMITED, 2),
         detail: "Create a new dictionary from key/value pairs.",
         synopsis: "dict create ?key value ...?",
-        pure: true,
         return_type: Some(TclType::Dict),
         return_elements: Some(ReturnElements::DictOfPairs { from: 0 }),
         // Unknown key objects still require string materialisation. Only the
@@ -260,7 +259,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Test whether a key exists in a dictionary.",
         synopsis: "dict exists dictionaryValue key ?key ...?",
-        pure: true,
         return_type: Some(TclType::Boolean),
         arg_types: &[(
             0,
@@ -351,7 +349,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(1),
         detail: "Get a value from a dictionary.",
         synopsis: "dict get dictionaryValue ?key ...?",
-        pure: true,
         return_type: Some(TclType::String),
         // Single-key form only — the compiler applies the element fact to
         // the two-arg call shape (`dict get $d $k`).
@@ -411,7 +408,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(1, 2),
         detail: "Return the keys of a dictionary.",
         synopsis: "dict keys dictionaryValue ?globPattern?",
-        pure: true,
         return_type: Some(TclType::List),
         arg_types: &[(
             0,
@@ -498,7 +494,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::any(),
         detail: "Merge one or more dictionaries.",
         synopsis: "dict merge ?dictionaryValue ...?",
-        pure: true,
         return_type: Some(TclType::Dict),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
@@ -513,7 +508,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(1),
         detail: "Remove keys from a dictionary value.",
         synopsis: "dict remove dictionaryValue ?key ...?",
-        pure: true,
         return_type: Some(TclType::Dict),
         arg_types: &[(
             0,
@@ -539,7 +533,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::stepped(1, Arity::UNLIMITED, 2),
         detail: "Replace keys in a dictionary value.",
         synopsis: "dict replace dictionaryValue ?key value ...?",
-        pure: true,
         return_type: Some(TclType::Dict),
         arg_types: &[(
             0,
@@ -596,7 +589,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Return the number of key/value pairs.",
         synopsis: "dict size dictionaryValue",
-        pure: true,
         return_type: Some(TclType::Int),
         arg_types: &[(
             0,
@@ -716,7 +708,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(1, 2),
         detail: "Return the values of a dictionary.",
         synopsis: "dict values dictionaryValue ?globPattern?",
-        pure: true,
         return_type: Some(TclType::List),
         arg_types: &[(
             0,
@@ -771,7 +762,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "This returns information (intended for display to people) about the given dictionary though the format of this data is dependent on the implementation of the dictionary.",
         synopsis: "dict info dictionaryValue",
-        pure: true,
         return_type: Some(TclType::String),
         arg_types: &[(
             0,
@@ -794,7 +784,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         surface: Some(SpecSurface::TCL90_PLUS),
         detail: "Synonym for ``dict getdef`` — returns the value that the key path maps to in the dictionary value, or the default if the key is absent.",
         synopsis: "dict getd dictionaryValue ?key ...? key default",
-        pure: true,
         return_type: Some(TclType::String),
         // Same dict-argument shape as plain `dict get`'s `SubCommand`: the
         // key-path lookup forces a dict intrep on `dictionaryValue` exactly
@@ -823,7 +812,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         surface: Some(SpecSurface::TCL90_PLUS),
         detail: "Returns the value that the key path maps to in the dictionary value, or the default if the key is absent.",
         synopsis: "dict getdef dictionaryValue ?key ...? key default",
-        pure: true,
         return_type: Some(TclType::String),
         // Same dict-argument shape as plain `dict get`'s `SubCommand`: the
         // key-path lookup forces a dict intrep on `dictionaryValue` exactly
@@ -852,7 +840,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         surface: Some(SpecSurface::TCL90_PLUS),
         detail: "Returns the value that the key path maps to in the dictionary value, or the default if the key is absent. Alias for dict getdef.",
         synopsis: "dict getwithdefault dictionaryValue ?key ...? key default",
-        pure: true,
         return_type: Some(TclType::String),
         // Same dict-argument shape as plain `dict get`'s `SubCommand`: the
         // key-path lookup forces a dict intrep on `dictionaryValue` exactly

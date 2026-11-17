@@ -196,8 +196,8 @@ fn a_pack_declares_defers_body_and_omitting_it_stays_abstaining() {
 fn a_refine_block_states_one_invocation_form() {
     let pack = evaluate_pack(
         "speclib probe 2.0 {\n command demo {\n arity 0..2\n \
-             traits {PURE MUTATES_ARGUMENT}\n \
-             refine query {\n arity 0\n traits {PURE}\n mutator no\n \
+             traits {CSE_CANDIDATE MUTATES_ARGUMENT}\n \
+             refine query {\n arity 0\n traits {CSE_CANDIDATE}\n mutator no\n \
              side_effects none\n }\n \
              refine set {\n arity 2\n selector {put}\n mutator yes\n \
              side_effect InterpState -writes\n }\n }\n}",
@@ -208,7 +208,7 @@ fn a_refine_block_states_one_invocation_form() {
     };
     assert_eq!(query.name, "query");
     assert_eq!(query.arity, Arity::exact(0));
-    assert_eq!(query.traits, Some(Traits::PURE));
+    assert_eq!(query.traits, Some(Traits::CSE_CANDIDATE));
     assert_eq!(query.mutator, Some(false));
     assert_eq!(
         query.side_effects,
@@ -237,7 +237,7 @@ fn a_subcommand_refines_its_own_forms() {
     let pack = evaluate_pack(
         "speclib probe 2.0 {\n command widget {\n arity 1..\n \
              subcommand cget {\n arity 0..1\n \
-             refine query {\n arity 0\n traits {PURE}\n mutator no\n }\n \
+             refine query {\n arity 0\n traits {CSE_CANDIDATE}\n mutator no\n }\n \
              refine set {\n arity 1\n mutator yes\n }\n }\n }\n}",
     );
     let spec = pack.command("widget").expect("widget loads").spec;

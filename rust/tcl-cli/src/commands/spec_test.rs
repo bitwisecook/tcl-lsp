@@ -107,7 +107,10 @@ pub fn probes_of(set: &PackSet) -> Vec<CommandProbe> {
                     max: (!arity.is_unlimited()).then_some(arity.max),
                     step: arity.step,
                 }),
-                pure: spec.is_pure(),
+                // Pure at some Tcl release its knowledge covers.
+                pure: !tcl_registry::purity::PurityDomains::of_command(spec)
+                    .pure_releases(tcl_dialect::model::Family::Tcl)
+                    .is_empty(),
                 return_type: spec.return_type,
                 examples: spec.hover.as_ref().map_or_default(|hover| {
                     hover
@@ -584,8 +587,8 @@ mod tests {
     fn probe(name: &str) -> CommandProbe {
         CommandProbe {
             name: name.to_owned(),
-            arity: None,
             pure: false,
+            arity: None,
             return_type: None,
             examples: Vec::new(),
             reference: None,
@@ -717,7 +720,7 @@ mod tests {
     #[test]
     fn what_the_pack_declares_reaches_the_probe() {
         let source = "speclib demo 2.0 {\n    command demo::two {\n        arity 1..2\n        \
-                      required_package demo\n        traits {PURE}\n        return_type Int\n        \
+                      required_package demo\n        effects -complete {package demo}\n        world_effects none -complete {package demo}\n        completion {Ok Error} -complete {package demo}\n        result_stability ReferentiallyTransparent -complete {package demo}\n        return_type Int\n        \
                       hover {\n            summary {Two.}\n            example {demo::two 1}\n            \
                       example {# a comment}\n            example {demo::two 1 2}\n        }\n    }\n    \
                       command demo::open {\n        arity 0..\n        required_package demo\n    }\n}\n";

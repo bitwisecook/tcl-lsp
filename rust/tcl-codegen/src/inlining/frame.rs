@@ -719,9 +719,26 @@ fn command_goes_beyond_values(
 fn works_on_values(head: &str, registry: &CommandRegistry) -> bool {
     !head.is_empty()
         && !head.contains(['$', '[', ']', '\\', '{', '}', '"'])
-        && registry
-            .get(head)
-            .is_some_and(|spec| registry.is_splice_safe(head) || spec.is_pure())
+        && registry.get(head).is_some_and(|spec| {
+            registry.is_splice_safe(head)
+                || registry.profile().map_or_else(
+                    // With no release, pure at every Tcl release that has it,
+                    // and some release has it.
+                    || {
+                        let family = tcl_dialect::model::Family::Tcl;
+                        let present: Vec<_> = family
+                            .releases()
+                            .iter()
+                            .map(|step| {
+                                tcl_dialect::model::SurfaceQuery::core(family, step.as_str())
+                            })
+                            .filter(|at| spec.supports_dialect(Some(*at)))
+                            .collect();
+                        !present.is_empty() && present.iter().all(|at| spec.is_pure_at(Some(at)))
+                    },
+                    |profile| spec.is_pure_at(Some(&profile.surface_query())),
+                )
+        })
 }
 
 #[cfg(test)]

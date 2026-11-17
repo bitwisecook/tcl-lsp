@@ -26,7 +26,6 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "math::statistics::test-Dunnett",
-        traits: Traits::PURE,
         surface: None,
         arity: Arity::at_least(2),
         hover: Some(HoverSnippet {

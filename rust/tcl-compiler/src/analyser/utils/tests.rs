@@ -986,7 +986,6 @@ fn stub_flags_reach_their_declared_command_fields() {
     for (flag, traits) in [
         ("-barrier", Traits::CREATES_DYNAMIC_BARRIER),
         ("-loop", Traits::HAS_LOOP_BODY),
-        ("-pure", Traits::PURE),
         ("-scope_alias", Traits::CREATES_SCOPE_ALIAS),
         ("-unsafe", Traits::UNSAFE.union(Traits::SAFE_INTERP_HIDDEN)),
         ("-mutator", Traits::READS_BEFORE_WRITE),
@@ -994,6 +993,9 @@ fn stub_flags_reach_their_declared_command_fields() {
         assert!(declared(flag).traits.contains(traits), "{flag}");
         assert!(!declared("").traits.contains(traits), "{flag}");
     }
+    // `-pure` is the document's own statement, on the declaration's own
+    // field rather than a trait (issue #1712).
+    assert!(declared("-pure").pure && !declared("").pure);
     assert_ne!(declared("-mutator").side_effects, []);
     assert_eq!(declared("").side_effects, []);
 }

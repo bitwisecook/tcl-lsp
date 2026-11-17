@@ -50,7 +50,6 @@ const fn pure_sub(
         arity,
         detail,
         synopsis,
-        pure: true,
         return_type: Some(return_type),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,

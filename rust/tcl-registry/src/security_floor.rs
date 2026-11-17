@@ -627,11 +627,11 @@ mod tests {
     fn security_traits_keeps_only_the_security_category() {
         let mixed = Traits::TAINT_SINK
             .union(Traits::TAINT_SOURCE)
-            .union(Traits::PURE);
+            .union(Traits::CSE_CANDIDATE);
         let kept = SecurityFloor::security_traits(mixed);
         assert!(kept.contains(Traits::TAINT_SINK));
         assert!(kept.contains(Traits::TAINT_SOURCE));
-        assert!(!kept.contains(Traits::PURE));
+        assert!(!kept.contains(Traits::CSE_CANDIDATE));
     }
 
     #[test]

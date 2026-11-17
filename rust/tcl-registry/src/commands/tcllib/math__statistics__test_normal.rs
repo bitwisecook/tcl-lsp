@@ -26,7 +26,6 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "math::statistics::test-normal",
-        traits: Traits::PURE,
         surface: None,
         arity: Arity::exact(2),
         hover: Some(HoverSnippet {

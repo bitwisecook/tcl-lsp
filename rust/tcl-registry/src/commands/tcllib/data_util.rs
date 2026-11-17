@@ -32,7 +32,7 @@ const STATEFUL: &[SideEffect] = &[SideEffect {
 
 /// One command in a flat tcllib package.  `stateful` marks a state-mutating
 /// command (file / counter side effects); otherwise the command is pure, and
-/// declares `pure`: why no route evaluates it.
+/// declares pure: why no route evaluates it.
 fn cmd(
     name: &'static str,
     pkg: &'static str,
@@ -44,11 +44,6 @@ fn cmd(
 ) -> CommandSpec {
     CommandSpec {
         name,
-        traits: if stateful {
-            Traits::empty()
-        } else {
-            Traits::PURE
-        },
         arity,
         hover: Some(HoverSnippet::brief(summary, synopsis, "tcllib package")),
         side_effects: crate::knowledge::Knowledge::declared(if stateful { STATEFUL } else { &[] }),
@@ -74,7 +69,7 @@ type Row = (
 );
 
 /// Build specs for a package from its command table, its pure commands
-/// declaring `pure`.
+/// declaring pure.
 fn rows(pkg: &'static str, table: &'static [Row], pure: SemanticsDeclaration) -> Vec<CommandSpec> {
     table
         .iter()

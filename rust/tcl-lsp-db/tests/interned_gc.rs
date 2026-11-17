@@ -168,7 +168,7 @@ const SLOT_GROWTH_BOUND: usize = 2;
 ///   worker, which moves its `calls` set — between them that shifts the
 ///   interprocedural projections the summary keys are built from
 ///   (`TaintSummaryKey`, `SummaryDepsKey`);
-/// * every procedure calls `puts`, so none is `pure`: a pure-but-not-constant-
+/// * every procedure calls `puts`, so none is pure: a pure-but-not-constant-
 ///   return procedure sends `solve_optimisations` down its whole-module
 ///   fallback and `OptDepsKey` would never be interned at all;
 /// * no `TclOO` methods and a plain `tcl8.6` dialect, the remaining

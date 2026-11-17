@@ -702,7 +702,8 @@ fn constructor_option_callbacks_keep_their_original_argument_positions() {
             .resolve_instance_invocation("canvas", ".canvas", &query, None)
             .expect("the provided classic widget retains its configure query");
         assert!(!invocation.semantics.mutator);
-        assert!(invocation.semantics.traits.contains(Traits::PURE));
+        // It reads widget state no source evidence closes (issue #1712).
+        assert!(!invocation.facts().is_pure());
         assert_eq!(
             registry.instance_script_timing("canvas", ".canvas", &query, 1, None),
             None,

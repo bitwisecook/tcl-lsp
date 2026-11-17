@@ -235,7 +235,7 @@ fn check_registry_queries(
     // taint_source reads the compile-time TAINT_SOURCE_INDEX.
     let _ = reg.taint_source(name);
     // subcommands_with_trait over a couple of representative traits.
-    let _ = reg.subcommands_with_trait(name, Traits::PURE);
+    let _ = reg.subcommands_with_trait(name, Traits::CSE_CANDIDATE);
     let _ = reg.subcommands_with_trait(name, Traits::INTROSPECTS_BY_NAME);
 
     // --- resolve_call: nullary and a small arg list ---

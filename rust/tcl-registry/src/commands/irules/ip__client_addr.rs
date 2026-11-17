@@ -23,7 +23,7 @@ pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "IP::client_addr",
         successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf),
-        traits: Traits::PURE.union(Traits::CSE_CANDIDATE),
+        traits: Traits::CSE_CANDIDATE,
         surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {

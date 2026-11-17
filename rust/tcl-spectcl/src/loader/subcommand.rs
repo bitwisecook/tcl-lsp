@@ -264,7 +264,16 @@ pub(super) fn apply_subcommand_stmt(
                 sub.var_write_typing = typing;
             }
         }
-        "pure" => sub.pure = parse_flag(stmt.tail()),
+        // A pack written before purity was derived still says `pure`; tell
+        // its author where the fact went (issue #1712).
+        "pure" => log.say(
+            stmt.line,
+            super::value_parsers::unaccepted_trait_notice("PURE").replacen(
+                "trait `PURE`",
+                "row `pure`",
+                1,
+            ),
+        ),
         "mutator" => sub.mutator = parse_flag(stmt.tail()),
         "destructive" => sub.destructive = parse_flag(stmt.tail()),
         "returns_path" => sub.returns_path = parse_flag(stmt.tail()),

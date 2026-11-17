@@ -84,10 +84,7 @@ pub fn spec() -> CommandSpec {
         }),
         // Numeric conversion does not execute operand text as a Tcl script.
         // Normal world closure still requires the separate selected operand proof.
-        traits: Traits::PURE
-            | Traits::BYTE_COMPILED
-            | Traits::NOT_PROC_FACTORY
-            | Traits::FRAMELESS_RUNTIME,
+        traits: Traits::BYTE_COMPILED | Traits::NOT_PROC_FACTORY | Traits::FRAMELESS_RUNTIME,
         surface: Some(SpecSurface::TCL90_PLUS),
         // 1..=5 words after the command name spans every documented form
         // (`lseq count` at the floor; `lseq start to end by step` /

@@ -20,7 +20,7 @@
 //!
 //! A `CommandSpec` field is rarely a standalone switch. `arity` is read
 //! against `arity_windows`; a `taint_source` colour means nothing without the
-//! sinks that check it; setting `pure` while `side_effects` says otherwise is
+//! sinks that check it; setting pure while `side_effects` says otherwise is
 //! a contradiction the studio should let an author *see* rather than discover
 //! from a failing gate. The studio's help surfaces link a field to the rest of
 //! its cluster so following the interaction is one click.
@@ -185,7 +185,6 @@ pub const CLUSTERS: &[Cluster] = &[
               optimiser may move, reuse, or fold it away.",
         members: &[
             "traits",
-            "pure",
             "mutator",
             "destructive",
             "side_effects",

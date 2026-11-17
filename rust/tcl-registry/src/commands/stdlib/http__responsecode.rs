@@ -22,7 +22,6 @@ use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http::responseCode",
-        traits: Traits::PURE,
         surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {

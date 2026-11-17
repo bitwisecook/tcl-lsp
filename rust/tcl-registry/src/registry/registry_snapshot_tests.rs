@@ -51,7 +51,7 @@ fn descriptor_coordinates_reuse_only_their_actual_snapshot_and_keep_identity() {
     // Same labels do not erase a changed selected spec or registry owner.
     let original = registry.get("set").unwrap();
     let mut changed = original.clone();
-    changed.traits = crate::Traits::PURE;
+    changed.traits = crate::Traits::CSE_CANDIDATE;
     registry.insert(changed);
     let current = registry.snapshot();
     assert_ne!(snapshot, current);
@@ -183,7 +183,7 @@ fn snapshot_retains_original_surface_across_every_mutation_kind() {
             .contains(&("SnapshotPackage", "1.0"))
     );
     let mut spec = registry.get("set").unwrap().clone();
-    spec.traits = crate::Traits::PURE;
+    spec.traits = crate::Traits::CSE_CANDIDATE;
     registry.insert(spec);
     let overridden = registry.snapshot();
     assert_ne!(ambient, overridden);

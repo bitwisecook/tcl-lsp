@@ -27,7 +27,6 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "platform::identify",
-        traits: Traits::PURE,
         surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::exact(0),
         hover: Some(HoverSnippet {

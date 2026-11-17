@@ -792,7 +792,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         }),
         detail: "Returns the major and minor version of the Jim interpreter.",
         synopsis: "info version",
-        pure: true,
         return_type: Some(TclType::String),
         ..SubCommand::DEFAULT
     },
@@ -827,7 +826,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Returns the names of the parameters to the procedure named procname.",
         synopsis: "info args procname",
-        pure: true,
         return_type: Some(TclType::List),
         // `procname` names a proc introspected (not called), so it is a
         // command reference navigation follows.
@@ -847,7 +845,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Returns the body of the procedure named procname.",
         synopsis: "info body procname",
-        pure: true,
         return_type: Some(TclType::String),
         arg_roles: &[(0, ArgRole::CommandName)],
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
@@ -862,7 +859,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // `superclasses`, `subclasses`, `instances`, `mixins`, `call` and
         // `definition` answer class and object command names as data.
         traits: Traits::REFLECTS_COMMAND_NAMES,
-        pure: true,
         return_type: Some(TclType::String),
         surface: Some(SpecSurface::TCL86_PLUS),
         // `info class` is itself an ensemble: the word after `class` selects a
@@ -880,7 +876,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Returns the total number of commands evaluated in this interpreter.",
         synopsis: "info cmdcount",
-        pure: true,
         return_type: Some(TclType::Int),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
@@ -896,7 +891,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Returns the type of the command named commandName: alias, coroutine, ensemble, import, native, object, privateObject, proc, interp, or zlibStream.",
         synopsis: "info cmdtype commandName",
-        pure: true,
         return_type: Some(TclType::String),
         surface: Some(SpecSurface::TCL90_PLUS),
         // `commandName` is an introspected command (a command reference),
@@ -942,7 +936,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Returns the names of all commands visible in the current namespace.",
         synopsis: "info commands ?pattern?",
-        pure: true,
         return_type: Some(TclType::List),
         // The optional argument is a glob *pattern*, but the common exact
         // spelling (`info commands foo`) probes one specific command — a
@@ -963,7 +956,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Returns 1 if command is a complete command, and 0 otherwise.",
         synopsis: "info complete command",
-        pure: true,
         return_type: Some(TclType::Boolean),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
@@ -980,7 +972,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Returns 1 if varName is a constant variable and 0 otherwise.",
         synopsis: "info constant varName",
-        pure: true,
         return_type: Some(TclType::Boolean),
         surface: Some(SpecSurface::TCL90_PLUS),
         arg_roles: &[(0, ArgRole::VarRead)],
@@ -996,7 +987,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Returns the list of constant variables in the current scope.",
         synopsis: "info consts ?pattern?",
-        pure: true,
         return_type: Some(TclType::List),
         surface: Some(SpecSurface::TCL90_PLUS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
@@ -1013,7 +1003,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Returns the name of the current coroutine, or the empty string if there is no current coroutine.",
         synopsis: "info coroutine",
-        pure: true,
         return_type: Some(TclType::String),
         surface: Some(SpecSurface::TCL86_PLUS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
@@ -1053,7 +1042,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Returns an even-sized list of CALL/UP/INNER tokens and parameters describing the active command at each level from the call stack of the last error. Also available as the -errorstack entry of a 3-argument catch's options dictionary.",
         synopsis: "info errorstack ?interp?",
-        pure: true,
         return_type: Some(TclType::List),
         surface: Some(SpecSurface::TCL86_PLUS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
@@ -1077,7 +1065,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Returns 1 if a variable named varName is visible and has been defined, and 0 otherwise.",
         synopsis: "info exists varName",
-        pure: true,
         return_type: Some(TclType::Boolean),
         arg_roles: &[(0, ArgRole::VarRead)],
         inline_codegen_hook: Some(InlineCodegenHookId::InfoExists),
@@ -1096,7 +1083,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Returns the depth of the call to info frame itself when depth is omitted; otherwise returns a dictionary describing the active command at that depth (keys: type — one of source/proc/eval/precompiled — plus line, file, cmd, proc, lambda, level as applicable). Reports every stack frame, including eval/uplevel/source frames that info level does not see.",
         synopsis: "info frame ?depth?",
-        pure: true,
         return_type: Some(TclType::Dict),
         // Introduced in Tcl 8.5 (TIP 280) — not available in 8.4.
         surface: Some(SpecSurface::TCL85_PLUS),
@@ -1112,7 +1098,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Returns a list of all the math functions currently defined.",
         synopsis: "info functions ?pattern?",
-        pure: true,
         return_type: Some(TclType::List),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
@@ -1129,7 +1114,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Returns a list of all the names of currently-defined global variables.",
         synopsis: "info globals ?pattern?",
-        pure: true,
         return_type: Some(TclType::List),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
@@ -1143,7 +1127,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Returns the name of the current host.",
         synopsis: "info hostname",
-        pure: true,
         return_type: Some(TclType::String),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::PLATFORM_DECIDED,
@@ -1164,7 +1147,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Returns the current stack level (0 at top level) when level is omitted; otherwise returns the complete command (name and arguments, as a list) active at that level. A positive level is absolute (1 = outermost active procedure); zero or a negative level is relative to the current one.",
         synopsis: "info level ?level?",
-        pure: true,
         return_type: Some(TclType::Int),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         // It answers, or raises `bad level "N"`; nothing else. tclsh 8.4.20,
@@ -1187,7 +1169,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Returns the name of the library directory in which standard Tcl scripts are stored.",
         synopsis: "info library",
-        pure: true,
         return_type: Some(TclType::String),
         returns_path: true,
         semantics: SemanticsDeclaration::Declared(
@@ -1204,7 +1185,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 2),
         detail: "Returns the name of each file loaded in interp by the load command, paired with the package prefix it was loaded under. From Tcl 9.0, an optional trailing prefix argument restricts the results to that prefix; Tcl 8.4-8.6 accept only the interp argument.",
         synopsis: "info loaded ?interp? ?prefix?",
-        pure: true,
         return_type: Some(TclType::List),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
@@ -1219,7 +1199,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Returns the name of each local variable matching pattern.",
         synopsis: "info locals ?pattern?",
-        pure: true,
         return_type: Some(TclType::List),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
@@ -1233,7 +1212,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Returns the absolute pathname of the program for the current interpreter.",
         synopsis: "info nameofexecutable",
-        pure: true,
         return_type: Some(TclType::String),
         returns_path: true,
         semantics: SemanticsDeclaration::Declared(
@@ -1250,7 +1228,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // `class`, `mixins`, `call` and `isa` answer or compare class command
         // names as data (`string equal [info object class $o] ::C`).
         traits: Traits::REFLECTS_COMMAND_NAMES,
-        pure: true,
         return_type: Some(TclType::String),
         surface: Some(SpecSurface::TCL86_PLUS),
         // `info object` is itself an ensemble: the word after `object` selects
@@ -1268,7 +1245,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Returns the live Tcl global tcl_patchLevel, or the independently selected Jim build/core version report.",
         synopsis: "info patchlevel",
-        pure: true,
         return_type: Some(TclType::String),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::PLATFORM_DECIDED,
@@ -1286,7 +1262,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Returns the names of all visible procedures.",
         synopsis: "info procs ?pattern?",
-        pure: true,
         return_type: Some(TclType::List),
         // Same probe semantics as `info commands` above: an exact spelling
         // (`info procs helper`) is a navigable reference to an existing
@@ -1305,14 +1280,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Returns the pathname of the innermost script currently being evaluated, or the empty string if none. With filename, overrides the return value of this command for the remainder of the active invocation — useful in virtual filesystem applications.",
         synopsis: "info script ?filename?",
-        pure: true,
         mutator: true,
         return_type: Some(TclType::String),
         returns_path: true,
         // Read-only in its common bare form; the optional `filename`
         // argument writes interpreter-level state (the active script-path
         // override), unchanged across 8.4-9.1. `mutator: true` is required
-        // alongside `pure: true` here (mirrors the getter/setter pattern
+        // alongside pure here (mirrors the getter/setter pattern
         // used e.g. by `DNS::header cd ?value?`) — without it,
         // `tcl_compiler::side_effects::classify_side_effects`'s
         // `sub.pure && !sub.mutator` short-circuit returns an empty,
@@ -1338,7 +1312,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Returns the extension used on this platform for shared libraries.",
         synopsis: "info sharedlibextension",
-        pure: true,
         return_type: Some(TclType::String),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::PLATFORM_DECIDED,
@@ -1358,7 +1331,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Returns the major and minor version of the Tcl library.",
         synopsis: "info tclversion",
-        pure: true,
         return_type: Some(TclType::String),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
@@ -1375,7 +1347,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Returns the names of all visible variables.",
         synopsis: "info vars ?pattern?",
-        pure: true,
         return_type: Some(TclType::List),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT

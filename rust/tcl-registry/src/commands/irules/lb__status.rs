@@ -27,7 +27,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(1),
         detail: "Query/set node status.",
         synopsis: "LB::status node <addr> ?status?",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::PoolSelection,
             reads: true,
@@ -42,7 +41,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(3),
         detail: "Query/set pool member status.",
         synopsis: "LB::status pool <pool> member <addr> <port> ?status?",
-        pure: true,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::PoolSelection,
             reads: true,

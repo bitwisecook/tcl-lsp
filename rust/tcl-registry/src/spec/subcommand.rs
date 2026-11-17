@@ -56,7 +56,7 @@ use tcl_dialect::model::{SpecSurface, SurfaceQuery, surface_admits};
 /// Carries its own arity, arg roles, return type, effect classification,
 /// and hooks — a self-contained metadata bundle.
 #[derive(Debug, Clone)]
-// `pure` / `mutator` / `loop_list_header` /
+// pure / `mutator` / `loop_list_header` /
 // `creates_scope_alias` are subcommand-shaped behavioural facts.
 // They could fold into the existing [`Traits`] bitflags field
 // above, but doing so is a registry-API change that touches
@@ -173,9 +173,6 @@ pub struct SubCommand {
 
     /// Per-argument type hints.
     pub arg_types: &'static [(u8, ArgTypeHint)],
-
-    /// Side-effect-free.
-    pub pure: bool,
 
     /// Mutates state.
     pub mutator: bool,
@@ -607,17 +604,11 @@ impl SubCommand {
     /// scope-alias declarations compose with its explicit trait flags.
     #[must_use]
     pub const fn semantic_traits(&self) -> Traits {
-        self.traits
-            .union(if self.pure {
-                Traits::PURE
-            } else {
-                Traits::empty()
-            })
-            .union(if self.creates_scope_alias {
-                Traits::CREATES_SCOPE_ALIAS
-            } else {
-                Traits::empty()
-            })
+        self.traits.union(if self.creates_scope_alias {
+            Traits::CREATES_SCOPE_ALIAS
+        } else {
+            Traits::empty()
+        })
     }
 
     /// Whether argument roles have a declared dynamic input contract.
@@ -630,11 +621,16 @@ impl SubCommand {
 }
 
 impl SubCommand {
-    /// Whether the subcommand is declared free of side effects, by its
-    /// `pure` flag or its own `PURE` trait.
+    /// Whether the subcommand of `parent` is pure at `query`: each purity
+    /// domain it states, or inherits from `parent`, is complete and closed
+    /// there ([`crate::purity::PurityDomains`], issue #1712).
     #[must_use]
-    pub const fn is_pure(&self) -> bool {
-        self.pure || self.traits.contains(Traits::PURE)
+    pub fn is_pure_at(
+        &self,
+        parent: &crate::spec::CommandSpec,
+        query: Option<&tcl_dialect::model::SurfaceQuery<'_>>,
+    ) -> bool {
+        crate::purity::PurityDomains::of_subcommand(parent, self).pure_at(query)
     }
 
     /// The clause plan of a call to this subcommand: its

@@ -66,7 +66,7 @@ fn make(
         // mechanism exists for these four — confirmed via their manpages
         // and via `tcl-vm`, which has no dedicated implementation for any
         // of them at all (falls through to generic invoke, so there's no
-        // hidden eval-fallback to worry about either) — so plain `PURE` +
+        // hidden eval-fallback to worry about either) — so purity and
         // `CSE_CANDIDATE` is sound here. Not `BYTE_COMPILED` either: that
         // trait marks the curated former minifier `_BUILTIN_SKIP` list
         // (`set`/`if`/`string`/…, see `registry.rs`'s
@@ -75,7 +75,7 @@ fn make(
         // no demonstrated claim to dedicated Tcl bytecode-compiler inlining
         // the way `lseq` (which *does* carry `BYTE_COMPILED`, as an
         // established core builtin with its own manpage) does.
-        traits: Traits::PURE.union(Traits::CSE_CANDIDATE),
+        traits: Traits::CSE_CANDIDATE,
         surface: Some(SpecSurface::TCL91),
         arity: Arity::exact(args),
         return_type: Some(TclType::List),

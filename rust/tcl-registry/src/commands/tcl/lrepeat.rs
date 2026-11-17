@@ -124,8 +124,8 @@ pub fn spec() -> CommandSpec {
         // arguments and builds a list with no eval fallback, opens no
         // new call frame, and never invokes a user-supplied callback, so
         // `FRAMELESS_RUNTIME` holds; it is also a deterministic,
-        // side-effect-free function of its arguments (`PURE`).
-        traits: Traits::FRAMELESS_RUNTIME | Traits::PURE | Traits::NOT_PROC_FACTORY,
+        // side-effect-free function of its arguments (purity).
+        traits: Traits::FRAMELESS_RUNTIME | Traits::NOT_PROC_FACTORY,
         // Added in Tcl 8.5 (TIP 136); absent from 8.4 and never
         // available in iRules (a genuine embedded Tcl 8.4.6) — see the
         // module comment above for the full version/dialect cross-check.

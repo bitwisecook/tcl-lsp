@@ -34,8 +34,7 @@ const SETTER_CONSTRAINTS: &[SetterConstraint] = &[SetterConstraint {
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::uri",
-        traits: Traits::PURE
-            .union(Traits::CSE_CANDIDATE)
+        traits: Traits::CSE_CANDIDATE
             .union(Traits::DIAGRAM_ACTION)
             .union(Traits::UNNORMALISED_HTTP_GETTER),
         surface: Some(SpecSurface::IRULES),

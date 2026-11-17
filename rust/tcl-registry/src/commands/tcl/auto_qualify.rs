@@ -48,13 +48,13 @@ pub fn spec() -> CommandSpec {
         // `CmdInfo` row and is absent from the exact C Tcl
         // safe-interpreter hidden-command table documented on
         // `Traits::SAFE_INTERP_HIDDEN` — that trait does not apply here.
-        // `PURE`: unlike its `auto_execok` / `auto_import` / `auto_load`
+        // purity: unlike its `auto_execok` / `auto_import` / `auto_load`
         // siblings, the proc body touches only its two parameters — no
         // `global`/`variable` statement, no filesystem access, no read of
         // `auto_index`/`auto_path` — so its result depends solely on
         // `cmd` and `namespace` and it commits no side effect.
         // Computes qualified command names from a spelled name.
-        traits: Traits::OVERRIDABLE_LIBRARY_PROC | Traits::PURE | Traits::REFLECTS_COMMAND_NAMES,
+        traits: Traits::OVERRIDABLE_LIBRARY_PROC | Traits::REFLECTS_COMMAND_NAMES,
         // `proc auto_qualify {cmd namespace}` in every shipped
         // `library/init.tcl` from 8.4 through 9.1, matching `library.n`'s
         // `auto_qualify command namespace` synopsis (unchanged across the

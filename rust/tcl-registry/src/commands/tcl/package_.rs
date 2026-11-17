@@ -393,7 +393,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Lists all files forming part of package, in the order they were sourced during package initialization; auto-loaded files are excluded.",
         synopsis: "package files package",
-        pure: true,
         return_type: Some(TclType::List),
         // Added in Tcl 9.0 — absent from the 8.4/8.5/8.6 SYNOPSIS (and the
         // "bad option" error's subcommand list on tclsh 8.6.14), present
@@ -461,7 +460,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         detail: "Returns a list of the names of all packages in the interpreter for which a version has been provided (via package provide) or for which a package ifneeded script is available. The order of elements in the list is arbitrary.",
         synopsis: "package names",
-        pure: true,
         return_type: Some(TclType::List),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
@@ -496,7 +494,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // reports "not present") and never invokes `package unknown`.
         // Unlike `require`, it therefore only ever reads existing
         // interpreter state, so it is genuinely side-effect-free.
-        pure: true,
         // `-exact` is matched by exact spelling, as `require`'s is.
         prefix_matching: PrefixMatching::Strict,
         options: const {
@@ -597,7 +594,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Compares the two version numbers given by version1 and version2: returns -1 if version1 is earlier, 0 if they are equal, or 1 if version1 is later.",
         synopsis: "package vcompare version1 version2",
-        pure: true,
         return_type: Some(TclType::Int),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
@@ -609,7 +605,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Returns a list of all the version numbers of package for which information has been provided by package ifneeded commands — a package known only via package provide, with no matching ifneeded entry, is not included.",
         synopsis: "package versions package",
-        pure: true,
         return_type: Some(TclType::List),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
@@ -630,7 +625,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Returns 1 if version satisfies at least one of the given requirements, 0 otherwise. From Tcl 8.5 (TIP 268) each requirement may be a bare min (min, or a later release with the same major version), min- (min or later, unbounded), or min-max (min inclusive, max exclusive); before 8.5 vsatisfies took exactly one plain version to compare against, under the same \"later, same major version\" rule.",
         synopsis: "package vsatisfies version requirement ?requirement ...?",
-        pure: true,
         // Compares its operands only; no interpreter state or callback.
         world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(StateTransitionDescriptor::EMPTY),
@@ -698,7 +692,6 @@ const JIM_SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "names",
         arity: Arity::exact(0),
-        pure: true,
         return_type: Some(TclType::List),
         synopsis: "package names",
         ..SubCommand::DEFAULT
@@ -706,7 +699,6 @@ const JIM_SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "list",
         arity: Arity::exact(0),
-        pure: true,
         return_type: Some(TclType::List),
         synopsis: "package list",
         ..SubCommand::DEFAULT
@@ -770,7 +762,7 @@ pub fn spec() -> CommandSpec {
         // `forget` (unconditional, never reads first) overrides this with
         // its own precise write-only declaration above; the pure getters
         // (`files`/`names`/`present`/`vcompare`/`versions`/`vsatisfies`)
-        // bypass this entirely via their `pure: true` short-circuit in
+        // bypass this entirely via their pure short-circuit in
         // `tcl_compiler::side_effects::classify_side_effects`.
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::InterpState,

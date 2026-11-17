@@ -241,7 +241,7 @@ static DECODE_WORKERS: &[crate::spec::SubSubCommand] = &[
 ];
 
 // Only `binary scan` ever reaches this: `format`/`encode`/`decode` are
-// `pure: true` on their `SubCommand` entries, so the compiler's side-effect
+// pure on their `SubCommand` entries, so the compiler's side-effect
 // classifier (`classify_side_effects`) short-circuits on subcommand purity
 // before it ever consults this command-level fallback — see
 // `tcl-compiler/src/side_effects.rs`'s `sub.pure && !sub.mutator` branch.
@@ -314,7 +314,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Decode base64/hex/uuencode-encoded text back into a binary string.",
         synopsis: "binary decode format ?-option value ...? data",
-        pure: true,
         // S110 binary source: the return type marks the result a byte array —
         // tclsh 8.6.14-verified (`tcl::unsupported::representation
         // [binary decode hex 41ffc8]` → bytearray); 9.0 `BinaryDecodeHex`/
@@ -377,7 +376,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Encode binary data as base64, hex, or uuencode text.",
         synopsis: "binary encode format ?-option value ...? data",
-        pure: true,
         return_type: Some(TclType::String),
         // S110: reads `data` *as bytes*, installing the byte-array rep on it
         // in place — tclsh 8.6.14-verified (`set q héllo; binary encode hex
@@ -457,7 +455,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(1),
         detail: "Build a binary string from Tcl values, laid out by a cursor-driven format specification.",
         synopsis: "binary format formatString ?arg ...?",
-        pure: true,
         // The cursor-driven field string: index 0 after the subcommand word,
         // family `Binary`.
         arg_roles: &[(0, ArgRole::FormatString)],

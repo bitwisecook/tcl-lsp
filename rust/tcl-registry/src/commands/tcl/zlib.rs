@@ -276,7 +276,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(1, 2),
         detail: "Return the zlib-format compressed binary data of string. The optional level (0, uncompressed, to 9, maximally compressed) selects the compression effort; omitted, zlib's own default level is used.",
         synopsis: "zlib compress string ?level?",
-        pure: true,
         return_type: Some(TclType::String),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::PLATFORM_DECIDED,
@@ -288,7 +287,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(1, 2),
         detail: "Return the uncompressed version of the raw zlib-format compressed binary data in string. The optional bufferSize, when given, must be 16-65536 and hints the initial output buffer size; Tcl grows the buffer automatically if more space is needed.",
         synopsis: "zlib decompress string ?bufferSize?",
-        pure: true,
         return_type: Some(TclType::String),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
@@ -300,7 +298,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(1, 2),
         detail: "Return the raw compressed binary data of string (no zlib/gzip framing). The optional level (0-9) selects the compression effort; omitted, zlib's own default level is used.",
         synopsis: "zlib deflate string ?level?",
-        pure: true,
         return_type: Some(TclType::String),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::PLATFORM_DECIDED,
@@ -310,7 +307,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "gunzip",
         traits: Traits::UNCONDITIONAL_VARIABLE_WRITE,
-        // Not `pure`: -headerVar, when given, writes a variable — same
+        // Not pure: -headerVar, when given, writes a variable — same
         // "declare the write unconditionally since the static spec can't
         // see whether a call actually passes the option" convention as
         // `encoding convertfrom`'s -failindex.
@@ -340,7 +337,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Return the compressed contents of string in gzip format.",
         synopsis: "zlib gzip string ?-level level? ?-header dict?",
         options: GZIP_OPTIONS,
-        pure: true,
         return_type: Some(TclType::String),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::PLATFORM_DECIDED,
@@ -352,7 +348,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(1, 2),
         detail: "Return the uncompressed version of the raw compressed binary data in string (the inverse of deflate; no zlib/gzip framing expected). The optional bufferSize, when given, must be 16-65536 and hints the initial output buffer size.",
         synopsis: "zlib inflate string ?bufferSize?",
-        pure: true,
         return_type: Some(TclType::String),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
@@ -397,7 +392,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(1, 2),
         detail: "Compute a checksum of binary string string using the Adler-32 algorithm. The optional initValue seeds the checksum engine; omitted, the algorithm's own starting value (1) is used.",
         synopsis: "zlib adler32 string ?initValue?",
-        pure: true,
         return_type: Some(TclType::Int),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
@@ -409,7 +403,6 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(1, 2),
         detail: "Compute a checksum of binary string string using the CRC-32 algorithm. The optional initValue seeds the checksum engine; omitted, the algorithm's own starting value (0) is used.",
         synopsis: "zlib crc32 string ?initValue?",
-        pure: true,
         return_type: Some(TclType::Int),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
@@ -437,7 +430,7 @@ pub fn spec() -> CommandSpec {
         subcommands: SUBCOMMANDS,
         return_type: Some(TclType::String),
         // Command-level fallback only — every subcommand above declares
-        // its own, more precise effect (or is `pure` and so never
+        // its own, more precise effect (or is pure and so never
         // reaches this): mirrors `encoding`'s top-level `Unknown` r/w
         // fallback for the same reason (a genuinely mixed-effect
         // ensemble, unlike `chan`'s uniformly-FileIo one).

@@ -26,7 +26,6 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "textutil::longestCommonPrefixList",
-        traits: Traits::PURE,
         surface: None,
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {

@@ -265,7 +265,7 @@ fn a_templated_pack_equals_its_hand_unrolled_twin() {
     proc fleet-command {name} {
         command math::fleet::$name {
             arity 2
-            traits {PURE}
+            traits {CSE_CANDIDATE}
             option -verbose
             subcommand probe {
                 arity 0
@@ -280,7 +280,7 @@ fn a_templated_pack_equals_its_hand_unrolled_twin() {
 ";
     let unrolled_body = |name: &str| {
         format!(
-            "    command math::fleet::{name} {{\n        arity 2\n        traits {{PURE}}\n        \
+            "    command math::fleet::{name} {{\n        arity 2\n        traits {{CSE_CANDIDATE}}\n        \
              option -verbose\n        subcommand probe {{\n            arity 0\n            \
              detail {{Probe one input.}}\n        }}\n    }}\n"
         )

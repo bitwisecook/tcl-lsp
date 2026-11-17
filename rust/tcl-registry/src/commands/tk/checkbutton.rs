@@ -434,7 +434,6 @@ static SUBCOMMANDS: [SubCommand; 7] = [
         arity: Arity::exact(1),
         detail: "Return the current value of a checkbutton option.",
         synopsis: "pathName cget option",
-        pure: true,
         return_type: Some(TclType::String),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),

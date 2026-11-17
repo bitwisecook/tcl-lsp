@@ -165,7 +165,6 @@ super::common::ttk_widget_class!(
         arity: Arity::new(0, 2),
         detail: "Return the current value or the value at coordinates x y.",
         synopsis: "pathName get ?x y?",
-        pure: true,
         return_type: Some(TclType::Double),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),

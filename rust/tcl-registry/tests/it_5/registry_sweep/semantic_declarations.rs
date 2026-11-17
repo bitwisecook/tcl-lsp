@@ -152,10 +152,11 @@ fn sweep_referentially_transparent_specs_declare_closed_dispatch_surface() {
 ///   take [`tcl_registry::CommandSpec::CLOSED_REFERENTIALLY_TRANSPARENT`]
 ///   directly.
 ///
-/// The `PURE` trait does not separate these — 32 of the entries carry it — so
-/// scoping the sweep by `PURE` would exempt almost the whole list while
-/// pretending to a narrower contract. An exact list keeps the strong form of
-/// the assertion instead.
+/// Purity does not separate these, so scoping the sweep by purity would
+/// exempt most of the list while pretending to a narrower contract. An exact
+/// list keeps the strong form of the assertion instead. The Tcl 9.1
+/// list-returning math commands left it when their C evidence closed them
+/// (issue #1712).
 const CSE_CANDIDATES_AWAITING_A_RESULT_CONTRACT: &[&str] = &[
     // iRules connection data getters (f5-irules).
     "HTTP::cookie",
@@ -194,11 +195,6 @@ const CSE_CANDIDATES_AWAITING_A_RESULT_CONTRACT: &[&str] = &[
     "lsearch",
     "string",
     "unicode",
-    // Tcl 9.1 list-returning math commands.
-    "divmod",
-    "frexp",
-    "modf",
-    "remquo",
 ];
 
 /// `Traits::CSE_CANDIDATE` marks a call the optimiser may prove

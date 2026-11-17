@@ -419,7 +419,7 @@ fn scalar_math_shape_requires_the_selected_native_protocol() {
                 .kinds
                 .contains(crate::CallbackKinds::HOST)
         );
-        assert!(!facts.traits.contains(Traits::PURE));
+        assert!(!facts.is_pure());
         assert_eq!(
             facts.normal_numeric_result_production(words.arguments()),
             Some(crate::native_result::NativeNumericResultProduction::Double)
@@ -704,10 +704,8 @@ fn invocation_facts_expose_closed_referential_result_proofs() {
             ResultStability::ReferentiallyTransparent,
             "{command}"
         );
-        assert!(
-            facts.traits.contains(Traits::PURE | Traits::CSE_CANDIDATE),
-            "{command}"
-        );
+        // Closed by the Tcl 9.1 C evidence, and a CSE candidate.
+        assert!(facts.is_cse_pure(), "{command}");
         assert!(facts.effects.accesses().is_empty(), "{command}");
         assert!(!facts.effects.requires_world_barrier(), "{command}");
         assert!(
@@ -787,14 +785,16 @@ fn purity_queries_answer_the_selected_invocation() {
             "Tcl {release}"
         );
     }
+    // Purity derives from the C evidence of each row at the release.
+    let at = tcl_dialect::model::SurfaceQuery::core(tcl_dialect::model::Family::Tcl, "9.1");
     let llength = registry.get("llength").expect("llength");
-    assert!(llength.is_pure());
+    assert!(llength.is_pure_at(Some(&at)));
     let string = registry.get("string").expect("string");
-    assert!(!string.is_pure());
+    assert!(!string.is_pure_at(Some(&at)));
     assert!(
         string
             .resolve_subcommand("length")
-            .is_some_and(SubCommand::is_pure)
+            .is_some_and(|length| length.is_pure_at(string, Some(&at)))
     );
 }
 
@@ -810,10 +810,10 @@ fn clock_result_dependencies_are_selected_by_subcommand() {
         .expect("clock seconds resolves")
         .facts();
     assert_eq!(seconds.result_stability, ResultStability::Volatile);
-    assert!(
-        seconds.traits.contains(Traits::PURE),
-        "the established subcommand pure fact must reach common semantics"
-    );
+    // It reads the clock: `ClockSecondsObjCmd` reaches `Tcl_GetTime` (8.5 to
+    // 9.0) or `Tcl_GetDayTime` (9.1), and 8.4's `clock seconds` reaches
+    // `TclpGetSeconds`, so no release's evidence closes it (issue #1712).
+    assert!(!seconds.is_pure());
     assert!(seconds.effects.requires_world_barrier());
     assert_eq!(
         seconds.state_transitions,

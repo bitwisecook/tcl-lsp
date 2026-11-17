@@ -18,7 +18,7 @@
 
 //! Package variable-name arguments feed the shared role and effect owners.
 
-use tcl_registry::{ArgRole, CommandRegistry, Traits};
+use tcl_registry::{ArgRole, CommandRegistry};
 
 #[test]
 fn tcllib_set_mutators_name_the_caller_variable() {
@@ -30,12 +30,7 @@ fn tcllib_set_mutators_name_the_caller_variable() {
             [1],
             "{subcommand}"
         );
-        assert!(
-            !registry
-                .call_traits("struct::set", &args)
-                .contains(Traits::PURE),
-            "{subcommand}"
-        );
+        assert!(!is_pure(&registry, "struct::set", &args), "{subcommand}");
     }
 }
 
@@ -56,12 +51,7 @@ fn tcllib_list_mutators_name_each_caller_destination() {
             expected,
             "{args:?}"
         );
-        assert!(
-            !registry
-                .call_traits("struct::list", &args)
-                .contains(Traits::PURE),
-            "{args:?}"
-        );
+        assert!(!is_pure(&registry, "struct::list", &args), "{args:?}");
     }
 }
 
@@ -75,12 +65,7 @@ fn tcllib_join_and_split_outputs_share_variable_name_roles() {
             [2],
             "{subcommand}"
         );
-        assert!(
-            !registry
-                .call_traits("struct::list", &args)
-                .contains(Traits::PURE),
-            "{subcommand}"
-        );
+        assert!(!is_pure(&registry, "struct::list", &args), "{subcommand}");
     }
     assert_eq!(
         registry.arg_indices_for_role(
@@ -115,15 +100,30 @@ fn tcllib_callback_members_do_not_inherit_ensemble_purity() {
         "foreachperm",
     ] {
         assert!(
-            !registry
-                .call_traits("struct::list", &[subcommand])
-                .contains(Traits::PURE),
+            !is_pure(&registry, "struct::list", &[subcommand]),
             "{subcommand}"
         );
     }
-    assert!(
-        registry
-            .call_traits("struct::set", &["contains", "values", "value"])
-            .contains(Traits::PURE)
-    );
+    // `struct::set` dispatches to the implementation `SwitchTo` chose from
+    // package state, and `S_contains` runs `lsearch`, whose C is open: no
+    // tcllib evidence closes it (issue #1712).
+    assert!(!is_pure(
+        &registry,
+        "struct::set",
+        &["contains", "values", "value"]
+    ));
+}
+
+/// Whether a `struct::*` call is pure where tcllib 2.0 runs (Tcl 9.0).
+fn is_pure(registry: &CommandRegistry, command: &str, args: &[&str]) -> bool {
+    registry
+        .resolve_invocation(
+            command,
+            args,
+            Some(tcl_dialect::model::SurfaceQuery::core(
+                tcl_dialect::model::Family::Tcl,
+                "9.0",
+            )),
+        )
+        .is_some_and(|resolved| resolved.facts().is_pure())
 }
