@@ -1408,13 +1408,17 @@ mod tests {
         source: &str,
         dialect: Option<&'static tcl_dialect::DialectProfile>,
     ) -> Vec<TaintWarning> {
-        let r = registry();
-        let cu = CompilationUnit::build_for_profile(
-            source,
-            &r,
-            false,
-            tcl_dialect::DialectProfile::irules(),
-        );
+        // The unit an iRules document builds: the profile's own command
+        // world, and a fixture that declares no handler as the body of one
+        // (only `when`, `proc`, `priority` and `timing` are legal at the top
+        // level of an iRule).
+        let r = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
+        let source = if source.contains("when ") {
+            source.to_owned()
+        } else {
+            format!("when HTTP_REQUEST {{\n{source}\n}}")
+        };
+        let cu = CompilationUnit::build_for(&source, r, false);
         let mut out: Vec<TaintWarning> = Vec::new();
         for fu in cu.analysable_functions() {
             out.extend(find_uri_split_suggestions(
@@ -1422,7 +1426,7 @@ mod tests {
                 &fu.ssa,
                 Some(&fu.sccp.values),
                 &fu.sccp.executable_blocks,
-                &r,
+                r,
                 dialect,
             ));
         }
