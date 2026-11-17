@@ -336,13 +336,13 @@ Per-body incremental analysis: with the `OriginalSourceOwnership` gates skipped,
 
 ## Taint and iRules checks area, 17 November 2026
 
-Session `session_017u5g3HGxE6CxLNW1DgfVr9` (slug `taint`); hand-over in `handover/taint.md`. Baseline on the restructured tree (`30783a0e`, `cargo nextest` over `tcl-compiler` and `tcl-irules`, test profile `opt-level 1`): 13,234 run, 2,232 failing, 206 in this area (`lists/taint-failing-2026-11-17.txt`).
+Session `session_017u5g3HGxE6CxLNW1DgfVr9` (slug `taint`); hand-over in `handover/taint.md`. Baseline on the restructured tree (`30783a0e`, `cargo nextest` over `tcl-compiler` and `tcl-irules`, test profile `opt-level 1`): 13,234 run, 2,232 failing, 206 in this area (`lists/taint-failing-2026-11-17.txt`). Last full run (13,255 run, 2,114 failing): about 170 in the area; `taint::tests` 32.
 
-Landed: the `uri_split` test helper (15); a handler's wrapper in a sink argument reads its hosted row (`[HTML::encode $raw]` clears IRULE3001); a handler's conditional transform reads its written words (quoting `regsub` gives `REGEX_LITERAL`, T106 on a double quote); `regex::quote` fixtures corrected to the quoting `regsub`; IRULE1005/1006 carry `ContextActionTier::SingleNotPreferred`; the naming owner reads a brace group without backslash-newline as its bytes (BIG-IP check 070). `HTTP::redirect [HTTP::uri]` is silent by design (`PATH_PREFIXED`); BIG-IP check 16 now asks about `//host` request targets.
+Landed today, each measured new 0 on the whole suite: the `uri_split` test helper; a handler's sink wrappers, conditional transforms and T102/T103 positions read its hosted row (taint diagnostics only); `taint-barriers` re-applied (concatenating `eval`, ten fixtures on named releases); a braced `${name}` in a handler resolves its cell; a `RULE_INIT` store defines its global cell; a handler's `if` body keeps the advisory walk's world; a handler store is a semantic fact (`semantic_values()`), never an `sccp.values` constant or a rewrite; `regex::quote` and unset-`$cond` fixtures corrected; IRULE1005/1006 carry `ContextActionTier::SingleNotPreferred`; the naming owner reads a brace group without backslash-newline as its bytes (BIG-IP check 070); `HTTP::redirect [HTTP::uri]` silent by design (check 16 asks about `//host`).
 
-Held as `patches/handover-taint-hosted-option-pattern.patch`, not on `work`: T102 and T103 read a handler's option and pattern positions from its hosted row. It turns the T102 group green but four colour tests red, because two handler facts lose the colour: a braced `${name}` in a handler store has no SSA read reference, and stores inside a handler's `if` bodies do not reach SSA. Both sent to analyser-binding with fixtures.
+Owned by ruling: every f5-irules handler and rule-procedure body fact, analyser-binding reviewing `command_binding` edits.
 
-Next: the special-variable seed on top of `9d1fe0e7`; queue items 4 to 10 of the hand-over.
+Queue: a rule procedure called at the top level names its SSA variable by a frame identity (values fixture 1); handler variables have no hover or document symbol (server-e2e-db); a handler substitution has no registry words (`registry_words_for_original_substitution`, 11 `f5-xc` tests); a top-level `when` binds to no target (`rule_declaration` 4, `bigip-report-gen` 5); the special-variable seed on `9d1fe0e7`; hand-over items 4 to 10; callback-replay `taint::tests` (audit session offers the `d9f49ecc` half).
 
 ## iRules, registry, SpecTcl and tooling area, 17 November 2026
 
