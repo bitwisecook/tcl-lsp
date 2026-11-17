@@ -82,8 +82,8 @@ pub(crate) use error_completion::{
 #[cfg(test)]
 use frame_level::OriginalFrameLevel;
 #[cfg(test)]
-pub(crate) use frame_level::runtime_explicit_frame_selection;
-pub(crate) use frame_level::{cmd_uplevel, compiled_uplevel, runtime_frame_selection};
+pub(crate) use frame_level::runtime_frame_selection;
+pub(crate) use frame_level::{cmd_uplevel, compiled_uplevel, runtime_explicit_frame_selection};
 use procedure_definition::cmd_proc;
 #[cfg(test)]
 pub(crate) use procedure_definition::parse_params;

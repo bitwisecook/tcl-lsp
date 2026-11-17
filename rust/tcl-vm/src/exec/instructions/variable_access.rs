@@ -482,10 +482,11 @@ impl Vm {
                 else {
                     return Tick::Return(err("upvar: stack underflow"));
                 };
-                let (_, target) = variable_try_op!(crate::command::runtime_frame_selection(
+                // C's INST_UPVAR reads its level with TclObjGetFrame itself:
+                // a word that is no level takes the default, as for `uplevel`.
+                let target = variable_try_op!(crate::command::runtime_explicit_frame_selection(
                     self,
-                    tcl_registry::FrameEffectSpec::UPVAR,
-                    &[level_operand]
+                    &level_operand
                 ));
                 variable_try_op!(self.link_compiled_upvar(
                     usize::try_from(imm0(instr)).unwrap_or(usize::MAX),

@@ -604,3 +604,81 @@ fn index_steps_and_clock_units_follow_the_release() {
         );
     }
 }
+
+/// A level word `TclCompileUpvarCmd` compiles is resolved by the `upvar`
+/// instruction at run time, which refuses a level that does not exist as the
+/// command would; a word the release does not compile runs the command.
+/// Each `upvar` runs in a procedure called from a procedure called from the
+/// global level, measured on tclsh 8.5.19/8.6.18/9.0.4/9.1.0.
+#[test]
+fn a_compiled_upvar_level_that_does_not_exist_fails_as_the_release_does() {
+    use tcl_dialect::TclVersion::{V8_5, V8_6, V9_0, V9_1};
+    let bad = |word: &str, code: &str| format!("1 {{bad level \"{word}\"}} {code}");
+    let lookup = |word: &str| bad(word, &format!("{{TCL LOOKUP LEVEL {word}}}"));
+    let wrong = "1 {wrong # args: should be \"upvar ?level? otherVar localVar ?otherVar localVar ...?\"} NONE";
+    let rows: Vec<(&str, Vec<(tcl_dialect::TclVersion, String)>)> = vec![
+        (
+            "5",
+            vec![
+                (V8_5, bad("5", "NONE")),
+                (V8_6, lookup("5")),
+                (V9_0, lookup("5")),
+                (V9_1, lookup("5")),
+            ],
+        ),
+        (
+            "#5",
+            vec![
+                (V8_5, bad("#5", "NONE")),
+                (V8_6, lookup("#5")),
+                (V9_0, lookup("#5")),
+                (V9_1, lookup("#5")),
+            ],
+        ),
+        (
+            "-1",
+            vec![
+                (V8_5, wrong.into()),
+                (V8_6, "0 {} {}".into()),
+                (V9_0, lookup("-1")),
+                (V9_1, lookup("-1")),
+            ],
+        ),
+        (
+            "99999999999999999999",
+            vec![
+                (
+                    V8_5,
+                    "1 {integer value too large to represent} \
+                     {ARITH IOVERFLOW {integer value too large to represent}}"
+                        .into(),
+                ),
+                (V8_6, lookup("99999999999999999999")),
+                (V9_0, lookup("99999999999999999999")),
+                (V9_1, lookup("99999999999999999999")),
+            ],
+        ),
+        (
+            "1.5",
+            vec![
+                (
+                    V8_5,
+                    "1 {expected integer but got \"1.5\"} {TCL VALUE NUMBER}".into(),
+                ),
+                (V8_6, lookup("1.5")),
+                (V9_0, lookup("1.5")),
+                (V9_1, lookup("1.5")),
+            ],
+        ),
+    ];
+    for (word, releases) in rows {
+        let script = format!("proc p {{}} {{upvar {word} x y}}; proc c {{}} {{p}}; c");
+        for (release, expected) in releases {
+            assert_eq!(
+                caught_under(&script, Some(release)),
+                expected,
+                "{word} {release:?}"
+            );
+        }
+    }
+}
