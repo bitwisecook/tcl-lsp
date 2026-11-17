@@ -152,3 +152,58 @@ fn a_text_that_diverges_from_the_source_declines() {
     t[1] = "other".to_owned();
     assert_eq!(concat_script_window(&t, &k, src), None);
 }
+
+/// The trim removes a word's surrounding newlines, so a braced body that
+/// ends in one still joins its trailing words into the same command.
+///
+/// tclsh 8.6.18 / 9.0.4: `namespace eval ::n {\n proc p {} {}\n} extra`
+/// → `wrong # args: should be "proc name args body"`.
+#[test]
+fn trimmed_newlines_do_not_separate_the_joined_command() {
+    let src = "eval {\n proc p {} {}\n} extra";
+    let (t, k) = tail(
+        src,
+        5,
+        &[
+            ("\n proc p {} {}\n", TokenType::Str),
+            ("extra", TokenType::Esc),
+        ],
+    );
+    let (win, _) = concat_script_window(&t, &k, src).expect("static");
+    assert!(!win.contains('\n'), "{win:?}");
+    assert_eq!(
+        win.split_whitespace().collect::<Vec<_>>(),
+        ["proc", "p", "{}", "{}", "extra"]
+    );
+}
+
+/// A newline inside a word survives the trim and still separates commands.
+///
+/// tclsh 8.6.18 / 9.0.4: `eval {set a 1\nset b 2} {}` sets both.
+#[test]
+fn an_inner_newline_still_separates_commands() {
+    let src = "eval {set a 1\nset b 2} {}";
+    let (t, k) = tail(
+        src,
+        5,
+        &[("set a 1\nset b 2", TokenType::Str), ("", TokenType::Str)],
+    );
+    let (win, _) = concat_script_window(&t, &k, src).expect("static");
+    assert_eq!(win.matches('\n').count(), 1, "{win:?}");
+}
+
+/// Trimming may not expose a final backslash: one whitespace byte stays.
+///
+/// tclsh 8.6.18 / 9.0.4: `eval {set a b\\ } c` → `wrong # args` (the
+/// escaped space keeps `b ` one word and `c` a third argument).
+#[test]
+fn a_trailing_escaped_space_is_kept() {
+    let src = "eval {set a b\\ } c";
+    let (t, k) = tail(
+        src,
+        5,
+        &[("set a b\\ ", TokenType::Str), ("c", TokenType::Esc)],
+    );
+    let (win, _) = concat_script_window(&t, &k, src).expect("static");
+    assert!(win.contains("b\\ "), "{win:?}");
+}
