@@ -56,13 +56,13 @@ fn o100_constant_propagation() {
     assert!(optimised("set a 3\nset b 4\nset c [expr {$a + $b}]", TCL).contains("set c 7"));
     // tclsh: a=-5 ⇒ -5 + 10 == 5.
     assert!(optimised("set a -5\nset b [expr {$a + 10}]", TCL).contains("set b 5"));
-    // tclsh: a=0 ⇒ 0 + 0 == 0. In a single pass O110's `+0` identity removal
-    // pre-empts the constant fold, leaving `set a 0\nset b [expr {$a}]` (still
-    // b==0). With a consumer the propagation completes to the literal — assert
-    // the tclsh value end-to-end.
+    // tclsh 8.4.20, 8.6.18, 9.0.4 and 9.1.0 print `0` for the source and for
+    // `puts 0`. With a consumer the propagation completes to the literal, and
+    // the store of `a`, read only in the dead `set b`, goes with it as in
+    // `o100_o105_const_ref_propagation`.
     assert_eq!(
         optimised("set a 0\nset b [expr {$a + 0}]\nputs $b", TCL),
-        "set a 0\nputs 0"
+        "puts 0"
     );
 }
 

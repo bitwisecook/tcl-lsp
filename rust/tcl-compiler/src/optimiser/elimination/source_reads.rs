@@ -48,6 +48,17 @@ pub(crate) fn original_hidden_reads(
     registry: &CommandRegistry,
     metadata: Option<InvocationMetadataContext<'_>>,
 ) -> OriginalReadFootprint {
+    original_hidden_reads_outside(function, registry, metadata, &[])
+}
+
+/// [`original_hidden_reads`] of the statements that lie outside `deleted`
+/// (absolute spans): a statement a selected rewrite deletes reads nothing.
+pub(crate) fn original_hidden_reads_outside(
+    function: &FunctionUnit,
+    registry: &CommandRegistry,
+    metadata: Option<InvocationMetadataContext<'_>>,
+    deleted: &[tcl_lexer::Span],
+) -> OriginalReadFootprint {
     // naming.compiler.original-analysis-metadata-context
     // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
     let Some(metadata) = metadata.filter(|metadata| metadata.matches_registry(registry)) else {
@@ -59,6 +70,15 @@ pub(crate) fn original_hidden_reads(
     let mut out = OriginalReadFootprint::default();
     for (block_id, block) in &function.cfg.blocks {
         for index in (0..block.statements.len()).chain(std::iter::once(usize::MAX)) {
+            if let Some(statement) = block.statements.get(index) {
+                let span = function.abs_span(statement.span());
+                if deleted
+                    .iter()
+                    .any(|d| d.start() <= span.start() && span.end() <= d.end())
+                {
+                    continue;
+                }
+            }
             let Some(tokens) = function.cfg.source_tokens_at(*block_id, index) else {
                 if index != usize::MAX {
                     let statement = &block.statements[index];

@@ -1738,10 +1738,20 @@ pub(crate) fn collect_rmw_hidden_reads(
     function: &FunctionUnit,
     registry: &CommandRegistry,
 ) -> HashSet<String> {
-    source_reads::original_hidden_reads(
+    collect_rmw_hidden_reads_outside(function, registry, &[])
+}
+
+/// [`collect_rmw_hidden_reads`] of the statements outside `deleted`.
+pub(crate) fn collect_rmw_hidden_reads_outside(
+    function: &FunctionUnit,
+    registry: &CommandRegistry,
+    deleted: &[tcl_lexer::Span],
+) -> HashSet<String> {
+    source_reads::original_hidden_reads_outside(
         function,
         registry,
         function.invocation_metadata_context(registry),
+        deleted,
     )
     .possible_names(function)
 }

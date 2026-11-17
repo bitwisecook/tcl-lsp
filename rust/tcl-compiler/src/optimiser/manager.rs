@@ -452,8 +452,10 @@ fn drop_def_elims_resurrected_by_replacements(
 /// global" case — `set a 3; puts [expr {$a + 1}]` keeps `set a 3`), and inside
 /// a proc the ordinary dead-store pass removes it. Counting the fold here
 /// would wrongly couple-remove the top-level def.
+/// A rewrite that consumes the `$var` reads it removes: a propagation, or the
+/// deletion of a dead store, whose reads go with its line.
 fn is_propagation_code(code: DiagCode) -> bool {
-    matches!(code, DiagCode::O100 | DiagCode::O102)
+    matches!(code, DiagCode::O100 | DiagCode::O102 | DiagCode::O109)
 }
 
 /// How many `$var` / `${var}` references `opt` consumed — present in its
@@ -500,8 +502,22 @@ fn couple_propagated_const_dead_stores(
     functions.extend(cu.procedures.values());
     functions.extend(cu.methods.values());
 
+    // A removal deletes the reads on its line, so one round's removals can
+    // leave an earlier constant store with no reference left: iterate.
+    while couple_propagated_const_dead_stores_once(cu, registry, source, &functions, selected) {}
+}
+
+/// One round of [`couple_propagated_const_dead_stores`]; true when it added
+/// a removal.
+fn couple_propagated_const_dead_stores_once(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    source: &str,
+    functions: &[&crate::compilation_unit::FunctionUnit],
+    selected: &mut Vec<Optimisation>,
+) -> bool {
     let mut removals: Vec<Optimisation> = Vec::new();
-    for fu in functions {
+    for &fu in functions {
         // Skip a function the complexity guard excluded from deep analysis:
         // its lattices are trivial, so const/dead-store coupling has nothing
         // sound to act on.
@@ -527,7 +543,14 @@ fn couple_propagated_const_dead_stores(
     // supersedes it: drop those and emit the removal. A rewrite that only
     // *partially* overlaps the line (a structural O112 spanning past it) is
     // left intact and the removal skipped.
+    let mut added = false;
     for rem in removals {
+        if selected
+            .iter()
+            .any(|o| o.code == rem.code && o.span == rem.span && o.replacement == rem.replacement)
+        {
+            continue;
+        }
         let contains =
             |o: &Optimisation| rem.span.start() <= o.span.start() && o.span.end() <= rem.span.end();
         let partial_overlap = selected.iter().any(|o| {
@@ -541,7 +564,9 @@ fn couple_propagated_const_dead_stores(
         }
         selected.retain(|o| o.hint_only || !contains(o));
         selected.push(rem);
+        added = true;
     }
+    added
 }
 
 /// Per-function read-only state for the const-dead-store coupling check,
@@ -555,6 +580,8 @@ struct CoupleCtx<'a> {
     def_count: std::collections::HashMap<&'a str, usize>,
     scope_aliases: std::collections::HashSet<String>,
     rmw_hidden: std::collections::HashSet<String>,
+    /// Absolute spans of the selected dead-store deletions.
+    deleted: Vec<tcl_lexer::Span>,
     /// [`crate::ir::Module::traced_variables`] — canonical (`::`-stripped)
     /// names under an active variable trace anywhere in the module.
     traced: &'a std::collections::BTreeSet<String>,
@@ -584,6 +611,12 @@ fn couple_const_dead_stores_in_function(
         }
     }
 
+    // Statements a selected dead-store deletion removes read nothing.
+    let deleted: Vec<tcl_lexer::Span> = selected
+        .iter()
+        .filter(|o| !o.hint_only && o.code == DiagCode::O109 && o.replacement.is_empty())
+        .map(|o| o.span)
+        .collect();
     let ctx = CoupleCtx {
         fu,
         module,
@@ -596,7 +629,8 @@ fn couple_const_dead_stores_in_function(
             registry,
             Some(metadata),
         ),
-        rmw_hidden: super::elimination::collect_rmw_hidden_reads(fu, registry),
+        rmw_hidden: super::elimination::collect_rmw_hidden_reads_outside(fu, registry, &deleted),
+        deleted,
         traced,
     };
 
@@ -626,6 +660,7 @@ fn couple_const_dead_store_chain(
         def_count,
         scope_aliases,
         rmw_hidden,
+        deleted,
         traced,
     } = ctx;
 
@@ -669,6 +704,7 @@ fn couple_const_dead_store_chain(
     if chain
         .uses
         .iter()
+        .filter(|u| !use_is_deleted(fu, u, deleted))
         .any(|u| !matches!(u.kind, UseKind::Operand))
     {
         return None;
@@ -741,6 +777,28 @@ fn couple_const_dead_store_chain(
     ))
 }
 
+fn use_is_deleted(
+    fu: &crate::compilation_unit::FunctionUnit,
+    site: &crate::def_use::UseSite,
+    deleted: &[tcl_lexer::Span],
+) -> bool {
+    let Ok(index) = usize::try_from(site.statement_index) else {
+        return false;
+    };
+    let Some(statement) = fu
+        .cfg
+        .block_id(&site.block)
+        .and_then(|block| fu.cfg.blocks.get(&block))
+        .and_then(|block| block.statements.get(index))
+    else {
+        return false;
+    };
+    let span = fu.abs_span(statement.span());
+    deleted
+        .iter()
+        .any(|d| d.start() <= span.start() && span.end() <= d.end())
+}
+
 fn coupled_constant_value(
     function: &crate::compilation_unit::FunctionUnit,
     statement: &crate::ir::Statement,
@@ -801,14 +859,25 @@ fn every_reference_propagated(
     // a rewrite never spans two functions, and a word-token's span may
     // run one past `fe` (the inner-end convention leaves the closing
     // delimiter outside the statement span).
+    let counted = |o: &&Optimisation| {
+        !o.hint_only
+            && is_propagation_code(o.code)
+            && (o.span.start() as usize) >= fs
+            && (o.span.start() as usize) <= fe
+    };
+    // A rewrite inside a counted deletion is consumed once, by the deletion.
+    let within_deletion = |o: &Optimisation| {
+        selected.iter().filter(counted).any(|d| {
+            d.code == DiagCode::O109
+                && !std::ptr::eq(d, o)
+                && d.span.start() <= o.span.start()
+                && o.span.end() <= d.span.end()
+        })
+    };
     let consumed: usize = selected
         .iter()
-        .filter(|o| {
-            !o.hint_only
-                && is_propagation_code(o.code)
-                && (o.span.start() as usize) >= fs
-                && (o.span.start() as usize) <= fe
-        })
+        .filter(counted)
+        .filter(|o| !within_deletion(o))
         .map(|o| consumed_var_count(o, source, var))
         .sum();
     consumed == total_refs
