@@ -161,6 +161,10 @@ def rss_kib(pid: int) -> int | None:
     return parse_status_kib((Path("/proc") / str(pid) / "status").read_text(), "VmRSS")
 
 
+def thread_count(pid: int) -> int:
+    return sum(1 for _ in (Path("/proc") / str(pid) / "task").iterdir())
+
+
 def thread_states(pid: int) -> list[dict[str, str]]:
     """Name, state, wait channel and syscall line of every thread."""
     rows = []
@@ -281,7 +285,13 @@ def measure_rss(pid: int, log: EventLog, round_no: int, trim: bool) -> None:
     if trim:
         gdb_batch(pid, ["call (int) malloc_trim(0)"])
         after = rss_kib(pid)
-    log("rss", round=round_no, rss_kib=before, trimmed_kib=after)
+    log(
+        "rss",
+        round=round_no,
+        rss_kib=before,
+        trimmed_kib=after,
+        threads=thread_count(pid),
+    )
 
 
 def prepare_workspace(fixture: Path, workdir: Path) -> Path:
