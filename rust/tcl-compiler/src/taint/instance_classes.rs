@@ -349,6 +349,12 @@ pub(super) fn transfer_instance_statement(
         state.clear();
         return;
     }
+    // The marker beside a call stands for that call's unseen frame effects.
+    // The call's own retained invocation already applied its command-binding
+    // transitions, and an unresolved one already cleared the map.
+    if crate::ssa::is_unseen_call_marker(statement) {
+        return;
+    }
     if source.allows_nominal_metadata() {
         standalone_transfer_instance_statement(state, statement, registry, source.config);
         return;

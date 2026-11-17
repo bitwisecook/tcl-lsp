@@ -273,10 +273,15 @@ impl ResolvedInvocation<'_, '_> {
                 AuthoredSourceCommandPublicationKind::Command,
             )
         };
-        let leading = self
-            .semantics
-            .options
-            .leading_word_count(arguments.slice_from(offset))?;
+        // An instance path is a constructor prefix word: it precedes the
+        // option run rather than following it.
+        let leading = match kind {
+            AuthoredSourceCommandPublicationKind::Instance { .. } => 0,
+            AuthoredSourceCommandPublicationKind::Command => self
+                .semantics
+                .options
+                .leading_word_count(arguments.slice_from(offset))?,
+        };
         let argument = offset
             .checked_add(leading)?
             .checked_add(usize::from(relative))?;

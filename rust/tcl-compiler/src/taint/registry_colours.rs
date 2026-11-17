@@ -66,6 +66,30 @@ pub(super) fn source_colour(
     Some(TaintLattice::from_colours(reg_colour(colour)))
 }
 
+/// [`source_colour`] restricted to registry-typed object instances, with the
+/// method selected in the source's own context registry (its loaded packages).
+pub(super) fn instance_source_colour(
+    command: &str,
+    args: &[&str],
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    instance: (Option<&LocalInstanceClasses>, Option<u32>),
+    receiver: Option<(&WordExpr, tcl_lexer::LexerConfig)>,
+) -> Option<TaintLattice> {
+    let class = unique_instance_class(receiver, instance.0, instance.1)?;
+    let context = metadata?.source_analysis_input()?.context_registry();
+    let spec = context.commands().get(class)?;
+    let words = tcl_registry::InvocationWords::literals(command, args);
+    let invocation = context
+        .commands()
+        .resolve_structured_instance_invocation_for_descriptor_in_context(spec, words, &context)
+        .ok()
+        .flatten()?;
+    let traits = invocation.semantics.traits;
+    (traits.contains(Traits::TAINT_SOURCE)
+        || traits.contains(Traits::TAINT_SOURCE_ZERO_ARGS) && args.len() == 1)
+        .then(TaintLattice::tainted)
+}
+
 /// Resolve a registry-declared source on a statically-known object instance.
 ///
 /// Tcl widget and package-object APIs are invoked through a command created at

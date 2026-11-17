@@ -683,7 +683,12 @@ fn local_instance_classes_with_source(
             .unwrap_or_default()
         };
         for statement in &block.statements {
-            classes.at.insert(statement.span().start(), state.clone());
+            // Several statements share one command's span; a source lookup
+            // at that command sees the state before its first statement.
+            classes
+                .at
+                .entry(statement.span().start())
+                .or_insert_with(|| state.clone());
             let tokens = crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
                 &cfg.command_binding_sites,
                 statement,

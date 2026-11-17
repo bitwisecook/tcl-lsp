@@ -25,6 +25,11 @@
 mod object_instance_taint_sources {
     use super::super::*;
 
+    /// These fixtures are `wish` scripts: Tk is loaded before the first line,
+    /// so no `package require Tk` is written. Under plain `tclsh` 8.4–9.1 the
+    /// first widget command fails with `invalid command name`.
+    const D: &str = "tk";
+
     #[test]
     fn literal_widget_path_get_taints() {
         let source = "ttk::entry .user\nset value [.user get]\neval $value";

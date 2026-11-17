@@ -19,7 +19,9 @@
 //! The taint of a command substitution: sources, sanitisers, transforms, boolean results and the argument walk.
 
 use super::definition_taint::{interproc_call_taint, positional_argument_taint};
-use super::registry_colours::{reg_colour, source_colour, transform_colour};
+use super::registry_colours::{
+    instance_source_colour, reg_colour, source_colour, transform_colour,
+};
 use super::word_taint::word_taint;
 use super::{TaintColour, TaintCtx, TaintLattice, is_sanitiser};
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
@@ -353,6 +355,23 @@ fn substitution_source_colour(
     )
 }
 
+fn substitution_instance_source_colour(
+    cmd: &str,
+    arg_refs: &[&str],
+    nested: Option<&CommandTokens>,
+    ctx: TaintCtx<'_>,
+) -> Option<TaintLattice> {
+    instance_source_colour(
+        cmd,
+        arg_refs,
+        ctx.source.metadata,
+        (ctx.instance_classes, ctx.source_position),
+        nested
+            .and_then(|tokens| tokens.words().first())
+            .map(|word| (word, ctx.source.config)),
+    )
+}
+
 /// Everything a command substitution's taint needs before the recursive
 /// argument walk, or its answer when no walk is needed. A leaf, so these
 /// temporaries are not held on every level of nested substitution.
@@ -440,6 +459,14 @@ fn classify_substitution_taint(
     }
     if registry_allowed
         && let Some(t) = substitution_source_colour(cmd, &arg_refs, nested.as_ref(), ctx)
+    {
+        return Err(t);
+    }
+    // A proved command the registry does not name may still be an instance
+    // the registry typed: only its class's source methods apply.
+    if !registry_allowed
+        && point_target.is_some()
+        && let Some(t) = substitution_instance_source_colour(cmd, &arg_refs, nested.as_ref(), ctx)
     {
         return Err(t);
     }
