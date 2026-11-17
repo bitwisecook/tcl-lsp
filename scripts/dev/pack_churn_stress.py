@@ -37,6 +37,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import json
+import queue
 import random
 import shutil
 import subprocess
@@ -193,9 +194,12 @@ def gdb_batch(pid: int, commands: list[str], timeout: float = 300.0) -> str:
     argv = ["gdb", "-p", str(pid), "-batch", "-nx"]
     for command in commands:
         argv += ["-ex", command]
-    done = subprocess.run(
-        argv, capture_output=True, text=True, timeout=timeout, check=False
-    )
+    try:
+        done = subprocess.run(
+            argv, capture_output=True, text=True, timeout=timeout, check=False
+        )
+    except subprocess.TimeoutExpired:
+        return f"gdb timed out after {timeout:.0f}s"
     return done.stdout + done.stderr
 
 
@@ -234,16 +238,38 @@ class Probe:
     max_latency: float = 0.0
     wedged_at: float | None = None
     stop: threading.Event = field(default_factory=threading.Event)
+    # One thread sends every request, so the client's ids never race: the
+    # churn loop asks for an extra command through `ask`.
+    _asked: queue.Queue = field(default_factory=lambda: queue.Queue(maxsize=1))
+    _answers: queue.Queue = field(default_factory=lambda: queue.Queue(maxsize=1))
+
+    def ask(self, command: str, wait: float) -> Any:
+        """Run `command` from the probe thread; `None` if it does not answer."""
+        self._asked.put(command)
+        try:
+            return self._answers.get(timeout=wait)
+        except queue.Empty:
+            return None
+
+    def _execute(self, command: str) -> Any:
+        return self.client.send_request(
+            "workspace/executeCommand",
+            {"command": command, "arguments": []},
+            timeout=self.timeout,
+        )
 
     def run(self) -> None:
         while not self.stop.is_set():
+            with contextlib.suppress(queue.Empty):
+                command = self._asked.get_nowait()
+                try:
+                    answer = self._execute(command)
+                except (TimeoutError, RuntimeError) as error:
+                    answer = {"error": str(error)}
+                self._answers.put(answer)
             started = time.monotonic()
             try:
-                self.client.send_request(
-                    "workspace/executeCommand",
-                    {"command": "tcl-lsp.getEffectiveConfig", "arguments": []},
-                    timeout=self.timeout,
-                )
+                self._execute("tcl-lsp.getEffectiveConfig")
             except TimeoutError:
                 self.wedged_at = time.time()
                 return
@@ -279,7 +305,16 @@ def report_wedge(pid: int, log: EventLog, sample_seconds: float, use_gdb: bool) 
         log("stacks", text=gdb_batch(pid, ["thread apply all bt"]))
 
 
-def measure_rss(pid: int, log: EventLog, round_no: int, trim: bool) -> None:
+def measure_rss(
+    pid: int,
+    log: EventLog,
+    round_no: int,
+    trim: bool,
+    probe: Probe | None = None,
+    memory_command: str | None = None,
+) -> None:
+    if probe is not None and memory_command:
+        log("memory", round=round_no, report=probe.ask(memory_command, 300.0))
     before = rss_kib(pid)
     after = None
     if trim:
@@ -382,7 +417,9 @@ def run(args: argparse.Namespace) -> int:
                 break
             client.drop_notifications()
             if round_no % args.rss_every == 0:
-                measure_rss(pid, log, round_no, args.malloc_trim)
+                measure_rss(
+                    pid, log, round_no, args.malloc_trim, probe, args.memory_command
+                )
                 log(
                     "round",
                     round=round_no,
@@ -392,7 +429,9 @@ def run(args: argparse.Namespace) -> int:
                 )
             time.sleep(rng.uniform(args.min_interval, args.max_interval))
         else:
-            measure_rss(pid, log, args.rounds, args.malloc_trim)
+            measure_rss(
+                pid, log, args.rounds, args.malloc_trim, probe, args.memory_command
+            )
         if probe.wedged_at is None and prober.is_alive():
             # A wedge late in the last interval still counts.
             prober.join(timeout=args.probe_interval * 2)
@@ -435,6 +474,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=int,
         default=0,
         help="close and reopen this many documents each round",
+    )
+    parser.add_argument(
+        "--memory-command",
+        help="a workspace/executeCommand whose reply is logged before each RSS reading",
     )
     parser.add_argument("--min-interval", type=float, default=1.0)
     parser.add_argument("--max-interval", type=float, default=2.0)
