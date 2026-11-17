@@ -5,6 +5,23 @@ Triage of the failing tests of `tcl-lsp-server` (end to end and library) and `tc
 - Ledger rows (mine): **216** in `ledger/server-e2e-db.tsv`.
 - Routed away, not mine: **214** in `ledger/server-e2e-db-routed.tsv` (navigation groups to lsp-features, db memo/incremental to analysis-performance).
 
+## Priority finding: "open document never publishes" (coordinator item 2)
+
+Reproduced on 17 November, run alone with `--test-threads 1`: 7 failed, 17 passed. **It is the server, not the harness, and it is not a total publication failure.** `await_diagnostics_settled` correctly waits for the latest `publishDiagnostics` of the URI to satisfy the test's predicate; every failing document did receive publications:
+
+- three sourced-file tests (`callback_from_a_sourced_file…`, `caller_in_a_sourcing_file…`, `sourced_child_package_edits…`): last publish `[]`, or `I230` kept where the sourced file's call evidence should clear it. Cross-file call-site evidence does not reach the sourcing file. Fifteen sibling issue1331 tests pass, so publication and cross-file W123/arity work; the missing piece is call-site evidence from a sourced file (`project_call_inputs`). The db lib test `cross_file_evidence_sync_settles_after_one_pass` is the lower reproduction.
+- three iRule tests (`braced_variable_wrapped`, `t101_wrap_strip_crlf`, `t103_no_proc_insert…`): only fast-tier codes (IRULE1001, IRULE3102, W214) are published; the taint code never arrives. The t101 fixture is `puts $raw`, and `puts` draws W123 in the iRules dialect, so the sink is unknown: a dialect or fixture question for the taint/iRules sessions.
+- two spec-pack tests (`the_bundled_upf_body_resolver…`, `an_open_pack_keeps_its_notices…`): published `[]`.
+
+These rows are re-caused in the ledger (`cross-file-source-evidence-not-delivered`, `irule-taint-code-not-published`, `spec-pack-body-notices-not-published`).
+
+## What the e2e tests hold over their lower layer
+
+- Over-the-wire only (keep): publication ordering and settling, codeAction request/response shape and tier, completion item shape, lens/command shape, spec-pack lifecycle, recovery symbols over the wire, Jim hint-only documents.
+- Same fact as a lower test (MERGE, survivor named in the ledger): 11 rows; the survivor must assert code, range and message before the e2e row is deleted.
+- No lower test exists (the e2e test is the only holder, so REWRITE into `tcl-lsp-core` rather than delete): `$`-completion for `uplevel`, `try ... on error` bindings and command-form locals (`tcl-lsp-core/src/completion/original_variables.rs` is the only file naming `upvar`/`dict with`).
+- A contract row cites the contract by file; passage-level citations are still to be added.
+
 ## Counts by verdict
 
 | Verdict | Tests |
