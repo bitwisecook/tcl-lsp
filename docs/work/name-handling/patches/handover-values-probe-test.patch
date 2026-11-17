@@ -1,0 +1,53 @@
+diff --git a/rust/tcl-compiler/tests/it_2/main.rs b/rust/tcl-compiler/tests/it_2/main.rs
+index 3b1a9636..00453214 100644
+--- a/rust/tcl-compiler/tests/it_2/main.rs
++++ b/rust/tcl-compiler/tests/it_2/main.rs
+@@ -38,3 +38,4 @@ mod static_name_consumers;
+ mod value_transfer_witnesses;
+ mod var_escape_cfg;
+ mod w210_empty_loop_source;
++mod zz_probe;
+diff --git a/rust/tcl-compiler/tests/it_2/zz_probe.rs b/rust/tcl-compiler/tests/it_2/zz_probe.rs
+new file mode 100644
+index 00000000..b75b87ff
+--- /dev/null
++++ b/rust/tcl-compiler/tests/it_2/zz_probe.rs
+@@ -0,0 +1,38 @@
++use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
++use tcl_registry::model::ingress::static_context_for;
++
++fn dump(name: &str, f: &FunctionUnit) {
++    println!("== {name}  vars={:?}", f.ssa.var_names());
++    let mut ids: Vec<_> = f.ssa.blocks.keys().copied().collect();
++    ids.sort();
++    for id in ids {
++        let b = &f.ssa.blocks[&id];
++        println!(" block {} reach={}", b.name, f.sccp.executable_blocks.contains(&id));
++        for s in &b.statements {
++            let d = format!("{:?}", s.statement);
++            let cut: String = d.chars().take(std::env::var("PROBE_W").ok().and_then(|w| w.parse().ok()).unwrap_or(260)).collect();
++            println!("   {cut}\n      uses={:?} defs={:?}", s.uses, s.defs);
++        }
++    }
++    let mut v: Vec<_> = f.sccp.values.iter().collect();
++    v.sort_by_key(|(k, _)| **k);
++    for (k, val) in v {
++        println!(" val {}#{} = {:?}", f.ssa.var_names()[k.0.0 as usize], k.1, val);
++    }
++    for e in &f.sccp.explanations {
++        println!(" expl {} -> {}", e.command, e.answer);
++    }
++    println!(" branches {:?}", f.sccp.constant_branches);
++}
++
++#[test]
++fn zz_probe() {
++    let Ok(path) = std::env::var("PROBE_SRC") else { return };
++    let src = std::fs::read_to_string(path).unwrap();
++    let dialect = std::env::var("PROBE_DIALECT").unwrap_or_else(|_| "tcl8.6".into());
++    let unit = CompilationUnit::build_for_dialect(&src, static_context_for(&dialect).commands(), false, &dialect);
++    dump("top", &unit.top_level);
++    for (id, f) in &unit.procedures {
++        dump(&format!("{id:?}"), f);
++    }
++}
