@@ -305,6 +305,21 @@ def churn_once(client: Any, pack: Path, round_no: int, *, distinct: bool) -> str
     return action
 
 
+def reopen_batch(documents: list[Path], count: int, rng: random.Random) -> list[Path]:
+    """The documents to close and reopen this round: an editor restoring tabs."""
+    return rng.sample(documents, min(count, len(documents)))
+
+
+def reopen(client: Any, lsp_client: Any, paths: list[Path]) -> None:
+    for path in paths:
+        client.send_notification(
+            "textDocument/didClose",
+            {"textDocument": {"uri": lsp_client.document_uri(str(path))}},
+        )
+    for path in paths:
+        lsp_client.open_document(client, str(path))
+
+
 def run(args: argparse.Namespace) -> int:
     lsp_client = import_client()
     log = EventLog(args.log)
@@ -342,6 +357,8 @@ def run(args: argparse.Namespace) -> int:
                 status = 1
                 break
             action = churn_once(client, pack, round_no, distinct=args.distinct_bodies)
+            if args.reopen:
+                reopen(client, lsp_client, reopen_batch(documents, args.reopen, rng))
             client.drop_notifications()
             if round_no % args.rss_every == 0:
                 measure_rss(pid, log, round_no, args.malloc_trim)
@@ -392,6 +409,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--rounds", type=int, default=250)
     parser.add_argument("--max-bytes", type=int, default=60_000)
+    parser.add_argument(
+        "--reopen",
+        type=int,
+        default=0,
+        help="close and reopen this many documents each round",
+    )
     parser.add_argument("--min-interval", type=float, default=1.0)
     parser.add_argument("--max-interval", type=float, default=2.0)
     parser.add_argument("--warm-up", type=float, default=5.0)
