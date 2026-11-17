@@ -3492,6 +3492,14 @@ its citation and a regression that reads the recorded lines.
     - `HTTP::uri` and `HTTP::path`, bare and with `-normalized`: claimed
       always to begin with `/` (`PATH_PREFIXED`). Send also a request line with an absolute URI
       (`GET http://h/x HTTP/1.1`) and one with `*` (`OPTIONS *`).
+      IRULE3004 treats `PATH_PREFIXED` as a same-origin redirect target, so
+      `HTTP::redirect [HTTP::uri]` is silent. Send also
+      `GET //evil.example/x HTTP/1.1` and `GET /\evil.example/x HTTP/1.1`,
+      log `[HTTP::uri]`, `[HTTP::path]` and `[HTTP::path -normalized]`, and
+      run `HTTP::redirect [HTTP::uri]` with the response's `Location`
+      captured. If TMM passes a leading `//` or `/\` through, the value is a
+      protocol-relative redirect to another host and `PATH_PREFIXED` must
+      stop clearing IRULE3004.
     - `IP::client_addr`, `IP::remote_addr`: claimed an address literal only
       (`IP_ADDRESS`); include an IPv6 client with a route domain (`%1`).
     - `TCP::client_port`, `TCP::remote_port`: claimed decimal digits only
