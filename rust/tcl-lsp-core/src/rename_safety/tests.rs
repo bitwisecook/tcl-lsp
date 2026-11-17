@@ -358,6 +358,24 @@ fn fp_refuses_a_namespace_variable_rename_beside_a_computed_upvar_cell() {
     );
 }
 
+/// FP guard: a computed namespace beside the literal tail may still be the
+/// renamed cell. tclsh 8.6/9.0: `namespace eval mypkg {variable version 1};
+/// proc show {ns} {namespace upvar $ns version local; return $local};
+/// show ::mypkg` returns 1. Another tail never reaches the cell.
+#[test]
+fn fp_refuses_a_namespace_variable_rename_beside_a_computed_upvar_namespace() {
+    let doc = |tail: &str| {
+        format!(
+            "namespace eval ::ns {{\n    variable version 1\n}}\n\
+             proc p {{ns}} {{ namespace upvar $ns {tail} local; return $local }}\n"
+        )
+    };
+    let reason = var_hazard(&doc("version"), "::ns::version")
+        .expect("`namespace upvar $ns version local` may link `::ns::version`");
+    assert!(reason.contains("computed at run time"), "{reason}");
+    assert_eq!(var_hazard(&doc("counter"), "::ns::version"), None);
+}
+
 /// FN guard: the ordinary namespace-variable document has no dynamic
 /// name and must rename freely.
 #[test]
