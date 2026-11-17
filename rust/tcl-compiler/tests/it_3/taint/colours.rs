@@ -712,9 +712,14 @@ mod interpolation_colour_invalidation {
 
     #[test]
     fn regex_literal_stripped() {
-        let source = "set raw [read $fd]\nset q [regex::quote $raw]\nset y \"^$q\"\neval $y";
+        // No dialect catalogues `regex::quote`; the regex-escaping form the
+        // registry does catalogue is the quoting `regsub` (tclsh 8.4.20 to
+        // 9.1.0 turn `a.b` into `a\.b`). tclsh errors on an undefined `$fd`.
+        let source = "set raw [read $fd]\n\
+            set q [regsub -all {[][{}()*+?.\\\\^$|]} $raw {\\\\&}]\n\
+            set y \"^$q\"\neval $y";
         assert_ne!(
-            of_code(source, D, "T100"),
+            channel_of_code(source, D, "T100"),
             [] as [tcl_compiler::taint::TaintWarning; 0]
         );
     }
