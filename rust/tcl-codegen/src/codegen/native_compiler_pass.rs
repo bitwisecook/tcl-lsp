@@ -125,6 +125,14 @@ pub(super) fn omit_command_markers(ctx: &mut CodegenCtx<'_>) {
 /// already owns another command's metadata the marker stays.
 pub(super) fn place_command_starts(ctx: &mut CodegenCtx<'_>) {
     collapse_repeated_starts(ctx);
+    let revalidates = ctx
+        .native_entry
+        .and_then(|entry| entry.execution_point?.tcl_version())
+        .is_none_or(tcl_dialect::TclVersion::revalidates_running_bytecode);
+    if !revalidates {
+        omit_release_markers(ctx);
+        return;
+    }
     let mut index = 0;
     while index < ctx.instructions.len() {
         let instruction = &ctx.instructions[index];
@@ -223,6 +231,33 @@ fn collapse_repeated_starts(ctx: &mut CodegenCtx<'_>) {
                 *position -= 1;
             }
         }
+    }
+}
+
+/// Tcl 8.4.20 has no `INST_START_CMD`: running bytecode never revalidates,
+/// so no marker survives. One whose replay metadata the next instruction of
+/// the same command cannot take stays as a `nop` holding it.
+fn omit_release_markers(ctx: &mut CodegenCtx<'_>) {
+    let mut index = 0;
+    while index < ctx.instructions.len() {
+        if ctx.instructions[index].op != Op::START_CMD {
+            index += 1;
+            continue;
+        }
+        if !receives_marker(&ctx.instructions, index) {
+            let kept = &mut ctx.instructions[index];
+            kept.op = Op::NOP;
+            kept.operands.clear();
+            index += 1;
+            continue;
+        }
+        let marker = ctx.instructions.remove(index);
+        for position in ctx.label_positions.values_mut() {
+            if *position > index {
+                *position -= 1;
+            }
+        }
+        give_marker(marker, &mut ctx.instructions[index]);
     }
 }
 

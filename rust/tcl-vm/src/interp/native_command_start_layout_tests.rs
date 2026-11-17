@@ -171,6 +171,34 @@ fn procedure_bodies_place_start_command_like_c() {
     assert!(mismatches.is_empty(), "{}", mismatches.join("\n"));
 }
 
+/// Tcl 8.4.20 has no `INST_START_CMD` (tclCompile.h): its bytecode checks
+/// the compile epoch only on entry, so a compiled command redefined part way
+/// through a body keeps running there, as tclsh 8.4.20 shows.
+#[test]
+fn tcl_8_4_bodies_have_no_start_command() {
+    for case in CASES {
+        let asm = compiled_body("tcl8.4", case);
+        assert!(
+            asm.instructions
+                .iter()
+                .all(|instruction| instruction.op != Op::START_CMD),
+            "tcl8.4/{}: {}",
+            case.name,
+            skeleton(&asm)
+        );
+    }
+    let mut vm = crate::native_fixture::interpreter(
+        tcl_dialect::DialectProfile::find("tcl8.4").expect("release profile"),
+    );
+    let completion = vm
+        .try_eval_source(
+            "proc p {} {set a 1; rename ::incr ::oldincr; proc ::incr args {return hijack}; \
+             set r [incr a]; rename ::incr {}; rename ::oldincr ::incr; return $r}; p",
+        )
+        .expect("tcl8.4 evaluation");
+    assert_eq!(completion.result.string_bytes().as_ref(), b"2");
+}
+
 /// `for {} {$i > 0} {incr i -1} {puts $i}` on tclsh: 8.5.19 keeps the empty
 /// start's `push1; pop`, which the optimiser of 8.6.18 and 9.0.4 blanks to
 /// three `nop`s ahead of the first jump. No release has a marker there.
