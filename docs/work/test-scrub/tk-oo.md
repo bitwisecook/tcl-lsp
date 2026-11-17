@@ -57,10 +57,10 @@ oracle agrees with every expectation; only the fixture is short of a call.
 
 ## Distinct failing behaviours
 
-No wrong answer is shown: in every row the product abstains or answers nothing where tclsh shows an
-answer. One is not yet ruled out: two collision rows (`renamemethod old old`, onto a live sibling) fail
-because the rename is not refused, and the test does not show whether it answered with edits; their
-fresh-name twins answer with no edits. That is the first thing to check when the cause is taken up.
+No wrong answer: in every row the product abstains or answers nothing where tclsh shows an answer. The
+two collision rows that are not refused (`renamemethod old old`, onto a live sibling) were run printing
+the response: rename and prepareRename on the `renamemethod` destination word both answer null, so no
+edit comes back; it is a missing refusal reason, not an edit that breaks code.
 
 1. A bare class receiver in a consumer document does not resolve through the current namespace or a
    `namespace import` (`namespace eval ::a {C cm}` with both `::a::C` and `::C`; `W cm` after
