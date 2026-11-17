@@ -157,3 +157,9 @@ def test_probe_runs_an_asked_command_on_its_own_thread() -> None:
         thread.join(timeout=5.0)
     assert "tcl-lsp.getEffectiveConfig" in client.commands
     assert probe.answered >= 1
+
+
+def test_latency_summary_reports_median_p95_and_max() -> None:
+    got = churn.latency_summary([float(n) for n in range(1, 101)])
+    assert got == {"median": 51.0, "p95": 96.0, "max": 100.0}
+    assert churn.latency_summary([]) == {}
