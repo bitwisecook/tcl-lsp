@@ -998,6 +998,71 @@ mod tests {
     use super::*;
     use crate::parser::parse_bigip_conf;
 
+    /// A self-signed certificate made by OpenSSL in a private temporary
+    /// directory (`tcl-bigip-query/tests/fixtures/certificate-generation.md`);
+    /// the repository holds no certificate material.
+    fn generated_certificate_pem() -> String {
+        use std::os::unix::fs::DirBuilderExt;
+        struct Directory(std::path::PathBuf);
+        impl Drop for Directory {
+            fn drop(&mut self) {
+                std::fs::remove_dir_all(&self.0).expect("remove temporary certificate material");
+            }
+        }
+        let directory = Directory(
+            std::env::temp_dir().join(format!("tcl-bigip-certificate-{}", std::process::id())),
+        );
+        std::fs::DirBuilder::new()
+            .mode(0o700)
+            .create(&directory.0)
+            .expect("create private temporary certificate directory");
+        let path = |name: &str| {
+            directory
+                .0
+                .join(name)
+                .to_str()
+                .expect("UTF-8 path")
+                .to_owned()
+        };
+        let (key, certificate) = (path("key.pem"), path("certificate.pem"));
+        for arguments in [
+            vec![
+                "genpkey",
+                "-algorithm",
+                "RSA",
+                "-pkeyopt",
+                "rsa_keygen_bits:2048",
+                "-out",
+                &key,
+            ],
+            vec![
+                "req",
+                "-new",
+                "-x509",
+                "-key",
+                &key,
+                "-out",
+                &certificate,
+                "-sha256",
+                "-days",
+                "2",
+                "-subj",
+                "/C=US/O=Example Corp/CN=example.test",
+            ],
+        ] {
+            let output = std::process::Command::new("openssl")
+                .args(&arguments)
+                .output()
+                .expect("OpenSSL is required for the generated certificate test");
+            assert!(
+                output.status.success(),
+                "OpenSSL failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+        std::fs::read_to_string(&certificate).expect("read the generated certificate")
+    }
+
     #[test]
     fn resolves_inheritance_multi_sni_and_event_facts() {
         let source = r"
@@ -1200,7 +1265,7 @@ ltm virtual /Common/https {
         let config = parse_bigip_conf(source, "Common");
         let material = HashMap::from([(
             "/Common/default.crt".to_owned(),
-            include_str!("../../tcl-bigip-query/tests/fixtures/x509_example.pem").to_owned(),
+            generated_certificate_pem(),
         )]);
         let imported = import_bigip_tls(&config, BigipVersion::parse("17.1"), &material);
         let endpoint = &imported.endpoints[0];
