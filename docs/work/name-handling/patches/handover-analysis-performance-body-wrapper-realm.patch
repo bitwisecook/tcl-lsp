@@ -1,0 +1,128 @@
+diff --git a/rust/tcl-compiler/src/analyser/per_item/body_pass.rs b/rust/tcl-compiler/src/analyser/per_item/body_pass.rs
+index 539e9526..b231e2f3 100644
+--- a/rust/tcl-compiler/src/analyser/per_item/body_pass.rs
++++ b/rust/tcl-compiler/src/analyser/per_item/body_pass.rs
+@@ -108,7 +108,7 @@ impl Analyser {
+         let deferred = std::mem::take(&mut self.deferred_bodies);
+         // Whole declaration words cannot be reconstructed from a body-only
+         // fragment by rebasing coordinates. Preserve the existing source owner.
+-        if deferred.iter().any(|body| {
++        if std::env::var_os("PROBE_SKIP_OWNER").is_none() && deferred.iter().any(|body| {
+             super::super::scope::scope_at(&self.result.global_scope, &body.scope_path)
+                 .is_some_and(|scope| scope.original_member_context.is_some())
+         }) {
+@@ -208,6 +208,9 @@ impl Analyser {
+             // the shell.  Methods reconstruct a `Method` scope with the class's
+             // instance variables pre-bound (see `analyse_proc_body_isolated`).
+             let frag = body_fn(db);
++            if std::env::var_os("PROBE_SKIP_OWNER").is_some() {
++                if true { eprintln!("FRAG body={:?} vars={:?} invs={} diags={:?} scopevars={:?}", db.body_text, frag.result.all_variables.keys().collect::<Vec<_>>(), frag.result.command_invocations.len(), frag.result.diagnostics.iter().map(|d| d.message.clone()).collect::<Vec<_>>(), frag.proc_scope.variables.keys().collect::<Vec<_>>()); }
++            }
+             // A body that defines a proc whose name is defined elsewhere is a
+             // duplicate at the shared `all_procs` key — the graft can't reproduce
+             // last-definition-wins there, so fall back.
+@@ -229,7 +232,7 @@ impl Analyser {
+                 self.per_item_fallback = Some(PerItemFallback::ClassFactsCollide);
+                 return Err(Box::new(self.fresh_full_analyse(source, dialect)));
+             }
+-            if fragment_needs_original_source_owner(&frag) {
++            if std::env::var_os("PROBE_SKIP_OWNER").is_none() && fragment_needs_original_source_owner(&frag) {
+                 self.per_item_fallback = Some(PerItemFallback::OriginalSourceOwnership);
+                 return Err(Box::new(self.fresh_full_analyse(source, dialect)));
+             }
+diff --git a/rust/tcl-compiler/src/analyser/per_item/graft.rs b/rust/tcl-compiler/src/analyser/per_item/graft.rs
+index 9f2185e7..99308354 100644
+--- a/rust/tcl-compiler/src/analyser/per_item/graft.rs
++++ b/rust/tcl-compiler/src/analyser/per_item/graft.rs
+@@ -71,7 +71,8 @@ impl Analyser {
+         shell_var_keys: &std::collections::HashSet<String>,
+     ) {
+         // Rebase: body facts are relative to the body content start.
+-        let delta = db.body_tok.span.start() + u32::from(db.body_tok.content_offset);
++        let delta = db.body_tok.span.start() + u32::from(db.body_tok.content_offset)
++            - super::isolated_body::WRAP_SHIFT.with(|c| c.replace(0));
+         let line_delta = self.line_offsets.as_deref().map_or(0, |lo| {
+             super::super::state::line_at_offset(lo, delta as usize)
+         });
+diff --git a/rust/tcl-compiler/src/analyser/per_item/isolated_body.rs b/rust/tcl-compiler/src/analyser/per_item/isolated_body.rs
+index 827e51a8..c15f19df 100644
+--- a/rust/tcl-compiler/src/analyser/per_item/isolated_body.rs
++++ b/rust/tcl-compiler/src/analyser/per_item/isolated_body.rs
+@@ -22,6 +22,8 @@ use super::super::state::Analyser;
+ use super::{BodyFragment, DeferredBody};
+ use tcl_lexer::Token;
+ 
++std::thread_local! { pub(crate) static WRAP_SHIFT: std::cell::Cell<u32> = const { std::cell::Cell::new(0) }; }
++
+ /// Seed an isolated body's throwaway result with the ensemble facts the shell
+ /// attached ([`Analyser::attach_ensemble_facts`]) — the `subcommand → target`
+ /// maps, so an `<ensemble> <sub> …` call inside the body records the same
+@@ -88,6 +90,10 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
+     // Offset 0: the body content is the whole source; a synthetic `Str` body
+     // token spans it with `content_offset = 0` (no `{` to skip).
+     a.retain_walk_source(&db.body_text);
++    if std::env::var_os("PROBE_BODY_REALM").is_some() {
++        a.registry = Some(a.profile_registry());
++        a.head_identities = a.document_command_realm(&db.body_text);
++    }
+     // The isolated pass has no whole-file view, so the constant
+     // command-substitution fold may trust only the snapshot
+     // the shell attached — and must distrust EVERYTHING when none was
+@@ -130,7 +136,24 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
+         kind,
+     );
+     seed_isolated_frame_state(&mut a, db, &proc_path);
+-    a.analyse_body(&db.body_text, body_tok, &proc_path);
++    if std::env::var_os("PROBE_WRAP").is_some() && db.namespace == "::" && !db.is_method {
++        let params: Vec<String> = db.params.iter().map(|p| p.name.clone()).collect();
++        let prefix = format!("proc {} {{{}}} {{", db.scope_name, params.join(" "));
++        let wrapper = format!("{prefix}{}}}\n", db.body_text);
++        let k = u32::try_from(prefix.len()).unwrap();
++        a.retain_walk_source(&wrapper);
++        a.head_identities = a.document_command_realm(&wrapper);
++        a.result.command_realm = Some(std::sync::Arc::new(a.head_identities.clone()));
++        a.record_original_formal_variables();
++        a.line_offsets = Some(super::super::state::compute_line_offsets(&wrapper));
++        a.cached_line_index = tcl_lexer::LineIndex::new(&wrapper);
++        a.cached_line_index_source_len = wrapper.len();
++        let body_tok = Token::new(tcl_lexer::TokenType::Str, tcl_lexer::Span::new(k, k + body_len));
++        a.analyse_body(&db.body_text, body_tok, &proc_path);
++        WRAP_SHIFT.with(|c| c.set(k));
++    } else {
++        a.analyse_body(&db.body_text, body_tok, &proc_path);
++    }
+     let proc_scope = super::super::scope::scope_at_mut(&mut a.result.global_scope, &proc_path)
+         .expect("reconstructed proc scope")
+         .clone();
+diff --git a/rust/tcl-compiler/src/analyser/per_item/tests.rs b/rust/tcl-compiler/src/analyser/per_item/tests.rs
+index ee35ba35..c376f80a 100644
+--- a/rust/tcl-compiler/src/analyser/per_item/tests.rs
++++ b/rust/tcl-compiler/src/analyser/per_item/tests.rs
+@@ -1066,3 +1066,27 @@ fn param_list_with_backslash_continuation_no_spurious_w215() {
+     // Method form (instance vars + params rebind under the same suppression).
+     eq("oo::class create K {\n  method m {a b\\\n    c} { return $a }\n}\n");
+ }
++
++#[test]
++fn zz_probe_owner_diff() {
++    let sources = [
++        "proc a {} { set x 11111 }\nproc b {} { set y 22222 }\n",
++        "proc a {} { set x 1; puts $x }\n",
++        "proc a {} { b 1 }\nproc b {x} { return $x }\n",
++        "namespace eval ns { proc a {} { set x [string length abc]; return $x } }\n",
++        "oo::class create C { method m {} { set x 1; return $x } }\n",
++        "proc a {} { lsort -command cb {3 1 2} }\nproc cb {l r} { return 0 }\n",
++        "proc a {} { foreach i {1 2} { if {$i} { puts $i } } }\n",
++    ];
++    for src in sources {
++        for d in ["tcl8.6"] {
++            let mut a = Analyser::new();
++            let got = a.analyse_per_item(src, d);
++            let want = Analyser::new().analyse(src, d);
++            eprintln!("=== {src:?} gate={:?} eq={}", a.per_item_fallback, got == want);
++            if got != want {
++                eprintln!("{}", got.bounded_mismatch_summary(&want));
++            }
++        }
++    }
++}
