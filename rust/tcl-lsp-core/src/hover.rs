@@ -97,7 +97,8 @@ use pattern_syntax::{glob_hover_text, regex_hover_text, regsub_hover_text, scan_
 #[cfg(test)]
 use pattern_syntax::{scan_glob_metachars, scan_regex_components};
 use procedures::{
-    alias_hover_at, ensemble_subcommand_hover, format_docstring, proc_hover_at, proc_hover_text,
+    alias_hover_at, ensemble_subcommand_hover, format_docstring, lenient_declared_procedure_hover,
+    proc_hover_at, proc_hover_text,
 };
 use source_documentation::conditional_native_formal_hover;
 pub use source_documentation::source_documentation_hover;
@@ -652,6 +653,25 @@ fn class_and_remaining_hover(
     None
 }
 
+/// The answer under a native recipe: the proof answer, an address literal, then
+/// the document's declared procedures as a marked display answer.
+fn native_hover(
+    source: &str,
+    (line, character): (u32, u32),
+    analysis: &AnalysisResult,
+    ctx: crate::definition::CallResolution<'_>,
+    word: Option<&str>,
+) -> Option<Hover> {
+    let cursor_offset =
+        crate::original_context::CurrentSourcePosition::capture(source, analysis, line, character)?
+            .offset();
+    // Registry operands may have their own genuine expansion/list-child
+    // geometry. A standalone static-word label is not their prerequisite.
+    original_hover(source, (line, character), analysis, ctx)
+        .or_else(|| word.and_then(ip_address_hover_text).map(Hover::markdown))
+        .or_else(|| lenient_declared_procedure_hover(analysis, cursor_offset, word?, ctx))
+}
+
 /// The body of [`hover_with_profile`] / [`hover_in_program`], stated once over
 /// the [`crate::definition::CallResolution`] both build.
 fn hover_impl(
@@ -771,13 +791,7 @@ fn hover_impl(
         return Some(hover);
     }
     if !analysis.allows_lexical_declaration_advice() {
-        // Registry operands may have their own genuine expansion/list-child
-        // geometry. A standalone static-word label is not their prerequisite.
-        return original_hover(source, (line, character), analysis, ctx).or_else(|| {
-            word.as_deref()
-                .and_then(ip_address_hover_text)
-                .map(Hover::markdown)
-        });
+        return native_hover(source, (line, character), analysis, ctx, word.as_deref());
     }
     let word = word?;
 

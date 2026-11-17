@@ -150,6 +150,42 @@ pub(super) fn proc_hover_at(
     Some(Hover::markdown(proc_hover_text(proc_def)))
 }
 
+/// Display answer for a command head nothing resolves: the procedure the
+/// document declares under that simple name, smallest qualified name first so
+/// the answer is stable. Reads the independently retained original
+/// declarations, never a reporting map, and yields to a registry builtin.
+pub(super) fn lenient_declared_procedure_hover(
+    analysis: &AnalysisResult,
+    cursor_offset: u32,
+    word: &str,
+    ctx: crate::definition::CallResolution<'_>,
+) -> Option<Hover> {
+    if tcl_syntax::naming::is_qualified(word.as_bytes())
+        || ctx
+            .registry
+            .is_some_and(|registry| registry.get(word).is_some())
+        || !crate::definition::offset_is_command_head(analysis, cursor_offset)
+    {
+        return None;
+    }
+    let procedure = analysis
+        .original_procedure_declarations()
+        .map(tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::metadata)
+        .filter(|procedure| {
+            procedure.name == word
+                && !tcl_registry::mathfunc::is_in_mathfunc_namespace(&procedure.qualified_name)
+        })
+        .min_by(|left, right| {
+            left.qualified_name
+                .cmp(&right.qualified_name)
+                .then_with(|| left.name_span.start().cmp(&right.name_span.start()))
+        })?;
+    Some(Hover::markdown(format!(
+        "**Possible procedure**\n\n{}",
+        proc_hover_text(procedure)
+    )))
+}
+
 /// Alias hover at a genuine command head. Original aliases require their
 /// post-argv publication and implementation receipt; lexical-only profiles
 /// retain a separate declaration-advice presentation path.
