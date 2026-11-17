@@ -970,3 +970,49 @@ fn callback_source_targets_withdraw_known_shadows_and_incomplete_stored_writes()
         );
     }
 }
+
+/// A callback selector in a member body the analysis never entered is a
+/// read-only reference to the method it names, never a rename edit: rename
+/// keeps it as the whole-rename hazard. A rebound builder or a computed
+/// selector reports nothing (#1956). Tcl 8.6 and 9.0.
+#[test]
+fn an_unentered_callback_selector_is_a_reference_but_never_a_rename_edit() {
+    for release in ["tcl8.6", "tcl9.0"] {
+        let environment = tcl_registry::model::ingress::resolve_environment(release);
+        let profile = environment.analyser_profile();
+        let registry = environment.default_context_registry();
+        let src = "oo::class create C {\n    method tick {} { return 1 }\n    method wire {} {\n        after idle [namespace code [list my tick]]\n    }\n}\n";
+        let analysis = Analyser::new().analyse(src, release).clone();
+        let refs = references(src, profile, 1, 11, &analysis, true);
+        assert!(
+            refs.iter().any(|r| r.start_line == 3),
+            "{release}: the unentered callback is missing: {refs:?}"
+        );
+        let edits = crate::rename::rename(
+            src,
+            profile,
+            1,
+            11,
+            "tock",
+            &analysis,
+            Some(registry.commands()),
+        );
+        assert!(
+            edits.iter().all(|edit| edit.range.start_line != 3),
+            "{release}: rename edited the unentered callback: {edits:?}"
+        );
+        for abstains in [
+            "proc list args {}\noo::class create C {\n    method tick {} { return 1 }\n    method wire {} {\n        after idle [namespace code [list my tick]]\n    }\n}\n",
+            "rename my __my\noo::class create C {\n    method tick {} { return 1 }\n    method wire {} {\n        after idle [namespace code [list my tick]]\n    }\n}\n",
+            "oo::class create C {\n    method tick {} { return 1 }\n    method wire {n} {\n        after idle [namespace code [list my $n]]\n    }\n}\n",
+        ] {
+            let analysis = Analyser::new().analyse(abstains, release).clone();
+            let line = u32::from(!abstains.starts_with("oo::class"));
+            let refs = references(abstains, profile, line + 1, 11, &analysis, true);
+            assert!(
+                refs.iter().all(|r| r.start_line != line + 3),
+                "{release}: {abstains}: {refs:?}"
+            );
+        }
+    }
+}

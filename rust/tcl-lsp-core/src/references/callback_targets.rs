@@ -511,6 +511,17 @@ fn callback_targets_from_command(
     let Some(words) = source_structure::source_registry_words(ctx.source, ctx.analysis, cmd) else {
         return Vec::new();
     };
+    // A prefix wrapper (`namespace code`) builds a value and runs nothing; it
+    // is followed from the sink that consumes its result, never as a sink.
+    if words.with_source_schema(&context, |schema| {
+        schema
+            .semantics
+            .traits
+            .contains(tcl_registry::Traits::WRAPS_COMMAND_PREFIX)
+    }) != Some(false)
+    {
+        return Vec::new();
+    }
     let Some(positions) = words
         .with_source_schema(&context, |schema| {
             if ctx.analysis.allows_retained_logical_declaration_advice() {
@@ -744,6 +755,38 @@ fn built_command_prefix_targets(
     {
         return vec![PrefixTargetAtSpan {
             kind: tcl_registry::CommandPrefixTarget::CurrentObjectExternalMethod,
+            span: method.span,
+        }];
+    }
+    // In a body the analysis never entered, the builder has no authored
+    // prefix receipt. A literal head the current context resolves to the
+    // self-dispatch command still names the current object's method, unless
+    // the document may rebind that command.
+    if let (Some(head), Some(method)) = (
+        written_prefix_operand(words, builder, 0),
+        written_prefix_operand(words, builder, 1),
+    ) && head.kind == TokenType::Esc
+        && !head.in_quote
+        && method.kind == TokenType::Esc
+        && !method.in_quote
+        && let Some(spelling) = ctx.source.get(head.span.as_range())
+        && context
+            .context()
+            .resolve_spec(context.commands(), spelling)
+            .is_some_and(|spec| spec.traits.contains(Traits::TCLOO_SELF_DISPATCH))
+        && context.commands().method_dispatch_keyword(spelling)
+            == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
+        && super::unentered_callbacks::contextual_dispatch_head_is_unrebound(
+            ctx.analysis,
+            spelling,
+            builder
+                .argv
+                .first()
+                .map_or(head.span.start(), |word| word.span.start()),
+        )
+    {
+        return vec![PrefixTargetAtSpan {
+            kind: tcl_registry::CommandPrefixTarget::CurrentObjectInternalMethod,
             span: method.span,
         }];
     }

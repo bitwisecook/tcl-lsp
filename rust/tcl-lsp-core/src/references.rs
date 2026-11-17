@@ -78,6 +78,7 @@ mod member_references;
 mod next_dispatch;
 mod object_method_sites;
 mod self_dispatch_scan;
+mod unentered_callbacks;
 
 #[cfg(test)]
 pub(crate) use call_sites::invocation_references_named;
@@ -129,6 +130,7 @@ pub use object_method_sites::obj_method_call_sites;
 #[cfg(test)]
 use self_dispatch_scan::scan_method_sites_by_kind;
 pub(crate) use self_dispatch_scan::{scan_method_sites, scan_my_method_sites};
+pub(crate) use unentered_callbacks::unentered_callback_reference_spans;
 
 /// Compute the locations of every reference to the symbol at
 /// the cursor.

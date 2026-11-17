@@ -1546,6 +1546,9 @@ pub fn readonly_local_reference_report(
         target,
         include_declaration,
     ));
+    report.extend(crate::references::unentered_callback_reference_spans(
+        source, analysis, target,
+    ));
     // `next` / `nextto` written inside this declaration's own body are
     // polymorphic references to it. They are keywords that never spell the
     // member name, so they are reported here only and never enter the edit
