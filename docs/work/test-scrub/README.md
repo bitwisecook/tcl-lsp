@@ -188,6 +188,23 @@ session whose area note names it, and analyser-binding decides the rest.
 | tk-oo | the tests its issues name |
 | live-inlining | `tcl-spectcl` `codegen_stamps` |
 
+## Where it stands, 17 November 2026, 21:55 UTC
+
+Ten of thirteen ledgers are signed off: 2,162 failing tests triaged.
+
+| Verdict | Tests | Share |
+| --- | ---: | ---: |
+| `KEEP-ORACLE` | 623 | 29% |
+| `KEEP-CONTRACT` | 623 | 29% |
+| `KEEP-F5` | 123 | 6% |
+| `FIX-FIXTURE` | 381 | 18% |
+| `FIX-EXPECTATION` | 94 | 4% |
+| `REWRITE` | 205 | 9% |
+| `MERGE` | 91 | 4% |
+| `RETIRE` | 21 | 1% |
+
+So 63% of the failing tests hold behaviour worth making pass, 22% fail because the test itself is wrong, 9% hold real behaviour through an internal detail and are re-pointed, and 5% go. The scrub has found 32 wrong answers the product gives today and five passing tests that hold it to a wrong answer or pass for the wrong reason. Outstanding: analyser-binding (about 330, the critical path), lsp-features (about 500 and 181 routed from the server), tk-oo (about 60). The second pass (overlap among passing tests: 88 exact-copy groups, 385 overlap groups, the vacuous negatives) follows.
+
 ## Progress
 
 Updated at the hourly check from the ledgers on `work`.

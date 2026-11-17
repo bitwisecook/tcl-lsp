@@ -8,9 +8,9 @@ Every hand-written Rust file under `rust/` and `runtime/rust/` is at most 2,000 
 
 ## Test scrub ordered, 17 November 2026, 20:15 UTC
 
-The owner asked for a deep evaluation of the tests: what overlaps, and which failing tests are worth making pass. Method, inventory, verdicts and the families each session triages are in [`docs/work/test-scrub/README.md`](../test-scrub/README.md). Every session finishes what it has in hand and then writes its ledger before any further fix; nothing is deleted until the coordinator has sampled the ledger. First reading: 37,567 tests, 3,743 failing by the morning's lists; of the failing, 564 cite tclsh or Jim, 497 cite an issue or contract, 2,333 run Tcl source and cite nothing, 349 hold an internal structure.
+The owner asked for a deep evaluation of the tests: what overlaps, and which failing tests are worth making pass. Method, inventory, verdicts and the families each session triages are in [`docs/work/test-scrub/README.md`](../test-scrub/README.md). Every session finishes what it has in hand and then writes its ledger before any further fix; nothing is deleted until the coordinator has sampled the ledger. At 21:55 UTC ten of thirteen ledgers are signed off (2,162 failing tests: 63% hold behaviour worth making pass, 22% fail because the test is wrong, 9% are re-pointed, 5% go; 32 wrong answers found). First reading: 37,567 tests, 3,743 failing by the morning's lists; of the failing, 564 cite tclsh or Jim, 497 cite an issue or contract, 2,333 run Tcl source and cite nothing, 349 hold an internal structure.
 
-## Scoreboard, 17 November 2026, 20:55 UTC
+## Scoreboard, 17 November 2026, 21:55 UTC
 
 Failing tests by area on the restructured tree, from the successor sessions' baselines and first pushes.
 
