@@ -51,10 +51,13 @@ fn hover_on_tk_ensemble_configure_splice_resolves_the_real_target() {
     // (the real `tk/library/systray.tcl` idiom). Hover on the call
     // site's "systray" must surface the real `::tk::systray` proc, not
     // abstain or resolve a same-tail-name decoy elsewhere.
-    let src = "namespace eval ::decoy {\n    proc systray {args} { return \"DECOY\" }\n}\nproc ::tk::systray {args} { return \"real systray: $args\" }\nnamespace ensemble configure tk -map [dict merge [namespace ensemble configure tk -map] {systray ::tk::systray}]\ntk systray create -image book\n";
+    // `::tk` and the `tk` ensemble exist only once Tk is loaded: without it
+    // tclsh 8.6.18, 9.0.4 and 9.1.0 stop at `can't create procedure
+    // "::tk::systray": unknown namespace`.
+    let src = "package require Tk\nnamespace eval ::decoy {\n    proc systray {args} { return \"DECOY\" }\n}\nproc ::tk::systray {args} { return \"real systray: $args\" }\nnamespace ensemble configure tk -map [dict merge [namespace ensemble configure tk -map] {systray ::tk::systray}]\ntk systray create -image book\n";
     let analysis = analyse(src);
-    // Cursor on "systray" in `tk systray create ...` (0-based line 5).
-    let h = hover(src, 5, 5, &analysis, None).expect("expected hover for tk systray splice");
+    // Cursor on "systray" in `tk systray create ...` (0-based line 6).
+    let h = hover(src, 6, 5, &analysis, None).expect("expected hover for tk systray splice");
     assert_eq!(h.kind, HoverKind::Markdown);
     assert!(h.value.contains("proc ::tk::systray"), "{}", h.value);
     assert!(!h.value.contains("DECOY"), "{}", h.value);

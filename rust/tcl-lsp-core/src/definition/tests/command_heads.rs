@@ -266,15 +266,18 @@ fn tk_ensemble_configure_splice_resolves_the_subcommand_to_its_real_target_not_a
     // through to `fallback_proc_by_simple_name` here lands on the decoy
     // (or, with no decoy present, abstains despite `systray ->
     // ::tk::systray` being a literal, static fact).
-    let src = "namespace eval ::decoy {\n    proc systray {args} { return \"DECOY\" }\n}\nproc ::tk::systray {args} { return \"real systray: $args\" }\nnamespace ensemble configure tk -map [dict merge [namespace ensemble configure tk -map] {systray ::tk::systray}]\ntk systray create -image book\n";
+    // `::tk` and the `tk` ensemble exist only once Tk is loaded: without it
+    // tclsh 8.6.18, 9.0.4 and 9.1.0 stop at `can't create procedure
+    // "::tk::systray": unknown namespace`.
+    let src = "package require Tk\nnamespace eval ::decoy {\n    proc systray {args} { return \"DECOY\" }\n}\nproc ::tk::systray {args} { return \"real systray: $args\" }\nnamespace ensemble configure tk -map [dict merge [namespace ensemble configure tk -map] {systray ::tk::systray}]\ntk systray create -image book\n";
     let analysis = analyse(src);
     // Cursor on "systray" in the final `tk systray create ...` call
-    // (0-based line 5, "tk " is 3 chars so "systray" starts at col 3).
-    let locs = definition(src, 5, 5, &analysis);
+    // (0-based line 6, "tk " is 3 chars so "systray" starts at col 3).
+    let locs = definition(src, 6, 5, &analysis);
     assert_eq!(locs.len(), 1, "{locs:?}");
-    // Resolves to the REAL `proc ::tk::systray` (line 3), not the
-    // same-tail-name decoy inside `::decoy` (line 1).
-    assert_eq!(locs[0].start_line, 3);
+    // Resolves to the REAL `proc ::tk::systray` (line 4), not the
+    // same-tail-name decoy inside `::decoy` (line 2).
+    assert_eq!(locs[0].start_line, 4);
 }
 
 #[test]
