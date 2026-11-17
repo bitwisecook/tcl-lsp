@@ -22,6 +22,7 @@ Failing tests by area on the restructured tree, from the successor sessions' bas
 | Execution (`tcl-codegen`, `tcl-vm`, engines, `tcl-cshim`, `tcl-spec-hooks`) | about 242, after 51 compiler-only tests in `tcl-codegen`'s test crate moved to dataflow-optimiser (23) and values (28) | 5,485 | execution; `live-inlining` for the splice of pack reference bodies (off) |
 | `runtime/rust` (its own workspace) | 41 | 2,726 | execution |
 | Tooling (17 November, 16:00: `tcl-cli` 40, `tcl-spectcl` 23, `tcl-diagram` 13, `tcl-explorer` 13, `tcl-mcp` 3, `tcl-irules` 1, `tcl-spec-studio` 1, `tcl-sslictcl` 0, `tcl-registry` 0; plus 4 rule-loader tests in `tcl-compiler`) | 94 | | irules-registry-tooling |
+| F5 crates (17 November on `30783a0e` and later: `f5-xc` 11 of 57, `tcl-irule-test` 27 of 61, `bigip-report-gen-rust` 5 of 126, `f5-cli` 2 of 185; `tcl-bigip` 0 of 362 after the cleanup golden and certificate fixes; `tcl-bigip-io`, `tcl-bigip-query` (also the x509-only recipe, 4 of 4), `tcl-f5mku` 0; list `lists/irules-registry-tooling-f5-crates-failing-2026-11-17.txt`) | 45 | | tooling |
 | F5 crates (first baseline, 17 November: `tcl-irule-test` 27 of 61, `f5-xc` 11 of 57, `bigip-report-gen` 5 of 126, `f5-cli` 2 of 185, `tcl-bigip` 1 of 362, `tcl-bigip-io` 0 of 28, `tcl-bigip-query` 0 of 179, `tcl-f5mku` 0 of 6) | 46 | 1,004 | irules-registry-tooling; the 29 simulator refusals with execution |
 | Server end to end, `irules`, `spec_packs`, `sslictcl`, `jim` groups (within the server row above) | 32 | 131 | irules-registry-tooling |
 | `tcl-lexer`, `tcl-syntax`, `tcl-core-types`, `tcl-dialect` | 0 | 2,005 | no session; the coordinator rules |
@@ -344,7 +345,8 @@ Open, with the owner that has the fact:
 - `tcl-irules` `inventory_uses_complete_live_expression_spans…`: the walk never records a command inside a double-quoted string in a braced expression (tclsh runs it); sent to analyser-binding. `walker_matches_golden` case 1 needs `set p …; pool $p` constant propagation in a handler; sent to dataflow.
 - `tcl-diagram` 13, `tcl-explorer` 13, `tcl-cli` 40, `tcl-mcp` 3, `tcl-spectcl` 23: dependent on compiler facts (W210/W242 reporting, SCCP and optimiser folds, return completion codes, loop exit reasons, host procedure body cards, Jim diagnostics). Not yet sent individually: each needs a minimal fixture checked against tclsh.
 - `tcl-bigip` `tls.rs` `factory_profile_materialises_available_default_certificate` includes the same redacted PEM; its owner should generate the certificate.
-- Server groups still failing: the iRules quick-fix and S110 tests wait on taint actions (IRULE1005/1006 subject landed in `bef12447`), `jim::*` and `spec_packs::a_closed_file_under_a_pack_extension_is_indexed` unread this pass.
+- Server groups (131 tests): 26 failing on 17 November evening, from 33; the IRULE1005/1006 bootstrap tests and the three `spec_packs` document tests pass. The rest are iRules taint publications and quick fixes (taint), `jim::*` and `spec_packs::a_closed_file_under_a_pack_extension_is_indexed` (not yet read).
+- F5 crates: `tcl-irule-test` and `f5-cli` (29) wait on the execution session (`lassign` grammar not selected for the iRules profile in `LiveSession`); `f5-xc` (11) and the `rule_declaration` and `bigip-report-gen` event tests wait on the analyser session (`registry_words_for_original_substitution` answers `None` for an unbraced `switch` subject in a handler; a top-level `when` binds to no target and the realm answers `Rebound`).
 
 ## LSP server end-to-end and database area
 
