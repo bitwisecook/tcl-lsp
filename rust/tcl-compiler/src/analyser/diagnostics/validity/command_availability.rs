@@ -35,7 +35,9 @@ use tcl_dialect::model::SpecSurface;
 /// "iRules") — this suffix is the highest-traffic dialect naming in
 /// editor-visible prose, so it uses the human spelling; a member with no
 /// catalogue profile keeps its canonical name.
-fn dialect_availability_suffix(surface: Option<&'static [SpecSurface]>) -> String {
+pub(in crate::analyser::diagnostics) fn dialect_availability_suffix(
+    surface: Option<&'static [SpecSurface]>,
+) -> String {
     surface.map_or_else(String::new, dialect_availability_suffix_for_rows)
 }
 

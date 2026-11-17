@@ -22,7 +22,7 @@
 //! the commands the recovery segmenter finds past it are an editor tier: no
 //! interpretation reaches them. For a recovered command whose head is one
 //! literal bareword the reached prefix does not rebind, this pass reports
-//! the registry's arity and missing-subcommand errors over the written
+//! the registry's arity, subcommand and option errors over the written
 //! words; for a literal head naming a procedure the reached prefix declares
 //! once and nothing else rebinds, it reports that declaration's arity.
 //! Nothing else is reported there.
@@ -177,7 +177,10 @@ impl Analyser {
             .collect::<Option<Vec<&str>>>()?;
         let resolved = registry.resolve_call(head, &arguments, registry.own_surface_query())?;
         if resolved.sub.is_none() && !resolved.spec.subcommands.is_empty() {
-            return (arguments.is_empty() && resolved.arity().min > 0).then(|| {
+            if !arguments.is_empty() {
+                return Self::recovered_tail_selector_verdict(registry, head, &arguments, command);
+            }
+            return (resolved.arity().min > 0).then(|| {
                 Diagnostic::new(
                     DiagCode::E001,
                     head_token.span,
@@ -185,6 +188,11 @@ impl Analyser {
                     Severity::Error,
                 )
             });
+        }
+        if let Some(verdict) =
+            Self::recovered_tail_selector_verdict(registry, head, &arguments, command)
+        {
+            return Some(verdict);
         }
         let words = tcl_registry::InvocationArguments::literals(&arguments);
         let count = resolved.argument_count_for_arity(words)?;
@@ -201,4 +209,97 @@ impl Analyser {
             None,
         )
     }
+
+    /// The registry's selector errors over a recovered command's literal
+    /// words: an unknown, ambiguous or disabled subcommand, then an option
+    /// the dialect excludes or an ambiguous option prefix. No fix is offered
+    /// in the tail.
+    fn recovered_tail_selector_verdict(
+        registry: &tcl_registry::CommandRegistry,
+        head: &str,
+        arguments: &[&str],
+        command: &SegmentedCommand,
+    ) -> Option<Diagnostic> {
+        use tcl_registry::{AuthoredSourceOptionBoundary, AuthoredSourceSubcommandDiagnostic};
+
+        let invocation =
+            registry.resolve_invocation(head, arguments, registry.own_surface_query())?;
+        let word_span = |argument: usize| {
+            command
+                .argv
+                .get(argument + 1)
+                .map_or(command.span, |token| token.span)
+        };
+        let warning = |code, argument, message| {
+            Some(Diagnostic::new(
+                code,
+                word_span(argument),
+                message,
+                Severity::Warning,
+            ))
+        };
+        if let Some(outcome) = invocation.authored_source_subcommand_diagnostic() {
+            let word = arguments.first()?;
+            return match outcome {
+                AuthoredSourceSubcommandDiagnostic::Disabled { canonical, surface } => warning(
+                    DiagCode::W002,
+                    0,
+                    format!(
+                        "'{head} {canonical}' is disabled in the active dialect profile{}",
+                        super::validity::dialect_availability_suffix(surface)
+                    ),
+                ),
+                AuthoredSourceSubcommandDiagnostic::Unknown { .. } => warning(
+                    DiagCode::W001,
+                    0,
+                    format!("Unknown subcommand '{word}' for '{head}'"),
+                ),
+                AuthoredSourceSubcommandDiagnostic::Ambiguous { candidates } => warning(
+                    DiagCode::W145,
+                    0,
+                    format!(
+                        "Ambiguous abbreviation '{word}' for '{head}': matches {}.",
+                        quoted_list(&candidates)
+                    ),
+                ),
+            };
+        }
+        let scan = invocation.authored_source_diagnostic_options()?;
+        let label = std::iter::once(head)
+            .chain(scan.subcommands.iter().copied())
+            .collect::<Vec<_>>()
+            .join(" ");
+        if let Some(option) = scan.options.iter().find(|option| !option.available) {
+            let spelling = arguments.get(option.argument)?;
+            return warning(
+                DiagCode::W004,
+                option.argument,
+                format!("Option '{spelling}' on '{label}' is not available in the active dialect."),
+            );
+        }
+        if let AuthoredSourceOptionBoundary::Ambiguous {
+            argument,
+            candidates,
+        } = scan.boundary
+        {
+            let spelling = arguments.get(argument)?;
+            return warning(
+                DiagCode::W145,
+                argument,
+                format!(
+                    "Ambiguous option '{spelling}' for '{label}': matches {}.",
+                    quoted_list(&candidates)
+                ),
+            );
+        }
+        None
+    }
+}
+
+fn quoted_list(candidates: &[&str]) -> String {
+    candidates
+        .iter()
+        .map(|candidate| format!("'{candidate}'"))
+        .collect::<Vec<_>>()
+        .join(", ")
 }

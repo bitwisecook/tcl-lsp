@@ -627,6 +627,36 @@ mod w114_unwrap_fix {
     }
 }
 
+/// A recovered command's selector words are checked against the registry
+/// like its count. tclsh 8.5.19 rejects `string lenght abc` (`bad option`),
+/// `string l abc` (`ambiguous option "l"`), `lsort -stride 2 {a b}` (`bad
+/// option "-stride"`) and `lsort -in {a b}` (`ambiguous option "-in"`);
+/// tclsh 8.6.18 rejects the same except `lsort -stride 2 {a b}`, which
+/// returns `a b`.
+#[test]
+fn a_recovered_tail_draws_registry_selector_errors() {
+    for (tail, tcl85, tcl86) in [
+        ("string lenght abc", vec!["W001"], vec!["W001"]),
+        ("string l abc", vec!["W145"], vec!["W145"]),
+        ("lsort -stride 2 {a b}", vec!["W004"], vec![]),
+        ("lsort -in {a b}", vec!["W145"], vec!["W145"]),
+        ("string length abc", vec![], vec![]),
+    ] {
+        let src = format!("set x [foo bar\n{tail}\n");
+        let cut = src.find('\n').unwrap();
+        for (dialect, expected) in [("tcl8.5", &tcl85), ("tcl8.6", &tcl86)] {
+            let codes: Vec<String> = Analyser::new()
+                .analyse(&src, dialect)
+                .diagnostics
+                .iter()
+                .filter(|diagnostic| diagnostic.span.start() as usize > cut)
+                .map(|diagnostic| diagnostic.code.to_string())
+                .collect();
+            assert_eq!(&codes, expected, "{dialect}: {tail}");
+        }
+    }
+}
+
 /// The commands recovered after a syntax cut are an editor tier: the registry
 /// reports its count errors over the written words of a literal bareword
 /// head the reached prefix does not rebind, and nothing else is reported

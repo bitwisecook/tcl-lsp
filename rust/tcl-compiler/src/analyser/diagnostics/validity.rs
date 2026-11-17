@@ -45,6 +45,7 @@ mod option_words;
 mod stub_shadows;
 
 pub(super) use arity::{arity_verdict, shift_arity, source_arity_verdict};
+pub(super) use command_availability::dialect_availability_suffix;
 pub(in crate::analyser) use discouraged_commands::PendingPrivateTclSourceAdvice;
 #[cfg(test)]
 pub(super) use expr_operators::contains_gated_word;
