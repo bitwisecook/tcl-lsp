@@ -503,6 +503,9 @@ impl Vm {
         asm: &Rc<FunctionAsm>,
         instr: &Instruction,
     ) -> Tick {
+        if let Some(host) = instr.start_hosts.first() {
+            return self.replay_start_host(f, asm, host);
+        }
         if self
             .resolve_compiled_namespace_context(&instr.source_namespace_context())
             .is_none()

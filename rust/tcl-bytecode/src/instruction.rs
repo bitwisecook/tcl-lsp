@@ -310,6 +310,11 @@ pub struct Instruction {
     /// them together. They are checked with this instruction's own selection,
     /// and when any fails the whole outermost command is replayed.
     pub joined_compiler_selections: Vec<NativeCompilerSelectionSite>,
+    /// The commands enclosing this instruction's own that start on it where C
+    /// emits no `INST_START_CMD` (the body's first instruction, or anywhere in
+    /// the compact second pass), outermost first. This nested start carries
+    /// their selections and replays the outermost.
+    pub start_hosts: Vec<CommandStartHost>,
     /// Selected stock operations guard their actual prerequisites before argv.
     /// Several nested operations may share their first operand instruction.
     pub native_operation_selections: Vec<NativeOperationSelectionSite>,
@@ -372,17 +377,19 @@ pub struct ReleaseCompiled {
 }
 
 impl Instruction {
-    /// This instruction's own compiler selection and those joined to it.
+    /// Every compiler selection made on this instruction, outermost first.
     pub fn native_compiler_selections(&self) -> impl Iterator<Item = &NativeCompilerSelectionSite> {
-        self.native_compiler_selection
+        self.start_hosts
             .iter()
+            .filter_map(|host| host.selection.as_ref())
+            .chain(&self.native_compiler_selection)
             .chain(&self.joined_compiler_selections)
     }
 
     /// Whether any compiler selection is made on this instruction.
     #[must_use]
     pub fn selects_native_compiler(&self) -> bool {
-        self.native_compiler_selection.is_some() || !self.joined_compiler_selections.is_empty()
+        self.native_compiler_selections().next().is_some()
     }
 
     /// Original command namespace for transparent stale-command replay.
@@ -441,6 +448,7 @@ impl Instruction {
             entered_command: None,
             native_compiler_selection: None,
             joined_compiler_selections: Vec::new(),
+            start_hosts: Vec::new(),
             native_operation_selections: Vec::new(),
             catch_target: None,
             catch_start: None,
@@ -499,6 +507,28 @@ pub struct NativeCompilerSelectionSite {
     pub prerequisite: tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite,
     /// Label immediately following the selected invocation's instructions.
     pub end: String,
+}
+
+/// An enclosing command that starts on an instruction where C emits no
+/// marker, with what replaying it needs: its source, namespace and the label
+/// just after it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandStartHost {
+    pub selection: Option<NativeCompilerSelectionSite>,
+    pub source: tcl_lexer::SourceImage,
+    pub namespace: tcl_runtime_api::ByteNamespacePath,
+    pub namespace_context: Option<tcl_runtime_api::CompiledNamespaceContext>,
+    pub end: String,
+}
+
+impl CommandStartHost {
+    /// Namespace owner the replay resolves in.
+    #[must_use]
+    pub fn replay_namespace_context(&self) -> tcl_runtime_api::CompiledNamespaceContext {
+        self.namespace_context.clone().unwrap_or_else(|| {
+            tcl_runtime_api::CompiledNamespaceContext::ConstructedPath(self.namespace.clone())
+        })
+    }
 }
 
 /// Exact stock-operation selection and its original replay boundary.

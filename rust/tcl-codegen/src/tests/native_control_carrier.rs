@@ -153,8 +153,8 @@ fn assert_original_control_guard(
     let retained = compiled
         .instructions
         .iter()
-        .find_map(|instruction| {
-            let selection = instruction.native_compiler_selection.as_ref()?;
+        .flat_map(tcl_bytecode::Instruction::native_compiler_selections)
+        .find_map(|selection| {
             let NativeCompilerSelectionPrerequisite::Command(required) = &selection.prerequisite
             else {
                 return None;

@@ -167,7 +167,7 @@ pub(super) fn place_command_starts(ctx: &mut CodegenCtx<'_>) {
                 .is_empty();
         if !covered && !receives_marker(&ctx.instructions, index) {
             let opens_body =
-                !ctx.compact_compiler_pass && index == 0 && opens_nested(&ctx.instructions);
+                (ctx.compact_compiler_pass || index == 0) && opens_nested(&ctx.instructions, index);
             if (merged && joins_previous(&ctx.instructions, index)) || opens_body {
                 let marker = ctx.instructions.remove(index);
                 for position in ctx.label_positions.values_mut() {
@@ -176,7 +176,7 @@ pub(super) fn place_command_starts(ctx: &mut CodegenCtx<'_>) {
                     }
                 }
                 if opens_body {
-                    give_marker(marker, &mut ctx.instructions[index]);
+                    open_with_host(marker, &mut ctx.instructions[index]);
                 } else {
                     join_start(marker, &mut ctx.instructions[index - 1]);
                 }
@@ -330,22 +330,57 @@ fn joins_previous(instructions: &[tcl_bytecode::Instruction], index: usize) -> b
         && nests_in(host, marker)
 }
 
-/// Whether the body's first marker, which C does not emit, starts the same
-/// instruction as a command nested in its own. The nested start then carries
-/// the boundary, as it does once the compact pass omits every marker.
-fn opens_nested(instructions: &[tcl_bytecode::Instruction]) -> bool {
-    let marker = &instructions[0];
-    marker.op == Op::START_CMD
-        && !marker.selects_native_compiler()
+/// Whether a marker C does not emit (the body's first, or any in the compact
+/// pass) starts the same instruction as a command nested in its own, which
+/// can then carry it as a host.
+fn opens_nested(instructions: &[tcl_bytecode::Instruction], index: usize) -> bool {
+    let marker = &instructions[index];
+    let selection = marker.op == Op::NOP && marker.native_compiler_selection.is_some();
+    (marker.op == Op::START_CMD || selection)
+        && host_end(marker).is_some()
+        && marker.joined_compiler_selections.is_empty()
         && marker.entered_command.is_none()
         && marker.completion_option_scope.is_none()
         && !marker.source_command_boundary.is_inline_replay()
-        && instructions.get(1).is_some_and(|next| {
+        && instructions.get(index + 1).is_some_and(|next| {
             next.source_command_boundary.is_start()
                 && next.op != Op::START_CMD
+                && next.start_hosts.is_empty()
                 && next.source_cmd_text != marker.source_cmd_text
                 && nests_in(marker, next)
         })
+}
+
+/// Where the marker's command ends: its selection's continuation, else the
+/// marker's own.
+fn host_end(marker: &tcl_bytecode::Instruction) -> Option<String> {
+    if let Some(site) = &marker.native_compiler_selection {
+        return Some(site.end.clone());
+    }
+    match marker.operands.first() {
+        Some(Operand::Label(end)) if marker.op == Op::START_CMD => Some(end.clone()),
+        _ => None,
+    }
+}
+
+/// The nested start carries the omitted marker's command, and the marker's
+/// own hosts, as its hosts; the outer operation selections stay first, so the
+/// outermost is checked first.
+fn open_with_host(mut marker: tcl_bytecode::Instruction, next: &mut tcl_bytecode::Instruction) {
+    let end = host_end(&marker).expect("checked by opens_nested");
+    marker
+        .native_operation_selections
+        .append(&mut next.native_operation_selections);
+    next.native_operation_selections = marker.native_operation_selections;
+    next.no_fold |= marker.no_fold;
+    next.start_hosts = marker.start_hosts;
+    next.start_hosts.push(tcl_bytecode::CommandStartHost {
+        selection: marker.native_compiler_selection,
+        source: marker.source_cmd_text,
+        namespace: marker.source_command_namespace,
+        namespace_context: marker.source_command_namespace_context,
+        end,
+    });
 }
 
 fn nests_in(outer: &tcl_bytecode::Instruction, inner: &tcl_bytecode::Instruction) -> bool {
@@ -382,6 +417,8 @@ fn give_marker(mut marker: tcl_bytecode::Instruction, next: &mut tcl_bytecode::I
     }
     next.joined_compiler_selections
         .append(&mut marker.joined_compiler_selections);
+    marker.start_hosts.append(&mut next.start_hosts);
+    next.start_hosts = marker.start_hosts;
     if marker.entered_command.is_some() {
         next.entered_command = marker.entered_command;
     }

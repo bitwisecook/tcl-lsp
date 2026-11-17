@@ -97,6 +97,13 @@ const CASES: &[Case] = &[
         compact: Some(""),
     },
     Case {
+        name: "folded_error_in_compiled_argument",
+        params: "",
+        body: "list [expr {1/0}]",
+        skeleton: "",
+        compact: None,
+    },
+    Case {
         name: "commands_starting_together_redefined",
         params: "x",
         body: "rename ::expr ::oldexpr; proc ::expr args {return [list hijack $args]}; \

@@ -40,9 +40,10 @@ mod local_vars;
 mod op;
 
 pub use instruction::{
-    EnteredCommandSite, ErrorInfoCommand, ErrorOrigin, ErrorStackContext, Instruction, LiteralRep,
-    NativeCompilerSelectionSite, NativeEachAuxiliary, NativeOperationSelectionSite,
-    NativeStringIndexPurpose, Operand, ReleaseBodyEntry, ReleaseCompiled, SourceCommandBoundary,
+    CommandStartHost, EnteredCommandSite, ErrorInfoCommand, ErrorOrigin, ErrorStackContext,
+    Instruction, LiteralRep, NativeCompilerSelectionSite, NativeEachAuxiliary,
+    NativeOperationSelectionSite, NativeStringIndexPurpose, Operand, ReleaseBodyEntry,
+    ReleaseCompiled, SourceCommandBoundary,
 };
 pub use literals::{
     LiteralTable, NativeExpressionNumberLiteral, NativeLiteralAction, NativeLiteralAllocation,
