@@ -171,6 +171,7 @@ fn regexp_option_scan(
             RE_START => match (i < args.len()).then(|| args.bytes(i)).transpose()? {
                 Some(v) => {
                     c.start = Some(v);
+                    c.start_at = Some(i);
                     i += 1;
                 }
                 // A trailing `-start` ends the options (C's `goto
@@ -245,6 +246,7 @@ where
             if let Some(recipe) = recipe {
                 return regexp_native_selected::<O, E, Err>(
                     ops,
+                    args,
                     remaining,
                     recipe,
                     RegexpOptions {

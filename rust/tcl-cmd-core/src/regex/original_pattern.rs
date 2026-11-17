@@ -23,7 +23,7 @@ use super::regexp_command::{
 };
 use super::{
     NO_MATCH, RegMatch, RegexEngine, RegexError, RegexFlags, RegexpResult, compile_error,
-    completed_matches, decode_utf8, notbol_at, resolve_start_checked,
+    completed_matches, decode_utf8, notbol_at, resolve_start_original,
 };
 use crate::index::NativeIndexOps;
 use tcl_dialect::TclVersion;
@@ -533,6 +533,7 @@ fn native_whole_match(
 
 pub(super) fn regexp_native_selected<O: NativeRegexObjects<E>, E: RegexEngine, Err>(
     ops: &mut O,
+    args: &[O::Value],
     originals: &[O::Value],
     recipe: tcl_syntax::native_regex::NativeRegexpRecipe,
     options: RegexpOptions,
@@ -551,10 +552,7 @@ pub(super) fn regexp_native_selected<O: NativeRegexObjects<E>, E: RegexEngine, E
         let length = ops
             .index_character_count(&originals[1])
             .map_err(regex_execution_error)?;
-        let offset = common
-            .start
-            .as_ref()
-            .map_or(Ok(0), |spec| resolve_start_checked(ops, spec, length))
+        let offset = resolve_start_original(ops, args, &common, length)
             .map_err(RegexpExecutionError::Regex)?;
         (length, offset)
     };
