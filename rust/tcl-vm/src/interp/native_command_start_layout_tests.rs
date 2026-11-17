@@ -90,6 +90,13 @@ const CASES: &[Case] = &[
         compact: None,
     },
     Case {
+        name: "commands_starting_together_at_the_start",
+        params: "x",
+        body: "set a [expr {$x+1}]; set b [string length $a]",
+        skeleton: "S2",
+        compact: Some(""),
+    },
+    Case {
         name: "commands_starting_together_redefined",
         params: "x",
         body: "rename ::expr ::oldexpr; proc ::expr args {return [list hijack $args]}; \

@@ -166,14 +166,20 @@ pub(super) fn place_command_starts(ctx: &mut CodegenCtx<'_>) {
                 .native_operation_selections
                 .is_empty();
         if !covered && !receives_marker(&ctx.instructions, index) {
-            if merged && joins_previous(&ctx.instructions, index) {
+            let opens_body =
+                !ctx.compact_compiler_pass && index == 0 && opens_nested(&ctx.instructions);
+            if (merged && joins_previous(&ctx.instructions, index)) || opens_body {
                 let marker = ctx.instructions.remove(index);
                 for position in ctx.label_positions.values_mut() {
                     if *position > index {
                         *position -= 1;
                     }
                 }
-                join_start(marker, &mut ctx.instructions[index - 1]);
+                if opens_body {
+                    give_marker(marker, &mut ctx.instructions[index]);
+                } else {
+                    join_start(marker, &mut ctx.instructions[index - 1]);
+                }
                 continue;
             }
             if selection && !ctx.compact_compiler_pass && index > 0 && !follows_start {
@@ -322,6 +328,24 @@ fn joins_previous(instructions: &[tcl_bytecode::Instruction], index: usize) -> b
         && marker.completion_option_scope.is_none()
         && marker.source_cmd_text != host.source_cmd_text
         && nests_in(host, marker)
+}
+
+/// Whether the body's first marker, which C does not emit, starts the same
+/// instruction as a command nested in its own. The nested start then carries
+/// the boundary, as it does once the compact pass omits every marker.
+fn opens_nested(instructions: &[tcl_bytecode::Instruction]) -> bool {
+    let marker = &instructions[0];
+    marker.op == Op::START_CMD
+        && !marker.selects_native_compiler()
+        && marker.entered_command.is_none()
+        && marker.completion_option_scope.is_none()
+        && !marker.source_command_boundary.is_inline_replay()
+        && instructions.get(1).is_some_and(|next| {
+            next.source_command_boundary.is_start()
+                && next.op != Op::START_CMD
+                && next.source_cmd_text != marker.source_cmd_text
+                && nests_in(marker, next)
+        })
 }
 
 fn nests_in(outer: &tcl_bytecode::Instruction, inner: &tcl_bytecode::Instruction) -> bool {
