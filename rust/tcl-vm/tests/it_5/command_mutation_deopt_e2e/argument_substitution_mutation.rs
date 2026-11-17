@@ -588,6 +588,23 @@ fn argument_substitution_mutation_keeps_entered_token_then_deopts_at_next_comman
             // isolates INVOKE_REPLACE's same-invocation lookup timing.
             want: "INTERNAL_REPLACED\n",
         },
+        // The `string` cases hold for tclsh 8.6.18, 9.0.4 and 9.1.0; 8.5.19
+        // does not compile the ensemble and prints `MAP_REPLACED` twice here.
+        Case {
+            name: "invoke replace keeps its rewrite when the ensemble map changes",
+            source: concat!(
+                "proc ::myeq args {return MAP_REPLACED}\n",
+                "proc mutate {} {",
+                "namespace ensemble configure ::string -map ",
+                "[dict replace [namespace ensemble configure ::string -map] equal ::myeq]; ",
+                "return x}\n",
+                "proc p {} {",
+                "set first [string equal -nocase [mutate] X]; ",
+                "list $first [string equal -nocase x x]}\n",
+                "puts [p]\n",
+            ),
+            want: "1 MAP_REPLACED\n",
+        },
     ];
 
     // Tcl 9.0.4 resolves the specialised command token before evaluating its
@@ -640,25 +657,6 @@ fn argument_substitution_mutation_keeps_entered_token_then_deopts_at_next_comman
                 })
             ),
         "expanded commands resolve after expansion and must not retain a token"
-    );
-    let invoke_replace_marker_module = BytecodeCompileService::default()
-        .compile("proc p {} {set first [string equal -nocase [mutate] X]; return $first}")
-        .expect("literal string ensemble command compiles");
-    assert!(
-        sole_compiled_procedure(&invoke_replace_marker_module)
-            .instructions
-            .iter()
-            .any(|instruction| {
-                matches!(
-                    instruction.op,
-                    tcl_bytecode::Op::PUSH1 | tcl_bytecode::Op::PUSH4
-                ) && instruction.entered_command.as_ref().is_some_and(|entered| {
-                    entered.binding.name == "string"
-                        && entered.binding.identity == "string"
-                        && !entered.end.is_empty()
-                })
-            }),
-        "INVOKE_REPLACE must retain the typed string ensemble token"
     );
     for case in cases {
         let (mut vm, output) = vm();
