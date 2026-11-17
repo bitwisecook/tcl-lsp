@@ -122,6 +122,8 @@ The ledger gains a `status` column (open, repaired, fixed, deleted) and is kept 
 - *W304 is silent on a value proved to be a constant that cannot be read as an option.* The dash-literal warning and the unpinned-value information are unchanged.
 - *A switch-dispatch `proc unknown` bounds its calls:* a name its switch handles is known; a name that falls to a raising arm draws W123, instead of W123 being off for the whole file.
 - *A resolver derived from a pack's frame effect does exactly what `upvar` does* for a computed level: the local exists as a link to an unknown frame.
+- *Same input, same result, to the byte, is a contract of the analysis.* Incremental reuse and reproducible diagnostics rest on it; a difference between two runs is a wrong answer.
+- *Abstaining at `source -encoding` with a decode obligation recorded is sound* when nothing can decode; the command world after it must not stay proved.
 - *The generic entry covers a procedure the body defines on every call:* the nested procedure's body gets its own generic entry. It covers that body's facts only; whether the nested procedure exists for an outside caller still depends on whether the outer one surely ran.
 - *A `link` with written names puts exactly those names into the receiver namespace.* It refuses the generic entry of an uncalled method body only for those names; a computed name refuses it for every relative head.
 
@@ -152,6 +154,8 @@ These go ahead of missing facts once the ledgers are in.
 | IRULE3102 reported inside an event body the rule loader rejects | taint |
 | A duplicate eval-sink warning for each procedure | taint |
 | IRULE3101 on a path proved to be `/` | taint |
+| Nine in the class and object facts area, listed first in `class-facts.md`: a creation recorded after a `proc` in a namespace that does not exist (tclsh stops); a call in an uncalled procedure closed to the in-file callee although a later `proc` or `rename` decides it; a nested `proc` selected as structured, feeding rename's coverage; `struct::graph g` typed as an object with no provider; and five more | class-facts |
+| Two analyses of the same file compare unequal (`aliases.tcl`): the analysis is not deterministic there | class-facts to name the field |
 
 ## Passing tests the oracle contradicts
 
@@ -190,7 +194,7 @@ Updated at the hourly check from the ledgers on `work`.
 | --- | ---: | ---: | --- |
 | diagnostics | 397 | 397, complete (KEEP-ORACLE 143, KEEP-CONTRACT 94, FIX-FIXTURE 62, REWRITE 36, FIX-EXPECTATION 33, KEEP-F5 17, UNDECIDED 6 ruled, RETIRE 5, MERGE 1) | signed off 21:20 UTC |
 | analyser-binding | 330 | 0 | |
-| class-facts | 250 (with the 44 class-factory tests) | 201 (part 3, lowering 70: FIX-FIXTURE 33, KEEP-ORACLE 12, KEEP-CONTRACT 11, REWRITE 9, FIX-EXPECTATION 2, UNDECIDED 3 ruled); part 4 in progress | parts 1 to 3 read: accepted |
+| class-facts | 246 | 246, complete (KEEP-ORACLE 74, FIX-FIXTURE 67, KEEP-CONTRACT 43, REWRITE 40, FIX-EXPECTATION 14, UNDECIDED 4 ruled, KEEP-F5 2, RETIRE 1, MERGE 1); BIG-IP checks CF-01, CF-02 | signed off 21:30 UTC |
 | dataflow-optimiser | 423 | 423, complete (FIX-FIXTURE 142, KEEP-CONTRACT 103, KEEP-ORACLE 82, REWRITE 50, FIX-EXPECTATION 30, MERGE 10, RETIRE 5, KEEP-F5 1) | signed off 20:55 UTC |
 | values | 218 | 218, complete (KEEP-ORACLE 123, KEEP-CONTRACT 32, KEEP-F5 30, FIX-FIXTURE 20, FIX-EXPECTATION 6, REWRITE 6, RETIRE 1) | signed off 21:07 UTC |
 | taint | 171 | 171, complete (FIX-FIXTURE 81, KEEP-CONTRACT 38, KEEP-ORACLE 15, KEEP-F5 13, REWRITE 13, UNDECIDED 10 to finish, FIX-EXPECTATION 1); BIG-IP checks 049, 071, 072, 073 | sampled 21:27 UTC: accepted once the 10 undecided rows name their observable |
