@@ -220,20 +220,20 @@ fn binding_re_executable(
     if binding.unknown || binding.may_be_absent || !target.registry_backed {
         return Err(Decline::UnprovedTarget);
     }
-    // The registry declares that any `expr` may call back; whether this one
-    // does is a fact of its site.
-    if let Some(verdict) = expression
-        && target.prepended.is_empty()
-        && tcl_syntax::naming::unroot_rooted_key(&target.command).unwrap_or(&target.command)
-            == "expr"
-    {
-        return verdict.map_err(Decline::Expression);
-    }
     let metadata = binding.original_argument_metadata_for_module(tokens, module, registry);
     let invocation = crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
         registry, metadata, tokens,
     )
     .ok_or(Decline::NoFacts)?;
+    // An invocation whose every argument the registry declares an expression
+    // is declared able to call back; whether this one does is a fact of the
+    // site the expression statement stands at.
+    if let Some(verdict) = expression
+        && target.prepended.is_empty()
+        && evaluates_only_expressions(&invocation.facts)
+    {
+        return verdict.map_err(Decline::Expression);
+    }
     let context = &binding.variable_context;
     let traced = context.dynamic_traces
         || !context.traced.is_empty()
@@ -412,4 +412,15 @@ fn plain_local(context: &crate::var_resolve::ResolveContext, name: &str) -> bool
         && !context.ns_vars.contains(root)
         && !context.upvar_aliases.contains_key(root)
         && !context.instance_vars.contains(root)
+}
+
+/// Whether the registry declares every argument of an invocation, and at least
+/// one, an expression.
+fn evaluates_only_expressions(facts: &tcl_registry::InvocationFacts) -> bool {
+    facts.arg_roles_complete
+        && !facts.arg_roles.is_empty()
+        && facts
+            .arg_roles
+            .iter()
+            .all(|&(_, role)| role == tcl_registry::ArgRole::Expr)
 }
