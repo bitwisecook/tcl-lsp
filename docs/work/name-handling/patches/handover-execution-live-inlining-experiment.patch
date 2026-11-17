@@ -1,0 +1,300 @@
+diff --git a/rust/tcl-codegen/src/codegen/site_bindings.rs b/rust/tcl-codegen/src/codegen/site_bindings.rs
+index 4ec17311..82d1ad9d 100644
+--- a/rust/tcl-codegen/src/codegen/site_bindings.rs
++++ b/rust/tcl-codegen/src/codegen/site_bindings.rs
+@@ -151,11 +151,13 @@ impl<'r> CodegenCtx<'r> {
+             .as_deref()
+             .filter(|tokens| tokens.synthetic.is_none())
+         {
+-            if let Ok(plan) = tcl_compiler::registry_invocation::native_operation_selection_plan(
++            let r = tcl_compiler::registry_invocation::native_operation_selection_plan(
+                 tokens,
+                 self.escapes,
+                 self.word_rules,
+-            ) {
++            );
++            if std::env::var_os("REFDBG").is_some() { if let Err(e) = &r { eprintln!("REFDBG plan decline {e:?} words={:?}", tokens.words()); } }
++            if let Ok(plan) = r {
+                 plan
+             } else {
+                 self.refuse_native_dependency();
+diff --git a/rust/tcl-codegen/src/compile_service.rs b/rust/tcl-codegen/src/compile_service.rs
+index ccc659f9..b0c22781 100644
+--- a/rust/tcl-codegen/src/compile_service.rs
++++ b/rust/tcl-codegen/src/compile_service.rs
+@@ -62,7 +62,7 @@ use tcl_runtime_api::{
+ /// document: the profile's default availability over the caller's exact
+ /// command store and its lexer configuration. `None` when the store's
+ /// metadata cannot correspond to that profile's availability.
+-fn fresh_document_input(
++pub(crate) fn fresh_document_input(
+     registry: &CommandRegistry,
+     config: LexerConfig,
+     profile: &'static DialectProfile,
+@@ -451,7 +451,7 @@ impl BytecodeCompileService {
+         profile: Option<&'static DialectProfile>,
+         policy: CompileSourcePolicy<'_>,
+     ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+-        let mut ir = crate::inlining::inline_reference_bodies(ir, registry, config, profile);
++        let mut ir = crate::inlining::inline_reference_bodies(ir, registry, config, profile, policy.entry);
+         ir.top_level_evaluation = target.evaluation;
+         let prepared = prepare_cfg_context_bundle(&ir, registry);
+         let cfg =
+@@ -605,7 +605,13 @@ impl BytecodeCompileService {
+                 Some(profile),
+             ),
+         );
+-        let ir = crate::inlining::inline_reference_bodies(ir, registry, config, Some(profile));
++        let ir = crate::inlining::inline_reference_bodies(
++            ir,
++            registry,
++            config,
++            Some(profile),
++            native_entry,
++        );
+         let prepared = prepare_cfg_context_bundle(&ir, registry);
+         let cfg =
+             build_cfg_codegen_with_registry_and_context(&ir, false, registry, &prepared, config);
+@@ -717,6 +723,8 @@ impl BytecodeCompileService {
+             ),
+         }
+         .map_err(native_word_compile_error)?;
++        let ir =
++            crate::inlining::inline_reference_bodies(ir, registry, config, Some(profile), entry);
+         let prepared = prepare_cfg_context_bundle(&ir, registry);
+         let cfg =
+             build_cfg_codegen_with_registry_and_context(&ir, false, registry, &prepared, config);
+diff --git a/rust/tcl-codegen/src/inlining/mod.rs b/rust/tcl-codegen/src/inlining/mod.rs
+index 9f919612..d08447cd 100644
+--- a/rust/tcl-codegen/src/inlining/mod.rs
++++ b/rust/tcl-codegen/src/inlining/mod.rs
+@@ -231,6 +231,18 @@ enum InlineSpec {
+ }
+ 
+ impl InlineSpec {
++    /// Whether splicing this body renames nothing of it: a native compiler
++    /// replays a spliced command's original bytes, which a renamed formal
++    /// would contradict.
++    pub(super) fn renames_nothing(&self) -> bool {
++        match self {
++            Self::Empty(..) | Self::Verbatim(..) => true,
++            Self::Parameterised(proc, _, _) => {
++                proc.params.is_empty() && splice::collect_local_names(&proc.body).is_empty()
++            }
++        }
++    }
++
+     /// The statements of the body the definition has.
+     fn body_statements(&self) -> &[Statement] {
+         match self {
+@@ -596,6 +608,7 @@ pub fn inline_reference_bodies(
+     registry: &CommandRegistry,
+     config: tcl_lexer::LexerConfig,
+     profile: Option<&'static tcl_dialect::DialectProfile>,
++    entry: Option<&tcl_runtime_api::NativeCompilationEntry>,
+ ) -> Module {
+     // A procedure body is a unit of its own that a release keeping the
+     // commands running bytecode compiled enters afresh at each call, which a
+@@ -606,7 +619,7 @@ pub fn inline_reference_bodies(
+     if module.plain_command_dispatch || !release.revalidates_running_bytecode() {
+         return module;
+     }
+-    let imported = reference::import(&mut module, registry, config, profile);
++    let imported = reference::import(&mut module, registry, config, profile, entry);
+     if imported.ids.is_empty() {
+         return module;
+     }
+diff --git a/rust/tcl-codegen/src/inlining/reference.rs b/rust/tcl-codegen/src/inlining/reference.rs
+index 1c687892..acc24ad0 100644
+--- a/rust/tcl-codegen/src/inlining/reference.rs
++++ b/rust/tcl-codegen/src/inlining/reference.rs
+@@ -76,10 +76,19 @@ pub(super) fn import(
+     registry: &CommandRegistry,
+     config: LexerConfig,
+     profile: Option<&'static tcl_dialect::DialectProfile>,
++    entry: Option<&tcl_runtime_api::NativeCompilationEntry>,
+ ) -> Imported {
+     let mut imported = Imported::default();
+     // Read the original callers before an appended body changes the image.
+     let called = called_descriptors(module, registry);
++    // A module lowered under a live runtime entry carries no catalogue input:
++    // its definitions are read as a fresh interpreter of its release reads them.
++    let input = module.source_metadata_input.clone().or_else(|| {
++        profile.and_then(|profile| {
++            crate::compile_service::fresh_document_input(registry, config, profile)
++        })
++    });
++    if std::env::var_os("REFDBG").is_some() { eprintln!("REFDBG called={called:?} bodies={}", registry.reference_bodies().count()); }
+     for (spec, text) in registry.reference_bodies() {
+         let Some(sites) = called.get(spec.name) else {
+             continue;
+@@ -95,11 +104,29 @@ pub(super) fn import(
+             registry,
+             config,
+             profile,
+-            module.source_metadata_input.as_ref(),
++            input.as_ref(),
+         ) else {
+             continue;
+         };
++        // Under a live entry each spliced command carries the compiler the
++        // runtime selects for it; the decision to splice stays the one proved
++        // where the definition was lowered.
++        if std::env::var_os("REFDBG").is_some() { eprintln!("REFDBG live={} inlinable={} renames_nothing={}", entry.is_some(), inlinable.is_some(), inlinable.as_ref().is_some_and(super::InlineSpec::renames_nothing)); }
++        if entry.is_some() && !inlinable.as_ref().is_some_and(super::InlineSpec::renames_nothing) {
++            continue;
++        }
++        let definition = match entry {
++            Some(entry) => {
++                let Some(definition) = with_live_body(definition, registry, config, profile, entry)
++                else {
++                    continue;
++                };
++                definition
++            }
++            None => definition,
++        };
+         let qualified = definition.qualified_name.clone();
++        if std::env::var_os("REFDBG").is_some() { eprintln!("REFDBG lowered {qualified} inlinable={}", inlinable.is_some()); }
+         if module.procedures.has_display(&qualified)
+             || module.redefined_procedures.contains(&qualified)
+         {
+@@ -135,7 +162,7 @@ fn called_descriptors(
+     if tcl_compiler::registry_invocation::InvocationMetadataContext::for_module(registry, module)
+         .is_none()
+     {
+-        return HashMap::new();
++        return live_called_descriptors(module, registry);
+     }
+     let mut labels: HashMap<String, Vec<SiteKey>> = HashMap::new();
+     let mut note = |statement: &Statement| {
+@@ -151,6 +178,7 @@ fn called_descriptors(
+         let Some(metadata) =
+             binding.original_argument_metadata_for_module(tokens, module, registry)
+         else {
++            if std::env::var_os("REFDBG").is_some() { eprintln!("REFDBG no arg metadata {:?} target={:?}", tokens.words(), binding.proved_execution_target().map(|t| t.command.clone())); }
+             return;
+         };
+         let Some(advice) =
+@@ -179,6 +207,46 @@ fn called_descriptors(
+     labels
+ }
+ 
++/// The candidates of a module lowered under a live runtime entry, which has no
++/// catalogue metadata: each call whose proved execution target the registry
++/// describes, reached with exactly its written words.
++fn live_called_descriptors(
++    module: &Module,
++    registry: &CommandRegistry,
++) -> HashMap<String, Vec<SiteKey>> {
++    let mut labels: HashMap<String, Vec<SiteKey>> = HashMap::new();
++    if module.source_entry.native_entry.is_none() {
++        return labels;
++    }
++    let mut note = |statement: &Statement| {
++        if !matches!(statement, Statement::Call { .. }) {
++            return;
++        }
++        let Some(tokens) = statement.tokens() else {
++            return;
++        };
++        let Some(target) = tokens
++            .source_binding
++            .as_ref()
++            .and_then(tcl_compiler::command_binding::SourceInvocationBinding::proved_execution_target)
++        else {
++            return;
++        };
++        if !target.prepended.is_empty() {
++            return;
++        }
++        let (Some(spec), Some(site)) = (registry.get(&target.command), site_key(tokens)) else {
++            return;
++        };
++        labels.entry(spec.name.to_owned()).or_default().push(site);
++    };
++    tcl_compiler::ir::for_each_statement(&module.top_level, &mut note);
++    for proc in module.procedures.values() {
++        tcl_compiler::ir::for_each_statement(&proc.body, &mut note);
++    }
++    labels
++}
++
+ /// Lower the actual body and join its produced declaration key through the
+ /// Registry's descriptor lookup to this exact backing row. No descriptor
+ /// punctuation is treated as a constructed-key or Native naming contract.
+@@ -227,6 +295,41 @@ fn lower_definition(
+     proc.body_source.is_some().then_some((proc, inlinable))
+ }
+ 
++/// `proc` with its body lowered as the procedure target the live `entry`
++/// compiles, at the offsets of the definition's own lowering.
++fn with_live_body(
++    mut proc: Procedure,
++    registry: &CommandRegistry,
++    config: LexerConfig,
++    profile: Option<&'static tcl_dialect::DialectProfile>,
++    entry: &tcl_runtime_api::NativeCompilationEntry,
++) -> Option<Procedure> {
++    let source = proc.body_source.clone()?;
++    let mut entry = entry.clone();
++    entry.compiled_local_layout = None;
++    let entry = &entry;
++    let (holder, _) = tcl_syntax::naming::key_holder_and_tail(&proc.qualified_name);
++    let namespace = tcl_syntax::naming::unroot_rooted_key(holder)?;
++    let mut live = tcl_compiler::lowering::lower_procedure_target_module_for_bytecode_with_options(
++        tcl_runtime_api::ProcedureCompileTarget {
++            source: &source,
++            parameters: &proc.params,
++            namespace,
++        },
++        registry,
++        config,
++        profile,
++        false,
++        Some(tcl_compiler::command_binding::native_entry_options(entry)),
++    );
++    let mut body = std::mem::take(&mut live.top_level);
++    tcl_compiler::lattice_rebase::rebase_script(&mut body, i64::from(proc.body_offset));
++    if std::env::var_os("REFDBG").is_some() { eprintln!("REFDBG live ns={:?} sim ns={:?}\nLIVE {:?}\nSIM {:?}", body.namespace_context, proc.body.namespace_context, body.statements, proc.body.statements); }
++    body.namespace_context = proc.body.namespace_context.take();
++    proc.body = body;
++    Some(proc)
++}
++
+ /// Append `text` to the module's source and shift `proc` to where it now stands.
+ fn append(module: &mut Module, text: &str, mut proc: Procedure) -> Option<Procedure> {
+     let start = module.source.len() + 1;
+diff --git a/rust/tcl-codegen/src/inlining/splice.rs b/rust/tcl-codegen/src/inlining/splice.rs
+index ee228da9..140c9a08 100644
+--- a/rust/tcl-codegen/src/inlining/splice.rs
++++ b/rust/tcl-codegen/src/inlining/splice.rs
+@@ -291,7 +291,7 @@ fn with_span(stmt: &Statement, span: Span) -> Statement {
+ 
+ /// Return the union of every local-variable name written inside `script`.
+ /// Array-element writes contribute the array base name.
+-fn collect_local_names(script: &Script) -> HashSet<String> {
++pub(super) fn collect_local_names(script: &Script) -> HashSet<String> {
+     let mut names = HashSet::new();
+     walk_local_writes(script, &mut names, 0);
+     names
+diff --git a/rust/tcl-spectcl/tests/it_5/codegen_stamps/reference_bodies.rs b/rust/tcl-spectcl/tests/it_5/codegen_stamps/reference_bodies.rs
+index 69e137f2..83e3afdc 100644
+--- a/rust/tcl-spectcl/tests/it_5/codegen_stamps/reference_bodies.rs
++++ b/rust/tcl-spectcl/tests/it_5/codegen_stamps/reference_bodies.rs
+@@ -454,3 +454,15 @@ fn a_direct_dependencys_reference_body_is_dropped_at_load() {
+     assert!(inlined);
+     assert_eq!(refusal, None);
+ }
++
++#[test]
++fn zz_probe_verbatim_live() {
++    let pack = Spliced::new("probe-verbatim", &[("vthree", 0, "proc vthree {} {expr {1 + 2}}")]);
++    let caller = "proc caller {} {vthree}";
++    eprintln!("PROBE bindings={}", pack.bindings(caller, "::caller"));
++    let out = pack.inlined(&[caller], "caller");
++    eprintln!("PROBE inlined={out:?}");
++    let pack2 = Spliced::new("probe-param", &[("vdouble", 1, "proc vdouble {x} {expr {$x * 2}}")]);
++    let caller2 = "proc caller {n} {vdouble $n}";
++    eprintln!("PROBE param inlined={:?}", pack2.inlined(&[caller2], "caller 21"));
++}
