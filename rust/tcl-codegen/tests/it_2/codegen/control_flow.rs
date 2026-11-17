@@ -334,7 +334,13 @@ fn catch_in_if_condition() {
 
 #[test]
 fn catch_in_while_condition() {
-    let src = "proc retry_loop {} { while {[catch {some_op} result] != 0} { puts \"retrying...\" }; return $result }";
+    // #2427: `lower_to_ir` IR runs in a host-extensible command table, so an
+    // undefined `some_op` is an unbounded head that may rebind `catch` before
+    // the condition runs again, and the condition then names no write. With
+    // it undefined the loop never ends: tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4
+    // and 9.1.0 print `retrying...` forever. Defined, `retry_loop` returns
+    // the empty string on each of them.
+    let src = "proc some_op {} {}\nproc retry_loop {} { while {[catch {some_op} result] != 0} { puts \"retrying...\" }; return $result }";
     let ir = ir_for(src);
     let cfg = build_cfg(&ir, false);
     let proc_cfg = cfg
