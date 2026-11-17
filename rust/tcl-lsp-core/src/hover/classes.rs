@@ -111,24 +111,7 @@ pub(super) fn positioned_class_hover(
 /// selects among the document's class declarations (current namespace, then
 /// global). Display only.
 fn relation_class_hover(source: &str, analysis: &AnalysisResult, cursor: u32) -> Option<Hover> {
-    use tcl_compiler::analyser::types::OriginalSourceClassRelationKind as Kind;
-    let (image, config) = tcl_compiler::source_graph::current_analysis(source, analysis)?;
-    let relation = analysis
-        .original_class_declarations()
-        .flat_map(|record| record.metadata().original_relations.effects())
-        .filter(|effect| matches!(effect.kind(), Kind::Superclass | Kind::Mixin))
-        .flat_map(|effect| effect.values().unwrap_or_default())
-        .find(|relation| {
-            relation
-                .name_input()
-                .original_word_key()
-                .is_some_and(|key| {
-                    key.source_image() == &image
-                        && key.lexer_config() == config
-                        && key.span().start() <= cursor
-                        && cursor < key.span().end()
-                })
-        })?;
+    let relation = crate::original_oo::relation_word_at(source, analysis, cursor)?;
     let selected = relation.lookup().first_matching_publications(
         analysis
             .original_class_declarations()
