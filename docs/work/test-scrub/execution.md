@@ -7,21 +7,21 @@ Failing tests of `tcl-codegen`, `tcl-vm`, `tcl-runtime`, the engines, `tcl-cshim
 | Verdict | Tests |
 | --- | ---: |
 | `KEEP-ORACLE` | 110 |
-| `KEEP-CONTRACT` | 56 |
+| `KEEP-CONTRACT` | 57 |
 | `MERGE` | 49 |
 | `REWRITE` | 33 |
 | `RETIRE` | 8 |
 | `FIX-EXPECTATION` | 3 |
-| `FIX-FIXTURE` | 3 |
+| `FIX-FIXTURE` | 2 |
 | `KEEP-F5` | 2 |
 | total kept here | 264 |
 | routed: live-inlining (inliner, `ledger/live-inlining.tsv`) | 23 |
 
 ## Status (the ledger's `status` column)
 
-257 open, 5 fixed, 2 repaired, as of 17 November 2026 night:
+256 open, 5 fixed, 4 repaired, as of 17 November 2026 night:
 - Fixed: `errorstack-inner-uplevel-and-fold-options` (8c92829a, the folded syntax options), `bad-option-wording-below-8.6` (ec05d9fc: `encoding` below 8.6 was a product fault, the expectation half right) and the three `optimiser-drops-effectful-foreach-list` rows (fixed upstream).
-- Repaired: `delete-proc-runs-in-delete-command` (42cde941) and `interp-option-list` (f4452996).
+- Repaired: `delete-proc-runs-in-delete-command` (42cde941), `interp-option-list` (f4452996) and two `fixture-body-identity-lookup` rows (a release registry defines `proc`). The third, `procedure_target_matches_static_proc_across_profiles_and_dispatches`, needed `namespace eval ::matrix` first (tclsh refuses `proc ::matrix::p` in an unknown namespace) and now shows a product fault: `KEEP-CONTRACT` `procedure-target-folds-less-than-static`.
 - Re-read: `switch_exact_return_arms_jump_table` is `KEEP-ORACLE` (`switch-exact-jump-table-declined`), not `FIX-EXPECTATION`. tclsh 8.5-9.1 compile the test's own `switch -exact -- $cmd {...}` to a `jumpTable`; only the form without `--` is invoked. The codegen invokes it.
 - `runtime-compile-admission-refused`: every refusal is a tcl-compiler preflight or tcl-registry selection `require_provider()` (clock 18, set/variable command target 10, `string wordstart|wordend` 2, five singles), routed with fixtures.
 
@@ -103,7 +103,7 @@ Each line is one behaviour tclsh, Jim or a contract shows that the product gets 
 
 ## Where the verdict says the expectation, not the product, is wrong
 
-`FIX-EXPECTATION` (3): `binary d`/`encoding d` below 8.6 say `bad option`; `Tcl_DeleteCommandFromToken` runs the delete proc before returning; `interp bogus` lists cancel/share/transfer on 9.0. The last three are runtime/rust tests whose corrections I hold locally (applied after the coordinator samples this ledger, per the rules).
+`FIX-EXPECTATION` (3): `binary d`/`encoding d` below 8.6 say `bad option`; `Tcl_DeleteCommandFromToken` runs the delete proc before returning; `interp bogus` lists cancel/share/transfer on 9.0.
 
 ## Open questions for the coordinator
 

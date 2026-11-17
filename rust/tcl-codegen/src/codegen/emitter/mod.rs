@@ -735,7 +735,11 @@ mod tests {
         use tcl_compiler::ir::{Script, Statement};
         use tcl_core_types::ByteNamespacePath;
 
-        let registry = tcl_registry::CommandRegistry::build_default();
+        // Only a release's registry defines `proc`; the bare catalogue lowers
+        // `proc p {} {...}` to a call and issues no body.
+        let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         let mut paths = Vec::new();
         for path in [
             ByteNamespacePath::from_segments(["a:", "b"]),
@@ -855,7 +859,11 @@ mod tests {
     }
     #[test]
     fn unavailable_procedure_namespace_keeps_the_original_declaration_call() {
-        let registry = tcl_registry::CommandRegistry::build_default();
+        // Only a release's registry defines `proc`; the bare catalogue lowers
+        // `proc p {} {...}` to a call and issues no body.
+        let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         let source = "proc p {} {return VALUE}";
         let mut ir = tcl_compiler::lowering::lower_to_ir(source, &registry);
         let id = fixture_id(&ir.procedures, "::p");
