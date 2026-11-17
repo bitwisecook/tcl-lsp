@@ -661,6 +661,54 @@ fn a_recovered_tail_draws_registry_count_errors_and_nothing_else() {
             assert_eq!(tail_codes(src, dialect), expected, "{dialect}: {src:?}");
         }
     }
+    // A procedure the reached prefix declares once and nothing rebinds is
+    // checked against its own parameter list, under a bare or a qualified
+    // head. tclsh 8.4.20, 8.6.18, 9.0.4 and 9.1.0 raise `wrong # args:
+    // should be "my_helper x"` for `my_helper` and for `my_helper 1 2`, and
+    // `wrong # args: should be "::myns::helper x"` for `::myns::helper`.
+    let declared = |src: &str, dialect: &str| -> Vec<String> {
+        let cut = src.find("set q {").unwrap();
+        Analyser::new()
+            .analyse(src, dialect)
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.span.start() as usize > cut)
+            .filter(|diagnostic| diagnostic.code.is_error())
+            .filter(|diagnostic| !diagnostic.code.to_string().starts_with("E20"))
+            .map(|diagnostic| diagnostic.code.to_string())
+            .collect()
+    };
+    let helper = "proc my_helper {x} {puts $x}\n";
+    let namespaced = "namespace eval myns {\n  proc helper {x} {return $x}\n}\n";
+    for (prefix, tail, expected) in [
+        (helper, "my_helper\n", vec!["E002"]),
+        (helper, "my_helper 1 2\n", vec!["E003"]),
+        (helper, "my_helper 1\n", vec![]),
+        (namespaced, "::myns::helper\n", vec!["E002"]),
+        (namespaced, "myns::helper\n", vec!["E002"]),
+        (namespaced, "::myns::helper 1\n", vec![]),
+        // Declared twice, renamed, or with a computed parameter list: no
+        // single declaration decides the count.
+        (
+            "proc my_helper {x} {}\nproc my_helper {x y} {}\n",
+            "my_helper\n",
+            vec![],
+        ),
+        (
+            "proc my_helper {x} {}\nrename my_helper other\n",
+            "my_helper\n",
+            vec![],
+        ),
+        ("proc my_helper $params {}\n", "my_helper\n", vec![]),
+    ] {
+        let src = format!("{prefix}\nset q {{\n  aaa\n{tail}");
+        // The lenient `tcl` environment states no formal count for a
+        // declaration (its arity is the abstaining `0..unlimited`), so only
+        // pinned releases are asked.
+        for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+            assert_eq!(declared(&src, dialect), expected, "{dialect}: {src:?}");
+        }
+    }
     // A head the reached prefix rebinds is not the registry's to check.
     let rebound = "proc set {args} {}\nset x [foo bar\nset\n";
     let cut = rebound.rfind("set\n").unwrap();
