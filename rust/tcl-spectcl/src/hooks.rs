@@ -286,6 +286,29 @@ struct OriginalHookBinding {
 }
 
 impl HookPlan {
+    /// Whether `other` runs exactly these bodies: the same hook programs
+    /// under the same pack names and DSL versions (packs that declare none
+    /// aside) and the same dormant hooks. A pack's `content_hash` labels the
+    /// whole set it was loaded with, so any pack arriving or leaving changes
+    /// it; it names bytes for a crash record and selects no evaluator.
+    fn serves_the_evaluators_of(&self, other: &Self) -> bool {
+        fn running(
+            plan: &HookPlan,
+        ) -> impl Iterator<Item = (&str, &str, &[tcl_spec_hooks::HookProgram])> {
+            plan.packs
+                .iter()
+                .filter(|pack| !pack.programs.is_empty())
+                .map(|pack| {
+                    (
+                        pack.pack.as_str(),
+                        pack.dsl_version.as_str(),
+                        pack.programs.as_slice(),
+                    )
+                })
+        }
+        running(self).eq(running(other)) && self.dormant == other.dormant
+    }
+
     /// One [`PackPrograms`] per pack whose bodies run, each program carrying
     /// its slot — what a thread's host loads. A pack whose bodies are dormant
     /// has none here: its hooks are in [`Self::dormant`].
@@ -649,6 +672,15 @@ fn publish_with_before_commit(packs: &PackSet, before_commit: impl FnOnce()) {
     if plan.is_empty() && published.is_none() {
         // Nothing to serve and nothing to retire: leave the generation at
         // zero so an unaccelerated process never pays for the check.
+        return;
+    }
+    if published
+        .as_ref()
+        .is_some_and(|current| current.serves_the_evaluators_of(&plan))
+    {
+        // No thread would build a different host, so nothing re-keys: a pack
+        // set that only gained or lost plain commands must not move the
+        // evaluator epoch every memoised lattice is keyed on (#1657).
         return;
     }
     let generation = (PUBLICATION.load(Ordering::Relaxed) >> 1).wrapping_add(1);
