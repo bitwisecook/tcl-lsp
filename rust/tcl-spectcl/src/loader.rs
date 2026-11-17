@@ -161,6 +161,9 @@ pub use value_parsers::{semantic_operation_spelling, semantic_operations};
 struct Log {
     context: String,
     source: Option<std::sync::Arc<str>>,
+    /// Row subjects of `source` by line, indexed on first use.
+    rows:
+        Option<std::collections::BTreeMap<u32, tcl_lsp_core::code_actions::SpecPackNoticeSubject>>,
     notices: Vec<Notice>,
     /// Sites that used vocabulary newer than 1.0, as
     /// `(context, line, word, first vocabulary that has it)`.

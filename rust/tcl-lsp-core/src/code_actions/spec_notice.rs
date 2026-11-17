@@ -56,9 +56,19 @@ pub struct SpecPackNoticeSubject {
 }
 #[derive(Clone, Copy)]
 struct LoaderNoticeSite<'a> {
-    line: u32,
+    line: Option<u32>,
+    newlines: &'a [u32],
     wanted: Option<&'a str>,
     kind: &'a SpecPackNoticeKind,
+}
+fn newline_offsets(image: &SourceImage) -> Vec<u32> {
+    image
+        .bytes()
+        .iter()
+        .enumerate()
+        .filter(|&(_, &b)| b == b'\n')
+        .filter_map(|(offset, _)| u32::try_from(offset).ok())
+        .collect()
 }
 fn loader_notice_plain_word(word: &NativeWord) -> Option<&str> {
     if word.group().expand {
@@ -82,9 +92,14 @@ fn collect_loader_notice_sites(
     config: LexerConfig,
     depth: u32,
     site: LoaderNoticeSite<'_>,
-    sites: &mut Vec<Span>,
+    sites: &mut Vec<(u32, Span)>,
 ) -> Option<()> {
-    let LoaderNoticeSite { line, wanted, kind } = site;
+    let LoaderNoticeSite {
+        line,
+        newlines,
+        wanted,
+        kind,
+    } = site;
     if depth > 32 {
         return None;
     }
@@ -97,18 +112,9 @@ fn collect_loader_notice_sites(
         let head = command.words.first()?;
         let head_text = loader_notice_plain_word(head);
         for (ordinal, word) in command.words.iter().enumerate() {
-            // A notice's line is counted once; no `bytecount` dependency is warranted.
-            #[allow(clippy::naive_bytecount)]
-            let word_line = u32::try_from(
-                image
-                    .bytes()
-                    .get(..word.span().start() as usize)?
-                    .iter()
-                    .filter(|&&b| b == b'\n')
-                    .count(),
-            )
-            .ok()?
-            .checked_add(1)?;
+            let word_line = u32::try_from(newlines.partition_point(|&n| n < word.span().start()))
+                .ok()?
+                .checked_add(1)?;
             let position = match kind {
                 SpecPackNoticeKind::Property | SpecPackNoticeKind::Row => ordinal == 0,
                 SpecPackNoticeKind::Flag { row } => {
@@ -118,12 +124,12 @@ fn collect_loader_notice_sites(
                 }
             };
             if position
-                && word_line == line
+                && line.is_none_or(|line| word_line == line)
                 && loader_notice_plain_word(word)
                     .is_some_and(|text| wanted.is_none_or(|wanted| wanted == text))
                 && word.group().kind != tcl_lexer::WordKind::Braced
             {
-                sites.push(word.content_span().ok()?);
+                sites.push((word_line, word.content_span().ok()?));
             }
             if word.group().kind == tcl_lexer::WordKind::Braced {
                 let _ = collect_loader_notice_sites(
@@ -155,6 +161,7 @@ impl SpecPackNoticeSubject {
             return None;
         }
         let image = SourceImage::document(source);
+        let newlines = newline_offsets(&image);
         let mut sites = Vec::new();
         collect_loader_notice_sites(
             &image,
@@ -162,13 +169,14 @@ impl SpecPackNoticeSubject {
             config,
             0,
             LoaderNoticeSite {
-                line,
+                line: Some(line),
+                newlines: &newlines,
                 wanted: Some(word),
                 kind: &kind,
             },
             &mut sites,
         )?;
-        let [span] = sites.as_slice() else {
+        let [(_, span)] = sites.as_slice() else {
             return None;
         };
         Some(Self {
@@ -182,41 +190,61 @@ impl SpecPackNoticeSubject {
         })
     }
 
-    /// The subject of a notice about the row that starts on `line`: its head
-    /// word, when exactly one plain literal row head begins on that line.
-    /// Computed, escaped, several-per-line and absent heads issue none.
+    /// The subject of a notice about each row of `source`, by the line its
+    /// head word starts on: a line with exactly one plain literal row head
+    /// has an entry; computed, escaped and several-per-line heads have none.
     #[must_use]
-    pub fn for_row(source: &str, config: LexerConfig, line: u32) -> Option<Self> {
+    pub fn for_rows(source: &str, config: LexerConfig) -> BTreeMap<u32, Self> {
         let image = SourceImage::document(source);
+        let Ok(end) = u32::try_from(image.len()) else {
+            return BTreeMap::new();
+        };
+        let newlines = newline_offsets(&image);
         let mut sites = Vec::new();
-        collect_loader_notice_sites(
+        if collect_loader_notice_sites(
             &image,
-            Span::new(0, u32::try_from(image.len()).ok()?),
+            Span::new(0, end),
             config,
             0,
             LoaderNoticeSite {
-                line,
+                line: None,
+                newlines: &newlines,
                 wanted: None,
                 kind: &SpecPackNoticeKind::Row,
             },
             &mut sites,
-        )?;
-        let [span] = sites.as_slice() else {
-            return None;
-        };
-        let word = std::str::from_utf8(image.bytes().get(span.as_range())?).ok()?;
-        if !word.is_ascii() {
-            return None;
+        )
+        .is_none()
+        {
+            return BTreeMap::new();
         }
-        Some(Self {
-            word: word.into(),
-            kind: SpecPackNoticeKind::Row,
-            image,
-            config,
-            span: *span,
-            line,
-            original: None,
-        })
+        let mut by_line = BTreeMap::<u32, Vec<Span>>::new();
+        for (line, span) in sites {
+            by_line.entry(line).or_default().push(span);
+        }
+        by_line
+            .into_iter()
+            .filter_map(|(line, spans)| {
+                let [span] = spans.as_slice() else {
+                    return None;
+                };
+                let word = std::str::from_utf8(image.bytes().get(span.as_range())?).ok()?;
+                word.is_ascii().then(|| {
+                    (
+                        line,
+                        Self {
+                            word: word.into(),
+                            kind: SpecPackNoticeKind::Row,
+                            image: image.clone(),
+                            config,
+                            span: *span,
+                            line,
+                            original: None,
+                        },
+                    )
+                })
+            })
+            .collect()
     }
 
     /// Retain an actual selected source word and explicit notice-kind metadata.

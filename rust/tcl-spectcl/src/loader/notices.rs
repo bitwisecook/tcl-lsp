@@ -215,15 +215,19 @@ impl Log {
 
     /// The subject of a notice about the row that starts on `line`.
     pub(super) fn row_subject(
-        &self,
+        &mut self,
         line: u32,
     ) -> Option<tcl_lsp_core::code_actions::SpecPackNoticeSubject> {
         let source = self.source.as_deref()?;
-        tcl_lsp_core::code_actions::SpecPackNoticeSubject::for_row(
-            source,
-            super::source_config(super::FileBom::Skip),
-            line,
-        )
+        self.rows
+            .get_or_insert_with(|| {
+                tcl_lsp_core::code_actions::SpecPackNoticeSubject::for_rows(
+                    source,
+                    super::source_config(super::FileBom::Skip),
+                )
+            })
+            .get(&line)
+            .cloned()
     }
 
     fn attach_subject(&mut self, subject: RejectedWordSubject) {
