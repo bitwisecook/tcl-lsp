@@ -215,13 +215,16 @@ fn required_upvar_level_does_not_borrow_optional_leading_frame_default() {
             .unwrap();
         assert!(!optional.explicit);
         assert_eq!(optional.target, 0);
-        for current in [0, interp.current_level()] {
+        // At level 0 TclObjGetFrame fails first, naming its default `1`:
+        // tclsh 8.6.18/9.0.4/9.1.0 `upvar k x alias` at global level answer
+        // `bad level "1"` with `TCL LOOKUP LEVEL 1`; inside a proc, `k`.
+        for (current, expected) in [(0, b"1".as_slice()), (interp.current_level(), b"k")] {
             let result = protocol
                 .resolve_required_object(current, &mut operand)
                 .unwrap();
             assert!(matches!(result,
                 Err(tcl_registry::frame_effect::NativeFrameLevelFailure::BadLevel { name, lookup_code: true, .. })
-                    if name == b"k"
+                    if name == expected
             ));
         }
         let x = Owned::fresh(obj::new_string_bytes(b"x"));
