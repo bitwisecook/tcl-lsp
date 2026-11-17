@@ -6,18 +6,18 @@ The burn-down continues with new sessions. This file is what every one of them r
 
 | Slug | Area | Model | Session |
 | --- | --- | --- | --- |
-| `analyser-binding` | Compiler analyser and binding (the walk, realm, `command_binding`, `registry_invocation`) | Opus | SESSION:analyser-binding |
-| `class-facts` | Class and object facts | Opus | SESSION:class-facts |
-| `diagnostics` | Analyser diagnostics | Opus | SESSION:diagnostics |
-| `dataflow-optimiser` | Compiler dataflow and optimiser | Opus | SESSION:dataflow-optimiser |
-| `values` | Value transfers, escape, shimmer, types | Opus | SESSION:values |
-| `taint` | Taint and iRules checks | Opus | SESSION:taint |
-| `execution` | Codegen, VM and runtimes | Opus | SESSION:execution |
-| `analysis-performance` | Analysis performance, and per-body incremental analysis | Opus | SESSION:analysis-performance |
-| `lsp-features` | LSP features (`tcl-lsp-core`, navigation end to end) and semantic tokens | Opus | SESSION:lsp-features |
-| `server-e2e-db` | LSP server end to end and `tcl-lsp-db` | Sonnet | SESSION:server-e2e-db |
-| `irules-registry-tooling` | iRules, registry, SpecTcl, tooling | Sonnet | SESSION:irules-registry-tooling |
-| `tk-oo` | Tk and TclOO issues (#2324, #2427, #1956, #1655, #832) | Opus | SESSION:tk-oo |
+| `analyser-binding` | Compiler analyser and binding (the walk, realm, `command_binding`, `registry_invocation`) | Opus | `session_017u5g3HAPLcJWWX93pMpk32` |
+| `class-facts` | Class and object facts | Opus | `session_017u5g3Kgho1C9zZ3yZYrK8P` |
+| `diagnostics` | Analyser diagnostics | Opus | `session_017u5g3HXzMVEcpUS6bxGcmA` |
+| `dataflow-optimiser` | Compiler dataflow and optimiser | Opus | `session_017u5g3MFyobSx3WBcgjea2s` |
+| `values` | Value transfers, escape, shimmer, types | Opus | `session_017u5g3KpPQPTbtTswiHYkaw` |
+| `taint` | Taint and iRules checks | Opus | `session_017u5g3HGxE6CxLNW1DgfVr9` |
+| `execution` | Codegen, VM and runtimes | Opus | `session_017u5g3HoXkKEw6EtdbxXPDn` |
+| `analysis-performance` | Analysis performance, and per-body incremental analysis | Opus | `session_017u5g3LmJPuBQtB5DVx5VsA` |
+| `lsp-features` | LSP features (`tcl-lsp-core`, navigation end to end) and semantic tokens | Opus | `session_017u5g3MRrNmuqWZxa9Lcp4F` |
+| `server-e2e-db` | LSP server end to end and `tcl-lsp-db` | Sonnet | `session_017u5g3KHQpTL4RNf7ZN9wiQ` |
+| `irules-registry-tooling` | iRules, registry, SpecTcl, tooling | Sonnet | `session_017u5g3GuvSUJA9Qanj2AVvk` |
+| `tk-oo` | Tk and TclOO issues (#2324, #2427, #1956, #1655, #832) | Opus | `session_017u5g3KsHnGzMmqgP3e6dJj` |
 
 The coordinator is session `session_017u5g3KpKgjfMZcPMj8rx4F`. It rules on questions, keeps the scoreboard and does not write area code.
 
