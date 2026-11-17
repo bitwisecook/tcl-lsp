@@ -264,13 +264,9 @@ pub(super) fn rewrite_stmt(
             {
                 return None;
             }
-            let spec = inlinable.get(&target)?;
-            if summaries
-                .live
-                .is_some_and(|bodies| !bodies.at_body_level(stmt.span()))
-            {
-                return None;
-            }
+            let spec = inlinable
+                .get(&target)
+                .filter(|_| summaries.splices_at(stmt.span()))?;
             let renamed = summaries
                 .live
                 .map(|bodies| move |names: &HashMap<String, String>| bodies.renamed(target, names));
