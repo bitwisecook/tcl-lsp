@@ -980,17 +980,20 @@ fn a_wildcard_imported_textutil_submodule_command_hovers_qualified_923_idx3_idx4
 /// separately.
 ///
 /// tclsh 8.6.16 and 9.0.4 confirm: the parameter genuinely drives which file
-/// is sourced, so it is a variable at both ends.
+/// is sourced, so it is a variable at both ends. The `::tk` namespace is
+/// declared first because `proc ::tk::X {} {}` alone is `can't create
+/// procedure "::tk::X": unknown namespace` in tclsh 8.6.18, and the procedure
+/// would never exist.
 #[test]
 fn hover_on_a_parameter_named_after_a_builtin_is_a_variable_923_idx102() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     lsp.open_ready(
         &uri,
-        "proc ::tk::SourceLibFile {file} {\n    namespace eval :: [list source [file join $::tk_library $file.tcl]]\n}\n",
+        "namespace eval ::tk {}\nproc ::tk::SourceLibFile {file} {\n    namespace eval :: [list source [file join $::tk_library $file.tcl]]\n}\n",
     );
-    // Line 0, the `file` of the parameter list `{file}` — column 25.
-    let decl = hover(&mut lsp, &uri, 0, 26);
+    // Line 1, the `file` of the parameter list `{file}` — column 25.
+    let decl = hover(&mut lsp, &uri, 1, 26);
     assert!(
         decl.contains("Variable"),
         "the `{{file}}` parameter declaration must hover as a variable: {decl:?}",
@@ -1000,7 +1003,7 @@ fn hover_on_a_parameter_named_after_a_builtin_is_a_variable_923_idx102() {
         "it must not be misattributed to the builtin `file` command: {decl:?}",
     );
     // And the read inside the list-built body agrees.
-    let read = hover(&mut lsp, &uri, 1, 62);
+    let read = hover(&mut lsp, &uri, 2, 62);
     assert!(
         read.contains("Variable"),
         "the `$file` read must hover as the same variable: {read:?}",
