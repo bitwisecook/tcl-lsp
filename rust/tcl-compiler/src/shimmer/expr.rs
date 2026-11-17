@@ -1349,26 +1349,32 @@ mod tests {
         );
     }
 
-    /// An Int variable used in a string comparison inside an `AssignExpr` produces S100.
+    /// A string comparison only generates the string form of an Int operand;
+    /// the internal representation survives, so there is no S100. tclsh 8.6.18,
+    /// 9.0.4 and 9.1.0, with `r` reading `tcl::unsupported::representation`:
+    ///   % set x [expr {41 + 1}]; set z [expr {$x eq "42"}]; r $x
+    ///   int
+    ///   % set x 42; set z [expr {$x eq "42"}]; r $x
+    ///   pure string
+    /// 8.4.20 and 8.5.19 have no `representation`; their `INST_STR_EQ` reads
+    /// both operands with `Tcl_GetStringFromObj`, which leaves the type alone.
     #[test]
-    fn expr_shimmer_int_in_string_comparison_assign_expr() {
+    fn expr_shimmer_int_in_string_comparison_assign_expr_is_silent() {
         let cu =
             CompilationUnit::build_for("set x 42\nset z [expr {$x eq \"42\"}]", &registry(), false);
         let fu = cu.function("::top").unwrap();
         let w = expr_shimmers(fu, &registry());
-        let has_shimmer = w
-            .iter()
-            .any(|sw| sw.variable == "x" && sw.from_type == TclType::Int);
         assert!(
-            has_shimmer,
-            "expected Int-in-string-cmp shimmer, got: {w:?}"
+            !w.iter().any(|sw| sw.variable == "x"),
+            "a string comparison keeps x's representation, got: {w:?}"
         );
     }
 
-    /// An Int variable used in a string comparison inside an `if` condition
-    /// (`Terminator::Branch`) produces S100 via the branch-condition path.
+    /// The branch-condition path agrees: `if {$x eq "42"}` keeps x's
+    /// representation (tclsh 8.6.18, 9.0.4, 9.1.0: `int` stays `int`, a
+    /// literal stays a pure string; 8.4/8.5 as above).
     #[test]
-    fn expr_shimmer_int_in_if_branch_condition() {
+    fn expr_shimmer_int_in_if_branch_condition_is_silent() {
         let cu = CompilationUnit::build_for(
             "set x 42\nif {$x eq \"42\"} { set y 1 }",
             &registry(),
@@ -1376,12 +1382,9 @@ mod tests {
         );
         let fu = cu.function("::top").unwrap();
         let w = expr_shimmers(fu, &registry());
-        let has_shimmer = w
-            .iter()
-            .any(|sw| sw.variable == "x" && sw.from_type == TclType::Int);
         assert!(
-            has_shimmer,
-            "expected Int-in-string-cmp shimmer in if-condition, got: {w:?}"
+            !w.iter().any(|sw| sw.variable == "x"),
+            "a string comparison in an if-condition keeps x's representation, got: {w:?}"
         );
     }
 
@@ -1494,7 +1497,7 @@ mod tests {
     /// operand inside the braced `if` condition.
     #[test]
     fn expr_shimmer_span_narrows_to_operand_in_branch_condition() {
-        let src = "set x 42\nif {$x eq \"42\"} { set y 1 }";
+        let src = "set x \"hello\"\nif {$x * 2} { set y 1 }";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::top").unwrap();
         let w = expr_shimmers(fu, &registry());
@@ -1578,27 +1581,21 @@ mod tests {
         );
     }
 
-    /// (Regression guard) `eq`/`ne`/`lt`/`le`/`gt`/`ge` never get an
-    /// auto-fix, even when both operands are provably numeric — a prior
-    /// version of this check offered a rewrite to the numeric-equivalent
-    /// operator whenever both sides looked numeric, but Tcl's string
-    /// comparison operators compare string *representations*, not numeric
-    /// value: `"10" lt "2"` is true (lexicographic) while `10 < 2` is false,
-    /// so the rewrite silently changes program behaviour. `ShimmerWarning`
-    /// carries no `fixes` field: the warning is informational only.
+    /// `lt` on two Int operands reads their string forms and keeps both
+    /// representations, so there is no S100 (and no auto-fix: `"10" lt "2"`
+    /// is true while `10 < 2` is false). `lt` is 9.0+; tclsh 9.0.4 and 9.1.0:
+    ///   % set x 10; set y 2; set z [expr {$x lt $y}]; list [r $x] [r $y] $z
+    ///   {pure string} {pure string} 1
+    /// No catalogued diagnostic reports numbers compared as strings.
     #[test]
-    fn expr_shimmer_lt_both_numeric_still_fires_with_no_fix_offered() {
+    fn expr_shimmer_lt_both_numeric_is_silent() {
         let src = "set x 10\nset y 2\nset z [expr {$x lt $y}]";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::top").unwrap();
         let w = expr_shimmers(fu, &registry());
-        let s = w
-            .iter()
-            .find(|sw| sw.variable == "x" || sw.variable == "y")
-            .unwrap_or_else(|| panic!("expected an Int-in-string-cmp shimmer, got: {w:?}"));
         assert!(
-            s.message.contains("if a numeric comparison was intended"),
-            "expected the informational hint, got: {s:?}"
+            !w.iter().any(|sw| sw.variable == "x" || sw.variable == "y"),
+            "a string comparison keeps both representations, got: {w:?}"
         );
     }
 }
