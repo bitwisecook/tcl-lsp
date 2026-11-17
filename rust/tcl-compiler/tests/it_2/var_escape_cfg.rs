@@ -555,9 +555,12 @@ fn cu_expand_word_in_unknown_call_is_a_barrier() {
 
 #[test]
 fn cu_caller_inherits_unbounded_upvar_pessimism() {
-    // `::setit` upvars a *dynamic* source (`$n`) — an unbounded upvar source —
-    // so it is pessimistic. `::wrap` calls it; on the CU+IPA path the
-    // pessimism propagates up the call edge.
+    // `::setit` upvars a *dynamic* source (`$n`): for an unknown caller any
+    // variable may be written, so its own summary stays unbounded. On the
+    // CU+IPA path `::wrap` passes the written name `x`, so exactly that
+    // variable is touched and the precise answer is sound for this caller
+    // (ruling of 17 November). tclsh 8.4.20, 8.6.18, 9.0.4, 9.1.0:
+    //   proc wrap {} {set x 5; set y 7; setit x 1; list $x $y}  -> 1 7
     let s = escape_cu(
         "proc ::setit {n v} { upvar 1 $n a\n set a $v }\n\
          proc ::wrap {} { set x 5\n setit x 1 }",
@@ -570,8 +573,12 @@ fn cu_caller_inherits_unbounded_upvar_pessimism() {
     assert!(setit.dynamic_barrier());
     let wrap = summary(&s, "::wrap");
     assert!(
-        wrap.dynamic_barrier(),
-        "the caller of an unbounded-upvar proc is downgraded on the CU path"
+        wrap.is_frame("x"),
+        "the caller's named argument variable is the one written: {wrap:?}"
+    );
+    assert!(
+        !wrap.dynamic_barrier(),
+        "the caller passes a written name, so no unbounded pessimism reaches it"
     );
 }
 
