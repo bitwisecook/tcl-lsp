@@ -41,7 +41,7 @@ async fn cross_file_evidence_sync_settles_after_one_pass() {
         .await
         .unwrap();
     backend
-        .db_set_source(&main, "helper dev\n", "tcl8.6".to_owned())
+        .db_set_source(&main, "source lib.tcl\nhelper dev\n", "tcl8.6".to_owned())
         .await
         .unwrap();
     let handles = EvidenceHandles {

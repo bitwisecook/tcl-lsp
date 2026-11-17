@@ -58,19 +58,31 @@ pub(crate) fn analyse_document(
     document_analyser(profile, registry, config).analyse(source, profile.name)
 }
 
-/// Autoload registration source purpose: retain the complete original input,
-/// realm and structural schema inventories, without requesting diagnostics or
-/// navigation references. Callers must use only those source-owned outputs.
+/// A loader index analysed inside the procedure frame its C Tcl loader
+/// evaluates it in, when the caller supplies one.
 #[must_use]
-pub(crate) fn analyse_autoload_registration_structure(
+pub(crate) fn analyse_loader_index(
     source: &str,
     profile: &'static tcl_dialect::DialectProfile,
     registry: &CommandRegistry,
     config: LexerConfig,
+    frame: Option<Arc<tcl_compiler::analyser::EntryProcedureFrame>>,
+    structure_only: bool,
 ) -> AnalysisResult {
-    document_analyser(profile, registry, config)
-        .structure_only()
-        .analyse(source, profile.name)
+    let generation = crate::context_for_dialect_profile(profile);
+    let context = Arc::new(generation.with_command_store(registry.snapshot().shared_registry()));
+    let input = ResolvedAnalysisInput::new(profile, profile, context, config);
+    let input = match frame {
+        Some(frame) => input.with_entry_procedure_frame(frame),
+        None => input,
+    };
+    let analyser = Analyser::new().with_resolved_input(input);
+    let mut analyser = if structure_only {
+        analyser.structure_only()
+    } else {
+        analyser
+    };
+    analyser.analyse(source, profile.name)
 }
 
 fn document_analyser(

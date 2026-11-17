@@ -143,6 +143,7 @@ fn codegen_module_empty_has_top() {
     let cfg_mod = CfgModule {
         top_level: toplevel_cfg(vec![]),
         procedures: HashMap::new(),
+        declared_frame_procedures: HashMap::new(),
     };
     let ir_mod = ir_for("");
     let asm = codegen_module(&cfg_mod, &ir_mod, &registry()).expect("original source namespace");

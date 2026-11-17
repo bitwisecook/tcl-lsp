@@ -857,6 +857,9 @@ pub struct CfgModule {
     pub top_level: Function,
     /// CFGs joined to their retained module body IDs.
     pub procedures: HashMap<crate::ir::ProcedureId, Function>,
+    /// Analysis CFGs of [`crate::ir::Module::declared_frame_bodies`], by the
+    /// procedure's own ID: each body as its declared frame runs it.
+    pub declared_frame_procedures: HashMap<crate::ir::ProcedureId, Function>,
 }
 
 impl CfgModule {
@@ -1036,6 +1039,7 @@ mod tests {
         let m = CfgModule {
             top_level: Function::new("::top", "entry"),
             procedures,
+            declared_frame_procedures: HashMap::new(),
         };
         assert_eq!(m.aot_clean_count(), (2, 3));
     }
@@ -1216,6 +1220,7 @@ mod tests {
         let module = CfgModule {
             top_level: top,
             procedures: HashMap::from([(id, proc)]),
+            declared_frame_procedures: HashMap::new(),
         };
         assert_eq!(module.top_level.name, "::top");
         assert!(fixture_id_if_present(&module.procedures, "::greet").is_some());

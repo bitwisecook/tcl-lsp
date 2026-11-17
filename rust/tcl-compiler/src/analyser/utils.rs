@@ -242,12 +242,13 @@ pub fn irules_top_level_only(registry: &CommandRegistry) -> HashSet<String> {
 /// instead of the command). So this builds the equivalent script *in
 /// place* instead: a buffer covering the words' whole span in `source`,
 /// holding each word's content bytes at their real offsets and a space
-/// everywhere else (delimiters, inter-word gaps). Script parsing treats
-/// any whitespace run as one separator, so the window parses into exactly
-/// the words the trimmed-and-joined text would — `Tcl_ConcatObj`'s trim,
-/// drop, and single-space steps all degenerate to "more whitespace" —
-/// while every span the walk records maps to the source bytes it
-/// describes.
+/// everywhere else (delimiters, inter-word gaps, and the whitespace the
+/// trim removes from each word's ends, newlines included — kept, a newline
+/// would split one joined command in two). A run of spaces is one word
+/// separator, so the window parses into exactly the words the
+/// trimmed-and-joined text would — `Tcl_ConcatObj`'s trim, drop, and
+/// single-space steps all degenerate to "more spaces" — while every span
+/// the walk records maps to the source bytes it describes.
 ///
 /// Pinned against tclsh8.6.14 and tclsh9.0.4:
 ///
@@ -305,10 +306,11 @@ pub fn concat_script_window(
         if source.get(content_start..content_start + word.len()) != Some(word.as_str()) {
             return None;
         }
-        let off = content_start.checked_sub(start)?;
-        window
-            .get_mut(off..off + word.len())?
-            .copy_from_slice(word.as_bytes());
+        // Only the trimmed content survives the join; a newline the trim
+        // removes must not reach the re-parse as a command separator.
+        let (lead, kept) = concat_trimmed_extent(word.as_bytes());
+        let off = content_start.checked_sub(start)? + lead;
+        window.get_mut(off..off + kept.len())?.copy_from_slice(kept);
     }
     if window.iter().all(u8::is_ascii_whitespace) {
         return None;
@@ -318,6 +320,25 @@ pub fn concat_script_window(
         window,
         tcl_lexer::Span::new(u32::try_from(start).ok()?, u32::try_from(end).ok()?),
     ))
+}
+
+/// The bytes `Tcl_Concat` keeps of one word, and how many it trims from
+/// the front: ASCII whitespace (`CONCAT_TRIM_SET`) goes from both ends,
+/// except one trailing byte when trimming would expose a final backslash.
+fn concat_trimmed_extent(word: &[u8]) -> (usize, &[u8]) {
+    let is_trimmed = |byte: &u8| matches!(byte, b' ' | b'\x0c' | b'\x0b' | b'\r' | b'\t' | b'\n');
+    let lead = word.iter().take_while(|byte| is_trimmed(byte)).count();
+    let rest = &word[lead..];
+    let mut end = rest.len()
+        - rest
+            .iter()
+            .rev()
+            .take_while(|byte| is_trimmed(byte))
+            .count();
+    if end < rest.len() && end > 0 && rest[end - 1] == b'\\' {
+        end += 1;
+    }
+    (lead, &rest[..end])
 }
 
 #[cfg(test)]

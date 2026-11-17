@@ -40,6 +40,7 @@ use crate::segmenter::SegmentedCommand;
 use tcl_syntax::word_rules::WordValueRules;
 
 mod authored_source_bodies;
+mod declared_frame_bodies;
 #[doc(hidden)]
 pub mod execution_regions;
 pub(crate) mod hooks;

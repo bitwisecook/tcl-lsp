@@ -109,6 +109,7 @@ impl Analyser {
         // entries behind, and a reused analyser must not carry one document's
         // deferred calls into the next.
         self.deferred_class_creations.clear();
+        self.concatenated_windows.clear();
         self.proven_sites.clear();
         self.interval_index_sites.clear();
         self.loop_candidates.clear();

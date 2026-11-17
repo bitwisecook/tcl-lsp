@@ -1,0 +1,18 @@
+[project]
+name = "tcl-lsp-test-scrub"
+version = "0.1.0"
+description = "Inventory of the Rust tests for the test scrub: what each holds, cites and repeats"
+requires-python = ">=3.14"
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.scripts]
+scrub-inventory = "scrub_inventory:main"
+
+[tool.setuptools]
+py-modules = ["scrub_inventory"]
+
+[tool.pytest.ini_options]
+python_files = ["test_scrub_inventory.py"]

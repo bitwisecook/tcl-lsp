@@ -317,12 +317,13 @@ impl Analyser {
             // drags trailing text into extra words). Walk it rather than
             // discarding every proc and variable the namespace declares.
             if first_tok.kind == TokenType::Str {
-                self.analyse_body(&words[0], *first_tok, child_path);
+                self.analyse_concatenated_script(&words[0], *first_tok, child_path);
             }
             return;
         };
         let anchor = Token::new(TokenType::Str, span);
-        self.analyse_body(&script, anchor, child_path);
+        self.analyse_concatenated_script(&script, anchor, child_path);
+        self.concatenated_windows.push((script, span));
     }
 
     /// Handle `namespace path {…}`: record the current namespace's

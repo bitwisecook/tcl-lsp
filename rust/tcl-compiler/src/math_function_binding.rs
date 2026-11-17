@@ -18,7 +18,10 @@
 
 //! Actual reached math-function implementations used by execution folding.
 
+mod closed_expression;
 mod physical_condition;
+
+pub use closed_expression::OpenExpression;
 
 use crate::ir::Script;
 

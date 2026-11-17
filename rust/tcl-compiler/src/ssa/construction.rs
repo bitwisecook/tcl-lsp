@@ -323,6 +323,17 @@ pub(super) struct RenameOutputs {
     pub(super) source_may_effects: HashMap<(BlockId, usize), SourceMaySsaCall>,
     /// The versions live at each call to a command the module cannot see.
     pub(super) unseen_call_versions: Vec<(SsaVariableIdentity, Version)>,
+    /// What a summary's SSA retains for its value refreshes
+    /// ([`RenameWalk::summary_links`]).
+    pub(super) summary_stores: SummaryStores,
+}
+
+/// The stores a summary's SSA gave a definition the walk proved no place
+/// for: each defines the cell its own name reads.
+#[derive(Debug, Default)]
+pub(crate) struct SummaryStores {
+    /// The points of those stores.
+    pub(crate) fallback_defs: HashSet<(BlockId, usize)>,
 }
 
 pub(super) fn intern_terminator_reads(
@@ -472,6 +483,9 @@ pub(super) struct RenameWalk<'a> {
     /// Terminator reads the context cannot resolve but the walk's captured
     /// binding does ([`intern_terminator_reads`]).
     captured_terminator_names: HashSet<String>,
+    /// The locals linked to a caller's place, in the SSA a transfer summary
+    /// runs on ([`crate::ssa::build_summary_ssa`]); `None` elsewhere.
+    pub(super) summary_links: Option<Vec<String>>,
 }
 
 fn project_ssa_source_names(walk: &mut RenameWalk<'_>, func: &cfg::Function) {
@@ -639,14 +653,17 @@ pub(super) fn build_ssa_inner(
     entry: ResolveContext,
     clobbers: &RegistryClobberNames,
     metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
-    standalone_owner: bool,
-) -> SsaFunction {
+    (standalone_owner, summary_links): (bool, Option<&[String]>),
+) -> (SsaFunction, SummaryStores) {
     // Complexity guard: skip the O(blocks·vars) phi placement + rename walk
     // for a pathologically large (usually generated) body. Returns a trivial
     // SSA; the compilation-unit builder likewise produces a trivial analysis
     // and flags the function so per-proc diagnostic passes skip it.
     if is_complexity_guarded(func) {
-        return SsaFunction::trivial(func.name.clone(), func.entry, func.block_names().to_vec());
+        return (
+            SsaFunction::trivial(func.name.clone(), func.entry, func.block_names().to_vec()),
+            SummaryStores::default(),
+        );
     }
 
     let mut enriched = enrich_instance_option_defs(func, registry);
@@ -681,6 +698,7 @@ pub(super) fn build_ssa_inner(
     // name / version, interned to `Symbol` when blocks are assembled).
     let mut walk =
         RenameWalk::new_with_standalone_owner(func, config, points, metadata, standalone_owner);
+    walk.summary_links = summary_links.map(<[String]>::to_vec);
 
     rename_dominator_tree(
         &mut walk, func, &tree, &phi_vars, registry, &elems, clobbers,
@@ -755,5 +773,5 @@ pub(super) fn build_ssa_inner(
         unseen_call_versions,
     };
     result.seal_source_may_clobbers();
-    result
+    (result, walk.out.summary_stores)
 }

@@ -187,8 +187,15 @@ fn walk_script(ctx: &mut PassContext<'_>, script: &Script, facts: &Facts<'_>, de
     }
     for (index, stmt) in script.statements.iter().enumerate() {
         // The enclosing evaluator may observe the final completion value.
-        // Without a result-use proof, deletion must preserve that value.
-        let result_observed = index + 1 == script.statements.len();
+        // Without a result-use proof, deletion must preserve that value. An
+        // `if` that is a script's only command leaves no earlier result
+        // behind, and the one rewrite this gates removes an `if` whose every
+        // condition is false, which completes with "" as the empty script
+        // left does (tclsh 8.4.20 and 9.0.4 return "" for `proc f {} {if {0}
+        // {puts never}}` and for an empty body). A `for` keeps its start
+        // script, whose result would show, so it keeps the gate.
+        let alone_if = script.statements.len() == 1 && matches!(stmt, Statement::If { .. });
+        let result_observed = index + 1 == script.statements.len() && !alone_if;
         walk_statement(ctx, stmt, script, facts, depth, result_observed);
     }
 }

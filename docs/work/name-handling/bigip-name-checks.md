@@ -515,6 +515,9 @@ is the last field of the `BNC|…` line. "empty" means the result field is empty
 | BIGIP-NAME-059 | iRules in TMM | Inventory of namespaces and commands in TMM | TMM RULE_INIT | partly |
 | BIGIP-NAME-068 | iRules in TMM | `HTTP::header NAME VALUE` with no subcommand, before and after `HTTP::respond` | TMM rule load + HTTP_REQUEST | no |
 | BIGIP-NAME-070 | iRules in TMM | A backslash inside a braced argument | TMM HTTP_REQUEST | no |
+| BIGIP-NAME-071 | iRules in TMM | What runs after a response, a drop or a DNS answer, and payload without collect | TMM HTTP_REQUEST, DNS_REQUEST | no |
+| BIGIP-NAME-072 | iRules in TMM | A plain variable across the events of one connection, and `global` | TMM CLIENT_ACCEPTED + HTTP_REQUEST | no |
+| BIGIP-NAME-073 | iRules in TMM | Is there an `env` array in TMM | TMM RULE_INIT + HTTP_REQUEST | no |
 | BIGIP-NAME-060 | tmsh, iApp and iCall | Execution namespace and frame of tmsh-hosted scripts | tmsh cli script | partly |
 | BIGIP-NAME-061 | tmsh, iApp and iCall | The `tmsh::` command namespace | tmsh cli script | partly |
 | BIGIP-NAME-062 | tmsh, iApp and iCall | Where procs defined in a cli script live | tmsh cli script | partly |
@@ -2965,6 +2968,96 @@ b}]"
 |---|---|---|---|---|
 | | | | | |
 
+#### BIGIP-NAME-071 — What runs after a response, a drop or a DNS answer, and payload without collect
+
+- **Question.** After `HTTP::respond` in `HTTP_REQUEST`, does a later `HTTP::header insert` or a second `HTTP::respond`/`HTTP::redirect` raise or log an error, and do the commands after `drop` or `DNS::return` in the same event still run? Does `HTTP::payload` return data in `HTTP_REQUEST` with no `HTTP::collect`?
+- **Why the toolchain needs it.** The iRules flow checks claim each of these: IRULE1201 (header change after a response), IRULE1202 (a second response), IRULE5002 (commands after `drop` still run, so the drop needs a `return`), IRULE5004 (the same after `DNS::return`), IRULE1005/IRULE1006 (payload needs a collect). The checks are `rust/tcl-compiler/src/irules_checks/`; the examples are in `docs/design/compiler/value-transfers-examples.md`. The test-scrub ledger (`docs/work/test-scrub/ledger/taint.tsv`, cause `irules-checks-dialect-blind-unit`) keeps those tests on this check. None is measured.
+- **Environments.** TMM `HTTP_REQUEST` on an HTTP virtual server (a GET and a POST with a 10-byte body); TMM `DNS_REQUEST` on a DNS virtual server for the second rule.
+
+```tcl
+when HTTP_REQUEST {
+    set bnc_id BIGIP-NAME-071
+    log local0. "BNC|$bnc_id|tmm[TMM::cmp_unit]|payload|[string length [HTTP::payload]]"
+    HTTP::respond 200 content "BNC $bnc_id" Connection close
+    set bnc_rc [catch {HTTP::header insert X-Bnc71 yes} bnc_r]
+    log local0. "BNC|$bnc_id|tmm[TMM::cmp_unit]|after_respond_header|$bnc_rc|$bnc_r"
+    set bnc_rc [catch {HTTP::respond 200 content again} bnc_r]
+    log local0. "BNC|$bnc_id|tmm[TMM::cmp_unit]|second_respond|$bnc_rc|$bnc_r"
+}
+```
+
+Load the next two as separate rules (the first on the HTTP virtual server, the second on the DNS virtual server) and record whether the `log` after the terminating command appears:
+
+```tcl
+when HTTP_REQUEST { drop; log local0. "BNC|BIGIP-NAME-071|after_drop" }
+```
+
+```tcl
+when DNS_REQUEST { DNS::return; log local0. "BNC|BIGIP-NAME-071|after_dns_return" }
+```
+
+There is no Tcl baseline: these are TMM commands.
+
+| Label | Expected by the checks | Basis |
+| --- | --- | --- |
+| `payload` | `0` on the POST without a collect | IRULE1006 claim |
+| `after_respond_header` | an error or a logged TCL error | IRULE1201 claim |
+| `second_respond` | an error or a logged TCL error | IRULE1202 claim |
+| `after_drop` | logged (execution continues) | IRULE5002 claim |
+| `after_dns_return` | logged (execution continues) | IRULE5004 claim |
+
+| Observed result | BIG-IP build | Environment | Date | Verdict |
+|---|---|---|---|---|
+| | | | | |
+
+#### BIGIP-NAME-072 — A plain variable across the events of one connection, and `global`
+
+- **Question.** Is a plain variable set in `CLIENT_ACCEPTED` (or `RULE_INIT`) readable in a later `HTTP_REQUEST` of the same connection, and gone on a new connection? Does `global x` in an event link to a variable shared by every connection on the TMM?
+- **Why the toolchain needs it.** IRULE4003 (a variable read in one event and set in another), IRULE5001 (a debug flag set in a setup event is not unset) and IRULE6001 (`global` and `::` names are shared across connections) rest on these, through the connection scope (`rust/tcl-compiler/src/connection_scope.rs`). The test-scrub ledger keeps those tests on this check. Not measured.
+- **Environments.** TMM, one virtual server, two HTTP requests on one keep-alive connection, then one request on a new connection.
+
+```tcl
+when CLIENT_ACCEPTED {
+    if {![info exists bnq72conn]} { set bnq72conn [TCP::client_port] }
+    global bnq72glob
+    if {![info exists bnq72glob]} { set bnq72glob 0 }
+    incr bnq72glob
+}
+when HTTP_REQUEST {
+    global bnq72glob
+    log local0. "BNC|BIGIP-NAME-072|tmm[TMM::cmp_unit]|conn|[info exists bnq72conn]|[expr {[info exists bnq72conn] ? $bnq72conn : {}}]|glob|$bnq72glob"
+}
+```
+
+| Label | Expected by the checks | Basis |
+| --- | --- | --- |
+| `conn` on both requests of the first connection | `1` and that connection's client port | IRULE4003/IRULE5001 claim |
+| `conn` on the second connection | `1` and the new connection's port | IRULE4003 claim |
+| `glob` | counts every connection on the TMM | IRULE6001 claim |
+
+| Observed result | BIG-IP build | Environment | Date | Verdict |
+|---|---|---|---|---|
+| | | | | |
+
+#### BIGIP-NAME-073 — Is there an `env` array in TMM
+
+- **Question.** Does `::env` exist in TMM, and if so what does it hold?
+- **Why the toolchain needs it.** `env` is a taint source under the Tcl releases (tclsh 8.4.20 to 9.1.0 print `1` for `info exists env` at file level); the test `it_3 taint::sources::special_variable_sources::env_is_not_a_source_in_irules` claims it is not one under f5-irules. Not measured.
+- **Environments.** TMM `RULE_INIT` and `HTTP_REQUEST`.
+
+```tcl
+when RULE_INIT { log local0. "BNC|BIGIP-NAME-073|init|[info exists ::env]|[expr {[info exists ::env] ? [array size ::env] : {}}]" }
+when HTTP_REQUEST { log local0. "BNC|BIGIP-NAME-073|req|[info exists ::env]" }
+```
+
+| Label | Tcl 8.4 | Basis |
+| --- | --- | --- |
+| `init`, `req` | `1` and the process environment | tclsh 8.4.20 |
+
+| Observed result | BIG-IP build | Environment | Date | Verdict |
+|---|---|---|---|---|
+| | | | | |
+
 ### 4.8 tmsh, iApp and iCall
 
 The tmsh-hosted contexts share an interpreter build but are entered differently; run each check in every context its environment line lists.
@@ -3574,3 +3667,31 @@ its citation and a regression that reads the recorded lines.
     - `bnq18nosuch\nwhen RULE_INIT { log local0. x }`
     Until answered, the walk keeps entering the call and the consumers that
     need a refusal stay conservative.
+
+#### Checks for tests that hold iRules behaviour no Tcl core shows (test scrub, `irules-registry-tooling`)
+
+Each row says what to run on a BIG-IP and what answer confirms the test. The tests are in `docs/work/test-scrub/ledger/irules-registry-tooling.tsv`, marked `check TS-nn`. Until a row is answered the test stays, and the simulator or translator keeps declining where it cannot be sure.
+
+19. **TS-01, per-TMM state.** Tests: `tcl-irule-test` `live::tests::{worker_*, rule_init_uses_each_workers_global_cells_once, rule_creation_and_recreation_initialise_only_the_owned_rule_on_four_workers, scheduled_callback*, event_errors_preserve_cells_and_restore_worker_rule_activation, event_frames_preserve_cells_aliases_and_traces, retained_event_frame_preserves_native_completion_options, measured_rule_lookup_uses_partition_root_and_keeps_activated_callables, named_rules_keep_procedures_owned_and_route_call_without_extra_frames, measured_event_names_enter_the_actual_connection_frame_and_restore_policy}`; server `irules::irule6001_*`. On a BIG-IP with at least two TMMs (`tmsh show sys tmm-info`), attach to a virtual server:
+    ```tcl
+    when RULE_INIT { set static::n 1; log local0. "init tmm=[TMM::cmp_unit] n=$static::n" }
+    when CLIENT_ACCEPTED { incr static::n; set ::g $static::n; log local0. "conn tmm=[TMM::cmp_unit] n=$static::n g=$::g"
+        after 100 { log local0. "later tmm=[TMM::cmp_unit] n=$static::n" } }
+    ```
+    Open six connections spread over the TMMs, then re-save the rule and open six more. Confirms the tests: `init` appears once per TMM; each TMM's `n` counts on its own and is never shared; the `later` line runs in the TMM that scheduled it; after the rule is re-saved every TMM logs `init` again and `n` starts from 1.
+20. **TS-02, `class match` operators.** Test: `live_session_class_match_honours_every_operator`. Create a string data group `dg` with the records the test names (a hit and a miss), and log `[class match $v equals dg]`, `starts_with`, `ends_with`, `contains`, and `[class match -- $v equals dg]` for a `$v` that begins with `-`. Confirms: each call returns the 0 or 1 the test asserts, and `--` ends the option scan.
+21. **TS-03, request lifecycle.** Tests: `live_session_drives_the_request_lifecycle`, `embedded_session_scenarios`, `harness_runs_the_tmm_84_surface`, `tmm_select_mode_survives_the_per_test_reset`; `f5-cli` `explain_flow::simulate_*`. Rule: `when HTTP_REQUEST { if {[HTTP::uri] eq "/r"} { reject } elseif {[HTTP::uri] eq "/h"} { HTTP::respond 200 content ok; pool never_used } else { pool api_pool } }`. Request `/r`, `/h` and `/x`. Confirms: `/r` resets the connection, `/h` answers 200 `ok` and the `pool` after it has no effect, `/x` is balanced to `api_pool`.
+22. **TS-04, word boolean operators.** Tests: `tmm_word_boolean_operators_are_rewritten_to_their_tcl_equivalents`; `tcl-cli` `opt_detects_the_irules_dialect_without_the_flag`, `dis_lowers_word_operators_for_the_detected_dialect`. In an event log `[expr {1 and 1}]`, `[expr {1 and 0}]`, `[expr {not 0}]`, `[expr {1 or 0}]`, `[expr {"a" eq "a"}]`. Confirms: 1, 0, 1, 1, 1 (tclsh 8.4 to 9.1 reject the first four as a syntax error or invalid bareword, which is why the rule loader's rewrite exists), so a condition built from them may be folded by the optimiser.
+23. **TS-05, string lengths and maths.** Tests: `measured_counted_lengths_keep_dynamic_bytes_and_literal_strings_separate_from_host`, `authored_functions_keep_independent_worker_random_and_precision_contexts`. Log `[string length "😀"]`, `[string length $x]` for the byte strings the test builds, `[expr {abs(077)}]`, `[expr {sqrt(2)}]` per TMM. Confirms: the counts and the doubles the tests assert (the static `4 4 8 3` row for the lengths), the same on every TMM.
+24. **TS-06, loader.** Tests: `itest_loader_event_registration_matches_rust_when_blocks`, `measured_loader_checks_original_source_and_keeps_dynamic_runtime_commands`, `scf_loader_stores_parsed_snatpool_members`. Load a rule with `when HTTP_REQUEST priority 100 timing off { ... }` and one with `when CLIENT_ACCEPTED { ... }` plus a computed command head; load an SCF with a `ltm snatpool` block. Confirms: `priority` and `timing` are loader modifiers (not events), the registered events are exactly the `when` events, a computed head is accepted and fails at run time, the snatpool members are stored.
+25. **TS-07, procs named like events.** Tests: `f5-xc` `event_shaped_procedure_names_do_not_select_response_event_semantics`; `tcl-diagram` `hosted_diagram_procedures_require_the_current_body_card`. Rule: `proc HTTP_RESPONSE {} { log local0. proc-ran }` and `when HTTP_REQUEST { call HTTP_RESPONSE }`. Confirms: `proc-ran` is logged on each request and no response-event handler is installed by the proc.
+26. **TS-08, partition-aware reachability.** Tests: `bigip-report-gen-rust` `certs::orphan_reachability_is_partition_aware`, `constrained_pattern_filters_orphans_by_name`. In `/TenantA` a rule referencing `pool web_b` where `web_b` exists only in `/TenantB`; save and load it. Confirms: the load fails (or the reference is unresolved), so a pool in another partition is not reachable from a rule in `/TenantA` without its full path, and a pool referenced only from a rule of its own partition is not an orphan.
+27. **TS-09, the quick-fix claims.** Tests: server `irules::{irule3001_*, irule3002_wrap_uri_encode, irule3004_no_autofix, t101_*, t102_*, t103_*, t106_*}`, `tcl-mcp` `review_reports_the_compiler_check_families`. With `Host: "><b>x` log the response body of `HTTP::respond 200 content "<h1>[HTTP::host]</h1>"` and of the same with an HTML-encoding proc; a redirect with `HTTP::redirect "http://x/[HTTP::uri]"` against `[URI::encode [HTTP::uri]]`; `HTTP::header insert X "a\r\nb"` against the same with CRLF stripped; `regexp [HTTP::uri]` against a quoted pattern; `set static::debug 0` in `RULE_INIT` against `HTTP_REQUEST`. Confirms: the unencoded forms echo the raw value and the encoded forms do not, a CRLF in a header value splits the header, and a `static::` write outside `RULE_INIT` is visible per TMM only, each as the fix text claims.
+28. **TS-10, payload round trips.** Tests: server `irules::{payload_string_roundtrip_fires_s110, mqtt_payload_roundtrip_fires_s110, diameter_payload_roundtrip_fires_s110_without_collect_warning}`. Send a body of non-UTF-8 bytes (`\xff\xfe`) through `set p [HTTP::payload]; HTTP::payload replace 0 [string length $p] $p`, and the MQTT and Diameter equivalents. Confirms: the bytes seen by the server differ from what was sent (the round trip through a Tcl string is lossy), which is what S110 warns about; for Diameter, `DIAMETER::payload` needs no `collect` first.
+
+#### Checks for tests that hold iRules rule-load behaviour (test scrub, `class-facts`)
+
+The tests are in `docs/work/test-scrub/ledger/class-facts.tsv`, marked `check CF-nn`. Until a row is answered the test stays and the loader simulation keeps its current answer.
+
+29. **CF-01, a valid `proc` after malformed declarations.** Test: `tcl-compiler` `lowering::tests::irules_events::irules_declaration_body_shape_gates_lowered_regions`. Load as one rule: a `when` with no body, a `proc` with a missing argument list, then `proc valid_proc {} { return ok }` and `when HTTP_REQUEST { log local0. [call valid_proc] }`. Record ACCEPT or REJECT with the loader message; if accepted, send one request. Confirms the test if the rule is rejected as a whole, or if it loads and `call valid_proc` logs `ok` (the test expects the valid procedure to be registered).
+30. **CF-02, a `when` nested in a procedure.** Test: `tcl-compiler` `lowering::tests::irules_events::irules_declarations_only_lower_at_the_file_surface`. Load as one rule: `proc helper {} { when HTTP_REQUEST { log local0. nested } ; return ok }` and `when CLIENT_ACCEPTED { log local0. [call helper] }`. Record ACCEPT or REJECT with the loader message; if accepted, open a connection and send a request. Confirms the test if `helper` is registered (CLIENT_ACCEPTED logs `ok`) and the nested `when` registers no HTTP_REQUEST handler (no `nested` line).

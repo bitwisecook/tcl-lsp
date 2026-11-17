@@ -184,12 +184,33 @@ impl<'a> SourceSummaryContext<'a> {
         })
     }
 
-    /// Whether the procedure SSA defines a local at a write through its
-    /// caller link, so the summary run can read the linked place's outcome:
-    /// the Logical survey's frames do; a release unit's walk stores through
-    /// the link to its target instead.
-    pub(super) fn reads_linked_locals(&self) -> bool {
-        self.logical()
+    /// Whether the procedure's body was walked in its own declared frame, the
+    /// frame a summary describes: under the Logical survey always; for a
+    /// release unit, only where every command of the body carries the
+    /// declaration's frame, not a caller's activation or a join of several.
+    pub(super) fn walked_in_declared_frame(&self, id: &crate::ir::ProcedureId) -> bool {
+        if self.logical() {
+            return true;
+        }
+        let declared = || {
+            let procedure = self.procedure(id)?;
+            let frame =
+                crate::command_binding::SourceOriginalVariableFrame::from_authored_procedure(
+                    procedure,
+                    self.module.source_metadata_input.as_ref()?,
+                )?;
+            let commands = self.same_frame_commands(self.declared_frame_procedure(id)?)?;
+            commands
+                .iter()
+                .all(|tokens| {
+                    tokens
+                        .source_binding
+                        .as_ref()
+                        .is_some_and(|binding| &binding.variable_frame == frame.frame())
+                })
+                .then_some(())
+        };
+        declared().is_some()
     }
 
     /// Whether the module was read under the Logical survey, whose
@@ -211,6 +232,22 @@ impl<'a> SourceSummaryContext<'a> {
             .as_ref()?
             .matches_original_procedure_summary(*id, procedure))
         .then_some(procedure)
+    }
+
+    /// The procedure as its own declared frame runs it: its body lowered
+    /// again in that frame where the walk also entered it from a caller,
+    /// else the module's. Its declaration is the module's procedure.
+    pub(super) fn declared_frame_procedure(
+        &self,
+        id: &crate::ir::ProcedureId,
+    ) -> Option<&'a Procedure> {
+        let procedure = self.procedure(id)?;
+        Some(
+            self.module
+                .declared_frame_bodies
+                .get(id)
+                .unwrap_or(procedure),
+        )
     }
 
     pub(super) fn metadata<'w>(
@@ -350,11 +387,13 @@ impl<'a> SourceSummaryContext<'a> {
     fn authored_frame(&self, tokens: &CommandTokens) -> Option<AuthoredFrame> {
         let mut owner = None;
         for id in self.module.procedures.keys() {
-            let Some(procedure) = self.procedure(id) else {
+            let (Some(procedure), Some(body)) =
+                (self.procedure(id), self.declared_frame_procedure(id))
+            else {
                 continue;
             };
             if self
-                .same_frame_commands(procedure)?
+                .same_frame_commands(body)?
                 .iter()
                 .any(|command| command == tokens)
             {
@@ -454,7 +493,7 @@ impl<'a> SourceSummaryContext<'a> {
         {
             return None;
         }
-        let procedure = self.procedure(id)?;
+        let procedure = self.declared_frame_procedure(id)?;
         if runs_another_frame(
             &procedure.body,
             procedure.body.namespace_context.as_deref()?,
@@ -885,8 +924,8 @@ impl<'a> SourceSummaryContext<'a> {
         )?;
         let end = base.checked_add(u32::try_from(script.len()).ok()?)?;
         let mut selected: Option<Vec<CommandTokens>> = None;
-        for (id, procedure) in self.module.procedures.iter() {
-            self.procedure(id)?;
+        for id in self.module.procedures.keys() {
+            let procedure = self.declared_frame_procedure(id)?;
             let mut pending = vec![&procedure.body];
             while let Some(body) = pending.pop() {
                 for statement in &body.statements {
@@ -962,7 +1001,7 @@ impl<'a> SourceSummaryContext<'a> {
     ) -> Option<CommandTokens> {
         let mut pending = Vec::new();
         match body_id {
-            Some(id) => pending.push(&self.procedure(&id)?.body),
+            Some(id) => pending.push(&self.declared_frame_procedure(&id)?.body),
             None => pending.push(&self.module.top_level),
         }
         if pending.is_empty() {
@@ -996,7 +1035,7 @@ impl<'a> SourceSummaryContext<'a> {
         &self,
         qname: &crate::ir::ProcedureId,
     ) -> Option<Vec<CommandTokens>> {
-        let procedure = self.procedure(qname)?;
+        let procedure = self.declared_frame_procedure(qname)?;
         let mut commands = Vec::new();
         let mut pending: Vec<&Script> = vec![&procedure.body];
         while let Some(script) = pending.pop() {

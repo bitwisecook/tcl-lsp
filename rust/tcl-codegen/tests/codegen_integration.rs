@@ -1014,6 +1014,7 @@ fn codegen_module_with_no_procs() {
     let cfg_mod = CfgModule {
         top_level: toplevel_with(vec![]),
         procedures: HashMap::new(),
+        declared_frame_procedures: HashMap::new(),
     };
     let registry = CommandRegistry::build_default().project_for_profile(
         tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),

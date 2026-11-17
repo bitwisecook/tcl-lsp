@@ -27,6 +27,7 @@ use super::PackageResolver;
 use std::{
     collections::{BTreeMap, HashSet},
     path::{Path, PathBuf},
+    sync::Arc,
 };
 use tcl_compiler::{
     command_binding::SourceInvocationBinding,
@@ -744,12 +745,28 @@ impl OriginalPackageInfo {
     }
 }
 
-type IndexAnalysis = fn(
-    &str,
-    &'static tcl_dialect::DialectProfile,
-    &tcl_registry::CommandRegistry,
-    LexerConfig,
-) -> tcl_compiler::analyser::AnalysisResult;
+/// Which loader evaluates an index, and how much of it the analysis keeps.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum IndexAnalysis {
+    /// A `pkgIndex.tcl`, whole-document analysis.
+    Package,
+    /// A `tclIndex` inside `auto_load_index`; `structure_only` keeps only
+    /// the source-owned registration structure.
+    Autoload { structure_only: bool },
+}
+
+/// The frame `auto_load_index` evaluates a `tclIndex` in (`eval [read $f]`
+/// inside the procedure): `global auto_index auto_path`, and the local `dir`
+/// naming the index directory. tclsh 8.4.20 to 9.1.0: a bare `set` in the
+/// index stays local and `$dir` is the directory (`init.tcl`).
+fn tcl_index_entry_frame(index_dir: &Path) -> Arc<tcl_compiler::analyser::EntryProcedureFrame> {
+    Arc::new(
+        tcl_compiler::analyser::EntryProcedureFrame::new()
+            .with_global("auto_index")
+            .with_global("auto_path")
+            .with_local("dir", index_dir.to_str().map(str::to_owned)),
+    )
+}
 
 fn analyse_package_index(
     content: &str,
@@ -766,7 +783,7 @@ fn analyse_package_index(
         config,
         path,
         native_commands,
-        crate::source_structure::analyse_document,
+        IndexAnalysis::Package,
     )
 }
 
@@ -789,7 +806,20 @@ fn analyse_index_with(
             profile.name
         );
     }
-    let analysis = analyse(content, profile, registry, config);
+    let analysis = crate::source_structure::analyse_loader_index(
+        content,
+        profile,
+        registry,
+        config,
+        match analyse {
+            IndexAnalysis::Package => None,
+            IndexAnalysis::Autoload { .. } => Some(tcl_index_entry_frame(path)),
+        },
+        analyse
+            == IndexAnalysis::Autoload {
+                structure_only: true,
+            },
+    );
     if let Some(started) = started {
         eprintln!(
             "[workspace_scan] package.analysis.end path={} elapsed_ms={} commands={} procedures={} classes={}",
@@ -1153,7 +1183,9 @@ fn survey_index_entries(
             index_dir,
             config,
             policy,
-            crate::source_structure::analyse_autoload_registration_structure,
+            IndexAnalysis::Autoload {
+                structure_only: true,
+            },
         )
     })
 }
@@ -1191,7 +1223,8 @@ fn survey_index_entries_from_source(
                 profile,
                 loader_context,
                 config,
-            );
+            )
+            .with_entry_procedure_frame(tcl_index_entry_frame(index_dir));
             let source = tcl_compiler::registry_invocation::source_structure::OriginalSourceRegistryContext::capture_standalone_structure(content, input);
             Some(IndexSurveyContext::Source(Box::new(source)))
         },

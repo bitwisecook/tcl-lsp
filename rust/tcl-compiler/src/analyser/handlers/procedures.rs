@@ -450,11 +450,14 @@ impl Analyser {
         if let Some(head) = source_head {
             let words = self.original_procedure_source_words_at(head, args, arg_tokens);
             // The interpretation never enters a child interpreter's script
-            // or the recovered tail of a document that did not parse, so a
-            // declaration there has no retained words: its layout is the
-            // written head's in the registry. A computed name stays refused,
-            // since its value may name another namespace.
-            let unreached_script = (!self.interp_path_stack.is_empty() || self.recovered_source)
+            // or the recovered tail of a document that did not parse, and the
+            // lowering keeps no command inside a concatenated eval-family
+            // script, so a declaration there has no retained words: its
+            // layout is the written head's in the registry. A computed name
+            // stays refused, since its value may name another namespace.
+            let unreached_script = (!self.interp_path_stack.is_empty()
+                || self.recovered_source
+                || self.concatenated_script)
                 && args
                     .first()
                     .is_some_and(|name| !crate::naming::is_dynamic_word(name))

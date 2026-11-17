@@ -1294,6 +1294,7 @@ fn backend_lower_module_handbuilt_empty_module() {
     let cfg_mod = CfgModule {
         top_level: toplevel_cfg(vec![]),
         procedures: std::collections::HashMap::new(),
+        declared_frame_procedures: std::collections::HashMap::new(),
     };
     let ir = lower_to_ir("", &reg);
     let mut backend = BytecodeBackend;

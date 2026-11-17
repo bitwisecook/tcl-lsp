@@ -375,7 +375,9 @@ puts $i
 /// A loop the analysis keeps as one opaque call still writes what its body
 /// writes (#2385). Each prints the same before and after rewriting on tclsh
 /// 8.4.20 through 9.1.0 (`lmap` from 8.6, `dict for` from 8.5): 6, 3, 3, 3,
-/// 01, 2, 2 and 3.
+/// 01, 2, 2 and 3. A qualified binder writes the namespace variable it names,
+/// not a procedure's local of the same tail, and the analysis sees inside its
+/// loop: 5 5, 5 and `5 2`.
 #[test]
 fn issue_2385_loop_bodies_keep_their_writes() {
     for (source, first) in [
@@ -408,6 +410,16 @@ fn issue_2385_loop_bodies_keep_their_writes() {
         (
             "set i 0\ndict for {::k v} {a 1 b 2} {incr i $v}\nputs $i\n",
             "8.5",
+        ),
+        ("set y 5\nforeach ::x {1 2} {puts $y}\n", "8.4"),
+        (
+            "proc p {} {set x 5; foreach ::x {1 2} {}; return $x}\nputs [p]\n",
+            "8.4",
+        ),
+        (
+            "namespace eval ::m {variable x 9}\nproc p {} {set x 5; foreach ::m::x {1 2} {}; \
+             return [list $x $::m::x]}\nputs [p]\n",
+            "8.4",
         ),
     ] {
         preserves(source, first);
@@ -1146,6 +1158,8 @@ fn code_after_a_region_and_dead_code_keep_what_runs() {
         "proc p {} {set n 1; foreach {a b} [list 1 2 3] {incr n}; puts $n}\np\n",
         "proc p {} {if {0} {puts never}; puts after}\np\n",
         "proc p {} {return 1; puts never}\nputs [p]\n",
+        "proc p {} {if {0} {puts never}}\nputs [list [p]]\n",
+        "proc p {} {for {set i 7} 0 {} {}}\nputs [list [p]]\n",
     ] {
         preserves(source, "8.4");
     }

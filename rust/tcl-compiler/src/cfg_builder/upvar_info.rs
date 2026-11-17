@@ -235,7 +235,39 @@ fn push_caller_side_def(effects: &mut CallerSideEffects, name: &str) {
 use super::frame_effects::FrameContext;
 pub use super::frame_effects::{FrameTarget, MAX_FRAME_DISTANCE};
 
+/// Point `local` at `target`, returning a different target it displaced.
+fn relink(links: &mut BTreeMap<String, String>, local: String, target: String) -> Option<String> {
+    match links.entry(local) {
+        std::collections::btree_map::Entry::Vacant(entry) => {
+            entry.insert(target);
+            None
+        }
+        std::collections::btree_map::Entry::Occupied(mut entry) => {
+            (*entry.get() != target).then(|| entry.insert(target))
+        }
+    }
+}
+
 impl UpvarInfo {
+    /// Link `local` to the caller's literal `target`. A local re-linked to a
+    /// different name may already have written the first through the earlier
+    /// link, so that name stays a keyless caller-side write (tclsh 8.4 to
+    /// 9.1: `proc q {} {upvar 1 x v; set v 1; upvar 1 y v}` sets the caller's
+    /// `x`).
+    pub(super) fn link_literal(&mut self, local: String, target: String) {
+        if let Some(previous) = relink(&mut self.literal_targets, local, target) {
+            self.uplevel_literal_writes.insert(previous);
+        }
+    }
+
+    /// Link `local` to the caller variable named by `parameter`'s value; a
+    /// displaced parameter keeps its write, as for [`Self::link_literal`].
+    pub(super) fn link_parameter(&mut self, local: String, parameter: String) {
+        if let Some(previous) = relink(&mut self.param_targets, local, parameter) {
+            self.uplevel_param_writes.insert(previous);
+        }
+    }
+
     /// True if every bucket is empty — no `upvar` declarations in
     /// the proc body.  Callers with no upvar info can skip the
     /// per-call resolution path.

@@ -535,7 +535,7 @@ impl Vm {
             {
                 let index = pop(f);
                 let subject = pop(f);
-                let result = try_core!(match (
+                let reached = match (
                     instr.native_switch_version,
                     instr.native_string_index_purpose,
                 ) {
@@ -543,7 +543,7 @@ impl Vm {
                         Some(version),
                         Some(tcl_bytecode::NativeStringIndexPurpose::RegisteredInstruction),
                     ) => tcl_cmd_core::string::registered_index_instruction(
-                        self, &subject, &index, version
+                        self, &subject, &index, version,
                     ),
                     (
                         Some(version),
@@ -553,14 +553,31 @@ impl Vm {
                         "native String index instruction purpose",
                     )
                     .into()),
-                });
+                };
+                let result = match reached {
+                    Ok(result) => result,
+                    Err(error) => {
+                        f.record_failed_operands(vec![subject, index]);
+                        return Tick::Return(crate::command::completion_from_cmd_error(
+                            self, error,
+                        ));
+                    }
+                };
                 f.stack.push(result);
             }
             Op::STR_INDEX => {
                 let index = pop(f);
                 let value = pop(f);
                 let numbers = self.runtime_version().number_syntax();
-                let result = try_core!(tcl_cmd_core::string::index(self, &value, &index, numbers));
+                let result = match tcl_cmd_core::string::index(self, &value, &index, numbers) {
+                    Ok(result) => result,
+                    Err(error) => {
+                        f.record_failed_operands(vec![value, index]);
+                        return Tick::Return(crate::command::completion_from_cmd_error(
+                            self, error,
+                        ));
+                    }
+                };
                 f.stack.push(result);
             }
             Op::STR_RANGE if instr.native_switch_version.is_some() => {
@@ -835,6 +852,7 @@ impl Vm {
                         .stack
                         .push(nv.with_native_double_format(self.native_invocation_dialect())),
                     Err(e) => {
+                        f.record_failed_operands(vec![v]);
                         return Tick::Return(crate::command::completion_from_tcl_error(self, e));
                     }
                 }

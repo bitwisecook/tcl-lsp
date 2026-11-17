@@ -753,3 +753,49 @@ fn a_recovered_tail_draws_registry_count_errors_and_nothing_else() {
         );
     }
 }
+
+/// A static concatenated eval-family script keeps no lowered command, so
+/// its commands draw the registry's count errors over their written words,
+/// as a recovered tail does, unless some namespace declares the head.
+/// tclsh 8.4.20, 8.6.18, 9.0.4 and 9.1.0: `eval set a b c` and `namespace
+/// eval ::n set a b c` raise `wrong # args: should be "set varName
+/// ?newValue?"`; `eval set l2 hello` returns `hello`; after `namespace eval
+/// ::n {proc set {a b c} {return $a$b$c}}`, `namespace eval ::n set a b
+/// c` returns `abc`.
+#[test]
+fn a_concatenated_script_draws_registry_count_errors() {
+    for (src, expected) in [
+        ("eval set a b c\n", vec!["E003"]),
+        ("namespace eval ::n set a b c\n", vec!["E003"]),
+        ("eval {set a} b c\n", vec!["E003"]),
+        ("eval set l2 hello\n", vec![]),
+        (
+            "namespace eval ::n {proc set {a b c} {return $a$b$c}}\nnamespace eval ::n set a b c\n",
+            vec![],
+        ),
+    ] {
+        for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            assert_eq!(
+                codes_for_dialect(src, dialect),
+                expected,
+                "{dialect}: {src:?}"
+            );
+        }
+    }
+}
+
+/// A procedure declared in a concatenated script keeps its written layout.
+/// tclsh 8.6.18 and 9.0.4: `namespace eval ::ns1 {\n proc p1 {} {}\n} {}`
+/// defines `::ns1::p1`.
+#[test]
+fn a_concatenated_script_declares_its_procedures() {
+    let result = Analyser::new().analyse(
+        "namespace eval ::ns1 {\n    proc p1 {} {}\n} {}\n",
+        "tcl8.6",
+    );
+    assert!(
+        result.all_procs.contains_key("::ns1::p1"),
+        "{:?}",
+        result.all_procs.keys()
+    );
+}

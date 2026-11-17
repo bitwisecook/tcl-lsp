@@ -34,6 +34,29 @@ const SHAPES: &[(&str, &str, usize, &str)] = &[
     ("vdef", "1..2", 2, "proc vdef {x {y 10}} {expr {$x + $y}}"),
     ("vcount", "0..", 0, "proc vcount {args} {llength $args}"),
     ("vformat", "1", 1, "proc vformat {x} {format %d $x}"),
+    ("vlevel", "1", 1, "proc vlevel {x} {return -level 2 $x}"),
+    (
+        "vret",
+        "1",
+        1,
+        "proc vret {x} {return -code error -errorcode {VENDOR BAD} $x}",
+    ),
+    ("vbrk", "0", 0, "proc vbrk {} {break}"),
+    ("vcont", "0", 0, "proc vcont {} {continue}"),
+    (
+        "verr",
+        "1",
+        1,
+        "proc verr {x} {error $x {custom info} {VENDOR ERR}}",
+    ),
+    ("vabs", "1", 1, "proc vabs {x} {expr {abs($x) + 1}}"),
+    (
+        "vlen",
+        "1",
+        1,
+        "proc vlen {x} {expr {[string length $x] * 2}}",
+    ),
+    ("vglob", "1", 1, "proc vglob {x} {expr {$::g * $x}}"),
 ];
 
 /// Each shape's caller, the calls made of it, and how many definitions the
@@ -41,22 +64,42 @@ const SHAPES: &[(&str, &str, usize, &str)] = &[
 /// many as the release-unit compile splices, where the body may be run again
 /// from its start (`re_executable_body`). A body that runs a parameter as a
 /// command stays a call by decision: the command it runs is a value only the
-/// call knows, so no splice can bind it. A body using `expr` stays a call while
-/// the registry declares every expression able to call back.
+/// call knows, so no splice can bind it. An `expr` is spliced only where its
+/// site shows it runs nothing but its arithmetic (`OpenExpression`).
 const CASES: &[(&str, &[&str], usize)] = &[
-    ("proc caller {} {vthree}", &["caller"], 0),
+    ("proc caller {} {vthree}", &["caller"], 1),
     ("proc caller {n} {vupper $n}", &["caller abc"], 1),
     (
         "proc caller {n} {vdouble $n}",
         &["caller 21", "caller abc"],
-        0,
+        1,
     ),
     (
         "proc caller {c n} {vapply $c $n}",
         &["caller llength {a b c}", "caller nosuch x"],
         0,
     ),
-    ("proc caller {n} {vdef $n}", &["caller 5", "caller x"], 0),
+    ("proc caller {n} {vdef $n}", &["caller 5", "caller x"], 1),
+    // An expression calling a function the release provides, and one the
+    // caller's script has replaced with a procedure, which stays a call.
+    ("proc caller {n} {vabs $n}", &["caller -4"], 1),
+    (
+        "set ::calls 0; namespace eval ::tcl::mathfunc {}; \
+         proc ::tcl::mathfunc::abs {v} {incr ::calls; return 7}; \
+         proc caller {n} {vabs $n}",
+        &["list [caller -4] $::calls"],
+        0,
+    ),
+    // An expression that substitutes a command, and one that reads a
+    // variable another can trace, stay calls.
+    ("proc caller {n} {vlen $n}", &["caller abc"], 0),
+    (
+        "set ::g 3; set ::hits 0; \
+         proc hit {args} {incr ::hits}; trace add variable ::g read hit; \
+         proc caller {n} {vglob $n}",
+        &["list [caller 2] $::hits"],
+        0,
+    ),
     // An error inside a body that is spliced.
     (
         "proc caller {n} {vformat $n}",
@@ -85,6 +128,38 @@ const CASES: &[(&str, &[&str], usize)] = &[
          list [set $v] [info exists __inline_0__x]}",
         &["caller 2"],
         1,
+    ),
+    // A word with an effect is evaluated once, whether the body completes,
+    // takes `args`, or fails. Each stays a call for now: a word that writes a
+    // variable could fire a trace that rebinds the command, so the live entry
+    // proves no target for it.
+    (
+        "proc caller {} {set n 0; vupper [incr n]x; set n}",
+        &["caller"],
+        0,
+    ),
+    (
+        "proc caller {} {set n 0; vcount [incr n] [incr n]; set n}",
+        &["caller"],
+        0,
+    ),
+    (
+        "proc caller {} {set ::n 0; vformat [incr ::n]x}",
+        &["list [catch caller] $::n"],
+        0,
+    ),
+    // A body that completes other than normally stays a call: none is
+    // spliced by the release unit.
+    ("proc caller {n} {vret $n}", &["caller x"], 0),
+    ("proc caller {} {vbrk}", &["caller"], 0),
+    ("proc caller {} {vcont}", &["caller"], 0),
+    ("proc caller {n} {verr $n}", &["caller y"], 0),
+    // A body that returns from its caller stays a call: the registry
+    // declares no role for each of `return`'s words (`IncompleteRoles`).
+    (
+        "proc caller {n} {vlevel $n; return after}",
+        &["caller z", "list [caller z] tail"],
+        0,
     ),
     // The call's own argument count is wrong.
     ("proc caller {n} {vdouble $n $n}", &["caller 1"], 0),

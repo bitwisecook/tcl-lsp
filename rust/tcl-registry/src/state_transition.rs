@@ -1224,6 +1224,31 @@ pub mod command_binding {
         commit: StateTransitionCommit::OnOkOnly,
     };
 
+    /// Tk `destroy ?window ...?` deletes each named window and its
+    /// descendants, each widget's object command with it, after running
+    /// their `<Destroy>` bindings (`Tk_DestroyWindow`, tkWindow.c,
+    /// Tk 8.4.20-9.0.4). Those bindings run arbitrary scripts, so any named
+    /// window leaves no state proved; a bare `destroy` does nothing.
+    pub const DESTROYS_WINDOWS: StateTransitionDescriptor = StateTransitionDescriptor {
+        logical_source_resolver: None,
+        composition: StateTransitionComposition::Extend,
+        success_resolver: None,
+        resolver: Some(destroys_windows),
+        argument_shape: StateTransitionArgumentShape::Positional,
+        dynamic_widening: &[],
+        effect_coverage: TransitionEffectCoverage::NONE,
+        // Windows destroyed before a bad path stay destroyed.
+        commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+    };
+
+    fn destroys_windows(arguments: InvocationArguments<'_>) -> StateTransitions {
+        if arguments.is_empty() {
+            StateTransitions::default()
+        } else {
+            StateTransitions::unknown_invocation()
+        }
+    }
+
     fn creates_widget(arguments: InvocationArguments<'_>) -> StateTransitions {
         let mut transitions = StateTransitions::default();
         if let Some(name) = TransitionSubject::from_argument(arguments, 0)

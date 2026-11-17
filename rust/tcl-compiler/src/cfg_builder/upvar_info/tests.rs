@@ -1081,3 +1081,41 @@ fn caller_frame_metadata_keeps_actual_availability_and_missing_owner_hazards() {
     assert!(missing[&body_id].caller_frame_opaque_reads);
     assert!(!missing[&body_id].is_empty());
 }
+
+/// A local linked twice keeps the first link's write: the first caller
+/// variable may already have been written through it. tclsh 8.4.20, 8.5.19,
+/// 8.6.18, 9.0.4 and 9.1.0, `set x 0; set y 7` before each call:
+///   p x y   (`upvar 1 $a v; set v 1; upvar 1 $b v; return $v`) -> 7, x=1, y=7
+///   q       (`upvar 1 x v; set v 1; upvar 1 y v; return $v`)   -> 7, x=1, y=7
+///   s x     (`upvar 1 $a v; set v 1; upvar 1 $a v; return $v`) -> 1, x=1
+#[test]
+fn a_relinked_local_keeps_the_first_links_write() {
+    let parameter = module_proc_info(
+        "proc p {a b} {upvar 1 $a v; set v 1; upvar 1 $b v; return $v}",
+        "::p",
+    );
+    assert_eq!(parameter.param_targets.get("v"), Some(&"b".to_owned()));
+    assert!(
+        parameter.uplevel_param_writes.contains("a"),
+        "the caller's $a is written: {parameter:?}"
+    );
+    let params = ["a".to_owned(), "b".to_owned()];
+    let words = [InvocationWord::Literal("x"), InvocationWord::Literal("y")];
+    let effects = parameter.caller_side_effects(InvocationArguments::Structured(&words), &params);
+    assert!(effects.defs.contains(&"x".to_owned()), "{effects:?}");
+    assert!(effects.defs.contains(&"y".to_owned()), "{effects:?}");
+
+    let literal = module_proc_info(
+        "proc q {} {upvar 1 x v; set v 1; upvar 1 y v; return $v}",
+        "::q",
+    );
+    assert_eq!(literal.literal_targets.get("v"), Some(&"y".to_owned()));
+    assert!(literal.uplevel_literal_writes.contains("x"), "{literal:?}");
+
+    let same = module_proc_info(
+        "proc s {a} {upvar 1 $a v; set v 1; upvar 1 $a v; return $v}",
+        "::s",
+    );
+    assert_eq!(same.param_targets.get("v"), Some(&"a".to_owned()));
+    assert!(same.uplevel_param_writes.is_empty(), "{same:?}");
+}

@@ -93,6 +93,15 @@ fn cfg_result(src: &str) -> CfgEscapeResult {
     )
 }
 
+/// The same analysis over the body of `proc p {} {<src>}`: a `global` or
+/// `variable` link only means something in a procedure frame, since at `#0`
+/// the frame is the global one and a top-level variable is Local.
+fn proc_cfg_result(src: &str) -> CfgEscapeResult {
+    let cu = CompilationUnit::build_for(&format!("proc p {{}} {{{src}}}"), registry(), false);
+    let function = &cu.procedures[&crate::body_identity::fixture_id(&cu.procedures, "::p")];
+    analyse_cfg_function(&function.cfg, &function.ssa, std::iter::empty::<String>())
+}
+
 /// The same analysis over a CFG built with no module context, which keeps a
 /// literal top-level `catch` as an opaque call: the only route to the
 /// opaque-call handler, since a unit flattens that body.
@@ -204,7 +213,7 @@ fn catch_body_upvar_records_source_and_escapes_alias() {
 fn catch_body_nested_eval_block_escapes_inner_name() {
     // tclsh: `proc f {} { catch {eval {set z 9}}; return $z }; f` -> 9. A literal
     // `eval` nested in the catch body reaches the tree walker's eval-block arm.
-    let r = cfg_result("catch {eval {set z 1}}");
+    let r = proc_cfg_result("catch {eval {set z 1}}");
     assert!(
         is_frame(&r, "z"),
         "name in catch'd nested eval escapes: {:?}",
@@ -263,7 +272,7 @@ fn catch_if_branch_upvar_escapes() {
 #[test]
 fn catch_if_else_global_and_variable_escape() {
     // Both clauses of the catch'd `if` are walked.
-    let r = cfg_result("catch {if {1} {global g} else {variable w}}");
+    let r = proc_cfg_result("catch {if {1} {global g} else {variable w}}");
     assert!(
         is_frame(&r, "g"),
         "then-clause global escapes: {:?}",
@@ -289,7 +298,7 @@ fn catch_for_body_variable_escapes() {
 
 #[test]
 fn catch_while_body_global_escapes() {
-    let r = cfg_result("catch {while {1} {global g}}");
+    let r = proc_cfg_result("catch {while {1} {global g}}");
     assert!(
         is_frame(&r, "g"),
         "global in catch'd while escapes: {:?}",
@@ -337,7 +346,7 @@ fn catch_nested_catch_upvar_escapes() {
 #[test]
 fn catch_try_body_and_finally_escape() {
     // tclsh: `proc f {} { catch {try {set x 1} finally {set y 2}}; return $x-$y }; f` -> 1-2.
-    let r = cfg_result("catch {try {upvar 1 cv v} finally {global g}}");
+    let r = proc_cfg_result("catch {try {upvar 1 cv v} finally {global g}}");
     assert!(
         is_frame(&r, "v"),
         "upvar in catch'd try body escapes: {:?}",

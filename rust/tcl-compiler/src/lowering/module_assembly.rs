@@ -203,6 +203,7 @@ impl Lowerer<'_> {
             self.retain_installed_procedure_body_units();
             self.retain_hosted_procedure_body_units();
             self.extract_oo_methods_pass();
+            self.retain_declared_frame_bodies();
         }
         let registry = self.registry;
         let standalone_metadata = self.metadata_origin == LoweringMetadataOrigin::Standalone

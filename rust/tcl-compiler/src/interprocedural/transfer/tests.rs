@@ -307,19 +307,22 @@ fn a_name_argument_naming_an_outer_place_is_a_global_write() {
     );
 }
 
-/// A release unit summarises its procedures from its authored
-/// simulation: a write to a qualified name and one through `global` are
-/// may-binds of the global place, a procedure that names no outer place
-/// and its caller both have summaries, and a parameter a body links with
-/// `upvar` may end in any state, since the release SSA stores through the
-/// link rather than defining the local.
+/// A release unit summarises each procedure from its body as its own
+/// declared frame runs it: a write to a qualified name and one through
+/// `global` are may-binds of the global place, a procedure that names no
+/// outer place has a summary, and a parameter a body links with `upvar` and
+/// then increments is bound. A procedure the module calls, walked in its
+/// callers' activations too, is summarised from its body lowered again in
+/// its declared frame, and its callers' summaries rest on it.
 #[test]
 fn release_units_summarise_their_procedures() {
     let source = "proc g {} {set ::counter 5}\n\
             proc h {} {global k; set k 1}\n\
             proc a {} {set x 0; incr x; return $x}\n\
-            proc e {} {set x 0; a; return $x}\n\
-            proc bump {name} {upvar 1 $name v; incr v}\n";
+            proc bump {name} {upvar 1 $name v; incr v}\n\
+            proc callee {} {return 1}\n\
+            proc caller {} {callee}\n\
+            proc user {} {set y 0; bump y}\n";
     for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let context = tcl_registry::model::ingress::static_context_for(environment);
         let unit =
@@ -337,20 +340,77 @@ fn release_units_summarise_their_procedures() {
             "{environment}"
         );
         assert!(summaries["::a"].globals.is_empty(), "{environment}");
+        assert!(summaries["::callee"].globals.is_empty(), "{environment}");
         assert_eq!(
-            summaries["::e"]
+            summaries["::caller"]
                 .evidence
                 .bindings
                 .iter()
                 .map(|binding| binding.name.as_str())
                 .collect::<Vec<_>>(),
-            ["::a"],
+            ["::callee"],
             "{environment}"
         );
-        assert_eq!(
-            summaries["::bump"].params,
-            [name(&ANY_OUTCOME)],
-            "{environment}"
+        assert!(summaries.contains_key("::user"), "{environment}");
+        assert_eq!(summaries["::bump"].params, [name(&[BIND])], "{environment}");
+    }
+}
+
+/// A write through a local linked to a caller's place binds the place, and
+/// the summary says so; a later `unset` through the link may leave it
+/// unbound. tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 print `2 1 1 2 0`
+/// for `set n 1; bump n; grow g; drop d; puts "$n [info exists g] $g [info
+/// exists d]"`.
+#[test]
+fn a_write_through_a_caller_link_binds_the_place() {
+    let source = "proc bump {name} {upvar 1 $name v; incr v}\n\
+            proc grow {name} {upvar 1 $name v; set v 1; lappend v 2}\n\
+            proc drop {name} {upvar 1 $name v; set v 1; unset v}\n";
+    for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let context = tcl_registry::model::ingress::static_context_for(environment);
+        let unit =
+            CompilationUnit::build_for_dialect(source, context.commands(), false, environment);
+        let summaries = fixture_transfer_labels(&unit.ir_module, unit.transfers.0.clone());
+        assert_eq!(summaries["::bump"].params, [name(&[BIND])], "{environment}");
+        assert_eq!(summaries["::grow"].params, [name(&[BIND])], "{environment}");
+        let ParamRole::Name { outcomes, .. } = &summaries["::drop"].params[0] else {
+            panic!("{environment}: drop links its parameter");
+        };
+        assert!(
+            outcomes.contains(&ExistenceOutcome::Unbind),
+            "{environment}: {outcomes:?}"
+        );
+    }
+}
+
+/// A module that shadows a builtin keeps the summary of every procedure
+/// whose body never reaches the shadowed command: `bump` spells no
+/// `incr`, so it keeps its own, while `user`, which lowers the rebound
+/// `incr` to a typed statement, has none. A rebinding whose subject the
+/// scan cannot name may have moved any command, so it keeps the
+/// module-wide answer. With `proc c {} {set x 0; bump x; return $x}`
+/// added, tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 print `1 0` for
+/// `puts "[c] [user]"`.
+#[test]
+fn a_shadowed_builtin_keeps_the_summaries_that_never_reach_it() {
+    let shadowed = "proc incr {args} {return 0}\n\
+            proc bump {name} {upvar 1 $name v; set v [expr {$v + 1}]}\n\
+            proc user {} {set x 0; incr x; return $x}\n";
+    let computed = "rename $old {}\n\
+            proc bump {name} {upvar 1 $name v; set v [expr {$v + 1}]}\n";
+    for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let context = tcl_registry::model::ingress::static_context_for(environment);
+        let build = |source: &str| {
+            let unit =
+                CompilationUnit::build_for_dialect(source, context.commands(), false, environment);
+            fixture_transfer_labels(&unit.ir_module, unit.transfers.0.clone())
+        };
+        let kept = build(shadowed);
+        assert!(kept.contains_key("::bump"), "{environment}: {kept:?}");
+        assert!(!kept.contains_key("::user"), "{environment}: {kept:?}");
+        assert!(
+            build(computed).is_empty(),
+            "{environment}: an unnameable subject keeps every summary out"
         );
     }
 }

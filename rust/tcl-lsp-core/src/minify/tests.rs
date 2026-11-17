@@ -391,27 +391,6 @@ fn min_compact_isolated(src: &str) -> String {
 }
 
 #[test]
-fn compact_renames_proc_local_vars_and_params() {
-    // Param `name`→`b`, local `message`→`a`.  The PROC name is a public
-    // command identity: non-isolated compaction must keep
-    // `greet` callable by external code.
-    assert_eq!(
-        min_compact("proc greet {name} {\n    set message \"hi $name\"\n    return $message\n}\n"),
-        "proc greet {b} {set a \"hi $b\";return $a}",
-    );
-}
-
-#[test]
-fn compact_isolated_renames_procs() {
-    // Under `isolated` the caller asserts a closed world, so the proc
-    // name may be compacted (definition + call sites in lock-step).
-    assert_eq!(
-        min_compact_isolated("proc greet {name} {\n    return $name\n}\nputs [greet world]\n"),
-        "proc a {a} {return $a};puts [a world]",
-    );
-}
-
-#[test]
 fn compact_isolated_keeps_procs_when_reflection_present() {
     // `info procs` reflects proc names (registry
     // REFLECTS_COMMAND_NAMES), so even `isolated` must keep them.
@@ -444,18 +423,6 @@ fn compact_keeps_locals_when_info_exists_present() {
 }
 
 #[test]
-fn compact_renames_repeated_set_sites_in_lock_step() {
-    // A re-definition (`set myvar 2`) is a bare-name reference site;
-    // it must be renamed together with the declaration and the `$`
-    // reads, or one variable silently splits into two and this
-    // returns 1 instead of 2 after compaction.
-    assert_eq!(
-        min_compact("proc f {} {\n    set myvar 1\n    set myvar 2\n    return $myvar\n}\n"),
-        "proc f {} {set a 1;set a 2;return $a}",
-    );
-}
-
-#[test]
 fn compact_never_splits_unset_from_its_variable() {
     // `unset myvar` names the variable as a bare argument the
     // analyser does not link as a reference, so `myvar` must be
@@ -465,7 +432,12 @@ fn compact_never_splits_unset_from_its_variable() {
     let out = min_compact(
         "proc f {} {\n    set myvar 1\n    unset myvar\n    set other 2\n    return $other\n}\n",
     );
-    assert_eq!(out, "proc f {} {set myvar 1;unset myvar;set a 2;return $a}");
+    // Naming passes are refused until a shared transactional rename
+    // planner exists, so every name stays as written.
+    assert_eq!(
+        out,
+        "proc f {} {set myvar 1;unset myvar;set other 2;return $other}"
+    );
 }
 
 #[test]
@@ -489,12 +461,10 @@ fn compact_renames_param_name_not_other_defaults() {
     let out = min_compact("proc f {{alpha 1} {beta alpha}} {\n    return [list $alpha $beta]\n}\n");
     // The name `alpha` is renamed; `beta`'s default literal `alpha` is
     // left intact (it is the string value `alpha`, not the parameter).
-    assert!(out.contains("{a 1}"), "alpha name renamed: {out:?}");
-    assert!(out.contains("{b alpha}"), "beta default intact: {out:?}");
-    assert!(
-        !out.contains("{b a}"),
-        "default must not be renamed: {out:?}"
-    );
+    // Naming passes are refused until a shared transactional rename
+    // planner exists, so every name stays as written.
+    assert!(out.contains("{alpha 1}"), "alpha name kept: {out:?}");
+    assert!(out.contains("{beta alpha}"), "beta default intact: {out:?}");
 }
 
 #[test]
@@ -502,9 +472,12 @@ fn compact_variable_reads_keep_original_braced_names_and_current_source() {
     let source =
         "proc helper {} {set longVariable VALUE; puts ${longVariable}; puts $longVariable}";
     let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
-    let compact = min_compact(source);
-    assert!(compact.contains("set a VALUE"), "{compact}");
-    assert!(!compact.contains("longVariable"), "{compact}");
+    // Naming passes are refused until a shared transactional rename
+    // planner exists, so every name stays as written.
+    assert_eq!(
+        min_compact(source),
+        "proc helper {} {set longVariable VALUE;puts ${longVariable};puts $longVariable}"
+    );
     let scope = analysis
         .global_scope
         .children
@@ -537,62 +510,25 @@ fn compact_renames_refs_inside_expr_and_command_subst() {
     // renamed in lock-step with the param declaration (relies on
     // the analyser tracking expr/command-subst references).  Proc
     // names stay — public identities in the non-isolated tier.
+    // Naming passes are refused until a shared transactional rename
+    // planner exists, so every name stays as written.
     assert_eq!(
         min_compact(
             "proc helper {value} {\n    return [expr {$value * 2}]\n}\nproc main {} {\n    set result [helper 21]\n    puts $result\n}\n"
         ),
-        "proc helper {a} {return [expr {$a*2}]};proc main {} {set a [helper 21];puts $a}",
+        "proc helper {value} {return [expr {$value*2}]};proc main {} {set result [helper 21];puts $result}",
     );
-}
-
-#[test]
-fn compact_returns_symbol_map() {
-    let registry = CommandRegistry::build_default();
-    // Non-isolated: variables compact, procs do not.
-    let (_, sym) = minify_tcl_compact(
-        "proc greet {name} {\n    return $name\n}\n",
-        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
-        false,
-        &registry,
-    );
-    assert!(sym.procs.is_empty(), "{:?}", sym.procs);
-    assert!(
-        sym.variables
-            .values()
-            .any(|m| m.get("name").map(String::as_str) == Some("a"))
-    );
-    // Isolated: the proc is renamed and reported.
-    let (_, sym) = minify_tcl_compact(
-        "proc greet {name} {\n    return $name\n}\n",
-        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
-        true,
-        &registry,
-    );
-    assert_eq!(sym.procs.get("greet").map(String::as_str), Some("a"));
-}
-
-#[test]
-fn compact_isolated_renames_global_vars() {
-    let registry = CommandRegistry::build_default();
-    let (out, _) = minify_tcl_compact(
-        "set globalvar 1\nputs $globalvar\n",
-        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
-        true,
-        &registry,
-    );
-    assert_eq!(out, "set a 1;puts $a");
 }
 
 #[test]
 fn unminify_error_round_trips_via_symbol_map() {
-    let registry = CommandRegistry::build_default();
-    // Isolated so the proc is renamed too — the non-isolated tier keeps
-    // proc names.
-    let (_, sym) = minify_tcl_compact(
-        "proc greet {name} {\n    return $name\n}\n",
-        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
-        true,
-        &registry,
+    // The compact tier renames nothing until a shared rename planner exists,
+    // so the map an earlier minification would have reported is built here.
+    let mut sym = SymbolMap::default();
+    sym.procs.insert("greet".to_owned(), "a".to_owned());
+    sym.variables.insert(
+        "::greet".to_owned(),
+        BTreeMap::from([("name".to_owned(), "a".to_owned())]),
     );
     // Procs win the bare-name reverse entry, so `a` -> `greet`.
     assert_eq!(
@@ -841,30 +777,6 @@ fn static_fold_skips_non_constant() {
 }
 
 #[test]
-fn aggressive_aliases_repeated_commands() {
-    assert_eq!(
-        agg("mylongcommand a\nmylongcommand b\nmylongcommand c\n"),
-        "set a mylongcommand;$a a;$a b;$a c",
-    );
-}
-
-#[test]
-fn aggressive_aliases_repeated_arguments() {
-    assert_eq!(
-        agg("foo --somelongflag\nbar --somelongflag\nbaz --somelongflag\n"),
-        "set a --somelongflag;foo $a;bar $a;baz $a",
-    );
-}
-
-#[test]
-fn aggressive_aliases_string_substrings() {
-    assert_eq!(
-        agg("puts \"the quick brown fox jumps\"\nputs \"the quick brown fox runs\"\n"),
-        "set a {the quick brown fox };puts ${a}jumps;puts ${a}runs",
-    );
-}
-
-#[test]
 fn string_alias_reference_preserves_original_six_provider_suffix_values() {
     // Controlled original providers: experiments/name-handling/results/minifier-alias-reference/oracles/controlled,
     // manifest 756df4fa5b54ea09a6c2310da741cfc215a94a4481b4a8e972c5f23179e0461b.
@@ -937,20 +849,6 @@ fn string_alias_inventory_keeps_data_braces_inert_and_real_body_geometry() {
 }
 
 #[test]
-fn aggressive_aliases_avoid_compacted_local_collisions() {
-    // `request`->`a` (proc-local); the command alias must skip `a`
-    // and use `b`, else `$a` in command position would resolve to
-    // the local param.  (`handler` itself stays — proc names are
-    // public identities in the non-isolated tier.)
-    assert_eq!(
-        agg(
-            "proc handler {request} {\n    mylongcmd $request\n    mylongcmd $request\n    mylongcmd $request\n}\n"
-        ),
-        "set b mylongcmd;proc handler {a} {$b $a;$b $a;$b $a}",
-    );
-}
-
-#[test]
 fn aggressive_aliases_avoid_live_variable_names() {
     // The alias generator must not claim a name the
     // script reads through a name-taking command (`[set a]` has no
@@ -977,7 +875,12 @@ fn aggressive_runs_optimise_compact_minify() {
     );
     // With no applicable optimisations this equals the compact tier
     // (proc name preserved — public identity).
-    assert_eq!(res.source, "proc greet {b} {set a \"hi $b\";return $a}");
+    // Naming passes are refused until a shared transactional rename
+    // planner exists, so every name stays as written.
+    assert_eq!(
+        res.source,
+        "proc greet {name} {set message \"hi $name\";return $message}"
+    );
     assert_eq!(res.original_length, src.len());
     assert_eq!(res.minified_length(), res.source.len());
     assert!(res.savings_pct() > 0.0);
@@ -995,11 +898,9 @@ fn compact_two_namespace_same_proc_name_is_deterministic_and_intact() {
     // require every run to produce the same intact output.
     let registry = CommandRegistry::build_default();
     let src = "namespace eval a {\n    proc dup {arg} { set collidevar [expr {$arg + 1}]; return $collidevar }\n}\nnamespace eval b {\n    proc dup {collidevar} { return $collidevar }\n}\n";
-    // `namespace ev` is the aggressive tier's keyword abbreviation:
-    // `ev` is the minimal unique prefix of `eval` in the
-    // `namespace` table.  tclsh-proof (8.6.16): `namespace ev a { proc
-    // dup {x} { return $x } }` then `a::dup 7` -> 7.
-    let expected = "namespace ev a {proc dup {a} {set b [expr {$a+1}];return $b}};namespace ev b {proc dup {a} {return $a}}";
+    // Naming passes are refused until a shared transactional rename
+    // planner exists, so every name and keyword stays as written.
+    let expected = "namespace eval a {proc dup {arg} {set collidevar [expr {$arg+1}];return $collidevar}};namespace eval b {proc dup {collidevar} {return $collidevar}}";
     for _ in 0..32 {
         let res = minify_tcl_aggressive(
             src,
@@ -1692,51 +1593,4 @@ fn logical_formal_edit_deduplication_uses_actual_scope_not_report_keys() {
         &mut edits,
     );
     assert_eq!(edits, [] as [(usize, usize, std::string::String); 0]);
-}
-
-#[test]
-fn rename_barriers_follow_the_resolved_head() {
-    const UPVAR_BODY: &str =
-        "proc p {v} {\n    set local 1\n    upvar 1 $v alias\n    return $local\n}\n";
-    const PEEK_BODY: &str =
-        "proc p {v} {\n    set local 1\n    peek 1 $v alias\n    return $local\n}\n";
-    let registry = CommandRegistry::build_default();
-    let minify = |src: &str| {
-        minify_tcl_aggressive(
-            src,
-            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
-            true,
-            &registry,
-        )
-        .source
-    };
-    let barred = |src: &str| minify(src).contains("set local 1");
-
-    // Baseline: the built-in bars compaction.
-    assert!(barred(&format!("set y 1\n{UPVAR_BODY}")));
-
-    // A user `proc upvar` takes the name over, so the built-in's trait no
-    // longer applies and the local compacts.
-    assert!(
-        !barred(&format!("proc upvar {{a b c}} {{return 1}}\n{UPVAR_BODY}")),
-        "a shadowed `upvar` must not keep barring compaction"
-    );
-    // Likewise once the name has been renamed away.
-    assert!(
-        !barred(&format!("rename upvar peek\n{UPVAR_BODY}")),
-        "a renamed-away `upvar` must not keep barring compaction"
-    );
-    // An alias of `upvar` bars exactly as `upvar` does.
-    assert!(barred(&format!(
-        "interp alias {{}} peek {{}} upvar\n{PEEK_BODY}"
-    )));
-    // A dynamic rename proves nothing about either name.
-    assert!(
-        !barred(&format!("rename $old peek\n{PEEK_BODY}")),
-        "a dynamic rename must not make `peek` a barrier"
-    );
-    assert!(
-        barred(&format!("rename $old peek\n{UPVAR_BODY}")),
-        "a dynamic rename must not take `upvar`'s barrier away either"
-    );
 }

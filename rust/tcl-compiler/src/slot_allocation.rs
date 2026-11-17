@@ -381,6 +381,35 @@ pub(crate) fn unproved_store_live_names(
     })
 }
 
+/// The values a summary's SSA refreshes across a store the walk proved no
+/// place for and gave a definition of the cell its own name reads
+/// (`fallback`): the place it wrote may be any, so every other value live
+/// across it is refreshed. The linked locals it may reach are the rename
+/// walk's ([`crate::ssa::build_summary_ssa`]).
+pub(crate) fn summary_store_live_names(
+    cfg: &cfg::Function,
+    ssa: &SsaFunction,
+    registry: &CommandRegistry,
+    fallback: &HashSet<(BlockId, usize)>,
+) -> HashMap<BlockId, HashMap<usize, HashSet<Symbol>>> {
+    if fallback.is_empty() {
+        return HashMap::new();
+    }
+    let mut barriers = live_names_at_effects(cfg, ssa, registry, |block, index, _| {
+        fallback.contains(&(block, index))
+    });
+    for (block, markers) in &mut barriers {
+        for (index, symbols) in markers.iter_mut() {
+            if let Some(stmt) = ssa.blocks[block].statements.get(*index) {
+                symbols.retain(|symbol| !stmt.defs.contains_key(symbol));
+            }
+        }
+        markers.retain(|_, symbols| !symbols.is_empty());
+    }
+    barriers.retain(|_, markers| !markers.is_empty());
+    barriers
+}
+
 /// Values live across operations whose complete metadata owner is unavailable.
 /// These are analysis-only freshness barriers: they widen Value SSA, do not
 /// describe a Native write or supply a variable cell from source text. Explicit

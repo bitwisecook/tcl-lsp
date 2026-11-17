@@ -642,15 +642,58 @@ pub(crate) fn build_ssa_with_context_for_entry_and_metadata(
     metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
     standalone_owner: bool,
 ) -> SsaFunction {
+    build_ssa_for_entry(
+        func,
+        (registry, config),
+        entry,
+        entry_bindings,
+        metadata,
+        (standalone_owner, None),
+    )
+}
+
+/// The SSA a transfer summary runs on: as
+/// [`build_ssa_with_context_for_entry_and_metadata`], except that a store
+/// the walk proved no place for defines the cell its name reads, so a write
+/// through a local linked to a caller's place defines that local, with the
+/// refreshes that keep it sound; every statement that may reach one of the
+/// `linked` locals' places by another route may write or unset that local.
+pub(crate) fn build_summary_ssa(
+    func: &cfg::Function,
+    (registry, config): (&CommandRegistry, tcl_lexer::LexerConfig),
+    entry: ResolveContext,
+    entry_bindings: Option<&[String]>,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    standalone_owner: bool,
+    linked: &[String],
+) -> SsaFunction {
+    build_ssa_for_entry(
+        func,
+        (registry, config),
+        entry,
+        entry_bindings,
+        metadata,
+        (standalone_owner, Some(linked)),
+    )
+}
+
+fn build_ssa_for_entry(
+    func: &cfg::Function,
+    (registry, config): (&CommandRegistry, tcl_lexer::LexerConfig),
+    entry: ResolveContext,
+    entry_bindings: Option<&[String]>,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    (standalone_owner, summary): (bool, Option<&[String]>),
+) -> SsaFunction {
     let metadata = supplied_ssa_metadata(registry, config, metadata);
-    let initial = build_ssa_inner(
+    let (initial, summary_stores) = build_ssa_inner(
         func,
         registry,
         config,
         entry.clone(),
         &HashMap::new(),
         metadata,
-        standalone_owner,
+        (standalone_owner, summary),
     );
     let bound: Option<HashSet<_>> = entry_bindings.map(|bindings| {
         bindings
@@ -662,74 +705,60 @@ pub(crate) fn build_ssa_with_context_for_entry_and_metadata(
         let owner = points.source_metadata_owner();
         !owner.is_standalone() && owner.metadata_context(registry).is_none()
     });
-    let mut live = crate::slot_allocation::unseen_call_live_names(func, &initial, registry);
-    for (block, barriers) in
-        crate::slot_allocation::unavailable_metadata_effect_live_names(func, &initial, registry)
+    let mut clobbers: RegistryClobberNames =
+        shared_barrier_live_names(func, &initial, registry, config)
             .into_iter()
-            .chain(crate::slot_allocation::unproved_store_live_names(
-                func, &initial, registry,
-            ))
-    {
-        let target = live.entry(block).or_default();
-        for (index, symbols) in barriers {
-            target.entry(index).or_default().extend(symbols);
-        }
+            .filter_map(|(block, markers)| {
+                let markers: HashMap<_, _> = markers
+                    .into_iter()
+                    .filter_map(|(index, symbols)| {
+                        let statements = &initial.blocks[&block].statements;
+                        let preceding_defs = index
+                            .checked_sub(1)
+                            .and_then(|prior| statements.get(prior))
+                            .filter(|prior| {
+                                prior.statement.is_executable_invocation()
+                                    && prior.statement.span() == statements[index].statement.span()
+                            })
+                            .map(|prior| &prior.defs);
+                        // The original invocation's outputs already own fresh versions.
+                        let mut names: Vec<_> = symbols
+                            .into_iter()
+                            .filter(|symbol| {
+                                let preceding = if index == usize::MAX {
+                                    statements.as_slice()
+                                } else {
+                                    &statements[..index]
+                                };
+                                let version = preceding
+                                    .iter()
+                                    .rev()
+                                    .find_map(|stmt| stmt.defs.get(symbol).copied())
+                                    .or_else(|| {
+                                        initial.blocks[&block].entry_versions.get(symbol).copied()
+                                    })
+                                    .unwrap_or(0);
+                                preceding_defs.is_none_or(|defs| !defs.contains_key(symbol))
+                                    && (unavailable_metadata
+                                        || bound.as_ref().is_none_or(|bindings| {
+                                            version != 0
+                                                || initial
+                                                    .cell_key(*symbol)
+                                                    .is_some_and(|key| bindings.contains(key))
+                                        }))
+                            })
+                            .filter_map(|symbol| initial.cell_key(symbol).cloned())
+                            .collect();
+                        names.sort_by_cached_key(|key| format!("{key:?}"));
+                        (!names.is_empty()).then_some((index, names))
+                    })
+                    .collect();
+                (!markers.is_empty()).then_some((block, markers))
+            })
+            .collect();
+    if summary.is_some() {
+        retain_summary_store_refreshes(func, &initial, registry, &summary_stores, &mut clobbers);
     }
-    for (block, symbols) in crate::slot_allocation::unavailable_metadata_terminator_live_names(
-        func, &initial, registry, config,
-    ) {
-        live.entry(block).or_default().insert(usize::MAX, symbols);
-    }
-    let clobbers: RegistryClobberNames = live
-        .into_iter()
-        .filter_map(|(block, markers)| {
-            let markers: HashMap<_, _> = markers
-                .into_iter()
-                .filter_map(|(index, symbols)| {
-                    let statements = &initial.blocks[&block].statements;
-                    let preceding_defs = index
-                        .checked_sub(1)
-                        .and_then(|prior| statements.get(prior))
-                        .filter(|prior| {
-                            prior.statement.is_executable_invocation()
-                                && prior.statement.span() == statements[index].statement.span()
-                        })
-                        .map(|prior| &prior.defs);
-                    // The original invocation's outputs already own fresh versions.
-                    let mut names: Vec<_> = symbols
-                        .into_iter()
-                        .filter(|symbol| {
-                            let preceding = if index == usize::MAX {
-                                statements.as_slice()
-                            } else {
-                                &statements[..index]
-                            };
-                            let version = preceding
-                                .iter()
-                                .rev()
-                                .find_map(|stmt| stmt.defs.get(symbol).copied())
-                                .or_else(|| {
-                                    initial.blocks[&block].entry_versions.get(symbol).copied()
-                                })
-                                .unwrap_or(0);
-                            preceding_defs.is_none_or(|defs| !defs.contains_key(symbol))
-                                && (unavailable_metadata
-                                    || bound.as_ref().is_none_or(|bindings| {
-                                        version != 0
-                                            || initial
-                                                .cell_key(*symbol)
-                                                .is_some_and(|key| bindings.contains(key))
-                                    }))
-                        })
-                        .filter_map(|symbol| initial.cell_key(symbol).cloned())
-                        .collect();
-                    names.sort_by_cached_key(|key| format!("{key:?}"));
-                    (!names.is_empty()).then_some((index, names))
-                })
-                .collect();
-            (!markers.is_empty()).then_some((block, markers))
-        })
-        .collect();
     if clobbers.is_empty() {
         initial
     } else {
@@ -740,8 +769,71 @@ pub(crate) fn build_ssa_with_context_for_entry_and_metadata(
             entry,
             &clobbers,
             metadata,
-            standalone_owner,
+            (standalone_owner, summary),
         )
+        .0
+    }
+}
+
+/// The values live across each statement the shared SSA refreshes them at:
+/// a call to unseen code, an operation whose metadata owner is unavailable,
+/// and a store the walk proved no place for.
+fn shared_barrier_live_names(
+    func: &cfg::Function,
+    initial: &SsaFunction,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+) -> HashMap<BlockId, HashMap<usize, HashSet<Symbol>>> {
+    let mut live = crate::slot_allocation::unseen_call_live_names(func, initial, registry);
+    for (block, barriers) in
+        crate::slot_allocation::unavailable_metadata_effect_live_names(func, initial, registry)
+            .into_iter()
+            .chain(crate::slot_allocation::unproved_store_live_names(
+                func, initial, registry,
+            ))
+    {
+        let target = live.entry(block).or_default();
+        for (index, symbols) in barriers {
+            target.entry(index).or_default().extend(symbols);
+        }
+    }
+    for (block, symbols) in crate::slot_allocation::unavailable_metadata_terminator_live_names(
+        func, initial, registry, config,
+    ) {
+        live.entry(block).or_default().insert(usize::MAX, symbols);
+    }
+    live
+}
+
+/// Add a summary's refreshes across its fallback stores
+/// ([`crate::slot_allocation::summary_store_live_names`]) to `clobbers`.
+/// They are added after the shared filter, which sees only the shared SSA.
+fn retain_summary_store_refreshes(
+    func: &cfg::Function,
+    initial: &SsaFunction,
+    registry: &CommandRegistry,
+    stores: &construction::SummaryStores,
+    clobbers: &mut RegistryClobberNames,
+) {
+    for (block, markers) in crate::slot_allocation::summary_store_live_names(
+        func,
+        initial,
+        registry,
+        &stores.fallback_defs,
+    ) {
+        let target = clobbers.entry(block).or_default();
+        for (index, symbols) in markers {
+            let names = target.entry(index).or_default();
+            for key in symbols
+                .into_iter()
+                .filter_map(|symbol| initial.cell_key(symbol).cloned())
+            {
+                if !names.contains(&key) {
+                    names.push(key);
+                }
+            }
+            names.sort_by_cached_key(|key| format!("{key:?}"));
+        }
     }
 }
 

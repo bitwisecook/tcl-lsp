@@ -105,6 +105,7 @@ impl<'a> RenameWalk<'a> {
             point_symbols: HashMap::new(),
             unknown_source_names: HashSet::new(),
             captured_terminator_names: HashSet::new(),
+            summary_links: None,
         }
     }
 
@@ -221,6 +222,147 @@ impl<'a> RenameWalk<'a> {
             registry,
         );
         classified
+    }
+
+    /// In a summary's SSA ([`RenameWalk::summary_links`]), a `set`-shaped
+    /// store the walk proved no place for defines the scalar cell its literal
+    /// name reads in this frame: a write through `upvar 1 $name v` stores to
+    /// whatever `v` is linked to, so `v` holds the written value afterwards.
+    /// Whether it did; the value refreshes it needs are the SSA builder's
+    /// ([`crate::slot_allocation::summary_store_live_names`]).
+    fn retain_summary_store(
+        &mut self,
+        stmt: &Statement,
+        point: (BlockId, usize),
+        registry: &CommandRegistry,
+        direct_defs: &mut Vec<VariableCellKey>,
+    ) -> bool {
+        let (Statement::AssignConst {
+            name, name_braced, ..
+        }
+        | Statement::AssignValue {
+            name, name_braced, ..
+        }
+        | Statement::AssignExpr {
+            name, name_braced, ..
+        }
+        | Statement::Incr {
+            name, name_braced, ..
+        }) = stmt
+        else {
+            return false;
+        };
+        if !direct_defs.is_empty()
+            || !stmt.is_executable_invocation()
+            || crate::ssa::is_dynamic_write_target(name, *name_braced)
+            || tcl_syntax::naming::split_element_ref_bytes(name.as_bytes()).is_some()
+        {
+            return false;
+        }
+        let before = self.points.before_statement(point.0, point.1);
+        let Some(cell) = canonical_variable_key(name, before, registry) else {
+            return false;
+        };
+        direct_defs.push(cell);
+        self.out.summary_stores.fallback_defs.insert(point);
+        true
+    }
+
+    /// The linked locals of a summary's SSA that `stmt` may reach the places
+    /// of by some route other than its own definitions: every one but those
+    /// it defines, unless it is a `return` or a store to locals that are no
+    /// linked ones, running no command substitution. A store through one
+    /// link may reach every other (two may name one place); `lappend`,
+    /// `unset`, a re-linking `upvar` or a call may reach any. Each such local
+    /// may be written or unset there.
+    fn summary_links_reached(
+        &self,
+        stmt: &Statement,
+        context: &ResolveContext,
+        registry: &CommandRegistry,
+        (direct_defs, fallback): (&[VariableCellKey], bool),
+    ) -> Vec<VariableCellKey> {
+        let Some(links) = self.summary_links.as_ref() else {
+            return Vec::new();
+        };
+        let linked = links
+            .iter()
+            .filter_map(|name| canonical_variable_key(name, context, registry))
+            .collect::<Vec<_>>();
+        let substitutes = |text: &str| text.contains('[');
+        let plain = match stmt {
+            Statement::Return { tokens, .. } => tokens
+                .as_ref()
+                .is_some_and(|tokens| !tokens.argv_texts.iter().any(|text| substitutes(text))),
+            Statement::AssignConst { .. } => true,
+            Statement::AssignValue { value, .. } => !substitutes(value),
+            Statement::Incr { amount, .. } => {
+                amount.as_deref().is_none_or(|amount| !substitutes(amount))
+            }
+            _ => false,
+        };
+        let leaves_links = !fallback
+            && plain
+            && direct_defs.iter().all(|cell| {
+                !linked.contains(cell) && matches!(cell, VariableCellKey::Activation { .. })
+            });
+        if leaves_links {
+            return Vec::new();
+        }
+        linked
+            .into_iter()
+            .filter(|cell| !direct_defs.contains(cell))
+            .collect()
+    }
+
+    /// The cells `stmt` defines (its proved places, or, in a summary's SSA,
+    /// the cell a store's name reads), the ones it destroys, the ones an arm
+    /// may write, and all of them with the linked locals it may reach.
+    fn statement_definition_cells(
+        &mut self,
+        stmt: &Statement,
+        point: (BlockId, usize),
+        context: &ResolveContext,
+        registry: &CommandRegistry,
+    ) -> DefinitionCells {
+        let mut direct_defs = bound_defs(
+            stmt,
+            point.0,
+            point.1,
+            &self.points,
+            self.invocation_context(registry),
+        );
+        let fallback = self.summary_links.is_some()
+            && self.retain_summary_store(stmt, point, registry, &mut direct_defs);
+        let reached_links =
+            self.summary_links_reached(stmt, context, registry, (&direct_defs, fallback));
+        let mut destructions = crate::place_bridge::ssa_destruction_keys(
+            stmt,
+            context,
+            self.points.after_statement(point.0, point.1),
+            registry,
+            self.points
+                .source_metadata_owner()
+                .metadata_context(registry),
+        );
+        destructions.extend(reached_links.iter().map(|cell| (cell.clone(), true)));
+        let switch_may = bound_names(
+            switch_may_defs_in_context(stmt, self.invocation_context(registry)),
+            context,
+            registry,
+        );
+        let all_defs: Vec<_> = direct_defs
+            .iter()
+            .chain(&switch_may)
+            .chain(&reached_links)
+            .cloned()
+            .collect();
+        DefinitionCells {
+            direct: direct_defs,
+            destructions,
+            switch_may,
+            all: all_defs,
+        }
     }
 
     fn rename_statement_definitions(
@@ -441,28 +583,12 @@ impl<'a> RenameWalk<'a> {
             &mut uses_map,
             &mut quoted_uses,
         );
-        let direct_defs = bound_defs(
-            stmt,
-            frame.block,
-            index,
-            &self.points,
-            self.invocation_context(registry),
-        );
-        let destructions = crate::place_bridge::ssa_destruction_keys(
-            stmt,
-            context,
-            self.points.after_statement(frame.block, index),
-            registry,
-            self.points
-                .source_metadata_owner()
-                .metadata_context(registry),
-        );
-        let switch_may = bound_names(
-            switch_may_defs_in_context(stmt, self.invocation_context(registry)),
-            context,
-            registry,
-        );
-        let all_defs: Vec<_> = direct_defs.iter().chain(&switch_may).cloned().collect();
+        let DefinitionCells {
+            direct: direct_defs,
+            destructions,
+            switch_may,
+            all: all_defs,
+        } = self.statement_definition_cells(stmt, (frame.block, index), context, registry);
         let expanded = expand_defs(&all_defs, elems);
         // A fanned element def is a *may*-write — the dynamic-key /
         // whole-array write may have hit it: record a use of its prior version
@@ -799,4 +925,12 @@ fn drop_reads_of_own_writes(infos: &mut [SsaStatement]) {
             infos[host].name_only_uses.remove(&symbol);
         }
     }
+}
+
+/// What one statement defines ([`RenameWalk::statement_definition_cells`]).
+struct DefinitionCells {
+    direct: Vec<VariableCellKey>,
+    destructions: Vec<(VariableCellKey, bool)>,
+    switch_may: Vec<VariableCellKey>,
+    all: Vec<VariableCellKey>,
 }

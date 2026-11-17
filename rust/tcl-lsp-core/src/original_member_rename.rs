@@ -24,7 +24,9 @@
 
 use std::collections::HashSet;
 
-use tcl_compiler::analyser::types::{MemberSide, OriginalSourceMethodMetadata};
+use tcl_compiler::analyser::types::{
+    MemberSide, OriginalSourceMemberEffectKind, OriginalSourceMethodMetadata,
+};
 use tcl_compiler::command_binding::OriginalClassInstanceMethodRoster;
 use tcl_compiler::signature_scan::scope::SignatureSourceNameInput;
 use tcl_core_types::NameBytes;
@@ -790,7 +792,7 @@ impl MemberRenameScan<'_, '_> {
         if owner.is_some() && self.next_chain(command, &words)? {
             return Ok(());
         }
-        if crate::original_declaration::class_relation_member(syntax, command) {
+        if inert_definition_member(document, syntax, command, &words) {
             return Ok(());
         }
         if let Some(shape) = binding.original_default_manufacture_shape(
@@ -1155,7 +1157,9 @@ fn incomplete_member_family(
             let class = family.records[index].metadata();
             // Resolved source relations are the component's own edges.
             (family.component.len() == 1 && class.original_relations.effects().next().is_some())
-                || class.original_members.effects().next().is_some()
+                || class.original_members.effects().any(|effect| {
+                    !matches!(effect.kind(), OriginalSourceMemberEffectKind::Visibility(_))
+                })
                 || class.original_properties.declarations().next().is_some()
                 || class.original_members.declarations().any(|row| {
                     (row.side() != MemberSide::Instance || row.native_class_delegate())
@@ -1170,7 +1174,7 @@ fn validate_member_roster(
     method: &OriginalSourceMethodMetadata,
     roster: &OriginalClassInstanceMethodRoster,
     input: &SignatureSourceNameInput,
-    (wanted, classmethod): (&[u8], bool),
+    (wanted, classmethod, explicit): (&[u8], bool, bool),
 ) -> Result<(), OriginalMemberRenameRefusal> {
     if roster.policy() != input.policy()
         || input
@@ -1190,13 +1194,11 @@ fn validate_member_roster(
     .ok_or(OriginalMemberRenameRefusal::UnknownRoster)?;
     if current_entry.declaration() != method.declaration().site()
         || current_entry.name_source().span != method.metadata().name_span
-        || current_entry.is_exported() != method.exported()
+        || (!explicit && current_entry.is_exported() != method.exported())
     {
         return Err(OriginalMemberRenameRefusal::UnknownRoster);
     }
-    if roster.default_exported(input.bytes()) != method.exported()
-        || roster.default_exported(wanted) != method.exported()
-    {
+    if changes_default_visibility(roster, method, input.bytes(), wanted, explicit) {
         return Err(OriginalMemberRenameRefusal::ChangesVisibility);
     }
     if !roster.contains(input.bytes()) {
@@ -1424,7 +1426,7 @@ fn validate_family_rosters(
     identity: &OriginalDeclarationIdentity,
     family: &MemberFamily<'_>,
     method: &OriginalSourceMethodMetadata,
-    wanted: &[u8],
+    (wanted, explicit): (&[u8], bool),
 ) -> Result<(), OriginalMemberRenameRefusal> {
     let input = method.declaration().original_name_input();
     let mut roots = 0_usize;
@@ -1436,7 +1438,7 @@ fn validate_family_rosters(
                 member,
                 &roster,
                 member.declaration().original_name_input(),
-                (wanted, false),
+                (wanted, false, explicit),
             )?;
             continue;
         }
@@ -1450,9 +1452,7 @@ fn validate_family_rosters(
         {
             return Err(OriginalMemberRenameRefusal::InvalidName);
         }
-        if roster.default_exported(input.bytes()) != method.exported()
-            || roster.default_exported(wanted) != method.exported()
-        {
+        if changes_default_visibility(&roster, method, input.bytes(), wanted, explicit) {
             return Err(OriginalMemberRenameRefusal::ChangesVisibility);
         }
         if wanted != input.bytes() && roster.contains(wanted) {
@@ -1587,6 +1587,7 @@ fn original_member_rename_plan<'a>(
         return Err(OriginalMemberRenameRefusal::IncompleteFamily);
     }
     editable_member(method, classmethod)?;
+    let explicit = visibility_names_member(&family, method);
     if class
         .metadata()
         .original_members
@@ -1615,7 +1616,7 @@ fn original_member_rename_plan<'a>(
     let input = method.declaration().original_name_input();
     if classmethod {
         let roster = class_member_roster(*document, identity, class)?;
-        validate_member_roster(method, &roster, input, (wanted, classmethod))?;
+        validate_member_roster(method, &roster, input, (wanted, classmethod, explicit))?;
         if wanted != input.bytes() && roster.class_object_contains(wanted) {
             return Err(OriginalMemberRenameRefusal::Collision);
         }
@@ -1623,7 +1624,7 @@ fn original_member_rename_plan<'a>(
             return Err(OriginalMemberRenameRefusal::IncompleteFamily);
         }
     } else {
-        validate_family_rosters(*document, identity, &family, method, wanted)?;
+        validate_family_rosters(*document, identity, &family, method, (wanted, explicit))?;
     }
     let requests = match requests(*document, &family, method, wanted, (classmethod, census)) {
         Err(
@@ -1632,6 +1633,7 @@ fn original_member_rename_plan<'a>(
         ) if !classmethod => census_requests(*document, &family, method, wanted).ok_or(refusal)?,
         selected => selected?,
     };
+    let requests = with_visibility_requests(&family, method, wanted, requests)?;
     let mut plan = vec![(*document, requests)];
     let members = if classmethod {
         vec![method]
@@ -1653,6 +1655,114 @@ fn original_member_rename_plan<'a>(
         }
     }
     Ok(plan)
+}
+
+fn visibility_names_member(
+    family: &MemberFamily<'_>,
+    method: &OriginalSourceMethodMetadata,
+) -> bool {
+    let current = method.declaration().original_name_input();
+    family.component.iter().any(|&index| {
+        family.records[index]
+            .metadata()
+            .original_members
+            .effects()
+            .any(|effect| {
+                matches!(effect.kind(), OriginalSourceMemberEffectKind::Visibility(_))
+                    && effect.side() == method.side()
+                    && effect
+                        .inputs()
+                        .iter()
+                        .any(|input| input.bytes() == current.bytes())
+            })
+    })
+}
+
+/// Without a visibility word naming the member, its declaration decides its
+/// export rule; with one, the rename keeps the default rule of both names equal
+/// so the member's visibility is the same whether the word runs before or after
+/// the declaration.
+fn changes_default_visibility(
+    roster: &OriginalClassInstanceMethodRoster,
+    method: &OriginalSourceMethodMetadata,
+    current: &[u8],
+    wanted: &[u8],
+    explicit: bool,
+) -> bool {
+    if explicit {
+        roster.default_exported(current) != roster.default_exported(wanted)
+    } else {
+        roster.default_exported(current) != method.exported()
+            || roster.default_exported(wanted) != method.exported()
+    }
+}
+
+/// A relation or visibility member whose words this rename handles elsewhere.
+fn inert_definition_member(
+    document: OriginalDeclarationDocument<'_>,
+    syntax: &crate::source_structure::SourceSyntaxStructure,
+    command: &tcl_compiler::segmenter::SegmentedCommand,
+    words: &[tcl_lexer::NativeWord],
+) -> bool {
+    crate::original_declaration::class_relation_member(syntax, command)
+        || crate::original_declaration::class_visibility_member(syntax, command)
+            && recorded_visibility_words(document, words.get(1..).unwrap_or_default())
+}
+
+/// Every operand is a static word the analysis recorded as a visibility
+/// effect, so `with_visibility_requests` sees each one that names the member.
+fn recorded_visibility_words(
+    document: OriginalDeclarationDocument<'_>,
+    words: &[tcl_lexer::NativeWord],
+) -> bool {
+    let image = SourceImage::document(document.source);
+    let recorded = |word: &tcl_lexer::NativeWord| {
+        document
+            .analysis
+            .original_class_declarations()
+            .any(|class| {
+                class.metadata().original_members.effects().any(|effect| {
+                    matches!(effect.kind(), OriginalSourceMemberEffectKind::Visibility(_))
+                        && effect.inputs().iter().any(|input| {
+                            matches!(input, SignatureSourceNameInput::OriginalWord(key)
+                            if key.span() == word.span() && key.source_image() == &image)
+                        })
+                })
+            })
+    };
+    !words.is_empty() && words.iter().all(recorded)
+}
+
+/// `export`/`unexport` words naming the member follow it: an effect that runs
+/// after the declaration decides its visibility (tclsh 8.6 and 9.0), and one
+/// that already names the proposed name would decide the renamed member's.
+fn with_visibility_requests(
+    family: &MemberFamily<'_>,
+    method: &OriginalSourceMethodMetadata,
+    wanted: &[u8],
+    mut requests: Vec<(SignatureSourceNameInput, NameBytes)>,
+) -> Result<Vec<(SignatureSourceNameInput, NameBytes)>, OriginalMemberRenameRefusal> {
+    let current = method.declaration().original_name_input();
+    for &index in &family.component {
+        for effect in family.records[index].metadata().original_members.effects() {
+            if !matches!(effect.kind(), OriginalSourceMemberEffectKind::Visibility(_))
+                || effect.side() != method.side()
+            {
+                continue;
+            }
+            for input in effect.inputs() {
+                if input.policy() != current.policy() {
+                    return Err(OriginalMemberRenameRefusal::IncompleteFamily);
+                }
+                if input.bytes() == current.bytes() {
+                    requests.push((input.clone(), NameBytes::from(wanted)));
+                } else if input.bytes() == wanted {
+                    return Err(OriginalMemberRenameRefusal::ChangesVisibility);
+                }
+            }
+        }
+    }
+    Ok(requests)
 }
 
 /// Workspace adapter for the same bounded current source-family protocol.
@@ -1747,173 +1857,4 @@ pub fn original_member_prepare_span(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use tcl_compiler::analyser::Analyser;
-
-    fn identity(
-        source: &str,
-        analysis: &tcl_compiler::analyser::AnalysisResult,
-    ) -> OriginalDeclarationIdentity {
-        let class = analysis.original_class_declarations().next().unwrap();
-        let method = class
-            .metadata()
-            .original_members
-            .declarations()
-            .next()
-            .unwrap();
-        OriginalDeclarationIdentity::for_method(
-            "file:///owner.tcl",
-            source,
-            analysis,
-            class,
-            method,
-        )
-        .unwrap()
-    }
-
-    fn document<'a>(
-        source: &'a str,
-        analysis: &'a tcl_compiler::analyser::AnalysisResult,
-    ) -> OriginalDeclarationDocument<'a> {
-        OriginalDeclarationDocument {
-            uri: "file:///owner.tcl",
-            source,
-            analysis,
-        }
-    }
-
-    // Implementation contract: naming.editor.original-instance-member-rename-plans
-    // docs/design/analysis/name-resolution-proofs/original-instance-member-rename-plans.md
-    #[test]
-    fn original_member_rename_keeps_actual_selectors_and_opaque_declarations_after_ui_clear() {
-        // Implementation contract: naming.editor.original-instance-member-rename-plans
-        // docs/design/analysis/name-resolution-proofs/original-instance-member-rename-plans.md
-        for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
-            for name in ["pick", r"m\uD800"] {
-                let source = format!(
-                    "oo::class create C {{method {name} {{}} {{return body}}}}\nC create object\nobject {name}\n"
-                );
-                let mut analysis = Analyser::new().analyse(&source, dialect);
-                analysis.all_classes.clear();
-                analysis.global_scope.classes.clear();
-                analysis.instance_classes.clear();
-                analysis.created_instance_commands.clear();
-                let identity = identity(&source, &analysis);
-                let doc = document(&source, &analysis);
-                let edits = original_member_rename_edits(&[doc], &identity, "changed")
-                    .unwrap_or_else(|refusal| panic!("{dialect}: {name}: {refusal:?}"));
-                assert_eq!(edits.len(), 2, "{dialect}: {name}");
-                let mut changed = source.clone();
-                for edit in edits.iter().rev() {
-                    changed.replace_range(edit.span.as_range(), &edit.new_text);
-                }
-                assert_eq!(
-                    changed,
-                    "oo::class create C {method changed {} {return body}}\nC create object\nobject changed\n"
-                );
-                let selector = u32::try_from(source.rfind(name).unwrap()).unwrap();
-                let span = original_member_prepare_span(doc, &identity, selector).unwrap();
-                assert_eq!(source.get(span.as_range()), Some(name));
-                assert!(analysis.all_classes.is_empty());
-            }
-        }
-    }
-
-    #[test]
-    fn original_member_body_coverage_uses_whole_words_and_formed_content() {
-        // Implementation contract: naming.editor.original-instance-member-rename-plans
-        // docs/design/analysis/name-resolution-proofs/original-instance-member-rename-plans.md
-        for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
-            for (body, expected) in [
-                ("{return body}", Some("return body")),
-                ("\"return body\"", Some("return body")),
-                ("\"return\\ body\"", None),
-                ("{return {λ 😀}}", Some("return {λ 😀}")),
-                ("\"return {λ 😀}\"", Some("return {λ 😀}")),
-                ("{return {\r\nλ 😀\r\n}}", Some("return {\r\nλ 😀\r\n}")),
-            ] {
-                let source = format!("oo::class create C {{method pick {{}} {body}}}");
-                let analysis = Analyser::new().analyse(&source, dialect);
-                let class = analysis.original_class_declarations().next().unwrap();
-                let method = class
-                    .metadata()
-                    .original_members
-                    .declarations()
-                    .next()
-                    .unwrap();
-                let word = method.body_word().unwrap();
-                let result = original_method_body_region(method, std::slice::from_ref(word));
-                if let Some(expected) = expected {
-                    let content = result.unwrap();
-                    assert_eq!(
-                        source.get(content.as_range()),
-                        Some(expected),
-                        "{dialect}/{body}"
-                    );
-                    assert!(
-                        content.start() > word.span().start(),
-                        "wrappers stay outside the script"
-                    );
-                    assert_eq!(
-                        original_method_body_region(method, &[]),
-                        Err(OriginalMemberRenameRefusal::IncompleteCoverage),
-                        "a declaration body cannot substitute for the current worker's word"
-                    );
-                } else {
-                    assert_eq!(
-                        result,
-                        Err(OriginalMemberRenameRefusal::IncompleteCoverage),
-                        "transformed value has no affine original script region"
-                    );
-                }
-            }
-        }
-    }
-
-    // Implementation contract: naming.editor.original-instance-member-rename-plans
-    // docs/design/analysis/name-resolution-proofs/original-instance-member-rename-plans.md
-    #[test]
-    fn original_member_rename_checks_builtin_roster_visibility_and_source_family_closure() {
-        // Implementation contract: naming.editor.original-instance-member-rename-plans
-        // docs/design/analysis/name-resolution-proofs/original-instance-member-rename-plans.md
-        let source =
-            "oo::class create C {method pick {} {return body}}\nC create object\nobject pick\n";
-        let analysis = Analyser::new().analyse(source, "tcl8.6");
-        let target = identity(source, &analysis);
-        let doc = document(source, &analysis);
-        assert_eq!(
-            original_member_rename_edits(&[doc], &target, "destroy"),
-            Err(OriginalMemberRenameRefusal::Collision)
-        );
-        assert_eq!(
-            original_member_rename_edits(&[doc], &target, "Upper"),
-            Err(OriginalMemberRenameRefusal::ChangesVisibility)
-        );
-        assert_eq!(
-            original_member_rename_edits(&[doc, doc], &target, "changed"),
-            Err(OriginalMemberRenameRefusal::AmbiguousOwner)
-        );
-        let displaced = format!("# displaced\n{source}");
-        assert_eq!(
-            original_member_rename_edits(&[document(&displaced, &analysis)], &target, "changed"),
-            Err(OriginalMemberRenameRefusal::StaleSource)
-        );
-        for source in [
-            "oo::class create C {method pick {} {}; method pick {} {return body}}",
-            "oo::class create C {method pick {} {return body}; foreach name {other} {method $name {} {}}}",
-            "oo::class create C {method pick {} {return body}}; C create object; after idle {object pick}",
-            // `B`'s own instances reach no `pick`, so its `my pick` selects
-            // the family only on `D` receivers.
-            "oo::class create C {method pick {} {return body}}; oo::class create B {method run {} {my pick}}; oo::class create D {superclass B C}",
-        ] {
-            let analysis = Analyser::new().analyse(source, "tcl8.6");
-            let target = identity(source, &analysis);
-            assert!(
-                original_member_rename_edits(&[document(source, &analysis)], &target, "changed")
-                    .is_err(),
-                "{source}"
-            );
-        }
-    }
-}
+mod tests;

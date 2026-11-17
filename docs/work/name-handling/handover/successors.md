@@ -33,6 +33,7 @@ The owner's open issues are worked by a separate set of sessions under their own
 
 ## Rules that were learned the hard way
 
+- Your context is summarised as it grows, and a message from the coordinator can be lost in that summary. Standing orders are therefore written down: after any summary, and at the start of each hour, read `docs/work/test-scrub/README.md` (the current priority, its rules and rulings) and the rulings list in `docs/work/name-handling/current-state.md` before choosing what to do next. A push script reports success only when `git push` exits 0: check its exit status, never its output.
 - After the final rebase and before every push: `cargo check` on the crates you touched and their dependents, then clippy. `work` did not compile twice because a push was measured before its rebase.
 - `make xtask-gates` runs 38 gates. `cargo xtask file-sizes --check` refuses a Rust file over 2,000 lines: put new code in the module it belongs to or a new named module, never `part2`, `misc` or `helpers`. A new module imports each name from the module that defines it, not through `use super::*;` (test modules may keep it). An import used under one configuration only is gated like its use.
 - `work` is never force-pushed. A shallow fetch can print `forced update` or leave your branch looking diverged when the shallow boundary moves: deepen it (`git fetch --depth=200 origin work`) and rebase. Never `git reset --hard` over local commits, and never tell another session to.

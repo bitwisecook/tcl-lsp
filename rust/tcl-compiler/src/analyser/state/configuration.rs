@@ -117,6 +117,8 @@ impl Analyser {
             interp_epochs: HashMap::new(),
             interp_path_stack: Vec::new(),
             recovered_source: false,
+            concatenated_script: false,
+            concatenated_windows: Vec::new(),
             recovered_tail: None,
             safe_interp_stack: Vec::new(),
             interp_var_bindings: HashMap::new(),

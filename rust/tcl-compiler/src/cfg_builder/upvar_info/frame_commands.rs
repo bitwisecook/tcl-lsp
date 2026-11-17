@@ -201,8 +201,7 @@ pub(super) fn record_resolved_alias_pairs(
         }
         if let Some(target) = target {
             if let Some(local) = local {
-                info.literal_targets
-                    .insert(local.to_owned(), target.to_owned());
+                info.link_literal(local.to_owned(), target.to_owned());
             } else {
                 info.uplevel_literal_writes.insert(target.to_owned());
             }
@@ -214,8 +213,7 @@ pub(super) fn record_resolved_alias_pairs(
                     info.has_unresolvable_caller_target = true;
                 }
             } else if let Some(local) = local {
-                info.param_targets
-                    .insert(local.to_owned(), parameter.to_owned());
+                info.link_parameter(local.to_owned(), parameter.to_owned());
             } else {
                 info.uplevel_param_writes.insert(parameter.to_owned());
             }
@@ -272,8 +270,7 @@ fn record_upvar_call(
         if is_literal_name(src) {
             if dst_is_literal {
                 // `upvar 1 caller_x x` — literal source, literal local.
-                info.literal_targets
-                    .insert(dst.to_string(), src.to_string());
+                info.link_literal(dst.to_string(), src.to_string());
             } else {
                 // `upvar 1 caller_x $dst` — the caller-side name is still
                 // exactly `caller_x`; only the local key is unknowable, so
@@ -293,8 +290,7 @@ fn record_upvar_call(
                 }
             } else if params.iter().any(|p| p == param) {
                 if dst_is_literal {
-                    info.param_targets
-                        .insert(dst.to_string(), param.to_string());
+                    info.link_parameter(dst.to_string(), param.to_string());
                 } else {
                     // `upvar 1 $param $dst` — the caller-side name is the
                     // parameter's value, resolvable at the call site; only

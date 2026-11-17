@@ -362,19 +362,32 @@ Why it has not been done: evaluating a statement's writes where its result
 is not known is a change to the pair's evaluation for every nested command,
 the registry's routes included, not the summary's.
 
-## Open — a module that rebinds any builtin summarises no procedure
+## Open — a procedure that spells a rebound builtin has no transfer summary
 
-A module that rebinds a builtin — a `proc` named like one, a `rename` or an
-alias onto one, or a rebinding whose subject the scan cannot name — has no
-transfer summaries at all (`ModuleCommandMutations::rebinds_builtins`). The
-flow graph lowers a builtin to a typed statement (`set`, `incr`, `expr`) with
-no call in it, so a call to the module's replacement there is invisible to
-the summary's call walk, which could then miss a frame the replacement
-reaches. Every call to a procedure of such a module keeps the widening.
+A module that rebinds a builtin — a `proc` named like one, or a `rename` or an
+alias onto one — keeps the transfer summary of every procedure whose body
+never spells the rebound builtin's name. A procedure whose body does spell it
+has none, and neither has any procedure that calls it
+(`spells_a_rebound_builtin`, `interprocedural/transfer/summarisation.rs`). The flow graph
+lowers a builtin to a typed statement (`set`, `incr`, `expr`) with no call in
+it, so a call to the module's replacement there is invisible to the summary's
+call walk, which could then miss a frame the replacement reaches. A rebinding
+whose subject the scan cannot name (`rename $old {}`) may have moved any
+command, so that module keeps no summary at all
+(`ModuleCommandMutations::nameable_rebound_builtins`).
+
+```tcl
+proc incr {args} {return 0}
+proc bump {name} {upvar 1 $name v; set v [expr {$v + 1}]}
+proc user {} {set x 0; incr x; return $x}
+```
+
+`bump` keeps its summary; `user` has none. Any spelling of the name counts,
+a word in a string included, so the answer is sound and only precision is
+lost.
 
 Why it has not been done: telling which typed statements a rebinding moves
-is the lowering's question, answered per command; the conservative rule
-holds until a rebinding module motivates the precise one.
+is the lowering's question, answered per command.
 
 ## Open — a procedure that hands on a local linked to a place it cannot name has no transfer summary
 

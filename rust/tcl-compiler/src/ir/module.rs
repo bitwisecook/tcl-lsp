@@ -159,6 +159,11 @@ pub struct Module {
         ProcedureId,
         std::sync::Arc<crate::command_binding::OriginalNativeProcedureBody>,
     >,
+    /// Each named procedure whose commands the walk bound in a caller's
+    /// activation, lowered again in its own declared frame: the body its
+    /// transfer summary describes. Keyed by the procedure's own ID; never a
+    /// body unit, so no other consumer sees a second copy.
+    pub declared_frame_bodies: std::collections::BTreeMap<ProcedureId, Procedure>,
     /// Original Logical source cards retain analysis-only bodies without a
     /// successful command allocation, namespace publication or entered frame.
     pub original_logical_declaration_body_units: std::collections::BTreeMap<

@@ -430,6 +430,7 @@ mod tests {
     #[test]
     fn a_definition_is_re_executable_only_where_its_declared_effects_stay_in_its_frame() {
         use tcl_compiler::command_binding::ReExecutionDecline as Decline;
+        use tcl_compiler::math_function_binding::OpenExpression as Open;
         let registry = CommandRegistry::build_default();
         let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
         let config = LexerConfig::for_file_grammar(profile.grammar);
@@ -443,11 +444,52 @@ mod tests {
             ("set y $x; incr y; return $y", Ok(())),
             ("return \"$x-$x\"", Ok(())),
             ("puts $x", Err(Decline::Callback)),
-            // `expr` may substitute a command or call a math function.
-            ("expr {$x * 2}", Err(Decline::Callback)),
+            // Whether an `expr` runs more than its arithmetic is a fact of
+            // its site: its operands are the frame's own, and it calls only a
+            // function the registry declares closed.
+            ("expr {$x * 2}", Ok(())),
+            ("set y 2; expr {$x * $y}", Ok(())),
+            ("return [expr {$x * 2}]", Ok(())),
+            ("expr {abs($x)}", Ok(())),
+            (
+                "expr {[string length $x] * 2}",
+                Err(Decline::Expression(Open::CommandSubstitution)),
+            ),
+            (
+                "expr {nosuch($x)}",
+                Err(Decline::Expression(Open::UnresolvedFunction)),
+            ),
+            // A variable another can name may hold a read trace.
+            (
+                "expr {$::g * 2}",
+                Err(Decline::Expression(Open::ForeignOperand)),
+            ),
+            (
+                "expr {$a(1) * 2}",
+                Err(Decline::Expression(Open::ForeignOperand)),
+            ),
+            (
+                "expr {\"$x\" eq {a}}",
+                Err(Decline::Expression(Open::OpenRead)),
+            ),
+            // Unbraced, the words are substituted before `expr` parses them.
+            ("expr $x", Err(Decline::Callback)),
             ("set ::g $x", Err(Decline::ForeignVariables)),
             // `global` declares a link: a state transition of the frame.
             ("global g; set g $x", Err(Decline::StateTransition)),
+            // A completion other than normal is re-executable where nothing
+            // else is declared: running `break` again breaks again.
+            ("break", Ok(())),
+            ("continue", Ok(())),
+            (
+                "return -code error -errorcode {VENDOR BAD} $x",
+                Err(Decline::StateTransition),
+            ),
+            (
+                "error $x {custom info} {VENDOR ERR}",
+                Err(Decline::Callback),
+            ),
+            ("return -level 2 $x", Err(Decline::IncompleteRoles)),
         ] {
             let (_, _, re_execution) = lower_definition(
                 &format!("proc format {{x}} {{{body}}}"),

@@ -667,7 +667,8 @@ fn word_facts_survive_the_segmenter_mapping() {
     );
     assert_eq!(
         words.iter().map(|w| w.raw.as_str()).collect::<Vec<_>>(),
-        vec!["set", "$x", "{a $b"],
+        vec!["set", "$x", "{a $b}"],
+        "the written span keeps both delimiters (`CommandWord::raw`)",
     );
     assert_eq!(
         words.iter().map(|w| w.substituted).collect::<Vec<_>>(),

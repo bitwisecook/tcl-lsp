@@ -278,7 +278,7 @@ impl<'a> LatticeDriver<'a> {
             return true;
         };
         self.context.tier == AnalysisTier::Deep
-            && !folds.mutations.rebinds_builtins()
+            && folds.mutations.nameable_rebound_builtins().is_some()
             && (!self.trusted(head) || self.registry.get(head).is_none())
     }
 

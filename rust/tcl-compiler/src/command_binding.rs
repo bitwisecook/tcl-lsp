@@ -56,6 +56,7 @@ use tcl_registry::{NamespaceTransition, TransitionSubject};
 
 mod called_static_layouts;
 mod closed_class_configuration;
+mod declared_frame_view;
 mod default_manufacture_advice;
 mod deferred_body_index;
 mod deferred_namespace_index;
@@ -1176,6 +1177,8 @@ pub struct SourceCommandBindings {
     entered_words: SharedSourceInventory<BTreeMap<EnteredWordKey, Vec<ExecutedScriptSource>>>,
     points: SharedSourceInventory<Vec<SourceBindingPoint>>,
     dispatch_points: SharedSourceInventory<BTreeMap<u32, Vec<usize>>>,
+    /// Inside one procedure body, only the points of its own declared frame.
+    declared_frame_view: Option<Arc<declared_frame_view::DeclaredFrameView>>,
     final_state: Arc<ModuleCommandBindings>,
     /// Closed normal root world, independently of the partial fallback state.
     /// This source-model fact grants no physical interpreter execution.
