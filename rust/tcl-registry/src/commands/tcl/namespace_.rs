@@ -1618,7 +1618,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
         world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
-        side_effects: crate::knowledge::Knowledge::declared(NAMESPACE_READ_SIDE_EFFECTS),
+        // Words only: no namespace is looked up (see the test
+        // `namespace_string_subcommands_read_no_namespace`).
+        side_effects: crate::knowledge::Knowledge::Partial(&[]),
         completion: crate::knowledge::Knowledge::Partial(CompletionDescriptor::exact(OK_COMPLETION_CODES)),
         ..SubCommand::DEFAULT
     },
@@ -1642,7 +1644,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
         world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
-        side_effects: crate::knowledge::Knowledge::declared(NAMESPACE_READ_SIDE_EFFECTS),
+        // Words only: no namespace is looked up (see the test
+        // `namespace_string_subcommands_read_no_namespace`).
+        side_effects: crate::knowledge::Knowledge::Partial(&[]),
         completion: crate::knowledge::Knowledge::Partial(CompletionDescriptor::exact(OK_COMPLETION_CODES)),
         ..SubCommand::DEFAULT
     },
