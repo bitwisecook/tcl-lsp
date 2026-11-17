@@ -167,17 +167,33 @@ mod tcloo_classes {
 
     #[test]
     fn oo_define_inline_and_partial_class() {
-        let cd = class(
-            "oo::define Dog method sit {} { return \"sitting\" }",
-            "::Dog",
-        );
-        assert!(cd.methods.contains_key("sit"));
-        // oo::define on an unseen class creates a partial ClassDef.
-        let cd2 = class(
-            "oo::define MyClass {\n    method foo {} {}\n}\n",
-            "::MyClass",
-        );
-        assert!(cd2.methods.contains_key("foo"));
+        // Alone, `oo::define Dog …` raises on tclsh 8.6.18, 9.0.4 and 9.1.0
+        // (`Dog does not refer to an object`): the document declares no class.
+        // Under a pinned release its members are a contribution another file's
+        // class may receive, never a class of this document (ruling of 17
+        // November on oo::define targets a document does not declare).
+        for (src, qn, method) in [
+            (
+                "oo::define Dog method sit {} { return \"sitting\" }",
+                "::Dog",
+                "sit",
+            ),
+            (
+                "oo::define MyClass {\n    method foo {} {}\n}\n",
+                "::MyClass",
+                "foo",
+            ),
+        ] {
+            let analysis = Analyser::new().analyse(src, D);
+            assert!(analysis.all_classes.is_empty(), "{src}");
+            assert!(
+                analysis
+                    .external_class_contributions
+                    .get(qn)
+                    .is_some_and(|contribution| contribution.methods.contains_key(method)),
+                "{src}"
+            );
+        }
     }
 
     #[test]
