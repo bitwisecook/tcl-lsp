@@ -527,6 +527,20 @@ mod tests {
     }
 
     #[test]
+    fn a_declaration_documents_blocks_fold_at_every_depth() {
+        let source = "speclib mylib 1 {\n    command mylib::x {\n        arity 1\n        hover {\n            summary {Do a thing.}\n        }\n    }\n}\n";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "spectcl");
+        let starts: Vec<u32> = fold_lines(
+            &folding_ranges_with_analysis(source, &analysis),
+            FoldKind::Region,
+        )
+        .into_iter()
+        .map(|(start, _)| start)
+        .collect();
+        assert_eq!(starts, [0, 1, 3]);
+    }
+
+    #[test]
     fn logical_folding_uses_original_bodies_after_reporting_scope_clear() {
         let source = concat!(
             "namespace eval N {\n",

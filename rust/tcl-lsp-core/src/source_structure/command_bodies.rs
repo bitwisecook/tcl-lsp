@@ -106,14 +106,17 @@ impl SourceStructure {
         false
     }
 
-    fn definition_cursor_document_bodies(
+    fn document_grammar_bodies(
         &mut self,
         source: &str,
         command: &SegmentedCommand,
         script: &SourceScriptContext<'_>,
         queue: &mut VecDeque<PendingSourceRegion>,
     ) -> bool {
-        if script.purpose != CapturePurpose::DefinitionCursor {
+        if !matches!(
+            script.purpose,
+            CapturePurpose::Readonly | CapturePurpose::DefinitionCursor
+        ) {
             return false;
         }
         let Some(input) = script.analysis.resolved_input.as_ref() else {
@@ -180,6 +183,10 @@ impl SourceStructure {
                 continue;
             };
             self.bodies.push(body.extent_span());
+            if script.purpose == CapturePurpose::Readonly {
+                self.caller_context_unavailable_bodies
+                    .push(body.content_span());
+            }
             queue.push_back((body.content_span(), script.depth + 1, Some(parent)));
         }
         true
@@ -261,7 +268,7 @@ impl SourceStructure {
                 queue.push_back((body.content_span(), depth + 1, None));
             }
         }
-        if self.definition_cursor_document_bodies(source, command, script, queue)
+        if self.document_grammar_bodies(source, command, script, queue)
             || self.readonly_command_bodies(source, command, script, queue)
         {
             return;
