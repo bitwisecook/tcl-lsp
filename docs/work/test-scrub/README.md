@@ -123,6 +123,7 @@ The ledger gains a `status` column (open, repaired, fixed, deleted) and is kept 
 - *A switch-dispatch `proc unknown` bounds its calls:* a name its switch handles is known; a name that falls to a raising arm draws W123, instead of W123 being off for the whole file.
 - *A resolver derived from a pack's frame effect does exactly what `upvar` does* for a computed level: the local exists as a link to an unknown frame.
 - *A wall-clock budget in a unit test holds nothing.* It is re-pointed at a count the algorithm controls, bounded by a stated function of input size, or at a scaling check; a user-visible latency budget belongs in a benchmark with the number's source written down.
+- *A statement after a proved error in an executed unit yields no facts for proof consumers or the call graph* (no object handles, call edges or definitions); it keeps the editor tier only. Uncalled procedure bodies are not affected.
 - *Same input, same result, to the byte, is a contract of the analysis.* Incremental reuse and reproducible diagnostics rest on it; a difference between two runs is a wrong answer.
 - *Abstaining at `source -encoding` with a decode obligation recorded is sound* when nothing can decode; the command world after it must not stay proved.
 - *The generic entry covers a procedure the body defines on every call:* the nested procedure's body gets its own generic entry. It covers that body's facts only; whether the nested procedure exists for an outside caller still depends on whether the outer one surely ran.
