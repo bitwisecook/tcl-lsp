@@ -365,6 +365,58 @@ fn normal_wrapper_taint_invocations(
         .collect()
 }
 
+/// Each occurrence of a handler's wrapper as its hosted command and written
+/// arguments: advice for this diagnostic alone, with no handler target or
+/// dispatch. `None` when any occurrence has no hosted row.
+fn hosted_wrapper_invocations(
+    registry: &CommandRegistry,
+    tokens: &CommandTokens,
+    argument: usize,
+    spelling: &str,
+    projection: Option<&crate::registry_invocation::EffectiveCommandWords>,
+    context: TaintSourceContext<'_>,
+) -> Option<Vec<(String, Vec<String>)>> {
+    context.metadata?;
+    let outer = projection
+        .is_none()
+        .then(|| crate::registry_invocation::hosted_source_taint_invocation(registry, tokens))
+        .flatten();
+    let projection = projection.or_else(|| outer.as_ref().map(|outer| &outer.effective));
+    retained_wrapper_tokens(tokens, argument, spelling, projection, context)?
+        .iter()
+        .map(|nested| {
+            let hosted =
+                crate::registry_invocation::hosted_source_taint_invocation(registry, nested)?;
+            Some((
+                hosted.metadata.shape().command().to_owned(),
+                nested.argv_texts.get(1..)?.to_vec(),
+            ))
+        })
+        .collect()
+}
+
+fn hosted_wrappers_are_sanitisers(
+    call: &SinkCall<'_>,
+    tokens: &CommandTokens,
+    index: usize,
+    spelling: &str,
+) -> bool {
+    hosted_wrapper_invocations(
+        call.registry,
+        tokens,
+        call.argument_offset + index,
+        spelling,
+        call.effective,
+        call.source,
+    )
+    .is_some_and(|invocations| {
+        invocations.iter().all(|(command, args)| {
+            let refs: Vec<&str> = args.iter().map(String::as_str).collect();
+            is_sanitiser(call.registry, command, &refs)
+        })
+    })
+}
+
 /// True when every appearance of `name` in the sink arguments is consumed by an
 /// embedded sanitiser command substitution, so the value reaching the sink is
 /// clean — e.g. `puts [string length $x]` outputs the integer length, never
@@ -411,6 +463,9 @@ pub(in super::super) fn var_consumed_by_sanitiser(call: &SinkCall<'_>, name: &st
                     call.effective,
                     call.source,
                 ) else {
+                    if hosted_wrappers_are_sanitisers(call, tokens, index, sub) {
+                        continue;
+                    }
                     return false;
                 };
                 if !invocations
@@ -503,16 +558,39 @@ pub(in super::super) fn var_wrapper_colours(
                     None,
                     source,
                 )
-                .map_or_else(TaintColour::empty, |invocations| {
-                    invocations
-                        .iter()
-                        .fold(TaintColour::all(), |colours, invocation| {
-                            colours
-                                & invocation
-                                    .transform_colour()
-                                    .map_or_else(TaintColour::empty, reg_colour)
+                .map_or_else(
+                    || {
+                        hosted_wrapper_invocations(
+                            registry,
+                            tokens,
+                            argument_offset + index,
+                            sub,
+                            None,
+                            source,
+                        )
+                        .map_or_else(TaintColour::empty, |invocations| {
+                            invocations
+                                .iter()
+                                .fold(TaintColour::all(), |colours, (command, args)| {
+                                    let refs: Vec<&str> =
+                                        args.iter().map(String::as_str).collect();
+                                    colours
+                                        & transform_colour(registry, command, &refs)
+                                            .unwrap_or_else(TaintColour::empty)
+                                })
                         })
-                });
+                    },
+                    |invocations| {
+                        invocations
+                            .iter()
+                            .fold(TaintColour::all(), |colours, invocation| {
+                                colours
+                                    & invocation
+                                        .transform_colour()
+                                        .map_or_else(TaintColour::empty, reg_colour)
+                            })
+                    },
+                );
                 colours &= colour;
                 continue;
             }
