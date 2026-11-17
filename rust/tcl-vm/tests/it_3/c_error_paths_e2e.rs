@@ -811,3 +811,22 @@ lappend r [dict get $d -errorinfo]";
 "goo"}"#,
     );
 }
+
+/// An arithmetic instruction that refuses its operands is `INNER` with the
+/// values it consumed, not the command's text (`TclGetInnerContext`).
+///
+/// tclsh 8.6.18/9.0.4/9.1.0 answer the same for every row.
+#[test]
+fn error_stack_inner_names_a_failing_operator_with_its_operands() {
+    let src = r"proc vdouble {x} {expr {$x * 2}}
+proc caller {n} {vdouble $n}
+proc c3 {} {set a abc; expr {-$a}}
+proc c4 {} {set a abc; expr {$a + 1}}
+proc c5 {} {set a abc; expr {~$a}}
+lmap s {{caller abc} c3 c4 c5} {catch $s m o; dict get $o -errorstack}";
+    assert_releases(
+        &[TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1],
+        src,
+        "{INNER {mult abc 2} CALL {vdouble abc} CALL {caller abc}} {INNER {uminus abc} CALL c3} {INNER {add abc 1} CALL c4} {INNER {bitnot abc} CALL c5}",
+    );
+}

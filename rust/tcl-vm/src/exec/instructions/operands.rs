@@ -199,7 +199,10 @@ pub(in super::super) fn bin(
         // `ARITH DOMAIN`), and a bare `err` would drop it, leaving the
         // compiled `expr {…}` path reporting `NONE` where the dynamic
         // `expr $e` path reports the real code.
-        Err(e) => Err(crate::command::completion_from_tcl_error(vm, e)),
+        Err(e) => {
+            f.record_failed_operands(vec![a, b]);
+            Err(crate::command::completion_from_tcl_error(vm, e))
+        }
     }
 }
 
@@ -240,7 +243,10 @@ pub(in super::super) fn cmp(
                 .push(expr::native_boolean_result(vm.numeric_policy_context(), t));
             Ok(())
         }
-        Err(e) => Err(crate::command::completion_from_tcl_error(vm, e)),
+        Err(e) => {
+            f.record_failed_operands(vec![a, b]);
+            Err(crate::command::completion_from_tcl_error(vm, e))
+        }
     }
 }
 
@@ -269,7 +275,10 @@ pub(super) fn un(vm: &mut Vm, f: &mut Frame, op: UnaryOp) -> Result<(), Completi
         }
         // Keeps C's `-errorcode` (`ARITH DOMAIN <description>` for an
         // operand-type error); a bare `err` would drop it.
-        Err(e) => Err(crate::command::completion_from_tcl_error(vm, e)),
+        Err(e) => {
+            f.record_failed_operands(vec![v]);
+            Err(crate::command::completion_from_tcl_error(vm, e))
+        }
     }
 }
 

@@ -280,6 +280,9 @@ pub(crate) struct Frame {
     catch_ranges: Vec<CatchRange>,
     /// Lifetime view of the actual result after a completed command.
     last_result: Option<crate::NativeObjectLifetimeLease>,
+    /// The stack operands the instruction at this index consumed before it
+    /// failed, for TIP 348's `INNER` context (`TclGetInnerContext`).
+    failed_operands: Option<(usize, crate::NativeListItems)>,
     native_bytecode_entry: BytecodeEntry,
     /// A replacement dispatch handed to this activation after procedure exit.
     deferred_dispatch: Option<Box<Tick>>,

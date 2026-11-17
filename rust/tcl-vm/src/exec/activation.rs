@@ -33,6 +33,28 @@ mod suspension;
 mod trampoline;
 
 impl Frame {
+    /// Keep what the current instruction consumed before it failed.
+    pub(super) fn record_failed_operands(&mut self, operands: Vec<Value>) {
+        self.failed_operands = Some((
+            self.pc.saturating_sub(1),
+            crate::NativeListItems::invocation_view(std::rc::Rc::new(operands)),
+        ));
+    }
+
+    /// Keep the words the current invoke handed to a call that has not yet
+    /// completed; a call that completes without error drops them.
+    pub(super) fn record_invoked_words(&mut self, words: &crate::NativeListItems) {
+        self.failed_operands = Some((self.pc.saturating_sub(1), words.clone()));
+    }
+
+    /// The operands the instruction at `index` consumed before it failed.
+    pub(super) fn failed_operands_at(&self, index: usize) -> Option<&[Value]> {
+        self.failed_operands
+            .as_ref()
+            .filter(|(at, _)| *at == index)
+            .map(|(_, operands)| operands.as_slice())
+    }
+
     #[cfg(test)]
     pub(crate) fn lambda_registration(&self) -> Option<&crate::interp::CommandSidecarHandle> {
         self.lambda_registration.as_ref()
@@ -136,6 +158,7 @@ impl Frame {
             expand_markers: Vec::new(),
             catch_ranges: Vec::new(),
             last_result: None,
+            failed_operands: None,
             native_bytecode_entry: BytecodeEntry::Pending,
             deferred_dispatch: None,
             last_options: Value::empty(),
