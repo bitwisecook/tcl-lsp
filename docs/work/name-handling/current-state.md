@@ -6,7 +6,7 @@ Updated 15 November 2026. Results apply to their captured source and stated purp
 
 Every hand-written Rust file under `rust/` and `runtime/rust/` is at most 2,000 lines (`docs/work/file-split/README.md`); the split moved items without renaming them, and test paths gained a module, so failing lists are compared by last path segment. The sessions that worked until 16 November were paused for the split and then replaced on the owner's instruction. Each left a hand-over in `docs/work/name-handling/handover/<slug>.md`, its last failing list in `docs/work/name-handling/lists/<slug>-failing-2026-11-16.txt`, and any unfinished work as `docs/work/name-handling/patches/handover-<slug>-*.patch`. The new sessions, their models and how they work together are in `docs/work/name-handling/handover/successors.md`. The area sections below are the outgoing sessions' notes and name pre-split paths; a successor replaces its own section with a current snapshot after its first full run.
 
-## Scoreboard, 17 November 2026, 17:55 UTC
+## Scoreboard, 17 November 2026, 18:55 UTC
 
 Failing tests by area on the restructured tree, from the successor sessions' baselines and first pushes.
 
@@ -16,10 +16,10 @@ Failing tests by area on the restructured tree, from the successor sessions' bas
 
 | Area | Failing | Of | Session |
 | --- | --- | --- | --- |
-| `tcl-compiler` (all areas below share this suite) | 2,124 (areas: values 296, taint 186; includes the accepted exposures of the stock-object-type rule) | 13,145 | analyser-binding, class-facts, diagnostics, dataflow-optimiser, values, taint, tk-oo |
+| `tcl-compiler` (all areas below share this suite) | 2,113 (areas: values 296, taint about 180; includes the accepted exposures of the stock-object-type rule) | 13,147 | analyser-binding, class-facts, diagnostics, dataflow-optimiser, values, taint, tk-oo |
 | `tcl-lsp-core` library | 510 (semantic tokens 14) | 3,649 | lsp-features |
 | `tcl-lsp-server` end to end | 265 | 1,651 | lsp-features (navigation), server-e2e-db |
-| `tcl-lsp-server` library unit tests | 128 | 1,002 | server-e2e-db (navigation reports to lsp-features) |
+| `tcl-lsp-server` library unit tests | 109 | 1,002 | server-e2e-db (navigation reports to lsp-features) |
 | `tcl-lsp-db` | 75 (16 November; not yet re-measured) | 248 | server-e2e-db; the memo tests wait on analysis-performance |
 | Execution (`tcl-codegen`, `tcl-vm`, engines, `tcl-cshim`, `tcl-spec-hooks`) | about 242, after 51 compiler-only tests in `tcl-codegen`'s test crate moved to dataflow-optimiser (23) and values (28) | 5,485 | execution; `live-inlining` for the splice of pack reference bodies (off) |
 | `runtime/rust` (its own workspace) | 41 | 2,726 | execution |
