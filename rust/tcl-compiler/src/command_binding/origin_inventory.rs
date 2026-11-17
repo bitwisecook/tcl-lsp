@@ -106,8 +106,12 @@ impl SourceInvocationBinding {
             .as_ref()
             .map(|point| &point.state)
             .or_else(|| declaration.as_ref().map(|advice| &advice.snapshot.state))?;
+        // A site the walk never entered knows its frame only from the
+        // declaration advice, which states the declared body's own frame.
+        let frame_from_advice = declaration.is_some()
+            && self.variable_frame == crate::var_resolve::VariableExecutionFrame::Unknown;
         if state.current_source_origin.as_ref() != Some(&self.invocation_site()?.source)
-            || state.variable_frame != self.variable_frame
+            || (state.variable_frame != self.variable_frame && !frame_from_advice)
         {
             return None;
         }
