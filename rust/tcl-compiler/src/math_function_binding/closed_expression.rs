@@ -34,9 +34,14 @@ pub enum OpenExpression {
     UnresolvedFunction,
     /// A resolved function's declared effects reach beyond its result.
     FunctionEffects,
-    /// An operand reads a variable that is not a plain local of the frame.
+    /// An operand reads a variable another can name, and so trace: a
+    /// global, a namespace variable, a link or an array element. A trace would
+    /// fire again when a splice is dropped and the call invoked.
     ForeignOperand,
     /// An operand's read is not one retained read with a closed context.
+    /// Its contents need not be known: a plain local of a spliced frame lives
+    /// in an anonymous slot nothing can name or trace, and an expression that
+    /// raises on what it reads has done nothing observable before the drop.
     OpenRead,
 }
 
