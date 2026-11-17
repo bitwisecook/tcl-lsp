@@ -701,9 +701,16 @@ fn hover_resolves_a_proc_defined_in_a_sourced_sibling_1018() {
     );
 
     // The same symbol hovered at its own declaration renders the same body —
-    // one renderer, one input, so the two views cannot drift apart.
+    // one renderer, one input, so the two views cannot drift apart. The call
+    // site carries the conditional-source marker: `source lib.tcl` resolves
+    // against the working directory (tclsh 8.6.18 and 9.0.4 print `hi Alice`
+    // from the script's directory and `couldn't read file "lib.tcl"` from
+    // any other), so the call is only conditionally the sourced procedure.
     let decl = hover(&mut lsp, &lib, 0, 8);
-    assert_eq!(call, decl, "call-site and declaration hover must agree");
+    let rendered = call
+        .strip_prefix("**Conditional source declaration**\n\n")
+        .unwrap_or(&call);
+    assert_eq!(rendered, decl, "call-site and declaration hover must agree");
 }
 
 /// TN: a command nothing in the workspace defines still hovers nothing. The
