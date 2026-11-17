@@ -288,7 +288,12 @@ pub fn format_function_asm_named(asm: &FunctionAsm, wide_names: bool) -> String 
         let mut jump_comment = String::new();
 
         for (j, operand) in instr.operands.iter().enumerate() {
-            let (part, comment) = format_operand(operand, instr, j, &asm.labels);
+            let (part, comment) = match operand {
+                Operand::Imm(flags) if wide_names && instr.op == Op::LREPLACE4 && j == 1 => {
+                    (lreplace_flags(*flags).to_owned(), String::new())
+                }
+                _ => format_operand(operand, instr, j, &asm.labels),
+            };
             parts.push(part);
             if !comment.is_empty() {
                 jump_comment = comment;
@@ -369,6 +374,18 @@ pub fn format_module_asm(module: &ModuleAsm) -> String {
     format_module_asm_named(module, false)
 }
 
+/// How Tcl 9.1's disassembler names `lreplace`'s `TCL_LREPLACE_*` flags
+/// (tclDisassemble.c, `OPERAND_LRPL1`).
+fn lreplace_flags(flags: i32) -> &'static str {
+    match flags {
+        0 => "0",
+        1 => "endLast",
+        2 => "singleIdx",
+        5 => "endLast,indexTest",
+        _ => "endLast,singleIdx",
+    }
+}
+
 /// [`format_module_asm`] under a release's instruction names, as
 /// [`format_function_asm_named`].
 #[must_use]
@@ -389,6 +406,18 @@ pub fn format_module_asm_named(module: &ModuleAsm, wide_names: bool) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `linsert $lst 2 hello` on tclsh 9.0.4 is `lreplace4 3 2`, on 9.1.0
+    /// `lreplace 3 singleIdx`.
+    #[test]
+    fn tcl_9_1_names_the_lreplace_flags() {
+        let mut lreplace = Instruction::new(Op::LREPLACE4, vec![Operand::Imm(3), Operand::Imm(2)]);
+        lreplace.offset = 0;
+        let mut asm = FunctionAsm::default();
+        asm.instructions.push(lreplace);
+        assert!(format_function_asm_named(&asm, false).contains("(0) lreplace4 3 2"));
+        assert!(format_function_asm_named(&asm, true).contains("(0) lreplace 3 singleIdx"));
+    }
 
     #[test]
     fn native_list_index_clone_and_display_preserve_the_native_coordinate() {
