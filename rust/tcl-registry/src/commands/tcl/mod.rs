@@ -53,7 +53,6 @@ pub(crate) const STATIC_DISPLAY_REGEX_OPTIONS: &[&str] = &[
 
 mod after_;
 mod alias_;
-mod jim_arithmetic;
 mod append_;
 mod apply;
 mod array_;
@@ -89,6 +88,7 @@ mod eval_;
 mod exec_;
 mod exists_;
 mod exit_;
+mod jim_arithmetic;
 pub use exists_::{NativeJimExistsKind, NativeJimExistsProtocol};
 mod expr_;
 mod fblocked;
