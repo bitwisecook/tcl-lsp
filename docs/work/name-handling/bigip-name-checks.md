@@ -515,6 +515,7 @@ is the last field of the `BNC|…` line. "empty" means the result field is empty
 | BIGIP-NAME-059 | iRules in TMM | Inventory of namespaces and commands in TMM | TMM RULE_INIT | partly |
 | BIGIP-NAME-068 | iRules in TMM | `HTTP::header NAME VALUE` with no subcommand, before and after `HTTP::respond` | TMM rule load + HTTP_REQUEST | no |
 | BIGIP-NAME-070 | iRules in TMM | A backslash inside a braced argument | TMM HTTP_REQUEST | no |
+| BIGIP-NAME-071 | iRules in TMM | What runs after a response, a drop or a DNS answer, and payload without collect | TMM HTTP_REQUEST, DNS_REQUEST | no |
 | BIGIP-NAME-060 | tmsh, iApp and iCall | Execution namespace and frame of tmsh-hosted scripts | tmsh cli script | partly |
 | BIGIP-NAME-061 | tmsh, iApp and iCall | The `tmsh::` command namespace | tmsh cli script | partly |
 | BIGIP-NAME-062 | tmsh, iApp and iCall | Where procs defined in a cli script live | tmsh cli script | partly |
@@ -2960,6 +2961,48 @@ b}]"
 | `hex` | `615c5c62` | tclsh 8.4.20 | same |
 | `quote` | `a\.b` | tclsh 8.4.20 | same |
 | `cont` | `3` (backslash-newline becomes a space) | tclsh 8.4.20 | same |
+
+| Observed result | BIG-IP build | Environment | Date | Verdict |
+|---|---|---|---|---|
+| | | | | |
+
+#### BIGIP-NAME-071 — What runs after a response, a drop or a DNS answer, and payload without collect
+
+- **Question.** After `HTTP::respond` in `HTTP_REQUEST`, does a later `HTTP::header insert` or a second `HTTP::respond`/`HTTP::redirect` raise or log an error, and do the commands after `drop` or `DNS::return` in the same event still run? Does `HTTP::payload` return data in `HTTP_REQUEST` with no `HTTP::collect`?
+- **Why the toolchain needs it.** The iRules flow checks claim each of these: IRULE1201 (header change after a response), IRULE1202 (a second response), IRULE5002 (commands after `drop` still run, so the drop needs a `return`), IRULE5004 (the same after `DNS::return`), IRULE1005/IRULE1006 (payload needs a collect). The checks are `rust/tcl-compiler/src/irules_checks/`; the examples are in `docs/design/compiler/value-transfers-examples.md`. The test-scrub ledger (`docs/work/test-scrub/ledger/taint.tsv`, cause `irules-checks-dialect-blind-unit`) keeps those tests on this check. None is measured.
+- **Environments.** TMM `HTTP_REQUEST` on an HTTP virtual server (a GET and a POST with a 10-byte body); TMM `DNS_REQUEST` on a DNS virtual server for the second rule.
+
+```tcl
+when HTTP_REQUEST {
+    set bnc_id BIGIP-NAME-071
+    log local0. "BNC|$bnc_id|tmm[TMM::cmp_unit]|payload|[string length [HTTP::payload]]"
+    HTTP::respond 200 content "BNC $bnc_id" Connection close
+    set bnc_rc [catch {HTTP::header insert X-Bnc71 yes} bnc_r]
+    log local0. "BNC|$bnc_id|tmm[TMM::cmp_unit]|after_respond_header|$bnc_rc|$bnc_r"
+    set bnc_rc [catch {HTTP::respond 200 content again} bnc_r]
+    log local0. "BNC|$bnc_id|tmm[TMM::cmp_unit]|second_respond|$bnc_rc|$bnc_r"
+}
+```
+
+Load the next two as separate rules (the first on the HTTP virtual server, the second on the DNS virtual server) and record whether the `log` after the terminating command appears:
+
+```tcl
+when HTTP_REQUEST { drop; log local0. "BNC|BIGIP-NAME-071|after_drop" }
+```
+
+```tcl
+when DNS_REQUEST { DNS::return; log local0. "BNC|BIGIP-NAME-071|after_dns_return" }
+```
+
+There is no Tcl baseline: these are TMM commands.
+
+| Label | Expected by the checks | Basis |
+| --- | --- | --- |
+| `payload` | `0` on the POST without a collect | IRULE1006 claim |
+| `after_respond_header` | an error or a logged TCL error | IRULE1201 claim |
+| `second_respond` | an error or a logged TCL error | IRULE1202 claim |
+| `after_drop` | logged (execution continues) | IRULE5002 claim |
+| `after_dns_return` | logged (execution continues) | IRULE5004 claim |
 
 | Observed result | BIG-IP build | Environment | Date | Verdict |
 |---|---|---|---|---|
