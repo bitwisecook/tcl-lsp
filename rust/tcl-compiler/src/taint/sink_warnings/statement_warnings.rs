@@ -18,6 +18,7 @@
 
 //! Warnings for one SSA statement: sink candidates, retained invocations, expression statements and the dispatch to each check.
 
+use super::super::substitution_taint::hosted_argument_spellings;
 use super::super::{
     CommandHeadContext, CommandRegistry, CommandTokens, HashMap, HashSet, SinkCall,
     SinkWarningContext, SourceWarningRead, SsaFunction, SsaStatement, Statement, Symbol, TaintCtx,
@@ -38,7 +39,6 @@ use super::option_injection::emit_option_injection;
 use super::pattern_operands::emit_regexp_pattern_warnings;
 use super::sink_emission::emit_sink_warnings;
 use super::source_reads::SourceWarningMetadata;
-use super::super::substitution_taint::hosted_argument_spellings;
 
 fn emit_original_assign_value_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>(
     ssa_stmt: &SsaStatement,

@@ -150,10 +150,8 @@ pub fn vendor_source_literal_units(
     let literal_backslashes = word.group().kind == tcl_lexer::WordKind::Braced
         && word.written_bytes().first() == Some(&b'{')
         && !bytes.windows(2).any(|pair| pair == b"\\\n");
-    (bytes.is_ascii()
-        && !bytes.contains(&0)
-        && (literal_backslashes || !bytes.contains(&b'\\')))
-    .then_some(bytes)
+    (bytes.is_ascii() && !bytes.contains(&0) && (literal_backslashes || !bytes.contains(&b'\\')))
+        .then_some(bytes)
 }
 
 /// A formal's original source extent within its complete parameter-list word.
@@ -256,9 +254,8 @@ mod tests {
             .tokenise_all()
             .unwrap();
         let commands = tcl_lexer::group_commands_bytes(&tokens, image.bytes(), config);
-        let word =
-            tcl_lexer::NativeWord::from_group(image, config, &tokens, &commands[0].words[1])
-                .unwrap();
+        let word = tcl_lexer::NativeWord::from_group(image, config, &tokens, &commands[0].words[1])
+            .unwrap();
         let policy = VendorSourceNamePolicy::authored(BigIpExecutionContext::TmmIRule).unwrap();
         vendor_source_literal_units(policy, &word, VendorSourceNamePurpose::SourceName)
             .map(<[u8]>::to_vec)

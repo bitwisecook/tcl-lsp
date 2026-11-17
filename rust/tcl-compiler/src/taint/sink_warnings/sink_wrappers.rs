@@ -569,15 +569,15 @@ pub(in super::super) fn var_wrapper_colours(
                             source,
                         )
                         .map_or_else(TaintColour::empty, |invocations| {
-                            invocations
-                                .iter()
-                                .fold(TaintColour::all(), |colours, (command, args)| {
-                                    let refs: Vec<&str> =
-                                        args.iter().map(String::as_str).collect();
+                            invocations.iter().fold(
+                                TaintColour::all(),
+                                |colours, (command, args)| {
+                                    let refs: Vec<&str> = args.iter().map(String::as_str).collect();
                                     colours
                                         & transform_colour(registry, command, &refs)
                                             .unwrap_or_else(TaintColour::empty)
-                                })
+                                },
+                            )
                         })
                     },
                     |invocations| {
