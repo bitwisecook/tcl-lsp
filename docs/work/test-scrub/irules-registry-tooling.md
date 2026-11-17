@@ -14,9 +14,9 @@ Ledger: [`ledger/irules-registry-tooling.tsv`](ledger/irules-registry-tooling.ts
 | `MERGE` | 17 |
 | `REWRITE` | 0 |
 | `RETIRE` | 0 |
-| `UNDECIDED` | 0 |
+| `UNDECIDED` | 2 |
 
-No test is retired or rewritten here. Triage evidence is the failing output read today plus tclsh 8.4/8.6/9.0 where the row says so; **Jim rows are not confirmed on jimsh (none installed here)**, and the oracle rows state what the test asserts, not that I re-ran each expected value on tclsh: the ones that are, name it. `MERGE` rows are the 17 `value_transfers_cli` tests that repeat a compiler value-transfer witness through diag, opt and explore (ruling 6 of the earlier session keeps them while they fail); their survivor is the compiler test of the same program, to be named per row when that session's ledger lists it.
+The two `UNDECIDED` rows are `tcl-spec-hooks` pack-family tests the execution session routed here (they hold a pack-family runtime path; I have not triaged them yet), so the ledger has 151 rows. No test is retired or rewritten here. Triage evidence is the failing output read today plus tclsh 8.4/8.6/9.0 where the row says so; **Jim rows are not confirmed on jimsh (none installed here)**, and the oracle rows state what the test asserts, not that I re-ran each expected value on tclsh: the ones that are, name it. `MERGE` rows are the 17 `value_transfers_cli` tests that repeat a compiler value-transfer witness through diag, opt and explore (ruling 6 of the earlier session keeps them while they fail); their survivor is the compiler test of the same program, to be named per row when that session's ledger lists it.
 
 ## Causes ranked by tests blocked
 
