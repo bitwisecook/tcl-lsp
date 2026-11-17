@@ -456,8 +456,11 @@ impl<'a> LatticeDriver<'a> {
             };
             // With no existence rung, a procedure's entry version of a name
             // is bound for a parameter and unbound for any other.
-            let entry = module
-                .params_of(&self.body_id?.procedure_id()?)
+            // The top level has no parameters, and no entry rule.
+            let entry = self
+                .body_id
+                .and_then(|body| body.procedure_id())
+                .and_then(|id| module.params_of(&id))
                 .filter(|_| prior == 0)
                 .map(|params| {
                     if params.iter().any(|param| param == name) {
