@@ -444,6 +444,28 @@ mod tests {
         ContextDiagnostic, ContextDiagnosticData, SPEC_PACK_DIAGNOSTIC_CODE,
     };
     use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn every_row_head_alone_on_its_line_has_a_row_subject() {
+        let source = "\nspeclib folder 1 {\n    command f::s {\n        arity 1\n        arg 0 -role Value\n        const_fold -inputs {words} {words ctx} {\n            set x 1\n        }\n        a 1; b 2\n    }\n}\n";
+        let config = tcl_compiler::parsing::spectcl_source::pack_source_lexer_config(
+            tcl_lexer::SourceSegmentationPurpose::WholeInput,
+        );
+        let rows = SpecPackNoticeSubject::for_rows(source, config);
+        let heads: Vec<(u32, &str)> = rows.iter().map(|(line, s)| (*line, s.word())).collect();
+        assert_eq!(
+            heads,
+            [
+                (2, "speclib"),
+                (3, "command"),
+                (4, "arity"),
+                (5, "arg"),
+                (6, "const_fold")
+            ]
+        );
+        assert!(rows.values().all(|s| *s.kind() == SpecPackNoticeKind::Row));
+    }
+
     fn assert_original_spec_notice_vocabulary(
         source: &str,
         analysis: &tcl_compiler::analyser::AnalysisResult,
