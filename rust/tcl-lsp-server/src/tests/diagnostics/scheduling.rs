@@ -150,7 +150,10 @@ async fn a_reload_over_many_documents_admits_at_most_the_bound_1657() {
         crate::diagnostics::AnalysisAdmission::with_bound(BOUND).holding(Arc::clone(&hold)),
     );
     let db = tcl_lsp_db::TclDatabase::default();
-    let (service, _socket) = tower_lsp_server::LspService::new(Backend::new);
+    let (service, socket) = tower_lsp_server::LspService::new(Backend::new);
+    // As `test_backend` does: no client transport is driven, so sends fail
+    // fast instead of waiting for a reader.
+    drop(socket);
     let client = service.inner().client.clone();
     let publisher = Arc::new(DiagnosticPublisher::new(client.clone()));
     let config = default_analyser_config(&db);
@@ -189,7 +192,7 @@ async fn a_reload_over_many_documents_admits_at_most_the_bound_1657() {
         "a document-free request is answered while documents queue",
     );
 
-    hold.add_permits(DOCUMENTS * 8);
+    hold.close();
     let drained = crate::rt::timeout(std::time::Duration::from_secs(120), async {
         loop {
             if backend
@@ -205,7 +208,18 @@ async fn a_reload_over_many_documents_admits_at_most_the_bound_1657() {
         }
     })
     .await;
-    assert!(drained.is_ok(), "every queued document drains");
+    if drained.is_err() {
+        let slots = backend.diag_slots.lock().await;
+        let states: Vec<_> = slots
+            .iter()
+            .map(|(uri, slot)| (uri.as_str().to_owned(), slot.running, slot.dirty))
+            .collect();
+        panic!(
+            "every queued document drains: admitted {}, in flight {}, slots {states:?}",
+            admission.admitted(),
+            admission.in_flight(),
+        );
+    }
     assert_eq!(admission.peak(), BOUND, "never more than the bound at once");
     assert_eq!(admission.in_flight(), 0);
     assert!(

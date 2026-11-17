@@ -75,11 +75,10 @@ impl AnalysisAdmission {
         self.peak.fetch_max(now, Ordering::AcqRel);
         self.admitted.fetch_add(1, Ordering::AcqRel);
         #[cfg(test)]
-        if let Some(hold) = &self.hold {
-            hold.acquire()
-                .await
-                .expect("the test hold is never closed")
-                .forget();
+        if let Some(hold) = &self.hold
+            && let Ok(permit) = hold.acquire().await
+        {
+            permit.forget();
         }
         Admitted {
             _permit: permit,
@@ -103,7 +102,8 @@ impl AnalysisAdmission {
     }
 
     /// Test seam: an admitted analysis waits for one permit of `hold` before it
-    /// starts, so a test can keep the admitted documents in flight.
+    /// starts, so a test can keep the admitted documents in flight; closing
+    /// `hold` lets every later analysis straight through.
     #[cfg(test)]
     pub(crate) fn holding(mut self, hold: Arc<Semaphore>) -> Self {
         self.hold = Some(hold);
