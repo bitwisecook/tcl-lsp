@@ -431,7 +431,9 @@ pub struct SubCommand {
     /// A matching form is applied after this descriptor.  When absent,
     /// resolution simply retains the parent command's descriptor; otherwise
     /// it extends by default or explicitly replaces inherited facts.
-    pub world_effects: Option<WorldEffectDescriptor>,
+    /// How completely it is known is the field's [`crate::knowledge::Knowledge`]:
+    /// `Unknown` states nothing here, and only `Complete` closes the domain.
+    pub world_effects: crate::knowledge::Knowledge<WorldEffectDescriptor>,
 
     /// Target-neutral transitions specific to this subcommand.
     pub state_transitions: Option<StateTransitionDescriptor>,

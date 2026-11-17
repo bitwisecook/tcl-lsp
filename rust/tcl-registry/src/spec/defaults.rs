@@ -93,7 +93,7 @@ impl CommandSpec {
         analyser_hook: None,
         command_table_effect: None,
         side_effects: crate::knowledge::Knowledge::Unknown,
-        world_effects: None,
+        world_effects: crate::knowledge::Knowledge::Unknown,
         state_transitions: None,
         dispatch_dependencies: None,
         literal_argument_validator: None,
@@ -227,7 +227,7 @@ impl CommandSpec {
     /// it never reaches `unknown` fallback handling.
     pub const CLOSED_REFERENTIALLY_TRANSPARENT: Self = Self {
         result_stability: Some(crate::result_stability::ResultStability::ReferentiallyTransparent),
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(StateTransitionDescriptor::EMPTY),
         dispatch_dependencies: Some(DispatchDependencyDescriptor::replace(
             DispatchDependencies::NONE,
@@ -334,7 +334,7 @@ impl SubCommand {
         pattern_type: None,
         format_string_type: None,
         side_effects: crate::knowledge::Knowledge::Unknown,
-        world_effects: None,
+        world_effects: crate::knowledge::Knowledge::Unknown,
         state_transitions: None,
         dispatch_dependencies: None,
         literal_argument_validator: None,
@@ -364,7 +364,7 @@ impl SubCommand {
     /// fallback handling.
     pub const CLOSED_REFERENTIALLY_TRANSPARENT: Self = Self {
         result_stability: Some(crate::result_stability::ResultStability::ReferentiallyTransparent),
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(StateTransitionDescriptor::EMPTY),
         dispatch_dependencies: Some(DispatchDependencyDescriptor::replace(
             DispatchDependencies::NONE,

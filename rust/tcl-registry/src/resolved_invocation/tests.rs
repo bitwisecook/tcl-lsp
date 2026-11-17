@@ -117,7 +117,7 @@ const REFINING_FORM_WORLD: WorldEffectDescriptor = WorldEffectDescriptor {
 const WORLD_FORMS: &[CommandForm] = &[CommandForm {
     name: "argument-targeted",
     arity: Arity::exact(1),
-    world_effects: Some(FORM_WORLD),
+    world_effects: crate::knowledge::Knowledge::Partial(FORM_WORLD),
     ..CommandForm::DEFAULT
 }];
 const WORLD_SUBCOMMANDS: &[SubCommand] = &[
@@ -125,7 +125,7 @@ const WORLD_SUBCOMMANDS: &[SubCommand] = &[
         name: "sub",
         arity: Arity::new(0, 1),
         subcommand_forms: WORLD_FORMS,
-        world_effects: Some(SUBCOMMAND_WORLD),
+        world_effects: crate::knowledge::Knowledge::Partial(SUBCOMMAND_WORLD),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -134,7 +134,7 @@ const WORLD_SUBCOMMANDS: &[SubCommand] = &[
         subcommand_forms: &[CommandForm {
             name: "precise-target",
             arity: Arity::exact(1),
-            world_effects: Some(REFINING_FORM_WORLD),
+            world_effects: crate::knowledge::Knowledge::Partial(REFINING_FORM_WORLD),
             ..CommandForm::DEFAULT
         }],
         ..SubCommand::DEFAULT

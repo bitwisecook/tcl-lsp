@@ -1062,7 +1062,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         native_result: Some(
             crate::native_result::NativeResultContract::VariableExistence { variable_at: 0 },
         ),
-        world_effects: Some(crate::WorldEffectDescriptor::VARIABLE_READ),
+        world_effects: crate::knowledge::Knowledge::Partial(
+            crate::WorldEffectDescriptor::VARIABLE_READ,
+        ),
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::InfoExists,
             operation: SemanticOperationId::Intrinsic(IntrinsicId::InfoExists),

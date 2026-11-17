@@ -957,9 +957,7 @@ fn intrinsic_conditional_has_no_authored_overrides(
     transitions: tcl_registry::state_transition::ResolvedStateTransitions,
 ) -> bool {
     source_effect_chain_has_no_unclassified_override(effects)
-        && effects.command.is_none()
-        && effects.subcommand.is_none()
-        && effects.form.is_none()
+        && !effects.is_declared()
         && !transitions.is_declared()
 }
 
@@ -969,9 +967,8 @@ fn source_effect_chain_has_no_unclassified_override(
     // The ordinary uncovered-role projection does not inspect source_resolver.
     // Until its owner supplies source-specific coverage, refuse these chains,
     // including a source override shadowed by a more-specific replacement.
-    [effects.command, effects.subcommand, effects.form]
-        .into_iter()
-        .flatten()
+    effects
+        .stated_layers()
         .all(|descriptor| descriptor.source_resolver.is_none())
 }
 
@@ -1052,27 +1049,27 @@ mod tests {
         ));
         for effects in [
             ResolvedWorldEffects {
-                command: Some(descriptor),
+                command: tcl_registry::knowledge::Knowledge::Partial(descriptor),
                 ..Default::default()
             },
             ResolvedWorldEffects {
-                subcommand: Some(descriptor),
+                subcommand: tcl_registry::knowledge::Knowledge::Partial(descriptor),
                 ..Default::default()
             },
             ResolvedWorldEffects {
-                form: Some(descriptor),
+                form: tcl_registry::knowledge::Knowledge::Partial(descriptor),
                 ..Default::default()
             },
             ResolvedWorldEffects {
-                command: Some(descriptor),
-                form: Some(WorldEffectDescriptor {
+                command: tcl_registry::knowledge::Knowledge::Partial(descriptor),
+                form: tcl_registry::knowledge::Knowledge::Partial(WorldEffectDescriptor {
                     composition: WorldEffectComposition::Replace,
                     ..WorldEffectDescriptor::EMPTY
                 }),
                 ..Default::default()
             },
             ResolvedWorldEffects {
-                command: Some(WorldEffectDescriptor::EMPTY),
+                command: tcl_registry::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
                 ..Default::default()
             },
         ] {

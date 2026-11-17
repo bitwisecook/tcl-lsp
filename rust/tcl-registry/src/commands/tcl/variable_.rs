@@ -235,7 +235,7 @@ pub fn spec() -> CommandSpec {
         // whichever namespace a qualified name selects, and its only re-entry
         // is that cell's write trace. The transition records cell identity
         // and covers none of this.
-        world_effects: Some(VARIABLE_EFFECTS),
+        world_effects: crate::knowledge::Knowledge::Partial(VARIABLE_EFFECTS),
         state_transitions: Some(VARIABLE_TRANSITIONS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::scope_alias::VARIABLE),
         ..CommandSpec::DEFAULT

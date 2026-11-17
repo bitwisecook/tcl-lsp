@@ -337,7 +337,7 @@ fn command_form(form: &CommandForm, lost: &mut Unrecovered) -> (Value, bool) {
         || form.completion.is_some()
         || form.result_stability.is_some()
         || form.native_result.is_some()
-        || form.world_effects.is_some()
+        || !form.world_effects.is_unknown()
         || form.state_transitions.is_some()
         || form.dispatch_dependencies.is_some()
         || form.literal_argument_validator.is_some();

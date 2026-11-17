@@ -251,7 +251,7 @@ pub fn spec() -> CommandSpec {
         codegen_hook: Some(CodegenHookId::Upvar),
         forms: FORMS,
         xc_translatable: Some(false),
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(UPVAR_TRANSITIONS),
         ..CommandSpec::DEFAULT
     }

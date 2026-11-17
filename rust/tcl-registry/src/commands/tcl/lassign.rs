@@ -89,7 +89,9 @@ pub fn spec() -> CommandSpec {
         codegen_hook: Some(CodegenHookId::Lassign),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::destructure::LASSIGN),
         forms: FORMS,
-        world_effects: Some(crate::WorldEffectDescriptor::VARIABLE_WRITE),
+        world_effects: crate::knowledge::Knowledge::Partial(
+            crate::WorldEffectDescriptor::VARIABLE_WRITE,
+        ),
         side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         repeated_args: REPEATED,
         arg_types: &[(

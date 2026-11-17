@@ -794,7 +794,9 @@ fn custom_replacement_under_builtin_spelling_uses_its_own_descriptor() {
         name: "global",
         arg_roles: &[(0, ArgRole::VarWrite)],
         state_transitions: Some(StateTransitionDescriptor::EMPTY),
-        world_effects: Some(tcl_registry::WorldEffectDescriptor::VARIABLE_WRITE),
+        world_effects: tcl_registry::knowledge::Knowledge::Partial(
+            tcl_registry::WorldEffectDescriptor::VARIABLE_WRITE,
+        ),
         native_compilation: Some(tcl_registry::native_compilation::NativeCompilationSpec {
             grammar: tcl_registry::native_compilation::NativeCompilationGrammar::NoHook,
             operation: tcl_registry::SemanticOperationId::Invoke,

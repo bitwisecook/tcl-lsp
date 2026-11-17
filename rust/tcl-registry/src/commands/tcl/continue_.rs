@@ -64,7 +64,7 @@ pub fn spec() -> CommandSpec {
         // completion descriptor above already carries: it changes no
         // interpreter state a dispatch proof could depend on, so its world
         // footprint is closed and empty.
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(StateTransitionDescriptor::EMPTY),
         forms: FORMS,
         ..CommandSpec::DEFAULT

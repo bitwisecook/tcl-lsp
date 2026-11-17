@@ -24,8 +24,10 @@ use super::super::vocabulary_class::VocabularyClass;
 use super::super::{
     HookDecl, HookOwner, HookSource, Log, PackTables, abstain_state_transitions, leak_slice,
 };
+use super::effect_rows::{split_knowledge_flags, stated_knowledge};
 use super::{hook_source, native_fold, resolve_block};
 use std::fmt;
+use tcl_registry::knowledge::Knowledge;
 use tcl_registry::pack_hooks::HookFamily;
 use tcl_registry::side_effects::SideEffectTarget;
 use tcl_registry::spec::{CommandSpec, SubCommand};
@@ -38,11 +40,24 @@ use tcl_registry::world_effect::{
     TransitionEffectCoverage, WorldEffectDescriptor, WorldEffectWriteSource, WorldStateDomain,
 };
 
+/// `world_effects none | NAME | { … } ?-partial? ?-complete WINDOW?…`.
+///
+/// The descriptor alone is a lower bound; `-complete {FROM UNTIL}` closes it
+/// for the windows evidenced from the implementation (issue #1712).
+pub(in super::super) fn world_effects_value(
+    stmt: &Stmt,
+    tables: &PackTables,
+    log: &mut Log,
+) -> Knowledge<WorldEffectDescriptor> {
+    let (stated, value) = split_knowledge_flags(stmt, log);
+    stated_knowledge(world_effects_descriptor(&value, tables, log), stated)
+}
+
 /// `world_effects none | NAME | { … }`.
 ///
 /// Composition is supported; typed effect rows remain reference-only. An
 /// incomplete block cannot issue a closed empty effect descriptor.
-pub(in super::super) fn world_effects_value(
+fn world_effects_descriptor(
     stmt: &Stmt,
     tables: &PackTables,
     log: &mut Log,

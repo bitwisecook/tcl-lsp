@@ -687,6 +687,24 @@ append log $line",
         },
     ),
     (
+        "world_effects_knowledge",
+        Example {
+            code: "set n [llength $items]\nset items [linsert $items 0 head]",
+            focuses: &[
+                focus(
+                    0,
+                    "llength",
+                    "complete and effect-free from the 8.4–9.1 sources: it touches no variable, command or channel",
+                ),
+                focus(
+                    1,
+                    "linsert",
+                    "so moving it past this write cannot change what it reads",
+                ),
+            ],
+        },
+    ),
+    (
         "state_transitions",
         Example {
             code: "proc greet {} { puts hi }\ninterp alias {} hi {} greet",

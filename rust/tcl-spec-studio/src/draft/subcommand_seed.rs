@@ -326,7 +326,11 @@ fn subcommand_hooks(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
     );
     d.insert(
         "world_effects".into(),
-        lost.expr("world_effects", sub.world_effects.is_some()),
+        lost.expr("world_effects", !sub.world_effects.is_unknown()),
+    );
+    d.insert(
+        "world_effects_knowledge".into(),
+        knowledge(&sub.world_effects),
     );
     d.insert(
         "state_transitions".into(),

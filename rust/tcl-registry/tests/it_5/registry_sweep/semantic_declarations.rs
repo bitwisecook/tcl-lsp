@@ -44,7 +44,7 @@ fn semantic_declarations(spec: &tcl_registry::CommandSpec) -> Vec<SemanticDeclar
         path: spec.name.to_owned(),
         traits: spec.traits,
         result_stability: spec.result_stability,
-        world_effects: spec.world_effects,
+        world_effects: spec.world_effects.stated(),
         state_transitions: spec.state_transitions,
         dispatch_dependencies: spec.dispatch_dependencies,
     }];
@@ -53,7 +53,7 @@ fn semantic_declarations(spec: &tcl_registry::CommandSpec) -> Vec<SemanticDeclar
             path: format!("{} {}", spec.name, sub.name),
             traits: sub.traits,
             result_stability: sub.result_stability,
-            world_effects: sub.world_effects,
+            world_effects: sub.world_effects.stated(),
             state_transitions: sub.state_transitions,
             dispatch_dependencies: sub.dispatch_dependencies,
         });
@@ -90,7 +90,7 @@ fn is_empty_state_transition(descriptor: StateTransitionDescriptor) -> bool {
 ///
 /// `ResultStability::ReferentiallyTransparent` says the successful result
 /// depends only on the evaluated arguments. On its own that says nothing about
-/// what the invocation *does*: `world_effects: None` and
+/// what the invocation *does*: `world_effects: Knowledge::Unknown` and
 /// `state_transitions: None` both resolve conservatively, so a stable-call CSE
 /// candidate carrying only the result claim would ride an open world contract —
 /// the call the optimiser deletes could have been the one carrying the effect.
@@ -298,7 +298,10 @@ fn sweep_closed_referentially_transparent_dispatch_resolves_to_base() {
             let Some(spec) = reg.get(name) else { continue };
             let is_closed_command = spec.result_stability
                 == Some(ResultStability::ReferentiallyTransparent)
-                && spec.world_effects.is_some_and(is_empty_world_effect)
+                && spec
+                    .world_effects
+                    .stated()
+                    .is_some_and(is_empty_world_effect)
                 && spec
                     .state_transitions
                     .is_some_and(is_empty_state_transition);

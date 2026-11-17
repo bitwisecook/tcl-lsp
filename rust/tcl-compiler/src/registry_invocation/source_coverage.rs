@@ -214,15 +214,12 @@ fn registered_source_completion_resolvers(
     let transitions = schema.semantics.state_transitions;
     effects.is_declared()
         && transitions.is_declared()
-        && [effects.command, effects.subcommand, effects.form]
-            .into_iter()
-            .flatten()
-            .all(|descriptor| {
-                matches!(
-                    descriptor.source_resolver,
-                    Some(SourceWorldEffectResolver::Effects(_))
-                )
-            })
+        && effects.stated_layers().all(|descriptor| {
+            matches!(
+                descriptor.source_resolver,
+                Some(SourceWorldEffectResolver::Effects(_))
+            )
+        })
         && [
             transitions.command,
             transitions.subcommand,

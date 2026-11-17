@@ -94,7 +94,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         analyser_hook: Some(crate::hooks::AnalyserHookId::Rename),
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         // The command-table mutation is declared **once**, by naming the
         // stock descriptor, rather than also stamping
         // `command_table_effect` with the same fact in a second vocabulary.

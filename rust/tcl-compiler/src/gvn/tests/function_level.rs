@@ -284,7 +284,9 @@ fn function_level_gvn_declines_volatile_result_despite_closed_effects() {
         name: "test::volatile_cse",
         traits: Traits::PURE | Traits::CSE_CANDIDATE,
         result_stability: Some(ResultStability::Volatile),
-        world_effects: Some(tcl_registry::WorldEffectDescriptor::EMPTY),
+        world_effects: tcl_registry::knowledge::Knowledge::Partial(
+            tcl_registry::WorldEffectDescriptor::EMPTY,
+        ),
         state_transitions: Some(tcl_registry::StateTransitionDescriptor::EMPTY),
         ..tcl_registry::CommandSpec::DEFAULT
     });

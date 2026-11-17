@@ -110,7 +110,7 @@ fn source_namespace_eval_covers_only_its_declared_legacy_bridge() {
     }
     let mut altered = crate::CommandRegistry::build_default();
     altered.insert(crate::CommandSpec {
-        world_effects: Some(WorldEffectDescriptor {
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor {
             composition: WorldEffectComposition::Extend,
             static_footprint: StaticEffectFootprint {
                 accesses: POLICY_WRITE,
@@ -261,7 +261,7 @@ fn jim_scripted_ensemble_metadata_requires_exact_words_and_separate_helper_bindi
     assert!(ensemble.successful_handler.is_none());
     assert!(ensemble.analyser_hook.is_none());
     assert!(ensemble.state_transitions.is_none());
-    assert!(ensemble.world_effects.is_none());
+    assert!(ensemble.world_effects.is_unknown());
 }
 
 #[test]
@@ -445,7 +445,7 @@ fn original_namespace_delete_keeps_independent_policy_writes_and_trace_callbacks
     )];
     let mut registry = crate::CommandRegistry::build_default();
     registry.insert(crate::CommandSpec {
-        world_effects: Some(WorldEffectDescriptor {
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor {
             composition: WorldEffectComposition::Extend,
             static_footprint: StaticEffectFootprint {
                 accesses: POLICY_WRITE,

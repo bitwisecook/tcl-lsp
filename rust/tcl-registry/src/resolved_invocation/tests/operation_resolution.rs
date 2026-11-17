@@ -164,7 +164,7 @@ fn registry_exposes_standard_code_descriptors_and_conservative_invoke_fallback()
 
     registry.insert(CommandSpec {
         name: "explicit-closed-effect-fixture",
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         ..CommandSpec::DEFAULT
     });
     let explicit_empty = registry

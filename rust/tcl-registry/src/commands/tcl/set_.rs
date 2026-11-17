@@ -91,7 +91,7 @@ const COMMAND_FORMS: &[CommandForm] = &[
         arity: Arity::exact(1),
         arg_roles: &[(0, ArgRole::VarRead)],
         side_effects: Some(crate::knowledge::Knowledge::declared(READ_EFFECTS)),
-        world_effects: Some(crate::WorldEffectDescriptor {
+        world_effects: crate::knowledge::Knowledge::Partial(crate::WorldEffectDescriptor {
             composition: crate::world_effect::WorldEffectComposition::Replace,
             ..crate::WorldEffectDescriptor::VARIABLE_READ
         }),
@@ -106,7 +106,7 @@ const COMMAND_FORMS: &[CommandForm] = &[
         arity: Arity::exact(2),
         arg_roles: &[(0, ArgRole::VarWrite)],
         side_effects: Some(crate::knowledge::Knowledge::declared(WRITE_EFFECTS)),
-        world_effects: Some(crate::WorldEffectDescriptor {
+        world_effects: crate::knowledge::Knowledge::Partial(crate::WorldEffectDescriptor {
             composition: crate::world_effect::WorldEffectComposition::Replace,
             ..crate::WorldEffectDescriptor::VARIABLE_WRITE
         }),
@@ -156,7 +156,9 @@ pub fn spec() -> CommandSpec {
         // May union with its exact read or write role.
         arg_roles: &[(0, ArgRole::VarRead), (0, ArgRole::VarWrite)],
         command_forms: COMMAND_FORMS,
-        world_effects: Some(crate::WorldEffectDescriptor::VARIABLE_READ_MODIFY_WRITE),
+        world_effects: crate::knowledge::Knowledge::Partial(
+            crate::WorldEffectDescriptor::VARIABLE_READ_MODIFY_WRITE,
+        ),
         assigns_variable_at: Some(0),
         // `set NAME [TYPE inst …]` — when the value word is a construction,
         // `NAME` ends up holding an object handle.  Registry data so the

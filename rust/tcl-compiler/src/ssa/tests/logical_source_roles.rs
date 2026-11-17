@@ -292,7 +292,7 @@ fn dictionary_effect_fixture(
         .iter_mut()
         .find(|subcommand| subcommand.name == "with")
         .unwrap()
-        .world_effects = Some(WorldEffectDescriptor {
+        .world_effects = tcl_registry::knowledge::Knowledge::Partial(WorldEffectDescriptor {
         static_footprint: StaticEffectFootprint {
             accesses: Box::leak(vec![access].into_boxed_slice()),
             callback: CallbackEffect::NONE,

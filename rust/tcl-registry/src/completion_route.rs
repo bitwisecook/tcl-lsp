@@ -465,6 +465,7 @@ mod tests {
         let selected = registry.get("return").expect("core return spec");
         let descriptor = selected
             .world_effects
+            .stated()
             .expect("authored native return storage");
         let transitions = selected
             .state_transitions

@@ -39,7 +39,7 @@ pub const fn spec() -> CommandSpec {
             ..FormSpec::DEFAULT
         }],
         successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf),
-        world_effects: Some(crate::WorldEffectDescriptor::EMPTY),
+        world_effects: crate::knowledge::Knowledge::Partial(crate::WorldEffectDescriptor::EMPTY),
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::ConnectionControl,
             writes: true,

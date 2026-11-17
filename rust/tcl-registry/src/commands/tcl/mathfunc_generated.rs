@@ -112,7 +112,9 @@ fn push_spellings(out: &mut Vec<CommandSpec>, spec: &mathfunc::MathFuncSpec) {
                     arguments_from: 0,
                 },
             ),
-            world_effects: Some(crate::WorldEffectDescriptor::EMPTY),
+            world_effects: crate::knowledge::Knowledge::Partial(
+                crate::WorldEffectDescriptor::EMPTY,
+            ),
             arity,
             return_type: Some(TclType::Numeric),
             hover: Some(HoverSnippet {
@@ -288,6 +290,6 @@ mod tests {
         assert_eq!(facts.effects.callback(), crate::CallbackEffect::NONE);
         // This descriptor closes only tracked callback/storage worlds. Numeric
         // representation conversion is independently proved by native consumers.
-        assert!(resolved.semantics.world_effects.command.is_some());
+        assert!(!resolved.semantics.world_effects.command.is_unknown());
     }
 }

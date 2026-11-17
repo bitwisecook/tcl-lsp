@@ -1270,7 +1270,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // consumer distinguishes capture from same-invocation execution.
         traits: Traits::WRAPS_COMMAND_PREFIX.union(Traits::DEFERS_BODY),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         side_effects: crate::knowledge::Knowledge::declared(NAMESPACE_READ_SIDE_EFFECTS),
         completion: Some(CompletionDescriptor::exact(OK_COMPLETION_CODES)),
         ..SubCommand::DEFAULT
@@ -1289,7 +1289,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::String),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         side_effects: crate::knowledge::Knowledge::declared(NAMESPACE_READ_SIDE_EFFECTS),
         completion: Some(CompletionDescriptor::exact(OK_COMPLETION_CODES)),
         ..SubCommand::DEFAULT
@@ -1312,7 +1312,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // `namespace_delete_count_arg_roles`.
         arg_role_count_resolver: Some(namespace_delete_count_arg_roles),
         arg_role_resolver_roles: &[ArgRole::NamespaceName],
-        world_effects: Some(NAMESPACE_DELETE_EFFECTS),
+        world_effects: crate::knowledge::Knowledge::Partial(NAMESPACE_DELETE_EFFECTS),
         state_transitions: Some(NAMESPACE_DELETE_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
@@ -1358,7 +1358,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // machinery also holds command names as data, so a program using
         // ensembles observes command names (REFLECTS_COMMAND_NAMES).
         traits: Traits::EXPORTS_COMMAND.union(Traits::REFLECTS_COMMAND_NAMES),
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(NAMESPACE_ENSEMBLE_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
@@ -1410,7 +1410,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         traits: Traits::EVALUATES_CODE
             .union(Traits::SCRIPT_CONCATENATES_ARGS)
             .union(Traits::DECLARES_NAMESPACE),
-        world_effects: Some(NAMESPACE_EVAL_EFFECTS),
+        world_effects: crate::knowledge::Knowledge::Partial(NAMESPACE_EVAL_EFFECTS),
         state_transitions: Some(NAMESPACE_EVAL_TRANSITIONS),
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceEval),
         ..SubCommand::DEFAULT
@@ -1452,7 +1452,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // spelled names, so those names are observable data
         // (REFLECTS_COMMAND_NAMES).
         traits: Traits::EXPORTS_COMMAND.union(Traits::REFLECTS_COMMAND_NAMES),
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(NAMESPACE_EXPORT_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
@@ -1476,7 +1476,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // after the forget stops resolving through the alias it removed
         // (`namespace import`'s own hook is the install half).
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceForget),
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(NAMESPACE_FORGET_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
@@ -1514,7 +1514,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // resolves calls through the import, and records an opaque caller
         // when it cannot), so nothing is lost by leaving the coarse
         // boundary flag off.
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(NAMESPACE_IMPORT_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
@@ -1594,7 +1594,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::List),
         surface: Some(SpecSurface::TCL85_PLUS),
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespacePath),
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(NAMESPACE_PATH_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
@@ -1617,7 +1617,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         side_effects: crate::knowledge::Knowledge::declared(NAMESPACE_READ_SIDE_EFFECTS),
         completion: Some(CompletionDescriptor::exact(OK_COMPLETION_CODES)),
         ..SubCommand::DEFAULT
@@ -1641,7 +1641,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         side_effects: crate::knowledge::Knowledge::declared(NAMESPACE_READ_SIDE_EFFECTS),
         completion: Some(CompletionDescriptor::exact(OK_COMPLETION_CODES)),
         ..SubCommand::DEFAULT
@@ -1670,7 +1670,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         script_lookup_scope: Some(crate::ScriptLookupScope::TriggerFrame),
         script_timing_resolver: Some(namespace_unknown_script_timing),
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceUnknown),
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(NAMESPACE_UNKNOWN_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
@@ -1731,7 +1731,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             CompletionCode::Ok,
             CompletionCode::Error,
         ])),
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(NAMESPACE_UPVAR_TRANSITIONS),
         ..SubCommand::DEFAULT
     },

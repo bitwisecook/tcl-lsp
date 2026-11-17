@@ -180,7 +180,7 @@ pub fn spec() -> CommandSpec {
         native_lowering: Some(NativeLowering::Scope(ScopeKind::Global)),
         codegen_hook: Some(CodegenHookId::Global),
         forms: FORMS,
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(GLOBAL_TRANSITIONS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::scope_alias::GLOBAL),
         ..CommandSpec::DEFAULT

@@ -541,7 +541,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 name: "value",
                 arity: Arity::exact(2),
                 side_effects: Some(crate::knowledge::Knowledge::Partial(&[])),
-                world_effects: Some(crate::WorldEffectDescriptor::EMPTY),
+                world_effects: crate::knowledge::Knowledge::Partial(
+                    crate::WorldEffectDescriptor::EMPTY,
+                ),
                 state_transitions: Some(crate::StateTransitionDescriptor::EMPTY),
                 result_stability: Some(crate::ResultStability::ReferentiallyTransparent),
                 traits: Some(Traits::PURE.union(Traits::CSE_CANDIDATE)),

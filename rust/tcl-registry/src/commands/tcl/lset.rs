@@ -160,7 +160,9 @@ pub fn spec() -> CommandSpec {
         codegen_hook: Some(CodegenHookId::Lset),
         command_forms: &[LSET_REPLACE, LSET_SINGLE_INDEX, LSET_FLAT_PATH],
         forms: FORMS,
-        world_effects: Some(crate::WorldEffectDescriptor::VARIABLE_READ_MODIFY_WRITE),
+        world_effects: crate::knowledge::Knowledge::Partial(
+            crate::WorldEffectDescriptor::VARIABLE_READ_MODIFY_WRITE,
+        ),
         side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         arg_types: &[(
             0,

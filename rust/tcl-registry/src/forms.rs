@@ -209,7 +209,9 @@ pub struct CommandForm {
     /// them through [`crate::WorldEffectComposition`].  The result remains
     /// target-neutral and is resolved by the common registry projection before
     /// a compiler pass sees it.
-    pub world_effects: Option<WorldEffectDescriptor>,
+    /// How completely it is known is the field's [`crate::knowledge::Knowledge`]:
+    /// `Unknown` states nothing here, and only `Complete` closes the domain.
+    pub world_effects: crate::knowledge::Knowledge<WorldEffectDescriptor>,
 
     /// Target-neutral command-binding and variable-cell transitions specific
     /// to this concrete invocation shape.
@@ -265,7 +267,7 @@ impl CommandForm {
         traits: None,
         mutator: None,
         side_effects: None,
-        world_effects: None,
+        world_effects: crate::knowledge::Knowledge::Unknown,
         state_transitions: None,
         dispatch_dependencies: None,
         literal_argument_validator: None,

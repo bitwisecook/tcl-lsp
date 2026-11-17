@@ -517,9 +517,16 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "World effects",
         EFFECTS,
         FieldKind::RustExpr {
-            hint: "Some(WorldEffectDescriptor::EMPTY)",
+            hint: "Knowledge::Partial(WorldEffectDescriptor::EMPTY)",
         },
         "Target-neutral mutable-world footprint for common compiler analysis.",
+    ),
+    f(
+        "world_effects_knowledge",
+        "World-effect completeness",
+        EFFECTS,
+        FieldKind::Knowledge,
+        "How completely the world effects are known: unknown, partial (a lower bound), or complete for the release windows evidenced from the implementation.",
     ),
     f(
         "state_transitions",

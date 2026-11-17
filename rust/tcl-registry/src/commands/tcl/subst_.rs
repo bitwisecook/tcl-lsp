@@ -150,7 +150,7 @@ const NATIVE_FORMS: &[crate::forms::CommandForm] = &[crate::forms::CommandForm {
     name: "template",
     arity: Arity::exact(1),
     side_effects: Some(crate::knowledge::Knowledge::Partial(&[])),
-    world_effects: Some(crate::WorldEffectDescriptor {
+    world_effects: crate::knowledge::Knowledge::Partial(crate::WorldEffectDescriptor {
         resolver: Some(bare_template_effects),
         ..crate::WorldEffectDescriptor::EMPTY
     }),

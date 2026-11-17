@@ -99,6 +99,10 @@ const EXPANDED_FIELDS: &[(&str, &[&str])] = &[
     // A `Knowledge`-wrapped facts field is edited as its rows plus how
     // completely they are known (issue #1712).
     ("side_effects", &["side_effects", "side_effects_knowledge"]),
+    (
+        "world_effects",
+        &["world_effects", "world_effects_knowledge"],
+    ),
 ];
 
 fn expansion_of(field: &str) -> &'static [&'static str] {

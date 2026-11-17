@@ -662,6 +662,18 @@ One release never vouches for another: a window outside the evidenced ones stays
 
 A compiler-oriented summary of the same idea as side effects: which broad domains of the running interpreter's world (variables, commands, namespaces, traces, channels …) the command reads, writes, or can call back into. Used by the optimiser to decide what survives across the call. Expression-valued; leave unset and the optimiser stays conservative.
 
+### `world_effects_knowledge` — World-effect completeness
+
+*command and subcommand* — How completely the world effects are known: unknown, partial (a lower bound), or complete for the release windows evidenced from the implementation.
+
+How much of the world-effect footprint is known. **Unknown** claims nothing. **Partial** says the footprint holds and there may be more. **Complete** says it is the whole footprint for the release windows you evidenced from the implementation's source; a complete, effect-free footprint is one of the four facts purity is derived from.
+
+```
+world_effects -complete {8.4 9.1} none
+```
+
+The flags sit on the `world_effects` row itself, so the completeness travels with the row. One release never vouches for another.
+
 ### `state_transitions` — State transitions
 
 *command and subcommand* — Target-neutral command, namespace, interpreter, trace, and alias transitions.

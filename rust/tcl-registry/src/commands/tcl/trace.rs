@@ -1179,7 +1179,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         closed_value_args: &[0],
         arg_values_accept_prefix: true,
         side_effects: crate::knowledge::Knowledge::declared(TRACE_REGISTRATION_SIDE_EFFECTS),
-        world_effects: Some(TRACE_ADD_EFFECTS),
+        world_effects: crate::knowledge::Knowledge::Partial(TRACE_ADD_EFFECTS),
         state_transitions: Some(TRACE_ADD_TRANSITIONS),
         literal_argument_validator: Some(validate_modern_trace_operations),
         // measurements §5 (`docs/design/f5/bigip-irule-parser-measurements.md`,
@@ -1216,7 +1216,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             ..SideEffect::DEFAULT
         }]),
-        world_effects: Some(TRACE_INFO_EFFECTS),
+        world_effects: crate::knowledge::Knowledge::Partial(TRACE_INFO_EFFECTS),
         state_transitions: Some(StateTransitionDescriptor::EMPTY),
         // measurements §5: 8.3-form-only on TMM — see `add` above.
         surface: Some(SpecSurface::ALL_TCL),
@@ -1250,7 +1250,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             writes: true,
             ..SideEffect::DEFAULT
         }]),
-        world_effects: Some(TRACE_REMOVE_EFFECTS),
+        world_effects: crate::knowledge::Knowledge::Partial(TRACE_REMOVE_EFFECTS),
         state_transitions: Some(TRACE_REMOVE_TRANSITIONS),
         literal_argument_validator: Some(validate_modern_trace_operations),
         // measurements §5: 8.3-form-only on TMM — see `add` above.
@@ -1279,7 +1279,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             writes: true,
             ..SideEffect::DEFAULT
         }]),
-        world_effects: Some(LEGACY_TRACE_ADD_EFFECTS),
+        world_effects: crate::knowledge::Knowledge::Partial(LEGACY_TRACE_ADD_EFFECTS),
         state_transitions: Some(LEGACY_TRACE_ADD_TRANSITIONS),
         literal_argument_validator: Some(validate_legacy_trace_operations),
         // Deprecated legacy form; removed in Tcl 9.0 (8.4-8.6 only) — the
@@ -1321,7 +1321,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             writes: true,
             ..SideEffect::DEFAULT
         }]),
-        world_effects: Some(LEGACY_TRACE_REMOVE_EFFECTS),
+        world_effects: crate::knowledge::Knowledge::Partial(LEGACY_TRACE_REMOVE_EFFECTS),
         state_transitions: Some(LEGACY_TRACE_REMOVE_TRANSITIONS),
         literal_argument_validator: Some(validate_legacy_trace_operations),
         // Deprecated legacy form; removed in Tcl 9.0 (8.4-8.6 only) — see
@@ -1352,7 +1352,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             reads: true,
             ..SideEffect::DEFAULT
         }]),
-        world_effects: Some(LEGACY_TRACE_INFO_EFFECTS),
+        world_effects: crate::knowledge::Knowledge::Partial(LEGACY_TRACE_INFO_EFFECTS),
         state_transitions: Some(StateTransitionDescriptor::EMPTY),
         // Deprecated legacy form; removed in Tcl 9.0 (8.4-8.6 only) — see
         // `variable` above for why both `dialects` and `lifecycle` state

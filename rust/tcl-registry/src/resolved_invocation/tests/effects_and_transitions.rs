@@ -27,7 +27,7 @@ fn world_effect_descriptors_compose_by_default_and_can_explicitly_refine() {
         name: "world-effect-fixture",
         arity: Arity::any(),
         subcommands: WORLD_SUBCOMMANDS,
-        world_effects: Some(COMMAND_WORLD),
+        world_effects: crate::knowledge::Knowledge::Partial(COMMAND_WORLD),
         ..CommandSpec::DEFAULT
     });
 
@@ -104,7 +104,7 @@ fn dynamic_effect_arguments_stay_conservative_without_exposing_a_value() {
         name: "world-effect-fixture",
         arity: Arity::any(),
         subcommands: WORLD_SUBCOMMANDS,
-        world_effects: Some(COMMAND_WORLD),
+        world_effects: crate::knowledge::Knowledge::Partial(COMMAND_WORLD),
         ..CommandSpec::DEFAULT
     });
     let arguments = [

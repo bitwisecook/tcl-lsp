@@ -602,7 +602,9 @@ fn versioned_world_results_key_on_the_read_domain_version() {
         result_stability: Some(ResultStability::ReadsVersionedWorld(&[
             tcl_registry::WorldStateDomain::VariableStore,
         ])),
-        world_effects: Some(tcl_registry::WorldEffectDescriptor::EMPTY),
+        world_effects: tcl_registry::knowledge::Knowledge::Partial(
+            tcl_registry::WorldEffectDescriptor::EMPTY,
+        ),
         state_transitions: Some(tcl_registry::StateTransitionDescriptor::EMPTY),
         ..tcl_registry::CommandSpec::DEFAULT
     });

@@ -136,7 +136,9 @@ pub fn spec() -> CommandSpec {
         ])),
         // Deletion mutates only the selected cells; trace callbacks are the
         // explicit re-entry boundary, as for the other variable primitives.
-        world_effects: Some(crate::world_effect::WorldEffectDescriptor::VARIABLE_WRITE),
+        world_effects: crate::knowledge::Knowledge::Partial(
+            crate::world_effect::WorldEffectDescriptor::VARIABLE_WRITE,
+        ),
         successful_handler: Some(
             crate::native_compilation::SuccessfulHandlerSpec::VariableOperands,
         ),

@@ -351,9 +351,17 @@ pub(super) fn resolve_invocation_semantics<'r, 'w>(
             .and_then(|form| form.side_effects)
             .unwrap_or(inherited_side_effects),
         world_effects: ResolvedWorldEffects {
-            command: inherit_command.then_some(spec.world_effects).flatten(),
-            subcommand: sub.and_then(|sub| sub.world_effects),
-            form: form.and_then(|form| form.world_effects),
+            command: if inherit_command {
+                spec.world_effects
+            } else {
+                crate::knowledge::Knowledge::Unknown
+            },
+            subcommand: sub.map_or(crate::knowledge::Knowledge::Unknown, |sub| {
+                sub.world_effects
+            }),
+            form: form.map_or(crate::knowledge::Knowledge::Unknown, |form| {
+                form.world_effects
+            }),
         },
         state_transitions: ResolvedStateTransitions {
             // A `SpecTcl` pack cannot supply a Rust resolver, so it declares

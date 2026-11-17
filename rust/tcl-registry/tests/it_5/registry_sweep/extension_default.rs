@@ -101,7 +101,7 @@ fn check_extension_default_spec(spec: &tcl_registry::CommandSpec) {
     assert!(
         spec.command_table_effect.is_none()
             && spec.state_transitions.is_none()
-            && spec.world_effects.is_none()
+            && spec.world_effects.is_unknown()
     );
 }
 

@@ -285,10 +285,11 @@ fn dictionary_source_phase_keeps_generic_unknown_and_additional_effects() {
         crate::world_effect::CallbackKinds::TRACE
     );
     assert!(schema.facts().effects.callback().kinds.is_unknown());
-    schema.semantics.world_effects.form = Some(crate::world_effect::WorldEffectDescriptor {
-        resolver: Some(extra),
-        ..crate::world_effect::WorldEffectDescriptor::EMPTY
-    });
+    schema.semantics.world_effects.form =
+        crate::knowledge::Knowledge::Partial(crate::world_effect::WorldEffectDescriptor {
+            resolver: Some(extra),
+            ..crate::world_effect::WorldEffectDescriptor::EMPTY
+        });
     let expanded = schema.authored_dictionary_scope_source_phase().unwrap();
     assert!(expanded.effects().callback().kinds.is_unknown());
     assert!(

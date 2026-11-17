@@ -365,7 +365,7 @@ const PROVIDE_FORMS: &[SubCommandForm] = &[SubCommandForm {
         reads: true,
         ..SideEffect::DEFAULT
     }])),
-    world_effects: Some(WorldEffectDescriptor {
+    world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor {
         composition: crate::world_effect::WorldEffectComposition::Replace,
         static_footprint: StaticEffectFootprint {
             accesses: &[StaticEffectAccess::new(
@@ -425,7 +425,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "ifneeded",
         state_transitions: Some(package_descriptor(ifneeded_transitions)),
-        world_effects: Some(PACKAGE_REGISTRATION_EFFECTS),
+        world_effects: crate::knowledge::Knowledge::Partial(PACKAGE_REGISTRATION_EFFECTS),
         arity: Arity::new(2, 3),
         detail: "Registers script to be evaluated (in the global namespace) the next time package require needs this version and it is not yet provided; replaces any script already registered for the same package/version pair. With script omitted, returns the currently registered script, or an empty string if none is registered.",
         synopsis: "package ifneeded package version ?script?",
@@ -520,7 +520,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         state_transitions: Some(package_descriptor(provide_transitions)),
         // Reads, and in the setter form writes, only the package database;
         // `Tcl_PkgProvideEx` runs no script or handler.
-        world_effects: Some(PACKAGE_REGISTRATION_EFFECTS),
+        world_effects: crate::knowledge::Knowledge::Partial(PACKAGE_REGISTRATION_EFFECTS),
         subcommand_forms: PROVIDE_FORMS,
         arity: Arity::new(1, 2),
         detail: "Declares that version of package is now present in the interpreter; errors if a different version was already provided. With version omitted, returns the currently provided version, or an empty string if package has not been provided.",
@@ -632,7 +632,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "package vsatisfies version requirement ?requirement ...?",
         pure: true,
         // Compares its operands only; no interpreter state or callback.
-        world_effects: Some(WorldEffectDescriptor::EMPTY),
+        world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(StateTransitionDescriptor::EMPTY),
         return_type: Some(TclType::Boolean),
         subcommand_forms: VSATISFIES_FORMS,

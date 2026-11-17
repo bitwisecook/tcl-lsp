@@ -710,7 +710,9 @@ pub struct CommandSpec {
     /// The result is target-neutral and is resolved, together with the
     /// established command-table, frame, and side-effect metadata, before a
     /// compiler pass consumes it.
-    pub world_effects: Option<WorldEffectDescriptor>,
+    /// How completely it is known is the field's [`crate::knowledge::Knowledge`]:
+    /// `Unknown` states nothing here, and only `Complete` closes the domain.
+    pub world_effects: crate::knowledge::Knowledge<WorldEffectDescriptor>,
 
     /// Target-neutral transitions of command bindings and variable cells.
     ///

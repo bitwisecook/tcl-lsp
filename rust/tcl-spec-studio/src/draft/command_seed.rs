@@ -272,7 +272,11 @@ pub(super) fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unreco
     );
     d.insert(
         "world_effects".into(),
-        lost.expr("world_effects", spec.world_effects.is_some()),
+        lost.expr("world_effects", !spec.world_effects.is_unknown()),
+    );
+    d.insert(
+        "world_effects_knowledge".into(),
+        knowledge(&spec.world_effects),
     );
     d.insert(
         "state_transitions".into(),

@@ -729,9 +729,16 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "World effects",
         EFFECTS,
         FieldKind::RustExpr {
-            hint: "Some(WorldEffectDescriptor::EMPTY)",
+            hint: "Knowledge::Partial(WorldEffectDescriptor::EMPTY)",
         },
         "Subcommand-specific mutable-world footprint.",
+    ),
+    f(
+        "world_effects_knowledge",
+        "World-effect completeness",
+        EFFECTS,
+        FieldKind::Knowledge,
+        "How completely this subcommand's world effects are known.",
     ),
     f(
         "state_transitions",

@@ -520,10 +520,7 @@ fn sole_world_effect_descriptor(
     effects: &crate::world_effect::ResolvedWorldEffects,
 ) -> Option<crate::world_effect::WorldEffectDescriptor> {
     let mut descriptors = Vec::new();
-    for descriptor in [effects.command, effects.subcommand, effects.form]
-        .into_iter()
-        .flatten()
-    {
+    for descriptor in effects.stated_layers() {
         if descriptor.composition == crate::world_effect::WorldEffectComposition::Replace {
             descriptors.clear();
         }

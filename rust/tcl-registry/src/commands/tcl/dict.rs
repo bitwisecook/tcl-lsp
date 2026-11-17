@@ -206,7 +206,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::keyed_update::DICT_APPEND,
         ),
-        world_effects: Some(crate::WorldEffectDescriptor::VARIABLE_READ_MODIFY_WRITE),
+        world_effects: crate::knowledge::Knowledge::Partial(
+            crate::WorldEffectDescriptor::VARIABLE_READ_MODIFY_WRITE,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -240,7 +242,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // successful-handler projection closes this phase for known keys;
         // unknown values are retained without coercion. An open world
         // contract cannot carry the referentially transparent result claim.
-        world_effects: None,
+        world_effects: crate::knowledge::Knowledge::Unknown,
         result_stability: None,
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
@@ -392,7 +394,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         safe_on_uninit: Some(SpecSurface::ALL_TCL),
         return_type: Some(TclType::Dict),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::keyed_update::DICT_INCR),
-        world_effects: Some(crate::WorldEffectDescriptor::VARIABLE_READ_MODIFY_WRITE),
+        world_effects: crate::knowledge::Knowledge::Partial(
+            crate::WorldEffectDescriptor::VARIABLE_READ_MODIFY_WRITE,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -452,7 +456,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::keyed_update::DICT_LAPPEND,
         ),
-        world_effects: Some(crate::WorldEffectDescriptor::VARIABLE_READ_MODIFY_WRITE),
+        world_effects: crate::knowledge::Knowledge::Partial(
+            crate::WorldEffectDescriptor::VARIABLE_READ_MODIFY_WRITE,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -572,7 +578,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         safe_on_uninit: Some(SpecSurface::ALL_TCL),
         return_type: Some(TclType::Dict),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::keyed_update::DICT_SET),
-        world_effects: Some(crate::WorldEffectDescriptor::VARIABLE_READ_MODIFY_WRITE),
+        world_effects: crate::knowledge::Knowledge::Partial(
+            crate::WorldEffectDescriptor::VARIABLE_READ_MODIFY_WRITE,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -640,7 +648,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // auto-vivify behaviour as `append`/`incr`/`lappend`/`set` above.
         safe_on_uninit: Some(SpecSurface::ALL_TCL),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::keyed_update::DICT_UNSET),
-        world_effects: Some(crate::WorldEffectDescriptor::VARIABLE_READ_MODIFY_WRITE),
+        world_effects: crate::knowledge::Knowledge::Partial(
+            crate::WorldEffectDescriptor::VARIABLE_READ_MODIFY_WRITE,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
