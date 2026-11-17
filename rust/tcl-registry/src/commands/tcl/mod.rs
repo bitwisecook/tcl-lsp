@@ -252,6 +252,14 @@ use crate::spec::CommandSpec;
 // readability for a one-shot table.
 #[must_use]
 pub fn tcl_command_specs() -> Vec<CommandSpec> {
+    let mut specs = authored_tcl_command_specs();
+    super::closed_evidence::apply("tcl", &mut specs);
+    specs
+}
+
+/// The `tcl` rows as authored, before [`super::closed_evidence`] closes the
+/// rows their C sources evidence.
+pub(crate) fn authored_tcl_command_specs() -> Vec<CommandSpec> {
     let mut specs = tcl_specs_a_through_l();
     specs.extend(tcl_specs_m_through_z());
     // Jim's global `+ - * /` commands.

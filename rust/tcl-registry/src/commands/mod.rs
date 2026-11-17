@@ -26,6 +26,7 @@
 
 pub mod argparse;
 pub mod bpf;
+mod closed_evidence;
 pub mod expect;
 pub mod iapps;
 pub mod irules;

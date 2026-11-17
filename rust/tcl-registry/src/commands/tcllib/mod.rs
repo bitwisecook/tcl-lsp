@@ -283,6 +283,14 @@ use tcl_dialect::model::SpecSurface;
 /// assert the resulting set is identical.
 #[must_use]
 pub fn tcllib_command_specs() -> Vec<CommandSpec> {
+    let mut specs = authored_tcllib_command_specs();
+    super::closed_evidence::apply("tcllib", &mut specs);
+    specs
+}
+
+/// The tcllib rows as authored, with their package gates, before
+/// [`super::closed_evidence`] closes the rows tcllib 2.0's source evidences.
+pub(crate) fn authored_tcllib_command_specs() -> Vec<CommandSpec> {
     let mut specs = vec![clay__define::spec()];
     specs.extend(base64_cmdline_control_csv_dns_specs());
     specs.extend(fileutil_html_ip_json_specs());
