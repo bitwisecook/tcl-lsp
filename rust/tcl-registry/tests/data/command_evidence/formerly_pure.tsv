@@ -1,0 +1,967 @@
+# group	command	subcommand: rows authored PURE when purity became derived (issue #1712)
+expect	exp_pid	
+irules	ACCESS::acl	lookup
+irules	ACCESS::acl	matched
+irules	ACCESS::acl	result
+irules	ACCESS::perflow	get
+irules	ACCESS::policy	agent_id
+irules	ACCESS::policy	result
+irules	ACCESS::policy	uri
+irules	ACCESS::saml	assertion
+irules	ACCESS::saml	authn
+irules	ACCESS::saml	slo_req
+irules	ACCESS::saml	slo_resp
+irules	ACCESS::session	exists
+irules	ACCESS::session	sid
+irules	ACCESS::user	getkey
+irules	ACCESS::user	getsid
+irules	DIAMETER::avp	code
+irules	DIAMETER::avp	count
+irules	DIAMETER::avp	data
+irules	DIAMETER::avp	flags
+irules	DIAMETER::avp	length
+irules	DIAMETER::header	application_id
+irules	DIAMETER::header	command_code
+irules	DIAMETER::header	eflag
+irules	DIAMETER::header	end_to_end_id
+irules	DIAMETER::header	hop_by_hop_id
+irules	DIAMETER::header	length
+irules	DIAMETER::header	pflag
+irules	DIAMETER::header	rflag
+irules	DIAMETER::header	tflag
+irules	DIAMETER::header	version
+irules	DNS::header	aa
+irules	DNS::header	ad
+irules	DNS::header	ancount
+irules	DNS::header	arcount
+irules	DNS::header	cd
+irules	DNS::header	id
+irules	DNS::header	nscount
+irules	DNS::header	opcode
+irules	DNS::header	qdcount
+irules	DNS::header	qr
+irules	DNS::header	ra
+irules	DNS::header	rcode
+irules	DNS::header	rd
+irules	DNS::header	tc
+irules	GTP::header	extension
+irules	GTP::header	npdu
+irules	GTP::header	sequence
+irules	GTP::header	teid
+irules	GTP::header	type
+irules	GTP::header	version
+irules	HTTP2::stream	
+irules	HTTP::cookie	
+irules	HTTP::has_responded	
+irules	HTTP::header	
+irules	HTTP::host	
+irules	HTTP::is_keepalive	
+irules	HTTP::is_redirect	
+irules	HTTP::method	
+irules	HTTP::path	
+irules	HTTP::payload	
+irules	HTTP::proxy	addr
+irules	HTTP::proxy	exists
+irules	HTTP::proxy	iptuple
+irules	HTTP::proxy	port
+irules	HTTP::proxy	rtdom
+irules	HTTP::query	
+irules	HTTP::request	
+irules	HTTP::request_num	
+irules	HTTP::status	
+irules	HTTP::uri	
+irules	HTTP::version	
+irules	IP::client_addr	
+irules	IP::local_addr	
+irules	IP::protocol	
+irules	IP::remote_addr	
+irules	IP::server_addr	
+irules	IP::stats	age
+irules	IP::stats	bytes
+irules	IP::stats	in
+irules	IP::stats	out
+irules	IP::stats	pkts
+irules	IP::tos	
+irules	LB::connlimit	node
+irules	LB::connlimit	poolmember
+irules	LB::connlimit	virtual
+irules	LB::persist	cookie
+irules	LB::persist	key
+irules	LB::server	addr
+irules	LB::server	name
+irules	LB::server	pool
+irules	LB::server	port
+irules	LB::server	priority
+irules	LB::server	ratio
+irules	LB::server	ripeness
+irules	LB::server	route_domain
+irules	LB::server	weight
+irules	LB::status	node
+irules	LB::status	pool
+irules	MQTT::payload	length
+irules	MQTT::topic	count
+irules	MQTT::topic	index
+irules	MQTT::topic	list
+irules	MQTT::topic	qos
+irules	SIP::header	at
+irules	SIP::header	count
+irules	SIP::header	exists
+irules	SIP::header	names
+irules	SIP::header	value
+irules	SIP::header	values
+irules	SIP::response	code
+irules	SIP::response	phrase
+irules	SIP::via	branch
+irules	SIP::via	maddr
+irules	SIP::via	proto
+irules	SIP::via	received
+irules	SIP::via	sent_by
+irules	SIP::via	ttl
+irules	SSL::cert	
+irules	SSL::cert	count
+irules	SSL::cert	issuer
+irules	SSL::cert	mode
+irules	SSL::cipher	
+irules	SSL::cipher	bits
+irules	SSL::cipher	clientlist
+irules	SSL::cipher	name
+irules	SSL::cipher	version
+irules	SSL::extensions	
+irules	SSL::forward_proxy	cert
+irules	SSL::sni	name
+irules	SSL::sni	required
+irules	SSL::tls13_secret	client
+irules	SSL::tls13_secret	server
+irules	TCP::bandwidth	
+irules	TCP::client_port	
+irules	TCP::local_port	
+irules	TCP::option	get
+irules	TCP::remote_port	
+irules	TCP::rtt	
+irules	TCP::server_port	
+irules	WS::frame	eom
+irules	WS::frame	mask
+irules	WS::frame	orig_masked
+irules	WS::frame	type
+irules	WS::request	extension
+irules	WS::request	key
+irules	WS::request	protocol
+irules	WS::request	version
+irules	WS::response	extension
+irules	WS::response	key
+irules	WS::response	protocol
+irules	WS::response	valid
+irules	WS::response	version
+irules	class	anymore
+irules	class	element
+irules	class	exists
+irules	class	get
+irules	class	lookup
+irules	class	match
+irules	class	names
+irules	class	search
+irules	class	size
+irules	class	type
+irules	session	count
+irules	session	lookup
+stdlib	http::formatQuery	
+stdlib	http::postError	
+stdlib	http::quoteString	
+stdlib	http::reasonPhrase	
+stdlib	http::requestHeaderValue	
+stdlib	http::requestHeaders	
+stdlib	http::requestLine	
+stdlib	http::responseBody	
+stdlib	http::responseCode	
+stdlib	http::responseHeaderValue	
+stdlib	http::responseHeaders	
+stdlib	http::responseInfo	
+stdlib	http::responseLine	
+stdlib	platform::generic	
+stdlib	platform::identify	
+stdlib	platform::patterns	
+stdlib	tcl::idna::decode	
+stdlib	tcl::idna::encode	
+stdlib	tcl_endOfWord	
+stdlib	tcl_startOfNextWord	
+stdlib	tcl_startOfPreviousWord	
+stdlib	tcl_wordBreakAfter	
+stdlib	tcl_wordBreakBefore	
+tcl	!	
+tcl	!=	
+tcl	%	
+tcl	&	
+tcl	*	
+tcl	**	
+tcl	+	
+tcl	-	
+tcl	/	
+tcl	::tcl::dict::create	
+tcl	::tcl::dict::exists	
+tcl	::tcl::dict::get	
+tcl	::tcl::dict::getdef	
+tcl	::tcl::dict::getwithdefault	
+tcl	::tcl::dict::info	
+tcl	::tcl::dict::keys	
+tcl	::tcl::dict::merge	
+tcl	::tcl::dict::remove	
+tcl	::tcl::dict::replace	
+tcl	::tcl::dict::size	
+tcl	::tcl::dict::values	
+tcl	::tcl::idna	decode
+tcl	::tcl::idna	encode
+tcl	::tcl::idna	puny
+tcl	::tcl::idna	version
+tcl	::tcl::mathfunc::abs	
+tcl	::tcl::mathfunc::acos	
+tcl	::tcl::mathfunc::acosh	
+tcl	::tcl::mathfunc::asin	
+tcl	::tcl::mathfunc::asinh	
+tcl	::tcl::mathfunc::atan	
+tcl	::tcl::mathfunc::atan2	
+tcl	::tcl::mathfunc::atanh	
+tcl	::tcl::mathfunc::bool	
+tcl	::tcl::mathfunc::cbrt	
+tcl	::tcl::mathfunc::ceil	
+tcl	::tcl::mathfunc::copysign	
+tcl	::tcl::mathfunc::cos	
+tcl	::tcl::mathfunc::cosh	
+tcl	::tcl::mathfunc::dim	
+tcl	::tcl::mathfunc::double	
+tcl	::tcl::mathfunc::entier	
+tcl	::tcl::mathfunc::erf	
+tcl	::tcl::mathfunc::erfc	
+tcl	::tcl::mathfunc::exp	
+tcl	::tcl::mathfunc::exp2	
+tcl	::tcl::mathfunc::expm1	
+tcl	::tcl::mathfunc::floor	
+tcl	::tcl::mathfunc::fma	
+tcl	::tcl::mathfunc::fmod	
+tcl	::tcl::mathfunc::gamma	
+tcl	::tcl::mathfunc::hypot	
+tcl	::tcl::mathfunc::int	
+tcl	::tcl::mathfunc::isfinite	
+tcl	::tcl::mathfunc::isinf	
+tcl	::tcl::mathfunc::isnan	
+tcl	::tcl::mathfunc::isnormal	
+tcl	::tcl::mathfunc::isqrt	
+tcl	::tcl::mathfunc::issubnormal	
+tcl	::tcl::mathfunc::isunordered	
+tcl	::tcl::mathfunc::ldexp	
+tcl	::tcl::mathfunc::lgamma	
+tcl	::tcl::mathfunc::log	
+tcl	::tcl::mathfunc::log10	
+tcl	::tcl::mathfunc::log1p	
+tcl	::tcl::mathfunc::log2	
+tcl	::tcl::mathfunc::logb	
+tcl	::tcl::mathfunc::max	
+tcl	::tcl::mathfunc::min	
+tcl	::tcl::mathfunc::nextafter	
+tcl	::tcl::mathfunc::pow	
+tcl	::tcl::mathfunc::rand	
+tcl	::tcl::mathfunc::remainder	
+tcl	::tcl::mathfunc::round	
+tcl	::tcl::mathfunc::signbit	
+tcl	::tcl::mathfunc::sin	
+tcl	::tcl::mathfunc::sinh	
+tcl	::tcl::mathfunc::sqrt	
+tcl	::tcl::mathfunc::srand	
+tcl	::tcl::mathfunc::tan	
+tcl	::tcl::mathfunc::tanh	
+tcl	::tcl::mathfunc::trunc	
+tcl	::tcl::mathfunc::wide	
+tcl	::tcl::mathop::!	
+tcl	::tcl::mathop::!=	
+tcl	::tcl::mathop::%	
+tcl	::tcl::mathop::&	
+tcl	::tcl::mathop::*	
+tcl	::tcl::mathop::**	
+tcl	::tcl::mathop::+	
+tcl	::tcl::mathop::-	
+tcl	::tcl::mathop::/	
+tcl	::tcl::mathop::<	
+tcl	::tcl::mathop::<<	
+tcl	::tcl::mathop::<=	
+tcl	::tcl::mathop::==	
+tcl	::tcl::mathop::>	
+tcl	::tcl::mathop::>=	
+tcl	::tcl::mathop::>>	
+tcl	::tcl::mathop::^	
+tcl	::tcl::mathop::eq	
+tcl	::tcl::mathop::ge	
+tcl	::tcl::mathop::gt	
+tcl	::tcl::mathop::in	
+tcl	::tcl::mathop::le	
+tcl	::tcl::mathop::lt	
+tcl	::tcl::mathop::ne	
+tcl	::tcl::mathop::ni	
+tcl	::tcl::mathop::|	
+tcl	::tcl::mathop::~	
+tcl	::tcl::unsupported::grapheme	index
+tcl	::tcl::unsupported::grapheme	length
+tcl	::tcl::unsupported::grapheme	offset
+tcl	::tcl::unsupported::grapheme	range
+tcl	::tcl::unsupported::grapheme	reverse
+tcl	::tcl::unsupported::grapheme	split
+tcl	<	
+tcl	<<	
+tcl	<=	
+tcl	==	
+tcl	>	
+tcl	>=	
+tcl	>>	
+tcl	^	
+tcl	after	info
+tcl	auto_qualify	
+tcl	binary	decode
+tcl	binary	encode
+tcl	binary	format
+tcl	chan	blocked
+tcl	chan	eof
+tcl	chan	isbinary
+tcl	chan	names
+tcl	chan	pending
+tcl	chan	tell
+tcl	clock	add
+tcl	clock	clicks
+tcl	clock	format
+tcl	clock	microseconds
+tcl	clock	milliseconds
+tcl	clock	monotonic
+tcl	clock	seconds
+tcl	concat	
+tcl	dict	create
+tcl	dict	exists
+tcl	dict	get
+tcl	dict	getd
+tcl	dict	getdef
+tcl	dict	getwithdefault
+tcl	dict	info
+tcl	dict	keys
+tcl	dict	merge
+tcl	dict	remove
+tcl	dict	replace
+tcl	dict	size
+tcl	dict	values
+tcl	divmod	
+tcl	encoding	names
+tcl	encoding	profiles
+tcl	encoding	user
+tcl	eq	
+tcl	file	dirname
+tcl	file	extension
+tcl	file	join
+tcl	file	nativename
+tcl	file	pathtype
+tcl	file	rootname
+tcl	file	separator
+tcl	file	split
+tcl	file	tail
+tcl	format	
+tcl	fpclassify	
+tcl	frexp	
+tcl	ge	
+tcl	gt	
+tcl	in	
+tcl	info	args
+tcl	info	body
+tcl	info	class
+tcl	info	cmdcount
+tcl	info	cmdtype
+tcl	info	commands
+tcl	info	complete
+tcl	info	constant
+tcl	info	consts
+tcl	info	coroutine
+tcl	info	errorstack
+tcl	info	exists
+tcl	info	frame
+tcl	info	functions
+tcl	info	globals
+tcl	info	hostname
+tcl	info	level
+tcl	info	library
+tcl	info	loaded
+tcl	info	locals
+tcl	info	nameofexecutable
+tcl	info	object
+tcl	info	patchlevel
+tcl	info	procs
+tcl	info	script
+tcl	info	sharedlibextension
+tcl	info	tclversion
+tcl	info	vars
+tcl	info	version
+tcl	interp	aliases
+tcl	interp	children
+tcl	interp	exists
+tcl	interp	hidden
+tcl	interp	issafe
+tcl	interp	slaves
+tcl	interp	target
+tcl	join	
+tcl	le	
+tcl	lindex	
+tcl	linsert	
+tcl	list	
+tcl	llength	
+tcl	lrange	
+tcl	lremove	
+tcl	lrepeat	
+tcl	lreplace	
+tcl	lreverse	
+tcl	lsearch	
+tcl	lseq	
+tcl	lt	
+tcl	memory	info
+tcl	modf	
+tcl	namespace	children
+tcl	namespace	code
+tcl	namespace	current
+tcl	namespace	exists
+tcl	namespace	origin
+tcl	namespace	parent
+tcl	namespace	qualifiers
+tcl	namespace	tail
+tcl	namespace	which
+tcl	ne	
+tcl	ni	
+tcl	oo::Helpers::self	
+tcl	package	files
+tcl	package	list
+tcl	package	names
+tcl	package	present
+tcl	package	vcompare
+tcl	package	versions
+tcl	package	vsatisfies
+tcl	pkg::create	
+tcl	remquo	
+tcl	self	
+tcl	split	
+tcl	string	bytelength
+tcl	string	cat
+tcl	string	compare
+tcl	string	equal
+tcl	string	first
+tcl	string	index
+tcl	string	insert
+tcl	string	last
+tcl	string	length
+tcl	string	map
+tcl	string	match
+tcl	string	range
+tcl	string	repeat
+tcl	string	replace
+tcl	string	reverse
+tcl	string	tolower
+tcl	string	totitle
+tcl	string	toupper
+tcl	string	trim
+tcl	string	trimleft
+tcl	string	trimright
+tcl	string	wordend
+tcl	string	wordstart
+tcl	tcl::idna	decode
+tcl	tcl::idna	encode
+tcl	tcl::idna	puny
+tcl	tcl::idna	version
+tcl	tcl::mathfunc	
+tcl	tcl::mathfunc::abs	
+tcl	tcl::mathfunc::acos	
+tcl	tcl::mathfunc::acosh	
+tcl	tcl::mathfunc::asin	
+tcl	tcl::mathfunc::asinh	
+tcl	tcl::mathfunc::atan	
+tcl	tcl::mathfunc::atan2	
+tcl	tcl::mathfunc::atanh	
+tcl	tcl::mathfunc::bool	
+tcl	tcl::mathfunc::cbrt	
+tcl	tcl::mathfunc::ceil	
+tcl	tcl::mathfunc::copysign	
+tcl	tcl::mathfunc::cos	
+tcl	tcl::mathfunc::cosh	
+tcl	tcl::mathfunc::dim	
+tcl	tcl::mathfunc::double	
+tcl	tcl::mathfunc::entier	
+tcl	tcl::mathfunc::erf	
+tcl	tcl::mathfunc::erfc	
+tcl	tcl::mathfunc::exp	
+tcl	tcl::mathfunc::exp2	
+tcl	tcl::mathfunc::expm1	
+tcl	tcl::mathfunc::floor	
+tcl	tcl::mathfunc::fma	
+tcl	tcl::mathfunc::fmod	
+tcl	tcl::mathfunc::gamma	
+tcl	tcl::mathfunc::hypot	
+tcl	tcl::mathfunc::int	
+tcl	tcl::mathfunc::isfinite	
+tcl	tcl::mathfunc::isinf	
+tcl	tcl::mathfunc::isnan	
+tcl	tcl::mathfunc::isnormal	
+tcl	tcl::mathfunc::isqrt	
+tcl	tcl::mathfunc::issubnormal	
+tcl	tcl::mathfunc::isunordered	
+tcl	tcl::mathfunc::ldexp	
+tcl	tcl::mathfunc::lgamma	
+tcl	tcl::mathfunc::log	
+tcl	tcl::mathfunc::log10	
+tcl	tcl::mathfunc::log1p	
+tcl	tcl::mathfunc::log2	
+tcl	tcl::mathfunc::logb	
+tcl	tcl::mathfunc::max	
+tcl	tcl::mathfunc::min	
+tcl	tcl::mathfunc::nextafter	
+tcl	tcl::mathfunc::pow	
+tcl	tcl::mathfunc::rand	
+tcl	tcl::mathfunc::remainder	
+tcl	tcl::mathfunc::round	
+tcl	tcl::mathfunc::signbit	
+tcl	tcl::mathfunc::sin	
+tcl	tcl::mathfunc::sinh	
+tcl	tcl::mathfunc::sqrt	
+tcl	tcl::mathfunc::srand	
+tcl	tcl::mathfunc::tan	
+tcl	tcl::mathfunc::tanh	
+tcl	tcl::mathfunc::trunc	
+tcl	tcl::mathfunc::wide	
+tcl	tcl::mathop	
+tcl	tcl::mathop::!	
+tcl	tcl::mathop::!=	
+tcl	tcl::mathop::%	
+tcl	tcl::mathop::&	
+tcl	tcl::mathop::*	
+tcl	tcl::mathop::**	
+tcl	tcl::mathop::+	
+tcl	tcl::mathop::-	
+tcl	tcl::mathop::/	
+tcl	tcl::mathop::<	
+tcl	tcl::mathop::<<	
+tcl	tcl::mathop::<=	
+tcl	tcl::mathop::==	
+tcl	tcl::mathop::>	
+tcl	tcl::mathop::>=	
+tcl	tcl::mathop::>>	
+tcl	tcl::mathop::^	
+tcl	tcl::mathop::eq	
+tcl	tcl::mathop::ge	
+tcl	tcl::mathop::gt	
+tcl	tcl::mathop::in	
+tcl	tcl::mathop::le	
+tcl	tcl::mathop::lt	
+tcl	tcl::mathop::ne	
+tcl	tcl::mathop::ni	
+tcl	tcl::mathop::|	
+tcl	tcl::mathop::~	
+tcl	tcl::prefix	all
+tcl	tcl::prefix	longest
+tcl	tcl::prefix	match
+tcl	tcl::unsupported::grapheme	index
+tcl	tcl::unsupported::grapheme	length
+tcl	tcl::unsupported::grapheme	offset
+tcl	tcl::unsupported::grapheme	range
+tcl	tcl::unsupported::grapheme	reverse
+tcl	tcl::unsupported::grapheme	split
+tcl	timer	info
+tcl	trace	info
+tcl	trace	vinfo
+tcl	unicode	tonfc
+tcl	unicode	tonfd
+tcl	unicode	tonfkc
+tcl	unicode	tonfkd
+tcl	zlib	adler32
+tcl	zlib	compress
+tcl	zlib	crc32
+tcl	zlib	decompress
+tcl	zlib	deflate
+tcl	zlib	gzip
+tcl	zlib	inflate
+tcl	|	
+tcl	~	
+tcllib	ascii85::decode	
+tcllib	ascii85::encode	
+tcllib	base32::decode	
+tcllib	base32::encode	
+tcllib	base32::hex::decode	
+tcllib	base32::hex::encode	
+tcllib	cmdline::getArgv0	
+tcllib	cmdline::typedUsage	
+tcllib	cmdline::usage	
+tcllib	control::no-op	
+tcllib	counter::exists	
+tcllib	counter::get	
+tcllib	counter::histHtmlDisplay	
+tcllib	counter::names	
+tcllib	crc::buypass	
+tcllib	crc::cksum	
+tcllib	crc::cms	
+tcllib	crc::crc-ccitt	
+tcllib	crc::crc-sdlc	
+tcllib	crc::crc-usb	
+tcllib	crc::crc-x25	
+tcllib	crc::crc16	
+tcllib	crc::crc32	
+tcllib	crc::genibus	
+tcllib	crc::gsm	
+tcllib	crc::kermit	
+tcllib	crc::maxim	
+tcllib	crc::mcrf4xx	
+tcllib	crc::modbus	
+tcllib	crc::sum	
+tcllib	crc::umts	
+tcllib	crc::unknown2	
+tcllib	crc::unknown3	
+tcllib	crc::unknown4	
+tcllib	crc::xmodem	
+tcllib	csv::iscomplete	
+tcllib	csv::joinlist	
+tcllib	fileutil::jail	
+tcllib	fileutil::lexnormalize	
+tcllib	fileutil::relative	
+tcllib	fileutil::relativeUrl	
+tcllib	fileutil::stripN	
+tcllib	fileutil::stripPwd	
+tcllib	html::doctype	
+tcllib	html::html_entities	
+tcllib	html::mailto	
+tcllib	html::nl2br	
+tcllib	html::quoteFormValue	
+tcllib	html::tagstrip	
+tcllib	html::urlParent	
+tcllib	ini::commentchar	
+tcllib	ini::exists	
+tcllib	ini::filename	
+tcllib	ini::get	
+tcllib	ini::keys	
+tcllib	ini::sections	
+tcllib	ini::value	
+tcllib	ip::collapse	
+tcllib	ip::contract	
+tcllib	ip::equal	
+tcllib	ip::is	
+tcllib	ip::mask	
+tcllib	ip::normalize	
+tcllib	ip::prefix	
+tcllib	ip::subtract	
+tcllib	ip::type	
+tcllib	ip::version	
+tcllib	json::list2json	
+tcllib	json::many-json2dict	
+tcllib	json::string2json	
+tcllib	json::validate	
+tcllib	logger::levels	
+tcllib	math::cov	
+tcllib	math::fibonacci	
+tcllib	math::fuzzy::tceil	
+tcllib	math::fuzzy::teq	
+tcllib	math::fuzzy::tfloor	
+tcllib	math::fuzzy::tge	
+tcllib	math::fuzzy::tgt	
+tcllib	math::fuzzy::tle	
+tcllib	math::fuzzy::tlt	
+tcllib	math::fuzzy::tne	
+tcllib	math::fuzzy::tround	
+tcllib	math::fuzzy::troundn	
+tcllib	math::integrate	
+tcllib	math::max	
+tcllib	math::mean	
+tcllib	math::min	
+tcllib	math::product	
+tcllib	math::roman::expr	
+tcllib	math::roman::sort	
+tcllib	math::roman::tointeger	
+tcllib	math::roman::toroman	
+tcllib	math::sigma	
+tcllib	math::statistics::analyse-Kruskal-Wallis	
+tcllib	math::statistics::autocorr	
+tcllib	math::statistics::basic-stats	
+tcllib	math::statistics::control-Rchart	
+tcllib	math::statistics::control-xbar	
+tcllib	math::statistics::corr	
+tcllib	math::statistics::crosscorr	
+tcllib	math::statistics::filter	
+tcllib	math::statistics::group-rank	
+tcllib	math::statistics::histogram	
+tcllib	math::statistics::histogram-alt	
+tcllib	math::statistics::interval-mean-stdev	
+tcllib	math::statistics::lillieforsFit	
+tcllib	math::statistics::linear-model	
+tcllib	math::statistics::linear-residuals	
+tcllib	math::statistics::map	
+tcllib	math::statistics::max	
+tcllib	math::statistics::mean	
+tcllib	math::statistics::mean-histogram-limits	
+tcllib	math::statistics::median	
+tcllib	math::statistics::min	
+tcllib	math::statistics::minmax-histogram-limits	
+tcllib	math::statistics::number	
+tcllib	math::statistics::print-2x2	
+tcllib	math::statistics::pstdev	
+tcllib	math::statistics::pvar	
+tcllib	math::statistics::quantiles	
+tcllib	math::statistics::samplescount	
+tcllib	math::statistics::spearman-rank	
+tcllib	math::statistics::spearman-rank-extended	
+tcllib	math::statistics::stdev	
+tcllib	math::statistics::t-test-mean	
+tcllib	math::statistics::test-2x2	
+tcllib	math::statistics::test-Duckworth	
+tcllib	math::statistics::test-Dunnett	
+tcllib	math::statistics::test-Kruskal-Wallis	
+tcllib	math::statistics::test-Rchart	
+tcllib	math::statistics::test-Tukey-range	
+tcllib	math::statistics::test-Wilcoxon	
+tcllib	math::statistics::test-anova-F	
+tcllib	math::statistics::test-normal	
+tcllib	math::statistics::test-xbar	
+tcllib	math::statistics::var	
+tcllib	math::stats	
+tcllib	math::sum	
+tcllib	md4::hmac	
+tcllib	md4::md4	
+tcllib	md5::md5	
+tcllib	md5crypt::aprcrypt	
+tcllib	md5crypt::md5crypt	
+tcllib	mime::field_decode	
+tcllib	mime::getContentType	
+tcllib	mime::getTransferEncoding	
+tcllib	mime::getheader	
+tcllib	mime::getsize	
+tcllib	mime::mapencoding	
+tcllib	mime::parseaddress	
+tcllib	mime::parsedatetime	
+tcllib	mime::reversemapencoding	
+tcllib	mime::word_decode	
+tcllib	mime::word_encode	
+tcllib	otp::otp-md4	
+tcllib	otp::otp-md5	
+tcllib	otp::otp-rmd160	
+tcllib	otp::otp-sha1	
+tcllib	ripemd::hmac128	
+tcllib	ripemd::hmac160	
+tcllib	ripemd::ripemd128	
+tcllib	ripemd::ripemd160	
+tcllib	sha1::sha1	
+tcllib	sha2::sha256	
+tcllib	soundex::knuth	
+tcllib	stringprep::compare	
+tcllib	stringprep::stringprep	
+tcllib	struct::list	equal
+tcllib	struct::list	firstperm
+tcllib	struct::list	flatten
+tcllib	struct::list	iota
+tcllib	struct::list	lcsInvert
+tcllib	struct::list	lcsInvertMerge
+tcllib	struct::list	longestCommonSubsequence
+tcllib	struct::list	longestCommonSubsequence2
+tcllib	struct::list	nextperm
+tcllib	struct::list	permutations
+tcllib	struct::list	repeat
+tcllib	struct::list	repeatn
+tcllib	struct::list	reverse
+tcllib	struct::set	contains
+tcllib	struct::set	difference
+tcllib	struct::set	empty
+tcllib	struct::set	equal
+tcllib	struct::set	intersect
+tcllib	struct::set	intersect3
+tcllib	struct::set	size
+tcllib	struct::set	subsetof
+tcllib	struct::set	symdiff
+tcllib	struct::set	union
+tcllib	textutil::blank	
+tcllib	textutil::cap	
+tcllib	textutil::capEachWord	
+tcllib	textutil::chop	
+tcllib	textutil::longestCommonPrefix	
+tcllib	textutil::longestCommonPrefixList	
+tcllib	textutil::splitn	
+tcllib	textutil::strRepeat	
+tcllib	textutil::string::longestCommonPrefix	
+tcllib	textutil::tabify	
+tcllib	textutil::tabify2	
+tcllib	textutil::tabify::tabify	
+tcllib	textutil::tabify::tabify2	
+tcllib	textutil::tabify::untabify	
+tcllib	textutil::tabify::untabify2	
+tcllib	textutil::tail	
+tcllib	textutil::trim::trimleft	
+tcllib	textutil::trim::trimright	
+tcllib	textutil::trimEmptyHeading	
+tcllib	textutil::trimPrefix	
+tcllib	textutil::trimleft	
+tcllib	textutil::trimright	
+tcllib	textutil::uncap	
+tcllib	textutil::untabify	
+tcllib	textutil::untabify2	
+tcllib	unicode::fromstring	
+tcllib	unicode::normalize	
+tcllib	unicode::normalizeS	
+tcllib	unicode::tostring	
+tcllib	units::convert	
+tcllib	units::reduce	
+tcllib	uri::canonicalize	
+tcllib	uri::isrelative	
+tcllib	uuencode::decode	
+tcllib	uuencode::encode	
+tcllib	yaml::list2yaml	
+tcllib	yencode::decode	
+tcllib	yencode::encode	
+tk	canvas	cget
+tk	checkbutton	cget
+tk	entry	bbox
+tk	entry	cget
+tk	entry	get
+tk	entry	index
+tk	listbox	bbox
+tk	listbox	cget
+tk	listbox	curselection
+tk	listbox	get
+tk	listbox	index
+tk	listbox	itemcget
+tk	listbox	nearest
+tk	listbox	size
+tk	radiobutton	cget
+tk	scale	cget
+tk	scale	coords
+tk	scale	get
+tk	scale	identify
+tk	spinbox	bbox
+tk	spinbox	cget
+tk	spinbox	get
+tk	spinbox	identify
+tk	spinbox	index
+tk	text	bbox
+tk	text	cget
+tk	text	compare
+tk	text	count
+tk	text	dlineinfo
+tk	text	get
+tk	text	index
+tk	text	locale
+tk	text	pendingsync
+tk	text	search
+tk	tk::canvas	cget
+tk	tk::checkbutton	cget
+tk	tk::entry	bbox
+tk	tk::entry	cget
+tk	tk::entry	get
+tk	tk::entry	index
+tk	tk::listbox	bbox
+tk	tk::listbox	cget
+tk	tk::listbox	curselection
+tk	tk::listbox	get
+tk	tk::listbox	index
+tk	tk::listbox	itemcget
+tk	tk::listbox	nearest
+tk	tk::listbox	size
+tk	tk::radiobutton	cget
+tk	tk::scale	cget
+tk	tk::scale	coords
+tk	tk::scale	get
+tk	tk::scale	identify
+tk	tk::spinbox	bbox
+tk	tk::spinbox	cget
+tk	tk::spinbox	get
+tk	tk::spinbox	identify
+tk	tk::spinbox	index
+tk	tk::text	bbox
+tk	tk::text	cget
+tk	tk::text	compare
+tk	tk::text	count
+tk	tk::text	dlineinfo
+tk	tk::text	get
+tk	tk::text	index
+tk	tk::text	locale
+tk	tk::text	pendingsync
+tk	tk::text	search
+tk	ttk::button	cget
+tk	ttk::button	identify
+tk	ttk::button	style
+tk	ttk::checkbutton	cget
+tk	ttk::checkbutton	identify
+tk	ttk::checkbutton	style
+tk	ttk::combobox	cget
+tk	ttk::combobox	get
+tk	ttk::combobox	identify
+tk	ttk::combobox	index
+tk	ttk::combobox	style
+tk	ttk::entry	bbox
+tk	ttk::entry	cget
+tk	ttk::entry	get
+tk	ttk::entry	identify
+tk	ttk::entry	index
+tk	ttk::entry	style
+tk	ttk::frame	cget
+tk	ttk::frame	identify
+tk	ttk::frame	style
+tk	ttk::label	cget
+tk	ttk::label	identify
+tk	ttk::label	style
+tk	ttk::labelframe	cget
+tk	ttk::labelframe	identify
+tk	ttk::labelframe	style
+tk	ttk::menubutton	cget
+tk	ttk::menubutton	identify
+tk	ttk::menubutton	style
+tk	ttk::notebook	cget
+tk	ttk::notebook	identify
+tk	ttk::notebook	index
+tk	ttk::notebook	style
+tk	ttk::notebook	tabs
+tk	ttk::panedwindow	cget
+tk	ttk::panedwindow	identify
+tk	ttk::panedwindow	style
+tk	ttk::progressbar	cget
+tk	ttk::progressbar	identify
+tk	ttk::progressbar	style
+tk	ttk::radiobutton	cget
+tk	ttk::radiobutton	identify
+tk	ttk::radiobutton	style
+tk	ttk::scale	cget
+tk	ttk::scale	get
+tk	ttk::scale	identify
+tk	ttk::scale	style
+tk	ttk::scrollbar	cget
+tk	ttk::scrollbar	delta
+tk	ttk::scrollbar	fraction
+tk	ttk::scrollbar	get
+tk	ttk::scrollbar	identify
+tk	ttk::scrollbar	style
+tk	ttk::separator	cget
+tk	ttk::separator	identify
+tk	ttk::separator	style
+tk	ttk::sizegrip	cget
+tk	ttk::sizegrip	identify
+tk	ttk::sizegrip	style
+tk	ttk::spinbox	bbox
+tk	ttk::spinbox	cget
+tk	ttk::spinbox	get
+tk	ttk::spinbox	identify
+tk	ttk::spinbox	index
+tk	ttk::spinbox	style
+tk	ttk::toggleswitch	cget
+tk	ttk::toggleswitch	get
+tk	ttk::toggleswitch	identify
+tk	ttk::toggleswitch	style
+tk	ttk::toggleswitch	xcoord
+tk	ttk::treeview	after
+tk	ttk::treeview	bbox
+tk	ttk::treeview	before
+tk	ttk::treeview	cget
+tk	ttk::treeview	current
+tk	ttk::treeview	depth
+tk	ttk::treeview	detached
+tk	ttk::treeview	exists
+tk	ttk::treeview	haschildren
+tk	ttk::treeview	id
+tk	ttk::treeview	identifier
+tk	ttk::treeview	identify
+tk	ttk::treeview	index
+tk	ttk::treeview	next
+tk	ttk::treeview	parent
+tk	ttk::treeview	prev
+tk	ttk::treeview	range
+tk	ttk::treeview	search
+tk	ttk::treeview	size
+tk	ttk::treeview	style
+tk	ttk::treeview	visible
