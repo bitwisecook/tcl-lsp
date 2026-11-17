@@ -129,6 +129,8 @@ The ledger gains a `status` column (open, repaired, fixed, deleted) and is kept 
 - *Branch conversion keeps its control-flow obligation only where a variable trace cannot be ruled out;* expression bracing beyond the literal subset and dictionary conversion keep theirs until they have evidence.
 - *A red test is not turned green by expecting the product's refusal.* Where tclsh shows a minifier rewrite equivalent under conditions the fixture meets (keyword abbreviation over a stock ensemble), the test keeps expecting the shorter text and stays red until the product can issue the receipt; the loss is tracked in the minifier open item. Only a rewrite tclsh shows not equivalent has its expectation changed to the refusal.
 - *A Logical class call publishes no Native class record;* the lenient environment's class facts live in the Logical domain, so they cannot reach proof consumers.
+- *Navigation answers under the display policy; edits need proof.* Go to Definition answers a written declaration where the strict world is unknown; inline and rename refuse there. Definition lists the sites that create a variable on some path to the cursor, not a later write to one that exists. A call-hierarchy item for a procedure carries its qualified name, as a member item does.
+- *A rename that returns no edits and no reason is a wrong answer.* An expression function name resolving through `tcl::mathfunc` is a reference a rename must edit or refuse on.
 - *Same input, same result, to the byte, is a contract of the analysis.* Incremental reuse and reproducible diagnostics rest on it; a difference between two runs is a wrong answer.
 - *Abstaining at `source -encoding` with a decode obligation recorded is sound* when nothing can decode; the command world after it must not stay proved.
 - *The generic entry covers a procedure the body defines on every call:* the nested procedure's body gets its own generic entry. It covers that body's facts only; whether the nested procedure exists for an outside caller still depends on whether the outer one surely ran.
@@ -172,6 +174,8 @@ These go ahead of missing facts once the ledgers are in.
 | The rename family: the lattice keeps a builtin after `rename string {}`; `mystr` reads as opaque after `rename string mystr`; `expr` or `::add` still trusted after a renaming procedure or `rename $command …` runs; a rename inside an evaluated body (`namespace eval`, `apply`, a procedure built from a variable) or behind an unknown-handler alias is not replayed | analyser-binding (with dataflow's rename scan) |
 | Body advice inside `proc A::p` where tclsh raises unknown namespace; a `struct::graph` callback receipt with no `package require`; a constructor shape after `unexport new` | analyser-binding |
 | Native lowering still emits a definition after `proc` is replaced; `unset` in a callback not counted as a write; a Jim entry lexed with the 8.6 configuration; `[dict size DATA]` inside an unknown command's braced word listed as a nested call | analyser-binding |
+| `-force` imports followed to the deleted local (10 tests); an inner namespaced class does not shadow the global one; a mathfunc rename that returns no edits and no reason | lsp-features |
+| A helper's condition concluded, and its body rewritten, from in-file callers although another file calls it differently (the body-seed cause above); W210 after a raising `unset x`; `namespace export *` in `namespace eval` scanned as no export boundary | analyser-binding |
 
 ## Passing tests the oracle contradicts
 
@@ -232,7 +236,7 @@ Updated at the hourly check from the ledgers on `work`.
 | values | 218 | 218, complete (KEEP-ORACLE 123, KEEP-CONTRACT 32, KEEP-F5 30, FIX-FIXTURE 20, FIX-EXPECTATION 6, REWRITE 6, RETIRE 1) | signed off 21:07 UTC |
 | taint | 171 | 174, complete (FIX-FIXTURE 81, KEEP-CONTRACT 38, REWRITE 18, KEEP-ORACLE 18, KEEP-F5 13, MERGE 4, RETIRE 1, FIX-EXPECTATION 1); BIG-IP checks 049, 071, 072, 073 | signed off 21:50 UTC |
 | analysis-performance | 46 | 46, complete (KEEP-CONTRACT 41, REWRITE 4, UNDECIDED 1 to diff) | signed off 21:33 UTC |
-| lsp-features | 492 core, 180 routed from the server | 492 (the core library complete); the server slices and the summary to come | parts 1 to 3 read 22:30 UTC: accepted, the minifier contract rows to re-read |
+| lsp-features | 672 (492 core, 177 routed from the server, 3 preview tickets) | 672, complete (KEEP-ORACLE 220, KEEP-CONTRACT 155, FIX-FIXTURE 149, FIX-EXPECTATION 84, REWRITE 35, RETIRE 13, UNDECIDED 7 ruled, KEEP-F5 5, MERGE 4) | signed off 22:35 UTC |
 | server-e2e-db | 216 (plus 214 routed: 181 navigation to lsp-features, 33 memo to analysis-performance) | 216, complete (KEEP-CONTRACT 163, KEEP-ORACLE 29, MERGE 10, KEEP-F5 10, REWRITE 2, FIX-FIXTURE 1, UNDECIDED 1 ruled) | signed off 21:12 UTC; three publication faults first |
 | execution | 264 (23 routed to live-inlining) | 264, complete (KEEP-ORACLE 109, KEEP-CONTRACT 56, MERGE 49, REWRITE 33, RETIRE 8, FIX-EXPECTATION 4, FIX-FIXTURE 3, KEEP-F5 2) | signed off 21:20 UTC, after the receipt-ordering retirements were redone test by test (26 back to KEEP-CONTRACT) |
 | irules-registry-tooling | 151 | 151, complete (KEEP-F5 48, KEEP-CONTRACT 47, KEEP-ORACLE 40, MERGE 15, FIX-FIXTURE 1); BIG-IP checks TS-01 to TS-10 | signed off 21:00 UTC |
