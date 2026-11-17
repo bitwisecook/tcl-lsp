@@ -228,6 +228,10 @@ pub struct FunctionAsm {
     /// within "eval {…}"`), so an inlined body matches C's `CmdFrame` trace
     /// without de-inlining. Empty when the function holds no inlined bodies.
     pub error_regions: Vec<ErrorRegion>,
+    /// Procedure calls whose bodies were spliced into this function. Leaving a
+    /// range other than by falling through to its end, or failing a guard or
+    /// selection inside it, re-invokes the call from its words instead.
+    pub splice_ranges: Vec<SpliceRange>,
     /// Whether this function was compiled with every command invocation kept
     /// on the ordinary runtime-dispatch path. This explicit stamp lets a
     /// runtime distinguish a deliberately de-optimised function from an
@@ -306,7 +310,10 @@ impl FunctionAsm {
         {
             return Err(Error::InvalidErrorPresentation);
         }
-        if !self.native_operation_sites_valid() || !self.native_fixed_math_calls_valid() {
+        if !self.native_operation_sites_valid()
+            || !self.native_fixed_math_calls_valid()
+            || !self.splice_ranges_valid()
+        {
             return Err(Error::NativePreflightRequired);
         }
         if self.instructions.iter().any(|instruction| {
@@ -346,6 +353,54 @@ impl FunctionAsm {
                     })
         })
     }
+    /// Every splice range starts and ends on an instruction boundary in order,
+    /// re-invokes from at least the command word, reads each word from an
+    /// anonymous local, and nests within or stays clear of every other range.
+    #[must_use]
+    pub fn splice_ranges_valid(&self) -> bool {
+        let boundary = |label: &str| {
+            let offset = *self.labels.get(label)?;
+            let end = self.instructions.last().and_then(|instruction| {
+                usize::try_from(instruction.offset)
+                    .ok()?
+                    .checked_add(usize::from(instruction.op.size()))
+            });
+            (Some(offset) == end
+                || self
+                    .instructions
+                    .iter()
+                    .any(|instruction| usize::try_from(instruction.offset).ok() == Some(offset)))
+            .then_some(offset)
+        };
+        let names = self.lvt.native_slot_names();
+        let mut spans = Vec::with_capacity(self.splice_ranges.len());
+        for range in &self.splice_ranges {
+            let (Some(start), Some(end)) = (boundary(&range.start), boundary(&range.end)) else {
+                return false;
+            };
+            if start >= end
+                || range.words.is_empty()
+                || !range.words.iter().all(|&slot| {
+                    usize::try_from(slot)
+                        .ok()
+                        .and_then(|slot| names.get(slot))
+                        .is_some_and(Option::is_none)
+                })
+            {
+                return false;
+            }
+            spans.push((start, end));
+        }
+        spans.iter().enumerate().all(|(index, &(start, end))| {
+            spans[index + 1..].iter().all(|&(other_start, other_end)| {
+                end <= other_start
+                    || other_end <= start
+                    || (start <= other_start && other_end <= end)
+                    || (other_start <= start && end <= other_end)
+            }) && !spans[index + 1..].contains(&(start, end))
+        })
+    }
+
     fn native_operation_sites_valid(&self) -> bool {
         let byte_end = self.instructions.last().and_then(|instruction| {
             usize::try_from(instruction.offset)
@@ -385,6 +440,30 @@ impl FunctionAsm {
             })
         })
     }
+}
+
+/// A procedure call whose body was spliced in place of its invocation.
+///
+/// Codegen evaluates the call's words once, into the anonymous locals
+/// `words` (command word first), before `start`; the body then runs on
+/// anonymous locals only. If a guard or selection inside `[start, end)` fails,
+/// or a completion other than OK leaves the range, the executor drops the
+/// operand stack to `entry_depth`, invokes `words` as an ordinary command at
+/// the call site and resumes at `end`, pushing that command's result when
+/// `resumes_with_value`. The real procedure frame then presents the call's
+/// `errorInfo`, `-errorstack` entry, codes and introspection exactly.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpliceRange {
+    /// Label of the first spliced instruction.
+    pub start: String,
+    /// Label where the call's result is on the stack after the splice.
+    pub end: String,
+    /// Operand stack depth at `start`.
+    pub entry_depth: u32,
+    /// Anonymous locals holding the call's evaluated words, in order.
+    pub words: Vec<u32>,
+    /// Whether the call's result is left on the stack at `end`.
+    pub resumes_with_value: bool,
 }
 
 /// An inlined command body's instruction range and the `errorInfo` frame the

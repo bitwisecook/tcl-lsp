@@ -1057,3 +1057,67 @@ fn every_deprecated_one_byte_form_has_its_9_1_wide_form() {
     }
     assert_eq!(Op::RETURN_CODE_BRANCH.wide_form(), None);
 }
+
+fn spliced_function(ranges: Vec<SpliceRange>) -> FunctionAsm {
+    let mut lvt = LocalVarTable::new(&["n"]);
+    let head = lvt.intern_anonymous();
+    let argument = lvt.intern_anonymous();
+    assert_eq!((head, argument), (1, 2));
+    let mut instructions = Vec::new();
+    for offset in 0..4 {
+        let mut instruction = Instruction::new(Op::NOP, vec![]);
+        instruction.offset = offset;
+        instructions.push(instruction);
+    }
+    FunctionAsm {
+        lvt,
+        instructions,
+        labels: [("a", 0), ("b", 1), ("c", 2), ("d", 3), ("e", 4)]
+            .into_iter()
+            .map(|(label, offset)| (label.to_owned(), offset))
+            .collect(),
+        splice_ranges: ranges,
+        ..FunctionAsm::default()
+    }
+}
+
+fn splice(start: &str, end: &str, words: &[u32]) -> SpliceRange {
+    SpliceRange {
+        start: start.to_owned(),
+        end: end.to_owned(),
+        entry_depth: 0,
+        words: words.to_vec(),
+        resumes_with_value: true,
+    }
+}
+
+#[test]
+fn a_splice_range_reads_anonymous_words_between_ordered_boundaries() {
+    assert!(spliced_function(vec![splice("a", "e", &[1, 2])]).splice_ranges_valid());
+    assert!(
+        spliced_function(vec![splice("a", "e", &[1]), splice("b", "c", &[2])])
+            .splice_ranges_valid()
+    );
+    assert!(
+        spliced_function(vec![splice("a", "b", &[1]), splice("c", "e", &[2])])
+            .splice_ranges_valid()
+    );
+    for refused in [
+        vec![splice("b", "b", &[1])],
+        vec![splice("c", "a", &[1])],
+        vec![splice("a", "x", &[1])],
+        vec![splice("a", "e", &[])],
+        vec![splice("a", "e", &[0])],
+        vec![splice("a", "e", &[7])],
+        vec![splice("a", "c", &[1]), splice("b", "d", &[2])],
+        vec![splice("a", "c", &[1]), splice("a", "c", &[2])],
+    ] {
+        let function = spliced_function(refused.clone());
+        assert!(!function.splice_ranges_valid(), "{refused:?}");
+        assert_eq!(
+            function.validate_native_compilation_entry(),
+            Err(tcl_runtime_api::NativeCompilationAdmissionError::NativePreflightRequired),
+            "{refused:?}"
+        );
+    }
+}

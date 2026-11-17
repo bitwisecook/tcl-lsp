@@ -240,6 +240,7 @@ fn vm_with_cached_body(qname: &str, body_src: &str, marker: &str) -> Vm {
         body_base_line: 0,
         proc_body_src: Some(body_src.to_owned()),
         error_regions: Vec::new(),
+        splice_ranges: Vec::new(),
         ..FunctionAsm::default()
     };
 

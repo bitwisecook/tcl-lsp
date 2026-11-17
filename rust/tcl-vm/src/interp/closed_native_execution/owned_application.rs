@@ -196,6 +196,7 @@ pub(super) fn check_function(
         body_base_line: _,
         proc_body_src,
         error_regions,
+        splice_ranges,
         plain_command_dispatch,
         command_bindings,
         procedure_bindings,
@@ -211,6 +212,7 @@ pub(super) fn check_function(
         || !slots_are_plain_scalars(lvt, body)
         || !loop_targets.is_empty()
         || proc_body_src.is_some()
+        || !splice_ranges.is_empty()
         || !error_regions.is_empty()
         || !*plain_command_dispatch
         || !command_bindings.is_empty()
