@@ -18,7 +18,7 @@ The burn-down continues with new sessions. This file is what every one of them r
 | `server-e2e-db` | LSP server end to end and `tcl-lsp-db` | Sonnet | `session_017u5g3KHQpTL4RNf7ZN9wiQ` |
 | `irules-registry-tooling` | iRules, registry, SpecTcl, tooling | Sonnet | `session_017u5g3GuvSUJA9Qanj2AVvk` |
 | `tk-oo` | Tk and TclOO issues (#2324, #2427, #1956, #1655, #832) | Opus | `session_017u5g3KsHnGzMmqgP3e6dJj` |
-| `live-inlining` | Pack reference bodies inlined on the VM's live compile (owner's instruction, 17 November) | Opus | `session_017u5g3KCTRHzSduK23yDtc2` |
+| `live-inlining` | Pack reference bodies inlined on the VM's live compile (done, 17 November); now discrete command-binding items handed over by `analyser-binding`, which reviews them | Opus | `session_017u5g3KCTRHzSduK23yDtc2` |
 
 The coordinator is session `session_017u5g3KpKgjfMZcPMj8rx4F`. It rules on questions, keeps the scoreboard and does not write area code. `tcl-syntax::naming`, `tcl-lexer` and `xtask` have no session: a session that needs a change there asks the coordinator, then makes it as one small separate commit with the tclsh oracle in the test, after the `tcl-syntax` and `tcl-lexer` suites, `make xtask-gates` and the whole `tcl-compiler` suite against its baseline, and tells the analyser-binding session before pushing.
 
