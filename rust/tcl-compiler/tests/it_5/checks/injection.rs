@@ -172,7 +172,9 @@ mod path_concatenation {
     #[test]
     fn path_with_var_fires() {
         // W201 runs in the taint pass (run_all_checks), not the analyser pass.
-        let ds = taint_of_code("set path \"$dir/file.txt\"", D, "W201");
+        // `dir` is bound first: tclsh 8.6.18/9.0.4 raise `can't read "dir"`
+        // otherwise and the assignment never runs.
+        let ds = taint_of_code("set dir [pwd]\nset path \"$dir/file.txt\"", D, "W201");
         assert_eq!(ds.len(), 1);
         assert!(ds[0].0.to_lowercase().contains("file join"));
     }
@@ -185,7 +187,14 @@ mod path_concatenation {
 
     #[test]
     fn genuine_two_var_path_fires() {
-        assert_eq!(count("set p \"$dir/$file\"", D, "W201"), 1);
+        assert_eq!(
+            count(
+                "set dir [pwd]\nset file [info script]\nset p \"$dir/$file\"",
+                D,
+                "W201"
+            ),
+            1
+        );
     }
 
     #[test]
@@ -194,7 +203,7 @@ mod path_concatenation {
         // stamps PATH_JOINED on a tainted result, but it does not collapse
         // traversal or otherwise prove the preceding manual concatenation
         // safe. W201 must therefore still report the original assignment.
-        let source = "set raw [read $fd]\nset p \"/base/$raw\"\nset p [file join /base $raw]\n";
+        let source = "set fd [open /etc/hostname]\nset raw [read $fd]\nset p \"/base/$raw\"\nset p [file join /base $raw]\n";
         assert_eq!(
             taint_of_code(source, D, "W201").len(),
             1,
