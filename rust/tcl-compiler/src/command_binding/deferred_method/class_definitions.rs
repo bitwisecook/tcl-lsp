@@ -553,12 +553,6 @@ impl ModuleCommandBindings {
                 .all(|((receiver, _), entry)| {
                     *receiver == SourceMethodReceiver::Instance && !entry.class_delegate
                 });
-        let (Some(declared), Some(retained)) = (
-            entries.instance_methods.as_ref(),
-            configuration.receipt.instance_methods.as_ref(),
-        ) else {
-            return;
-        };
         // A redefinition replaces a body other classes may inherit or
         // instances may already have dispatched; only new methods are added.
         if !declares_only_methods
@@ -571,10 +565,20 @@ impl ModuleCommandBindings {
         {
             return;
         }
+        // A method table that was not known stays unknown, and so does one
+        // this configuration's members leave unknown.
         let mut receipt = configuration.receipt.clone();
-        let mut methods = retained.as_ref().clone();
-        methods.extend(declared.iter().cloned());
-        receipt.instance_methods = Some(Arc::new(methods));
+        receipt.instance_methods = match (
+            entries.instance_methods.as_ref(),
+            configuration.receipt.instance_methods.as_ref(),
+        ) {
+            (Some(declared), Some(retained)) => {
+                let mut methods = retained.as_ref().clone();
+                methods.extend(declared.iter().cloned());
+                Some(Arc::new(methods))
+            }
+            _ => None,
+        };
         let receiver_entries = Arc::make_mut(&mut receipt.receiver_method_entries);
         for (key, entry) in entries.receiver_method_entries.iter() {
             let mut entry = entry.clone();

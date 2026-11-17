@@ -24,9 +24,8 @@ use super::{
 };
 use tcl_registry::{InvocationFacts, ObjectDispatchLayer};
 
-/// The definition a closed class configuration evaluates, for the deferred
-/// walk of the method bodies it declares, and the class definition it
-/// configures as it stood before the configuration ran.
+/// The definition a closed class configuration evaluates, and the class
+/// definition it configures as it stood before the configuration ran.
 pub(super) struct ClosedClassConfiguration {
     pub(super) grammar: &'static tcl_registry::definer::DefinitionBodyGrammar,
     pub(super) body: super::ExecutedScriptSource,
@@ -128,8 +127,9 @@ impl SourceCommandBindings {
         })
     }
 
-    /// Give the declared method bodies their deferred entries, and keep the
-    /// configured class's definition with the methods it now declares.
+    /// Keep the configured class's definition with the methods it now
+    /// declares, and record those declarations. A method body no call
+    /// reaches stays unentered here, as a body no configuration closed is.
     pub(super) fn register_closed_class_configuration(
         &mut self,
         configuration: &ClosedClassConfiguration,
@@ -138,12 +138,5 @@ impl SourceCommandBindings {
     ) {
         state.retain_configured_class_definition(configuration, context);
         self.record_configured_class_method_references(configuration, state, context);
-        self.register_original_method_bodies(
-            configuration.grammar,
-            &configuration.body,
-            state.baseline.dialect,
-            configuration.parameters,
-            context,
-        );
     }
 }
