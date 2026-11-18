@@ -651,13 +651,15 @@ fn step_of(outcomes: &[ExistenceOutcome]) -> ExistenceStep {
 fn revision_of(ir: &crate::ir::Module, mutations: &ModuleCommandMutations) -> u64 {
     let mut hasher = rustc_hash::FxHasher::default();
     mutations.snapshot().hash(&mut hasher);
-    let mut names: Vec<&crate::ir::ProcedureId> = ir.procedures.keys().collect();
-    names.sort_unstable();
-    for name in names {
-        let declared = ir.procedures.get(name).expect("body inventory key");
-        name.hash(&mut hasher);
-        declared.params_raw.hash(&mut hasher);
-        declared.body_source.hash(&mut hasher);
+    // A procedure's ID is issued per build; its name and declaration are
+    // what the source states.
+    let mut declared: Vec<&crate::ir::Procedure> = ir.procedures.values().collect();
+    declared.sort_unstable_by_key(|procedure| (&procedure.qualified_name, procedure.span.start()));
+    for procedure in declared {
+        procedure.qualified_name.hash(&mut hasher);
+        procedure.span.start().hash(&mut hasher);
+        procedure.params_raw.hash(&mut hasher);
+        procedure.body_source.hash(&mut hasher);
     }
     let mut redefined: Vec<&String> = ir.redefined_procedures.iter().collect();
     redefined.sort_unstable();

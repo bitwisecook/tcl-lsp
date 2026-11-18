@@ -30,10 +30,24 @@ fn name(outcomes: &[ExistenceOutcome]) -> ParamRole {
 
 const BIND: ExistenceOutcome = ExistenceOutcome::Bind(BindingKind::Scalar);
 
-/// The transfer summaries the build of `source` computes under the
-/// `environment` profile.
+/// The unit a release build of `source` makes under the named Tcl release,
+/// and the context it was built against.
+fn release_unit(
+    source: &str,
+    environment: &str,
+) -> (
+    &'static tcl_registry::model::assembly::ContextRegistry,
+    CompilationUnit,
+) {
+    let context = tcl_registry::model::ingress::static_context_for(environment);
+    let unit = CompilationUnit::build_for_dialect(source, context.commands(), false, environment);
+    (context, unit)
+}
+
+/// The transfer summaries the release build of `source` computes under the
+/// named Tcl release.
 fn summaries(source: &str, environment: &str) -> HashMap<String, TransferSummary> {
-    let (_, unit) = crate::interprocedural::logical_completion_unit(source, environment);
+    let (_, unit) = release_unit(source, environment);
     fixture_transfer_labels(&unit.ir_module, unit.transfers.0)
 }
 
@@ -57,7 +71,7 @@ fn fixture_transfer_labels(
 
 /// The summaries of `source` with a cycle given at most `rounds` rounds.
 fn summaries_within(source: &str, rounds: RecursionLimit) -> HashMap<String, TransferSummary> {
-    let (context_owner, unit) = crate::interprocedural::logical_completion_unit(source, "tcl8.6");
+    let (context_owner, unit) = release_unit(source, "tcl8.6");
     let registry = context_owner.commands();
     let context =
         crate::value_transfer::AnalysisContextKey::for_module(&unit.command_mutations, registry);
@@ -193,7 +207,7 @@ fn a_barrier_has_no_summary() {
 fn a_call_names_its_omitted_parameters_default() {
     let source = "proc bumpd {{name n} {by 1}} {upvar 1 $name v; incr v $by}\n\
             proc cell {{name a(1)}} {upvar 1 $name v; incr v}\n";
-    let (context_owner, unit) = crate::interprocedural::logical_completion_unit(source, "tcl8.6");
+    let (context_owner, unit) = release_unit(source, "tcl8.6");
     let registry = context_owner.commands();
     let module = ModuleProcedures::of_unit(&unit, registry);
     let bind = step_of(&[BIND]);
@@ -232,8 +246,7 @@ fn a_call_names_its_omitted_parameters_default() {
 /// [c]`.
 #[test]
 fn conditional_source_outer_places_do_not_issue_physical_steps() {
-    let (context, unit) =
-        crate::interprocedural::logical_completion_unit("proc p {} {global g; set g 1}", "tcl8.6");
+    let (context, unit) = release_unit("proc p {} {global g; set g 1}", "tcl8.6");
     let id = fixture_id(&unit.ir_module.procedures, "::p");
     let summary = &unit.transfers.0[&id];
     assert_eq!(summary.global_sources.len(), 1);
@@ -262,7 +275,7 @@ fn a_name_argument_naming_an_outer_place_is_a_global_write() {
             proc reset {name} {upvar 1 $name v; unset v}\n\
             proc r {} {reset ::q}\n\
             proc s {c} {if {$c} {reset ::q}}\n";
-    let (context_owner, unit) = crate::interprocedural::logical_completion_unit(source, "tcl8.6");
+    let (context_owner, unit) = release_unit(source, "tcl8.6");
     let registry = context_owner.commands();
     let module = ModuleProcedures::of_unit(&unit, registry);
     let g = PlaceRef::scalar("::g".to_owned());
@@ -383,6 +396,55 @@ fn a_write_through_a_caller_link_binds_the_place() {
     }
 }
 
+/// A body only reads, may write, or writes whatever it found, the place
+/// it links: `peek` preserves it, `maybe` may bind it, `ensure` binds it.
+/// `renew` calls `reset`, which the walk enters only from `renew`'s
+/// activation, so `reset` is summarised from its body walked again in its
+/// declared frame, and `renew`'s summary composes the two callees. tclsh
+/// 8.5.19, 8.6.18, 9.0.4 and 9.1.0 print `1 3 1 0 1` for `set r 5; renew r;
+/// set p 3; peek p; ensure e; maybe m 0; maybe k 1; puts "$r $p [info
+/// exists e] [info exists m] [info exists k]"`; 8.4.20 raises in `renew`'s
+/// `incr` of the place `reset` unset, so it never completes normally there.
+#[test]
+fn a_linked_place_is_preserved_may_bound_or_bound_as_the_body_says() {
+    let source = "proc bump {name} {upvar 1 $name v; incr v}\n\
+            proc reset {name} {upvar 1 $name v; unset v}\n\
+            proc renew {name} {upvar 1 $name x; reset x; bump x}\n\
+            proc peek {name} {upvar 1 $name v; return $v}\n\
+            proc ensure {name} {upvar 1 $name v; if {![info exists v]} {set v 0}}\n\
+            proc maybe {name c} {upvar 1 $name v; if {$c} {set v 1}}\n";
+    for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let summaries = summaries(source, environment);
+        let params = |qname: &str| {
+            summaries
+                .get(qname)
+                .unwrap_or_else(|| panic!("{environment}: {qname} has a summary"))
+                .params
+                .clone()
+        };
+        assert_eq!(
+            params("::peek"),
+            [name(&[ExistenceOutcome::Preserve])],
+            "{environment}"
+        );
+        assert_eq!(
+            params("::maybe"),
+            [
+                name(&[ExistenceOutcome::MayBind(BindingKind::Either)]),
+                ParamRole::Value
+            ],
+            "{environment}"
+        );
+        assert_eq!(
+            params("::ensure"),
+            [name(&[ExistenceOutcome::Bind(BindingKind::Either)])],
+            "{environment}"
+        );
+        assert!(summaries.contains_key("::reset"), "{environment}");
+        assert_eq!(params("::renew"), [name(&[BIND])], "{environment}");
+    }
+}
+
 /// A module that shadows a builtin keeps the summary of every procedure
 /// whose body never reaches the shadowed command: `bump` spells no
 /// `incr`, so it keeps its own, while `user`, which lowers the rebound
@@ -462,8 +524,7 @@ fn a_cycle_that_does_not_converge_is_may_bind() {
 #[test]
 fn a_rename_or_a_redefinition_moves_the_revision() {
     let revision = |source: &str| {
-        let registry = CommandRegistry::build_default();
-        let unit = CompilationUnit::build_for(source, &registry, false);
+        let (_, unit) = release_unit(source, "tcl8.6");
         revision_of(&unit.ir_module, &unit.command_mutations)
     };
     let base =
