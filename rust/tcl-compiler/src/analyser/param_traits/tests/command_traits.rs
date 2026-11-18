@@ -302,7 +302,10 @@ fn compound_dynamic_array_name_marks_components() {
     // `set ${v}($k) 1` — both the array-name param `v` and the key param
     // `k` flow into a dynamic variable name, so both are DynamicNameLocal
     // (+ VarRead).  This is the shape behind `return [set ${v}($k)]`.
-    for body in ["set ${v}($k) 1", "set $v($k) 1", "return [set ${v}($k)]"] {
+    // `set $v($k) 1` would read an element of an array `v`, which a scalar
+    // formal is not (tclsh 8.6.18 / 9.0.4: can't read "v(b)": variable isn't
+    // array); only the name-building spellings stand.
+    for body in ["set ${v}($k) 1", "return [set ${v}($k)]"] {
         let traits = infer(&["v", "k"], body);
         for p in ["v", "k"] {
             assert_trait(&traits, p, ProcArgTrait::DynamicNameLocal);
@@ -634,7 +637,6 @@ fn real_world_by_reference_patterns_are_inferred() {
         ("append $resultVar x", "resultVar"),
         ("lappend $pages_var p", "pages_var"),
         ("set ${tok}(state) connected", "tok"),
-        ("set $gas(idx) 1", "gas"),
         ("namespace upvar ns $v local", "v"),
         ("foreach k [array names $a] { puts $k }", "a"),
         ("return [set ${token}($field)]", "token"),
