@@ -155,6 +155,7 @@ Commit ids, what the repaired test now shows, and who it waits on go in `note`. 
 - **A diagnostic in a body is not raised from one caller's argument.** `proc f {d} { dict update d k v { puts $v } }` with the one call `f {}` raises at that call, but W210 in `f`'s body would be a claim about every caller, so it is silent there (the body's lattice is not seeded from in-file callers, and a body-level fact holds for every entry). A test of the SCCP path is re-pointed at a constant that arrives from an earlier block of the same body; a proved-raising call is reported at the call word if a diagnostic for that exists, and is otherwise written up as a gap, not invented in a test repair (18 November, 05:30 UTC).
 - **A hint that claims absence needs the absence proved.** IRULE5001 reports an ungated `log`; a gate variable counts when an event assigns it. Where an event body holds a statement lowering could not lay out (under 8.4 rules `switch $mode {…}` has no single layout, tclsh 8.4 reads a `-`-leading subject as an option), the flag index is open and the hint accepts the gate. The check changes, not switch lowering; a `switch -- $mode` twin pins the proved case and a control keeps the hint firing where nothing is unlowered. Whether TMM reads the subject as 8.4 does is a BIG-IP check (18 November, 05:35 UTC).
 - **A proved load is a proof, lexical advice is not, and neither borrows the other.** `allows_lexical_declaration_advice` is the lenient `tcl` domain only and stays so. Under a pinned release a `source` edge the index resolves is a proof (tclsh agrees the override family is then real), but nothing yet carries it to cross-file method references: a missing fact, behind every wrong answer. Server rows about sibling files with no load move to lenient `tcl`; two or three stay in the `source`-proved pinned form as witnesses of the gap and the rest merge into them; the gap is written up under `outstanding/` (18 November, 05:50 UTC).
+- **A witness whose oracle is tclsh does not run under f5-irules with a source that is not a rule.** A rule's top level admits only `when`, `proc`, `priority` and `timing`; a fixture with a top-level call is not an iRule, and a rule procedure has no proved execution target at load. Such witnesses take the list of dialects whose oracle is a Tcl core (narrowed at the witness, row by row), and rule-procedure summaries get iRule-shaped tests, a `proc` invoked from a `when` body, asserted as hosted advice. A top-level call in an iRule is not modelled (18 November, 07:55 UTC).
 
 ## Wrong answers found by the scrub
 
@@ -202,11 +203,16 @@ These go ahead of missing facts once the ledgers are in.
 | The top-level timeline fix above landed as `29547433` (a later unknown command no longer makes earlier calls unseen) | tk-oo, fixed |
 | `switch -exact -- $x {…}` (and `-glob`, `-regexp`) read as a possible-option subject, lowered to a call and withdrew the command world, so every `if`/`while` after it lowered to a call too; fixed in `f6d942f3`, 48 `tcl-compiler` tests | class-facts, fixed |
 | An `if`'s else body span stopped before its closing brace, so a constant-false `if` with an `else` never folded (tclsh 8.4 to 9.1 print `bye here`); fixed in `72eb66a1` | dataflow-optimiser, fixed |
-| 2,000 nested `if`s in a `when` body no longer finish in `find_enclosing_when_event` / `scan_file_events` (over 600 s; the whole core suite took 390 s); arrived 18 November between 01:50 and 04:30 UTC | analysis-performance bisects, the author fixes |
+| Scanning a `when` body is about quadratic in nesting depth (`find_enclosing_when_event` / `scan_file_events`: depth 200 3.3 s, 400 9.2 s, 800 26 s, 1,200 56 s per call), so the 2,000-deep test does not finish. Not a regression: the same on every commit tried back to 17 November 13:41 | analysis-performance, after #2543; a count-based scaling witness first |
 | Arm bodies of a `switch`/`case` written as separate words stopped before the closing brace, so their selection never folded; fixed in `019cdef1` | dataflow-optimiser, fixed |
 | Under 8.4 a runtime-raised coded error (`expr {sqrt(-1)}`, NaN operands) reached `catch` with `errorCode` `NONE`, where tclsh 8.4.20 gives `ARITH DOMAIN {domain error: argument not in valid range}`; fixed in `f03e110a` | execution, fixed |
 | IRULE5001 reported a `log` gated by a flag set in the arms of a `switch` lowering could not lay out | taint |
 | The authored F5 expression parser reads `abs(077)` as 77; under the owner's 8.4 expression ruling it is 63 (tclsh 8.4.20) | execution |
+| O103 folds `[answer]` to 42 inside the uncalled `f` in `proc answer {} {return 42}; proc f {} {set y [answer]}; unknown_future_entry`, although the unknown command may rebind `answer` before `f` runs | dataflow-optimiser |
+| A stray `nop` before an invoked command in `foreach`/`while`/`if` bodies, where tclsh 8.6.18 and 9.0.4 compile no instruction; fixed in `2be09036` | execution, fixed |
+| `proc p {} {if {$a} {$c}}` lacks the conversion `nop` tclsh 8.6 emits before `jumpFalse1` | execution |
+| The 8.4 error trace for `expr {0b10 + 1}` says "while compiling" where tclsh 8.4.20 says "while executing" | execution |
+| An authored F5 source-word provider seals words with a native 8.4 string protocol inside a C9 host engine, so `concat` and list copy refuse them (25 `tcl-irule-test` tests) | execution |
 
 ## Waiting on the owner's approval
 
@@ -221,6 +227,7 @@ Edits a session's permission classifier refused; the replacement text is in the 
 | `LIVE_REFERENCE_INLINING` switched on, with the guard test `the_live_compile_splices_no_reference_body` changed to assert that the differential is the gate | live-inlining | The differential is identical to tclsh 8.4 to 9.1 (ruling of 17 November 23:52). Measured on `2e8b3814`, switch off against on, eight packages (`tcl-codegen`, `tcl-spectcl`, `tcl-vm`, three engines, `tcl-cshim`, `tcl-spec-hooks`): the only new failure is the guard itself, the three `reference_bodies` tests are fixed, every other failing set is identical. Re-measured 05:27 UTC on 18 November at `1a99ba86` with every oracle required: `tcl-codegen` 110 off, 111 on of 1,488; `tcl-spectcl` 21 off, 18 on of 625; the same test-by-test result. Jim units splice nothing (`build_inlinable_map` refuses a module whose parameter grammar is not Tcl's). The fuzz run so far loads no pack; a pack-loading campaign is being added |
 | Six merges, test into survivor: e2e `diagnostic_matrix::expr_not_redefined_still_folds` into `constant_expr_folds`; e2e `dialect_gating::issue_968_version_gated_math_function_dual_fires_end_to_end` into `undotted_vscode_language_ids_resolve_to_the_same_dialect_end_to_end`; e2e `hover::var_hover_shows_refs` into `hover::var_hover` (the survivor gains the `reference` assertion first); `tcl-irules` `walker::tests::extracts_refs_nested_in_body_and_command_substitution` into `object_refs::extract_irules_refs_nested_in_body_and_command_substitution`; `tcl-cli` `inspection_verbs::smoke_explore_reports_summary_for_tiny_snippet` into `explore_summary_lists_views`; e2e `recovery::c5_break_then_fix` into `c5_rapid_toggling_stays_consistent`. One rewrite: the seven `tcl-registry` `native_jim_lookup::namespace_helper_source_tests` `*_helper_descriptor_keeps_…` tests become one table over `NativeJimNamespaceHelperKind::ALL` that keeps every per-kind row | irules-registry-tooling | Sampled and signed off by the coordinator (rows in `ledger/irules-registry-tooling-passing.tsv`); that session's permission check asks the owner before it edits a test body, and the edits are not routed through another session |
 | Eight `tcl-diagram` fixtures repaired: dynamic words read unset variables (`$code`, `$options`, `$status`, `$pattern`, `$ready`, `$items`; tclsh 8.6.18 and 9.0.4: `can't read "code": no such variable`, the rest of the script is dead) or statements follow a certain exit, so the code under test is never reached (names in `ledger/irules-registry-tooling.tsv`) | irules-registry-tooling | The source is not what the test says it is |
+| In the four crates no session owns (`tcl-lexer`, `tcl-syntax`, `tcl-dialect`, `tcl-core-types`; 2,008 run, all pass with every oracle required, no expectation contradicted): 16 merges into named survivors (five exact copies and eleven single-operator parser tests the `expr_parser_coverage` tables already state), one vacuous test (`word_parts::tests::oracle_sheet_is_recorded`), seven Jim tests that return silently without the oracle moved onto the shared locator, four weak-assertion groups rewritten to assert a value, nine crash guards given a value to assert (rows in `ledger/unowned-passing.tsv`; about 1,600 tests in small groups were not read) | irules-registry-tooling | Sampled and signed off by the coordinator; test-body edits |
 
 ## Passing tests the oracle contradicts
 
@@ -288,27 +295,27 @@ The failing behaviours are far fewer than the failing tests. The causes ranked h
 
 The second pass (overlap among passing tests: 88 exact-copy groups, 385 overlap groups, the vacuous negatives on unwired helpers) follows the repairs.
 
-## Status of the rows, 18 November 2026, 06:55 UTC
+## Status of the rows, 18 November 2026, 07:55 UTC
 
 From `tools/ledger_status.py` (a cell that is not one of the seven words counts as open).
 
 | Ledger | open | repaired | exposed | fixed | deleted | blocked | routed | Rows |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | analyser-binding | 412 | 5 | 0 | 1 | 0 | 0 | 0 | 418 |
-| analysis-performance | 48 | 0 | 0 | 0 | 0 | 0 | 0 | 48 |
+| analysis-performance | 49 | 0 | 0 | 0 | 0 | 0 | 0 | 49 |
 | class-facts | 236 | 8 | 2 | 0 | 0 | 0 | 0 | 246 |
-| dataflow-optimiser | 364 | 24 | 20 | 12 | 0 | 1 | 2 | 423 |
-| diagnostics | 249 | 55 | 66 | 4 | 6 | 2 | 17 | 399 |
-| execution | 196 | 5 | 0 | 9 | 56 | 0 | 0 | 266 |
+| dataflow-optimiser | 341 | 31 | 30 | 16 | 0 | 4 | 2 | 424 |
+| diagnostics | 247 | 55 | 65 | 4 | 9 | 2 | 17 | 399 |
+| execution | 195 | 6 | 0 | 10 | 56 | 0 | 0 | 267 |
 | irules-registry-tooling | 131 | 0 | 0 | 2 | 0 | 35 | 0 | 168 |
 | live-inlining | 18 | 0 | 0 | 0 | 0 | 9 | 0 | 27 |
-| lsp-features | 582 | 10 | 16 | 13 | 10 | 23 | 23 | 677 |
+| lsp-features | 584 | 10 | 16 | 14 | 10 | 23 | 23 | 680 |
 | server-e2e-db-flaky | 3 | 3 | 0 | 0 | 0 | 0 | 1 | 7 |
-| server-e2e-db | 151 | 14 | 1 | 19 | 0 | 12 | 25 | 222 |
-| taint | 134 | 5 | 26 | 8 | 0 | 0 | 1 | 174 |
+| server-e2e-db | 152 | 14 | 1 | 19 | 0 | 11 | 25 | 222 |
+| taint | 132 | 5 | 26 | 10 | 0 | 0 | 1 | 174 |
 | tk-oo | 58 | 9 | 0 | 3 | 0 | 0 | 0 | 70 |
-| values | 195 | 18 | 0 | 5 | 1 | 0 | 0 | 219 |
-| **all** | 2777 | 156 | 131 | 76 | 73 | 82 | 69 | 3364 |
+| values | 194 | 17 | 0 | 8 | 1 | 0 | 0 | 220 |
+| **all** | 2752 | 163 | 140 | 87 | 76 | 84 | 69 | 3371 |
 
 ## Progress
 

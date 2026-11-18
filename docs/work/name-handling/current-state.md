@@ -10,7 +10,7 @@ Every hand-written Rust file under `rust/` and `runtime/rust/` is at most 2,000 
 
 The owner asked for a deep evaluation of the tests: what overlaps, and which failing tests are worth making pass. Method, inventory, verdicts and the families each session triages are in [`docs/work/test-scrub/README.md`](../test-scrub/README.md). Every session finishes what it has in hand and then writes its ledger before any further fix; nothing is deleted until the coordinator has sampled the ledger. At 22:40 UTC twelve of thirteen ledgers are signed off (3,252 failing tests: 62% hold behaviour worth making pass, 25% fail because the test is wrong, 9% are re-pointed, 4% go; about sixty wrong answers found, fixed before missing facts). First reading: 37,567 tests, 3,743 failing by the morning's lists; of the failing, 564 cite tclsh or Jim, 497 cite an issue or contract, 2,333 run Tcl source and cite nothing, 349 hold an internal structure.
 
-## Scoreboard, 18 November 2026, 06:55 UTC
+## Scoreboard, 18 November 2026, 07:55 UTC
 
 Failing tests by area on the restructured tree, from the successor sessions' baselines and first pushes.
 
@@ -20,7 +20,7 @@ Failing tests by area on the restructured tree, from the successor sessions' bas
 
 | Area | Failing | Of | Session |
 | --- | --- | --- | --- |
-| `tcl-compiler` (all areas below share this suite) | 2,075 at 22:13; the count now moves as repaired tests go green or show their real cause (areas: values 296, taint about 180; includes the accepted exposures of the stock-object-type rule) | 13,153 | analyser-binding, class-facts, diagnostics, dataflow-optimiser, values, taint, tk-oo |
+| `tcl-compiler` (all areas below share this suite) | not re-measured as a whole since 22:13; the declared-frame collector and per-body lookup (`d5c22b33`..`fbf01c4c`, 07:36 on 18 November) fixed 265 against their base with none new, and `f6d942f3` fixed 48, so the areas are re-running their lists; 2,075 at 22:13; the count now moves as repaired tests go green or show their real cause (areas: values 296, taint about 180; includes the accepted exposures of the stock-object-type rule) | 13,153 | analyser-binding, class-facts, diagnostics, dataflow-optimiser, values, taint, tk-oo |
 | `tcl-lsp-core` library | 466 at 05:50 on 18 November with every oracle required (the same set without the flags; one scaling test excluded, see the scrub README), was 473 and 492 (semantic tokens 14; the 43 minifier naming-pass expectations are being retired by owner decision) | 3,653 | lsp-features |
 | `tcl-lsp-server` end to end | 265 | 1,651 | lsp-features (navigation), server-e2e-db |
 | `tcl-lsp-server` library unit tests | 109 | 1,002 | server-e2e-db (navigation reports to lsp-features) |
