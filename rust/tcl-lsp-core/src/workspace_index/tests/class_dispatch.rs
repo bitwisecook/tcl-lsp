@@ -696,8 +696,8 @@ fn a_computed_cross_file_arrival_abstains() {
 /// ```
 #[test]
 fn a_cross_file_arrival_re_keys_member_enumeration() {
-    let a = analyse("oo::class create ::C { method old {} { return 1 } }\n");
-    let b = analyse("oo::define ::C { renamemethod old new }\n");
+    let a = analyse_tcl("oo::class create ::C { method old {} { return 1 } }\n");
+    let b = analyse_tcl("oo::define ::C { renamemethod old new }\n");
     let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
     assert_eq!(
         index
@@ -762,9 +762,9 @@ fn symbol_exclusions_apply_before_the_limit_and_member_fold() {
 
 #[test]
 fn symbol_exclusions_rebuild_duplicate_retractions_from_live_documents() {
-    let class = analyse("oo::class create ::C { method old {} {} }\n");
-    let orphan = analyse("oo::define ::C { renamemethod old orphan_arrival }\n");
-    let live = analyse("oo::define ::C { renamemethod old live_arrival }\n");
+    let class = analyse_tcl("oo::class create ::C { method old {} {} }\n");
+    let orphan = analyse_tcl("oo::define ::C { renamemethod old orphan_arrival }\n");
+    let live = analyse_tcl("oo::define ::C { renamemethod old live_arrival }\n");
     let index = WorkspaceIndex::from_documents([
         ("file:///base.tcl", &class),
         ("file:///a-orphan.tcl", &orphan),
@@ -792,8 +792,8 @@ fn symbol_exclusions_rebuild_duplicate_retractions_from_live_documents() {
 /// empty and `[::C new] m` erroring `unknown method "m"`.
 #[test]
 fn a_cross_file_deletion_drops_the_member_from_enumeration() {
-    let a = analyse("oo::class create ::C { method m {} { return 1 } }\n");
-    let b = analyse("oo::define ::C { deletemethod m }\n");
+    let a = analyse_tcl("oo::class create ::C { method m {} { return 1 } }\n");
+    let b = analyse_tcl("oo::define ::C { deletemethod m }\n");
     let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
     assert!(
         index.effective_members("::C").is_empty(),
@@ -1087,4 +1087,12 @@ fn cross_file_oo_define_stub_does_not_hide_superclass() {
         .map(|wc| wc.qualified_name.as_str())
         .collect();
     assert!(inheritors.contains(&"::C"), "{inheritors:?}");
+}
+
+/// The lenient `tcl` environment, where indexed documents are loaded.
+fn analyse_tcl(source: &str) -> AnalysisResult {
+    analyse_as(
+        source,
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+    )
 }
