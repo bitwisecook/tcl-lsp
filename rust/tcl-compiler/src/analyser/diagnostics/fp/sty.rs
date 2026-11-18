@@ -121,7 +121,7 @@ fn fp_sty_02_concatenated_dollar_in_quoted_pattern_still_fires() {
     // TP control: once `$pat` is concatenated with literal text (`"pre$pat"`)
     // the word is no longer a pure reference — a literal pattern WAS expected —
     // so W306 still fires. Proves the carve-out is shape-gated.
-    let src = "regexp \"pre$pat\" $s";
+    let src = "set pat x\nset s y\nregexp \"pre$pat\" $s";
     assert!(
         fires(src, D, "W306"),
         "FP-STY-02 TP: concatenated $pat in quoted regexp pattern must fire W306; emitted: {:?}",
@@ -133,7 +133,7 @@ fn fp_sty_02_concatenated_dollar_in_quoted_pattern_still_fires() {
 fn fp_sty_02_live_cmdsub_in_quoted_pattern_still_fires() {
     // TP control: a live `[clock seconds]` in a quoted regex pattern must still
     // fire W306.
-    let src = "regexp \"[clock seconds]\" $s";
+    let src = "set s y\nregexp \"[clock seconds]\" $s";
     assert!(
         fires(src, D, "W306"),
         "FP-STY-02 TP: live cmd-sub in quoted regexp pattern must fire W306; emitted: {:?}",
@@ -990,14 +990,18 @@ fn fp_sty_16_genuine_path_concat_still_fires() {
     // TP control: a real path-building concat with no literal whitespace still
     // fires W201.
     assert!(
-        fires("set f \"$dir/$name\"", D, "W201"),
+        fires("set dir /tmp\nset name a\nset f \"$dir/$name\"", D, "W201"),
         "FP-STY-16 TP: genuine path concat must fire W201; emitted: {:?}",
-        codes("set f \"$dir/$name\"", D)
+        codes("set dir /tmp\nset name a\nset f \"$dir/$name\"", D)
     );
     assert!(
-        fires("set p $root/sub/$file", D, "W201"),
+        fires(
+            "set root /tmp\nset file a\nset p $root/sub/$file",
+            D,
+            "W201"
+        ),
         "FP-STY-16 TP: genuine path concat must fire W201; emitted: {:?}",
-        codes("set p $root/sub/$file", D)
+        codes("set root /tmp\nset file a\nset p $root/sub/$file", D)
     );
 }
 
@@ -1006,7 +1010,7 @@ fn fp_sty_16_path_with_command_sub_still_fires() {
     // TP control: `set f "$dir/[file tail $path]"` — the command sub's *internal*
     // spaces are inside one CMD token and must NOT suppress; this is a genuine path
     // concat and still fires W201.
-    let src = "set f \"$dir/[file tail $path]\"";
+    let src = "set dir /tmp\nset path /x/y\nset f \"$dir/[file tail $path]\"";
     assert!(
         fires(src, D, "W201"),
         "FP-STY-16 TP: path concat with command-sub segment must still fire W201; emitted: {:?}",
