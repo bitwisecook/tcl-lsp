@@ -50,7 +50,7 @@ The owner's open issues are worked by a separate set of sessions under their own
 - Disk and memory are small (4 cores, 15 GB, about 10 GB of free disk): one cargo build at a time, the test profile at `opt-level 1`, and remove `target/debug/incremental` when the disk fills.
 - Keep your area's section of `current-state.md` a short current snapshot; replace the outgoing session's notes after your first full run.
 - **Format and lint before the push, not after.** `cargo fmt` on the files you changed and clippy to completion come before `git push`; on 18 November one session had to push a formatting commit for 18 files others left unformatted, and two pushes went out with clippy still running. A count of fixed tests is quoted only against a baseline taken at a clean `origin/work` head.
-- **Disk.** Until the fix in `tcl-spectcl` lands, every test process leaves a `/tmp/tcl-spectcl-cache-test-<pid>` directory behind (`rust/tcl-spectcl/src/cache.rs`); hundreds accumulate, several gigabytes. On "no space left", `rm -rf /tmp/tcl-spectcl-cache-test-*` first, then stale build output.
+- **Disk.** Test runs leave temporary directories behind. The `tcl-spectcl` unit-test cache is fixed (`366cda3b`); still leaking until their owners land guards: the server e2e roots (`/tmp/tcl-lsp-e2e-*`, hundreds per session) and `tcl-spectcl`'s integration tests (`/tmp/tcl-spectcl-*`). On "no space left", `rm -rf /tmp/tcl-lsp-e2e-* /tmp/tcl-spectcl-*` first, then stale build output. A test that creates a temporary directory owns a guard that removes it on drop.
 
 ## Reporting
 
