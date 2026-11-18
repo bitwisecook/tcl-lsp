@@ -1,0 +1,21 @@
+diff --git a/scripts/dev/tcl_command_evidence.py b/scripts/dev/tcl_command_evidence.py
+index 4818610844..fb84406047 100644
+--- a/scripts/dev/tcl_command_evidence.py
++++ b/scripts/dev/tcl_command_evidence.py
+@@ -205,6 +205,16 @@ REVIEWED_EDGES: dict[tuple[str, str], str] = {
+     # 9.1 `TclFormatDouble` reads the locale only to replace `snprintf`'s
+     # decimal separator with `.`, so its result is the same in every locale.
+     ("TclFormatDouble", "localeconv"): "normalises the decimal separator",
++    # The `tcl::mathop` commands build an expression tree whose leaves are
++    # the command's own argument values as literals (`OT_LITERAL`), so the
++    # bytecode `ExecConstantExprTree` compiles and runs only pushes them and
++    # applies the operator; it compiles no script and reaches no
++    # `[info frame]`. The literal table and compile statistics it updates are
++    # caches no script reads.
++    ("TclSingleOpCmd", "ExecConstantExprTree"): "literal-leaf operator tree",
++    ("TclVariadicOpCmd", "ExecConstantExprTree"): "literal-leaf operator tree",
++    ("TclSortingOpCmd", "ExecConstantExprTree"): "literal-leaf operator tree",
++    ("TclNoIdentOpCmd", "ExecConstantExprTree"): "literal-leaf operator tree",
+ }
+ 
+ 

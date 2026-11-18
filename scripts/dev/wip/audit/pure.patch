@@ -1,0 +1,6 @@
+diff --git a/rust/tcl-spec-studio/src/infer.rs b/rust/tcl-spec-studio/src/infer.rs
+index a292462d98..2c1f11fdfa 100644
+--- a/rust/tcl-spec-studio/src/infer.rs
++++ b/rust/tcl-spec-studio/src/infer.rs
+@@ -1016 +1009,0 @@ mod tests {
+-            pure: false,

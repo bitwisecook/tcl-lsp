@@ -1,0 +1,243 @@
+when HTTP_REQUEST {
+    set before {}; set after {}; set result {}
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {concat a {b c} {}} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got concat-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {concat " a " "\{b\}"} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got concat-2 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {format %s-%d-%05.2f x 7 3.14159} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got format-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {format %c 233} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got format-2 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {format %q 1} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got format-3 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {join {a b {c d}} -} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got join-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {join {}} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got join-2 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {list a {b c} "d e" \{} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got list-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {llength {a {b c} d}} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got llength-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {llength "a \{"} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got llength-2 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {lindex {a b c} end-1} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got lindex-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {lindex {a b c} 5} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got lindex-2 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {lindex {a {b c}} 1 0} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got lindex-3 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {linsert {a b} 1 x y} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got linsert-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {linsert {a b} end+1 x} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got linsert-2 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {lrange {a b c d} 1 end} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got lrange-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {lrange {a b} 3 1} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got lrange-2 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {lreplace {a b c} 1 1 x y} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got lreplace-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {lreplace {a b c} 5 6} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got lreplace-2 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {split a.b..c .} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got split-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {split "\xe9x" {}} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got split-2 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {info complete "set x \{"} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got info-complete-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {info sharedlibextension} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got info-sharedlibextension-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {namespace qualifiers ::a::b::c} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got namespace-qualifiers-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {namespace tail ::a::b::c} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got namespace-tail-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {file extension /a/b.c.d} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got file-extension-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {file rootname /a/b.c.d} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got file-rootname-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {string bytelength "\xe9"} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got string-bytelength-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {string compare -nocase -length 2 ABc abd} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got string-compare-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {string equal -nocase A a} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got string-equal-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {string first b abcb 2} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got string-first-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {string index abc end-1} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got string-index-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {string last b abcb 2} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got string-last-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {string length "\xe9x"} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got string-length-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {string map -nocase {A 1 b 2} aAbB} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got string-map-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {string match -nocase {[a-c]*} Bx} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got string-match-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {string range abcdef 2 end-1} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got string-range-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {string repeat ab 3} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got string-repeat-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {string replace abcdef 1 2 XY} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got string-replace-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {string tolower "\xc9AB"} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got string-tolower-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {string totitle "hELLO world"} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got string-totitle-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {string toupper "\xe9ab" 1 1} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got string-toupper-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {string trim "  xx  "} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got string-trim-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {string trimleft "xxabxx" x} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got string-trimleft-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {string trimright "xxabxx" x} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got string-trimright-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {string wordend "ab cd" 0} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got string-wordend-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {string wordstart "ab cd" 4} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got string-wordstart-1 $result"
+    set before [list [lsort [info vars]] [lsort [info procs]]]
+    if {[catch {string length -bogus x} result]} {set result "error: $result"}
+    set after [list [lsort [info vars]] [lsort [info procs]]]
+    if {$before ne $after} {append result " CHANGED"}
+    log local0. "got string-bad-option $result"
+}
