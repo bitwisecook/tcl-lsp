@@ -371,7 +371,10 @@ fn bareword_widget_constructor_binds_instance_class() {
 #[test]
 fn var_captured_widget_constructor_binds_instance_class() {
     let mut a = super::super::state::Analyser::new();
-    let res = a.analyse("package require Tk\nset lb [listbox .l]\n$lb curselection\n", "tcl8.6");
+    let res = a.analyse(
+        "package require Tk\nset lb [listbox .l]\n$lb curselection\n",
+        "tcl8.6",
+    );
     assert_eq!(
         res.instance_classes.get("lb").map(String::as_str),
         Some("listbox"),
