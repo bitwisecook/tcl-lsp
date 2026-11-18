@@ -76,13 +76,36 @@ All patches are in `patches/`, made against `9839f8212`. Apply with `git apply d
 
 ## (e) Rulings not yet carried out
 
-- **Advisory solver mode (A)** for rule procedures. Use the strict engine in advisory mode, feeding semantic values only, under these conditions:
-  1. semantic-only, with a negative test in `release_optimiser_safety`;
-  2. scope limited to hosted bodies, with plain Tcl unchanged (full tcl-compiler before/after);
-  3. registry-data transfers only;
-  4. formals Bound only;
-  5. BIG-IP checks cited for the 8.4 behaviour;
-  6. rows marked fixed only as they pass.
+Coordinator ruling, 18 Nov 11:08: **(A)**, a single engine reading the registry data. (B) would write every transfer twice. The current WIP patch threads a runtime boolean, which the ruling does not accept as is.
+
+1. **The resolution mode lives in the types, not in a boolean.**
+   - The engine is parameterised by its resolution purpose.
+   - The advisory instantiation yields a different result type from the strict one, so no expression that stores an advisory value into `sccp.values` compiles.
+   - If the code shape makes that impossible, report the cost to the coordinator before falling back to a runtime flag.
+2. **Prototype first:** one transfer (`incr`) and one witness (`a_rule_procedure_folds_its_cell_updates_as_advice`). Measure, then send the coordinator (a)–(c) and a half-page on the shape:
+   - (a) that witness is green;
+   - (b) a full tcl-compiler run with the oracle flags, from a clean `origin/work` baseline, shows 0 new failures;
+   - (c) a byte-for-byte differential of the strict `sccp.values`, dumped for every function over the test corpus and the samples, before and after the change.
+3. **Scope:** the second run applies only to hosted-advice bodies (rule procedures, handlers). Plain Tcl gets no second run. Count solver runs (not wall-clock) on the iRules samples before and after and report the ratio. If it more than doubles, report that.
+4. **Ownership:**
+   - taint writes the change.
+   - dataflow-optimiser owns `sccp/solver` and must approve the diff before push; being informed is not enough.
+   - class-facts is told, since the mode threads through `registry_invocation`.
+   - values reviews the witness expectations.
+5. **Earlier conditions still stand:**
+   - a negative test on rewrites under f5-irules (`release_optimiser_safety`);
+   - registry-data transfers only;
+   - formals Bound only;
+   - BIG-IP checks cited for 8.4 behaviour;
+   - the 11 rows turn `fixed` only as they pass;
+   - `blocked` stays the status until the prototype is measured.
+
+Also received before the pause:
+
+- **audit (11:23), on the Tk replay:** the second `entry .two` goes missing because `entry .one -validatecommand {…}` trips `requires_reentry_guard` (`command_binding/source_walk/completion_receipts.rs:299`). Its `source_callback_retention` clause withholds the command world after any registration that retains a callback. Controls without a callback resolve `.two`. Real Tk 9.0.3 does not run `-validatecommand` at registration.
+  - Proposed split, awaiting a ruling: the registry marks deferred-only surfaces (audit), and the walk guard honours that (binding owner).
+  - Until the guard changes, the batch test and the batches-past-the-first-batch test stay short a candidate, even with `taint-tk-callback-replay.patch` and the completion contracts.
+- **coordinator (11:04), on disk:** run `rm -rf /tmp/tcl-spectcl-cache-test-*` when the disk fills, before deleting `target/`. `cargo fmt` and clippy must finish before a push. Quote fixed counts only against a clean `origin/work` baseline.
 
 ## (f) Last measured counts
 
