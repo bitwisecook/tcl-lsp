@@ -321,7 +321,7 @@ fn interned_count(db: &mut TclDatabase, name: &str) -> usize {
         .structs
         .iter()
         .filter(|ingredient| ingredient.debug_name() == name)
-        .map(|ingredient| ingredient.count())
+        .map(salsa::IngredientInfo::count)
         .sum()
 }
 
@@ -334,10 +334,27 @@ fn interned_count(db: &mut TclDatabase, name: &str) -> usize {
 /// (#2543). Dialect-invariant; run under Tcl 8.6.
 #[test]
 fn an_unchanged_document_reanalysed_under_alternating_configuration_interns_nothing_new_2543() {
-    const ROUNDS: usize = 12;
-    let mut db = TclDatabase::default();
     let source = "proc p {a b} {\n  upvar 1 $a v\n  set v [expr {$b + 1}]\n  return $v\n}\n\
                   proc q {} { p x 1 }\nq\n";
+    assert_revisits_intern_nothing(source);
+}
+
+/// The same bound for a body no certified lattice tier can admit: `eval` of
+/// a value read from `gets stdin` reaches the fallback key, which must be
+/// reusable across rebuilds on its own, not only once a body is certified
+/// (#2543). Dialect-invariant; run under Tcl 8.6.
+#[test]
+fn an_uncertifiable_body_reanalysed_under_alternating_configuration_interns_nothing_new_2543() {
+    let source = "proc p {} {\n  set x [gets stdin]\n  eval $x\n}\nproc q {} { p }\nq\n";
+    assert_revisits_intern_nothing(source);
+}
+
+/// Alternates one configuration value over an unchanged Tcl 8.6 document and
+/// asserts that, once both values have been seen, no round interns a new
+/// module context or lattice key.
+fn assert_revisits_intern_nothing(source: &str) {
+    const ROUNDS: usize = 12;
+    let mut db = TclDatabase::default();
     let file = SourceFile::new(&db, source.to_owned(), "tcl8.6".to_owned(), None);
     let config = build_config(&db);
     let mut seen = Vec::new();
