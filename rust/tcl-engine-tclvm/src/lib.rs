@@ -96,7 +96,7 @@ use registration::{
 };
 use value_conversion::{ActualScalarImport, from_vm_value_using, to_vm_value_using};
 #[cfg(test)]
-use value_conversion::{export_storage, from_vm_object_value};
+use value_conversion::from_vm_object_value;
 #[cfg(test)]
 use value_conversion::{from_vm_value, to_vm_value};
 

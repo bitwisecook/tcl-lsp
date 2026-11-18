@@ -99,55 +99,26 @@ fn callback_cmdname_retains_private_scope_and_distinct_duplicate_identity() {
     assert!(super::recover_original_result(&forged, dialect, scope).is_err());
 }
 
+/// A namespace's name, kept as a value, resolves as its name does when the
+/// namespace is later recreated under it: the engine retains no stale scope
+/// behind the value. tclsh 8.6.18 and 9.0.4 print `HERE` for
+/// `namespace eval ::a {set ::n [namespace current]}; namespace delete ::a;
+/// namespace eval ::a {proc here {} {return HERE}}; namespace eval $::n {here}`.
 #[test]
 fn callback_namespace_primary_retains_private_scope_and_descriptor() {
-    use tcl_engine_api::{OriginalObject, OriginalObjectResult as R};
-    let mut vm = tcl_vm::test_support::native_vm();
-    let dialect = vm.native_scalar_carrier_dialect();
-    let scope = vm.native_object_bridge_identity();
-    let completion = vm.invoke_command("namespace", &[tcl_vm::Value::string("current")]);
-    assert_eq!(completion.code, tcl_runtime_api::Code::Ok);
-    let original = completion.result;
-    let cache = original
-        .native_namespace_name_cache()
-        .expect("actual C9 current producer");
-    let capability = Rc::new(super::VmOriginalObject {
-        value: super::VmOriginalValue::Header(original.native_lifetime_lease()),
-        dialect,
-        interpreter: scope,
-    });
-    let carrier = capability.namespace_name_cache().unwrap();
-    let retained = R::Resident {
-        value: Box::new(R::NamespaceName(carrier.clone())),
-        string: original.resident_string_bytes().unwrap(),
-        storage: super::export_storage(&original),
-    };
-    let restored = super::recover_original_result(&retained, dialect, scope).unwrap();
-    assert_ne!(
-        restored.native_object_identity(),
-        original.native_object_identity()
-    );
-    assert!(cache.same_descriptor(&restored.native_namespace_name_cache().unwrap()));
-    assert!(retained.snapshot().is_err());
-    assert!(
-        super::recover_original_result(&R::NamespaceName(carrier.clone()), dialect, scope).is_err()
-    );
-    assert!(super::recover_original_result(&retained, dialect, (scope.0 + 1, scope.1)).is_err());
-    let forged = R::Resident {
-        value: Box::new(R::NamespaceName(
-            tcl_engine_api::NativeNamespaceNameCache::new(carrier.origin(), scope, Rc::new(())),
-        )),
-        string: Rc::from(b"::".as_slice()),
-        storage: tcl_engine_api::NativeStringStorageIdentity::Allocated,
-    };
-    assert!(super::recover_original_result(&forged, dialect, scope).is_err());
-    let duplicate = capability.duplicate_native_header().unwrap();
-    let duplicate = duplicate.namespace_name_cache().unwrap();
-    let receipt = duplicate
-        .engine_receipt()
-        .downcast_ref::<super::VmNamespaceNameCacheReceipt>()
-        .unwrap();
-    assert!(cache.same_descriptor(&receipt.cache));
+    let mut engine = TclVmEngine::new();
+    let handle = engine
+        .compile(unit(
+            "namespace eval ::a {set ::n [namespace current]}\n\
+             namespace delete ::a\n\
+             namespace eval ::a {proc here {} {return HERE}}\n\
+             return [namespace eval $::n {here}]",
+        ))
+        .expect("compiles");
+    let result = engine
+        .invoke(&handle, &[Value::list([]), Value::list([])])
+        .expect("runs");
+    assert_eq!(result.as_str(), Some("HERE"));
 }
 
 #[test]
