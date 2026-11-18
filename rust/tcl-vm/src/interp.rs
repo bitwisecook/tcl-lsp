@@ -150,6 +150,8 @@ mod native_event_context;
 mod native_execution_constants;
 #[cfg(test)]
 mod native_expression_bool_tests;
+#[cfg(test)]
+mod native_foreach_range_tests;
 mod native_index_lookup;
 mod native_interpreter_paths;
 mod native_introspection;

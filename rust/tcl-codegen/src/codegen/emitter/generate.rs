@@ -1021,6 +1021,7 @@ fn finalize_function(
     }
     ctx.drop_compiled_substitution_levels();
     super::super::native_compiler_pass::capture_first_pass(ctx);
+    super::super::native_compiler_pass::omit_generic_boundary_carriers(ctx);
     if ctx.compact_compiler_pass {
         super::super::native_compiler_pass::omit_command_markers(ctx);
     }

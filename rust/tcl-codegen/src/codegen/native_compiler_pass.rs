@@ -71,6 +71,45 @@ pub(super) fn replay_environment(
     .then_some(environment)
 }
 
+/// A generically invoked command's boundary carrier, as
+/// `schedule_native_generic` emits it: C compiles no instruction for an
+/// invoked command's start (`tcl::unsupported::disassemble` shows its first
+/// word's push first), so the next instruction takes over the boundary.
+pub(super) fn omit_generic_boundary_carriers(ctx: &mut CodegenCtx<'_>) {
+    let mut index = 0;
+    while index + 1 < ctx.instructions.len() {
+        let carrier = &ctx.instructions[index];
+        let is_carrier = carrier.op == Op::NOP
+            && carrier.operands.is_empty()
+            && carrier.comment.is_empty()
+            && carrier.no_fold
+            && carrier.source_command_boundary.is_start()
+            && carrier.native_compiler_selection.is_none()
+            && carrier.native_operation_selections.is_empty()
+            && carrier.entered_command.is_none()
+            && carrier.completion_option_scope.is_none();
+        if !is_carrier || ctx.instructions[index + 1].op == Op::START_CMD {
+            index += 1;
+            continue;
+        }
+        let carrier = ctx.instructions.remove(index);
+        let next = &mut ctx.instructions[index];
+        next.no_fold = true;
+        next.source_command_boundary = carrier.source_command_boundary;
+        if next.source_cmd_text.is_empty() {
+            next.source_cmd_text = carrier.source_cmd_text;
+            next.source_span = next.source_span.or(carrier.source_span);
+            next.source_command_namespace = carrier.source_command_namespace;
+            next.source_command_namespace_context = carrier.source_command_namespace_context;
+        }
+        for position in ctx.label_positions.values_mut() {
+            if *position > index {
+                *position -= 1;
+            }
+        }
+    }
+}
+
 /// Command markers are emission bookkeeping until this boundary. The actual
 /// second-pass opcode stream omits them before any peephole/layout operation.
 /// Independent original selection receipts stay on the next emitted operation.
