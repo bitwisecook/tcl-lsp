@@ -267,3 +267,29 @@ The full list is `docs/work/name-handling/lists/irules-registry-tooling-failing-
 ### The wasm row names are ours, and the fix needs a test-helper edit
 
 `finish_owned_function_names` (`tcl-codegen`, `owned_function_names.rs`) gives every colliding function a body-owned symbol, `__tcl_wasm_body_<ordinal>`, on purpose: the wasm name is a physical symbol and no canonical Tcl name is left pointing at one of several definitions. In `proc p {} {...}; proc p {} {...}; proc ::top {} {...}` the user procedure `::top` collides with the module's own top-level function, so all three procedure rows come out as `__tcl_wasm_body_0..2` and the explorer row `name` (read from `function.name`) is no longer a source name. The test asks for the source names (`p`, `p`, `::top`), which is also what an explorer user needs. The fix belongs to `tcl-explorer`: resolve each row's source name from `module.source_function_ids` through the unit's procedure table instead of the physical symbol. Fixed 18 November: `wasm_to_explorer_json_named` resolves the name that way (the physical symbol stays in `symbol`) and the serialise path uses it. The test helper `wasm_entries` changed only its call to the new function; every assertion is as it was, and the session's permission classifier accepted that edit.
+
+## Second pass: the passing members of the overlap groups (18 November)
+
+`ledger/irules-registry-tooling-passing.tsv`: 130 tests from the clusters file (`irules-registry-tooling-clusters.tsv`: one exact-copy group and 58 overlap groups; the exact group's two tests also form overlap group 33). Every test body was read. No test is deleted or changed; the file is for sampling first.
+
+| Verdict | Tests | Meaning |
+| --- | ---: | --- |
+| `KEEP-CONTRACT` | 115 | the group shares a helper or a source string, not a claim: each member pins a different operand shape, path, command or layer (the row says which) |
+| `MERGE` | 6 | adds nothing beyond a named survivor |
+| `REWRITE` | 7 | seven per-kind copies of one shape: `native_jim_lookup` helper descriptor tests (groups 3 and 8), one table over `NativeJimNamespaceHelperKind::ALL` keeps every per-kind row |
+| `KEEP-ORACLE` | 2 | the two probe/test timeout tests, which run tclsh |
+| `VACUOUS` | 0 | none found that cannot fail; near misses below |
+
+**MERGE, with survivor and what the survivor must hold:**
+- `diagnostic_matrix::expr_not_redefined_still_folds` into `constant_expr_folds` (identical body; the exact copy).
+- `issue_968_version_gated_math_function_dual_fires_end_to_end` into `undotted_vscode_language_ids_resolve_to_the_same_dialect_end_to_end` (the survivor already loops `tcl8.4`; carry the TIP 232 comment over).
+- `hover::var_hover_shows_refs` into `var_hover` (add the `reference` assertion to the survivor first).
+- `tcl-irules` `walker::tests::extracts_refs_nested_in_body_and_command_substitution` into `object_refs::extract_irules_refs_nested_in_body_and_command_substitution` (the public entry runs the same walker).
+- `inspection_verbs::smoke_explore_reports_summary_for_tiny_snippet` into `explore_summary_lists_views`.
+- `recovery::c5_break_then_fix` into `c5_rapid_toggling_stays_consistent` (three break-and-fix cycles with the same assertions).
+
+**Worth a decision, not marked MERGE:**
+- `substitution.rs` keeps a hand-written switch parser (`subst_substitutions`, `subst_evaluates_commands`) beside the registry-driven `option_effect::substitution_kinds`. Groups 2, 9 and 20 test the same behaviour of both implementations. The registry rule says the registry-driven one is the source of truth; when the hand parser is retired its tests (group 9) become `MERGE` into group 20's.
+- `spec_verbs` probe and test timeout tests (group 25) return silently when no `tclsh` is on `PATH`. Here that never happens, but a skip nobody sees is not coverage: they need a visible skip or a required oracle.
+- `code_actions::refactor_actions::test_cursor_past_*_does_not_crash` (group 57) assert only `null or array`; they fail on an error reply and on nothing else. A crash guard, not a behaviour; kept.
+- `diagnostics::code_canaries::unbraced_expr_is_w100` is subsumed in effect by `fixing_the_source_clears_the_diagnostic`, but is the W100 row of a one-test-per-code canary file; kept.
