@@ -23,6 +23,13 @@ int IndexCache_Init(Tcl_Interp *interp) {
     return TCL_OK;
 }
 
+/* A command created later that reads the same table, as another caller of
+ * Tcl_GetIndexFromObj would after the first command was deleted. */
+int IndexCache_Reregister(Tcl_Interp *interp) {
+    Tcl_CreateObjCommand(interp, "probe_index", index_command, NULL, NULL);
+    return TCL_OK;
+}
+
 void IndexCache_ChangeTable(void) {
     persistent_table[0] = "changed";
 }

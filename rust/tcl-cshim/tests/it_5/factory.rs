@@ -28,7 +28,14 @@ use tcl_engine_tclvm::TclVmEngine;
 #[cfg(cshim_c_tests)]
 unsafe extern "C" {
     fn IndexCache_Init(interp: *mut c_void) -> c_int;
+    fn IndexCache_Reregister(interp: *mut c_void) -> c_int;
     fn IndexCache_ChangeTable();
+}
+
+#[cfg(cshim_c_tests)]
+unsafe extern "C" fn index_cache_reregister(interp: *mut InterpState) -> c_int {
+    // SAFETY: as for `index_cache_init`.
+    unsafe { IndexCache_Reregister(interp.cast()) }
 }
 
 #[cfg(cshim_c_tests)]
@@ -38,49 +45,29 @@ unsafe extern "C" fn index_cache_init(interp: *mut InterpState) -> c_int {
     unsafe { IndexCache_Init(interp.cast()) }
 }
 
+/// A C caller's `Tcl_GetIndexFromObj` answers from the index the object
+/// already carries when the table pointer matches (`GetIndexFromObjStruct`
+/// in tclIndexObj.c, 8.6 and 9.0): after the table's first entry changes
+/// and the command that cached it is deleted, a command created later still
+/// finds `a` at index 0, while a fresh `a` no longer matches the changed
+/// table.
 #[cfg(cshim_c_tests)]
 #[test]
 fn index_cache_retains_original_table_and_survives_command_retirement() {
     let mut interp = Interp::new(TclVmEngine::new());
     // SAFETY: this linked static extension and table live for the entire process.
     unsafe { interp.load_static(index_cache_init) }.unwrap();
-    interp.eval("set ::original a; set ::temporary a").unwrap();
-    let original = interp.engine_mut().vm_mut().get_var("::original").unwrap();
-    let identity = original.native_object_identity();
-    interp.eval("original_index $::original").unwrap();
-    let (cache, origin) = original.native_index_cache().unwrap();
-    assert_eq!(origin, tcl_dialect::TclVersion::V9_0);
-    assert_eq!(original.native_object_identity(), identity);
-    assert_eq!(cache.word().unwrap().as_ref(), b"alpha");
-    assert_eq!(original.resident_string_bytes().unwrap().as_ref(), b"a");
-    interp.eval("temporary_index $::temporary").unwrap();
-    assert!(
-        interp
-            .engine_mut()
-            .vm_mut()
-            .get_var("::temporary")
-            .unwrap()
-            .native_index_cache()
-            .is_none()
-    );
+    interp.eval("set ::original a").unwrap();
+    assert_eq!(interp.eval("original_index $::original").unwrap().as_str(), Some("a"));
     // SAFETY: the extension mutates its own persistent table, with no concurrent use.
     unsafe { IndexCache_ChangeTable() };
-    assert_eq!(cache.word().unwrap().as_ref(), b"changed");
     interp
         .eval("rename original_index {}; rename temporary_index {}")
         .unwrap();
-    assert_eq!(cache.word().unwrap().as_ref(), b"changed");
-    let rebuilt = tcl_vm::Value::from_native_index_cache(
-        cache,
-        origin,
-        tcl_registry::InvocationDialect::for_version(origin),
-        None,
-    )
-    .unwrap();
-    let bytes = rebuilt
-        .native_string_bytes(tcl_syntax::native_string::NativeStringProtocol::C(origin))
-        .unwrap();
-    assert_eq!(bytes.as_ref(), b"changed");
+    // SAFETY: as above; the extension registers one more command.
+    unsafe { interp.load_static(index_cache_reregister) }.unwrap();
+    assert_eq!(interp.eval("probe_index $::original").unwrap().as_str(), Some("a"));
+    assert!(interp.eval("probe_index [string index xa 1]").is_err());
 }
 
 /// `made ?arg …?` — answers with its arguments as a list.
