@@ -10,7 +10,7 @@ Every hand-written Rust file under `rust/` and `runtime/rust/` is at most 2,000 
 
 The owner asked for a deep evaluation of the tests: what overlaps, and which failing tests are worth making pass. Method, inventory, verdicts and the families each session triages are in [`docs/work/test-scrub/README.md`](../test-scrub/README.md). Every session finishes what it has in hand and then writes its ledger before any further fix; nothing is deleted until the coordinator has sampled the ledger. At 22:40 UTC twelve of thirteen ledgers are signed off (3,252 failing tests: 62% hold behaviour worth making pass, 25% fail because the test is wrong, 9% are re-pointed, 4% go; about sixty wrong answers found, fixed before missing facts). First reading: 37,567 tests, 3,743 failing by the morning's lists; of the failing, 564 cite tclsh or Jim, 497 cite an issue or contract, 2,333 run Tcl source and cite nothing, 349 hold an internal structure.
 
-## Scoreboard, 18 November 2026, 01:55 UTC
+## Scoreboard, 18 November 2026, 02:55 UTC
 
 Failing tests by area on the restructured tree, from the successor sessions' baselines and first pushes.
 
