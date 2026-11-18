@@ -164,3 +164,35 @@ fn a_literal_priority_is_inventory_and_a_variable_one_is_not() {
 ```
 
 BIG-IP check: whether the device honours a variable-valued top-level `priority` is not covered by TS-01..TS-10; the unproved-world model does not claim it either way.
+
+## Blocked: the open-pack notice test (second assertion)
+
+Ruled 18 November (coordinator). A SpecTcl pack is a declaration document with its own grammar: a root word is a property or declaration, so `W123` is the wrong diagnostic and the document grammar abstains from it. The right signal is the pack's own notice, the one the loader gives for a saved pack (`unknown property ... dropped`). An open, unsaved pack shows what the loader says about the buffer as it stands: the pack check runs over the buffer text (`tcl_spectcl::pack::load_in_memory`) and its notices are published at buffer positions; a notice computed from the saved image is dropped once the buffer differs. Wrong answer of the tool path: `tcl-lsp analyze` with dialect `spectcl` prints `W123` for a root word the bare `Analyser` correctly leaves alone (asked of analyser-binding).
+
+The test's first half stands. The second half would wait on the buffer's own notice for the new word instead of a non-SPECTCL analyser finding:
+
+```rust
+let edited = format!("{pack}\n{ADDED}\n");
+lsp.replace_document(&uri, 2, &edited);
+let names_the_added_word = |diags: &[Value]| {
+    diags.iter().any(|d| {
+        d.get("code").and_then(Value::as_str) == Some("SPECTCL")
+            && d.get("message")
+                .and_then(Value::as_str)
+                .is_some_and(|m| m.contains(ADDED))
+    })
+};
+let after = lsp.await_diagnostics_settled(&uri, std::time::Duration::from_secs(20), |diags| {
+    names_the_added_word(diags)
+});
+assert!(
+    names_the_added_word(&after),
+    "the loader must have its say on the edited buffer: {after:#?}"
+);
+assert!(
+    has_notice(&after),
+    "…and the notice for the earlier line must survive alongside it: {after:#?}"
+);
+```
+
+The barrier is still a fact of the edited text, because the added word cannot be named by any notice computed from the buffer it replaced. Blocked on the owner's approval of the test-body edit and on the buffer-notice product work (check over the buffer text in `tcl-spectcl`, publication in the server).
