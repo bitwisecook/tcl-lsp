@@ -180,12 +180,14 @@ fn catch_dynamic_body_records_coarse_fallback() {
     // A catch body that contains a `$`/`[` substitution cannot be walked
     // precisely (`handle_catch` bails on a dynamic token), so the walker relies
     // on the coarse interpreter-dispatch flag rather than per-name tags. The
-    // `catch` call is itself a non-frameless dispatch, so the fallback is always
-    // recorded — the conservative safety net for the imprecise body.
-    let r = cfg_result("catch {if {$c} {upvar 1 cv v}}");
+    // body stays one opaque `catch` call only without the unit's flattening,
+    // and the flow graph puts a barrier ahead of it that may write any name,
+    // so the fallback is a definite dispatch — the conservative safety net for
+    // the imprecise body.
+    let r = opaque_catch_result("catch {if {$c} {upvar 1 cv v}}");
     assert!(
-        r.has_call_fallback(),
-        "a dynamic catch body still records the coarse call-dispatch fallback"
+        r.has_fallback(),
+        "a dynamic catch body records the definite dispatch fallback"
     );
     // The dynamic body was not walked, so its alias is not individually tagged —
     // the coarse fallback above is what keeps the result sound.

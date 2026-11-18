@@ -23,18 +23,17 @@ edited.
 
 ## Status, 18 November 07:00 UTC
 
-Of 220 rows: 31 open with values, 163 routed to the owner of their cause (analyser-binding 101,
-dataflow-optimiser 27, taint 21, the dataflow issue session 8, analysis-performance 3, class-facts 3),
-17 repaired and failing on a routed cause, 8 fixed, 1 deleted. The status column names each owner.
+Of 220 rows: 28 open with values, 165 routed to the owner of their cause (analyser-binding 103, dataflow-optimiser 27, taint 21, dataflow issue session 8, class-facts 3, analysis-performance 3),
+17 repaired and failing on a routed cause, 9 fixed, 1 deleted. The status column names each owner.
 
 ## Verdicts
 
 | Verdict | Tests |
 | --- | ---: |
 | KEEP-ORACLE | 128 |
-| KEEP-CONTRACT | 31 |
+| KEEP-CONTRACT | 30 |
 | KEEP-F5 | 30 |
-| FIX-FIXTURE | 16 |
+| FIX-FIXTURE | 17 |
 | FIX-EXPECTATION | 8 |
 | REWRITE | 6 |
 | RETIRE | 1 |
