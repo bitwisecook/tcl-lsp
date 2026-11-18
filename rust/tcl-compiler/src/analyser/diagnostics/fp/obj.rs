@@ -458,9 +458,12 @@ fn fp_obj_06_private_proc_body_analysed() {
 
 // FP-OBJ-07 — cmd-sub namespaced ensemble [ns_func]::method is dispatch, not stray word
 
+// tclsh 8.4.20-9.1.0: `proc sub::work` raises `unknown namespace` unless
+// `::ns::sub` exists; with it, `[::ns::dispatch]::work hello` returns hello.
 const FP_OBJ_07_REPRO: &str = "\
 namespace eval ::ns {
     proc dispatch {} { return ::ns::sub }
+    namespace eval sub {}
     proc sub::work {arg} { return $arg }
 }
 [::ns::dispatch]::work hello
