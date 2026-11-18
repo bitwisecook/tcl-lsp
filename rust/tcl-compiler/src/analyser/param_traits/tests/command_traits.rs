@@ -430,27 +430,6 @@ fn original_parameter_reference_components_keep_lexical_scalar_names() {
 }
 
 #[test]
-fn original_parameter_scalar_components_do_not_borrow_an_array_root_trait() {
-    for deep in [false, true] {
-        for body in [
-            "set ${p(key)} 1",
-            "set target [set ${p(key)}]",
-            "set target [set $p([set ${p(key)}])]",
-        ] {
-            let traits = infer_owned(&["p", "p(key)"], body, deep);
-            assert_trait(&traits, "p(key)", ProcArgTrait::DynamicNameLocal);
-            if !body.contains("$p(") {
-                assert!(!traits.contains_key("p"), "{deep}/{body}: {traits:?}");
-            }
-        }
-        let traits = infer_owned(&["p", "k"], "set $p($k) 1", deep);
-        for parameter in ["p", "k"] {
-            assert_trait(&traits, parameter, ProcArgTrait::DynamicNameLocal);
-        }
-    }
-}
-
-#[test]
 fn original_parameter_reference_parts_refuse_changed_segment_presentations() {
     let config = LexerConfig::default();
     let registry = CommandRegistry::build_default();

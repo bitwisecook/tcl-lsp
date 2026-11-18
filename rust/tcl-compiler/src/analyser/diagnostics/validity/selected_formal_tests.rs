@@ -87,3 +87,22 @@ proc target {{a b c}} {}";
         analysis.diagnostics
     );
 }
+
+#[test]
+fn a_jim_scalar_formal_beside_its_own_element_formal_raises_at_the_call() {
+    // jimsh 0.84 accepts `proc h {p p(key)} {...}`, but `h 1 2` raises
+    // `can't set "p(key)": variable isn't array` (p is bound as a scalar
+    // first), so a read after the call is unreached. With a plain formal list
+    // the call returns and the later read of an unset name warns.
+    let raising = "proc h {p p(key)} {return $p}\nh 1 2\nputs $never\n";
+    let returning = "proc h {p} {return $p}\nh 1\nputs $never\n";
+    let w210 = |source: &str| {
+        Analyser::new()
+            .analyse(source, "jimtcl")
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W210 && d.message.contains("'never'"))
+    };
+    assert!(!w210(raising), "the read after a raising call is unreached");
+    assert!(w210(returning), "the read after a returning call warns");
+}
