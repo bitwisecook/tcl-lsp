@@ -1,0 +1,236 @@
+    thread 'analyser::diagnostics::fp::opt::fp_opt_01_genuine_simplification_still_fires' (19602) panicked at rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs:146:5:
+    FP-OPT-01 TP: identity simplification on INT loop counter must fire O110; rewrites=[]
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'analyser::diagnostics::fp::ds::fp_ds_09_interproc_empty_dict_fires' (19604) panicked at rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs:383:5:
+    FP-DS-09 TP: caller-passed empty dict must propagate to callee dict-with key check; emitted: ["W214"]
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'analyser::diagnostics::fp::opt::fp_opt_09_provably_numeric_var_still_fires' (19603) panicked at rust/tcl-compiler/src/analyser/diagnostics/fp/opt.rs:443:5:
+    FP-OPT-09 TN: provably-numeric identity simplification must fire O110; rewrites=[]
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'analyser::diagnostics::fp::ds::fp_ds_09_interproc_mixed_callers_conservative_silent' (19605) panicked at rust/tcl-compiler/src/analyser/diagnostics/fp/ds.rs:407:5:
+    FP-DS-09: the empty-dict caller reads `missing` unbound; emitted: ["W214"]
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'analyser::diagnostics::helpers::exact_cell_diagnostic_tests::procedure_namespace_effects_require_original_selected_cells' (19608) panicked at rust/tcl-compiler/src/analyser/diagnostics/helpers/exact_cell_diag
+    selected entered namespace write
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'analyser::diagnostics::tests::var_command::dispatch_tables::dispatch_table_navigation_does_not_borrow_another_frames_store' (19613) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests/var_command/dis
+    [SignatureCommandInvocation { original_callback_signature_lookup: None, original_callback_prefix: None, original_lookup: Some(OriginalCommandLookup { input: OriginalWord(SignatureSourceNameKey { original: NativeWord 
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'analyser::diagnostics::tests::var_command::method_dispatch::w308_tp_copy_propagated_handle_with_a_trailing_rename_still_flags' (19615) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests/var_command/
+    the class is alive at the dispatch, so the unknown method must flag; got [Diagnostic { subject: None, code: W307, span: Span { start: 107, end: 109 }, message: "Non-literal command name — cannot statically analyse"
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'analyser::diagnostics::tests::dataflow::existence_folds::info_exists_does_not_fold_a_place_a_read_trace_may_bind' (19609) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests/dataflow/existence_folds.
+    an untraced never-set local still folds
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'analyser::diagnostics::tests::dataflow::unused_bindings::w211_reads_an_existence_test_by_the_element_it_names' (19612) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests/dataflow/unused_bindings.rs:
+    assertion `left == right` failed: proc p {k} { set a(x) 1; if {[info exists a(y)]} {puts yes} else {puts no} }
+    p x
+
+    thread 'common_aot_plan::tests::declared_arguments_refuse_missing_owners_changed_contents_and_future_callers' (19633) panicked at rust/tcl-compiler/src/common_aot_plan/tests.rs:1154:5:
+    assertion failed: make_plan(&unit).declared_arguments().any(|(_, decision)|
+            matches!(decision, DeclaredArgumentDecision::Selected(_)))
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+    thread 'common_aot_plan::tests::add_call_and_integer_formals_receive_common_proofs' (19632) panicked at rust/tcl-compiler/src/common_aot_plan/tests.rs:927:5:
+    assertion `left == right` failed: SSA cells: [Activation { identity: "::add/source:1/site:0", simple: NameBytes([98]) }, Activation { identity: "::add/source:1/site:0", simple: NameBytes([99]) }]
+    BlockId(0)/18446744073709551615: activation=Some("::add/source:1/site:0"), topology=true, observers=false, dynamic=false
+    read "$b" at Span { start: 31, end: 33 }: residual=Closed, activations=[(Some("::add/source:1/site:0"), true, false, false)]
+    thread 'def_use::tests::return_reads_preserve_both_producers_across_alias_retargeting' (19635) panicked at rust/tcl-compiler/src/def_use.rs:818:56:
+    unambiguous producer
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'object_types::tests::by_scope_cross_unit_call_edges_still_bind' (19637) panicked at rust/tcl-compiler/src/object_types/tests.rs:1329:5:
+    assertion `left == right` failed: the proc-return edge binds in the assigning unit; by_scope={(Frame(Body(ProcedureId { scope: 1, ordinal: 0 })), "p"): {"::Pin"}}
+      left: []
+     right: ["::Pin"]
+    thread 'object_types::tests::retained_procedure_factory_candidates_do_not_require_an_executable_unit' (19640) panicked at rust/tcl-compiler/src/object_types/tests.rs:587:9:
+    assertion `left == right` failed: package require struct::graph
+    proc build {} {struct::graph g; g node insert root}
+    build
+    thread 'object_types::tests::normal_callable_return_types_do_not_require_a_tcloo_class' (19641) panicked at rust/tcl-compiler/src/object_types/tests.rs:489:9:
+    assertion `left == right` failed: package require struct::tree
+    proc make {} {return [struct::tree]}
+    make
+    thread 'optimiser::elimination::tests::original_adce_keeps_actual_remote_stores_after_local_consumers_disappear' (19643) panicked at rust/tcl-compiler/src/optimiser/elimination/tests.rs:715:9:
+    actual remote target retained for tcl8.4
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'optimiser::propagation::tests::proc_folds::o103_folds_implicit_return_zero_arg_proc' (19647) panicked at rust/tcl-compiler/src/optimiser/propagation/tests/proc_folds.rs:443:5:
+    expected applicable O103 folding [pi] to 3 (implicit `set` return), got []; summary(pure,fold,barrier,unknown,global,return)=Some((false, false, false, false, false, None)), body=Some(([(BlockId(0), [Discriminant(1)]
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'optimiser::manager::tests::a_stub_stating_its_own_frame_keeps_a_branch_foldable_across_its_call' (19645) panicked at rust/tcl-compiler/src/optimiser/manager/tests.rs:52:5:
+    assertion failed: folds("db_query {sql} -frame own")
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'optimiser::structure_elimination::tests::original_sccp_environment_withdraws_rebound_source_names_despite_display_collisions' (19649) panicked at rust/tcl-compiler/src/optimiser/structure_elimination.rs:1241:
+    assertion failed: reads.iter().all(|read| read.version.is_some())
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'sccp::original_value_facts::tests::value_solver::global_alias_contents_are_precise_until_an_actual_reentry_dependency' (19655) panicked at rust/tcl-compiler/src/sccp/original_value_facts/tests/value_solver.rs
+    an unobserved literal store followed immediately by its read is precise
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'sccp::original_value_facts::tests::semantic_projection::point_expression_environment_preserves_alias_spelling_and_retargeting' (19653) panicked at rust/tcl-compiler/src/sccp/original_value_facts/tests/semanti
+    source alias must remain available: {}
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'registry_invocation::source_structure::original_body_syntax::tests::actual_factorial_compiler_syntax_does_not_borrow_native_attachment' (19652) panicked at rust/tcl-compiler/src/registry_invocation/source_str
+    called `Option::unwrap()` on a `None` value
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'ssa::cell_resolution_tests::exact_reads_keep_alias_retargeting_within_one_word_separate' (19658) panicked at rust/tcl-compiler/src/ssa/cell_resolution_tests.rs:844:5:
+    assertion failed: pairs[0].iter().all(|read| read.version.is_some())
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'ssa::cell_resolution_tests::incoming_slot_projection_keeps_distinct_call_activations' (19659) panicked at rust/tcl-compiler/src/ssa/cell_resolution_tests.rs:875:5:
+    separate callers retain separate physical owners: [SsaIncomingSlotRead { source: SourceSite { span: Span { start: 26, end: 28 }, provenance: Source }, slot: "n", cells: [CellIdentity { owner: Activation("::p/source:1
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'ssa::cell_resolution_tests::name_only_read_projection_requires_reached_consensus' (19661) panicked at rust/tcl-compiler/src/ssa/cell_resolution_tests.rs:1277:17:
+    assertion failed: read.version.is_some()
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'ssa::cell_resolution_tests::nested_contents_store_does_not_borrow_an_earlier_ssa_version' (19664) panicked at rust/tcl-compiler/src/ssa/cell_resolution_tests.rs:1246:17:
+    assertion failed: view.read_spelling("x").is_none()
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'ssa::cell_resolution_tests::scalar_alias_write_after_unset_reaches_both_spellings' (19665) panicked at rust/tcl-compiler/src/ssa/cell_resolution_tests.rs:797:35:
+    alias store contents definition: BlockId(0) entry_1
+      #0 Span { start: 11, end: 20 } uses=[] defs=[]
+      #1 Span { start: 22, end: 33 } uses=[] defs=[]
+    thread 'ssa::cell_resolution_tests::terminator_read_consensus_declines_retargeted_source_spelling' (19667) panicked at rust/tcl-compiler/src/ssa/cell_resolution_tests.rs:1150:5:
+    assertion failed: pairs[0].iter().all(|read| read.version.is_some())
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'taint::source_context::authored_body::controls::original_sinking_helper_uses_only_current_authored_may_schema' (19669) panicked at rust/tcl-compiler/src/taint/source_context/authored_body.rs:234:9:
+    assertion failed: warnings.iter().any(|warning|
+            warning.code == tcl_core_types::DiagCode::T100 &&
+                warning.sink_command == "eval")
+    thread 'type_infer::tests::expression_types::written_container_reads_keep_raw_and_braced_variable_identity' (19672) panicked at rust/tcl-compiler/src/type_infer/tests/expression_types.rs:123:9:
+    assertion `left == right` failed: proc f {raw} {set items [list [expr {$raw<<1}]]; return [lindex $items 0]}; f 7
+      left: Some(String)
+     right: Some(Int)
+    thread 'value_transfer_witnesses::catch::a_catch_script_that_is_not_brace_quoted_text_is_not_the_script_it_runs' (19675) panicked at rust/tcl-compiler/tests/it_2/value_transfer_witnesses/catch.rs:654:13:
+    assertion `left == right` failed: tcl8.4: c
+      left: None
+     right: Some(Overdefined)
+    thread 'value_transfer_witnesses::cell_updates::value_position_words_are_read_as_tcl_substitutes_them' (19679) panicked at rust/tcl-compiler/tests/it_2/value_transfer_witnesses/cell_updates.rs:91:9:
+    assertion `left == right` failed
+      left: Overdefined
+     right: Const(String("a\t"))
+    thread 'value_transfer_witnesses::cell_updates::a_cell_update_reads_its_words_as_tcl_substitutes_them' (19677) panicked at rust/tcl-compiler/tests/it_2/value_transfer_witnesses/cell_updates.rs:74:13:
+    assertion `left == right` failed: tcl8.4: proc p {} {set x 1; set s a; append s {$x}; set t $s; puts $t}
+    p
+
+    thread 'value_transfer_witnesses::expressions::format_folds_through_the_shared_core' (19685) panicked at rust/tcl-compiler/tests/it_2/value_transfer_witnesses.rs:173:47:
+    the variable
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'value_transfer_witnesses::expressions::an_invalid_octal_condition_decides_nothing' (19683) panicked at rust/tcl-compiler/tests/it_2/value_transfer_witnesses/expressions.rs:516:13:
+    assertion `left == right` failed: tcl9.0: proc p {} {set x 08; if {$x} {puts yes} else {puts no}}
+    p
+    : []
+    thread 'value_transfer_witnesses::preserving_outcomes::const_writes_only_an_absent_place' (19687) panicked at rust/tcl-compiler/tests/it_2/value_transfer_witnesses/preserving_outcomes.rs:317:9:
+    assertion `left == right` failed: tcl9.0: the absent place takes the value
+      left: None
+     right: Some("5")
+    thread 'value_transfer_witnesses::procedure_summaries::a_statement_that_certainly_raises_ends_the_exit_reading' (19689) panicked at rust/tcl-compiler/tests/it_2/value_transfer_witnesses/procedure_summaries.rs:593:13:
+    assertion `left == right` failed: tclsh8.5:
+    proc c {} {set n foo; ; return 0}
+    puts [c]
+    thread 'value_transfer_witnesses::try_and_errors::a_handler_is_thrown_to_from_where_the_body_leaves' (19724) panicked at rust/tcl-compiler/tests/it_2/value_transfer_witnesses/try_and_errors.rs:615:13:
+    tcl8.6: every path into the read binds it
+    proc p {} {
+        set x 1
+    thread 'value_transfer_witnesses::try_and_errors::try_handlers_run_as_the_registry_chain_reads_them' (19751) panicked at rust/tcl-compiler/tests/it_2/value_transfer_witnesses/try_and_errors.rs:401:13:
+    tcl8.6: every path into the read binds it
+    proc p {} {
+        try {error boom} on error {} {set x 1} on error {} {return} finally {puts $x}
+    thread 'fp_depth::opt_depth::o110_identity_on_provably_int_loop_counter_fires' (19759) panicked at rust/tcl-compiler/tests/it_3/fp_depth.rs:814:9:
+    identity simplification on a provably-INT counter must fire O110; emitted ["T100", "T100", "T101"]
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'value_transfer_witnesses::try_and_errors::a_finally_resumes_what_it_interrupted' (19722) panicked at rust/tcl-compiler/tests/it_2/value_transfer_witnesses/try_and_errors.rs:557:13:
+    tcl8.6: every path into the read binds it
+    proc p {} {
+        try { try {return ok} finally {set x 1} } finally {puts $x}
+    thread 'value_transfer_witnesses::declared_routes::a_no_match_keeps_the_store_it_preserves' (19681) panicked at rust/tcl-compiler/tests/it_2/value_transfer_witnesses/declared_routes.rs:647:13:
+    tcl8.4: proc r {} {
+        set v before
+        puts [regexp {x} y v]
+    thread 'optimiser::dead_code::a_conditional_writer_does_not_kill_the_store_it_may_preserve' (19784) panicked at rust/tcl-compiler/tests/it_3/optimiser/dead_code.rs:215:5:
+    proc p {} {
+        set a before
+        set b before
+    thread 'optimiser::nested_reads_and_writes::a_condition_substitution_reads_the_frames_variables' (19786) panicked at rust/tcl-compiler/tests/it_3/optimiser/nested_reads_and_writes.rs:264:5:
+    assertion `left == right` failed: only the decided query folds, and the store it read stays: []
+      left: "proc p {} {\n  set x 1\n  if {[info exists x]} { puts yes }\n}\np\n"
+     right: "proc p {} {\n  set x 1\n  if {1} { puts yes }\n}\np\n"
+    thread 'optimiser::nested_reads_and_writes::a_structural_body_is_not_the_enclosing_statements_surface' (19788) panicked at rust/tcl-compiler/tests/it_3/optimiser/nested_reads_and_writes.rs:216:5:
+    the proc's own local is not a caller-frame read: ["W210"]
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'taint::object_instance_sources::object_instance_taint_sources::a_caught_early_call_does_not_withdraw_the_receiver_from_a_later_call' (19790) panicked at rust/tcl-compiler/tests/it_3/taint/object_instance_sour
+    tcl8.4: the call after the constructor evaluates the entry's text
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'taint::object_instance_sources::object_instance_taint_sources::rename_moves_local_and_global_instance_class_facts' (19792) panicked at rust/tcl-compiler/tests/it_3/taint/object_instance_sources.rs:654:9:
+    registry command-table rename must move global callback class facts
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'taint::object_instance_sources::object_instance_taint_sources::top_level_widget_is_a_source_inside_callback_procedure' (19794) panicked at rust/tcl-compiler/tests/it_3/taint/object_instance_sources.rs:83:9:
+    top-level widget commands remain visible in callback procedures: []
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'taint::propagation::interprocedural_colours::helper_list_wrapper_eval_still_fires' (19796) panicked at rust/tcl-compiler/tests/it_3/taint/propagation.rs:200:9:
+    assertion `left != right` failed
+      left: []
+     right: []
+    thread 'taint::propagation::interprocedural_taint::tainted_argument_into_sinking_helper_warns' (19798) panicked at rust/tcl-compiler/tests/it_3/taint/propagation.rs:126:9:
+    assertion `left != right` failed
+      left: []
+     right: []
+    thread 'taint::sources::tcl_taint_sources::eval_braced_nested_command_substitution_reaches_inner_sink' (19802) panicked at rust/tcl-compiler/tests/it_3/taint/sources.rs:79:13:
+    a variable in a nested statically-headed eval reaches its sink: "set x [gets stdin]\neval {[eval $x]}": []
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'taint::sources::tcl_taint_sources::escaped_static_command_head_obeys_release_grammar' (19800) panicked at rust/tcl-compiler/tests/it_3/taint/sources.rs:113:9:
+    Tcl 8.6 consumes two hex digits, so this command is eval
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'lsp_shimmer_conditional_source::a_compiled_literal_length_is_a_pure_string_before_9_1' (19766) panicked at rust/tcl-compiler/tests/it_3/lsp_shimmer_conditional_source.rs:208:9:
+    assertion `left == right` failed: V9_1: proc p {} {set n [string length abc]; lindex $n 0}
+    p
+
+    thread 'taint::sources::tcl_taint_sources::quoted_whole_command_substitution_reaches_inner_sink' (19806) panicked at rust/tcl-compiler/tests/it_3/taint/sources.rs:98:9:
+    quotes do not suppress a whole command substitution in command position: []
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'taint::sources::tcl_taint_sources::namespace_shadowed_catch_cannot_hijack_nested_analysis_scaffolding' (19804) panicked at rust/tcl-compiler/tests/it_3/taint/sources.rs:354:9:
+    a user proc named catch must not suppress the real nested eval sink: []
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'taint::sources::tcl_taint_sources::whole_command_substitution_classifies_each_executed_inner_sink' (19808) panicked at rust/tcl-compiler/tests/it_3/taint/sources.rs:199:13:
+    every inner command receives only its own substituted arguments: "set x [gets stdin]\n[puts safe; eval $x]": []
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'taint_depth::interproc_depth::tainted_arg_into_helper_with_internal_sink_warns' (19814) panicked at rust/tcl-compiler/tests/it_4/taint_depth.rs:1887:9:
+    assertion failed: ws.iter().any(|w| w.sink_command == "eval")
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'caller_frame_effects::uplevel_of_an_unreadable_script_blinds_the_callers_frame_not_its_own' (19811) panicked at rust/tcl-compiler/tests/it_4/caller_frame_effects.rs:313:5:
+    the callee's own local is genuinely unread; got {}
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+    thread 'name_lookup_issue_witnesses::an_unknown_array_key_observes_possible_elements' (19812) panicked at rust/tcl-compiler/tests/it_4/name_lookup_issue_witnesses.rs:139:9:
+    tcl8.4: distinct literal key: []
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
