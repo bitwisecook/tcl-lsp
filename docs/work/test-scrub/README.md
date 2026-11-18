@@ -302,7 +302,7 @@ The second pass (overlap among passing tests: 88 exact-copy groups, 385 overlap 
 
 ## Status of the rows, 18 November 2026, 08:55 UTC
 
-From `tools/ledger_status.py` (a cell that is not one of the seven words counts as open).
+From `tools/ledger_status.py` (a cell counts by its first word, so `routed (analyser-binding)` is routed; a cell that does not start with one of the seven words counts as open).
 
 | Ledger | open | repaired | exposed | fixed | deleted | blocked | routed | Rows |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -319,8 +319,8 @@ From `tools/ledger_status.py` (a cell that is not one of the seven words counts 
 | server-e2e-db | 157 | 14 | 1 | 19 | 0 | 11 | 25 | 227 |
 | taint | 135 | 5 | 34 | 10 | 0 | 0 | 1 | 185 |
 | tk-oo | 58 | 9 | 0 | 3 | 0 | 0 | 0 | 70 |
-| values | 191 | 18 | 1 | 9 | 1 | 0 | 0 | 220 |
-| **all** | 2746 | 165 | 147 | 104 | 86 | 81 | 61 | 3390 |
+| values | 22 | 18 | 1 | 9 | 1 | 0 | 169 | 220 |
+| **all** | 2577 | 165 | 147 | 104 | 86 | 81 | 230 | 3390 |
 
 ## Progress
 

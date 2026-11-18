@@ -47,8 +47,9 @@ def read_statuses(path: Path) -> tuple[Counter[str], list[tuple[int, str]]]:
             continue
         value = row[column].strip() if column is not None and len(row) > column else ""
         value = value or "open"
-        if value in STATUSES:
-            counts[value] += 1
+        word = value.split()[0].rstrip(":;,")
+        if word in STATUSES:
+            counts[word] += 1
         else:
             counts["open"] += 1
             unknown.append((number, value))

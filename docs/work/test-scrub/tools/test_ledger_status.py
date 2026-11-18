@@ -32,6 +32,21 @@ def test_statuses_are_counted_and_strangers_reported(tmp_path):
     assert unknown == [(5, "fixture repaired abc; passes")]
 
 
+def test_a_status_word_may_carry_its_owner(tmp_path):
+    write(
+        tmp_path / "c.tsv",
+        HEADER + "\tstatus",
+        [
+            "c\tlib\ta\tKEEP-ORACLE\ts\te\t\trouted (analyser-binding)",
+            "c\tlib\tb\tKEEP-ORACLE\ts\te\t\tblocked: owner approval",
+            "c\tlib\tc\tKEEP-ORACLE\ts\te\t\trerouted elsewhere",
+        ],
+    )
+    counts, unknown = ls.read_statuses(tmp_path / "c.tsv")
+    assert counts == {"routed": 1, "blocked": 1, "open": 1}
+    assert unknown == [(4, "rerouted elsewhere")]
+
+
 def test_table_skips_side_files_and_check_fails_on_a_stranger(tmp_path, capsys):
     write(tmp_path / "area.tsv", HEADER + "\tstatus", ["c\tlib\ta\tMERGE\ts\te\tsurv\tdeleted"])
     write(tmp_path / "area-clusters.tsv", "cluster\tsize", ["x\t2"])
