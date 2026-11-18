@@ -23,7 +23,7 @@ edited.
 
 ## Status, 18 November 07:00 UTC
 
-Of 220 rows: 22 open with values, 3 exposed (taint's rows, now failing on a values-family cause), 167 routed to the owner of their cause (analyser-binding 118, dataflow-optimiser 31, dataflow issue session 8, taint 4, class-facts 3, analysis-performance 3),
+Of 220 rows: 22 open with values, 1 exposed (taint's rows, now failing on a values-family cause), 169 routed to the owner of their cause (analyser-binding 118, dataflow-optimiser 33, dataflow issue session 8, taint 4, class-facts 3, analysis-performance 3),
 18 repaired and failing on a routed cause, 9 fixed, 1 deleted. The status column names each owner.
 
 ## Verdicts
@@ -82,26 +82,29 @@ What is worth fixing, one line each; the wrong rewrites first.
    folded away; the original prints 1, the rewrite 0 (8.4.20, 8.6.18, 9.0.4).
 3. **Wrong rewrite, fixed in 88e66f2577:** `expr {1 << 70}` is folded under 8.4, where a shift count beyond the word
    width is undefined in C and differs by build (ruling of 17 November: O101 declines there).
-4. **Wrong diagnostic, fixed 18 November (registry compiled-constant fact):** in a procedure body S100 reports an
+4. **Wrong rewrite (found 18 November):** under 8.4 `proc f {args} {return $args}; puts [f # a]`
+   becomes `puts {{#} a}`: the variadic seed renders the list with 8.5's quoting of a leading `#`; tclsh
+   8.4.20 prints `# a` for the original (`wrong-rewrite-args-leading-hash`, dataflow-optimiser).
+5. **Wrong diagnostic, fixed 18 November (registry compiled-constant fact):** in a procedure body S100 reports an
    int-to-list conversion for `set n [string length abc]; lindex $n 0`; the bytecode compiler pushes
    a literal there from 8.4 to 9.0, a pure string (`shimmer-compiled-literal-representation`, values).
-5. A declined declared route is still folded by O129 (outputs agree on the releases present; the
+6. A declined declared route is still folded by O129 (outputs agree on the releases present; the
    route did not prove it).
-6. Procedure-body statements with substituted words define nothing (types, values, shimmer, escape).
-7. A rule procedure called at the iRules top level has no definitions.
-8. Commands in an iRules `when` body are unbound (S110 payload rows, handler types).
-9. `foreach` over a literal list is not enumerated.
-10. `switch` and `case` select nothing.
-11. Scripts run at another frame (`uplevel`, alias to `uplevel`/`eval`) are unread.
-12. Writes through `upvar 1 $name` do not reach the callee's summary.
-13. The `catch` result and options variables have no place; catch and try bodies transfer no state.
-14. Flow-sensitive untrust after an unknown head (dataflow), then the restated fixtures.
-15. Edge refinements in `if` arms and merges.
-16. Escape walker: the `eval` join, a `try` handler, a `switch` arm over-tagging, literal tracking of
+7. Procedure-body statements with substituted words define nothing (types, values, shimmer, escape).
+8. A rule procedure called at the iRules top level has no definitions.
+9. Commands in an iRules `when` body are unbound (S110 payload rows, handler types).
+10. `foreach` over a literal list is not enumerated.
+11. `switch` and `case` select nothing.
+12. Scripts run at another frame (`uplevel`, alias to `uplevel`/`eval`) are unread.
+13. Writes through `upvar 1 $name` do not reach the callee's summary.
+14. The `catch` result and options variables have no place; catch and try bodies transfer no state.
+15. Flow-sensitive untrust after an unknown head (dataflow), then the restated fixtures.
+16. Edge refinements in `if` arms and merges.
+17. Escape walker: the `eval` join, a `try` handler, a `switch` arm over-tagging, literal tracking of
     `set $target`.
-17. Global summaries: conditional alias joins, a renamed `set` behind an alias, an alias that
+18. Global summaries: conditional alias joins, a renamed `set` behind an alias, an alias that
     creates its namespace, a dynamic local linked to the global named "".
-18. Smaller single rows: increment amount words, release-dependent `try` handler numerals, stub
+19. Smaller single rows: increment amount words, release-dependent `try` handler numerals, stub
     frame effects, chained dead-list writes (O130), the `split ""` fold.
 
 ## Rulings of 17 November on the ten undecided rows
