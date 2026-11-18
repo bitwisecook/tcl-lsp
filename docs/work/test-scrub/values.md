@@ -23,7 +23,7 @@ edited.
 
 ## Status, 18 November 07:00 UTC
 
-Of 220 rows: 28 open with values, 165 routed to the owner of their cause (analyser-binding 103, dataflow-optimiser 27, taint 21, dataflow issue session 8, class-facts 3, analysis-performance 3),
+Of 220 rows: 26 open with values, 167 routed to the owner of their cause (analyser-binding 103, dataflow-optimiser 28, taint 22, dataflow issue session 8, class-facts 3, analysis-performance 3),
 17 repaired and failing on a routed cause, 9 fixed, 1 deleted. The status column names each owner.
 
 ## Verdicts

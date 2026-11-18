@@ -253,6 +253,19 @@ impl LatticeDriver<'_> {
             return Some(run);
         }
         let head = seg.name();
+        // A head the module rebinds is not the registry's command, whichever
+        // source owns the call.
+        if !self.trusted(head) {
+            return Some(ScriptRun {
+                head: head.to_owned(),
+                route: None,
+                answer: LiftedAnswer::Declined(DeclineReason::RebindingSuspected),
+                writes: Vec::new(),
+                binding: binding_of(head, head),
+                rebound: true,
+                procedure: false,
+            });
+        }
         if let Some(module) = self.module {
             // A supplied Module is an actual-source ingress. Missing child
             // ownership cannot reopen the standalone catalogue route.
@@ -289,17 +302,6 @@ impl LatticeDriver<'_> {
                     lattice,
                     under,
                 )
-            });
-        }
-        if !self.trusted(head) {
-            return Some(ScriptRun {
-                head: head.to_owned(),
-                route: None,
-                answer: LiftedAnswer::Declined(DeclineReason::RebindingSuspected),
-                writes: Vec::new(),
-                binding: binding_of(head, head),
-                rebound: true,
-                procedure: false,
             });
         }
         let cooked = self.cooked_args(seg);
