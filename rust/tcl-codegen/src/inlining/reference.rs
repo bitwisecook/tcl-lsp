@@ -472,6 +472,18 @@ mod tests {
                 "expr {\"$x\" eq {a}}",
                 Err(Decline::Expression(Open::OpenRead)),
             ),
+            // A structured `if` evaluates its conditions and runs its arms,
+            // each answered at its own site.
+            ("if {$x < 0} {set r neg} else {set r pos}", Ok(())),
+            (
+                "if {[string length $x]} {set r a} else {set r b}",
+                Err(Decline::Expression(Open::CommandSubstitution)),
+            ),
+            (
+                "if {$::g} {set r a} else {set r b}",
+                Err(Decline::Expression(Open::ForeignOperand)),
+            ),
+            ("if {$x < 0} {puts $x}", Err(Decline::Callback)),
             // Unbraced, the words are substituted before `expr` parses them.
             ("expr $x", Err(Decline::Callback)),
             ("set ::g $x", Err(Decline::ForeignVariables)),

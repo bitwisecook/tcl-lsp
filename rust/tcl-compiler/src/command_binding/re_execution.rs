@@ -121,25 +121,24 @@ pub fn re_executable_body(
     Ok(())
 }
 
-/// The verdict on the expression an expression statement evaluates, at its
-/// site, whose invocation `tokens` records; `None` for any other statement.
+/// The verdict on the expressions an expression statement or a structured
+/// `if` evaluates, at their sites, whose invocation `tokens` records; `None`
+/// for any other statement. A structured `if`'s arms are proved as scripts of
+/// their own.
 fn expression_verdict(
     module: &Module,
     statement: &Statement,
     tokens: &CommandTokens,
     registry: &CommandRegistry,
 ) -> Option<Result<(), OpenExpression>> {
-    if !matches!(
-        statement,
+    let sites: Vec<tcl_lexer::Span> = match statement {
         Statement::AssignExpr { .. }
-            | Statement::ExprEval { .. }
-            | Statement::Return { expr: Some(_), .. }
-    ) {
-        return None;
-    }
-    let Some(bindings) = ExpressionMathBindings::for_module_statement(module, statement.span())
-    else {
-        return Some(Err(OpenExpression::Unprepared));
+        | Statement::ExprEval { .. }
+        | Statement::Return { expr: Some(_), .. } => vec![statement.span()],
+        Statement::If { clauses, .. } => {
+            clauses.iter().map(|clause| clause.condition_span).collect()
+        }
+        _ => return None,
     };
     let Some(context) = tokens
         .source_binding
@@ -149,11 +148,15 @@ fn expression_verdict(
         return Some(Err(OpenExpression::Unprepared));
     };
     let grammar = module.native_lexer_config();
-    Some(bindings.runs_only_its_arithmetic(
-        |parse| grammar.grammar_over(parse.lexer_grammar) == parse.lexer_grammar,
-        |name| plain_local(context, name),
-        |call, arity| math_function_re_executable(call, arity, registry),
-    ))
+    Some(sites.into_iter().try_for_each(|site| {
+        ExpressionMathBindings::for_module_statement(module, site)
+            .ok_or(OpenExpression::Unprepared)?
+            .runs_only_its_arithmetic(
+                |parse| grammar.grammar_over(parse.lexer_grammar) == parse.lexer_grammar,
+                |name| plain_local(context, name),
+                |call, arity| math_function_re_executable(call, arity, registry),
+            )
+    }))
 }
 
 /// Whether a resolved math function reaches one registry implementation,
@@ -416,13 +419,19 @@ fn plain_local(context: &crate::var_resolve::ResolveContext, name: &str) -> bool
         && !context.instance_vars.contains(root)
 }
 
-/// Whether the registry declares every argument of an invocation, and at least
-/// one, an expression.
+/// Whether the registry declares every argument of an invocation an
+/// expression, a body or a keyword, and at least one an expression: what it
+/// does is evaluate those expressions and run those bodies, each of which the
+/// proof answers at its own site.
 fn evaluates_only_expressions(facts: &tcl_registry::InvocationFacts) -> bool {
+    use tcl_registry::ArgRole;
     facts.arg_roles_complete
-        && !facts.arg_roles.is_empty()
         && facts
             .arg_roles
             .iter()
-            .all(|&(_, role)| role == tcl_registry::ArgRole::Expr)
+            .any(|&(_, role)| role == ArgRole::Expr)
+        && facts
+            .arg_roles
+            .iter()
+            .all(|&(_, role)| matches!(role, ArgRole::Expr | ArgRole::Body | ArgRole::Keyword))
 }
