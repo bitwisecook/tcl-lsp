@@ -1,0 +1,47 @@
+import csv,sys,subprocess,re,json,os,collections
+ledger=sys.argv[1]; mode=sys.argv[2]   # run | apply
+root='/home/user/tcl-lsp'; path=f'{root}/docs/work/test-scrub/ledger/{ledger}.tsv'
+out=f'/tmp/truth-{ledger}.json'
+rows=list(csv.reader(open(path,newline=''),delimiter='\t',quoting=csv.QUOTE_NONE))
+hdr=rows[0]; ix={h:i for i,h in enumerate(hdr)}
+data=rows[1:]
+if mode=='run':
+    env=dict(os.environ,CARGO_PROFILE_TEST_OPT_LEVEL='1',CARGO_PROFILE_TEST_DEBUG='0',CARGO_PROFILE_TEST_INCREMENTAL='false',
+      TCL_LSP_JIMSH=f'{root}/tmp/jimtcl-oracle/jimsh',TCL_LSP_REQUIRE_ALL_TCL_ORACLES='1',TCL_LSP_REQUIRE_JIM_ORACLE='1',TCL_LSP_REQUIRE_TCLSH='1')
+    groups=collections.defaultdict(list)
+    for r in data:
+        if r[ix['status']] in ('','open'): groups[(r[ix['crate']],r[ix['target']])].append(r[ix['path']])
+    res={}
+    for (crate,target),paths in groups.items():
+        sel=['--lib'] if target=='lib' else ['--test',target]
+        expr=' | '.join(f'test(={p})' for p in sorted(set(paths)))
+        cmd=['cargo','nextest','run','-p',crate,*sel,'-E',expr,'--no-fail-fast','--no-tests','pass','--status-level','all','--final-status-level','none']
+        p=subprocess.run(cmd,cwd=f'{root}/rust',env=env,capture_output=True,text=True)
+        txt=p.stdout+p.stderr
+        seen={}
+        for l in txt.splitlines():
+            m=re.search(r'\b(PASS|FAIL|SIGABRT|SIGSEGV|TIMEOUT|LEAK-FAIL|FLAKY)\b.*?\(\s*\d+/\d+\)\s+\S+\s+(\S+)',l)
+            if m: seen[m[2]]=('pass' if m[1]=='PASS' else 'fail')
+        if not seen: print('NO OUTPUT',crate,target,txt[-1500:])
+        for pth in set(paths): res[f'{crate}|{target}|{pth}']=seen.get(pth,'notfound')
+    json.dump(res,open(out,'w'))
+    print(collections.Counter(res.values()))
+else:
+    sha=sys.argv[3]; res=json.load(open(out))
+    if 'note' not in ix:
+        hdr.append('note'); ix['note']=len(hdr)-1
+    n=collections.Counter()
+    for r in data:
+        while len(r)<len(hdr): r.append('')
+        k=f"{r[ix['crate']]}|{r[ix['target']]}|{r[ix['path']]}"
+        if k not in res: continue
+        v=res[k]
+        if v=='pass':
+            r[ix['status']]='fixed'; r[ix['note']]=(r[ix['note']]+'; ' if r[ix['note']] else '')+f'passes on work {sha}, 18 Nov (truth pass)'; n['fixed']+=1
+        elif v=='notfound':
+            r[ix['note']]=(r[ix['note']]+'; ' if r[ix['note']] else '')+f'not found on work {sha}'; n['notfound']+=1; print('NOTFOUND',r[ix['path']])
+        else: n['fail']+=1
+    with open(path,'w',newline='') as f:
+        w=csv.writer(f,delimiter='\t',quoting=csv.QUOTE_NONE,escapechar=None,lineterminator='\n')
+        for r in [hdr]+data: f.write('\t'.join(r)+'\n')
+    print(n)

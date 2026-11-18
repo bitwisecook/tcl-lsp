@@ -1,0 +1,7 @@
+tcl-cli-support highlight::tests::original_highlight_uses_actual_c_jim_and_irules_lexical_axes
+tcl-debugger backend::tests::launch_survives_deeply_nested_control_flow
+tcl-engine-wasm original_typed_host_failure_survives_wasm_callback_settlement_and_next_entry
+tcl-engine-wasm original_typed_wasm_host_failure_isolated_across_instances_and_real_destruction
+tcl-engine-wasm session::tests::original_typed_wasm_host_failure_preserves_prior_runtime_pending_cause
+tcl-fuzz wasm::tests::control_flow_program_runs
+tcl-fuzz wasm::tests::simple_program_compiles_and_runs

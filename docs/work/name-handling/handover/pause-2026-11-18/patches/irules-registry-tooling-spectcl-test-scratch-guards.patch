@@ -1,0 +1,578 @@
+diff --git a/rust/tcl-spectcl/src/bundled.rs b/rust/tcl-spectcl/src/bundled.rs
+index f8af2bbc..66ef1269 100644
+--- a/rust/tcl-spectcl/src/bundled.rs
++++ b/rust/tcl-spectcl/src/bundled.rs
+@@ -699,15 +699,13 @@ mod tests {
+     /// A private scratch directory for the two `load_discovered` tests, in
+     /// the crate's own temp-dir idiom (`discovery`'s `tmpdir`) rather than a
+     /// new dev-dependency.
+-    fn scratch(name: &str) -> PathBuf {
++    fn scratch(name: &str) -> crate::test_scratch::Scratch {
+         let dir = std::env::temp_dir().join(format!(
+             "tcl-spectcl-bundled-{name}-{}-{:?}",
+             std::process::id(),
+             std::thread::current().id()
+         ));
+-        let _ = std::fs::remove_dir_all(&dir);
+-        std::fs::create_dir_all(&dir).expect("temp dir");
+-        dir
++        crate::test_scratch::Scratch::create(dir)
+     }
+ 
+     /// A workspace load — the LSP server's path, which discovers its own
+@@ -1054,6 +1052,7 @@ mod required_generation_input_tests {
+             std::process::id(),
+             std::thread::current().id()
+         ));
++        let root = crate::test_scratch::Scratch::guard(root);
+         assert!(load_from_required(&root).is_err());
+         std::fs::create_dir(&root).unwrap();
+         let path = root.join("pack.tclspec");
+diff --git a/rust/tcl-spectcl/src/discovery/reserved_studio_path_tests.rs b/rust/tcl-spectcl/src/discovery/reserved_studio_path_tests.rs
+index c12ea831..37b6e3f0 100644
+--- a/rust/tcl-spectcl/src/discovery/reserved_studio_path_tests.rs
++++ b/rust/tcl-spectcl/src/discovery/reserved_studio_path_tests.rs
+@@ -43,6 +43,7 @@ fn malformed_reserved_path_cannot_fall_through_as_workspace_metadata() {
+ fn native_symlink_workspace_quarantines_canonical_retired_studio_files() {
+     let nonce = tcl_lsp_core::wire_session::EditorWireSession::allocate().unwrap();
+     let root = std::env::temp_dir().join(format!("tcl-studio-quarantine-{nonce:?}"));
++    let root = crate::test_scratch::Scratch::guard(root);
+     let real = root.join("real");
+     let linked = root.join("linked");
+     let reserved = real.join(WORKSPACE_PACK_DIR).join(STUDIO_OVERRIDE_DIR);
+diff --git a/rust/tcl-spectcl/src/discovery/tests.rs b/rust/tcl-spectcl/src/discovery/tests.rs
+index e9082ac4..537a64f5 100644
+--- a/rust/tcl-spectcl/src/discovery/tests.rs
++++ b/rust/tcl-spectcl/src/discovery/tests.rs
+@@ -18,15 +18,13 @@
+ 
+ use super::*;
+ 
+-fn tmpdir(name: &str) -> PathBuf {
++fn tmpdir(name: &str) -> crate::test_scratch::Scratch {
+     let dir = std::env::temp_dir().join(format!(
+         "tcl-spectcl-discovery-{name}-{}-{:?}",
+         std::process::id(),
+         std::thread::current().id()
+     ));
+-    let _ = std::fs::remove_dir_all(&dir);
+-    std::fs::create_dir_all(&dir).expect("temp dir");
+-    dir
++    crate::test_scratch::Scratch::create(dir)
+ }
+ 
+ fn write(path: &Path, body: &str) {
+diff --git a/rust/tcl-spectcl/src/hooks.rs b/rust/tcl-spectcl/src/hooks.rs
+index 4d2972a7..5ec33261 100644
+--- a/rust/tcl-spectcl/src/hooks.rs
++++ b/rust/tcl-spectcl/src/hooks.rs
+@@ -893,8 +893,7 @@ speclib hooked 1 {
+             std::process::id(),
+             std::thread::current().id()
+         ));
+-        let _ = std::fs::remove_dir_all(&dir);
+-        std::fs::create_dir_all(&dir).expect("temp dir");
++        let dir = crate::test_scratch::Scratch::create(dir);
+         let path: PathBuf = dir.join("pack.tclspec");
+         std::fs::write(&path, source).expect("write pack");
+         crate::pack::load(&[PackFile {
+diff --git a/rust/tcl-spectcl/src/hooks/owned_application.rs b/rust/tcl-spectcl/src/hooks/owned_application.rs
+index b3b8dced..54d067fb 100644
+--- a/rust/tcl-spectcl/src/hooks/owned_application.rs
++++ b/rust/tcl-spectcl/src/hooks/owned_application.rs
+@@ -270,8 +270,7 @@ mod tests {
+             std::process::id(),
+             std::thread::current().id()
+         ));
+-        let _ = std::fs::remove_dir_all(&dir);
+-        std::fs::create_dir_all(&dir).unwrap();
++        let dir = crate::test_scratch::Scratch::create(dir);
+         let path = dir.join("owner.tclspec");
+         std::fs::write(
+             &path,
+diff --git a/rust/tcl-spectcl/src/hooks/owned_evaluator.rs b/rust/tcl-spectcl/src/hooks/owned_evaluator.rs
+index 315e977d..2ddb9fdd 100644
+--- a/rust/tcl-spectcl/src/hooks/owned_evaluator.rs
++++ b/rust/tcl-spectcl/src/hooks/owned_evaluator.rs
+@@ -871,8 +871,7 @@ mod tests {
+             std::process::id(),
+             std::thread::current().id()
+         ));
+-        let _ = std::fs::remove_dir_all(&dir);
+-        std::fs::create_dir_all(&dir).unwrap();
++        let dir = crate::test_scratch::Scratch::create(dir);
+         let path = dir.join("owner.tclspec");
+         std::fs::write(&path, source).unwrap();
+         let packs = crate::pack::load(&[PackFile {
+diff --git a/rust/tcl-spectcl/src/install.rs b/rust/tcl-spectcl/src/install.rs
+index 18437908..b0ae3b95 100644
+--- a/rust/tcl-spectcl/src/install.rs
++++ b/rust/tcl-spectcl/src/install.rs
+@@ -453,15 +453,13 @@ mod tests {
+     use crate::discovery::{Origin, PackFile, Tier};
+     use std::path::{Path, PathBuf};
+ 
+-    fn tmpdir(name: &str) -> PathBuf {
++    fn tmpdir(name: &str) -> crate::test_scratch::Scratch {
+         let dir = std::env::temp_dir().join(format!(
+             "tcl-spectcl-install-{name}-{}-{:?}",
+             std::process::id(),
+             std::thread::current().id()
+         ));
+-        let _ = std::fs::remove_dir_all(&dir);
+-        std::fs::create_dir_all(&dir).expect("temp dir");
+-        dir
++        crate::test_scratch::Scratch::create(dir)
+     }
+ 
+     /// Loading a pack writes a compiled-cache entry, and `cache`'s own tests
+diff --git a/rust/tcl-spectcl/src/lib.rs b/rust/tcl-spectcl/src/lib.rs
+index 4f74ec52..a247da69 100644
+--- a/rust/tcl-spectcl/src/lib.rs
++++ b/rust/tcl-spectcl/src/lib.rs
+@@ -88,6 +88,8 @@ pub mod package_specs;
+ pub mod registration;
+ pub mod stamps;
+ pub mod surface_roster_conversion;
++#[cfg(test)]
++mod test_scratch;
+ pub mod upgrade;
+ 
+ pub use backing::BackingSyntax;
+diff --git a/rust/tcl-spectcl/src/pack.rs b/rust/tcl-spectcl/src/pack.rs
+index 405679d8..070aae69 100644
+--- a/rust/tcl-spectcl/src/pack.rs
++++ b/rust/tcl-spectcl/src/pack.rs
+@@ -1399,15 +1399,13 @@ mod tests {
+         assert_eq!(subject.image().try_text().unwrap(), edited);
+     }
+ 
+-    fn tmpdir(name: &str) -> PathBuf {
++    fn tmpdir(name: &str) -> crate::test_scratch::Scratch {
+         let dir = std::env::temp_dir().join(format!(
+             "tcl-spectcl-pack-{name}-{}-{:?}",
+             std::process::id(),
+             std::thread::current().id()
+         ));
+-        let _ = std::fs::remove_dir_all(&dir);
+-        std::fs::create_dir_all(&dir).expect("temp dir");
+-        dir
++        crate::test_scratch::Scratch::create(dir)
+     }
+ 
+     fn write(dir: &Path, name: &str, body: &str) -> PathBuf {
+diff --git a/rust/tcl-spectcl/src/test_scratch.rs b/rust/tcl-spectcl/src/test_scratch.rs
+new file mode 100644
+index 00000000..f610d67f
+--- /dev/null
++++ b/rust/tcl-spectcl/src/test_scratch.rs
+@@ -0,0 +1,54 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
++//
++// This program is free software: you can redistribute it and/or modify
++// it under the terms of the GNU Affero General Public License as published by
++// the Free Software Foundation, either version 3 of the License, or
++// (at your option) any later version.
++//
++// This program is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++// GNU Affero General Public License for more details.
++//
++// You should have received a copy of the GNU Affero General Public License
++// along with this program.  If not, see <https://www.gnu.org/licenses/>.
++//
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++//! A private scratch directory for a unit test, deleted when it drops, on every path
++//! out of a test (a failed assertion included).
++
++use std::path::PathBuf;
++
++pub(crate) struct Scratch(PathBuf);
++
++impl Scratch {
++    /// Create `dir` empty and own it: it is removed again when this drops.
++    pub(crate) fn create(dir: PathBuf) -> Self {
++        let _ = std::fs::remove_dir_all(&dir);
++        std::fs::create_dir_all(&dir).expect("scratch dir");
++        Self(dir)
++    }
++}
++
++impl Scratch {
++    /// Own `dir` without creating it: the test makes it, this removes it.
++    pub(crate) fn guard(dir: PathBuf) -> Self {
++        Self(dir)
++    }
++}
++
++impl std::ops::Deref for Scratch {
++    type Target = PathBuf;
++
++    fn deref(&self) -> &PathBuf {
++        &self.0
++    }
++}
++
++impl Drop for Scratch {
++    fn drop(&mut self) {
++        let _ = std::fs::remove_dir_all(&self.0);
++    }
++}
+diff --git a/rust/tcl-spectcl/tests/it_2/extension_routes.rs b/rust/tcl-spectcl/tests/it_2/extension_routes.rs
+index fe8cca3e..a911a211 100644
+--- a/rust/tcl-spectcl/tests/it_2/extension_routes.rs
++++ b/rust/tcl-spectcl/tests/it_2/extension_routes.rs
+@@ -18,20 +18,19 @@
+ 
+ //! The routes a pack set publishes for the extensions its packs claim.
+ 
++use crate::scratch::Scratch;
+ use std::path::{Path, PathBuf};
+ 
+ use tcl_spectcl::discovery::{Origin, PackFile, Tier};
+ use tcl_spectcl::pack::{self, PackSet};
+ 
+-fn scratch(tag: &str) -> PathBuf {
++fn scratch(tag: &str) -> Scratch {
+     let dir = std::env::temp_dir().join(format!(
+         "tcl-spectcl-extension-routes-{tag}-{}-{:?}",
+         std::process::id(),
+         std::thread::current().id()
+     ));
+-    let _ = std::fs::remove_dir_all(&dir);
+-    std::fs::create_dir_all(&dir).expect("scratch dir");
+-    dir
++    Scratch::create(dir)
+ }
+ 
+ fn write_pack(root: &Path, name: &str, body: &str) -> PathBuf {
+diff --git a/rust/tcl-spectcl/tests/it_2/i6_security_floor.rs b/rust/tcl-spectcl/tests/it_2/i6_security_floor.rs
+index aeb04db2..df4b1d42 100644
+--- a/rust/tcl-spectcl/tests/it_2/i6_security_floor.rs
++++ b/rust/tcl-spectcl/tests/it_2/i6_security_floor.rs
+@@ -6,6 +6,7 @@
+ //! loaded without error and produced an `exec` carrying neither `TAINT_SINK`
+ //! nor `TAINT_SOURCE`.
+ 
++use crate::scratch::Scratch;
+ use tcl_registry::CommandSpec;
+ use tcl_registry::hooks::LoweringHookId;
+ use tcl_spectcl::discovery::{Origin, PackFile, Tier};
+@@ -28,15 +29,13 @@ fn packs_from(dir: &std::path::Path, source: &str) -> tcl_spectcl::pack::PackSet
+     }])
+ }
+ 
+-fn tmpdir(name: &str) -> std::path::PathBuf {
++fn tmpdir(name: &str) -> Scratch {
+     let dir = std::env::temp_dir().join(format!(
+         "tcl-spectcl-i6-{name}-{}-{:?}",
+         std::process::id(),
+         std::thread::current().id()
+     ));
+-    let _ = std::fs::remove_dir_all(&dir);
+-    std::fs::create_dir_all(&dir).expect("temp dir");
+-    dir
++    Scratch::create(dir)
+ }
+ 
+ #[test]
+diff --git a/rust/tcl-spectcl/tests/it_2/main.rs b/rust/tcl-spectcl/tests/it_2/main.rs
+index f7128c3a..6f207089 100644
+--- a/rust/tcl-spectcl/tests/it_2/main.rs
++++ b/rust/tcl-spectcl/tests/it_2/main.rs
+@@ -21,6 +21,8 @@
+ //! (`scripts/dev/rust-test-binary-shards.tsv`). Add a test file here as a
+ //! module; a new top-level `tests/*.rs` is a binary of its own.
+ 
++#[path = "../support/scratch.rs"]
++mod scratch;
+ mod disabled_command_wording;
+ mod export;
+ mod extension_routes;
+diff --git a/rust/tcl-spectcl/tests/it_2/pack_torture.rs b/rust/tcl-spectcl/tests/it_2/pack_torture.rs
+index 24939591..094f3091 100644
+--- a/rust/tcl-spectcl/tests/it_2/pack_torture.rs
++++ b/rust/tcl-spectcl/tests/it_2/pack_torture.rs
+@@ -41,6 +41,7 @@
+ //! half — that none of this wedges the extension host — is
+ //! `editors/vscode/src/test/specPackTorture.test.ts`.
+ 
++use crate::scratch::Scratch;
+ use std::fmt::Write as _;
+ use std::path::{Path, PathBuf};
+ use std::time::{Duration, Instant};
+@@ -53,15 +54,13 @@ use tcl_spectcl::pack::{self, PackSet};
+ // Harness
+ 
+ /// A private on-disk workspace for one test.
+-fn scratch(name: &str) -> PathBuf {
++fn scratch(name: &str) -> Scratch {
+     let dir = std::env::temp_dir().join(format!(
+         "tcl-spectcl-torture-{name}-{}-{:?}",
+         std::process::id(),
+         std::thread::current().id()
+     ));
+-    let _ = std::fs::remove_dir_all(&dir);
+-    std::fs::create_dir_all(&dir).expect("scratch dir");
+-    dir
++    Scratch::create(dir)
+ }
+ 
+ /// A `PackFile` naming `path` in the workspace tier, as discovery would.
+diff --git a/rust/tcl-spectcl/tests/it_3/main.rs b/rust/tcl-spectcl/tests/it_3/main.rs
+index 56164b6f..6ff32415 100644
+--- a/rust/tcl-spectcl/tests/it_3/main.rs
++++ b/rust/tcl-spectcl/tests/it_3/main.rs
+@@ -21,6 +21,8 @@
+ //! (`scripts/dev/rust-test-binary-shards.tsv`). Add a test file here as a
+ //! module; a new top-level `tests/*.rs` is a binary of its own.
+ 
++#[path = "../support/scratch.rs"]
++mod scratch;
+ mod eda_loadables;
+ mod hook_service;
+ mod pack_formatting;
+diff --git a/rust/tcl-spectcl/tests/it_3/package_specs.rs b/rust/tcl-spectcl/tests/it_3/package_specs.rs
+index cdc7e4a9..d44ad239 100644
+--- a/rust/tcl-spectcl/tests/it_3/package_specs.rs
++++ b/rust/tcl-spectcl/tests/it_3/package_specs.rs
+@@ -20,6 +20,7 @@
+ //! the one hash the lockfile and a compiled unit's claims both identify them
+ //! by (`docs/design/tclpkg/architecture.md` § *Lockfile*).
+ 
++use crate::scratch::Scratch;
+ use std::path::{Path, PathBuf};
+ 
+ use tcl_lsp_core::vfs::NativeStore;
+@@ -29,15 +30,13 @@ use tcl_spectcl::discovery::{DiscoveryOptions, Origin, PackFile, Tier, discover}
+ use tcl_spectcl::pack;
+ use tcl_spectcl::package_specs::{pack_file_hash, spec_integrity};
+ 
+-fn scratch(name: &str) -> PathBuf {
++fn scratch(name: &str) -> Scratch {
+     let dir = std::env::temp_dir().join(format!(
+         "tcl-spectcl-package-specs-{name}-{}-{:?}",
+         std::process::id(),
+         std::thread::current().id()
+     ));
+-    let _ = std::fs::remove_dir_all(&dir);
+-    std::fs::create_dir_all(&dir).expect("scratch dir");
+-    dir
++    Scratch::create(dir)
+ }
+ 
+ fn write(path: &Path, text: &str) {
+diff --git a/rust/tcl-spectcl/tests/it_3/workspace_packs.rs b/rust/tcl-spectcl/tests/it_3/workspace_packs.rs
+index 34014389..c63f1aa1 100644
+--- a/rust/tcl-spectcl/tests/it_3/workspace_packs.rs
++++ b/rust/tcl-spectcl/tests/it_3/workspace_packs.rs
+@@ -28,6 +28,7 @@
+ //! runtime path over them is the closest thing to a production load this
+ //! repository can stage.
+ 
++use crate::scratch::Scratch;
+ use std::path::{Path, PathBuf};
+ 
+ use tcl_spectcl::discovery::{DiscoveryOptions, Tier, discover};
+@@ -43,15 +44,13 @@ fn examples_dir() -> PathBuf {
+         .expect("the ported spec-DSL examples")
+ }
+ 
+-fn scratch(name: &str) -> PathBuf {
++fn scratch(name: &str) -> Scratch {
+     let dir = std::env::temp_dir().join(format!(
+         "tcl-spectcl-workspace-{name}-{}-{:?}",
+         std::process::id(),
+         std::thread::current().id()
+     ));
+-    let _ = std::fs::remove_dir_all(&dir);
+-    std::fs::create_dir_all(&dir).expect("scratch dir");
+-    dir
++    Scratch::create(dir)
+ }
+ 
+ /// Copy every `.tclspec` under `examples_dir()` into `<root>/.tcl-lsp/`,
+diff --git a/rust/tcl-spectcl/tests/it_5/codegen_stamps.rs b/rust/tcl-spectcl/tests/it_5/codegen_stamps.rs
+index a15b1e93..5452b51c 100644
+--- a/rust/tcl-spectcl/tests/it_5/codegen_stamps.rs
++++ b/rust/tcl-spectcl/tests/it_5/codegen_stamps.rs
+@@ -36,6 +36,7 @@
+ //! compile it is asked for, which is what a refused site costs: an admitted
+ //! module runs with none, so a refusal cannot hide behind a correct result.
+ 
++use crate::scratch::Scratch;
+ use std::cell::Cell;
+ use std::path::PathBuf;
+ use std::rc::Rc;
+@@ -421,15 +422,13 @@ fn unpack_pack(alias_of: &str) -> String {
+     )
+ }
+ 
+-fn scratch(name: &str) -> PathBuf {
++fn scratch(name: &str) -> Scratch {
+     let dir = std::env::temp_dir().join(format!(
+         "tcl-spectcl-codegen-stamps-{name}-{}-{:?}",
+         std::process::id(),
+         std::thread::current().id()
+     ));
+-    let _ = std::fs::remove_dir_all(&dir);
+-    std::fs::create_dir_all(&dir).expect("scratch dir");
+-    dir
++    Scratch::create(dir)
+ }
+ 
+ /// `llength` overridden by a bundled pack whose `const_fold` names the
+diff --git a/rust/tcl-spectcl/tests/it_5/eda_environment_packs.rs b/rust/tcl-spectcl/tests/it_5/eda_environment_packs.rs
+index c47fc00b..8ee06451 100644
+--- a/rust/tcl-spectcl/tests/it_5/eda_environment_packs.rs
++++ b/rust/tcl-spectcl/tests/it_5/eda_environment_packs.rs
+@@ -250,7 +250,7 @@ fn a_workspace_pack_cannot_hijack_a_bundled_environment_name() {
+             .duration_since(std::time::UNIX_EPOCH)
+             .map_or(0, |d| d.as_nanos())
+     ));
+-    std::fs::create_dir_all(&dir).expect("scratch dir");
++    let dir = crate::scratch::Scratch::create(dir);
+     let intruder = dir.join("intruder.tclspec");
+     std::fs::write(
+         &intruder,
+diff --git a/rust/tcl-spectcl/tests/it_5/main.rs b/rust/tcl-spectcl/tests/it_5/main.rs
+index 3bfad286..5b648fdb 100644
+--- a/rust/tcl-spectcl/tests/it_5/main.rs
++++ b/rust/tcl-spectcl/tests/it_5/main.rs
+@@ -21,6 +21,8 @@
+ //! (`scripts/dev/rust-test-binary-shards.tsv`). Add a test file here as a
+ //! module; a new top-level `tests/*.rs` is a binary of its own.
+ 
++#[path = "../support/scratch.rs"]
++mod scratch;
+ mod ambient_environment_floor;
+ mod codegen_stamps;
+ mod eda_environment_packs;
+diff --git a/rust/tcl-spectcl/tests/it_5/native_normal_store.rs b/rust/tcl-spectcl/tests/it_5/native_normal_store.rs
+index be93039d..2d198123 100644
+--- a/rust/tcl-spectcl/tests/it_5/native_normal_store.rs
++++ b/rust/tcl-spectcl/tests/it_5/native_normal_store.rs
+@@ -42,7 +42,7 @@ fn installed_reference(
+         std::process::id(),
+         std::thread::current().id()
+     ));
+-    std::fs::create_dir_all(&directory).unwrap();
++    let directory = crate::scratch::Scratch::create(directory);
+     let path = directory.join("native-parent.tclspec");
+     let source = format!(
+         "speclib vendor 2.0 {{command vendor::f {{arity {arity}\nruntime_backing tcl-body {{-pack-text {{{definition}}} -evaluate}}}}}}\n"
+diff --git a/rust/tcl-spectcl/tests/it_5/variable_reference_boundaries.rs b/rust/tcl-spectcl/tests/it_5/variable_reference_boundaries.rs
+index 44f9ca1d..d2e4b6a3 100644
+--- a/rust/tcl-spectcl/tests/it_5/variable_reference_boundaries.rs
++++ b/rust/tcl-spectcl/tests/it_5/variable_reference_boundaries.rs
+@@ -132,8 +132,7 @@ fn a_live_hook_folds_the_value_its_substitution_computes() {
+             std::process::id(),
+             std::thread::current().id()
+         ));
+-        let _ = std::fs::remove_dir_all(&dir);
+-        std::fs::create_dir_all(&dir).expect("scratch dir");
++        let dir = crate::scratch::Scratch::create(dir);
+         let path = dir.join("edge.tclspec");
+         std::fs::write(&path, &source).expect("write pack");
+         let packs = tcl_spectcl::pack::load(&[PackFile {
+@@ -189,8 +188,7 @@ fn a_live_fold_keeps_declared_effects_and_unclosed_arguments() {
+             std::process::id(),
+             std::thread::current().id()
+         ));
+-        let _ = std::fs::remove_dir_all(&dir);
+-        std::fs::create_dir_all(&dir).expect("scratch dir");
++        let dir = crate::scratch::Scratch::create(dir);
+         let path = dir.join("edge.tclspec");
+         std::fs::write(&path, &source).expect("write pack");
+         let packs = tcl_spectcl::pack::load(&[PackFile {
+diff --git a/rust/tcl-spectcl/tests/it_5/workspace_trust.rs b/rust/tcl-spectcl/tests/it_5/workspace_trust.rs
+index ca342677..745e2a4e 100644
+--- a/rust/tcl-spectcl/tests/it_5/workspace_trust.rs
++++ b/rust/tcl-spectcl/tests/it_5/workspace_trust.rs
+@@ -194,7 +194,7 @@ fn a_client_that_reports_nothing_is_trusted() {
+         std::process::id(),
+         std::thread::current().id()
+     ));
+-    let _ = std::fs::remove_dir_all(&root);
++    let root = crate::scratch::Scratch::create(root);
+     std::fs::create_dir_all(root.join(".tcl-lsp")).expect("pack dir");
+     std::fs::write(root.join(".tcl-lsp/sneaky.tclspec"), OVERRIDE).expect("write pack");
+     let options = DiscoveryOptions {
+diff --git a/rust/tcl-spectcl/tests/pack_source_e2e.rs b/rust/tcl-spectcl/tests/pack_source_e2e.rs
+index 57fffabb..8ac27d8b 100644
+--- a/rust/tcl-spectcl/tests/pack_source_e2e.rs
++++ b/rust/tcl-spectcl/tests/pack_source_e2e.rs
+@@ -110,8 +110,7 @@ fn pack_set_from(name: &str, source: &str) -> PackSet {
+         std::process::id(),
+         std::thread::current().id()
+     ));
+-    let _ = std::fs::remove_dir_all(&dir);
+-    std::fs::create_dir_all(&dir).expect("temp dir");
++    let dir = scratch::Scratch::create(dir);
+     let path: PathBuf = dir.join("mylib.tclspec");
+     std::fs::write(&path, source).expect("write pack");
+     tcl_spectcl::pack::load(&[PackFile {
+@@ -688,5 +687,7 @@ fn a_derived_body_runs_under_the_release_the_call_is_analysed_under() {
+     }
+ }
+ 
++#[path = "support/scratch.rs"]
++mod scratch;
+ #[path = "support/native_string_is_ascii.rs"]
+ mod native_string_is_ascii;
+diff --git a/rust/tcl-spectcl/tests/support/scratch.rs b/rust/tcl-spectcl/tests/support/scratch.rs
+new file mode 100644
+index 00000000..8f66b407
+--- /dev/null
++++ b/rust/tcl-spectcl/tests/support/scratch.rs
+@@ -0,0 +1,47 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
++//
++// This program is free software: you can redistribute it and/or modify
++// it under the terms of the GNU Affero General Public License as published by
++// the Free Software Foundation, either version 3 of the License, or
++// (at your option) any later version.
++//
++// This program is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++// GNU Affero General Public License for more details.
++//
++// You should have received a copy of the GNU Affero General Public License
++// along with this program.  If not, see <https://www.gnu.org/licenses/>.
++//
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++//! A private scratch directory that is deleted when it drops, on every path
++//! out of a test (a failed assertion included).
++
++use std::path::PathBuf;
++
++pub struct Scratch(PathBuf);
++
++impl Scratch {
++    /// Create `dir` empty and own it: it is removed again when this drops.
++    pub fn create(dir: PathBuf) -> Self {
++        let _ = std::fs::remove_dir_all(&dir);
++        std::fs::create_dir_all(&dir).expect("scratch dir");
++        Self(dir)
++    }
++}
++
++impl std::ops::Deref for Scratch {
++    type Target = PathBuf;
++
++    fn deref(&self) -> &PathBuf {
++        &self.0
++    }
++}
++
++impl Drop for Scratch {
++    fn drop(&mut self) {
++        let _ = std::fs::remove_dir_all(&self.0);
++    }
++}

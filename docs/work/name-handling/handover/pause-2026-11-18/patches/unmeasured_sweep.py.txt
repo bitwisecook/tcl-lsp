@@ -1,0 +1,29 @@
+import subprocess,re,os,json,time
+root='/home/user/tcl-lsp'
+env=dict(os.environ,CARGO_PROFILE_TEST_OPT_LEVEL='1',CARGO_PROFILE_TEST_DEBUG='0',CARGO_PROFILE_TEST_INCREMENTAL='false',
+ TCL_LSP_JIMSH=f'{root}/tmp/jimtcl-oracle/jimsh',TCL_LSP_REQUIRE_ALL_TCL_ORACLES='1',TCL_LSP_REQUIRE_JIM_ORACLE='1',TCL_LSP_REQUIRE_TCLSH='1')
+members="bpf-tcl bpf-tcl-codegen bpf-tcl-ir tcl-debugger tcl-fuzz tcl-host-c-abi tcl-host-native tcl-pkg tcl-pkg-model tcl-platform tcl-regex tcl-sandbox tcl-userdirs tcl-version tcl-cli-support tcl-test-support tcl-engine-wasm".split()
+excluded="zed-query-check tcl-explorer-wasm tcl-lsp-server-wasi tcl-lsp-server-wasm tcl-spec-studio-wasm tcl-vm-wasm bigip-query-wasm".split()
+res={}
+def run(name,cmd,cwd):
+    t=time.time(); before=set(os.listdir('/tmp'))
+    try:
+        p=subprocess.run(cmd,cwd=cwd,env=env,capture_output=True,text=True,timeout=2400)
+        txt=p.stdout+p.stderr; rc=p.returncode
+    except subprocess.TimeoutExpired as e:
+        txt=(e.stdout or b'').decode() if isinstance(e.stdout,bytes) else (e.stdout or ''); rc=-9; txt+='\nTIMEOUT 2400s'
+    open(f'/tmp/sweep-{name}.log','w').write(txt)
+    new=sorted(set(os.listdir('/tmp'))-before)
+    r=dict(tmp_new=len(new),tmp_examples=[re.sub(r'[-_.]?\d{3,}.*$','',n) for n in new][:0]+sorted({re.sub(r'[-_.]?[0-9a-f]{6,}.*$|-\d+$','',n) for n in new})[:6],run=0,passed=0,failed=0,ignored=0,rc=rc,secs=int(time.time()-t),results=0)
+    for m in re.finditer(r'test result: (?:ok|FAILED)\. (\d+) passed; (\d+) failed; (\d+) ignored',txt):
+        r['passed']+=int(m[1]); r['failed']+=int(m[2]); r['ignored']+=int(m[3]); r['results']+=1
+    r['run']=r['passed']+r['failed']
+    errs=[l for l in txt.splitlines() if l.startswith('error')]
+    r['first_error']=errs[0][:200] if (r['results']==0 or rc not in (0,101)) and errs else ''
+    r['fails']=re.findall(r'^test (\S+) \.\.\. FAILED',txt,re.M)
+    res[name]=r; json.dump(res,open('/tmp/sweep.json','w'),indent=1)
+for c in members:
+    run(c,['cargo','test','-p',c,'--no-fail-fast'],f'{root}/rust')
+for c in excluded:
+    run(c,['cargo','test','--manifest-path',f'{root}/rust/{c}/Cargo.toml','--no-fail-fast'],f'{root}/rust')
+open('/tmp/sweep.done','w').write('x')
