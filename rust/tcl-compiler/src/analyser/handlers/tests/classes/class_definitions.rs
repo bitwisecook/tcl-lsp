@@ -551,4 +551,3 @@ fn a_creation_after_a_proved_error_declares_no_class() {
     );
     assert!(reached.all_classes.contains_key("::Right"));
 }
-
