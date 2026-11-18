@@ -215,7 +215,7 @@ async fn native_pattern_hover_keeps_first_settled_registry_operand() {
             0,
         )
         .expect("actual conditional catalogue before Server alternative");
-    assert!(!metadata.possible_source_command_paths().is_empty());
+    assert!(!matches!(metadata.possible_source_command_paths(), []));
     let first = request(&backend, &uri, Position::new(0, 10))
         .await
         .expect("first actual Backend pattern hover");

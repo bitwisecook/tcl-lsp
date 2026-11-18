@@ -262,14 +262,12 @@ async fn autoload_definition_recaptures_the_whole_query_after_input_publication(
         "proc replaced_header {} {}\n",
     )
     .unwrap();
-    assert!(
-        fixture
-            .backend
-            .compute_definition(&caller, Position::new(0, 0))
-            .await
-            .unwrap()
-            .is_empty()
-    );
+    let definitions = fixture
+        .backend
+        .compute_definition(&caller, Position::new(0, 0))
+        .await
+        .unwrap();
+    assert!(matches!(definitions.as_slice(), []), "{definitions:?}");
 }
 #[tokio::test]
 async fn closed_document_readers_share_actual_saved_read_instrumentation() {

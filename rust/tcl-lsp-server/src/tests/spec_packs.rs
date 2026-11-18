@@ -172,7 +172,7 @@ async fn a_wish_document_reads_the_workspace_packs_like_any_other() {
             Some(packs.key),
             "control: before the packs install, the analysis is unavailable for the overlay"
         );
-        assert!(before.diagnostics.is_empty());
+        assert!(matches!(before.diagnostics.as_slice(), []));
     }
     let _ = tcl_lsp_db::take_overlay_misses();
 

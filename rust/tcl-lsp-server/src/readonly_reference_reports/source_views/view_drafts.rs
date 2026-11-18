@@ -271,6 +271,35 @@ impl OriginalSourceViewDraft {
         self.inherited.is_some()
     }
 
+    /// `true` when `uri` is physically being executed by a view on this draft's
+    /// call chain (inherited parents and a region's owner). Completed earlier
+    /// children, which a region records as completion dependencies, are not on
+    /// the call chain: `source b; source b` is not recursion.
+    pub(super) fn call_chain_executes(&self, uri: &tower_lsp_server::ls_types::Uri) -> bool {
+        let mut next = self
+            .inherited
+            .as_ref()
+            .map(|inherited| &inherited.parent)
+            .or_else(|| self.region.as_ref().map(|region| &region.parent));
+        let mut steps = 0usize;
+        while let Some(view) = next {
+            if &view.draft.physical.uri == uri {
+                return true;
+            }
+            steps += 1;
+            if steps > 4096 {
+                return true;
+            }
+            next = view
+                .draft
+                .inherited
+                .as_ref()
+                .map(|inherited| &inherited.parent)
+                .or_else(|| view.draft.region.as_ref().map(|region| &region.parent));
+        }
+        false
+    }
+
     pub(super) fn ancestors(&self) -> Option<Vec<Arc<PublishedOriginalSourceView>>> {
         let mut ancestors = Vec::new();
         let mut active = HashSet::new();

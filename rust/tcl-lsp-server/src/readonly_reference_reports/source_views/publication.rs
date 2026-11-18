@@ -113,9 +113,7 @@ impl Backend {
                 // Recursive physical imports remain unavailable. Only a sealed
                 // region may append to its own prefix's physical URI.
                 || (mode != SourceViewPublicationMode::AppendRegions
-                    && draft.ancestors().is_none_or(|ancestors| {
-                        ancestors.iter().any(|parent| &parent.draft.physical.uri == uri)
-                    }))
+                    && (draft.ancestors().is_none() || draft.call_chain_executes(uri)))
                 || (mode == SourceViewPublicationMode::AppendRegions && draft.region.is_none())
                 || (mode == SourceViewPublicationMode::AppendInherited
                     && (draft.inherited.is_none() || draft.region.is_some()))

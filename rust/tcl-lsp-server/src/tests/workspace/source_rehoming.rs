@@ -388,8 +388,9 @@ async fn multi_seeded_declaration_unions_every_runtime_identity_945() {
 /// Proxy for "did the real reconciliation work run more than once":
 /// each genuine reconciliation of a document is one `remove_document` +
 /// one `add_document`, so it bumps [`core_workspace_index::WorkspaceIndex::generation`]
-/// by exactly 2; a second, redundant pass over the same document would
-/// bump it by 2 more. Run on a real multi-thread runtime with genuine
+/// by a fixed amount (measured here on a solo backend as `single_pass`, since
+/// the source-view graph publishes more than the document's remove and add);
+/// a second, redundant pass over the same document would bump it again. Run on a real multi-thread runtime with genuine
 /// `tokio::spawn` tasks (not `tokio::join!` on one task, which never
 /// gives two `.await`-separated bodies true concurrent access to the
 /// gate) so the two calls can actually race for
@@ -405,6 +406,29 @@ async fn multi_seeded_declaration_unions_every_runtime_identity_945() {
 /// write) give a wide window for the race to manifest in practice.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn rehoming_gate_dedups_concurrent_reconciliation_passes() {
+    let single_pass = {
+        let solo = test_backend();
+        let a = Uri::from_str("file:///proj/a.tcl").unwrap();
+        let b = Uri::from_str("file:///proj/b.tcl").unwrap();
+        register(&solo, &b, "proc helper {} {}\n").await;
+        register(
+            &solo,
+            &a,
+            "namespace eval ::x { source b.tcl }\n::x::helper\n",
+        )
+        .await;
+        let before = solo.workspace_index.read().await.generation();
+        solo.refresh_source_rehoming().await.unwrap();
+        solo.workspace_index
+            .read()
+            .await
+            .generation()
+            .wrapping_sub(before)
+    };
+    assert!(
+        single_pass > 0,
+        "one reconciliation must publish into the index"
+    );
     let backend = Arc::new(test_backend());
     let a = Uri::from_str("file:///proj/a.tcl").unwrap();
     let b = Uri::from_str("file:///proj/b.tcl").unwrap();
@@ -427,7 +451,7 @@ async fn rehoming_gate_dedups_concurrent_reconciliation_passes() {
     let after = backend.workspace_index.read().await.generation();
     assert_eq!(
         after.wrapping_sub(before),
-        2,
+        single_pass,
         "two concurrent reconciliation passes must not each re-index the same document",
     );
 
