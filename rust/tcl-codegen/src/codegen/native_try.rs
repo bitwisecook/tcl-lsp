@@ -301,14 +301,23 @@ impl TryEmitter<'_, '_> {
             .push(NativeEmissionTask::BeginNativeCatch(failed.clone()));
         self.bindings(handler);
         if let Some(body) = handler.body.clone() {
-            let direct = self.label("native_try_handler_body");
-            // Dash clauses enter the body without the target clause's setters.
-            self.tasks.extend([
-                jump(Op::JUMP4, &direct),
-                NativeEmissionTask::Label(self.targets[index].clone()),
-                NativeEmissionTask::BeginNativeCatchBranch(failed.clone()),
-                NativeEmissionTask::Label(direct),
-            ]);
+            // Dash clauses enter the body without the target clause's setters,
+            // through a bridge C emits only when one does (forwardsNeedFixing,
+            // tclCompCmdsSZ.c IssueTry*ClausesFinallyInstructions).
+            let entered = self
+                .instruction
+                .handlers
+                .iter()
+                .any(|other| other.body.is_none() && other.target == index);
+            if entered {
+                let direct = self.label("native_try_handler_body");
+                self.tasks.extend([
+                    jump(Op::JUMP4, &direct),
+                    NativeEmissionTask::Label(self.targets[index].clone()),
+                    NativeEmissionTask::BeginNativeCatchBranch(failed.clone()),
+                    NativeEmissionTask::Label(direct),
+                ]);
+            }
             self.body(body, true);
             if self.instruction.numeric_handler_table {
                 self.tasks.extend([
@@ -331,10 +340,24 @@ impl TryEmitter<'_, '_> {
             ]);
         }
         self.tasks.push(NativeEmissionTask::Label(failed));
-        self.capture_handler_replacement(has_body, settled, no_during);
-        self.tasks.push(jump(Op::JUMP4, &self.final_start));
+        let last = index + 1 == self.instruction.handlers.len();
+        self.capture_handler_replacement(has_body, last, settled, no_during);
+        // The last handler falls into the finally processing (C: `if (i+1 <
+        // numHandlers) FWDJUMP(JUMP, addrsToFix[i])`).
+        if index + 1 < self.instruction.handlers.len() {
+            self.tasks.push(jump(Op::JUMP4, &self.final_start));
+        }
     }
-    fn capture_handler_replacement(&mut self, has_body: bool, settled: String, no_during: String) {
+    /// The last chained handler leaves its options on the stack for the pop
+    /// after the chain (C: "Skip POP at end; can clean up with subsequent
+    /// POP", tclCompCmdsSZ.c `IssueTryClausesFinallyInstructions`).
+    fn capture_handler_replacement(
+        &mut self,
+        has_body: bool,
+        last: bool,
+        settled: String,
+        no_during: String,
+    ) {
         if self.instruction.numeric_handler_table {
             self.tasks.extend([
                 op(Op::PUSH_RESULT),
@@ -377,7 +400,6 @@ impl TryEmitter<'_, '_> {
                     op(Op::DICT_PUT),
                     NativeEmissionTask::Label(no_during),
                     local(self.store(), &self.options),
-                    op(Op::POP),
                 ]);
             } else {
                 let done = self.label("native_try_handler_saved");
@@ -396,8 +418,10 @@ impl TryEmitter<'_, '_> {
                     NativeEmissionTask::Label(no_during),
                     local(self.store(), &self.options),
                     NativeEmissionTask::Label(done),
-                    op(Op::POP),
                 ]);
+            }
+            if !last {
+                self.tasks.push(op(Op::POP));
             }
         }
     }
