@@ -397,8 +397,10 @@ mod interp_value_flow {
         // `interp create {parent child}` returns `parent child` and
         // `interp slaves parent` → `child`). `split_whitespace` must not
         // split it into `"{parent"` + `"child}"` and bind the first
-        // fragment.
-        let via_value = "interp create parent\nset i [interp create {parent child}]\n$i eval { proc helper {} {} }\n";
+        // fragment. A nested path is not a command in the parent
+        // (`$i eval` raises `invalid command name "parent child"`), so the
+        // value reaches the child through `interp eval $i`.
+        let via_value = "interp create parent\nset i [interp create {parent child}]\ninterp eval $i { proc helper {} {} }\n";
         let direct = "interp create parent\ninterp create {parent child}\ninterp eval {parent child} { proc helper {} {} }\n";
         assert_eq!(interp_domains(via_value), interp_domains(direct));
         assert!(
@@ -492,10 +494,20 @@ pub(super) mod rename {
                  set c greet\n    \
                  set key tcl\n    \
                  rename ::mypkg::${c}_$key ::mypkg::${c}\n\
-             }\n";
+             }\n\
+             ::mypkg::activate\n\
+             ::mypkg::greet x\n";
+        // tclsh8.6.18/9.0.4: `::mypkg::greet` exists only once `activate`
+        // has run; the later call then answers `hi x`.
         assert_eq!(
             renamed_commands(src).get("::mypkg::greet"),
             Some(&"::mypkg::greet_tcl".to_string())
+        );
+        let r = Analyser::new().analyse(src, D);
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code.to_string() == "W123"),
+            "{:?}",
+            r.diagnostics
         );
     }
 
