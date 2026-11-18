@@ -607,21 +607,13 @@ proc wire_namespace_vars {} {
     }
 
     #[test]
-    fn foreach_list_cmd_folds_to_constset() {
-        // A `foreach x [list a b c]` command-sub with literal args folds into a
-        // CONSTSET (each element a known value), the same as a braced literal
-        // list — sound and precise. tclsh: `list a b c` → "a b c".  (Enables
-        // suppressing dispatch on a literal command list; see the W307 checks.)
-        let cu = build("foreach x [list a b c] {puts $x}");
-        let cs: Vec<_> = lats_for(&cu.top_level, "x")
-            .into_iter()
-            .filter(|v| v.kind() == LatticeKind::ConstSet)
-            .collect();
-        assert!(
-            !cs.is_empty(),
-            "x must fold to a CONSTSET over [list a b c]"
-        );
-        assert_constset_strs(cs[0], &["a", "b", "c"]);
+    fn foreach_list_cmd_dispatch_over_known_commands_is_not_w307() {
+        // A `foreach x [list ...]` command-sub with literal args gives each
+        // element as a known value, the same as a braced literal list, so a
+        // dispatch on the loop variable names known commands.
+        // tclsh8.6.18/9.0.4: `foreach cmd [list puts list] {$cmd hello}`
+        // prints hello and raises nothing.
+        assert!(!fires("foreach cmd [list puts list] {$cmd hello}", "W307"));
     }
 
     #[test]
