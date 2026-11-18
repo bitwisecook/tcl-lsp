@@ -34,7 +34,10 @@ fn original_condition_matcher_retains_multibyte_inclusive_extent_and_refuses_ove
         ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
     };
     let input = ResolvedAnalysisInput::new(profile, profile, context.clone(), config);
-    let source = "set prefix λ\nif {![regexp λ λ out]} {puts $out}";
+    // The multibyte prefix keeps the extent check; the matcher itself is an
+    // ASCII literal that cannot match (tclsh8.4.20-9.1.0 `regexp a b out`
+    // -> 0), since only the ASCII literal subset is admitted.
+    let source = "set prefix λ\nif {![regexp a b out]} {puts $out}";
     let mut analyser = Analyser::new().with_resolved_input(input.clone());
     analyser.result = analyser.analyse(source, "presentation");
     let plan = tcl_lexer::native_script_words_in(
