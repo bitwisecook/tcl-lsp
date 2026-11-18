@@ -476,7 +476,7 @@ fn unreachable_statements_emitted_with_empty_replacement() {
 fn callee_read_preserves_only_the_contents_that_reach_it() {
     let source = "proc read_write {name} {upvar 1 $name value; puts $value; set value done}\nproc f {} {set tag init; set tag live; read_write tag}\nf";
     let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
-    let optimisations = crate::optimiser::optimise_raw(source, registry, None);
+    let optimisations = crate::optimiser::optimise_raw(source, registry, Some("tcl8.6"));
     let removes = |text: &str| {
         let start = u32::try_from(source.find(text).unwrap()).unwrap();
         optimisations.iter().any(|optimisation| {
@@ -499,7 +499,7 @@ fn callee_read_preserves_only_the_contents_that_reach_it() {
 fn native_getter_in_a_callee_argument_preserves_the_reaching_caller_store() {
     let source = "proc read_value {name} {upvar 1 $name value; set value}\nproc f {} {set tag init; set tag live; puts [read_value tag]}\nf";
     let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
-    let optimisations = crate::optimiser::optimise_raw(source, registry, None);
+    let optimisations = crate::optimiser::optimise_raw(source, registry, Some("tcl8.6"));
     let removes = |text: &str| {
         let start = u32::try_from(source.find(text).unwrap()).unwrap();
         optimisations.iter().any(|optimisation| {
@@ -623,10 +623,16 @@ fn o109_array_element_overwrite_not_dead() {
 
 #[test]
 fn o109_array_element_genuinely_dead_still_fires() {
-    // Precision guard: here only a(j) is read, so a(k) IS overwritten
-    // before any read — O109 must still fire on it.  The place model
-    // suppresses only element writes that a read actually observes.
-    let opts = crate::optimiser::optimise("set a(k) 1\nset a(j) 2\nputs $a(j)", &registry());
+    // Precision guard: the first a(k) store is overwritten before any read
+    // (a(j)'s store and read are another element), so O109 must still fire
+    // on it. The place model suppresses only element writes that a read
+    // actually observes. At top level an unread a(k) is not dead: after
+    // `source`, tclsh 8.4.20/9.1.0 list `j k` for `array names a`.
+    let opts = crate::optimiser::optimise_raw(
+        "proc p {} {\n    set a(k) 1\n    set a(j) 2\n    set a(k) 3\n    puts \"$a(j) $a(k)\"\n}\np\n",
+        &registry(),
+        Some("tcl8.6"),
+    );
     assert!(
         opts.iter().any(|o| o.code == DiagCode::O109),
         "O109 expected — a(k) is overwritten and never read; got {opts:?}",
