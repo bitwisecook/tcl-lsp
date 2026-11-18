@@ -267,6 +267,27 @@ The failing behaviours are far fewer than the failing tests. The causes ranked h
 
 The second pass (overlap among passing tests: 88 exact-copy groups, 385 overlap groups, the vacuous negatives on unwired helpers) follows the repairs.
 
+## Status of the rows, 18 November 2026, 00:55 UTC
+
+From `tools/ledger_status.py` (a cell that is not one of the seven words counts as open).
+
+| Ledger | open | repaired | exposed | fixed | deleted | blocked | routed | Rows |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| analyser-binding | 412 | 5 | 0 | 1 | 0 | 0 | 0 | 418 |
+| analysis-performance | 46 | 0 | 0 | 0 | 0 | 0 | 0 | 46 |
+| class-facts | 246 | 0 | 0 | 0 | 0 | 0 | 0 | 246 |
+| dataflow-optimiser | 415 | 0 | 0 | 1 | 0 | 1 | 6 | 423 |
+| diagnostics | 388 | 0 | 0 | 4 | 0 | 0 | 5 | 397 |
+| execution | 199 | 4 | 0 | 5 | 56 | 0 | 0 | 264 |
+| irules-registry-tooling | 149 | 0 | 0 | 0 | 0 | 3 | 0 | 152 |
+| live-inlining | 27 | 0 | 0 | 0 | 0 | 0 | 0 | 27 |
+| lsp-features | 655 | 9 | 0 | 3 | 10 | 0 | 0 | 677 |
+| server-e2e-db | 193 | 5 | 1 | 2 | 0 | 10 | 5 | 216 |
+| taint | 173 | 0 | 0 | 0 | 0 | 0 | 1 | 174 |
+| tk-oo | 51 | 11 | 0 | 1 | 0 | 0 | 0 | 63 |
+| values | 198 | 18 | 0 | 1 | 1 | 0 | 0 | 218 |
+| **all** | 3152 | 52 | 1 | 18 | 67 | 14 | 17 | 3321 |
+
 ## Progress
 
 Updated at the hourly check from the ledgers on `work`.
