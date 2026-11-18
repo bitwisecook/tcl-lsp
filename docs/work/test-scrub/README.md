@@ -234,6 +234,10 @@ These go ahead of missing facts once the ledgers are in.
 | 8.6+: an unreachable `jump` after a `done` stays a jump where tclsh's optimizer leaves `nop nop` (`if {$a} {return 1}; return 2`) | execution, open |
 | 8.6+: `if {!$a}` compiles `not; jumpFalse` where tclsh gives `nop; jumpTrue` | execution, open |
 | 8.4: errorInfo for `expr {0b10 + 1}` reads `while compiling` where tclsh 8.4.20 reads `while executing` | execution, open |
+| O129 rewrites `set x [split ""]` to `set x {{}}` and `puts [llength $x]` to `puts 1`; tclsh 8.4.20 to 9.1.0 print 0. #2418 back, through the optimiser's constant-fold engine. Witness `procedure_summaries::split_of_the_empty_string_is_the_empty_list` | dataflow-optimiser, first when resumed |
+| Strict local rename goes past a computed command head that may read the local by name: `proc m {w dir} { $w ${dir}view }` renames `dir` although `proc peek {args} {upvar 1 dir d; return $d}` then fails (tclsh 8.6.18, 9.0.4) | diagnostics (`analyser/types/variable_renames.rs`) |
+| I230 "condition is always true" for `if {$g == 5}` after a stubbed body-role call that sets `g` (`db_eval {select 1} {set g 6}`); tclsh prints `other`. Witness `unseen_code::a_stub_that_states_its_frame_effect_is_a_named_head` | diagnostics |
+| Four bytecode mismatches found by execution's live-tclsh witnesses, queued: 8.5 top-level `startCommand` before a compiled `return`; 8.6+ an unreachable `jump` after `done` should be `nop nop`; 8.6+ `if {!$a}` compiles to `nop; jumpTrue`; the 8.4 `expr {0b10 + 1}` trace says "while compiling" | execution |
 
 ## Waiting on the owner's approval
 
@@ -317,27 +321,27 @@ The failing behaviours are far fewer than the failing tests. The causes ranked h
 
 The second pass (overlap among passing tests: 88 exact-copy groups, 385 overlap groups, the vacuous negatives on unwired helpers) follows the repairs.
 
-## Status of the rows, 18 November 2026, 10:55 UTC
+## Status of the rows, 18 November 2026, 11:55 UTC (at the pause)
 
 From `tools/ledger_status.py` (a cell counts by its first word, so `routed (analyser-binding)` is routed; a cell that does not start with one of the seven words counts as open).
 
 | Ledger | open | repaired | exposed | fixed | deleted | blocked | routed | Rows |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | analyser-binding | 412 | 5 | 0 | 1 | 0 | 0 | 0 | 418 |
-| analysis-performance | 51 | 0 | 0 | 0 | 0 | 0 | 0 | 51 |
+| analysis-performance | 52 | 0 | 0 | 0 | 0 | 0 | 0 | 52 |
 | class-facts | 236 | 8 | 2 | 0 | 0 | 0 | 0 | 246 |
-| dataflow-optimiser | 339 | 31 | 32 | 18 | 0 | 2 | 2 | 424 |
-| diagnostics | 239 | 56 | 64 | 12 | 19 | 1 | 9 | 400 |
-| execution | 192 | 9 | 0 | 10 | 56 | 0 | 0 | 267 |
+| dataflow-optimiser | 323 | 39 | 40 | 18 | 0 | 2 | 2 | 424 |
+| diagnostics | 232 | 62 | 64 | 13 | 19 | 1 | 9 | 400 |
+| execution | 190 | 11 | 0 | 13 | 56 | 0 | 0 | 270 |
 | irules-registry-tooling | 128 | 0 | 0 | 5 | 0 | 35 | 0 | 168 |
 | live-inlining | 18 | 0 | 0 | 0 | 0 | 9 | 0 | 27 |
-| lsp-features | 495 | 10 | 52 | 52 | 10 | 32 | 32 | 683 |
+| lsp-features | 474 | 29 | 54 | 52 | 10 | 32 | 32 | 683 |
 | server-e2e-db-flaky | 3 | 3 | 0 | 0 | 0 | 0 | 1 | 7 |
 | server-e2e-db | 157 | 14 | 1 | 19 | 0 | 11 | 25 | 227 |
-| taint | 135 | 5 | 34 | 10 | 0 | 0 | 1 | 185 |
+| taint | 132 | 5 | 26 | 10 | 0 | 11 | 1 | 185 |
 | tk-oo | 58 | 9 | 0 | 3 | 0 | 0 | 0 | 70 |
-| values | 18 | 0 | 20 | 10 | 1 | 0 | 171 | 220 |
-| **all** | 2481 | 150 | 205 | 140 | 86 | 90 | 241 | 3393 |
+| values | 6 | 1 | 23 | 11 | 1 | 0 | 178 | 220 |
+| **all** | 2421 | 186 | 210 | 145 | 86 | 101 | 248 | 3397 |
 
 ## Progress
 
