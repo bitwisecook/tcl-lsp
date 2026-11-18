@@ -152,6 +152,7 @@ Commit ids, what the repaired test now shows, and who it waits on go in `note`. 
 - *Abstaining at `source -encoding` with a decode obligation recorded is sound* when nothing can decode; the command world after it must not stay proved.
 - *The generic entry covers a procedure the body defines on every call:* the nested procedure's body gets its own generic entry. It covers that body's facts only; whether the nested procedure exists for an outside caller still depends on whether the outer one surely ran.
 - *A `link` with written names puts exactly those names into the receiver namespace.* It refuses the generic entry of an uncalled method body only for those names; a computed name refuses it for every relative head.
+- **A diagnostic in a body is not raised from one caller's argument.** `proc f {d} { dict update d k v { puts $v } }` with the one call `f {}` raises at that call, but W210 in `f`'s body would be a claim about every caller, so it is silent there (the body's lattice is not seeded from in-file callers, and a body-level fact holds for every entry). A test of the SCCP path is re-pointed at a constant that arrives from an earlier block of the same body; a proved-raising call is reported at the call word if a diagnostic for that exists, and is otherwise written up as a gap, not invented in a test repair (18 November, 05:30 UTC).
 
 ## Wrong answers found by the scrub
 
