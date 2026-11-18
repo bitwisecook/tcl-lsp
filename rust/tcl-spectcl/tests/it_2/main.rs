@@ -23,6 +23,7 @@
 
 mod disabled_command_wording;
 mod export;
+mod extension_routes;
 mod i6_security_floor;
 mod jim_authored_call;
 mod jim_core_metadata_identity;

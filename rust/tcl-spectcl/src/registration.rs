@@ -366,7 +366,8 @@ pub fn retire_pack_environments() -> PackSetRegistration {
 }
 
 /// Every `(extension, environment)` routing pair the loaded set claims:
-/// the explicit `-dialect` rows first, then each `environment` block's
+/// the explicit `-dialect` rows first, the dialect-less claims (routed to no
+/// dialect, so content decides), then each `environment` block's
 /// own `file_extension` rows, first claim winning.
 ///
 /// A **pure function of the pack set** — the environment name is the one
@@ -384,8 +385,18 @@ pub fn retire_pack_environments() -> PackSetRegistration {
 /// environments a process ever loads, and shared with the loader's own
 /// interner, so reloading the same pack leaks nothing new.
 #[must_use]
-pub fn extension_routes(packs: &PackSet) -> Vec<(String, &'static str)> {
-    let mut routes = packs.extension_dialects();
+pub fn extension_routes(packs: &PackSet) -> Vec<(String, Option<&'static str>)> {
+    let mut routes: Vec<(String, Option<&'static str>)> = packs
+        .extension_dialects()
+        .into_iter()
+        .map(|(extension, dialect)| (extension, Some(dialect)))
+        .collect();
+    routes.extend(
+        packs
+            .plain_extension_claims()
+            .into_iter()
+            .map(|extension| (extension, None)),
+    );
     for pack in &packs.packs {
         for environment in &pack.environments {
             let environment_id = crate::loader::leak_str(&environment.id);
@@ -394,7 +405,7 @@ pub fn extension_routes(packs: &PackSet) -> Vec<(String, &'static str)> {
                 if routes.iter().any(|(prior, _)| prior == extension) {
                     continue;
                 }
-                routes.push((extension.to_owned(), environment_id));
+                routes.push((extension.to_owned(), Some(environment_id)));
             }
         }
     }

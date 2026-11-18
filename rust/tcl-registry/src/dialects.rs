@@ -499,12 +499,14 @@ fn extension_glob_any_case<'a>(extensions: impl IntoIterator<Item = &'a str>) ->
 /// extension wins, and nothing here ever removes the static fallback arms
 /// below, which keep working for consumers that load no packs.
 static PACK_EXTENSION_DIALECTS: std::sync::RwLock<
-    Option<std::collections::HashMap<String, &'static str>>,
+    Option<std::collections::HashMap<String, Option<&'static str>>>,
 > = std::sync::RwLock::new(None);
 
 /// Publish extension routing declared by loaded packs. Keys are lower-case
 /// extensions without the leading dot; values must be canonical profile
-/// names (the loader validates them against the profile catalogue).
+/// names (the loader validates them against the profile catalogue). A `None`
+/// value is a claim with no `-dialect`: the extension is a source extension
+/// to index and advertise, and content detection decides the dialect.
 ///
 /// **Snapshot semantics**: each call replaces the whole routing table with
 /// the new generation, so a workspace-pack reload that dropped a
@@ -512,8 +514,10 @@ static PACK_EXTENSION_DIALECTS: std::sync::RwLock<
 /// would pin the stale dialect until the process restarted. Callers
 /// therefore always pass the *complete* pack set's pairs, which
 /// `PackSet::extension_dialects` (the one producer) does by construction.
-pub fn register_pack_extension_dialects(pairs: impl IntoIterator<Item = (String, &'static str)>) {
-    let map: std::collections::HashMap<String, &'static str> = pairs.into_iter().collect();
+pub fn register_pack_extension_dialects(
+    pairs: impl IntoIterator<Item = (String, Option<&'static str>)>,
+) {
+    let map: std::collections::HashMap<String, Option<&'static str>> = pairs.into_iter().collect();
     let mut guard = match PACK_EXTENSION_DIALECTS.write() {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
@@ -613,7 +617,7 @@ fn pack_extension_dialect(ext: &str) -> Option<&'static str> {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
     };
-    guard.as_ref()?.get(ext).copied()
+    guard.as_ref()?.get(ext).copied().flatten()
 }
 
 /// The dialect owning the whole basename `base` per the catalogue's

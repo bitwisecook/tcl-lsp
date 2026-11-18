@@ -367,6 +367,26 @@ impl PackSet {
         }
         out
     }
+
+    /// Every extension a pack claims with no `-dialect`, first pack wins and
+    /// never an extension a `-dialect` row already routes: a source extension
+    /// to index and advertise whose dialect content detection decides.
+    #[must_use]
+    pub fn plain_extension_claims(&self) -> Vec<String> {
+        let routed = self.extension_dialects();
+        let mut out: Vec<String> = Vec::new();
+        for pack in &self.packs {
+            for row in &pack.file_extensions {
+                if row.dialect.is_none()
+                    && !routed.iter().any(|(ext, _)| *ext == row.extension)
+                    && !out.contains(&row.extension)
+                {
+                    out.push(row.extension.clone());
+                }
+            }
+        }
+        out
+    }
 }
 
 /// [`load_sources`] with the sources already in hand and no prior notices —
