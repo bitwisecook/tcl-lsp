@@ -122,7 +122,9 @@ fn a_dynamic_forget_pattern_revokes_nothing() {
 /// will fail this test, not silently start resolving.
 #[test]
 fn a_dynamic_export_pattern_exports_nothing() {
-    let dynamic = "set pat p\nnamespace eval src {\n    proc p {} { return P }\n    namespace export $pat\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
+    // tclsh 8.4.20/8.6.18 read a literal `set pat p` as the global, so the
+    // pattern is made unproved.
+    let dynamic = "set pat [gets stdin]\nnamespace eval src {\n    proc p {} { return P }\n    namespace export $pat\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
     let analysis = analyse(dynamic);
     let hit = proc_visible_via_wildcard_import(&analysis, DOC, "dst", "p", u32::MAX);
     assert!(
@@ -427,16 +429,19 @@ fn a_redefinition_ends_a_forced_import_shadow() {
     // the valid local definition and answer the import source forever.
     // Oracle: `proc ::dst::p` after `namespace import -force ::src::*`
     // returns LOCAL2 with `namespace origin ::dst::p` → `::dst::p`.
-    let src = "rename auto_import savedPrelude; namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    proc p {} { return LOCAL }\n}\nnamespace eval dst {\n    namespace import -force ::src::*\n}\nnamespace eval dst {\n    proc p {} { return LOCAL2 }\n}\n";
+    let src = "rename auto_import savedPrelude; namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    proc p {} { return LOCAL }\n}\nnamespace eval dst {\n    namespace import -force ::src::*\n}\nnamespace eval dst {p}\nnamespace eval dst {\n    proc p {} { return LOCAL2 }\n}\nnamespace eval dst {p}\n";
+    // tclsh 8.4.20-9.1.0: the two calls in dst give SRC, then LOCAL2.
     let analysis = analyse(src);
-    let between = at_first(src, "namespace import -force")
-        + u32::try_from("namespace import -force ::src::*".len()).expect("tiny");
+    let between = at_first(src, "namespace eval dst {p}")
+        + u32::try_from("namespace eval dst {".len()).expect("tiny");
     let hit = resolve_called_proc(&analysis, src, "::dst", "p", between, DOC);
     assert!(
         hit.is_some_and(|p| p.qualified_name == "::src::p"),
         "between the forced import and the redefinition the source wins: {hit:?}"
     );
-    let after = after_last(src, "return LOCAL2 }");
+    let after =
+        u32::try_from(src.rfind("namespace eval dst {p}").unwrap() + "namespace eval dst {".len())
+            .expect("tiny");
     let hit = resolve_called_proc(&analysis, src, "::dst", "p", after, DOC);
     assert!(
         hit.is_some_and(|p| p.qualified_name == "::dst::p"),
