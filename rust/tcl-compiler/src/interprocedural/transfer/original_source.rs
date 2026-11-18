@@ -221,6 +221,18 @@ impl<'a> ModuleProcedures<'a> {
             .with_value_operation(tokens, writes_land, apply)
     }
 
+    /// Why [`Self::with_original_native_value`] refuses `tokens`; `None`
+    /// where it admits the command or no native source is retained.
+    pub(crate) fn original_native_value_refusal(
+        &self,
+        tokens: &CommandTokens,
+        writes_land: bool,
+    ) -> Option<super::NativeValueRefusal> {
+        self.native_source
+            .as_ref()?
+            .value_refusal(tokens, writes_land)
+    }
+
     /// Retained source Module; callers still own their declaration/input joins.
     pub(crate) const fn original_source_module(&self) -> &'a crate::ir::Module {
         self.ir

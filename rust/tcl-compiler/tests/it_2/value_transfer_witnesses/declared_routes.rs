@@ -556,9 +556,10 @@ const ACC_PACK: &str = "speclib acc 2.2 {
 /// next version of `s`, run by the tclvm host from the loaded pack. In value
 /// position neither shape is a value, and neither route runs: the source
 /// gate refuses a command with a `VarWrite` role whose writes do not land
-/// (the effect-free policy of a substitution), so `[acc::add s ef]` and
-/// `[acc::store u xy]` record no route answer and their hosts stay
-/// overdefined. Without
+/// (the effect-free policy of a substitution) and says why — `[acc::add s
+/// ef]` reads `s` before it writes it, a read nothing proves there
+/// (`not-exact`), and `[acc::store u xy]` writes storage the substitution
+/// cannot own (`stateful-nested`) — and their hosts stay overdefined. Without
 /// `READS_BEFORE_WRITE` nothing records the variable's prior value at the
 /// call, so the incoming target is not exact and `acc::put` declines.
 #[test]
@@ -584,8 +585,14 @@ fn a_pack_write_through_an_incoming_target_reaches_the_driver() {
             "`{value}`: a writing call is never a value in value position"
         );
     }
-    assert_eq!(answers_for(&unit, "::p", "acc::add"), ["evaluated"]);
-    assert_eq!(answers_for(&unit, "::p", "acc::store").len(), 0);
+    assert_eq!(
+        answers_for(&unit, "::p", "acc::add"),
+        ["evaluated", "declined: not-exact"]
+    );
+    assert_eq!(
+        answers_for(&unit, "::p", "acc::store"),
+        ["declined: stateful-nested"]
+    );
     assert_eq!(
         value_at(&unit, "::q", "t", 2),
         Some(LatticeValue::Overdefined),

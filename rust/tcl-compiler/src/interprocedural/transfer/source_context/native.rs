@@ -71,6 +71,17 @@ enum NativeTransferPurpose<'a> {
     FreshSource(crate::command_binding::FreshNativeSourceAnalysis<'a>),
 }
 
+/// Why a nested command in value position was refused before its route ran.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum NativeValueRefusal {
+    /// A write role whose store does not land in the ordered state.
+    StatefulNested,
+    /// A read of a place nothing proves.
+    NotExact,
+    /// Anything else the gate refuses.
+    Unsupported,
+}
+
 pub(in crate::interprocedural::transfer) struct NativeSummaryContext<'a> {
     module: &'a Module,
     registry: &'a CommandRegistry,
@@ -454,6 +465,45 @@ impl<'a> NativeSummaryContext<'a> {
                 |schema| apply(&operation, schema),
             ),
         )
+    }
+
+    /// Why [`Self::with_value_operation`] refuses `tokens` in value position,
+    /// or `None` where it admits the command: a variable role that reads
+    /// (or reads before it writes) is a read nothing here proves; a write
+    /// role that does not land is a store outside the ordered state;
+    /// anything else is unsupported. The refusal runs no route.
+    pub(in crate::interprocedural::transfer) fn value_refusal(
+        &self,
+        tokens: &CommandTokens,
+        writes_land: bool,
+    ) -> Option<NativeValueRefusal> {
+        if self
+            .with_value_operation(tokens, writes_land, |_, _| Some(()))
+            .is_some()
+        {
+            return None;
+        }
+        let Some((_, normal)) = self.operation(tokens) else {
+            return Some(NativeValueRefusal::Unsupported);
+        };
+        let roles = normal.variable_roles();
+        let reads_before_write = normal
+            .variable_traits()
+            .contains(tcl_registry::Traits::READS_BEFORE_WRITE);
+        let reads = roles.iter().any(|&(_, role)| {
+            role == tcl_registry::ArgRole::VarRead
+                || (reads_before_write && role == tcl_registry::ArgRole::VarWrite)
+        });
+        let writes = roles
+            .iter()
+            .any(|&(_, role)| role == tcl_registry::ArgRole::VarWrite);
+        Some(if reads {
+            NativeValueRefusal::NotExact
+        } else if writes && !writes_land {
+            NativeValueRefusal::StatefulNested
+        } else {
+            NativeValueRefusal::Unsupported
+        })
     }
 
     pub(in crate::interprocedural::transfer) fn statement_tokens(

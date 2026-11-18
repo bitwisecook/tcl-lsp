@@ -435,7 +435,8 @@ fn the_seven_ordered_state_witnesses() {
 /// and the optimised program prints what tclsh 8.4 to 9.1 print. Where the
 /// write also reads a place nothing proves (`incr ::g`) the read is what
 /// declines, and a branch the expression never reaches owns nothing, so
-/// `0 && [set ::g 10]` is 0.
+/// `0 && [set ::g 10]` is 0. Each program calls `p` at the top level, which
+/// is no iRule, so they run under the core Tcl dialects.
 #[test]
 fn a_nested_write_outside_the_state_declines() {
     let programs = [
@@ -461,7 +462,7 @@ fn a_nested_write_outside_the_state_declines() {
         ),
     ];
     for (source, printed, answer) in programs {
-        for dialect in DIALECTS {
+        for dialect in TCL_CORE_DIALECTS {
             let unit = unit_of(source, dialect);
             assert_eq!(
                 answers_for(&unit, "::p", "expr"),

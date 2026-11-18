@@ -41,8 +41,8 @@ pub(crate) use completion::tests::logical_unit as logical_completion_unit;
 pub(crate) use eager::DefinitionReach;
 pub use transfer::TransferSummaries;
 pub(crate) use transfer::{
-    CallTransfer, ModuleInputs, ModuleProcedures, OriginalSummaryExpression, OriginalSummaryScript,
-    Rerun, RerunStance,
+    CallTransfer, ModuleInputs, ModuleProcedures, NativeValueRefusal, OriginalSummaryExpression,
+    OriginalSummaryScript, Rerun, RerunStance,
 };
 
 mod body_scan;

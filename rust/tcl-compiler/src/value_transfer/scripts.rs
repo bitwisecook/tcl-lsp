@@ -29,6 +29,7 @@ use super::{
     lattice_const_text, lattice_of_outcomes, result_of, split_head,
 };
 use crate::analyses::{LatticeValue, MAX_CONSTSET_SIZE};
+use crate::interprocedural::NativeValueRefusal;
 use crate::ir::{CommandTokens, Statement};
 use crate::ssa::{SsaFunction, Symbol, ValueKey, Version};
 use std::cell::RefCell;
@@ -272,10 +273,8 @@ impl LatticeDriver<'_> {
             let original = original?;
             if module.has_original_native_source() {
                 let writes_land = !matches!(under.1, NestedPolicy::EffectFreeOnly);
-                return module.with_original_native_value(
-                    original,
-                    writes_land,
-                    |operation, schema| {
+                return module
+                    .with_original_native_value(original, writes_land, |operation, schema| {
                         let cooked = self.operation_arguments(operation)?;
                         let written = (0..cooked.len())
                             .map(|index| operation.effective.written_argument(index))
@@ -287,8 +286,27 @@ impl LatticeDriver<'_> {
                             lattice,
                             under,
                         )
-                    },
-                );
+                    })
+                    .or_else(|| {
+                        // The gate refused before any route ran: report why,
+                        // where the refusal names a reason of its own.
+                        let reason = match module
+                            .original_native_value_refusal(original, writes_land)?
+                        {
+                            NativeValueRefusal::StatefulNested => DeclineReason::StatefulNested,
+                            NativeValueRefusal::NotExact => DeclineReason::NotExact,
+                            NativeValueRefusal::Unsupported => return None,
+                        };
+                        Some(ScriptRun {
+                            head: head.to_owned(),
+                            route: None,
+                            answer: LiftedAnswer::Declined(reason),
+                            writes: Vec::new(),
+                            binding: binding_of(head, head),
+                            rebound: false,
+                            procedure: false,
+                        })
+                    });
             }
             return module.with_original_operation(original, |operation, schema| {
                 let cooked = self.operation_arguments(operation)?;

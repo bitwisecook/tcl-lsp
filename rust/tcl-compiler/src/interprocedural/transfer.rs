@@ -52,7 +52,9 @@ use tcl_syntax::formal_params::{FormalArgumentBinding, FormalParameter};
 
 mod source_context;
 use source_context::{NativeSummaryContext, SourceSummaryContext};
-pub(crate) use source_context::{OriginalSummaryExpression, OriginalSummaryScript};
+pub(crate) use source_context::{
+    NativeValueRefusal, OriginalSummaryExpression, OriginalSummaryScript,
+};
 
 use crate::cfg_builder::global_write_info::GlobalWriteInfo;
 use crate::cfg_builder::upvar_info::UpvarInfo;

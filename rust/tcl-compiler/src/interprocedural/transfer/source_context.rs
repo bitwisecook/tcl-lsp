@@ -28,6 +28,7 @@ use tcl_registry::CommandRegistry;
 
 mod native;
 pub(super) use native::NativeSummaryContext;
+pub(crate) use native::NativeValueRefusal;
 
 /// A selected source call and its same-owner effective operands. Neither the
 /// declaration nor this conditional join establishes Native Normal completion.
