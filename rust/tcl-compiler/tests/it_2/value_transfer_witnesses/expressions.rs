@@ -123,7 +123,7 @@ fn abs_rebinding_declines() {
 fn a_rebound_nested_head_declines_the_expression() {
     let source = "proc llength {l} {return 99}\n\
                   proc p {} {set r [expr {[llength {a b}] * 2}]; return $r}\nputs [p]\n";
-    for dialect in DIALECTS {
+    for dialect in TCL_CORE_DIALECTS {
         let unit = unit_of(source, dialect);
         assert_eq!(
             value_at(&unit, "::p", "r", 1),
@@ -137,7 +137,7 @@ fn a_rebound_nested_head_declines_the_expression() {
         );
     }
     let pure = "proc p {} {set r [expr {[llength {a b}] * 2}]; return $r}\nputs [p]\n";
-    for dialect in DIALECTS {
+    for dialect in TCL_CORE_DIALECTS {
         assert_eq!(
             value_at(&unit_of(pure, dialect), "::p", "r", 1),
             Some(LatticeValue::Const(ConstValue::Int(4))),
