@@ -36,6 +36,36 @@ const SHAPES: &[(&str, &str, usize, &str)] = &[
     ("vformat", "1", 1, "proc vformat {x} {format %d $x}"),
     ("vlevel", "1", 1, "proc vlevel {x} {return -level 2 $x}"),
     (
+        "vif",
+        "1",
+        1,
+        "proc vif {x} {if {$x < 0} {set r neg} else {set r pos}}",
+    ),
+    (
+        "vifarm",
+        "1",
+        1,
+        "proc vifarm {x} {if {$x > 0} {format %d $x} else {set r neg}}",
+    ),
+    (
+        "vwhile",
+        "1",
+        1,
+        "proc vwhile {x} {set i 0; while {$i < $x} {incr i}; set i}",
+    ),
+    (
+        "vfor",
+        "1",
+        1,
+        "proc vfor {x} {set s 0; for {set i 0} {$i < $x} {incr i} {incr s $i}; set s}",
+    ),
+    (
+        "veach",
+        "1",
+        1,
+        "proc veach {x} {set s {}; foreach e $x {append s $e}; set s}",
+    ),
+    (
         "vret",
         "1",
         1,
@@ -213,6 +243,30 @@ const CASES: &[(&str, &[&str], usize)] = &[
         "proc hit {args} {lappend ::hits [lindex $args end]}; set ::hits {}; \
          trace add execution vupper enterstep hit; proc caller {n} {vupper $n}",
         &["list [caller abc] $::hits"],
+        0,
+    ),
+    // A body with structured control stays a call under a live entry until
+    // its reading as structured control lands (coordinator, 17 November):
+    // each kind, an error inside an arm, and `if` renamed between two calls.
+    (
+        "proc caller {n} {vif $n}",
+        &["caller -1", "caller 2", "caller abc"],
+        0,
+    ),
+    (
+        "proc caller {n} {vifarm $n}",
+        &["caller 1.5", "caller -1"],
+        0,
+    ),
+    ("proc caller {n} {vwhile $n}", &["caller 3"], 0),
+    ("proc caller {n} {vfor $n}", &["caller 4"], 0),
+    ("proc caller {n} {veach $n}", &["caller {a b c}"], 0),
+    (
+        "proc caller {n} {vif $n}",
+        &[
+            "set a [caller 5]; rename if __if; proc if {args} {return renamed}; \
+           set b [caller 5]; rename if {}; rename __if if; list $a $b",
+        ],
         0,
     ),
     // The call's own argument count is wrong.
