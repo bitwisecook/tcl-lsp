@@ -746,6 +746,38 @@ impl OriginalCommandOperands {
         )
     }
 
+    /// [`Self::procedure_key`]'s namespace, where the table holds none.
+    pub(super) fn procedure_namespace_missing(
+        &self,
+        facts: &InvocationFacts,
+        state: &ModuleCommandBindings,
+        current: &SourceNamespaceKey,
+    ) -> bool {
+        let Some(transitions) = facts.state_transitions.declared() else {
+            return false;
+        };
+        let mut names = transitions
+            .command_bindings()
+            .filter_map(|transition| match transition {
+                CommandBindingTransition::Define {
+                    name,
+                    kind: CommandBindingDefinitionKind::Procedure,
+                } => Some(name),
+                _ => None,
+            });
+        let (Some(name), None) = (names.next(), names.next()) else {
+            return false;
+        };
+        self.procedure_body
+            && self.input(name).is_some_and(|input| {
+                state.original_definition_namespace_missing(
+                    current,
+                    input,
+                    CommandBindingDefinitionKind::Procedure,
+                )
+            })
+    }
+
     fn apply_alias(
         &self,
         state: &mut ModuleCommandBindings,

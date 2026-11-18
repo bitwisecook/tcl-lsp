@@ -120,6 +120,42 @@ impl ModuleCommandBindings {
         Some(())
     }
 
+    /// Whether a definition of `input` would publish into a namespace the
+    /// walk's namespace table does not hold. Absence is definite only in a
+    /// world the caller has proved closed.
+    pub(in super::super) fn original_definition_namespace_missing(
+        &self,
+        current: &SourceNamespaceKey,
+        input: &SignatureSourceNameInput,
+        kind: CommandBindingDefinitionKind,
+    ) -> bool {
+        if !matches!(
+            input,
+            SignatureSourceNameInput::OriginalWord(_) | SignatureSourceNameInput::OriginalValue(_)
+        ) {
+            return false;
+        }
+        let scope = if tcl_syntax::naming::is_absolute_bytes(input.bytes()) {
+            SignatureNamespaceScope::root(Some(input.policy()))
+        } else {
+            let Some(scope) = self.original_namespace_geometry(current, input.policy()) else {
+                return false;
+            };
+            scope
+        };
+        let Some(slot) = super::super::source_command_world::publication_slot(&scope, input, kind)
+        else {
+            return false;
+        };
+        let query = self.original_command_world.query_view(self);
+        query.selected_policy() == Some(input.policy())
+            && !slot.namespace.is_root()
+            && query
+                .world()
+                .keys_with_c_scope_view(&self.namespaces, &slot.namespace, input.policy())
+                .is_empty()
+    }
+
     /// Conditional declaration namespace geometry from a genuine original
     /// operand. The original observation/frame owner must admit the caller.
     /// Current table existence, installation and Normal completion remain

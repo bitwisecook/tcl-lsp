@@ -42,12 +42,7 @@ pub(super) type ObjectCallbackInventory = BTreeMap<CommandAllocationSite, Object
 /// commands included) or through a command the walk cannot name; either one
 /// ends this.
 fn only_stock_object_types(state: &ModuleCommandBindings) -> bool {
-    state.baseline.source_point_entry.is_none()
-        && !state.baseline.host_extensible_command_table
-        && state.original_command_world.selected_policy().is_some()
-        && !state.unclosed_command_world
-        && !state.original_command_world.is_withdrawn()
-        && super::original_namespace_body::quiet(state)
+    super::original_namespace_body::closed_original_world(state)
 }
 
 #[derive(Clone, Copy)]

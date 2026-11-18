@@ -59,6 +59,23 @@ pub(in super::super) fn original_procedure_publication_key(
         .procedure_key(facts, state, &context.namespace_identity())
 }
 
+/// A valid `proc` whose name lies in a namespace a closed world proves
+/// absent: tclsh 8.4 to 9.1 raise `can't create procedure "…": unknown
+/// namespace` and define nothing.
+fn procedure_into_absent_namespace(
+    native: SourceNativeInvocation<'_>,
+    facts: &InvocationFacts,
+    state: &ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+) -> bool {
+    matches!(
+        facts.procedure_definition,
+        Some(tcl_registry::native_procedure::NativeProcedureDefinitionSelection::Valid(_))
+    ) && super::super::original_namespace_body::closed_original_world(state)
+        && original_command_table::OriginalCommandOperands::capture(native, facts, state, context)
+            .procedure_namespace_missing(facts, state, &context.namespace_identity())
+}
+
 pub(in super::super) fn closed_procedure_definition(
     native: SourceNativeInvocation<'_>,
     facts: &InvocationFacts,
@@ -104,6 +121,16 @@ pub(in super::super) fn closed_procedure_definition(
         && !state
             .installed_procedure_targets(&key, native.segment.span.start())
             .is_empty()
+}
+
+/// The definition raised: nothing it would define is published.
+fn raised(state: &ModuleCommandBindings) -> Box<SourceOutcomes> {
+    Box::new(SourceOutcomes::invocation(
+        state,
+        tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
+            tcl_registry::completion::CompletionCode::Error,
+        ),
+    ))
 }
 
 fn transfer_native_definition(
@@ -210,15 +237,13 @@ impl SourceCommandBindings {
             native, facts, state, context,
         );
         self.retain_standalone_definition_references(native, facts, state, context);
+        if procedure_into_absent_namespace(native, facts, state, context) {
+            return Err(raised(state));
+        }
         let definition = match transfer_native_definition(native, state, context, facts) {
             Ok(definition) => definition,
             Err(crate::raw_binding::StaticCaptureResult::Invalid) => {
-                return Err(Box::new(SourceOutcomes::invocation(
-                    state,
-                    tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
-                        tcl_registry::completion::CompletionCode::Error,
-                    ),
-                )));
+                return Err(raised(state));
             }
             Err(_) => return Err(Box::new(opaque_source_invocation(state))),
         };
@@ -504,5 +529,58 @@ impl SourceCommandBindings {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod absent_namespace_tests {
+    use super::super::super::{SourceAnalysisOptions, SourceCommandBindings};
+
+    fn analyse(source: &str, dialect: &str) -> SourceCommandBindings {
+        let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
+        let profile = registry.profile().unwrap();
+        SourceCommandBindings::analyse_with_options(
+            source,
+            tcl_lexer::LexerConfig::for_profile(Some(profile)),
+            registry,
+            SourceAnalysisOptions {
+                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                native_compilation: crate::environment_ingress::authoring_native_compilation(),
+                ..Default::default()
+            },
+        )
+    }
+
+    fn after(source: &str) -> u32 {
+        u32::try_from(source.rfind("puts hi").unwrap()).unwrap()
+    }
+
+    /// tclsh 8.4.20 to 9.1.0: `proc nope::f {} {}` and `proc ::T::D::define
+    /// {} {}` (with only `::T`) raise `can't create procedure "…": unknown
+    /// namespace`, so nothing after them runs; `proc ::T::ok {} {}` succeeds.
+    /// jimsh 0.84 names commands flat: `proc nope::f {} {return ok}` defines
+    /// it and `nope::f` returns ok.
+    #[test]
+    fn a_procedure_into_a_missing_namespace_raises() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            for source in [
+                "proc nope::f {} {}\nputs hi\n",
+                "namespace eval ::T {}\nproc ::T::D::define {} {}\nputs hi\n",
+            ] {
+                assert!(
+                    !analyse(source, dialect).entered_site(after(source)),
+                    "{dialect}: {source:?}"
+                );
+            }
+            let present = "namespace eval ::T {}\nproc ::T::ok {} {}\nputs hi\n";
+            let bindings = analyse(present, dialect);
+            assert!(bindings.reached_site(after(present)), "{dialect}");
+            assert!(
+                bindings.original_completed_command_world().is_some(),
+                "{dialect}"
+            );
+        }
+        let jim = "proc nope::f {} {return ok}\nputs hi\n";
+        assert!(analyse(jim, "jim").reached_site(after(jim)));
     }
 }

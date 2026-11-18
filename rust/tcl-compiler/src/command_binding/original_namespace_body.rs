@@ -46,6 +46,17 @@ pub(super) struct OriginalNamespaceBody {
     parent: crate::var_resolve::VariableExecutionFrame,
 }
 
+/// A quiet world whose original command and namespace tables are complete:
+/// nothing outside the walk's own record can add a command or a namespace.
+pub(super) fn closed_original_world(state: &ModuleCommandBindings) -> bool {
+    state.baseline.source_point_entry.is_none()
+        && !state.baseline.host_extensible_command_table
+        && state.original_command_world.selected_policy().is_some()
+        && !state.unclosed_command_world
+        && !state.original_command_world.is_withdrawn()
+        && quiet(state)
+}
+
 pub(super) fn quiet(state: &ModuleCommandBindings) -> bool {
     !state.has_opaque_domain()
         && state.baseline.native_entry.is_none()
