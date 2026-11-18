@@ -49,7 +49,9 @@ fn source_consumed_names_and_callbacks_join_actual_headers_without_becoming_edit
 
 #[test]
 fn consumed_alias_and_callback_receipts_keep_registration_horizon_and_known_barriers() {
-    let source = "proc p {} {}; interp alias {} shortcut {} p; info body shortcut; after 0 shortcut; rename shortcut {}; info body shortcut; after 0 shortcut";
+    // tclsh 8.6.18/9.1.0: `info body shortcut` raises ("shortcut" isn't a
+    // procedure), so the markers are caught and the script runs on.
+    let source = "proc p {} {}; interp alias {} shortcut {} p; catch {info body shortcut}; after 0 shortcut; rename shortcut {}; catch {info body shortcut}; after 0 shortcut";
     let analysis = Analyser::new().analyse(source, "tcl");
     let references =
         tcl_compiler::registry_invocation::source_structure::source_logical_name_references(
@@ -89,7 +91,9 @@ fn consumed_alias_and_callback_receipts_keep_registration_horizon_and_known_barr
 }
 #[test]
 fn logical_class_consumed_operands_and_callbacks_retain_actual_alias_history() {
-    let source = "oo::class create C {}; interp alias {} shortcut {} C; info body shortcut; after 0 shortcut; C new";
+    // tclsh 8.6.18/9.1.0: `info body shortcut` raises ("shortcut" isn't a
+    // procedure), so it is no reference; the callback and `C new` remain.
+    let source = "oo::class create C {}; interp alias {} shortcut {} C; after 0 shortcut; C new";
     let analysis = Analyser::new().analyse(source, "tcl");
     let class = analysis
         .all_classes
@@ -97,13 +101,13 @@ fn logical_class_consumed_operands_and_callbacks_retain_actual_alias_history() {
         .find(|class| class.name == "C")
         .unwrap();
     let spans = logical_class_reference_spans(source, &analysis, class);
-    assert_eq!(spans.len(), 3);
+    assert_eq!(spans.len(), 2);
     assert_eq!(
         spans
             .iter()
             .filter(|span| &source[span.as_range()] == "shortcut")
             .count(),
-        2
+        1
     );
     let references =
         tcl_compiler::registry_invocation::source_structure::source_logical_name_references(
