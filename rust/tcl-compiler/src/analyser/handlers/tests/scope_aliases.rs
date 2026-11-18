@@ -230,8 +230,22 @@ fn upvar_links_an_array_other_var_to_its_base() {
     // tk.tcl:177 `upvar ::tk::FocusGrab($index) data` — the element key
     // is runtime data, the array is the named cell every sibling access
     // shares.
+    // Inside a procedure, as tk.tcl has it: at the global level `upvar`
+    // raises `bad level "1"` (tclsh 8.6.18 / 9.0.4).
+    let result = Analyser::new().analyse(
+        "proc p {index} {\n    upvar ::tk::FocusGrab($index) data\n    set data 5\n}\n",
+        "tcl8.6",
+    );
+    let body = result
+        .global_scope
+        .children
+        .iter()
+        .find(|scope| scope.name == "p")
+        .expect("procedure scope");
     assert_eq!(
-        upvar_link_of(&["::tk::FocusGrab($index)", "data"], "data"),
+        body.variables
+            .get("data")
+            .and_then(|v| v.link_target.clone()),
         Some("::tk::FocusGrab".to_string()),
     );
 }
