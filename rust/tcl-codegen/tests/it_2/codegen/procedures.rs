@@ -129,53 +129,6 @@ fn proc_with_default_args() {
     assert!(fixture_id_if_present(&ir.procedures, "::greet").is_some());
 }
 
-// The unit's two top-level shapes.
-
-/// Every compiled unit carries its top level twice: as a *script* and as a
-/// *procedure body*.
-///
-/// A body compiled at run time — `proc`'s body when the pre-compiled entry
-/// misses, an `apply` lambda, a `TclOO` method — reaches the compiler as a bare
-/// script, so without the second shape it would run with the dispatched `*Stk`
-/// variable forms while an AOT-compiled proc of the same source ran the
-/// specialised ones. The two must be the *same* source compiled two ways, not
-/// two different programs.
-#[test]
-fn a_unit_carries_its_top_level_as_a_script_and_as_a_proc_body() {
-    let m = asm_for("set x 1\nincr x\nlappend l $x\nunset x\n");
-
-    let script = opcodes(&m.top_level);
-    assert!(
-        script.contains(&Op::STORE_STK) && !script.contains(&Op::STORE_SCALAR1),
-        "the script shape reaches variables through the stack forms: {script:?}"
-    );
-
-    let body = opcodes(&m.top_level_body);
-    for op in [
-        Op::STORE_SCALAR1,
-        Op::INCR_SCALAR1_IMM,
-        Op::LAPPEND_SCALAR1,
-        Op::UNSET_SCALAR,
-    ] {
-        assert!(
-            body.contains(&op),
-            "the body shape must use {}: {body:?}",
-            op.mnemonic()
-        );
-    }
-}
-
-/// The body shape is emitted exactly as an entry in `procedures` is, so a proc
-/// whose body the compiler *did* pre-compile and one that has to be compiled
-/// from its body word at run time run the same instructions.
-#[test]
-fn the_body_shape_matches_the_same_source_compiled_as_a_procedure() {
-    let body_src = "set t 0\nincr t 2\nlappend acc $t\nreturn $t\n";
-    let as_proc = opcodes(&proc_asm(&format!("proc p {{}} {{{body_src}}}"), "::p"));
-    let as_body = opcodes(&asm_for(body_src).top_level_body);
-    assert_eq!(as_proc, as_body);
-}
-
 /// A procedure's assembly records the body word it was compiled from, so a
 /// consumer keyed by *name* can tell it apart from another `proc` of the same
 /// name — the two arms of an `if`, a redefinition, a second `eval`.

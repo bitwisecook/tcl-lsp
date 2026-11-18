@@ -1029,6 +1029,7 @@ fn finalize_function(
     ctx.strip_empty_start_cmd();
     ctx.remove_trailing_pop();
     ctx.fold_tail_return_to_done();
+    ctx.settle_final_done();
     ctx.strip_unused_start_cmd();
     ctx.fixup_top_level_start_cmd();
     ctx.fold_const_push_pop_nops();

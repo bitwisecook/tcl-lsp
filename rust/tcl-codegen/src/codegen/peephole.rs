@@ -235,6 +235,42 @@ impl CodegenCtx<'_> {
         }
     }
 
+    /// C appends a final `done` to every body, after a trailing `returnImm`
+    /// too. From 8.6 its optimizer drops the final `done` straight after a
+    /// `done` a tail `return` compiled to; 8.5 keeps both (tclsh
+    /// `disassemble proc p` for `return $x`: 8.5 `done done`, 8.6+ `done`).
+    pub fn settle_final_done(&mut self) {
+        let Some(last) = self.instructions.last() else {
+            return;
+        };
+        if last.op == Op::RETURN_IMM {
+            self.emit(Op::DONE, vec![]);
+            return;
+        }
+        let n = self.instructions.len();
+        let trims = self
+            .invocation_dialect
+            .or_else(|| self.native_hook_dialect())
+            .and_then(|dialect| dialect.tcl_version)
+            .is_some_and(|version| version >= tcl_dialect::TclVersion::V8_6);
+        if trims
+            && n >= 2
+            && self.instructions[n - 1].op == Op::DONE
+            && self.instructions[n - 2].op == Op::DONE
+            && self.instructions[n - 1]
+                .native_operation_selections
+                .is_empty()
+            && self.instructions[n - 1].native_compiler_selection.is_none()
+        {
+            self.instructions.pop();
+            for position in self.label_positions.values_mut() {
+                if *position >= n - 1 {
+                    *position = n - 2;
+                }
+            }
+        }
+    }
+
     /// Remove `startCommand` markers whose continuation is the immediately
     /// following instruction.
     ///

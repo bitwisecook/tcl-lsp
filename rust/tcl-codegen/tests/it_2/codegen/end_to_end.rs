@@ -61,28 +61,6 @@ fn multiproc_module_format() {
 }
 
 #[test]
-fn complex_value_interpolation_in_proc() {
-    // The emitter pushes the interpolated `"Hello, $name! …"` value as a single
-    // literal (runtime word-substitution resolves the `$name`/`$age` markers),
-    // then storeScalar1 — no compile-time STR_CONCAT1. Assert the store path +
-    // the interpolated literal is interned verbatim.
-    let fa = proc_asm(
-        "proc greet {name age} { set msg \"Hello, $name! You are $age years old.\"; return $msg }",
-        "::greet",
-    );
-    let ops = opcodes(&fa);
-    assert!(ops.contains(&Op::STORE_SCALAR1));
-    assert!(
-        fa.literals.entries().iter().any(|l| {
-            l.unicode()
-                .is_ok_and(|text| text.contains("Hello, ") && text.contains("{name}"))
-        }),
-        "interpolated literal interned verbatim, got {:?}",
-        fa.literals.entries()
-    );
-}
-
-#[test]
 fn append_lappend_bytecoded() {
     let src = "proc builder {} { set s \"\"; set lst {}; append s \"hello\"; append s \" world\"; lappend lst \"item1\"; lappend lst \"item2\"; return $lst }";
     let ops = opcodes(&proc_asm(src, "::builder"));

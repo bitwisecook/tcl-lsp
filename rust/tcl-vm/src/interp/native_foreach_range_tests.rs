@@ -29,10 +29,19 @@ type LoopTargets = (Option<i32>, Option<i32>);
 /// `pc:mnemonic` per instruction, and the `(break, continue)` targets of the
 /// invocation inside the loop.
 fn compiled(release: tcl_dialect::TclVersion, body: &str) -> (Vec<String>, Option<LoopTargets>) {
+    compiled_with(release, "", body)
+}
+
+/// As [`compiled`], for a procedure with formal parameters `params`.
+fn compiled_with(
+    release: tcl_dialect::TclVersion,
+    params: &str,
+    body: &str,
+) -> (Vec<String>, Option<LoopTargets>) {
     let mut vm = crate::native_fixture::interpreter(
         tcl_dialect::DialectProfile::find(release.dialect_name()).expect("release profile"),
     );
-    let words = ["p", "", body].map(|word| Value::new_native_string_bytes(word.as_bytes()));
+    let words = ["p", params, body].map(|word| Value::new_native_string_bytes(word.as_bytes()));
     let head = Value::new_native_string_bytes(b"proc".as_slice());
     assert_eq!(
         vm.invoke_host_original_object_vector(&head, &words).code,
@@ -68,12 +77,20 @@ fn oracle(
     release: tcl_dialect::TclVersion,
     body: &str,
 ) -> Option<(Vec<String>, Option<LoopTargets>)> {
-    let tclsh = tcl_test_support::witness_tclsh(release)?;
-    let output = tcl_test_support::run_script(
-        &tclsh.path,
-        format!("proc p {{}} {{{body}}}; puts [tcl::unsupported::disassemble proc p]").as_bytes(),
+    oracle_of(
+        release,
+        &format!("proc p {{}} {{{body}}}; puts [tcl::unsupported::disassemble proc p]"),
     )
-    .expect("the oracle runs");
+}
+
+/// tclsh's disassembly printed by `script`, as `pc:mnemonic` and loop targets.
+fn oracle_of(
+    release: tcl_dialect::TclVersion,
+    script: &str,
+) -> Option<(Vec<String>, Option<LoopTargets>)> {
+    let tclsh = tcl_test_support::witness_tclsh(release)?;
+    let output =
+        tcl_test_support::run_script(&tclsh.path, script.as_bytes()).expect("the oracle runs");
     let text = String::from_utf8_lossy(&output.stdout).into_owned();
     let instructions = text
         .lines()
@@ -144,6 +161,110 @@ fn a_bare_primary_condition_converts_before_its_jump_as_tclsh_does() {
                 instructions,
                 "{release:?} {body}"
             );
+        }
+    }
+}
+
+/// A top-level script's instructions as this VM compiles it for evaluation.
+fn script_compiled(release: tcl_dialect::TclVersion, script: &str) -> Vec<String> {
+    let mut vm = crate::native_fixture::interpreter(
+        tcl_dialect::DialectProfile::find(release.dialect_name()).expect("release profile"),
+    );
+    let unit = vm
+        .compile_script_cached(script)
+        .unwrap_or_else(|error| panic!("{release:?}: {error:?}"));
+    unit.asm
+        .instructions
+        .iter()
+        .map(|instruction| format!("{}:{}", instruction.offset, instruction.op.mnemonic()))
+        .collect()
+}
+
+/// The same source compiles to tclsh's stack-variable forms as a top-level
+/// script and to its local-variable forms as a procedure body.
+#[test]
+fn a_script_and_a_procedure_body_compile_as_tclsh_compiles_each() {
+    for source in [
+        "set x 1;incr x;lappend l $x;unset x",
+        "set t 0;incr t 2;lappend acc $t;return $t",
+    ] {
+        for release in [tcl_dialect::TclVersion::V8_6, tcl_dialect::TclVersion::V9_0] {
+            let Some((script, _)) = oracle_of(
+                release,
+                &format!("puts [tcl::unsupported::disassemble script {{{source}}}]"),
+            ) else {
+                continue;
+            };
+            assert_eq!(
+                script_compiled(release, source),
+                script,
+                "{release:?} script {source}"
+            );
+            let (body, _) = oracle(release, source).expect("the same oracle");
+            assert_eq!(
+                compiled(release, source).0,
+                body,
+                "{release:?} proc {source}"
+            );
+        }
+    }
+}
+
+/// A quoted word interpolating parameters compiles as tclsh compiles it.
+#[test]
+fn an_interpolated_value_in_a_procedure_compiles_as_tclsh_compiles_it() {
+    let body = "set msg \"Hello, $name! You are $age years old.\"; return $msg";
+    for release in [tcl_dialect::TclVersion::V8_6, tcl_dialect::TclVersion::V9_0] {
+        let Some((instructions, _)) = oracle_of(
+            release,
+            &format!("proc p {{name age}} {{{body}}}; puts [tcl::unsupported::disassemble proc p]"),
+        ) else {
+            continue;
+        };
+        assert_eq!(
+            compiled_with(release, "name age", body).0,
+            instructions,
+            "{release:?}"
+        );
+    }
+}
+
+/// Every body ends in the `done` C appends: after a script's `returnImm`, and
+/// after a procedure's tail `return` (folded to `done`), which 8.6's optimizer
+/// then trims and 8.5 keeps.
+#[test]
+fn a_body_ends_with_the_done_tclsh_appends() {
+    for source in ["return $x", "set y 1; return $x", "return 1"] {
+        for release in [
+            tcl_dialect::TclVersion::V8_5,
+            tcl_dialect::TclVersion::V8_6,
+            tcl_dialect::TclVersion::V9_0,
+        ] {
+            let Some((body, _)) = oracle_of(
+                release,
+                &format!("proc p {{x}} {{{source}}}; puts [tcl::unsupported::disassemble proc p]"),
+            ) else {
+                continue;
+            };
+            assert_eq!(
+                compiled_with(release, "x", source).0,
+                body,
+                "{release:?} proc {source}"
+            );
+            // 8.5 scripts read variables through its own stack forms, a
+            // separate witness.
+            if release >= tcl_dialect::TclVersion::V8_6 {
+                let (script, _) = oracle_of(
+                    release,
+                    &format!("puts [tcl::unsupported::disassemble script {{{source}}}]"),
+                )
+                .expect("the same oracle");
+                assert_eq!(
+                    script_compiled(release, source),
+                    script,
+                    "{release:?} script {source}"
+                );
+            }
         }
     }
 }
