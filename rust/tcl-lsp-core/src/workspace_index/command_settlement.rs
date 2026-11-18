@@ -759,7 +759,7 @@ impl WorkspaceIndex {
             }
         }
         if let std::ops::ControlFlow::Break(settled) =
-            self.settle_original_invocation(inv, defined, links)
+            self.settle_original_invocation(inv, defined, links, wci)
         {
             return settled;
         }
@@ -865,6 +865,7 @@ impl WorkspaceIndex {
         inv: &WorkspaceInvocation,
         defined: &HashSet<String>,
         links: Option<&std::collections::HashMap<String, String>>,
+        wci: &WildcardImportIndex<'_>,
     ) -> std::ops::ControlFlow<Option<SettledCommandTarget>> {
         if let Some(reference) = &inv.resolved_command_reference
             && (inv.original_name_input.is_some() || reference.original_name_policy().is_some())
@@ -891,23 +892,55 @@ impl WorkspaceIndex {
                 None
             });
         }
-        if let Some(lookup) = inv.original_lookup.as_ref()
+        // The linked view (find-references) also follows a glob import, as
+        // the authored path below does; the direct view never does.
+        let wildcard = || {
+            links?;
+            let call = CallSite {
+                uri: &inv.uri,
+                at: inv.range.start(),
+                enclosing_body: inv.enclosing_body,
+            };
+            self.resolve_wildcard_import_indexed(&inv.name, &inv.resolution_candidates, call, wci)
+                .map(|resolved| {
+                    SettledCommandTarget::Authored(
+                        unroot_rooted_key(&resolved).unwrap_or(&resolved).to_owned(),
+                    )
+                })
+        };
+        let forced_shadow = || {
+            links.is_some()
+                && wci.forced_shadow_over_candidates(
+                    &inv.name,
+                    &inv.resolution_candidates,
+                    CallSite {
+                        uri: &inv.uri,
+                        at: inv.range.start(),
+                        enclosing_body: inv.enclosing_body,
+                    },
+                )
+        };
+        let assisted = if let Some(lookup) = inv.original_lookup.as_ref()
             && lookup.policy().authority() == tcl_syntax::naming::NamePolicyAuthority::Native
         {
-            return std::ops::ControlFlow::Break(
-                self.original_assistance_target(lookup, links.is_some())
-                    .or_else(|| Self::linked_candidate_target(inv, links?, defined)),
-            );
-        }
-        if let Some(lookup) = inv.original_lookup.as_ref()
+            self.original_assistance_target(lookup, links.is_some())
+        } else if let Some(lookup) = inv.original_lookup.as_ref()
             && inv.logical_source_domain == Some(false)
         {
-            return std::ops::ControlFlow::Break(
-                self.workspace_assistance_target(lookup, links.is_some())
-                    .or_else(|| Self::linked_candidate_target(inv, links?, defined)),
-            );
+            self.workspace_assistance_target(lookup, links.is_some())
+        } else {
+            return std::ops::ControlFlow::Continue(());
+        };
+        if forced_shadow()
+            && let Some(source) = wildcard()
+        {
+            return std::ops::ControlFlow::Break(Some(source));
         }
-        std::ops::ControlFlow::Continue(())
+        std::ops::ControlFlow::Break(
+            assisted
+                .or_else(|| Self::linked_candidate_target(inv, links?, defined))
+                .or_else(wildcard),
+        )
     }
 
     fn linked_candidate_target(
