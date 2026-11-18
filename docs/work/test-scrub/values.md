@@ -45,14 +45,13 @@ row that is kept still needs its citation written into the test; the evidence co
 | 37 | `binding-substitution-word-no-layout` | analyser-binding | A procedure-body statement whose words hold a substitution gets no declared layout: `set d [expr {sqrt($x)}]` stays `Call set` with no definition of `d`, `set a($k) 9` raises every dynamic-name flag |
 | 21 | `f5-rule-procedure-frame` | taint (queue item 1) | Under f5-irules a rule procedure called at the top level gets no SSA definitions, or names its variables by a frame identity (`@frame:47:::p@0/…:r`) |
 | 12 | `unknown-head-untrust` | dataflow, then values | Ruling of 17 November: untrust after an unknown head is flow-sensitive and fixtures say bounded or unbounded. Eleven `handler_widening` fixtures must be restated (FIX-FIXTURE) |
-| 10 | `binding-caller-frame-opaque-builtin` | analyser-binding | A builtin whose binding is not proved at its site (a top-level `switch`, `puts` in an f5 procedure) is followed by a `<caller-frame-opaque>` barrier, "switch upvar-aliases a dynamic caller variable"; no selection, branch or merge facts |
+| 11 | `binding-caller-frame-opaque-builtin` | analyser-binding | A builtin whose binding is not proved at its site (a top-level `switch`, `puts` in an f5 procedure) is followed by a `<caller-frame-opaque>` barrier, "switch upvar-aliases a dynamic caller variable"; no selection, branch or merge facts |
 | 9 | `loop-enumeration` | analyser-binding | A `foreach` over a literal list is not lowered structurally, so nothing is enumerated after the loop |
 | 9 | `frame-script-body-unread` | analyser-binding | A script run at `#0` or `1` (`uplevel`, an alias to it, `eval` inside it) has no invocation metadata, so the global summary goes opaque |
 | 9 | `f5-handler-command-unbound` | analyser-binding | Inside a `when` body `set`, `TCP::payload` resolve as `UnprovedBinding` |
 | 8 | `summary-link-local-def` | dataflow issue session | A write through `upvar 1 $name v` defines nothing at the callee's exit (summary SSA step 4 in progress) |
-| 7 | `binding-catch-result-variable-no-place` | analyser-binding | `catch {…} m ?opts?`: the result variable gets no place, and the commands from the catch end on are unproved, so the computed-name hazard widens the whole procedure (root found by analyser-binding: the walk is widened after a raising catch body). Four rows moved here from `catch-body-transfer` on 18 November |
+| 9 | `binding-catch-result-variable-no-place` | analyser-binding | `catch {…} m ?opts?`: the result variable gets no place, and the commands from the catch end on are unproved, so the computed-name hazard widens the whole procedure (root found by analyser-binding: the walk is widened after a raising catch body). Four rows moved here from `catch-body-transfer` and two from `try-body-transfer` on 18 November |
 | 5 | `ssa-var-symbol-lookup-refused` | dataflow | The procedure lists the variable (`vars [x, m, o]`, or two symbols named `g`) yet `var_symbol` returns None |
-| 5 | `try-body-transfer` | values | `try` bodies, handlers and `finally` (level-0 return, `exit`, partial `lassign`) |
 | 5 | `f5-top-level-not-executable` | values | f5-irules rows of top-level fixtures expect Tcl folding; iRules refuses executable top-level code (IRULE5007) |
 | 5 | `declared-route-evaluation` | values | Declared package routes through the driver (pack writes, raising arguments, shadowing, folded types) |
 | 4 | `escape-top-level-fixture` | values | Escape fixtures run at `#0`, where `global` links nothing and a variable is Local by ruling (37cf6fd2); they need a procedure |
@@ -62,11 +61,11 @@ row that is kept still needs its citation written into the test; the evidence co
 | 3 | `binding-procedure-absent-after-statement` | analyser-binding | A procedure defined in the file is absent after a top-level statement |
 | 2 | `lifted-call-body-not-original` | dataflow-optimiser | No original body for the script of a `catch` lifted from a substitution word (`set c [catch {return 5} m]`), so the catch declines unsupported; the code table and the nested catch body |
 | 2 each | `binding-catch-body-children-unavailable`, `binding-conditional-alias-join`, `binding-renamed-builtin-head`, `class-facts-object-element`, `escape-param-upvar-source-precision`, `escape-entry-point-ignores-registry`, `existence-chain-fold`, `expr-decline-reason`, `fixture-body-absent`, `ordered-nested-write`, `orig-diagnostic-refusal`, `wrong-rewrite-callback-write` | | |
-| 1 each | 28 more, listed in the ledger, among them `o101-non-finite-render` (dataflow-optimiser: O101 renders no non-finite double), `wrong-rewrite-try-error-path`, `wrong-rewrite-shift-beyond-width`, `release-tower-fold` and `panics-before-assertion` | | |
+| 1 each | 30 more, listed in the ledger, among them `optimiser-handler-forwarding` and `dead-store-unreachable-use` (dataflow-optimiser, from `try-body-transfer`), `o101-non-finite-render` (dataflow-optimiser: O101 renders no non-finite double), `wrong-rewrite-try-error-path`, `wrong-rewrite-shift-beyond-width`, `release-tower-fold` and `panics-before-assertion` | | |
 
-By owner of the cause: analyser-binding 94, values 60, dataflow-optimiser 24 and its issue session 12, taint
+By owner of the cause: analyser-binding 97, values 56, dataflow-optimiser 25 and its issue session 12, taint
 21, analysis-performance 4, class-facts 3 (the 12 unknown-head rows count under dataflow; their
-fixtures are restated here afterwards). What values can move now: the try transfer rows, declared routes, the escape walker, 5 f5 expectations and
+fixtures are restated here afterwards). What values can move now: declared routes, the escape walker, 5 f5 expectations and
 the fixtures.
 
 ## Distinct failing behaviours
