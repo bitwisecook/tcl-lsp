@@ -39,30 +39,38 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tcl_registry::CommandRegistry;
 
-struct RetainedLoweredSource {
+pub(super) struct RetainedLoweredSource {
     pub(super) ir_module: IrModule,
     pub(super) cfg_module: CfgModule,
     pub(super) tainted_global_writes: HashMap<crate::ir::ProcedureId, HashSet<String>>,
-    prepared_cfg_context: PreparedCfgContext,
+    pub(super) prepared_cfg_context: PreparedCfgContext,
     pub(super) integrity: std::cell::Cell<bool>,
 }
 
-struct RetainedLoweringInput<'a, 'b> {
+pub(super) struct RetainedLoweringInput<'a, 'b> {
     pub(super) source: &'a str,
     pub(super) options: UnitBuildOptions<'b>,
-    body_caches: OriginalBodyCacheInputs<'b>,
+    pub(super) body_caches: OriginalBodyCacheInputs<'b>,
     pub(super) entry: Option<&'b crate::command_binding::SourceAnalysisEntry>,
     pub(super) context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
     pub(super) input: Option<&'b crate::analyser::ResolvedAnalysisInput>,
-    source_body_cache: Option<&'b crate::lowering::SourceBodySyntaxCache<'b>>,
-    standalone: Option<crate::lowering::StandaloneSourceInput<'b>>,
-    source_settings: Option<&'b Arc<crate::analyser::OriginalAnalyserSourceSettings>>,
+    pub(super) source_body_cache: Option<&'b crate::lowering::SourceBodySyntaxCache<'b>>,
+    pub(super) standalone: Option<crate::lowering::StandaloneSourceInput<'b>>,
+    pub(super) source_settings: Option<&'b Arc<crate::analyser::OriginalAnalyserSourceSettings>>,
 }
 
-fn lower_retained_source(
+pub(super) fn lower_retained_source(
     request: RetainedLoweringInput<'_, '_>,
     #[cfg(any(test, debug_assertions))] phase_trace: &mut SourcePipelineTrace,
 ) -> RetainedLoweredSource {
+    // An unchanged document under inputs already lowered gets the same module
+    // objects, so its procedure identities and source proofs recur.
+    if let Some(cache) = request.body_caches.module
+        && let Some(inputs) = super::ModuleLoweringInputs::of_request(&request)
+        && let Some(retained) = cache(&inputs).and_then(|lowered| lowered.retained_for(&inputs))
+    {
+        return retained;
+    }
     let RetainedLoweringInput {
         source,
         options,

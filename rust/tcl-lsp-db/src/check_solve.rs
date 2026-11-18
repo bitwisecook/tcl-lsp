@@ -352,8 +352,13 @@ pub fn proc_taint_solve_for_config<'db>(
         &input,
     )?;
     let settings = document_analyser(db, file, config).source_compilation_settings();
-    let (cu, keys) =
-        build_unit_with_keys_and_input(db, file.text(db), options, Some(&input), Some(&settings));
+    let (cu, keys) = build_unit_with_keys_and_input(
+        db,
+        (Some(file), file.text(db)),
+        options,
+        Some(&input),
+        Some(&settings),
+    );
     Some(solve_checks_for_unit(
         db,
         file.dialect(db),

@@ -109,6 +109,43 @@ pub struct SourceProcBodyKey<'db> {
     pub request: tcl_compiler::lowering::SourceBodySyntaxRequest,
 }
 
+/// The lowering inputs of one document build other than its text, by value.
+#[salsa::interned]
+pub struct ModuleLoweringKey<'db> {
+    #[returns(ref)]
+    pub inputs: tcl_compiler::compilation_unit::ModuleLoweringInputs,
+}
+
+/// One document's lowered module under one set of lowering inputs, shared by
+/// every build of that document with equal inputs, so an unchanged document
+/// rebuilt under a revisited configuration keeps its procedure identities and
+/// source proofs and every lattice key built from them recurs (#2543).
+///
+/// Keyed by the document and its inputs other than the text, which is read
+/// here: an edit re-executes the one entry per (document, inputs) in place, so
+/// a superseded text's module is dropped rather than held until eviction, and
+/// the entries are the live (document, configuration) pairs. The cap matches
+/// the per-configuration unit memo's (`compilation_unit_for_config`). `None`
+/// when lowering reported a body-cache integrity failure; the build then
+/// lowers for itself.
+// LRU-capped: per-file key, see the crate docs' "Deep-memo eviction".
+#[salsa::tracked(lru = 512, returns(clone))]
+pub fn lowered_document_module<'db>(
+    db: &'db dyn TclDb,
+    file: crate::SourceFile,
+    key: ModuleLoweringKey<'db>,
+) -> Option<Arc<tcl_compiler::compilation_unit::LoweredModule>> {
+    let inputs = key.inputs(db).with_source(file.text(db));
+    let (body_memo, source_body_memo) = lowering_body_memos(
+        db,
+        inputs.dialect(),
+        inputs.registry(),
+        inputs.config().normalized(),
+    );
+    tcl_compiler::compilation_unit::LoweredModule::lower(&inputs, &body_memo, &source_body_memo)
+        .map(Arc::new)
+}
+
 /// Lower neutral call syntax from genuine pre-lowering source dependencies.
 #[salsa::tracked(lru = 512, returns(clone))]
 pub fn lower_proc_body_source<'db>(
@@ -182,7 +219,7 @@ pub(super) fn build_unit_with_keys<'db>(
     CompilationUnit,
     HashMap<tcl_compiler::ir::ProcedureId, FnLatticeKey<'db>>,
 ) {
-    build_unit_with_keys_and_input(db, source, options, None, None)
+    build_unit_with_keys_and_input(db, (None, source), options, None, None)
 }
 
 fn lattice_memo_context<'db>(db: &'db dyn TclDb, req: &LatticeRequest<'_>) -> CfgContext<'db> {
@@ -308,9 +345,54 @@ fn build_lattice_memo_candidate<'db>(
     unit
 }
 
+type BodyMemos<'db> = (
+    Box<dyn Fn(&str, &str) -> tcl_compiler::lowering::OriginalBodyLoweringTemplate + 'db>,
+    Box<
+        dyn Fn(
+                &tcl_compiler::lowering::SourceBodySyntaxRequest,
+            ) -> tcl_compiler::lowering::SourceBodySyntaxTemplate
+            + 'db,
+    >,
+);
+
+/// The per-body lowering memos of one dialect, registry and body grammar.
+fn lowering_body_memos<'db>(
+    db: &'db dyn TclDb,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    registry: &tcl_registry::RegistrySnapshot,
+    body_config: tcl_lexer::LexerConfig,
+) -> BodyMemos<'db> {
+    // Values, rather than an environment-name round trip, own memo identity.
+    let dialect_key = dialect.map_or("", |profile| profile.name);
+    let profile_key = dialect.map(tcl_dialect::DialectProfile::cache_key);
+    let registry = registry.clone();
+    (
+        Box::new(move |body_text: &str, namespace: &str| {
+            let key = ProcBodyKey::new(
+                db,
+                body_text.to_owned(),
+                namespace.to_owned(),
+                dialect_key.to_owned(),
+                CompilerMemoSnapshot {
+                    profile: profile_key,
+                    registry: registry.clone(),
+                },
+                body_config,
+            );
+            original_lower_proc_body(db, key)
+        }),
+        Box::new(
+            move |request: &tcl_compiler::lowering::SourceBodySyntaxRequest| {
+                let key = SourceProcBodyKey::new(db, request.clone());
+                lower_proc_body_source(db, key)
+            },
+        ),
+    )
+}
+
 pub(super) fn build_unit_with_keys_and_input<'db>(
     db: &'db dyn TclDb,
-    source: &str,
+    (document, source): (Option<crate::SourceFile>, &str),
     options: UnitBuildOptions<'_>,
     input: Option<&tcl_compiler::analyser::ResolvedAnalysisInput>,
     settings: Option<&Arc<tcl_compiler::analyser::OriginalAnalyserSourceSettings>>,
@@ -320,10 +402,7 @@ pub(super) fn build_unit_with_keys_and_input<'db>(
 ) {
     let UnitBuildOptions { registry, .. } = options;
     let dialect = options.dialect;
-    // Values, rather than an environment-name round trip, own memo identity.
-    let dialect_key = dialect.map_or("", |profile| profile.name);
     let dialect_opt = dialect;
-    let profile_key = dialect.map(tcl_dialect::DialectProfile::cache_key);
     let registry_snapshot = registry.snapshot();
     let body_config = options.config.normalized();
     let epoch = evaluator_epoch(db);
@@ -356,23 +435,15 @@ pub(super) fn build_unit_with_keys_and_input<'db>(
         // The isolated-body caller positions this owned baseline Script and
         // restores current binding proofs. Source-only syntax uses its separate
         // genuine pre-lowering request below.
-        let body_memo = |body_text: &str, namespace: &str| {
-            let key = ProcBodyKey::new(
+        let (body_memo, source_body_memo) =
+            lowering_body_memos(db, dialect, &registry_snapshot, body_config);
+        let module_memo = |inputs: &tcl_compiler::compilation_unit::ModuleLoweringInputs| {
+            let file = document.filter(|file| file.text(db).as_str() == inputs.source())?;
+            lowered_document_module(
                 db,
-                body_text.to_owned(),
-                namespace.to_owned(),
-                dialect_key.to_owned(),
-                CompilerMemoSnapshot {
-                    profile: profile_key,
-                    registry: registry_snapshot.clone(),
-                },
-                body_config,
-            );
-            original_lower_proc_body(db, key)
-        };
-        let source_body_memo = |request: &tcl_compiler::lowering::SourceBodySyntaxRequest| {
-            let key = SourceProcBodyKey::new(db, request.clone());
-            lower_proc_body_source(db, key)
+                file,
+                ModuleLoweringKey::new(db, inputs.without_source()),
+            )
         };
         match input.zip(settings) {
             Some(input) => {
@@ -380,8 +451,7 @@ pub(super) fn build_unit_with_keys_and_input<'db>(
                     source,
                     options,
                     &mut lattice_memo,
-                    &body_memo,
-                    &source_body_memo,
+                    (&body_memo, &source_body_memo, Some(&module_memo)),
                     None,
                     input,
                 )
@@ -390,8 +460,7 @@ pub(super) fn build_unit_with_keys_and_input<'db>(
                 source,
                 options,
                 &mut lattice_memo,
-                &body_memo,
-                &source_body_memo,
+                (&body_memo, &source_body_memo, Some(&module_memo)),
                 None,
                 input,
             ),

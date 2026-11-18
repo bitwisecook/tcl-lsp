@@ -229,7 +229,14 @@ pub fn compilation_unit_for_config<'db>(
     )?;
     let settings = document_analyser(db, file, config).source_compilation_settings();
     Some(Arc::new(
-        build_unit_with_keys_and_input(db, file.text(db), options, Some(&input), Some(&settings)).0,
+        build_unit_with_keys_and_input(
+            db,
+            (Some(file), file.text(db)),
+            options,
+            Some(&input),
+            Some(&settings),
+        )
+        .0,
     ))
 }
 

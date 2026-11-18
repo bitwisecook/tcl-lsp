@@ -349,6 +349,56 @@ fn an_uncertifiable_body_reanalysed_under_alternating_configuration_interns_noth
     assert_revisits_intern_nothing(source);
 }
 
+/// The same bound past every per-key memo cap: more unchanged documents than
+/// the LRU of the lowered-module and unit memos holds, re-analysed under a
+/// configuration that alternates between two values. Evicted modules are
+/// lowered again, so the interned contexts and lattice keys reachable from a
+/// rebuild must stop growing once every document has been seen under both
+/// values, or a server holding many documents still grows without bound
+/// (#2543). Dialect-invariant; run under Tcl 8.6.
+#[test]
+fn more_documents_than_the_memo_caps_reanalysed_under_alternating_configuration_plateau_2543() {
+    const DOCUMENTS: usize = 70;
+    const ROUNDS: usize = 12;
+    let mut db = TclDatabase::default();
+    let files: Vec<_> = (0..DOCUMENTS)
+        .map(|index| {
+            let source = format!(
+                "proc p{index} {{a b}} {{\n  upvar 1 $a v\n  set v [expr {{$b + {index}}}]\n  return $v\n}}\n\
+                 proc q{index} {{}} {{ p{index} x 1 }}\nq{index}\n"
+            );
+            SourceFile::new(&db, source, "tcl8.6".to_owned(), None)
+        })
+        .collect();
+    let config = build_config(&db);
+    let mut seen = Vec::new();
+    for round in 0..ROUNDS {
+        let extra = if round % 2 == 0 {
+            Vec::new()
+        } else {
+            vec!["churnpack::noop".to_owned()]
+        };
+        config.set_extra_commands(&mut db).to(extra);
+        for &file in &files {
+            let _ = compiler_check_diagnostics(&db, file, config);
+        }
+        seen.push((
+            interned_count(&mut db, "CfgContext"),
+            interned_count(&mut db, "FnLatticeKey"),
+        ));
+    }
+    let after_both = seen[1];
+    assert!(
+        after_both.0 > 0 && after_both.1 > 0,
+        "the fixture reaches the lattice memo: {seen:?}"
+    );
+    assert!(
+        seen[2..].iter().all(|&counts| counts == after_both),
+        "rebuilds past the memo caps kept interning contexts or lattice keys \
+         (CfgContext, FnLatticeKey per round): {seen:?}",
+    );
+}
+
 /// Alternates one configuration value over an unchanged Tcl 8.6 document and
 /// asserts that, once both values have been seen, no round interns a new
 /// module context or lattice key.

@@ -718,6 +718,8 @@ mod interprocedural_analysis;
 mod lattice_request;
 mod memory_and_semantic_facts;
 mod module_facts;
+mod module_lowering_memo;
+pub use module_lowering_memo::{LoweredModule, ModuleLoweringCache, ModuleLoweringInputs};
 mod procedure_units;
 mod source_lowering;
 mod template_instantiation;
@@ -1000,6 +1002,7 @@ struct ModuleWideFacts {
 struct OriginalBodyCacheInputs<'a> {
     legacy: Option<&'a BodyLoweringCache<'a>>,
     original: Option<&'a crate::lowering::OriginalBodyLoweringCache<'a>>,
+    module: Option<&'a ModuleLoweringCache<'a>>,
 }
 
 #[derive(Clone, Copy)]

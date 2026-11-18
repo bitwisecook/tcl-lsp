@@ -429,6 +429,7 @@ impl OriginalOptimiserSourceOrigin {
                     super::OriginalBodyCacheInputs {
                         legacy: None,
                         original: None,
+                        module: None,
                     },
                     None,
                     None,

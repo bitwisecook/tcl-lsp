@@ -26,12 +26,16 @@ fn configured_taint_checks_consume_the_solve_original_module_owner() {
                       proc danger {} { set u [gets stdin]; set p [pass $u]; exec $p }\n\
                       proc other {} { set z 1 }\n";
     let dialect = "tcl8.6";
-    let db = TclDatabase::default();
+    let mut db = TclDatabase::default();
     let file = SourceFile::new(&db, source.to_owned(), dialect.to_owned(), None);
     let policy = cfg(&db);
+    let varied = cfg(&db);
+    salsa::Setter::to(
+        varied.set_extra_commands(&mut db),
+        vec!["churnpack::noop".to_owned()],
+    );
     let key = lexer_cfg_key(&db, dialect);
     let input = document_analysis_input(&db, file, policy).unwrap();
-    let shared = compilation_unit_for_config(&db, file, key, policy).unwrap();
     let solved = proc_taint_solve_for_config(&db, file, key, policy).unwrap();
     let owner = solved.unit.as_ref();
     assert_eq!(
@@ -44,9 +48,13 @@ fn configured_taint_checks_consume_the_solve_original_module_owner() {
     );
     assert_eq!(owner.ir_module.lexer_config, input.lexer_config());
     assert!(!solved.taints.proc_taints.is_empty());
+    // Builds with equal lowering inputs share one lowered module (#2543), so
+    // the shared unit may own the same ids; a build under a different input
+    // owns a different module, and none of the solve's ids belong to it.
+    let other = compilation_unit_for_config(&db, file, key, varied).unwrap();
     for (id, taints) in &solved.taints.proc_taints {
         assert!(owner.ir_module.procedure_ids.owns(*id));
-        assert!(!shared.ir_module.procedure_ids.owns(*id));
+        assert!(!other.ir_module.procedure_ids.owns(*id));
         let function = owner.function_for_body(Some(*id)).unwrap();
         assert!(std::ptr::eq(
             solved.taints.taints_for_function(owner, function),
@@ -330,7 +338,13 @@ fn summary_dependency_probe<'db>(
     let declared = declared_command_surface(db, file, registry);
     let options = supplied_unit_build_options(db, file, cfg, registry, None, &declared, &input)
         .expect("the document's original grammar and Registry");
-    let (cu, _) = build_unit_with_keys_and_input(db, file.text(db), options, Some(&input), None);
+    let (cu, _) = build_unit_with_keys_and_input(
+        db,
+        (Some(file), file.text(db)),
+        options,
+        Some(&input),
+        None,
+    );
     let source_bodies: Vec<_> = cu
         .ir_module
         .procedures

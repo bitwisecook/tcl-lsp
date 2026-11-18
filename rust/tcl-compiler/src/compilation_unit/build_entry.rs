@@ -347,6 +347,7 @@ impl CompilationUnit {
             OriginalBodyCacheInputs {
                 legacy: Some(body_cache),
                 original: None,
+                module: None,
             },
             entry,
             None,
@@ -363,8 +364,11 @@ impl CompilationUnit {
         source: &str,
         options: UnitBuildOptions<'_>,
         cache: &mut ProcLatticeCache<'_>,
-        body_cache: &crate::lowering::OriginalBodyLoweringCache<'_>,
-        source_body_cache: &crate::lowering::SourceBodySyntaxCache<'_>,
+        (body_cache, source_body_cache, module_cache): (
+            &crate::lowering::OriginalBodyLoweringCache<'_>,
+            &crate::lowering::SourceBodySyntaxCache<'_>,
+            Option<&super::ModuleLoweringCache<'_>>,
+        ),
         entry: Option<&crate::command_binding::SourceAnalysisEntry>,
         input: Option<&crate::analyser::ResolvedAnalysisInput>,
     ) -> Self {
@@ -380,6 +384,7 @@ impl CompilationUnit {
             OriginalBodyCacheInputs {
                 legacy: None,
                 original: Some(body_cache),
+                module: module_cache,
             },
             entry,
             None,
@@ -399,8 +404,11 @@ impl CompilationUnit {
         source: &str,
         options: UnitBuildOptions<'_>,
         cache: &mut ProcLatticeCache<'_>,
-        body_cache: &crate::lowering::OriginalBodyLoweringCache<'_>,
-        source_body_cache: &crate::lowering::SourceBodySyntaxCache<'_>,
+        (body_cache, source_body_cache, module_cache): (
+            &crate::lowering::OriginalBodyLoweringCache<'_>,
+            &crate::lowering::SourceBodySyntaxCache<'_>,
+            Option<&super::ModuleLoweringCache<'_>>,
+        ),
         entry: Option<&crate::command_binding::SourceAnalysisEntry>,
         (input, settings): (
             &crate::analyser::ResolvedAnalysisInput,
@@ -414,6 +422,7 @@ impl CompilationUnit {
             OriginalBodyCacheInputs {
                 legacy: None,
                 original: Some(body_cache),
+                module: module_cache,
             },
             entry,
             None,
@@ -531,6 +540,7 @@ impl CompilationUnit {
             OriginalBodyCacheInputs {
                 legacy: None,
                 original: None,
+                module: None,
             },
             entry,
             None,
@@ -562,6 +572,7 @@ impl CompilationUnit {
             OriginalBodyCacheInputs {
                 legacy: None,
                 original: None,
+                module: None,
             },
             None,
             None,
@@ -608,6 +619,7 @@ impl CompilationUnit {
             OriginalBodyCacheInputs {
                 legacy: body_cache,
                 original: None,
+                module: None,
             },
             entry,
             context,

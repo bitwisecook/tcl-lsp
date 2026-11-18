@@ -178,8 +178,7 @@ fn memo_diagnostic_unit(
             declared_commands: None,
         },
         &mut lattice,
-        &body,
-        &syntax,
+        (&body, &syntax, None),
         None,
         (input, settings),
     );

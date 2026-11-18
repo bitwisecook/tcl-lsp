@@ -838,6 +838,7 @@ pub type CfgContext = (
 
 /// Prepared module facts shared by every CFG builder in one lowering pipeline.
 /// The tuple [`CfgContext`] remains the public compatibility boundary.
+#[derive(Clone)]
 pub struct PreparedCfgContext {
     pub(crate) context: CfgContext,
     command_classes: CfgCommandClasses,
