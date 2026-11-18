@@ -385,7 +385,14 @@ impl<'a> ExpressionMathBindings<'a> {
         span: tcl_lexer::Span,
     ) -> Option<Self> {
         let mut pending = vec![&module.top_level];
-        pending.extend(module.procedures.values().map(|procedure| &procedure.body));
+        // A rewrite of a procedure's body holds for every entry, so its
+        // expressions are read in the declared frame, not a caller's.
+        pending.extend(module.procedures.iter().map(|(id, procedure)| {
+            module
+                .declared_frame_bodies
+                .get(id)
+                .map_or(&procedure.body, |declared| &declared.body)
+        }));
         let mut selected: Option<Self> = None;
         while let Some(script) = pending.pop() {
             for statement in &script.statements {
