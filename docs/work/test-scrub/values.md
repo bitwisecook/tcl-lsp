@@ -60,12 +60,13 @@ row that is kept still needs its citation written into the test; the evidence co
 | 4 | `ssa-link-statement-version` | dataflow issue session | Which SSA version a link statement defines (REWRITE three to the observable, RETIRE one) |
 | 3 each | `edge-refinement`, `escape-catch-body-walk`, `rebase-memoised-receipts` | dataflow, values, analysis-performance | |
 | 3 | `binding-procedure-absent-after-statement` | analyser-binding | A procedure defined in the file is absent after a top-level statement |
+| 2 | `lifted-call-body-not-original` | dataflow-optimiser | No original body for the script of a `catch` lifted from a substitution word (`set c [catch {return 5} m]`), so the catch declines unsupported; the code table and the nested catch body |
 | 2 each | `binding-catch-body-children-unavailable`, `binding-conditional-alias-join`, `binding-renamed-builtin-head`, `class-facts-object-element`, `escape-param-upvar-source-precision`, `escape-entry-point-ignores-registry`, `existence-chain-fold`, `expr-decline-reason`, `fixture-body-absent`, `ordered-nested-write`, `orig-diagnostic-refusal`, `wrong-rewrite-callback-write` | | |
-| 1 each | 30 more, listed in the ledger, among them `catch-body-transfer` (the code table), `lifted-call-body-not-original` (dataflow-optimiser: no original body for the script of a `catch` lifted from a substitution word), `o101-non-finite-render` (dataflow-optimiser: O101 renders no non-finite double), `wrong-rewrite-try-error-path`, `wrong-rewrite-shift-beyond-width`, `release-tower-fold` and `panics-before-assertion` | | |
+| 1 each | 28 more, listed in the ledger, among them `o101-non-finite-render` (dataflow-optimiser: O101 renders no non-finite double), `wrong-rewrite-try-error-path`, `wrong-rewrite-shift-beyond-width`, `release-tower-fold` and `panics-before-assertion` | | |
 
-By owner of the cause: analyser-binding 94, values 62, dataflow 22 and its issue session 12, taint
+By owner of the cause: analyser-binding 94, values 60, dataflow-optimiser 24 and its issue session 12, taint
 21, analysis-performance 4, class-facts 3 (the 12 unknown-head rows count under dataflow; their
-fixtures are restated here afterwards). What values can move now: the try transfer rows, the catch code table, declared routes, the escape walker, 5 f5 expectations and
+fixtures are restated here afterwards). What values can move now: the try transfer rows, declared routes, the escape walker, 5 f5 expectations and
 the fixtures.
 
 ## Distinct failing behaviours
