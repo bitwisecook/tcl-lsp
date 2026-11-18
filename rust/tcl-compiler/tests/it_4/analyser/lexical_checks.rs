@@ -355,15 +355,17 @@ mod canonicalisation_matrix {
     // this surface.
     #[test]
     fn w213_qualified_and_aliased_do_not_fire_rust_behaviour() {
-        // The qualified / aliased spellings stay silent:
-        assert_eq!(count("proc f {} { ::unset x }", D, "W213"), 0);
+        // The qualified and aliased spellings run `unset` too: tclsh 8.6.18 /
+        // 9.0.4 raise `can't unset "x": no such variable` for both, as for a
+        // bare `unset x`.
+        assert_eq!(count("proc f {} { ::unset x }", D, "W213"), 1);
         assert_eq!(
             count(
                 "interp alias {} myunset {} unset\nproc f {} { myunset x }",
                 D,
                 "W213"
             ),
-            0
+            1
         );
         // The qualified+nocomplain combination is likewise silent.
         assert_eq!(count("proc f {} { ::unset -nocomplain x }", D, "W213"), 0);
@@ -382,13 +384,11 @@ mod canonicalisation_matrix {
     // An aliased `s y 1` (→ set) does not fire W211 on this surface.
     #[test]
     fn w211_aliased_set_rust_behaviour() {
+        // `s` is `set` through the alias, so `y` is set and never read, as
+        // in the bare `set` row (tclsh 8.6.18 / 9.0.4: `proc fa {} {s y 1}`
+        // returns 1).
         let n = count("interp alias {} s {} set\nproc f {} { s y 1 }", D, "W211");
-        // Record the actual count; the alias-rewrite-to-`set` W211 path is not
-        // reproduced here.
-        assert_eq!(
-            n, 0,
-            "aliased-set W211 not reproduced on this surface (divergence)"
-        );
+        assert_eq!(n, 1, "the aliased set stores a value nothing reads");
     }
 
     // W210 suppression by variable/upvar/global declarations.
