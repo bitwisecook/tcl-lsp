@@ -58,33 +58,43 @@ fn w123_says_the_call_widens_where_it_does() {
         unknown
             .iter()
             .find(|(start, _)| *start as usize == offset)
-            .map(|(_, message)| message.clone())
-            .expect("a W123")
+            .map_or_else(
+                || panic!("a W123 at {needle} #{nth}: {unknown:?}"),
+                |(_, message)| message.clone(),
+            )
     };
-    for (head, nth) in [
-        ("db_query", 0),
-        ("db_ns_call", 0),
-        ("db_lambda_call", 0),
-        ("db_method_call", 0),
-        ("db_query", 1),
-    ] {
-        assert_eq!(
-            message_at(head, nth),
-            format!("Unknown command '{head}'. {}", hint(head)),
-            "{head} #{nth}"
+    // Bodies nothing calls: the stock `unknown` may autoload there and no
+    // execution failure is certified, so the advisory form applies
+    // (name-resolution-implementer-guide.md, unresolved commands).
+    for head in ["db_ns_call", "db_lambda_call", "db_method_call"] {
+        let message = message_at(head, 0);
+        assert!(
+            message.starts_with(&format!("Unresolved command '{head}' at this source point")),
+            "{head}: {message}"
         );
     }
+    let message = message_at("db_query", 0);
+    assert!(
+        message.starts_with("Unresolved command 'db_query' at this source point"),
+        "db_query #0: {message}"
+    );
+    // The reached top-level call raises: tclsh8.6.18 `db_query x` ->
+    // invalid command name "db_query".
+    assert_eq!(
+        message_at("db_query", 1),
+        format!("Unknown command 'db_query'. {}", hint("db_query")),
+        "db_query #1"
+    );
     assert_eq!(
         message_at("strng", 0),
         format!(
-            "Unknown command 'strng'; did you mean 'string'? {}",
+            "Unresolved command 'strng' at this source point; did you mean 'string'? {}",
             hint("strng")
         )
     );
-    assert_eq!(
-        message_at("db_up_call", 0),
-        "Unknown command 'db_up_call'",
-        "an `uplevel #0` body is not lowered where it is written"
+    assert!(
+        message_at("db_up_call", 0).starts_with("Unresolved command 'db_up_call' at this source point"),
+        "an `uplevel #0` body in a procedure nothing calls"
     );
 }
 
