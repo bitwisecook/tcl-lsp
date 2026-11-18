@@ -51,7 +51,6 @@ fn original_lifecycle_gates_keep_alias_operands_and_typed_source_subjects() {
     }
     for source in [
         "package require Tk 8.6\nproc entry args {}; entry .e -placeholder text\n",
-        "package require Tk 8.6\ninterp alias {} createEntry {} entry .e -placeholder text\ncreateEntry\n",
         "package require Tk 8.6\nentry .e $flag text -placeholder text\n",
     ] {
         assert!(
@@ -63,6 +62,23 @@ fn original_lifecycle_gates_keep_alias_operands_and_typed_source_subjects() {
             "{source}"
         );
     }
+    // Tk 8.6's entry has no -placeholder (it arrives in Tk 9.0), so the
+    // captured call fails; the finding stays on the captured word, unfixed.
+    let source = "package require Tk 8.6\ninterp alias {} createEntry {} entry .e -placeholder text\ncreateEntry\n";
+    let result = Analyser::new().analyse(source, "tcl8.6");
+    let found = result
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::W136)
+        .collect::<Vec<_>>();
+    assert_eq!(found.len(), 1, "{:?}", result.diagnostics);
+    assert_eq!(&source[found[0].span.as_range()], "-placeholder");
+    assert_eq!(found[0].fixes.len(), 0);
+    assert!(
+        found[0]
+            .message
+            .contains("reached through the call at line 3")
+    );
 }
 
 #[test]

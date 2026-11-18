@@ -212,6 +212,18 @@ pub struct RegistrySourceDiagnosticSubject {
     supplemental_literals: Vec<(usize, String)>,
 }
 impl RegistrySourceDiagnosticSubject {
+    /// The call-site head when this subject's operand is a slot an
+    /// interpreter alias captured: the finding stays on the producer word in
+    /// the alias definition and names the call that reaches it.
+    pub(in crate::analyser) fn captured_call_head(&self) -> Option<Span> {
+        let argument = self.argument?;
+        matches!(
+            self.words.origins().get(argument.checked_add(1)?),
+            Some(crate::registry_invocation::InvocationWordOrigin::BindingPrefix(_))
+        )
+        .then_some(())?;
+        Some(self.words.head_source()?.word()?.span())
+    }
     /// The same index access under one retained source invocation. Advisory
     /// values and presentation do not change that access or grant execution.
     pub(in crate::analyser) fn same_index_access(&self, other: &Self) -> bool {
@@ -423,6 +435,15 @@ impl OriginalDiagnosticInvocation {
             single.push(word.tokens().len() == 1);
         }
         Some((text, tokens, single))
+    }
+    /// Whether `argument` is a slot an interpreter alias captured.
+    pub(super) fn is_captured(&self, argument: usize) -> bool {
+        argument.checked_add(1).is_some_and(|index| {
+            matches!(
+                self.words.origins().get(index),
+                Some(crate::registry_invocation::InvocationWordOrigin::BindingPrefix(_))
+            )
+        })
     }
     pub(super) fn written_index(&self, argument: usize) -> Option<usize> {
         self.operand(argument)?;

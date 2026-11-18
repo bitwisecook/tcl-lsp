@@ -1372,9 +1372,27 @@ impl Analyser {
         }
 
         let mut seen: FxHashSet<(DiagCode, u32, u32, String, Severity)> = FxHashSet::default();
+        // A finding on a captured alias slot is reported once per producer
+        // word, with no fix, naming the call that reaches it
+        // (diagnostic-registry-source-ownership.md, amended 18 November).
+        let mut captured_producers: FxHashSet<(DiagCode, u32, u32)> = FxHashSet::default();
         let drained = std::mem::take(&mut self.result.diagnostics);
         let mut deduped = Vec::with_capacity(drained.len());
-        for d in drained {
+        for mut d in drained {
+            let call_head = match d.subject() {
+                Some(crate::analyser::DiagnosticSubject::RegistrySource(subject)) => {
+                    subject.captured_call_head()
+                }
+                _ => None,
+            };
+            if let Some(head) = call_head {
+                if !captured_producers.insert((d.code, d.span.start(), d.span.end())) {
+                    continue;
+                }
+                let line = sm.range_positions(head).0.line + 1;
+                d.message = format!("{} (reached through the call at line {line})", d.message);
+                d.fixes.clear();
+            }
             let key = (
                 d.code,
                 d.span.start(),

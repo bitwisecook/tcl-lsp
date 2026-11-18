@@ -125,14 +125,25 @@ fn original_control_context_uses_count_without_guessing_operand_values() {
 fn original_control_captured_prefix_does_not_mint_a_written_clause_edit() {
     // naming.diagnostic.original-control-advice
     // docs/design/analysis/name-resolution-proofs/diagnostic-original-control-advice.md
-    let result = Analyser::new().analyse("interp alias {} branch {} if 1; branch", "tcl8.6");
-    // The missing-body subject addresses the captured condition. It has no
-    // call-site word and therefore cannot supply this word-anchored diagnostic.
+    // tclsh8.4.20/8.6.18/9.0.4: branch raises wrong # args: no script
+    // following "1" argument. The finding stays on the captured condition
+    // where the alias definition writes it; with no call-site word there is
+    // no clause edit.
+    let source = "interp alias {} branch {} if 1; branch";
+    let result = Analyser::new().analyse(source, "tcl8.6");
+    let found = result
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == DiagCode::E004)
+        .collect::<Vec<_>>();
+    assert_eq!(found.len(), 1, "{:?}", result.diagnostics);
+    assert_eq!(found[0].span.start(), 29);
+    assert_eq!(&source[found[0].span.as_range()], "1");
+    assert_eq!(found[0].fixes.len(), 0);
     assert!(
-        !result
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.code == DiagCode::E004)
+        found[0]
+            .message
+            .contains("reached through the call at line 1")
     );
 }
 

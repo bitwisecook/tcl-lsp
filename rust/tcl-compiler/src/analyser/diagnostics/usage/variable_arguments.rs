@@ -53,6 +53,11 @@ impl Analyser {
             return;
         };
         for argument in layout.values.clone() {
+            // A captured padded value has no call-site error behind it
+            // (tclsh runs it); style advice declines on a captured slot.
+            if original.is_captured(argument) {
+                continue;
+            }
             let Some(word) = original.word(argument) else {
                 continue;
             };

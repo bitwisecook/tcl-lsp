@@ -20,6 +20,38 @@
 
 use super::*;
 
+/// A finding on a captured alias operand: reported at the call's real error,
+/// anchored on the captured word where the alias definition writes it, with
+/// no fix (diagnostic-registry-source-ownership.md: captured slots borrow no
+/// call-site anchor and receive no review-fix anchor).
+fn assert_captured_finding(source: &str, code: DiagCode, captured_word: &str) {
+    assert_captured_finding_in(source, "tcl8.6", code, captured_word);
+}
+
+fn assert_captured_finding_in(source: &str, dialect: &str, code: DiagCode, captured_word: &str) {
+    let result = Analyser::new().analyse(source, dialect);
+    let found = result
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == code)
+        .collect::<Vec<_>>();
+    assert_eq!(found.len(), 1, "{source}: {:?}", result.diagnostics);
+    let anchor = source.find(captured_word).expect("captured word");
+    assert_eq!(
+        found[0].span.start() as usize..found[0].span.end() as usize,
+        anchor..anchor + captured_word.len(),
+        "{source}"
+    );
+    assert!(found[0].fixes.is_empty(), "{source}: {:?}", found[0].fixes);
+    assert!(
+        found[0]
+            .message
+            .contains("reached through the call at line"),
+        "{source}: {}",
+        found[0].message
+    );
+}
+
 #[test]
 fn w144_core_subcommand_lifecycle_uses_registry_safe_fix() {
     // naming.diagnostic.registry-source-ownership
@@ -228,7 +260,6 @@ fn original_option_diagnostics_share_alias_ordinals_and_stop_at_unknown_layout()
         "proc regsub args {}; regsub -command x y z",
         "regsub $flag -command x y z",
         "regsub {*}$arguments -command x y z",
-        "interp alias {} replace {} regsub -command\nreplace x y z",
         "regsub x y -command out",
     ] {
         assert!(
@@ -240,6 +271,18 @@ fn original_option_diagnostics_share_alias_ordinals_and_stop_at_unknown_layout()
             "{source}"
         );
     }
+    // tclsh8.4.20/8.6.18: replace x y z raises bad option "-command"; 9.0.4
+    // and 9.1.0 accept it (evidence/tcl/naming-diagnostic-registry-source-
+    // ownership-captured-alias-call-errors.md).
+    let captured = "interp alias {} replace {} regsub -command\nreplace x y z";
+    assert_captured_finding_in(captured, "tcl8.6", DiagCode::W004, "-command");
+    assert!(
+        !Analyser::new()
+            .analyse(captured, "tcl9.0")
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == DiagCode::W004)
+    );
 }
 
 /// W100's produced set is the fact `brace_expr_hints` reads
@@ -316,7 +359,6 @@ fn original_terminator_advice_retains_source_words_without_current_value_claims(
         "rename regexp {}; regexp $pattern $text",
         "regexp {*}$arguments $pattern $text",
         "regexp -- $pattern $text",
-        "interp alias {} test {} regexp -dashPattern\ntest value",
     ] {
         assert!(
             !Analyser::new()
@@ -327,6 +369,12 @@ fn original_terminator_advice_retains_source_words_without_current_value_claims(
             "{source}"
         );
     }
+    // tclsh8.4.20/8.6.18/9.0.4: test value raises bad option "-dashPattern".
+    assert_captured_finding(
+        "interp alias {} test {} regexp -dashPattern\ntest value",
+        DiagCode::W304,
+        "-dashPattern",
+    );
 }
 
 #[test]
@@ -436,13 +484,19 @@ fn original_selector_diagnostics_share_alias_ordinals_and_declared_default_forms
     assert!(has_code("string .bogus abc", "tcl8.6", "W001"));
     for source in [
         "after 10 {set x 1}",
-        "interp alias {} strings {} string lenght\nstrings abc",
         "set selector lenght; string $selector abc",
         "proc string args {}; string lenght abc",
         "string {*}{lenght} abc",
     ] {
         assert!(!has_code(source, "tcl8.6", "W001"), "{source}");
     }
+    // tclsh8.6.18/9.0.4: strings abc raises unknown or ambiguous subcommand
+    // "lenght" (8.4.20: bad option).
+    assert_captured_finding(
+        "interp alias {} strings {} string lenght\nstrings abc",
+        DiagCode::W001,
+        "lenght",
+    );
     let result = crate::analyser::Analyser::new().analyse(
         "interp alias {} strings {} string\nstrings {t} abc",
         "tcl8.6",
@@ -925,6 +979,7 @@ fn original_shape_advice_withdraws_unknown_geometry_and_known_shadows() {
             "proc append {args} {}\nappend out \" value\"",
             DiagCode::W104,
         ),
+        // tclsh8.6.18/9.0.4: the captured padded append runs without error.
         ("interp alias {} add {} append out { }\nadd", DiagCode::W104),
         ("append {*}$prefix \" value\"", DiagCode::W104),
         (

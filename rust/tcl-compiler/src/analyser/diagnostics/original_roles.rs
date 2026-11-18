@@ -223,7 +223,6 @@ mod tests {
             "puts stdin hello",
             "puts {stdout} hello",
             "puts hello",
-            "interp alias {} output {} puts bogus\noutput hello",
             "proc puts {a b} {}\nputs bogus hello",
         ] {
             let result = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
@@ -235,5 +234,22 @@ mod tests {
                 "{source}"
             );
         }
+        // tclsh8.4.20/8.6.18/9.0.4: output hello raises can not find channel
+        // named "bogus". The finding stays on the captured word, unfixed.
+        let source = "interp alias {} output {} puts bogus\noutput hello";
+        let result = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let found = result
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::W126)
+            .collect::<Vec<_>>();
+        assert_eq!(found.len(), 1, "{:?}", result.diagnostics);
+        assert_eq!(&source[found[0].span.as_range()], "bogus");
+        assert_eq!(found[0].fixes.len(), 0);
+        assert!(
+            found[0]
+                .message
+                .contains("reached through the call at line 2")
+        );
     }
 }
