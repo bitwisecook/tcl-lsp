@@ -27,7 +27,7 @@ tmsh create auth partition TenantA ; tmsh create auth partition TenantB      # T
 #          tmsh delete ltm pool /Common/bnc_pool ; tmsh delete auth partition TenantA ; tmsh delete auth partition TenantB
 ```
 
-### Index A: the 73 harness checks
+### Index A: the 74 harness checks
 
 "Tests waiting" counts the rows of the test-scrub ledgers (`docs/work/test-scrub/ledger/*.tsv`) that name the check.
 
@@ -97,6 +97,7 @@ tmsh create auth partition TenantA ; tmsh create auth partition TenantB      # T
 | BIGIP-NAME-071 | iRules in TMM | What runs after a response, a drop or a DNS answer, and payload without collect | TMM HTTP_REQUEST, DNS_REQUEST | no | 32 | taint 32 |
 | BIGIP-NAME-072 | iRules in TMM | A plain variable across the events of one connection, and `global` | TMM CLIENT_ACCEPTED + HTTP_REQUEST | no | 8 | taint 8 |
 | BIGIP-NAME-073 | iRules in TMM | Is there an `env` array in TMM | TMM RULE_INIT + HTTP_REQUEST | no | 1 | taint 1 |
+| BIGIP-NAME-074 | iRules in TMM | A `switch` subject that begins with `-` and no `--` | TMM CLIENT_ACCEPTED | no | 1 | taint 1 |
 | BIGIP-NAME-060 | tmsh, iApp and iCall | Execution namespace and frame of tmsh-hosted scripts | tmsh cli script | partly | 0 | - |
 | BIGIP-NAME-061 | tmsh, iApp and iCall | The `tmsh::` command namespace | tmsh cli script | partly | 0 | - |
 | BIGIP-NAME-062 | tmsh, iApp and iCall | Where procs defined in a cli script live | tmsh cli script | partly | 0 | - |
@@ -665,6 +666,7 @@ is the last field of the `BNC|…` line. "empty" means the result field is empty
 | BIGIP-NAME-071 | iRules in TMM | What runs after a response, a drop or a DNS answer, and payload without collect | TMM HTTP_REQUEST, DNS_REQUEST | no |
 | BIGIP-NAME-072 | iRules in TMM | A plain variable across the events of one connection, and `global` | TMM CLIENT_ACCEPTED + HTTP_REQUEST | no |
 | BIGIP-NAME-073 | iRules in TMM | Is there an `env` array in TMM | TMM RULE_INIT + HTTP_REQUEST | no |
+| BIGIP-NAME-074 | iRules in TMM | A `switch` subject that begins with `-` and no `--` | TMM CLIENT_ACCEPTED | no |
 | BIGIP-NAME-060 | tmsh, iApp and iCall | Execution namespace and frame of tmsh-hosted scripts | tmsh cli script | partly |
 | BIGIP-NAME-061 | tmsh, iApp and iCall | The `tmsh::` command namespace | tmsh cli script | partly |
 | BIGIP-NAME-062 | tmsh, iApp and iCall | Where procs defined in a cli script live | tmsh cli script | partly |
@@ -3200,6 +3202,31 @@ when HTTP_REQUEST { log local0. "BNC|BIGIP-NAME-073|req|[info exists ::env]" }
 | Label | Tcl 8.4 | Basis |
 | --- | --- | --- |
 | `init`, `req` | `1` and the process environment | tclsh 8.4.20 |
+
+| Observed result | BIG-IP build | Environment | Date | Verdict |
+|---|---|---|---|---|
+| | | | | |
+
+#### BIGIP-NAME-074 — A `switch` subject that begins with `-` and no `--`
+
+- **Question.** In TMM, is the first word of `switch $mode {…}` read as an option when `$mode` begins with `-`, as tclsh 8.4 reads it, or always as the subject, as 8.5 and later read a two-word `switch`?
+- **Why the toolchain needs it.** Under the 8.4 reading the clause list has no single layout, so the analysis does not lower its arms and cannot see a `set debug 1` inside them. IRULE5001 then treats the debug-flag index as open and stays quiet (ruling recorded in the test-scrub README). The test `analyser::irules_event_checks::tests::irule5001_quiet_for_flag_set_in_a_switch_arm_of_a_setup_event` depends on it. Not measured.
+- **Environments.** TMM `CLIENT_ACCEPTED`.
+
+```tcl
+when CLIENT_ACCEPTED {
+    set mode -glob
+    log local0. "BNC|BIGIP-NAME-074|dash|[catch {switch $mode {-glob {set r arm} default {set r dflt}}} m]|$m"
+    set mode loud
+    log local0. "BNC|BIGIP-NAME-074|plain|[switch $mode {loud {set r arm} default {set r dflt}}]"
+}
+```
+
+| Label | Tcl 8.4 | Basis |
+| --- | --- | --- |
+| `dash` | `1` and `bad option "-glob {set r arm} default {set r dflt}": must be -exact, -glob, -regexp, or --` | tclsh 8.4.20 |
+| `dash` | `0` and `arm` | tclsh 8.5.19, 8.6.18, 9.0.4, 9.1.0 (for contrast) |
+| `plain` | `arm` | tclsh 8.4.20 to 9.1.0 |
 
 | Observed result | BIG-IP build | Environment | Date | Verdict |
 |---|---|---|---|---|
