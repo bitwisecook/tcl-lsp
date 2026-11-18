@@ -663,8 +663,8 @@ mod tests {
     fn run_passes_dispatches_pattern_recognition() {
         let registry = registry();
         let cu = CompilationUnit::build_for("set x 0\nset x [expr {$x + 1}]", &registry, false);
-        let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
-        ctx.registry = Some(&registry);
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let mut ctx = super::super::manager::build_pass_context(&cu, &registry, Some(profile));
         super::super::run_passes(&mut ctx, &cu, &[super::super::PassId::PatternRecognition]);
         assert!(
             ctx.optimisations.iter().any(|o| o.code == DiagCode::O114),
