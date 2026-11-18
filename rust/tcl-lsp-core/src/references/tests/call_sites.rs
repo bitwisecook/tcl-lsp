@@ -769,20 +769,22 @@ fn resolved_qualified_name_field_populated_for_simple_call() {
 
 #[test]
 fn references_from_opt_proc_declaration_reach_the_call_site() {
-    let src = "::tcl::OptProc greet {child -use -display} { return $child }\ngreet foo\n";
+    // tclsh 8.4.20-9.1.0: `::tcl::OptProc` is an invalid command name until
+    // `package require opt`; with it, `greet foo` returns foo.
+    let src = "package require opt\n::tcl::OptProc greet {child -use -display} { return $child }\ngreet foo\n";
     let analysis = analyse(src);
-    // Line 0 — cursor on "greet" right after `::tcl::OptProc` (col 15).
+    // Line 1 — cursor on "greet" right after `::tcl::OptProc` (col 15).
     let refs = references(
         src,
         tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
-        0,
+        1,
         15,
         &analysis,
         true,
     );
     let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
-    assert!(lines.contains(&0), "decl missing: {refs:?}");
-    assert!(lines.contains(&1), "call site missing: {refs:?}");
+    assert!(lines.contains(&1), "decl missing: {refs:?}");
+    assert!(lines.contains(&2), "call site missing: {refs:?}");
 }
 
 #[test]

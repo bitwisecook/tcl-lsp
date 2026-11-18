@@ -195,17 +195,19 @@ fn format_docstring_handles_param_without_description() {
 
 #[test]
 fn opt_proc_declaration_and_call_site_both_hover_the_real_args_only_signature() {
-    let src = "::tcl::OptProc greet {child -use -display} { return $child }\ngreet foo\n";
+    // tclsh 8.4.20-9.1.0: `::tcl::OptProc` needs `package require opt`;
+    // after it `info args greet` is `args`.
+    let src = "package require opt\n::tcl::OptProc greet {child -use -display} { return $child }\ngreet foo\n";
     let analysis = analyse(src);
-    // Line 0 — cursor on "greet" right after `::tcl::OptProc` (col 15).
-    let decl = hover(src, 0, 15, &analysis, None).expect("hover on decl");
+    // Line 1 — cursor on "greet" right after `::tcl::OptProc` (col 15).
+    let decl = hover(src, 1, 15, &analysis, None).expect("hover on decl");
     assert!(
         decl.value.contains("greet") && decl.value.contains("args"),
         "{}",
         decl.value
     );
-    // Line 1 — cursor on the `greet foo` call site (col 0).
-    let call = hover(src, 1, 0, &analysis, None).expect("hover on call site");
+    // Line 2 — cursor on the `greet foo` call site (col 0).
+    let call = hover(src, 2, 0, &analysis, None).expect("hover on call site");
     assert_eq!(decl.value, call.value, "decl and call site must agree");
 }
 
