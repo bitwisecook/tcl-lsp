@@ -35,7 +35,18 @@ Earlier, before 18 Nov (see the ledger notes):
 
 ## (b) In flight
 
-1. **`split ""` wrong rewrite.** I hold no record of it. Nothing in this session's messages routed a `split ""` rewrite to me, and I have made no diagnosis or patch. The successor should ask the coordinator for the reproducer and the diagnosis.
+1. **`split ""` wrong rewrite** (`wrong-rewrite-split-empty`; the coordinator's 11:48 order, first in the queue). Not started; no patch.
+   - These routing messages reached this session only after the pause handover (922a28f23d) was pushed, which is why that commit said there was no record.
+   - Witness on `work`: it_2 `procedure_summaries::split_of_the_empty_string_is_the_empty_list`.
+   - Under tcl8.4, O129 folds `set x [split ""]` to `set x {{}}`, then `puts [llength $x]` to `puts 1`. tclsh 8.4.20 to 9.1.0 print `0` and `<>`.
+   - Diagnosis (values): the wrong value comes from `optimiser/propagation/command_substitution_folds.rs`: `visit_call_cmd_subst_folds` → `fold_retained_builtin` → `const_subst::fold_retained_call_with_metadata_context`. That is the registry const-fold callback for `split` on an empty string; it is the #2418 answer come back. The value transfer's own `split` route gives the empty list.
+   - What the coordinator asks:
+     1. Find why the fold engine and the transfer route disagree, and make the fold engine take the registry's or the shared transfer's answer.
+     2. Check the other degenerate operands against tclsh: `split` with empty string and with empty split characters, `join {}`, `lindex {} 0`, `lrange {} 0 end`, `string range "" 0 end`, `lrepeat 0 x`, `concat` and `list` with no arguments. List them in the commit.
+     3. Add the wrong ones to `release_optimiser_safety` on 8.4 and a later release.
+     4. Say in the commit which test would have caught #2418's return, and make sure that test exists.
+   - Same path, missed refusal (values, `o129-const-fold-past-declined-route`): `puts [string match -nocase {a]€} {€a}]` is folded to `puts 0` although the declared route declines. tclsh prints 0, so the output agrees, but a declined route must be final. The interpolation form is in the same test (it_2 `declared_routes::a_declined_route_leaves_its_word_as_written`).
+   - Suggested shape: `fold_retained_builtin` defers to the declared route where the call has one, and falls back to the engine only where no route is declared.
 2. **`lifecycle-fixture-proc-not-installed`** (12 lib rows in `cfg_builder::execution_regions::tests`).
    - Patch: `patches/dataflow-optimiser-lifecycle-fixture.patch`. It is a one-hunk test-helper change; apply it with `git apply` from the repo root.
    - What it does: `trusted_lifecycle_body` used `fixture_id`, which panics before the helper's own declaration fallback runs. The patch switches it to `fixture_id_if_present`.
@@ -51,6 +62,7 @@ Earlier, before 18 Nov (see the ledger notes):
 
 The order follows the coordinator's standing rule: exposures first, then FIX-FIXTURE/FIX-EXPECTATION by cause size, then REWRITE/MERGE (RETIRE/MERGE in their own commits), then KEEP causes by rows.
 
+0. The `split ""` wrong rewrite and its O129 sibling ((b) item 1), then `wrong-i230-body-role-stub` and `ssa-declared-may-write`; wrong answers come first.
 1. **Exposures found today** (product declines that the old fixtures hid; each row's note names its cause):
    - `o128-hint-only-unknown-list`, 2 it_3 rows plus the `end_offset` lib tests. `end_offset.rs` reports O128 `hint_only` unless `closed_list_end_offset` proves a known valid list. This is likely deliberate, so these rows may need a re-read to the closed case rather than a product fix.
    - `o115-condition-unwrap-declines`, it_3 and it_5. The `branch_folding` O115 gate declines `if {[expr {$x + 1}]}` even for an integer loop counter.
@@ -101,7 +113,21 @@ Both rows are `blocked`.
 - the live-inlining 7e1d4fba review;
 - the diagnostics W210 guard narrowing.
 
-I have no record of a request to review taint's advisory solver mode. The successor should confirm the request and its scope with the coordinator.
+**Review of taint's advisory solver mode** (coordinator 11:08). taint will send a prototype that runs the strict engine a second time, over rule procedures and handlers only, in an advisory resolution mode whose output goes only to `semantic_values`.
+
+The coordinator's conditions:
+- the mode is a type parameter with a distinct result type, so an advisory value cannot reach `sccp.values`;
+- an `incr` prototype first, with a byte-for-byte differential of `sccp.values` over the corpus before and after;
+- no second run for plain Tcl bodies;
+- an f5-irules negative in `release_optimiser_safety`.
+
+This session owns the solver: review the shape and say no if the threading endangers the strict path. The prototype had not arrived at the pause.
+
+**Also routed after the handover, not started:**
+- **`ssa-declared-may-write`** (values): Synopsys `append_to_collection c $objs` is declared `may_write`, but its SSA statement has defs {c: v2}, no may_defs, and no use of c v1. A false W220 then fires on `set c {}`. A declared may_write / write_or_preserve target should be a may-def that reads the prior version, as regexp's no-match preserve is. Witness: it_2 `preserving_outcomes::a_store_a_declared_outcome_may_preserve_is_live`; check its kv::maybe and kv::wp cases with the same fix.
+- **`wrong-i230-body-role-stub`** (diagnostics, via values): with stubs `db_eval {sql script:body} -frame own`, `proc p {} {set g 5; db_eval {select 1} {set g 6}; if {$g == 5} ...}` gets I230 "always true"; tclsh prints `other`. The strict unit is right (a caller-frame-opaque barrier makes g Overdefined). The applied branch is inferred, not probed, to come from the advisory projection (`sccp/original_value_facts` `SemanticValueProjection`), which does not widen across a `script:body` role. Witness: it_2 `unseen_code::a_stub_that_states_its_frame_effect_is_a_named_head`. diagnostics has not gated the emitter, because gating would drop legitimate advisory-only I230s.
+
+**Disk (coordinator 11:04):** run `rm -rf /tmp/tcl-spectcl-cache-test-*` before deleting `target/`. Standing rules: fmt and clippy finish before any push, and fixed counts are quoted only against a clean `origin/work` baseline.
 
 **Reported to the coordinator, owner unknown:** two command_binding lib rows fail only in the parallel run and pass alone, with or without my change:
 - `source_callable_static_tests::static_formals_update_one_retained_slot_across_actual_calls`
