@@ -493,7 +493,7 @@ fn tp_a_dominating_constant_naming_the_cell_still_refuses() {
 /// TP: a **branch-dependent** binding dominates nothing, so the site
 /// resolves to `None` and the refusal stands.
 ///
-/// tclsh-proof (8.6.14): `namespace eval ::ns {variable v 1; proc p {c}
+/// tclsh-proof (8.4.20, 8.5.19, 8.6.18, 9.0.4, 9.1.0): `namespace eval ::ns {variable v 1; proc p {c}
 /// {set n other; if {$c} {set n v}; variable v; set $n 2}}; ::ns::p 1`
 /// leaves `set ::ns::v` -> 2 — the conditional branch really does reach
 /// the cell.
