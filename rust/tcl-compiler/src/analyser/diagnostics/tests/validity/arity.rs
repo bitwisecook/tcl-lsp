@@ -933,9 +933,13 @@ fn issue_703_braced_dash_has_no_e002() {
 
 #[test]
 fn issue_703_genuine_dash_command_in_handler_still_flagged() {
-    // A real zero-arg `-` *command* inside a handler body is still a genuine
-    // arity error — the fix must not blunt E002 here.
-    let src = "proc p {} {\n    try {set x 1} on error msg {\n        -\n    }\n}\n";
+    // A real `-` *command* called with too few arguments inside a handler
+    // that runs is still a genuine arity error — the fix must not blunt E002
+    // here. tclsh 8.6.18 / 9.0.4: `wrong # args: should be "- a"`. (No release
+    // has a `-` command of its own, and a handler after a body that succeeds
+    // never runs.)
+    let src =
+        "proc - {a} {}\nproc p {} {\n    try {error boom} on error msg {\n        -\n    }\n}\n";
     assert_eq!(count_code(src, "E002"), 1);
 }
 
