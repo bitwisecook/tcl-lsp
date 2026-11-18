@@ -101,6 +101,15 @@ mod tests {
 
     use super::*;
 
+    fn assert_refused_unchanged(source: &str, action: &Refactoring) {
+        assert_eq!(action.title, "Brace expr for safety and performance");
+        assert_eq!(action.edits, [] as [RefactorEdit; 0]);
+        assert_eq!(action.apply(source), source);
+        assert!(action.disabled.as_deref().is_some_and(|reason| {
+            reason.starts_with("missing-expression-evaluation-equivalence:")
+        }));
+    }
+
     fn run(source: &str, cursor: u32) -> Option<Refactoring> {
         let registry = tcl_registry::CommandRegistry::build_default();
         let analysis = super::super::source_rewrite::lexical_analysis(source, &registry);
@@ -113,31 +122,32 @@ mod tests {
         li.offset_at_utf16(line, tcl_lexer::Utf16Col::new(character), source)
     }
 
+    /// tclsh 8.4.20 to 9.1.0, `a` = `1 + 1`: the quoted form is 4, the braced
+    /// form fails on a non-numeric operand.
     #[test]
     fn braces_a_quoted_expr() {
         let src = "expr \"$a + $b\"\n";
         let cursor = offset(src, 0, 0);
         let r = run(src, cursor).expect("expr at cursor");
-        assert_eq!(r.title, "Brace expr for safety and performance");
-        assert_eq!(r.apply(src), "expr {$a + $b}\n");
-        assert_eq!(r.edits.len(), 1);
+        assert_refused_unchanged(src, &r);
     }
 
+    /// tclsh 8.4.20 to 9.1.0, `a` = `1 + 1`: `expr $a + $b` is 4, the braced
+    /// form fails on a non-numeric operand.
     #[test]
     fn braces_a_bare_expr() {
         let src = "expr $a + $b\n";
         let r = run(src, offset(src, 0, 0)).expect("expr at cursor");
-        assert_eq!(r.apply(src), "expr {$a + $b}\n");
+        assert_refused_unchanged(src, &r);
     }
 
+    /// Three words bounded by quotes are never quote-unwrapped into the invalid
+    /// `{1" + "2}`; the single-operand issuer refuses multiple operands.
     #[test]
     fn multi_arg_expr_bounded_by_quotes_is_braced_verbatim() {
-        // `expr "1" + "2"` starts and ends with `"` but is three words, not one
-        // quoted expression. It must be braced whole, not quote-unwrapped into
-        // the invalid `{1" + "2}`.
         let src = "expr \"1\" + \"2\"\n";
         let r = run(src, offset(src, 0, 0)).expect("expr at cursor");
-        assert_eq!(r.apply(src), "expr {\"1\" + \"2\"}\n");
+        assert_refused_unchanged(src, &r);
     }
 
     #[test]
@@ -145,9 +155,7 @@ mod tests {
         let source = "expr $left + ${right}";
         let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
         let action = brace_expr(source, 0, &analysis).unwrap();
-        assert!(action.disabled.is_none());
-        assert_eq!(action.edits[0].end, u32::try_from(source.len()).unwrap());
-        assert_eq!(action.apply(source), "expr {$left + ${right}}");
+        assert_refused_unchanged(source, &action);
         let mut missing = analysis;
         missing.resolved_input = None;
         assert!(brace_expr(source, 0, &missing).is_none());
