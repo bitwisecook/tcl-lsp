@@ -217,7 +217,9 @@ fn fp_tnt_04_no_terminator_fires() {
 #[test]
 fn fp_tnt_05_tainted_url_fires_t104() {
     // TP: `http::geturl $url` — tainted $url at the network-address slot.
-    let src = "set url [gets stdin]\nhttp::geturl $url\n";
+    // http is loaded: without it `http::geturl` is an undefined command and
+    // nothing runs (tclsh 8.6.18 / 9.0.4).
+    let src = "package require http\nset url [gets stdin]\nhttp::geturl $url\n";
     assert!(
         fires(src, D, "T104"),
         "FP-TNT-05 TP: tainted URL must fire T104; emitted {:?}",
