@@ -20,41 +20,20 @@ use super::*;
 
 #[test]
 fn logical_receiver_inventory_uses_actual_frame_and_refuses_unknown_members() {
+    // tclsh8.6.18/9.0.4: `my knwon` -> unknown method "knwon" (known is one
+    // of the choices). With `mystery;` first, the definition script raises
+    // invalid command name "mystery", C does not exist, and there is no
+    // member inventory to propose from.
     for (effect, expected) in [("", true), ("mystery;", false)] {
         let source = format!(
             "oo::class create C {{{effect} method known {{}} {{}}; method body {{}} {{my knwon}}}}"
         );
-        let mut analyser = Analyser::new();
-        analyser.analyse(&source, "tcl");
-        assert!(analyser.result.allows_retained_logical_declaration_advice());
-        let input = analyser.result.resolved_input.as_ref().unwrap();
-        let image = tcl_lexer::SourceImage::document(&source);
-        let cursor = u32::try_from(source.find("my knwon").unwrap()).unwrap();
-        let caller = analyser
-            .result
-            .logical_source_member_frame_at(&image, input.lexer_config(), cursor)
-            .unwrap();
-        let class = analyser
-            .result
-            .logical_source_member_class(&caller)
-            .unwrap();
-        let inventory = analyser.logical_receiver_method_inventory(
-            class,
-            tcl_registry::definer::MethodReach::SelfDispatch,
-        );
-        assert_eq!(inventory.is_some(), expected, "{source}");
-        if let Some((names, _)) = inventory {
-            assert!(names.contains("known"));
-            assert!(!names.contains("knwon"));
-        }
-        let mut foreign = analyser.result.clone();
-        foreign
-            .all_classes
-            .values_mut()
-            .next()
-            .unwrap()
-            .methods
-            .clear();
-        assert!(foreign.logical_source_member_class(&caller).is_none());
+        let result = Analyser::new().analyse(&source, "tcl");
+        let proposes_known = result.diagnostics.iter().any(|d| {
+            d.code == DiagCode::W308
+                && d.message.contains("knwon")
+                && d.fixes.iter().any(|fix| fix.new_text == "known")
+        });
+        assert_eq!(proposes_known, expected, "{source}: {:?}", result.diagnostics);
     }
 }
