@@ -226,6 +226,14 @@ These go ahead of missing facts once the ledgers are in.
 | After `rename C M`, a `C create b` inside `catch` is still bound to the class (tclsh 8.6.18 and 9.1.0: `invalid command name "C"`); the constructor receipt at the same site rightly says no | analyser-binding |
 | The declared-frame view drops entry-independent facts (nested `uplevel 1` reach, `uplevel #0` global writes, alias cells, interprocedural taint sinks), so switching called bodies to it breaks 66 tests; the `info exists` fold waits on it | `dataflow` issue session |
 | Two `tcl-compiler` tests fail only in the parallel run and pass alone (`command_binding::source_callable_static_tests::static_formals_update_one_retained_slot_across_actual_calls`, `source_command_world::tests::original_opaque_jim_callable_name_does_not_gate_ascii_static_capture`): state shared between analyses in one process, which in the server would be one document answering for another | analysis-performance finds the cache and the missing key |
+| A procedure's `if {$a}` / `while {$a}` condition jumps without the conversion tclsh compiles (8.5 `tryCvtToNumeric`, 8.6+ `nop`); fixed 95cac8dc | execution |
+| A script ending in `return $x` lacks the final `done`, and 8.6+ procedures end `done done` where tclsh trims one; fixed 8c24d37c | execution |
+| 8.4/8.5 top-level scripts reach a literal scalar through `storeStk`/`loadStk`/`incrStkImm` where tclsh uses the scalar stack forms; fixed c9a0e5b6 | execution |
+| An iRule `expr` reads numerals by the host engine's 9.0 rules (`expr {077}` gives 77, tclsh 8.4.20 63) because the framework's `::expr` override evaluated under the host catch; fixed f474416f | execution |
+| 8.5 top-level script: no `startCommand` before a compiled `return` after another command (`set y 1; return $x`) | execution, open |
+| 8.6+: an unreachable `jump` after a `done` stays a jump where tclsh's optimizer leaves `nop nop` (`if {$a} {return 1}; return 2`) | execution, open |
+| 8.6+: `if {!$a}` compiles `not; jumpFalse` where tclsh gives `nop; jumpTrue` | execution, open |
+| 8.4: errorInfo for `expr {0b10 + 1}` reads `while compiling` where tclsh 8.4.20 reads `while executing` | execution, open |
 
 ## Waiting on the owner's approval
 
