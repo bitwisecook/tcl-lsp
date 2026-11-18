@@ -172,9 +172,14 @@ entry    main.tcl
     #[test]
     fn plain_tcl_document_still_flags_directives() {
         let diags = diags_for(Some("/proj/other.tcl"));
+        // tclsh8.6.18/9.0.4: `package demo-app` raises bad option
+        // "demo-app", so the later directives are unreached; the leak
+        // control is the `package` subcommand warning on line 1.
         assert!(
-            diags.iter().any(|d| d.code == DiagCode::W123),
-            "outside a manifest the directives are unknown commands: {diags:?}"
+            diags
+                .iter()
+                .any(|d| d.code == DiagCode::W001 && d.message.contains("demo-app")),
+            "outside a manifest `package demo-app` is an unknown subcommand: {diags:?}"
         );
     }
 
