@@ -529,6 +529,8 @@ mod unresolved_command {
     #[test]
     fn unknown_proc_opaque_dispatch_suppresses() {
         // chains-original / auto_load / exec / glob-switch make dispatch opaque.
+        // tclsh8.6.18/9.0.4: with the glob-switch handler, `foobar x` prints
+        // foo and raises nothing.
         for src in [
             "proc unknown {cmd args} {\n    _original_unknown $cmd {*}$args\n}\nmycommand arg1\n",
             "proc unknown {cmd args} {\n    auto_load $cmd\n}\nmycommand arg1\n",
@@ -591,15 +593,6 @@ mod unresolved_command {
                 .unknown_proc_info
                 .is_none()
         );
-    }
-
-    #[test]
-    fn unknown_glob_switch_sets_pattern_dispatch_flag() {
-        let src = "proc unknown {cmd args} {\n    switch -glob $cmd {\n        fo* { puts foo }\n    }\n}\nfoobar x\n";
-        let r = Analyser::new().analyse(src, D);
-        let upi = r.unknown_proc_info.as_ref().expect("upi");
-        assert!(upi.has_pattern_dispatch);
-        assert!(!r.diagnostics.iter().any(|d| d.code.to_string() == "W123"));
     }
 
     #[test]
