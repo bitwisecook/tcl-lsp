@@ -465,8 +465,7 @@ fn math_function_vectors_match_real_tclsh_when_available() {
 
 /// Run `src` under a real tclsh, or `None` when that binary isn't available.
 fn tclsh_output(bin: &str, src: &str) -> Option<String> {
-    let release =
-        oracle_release(bin).unwrap_or_else(|| panic!("no Tcl release named by {bin}"));
+    let release = oracle_release(bin).unwrap_or_else(|| panic!("no Tcl release named by {bin}"));
     shared_tclsh_output(release, src)
 }
 

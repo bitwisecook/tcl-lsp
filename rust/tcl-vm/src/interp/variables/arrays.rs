@@ -66,11 +66,7 @@ impl Vm {
         // reports with `set`): tclsh 8.4-9.1 `array set z(k) {}` and
         // `array set z(k) {a 1}` both say `can't set "z(k)": variable isn't array`.
         if resolved.elem.is_some() {
-            return Err(self.variable_access_error_input(
-                "set",
-                input,
-                "variable isn't array",
-            ));
+            return Err(self.variable_access_error_input("set", input, "variable isn't array"));
         }
         if self.dictionary_variable_containers() {
             if let Some(value) = self.read_variable_contents(resolved) {
