@@ -20,6 +20,10 @@ use super::*;
 
 #[test]
 fn selected_original_method_body_requires_real_return_schema_and_static_operand() {
+    // tclsh8.6.18/9.0.4: `[my literal] action` where `literal` returns VALUE
+    // -> invalid command name "VALUE": an unknown-command finding naming
+    // VALUE, not W307. A `$dynamic` return or a redefined `return` keeps the
+    // abstention: nothing names VALUE.
     for (prefix, value, expected) in [
         ("", "VALUE", true),
         ("", "$dynamic", false),
@@ -28,28 +32,18 @@ fn selected_original_method_body_requires_real_return_schema_and_static_operand(
         let source = format!(
             "{prefix}oo::class create C {{method literal {{}} {{return {value}}}; method use {{}} {{[my literal] action}}}}"
         );
-        let mut analyser = Analyser::new();
-        analyser.analyse(&source, "tcl8.6");
-        let config = analyser.file_lexer_config();
-        let offset = u32::try_from(source.find("my literal").unwrap()).unwrap();
-        let command =
-            crate::segmenter::segment_commands_with_offset_and_config("my literal", offset, config)
-                .remove(0);
-        let mut tokens = crate::ir::CommandTokens::from_segmented(
-            &tcl_lexer::SourceImage::document(&source).source_map(),
-            config,
-            &command,
-        );
-        analyser
-            .head_identities
-            .source_bindings_ref()
-            .stamp_original_tokens(&mut tokens);
-        assert_eq!(
-            analyser.oo_self_method_returns_literal(&tokens),
-            expected,
-            "{source}"
-        );
-        analyser.source = format!("{}{}", analyser.source, "# changed").into();
-        assert!(!analyser.oo_self_method_returns_literal(&tokens));
+        let result = Analyser::new().analyse(&source, "tcl8.6");
+        let names_value = result
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W123 && d.message.contains("'VALUE'"));
+        assert_eq!(names_value, expected, "{source}: {:?}", result.diagnostics);
+        if expected {
+            assert!(
+                !result.diagnostics.iter().any(|d| d.code == DiagCode::W307),
+                "{source}: {:?}",
+                result.diagnostics
+            );
+        }
     }
 }
