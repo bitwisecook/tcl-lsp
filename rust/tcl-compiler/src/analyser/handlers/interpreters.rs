@@ -214,9 +214,17 @@ impl Analyser {
             .flatten();
         let original_key =
             head.and_then(|head| self.original_interp_eval_state_key(head, arg_tokens));
-        let key = original_key
-            .or_else(|| resolved_dynamic.clone())
-            .unwrap_or_else(|| self.qualified_interp_key(&args[1]));
+        // An unresolved computed path keeps a domain of its own site: its
+        // written text names no interpreter, and two procedures that both
+        // spell `$s` hold unrelated ones.
+        let key = match (original_key, resolved_dynamic.clone(), arg_tokens.get(1)) {
+            (Some(key), _, _) | (None, Some(key), _) => key,
+            (None, None, Some(path)) if !literal_path => {
+                let site = self.mint_synthetic_offset_name("@dynns@", path.span.start());
+                self.qualified_interp_key(&site)
+            }
+            (None, None, _) => self.qualified_interp_key(&args[1]),
+        };
         if literal_path || resolved_dynamic.is_some() {
             // Interpreter existence: evaluating into a
             // known-but-never-created child raises `could not find
