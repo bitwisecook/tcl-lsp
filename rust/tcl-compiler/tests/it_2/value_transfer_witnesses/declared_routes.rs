@@ -585,7 +585,7 @@ fn a_pack_write_through_an_incoming_target_reaches_the_driver() {
         );
     }
     assert_eq!(answers_for(&unit, "::p", "acc::add"), ["evaluated"]);
-    assert!(answers_for(&unit, "::p", "acc::store").is_empty());
+    assert_eq!(answers_for(&unit, "::p", "acc::store").len(), 0);
     assert_eq!(
         value_at(&unit, "::q", "t", 2),
         Some(LatticeValue::Overdefined),
