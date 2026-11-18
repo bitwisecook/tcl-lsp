@@ -105,9 +105,9 @@ fn evaluate_def_assign_value_folds_string_length() {
 
 #[test]
 fn string_length_fold_counts_in_the_selected_dialects_character_model() {
-    // U+1D11E is one Tcl 9 scalar but two Tcl 8 `Tcl_UniChar` units, so the
-    // compile-time fold must answer as the selected runtime would — and
-    // decline when no release is selected, leaving the width ambiguous.
+    // U+1D11E written in a UTF-8 source file: tclsh 9.0 and 9.1 count one
+    // scalar; 8.6 counts 4 under `encoding system iso8859-1` and 2 under
+    // utf-8, so an 8.x fold declines, as does no selected release.
     let mut ssa = bare_ssa();
     let stmt = assign_value_stmt(&mut ssa, "n", "[string length \"\u{1D11E}\"]", 1);
     let fold = |dialect: Option<&'static tcl_dialect::DialectProfile>| {
@@ -128,7 +128,7 @@ fn string_length_fold_counts_in_the_selected_dialects_character_model() {
         fold(Some(
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
         )),
-        LatticeValue::Const(ConstValue::Int(2))
+        LatticeValue::Overdefined
     );
     assert_eq!(
         fold(None),

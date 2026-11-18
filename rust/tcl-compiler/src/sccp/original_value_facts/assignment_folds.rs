@@ -407,12 +407,18 @@ pub(super) fn try_fold_cmd_subst<'a, S1: std::hash::BuildHasher, S2: std::hash::
                 && let Some(s) =
                     resolve_const_string(raw.trim(), uses, values, ssa, policy, reference_config)
             {
-                // `string length` counts UTF-16 code units on Tcl 8 and
-                // Unicode scalars on Tcl 9, so the fold uses the selected
-                // dialect's model. With no selected release the count survives
-                // only where both models agree, which is every string with no
-                // supplementary character.
-                let count = StringCharacterModel::count_for(policy.characters, &s)?;
+                // The selected release's character model, over the text the
+                // release reads. A word spelt in ASCII (escapes included)
+                // reads alike under every encoding; otherwise a non-ASCII
+                // value declines before 9.0, whose script reader follows
+                // `encoding system`.
+                let raw = raw.trim();
+                let spelt_in_ascii = raw.is_ascii() && !raw.contains(['$', '[']);
+                let count = if spelt_in_ascii {
+                    StringCharacterModel::count_for(policy.characters, &s)?
+                } else {
+                    StringCharacterModel::count_authored(policy.characters, &s)?
+                };
                 let len = i64::try_from(count).unwrap_or(i64::MAX);
                 return Some(LatticeValue::Const(ConstValue::Int(len)));
             }

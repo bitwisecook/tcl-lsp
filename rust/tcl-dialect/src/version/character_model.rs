@@ -147,6 +147,20 @@ impl StringCharacterModel {
         let first = counts.next()?;
         counts.all(|c| c == first).then_some(first)
     }
+
+    /// [`Self::count_for`] for text written in a script's source. Tcl 9 and
+    /// Jim read a script as UTF-8, as this front end does; Tcl 8.4 to 8.6
+    /// decode it in the system encoding, so a non-ASCII literal holds other
+    /// characters there and is declined. A UTF-8 file holding U+1D11E, sourced
+    /// after `encoding system iso8859-1`: tclsh 8.6 counts 4, under utf-8 2;
+    /// 8.4 and 8.5 count 4 under utf-8; 9.0 counts 1 under both.
+    #[must_use]
+    pub fn count_authored(model: Option<Self>, value: &str) -> Option<usize> {
+        if !value.is_ascii() && !matches!(model, Some(Self::UnicodeScalars | Self::Jim084Utf8)) {
+            return None;
+        }
+        Self::count_for(model, value)
+    }
 }
 
 /// One run of [`StringCharacterModel::units`]: a character a Rust string

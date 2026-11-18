@@ -649,6 +649,27 @@ fn string_character_model_changes_at_tcl_nine() {
     );
 }
 
+/// A UTF-8 file holding U+1D11E or `é`, sourced after `encoding system
+/// iso8859-1`: tclsh 8.6 counts 4 and 2, under utf-8 2 and 1; 8.4 and 8.5
+/// count 4 and 1 under utf-8; 9.0 counts 1 and 1 under both. Authored text
+/// counts only where the release reads source as UTF-8.
+#[test]
+fn authored_text_counts_only_where_the_release_reads_source_as_utf8() {
+    use super::StringCharacterModel as M;
+    for text in ["\u{1D11E}", "\u{e9}"] {
+        assert_eq!(M::count_authored(Some(M::UnicodeScalars), text), Some(1));
+        for model in [
+            None,
+            Some(M::Utf16CodeUnits),
+            Some(M::BmpCharsElseUtf8Bytes),
+        ] {
+            assert_eq!(M::count_authored(model, text), None, "{model:?} {text}");
+        }
+    }
+    assert_eq!(M::count_authored(Some(M::Utf16CodeUnits), "abc"), Some(3));
+    assert_eq!(M::count_authored(None, "abc"), Some(3));
+}
+
 /// Issue #2128: the counting model is three-valued, not two. Each row is
 /// a witness measured with
 /// `string length [encoding convertfrom utf-8 …]` on the real tclsh of
