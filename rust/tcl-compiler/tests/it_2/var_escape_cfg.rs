@@ -848,8 +848,13 @@ fn ir_global_in_switch_arm_escapes() {
 
 #[test]
 fn ir_upvar_in_try_handler_escapes() {
-    // The IR walk descends a `try ... on error {...}` handler body.
-    let s = escape_ir("proc ::p {} { try { set ok 1 } on error {e} { upvar 1 cv v\n set v 1 } }");
+    // The IR walk descends a `try ... on error {...}` handler body. The body
+    // can raise, so the handler is reachable: tclsh 8.6.18, 9.0.4, 9.1.0 —
+    // `p 0; info exists cv` is 1 (a body that cannot raise leaves the
+    // handler dead, and `info exists cv` 0).
+    let s = escape_ir(
+        "proc ::p {d} { try { set ok [expr {1/$d}] } on error {e} { upvar 1 cv v\n set v 1 } }",
+    );
     let p = summary(&s, "::p");
     assert!(p.is_frame("v"), "upvar inside a try handler is Frame");
     assert!(p.upvar_source_names.contains("cv"));
