@@ -203,6 +203,9 @@ These go ahead of missing facts once the ledgers are in.
 | `switch -exact -- $x {…}` (and `-glob`, `-regexp`) read as a possible-option subject, lowered to a call and withdrew the command world, so every `if`/`while` after it lowered to a call too; fixed in `f6d942f3`, 48 `tcl-compiler` tests | class-facts, fixed |
 | An `if`'s else body span stopped before its closing brace, so a constant-false `if` with an `else` never folded (tclsh 8.4 to 9.1 print `bye here`); fixed in `72eb66a1` | dataflow-optimiser, fixed |
 | 2,000 nested `if`s in a `when` body no longer finish in `find_enclosing_when_event` / `scan_file_events` (over 600 s; the whole core suite took 390 s); arrived 18 November between 01:50 and 04:30 UTC | analysis-performance bisects, the author fixes |
+| Arm bodies of a `switch`/`case` written as separate words stopped before the closing brace, so their selection never folded; fixed in `019cdef1` | dataflow-optimiser, fixed |
+| Under 8.4 a runtime-raised coded error (`expr {sqrt(-1)}`, NaN operands) reached `catch` with `errorCode` `NONE`, where tclsh 8.4.20 gives `ARITH DOMAIN {domain error: argument not in valid range}`; fixed in `f03e110a` | execution, fixed |
+| IRULE5001 reported a `log` gated by a flag set in the arms of a `switch` lowering could not lay out | taint |
 
 ## Waiting on the owner's approval
 
@@ -214,7 +217,8 @@ Edits a session's permission classifier refused; the replacement text is in the 
 | The second assertion of `an_open_pack_keeps_its_notices_while_it_is_edited` re-pointed from W123 to the pack's own notice on the buffer | irules-registry-tooling | A pack's root words belong to its grammar |
 | `tcl-spectcl` `a_hover_key_written_outside_the_block_is_still_unknown` re-pointed from W123 to the pack's own notice | irules-registry-tooling | A pack's root words belong to its grammar (the same ruling) |
 | The fixture of `exact_custom_return_codes` replaced: its second `try` never runs, because `try {return -code 42} finally {}` leaves the procedure (tclsh) | irules-registry-tooling | The source is not what the test says it is |
-| `LIVE_REFERENCE_INLINING` switched on, with the guard test `the_live_compile_splices_no_reference_body` changed to assert that the differential is the gate | live-inlining | The differential is identical to tclsh 8.4 to 9.1 (ruling of 17 November 23:52). Measured on `2e8b3814`, switch off against on, eight packages (`tcl-codegen`, `tcl-spectcl`, `tcl-vm`, three engines, `tcl-cshim`, `tcl-spec-hooks`): the only new failure is the guard itself, the three `reference_bodies` tests are fixed, every other failing set is identical. A fuzz smoke with the switch on is still to run |
+| `LIVE_REFERENCE_INLINING` switched on, with the guard test `the_live_compile_splices_no_reference_body` changed to assert that the differential is the gate | live-inlining | The differential is identical to tclsh 8.4 to 9.1 (ruling of 17 November 23:52). Measured on `2e8b3814`, switch off against on, eight packages (`tcl-codegen`, `tcl-spectcl`, `tcl-vm`, three engines, `tcl-cshim`, `tcl-spec-hooks`): the only new failure is the guard itself, the three `reference_bodies` tests are fixed, every other failing set is identical. Re-measured 05:27 UTC on 18 November at `1a99ba86` with every oracle required: `tcl-codegen` 110 off, 111 on of 1,488; `tcl-spectcl` 21 off, 18 on of 625; the same test-by-test result. Jim units splice nothing (`build_inlinable_map` refuses a module whose parameter grammar is not Tcl's). The fuzz run so far loads no pack; a pack-loading campaign is being added |
+| The 6 MERGE and 7 REWRITE test changes of the signed-off irules-registry-tooling ledger (names in `ledger/irules-registry-tooling.tsv`) | irules-registry-tooling | Sampled and signed off by the coordinator; that session's permission check asks the owner before it edits a test body, and the edits are not routed through another session |
 
 ## Passing tests the oracle contradicts
 
@@ -282,7 +286,7 @@ The failing behaviours are far fewer than the failing tests. The causes ranked h
 
 The second pass (overlap among passing tests: 88 exact-copy groups, 385 overlap groups, the vacuous negatives on unwired helpers) follows the repairs.
 
-## Status of the rows, 18 November 2026, 04:55 UTC
+## Status of the rows, 18 November 2026, 05:55 UTC
 
 From `tools/ledger_status.py` (a cell that is not one of the seven words counts as open).
 
@@ -291,18 +295,18 @@ From `tools/ledger_status.py` (a cell that is not one of the seven words counts 
 | analyser-binding | 412 | 5 | 0 | 1 | 0 | 0 | 0 | 418 |
 | analysis-performance | 48 | 0 | 0 | 0 | 0 | 0 | 0 | 48 |
 | class-facts | 236 | 8 | 2 | 0 | 0 | 0 | 0 | 246 |
-| dataflow-optimiser | 364 | 24 | 22 | 10 | 0 | 1 | 2 | 423 |
-| diagnostics | 300 | 39 | 49 | 4 | 0 | 0 | 5 | 397 |
-| execution | 198 | 4 | 0 | 8 | 56 | 0 | 0 | 266 |
-| irules-registry-tooling | 133 | 0 | 0 | 2 | 0 | 19 | 0 | 154 |
+| dataflow-optimiser | 364 | 24 | 20 | 12 | 0 | 1 | 2 | 423 |
+| diagnostics | 272 | 50 | 59 | 4 | 6 | 2 | 6 | 399 |
+| execution | 196 | 5 | 0 | 9 | 56 | 0 | 0 | 266 |
+| irules-registry-tooling | 133 | 0 | 0 | 2 | 0 | 20 | 0 | 155 |
 | live-inlining | 27 | 0 | 0 | 0 | 0 | 0 | 0 | 27 |
-| lsp-features | 625 | 10 | 19 | 12 | 10 | 0 | 1 | 677 |
+| lsp-features | 593 | 10 | 16 | 12 | 10 | 23 | 13 | 677 |
 | server-e2e-db-flaky | 3 | 3 | 0 | 0 | 0 | 0 | 1 | 7 |
-| server-e2e-db | 162 | 14 | 1 | 12 | 0 | 12 | 21 | 222 |
-| taint | 136 | 5 | 26 | 6 | 0 | 0 | 1 | 174 |
+| server-e2e-db | 158 | 14 | 1 | 14 | 0 | 12 | 23 | 222 |
+| taint | 134 | 5 | 26 | 8 | 0 | 0 | 1 | 174 |
 | tk-oo | 58 | 9 | 0 | 3 | 0 | 0 | 0 | 70 |
-| values | 195 | 18 | 0 | 4 | 1 | 0 | 0 | 218 |
-| **all** | 2897 | 139 | 119 | 62 | 67 | 32 | 31 | 3347 |
+| values | 195 | 18 | 0 | 5 | 1 | 0 | 0 | 219 |
+| **all** | 2829 | 151 | 124 | 70 | 73 | 58 | 46 | 3351 |
 
 ## Progress
 
