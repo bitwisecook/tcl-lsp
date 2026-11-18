@@ -360,6 +360,49 @@ async fn an_unknown_command_in_a_sourcing_document_draws_w123() {
     );
 }
 
+/// A `.tclspec` document is analysed like any document: an unknown bare word
+/// in it draws the analyser's W123 hint beside the loader's notices. The core
+/// analyser reports it for dialect `spectcl` (`tcl-lsp analyze`).
+#[tokio::test]
+async fn an_unknown_word_in_a_pack_document_draws_the_analyser_hint() {
+    let mut silent = Vec::new();
+    for dialect in ["tcl", "spectcl"] {
+        let backend = crate::tests::test_backend();
+        backend.workspace_scan_ready.mark_complete();
+        let uri = Uri::from_str("file:///w/.tcl-lsp/mylib.tclspec").unwrap();
+        let text = "speclib mylib 1 {\n    command mylib::x {\n        arity 1\n    }\n}\na_word_only_this_edit_carries\n";
+        backend.documents.lock("pack_w123_fixture").await.insert(
+            uri.clone(),
+            DocumentState::with_version(text.into(), dialect.into(), 1),
+        );
+        backend
+            .db_set_source(&uri, text, dialect.into())
+            .await
+            .unwrap();
+        let report = backend
+            .produce_direct_diagnostic_report(&uri)
+            .await
+            .unwrap_or_else(|_| panic!("direct report"));
+        let w123 = report.diagnostics.iter().any(|d| {
+            matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "W123")
+        });
+        let core = tcl_compiler::analyser::Analyser::new()
+            .analyse(text, dialect)
+            .clone();
+        if !w123 {
+            silent.push(format!(
+                "{dialect}: server {:?}; core unresolved sites {}",
+                report.diagnostics,
+                core.unresolved_command_sites.len()
+            ));
+        }
+    }
+    assert!(
+        silent.is_empty(),
+        "no W123 for the unknown word: {silent:?}"
+    );
+}
+
 async fn open_source(backend: &Backend, expected: &DiagnosticSourceExpectation) {
     // A running server has finished its startup scan before a current report
     // can settle; the fixture models that, as the scan-dependent tests do.
