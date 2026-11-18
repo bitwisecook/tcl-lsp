@@ -104,35 +104,36 @@ async fn fix_all_safe_issues_applies_only_shown_fixes() {
 /// The bulk pass analyses under the document's own layers: a code
 /// the session turns off and a folder turns back on is computed, shown and
 /// fixed in that folder's documents, and in no other.
+///
+/// W100 carries a provably equivalent (bulk-applicable) fix. IRULE2002's
+/// drop-in replacement is `RequiresReview` (`discouraged_commands.rs`), so it
+/// is offered as a code action and never applied in bulk.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn fix_all_safe_issues_analyses_under_the_documents_layers() {
     let backend = test_backend();
     backend
-        .apply_global_config(&serde_json::json!({ "diagnostics": { "IRULE2002": false } }))
+        .apply_global_config(&serde_json::json!({ "diagnostics": { "W100": false } }))
         .await
         .unwrap();
     *backend.folder_configs.lock().await = vec![(
         Uri::from_str("file:///fixall-folder").unwrap(),
         FolderConfig {
             policy_layers: Some(PolicyLayers {
-                project: serde_json::json!({ "diagnostics": { "IRULE2002": true } }),
+                project: serde_json::json!({ "diagnostics": { "W100": true } }),
                 ..PolicyLayers::default()
             }),
             ..FolderConfig::default()
         },
     )];
-    let src = "when HTTP_REQUEST {\n    log local0. [http_host]\n}\n";
+    let src = "set n [expr abs(-2)]\n";
     for (path, expected) in [
-        (
-            "file:///fixall-folder/a.irul",
-            "when HTTP_REQUEST {\n    log local0. [HTTP::host]\n}\n",
-        ),
-        ("file:///elsewhere/b.irul", src),
+        ("file:///fixall-folder/a.tcl", "set n [expr {abs(-2)}]\n"),
+        ("file:///elsewhere/b.tcl", src),
     ] {
         let uri = Uri::from_str(path).unwrap();
         backend.documents.lock("test").await.insert(
             uri.clone(),
-            DocumentState::new(src.to_owned(), "f5-irules".to_owned()),
+            DocumentState::new(src.to_owned(), "tcl".to_owned()),
         );
         let out = backend
             .fix_all_safe_issues_command(&[serde_json::json!(uri.as_str())])

@@ -238,8 +238,19 @@ fn a_constants_only_edit_reschedules_both_children() {
     index.replace_document(parent.as_str(), &edited);
     let after = IndexedDiagnosticFacts::capture(&index, parent.as_str());
     let change = before.change_to(&after);
+    // Rows also retain the sealed analysis lineage of the document they were
+    // read from, which differs between any two byte-different documents; the
+    // authored statement (parent, path text, span) is what must be untouched.
+    let authored = |facts: &IndexedDiagnosticFacts| {
+        facts
+            .sources
+            .iter()
+            .map(|source| (source.uri.clone(), source.raw_path.clone(), source.range))
+            .collect::<Vec<_>>()
+    };
     assert_eq!(
-        before.sources, after.sources,
+        authored(&before),
+        authored(&after),
         "precondition: the source row text is untouched by this edit",
     );
     assert!(

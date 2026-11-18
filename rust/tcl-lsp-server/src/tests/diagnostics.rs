@@ -48,16 +48,12 @@ mod run;
 mod scheduling;
 
 fn ws_index(docs: &[(&Uri, &str)]) -> core_workspace_index::WorkspaceIndex {
-    let analyses: Vec<(String, tcl_compiler::analyser::AnalysisResult)> = docs
-        .iter()
-        .map(|(uri, src)| {
-            let mut a = tcl_compiler::analyser::Analyser::new();
-            ((*uri).as_str().to_owned(), a.analyse(src, "tcl8.6").clone())
-        })
-        .collect();
-    core_workspace_index::WorkspaceIndex::from_documents(
-        analyses.iter().map(|(u, a)| (u.as_str(), a)),
-    )
+    let mut index = crate::workspace::new_workspace_index();
+    for (uri, src) in docs {
+        let mut a = tcl_compiler::analyser::Analyser::new();
+        index.replace_document(uri.as_str(), &a.analyse(src, "tcl8.6").clone());
+    }
+    index
 }
 
 fn has_code(diags: &[tower_lsp_server::ls_types::Diagnostic], code: &str) -> bool {
