@@ -29,8 +29,8 @@ fn a_source_shell_keeps_the_document_and_interprets_nothing() {
     let source = "proc p {} { set x 1 }\np\nundefined_command_here\n";
     let shell = Analyser::new().source_shell().analyse(source, "tcl8.6");
     assert!(shell.is_source_shell());
-    assert!(shell.command_invocations.is_empty());
-    assert!(shell.diagnostics.is_empty());
+    assert_eq!(shell.command_invocations.len(), 0);
+    assert_eq!(shell.diagnostics.len(), 0);
     assert!(shell.resolved_input.is_some());
     let image = shell
         .retained_command_realm()
@@ -40,8 +40,8 @@ fn a_source_shell_keeps_the_document_and_interprets_nothing() {
 
     let analysed = Analyser::new().analyse(source, "tcl8.6");
     assert!(!analysed.is_source_shell());
-    assert!(!analysed.command_invocations.is_empty());
-    assert!(!analysed.diagnostics.is_empty());
+    assert_ne!(analysed.command_invocations.len(), 0);
+    assert_ne!(analysed.diagnostics.len(), 0);
 }
 
 /// The composite-head split asks the shared owner where the
