@@ -18,9 +18,11 @@ Four causes, one fix each, each with a test on `work`:
 | Evaluator epoch kept when a republished hook plan runs the same bodies: dd77e9313f0f2c196413d5540ea4b713d5a46611 | `an_unchanged_hook_plan_keeps_the_evaluator_epoch_1657` (tcl-spectcl `tests/hook_plan_republish.rs`) |
 | Bounded diagnostics admission, one permit per analysis pass (`diagnostics/admission.rs`): 0f09b12e096894006635682fc77ab5b52051eed6 | `a_reload_over_many_documents_admits_at_most_the_bound_1657` (`src/tests/diagnostics/scheduling.rs`) |
 
-**History note.** `work` was re-rooted at cbc50aa7 (a root commit with no parents). e54c33e2, d3659a35
-and 446fa3ba (the first driver commit) are not ancestors of `work`, but their content is in it. The four
-tests above and `scripts/dev/pack_churn_stress.py` are present on `work`.
+**History note (corrected by the orchestrator, 18 November).** `work` was not re-rooted. The outgoing
+session's clone was shallow, with its boundary at cbc50aa7, so that commit looked like a root and
+`git merge-base --is-ancestor` failed for anything older. In a clone deepened past it
+(`git fetch --shallow-since=2026-11-14 origin work`), e54c33e2, d3659a35 and 446fa3ba (the first driver
+commit) are ancestors of `origin/work`. Deepen before trusting an ancestor check on an older commit.
 
 **Stated in the closing comment:**
 - the parent of e54c33e2 did not wedge in 7 runs;
@@ -134,7 +136,7 @@ The driver's `tcl-lsp.getEffectiveConfig` probe has peaked at 20.8 s (run A on 0
 | a78bcdc0a39cece0254473d6b09d2ee94591401f | #2543 fallback-tier bounding test |
 | 3a82a00a4a931dec914faeec11a06a17bfd8eadb | pack_churn_stress: record the round of every slow probe (#2543) |
 
-Present by content only, after the re-root at cbc50aa7: e54c33e2, d3659a35 and 446fa3ba (see #1657).
+Also on `work`, older than a shallow clone's boundary (see the history note under #1657): e54c33e2, d3659a35 and 446fa3ba.
 
 ## Only on branches
 
