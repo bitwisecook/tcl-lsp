@@ -1190,27 +1190,34 @@ dead; emitted {:?}",
 
     #[test]
     fn dict_update_harvests_keys_through_the_sccp_version() {
-        // The harvester prefers the SCCP CONST of the SPECIFIC version the
-        // `dict update` statement reads, falling back to a same-block literal
-        // `set`. Every test above exercises the fallback (a literal `set` in
-        // the same block); these two pin the SCCP branch, where the only
-        // truth source is an interprocedurally propagated caller argument.
-        // tclsh: `proc f {d} {dict update d k v {info exists v}}`
-        //        → `f {k 5}` = 1, `f {}` = 0.
-        // `g` is called, so the caller's value reaches `f`.
-        let present = "proc f {d} { dict update d k v { puts $v } }\nproc g {} { f {k 5} }\ng\n";
-        assert!(
-            !fires(present, D, "W210"),
-            "an interprocedurally-propagated key-present literal binds the value-var; \
-emitted {:?}",
-            codes(present, D)
-        );
-        let absent = "proc f {d} { dict update d k v { puts $v } }\nproc g {} { f {} }\ng\n";
+        // The harvester prefers the SCCP CONST of the specific version the
+        // `dict update` statement reads over the same-block literal `set`
+        // fallback. Here the `set` sits in an earlier block (before the `if`
+        // join), so only the SCCP value reaches the statement.
+        // tclsh8.6.18/9.0.4: the empty dict raises can't read "v"; the
+        // `{k 5}` twin prints 5.
+        let absent = "proc f {c} { set d {}; if {$c} { puts x }; dict update d k v { puts $v } }\n";
         assert!(
             fires(absent, D, "W210"),
-            "an interprocedurally-propagated empty literal leaves the value-var unset; \
-must fire W210; emitted {:?}",
+            "an SCCP-proved empty dict leaves the value-var unset; emitted {:?}",
             codes(absent, D)
+        );
+        let present =
+            "proc f {c} { set d {k 5}; if {$c} { puts x }; dict update d k v { puts $v } }\n";
+        assert!(
+            !fires(present, D, "W210"),
+            "an SCCP-proved key-present dict binds the value-var; emitted {:?}",
+            codes(present, D)
+        );
+        // A body is analysed from a generic entry, never seeded by its
+        // callers (coordinator ruling of 18 November): `f {}` raising is a
+        // fact about that call, not about every entry of `f`, so `f`'s body
+        // stays silent.
+        let caller_only = "proc f {d} { dict update d k v { puts $v } }\nproc g {} { f {} }\ng\n";
+        assert!(
+            !fires(caller_only, D, "W210"),
+            "a caller's value never seeds the body; emitted {:?}",
+            codes(caller_only, D)
         );
     }
 }
