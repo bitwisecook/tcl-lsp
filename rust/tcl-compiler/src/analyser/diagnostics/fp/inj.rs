@@ -262,10 +262,12 @@ fn fp_inj_07_exec_encoding_does_not_mask_option_scan() {
     // as a definite positional and stops scanning right there, hiding every
     // tainted argument after it (including the actual program name) from
     // T102/W304.
+    // `exec -encoding` arrived in 9.0 (tclsh 8.6.18: bad option
+    // "-encoding"; 9.0.4 accepts it), so the fixture runs under 9.0.
     assert!(
-        fires(FP_INJ_07_REPRO, D, "T102"),
+        fires(FP_INJ_07_REPRO, "tcl9.0", "T102"),
         "FP-INJ-07: `exec -encoding utf-8 $prog` must fire T102; emitted {:?}",
-        codes(FP_INJ_07_REPRO, D)
+        codes(FP_INJ_07_REPRO, "tcl9.0")
     );
 }
 
