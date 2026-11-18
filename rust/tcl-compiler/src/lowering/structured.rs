@@ -1351,7 +1351,16 @@ impl Lowerer<'_> {
                 }
             } else {
                 match inline_switch_pairs(seg, &case, i) {
-                    Ok(pairs) => (pairs, false),
+                    Ok(mut pairs) => {
+                        // A body word's span runs through its closing
+                        // delimiter, as every other body span does.
+                        for pair in &mut pairs {
+                            pair.body_span = pair
+                                .body_span
+                                .map(|span| tcl_lexer::word_span_at(&self.source, span));
+                        }
+                        (pairs, false)
+                    }
                     Err(reason) => return self.barrier(seg, reason),
                 }
             };

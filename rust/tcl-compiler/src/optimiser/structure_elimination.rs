@@ -987,7 +987,7 @@ mod tests {
             for dialect in ["tcl8.4", "tcl8.6", "f5-irules"] {
                 assert_eq!(
                     the_fold(&source, dialect).replacement,
-                    "puts yes",
+                    "puts yes\n",
                     "{dialect}: {source}"
                 );
             }
@@ -1033,10 +1033,14 @@ mod tests {
             );
         }
         for dialect in ["tcl8.6", "tcl9.0"] {
-            assert_eq!(the_fold(quoted, dialect).replacement, "puts B", "{dialect}");
+            assert_eq!(
+                the_fold(quoted, dialect).replacement,
+                "puts B\n",
+                "{dialect}"
+            );
         }
         for dialect in ["tcl8.6", "tcl9.0", "tcl9.1", "tcl"] {
-            assert_eq!(the_fold(list, dialect).replacement, "puts B", "{dialect}");
+            assert_eq!(the_fold(list, dialect).replacement, "puts B\n", "{dialect}");
         }
     }
 
