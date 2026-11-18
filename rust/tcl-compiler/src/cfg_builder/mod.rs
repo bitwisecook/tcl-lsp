@@ -76,7 +76,8 @@ use function_entry_points::build_cfg_method_function_with_upvars;
 #[cfg(test)]
 use function_entry_points::command_namespace;
 pub(crate) use function_entry_points::{
-    build_analysis_body, build_cfg_method_function_with_prepared_context,
+    build_analysis_body, build_analysis_body_for_input,
+    build_cfg_method_function_with_prepared_context,
 };
 pub use function_entry_points::{
     build_cfg_function, build_cfg_function_in_bpf_selected_scope,

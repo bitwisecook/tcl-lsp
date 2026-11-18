@@ -1029,22 +1029,41 @@ fn collect_debug_flag_names(
         let Some(selected) = bindings.selected_source(body) else {
             continue;
         };
-        let mut lowerer = crate::lowering::Lowerer::with_config(registry, config)
+        let lowerer = crate::lowering::Lowerer::with_config(registry, config)
             .with_dialect(registry.profile())
             .with_context_registry(std::sync::Arc::clone(metadata));
+        let mut lowerer = match resolver.resolved_source_input() {
+            Some(input) => lowerer.with_resolved_analysis_input(input.for_nested_source()),
+            None => lowerer,
+        };
         let Ok(text) = body.try_text() else {
             continue;
         };
         let mut script = lowerer.lower_into_script_with_bindings(text, body.base(), "::", selected);
         script.executed_source = Some(std::sync::Arc::new(body.clone()));
-        let cfg = crate::cfg_builder::build_analysis_body(
-            &format!("::when::{event}"),
-            &script,
-            crate::ir::ExecutionNamespace::exact("::"),
-            registry,
-            config,
-            std::sync::Arc::clone(metadata),
-        );
+        let name = format!("::when::{event}");
+        let namespace = crate::ir::ExecutionNamespace::exact("::");
+        let cfg = match resolver.resolved_source_input() {
+            Some(input) => {
+                let input = input.for_nested_source();
+                crate::cfg_builder::build_analysis_body_for_input(
+                    &name,
+                    &script,
+                    namespace,
+                    registry,
+                    input.lexer_config(),
+                    &input,
+                )
+            }
+            None => crate::cfg_builder::build_analysis_body(
+                &name,
+                &script,
+                namespace,
+                registry,
+                config,
+                std::sync::Arc::clone(metadata),
+            ),
+        };
         let points = crate::place_bridge::build_point_resolve_contexts_with_entry(
             &cfg,
             crate::connection_scope::event_resolve_context(event),

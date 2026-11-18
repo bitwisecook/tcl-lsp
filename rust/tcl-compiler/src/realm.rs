@@ -198,6 +198,11 @@ impl CommandBindingRealm {
     ) -> bool {
         self.source_input.as_ref() == Some(input)
     }
+    /// The complete input this realm's source interpretation was sealed with.
+    pub(crate) fn resolved_source_input(&self) -> Option<&crate::analyser::ResolvedAnalysisInput> {
+        self.source_input.as_ref()
+    }
+
     /// Borrow the independently retained complete metadata generation.
     /// This does not authenticate source bytes or confer entered-frame facts.
     pub(crate) fn source_metadata_context(

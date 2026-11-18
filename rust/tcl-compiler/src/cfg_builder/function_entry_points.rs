@@ -133,6 +133,31 @@ pub(crate) fn build_analysis_body(
     .build_function(name, script)
 }
 
+/// [`build_analysis_body`] under a complete source input, so positioned
+/// conditional source stores are retained beside the body's statements.
+pub(crate) fn build_analysis_body_for_input(
+    name: &str,
+    script: &Script,
+    namespace: crate::ir::ExecutionNamespace,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    input: &crate::analyser::ResolvedAnalysisInput,
+) -> Function {
+    CfgBuilder::new_with_upvars_and_classes(
+        true,
+        HashMap::new(),
+        HashMap::new(),
+        HashMap::new(),
+        ModuleCommandBindings::default(),
+        registry,
+        CfgCommandClasses::from_source_input(registry, Some(input)),
+    )
+    .with_faithful_exceptions()
+    .with_lexer_config(config)
+    .with_invocation_namespace(script.execution_namespace(namespace))
+    .build_function(name, script)
+}
+
 /// Build a CFG for one body with the registry-owned module context prepared by
 /// [`prepare_cfg_context`].
 #[must_use]
