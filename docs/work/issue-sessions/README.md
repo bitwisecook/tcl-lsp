@@ -4,7 +4,41 @@ These sessions close the open issues filed by the repository owner. They run bes
 
 The orchestrator is session `session_017u5g3KDVBH5v5PXpMYy7KP`. It records the owner's design decisions on the issues, rules on questions, and does not own area code.
 
-## Roster
+## Paused, 18 November 2026, 12:00 UTC
+
+The owner paused this work and the burn-down together. Every issue session stopped, pushed its work in progress to a branch, and committed a hand-over. Nothing below is running. A resumed or fresh session starts from its hand-over, not from the roster's older notes.
+
+| Slug | Open issues | Hand-over | Work in progress (unverified unless the hand-over says otherwise) | Paused session |
+| --- | --- | --- | --- | --- |
+| `dataflow` | #2408, #1796 | `handover/dataflow.md` (84f80e862c) | `issues/dataflow-2` at 429ef5dae2 | `session_017u5g3JkH4kppJ1LJpZQUus` |
+| `audit` | #1710 | `handover/audit.md` (886f3c683a, e4f6121629) | `issues/audit-22` at 279875ba60 | `session_017u5g3MNKJTTq44wzXNszit` |
+| `server` | #2543, #2243 | `handover/server.md` (68ba57b738, 5b952660e2) | `issues/server-2` at 673e7b9403 | `session_017u5g3HDHiPN1CimB7QiVSF` |
+| `bytecode` | #2545 | `handover/bytecode.md` (d0e255fed) | `issues/bytecode-3` at 7a7f1434a9 | `session_017u5g3KBvRVWYHVoF5FSZmT` |
+
+Closed since 15 November: #2437, #1755, #1830, #2528, #2246, #2207, #1778, #2427, #2129, #1714, #1734, #2490, #2426, #2542, #1797, #1657, #1712, #2544. Opened on the owner's instruction: #2542 and #2544 (closed), #2543 and #2545 (open).
+
+What waits on a burn-down session, which is paused too (`docs/work/name-handling/handover/pause-2026-11-18/`):
+
+- `dataflow`: `analyser-binding`'s review of the declared-frame view fix and its parked switch patch (the wrong `info exists` fold stays on `work` until the switch lands at new 0); the rename-as-command-mutation and `namespace eval` barrier rows, which the coordinator cleared this session to write with `analyser-binding` reviewing.
+- `audit`: `analyser-binding`'s review of the walk half of the callback fix for #1710; its two answers on the fact shape are in the hand-over. `taint` has two replay-side fixes parked behind it.
+- `server`: `analysis-performance` on #2543's two closing conditions (the retained-module table clears everything at 512 entries; entries outlive their database) and on #2243 (`lassign` in a nested body ends the walk, with `analyser-binding`).
+
+Open with the owner:
+
+- Whether to open an issue for document-free requests that take up to 18–20 s while 183 documents are re-analysed (measured, not an artefact; see `handover/server.md`).
+- The F5 ruling on #1712 stands unless overruled: 36 builtins pure under Tcl 8.4 stay impure for `f5-irules` until device check 33.
+- Deleting the stale `issues/*` branches, which no session here is allowed to do. Live ones to keep: the four in the table above.
+
+Still not for these sessions: #2324, #1956, #1655 (the burn-down's `tk-oo`); #2151, #2165 (BIG-IP device checks 11 and 12).
+
+Lessons from this round, for whoever resumes:
+
+- Verify every reported push yourself: `git fetch origin work && git merge-base --is-ancestor <sha> origin/work`, in a clone deepened far enough (`git fetch --shallow-since=<date> origin work`). One session reported two pushes that had been rejected; another read a shallow clone's boundary as rewritten history.
+- A session's worker can restart and lose ordinary messages. Send anything urgent with priority `now`, and have sessions call ReadNotifications at the start of each turn.
+- `work` moves about a hundred commits an hour while the burn-down runs. Prove a change once on a fixed base, then land with a rebase and targeted checks; a full re-run after every rebase never converges.
+- Tests leave `/tmp/tcl-spectcl-cache-test-*` directories behind (about 8 GB in one session). Delete them when disk runs short.
+
+## Roster (as started on 17 November)
 
 | Slug | Issues | Model | Session | Hand-over |
 | --- | --- | --- | --- | --- |
