@@ -834,7 +834,8 @@ fn jump_to_class_definition_disambiguates_same_named_classes_by_cursor() {
 
 #[test]
 fn opt_proc_call_site_resolves_to_its_declaration() {
-    let src = "::tcl::OptProc greet {child -use -display} { return $child }\ngreet foo\n";
+    // tclsh 8.4.20-9.1.0: ::tcl::OptProc needs `package require opt`.
+    let src = "package require opt; ::tcl::OptProc greet {child -use -display} { return $child }\ngreet foo\n";
     let analysis = analyse(src);
     // Line 1: `greet foo` — cursor on "greet".
     let locs = definition(src, 1, 0, &analysis);

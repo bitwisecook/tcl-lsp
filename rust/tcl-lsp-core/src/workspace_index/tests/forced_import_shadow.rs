@@ -247,7 +247,9 @@ fn the_export_snapshot_answers_unknown_for_a_namespace_no_file_declares() {
     // is not evidence that it exports nothing — the same rule
     // `live_command_links` already applies to exact imports.
     use crate::namespace_import::NamespaceExportOracle as _;
-    let app = analyse("namespace eval app {\n    namespace import -force ::msgcat::*\n}\n");
+    let app = analyse(
+        "package require msgcat; namespace eval app {\n    namespace import -force ::msgcat::*\n}\n",
+    );
     let index = WorkspaceIndex::from_documents([("file:///app.tcl", &app)]);
     let snapshot = index.export_snapshot();
     let site = RunPoint {

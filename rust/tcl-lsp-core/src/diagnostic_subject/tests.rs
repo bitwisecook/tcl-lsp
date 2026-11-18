@@ -870,7 +870,7 @@ fn original_credential_transport_keeps_captured_literals_separate_from_lexical_p
         tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
         tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
     );
-    let source = "interp alias {} request {} http::geturl URL -headers {é[$literal]}; request";
+    let source = "package require http; interp alias {} request {} http::geturl URL -headers {é[$literal]}; request";
     let result = tcl_compiler::analyser::Analyser::new()
         .with_resolved_input(input)
         .analyse(source, "tcl");

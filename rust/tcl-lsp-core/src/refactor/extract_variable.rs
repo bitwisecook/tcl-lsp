@@ -576,19 +576,35 @@ mod tests {
         )
     }
 
+    /// The lenient `tcl` analysis the logical single-word contract covers.
+    fn run_logical(source: &str, start: u32, end: u32, name: &str) -> Option<Refactoring> {
+        let analysis = tcl_compiler::analyser::Analyser::new()
+            .analyse(source, "tcl")
+            .clone();
+        extract_variable(
+            source,
+            (start, end),
+            name,
+            &analysis,
+            &LineIndex::new(source),
+        )
+    }
+
     #[test]
     fn logical_complete_value_words_keep_explicit_compatibility_behaviour() {
         // Implementation contract: naming.refactor.logical-single-word-extraction
         // docs/design/analysis/name-resolution-proofs/refactor-logical-single-word-extraction.md
         let source = "puts {salt and pepper}";
-        let action = run(source, 5, u32::try_from(source.len()).unwrap(), "seasoning").unwrap();
+        let action =
+            run_logical(source, 5, u32::try_from(source.len()).unwrap(), "seasoning").unwrap();
         assert!(action.disabled.is_none());
         assert_eq!(
             action.apply(source),
             "set seasoning {salt and pepper}\nputs $seasoning"
         );
         let source = "puts [string length $name]";
-        let action = run(source, 5, u32::try_from(source.len()).unwrap(), "length").unwrap();
+        let action =
+            run_logical(source, 5, u32::try_from(source.len()).unwrap(), "length").unwrap();
         assert!(
             action
                 .apply(source)
@@ -659,7 +675,7 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/refactor-logical-single-word-extraction.md
         let source = "proc p {} {puts literal}";
         let start = u32::try_from(source.find("literal").unwrap()).unwrap();
-        let action = run(source, start, start + 7, "result").unwrap();
+        let action = run_logical(source, start, start + 7, "result").unwrap();
         assert_eq!(
             action.apply(source),
             "proc p {} {set result literal; puts $result}"
