@@ -119,6 +119,7 @@ Commit ids, what the repaired test now shows, and who it waits on go in `note`. 
 - *Tests of `inlining::inline_module`* (23, no production caller): read per test by the live-inlining session. "The inlined program answers as the original" is `KEEP-ORACLE`; an assertion on the inliner's internal shape is `REWRITE` to the differential or `MERGE` into a `live_differential` row; an assertion that names the renamed locals is `FIX-EXPECTATION`, since they become anonymous slots.
 - *A procedure body is never rewritten from call-site facts.* The procedure stays callable with other arguments from another file, a later `source`, a callback or an interactive session. The call site may fold; the body may not. The product does this today (`proc add {a b} {...}` becomes `return 7` from its one in-file call): a wrong rewrite, top of the dataflow fix list.
 - *The strict lattice of a procedure body is never seeded from its in-file callers* (the cause of the body rewrite above, and of I230 on a condition over a formal in a library file). A body is analysed from a generic entry; a value the in-file calls pass may be shown by hover as advice from the advisory side, never from the strict lattice.
+- *A pack document's root words belong to its grammar.* The SpecTcl document grammar abstains from W123 on them; the diagnostic is the pack's own notice ("unknown property … dropped"). An open, unsaved pack shows what the pack check says about the buffer as it stands; a notice computed from the saved image is dropped once the buffer differs and replaced by the buffer's own.
 - *At rule load nothing is proved, by design.* With no execution-name policy no head is an original input, and a hosted entry binds heads through hosted metadata, which is advice. A top-level `proc` or `when` is a declaration-inventory record (name, body, namespace; a `priority` value is inventory-only; a replaced `when` declines the inventory). Tests that wanted a proved target there are re-pointed at the inventory record.
 - *Store removal by liveness in a `when` body is not a licensed rewrite.* Handler variables are connection-scoped and what hosted commands read is advice; the finding may be offered as advice, never applied. The same-event case gets a BIG-IP check row.
 - *A binding's target is the command as tclsh names it.* After `rename a b` it is `::b`; the defining declaration is the binding's definition record.
@@ -189,6 +190,16 @@ These go ahead of missing facts once the ledgers are in.
 | Native lowering still emits a definition after `proc` is replaced; `unset` in a callback not counted as a write; a Jim entry lexed with the 8.6 configuration; `[dict size DATA]` inside an unknown command's braced word listed as a nested call | analyser-binding |
 | `-force` imports followed to the deleted local (10 tests); an inner namespaced class does not shadow the global one; a mathfunc rename that returns no edits and no reason | lsp-features |
 | A helper's condition concluded, and its body rewritten, from in-file callers although another file calls it differently (the body-seed cause above); W210 after a raising `unset x`; `namespace export *` in `namespace eval` scanned as no export boundary | analyser-binding |
+
+## Waiting on the owner's approval
+
+Edits a session's permission classifier refused; the replacement text is in the area's summary.
+
+| What | Session | Why it is right |
+| --- | --- | --- |
+| Two `rule_declaration` tests re-pointed from a proved target to the declaration-inventory record | irules-registry-tooling | Nothing is proved at rule load (analyser-binding's analysis, ruling of 17 November 23:55) |
+| The second assertion of `an_open_pack_keeps_its_notices_while_it_is_edited` re-pointed from W123 to the pack's own notice on the buffer | irules-registry-tooling | A pack's root words belong to its grammar |
+| `LIVE_REFERENCE_INLINING` switched on, with the guard test `the_live_compile_splices_no_reference_body` changed to assert that the differential is the gate | live-inlining | The differential is identical to tclsh 8.4 to 9.1 (ruling of 17 November 23:52); a full with/without measurement precedes it |
 
 ## Passing tests the oracle contradicts
 
