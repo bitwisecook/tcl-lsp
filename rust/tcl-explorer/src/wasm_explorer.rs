@@ -112,6 +112,37 @@ pub fn wasm_to_explorer_json(module: &WasmModule, li: &LineIndex, source: &str) 
     entries
 }
 
+/// [`wasm_to_explorer_json`] with each source procedure's row named by its
+/// source name. The module's function name is a physical symbol, and
+/// colliding procedure versions receive output-only body labels, so the
+/// source name is resolved through the module's source function ids and the
+/// unit's procedure table; the physical symbol stays in `symbol`.
+#[must_use]
+pub fn wasm_to_explorer_json_named(
+    module: &WasmModule,
+    li: &LineIndex,
+    source: &str,
+    procedures: &tcl_compiler::ir::ProcedureInventory,
+) -> Vec<Value> {
+    let mut entries = wasm_to_explorer_json(module, li, source);
+    let num_imports = module.imports.len();
+    for (row, entry) in entries.iter_mut().enumerate().skip(1) {
+        let Some(tcl_compiler::native_lowering::NativeFunctionId::Procedure(id)) =
+            u32::try_from(num_imports + row - 1)
+                .ok()
+                .and_then(|index| module.source_function_ids.get(&index))
+        else {
+            continue;
+        };
+        let Some(procedure) = procedures.get(id) else {
+            continue;
+        };
+        entry["symbol"] = entry["name"].clone();
+        entry["name"] = json!(procedure.qualified_name);
+    }
+    entries
+}
+
 /// A label dict for a WASM function index (imports occupy `0..num_imports`,
 /// defined functions follow). closure.
 fn func_label(module: &WasmModule, idx: usize) -> Value {
@@ -570,7 +601,12 @@ mod tests {
             tcl_codegen::codegen::wasm::WasmCompileOptions::hosted(),
         );
         let li = LineIndex::new(&result.source);
-        wasm_to_explorer_json(&module, &li, &result.source)
+        wasm_to_explorer_json_named(
+            &module,
+            &li,
+            &result.source,
+            &result.unit.ir_module.procedures,
+        )
     }
 
     #[test]

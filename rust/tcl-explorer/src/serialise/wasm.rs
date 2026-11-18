@@ -95,7 +95,12 @@ pub(super) fn serialise_wasm_with_options(
 
     // Rich per-instruction entries (module header first, then functions).
     let li = LineIndex::new(&result.source);
-    let mut entries = crate::wasm_explorer::wasm_to_explorer_json(&wasm, &li, &result.source);
+    let mut entries = crate::wasm_explorer::wasm_to_explorer_json_named(
+        &wasm,
+        &li,
+        &result.source,
+        &result.unit.ir_module.procedures,
+    );
 
     for entry in &mut entries {
         if entry["isTopLevel"].as_bool() == Some(true) {
