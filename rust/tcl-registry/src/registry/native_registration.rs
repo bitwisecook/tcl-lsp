@@ -151,7 +151,8 @@ impl CommandRegistry {
         if let Some(spec) = self.native_registration_exact_descriptor(identity, dialect) {
             return spec
                 .native_compilation
-                .or_else(|| crate::native_tcloo_registration::compilation(identity, dialect));
+                .or_else(|| crate::native_tcloo_registration::compilation(identity, dialect))
+                .or_else(|| jim_registration_without_compiler(dialect));
         }
         if let Some(compilation) = crate::native_tcloo_registration::compilation(identity, dialect)
         {
@@ -256,7 +257,8 @@ impl CommandRegistry {
         if let Some(spec) = self.native_registration_exact_descriptor(identity, dialect) {
             return spec
                 .native_compilation
-                .or_else(|| crate::native_tcloo_registration::compilation(identity, dialect));
+                .or_else(|| crate::native_tcloo_registration::compilation(identity, dialect))
+                .or_else(|| jim_registration_without_compiler(dialect));
         }
         if let Some(compilation) = crate::native_tcloo_registration::compilation(identity, dialect)
         {
@@ -920,4 +922,19 @@ pub struct NativeCompilerHooks {
     pub codegen: Option<CodegenHookId>,
     /// Value emitter selected by the original compiler words.
     pub inline: Option<InlineCodegenHookId>,
+}
+
+/// Jim compiles no commands, so a registered Jim command with no compiler
+/// descriptor has its compiler hook absent rather than unknown. The descriptor
+/// is a registration fact only: it is not attached to any invocation's facts.
+fn jim_registration_without_compiler(
+    dialect: crate::InvocationDialect,
+) -> Option<crate::native_compilation::NativeCompilationSpec> {
+    (dialect.family() == Some(tcl_dialect::model::Family::Jim)).then_some(
+        crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Direct,
+        },
+    )
 }

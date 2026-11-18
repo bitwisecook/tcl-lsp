@@ -519,3 +519,17 @@ fn conflicting_private_registration_mappings_retain_uncertainty() {
             .is_none()
     );
 }
+
+#[test]
+fn a_jim_registration_without_a_compiler_declares_its_hook_absent() {
+    // Jim compiles no commands, so the vm's captured entry row must read Absent
+    // for `namespace` rather than Unknown, which preflight refuses.
+    let registry = CommandRegistry::build_default();
+    let jim = crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
+        tcl_dialect::model::Release::JIM_0_84,
+    ));
+    let namespace = registry
+        .native_compilation_for_registration("namespace", jim)
+        .expect("a Jim registration carries a hook-presence descriptor");
+    assert_eq!(namespace.compiler_hook_presence(jim), Some(false));
+}
