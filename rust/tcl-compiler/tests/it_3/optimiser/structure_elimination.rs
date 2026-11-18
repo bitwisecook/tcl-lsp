@@ -57,7 +57,9 @@ fn structure_elimination_if_while_for() {
     assert!(!optimised(wf, TCL).contains("puts looping"));
     assert!(optimised(wf, TCL).contains("puts done"));
     assert!(opt_fires(wf, TCL, "O112"));
-    let ff = "for {set i 0} {0} {incr i} {\n    puts looping\n}";
+    // A following statement: a sole `for` is the script's result (`""`),
+    // which `set i 0` would change to 0 (tclsh 8.4-9.1: `{} 0`).
+    let ff = "for {set i 0} {0} {incr i} {\n    puts looping\n}\nputs done";
     assert!(!optimised(ff, TCL).contains("puts looping"));
     assert!(optimised(ff, TCL).contains("set i 0"));
     assert!(opt_fires(ff, TCL, "O112"));
