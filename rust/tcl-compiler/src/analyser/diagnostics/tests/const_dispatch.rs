@@ -355,21 +355,24 @@ fn catch_and_try_body_writes_join_never_last_write_945() {
     // Two shapes, because `catch` is only inlined where its result variable
     // could have a slot — inside a procedure (#2207).
     //
-    // At the top level it stays the opaque call with summarised defs, so the
-    // provenance walk still sees a non-literal defining statement and
-    // **abstains**: no indirect reference at all, and never a lexical map's
-    // answer (the body's `set cmd risky` presented as the unconditional
-    // value).
+    // At the top level the body cannot fail before its write, so the
+    // dispatch reaches `risky` (tclsh8.4.20/8.6.18/9.0.4/9.1.0). Whether the
+    // analysis abstains or resolves, it never names `safe`.
     let mut a = Analyser::new();
     let src = "proc safe {} {}\nproc risky {} {}\nset cmd safe\n\
                catch {\n    set cmd risky\n}\n$cmd\n";
     let r = a.analyse(src, "tcl");
     let dispatch = u32::try_from(src.rfind("$cmd").unwrap()).unwrap();
+    let heads: Vec<&str> = r
+        .command_invocations
+        .iter()
+        .filter(|i| i.indirect && i.range.start() == dispatch)
+        .filter_map(|i| i.resolved_qualified_name.as_deref())
+        .filter(|head| r.all_procs.contains_key(*head))
+        .collect();
     assert!(
-        !r.command_invocations
-            .iter()
-            .any(|i| i.indirect && i.range.start() == dispatch),
-        "an opaque top-level catch write must abstain, not settle to a single target",
+        heads.iter().all(|head| *head == "::risky"),
+        "a top-level catch body's write is the value the dispatch sees: {heads:?}",
     );
 
     // Inside a procedure the body is real CFG blocks, so the φ-join keeps
@@ -479,20 +482,22 @@ fn traced_head_variable_abstains_945() {
     // A write trace can rewrite `cmd` at any moment (tclsh 9.0.4: the
     // callback fires on every write, and reads via `trace add variable …
     // read` can substitute values) — the reaching-definition walk cannot
-    // see those writes, so a traced dispatch head abstains entirely.
+    // see those writes, so a traced dispatch head resolves to no target
+    // (no navigation or rename through it). The fixture's trace changes
+    // nothing (tclsh8.4.20-9.1.0 dispatch `target`), but the analysis
+    // cannot know that.
     let mut a = Analyser::new();
     let src = "proc target {} {}\nproc redirect {n1 n2 op} {}\n\
                set cmd target\ntrace add variable cmd write redirect\n$cmd\n";
     let r = a.analyse(src, "tcl");
-    assert!(
-        !r.command_invocations.iter().any(|i| i.indirect),
-        "a traced head must abstain: {:?}",
-        r.command_invocations
-            .iter()
-            .filter(|i| i.indirect)
-            .map(|i| &i.name)
-            .collect::<Vec<_>>(),
-    );
+    let resolved: Vec<&str> = r
+        .command_invocations
+        .iter()
+        .filter(|i| i.indirect)
+        .filter_map(|i| i.resolved_qualified_name.as_deref())
+        .filter(|head| r.all_procs.contains_key(*head))
+        .collect();
+    assert_eq!(resolved, [] as [&str; 0], "a traced head must abstain");
 }
 
 #[test]
