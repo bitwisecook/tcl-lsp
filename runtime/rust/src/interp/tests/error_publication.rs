@@ -190,12 +190,20 @@ fn c84_invalid_expression_operands_leave_error_code_none() {
                 "1 {expected boolean value but got \"bad\"} NONE",
             ),
             (
+                b"set errorCode PROBE; list [catch {expr {1/0}} m] $m $errorCode".as_slice(),
+                "1 {divide by zero} {ARITH DIVZERO {divide by zero}}",
+            ),
+            (
+                b"set errorCode PROBE; list [catch {expr {sqrt(-1)}} m] $m $errorCode".as_slice(),
+                "1 {domain error: argument not in valid range} {ARITH DOMAIN {domain error: argument not in valid range}}",
+            ),
+            (
                 b"set errorCode PROBE; list [catch {expr {NaN + 1}} m] $m $errorCode".as_slice(),
                 "1 {domain error: argument not in valid range} {ARITH DOMAIN {domain error: argument not in valid range}}",
             ),
         ] {
             assert_eq!(interp.eval_str(script), Code::Ok);
-            assert_eq!(String::from_utf8_lossy(&interp.result_bytes()), expected);
+            assert_eq!(String::from_utf8_lossy(&interp.result_bytes()), expected, "{}", String::from_utf8_lossy(script));
         }
     });
 }

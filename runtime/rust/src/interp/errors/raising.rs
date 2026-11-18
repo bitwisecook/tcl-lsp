@@ -303,6 +303,27 @@ impl Interp {
         {
             return Code::Error;
         }
+        // C8.4's Tcl_SetErrorCode writes the global at once and marks it set,
+        // so the later errorInfo logging keeps it rather than stamping NONE.
+        if self.uses_c84_global_error_info() {
+            let original = obj::Owned::fresh(new_string(code));
+            let actual = self.clone();
+            if self
+                .set_original_c_error_code_using(
+                    scope.currency(),
+                    original.as_ptr(),
+                    &|| Ok(()),
+                    &|error| actual.clone().refuse_completion_value_access(error),
+                    &|error| {
+                        actual.clone().refuse_native_execution(error.clone());
+                        error
+                    },
+                )
+                .is_err()
+            {
+                return Code::Error;
+            }
+        }
         Code::Error
     }
 
