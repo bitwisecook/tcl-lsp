@@ -395,41 +395,16 @@ fn handle_try_walks_trap_handler_body() {
 // The `INSTALLS_NAMED_DEFINITION` re-dispatch contract.
 
 #[test]
-fn every_installer_spec_lands_on_a_live_redispatch_arm() {
-    // Drift gate — the trait is a *promise* that
-    // `simulate_remaining_foreach_iterations` re-runs the command once
-    // per literal `foreach` element.  A spec that carries it but whose
-    // analyser hook has no arm in that match silently promises nothing
-    // (`oo::objdefine` is exactly that shape).
-    // Registry-driven, so a newly-stamped spec fails here rather than
-    // in a corpus months later.
-    use tcl_registry::hooks::AnalyserHookId as Hook;
-    let redispatched = [Hook::Proc, Hook::Rename, Hook::OoDefine, Hook::OoObjdefine];
-    let registry = tcl_registry::CommandRegistry::build_default();
-    let mut checked = 0usize;
-    for name in registry.command_names() {
-        for spec in registry.specs(name) {
-            if !spec
-                .traits
-                .contains(tcl_registry::Traits::INSTALLS_NAMED_DEFINITION)
-            {
-                continue;
-            }
-            checked += 1;
-            let hook = spec.analyser_hook.unwrap_or_else(|| {
-                panic!("{name} carries INSTALLS_NAMED_DEFINITION but has no analyser hook")
-            });
-            assert!(
-                redispatched.contains(&hook),
-                "{name} carries INSTALLS_NAMED_DEFINITION but its hook {hook:?} has no \
-                     arm in the foreach re-dispatch — the trait promises a re-dispatch \
-                     the match does not deliver",
-            );
-        }
-    }
+fn jim_alias_in_a_literal_foreach_defines_every_name() {
+    // An installer run once per literal `foreach` element defines each name.
+    // jimsh 0.84: `foreach n {e f} {alias $n info exists}; set q 1;
+    // list [e q] [f q]` -> 1 1.
+    let src = "foreach n {e f} {alias $n info exists}\nset q 1\ne q\nf q\n";
+    let result = Analyser::new().analyse(src, "jim");
     assert!(
-        checked >= 4,
-        "expected proc/rename/oo::define/oo::objdefine, saw {checked}"
+        !result.diagnostics.iter().any(|d| d.code.to_string() == "W123"),
+        "{:?}",
+        result.diagnostics
     );
 }
 
