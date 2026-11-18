@@ -330,3 +330,27 @@ Probes in `tcl-diagram`'s `command_completion`, `walk_call` and `registry_comman
 - **`registry_actions_resolve_relative_names_in_the_callers_namespace` (f5-irules):** the diagram's data is `{"procedures":[{"bodyId":null,"bodyKey":null,"flow":null,"name":"::HTTP::caller","source_policy":"hosted"}]}`. Under a hosted entry bodies bind as advice and no body card is issued, so no flow is drawn; the test's claim (a relative `respond` in namespace `::HTTP` resolves to the registry action) is a name-resolution question for the device, BIGIP-NAME-002 and 003, and its expectation is to be re-pointed at the hosted policy when they are answered. `KEEP-F5`.
 - **`procedure_aliases_and_rebound_registry_heads_stay_source_sensitive` (tcl8.6), compiler:** the data holds one procedure, `::library::helper` (`bodyId` and `flow` null); `proc error {args} {}` and `proc caller {...}`, declared after `interp alias {} invoke {} ::library::helper` and `rename error saved_error`, have no row at all. First wrong value: the declaration inventory the diagram reads (`unit.ir_module.procedures`) lacks them, i.e. the compiler issues no declaration or body card for procedures declared after the rebinding of a builtin head. analyser-binding's opaque-world-after-`rename` family.
 - **Not yet traced:** `hosted_diagram_procedures_require_the_current_body_card` (`bodyId` null where the test says a current body card must be required: probably the same hosted policy, expectation direction to be read) and `original_diagram_metadata_keeps_actual_availability_and_source_currency` (a row reports `throw` where none is expected).
+
+## Prepared for analyser-binding (18 November)
+
+Reproducers, the first wrong value and the function that returns it. Nothing of analyser-binding's was changed.
+
+**1. UPF witness (position 4): `tcl-spectcl` `it_5` `upf_hooks::the_analyser_enters_the_trailing_body_the_resolver_names`.**
+- Smallest source, dialect `xilinx-eda-tcl`: `define_power_model PM {\n    upf_body_plain_missing\n}\n` (and `define_power_model PM2 -for {MODEL} {...}`).
+- tclsh: not applicable, UPF is not Tcl; the pack's own tests pin the Body role.
+- Registry is right: `arg_indices_for_role("define_power_model", ["PM","{x}"], Body)` is `[1]` and `["PM","-for","M","{x}"]` is `[3]` once the hook plan is published.
+- Explorer: `tcl explore --source 'define_power_model PM {...}' --dialect xilinx-eda-tcl --show ir --text --no-colour` prints `barrier unsupported body command (define_power_model)` (kind `IRBarrier`). That is the first stage where the value is wrong: the statement is lowered to a `Statement::Barrier` and its body is never a script. `tcl diag` then prints `no diagnostics`.
+- Function: `body_barrier` returned from `lowering/commands/default_call.rs:235`: `has_same_invocation_executable && tokens.evaluated_body().is_none()`. The registry names the Body (`authored_source_script_timing_at(index)` is `SameInvocation`), but `tokens.evaluated_body()` is `None`: the source walk never entered the resolver-derived Body word. Expected `Some(body)` for the trailing word.
+
+**2. Arity item (position 5): `spec_packs::pack_commands::a_workspace_pack_subcommand_arity_error_is_published`.**
+- Smallest source, pack `cad` (`subcommand box { arity 3 ... }`, `required_package cad`): `package require cad 0.4\n\ncad box 10 20\ncad box 1 2 3\nstring length one two\n`, tcl8.6 or tcl9.0.
+- First wrong value: with the pack overlay the analysis holds only `E002` (pack arity, line 2); `E003` for `string length one two` (line 4) is absent. Without the pack the same text gives the `E003`.
+- IR stage is right: `tcl explore --show ir` lists `call cad box 10 20`, `call cad box 1 2 3`, `call string length one two` as `IRCall`s, so the loss is after lowering, in the walk.
+- Controls, measured in-tree on `work`: `proc f {a} {}\nf 1 2\nstring length one two` gives `E003` at 18 and 38; `string length a b\nstring length one two` gives `E003` at 16 and 36. A proc's or builtin's arity error does not suppress later `E003`; the pack's does.
+- tclsh: an arity error aborts the script at run time in every case (`wrong # args`), which is why the proc and builtin controls are the reference for static arity diagnostics: they stay on later lines.
+
+**3. `native_normal_store::native_parent_store_uses_the_actual_pack_implementation_normal_outcome` (position 8).**
+- `rust/tcl-spectcl/tests/it_5/native_normal_store.rs:130`: `assert!(procedure.body.executed_source.is_none())` fails; the native parent's procedure body holds an `executed_source`. Run: `cargo nextest run -p tcl-spectcl --test it_5 -E 'test(native_parent_store_uses_the_actual_pack_implementation)'`. The first wrong value is that field of `procedure.body` (expected `None`); I have not traced which walk sets it.
+
+**4. `project_spec_packs`: `tcl-cli` `cli::project_spec_packs::analyser_only_verbs_install_the_current_projects_spec_pack_overlay`.**
+- Source: `package require tcl_lsp_fixture\n::tcl_lsp_fixture::collect output { proc nested {} { expr $input + 1 } }`. `tcl symbols` finds `nested`; `tcl find-legacy` returns no `W100` (`issues[0].code` null). Same family as item 1: the Body word of a pack command is entered by the symbol walk and not by the diagnostic walk; probably the same `body_barrier` at `default_call.rs:235` (not run on the project pack).
