@@ -411,11 +411,13 @@ fn fp_ds_09_interproc_key_present_silent() {
 
 #[test]
 fn fp_ds_09_interproc_mixed_callers_conservative_silent() {
-    // TN control: callers disagree on literal; collector falls back conservative; W210 must NOT fire.
+    // The first call passes an empty dict, so `$missing` is read unbound
+    // and the second call is never reached (tclsh 8.6.18 / 9.0.4: `f {}` ->
+    // can't read "missing"): W210 is right.
     let src = "proc f {d} { dict with d { return $missing } }\nf {}\nf {missing X}\n";
     assert!(
-        !fires(src, D, "W210"),
-        "FP-DS-09: mixed callers must NOT fire W210 (conservative); emitted: {:?}",
+        fires(src, D, "W210"),
+        "FP-DS-09: the empty-dict caller reads `missing` unbound; emitted: {:?}",
         codes(src, D)
     );
 }
