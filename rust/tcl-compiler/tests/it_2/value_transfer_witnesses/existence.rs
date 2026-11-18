@@ -370,7 +370,8 @@ fn a_cross_event_variable_enters_maybound() {
 /// (`rewrites_of`, matching `chain_fold.rs`'s own unit-test shape) since
 /// the multipass optimiser goes on to propagate `l`'s now-known value
 /// into `return $l` and drop the fold as unused in its turn — a further,
-/// sound reduction the exit line's own program does not name.
+/// sound reduction the exit line's own program does not name. The fold
+/// writes the core command rooted (`::set`), as every chain fold does.
 #[test]
 fn o130_folds_a_chain_from_an_absent_cell() {
     let source = "proc p {} {\n    lappend l a\n    lappend l b\n    return $l\n}\nputs [p]\n";
@@ -378,9 +379,9 @@ fn o130_folds_a_chain_from_an_absent_cell() {
         let rewrites = rewrites_of(source, dialect);
         let fold = rewrites
             .iter()
-            .find(|o| o.code == DiagCode::O130 && o.replacement.starts_with("set"))
+            .find(|o| o.code == DiagCode::O130 && o.replacement.starts_with("::set"))
             .unwrap_or_else(|| panic!("{dialect}: expected an O130 fold: {rewrites:#?}"));
-        assert_eq!(fold.replacement, "set l {a b}", "{dialect}");
+        assert_eq!(fold.replacement, "::set l {a b}", "{dialect}");
     }
     prints_under_every_release(source, "a b\n");
 }
