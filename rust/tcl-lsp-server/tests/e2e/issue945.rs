@@ -253,7 +253,7 @@ fn body_call_deleted_before_definition_still_draws_w123_issue_973() {
 fn branch_joined_dispatch_definition_offers_both_targets_945() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    let src = "proc foo {} {return one}\nproc bar {} {return two}\nset cmd foo\nif {$runtime} {\n    set cmd bar\n}\n$cmd\n";
+    let src = "proc foo {} {return one}\nproc bar {} {return two}\nset cmd foo\nif {[info exists runtime] && $runtime} {\n    set cmd bar\n}\n$cmd\n";
     lsp.open_ready(&uri, src);
     // References from each proc's declaration include the `$cmd` join site
     // (line 6) and that proc's own contributing literal.

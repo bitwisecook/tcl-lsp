@@ -379,7 +379,7 @@ fn var_refs_respect_shadowing_local_target() {
 fn superclass_and_mixin_references() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    let src = "oo::class create Animal {\n    method speak {} {return noise}\n}\noo::class create Dog {\n    superclass Animal\n    method speak {} {return woof}\n}\noo::define Cat {\n    mixin Animal\n}\n";
+    let src = "oo::class create Animal {\n    method speak {} {return noise}\n}\noo::class create Dog {\n    superclass Animal\n    method speak {} {return woof}\n}\noo::class create Cat; oo::define Cat {\n    mixin Animal\n}\n";
     lsp.open_ready(&uri, src);
     let s = starts(&lsp.references(&uri, 0, 17, true));
     assert!(s.contains(&(0, 17)), "definition: {s:?}");
