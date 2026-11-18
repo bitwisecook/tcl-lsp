@@ -148,7 +148,9 @@ fn expression_verdict(
     else {
         return Some(Err(OpenExpression::Unprepared));
     };
+    let grammar = module.native_lexer_config();
     Some(bindings.runs_only_its_arithmetic(
+        |parse| grammar.grammar_over(parse.lexer_grammar) == parse.lexer_grammar,
         |name| plain_local(context, name),
         |call, arity| math_function_re_executable(call, arity, registry),
     ))

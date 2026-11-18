@@ -46,8 +46,8 @@ pub enum OpenExpression {
 }
 
 impl<'a> ExpressionMathBindings<'a> {
-    /// Whether the expression the walk prepared for this site, as the
-    /// interpreter compiles it, runs nothing a script can observe besides its
+    /// Whether the expression the walk prepared for this site, parsed under a
+    /// context `parsed_under` accepts as the one the interpreter compiles it in, runs nothing a script can observe besides its
     /// result or its error: it substitutes no command; every function it
     /// calls is resolved to one proved implementation that `function_closed`
     /// accepts (given the call and its argument count); and every operand is
@@ -58,6 +58,7 @@ impl<'a> ExpressionMathBindings<'a> {
     /// The first condition the expression fails.
     pub fn runs_only_its_arithmetic(
         &self,
+        parsed_under: impl Fn(&tcl_syntax::expr::parser::ExprParseContext) -> bool,
         local: impl Fn(&str) -> bool,
         mut function_closed: impl FnMut(&ResolvedMathFunctionCall<'a>, usize) -> bool,
     ) -> Result<(), OpenExpression> {
@@ -65,6 +66,7 @@ impl<'a> ExpressionMathBindings<'a> {
             .preparation()
             .filter(|preparation| {
                 preparation.witness.source().as_bytes() == preparation.source.text.bytes()
+                    && parsed_under(preparation.witness.context())
             })
             .ok_or(OpenExpression::Unprepared)?;
         let tree = preparation.witness.tree();

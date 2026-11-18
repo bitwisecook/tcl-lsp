@@ -183,6 +183,38 @@ const CASES: &[(&str, &[&str], usize)] = &[
         &["list [caller abc] $::hits"],
         0,
     ),
+    // Each kind of execution trace: added between two calls, the splice falls
+    // back to the call; set before the caller is compiled, the call is kept.
+    (
+        "proc hit {args} {lappend ::hits [lindex $args end]}; set ::hits {}; \
+         proc caller {n} {vupper $n}",
+        &["caller x; trace add execution vupper leave hit; list [caller abc] $::hits"],
+        1,
+    ),
+    (
+        "proc hit {args} {lappend ::hits [lindex $args end]}; set ::hits {}; \
+         proc caller {n} {vupper $n}",
+        &["caller x; trace add execution vupper enterstep hit; list [caller abc] $::hits"],
+        1,
+    ),
+    (
+        "proc hit {args} {lappend ::hits [lindex $args end]}; set ::hits {}; \
+         proc caller {n} {vupper $n}",
+        &["caller x; trace add execution vupper leavestep hit; list [caller abc] $::hits"],
+        1,
+    ),
+    (
+        "proc hit {args} {lappend ::hits [lindex $args end]}; set ::hits {}; \
+         trace add execution vupper leave hit; proc caller {n} {vupper $n}",
+        &["list [caller abc] $::hits"],
+        0,
+    ),
+    (
+        "proc hit {args} {lappend ::hits [lindex $args end]}; set ::hits {}; \
+         trace add execution vupper enterstep hit; proc caller {n} {vupper $n}",
+        &["list [caller abc] $::hits"],
+        0,
+    ),
     // The call's own argument count is wrong.
     ("proc caller {n} {vdouble $n $n}", &["caller 1"], 0),
     // A list command on a value the live entry cannot see may convert it
@@ -306,8 +338,9 @@ fn each_shape_spliced_by_the_live_compile_answers_as_tclsh_does() {
                 };
                 let mut got = run_inlined(&set, version, caller, call);
                 // A plain recompile says a splice was refused; where nothing
-                // is spliced the VM's own recompiles are not this test's.
-                if want.spliced == 0 {
+                // is spliced the VM's own recompiles are not this test's, nor
+                // are those a step trace makes of every command it steps.
+                if want.spliced == 0 || call.contains("step") {
                     got.plain = 0;
                 }
                 if got != want {
