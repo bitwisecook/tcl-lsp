@@ -112,6 +112,14 @@ impl ModuleCommandBindings {
     ) -> bool {
         !self.opaque_domain
             && definition
+                .custom_metaclass
+                .as_ref()
+                .is_none_or(|metaclass| {
+                    !self.tainted_object_dispatch.contains("*")
+                        && !self.tainted_object_dispatch.contains(&metaclass.command)
+                        && self.retained_target_is_current(metaclass)
+                })
+            && definition
                 .original_factory
                 .as_ref()
                 .is_none_or(|factory| factory.is_current(self))
@@ -201,19 +209,149 @@ impl ModuleCommandBindings {
         // merely because a retained forward has no script body. The Registry
         // grammar is a const descriptor; its selected family, rather than its
         // promoted address, identifies the inherited stock class system.
+        // A user metaclass that only derives from a stock one keeps the stock
+        // lifecycle open; inheriting it leaves the child's open the same way.
         if definition.dispatcher.is_some()
             || definition.implementation_generation != base.implementation_generation
-            || !definition.lifecycle_entries_closed
+            || (!definition.lifecycle_entries_closed
+                && self.stock_metaclass_of(base, context).is_none())
             || !definition.original_factory.as_ref().is_some_and(|factory| {
                 factory.recipe().grammar().family == grammar.family && factory.is_current(self)
             })
-            || definition.instance_methods.is_none()
+            || (definition.instance_methods.is_none()
+                && self.stock_metaclass_of(base, context).is_none())
             || !self.class_definition_dependencies_hold(definition)
             || self.tainted_object_dispatch.contains(&base.command)
         {
             return None;
         }
         Some((base.clone(), definition.clone()))
+    }
+
+    /// The stock metaclass a user metaclass creates through, when the user
+    /// class adds nothing that could change that creation: its only
+    /// superclass is a registry metaclass (`superclass oo::class`) or another
+    /// such user metaclass, and it has no constructor, destructor, dispatcher
+    /// or class-side member. Then `Meta create NAME SCRIPT` runs the inherited
+    /// `create` (tclsh 8.6.18, 9.0.4, 9.1.0: `info object class NAME` is
+    /// `Meta`, and NAME is a class with SCRIPT's members), so the call is
+    /// walked as that stock creation.
+    pub(in super::super) fn stock_metaclass_creation_target(
+        &self,
+        target: &super::super::SourceCommandTarget,
+        effective: &[crate::registry_invocation::EffectiveInvocationWord],
+        context: SourceExecutionContext<'_>,
+    ) -> Option<super::super::SourceCommandTarget> {
+        let stock = self.stock_metaclass_of(target, context)?;
+        let definition = self.class_definitions.get(target.identity.as_ref()?)?;
+        let grammar = definition.original_factory.as_ref()?.recipe().grammar();
+        let selector = effective.get(1)?.as_registry_word().literal()?;
+        let manufacturer = grammar.manufacturer(selector)?;
+        (manufacturer.visibility == tcl_registry::definer::MemberVisibility::Exported)
+            .then_some(stock)
+    }
+
+    /// The registry metaclass `target` derives from without adding a
+    /// lifecycle, dispatcher or class-side member anywhere on the chain. A
+    /// receipt lists its whole inherited chain, so every user class in it
+    /// must add nothing and every registry class must be that one metaclass.
+    pub(in super::super) fn stock_metaclass_of(
+        &self,
+        target: &super::super::SourceCommandTarget,
+        context: SourceExecutionContext<'_>,
+    ) -> Option<super::super::SourceCommandTarget> {
+        let mut pending = vec![target.clone()];
+        let mut seen = Vec::new();
+        let mut stock: Option<super::super::SourceCommandTarget> = None;
+        while let Some(current) = pending.pop() {
+            if current.kind != super::super::BindingKind::Class
+                || current.registry_backed
+                || !current.prepended.is_empty()
+                || self.tainted_object_dispatch.contains("*")
+                || self.tainted_object_dispatch.contains(&current.command)
+            {
+                return None;
+            }
+            let identity = current.identity.clone()?;
+            if seen.contains(&identity) {
+                continue;
+            }
+            seen.push(identity.clone());
+            let definition = self.class_definitions.get(&identity)?;
+            let grammar = definition.original_factory.as_ref()?.recipe().grammar();
+            if definition.inherited_classes.is_empty()
+                || definition.dispatcher.is_some()
+                || definition.constructor_entry.is_some()
+                || definition.destructor_entry.is_some()
+                || definition.implementation_generation != current.implementation_generation
+                // A metaclass's own instance methods and forwards are methods
+                // of the classes it makes, so a creation through it adds them.
+                || !definition.receiver_method_entries.is_empty()
+                || !definition.forward_method_entries.is_empty()
+                || !self.class_definition_dependencies_hold(definition)
+            {
+                return None;
+            }
+            // `create` on this class resolves through its own metaclass first.
+            if let Some(metaclass) = &definition.custom_metaclass {
+                pending.push(metaclass.clone());
+            }
+            for base in definition.inherited_classes.iter() {
+                if !base.registry_backed {
+                    pending.push(base.clone());
+                    continue;
+                }
+                let (selected, _) = self.stock_inherited_class(grammar, base)?;
+                let query = self
+                    .baseline
+                    .dialect
+                    .and_then(tcl_registry::InvocationDialect::authoring_query)
+                    .map(|query| query.with_realm(context.realm()));
+                let spec = context.registry.get_for_surface(&selected.command, query)?;
+                if !spec.traits.contains(tcl_registry::Traits::IS_OO_METACLASS)
+                    || spec
+                        .definition_body
+                        .is_none_or(|stock| stock.family != grammar.family)
+                    || stock
+                        .as_ref()
+                        .is_some_and(|previous| previous.command != selected.command)
+                {
+                    return None;
+                }
+                stock = Some(selected);
+            }
+        }
+        stock
+    }
+
+    /// Stamp each class the stock creation at this call just made with the
+    /// user metaclass the call named, so later dispatch and precision gates
+    /// see that the class was not made by the registry factory itself.
+    pub(in super::super) fn mark_custom_metaclass_creations(
+        &mut self,
+        before: &ModuleCommandBindings,
+        stock: &super::super::SourceCommandTarget,
+        metaclass: &super::super::SourceCommandTarget,
+    ) {
+        let created = self
+            .class_definitions
+            .iter()
+            .filter(|(identity, receipt)| {
+                receipt.factory == stock.command
+                    && receipt.custom_metaclass.is_none()
+                    && before.class_definitions.get(*identity) != Some(*receipt)
+            })
+            .map(|(identity, _)| identity.clone())
+            .collect::<Vec<_>>();
+        if created.is_empty() {
+            return;
+        }
+        let definitions = Arc::make_mut(&mut self.class_definitions);
+        for identity in created {
+            if let Some(receipt) = definitions.get_mut(&identity) {
+                receipt.custom_metaclass = Some(metaclass.clone());
+            }
+        }
     }
 
     /// A shipped base class (`oo::object`, `oo::class`) inherits members the
@@ -260,6 +398,7 @@ impl ModuleCommandBindings {
                 receiver_method_entries: Arc::default(),
                 forward_method_entries: Arc::default(),
                 inherited_classes: Arc::default(),
+                custom_metaclass: None,
             },
         ))
     }
@@ -465,6 +604,7 @@ impl ModuleCommandBindings {
                 receiver_method_entries: entries.receiver_method_entries,
                 forward_method_entries: entries.forward_method_entries,
                 inherited_classes: entries.inherited_classes,
+                custom_metaclass: None,
             },
         );
         Some(created.clone())

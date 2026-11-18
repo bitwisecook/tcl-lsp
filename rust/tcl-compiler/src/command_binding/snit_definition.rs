@@ -213,6 +213,7 @@ fn install_snit_dispatcher(
             receiver_method_entries: Arc::default(),
             forward_method_entries: Arc::default(),
             inherited_classes: Arc::default(),
+            custom_metaclass: None,
         },
     );
     Some(SourceOutcomes::normal(state))

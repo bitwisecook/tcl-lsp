@@ -622,6 +622,9 @@ struct ClassDefinitionReceipt {
     receiver_method_entries: Arc<SourceReceiverMethodEntries>,
     forward_method_entries: Arc<deferred_forward::OriginalForwardEntries>,
     inherited_classes: Arc<Vec<SourceCommandTarget>>,
+    /// The user metaclass whose inherited stock creation made this class
+    /// (`Meta create NAME SCRIPT`); `None` for a class a registry factory made.
+    custom_metaclass: Option<SourceCommandTarget>,
 }
 
 /// Original constructor entry retained at a class incarnation. This authorizes

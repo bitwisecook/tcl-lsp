@@ -347,7 +347,22 @@ impl SourceCommandBindings {
             let context = &conditional;
             // A registry widget's methods are declared like a registry
             // command's, so its call walks through the registry facts.
-            let mut result = if target.registry_backed
+            let stock_creation =
+                branch.stock_metaclass_creation_target(target, &projected.effective, *context);
+            let mut result = if let Some(stock) = &stock_creation {
+                let mut result = self.walk_source_target(
+                    segment,
+                    &projected.words,
+                    &projected.effective,
+                    &mut branch,
+                    stock,
+                    context,
+                );
+                if let Some(normal) = result.normal.as_deref_mut() {
+                    normal.mark_custom_metaclass_creations(incoming, stock, target);
+                }
+                result
+            } else if target.registry_backed
                 || matches!(target.kind, super::super::BindingKind::Instance { .. })
             {
                 self.walk_source_target(
@@ -475,9 +490,24 @@ impl SourceCommandBindings {
         let context = &selected_context;
         for target in &binding.targets {
             let mut alternative = boxed_source_branch(&incoming);
+            let stock_creation =
+                alternative.stock_metaclass_creation_target(target, effective, *context);
             // A registry widget's methods are declared like a registry
             // command's, so its call walks through the registry facts.
-            let mut result = if target.registry_backed
+            let mut result = if let Some(stock) = &stock_creation {
+                let mut result = self.walk_source_target(
+                    segment,
+                    words,
+                    effective,
+                    &mut alternative,
+                    stock,
+                    context,
+                );
+                if let Some(normal) = result.normal.as_deref_mut() {
+                    normal.mark_custom_metaclass_creations(&incoming, stock, target);
+                }
+                result
+            } else if target.registry_backed
                 || matches!(target.kind, super::super::BindingKind::Instance { .. })
             {
                 self.walk_source_target(

@@ -116,18 +116,7 @@ impl SourceInvocationBinding {
         }
         let class = state.class_definitions.get(target.identity.as_ref()?)?;
         if class.implementation_generation != target.implementation_generation
-            || class.dispatcher.is_some()
-            || !class.inherited_classes.is_empty()
-            || !class.lifecycle_entries_closed
-            || class.constructor_entry.is_some()
-            || class.constructor_provider.is_some()
-            || class.destructor_entry.is_some()
-            || class.destructor_provider.is_some()
-            || class.instance_methods.is_none()
-            || class
-                .receiver_method_entries
-                .values()
-                .any(|entry| entry.receiver() == SourceMethodReceiver::Class)
+            || !plain_default_manufacture_class(class)
             || !state.class_definition_dependencies_hold(class)
         {
             return None;
@@ -184,6 +173,24 @@ impl SourceInvocationBinding {
         }
         Some(definition)
     }
+}
+
+/// A class whose default manufacture is the registry factory's own: no
+/// dispatcher, custom metaclass, inheritance, lifecycle or class-side member.
+fn plain_default_manufacture_class(class: &super::ClassDefinitionReceipt) -> bool {
+    class.dispatcher.is_none()
+        && class.custom_metaclass.is_none()
+        && class.inherited_classes.is_empty()
+        && class.lifecycle_entries_closed
+        && class.constructor_entry.is_none()
+        && class.constructor_provider.is_none()
+        && class.destructor_entry.is_none()
+        && class.destructor_provider.is_none()
+        && class.instance_methods.is_some()
+        && !class
+            .receiver_method_entries
+            .values()
+            .any(|entry| entry.receiver() == SourceMethodReceiver::Class)
 }
 
 #[cfg(test)]
