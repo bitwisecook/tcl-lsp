@@ -59,12 +59,12 @@ pub(crate) use evaluation::{DefValues, RaisedDefs, with_whole_variable_operands}
 pub use evaluation::{
     extract_foreach_elements, parse_literal_value, resolve_foreach_list_via_lattice,
 };
-use solver::drive_escaping;
 #[cfg(test)]
 use solver::{Round, Solved, drive, typed_element_write_base};
 pub(crate) use solver::{SolveInputs, place_base, prior_version};
 #[cfg(test)]
 use solver::{StatementInputs, branch_deferrable, sccp_process_phis, sccp_process_statements};
+use solver::{callback_writes_any, drive_escaping};
 
 // Public aliases
 
@@ -787,6 +787,18 @@ impl TraceInputs<'_> {
     /// computed name, or a callback script writes one.
     pub(crate) fn writes_any_variable(&self) -> bool {
         self.has_dynamic_variable_trace || self.deferred_writes.any
+    }
+
+    /// [`Self::writes_any_variable`] for `cfg`, leaving out callbacks
+    /// registered only at its sites in blocks `executable` rejects, which
+    /// never run.
+    pub(crate) fn writes_any_variable_in(
+        &self,
+        cfg: &crate::cfg::Function,
+        executable: &dyn Fn(&crate::cfg::BlockId) -> bool,
+    ) -> bool {
+        self.has_dynamic_variable_trace
+            || callback_writes_any(cfg, self.deferred_writes, executable)
     }
 
     /// `self` with a callback that writes a computed name read as a trace on

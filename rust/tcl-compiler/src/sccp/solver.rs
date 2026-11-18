@@ -110,7 +110,7 @@ impl RunHazards {
 /// out the statements at sites this function holds in blocks `executable`
 /// rejects: those never run, so they register nothing. A site this function
 /// does not hold is another function's, which may run.
-fn callback_writes_any(
+pub(super) fn callback_writes_any(
     cfg: &CfgFunction,
     deferred: &crate::ir::DeferredWrites,
     executable: &dyn Fn(&BlockId) -> bool,

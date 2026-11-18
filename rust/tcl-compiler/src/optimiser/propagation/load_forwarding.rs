@@ -63,7 +63,9 @@ fn compatibility_def_is_external(
         .externally_mutable_by(
             symbol,
             names,
-            trace.has_dynamic_variable_trace,
+            trace.writes_any_variable_in(&fu.cfg, &|block| {
+                fu.sccp.executable_blocks.contains(block)
+            }),
             trace.registry,
         );
     if fu.ssa.point_contexts.is_none() {

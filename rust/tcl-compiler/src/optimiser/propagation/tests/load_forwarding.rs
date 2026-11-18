@@ -359,6 +359,12 @@ fn o100_and_o102_never_forward_a_literal_a_hidden_write_may_have_replaced() {
             "proc tick {} { set ::done 1 }\nset done 0\nafter 10 tick\nafter 50\nupdate\nputs $done",
             "0",
         ),
+        // A callback built by a substitution names no variable; tclsh
+        // 8.4-9.1 print 1.
+        (
+            "proc tick {n} { set ::done $n }\nset done 0\nafter 10 [list tick 1]\nafter 50\nupdate\nputs $done",
+            "0",
+        ),
         ("set g 5\nfoo\nputs $g", "5"),
         ("set ::g 5\nfoo\nputs $::g", "5"),
         ("proc p {} {\n set g 5\n foo\n puts $g\n}", "5"),
