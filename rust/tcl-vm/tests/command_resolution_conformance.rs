@@ -27,11 +27,7 @@ use std::cell::RefCell;
 use std::io::Write;
 use std::rc::Rc;
 
-use tcl_codegen::codegen::codegen_module;
 use tcl_codegen::compile_service::BytecodeCompileService;
-use tcl_compiler::cfg_builder::build_cfg_codegen;
-use tcl_compiler::lowering::lower_to_ir;
-use tcl_registry::CommandRegistry;
 use tcl_syntax::naming::conformance::{vector_script, vectors};
 
 #[derive(Clone)]
@@ -47,15 +43,13 @@ impl Write for Capture {
 }
 
 /// Compile + run `src`; return `(ok, stdout)`.
+/// The script as the VM compiles and runs it: the bare catalogue defines no
+/// release, so a module lowered against it selects no compiler for `set`.
 fn run(src: &str) -> (bool, String) {
-    let registry = CommandRegistry::build_default();
-    let ir = lower_to_ir(src, &registry);
-    let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
     let buf = Rc::new(RefCell::new(Vec::new()));
     let mut vm = tcl_vm::test_support::native_vm_with_output(Box::new(Capture(Rc::clone(&buf))));
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
-    let c = vm.run_module(&asm);
+    let c = vm.try_eval_source(src).expect("original source provider");
     let out = String::from_utf8(buf.borrow().clone()).expect("utf-8");
     (c.code.is_ok(), out)
 }
