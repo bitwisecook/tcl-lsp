@@ -35,7 +35,7 @@ const SELECT_FORMS: &[SubCommandForm] = &[SubCommandForm {
     ..SubCommandForm::DEFAULT
 }];
 
-static SUBCOMMANDS: [SubCommand; 32] = [
+static SUBCOMMANDS: [SubCommand; 35] = [
     super::common::CLASSIC_WIDGET_CGET,
     super::common::CLASSIC_WIDGET_CONFIGURE,
     SubCommand {
@@ -188,10 +188,35 @@ static SUBCOMMANDS: [SubCommand; 32] = [
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        name: "imove",
+        arity: Arity::exact(4),
+        detail: "Move one coordinate of an item to a new position.",
+        synopsis: "pathName imove tagOrId index x y",
+        lifecycle: Lifecycle::introduced_in("8.6"),
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "image",
+        arity: Arity::new(1, 3),
+        detail: "Draw the canvas into a photo image.",
+        synopsis: "pathName image imagename ?subsample? ?zoom?",
+        lifecycle: Lifecycle::introduced_in("9.0"),
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "rotate",
+        arity: Arity::exact(4),
+        detail: "Rotate the items about a point by an angle in degrees.",
+        synopsis: "pathName rotate tagOrId x y angle",
+        lifecycle: Lifecycle::introduced_in("9.0"),
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
         name: "moveto",
         arity: Arity::exact(3),
         detail: "Move the items so their top-left corner is at the given position.",
         synopsis: "pathName moveto tagOrId x y",
+        lifecycle: Lifecycle::introduced_in("8.6"),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -214,6 +239,7 @@ static SUBCOMMANDS: [SubCommand; 32] = [
         arity: Arity::exact(4),
         detail: "Replace the characters between first and last in a text or line item with the given string.",
         synopsis: "pathName rchars tagOrId first last string",
+        lifecycle: Lifecycle::introduced_in("8.6"),
         ..SubCommand::DEFAULT
     },
     SubCommand {

@@ -1,0 +1,19 @@
+# tk9.0.4 classic widgets, by scripts/dev/tk_classic_methods.tcl under that release's wish
+button cget configure flash invoke
+canvas addtag bbox bind canvasx canvasy cget configure coords create dchars delete dtag find focus gettags icursor image imove index insert itemcget itemconfigure lower move moveto postscript raise rchars rotate scale scan select type xview yview
+checkbutton cget configure deselect flash invoke select toggle
+entry bbox cget configure delete get icursor index insert scan selection validate xview
+frame cget configure
+label cget configure
+labelframe cget configure
+listbox activate bbox cget configure curselection delete get index insert itemcget itemconfigure nearest scan see selection size xview yview
+menu activate add cget clone configure delete entrycget entryconfigure id index insert invoke post postcascade type unpost xposition yposition
+menubutton cget configure
+message cget configure
+panedwindow add cget configure forget identify panecget paneconfigure panes proxy sash
+radiobutton cget configure deselect flash invoke select
+scale cget configure coords get identify set
+scrollbar activate cget configure delta fraction get identify set
+spinbox bbox cget configure delete get icursor identify index insert invoke scan selection set validate xview
+text bbox cget compare configure count debug delete dlineinfo dump edit get image index insert mark peer pendingsync replace scan search see sync tag window xview yview
+toplevel cget configure

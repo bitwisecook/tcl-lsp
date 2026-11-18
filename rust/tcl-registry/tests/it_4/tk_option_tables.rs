@@ -178,3 +178,77 @@ fn ttk_widget_methods_match_the_c_ensembles() {
     }
     assert!(report.is_empty(), "{}", report.join("\n"));
 }
+
+const CLASSIC_METHOD_RELEASES: &[(&str, &str, &str)] = &[
+    (
+        "tcl8.4",
+        "8.4",
+        include_str!("../data/tk_option_tables/tk8.4.20.classic-methods.txt"),
+    ),
+    (
+        "tcl8.5",
+        "8.5",
+        include_str!("../data/tk_option_tables/tk8.5.19.classic-methods.txt"),
+    ),
+    (
+        "tcl8.6",
+        "8.6",
+        include_str!("../data/tk_option_tables/tk8.6.18.classic-methods.txt"),
+    ),
+    (
+        "tcl9.0",
+        "9.0",
+        include_str!("../data/tk_option_tables/tk9.0.4.classic-methods.txt"),
+    ),
+    (
+        "tcl9.1",
+        "9.1",
+        include_str!("../data/tk_option_tables/tk9.1.0.classic-methods.txt"),
+    ),
+];
+
+/// Each classic widget's instance methods are exactly those its command
+/// lists for an unknown method under that release's `wish`, Tk 8.4.20 to
+/// 9.1.0 (`scripts/dev/tk_classic_methods.tcl`; issue #1710). The widget's
+/// own list already applies the per-class filtering a shared C table such
+/// as tkButton.c's hides.
+#[test]
+fn classic_widget_methods_match_each_releases_wish() {
+    let mut report = Vec::new();
+    for &(tcl, tk, table) in CLASSIC_METHOD_RELEASES {
+        let mut registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find(tcl).expect("Tcl release"));
+        registry.insert_ambient_package("Tk", tk);
+        for line in table.lines().filter(|line| !line.starts_with('#')) {
+            let mut words = line.split_whitespace();
+            let widget = words.next().expect("widget");
+            let wish_methods: Vec<&str> = words.collect();
+            let Some(class) = registry.get(widget).and_then(|spec| spec.object_class) else {
+                report.push(format!("Tk {tk} {widget}: no instance class"));
+                continue;
+            };
+            let declared: Vec<&str> = class
+                .instance_methods
+                .iter()
+                .filter(|method| method.lifecycle.available_at(Some(tk)))
+                .map(|method| method.name)
+                .collect();
+            let missing: Vec<&str> = wish_methods
+                .iter()
+                .copied()
+                .filter(|name| !declared.contains(name))
+                .collect();
+            let extra: Vec<&str> = declared
+                .iter()
+                .copied()
+                .filter(|name| !wish_methods.contains(name))
+                .collect();
+            if !missing.is_empty() || !extra.is_empty() {
+                report.push(format!(
+                    "Tk {tk} {widget}: missing {missing:?} extra {extra:?}"
+                ));
+            }
+        }
+    }
+    assert!(report.is_empty(), "{}", report.join("\n"));
+}

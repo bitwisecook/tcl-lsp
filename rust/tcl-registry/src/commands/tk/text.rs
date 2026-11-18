@@ -262,6 +262,7 @@ static SUBCOMMANDS: [SubCommand; 27] = [
         return_type: Some(TclType::List),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
+        lifecycle: Lifecycle::introduced_in("8.5"),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -392,6 +393,7 @@ static SUBCOMMANDS: [SubCommand; 27] = [
         return_type: Some(TclType::List),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
         subcommand_forms: PEER_FORMS,
+        lifecycle: Lifecycle::introduced_in("8.5"),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -402,6 +404,7 @@ static SUBCOMMANDS: [SubCommand; 27] = [
         return_type: Some(TclType::Boolean),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
+        lifecycle: Lifecycle::introduced_in("8.6"),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -412,6 +415,7 @@ static SUBCOMMANDS: [SubCommand; 27] = [
         mutator: true,
         return_type: Some(TclType::String),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
+        lifecycle: Lifecycle::introduced_in("8.5"),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -454,6 +458,7 @@ static SUBCOMMANDS: [SubCommand; 27] = [
         mutator: true,
         return_type: Some(TclType::String),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS_WRITES),
+        lifecycle: Lifecycle::introduced_in("8.6"),
         ..SubCommand::DEFAULT
     },
     SubCommand {

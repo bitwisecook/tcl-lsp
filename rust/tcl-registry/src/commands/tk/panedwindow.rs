@@ -45,7 +45,9 @@ const SASH_FORMS: &[SubCommandForm] = &[SubCommandForm {
     ..SubCommandForm::DEFAULT
 }];
 
-static SUBCOMMANDS: [SubCommand; 8] = [
+static SUBCOMMANDS: [SubCommand; 10] = [
+    super::common::CLASSIC_WIDGET_CGET,
+    super::common::CLASSIC_WIDGET_CONFIGURE,
     SubCommand {
         name: "add",
         arity: Arity::at_least(1),

@@ -117,7 +117,17 @@ const MENU_ENTRY_OPTIONS: &[OptionSpec] = &[
 ];
 
 /// The command's subcommands.
-static SUBCOMMANDS: [SubCommand; 15] = [
+static SUBCOMMANDS: [SubCommand; 18] = [
+    super::common::CLASSIC_WIDGET_CGET,
+    super::common::CLASSIC_WIDGET_CONFIGURE,
+    SubCommand {
+        name: "id",
+        arity: Arity::exact(1),
+        detail: "Return the id of the menu entry at an index.",
+        synopsis: "pathName id index",
+        lifecycle: Lifecycle::introduced_in("9.0"),
+        ..SubCommand::DEFAULT
+    },
     SubCommand {
         name: "activate",
         arity: Arity::exact(1),
@@ -277,6 +287,7 @@ static SUBCOMMANDS: [SubCommand; 15] = [
         arity: Arity::exact(1),
         detail: "Return the x-coordinate of the leftmost pixel of the entry at index.",
         synopsis: "pathName xposition index",
+        lifecycle: Lifecycle::introduced_in("8.5"),
         ..SubCommand::DEFAULT
     },
     SubCommand {

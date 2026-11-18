@@ -9591,7 +9591,7 @@
       "tk",
       "xilinx-eda-tcl"
     ],
-    "lifecycle": "all known owning-package versions",
+    "lifecycle": "introduced 8.6",
     "timing": "deferred",
     "appended_arity": "exactly 0",
     "callback_taint_inputs": [],
@@ -9743,7 +9743,7 @@
       "tk",
       "xilinx-eda-tcl"
     ],
-    "lifecycle": "all known owning-package versions",
+    "lifecycle": "introduced 8.6",
     "timing": "deferred",
     "appended_arity": "exactly 0",
     "callback_taint_inputs": [],
@@ -10905,7 +10905,7 @@
       "tk",
       "xilinx-eda-tcl"
     ],
-    "lifecycle": "introduced 8.5",
+    "lifecycle": "owner (introduced 8.5); surface (introduced 8.6)",
     "timing": "deferred",
     "appended_arity": "exactly 0",
     "callback_taint_inputs": [],
@@ -11057,7 +11057,7 @@
       "tk",
       "xilinx-eda-tcl"
     ],
-    "lifecycle": "introduced 8.5",
+    "lifecycle": "owner (introduced 8.5); surface (introduced 8.6)",
     "timing": "deferred",
     "appended_arity": "exactly 0",
     "callback_taint_inputs": [],
