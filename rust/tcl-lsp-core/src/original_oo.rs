@@ -647,7 +647,9 @@ mod tests {
     fn original_class_head_selection_keeps_earlier_call_horizons_and_known_terminals() {
         // naming.source.original-class-publications
         // docs/design/analysis/name-resolution-proofs/source-original-class-publications.md
-        let source = "oo::class create C {}; C; rename C M; C; M; interp alias {} A {} M method; A; rename M {}; M; A";
+        // tclsh 8.6.18/9.1.0: a bare `C` raises (wrong # args), so each probe
+        // calls a method; probes of a removed name are caught.
+        let source = "oo::class create C {}; C create a; rename C M; catch {C create b}; M create c; interp alias {} A {} M create; A d; rename M {}; catch {M create e}; catch {A f}";
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
         assert!(analysis.original_completed_command_world().is_none());
         analysis.all_classes.clear();
