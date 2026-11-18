@@ -35,6 +35,8 @@ pub struct SourceRuleDeclarationCandidate {
     pub body: Option<super::ExecutedScriptSource>,
     /// Unenumerated handler alternatives remain possible at this registration.
     pub unknown: bool,
+    /// Literal name a procedure declaration writes, when it is one.
+    pub procedure_name: Option<String>,
 }
 
 impl SourceCommandBindings {
@@ -62,6 +64,7 @@ impl SourceCommandBindings {
             tcl_registry::events::IrulesTopLevelDeclaration,
             Option<super::ExecutedScriptSource>,
         ),
+        effective: &[crate::registry_invocation::EffectiveInvocationWord],
         context: SourceExecutionContext<'_>,
     ) {
         let Some(source) = &incoming.current_source_origin else {
@@ -75,9 +78,19 @@ impl SourceCommandBindings {
             })
         });
         let binding = source_binding(incoming, segment.name(), &context.namespace_identity());
+        let procedure_name = match &declaration.0 {
+            tcl_registry::events::IrulesTopLevelDeclaration::Procedure { name_index, .. } => {
+                effective
+                    .get(name_index + 1)
+                    .and_then(|word| word.as_registry_word().literal())
+                    .map(str::to_owned)
+            }
+            _ => None,
+        };
         let candidate = SourceRuleDeclarationCandidate {
             target: target.clone(),
             declaration: declaration.0,
+            procedure_name,
             body,
             unknown: binding.proved_target() != Some(target),
         };
@@ -114,6 +127,17 @@ impl SourceCommandBindings {
         // These are actual retained runtime alternatives. An opaque branch
         // remains opaque; the deferred inventory asserts neither installation
         // nor that this candidate is the unique handler.
+        // A procedure the loader already declared under this name may replace
+        // the handler, so the declaration inventory declines.
+        let bare = head.trim_start_matches("::");
+        if self.rule_declarations.values().flatten().any(|candidate| {
+            candidate
+                .procedure_name
+                .as_deref()
+                .is_some_and(|name| name.trim_start_matches("::") == bare)
+        }) {
+            return;
+        }
         let binding = source_binding(incoming, head, &context.namespace_identity());
         for target in &binding.targets {
             self.retain_rule_loader_event(segment, words, effective, incoming, target, context);
@@ -151,7 +175,14 @@ impl SourceCommandBindings {
         else {
             return;
         };
-        self.record_rule_declaration(segment, incoming, target, (declaration, None), context);
+        self.record_rule_declaration(
+            segment,
+            incoming,
+            target,
+            (declaration, None),
+            effective,
+            context,
+        );
     }
 
     #[inline(never)]
@@ -231,7 +262,14 @@ impl SourceCommandBindings {
         ) {
             self.register_deferred_event(native, incoming, context, &prepared.facts);
         }
-        self.record_rule_declaration(segment, incoming, target, (declaration, body), context);
+        self.record_rule_declaration(
+            segment,
+            incoming,
+            target,
+            (declaration, body),
+            effective,
+            context,
+        );
     }
 
     /// The loader's validated procedure installation is independent of the
@@ -269,7 +307,14 @@ impl SourceCommandBindings {
                 ..context
             },
         );
-        self.record_rule_declaration(segment, incoming, target, (declaration, None), context);
+        self.record_rule_declaration(
+            segment,
+            incoming,
+            target,
+            (declaration, None),
+            effective,
+            context,
+        );
         outcomes.add_abrupt(
             tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
                 tcl_registry::completion::CompletionCode::Error,
