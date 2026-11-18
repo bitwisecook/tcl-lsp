@@ -515,6 +515,7 @@ impl<'a> SourceSummaryContext<'a> {
         ) {
             return None;
         }
+        let in_place = in_place_control_commands(procedure);
         let mut footprints = Vec::new();
         for tokens in self.same_frame_commands(procedure)? {
             if self.procedure_call(&tokens).is_some() {
@@ -550,7 +551,10 @@ impl<'a> SourceSummaryContext<'a> {
             }
         }
         for (tokens, (projection, _)) in &footprints {
-            if projection.opaque_variable_frame {
+            // A control command whose scripts were lowered in place may run
+            // them, which its descriptor cannot name; those scripts' own
+            // commands are among the frame's, each with its own writes.
+            if projection.opaque_variable_frame && !in_place.contains(tokens) {
                 return None;
             }
             for (written, form) in self.authored_write_arguments(tokens)? {
@@ -1075,6 +1079,41 @@ impl<'a> SourceSummaryContext<'a> {
         }
         Some(commands)
     }
+}
+
+/// The original commands of `procedure`'s own frame that the lowering
+/// turned into control statements with every script they run lowered in
+/// place (`if`, `for`, `while`, `foreach`, `switch`, `catch`, `try`): a
+/// command whose scripts stayed opaque is a call, and one that runs a
+/// script in another frame or namespace runs it elsewhere.
+fn in_place_control_commands(procedure: &Procedure) -> Vec<CommandTokens> {
+    let mut commands = Vec::new();
+    let mut pending = vec![&procedure.body];
+    while let Some(script) = pending.pop() {
+        for statement in &script.statements {
+            if matches!(
+                statement,
+                Statement::If { .. }
+                    | Statement::For { .. }
+                    | Statement::While { .. }
+                    | Statement::Foreach { .. }
+                    | Statement::Switch { .. }
+                    | Statement::Catch { .. }
+                    | Statement::Try { .. }
+            ) && statement.synthetic_marker().is_none()
+                && let Some(tokens) = script.retained_source_tokens_for_statement(statement)
+            {
+                commands.push(tokens.clone());
+            }
+            if !matches!(
+                statement,
+                Statement::UpFrame { .. } | Statement::Block { .. }
+            ) {
+                pending.extend(crate::ir_helpers::nested_bodies(statement));
+            }
+        }
+    }
+    commands
 }
 
 #[cfg(test)]
