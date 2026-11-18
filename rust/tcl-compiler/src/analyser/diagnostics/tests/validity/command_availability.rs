@@ -109,9 +109,13 @@ Greeter new x
         1,
         "W002 exactly once: {codes:?}"
     );
-    assert!(
-        !codes.contains(&"W123".to_string()),
-        "no unknown-command cascade for members or the class name: {codes:?}"
+    // On 8.6 the probe fails, so the class never exists and `Greeter new x`
+    // raises `invalid command name "Greeter"` (tclsh 8.6.18): one W123 on the
+    // class-name call is right; none on the member keywords.
+    assert_eq!(
+        codes.iter().filter(|c| *c == "W123").count(),
+        1,
+        "only the class-name call is an unknown command: {codes:?}"
     );
 }
 
