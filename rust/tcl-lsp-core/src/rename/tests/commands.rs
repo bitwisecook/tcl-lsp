@@ -394,9 +394,10 @@ fn cross_document_symbol_edits_rewrite_import_pattern_and_rename_old_word() {
     // file; renaming the source must rewrite the `namespace import` pattern
     // and the `rename` OLD word so both stay bound to the new name — but
     // never the local imported/renamed *usages*.
-    let mymod = analyse("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
-    let app = analyse("namespace eval ::app {\n    namespace import ::mymod::helper\n}\n");
-    let ren = analyse("rename ::mymod::helper legacy\n");
+    let mymod =
+        analyse_tcl("namespace eval ::mymod { proc helper {} {}\n namespace export helper }\n");
+    let app = analyse_tcl("namespace eval ::app {\n    namespace import ::mymod::helper\n}\n");
+    let ren = analyse_tcl("rename ::mymod::helper legacy\n");
     let index = WorkspaceIndex::from_documents([
         ("file:///mymod.tcl", &mymod),
         ("file:///app.tcl", &app),
@@ -498,7 +499,7 @@ fn renaming_a_class_used_as_a_map_target_does_not_rewrite_the_subcommand_word_12
 fn cross_document_symbol_edits_apply_the_ensemble_map_gate_1281() {
     use crate::workspace_index::WorkspaceIndex;
 
-    let map_lib = analyse(
+    let map_lib = analyse_tcl(
         "namespace eval ::app::widget {}\n\
              proc ::app::widget::Show {} { return \"showing\" }\n\
              namespace ensemble create -command ::app::widget \
@@ -522,7 +523,7 @@ fn cross_document_symbol_edits_apply_the_ensemble_map_gate_1281() {
         "the declaration and the -map value must still be rewritten: {edits:?}",
     );
 
-    let sub_lib = analyse(
+    let sub_lib = analyse_tcl(
         "namespace eval ::app::widget {\n    \
              proc alpha {} { return \"alpha!\" }\n    \
              namespace ensemble create -command ::app::widget -subcommands {alpha}\n\
@@ -959,4 +960,12 @@ fn rename_proc_rejected_on_existing_proc_collision() {
         None,
     );
     assert!(edits.is_empty(), "proc collision not rejected: {edits:?}");
+}
+
+/// The lenient `tcl` environment: lexical workspace rename advice is its
+/// domain only.
+fn analyse_tcl(source: &str) -> AnalysisResult {
+    tcl_compiler::analyser::Analyser::new()
+        .analyse(source, "tcl")
+        .clone()
 }

@@ -468,11 +468,11 @@ async fn cross_document_rename_reaches_caller_from_shadowed_duplicate_decl() {
     let lib = Uri::from_str("file:///lib31_rename.tcl").unwrap();
     let consumer = Uri::from_str("file:///consumer31_rename.tcl").unwrap();
     let lib_src = "proc List2array {lst} { return ONE }\nproc List2array {lst} { return TWO }\n";
-    register(&backend, &lib, lib_src).await;
-    register(&backend, &consumer, "List2array x\n").await;
+    register_in_dialect(&backend, &lib, lib_src, "tcl").await;
+    register_in_dialect(&backend, &consumer, "List2array x\n", "tcl").await;
     let analysis = {
         let mut a = Analyser::new();
-        a.analyse(lib_src, "tcl8.6").clone()
+        a.analyse(lib_src, "tcl").clone()
     };
     let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
         std::collections::HashMap::new();
@@ -514,16 +514,17 @@ async fn cross_document_rename_reaches_caller_from_nested_self_redefinition() {
                        \x20 proc activate {bool} {puts \"already activated\"}\n\
                        \x20}\n\
                        }\n";
-    register(&backend, &lib, lib_src).await;
-    register(
+    register_in_dialect(&backend, &lib, lib_src, "tcl").await;
+    register_in_dialect(
         &backend,
         &consumer,
         "ticklecharts::activate 1\nticklecharts::activate 1\n",
+        "tcl",
     )
     .await;
     let analysis = {
         let mut a = Analyser::new();
-        a.analyse(lib_src, "tcl8.6").clone()
+        a.analyse(lib_src, "tcl").clone()
     };
     for (line, character, which) in [(1u32, 20u32, "outer"), (3, 7, "nested")] {
         let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
