@@ -544,10 +544,9 @@ mod unresolved_command {
     #[test]
     fn unknown_if_else_chains_original_suppresses() {
         let src = "proc unknown {cmd args} {\n    if {$cmd eq \"foo\"} {\n        puts foo\n    } else {\n        _original_unknown $cmd {*}$args\n    }\n}\nbaz x\n";
+        // tclsh8.6.18/9.0.4: `baz x` runs the handler; a global `proc
+        // unknown` handles every unknown head (kcs-diagnostic-w123).
         assert_eq!(w123(src), [] as [std::string::String; 0]);
-        let r = Analyser::new().analyse(src, D);
-        let upi = r.unknown_proc_info.as_ref().expect("upi");
-        assert!(upi.chains_original);
     }
 
     #[test]
@@ -570,13 +569,14 @@ mod unresolved_command {
 
     #[test]
     fn unknown_proc_info_populated_for_switch_dispatch() {
-        let src = "proc unknown {cmd args} {\n    switch $cmd {\n        foo { puts foo }\n        bar { puts bar }\n    }\n}\n";
-        let r = Analyser::new().analyse(src, D);
-        let upi = r.unknown_proc_info.as_ref().expect("upi");
-        assert!(upi.dispatch_targets.contains("foo"));
-        assert!(upi.dispatch_targets.contains("bar"));
-        assert!(!upi.empty_stub);
-        assert!(!upi.chains_original);
+        // Coordinator ruling 17 Nov 21:14: under a proved document handler,
+        // a name its switch handles is a known call and a name falling to a
+        // raising arm draws W123. tclsh8.6.18/9.0.4: `foo x` -> foo,
+        // `bar y` -> bar, `baz z` -> invalid command name "baz".
+        let src = "proc unknown {cmd args} {\n    switch $cmd {\n        foo { return foo }\n        bar { return bar }\n        default { error \"invalid command name \\\"$cmd\\\"\" }\n    }\n}\nfoo x\nbar y\nbaz z\n";
+        let d = w123(src);
+        assert_eq!(d.len(), 1, "{d:?}");
+        assert!(d[0].contains("baz"), "{d:?}");
     }
 
     #[test]
