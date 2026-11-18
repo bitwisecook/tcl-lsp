@@ -154,7 +154,8 @@ fn the_two_ensemble_option_tables_do_not_share_their_distinctive_options() {
 fn the_ensemble_option_scan_consumes_values_only_for_the_operations_own_options() {
     assert_eq!(
         count_code_in(
-            "namespace ensemble configure ::E -command -parameters arg",
+            "namespace eval ::E { namespace ensemble create }\n\
+             namespace ensemble configure ::E -command x -parameters arg",
             "W004",
             "tcl8.5",
         ),
