@@ -498,6 +498,7 @@ fn a_profile_flip_answers_as_a_fresh_interpreter_of_the_new_release() {
     let probe = "list [list [catch {expr {0b10 + 1}} m] $m] \
                  [list [catch {lmap x {1} {set x}} m] $m] \
                  [list [catch {try {set a 1}} m] $m]";
+    assert!(vm.set_native_engine_profile(v85));
     vm.set_dialect_profile(v85);
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(v85)));
     let answer = vm.eval_source(probe).expect("8.5 compiles");
@@ -505,6 +506,7 @@ fn a_profile_flip_answers_as_a_fresh_interpreter_of_the_new_release() {
         answer.result.to_str().as_ref(),
         "{0 3} {1 {invalid command name \"lmap\"}} {1 {invalid command name \"try\"}}"
     );
+    assert!(vm.set_native_engine_profile(v84));
     vm.set_dialect_profile(v84);
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(v84)));
     let answer = vm
