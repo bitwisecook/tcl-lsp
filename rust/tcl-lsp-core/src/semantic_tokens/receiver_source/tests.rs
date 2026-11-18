@@ -101,10 +101,10 @@ fn original_receiver_heads_keep_canonical_class_and_actual_availability() {
 fn original_registry_and_collection_receivers_keep_selected_child_operands() {
     // naming.core.original-inlay-retained-context
     // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
-    let source = "# tcl-lsp: requires Tk\n[listbox .l] curselection";
+    let source = "# tcl-lsp: requires Tk\npackage require Tk\n[listbox .l] curselection";
     let current = analyse(source, "tcl8.6");
     assert!(method_at(source, &current, None, "curselection"));
-    let unknown = "# tcl-lsp: requires Tk\nproc listbox args {}; [listbox .l] curselection";
+    let unknown = "# tcl-lsp: requires Tk\npackage require Tk\nproc listbox args {}; [listbox .l] curselection";
     assert!(!method_at(
         unknown,
         &analyse(unknown, "tcl8.6"),
@@ -113,7 +113,7 @@ fn original_registry_and_collection_receivers_keep_selected_child_operands() {
     ));
 
     let collision =
-        "# tcl-lsp: requires Tk\noo::class create listbox {}; [listbox new] curselection";
+        "# tcl-lsp: requires Tk\npackage require Tk\noo::class create listbox {}; [listbox new] curselection";
     assert!(!method_at(
         collision,
         &analyse(collision, "tcl8.6"),

@@ -503,13 +503,13 @@ fn obj_method_completion_filters_by_partial() {
 /// as `$var`-receiver completion above.
 #[test]
 fn widget_bareword_completion_offers_subcommands() {
-    let src = "ttk::treeview .t\n.t i\n";
+    let src = "package require Tk\nttk::treeview .t\n.t i\n";
     let analysis = analyse(src);
     let registry = CommandRegistry::build_default();
-    // Cursor after `.t i` on line 1.
+    // Cursor after `.t i` on line 2.
     let items = completions(
         src,
-        1,
+        2,
         4,
         &analysis,
         Some(&registry),
@@ -546,14 +546,14 @@ fn widget_method_completion_follows_the_document_tk_floor() {
         .collect()
     }
 
-    let plain = "ttk::treeview .t\n.t c\n";
+    let plain = "package require Tk\nttk::treeview .t\n.t c\n";
     assert!(
-        !labels(plain, "tcl9.0", 1)
+        !labels(plain, "tcl9.0", 2)
             .iter()
             .any(|name| name == "current")
     );
     assert!(
-        labels(plain, "tcl9.1", 1)
+        labels(plain, "tcl9.1", 2)
             .iter()
             .any(|name| name == "current")
     );
@@ -570,12 +570,12 @@ fn widget_method_completion_follows_the_document_tk_floor() {
 /// The `set lb [listbox .l]` return-value-capture shape completes too.
 #[test]
 fn widget_var_captured_completion_offers_subcommands() {
-    let src = "set lb [listbox .l]\n$lb cu\n";
+    let src = "package require Tk\nset lb [listbox .l]\n$lb cu\n";
     let analysis = analyse(src);
     let registry = CommandRegistry::build_default();
     let items = completions(
         src,
-        1,
+        2,
         6,
         &analysis,
         Some(&registry),

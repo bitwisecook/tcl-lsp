@@ -397,7 +397,7 @@ fn a_mixin_dispatch_without_an_upvar_still_abstains() {
 /// (`tcl-lsp-core`'s `a_fully_qualified_upvar_target_navigates_from_word_and_read`)
 /// now asserts the same set by position, so the two tiers agree about
 /// exactly what is and is not covered.
-const FOCUS_GRAB_SRC: &str = "proc SetFocusGrab {grab focus} {\n    set index \"$grab,$focus\"\n    upvar ::tk::FocusGrab($index) data\n    lappend data one\n}\nproc RestoreFocusGrab {grab focus} {\n    set index \"$grab,$focus\"\n    if {[info exists ::tk::FocusGrab($index)]} {\n        set data2 $::tk::FocusGrab($index)\n        unset ::tk::FocusGrab($index)\n    }\n}\n";
+const FOCUS_GRAB_SRC: &str = "proc SetFocusGrab {grab focus} {\n    set index \"$grab,$focus\"\n    upvar ::tk::FocusGrab($index) data\n    lappend data one\n}\nproc RestoreFocusGrab {grab focus} {\n    set index \"$grab,$focus\"\n    if {[info exists ::tk::FocusGrab($index)]} {\n        set data2 $::tk::FocusGrab($index)\n        unset ::tk::FocusGrab($index)\n    }\n}\nnamespace eval ::tk {}\nSetFocusGrab a b\nRestoreFocusGrab a b\n";
 
 /// Line/character of each anchor: the `upvar` `otherVar` word (line 2) and
 /// the `$::tk::FocusGrab($index)` read (line 8), both inside `FocusGrab`.

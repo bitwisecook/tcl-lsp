@@ -327,10 +327,10 @@ fn obj_method_hover_none_for_unknown_instance() {
 #[test]
 fn obj_method_hover_fires_for_bareword_widget() {
     let reg = tcl_registry::CommandRegistry::build_default();
-    let src = "ttk::treeview .t\n.t instate {selected} {}\n";
+    let src = "package require Tk\nttk::treeview .t\n.t instate {selected} {}\n";
     let analysis = analyse(src);
-    // Line 1 `.t instate …` — cursor on `instate` (col 3).
-    let h = hover(src, 1, 3, &analysis, Some(&reg)).expect("hover");
+    // Line 2 `.t instate …` — cursor on `instate` (col 3).
+    let h = hover(src, 2, 3, &analysis, Some(&reg)).expect("hover");
     assert!(h.value.contains("ttk::treeview instate"), "{}", h.value);
 }
 
@@ -339,12 +339,12 @@ fn widget_method_hover_follows_the_resolved_tk_lifecycle() {
     // ttk::treeview's `current` instance method is introduced by Tk 9.1.
     // The registry lookup is the only method-specific input here, so this
     // proves an older profile cannot render an impossible method hover.
-    let src = "ttk::treeview .tree\n.tree current\n";
+    let src = "package require Tk\nttk::treeview .tree\n.tree current\n";
     for (dialect, expected) in [("tcl9.0", false), ("tcl9.1", true)] {
         let analysis = analyse_for(src, dialect);
         let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
         let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
-        let hover = hover_with_profile(src, 1, 6, &analysis, Some(registry), profile);
+        let hover = hover_with_profile(src, 2, 6, &analysis, Some(registry), profile);
         assert_eq!(
             hover.is_some(),
             expected,
@@ -386,9 +386,9 @@ fn obj_method_hover_none_for_widget_without_registry() {
 #[test]
 fn obj_method_hover_fires_for_var_captured_widget() {
     let reg = tcl_registry::CommandRegistry::build_default();
-    let src = "set lb [listbox .l]\n$lb curselection\n";
+    let src = "package require Tk\nset lb [listbox .l]\n$lb curselection\n";
     let analysis = analyse(src);
-    // Line 1 `$lb curselection` — cursor on `curselection` (col 4).
-    let h = hover(src, 1, 4, &analysis, Some(&reg)).expect("hover");
+    // Line 2 `$lb curselection` — cursor on `curselection` (col 4).
+    let h = hover(src, 2, 4, &analysis, Some(&reg)).expect("hover");
     assert!(h.value.contains("listbox curselection"), "{}", h.value);
 }

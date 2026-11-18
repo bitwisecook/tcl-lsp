@@ -41,6 +41,9 @@ proc RestoreFocusGrab {grab focus} {
         unset ::tk::FocusGrab($index)
     }
 }
+namespace eval ::tk {}
+SetFocusGrab a b
+RestoreFocusGrab a b
 ";
     let analysis = Analyser::new().analyse(src, "tcl9.0").clone();
     for (label, needle, extra) in [

@@ -541,9 +541,9 @@ const TCLOO_DISPATCH_CASES: &[(&str, &str, &str, u32, Expect)] = &[
     ),
     (
         "registry_class",
-        "set c [ticklecharts::chart new]\n$c Xaxis -name x\n",
+        "package require ticklecharts\nset c [ticklecharts::chart new]\n$c Xaxis -name x\n",
         "Xaxis",
-        1,
+        2,
         Resolve,
     ),
     (
@@ -552,18 +552,18 @@ const TCLOO_DISPATCH_CASES: &[(&str, &str, &str, u32, Expect)] = &[
         // naming factory (`struct::graph g`) — `.t instate …` resolves
         // through the same self-referential `object_class`.
         "widget_bareword",
-        "ttk::treeview .t\n.t instate {selected} {}\n",
+        "package require Tk\nttk::treeview .t\n.t instate {selected} {}\n",
         "instate",
-        1,
+        2,
         Resolve,
     ),
     (
         // Tk widget instance dispatch, `$var`-captured constructor
         // return value (`set lb [listbox .l]`).
         "widget_var_captured",
-        "set lb [listbox .l]\n$lb curselection\n",
+        "package require Tk\nset lb [listbox .l]\n$lb curselection\n",
         "curselection",
-        1,
+        2,
         Resolve,
     ),
     // ---- genuinely dynamic → must abstain (soundness) ----

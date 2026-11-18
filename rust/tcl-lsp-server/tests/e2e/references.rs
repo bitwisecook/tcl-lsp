@@ -753,7 +753,7 @@ fn references_reach_a_parameter_read_inside_a_list_built_namespace_body() {
     let uri = unique_uri("tcl");
     lsp.open_ready(
         &uri,
-        "proc ::tk::SourceLibFile {file} {\n    namespace eval :: [list source [file join $::tk_library $file.tcl]]\n}\n",
+        "namespace eval ::tk {}; proc ::tk::SourceLibFile {file} {\n    namespace eval :: [list source [file join $::tk_library $file.tcl]]\n}\n",
     );
     // Cursor on the `file` of `$file` (line 1, columns 61-64).
     let lines = start_lines(&lsp.references(&uri, 1, 62, true));
