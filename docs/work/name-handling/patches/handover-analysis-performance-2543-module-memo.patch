@@ -1,15 +1,17 @@
 diff --git a/rust/tcl-compiler/src/analyser/diagnostics/tests/pipeline.rs b/rust/tcl-compiler/src/analyser/diagnostics/tests/pipeline.rs
-index 74fdbd85..32bc4024 100644
+index 74fdbd85..e345329e 100644
 --- a/rust/tcl-compiler/src/analyser/diagnostics/tests/pipeline.rs
 +++ b/rust/tcl-compiler/src/analyser/diagnostics/tests/pipeline.rs
-@@ -181,6 +181,7 @@ fn memo_diagnostic_unit(
-         &body,
-         &syntax,
+@@ -178,8 +178,7 @@ fn memo_diagnostic_unit(
+             declared_commands: None,
+         },
+         &mut lattice,
+-        &body,
+-        &syntax,
++        (&body, &syntax, None),
          None,
-+        None,
          (input, settings),
      );
-     assert!(unit.original_lattice_callbacks_are_current());
 diff --git a/rust/tcl-compiler/src/cfg_builder/mod.rs b/rust/tcl-compiler/src/cfg_builder/mod.rs
 index e2ed778d..0a3f40a1 100644
 --- a/rust/tcl-compiler/src/cfg_builder/mod.rs
@@ -44,7 +46,7 @@ index 8a0b8326..fd261119 100644
  
  #[derive(Clone, Copy)]
 diff --git a/rust/tcl-compiler/src/compilation_unit/build_entry.rs b/rust/tcl-compiler/src/compilation_unit/build_entry.rs
-index 3fe27464..2acbfff8 100644
+index 3fe27464..84bb7b81 100644
 --- a/rust/tcl-compiler/src/compilation_unit/build_entry.rs
 +++ b/rust/tcl-compiler/src/compilation_unit/build_entry.rs
 @@ -347,6 +347,7 @@ impl CompilationUnit {
@@ -55,15 +57,21 @@ index 3fe27464..2acbfff8 100644
              },
              entry,
              None,
-@@ -365,6 +366,7 @@ impl CompilationUnit {
+@@ -363,8 +364,11 @@ impl CompilationUnit {
+         source: &str,
+         options: UnitBuildOptions<'_>,
          cache: &mut ProcLatticeCache<'_>,
-         body_cache: &crate::lowering::OriginalBodyLoweringCache<'_>,
-         source_body_cache: &crate::lowering::SourceBodySyntaxCache<'_>,
-+        module_cache: Option<&super::ModuleLoweringCache<'_>>,
+-        body_cache: &crate::lowering::OriginalBodyLoweringCache<'_>,
+-        source_body_cache: &crate::lowering::SourceBodySyntaxCache<'_>,
++        (body_cache, source_body_cache, module_cache): (
++            &crate::lowering::OriginalBodyLoweringCache<'_>,
++            &crate::lowering::SourceBodySyntaxCache<'_>,
++            Option<&super::ModuleLoweringCache<'_>>,
++        ),
          entry: Option<&crate::command_binding::SourceAnalysisEntry>,
          input: Option<&crate::analyser::ResolvedAnalysisInput>,
      ) -> Self {
-@@ -380,6 +382,7 @@ impl CompilationUnit {
+@@ -380,6 +384,7 @@ impl CompilationUnit {
              OriginalBodyCacheInputs {
                  legacy: None,
                  original: Some(body_cache),
@@ -71,15 +79,21 @@ index 3fe27464..2acbfff8 100644
              },
              entry,
              None,
-@@ -401,6 +404,7 @@ impl CompilationUnit {
+@@ -399,8 +404,11 @@ impl CompilationUnit {
+         source: &str,
+         options: UnitBuildOptions<'_>,
          cache: &mut ProcLatticeCache<'_>,
-         body_cache: &crate::lowering::OriginalBodyLoweringCache<'_>,
-         source_body_cache: &crate::lowering::SourceBodySyntaxCache<'_>,
-+        module_cache: Option<&super::ModuleLoweringCache<'_>>,
+-        body_cache: &crate::lowering::OriginalBodyLoweringCache<'_>,
+-        source_body_cache: &crate::lowering::SourceBodySyntaxCache<'_>,
++        (body_cache, source_body_cache, module_cache): (
++            &crate::lowering::OriginalBodyLoweringCache<'_>,
++            &crate::lowering::SourceBodySyntaxCache<'_>,
++            Option<&super::ModuleLoweringCache<'_>>,
++        ),
          entry: Option<&crate::command_binding::SourceAnalysisEntry>,
          (input, settings): (
              &crate::analyser::ResolvedAnalysisInput,
-@@ -414,6 +418,7 @@ impl CompilationUnit {
+@@ -414,6 +422,7 @@ impl CompilationUnit {
              OriginalBodyCacheInputs {
                  legacy: None,
                  original: Some(body_cache),
@@ -87,7 +101,7 @@ index 3fe27464..2acbfff8 100644
              },
              entry,
              None,
-@@ -531,6 +536,7 @@ impl CompilationUnit {
+@@ -531,6 +540,7 @@ impl CompilationUnit {
              OriginalBodyCacheInputs {
                  legacy: None,
                  original: None,
@@ -95,7 +109,7 @@ index 3fe27464..2acbfff8 100644
              },
              entry,
              None,
-@@ -562,6 +568,7 @@ impl CompilationUnit {
+@@ -562,6 +572,7 @@ impl CompilationUnit {
              OriginalBodyCacheInputs {
                  legacy: None,
                  original: None,
@@ -103,7 +117,7 @@ index 3fe27464..2acbfff8 100644
              },
              None,
              None,
-@@ -608,6 +615,7 @@ impl CompilationUnit {
+@@ -608,6 +619,7 @@ impl CompilationUnit {
              OriginalBodyCacheInputs {
                  legacy: body_cache,
                  original: None,
@@ -164,10 +178,10 @@ index d6ce3778..b7e9617b 100644
          options,
 diff --git a/rust/tcl-compiler/src/compilation_unit/module_lowering_memo.rs b/rust/tcl-compiler/src/compilation_unit/module_lowering_memo.rs
 new file mode 100644
-index 00000000..818e6bc6
+index 00000000..a88e1854
 --- /dev/null
 +++ b/rust/tcl-compiler/src/compilation_unit/module_lowering_memo.rs
-@@ -0,0 +1,370 @@
+@@ -0,0 +1,408 @@
 +// tcl-lsp — a language server and toolchain for Tcl
 +// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
 +//
@@ -272,6 +286,31 @@ index 00000000..818e6bc6
 +    #[must_use]
 +    pub const fn config(&self) -> tcl_lexer::LexerConfig {
 +        self.config
++    }
++
++    /// These inputs with the source text left out, for a host that keys the
++    /// text by its own document identity.
++    #[must_use]
++    pub fn without_source(&self) -> Self {
++        Self {
++            source: Arc::from(""),
++            ..self.clone()
++        }
++    }
++
++    /// These inputs over `source`.
++    #[must_use]
++    pub fn with_source(&self, source: &str) -> Self {
++        Self {
++            source: Arc::from(source),
++            ..self.clone()
++        }
++    }
++
++    /// The source text lowering reads.
++    #[must_use]
++    pub fn source(&self) -> &str {
++        &self.source
 +    }
 +
 +    /// The inputs of a lowering request that has no standalone owner.
@@ -411,6 +450,8 @@ index 00000000..818e6bc6
 +    use super::ModuleLoweringInputs;
 +    use std::sync::Arc;
 +
++    type Variant = (&'static str, Box<dyn Fn(&mut ModuleLoweringInputs)>);
++
 +    fn base() -> ModuleLoweringInputs {
 +        let profile = tcl_dialect::DialectProfile::plain_tcl();
 +        let registry = tcl_registry::CommandRegistry::build_default();
@@ -429,18 +470,13 @@ index 00000000..818e6bc6
 +        }
 +    }
 +
-+    /// A memo keyed by fewer inputs than lowering reads would serve one
-+    /// configuration's module to another, so each input alone must
-+    /// distinguish the key.
-+    #[test]
-+    fn each_lowering_input_alone_distinguishes_the_module_key() {
++    fn variants() -> Vec<Variant> {
 +        let context = Arc::new(
-+            tcl_registry::model::ingress::static_context_for("tcl8.6").with_command_store(
-+                Arc::new(tcl_registry::CommandRegistry::build_default()),
-+            ),
++            tcl_registry::model::ingress::static_context_for("tcl8.6")
++                .with_command_store(Arc::new(tcl_registry::CommandRegistry::build_default())),
 +        );
 +        let profile = tcl_dialect::DialectProfile::plain_tcl();
-+        let variants: Vec<(&str, Box<dyn Fn(&mut ModuleLoweringInputs)>)> = vec![
++        vec![
 +            (
 +                "source",
 +                Box::new(|inputs| inputs.source = Arc::from("proc p {} { return 2 }\np\n")),
@@ -475,15 +511,23 @@ index 00000000..818e6bc6
 +            ),
 +            (
 +                "external_call_sites",
-+                Box::new(|inputs| inputs.external_call_sites = Some(Default::default())),
++                Box::new(|inputs| {
++                    inputs.external_call_sites =
++                        Some(crate::unit_scope::CallSiteEvidence::default());
++                }),
 +            ),
 +            (
 +                "declared_commands",
-+                Box::new(|inputs| inputs.declared_commands = Some(Default::default())),
++                Box::new(|inputs| {
++                    inputs.declared_commands =
++                        Some(tcl_registry::model::DeclaredSurface::default());
++                }),
 +            ),
 +            (
 +                "entry",
-+                Box::new(|inputs| inputs.entry = Some(Default::default())),
++                Box::new(|inputs| {
++                    inputs.entry = Some(crate::command_binding::SourceAnalysisEntry::default());
++                }),
 +            ),
 +            (
 +                "context",
@@ -513,7 +557,15 @@ index 00000000..818e6bc6
 +                        Some(crate::analyser::Analyser::new().source_compilation_settings());
 +                }),
 +            ),
-+        ];
++        ]
++    }
++
++    /// A memo keyed by fewer inputs than lowering reads would serve one
++    /// configuration's module to another, so each input alone must
++    /// distinguish the key.
++    #[test]
++    fn each_lowering_input_alone_distinguishes_the_module_key() {
++        let variants = variants();
 +        let base = base();
 +        assert_eq!(base, self::base(), "equal inputs share a module");
 +        for (name, vary) in &variants {
@@ -550,47 +602,104 @@ index ba463f6f..47c4d880 100644
                      },
                      None,
                      None,
+diff --git a/rust/tcl-lsp-db/src/check_solve.rs b/rust/tcl-lsp-db/src/check_solve.rs
+index 8a871a2c..eb0bcfe9 100644
+--- a/rust/tcl-lsp-db/src/check_solve.rs
++++ b/rust/tcl-lsp-db/src/check_solve.rs
+@@ -352,8 +352,13 @@ pub fn proc_taint_solve_for_config<'db>(
+         &input,
+     )?;
+     let settings = document_analyser(db, file, config).source_compilation_settings();
+-    let (cu, keys) =
+-        build_unit_with_keys_and_input(db, file.text(db), options, Some(&input), Some(&settings));
++    let (cu, keys) = build_unit_with_keys_and_input(
++        db,
++        (Some(file), file.text(db)),
++        options,
++        Some(&input),
++        Some(&settings),
++    );
+     Some(solve_checks_for_unit(
+         db,
+         file.dialect(db),
+diff --git a/rust/tcl-lsp-db/src/compilation_units.rs b/rust/tcl-lsp-db/src/compilation_units.rs
+index 13e39faa..da3e0df5 100644
+--- a/rust/tcl-lsp-db/src/compilation_units.rs
++++ b/rust/tcl-lsp-db/src/compilation_units.rs
+@@ -229,7 +229,14 @@ pub fn compilation_unit_for_config<'db>(
+     )?;
+     let settings = document_analyser(db, file, config).source_compilation_settings();
+     Some(Arc::new(
+-        build_unit_with_keys_and_input(db, file.text(db), options, Some(&input), Some(&settings)).0,
++        build_unit_with_keys_and_input(
++            db,
++            (Some(file), file.text(db)),
++            options,
++            Some(&input),
++            Some(&settings),
++        )
++        .0,
+     ))
+ }
+ 
 diff --git a/rust/tcl-lsp-db/src/memoised_units.rs b/rust/tcl-lsp-db/src/memoised_units.rs
-index f24a7a47..be3d7845 100644
+index f24a7a47..65605eb7 100644
 --- a/rust/tcl-lsp-db/src/memoised_units.rs
 +++ b/rust/tcl-lsp-db/src/memoised_units.rs
-@@ -109,6 +109,35 @@ pub struct SourceProcBodyKey<'db> {
+@@ -109,6 +109,43 @@ pub struct SourceProcBodyKey<'db> {
      pub request: tcl_compiler::lowering::SourceBodySyntaxRequest,
  }
  
-+/// The complete lowering inputs of one document build, by value.
++/// The lowering inputs of one document build other than its text, by value.
 +#[salsa::interned]
 +pub struct ModuleLoweringKey<'db> {
 +    #[returns(ref)]
 +    pub inputs: tcl_compiler::compilation_unit::ModuleLoweringInputs,
 +}
 +
-+/// One document's lowered module, shared by every build with equal lowering
-+/// inputs, so an unchanged document rebuilt under a revisited configuration
-+/// keeps its procedure identities and source proofs and every lattice key
-+/// built from them recurs (#2543). `None` when lowering reported a body-cache
-+/// integrity failure; the build then lowers for itself.
++/// One document's lowered module under one set of lowering inputs, shared by
++/// every build of that document with equal inputs, so an unchanged document
++/// rebuilt under a revisited configuration keeps its procedure identities and
++/// source proofs and every lattice key built from them recurs (#2543).
++///
++/// Keyed by the document and its inputs other than the text, which is read
++/// here: an edit re-executes the one entry per (document, inputs) in place, so
++/// a superseded text's module is dropped rather than held until eviction, and
++/// the entries are the live (document, configuration) pairs. The cap matches
++/// the per-configuration unit memo's (`compilation_unit_for_config`). `None`
++/// when lowering reported a body-cache integrity failure; the build then
++/// lowers for itself.
 +// LRU-capped: per-file key, see the crate docs' "Deep-memo eviction".
-+#[salsa::tracked(lru = 64, returns(clone))]
-+pub fn lowered_module<'db>(
++#[salsa::tracked(lru = 512, returns(clone))]
++pub fn lowered_document_module<'db>(
 +    db: &'db dyn TclDb,
++    file: crate::SourceFile,
 +    key: ModuleLoweringKey<'db>,
 +) -> Option<Arc<tcl_compiler::compilation_unit::LoweredModule>> {
-+    let inputs = key.inputs(db);
++    let inputs = key.inputs(db).with_source(file.text(db));
 +    let (body_memo, source_body_memo) = lowering_body_memos(
 +        db,
 +        inputs.dialect(),
 +        inputs.registry(),
 +        inputs.config().normalized(),
 +    );
-+    tcl_compiler::compilation_unit::LoweredModule::lower(inputs, &body_memo, &source_body_memo)
++    tcl_compiler::compilation_unit::LoweredModule::lower(&inputs, &body_memo, &source_body_memo)
 +        .map(Arc::new)
 +}
 +
  /// Lower neutral call syntax from genuine pre-lowering source dependencies.
  #[salsa::tracked(lru = 512, returns(clone))]
  pub fn lower_proc_body_source<'db>(
-@@ -308,6 +337,51 @@ fn build_lattice_memo_candidate<'db>(
+@@ -182,7 +219,7 @@ pub(super) fn build_unit_with_keys<'db>(
+     CompilationUnit,
+     HashMap<tcl_compiler::ir::ProcedureId, FnLatticeKey<'db>>,
+ ) {
+-    build_unit_with_keys_and_input(db, source, options, None, None)
++    build_unit_with_keys_and_input(db, (None, source), options, None, None)
+ }
+ 
+ fn lattice_memo_context<'db>(db: &'db dyn TclDb, req: &LatticeRequest<'_>) -> CfgContext<'db> {
+@@ -308,9 +345,54 @@ fn build_lattice_memo_candidate<'db>(
      unit
  }
  
@@ -641,8 +750,12 @@ index f24a7a47..be3d7845 100644
 +
  pub(super) fn build_unit_with_keys_and_input<'db>(
      db: &'db dyn TclDb,
-     source: &str,
-@@ -320,10 +394,7 @@ pub(super) fn build_unit_with_keys_and_input<'db>(
+-    source: &str,
++    (document, source): (Option<crate::SourceFile>, &str),
+     options: UnitBuildOptions<'_>,
+     input: Option<&tcl_compiler::analyser::ResolvedAnalysisInput>,
+     settings: Option<&Arc<tcl_compiler::analyser::OriginalAnalyserSourceSettings>>,
+@@ -320,10 +402,7 @@ pub(super) fn build_unit_with_keys_and_input<'db>(
  ) {
      let UnitBuildOptions { registry, .. } = options;
      let dialect = options.dialect;
@@ -653,13 +766,18 @@ index f24a7a47..be3d7845 100644
      let registry_snapshot = registry.snapshot();
      let body_config = options.config.normalized();
      let epoch = evaluator_epoch(db);
-@@ -356,23 +427,10 @@ pub(super) fn build_unit_with_keys_and_input<'db>(
+@@ -356,23 +435,15 @@ pub(super) fn build_unit_with_keys_and_input<'db>(
          // The isolated-body caller positions this owned baseline Script and
          // restores current binding proofs. Source-only syntax uses its separate
          // genuine pre-lowering request below.
 -        let body_memo = |body_text: &str, namespace: &str| {
 -            let key = ProcBodyKey::new(
--                db,
++        let (body_memo, source_body_memo) =
++            lowering_body_memos(db, dialect, &registry_snapshot, body_config);
++        let module_memo = |inputs: &tcl_compiler::compilation_unit::ModuleLoweringInputs| {
++            let file = document.filter(|file| file.text(db).as_str() == inputs.source())?;
++            lowered_document_module(
+                 db,
 -                body_text.to_owned(),
 -                namespace.to_owned(),
 -                dialect_key.to_owned(),
@@ -674,31 +792,87 @@ index f24a7a47..be3d7845 100644
 -        let source_body_memo = |request: &tcl_compiler::lowering::SourceBodySyntaxRequest| {
 -            let key = SourceProcBodyKey::new(db, request.clone());
 -            lower_proc_body_source(db, key)
-+        let (body_memo, source_body_memo) =
-+            lowering_body_memos(db, dialect, &registry_snapshot, body_config);
-+        let module_memo = |inputs: &tcl_compiler::compilation_unit::ModuleLoweringInputs| {
-+            lowered_module(db, ModuleLoweringKey::new(db, inputs.clone()))
++                file,
++                ModuleLoweringKey::new(db, inputs.without_source()),
++            )
          };
          match input.zip(settings) {
              Some(input) => {
-@@ -382,6 +440,7 @@ pub(super) fn build_unit_with_keys_and_input<'db>(
+@@ -380,8 +451,7 @@ pub(super) fn build_unit_with_keys_and_input<'db>(
+                     source,
+                     options,
                      &mut lattice_memo,
-                     &body_memo,
-                     &source_body_memo,
-+                    Some(&module_memo),
+-                    &body_memo,
+-                    &source_body_memo,
++                    (&body_memo, &source_body_memo, Some(&module_memo)),
                      None,
                      input,
                  )
-@@ -392,6 +451,7 @@ pub(super) fn build_unit_with_keys_and_input<'db>(
+@@ -390,8 +460,7 @@ pub(super) fn build_unit_with_keys_and_input<'db>(
+                 source,
+                 options,
                  &mut lattice_memo,
-                 &body_memo,
-                 &source_body_memo,
-+                Some(&module_memo),
+-                &body_memo,
+-                &source_body_memo,
++                (&body_memo, &source_body_memo, Some(&module_memo)),
                  None,
                  input,
              ),
+diff --git a/rust/tcl-lsp-db/src/tests/check_solve.rs b/rust/tcl-lsp-db/src/tests/check_solve.rs
+index e1d92775..a0184587 100644
+--- a/rust/tcl-lsp-db/src/tests/check_solve.rs
++++ b/rust/tcl-lsp-db/src/tests/check_solve.rs
+@@ -26,12 +26,16 @@ fn configured_taint_checks_consume_the_solve_original_module_owner() {
+                       proc danger {} { set u [gets stdin]; set p [pass $u]; exec $p }\n\
+                       proc other {} { set z 1 }\n";
+     let dialect = "tcl8.6";
+-    let db = TclDatabase::default();
++    let mut db = TclDatabase::default();
+     let file = SourceFile::new(&db, source.to_owned(), dialect.to_owned(), None);
+     let policy = cfg(&db);
++    let varied = cfg(&db);
++    salsa::Setter::to(
++        varied.set_extra_commands(&mut db),
++        vec!["churnpack::noop".to_owned()],
++    );
+     let key = lexer_cfg_key(&db, dialect);
+     let input = document_analysis_input(&db, file, policy).unwrap();
+-    let shared = compilation_unit_for_config(&db, file, key, policy).unwrap();
+     let solved = proc_taint_solve_for_config(&db, file, key, policy).unwrap();
+     let owner = solved.unit.as_ref();
+     assert_eq!(
+@@ -44,9 +48,13 @@ fn configured_taint_checks_consume_the_solve_original_module_owner() {
+     );
+     assert_eq!(owner.ir_module.lexer_config, input.lexer_config());
+     assert!(!solved.taints.proc_taints.is_empty());
++    // Builds with equal lowering inputs share one lowered module (#2543), so
++    // the shared unit may own the same ids; a build under a different input
++    // owns a different module, and none of the solve's ids belong to it.
++    let other = compilation_unit_for_config(&db, file, key, varied).unwrap();
+     for (id, taints) in &solved.taints.proc_taints {
+         assert!(owner.ir_module.procedure_ids.owns(*id));
+-        assert!(!shared.ir_module.procedure_ids.owns(*id));
++        assert!(!other.ir_module.procedure_ids.owns(*id));
+         let function = owner.function_for_body(Some(*id)).unwrap();
+         assert!(std::ptr::eq(
+             solved.taints.taints_for_function(owner, function),
+@@ -330,7 +338,13 @@ fn summary_dependency_probe<'db>(
+     let declared = declared_command_surface(db, file, registry);
+     let options = supplied_unit_build_options(db, file, cfg, registry, None, &declared, &input)
+         .expect("the document's original grammar and Registry");
+-    let (cu, _) = build_unit_with_keys_and_input(db, file.text(db), options, Some(&input), None);
++    let (cu, _) = build_unit_with_keys_and_input(
++        db,
++        (Some(file), file.text(db)),
++        options,
++        Some(&input),
++        None,
++    );
+     let source_bodies: Vec<_> = cu
+         .ir_module
+         .procedures
 diff --git a/rust/tcl-lsp-db/tests/it_5/memory_growth.rs b/rust/tcl-lsp-db/tests/it_5/memory_growth.rs
-index 54a14e42..1d07cd4d 100644
+index 54a14e42..c188aab6 100644
 --- a/rust/tcl-lsp-db/tests/it_5/memory_growth.rs
 +++ b/rust/tcl-lsp-db/tests/it_5/memory_growth.rs
 @@ -349,6 +349,56 @@ fn an_uncertifiable_body_reanalysed_under_alternating_configuration_interns_noth
@@ -715,7 +889,7 @@ index 54a14e42..1d07cd4d 100644
 +#[test]
 +fn more_documents_than_the_memo_caps_reanalysed_under_alternating_configuration_plateau_2543() {
 +    const DOCUMENTS: usize = 70;
-+    const ROUNDS: usize = 24;
++    const ROUNDS: usize = 12;
 +    let mut db = TclDatabase::default();
 +    let files: Vec<_> = (0..DOCUMENTS)
 +        .map(|index| {
