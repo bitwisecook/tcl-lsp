@@ -315,45 +315,45 @@ fn route_entries_are_counted_per_family() {
 /// programs against the real interpreters. `2**64` and `1 << 70` are
 /// beyond-wide from 8.5: `tclsh8.4` raises for the first (`**` is not an
 /// 8.4 operator) and wraps to 0 for the second, so both decline under
-/// `tcl8.4` (`WrongRepresentation`) and under `f5-irules`, whose runtime
-/// base is 8.4's; `"010" + 0` reads the leading zero as octal up to
-/// 8.6, `f5-irules` included, and as decimal from 9.0. The lenient profile
+/// `tcl8.4` (`WrongRepresentation`); `"010" + 0` reads the leading zero as
+/// octal up to 8.6 and as decimal from 9.0. The procedure is not called at an
+/// iRules top level, so the rows run under the core Tcl dialects. The lenient profile
 /// declares no release, so all three release-dependent cases decline there.
 #[test]
 fn expr_acceptance_list() {
-    let cases: [(&str, &str, &str, [Option<&str>; 5]); 10] = [
-        ("multi-argument form", "", "expr 1 + 2", [Some("3"); 5]),
+    let cases: [(&str, &str, &str, [Option<&str>; 4]); 10] = [
+        ("multi-argument form", "", "expr 1 + 2", [Some("3"); 4]),
         (
             "a quoted argument substituted as text",
             "set a {1 + 1}",
             "expr \"$a * 2\"",
-            [Some("3"); 5],
+            [Some("3"); 4],
         ),
         (
             "short-circuit &&",
             "",
             "expr {0 && [error never]}",
-            [Some("0"); 5],
+            [Some("0"); 4],
         ),
         (
             "a ternary",
             "",
             "expr {1 ? \"yes\" : \"no\"}",
-            [Some("yes"); 5],
+            [Some("yes"); 4],
         ),
         (
             "a value that looks like code is never re-substituted",
             "set a {[exit]}",
             "expr {$a eq {[exit]}}",
-            [Some("1"); 5],
+            [Some("1"); 4],
         ),
         (
             "a nested pure substitution",
             "",
             "expr {[string length abcdef] * 2}",
-            [Some("12"); 5],
+            [Some("12"); 4],
         ),
-        ("an error", "", "expr {1/0}", [None; 5]),
+        ("an error", "", "expr {1/0}", [None; 4]),
         (
             "a bignum",
             "",
@@ -362,7 +362,6 @@ fn expr_acceptance_list() {
                 None,
                 Some("18446744073709551616"),
                 Some("18446744073709551616"),
-                None,
                 None,
             ],
         ),
@@ -375,14 +374,13 @@ fn expr_acceptance_list() {
                 Some("1180591620717411303424"),
                 Some("1180591620717411303424"),
                 None,
-                None,
             ],
         ),
         (
             "a leading-zero numeral, release-dependent",
             "",
             "expr {\"010\" + 0}",
-            [Some("8"), Some("8"), Some("10"), Some("8"), None],
+            [Some("8"), Some("8"), Some("10"), None],
         ),
     ];
     for (description, prelude, expr_call, expected) in cases {

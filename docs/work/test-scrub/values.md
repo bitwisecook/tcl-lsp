@@ -23,8 +23,8 @@ edited.
 
 ## Status, 18 November 07:00 UTC
 
-Of 220 rows: 22 open with values, 1 exposed (taint's rows, now failing on a values-family cause), 169 routed to the owner of their cause (analyser-binding 118, dataflow-optimiser 33, dataflow issue session 8, taint 4, class-facts 3, analysis-performance 3),
-18 repaired and failing on a routed cause, 9 fixed, 1 deleted. The status column names each owner.
+Of 220 rows: 22 open with values, 0 exposed (taint's rows, now failing on a values-family cause), 169 routed to the owner of their cause (analyser-binding 118, dataflow-optimiser 33, dataflow issue session 8, taint 4, class-facts 3, analysis-performance 3),
+19 repaired and failing on a routed cause, 9 fixed, 1 deleted. The status column names each owner.
 
 ## Verdicts
 
@@ -32,8 +32,8 @@ Of 220 rows: 22 open with values, 1 exposed (taint's rows, now failing on a valu
 | --- | ---: |
 | KEEP-ORACLE | 127 |
 | KEEP-CONTRACT | 30 |
-| KEEP-F5 | 30 |
-| FIX-FIXTURE | 17 |
+| KEEP-F5 | 29 |
+| FIX-FIXTURE | 18 |
 | FIX-EXPECTATION | 9 |
 | REWRITE | 6 |
 | RETIRE | 1 |
