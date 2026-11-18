@@ -338,8 +338,12 @@ mod tests {
     fn original_diagnostic_argv_contents_do_not_require_complete_handler_roles() {
         // naming.compiler.original-analysis-metadata-context
         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
-        // Written argument values remain conditional source advice; dynamic
-        // handler topology still refuses the enclosing role inventory.
+        // Written argument values remain conditional source advice. A
+        // variable's value is never re-parsed for substitutions and `regexp`
+        // has no script or expression role, so the substitution inventory of
+        // `regexp $p literal` is complete and empty whatever `$p` holds
+        // (tclsh 8.4.20, 8.6.18, 9.0.4, 9.1.0: a probe command named in `$p`
+        // never runs, and `info cmdcount` moves alike for every `$p`).
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
         let input = input(Arc::clone(&context));
@@ -368,7 +372,7 @@ mod tests {
         assert!(
             values
                 .substitution_calls(SubstitutionHost::Statement(statement))
-                .is_none()
+                .is_some_and(|calls| calls.is_empty())
         );
         assert_eq!(
             values.word_contents(statement, word).as_deref(),
@@ -391,8 +395,18 @@ mod tests {
             context.commands(),
         )
         .unwrap();
-        let (statement, word) = read(&replaced);
-        assert!(values.word_contents(statement, word).is_none());
+        let statement = function
+            .cfg
+            .blocks
+            .iter()
+            .find_map(|(&block, body)| {
+                body.statements
+                    .iter()
+                    .position(|statement| statement.canonical_command_or_source() == "regexp")
+                    .map(|index| StatementId { block, index })
+            })
+            .unwrap();
+        assert!(values.word_contents(statement, 1).is_none());
     }
 
     fn assert_native_scalar_store_refusal(
