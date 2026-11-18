@@ -50,22 +50,22 @@ row that is kept still needs its citation written into the test; the evidence co
 | 9 | `frame-script-body-unread` | analyser-binding | A script run at `#0` or `1` (`uplevel`, an alias to it, `eval` inside it) has no invocation metadata, so the global summary goes opaque |
 | 9 | `f5-handler-command-unbound` | analyser-binding | Inside a `when` body `set`, `TCP::payload` resolve as `UnprovedBinding` |
 | 8 | `summary-link-local-def` | dataflow issue session | A write through `upvar 1 $name v` defines nothing at the callee's exit (summary SSA step 4 in progress) |
-| 6 | `catch-body-transfer` | values | The value a flattened catch body leaves (code table, state before it, `scan` partial writes) |
+| 7 | `binding-catch-result-variable-no-place` | analyser-binding | `catch {…} m ?opts?`: the result variable gets no place, and the commands from the catch end on are unproved, so the computed-name hazard widens the whole procedure (root found by analyser-binding: the walk is widened after a raising catch body). Four rows moved here from `catch-body-transfer` on 18 November |
 | 5 | `ssa-var-symbol-lookup-refused` | dataflow | The procedure lists the variable (`vars [x, m, o]`, or two symbols named `g`) yet `var_symbol` returns None |
 | 5 | `try-body-transfer` | values | `try` bodies, handlers and `finally` (level-0 return, `exit`, partial `lassign`) |
-| 5 | `escape-top-level-fixture` | values | Escape fixtures run at `#0`, where `global` links nothing and a variable is Local by ruling (37cf6fd2); they need a procedure |
 | 5 | `f5-top-level-not-executable` | values | f5-irules rows of top-level fixtures expect Tcl folding; iRules refuses executable top-level code (IRULE5007) |
 | 5 | `declared-route-evaluation` | values | Declared package routes through the driver (pack writes, raising arguments, shadowing, folded types) |
+| 4 | `escape-top-level-fixture` | values | Escape fixtures run at `#0`, where `global` links nothing and a variable is Local by ruling (37cf6fd2); they need a procedure |
 | 4 | `binding-alias-invocation-metadata` | analyser-binding | An aliased invocation keeps no original Logical invocation |
 | 4 | `ssa-link-statement-version` | dataflow issue session | Which SSA version a link statement defines (REWRITE three to the observable, RETIRE one) |
-| 3 | `binding-catch-result-variable-no-place` | analyser-binding | `catch {…} m ?opts?`: the result variable gets no place (root found by analyser-binding: the walk is widened after a raising catch body) |
 | 3 each | `edge-refinement`, `escape-catch-body-walk`, `rebase-memoised-receipts` | dataflow, values, analysis-performance | |
+| 3 | `binding-procedure-absent-after-statement` | analyser-binding | A procedure defined in the file is absent after a top-level statement |
 | 2 each | `binding-catch-body-children-unavailable`, `binding-conditional-alias-join`, `binding-renamed-builtin-head`, `class-facts-object-element`, `escape-param-upvar-source-precision`, `escape-entry-point-ignores-registry`, `existence-chain-fold`, `expr-decline-reason`, `fixture-body-absent`, `ordered-nested-write`, `orig-diagnostic-refusal`, `wrong-rewrite-callback-write` | | |
-| 1 each | 28 more, listed in the ledger, among them `wrong-rewrite-try-error-path`, `wrong-rewrite-shift-beyond-width`, `release-tower-fold` and `panics-before-assertion` | | |
+| 1 each | 30 more, listed in the ledger, among them `catch-body-transfer` (the code table), `original-body-of-lifted-call` (dataflow-optimiser: no original body for the script of a `catch` lifted from a substitution word), `wrong-rewrite-try-error-path`, `wrong-rewrite-shift-beyond-width`, `release-tower-fold` and `panics-before-assertion` | | |
 
-By owner of the cause: analyser-binding 90, values 67, dataflow 21 and its issue session 12, taint
+By owner of the cause: analyser-binding 94, values 62, dataflow 22 and its issue session 12, taint
 21, analysis-performance 4, class-facts 3 (the 12 unknown-head rows count under dataflow; their
-fixtures are restated here afterwards). What values can move now: the catch and try transfer rows, declared routes, the escape walker, 5 f5 expectations and
+fixtures are restated here afterwards). What values can move now: the try transfer rows, the catch code table, declared routes, the escape walker, 5 f5 expectations and
 the fixtures.
 
 ## Distinct failing behaviours
