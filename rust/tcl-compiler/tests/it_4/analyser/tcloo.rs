@@ -737,7 +737,7 @@ mod oo_helpers_scoping {
         // TP — `link` for one name must not blanket-legitimise every
         // bareword in the class: tclsh 9.0.4 raises `invalid command name
         // "other"` for an un-linked sibling method called bare.
-        let src = "oo::class create Widget {\n    method foo {x} { return $x }\n    method other {} { return 2 }\n    method bar {} {\n        link foo\n        return [other]\n    }\n}\n";
+        let src = "oo::class create Widget {\n    method foo {x} { return $x }\n    method other {} { return 2 }\n    method bar {} {\n        link foo\n        return [other]\n    }\n}\n[Widget new] bar\n";
         assert!(fires(src, "tcl9.0", "W123"), "{:?}", codes(src, "tcl9.0"));
     }
 
