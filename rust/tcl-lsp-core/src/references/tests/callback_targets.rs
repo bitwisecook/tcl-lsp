@@ -236,7 +236,8 @@ fn the_real_tcllib_callback_shapes_resolve_to_their_methods() {
             .expect("fixed Tcllib 2.0 source setup must be available and unchanged");
         let src = String::from_utf8(original.bytes().to_vec())
             .expect("the original Tcllib callback control is UTF-8");
-        let analysis = analyse(&src);
+        // Lenient `tcl`: the superclass's package document counts as loaded.
+        let analysis = Analyser::new().analyse(&src, "tcl").clone();
         let declaration = src
             .find(&format!("method {method} "))
             .unwrap_or_else(|| panic!("{relative} declares `method {method}`"));

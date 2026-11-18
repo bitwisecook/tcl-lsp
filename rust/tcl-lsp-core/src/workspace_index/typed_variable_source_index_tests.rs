@@ -94,7 +94,9 @@ fn unavailable_alias_source_coverage_and_missing_inputs_are_not_absence() {
         removed.documents_with_ambiguous_alias_of("::N::value"),
         [] as [std::string::String; 0]
     );
-    let source = "namespace eval ::N {set value 1; puts $value}";
+    // tclsh 8.4.20/8.6.18: `set value` in a namespace writes an existing
+    // global ::value; `variable` makes it ::N::value on every release.
+    let source = "namespace eval ::N {variable value 1; puts $value}";
     let mut analysis = Analyser::new().analyse(source, "tcl");
     let symbol = analysis
         .original_variable_symbols
@@ -105,7 +107,7 @@ fn unavailable_alias_source_coverage_and_missing_inputs_are_not_absence() {
         .expect("actual original namespace variable")
         .symbol()
         .clone();
-    let foreign_source = "namespace eval ::Other {set forged 1}";
+    let foreign_source = "namespace eval ::Other {variable forged 1}";
     let foreign = Analyser::new().analyse(foreign_source, "tcl");
     let foreign_occurrence = foreign
         .original_variable_symbols
