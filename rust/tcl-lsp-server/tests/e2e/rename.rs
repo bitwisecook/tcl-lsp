@@ -237,21 +237,6 @@ fn rename_var_preserves_braced_form() {
     );
 }
 
-/// Find the one `{range, newText}` edit whose replacement text is exactly
-/// `expected_text`, applied to `source` — the strongest check available at
-/// this layer, since it proves the fix through real JSON-RPC (de)serialisation,
-/// not just the core crate's own in-process `TextEdit`s.
-fn apply_named_edit(edits: &[Value], source: &str, expected_text: &str) -> String {
-    let (rng, new_text) = edits
-        .iter()
-        .find_map(|e| {
-            let text = e.get("newText")?.as_str()?;
-            (text == expected_text).then(|| (e.get("range").cloned().unwrap(), text.to_owned()))
-        })
-        .unwrap_or_else(|| panic!("expected a {expected_text:?} edit among {edits:?}"));
-    apply_edit(source, &rng, &new_text)
-}
-
 #[test]
 fn rename_var_applying_the_braced_reference_edit_does_not_duplicate_the_closing_brace() {
     // Applied end-to-end against the packaged server
@@ -272,30 +257,28 @@ fn rename_var_applying_the_braced_reference_edit_does_not_duplicate_the_closing_
 
 #[test]
 fn rename_var_applying_the_dir_view_idiom_reference_edit_does_not_corrupt_the_source() {
-    // The real `tk/library/tk.tcl:594-596` idiom (`$w ${dir}view scroll
-    // ...`, a subcommand synthesised by
-    // concatenating `$dir` with literal `view`): applying the LSP's own
-    // rename edit for the `${dir}view` reference must not produce
-    // `$w ${direction}}view ...` — tclsh 8.6/9.0 both fail to even parse
-    // the enclosing proc ("extra characters after close-brace") if
-    // that edit were applied, since the stray extra `}` shifts Tcl's own
-    // brace-counting scan for where the proc body ends.
+    // A one-byte-short range would apply `${dir}view` as `${direction}}view`,
+    // which tclsh 8.6/9.0 cannot parse. In the `tk.tcl` form `$w ${dir}view`
+    // the computed head may read `dir` through `upvar 1`: tclsh 8.6.18 and
+    // 9.0.4 with a peek proc give y before and can't read "d" after, so the
+    // rename refuses. Without a computed head the edit closes one brace.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
-    let src = "proc ::tk::MouseWheel {w dir amount {factor -120.0} {units units}} {\n    $w ${dir}view scroll [expr {$amount/$factor}] $units\n}\n";
+    let src = "proc p {dir} {\n    return ${dir}view\n}\n";
     lsp.open_ready(&uri, src);
-    // Cursor on the `d` of `dir` inside `${dir}view` (line 1, col 9).
-    let result = lsp.rename(&uri, 1, 9, "direction");
-    let edits = rename_edits(&result);
-    let uri_edits = edits.get(&uri).cloned().unwrap_or_default();
-    let applied = apply_named_edit(&uri_edits, src, "${direction}");
-    assert!(
-        applied.contains("${direction}view"),
-        "expected a single, correctly-closed brace: {applied}"
+    let result = lsp.rename(&uri, 1, 14, "direction");
+    let uri_edits = rename_edits(&result).get(&uri).cloned().unwrap_or_default();
+    assert_eq!(
+        apply_all_edits(&uri_edits, src),
+        "proc p {direction} {\n    return ${direction}view\n}\n"
     );
-    assert!(
-        !applied.contains("${direction}}view"),
-        "must not duplicate the closing brace: {applied}"
+    let uri = unique_uri("tcl");
+    let src = "proc m {w dir} {\n    $w ${dir}view scroll 1 units\n}\n";
+    lsp.open_ready(&uri, src);
+    let result = lsp.rename(&uri, 1, 9, "direction");
+    assert_eq!(
+        rename_edits(&result).get(&uri).cloned().unwrap_or_default(),
+        [] as [Value; 0]
     );
 }
 

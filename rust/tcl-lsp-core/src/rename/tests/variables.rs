@@ -321,34 +321,38 @@ fn rename_var_applying_the_braced_reference_edit_does_not_duplicate_the_closing_
 
 #[test]
 fn rename_var_applying_the_dir_view_idiom_edit_produces_valid_tcl() {
-    // The real `tk/library/tk.tcl:594-596` idiom this finding traces
-    // through (`$w ${dir}view scroll ...`, subcommand synthesised by
-    // concatenating `$dir` with literal `view`): a one-byte-short edit
-    // range applies as `$w ${direction}}view ...`, and tclsh8.6/9.0 both
-    // fail to even parse the enclosing proc ("extra characters after
-    // close-brace"), since the stray extra `}` shifts Tcl's own
-    // brace-counting scan for where the proc body ends.
-    let src = "proc ::tk::MouseWheel {w dir amount {factor -120.0} {units units}} {\n    $w ${dir}view scroll [expr {$amount/$factor}] $units\n}\n";
+    // A one-byte-short range would apply `${dir}view` as `${direction}}view`,
+    // which tclsh 8.6/9.0 cannot parse. tclsh 8.6.18 and 9.0.4: [p y] is
+    // yview before and after. In the `tk.tcl` form `$w ${dir}view ...` the
+    // computed head may read `dir` through `upvar 1` (a peek proc gives y
+    // before and can't read "d" after), so that rename refuses.
+    let src = "proc p {dir} {\n    return ${dir}view\n}\n";
     let analysis = analyse(src);
-    // Cursor on the `d` of `dir` inside `${dir}view` (line 1, col 9).
     let edits = rename(
         src,
-        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        1,
+        14,
+        "direction",
+        &analysis,
+        None,
+    );
+    assert_eq!(
+        apply_edits(src, &edits),
+        "proc p {direction} {\n    return ${direction}view\n}\n"
+    );
+    let src = "proc m {w dir} {\n    $w ${dir}view scroll 1 units\n}\n";
+    let analysis = analyse(src);
+    let edits = rename(
+        src,
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         1,
         9,
         "direction",
         &analysis,
         None,
     );
-    let applied = apply_edits(src, &edits);
-    assert!(
-        applied.contains("${direction}view"),
-        "expected a single, correctly-closed brace: {applied}"
-    );
-    assert!(
-        !applied.contains("${direction}}view"),
-        "must not duplicate the closing brace: {applied}"
-    );
+    assert_eq!(edits, [] as [TextEdit; 0]);
 }
 
 #[test]
