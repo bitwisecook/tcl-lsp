@@ -1,0 +1,5 @@
+dispatch.menu-invoke.after-update: runs hit
+dispatch.menu-invoke.index-a: runs hit
+dispatch.menu-invoke.then-update: runs hit
+dispatch.menu-invoke.then-update-full: runs hit
+TK 9.0.4

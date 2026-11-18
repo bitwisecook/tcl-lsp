@@ -1,0 +1,71 @@
+ctor.button: none
+ctor.canvas: none
+ctor.checkbutton: none
+ctor.entry: none
+ctor.frame: none
+ctor.label: none
+ctor.labelframe: none
+ctor.listbox: none
+ctor.menu: none
+ctor.menubutton: none
+ctor.message: none
+ctor.panedwindow: none
+ctor.radiobutton: none
+ctor.scale: none
+ctor.scrollbar: none
+ctor.spinbox: none
+ctor.text: none
+ctor.toplevel: none
+ctor.ttk::button: error invalid command name "ttk::button"
+ctor.ttk::combobox: error invalid command name "ttk::combobox"
+ctor.ttk::entry: error invalid command name "ttk::entry"
+ctor.ttk::frame: error invalid command name "ttk::frame"
+ctor.ttk::label: error invalid command name "ttk::label"
+ctor.ttk::labelframe: error invalid command name "ttk::labelframe"
+ctor.ttk::notebook: error invalid command name "ttk::notebook"
+ctor.ttk::progressbar: error invalid command name "ttk::progressbar"
+ctor.ttk::scale: error invalid command name "ttk::scale"
+ctor.ttk::scrollbar: error invalid command name "ttk::scrollbar"
+ctor.ttk::separator: error invalid command name "ttk::separator"
+ctor.ttk::sizegrip: error invalid command name "ttk::sizegrip"
+ctor.ttk::treeview: error invalid command name "ttk::treeview"
+ctor.ttk::spinbox: error invalid command name "ttk::spinbox"
+ctor.ttk::checkbutton: error invalid command name "ttk::checkbutton"
+ctor.ttk::radiobutton: error invalid command name "ttk::radiobutton"
+ctor.ttk::menubutton: error invalid command name "ttk::menubutton"
+ctor.ttk::panedwindow: error invalid command name "ttk::panedwindow"
+pack: none
+pack.forget: none
+grid: none
+place: none
+bind.set: none
+bind.query: none
+bindtags: none
+bell: none
+clipboard: none
+event.add: none
+event.info: none
+focus.set: none
+focus.query: none
+font.create: none
+font.measure: none
+image.create: none
+option.add: none
+raise: none
+lower: none
+selection.clear: none
+winfo.exists: none
+winfo.geometry: none
+wm.title: none
+wm.geometry: none
+tk.scaling: none
+tk.appname: none
+ttk.style.configure: error invalid command name "ttk::style"
+configure.widget: none
+cget.widget: none
+entry.insert.validate-none: none
+text.insert: none
+canvas.create: none
+listbox.insert: none
+grab.release: none
+TK 8.4

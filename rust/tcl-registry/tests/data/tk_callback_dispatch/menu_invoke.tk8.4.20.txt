@@ -1,0 +1,5 @@
+dispatch.menu-invoke.after-update: deferred 
+dispatch.menu-invoke.index-a: runs hit
+dispatch.menu-invoke.then-update: deferred 
+dispatch.menu-invoke.then-update-full: deferred 
+TK 8.4
