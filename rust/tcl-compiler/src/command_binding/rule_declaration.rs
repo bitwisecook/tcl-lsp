@@ -129,12 +129,12 @@ impl SourceCommandBindings {
         // nor that this candidate is the unique handler.
         // A procedure the loader already declared under this name may replace
         // the handler, so the declaration inventory declines.
-        let bare = head.trim_start_matches("::");
+        let bare = crate::naming::normalise_qualified_name(head);
         if self.rule_declarations.values().flatten().any(|candidate| {
             candidate
                 .procedure_name
                 .as_deref()
-                .is_some_and(|name| name.trim_start_matches("::") == bare)
+                .is_some_and(|name| crate::naming::normalise_qualified_name(name) == bare)
         }) {
             return;
         }
