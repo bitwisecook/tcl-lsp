@@ -931,7 +931,7 @@ impl Vm {
                     }
                 }
             }
-            Op::JUMP_TABLE if instr.native_switch_version.is_some() => {
+            Op::JUMP_TABLE | Op::JUMP_TABLE_NUM if instr.native_switch_version.is_some() => {
                 let original = pop(f);
                 let label = if let Some(table) = &instr.native_switch_integers {
                     let integer = try_core!(tcl_syntax::value::ValueOps::as_int(self, &original));
@@ -949,6 +949,9 @@ impl Vm {
                 {
                     f.pc = index;
                 }
+            }
+            Op::JUMP_TABLE_NUM => {
+                return Tick::Return(err("jumpTableNum has no numeric table"));
             }
             Op::JUMP_TABLE => {
                 let key = pop(f).to_str();

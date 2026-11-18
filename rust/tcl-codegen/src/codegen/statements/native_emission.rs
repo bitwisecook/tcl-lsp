@@ -703,7 +703,14 @@ impl CodegenCtx<'_> {
                 self.instructions[index].native_switch_version = Some(version);
             }
             Task::SwitchTable(version, numeric, bytes, integers) => {
-                let index = self.emit(Op::JUMP_TABLE, vec![Operand::Imm(0)]);
+                // A numeric table is Tcl 9.1's `jumpTableNum`; only the string
+                // table is `jumpTable`.
+                let op = if numeric {
+                    Op::JUMP_TABLE_NUM
+                } else {
+                    Op::JUMP_TABLE
+                };
+                let index = self.emit(op, vec![Operand::Imm(0)]);
                 let instruction = &mut self.instructions[index];
                 instruction.native_switch_version = Some(version);
                 if numeric {

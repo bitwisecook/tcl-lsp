@@ -244,6 +244,9 @@ fn prepare_try_visits(
         },
     );
     let catches_success = handlers.iter().any(|handler| handler.condition.code() == 0);
+    // Tcl 9.1's TclCompileTryCmd dispatches handlers through one numeric
+    // jump table when none is a `trap` (IssueTryTraplessClausesInstructions
+    // and its finally twin, tclCompCmdsSZ.c); 9.0 tests each code in turn.
     let numeric_handler_table = version >= TclVersion::V9_1
         && !handlers.is_empty()
         && handlers

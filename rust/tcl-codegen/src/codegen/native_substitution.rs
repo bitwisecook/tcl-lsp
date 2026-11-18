@@ -121,6 +121,49 @@ pub(crate) fn compile(
 }
 
 impl CodegenCtx<'_> {
+    /// Tcl 9.1's dispatch of an exceptional substitution's return code: an
+    /// error is reraised, a break jumps back to the shared break target, a
+    /// continue skips the substitution, and anything else (`return`) gives
+    /// its result as the substitution's value.
+    fn emit_substitution_table_dispatch(
+        &mut self,
+        version: tcl_dialect::TclVersion,
+        break_target: &str,
+        finish: &str,
+    ) {
+        let error = self.fresh_label("subst_error");
+        let broken = self.fresh_label("subst_break");
+        let continued = self.fresh_label("subst_continue");
+        let other = self.fresh_label("subst_other");
+        self.emit(Op::PUSH_RETURN_CODE, vec![]);
+        let table = self.emit(Op::JUMP_TABLE_NUM, vec![Operand::Imm(0)]);
+        self.instructions[table].native_switch_version = Some(version);
+        self.instructions[table].native_switch_integers = Some(
+            [
+                (1, error.clone()),
+                (3, broken.clone()),
+                (4, continued.clone()),
+            ]
+            .into_iter()
+            .collect(),
+        );
+        self.emit(Op::JUMP4, vec![Operand::Label(other.clone())]);
+        self.place_label(&error);
+        self.emit(Op::PUSH_RETURN_OPTS, vec![]);
+        self.emit(Op::PUSH_RESULT, vec![]);
+        self.emit(Op::END_CATCH, vec![]);
+        self.emit(Op::RETURN_STK, vec![]);
+        self.place_label(&broken);
+        self.emit(Op::END_CATCH, vec![]);
+        self.emit(Op::JUMP4, vec![Operand::Label(break_target.to_owned())]);
+        self.place_label(&continued);
+        self.emit(Op::END_CATCH, vec![]);
+        self.emit(Op::JUMP4, vec![Operand::Label(finish.to_owned())]);
+        self.place_label(&other);
+        self.emit(Op::PUSH_RESULT, vec![]);
+        self.emit(Op::END_CATCH, vec![]);
+    }
+
     fn flush_substitution_fragments(&mut self, count: &mut usize) {
         while *count > 255 {
             self.emit(Op::STR_CONCAT1, vec![Operand::Imm(255)]);
@@ -149,6 +192,10 @@ impl CodegenCtx<'_> {
             count = 1;
         }
         let done = self.fresh_label("subst_done");
+        let table_version = self.target_version().filter(|version| {
+            tcl_registry::native_compiler_pass::native_subst_dispatches_through_jump_table(*version)
+        });
+        let mut break_target = None;
         for (position, part) in parts.iter().enumerate() {
             let exceptional = match &part.part {
                 ExecutablePart::Command { .. } => true,
@@ -166,6 +213,16 @@ impl CodegenCtx<'_> {
                 continue;
             }
             self.flush_substitution_fragments(&mut count);
+            if table_version.is_some() && break_target.is_none() {
+                // Every break jumps back here, to one jump to the end.
+                let start = self.fresh_label("subst_start");
+                let target = self.fresh_label("subst_break_target");
+                self.emit(Op::JUMP4, vec![Operand::Label(start.clone())]);
+                self.place_label(&target);
+                self.emit(Op::JUMP4, vec![Operand::Label(done.clone())]);
+                self.place_label(&start);
+                break_target = Some(target);
+            }
             let (begin, handler) = self.emit_catch_region_prologue(None, None);
             let saved_context = self.native_compilation;
             self.native_compilation = saved_context.with_inline_exception_range();
@@ -181,6 +238,14 @@ impl CodegenCtx<'_> {
             let continued = self.fresh_label("subst_continue");
             self.emit(Op::JUMP4, vec![Operand::Label(ok.clone())]);
             self.place_label(&handler);
+            if let (Some(version), Some(target)) = (table_version, &break_target) {
+                self.emit_substitution_table_dispatch(version, target, &finish);
+                self.place_label(&ok);
+                self.emit(Op::STR_CONCAT1, vec![Operand::Imm(2)]);
+                self.place_label(&finish);
+                count = 1;
+                continue;
+            }
             self.emit(Op::PUSH_RETURN_OPTS, vec![]);
             self.emit(Op::PUSH_RESULT, vec![]);
             self.emit(Op::PUSH_RETURN_CODE, vec![]);

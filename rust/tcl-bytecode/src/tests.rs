@@ -252,6 +252,7 @@ fn op_table_matches_c_instruction_table() {
         (Op::INCR_ARRAY4, "incrArray", 5),
         (Op::INCR_SCALAR4_IMM, "incrScalarImm", 6),
         (Op::INCR_ARRAY4_IMM, "incrArrayImm", 6),
+        (Op::JUMP_TABLE_NUM, "jumpTableNum", 5),
     ] {
         assert_eq!(op.mnemonic(), mnemonic, "mnemonic of {op:?}");
         assert_eq!(op.size(), size, "size of {op:?}");
@@ -616,6 +617,7 @@ fn opcode_family_partition_total() {
             Op::INCR_ARRAY4 => (Op::INCR_ARRAY4.mnemonic(), Op::INCR_ARRAY4.size()),
             Op::INCR_SCALAR4_IMM => (Op::INCR_SCALAR4_IMM.mnemonic(), Op::INCR_SCALAR4_IMM.size()),
             Op::INCR_ARRAY4_IMM => (Op::INCR_ARRAY4_IMM.mnemonic(), Op::INCR_ARRAY4_IMM.size()),
+            Op::JUMP_TABLE_NUM => (Op::JUMP_TABLE_NUM.mnemonic(), Op::JUMP_TABLE_NUM.size()),
         }
     }
     let all = [
@@ -842,6 +844,7 @@ fn opcode_family_partition_total() {
         Op::INCR_ARRAY4,
         Op::INCR_SCALAR4_IMM,
         Op::INCR_ARRAY4_IMM,
+        Op::JUMP_TABLE_NUM,
     ];
     for op in all {
         let (mnemonic, size) = touch(op);

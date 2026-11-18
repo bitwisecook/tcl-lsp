@@ -86,6 +86,15 @@ pub fn native_optimizer_blanks_discarded_pushes(version: TclVersion) -> bool {
     version >= TclVersion::V8_6
 }
 
+/// Whether a compiled `subst` sends an exceptional substitution's return
+/// code through one numeric jump table (`jumpTableNum`) behind a jump to the
+/// shared break target, as Tcl 9.1's `TclCompileSubstCmd` does
+/// (tclCompCmdsSZ.c). Earlier releases use the deprecated `returnCodeBranch`.
+#[must_use]
+pub fn native_subst_dispatches_through_jump_table(version: TclVersion) -> bool {
+    version >= TclVersion::V9_1
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

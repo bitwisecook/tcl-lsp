@@ -399,6 +399,9 @@ pub enum Op {
     INCR_ARRAY4,
     INCR_SCALAR4_IMM,
     INCR_ARRAY4_IMM,
+    /// Tcl 9.1's numeric jump table (`INST_JUMP_TABLE_NUM`): pops a wide
+    /// integer and jumps to its entry, or falls through when it has none.
+    JUMP_TABLE_NUM,
 }
 
 impl Op {
@@ -666,6 +669,7 @@ impl Op {
             Self::INCR_ARRAY4 => "incrArray",
             Self::INCR_SCALAR4_IMM => "incrScalarImm",
             Self::INCR_ARRAY4_IMM => "incrArrayImm",
+            Self::JUMP_TABLE_NUM => "jumpTableNum",
             _ => return None,
         })
     }
@@ -1045,6 +1049,7 @@ impl Op {
                 | Self::DICT_NEXT
                 | Self::DICT_RECOMBINE_IMM
                 | Self::JUMP_TABLE
+                | Self::JUMP_TABLE_NUM
                 | Self::LAPPEND_LIST
                 | Self::APPEND_SCALAR4
                 | Self::LAPPEND_SCALAR4
