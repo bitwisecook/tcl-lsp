@@ -384,6 +384,15 @@ pub fn load_in_memory_under(sources: Vec<(PackFile, String)>, trust: WorkspaceTr
     load_sources(sources, Vec::new(), trust, None)
 }
 
+/// The notices the loader gives `text` read as the pack file `file`, with the
+/// text itself as the image: line numbers and subjects refer to this buffer,
+/// never to what is on disk. Collisions with other packs are not part of a
+/// single buffer's check.
+#[must_use]
+pub fn check_buffer(file: PackFile, text: &str, trust: WorkspaceTrust) -> Vec<PackNotice> {
+    load_in_memory_under(vec![(file, text.to_owned())], trust).notices
+}
+
 /// Load and merge every discovered file, the workspace tier trusted — a
 /// caller holding an editor's trust state loads through [`load_under`].
 #[must_use]
@@ -1346,6 +1355,29 @@ pub fn describe_source(tier: Tier, origin: Origin) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn check_buffer_reports_notices_over_the_buffer_text() {
+        let _guard = cache_guard();
+        let pack = "speclib mylib 1 {\n    command mylib::x {\n        arity 1\n    }\n}\n";
+        let edited = format!("{pack}a_word_only_this_edit_carries\n");
+        let file = PackFile {
+            tier: Tier::Workspace,
+            path: PathBuf::from("/buffer/mylib.tclspec"),
+            origin: crate::discovery::Origin::DotDir,
+            dependency_tier: None,
+        };
+        assert!(check_buffer(file.clone(), pack, WorkspaceTrust::Trusted).is_empty());
+        let notices = check_buffer(file, &edited, WorkspaceTrust::Trusted);
+        let [notice] = notices.as_slice() else {
+            panic!("{notices:#?}");
+        };
+        assert_eq!(notice.path, PathBuf::from("/buffer/mylib.tclspec"));
+        assert_eq!(notice.line, 6);
+        assert!(notice.message.contains("a_word_only_this_edit_carries"));
+        let subject = notice.subject.as_ref().expect("a loader subject");
+        assert_eq!(subject.image().try_text().unwrap(), edited);
+    }
 
     fn tmpdir(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!(
