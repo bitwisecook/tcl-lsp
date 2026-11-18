@@ -770,6 +770,9 @@ impl Op {
                 | Self::CONST_IMM
                 | Self::DICT_APPEND
                 | Self::DICT_LAPPEND
+                | Self::DICT_UPDATE_START
+                | Self::DICT_UPDATE_END
+                | Self::DICT_RECOMBINE_IMM
                 | Self::UPVAR
                 | Self::NSUPVAR
                 | Self::VARIABLE
