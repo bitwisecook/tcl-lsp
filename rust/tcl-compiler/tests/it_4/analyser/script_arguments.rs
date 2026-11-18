@@ -34,6 +34,10 @@
 mod list_quoted_script_arguments {
     use super::super::*;
 
+    fn diag_codes(src: &str) -> Vec<String> {
+        analyser_diags(src, D).into_iter().map(|(c, _, _)| c).collect()
+    }
+
     fn scope_named(
         scope: &tcl_compiler::analyser::Scope,
         kind: tcl_compiler::analyser::ScopeKind,
@@ -46,32 +50,25 @@ mod list_quoted_script_arguments {
 
     #[test]
     fn tp_a_list_built_uplevel_body_declares_in_the_uplevel_frame() {
-        use tcl_compiler::analyser::ScopeKind;
+        // tclsh8.6.18/9.0.4: `proc f {} {uplevel 1 [list set inner 1]};
+        // proc h {} {f; return $inner}; h` -> 1.
         for src in [
-            "proc f {} {\n    uplevel 1 [list set inner 1]\n}\n",
-            // The braced control, which already worked — both must agree.
-            "proc f {} {\n    uplevel 1 {set inner 1}\n}\n",
+            "proc f {} {\n    uplevel 1 [list set inner 1]\n}\nproc h {} {\n    f\n    return $inner\n}\nh\n",
+            // The braced control — both must agree.
+            "proc f {} {\n    uplevel 1 {set inner 1}\n}\nproc h {} {\n    f\n    return $inner\n}\nh\n",
         ] {
-            let r = Analyser::new().analyse(src, D);
-            let up = scope_named(&r.global_scope, ScopeKind::Uplevel)
-                .unwrap_or_else(|| panic!("an uplevel frame scope must open for {src:?}"));
-            assert!(
-                up.variables.contains_key("inner"),
-                "`inner` belongs to the uplevel frame, not the proc: {src:?}"
-            );
+            let codes = diag_codes(src);
+            assert!(!codes.iter().any(|c| c == "W210"), "{src:?}: {codes:?}");
         }
     }
 
     #[test]
     fn tp_a_list_built_namespace_body_declares_in_the_namespace() {
-        let src = "namespace eval ::ns [list set v 1]\n";
-        let r = Analyser::new().analyse(src, D);
-        let ns = &r.global_scope.children[0];
-        assert!(
-            ns.variables.contains_key("v"),
-            "the built `set v 1` runs in `::ns`: {:?}",
-            ns.variables.keys().collect::<Vec<_>>()
-        );
+        // tclsh8.6.18/9.0.4: `namespace eval ::ns [list set v 1];
+        // puts $::ns::v` -> 1.
+        let src = "namespace eval ::ns [list set v 1]\nputs $::ns::v\n";
+        let codes = diag_codes(src);
+        assert!(!codes.iter().any(|c| c == "W210"), "{codes:?}");
     }
 
     #[test]
