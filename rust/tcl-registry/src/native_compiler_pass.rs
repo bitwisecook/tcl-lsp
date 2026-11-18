@@ -72,9 +72,24 @@ pub fn native_compiler_replays(
     }) {
         return true;
     }
-    !hazards
-        .into_iter()
-        .any(|hazard| hazard != NativeCompilerPassHazard::YieldTo || version >= TclVersion::V9_0)
+    native_compiler_opcodes_compact(version, hazards)
+}
+
+/// Whether a body's opcodes admit C's compact second pass
+/// (`IsCompactibleCompileEnv`, tclCompile.c): 8.6 on, and none of the
+/// invocations, runtime evaluations or variable links that could change the
+/// command table while it runs (`yieldto` counts from 9.0). This is the whole
+/// answer for a script compiled in a root interpreter with no limits, as
+/// `tcl::unsupported::disassemble script` compiles one.
+#[must_use]
+pub fn native_compiler_opcodes_compact(
+    version: TclVersion,
+    hazards: impl IntoIterator<Item = NativeCompilerPassHazard>,
+) -> bool {
+    version >= TclVersion::V8_6
+        && !hazards.into_iter().any(|hazard| {
+            hazard != NativeCompilerPassHazard::YieldTo || version >= TclVersion::V9_0
+        })
 }
 
 /// Whether the release runs `TclOptimizeBytecode` over every compiled body

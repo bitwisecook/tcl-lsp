@@ -152,6 +152,30 @@ pub(super) fn omit_command_markers(ctx: &mut CodegenCtx<'_>) {
     }
 }
 
+/// Settle the command markers once the body is final. A live compile places
+/// them by C's rule (its compact pass has already omitted them). A compile
+/// for a named release without a live entry, as `tcl dis` makes, is a script
+/// compiled in a root interpreter with no limits: C compacts it when its
+/// opcodes allow, and otherwise places markers by the same rule. A compile for
+/// no named release keeps its markers.
+pub(super) fn settle_command_starts(ctx: &mut CodegenCtx<'_>) {
+    if ctx.native_entry.is_some() {
+        place_command_starts(ctx);
+        return;
+    }
+    let Some(version) = ctx.target_version() else {
+        return;
+    };
+    if tcl_registry::native_compiler_pass::native_compiler_opcodes_compact(
+        version,
+        ctx.native_compiler_pass_hazards.iter().copied(),
+    ) {
+        omit_command_markers(ctx);
+    } else {
+        place_command_starts(ctx);
+    }
+}
+
 /// Place command markers where C's `CompileCmdCompileProc` puts
 /// `INST_START_CMD` (tclCompile.c `atCmdStart`, 8.5.19 through 9.1.0): one
 /// before each command it compiles, none for a command it invokes, none at
@@ -167,8 +191,7 @@ pub(super) fn omit_command_markers(ctx: &mut CodegenCtx<'_>) {
 pub(super) fn place_command_starts(ctx: &mut CodegenCtx<'_>) {
     collapse_repeated_starts(ctx);
     let revalidates = ctx
-        .native_entry
-        .and_then(|entry| entry.execution_point?.tcl_version())
+        .target_version()
         .is_none_or(tcl_dialect::TclVersion::revalidates_running_bytecode);
     if !revalidates {
         omit_release_markers(ctx);
