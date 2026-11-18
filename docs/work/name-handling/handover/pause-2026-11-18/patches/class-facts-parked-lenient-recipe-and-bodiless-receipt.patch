@@ -1,0 +1,137 @@
+From 9d3c1b6fe33b809332182cd4b5441bf55417447f Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 17 Nov 2026 18:48:41 +0000
+Subject: [PATCH 1/2] class facts: a command substituted into a root head keeps
+ its lenient navigation recipe
+
+Under the lenient tcl environment only root commands recorded their
+document navigation candidates, so the constructor in `[::C new] ping`
+had none and a project class declared in another file could not type the
+receiver. A whole command substitution in a root command's head runs
+first in the same frame and command world, so it takes the same recipe.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_017u5g3Kgho1C9zZ3yZYrK8P
+---
+ .../source_transition_advice/tape_preparation.rs         | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/rust/tcl-compiler/src/command_binding/source_transition_advice/tape_preparation.rs b/rust/tcl-compiler/src/command_binding/source_transition_advice/tape_preparation.rs
+index e9cae9942f..163fc6bc56 100644
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/tape_preparation.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/tape_preparation.rs
+@@ -496,6 +496,15 @@ impl OriginalSourceTransitionSeed {
+                 // supplies this conditional Document recipe. Nested bodies keep
+                 // their independent source scope, and no runtime frame follows.
+                 tape.retain_logical_document_navigation(&graph, &invocation.words, origin);
++                // A command substituted whole into the head runs first, in the
++                // same frame and command world, so it takes the same recipe.
++                if let Some(child) = invocation
++                    .words
++                    .first()
++                    .and_then(super::super::original_single_command_substitution_words)
++                {
++                    tape.retain_logical_document_navigation(&graph, &child.command().words, origin);
++                }
+             }
+             advice_context.retain_original_invocation(
+                 &mut graph,
+-- 
+2.43.0
+
+
+From dbd4f73feeaf3d079863041568ad87bcfb1d532d Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 17 Nov 2026 19:26:38 +0000
+Subject: [PATCH 2/2] class facts: a class created without a definition script
+ keeps its receipt
+
+`oo::class create C` with no script recorded no class definition, so
+instances of C had no factory candidate and `$s destroy` drew W307. A
+creation with no definition script evaluates none: the class has the
+members an empty script gives it. tclsh 8.6.18, 9.0.4, 9.1.0: `$s destroy`
+runs; `$t nosuch` raises unknown method "nosuch": must be destroy.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_017u5g3Kgho1C9zZ3yZYrK8P
+---
+ .../deferred_method/retained_entries.rs       | 28 +++++++++++++------
+ .../tcl-compiler/tests/it_4/analyser/tcloo.rs | 26 +++++++++++++++++
+ 2 files changed, 46 insertions(+), 8 deletions(-)
+
+diff --git a/rust/tcl-compiler/src/command_binding/deferred_method/retained_entries.rs b/rust/tcl-compiler/src/command_binding/deferred_method/retained_entries.rs
+index a3e6b72ea1..503ba81cb4 100644
+--- a/rust/tcl-compiler/src/command_binding/deferred_method/retained_entries.rs
++++ b/rust/tcl-compiler/src/command_binding/deferred_method/retained_entries.rs
+@@ -99,14 +99,26 @@ pub(super) fn select_bounded_method_definition(
+     let argument = facts.arg_roles.iter().find_map(|(index, role)| {
+         (*role == tcl_registry::ArgRole::Body)
+             .then_some(facts.argument_offset + usize::from(*index))
+-    })?;
+-    let definition = retained_script_operand(
+-        argument,
+-        native.script_operands(),
+-        state,
+-        native.segment.span.start(),
+-        context.config,
+-    )?;
++    });
++    // A creation written with no definition script evaluates none: the class
++    // has exactly the members an empty script would give it.
++    let definition = match argument {
++        Some(argument) => retained_script_operand(
++            argument,
++            native.script_operands(),
++            state,
++            native.segment.span.start(),
++            context.config,
++        )?,
++        None => ExecutedScriptSource::materialised_image(
++            CommandAllocationSite {
++                source: Arc::clone(state.current_source_origin.as_ref()?),
++                offset: native.segment.span.start(),
++            },
++            Vec::new(),
++            tcl_lexer::SourceImage::native(Arc::<[u8]>::from(&b""[..])),
++        ),
++    };
+     let parameters = state
+         .baseline
+         .dialect
+diff --git a/rust/tcl-compiler/tests/it_4/analyser/tcloo.rs b/rust/tcl-compiler/tests/it_4/analyser/tcloo.rs
+index dfbadab54c..ca8300a44f 100644
+--- a/rust/tcl-compiler/tests/it_4/analyser/tcloo.rs
++++ b/rust/tcl-compiler/tests/it_4/analyser/tcloo.rs
+@@ -1042,3 +1042,29 @@ mod reopened_classes {
+         }
+     }
+ }
++
++mod bodiless_classes {
++    use super::super::*;
++
++    #[test]
++    fn a_class_created_without_a_script_types_its_instances() {
++        // tclsh 8.6.18, 9.0.4 and 9.1.0: `oo::class create C` makes a class
++        // with no members; `$s destroy` runs and `$t nosuch` raises
++        // `unknown method "nosuch": must be destroy`.
++        let src = concat!(
++            "oo::class create C\n",
++            "set s [C new]\n",
++            "$s destroy\n",
++            "set t [C new]\n",
++            "$t nosuch\n",
++        );
++        for release in ["tcl8.6", "tcl9.0", "tcl9.1"] {
++            let codes: Vec<String> = analyser_diags(src, release)
++                .into_iter()
++                .map(|(code, _, _)| code)
++                .filter(|code| code.starts_with("W30"))
++                .collect();
++            assert_eq!(codes, ["W308"], "{release}");
++        }
++    }
++}
+-- 
+2.43.0
+

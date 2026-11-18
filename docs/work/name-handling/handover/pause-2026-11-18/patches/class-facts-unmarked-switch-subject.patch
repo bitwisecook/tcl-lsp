@@ -1,0 +1,51 @@
+diff --git a/rust/tcl-registry/src/case_bodies.rs b/rust/tcl-registry/src/case_bodies.rs
+index 6c836f5588..fa5765e315 100644
+--- a/rust/tcl-registry/src/case_bodies.rs
++++ b/rust/tcl-registry/src/case_bodies.rs
+@@ -193,7 +193,20 @@ impl CaseListSpec {
+             query,
+             crate::abbrev::PrefixMatching::Enabled,
+         );
+-        !(effects.complete && effects.ended_by_marker && effects.option_end <= index)
++        // From Tcl 8.5 the option scan stops `reserved` words before the end
++        // (`objc - 2`), so a subject among those words is never an option even
++        // without `--`. Tcl 8.4 scans every dash-led word (tclsh 8.4.20:
++        // `switch -exact $x {...}` with x=-glob raises `bad option`), and an
++        // unpinned release cannot say which.
++        let reserves = self.two_arg_optionless_surface.is_some()
++            && arguments
++                .dialect()
++                .and_then(|dialect| dialect.tcl_version)
++                .is_some_and(|version| version >= tcl_dialect::TclVersion::V8_5);
++        let known = effects.complete
++            && effects.option_end <= index
++            && (effects.ended_by_marker || (reserves && index + reserved >= values.len()));
++        !known
+     }
+ 
+     fn clauses_are_exhaustive(
+@@ -512,9 +525,6 @@ mod tests {
+                 )
+                 .expect("bodies");
+             assert!(!selected.selection_unknown, "{dialect_name}");
+-            if dialect_name != "tcl8.4" {
+-                continue;
+-            }
+             let unmarked = [
+                 crate::InvocationWord::Literal("-exact"),
+                 crate::InvocationWord::Dynamic,
+@@ -528,9 +538,12 @@ mod tests {
+                     &options,
+                 )
+                 .expect("bodies");
+-            assert!(
++            // tclsh 8.5.19-9.1.0 reserve the last two words, so the unmarked
++            // subject is the subject; 8.4.20 raises `bad option` for x=-glob.
++            assert_eq!(
+                 selected.selection_unknown,
+-                "8.4 may read an unmarked dynamic subject as an option"
++                dialect_name == "tcl8.4",
++                "{dialect_name}: an unmarked dynamic subject"
+             );
+         }
+     }

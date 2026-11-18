@@ -1,0 +1,65 @@
+From 0b6ab068ea786a35755055e29967711429ac91af Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 17 Nov 2026 18:48:41 +0000
+Subject: [PATCH] class facts: a project receiver's token reads the display
+ completeness of the class cards
+
+original_project_receiver_class_with_sources answers semantic tokens only,
+a display consumer, but required the strict card completeness, which any
+construction in the declaring file withdraws: `oo::class create ::C
+{method ping {} {}}; ::C create ::obj` gave no receiver for `::obj ping`
+or `[::C new] ping` in another file. It now reads labels_complete (every
+unread operation is a construction of, or a call on, a source class),
+as the named-instance display already does; the cards' own coverage
+query stays strict. tclsh 8.6.18, 9.0.4: both calls dispatch to ping.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_017u5g3Kgho1C9zZ3yZYrK8P
+---
+ .../source_structure/project_class_cards.rs              | 9 +++++----
+ 1 file changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/rust/tcl-compiler/src/registry_invocation/source_structure/project_class_cards.rs b/rust/tcl-compiler/src/registry_invocation/source_structure/project_class_cards.rs
+index 4474afbb66..5ac0e8bd53 100644
+--- a/rust/tcl-compiler/src/registry_invocation/source_structure/project_class_cards.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_structure/project_class_cards.rs
+@@ -47,7 +47,8 @@ pub(crate) struct OriginalProjectClassCells {
+     cells: Vec<(ByteCommandSlot, ProjectClassCell)>,
+     complete: bool,
+     /// Every unread operation is a construction of, or a call on, a source
+-    /// class of this catalogue. Enough for a display label, never for a card.
++    /// class of this catalogue: enough for display (a label, a project
++    /// receiver's token), never for a proof that reads the card.
+     labels_complete: bool,
+ }
+ impl OriginalProjectClassCells {
+@@ -325,7 +326,7 @@ fn finish(
+         .iter()
+         .filter(|provider| !std::ptr::eq(*provider, declaring_provider))
+         .all(|provider| {
+-            provider.cells.complete
++            provider.cells.labels_complete
+                 && provider.matches_declaring_owner()
+                 && provider.rows.iter().all(|row| row.class.is_some())
+         });
+@@ -338,7 +339,7 @@ fn finish(
+             .filter(|provider| !std::ptr::eq(*provider, declaring_provider)),
+     ) {
+         if !project_complete
+-            || !provider.cells.complete
++            || !provider.cells.labels_complete
+             || !provider.matches_declaring_owner()
+             || provider.rows.iter().any(|row| row.class.is_none())
+             || provider.cells.policy != policy
+@@ -656,7 +657,7 @@ fn selected_row<'a>(
+     (retained == words).then_some(())?;
+     if providers
+         .iter()
+-        .any(|provider| !provider.cells.complete || !provider.matches_declaring_owner())
++        .any(|provider| !provider.cells.labels_complete || !provider.matches_declaring_owner())
+     {
+         return None;
+     }
+-- 
+2.43.0
+

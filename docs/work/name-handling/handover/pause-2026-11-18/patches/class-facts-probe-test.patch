@@ -1,0 +1,196 @@
+diff --git a/rust/tcl-compiler/tests/zz_probe.rs b/rust/tcl-compiler/tests/zz_probe.rs
+new file mode 100644
+index 0000000000..89ff237421
+--- /dev/null
++++ b/rust/tcl-compiler/tests/zz_probe.rs
+@@ -0,0 +1,190 @@
++use tcl_compiler::analyser::Analyser;
++
++#[test]
++fn probe() {
++    let Ok(path) = std::env::var("TCL_PROBE") else {
++        return;
++    };
++    let src = std::fs::read_to_string(path).unwrap();
++    let dialects = std::env::var("TCL_PROBE_DIALECTS").unwrap_or_else(|_| "tcl8.6".into());
++    for dialect in dialects.split(',') {
++        let r = Analyser::new().analyse(&src, dialect);
++        println!("=== {dialect}");
++        for d in &r.diagnostics {
++            println!("diag {} {:?} {}", d.code, d.span, d.message);
++        }
++        let mut classes: Vec<_> = r.all_classes.iter().collect();
++        classes.sort_by_key(|(k, _)| (*k).clone());
++        for (name, c) in classes {
++            let mut methods: Vec<_> = c.methods.keys().collect();
++            methods.sort();
++            println!(
++                "class {name} supers={:?} unknown={} methods={methods:?} factory={}",
++                c.superclasses,
++                c.inheritance_unknown,
++                c.factory.is_some()
++            );
++        }
++        let mut inst: Vec<_> = r.instance_classes.iter().collect();
++        inst.sort();
++        println!("instances {inst:?}");
++        match tcl_compiler::registry_invocation::source_structure::OriginalProjectClassCards::capture(&r) {
++            None => println!("cards None"),
++            Some(cards) => {
++                let rows: Vec<_> = cards
++                    .named_instance_display_reports()
++                    .into_iter()
++                    .map(|(label, class)| (label, class.qualified_name.clone()))
++                    .collect();
++                println!("cards {rows:?}");
++            }
++        }
++        if std::env::var("TCL_PROBE_IR").is_ok() {
++            let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
++            let cu =
++                tcl_compiler::compilation_unit::CompilationUnit::build_for(&src, registry, false);
++            for st in &cu.ir_module.top_level.statements {
++                let d = format!("{st:?}");
++                println!("top {}", &d[..d.len().min(300)]);
++            }
++            for m in cu.ir_module.methods.values() {
++                println!("method {} ivars={:?}", m.reporting_label(), m.instance_vars);
++                for st in &m.body.statements {
++                    let d = format!("{st:?}");
++                    println!("   {}", &d[..d.len().min(400)]);
++                    if let Some(t) = st.tokens() {
++                        println!(
++                            "   accesses {:?}",
++                            t.variable_accesses
++                                .iter()
++                                .map(|a| a.original_spelling.clone())
++                                .collect::<Vec<_>>()
++                        );
++                    }
++                }
++            }
++        }
++        if let Some(realm) = r.retained_command_realm() {
++            for (class, refs) in realm.definition_method_reference_inventories() {
++                println!(
++                    "refs class={} {:?}",
++                    class.command,
++                    refs.map(|refs| refs
++                        .iter()
++                        .map(|r| (r.name_span(), r.method_entry().is_some()))
++                        .collect::<Vec<_>>())
++                );
++            }
++        }
++        for (name, p) in &r.all_procs {
++            println!(
++                "proc {name} source_name={:?} traits={:?}",
++                p.source_name.is_some(),
++                p.param_traits
++            );
++        }
++        for d in r.original_procedure_declarations() {
++            println!("original_proc traits={:?}", d.metadata().param_traits);
++        }
++        let mut procs: Vec<_> = r.all_procs.keys().collect();
++        procs.sort();
++        println!("procs {procs:?}");
++    }
++}
++
++#[test]
++fn probe_cards() {
++    if std::env::var("TCL_PROBE_CARDS").is_err() {
++        return;
++    }
++    let lib = "oo::class create ::C {method ping {} {}}; ::C create ::obj";
++    for caller in ["[::C new] ping", "::obj ping"] {
++        for dialect in ["tcl", "tcl8.6"] {
++            let l = Analyser::new().analyse(lib, dialect);
++            let cards = tcl_compiler::registry_invocation::source_structure::OriginalProjectClassCards::capture(&l);
++            let c = Analyser::new().analyse(caller, dialect);
++            let config = tcl_lexer::LexerConfig::default();
++            let segs =
++                tcl_compiler::segmenter::segment_commands_with_offset_and_config(caller, 0, config);
++            let found = cards.as_ref().and_then(|cards| {
++                tcl_compiler::registry_invocation::source_structure::original_project_receiver_class_with_sources(
++                    caller,
++                    &c,
++                    &segs[0],
++                    std::slice::from_ref(cards),
++                    None,
++                )
++            });
++            println!(
++                "{dialect} {caller}: cards={} found={}",
++                cards.is_some(),
++                found.is_some()
++            );
++        }
++    }
++}
++
++#[test]
++fn probe_lower() {
++    let Ok(path) = std::env::var("TCL_PROBE_LOWER") else {
++        return;
++    };
++    let src = std::fs::read_to_string(path).unwrap();
++    use tcl_compiler::lowering::{Lowerer, lower_to_ir, lower_to_ir_with};
++    let kinds = |m: &tcl_compiler::Module| {
++        m.top_level
++            .statements
++            .iter()
++            .map(|s| {
++                format!("{s:?}")
++                    .split([' ', '('])
++                    .next()
++                    .unwrap()
++                    .to_owned()
++            })
++            .collect::<Vec<_>>()
++    };
++    for dialect in ["tcl8.6", "tcl9.0"] {
++        let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
++        let profile = registry.profile();
++        let config = tcl_lexer::LexerConfig::for_profile(profile);
++        let lowered = lower_to_ir(&src, registry);
++        println!("{dialect} lower_to_ir {:?}", kinds(&lowered));
++        for p in lowered.procedures.values() {
++            println!(
++                "{dialect} proc {} {:?}",
++                p.qualified_name,
++                p.body
++                    .statements
++                    .iter()
++                    .map(|s| format!("{s:?}")
++                        .split([' ', '('])
++                        .next()
++                        .unwrap()
++                        .to_owned())
++                    .collect::<Vec<_>>()
++            );
++        }
++        println!(
++            "{dialect} dialect-only {:?}",
++            kinds(&lower_to_ir_with(
++                Lowerer::with_config(registry, config).with_dialect(profile),
++                &src
++            ))
++        );
++        println!(
++            "{dialect} extensible-only {:?}",
++            kinds(&lower_to_ir_with(
++                Lowerer::with_config(registry, config).with_host_extensible_command_table(),
++                &src
++            ))
++        );
++        println!(
++            "{dialect} plain {:?}",
++            kinds(&lower_to_ir_with(
++                Lowerer::with_config(registry, config),
++                &src
++            ))
++        );
++    }
++}
