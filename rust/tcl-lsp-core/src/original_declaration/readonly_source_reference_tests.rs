@@ -295,7 +295,9 @@ fn readonly_member_census_stays_partial_for_other_class_families() {
 
 #[test]
 fn readonly_property_reports_promote_only_a_complete_typed_source_census() {
-    let source = "oo::class create C {property size; method body {} {my size}}";
+    // tclsh 9.0.4/9.1.0: property needs oo::configurable, and its read is
+    // `my configure -size` (a bare `my size` is an unknown method).
+    let source = "oo::configurable create C {property size; method body {} {my configure -size}}";
     let analysis = Analyser::new().analyse(source, "tcl9.0");
     let class = analysis.original_class_declarations().next().unwrap();
     let property = class
@@ -313,7 +315,7 @@ fn readonly_property_reports_promote_only_a_complete_typed_source_census() {
     );
     assert_eq!(report.spans().len(), 1);
     assert_eq!(&source[report.spans()[0].as_range()], "size");
-    let unused_source = "oo::class create C {property size; method body {} {return ok}}";
+    let unused_source = "oo::configurable create C {property size; method body {} {return ok}}";
     let unused_analysis = Analyser::new().analyse(unused_source, "tcl9.0");
     let unused_class = unused_analysis
         .original_class_declarations()
