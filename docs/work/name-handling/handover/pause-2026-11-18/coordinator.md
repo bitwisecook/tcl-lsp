@@ -114,3 +114,40 @@ that is waiting to read the file.
    `origin/work`, rebuild Jim (`bash scripts/dev/ensure-jim-oracle.sh`), and take a clean-head
    baseline before quoting any count.
 4. First work: the open wrong answers above, then the measurement holes.
+
+## Confirmed at 12:05 UTC: every session has stopped and handed off
+
+All thirteen files are on `work` beside this one, and every patch a handoff cites exists (here
+under `patches/`, or under `docs/work/name-handling/patches/` for the two older ones).
+
+| Session | Handoff commit | Unfinished work saved as |
+| --- | --- | --- |
+| analyser-binding | `6d9b4cbc9` | `patches/analyser-binding-declared-frame-switch.patch`, `-namespace-unknown`, `-operator-errors`, `-proc-rename-trust` |
+| class-facts | `41b9181d` | `patches/class-facts-parked-lenient-recipe-and-bodiless-receipt.patch`, `-probe-test`, `-rejected-labels-complete`, `-unmarked-switch-subject` |
+| diagnostics | `286ce2ebe4` | none, tree clean |
+| dataflow-optimiser | `922a28f23d` | `patches/dataflow-optimiser-lifecycle-fixture.patch` |
+| values | `dbd1be232` | none, nothing in flight |
+| taint | `e0d095be8` | eight `patches/taint-*.patch` (rule-procedure advice, Tk callback replay, `entry_after` probes, others) |
+| execution | `e6014fb9` | `patches/execution-c86-optimizer-and-else-jump.patch` |
+| analysis-performance | `961a7f9a3` | `docs/work/name-handling/patches/handover-analysis-performance-body-wrapper-realm.patch` |
+| lsp-features | `f499969f` | none; the `it_2` to `it_5` run had not started |
+| server-e2e-db | `87cfef554` | none, tree clean |
+| irules-registry-tooling | `e6651283` | `patches/irules-registry-tooling-spectcl-test-scratch-guards.patch`, `unmeasured_sweep.py.txt`, `ledger_truth_pass.py.txt` |
+| tk-oo | `8aeda0817` | `patches/tk-oo-package-presence-rule.patch`, `patches/tk-oo-eval-proved-constant.patch` |
+| live-inlining | `938b2c9a` | `patches/live-inlining-clauseplan-lowering.patch`, `-clauseplan-release-surface` |
+
+Corrections to what is written above, learned after it was written:
+
+- dataflow-optimiser says it never received two messages: the `split ""` wrong rewrite (O129,
+  #2418 back; witness `procedure_summaries::split_of_the_empty_string_is_the_empty_list`) and the
+  request to approve taint's advisory solver mode. Its handoff says so. Give it both again at resume.
+- lsp-features had not started measuring `tcl-lsp-core` `it_2` to `it_5`. That hole is wholly open.
+- The issue sessions (`dataflow`, `audit`, `server`, `bytecode`) were paused by the owner at the
+  same time; their handovers are in `docs/work/issue-sessions/handover/`. The declared-frame
+  collector work is on branch `issues/dataflow-2` at `429ef5da`, unverified: its view fix passes 6
+  of the 65 regressions with the switch applied, the other 59 need a merge that is built and not
+  measured. The orchestrator offers it to analyser-binding to take over. The rename-trust and
+  `namespace eval` barrier items it was cleared to write were not started and are free again.
+- #2543's two closing conditions (per-database table, evict one entry at the cap) did land, in
+  `2a026629`; what remains is the 2.7 MB per round residue.
+- The hourly check `trig_01PEuFxF1AEeNAVJYTFw4nnC` is disabled.
