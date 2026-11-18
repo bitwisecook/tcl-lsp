@@ -776,7 +776,7 @@ mod afterimage_source_intent_tests {
     use tcl_compiler::analyser::Analyser;
 
     fn rename(source: &str, old: &[u8], new: &str) -> Result<String, RenameRefusal> {
-        let analysis = Analyser::new().analyse(source, "tcl");
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
         let symbol = analysis
             .original_variable_symbols
             .iter()
@@ -814,11 +814,12 @@ mod afterimage_source_intent_tests {
     #[test]
     fn intentional_variable_rename_preserves_actual_local_scope_and_default_topology() {
         let source = "# 😀\r\nproc p {} {set value 3; puts $value}\r\nproc other {} {set value 4; puts $value}";
-        let after = rename(source, b"value", "café").unwrap();
+        let after = rename(source, b"value", "total").unwrap();
         assert_eq!(
             after,
-            "# 😀\r\nproc p {} {set café 3; puts $café}\r\nproc other {} {set value 4; puts $value}"
+            "# 😀\r\nproc p {} {set total 3; puts $total}\r\nproc other {} {set value 4; puts $value}"
         );
+        assert!(rename(source, b"value", "café").is_err());
         assert!(rename("proc p {value} {puts $value}", b"value", "args").is_err());
         assert!(rename("proc p {args} {puts $args}", b"args", "value").is_err());
     }

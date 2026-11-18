@@ -23,16 +23,10 @@ use tcl_compiler::analyser::Analyser;
 fn logical_variable_rename_uses_original_edit_coverage_and_refuses_alias_only_anchors() {
     let source = "set actual 1; puts $actual";
     let analysis = Analyser::new().analyse(source, "tcl");
-    let edits = rename_var(
-        source,
-        0,
-        4,
-        "changed",
-        &analysis,
-        &LineIndex::new(source),
-        "actual",
-    );
-    assert_eq!(edits.len(), 2);
+    let conditional =
+        conditional_variable_rename_with_diagnosis(source, 0, 4, "changed", &analysis).unwrap();
+    assert_eq!(conditional.edits.len(), 2);
+    assert_eq!(conditional.generated_source, "set changed 1; puts $changed");
     let source = "proc p {i} {upvar ::n::a($i) data; puts $data}";
     let analysis = Analyser::new().analyse(source, "tcl");
     let offset = u32::try_from(source.find(" data;").unwrap() + 1).unwrap();
@@ -49,5 +43,15 @@ fn logical_variable_rename_uses_original_edit_coverage_and_refuses_alias_only_an
             "data"
         ),
         [] as [crate::rename::TextEdit; 0]
+    );
+    assert!(
+        conditional_variable_rename_with_diagnosis(
+            source,
+            position.line,
+            position.character.get(),
+            "changed",
+            &analysis
+        )
+        .is_err()
     );
 }

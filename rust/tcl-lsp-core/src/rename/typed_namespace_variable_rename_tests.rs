@@ -22,7 +22,7 @@ use tcl_compiler::analyser::Analyser;
 #[test]
 fn namespace_variable_source_edits_ignore_alias_reports_and_require_current_symbols() {
     let source = "namespace eval ::N {set value 1; puts $value}";
-    let mut analysis = Analyser::new().analyse(source, "tcl");
+    let mut analysis = Analyser::new().analyse(source, "tcl8.6");
     let expected = namespace_variable_rename_edits(source, &analysis, "::N::value", "changed");
     assert_eq!(expected.len(), 2);
     let mut scopes = vec![&mut analysis.global_scope];
