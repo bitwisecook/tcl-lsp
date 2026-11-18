@@ -316,11 +316,13 @@ pub(super) mod diagnostics {
         // `unknown or ambiguous subcommand "stray"` here. If this gap is
         // ever closed (tracking whether `-map` was truly reconfigured),
         // this test's assertion flips and documents the improvement.
+        // The gap is closed: tclsh 8.5.19 / 8.6.18 / 9.0.4 raise `unknown or
+        // ambiguous subcommand "stray"`, and W001 now says so.
         let src = "proc ::tcl::dict::stray {d} { return $d }\n\
              dict stray [dict create a 1]\n";
         assert!(
-            !fires(src, D, "W001"),
-            "documents the accepted FN gap; got {:?}",
+            fires(src, D, "W001"),
+            "a proc beside the ensemble is not one of its subcommands; got {:?}",
             analyser_diags(src, D),
         );
     }
