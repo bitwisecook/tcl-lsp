@@ -554,11 +554,11 @@ const ACC_PACK: &str = "speclib acc 2.2 {
 /// A pack's `write` through an incoming target reaches the real driver in
 /// statement position: `acc::add s cd` over `s` = `ab` leaves `abcd` in the
 /// next version of `s`, run by the tclvm host from the loaded pack. In value
-/// position neither shape is a value: the read of `s` inside `[acc::add s
-/// ef]` sits on the synthetic call ahead of its host, as a nested `[incr
-/// x]`'s does, so the incoming target is not exact there; and `[acc::store u
-/// xy]`, which reads nothing, evaluates but writes storage the substitution
-/// has no definition for, so it is not substituted. Without
+/// position neither shape is a value, and neither route runs: the source
+/// gate refuses a command with a `VarWrite` role whose writes do not land
+/// (the effect-free policy of a substitution), so `[acc::add s ef]` and
+/// `[acc::store u xy]` record no route answer and their hosts stay
+/// overdefined. Without
 /// `READS_BEFORE_WRITE` nothing records the variable's prior value at the
 /// call, so the incoming target is not exact and `acc::put` declines.
 #[test]
@@ -584,14 +584,8 @@ fn a_pack_write_through_an_incoming_target_reaches_the_driver() {
             "`{value}`: a writing call is never a value in value position"
         );
     }
-    assert_eq!(
-        answers_for(&unit, "::p", "acc::add"),
-        ["evaluated", "declined: not-exact"]
-    );
-    assert_eq!(
-        answers_for(&unit, "::p", "acc::store"),
-        ["not substituted: the outcome writes storage"]
-    );
+    assert_eq!(answers_for(&unit, "::p", "acc::add"), ["evaluated"]);
+    assert!(answers_for(&unit, "::p", "acc::store").is_empty());
     assert_eq!(
         value_at(&unit, "::q", "t", 2),
         Some(LatticeValue::Overdefined),

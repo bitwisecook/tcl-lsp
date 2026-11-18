@@ -25,11 +25,11 @@ edited.
 
 | Verdict | Tests |
 | --- | ---: |
-| KEEP-ORACLE | 123 |
-| KEEP-CONTRACT | 32 |
+| KEEP-ORACLE | 126 |
+| KEEP-CONTRACT | 31 |
 | KEEP-F5 | 30 |
-| FIX-FIXTURE | 20 |
-| FIX-EXPECTATION | 6 |
+| FIX-FIXTURE | 16 |
+| FIX-EXPECTATION | 8 |
 | REWRITE | 6 |
 | RETIRE | 1 |
 | UNDECIDED | 0 |
