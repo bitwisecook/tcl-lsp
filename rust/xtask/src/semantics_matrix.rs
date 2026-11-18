@@ -385,7 +385,7 @@ fn render_f5(out: &mut String, formerly: &[(String, String, String)]) {
         "An iRules call resolves at the F5 iRules and F5 Tcl releases, which descend from \
          Tcl 8.4 by a fork whose source is not available, so the core-Tcl evidence does not \
          close them. These {} rows were authored pure and are pure at Tcl 8.4, and are not \
-         pure under `f5-irules`; `docs/work/name-handling/bigip-name-checks.md` check 32 is the \
+         pure under `f5-irules`; `docs/work/name-handling/bigip-name-checks.md` check 33 is the \
          device test that would evidence them. A further {others} rows authored pure under \
          `f5-irules` (iRules commands and core rows not closed at 8.4) have no evidence at all.\n",
         core.len()

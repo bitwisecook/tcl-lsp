@@ -1,4 +1,4 @@
-# Check 32 of docs/work/name-handling/bigip-name-checks.md (issue #1712).
+# Check 33 of docs/work/name-handling/bigip-name-checks.md (issue #1712).
 #
 # `tclsh8.4 suites/12-pure-builtins.tcl` prints, first, the reference lines
 # (`ref <id> <result>`), then a line `---`, then an iRule that logs the same

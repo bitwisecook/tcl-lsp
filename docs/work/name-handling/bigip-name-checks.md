@@ -3876,7 +3876,13 @@ its citation and a regression that reads the recorded lines.
     If every connection completes and only the named events stop firing,
     the effect is event control and gets its own target; until answered it
     stays `Unknown`.
-32. **The core builtins TMM shares with Tcl 8.4** (issue #1712). Not a
+32. **`lassign` in TMM** (simulator refusal, test scrub). `tcl-irule-test` `live::tests::harness_runs_the_tmm_84_surface` runs `lassign` and the Rust VM refuses it under `f5-irules` because no list-assignment invocation grammar is selected for an F5 profile (`tcl-registry` `native_list_assignment.rs`, `list_assignment_invocation`: Tcl 8.5, 8.6, 9.x and Jim only). Not on record for 21.1.0.1. In `when HTTP_REQUEST`, log the result of each, each in its own rule load:
+    - `log local0. [catch {lassign {a b c} x y} r] ; log local0. "r=$r x=$x y=$y"`
+    - `log local0. [catch {lassign {a b}} r]` and `log local0. $r` (arity: tclsh 8.5 and later require a target variable list, 8.4 has no `lassign`)
+    - `log local0. [catch {lassign {a b c} x y z w} r]` and `log local0. $r`
+    - `log local0. [info commands lassign]`
+    Confirms the test and lets `list_assignment_invocation` take an F5 row: `lassign` exists with the Tcl 8.5 grammar and its extra elements are returned (`b c` for the first line), or it is absent (`invalid command name "lassign"`), in which case the test's use of `lassign` is the claim that fails.
+33. **The core builtins TMM shares with Tcl 8.4** (issue #1712). Not a
     naming question; filed here because it needs a device. Purity is derived
     from source evidence, and the evidence for these 36 builtins is the
     tcl8.4.20 C source; TMM's Tcl is F5's fork of it, so under `f5-irules`
@@ -3899,13 +3905,6 @@ its citation and a regression that reads the recorded lines.
     `f5-irules` when each of its `got` lines matches its `ref` line byte for
     byte; one whose line differs keeps no purity, and the difference is filed
     as its own check.
-
-32. **`lassign` in TMM** (simulator refusal, test scrub). `tcl-irule-test` `live::tests::harness_runs_the_tmm_84_surface` runs `lassign` and the Rust VM refuses it under `f5-irules` because no list-assignment invocation grammar is selected for an F5 profile (`tcl-registry` `native_list_assignment.rs`, `list_assignment_invocation`: Tcl 8.5, 8.6, 9.x and Jim only). Not on record for 21.1.0.1. In `when HTTP_REQUEST`, log the result of each, each in its own rule load:
-    - `log local0. [catch {lassign {a b c} x y} r] ; log local0. "r=$r x=$x y=$y"`
-    - `log local0. [catch {lassign {a b}} r]` and `log local0. $r` (arity: tclsh 8.5 and later require a target variable list, 8.4 has no `lassign`)
-    - `log local0. [catch {lassign {a b c} x y z w} r]` and `log local0. $r`
-    - `log local0. [info commands lassign]`
-    Confirms the test and lets `list_assignment_invocation` take an F5 row: `lassign` exists with the Tcl 8.5 grammar and its extra elements are returned (`b c` for the first line), or it is absent (`invalid command name "lassign"`), in which case the test's use of `lassign` is the claim that fails.
 
 #### Checks for tests that hold iRules behaviour no Tcl core shows (test scrub, `irules-registry-tooling`)
 
