@@ -63,11 +63,22 @@ impl NativeListAssignmentInvocation {
 }
 
 impl InvocationDialect {
-    /// Select only a measured native family and release. Tcl compatibility on
-    /// a vendor point, an unknown point or a conflicting point grants no row.
+    /// Select only a measured native family and release, plus the one hosted
+    /// advice row for iRules (check 32). Tcl compatibility on any other vendor
+    /// point, an unknown point or a conflicting point grants no row.
     #[must_use]
     pub fn list_assignment_invocation(self) -> Option<NativeListAssignmentInvocation> {
         use tcl_dialect::model::{Family, Release};
+        // Hosted advice, not a measured row: TMM runs `lassign` and the
+        // simulator needs a grammar, so the Tcl 8.5 one is assumed until
+        // BIGIP-NAME check 32 (`docs/work/name-handling/bigip-name-checks.md`)
+        // answers it on a device. An iRules point has no native execution
+        // point, so it is selected by its family.
+        if self.native_family == Some(Family::F5Irules) {
+            return Some(NativeListAssignmentInvocation {
+                signature: ListAssignmentSignature::RequiredTarget,
+            });
+        }
         let point = self.execution_point()?;
         let signature = match (point.family(), point.tcl_version()) {
             (Family::Tcl, Some(tcl_dialect::TclVersion::V8_5)) => {
@@ -159,7 +170,15 @@ mod tests {
         let vendor =
             InvocationDialect::of_profile(tcl_dialect::DialectProfile::find("f5-irules").unwrap());
         assert_ne!(vendor.native_family, Some(Family::Tcl));
-        assert!(vendor.list_assignment_invocation().is_none());
+        // The one hosted-advice row (BIGIP-NAME check 32): the Tcl 8.5 grammar.
+        let advised = vendor
+            .list_assignment_invocation()
+            .expect("iRules advice row");
+        assert!(!advised.accepts(1));
+        assert!(advised.accepts(2));
+        let other_vendor =
+            InvocationDialect::of_profile(tcl_dialect::DialectProfile::find("f5-tmsh").unwrap());
+        assert!(other_vendor.list_assignment_invocation().is_none());
     }
 
     #[test]
