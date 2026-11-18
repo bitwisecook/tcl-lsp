@@ -234,9 +234,17 @@ pub fn dir() -> PathBuf {
         return PathBuf::from(dir);
     }
     if cfg!(test) {
-        return std::env::temp_dir().join(format!("tcl-spectcl-cache-test-{}", std::process::id()));
+        return unredirected_test_dir();
     }
     platform_dir()
+}
+
+/// Where an unredirected unit test would cache. Nothing is ever written there:
+/// [`disabled`] switches the disk tier off for such a test, because a directory
+/// no test owns is a directory no test removes. A test that wants the disk tier
+/// takes a guard ([`redirect_for_test`]) whose drop deletes its own directory.
+fn unredirected_test_dir() -> PathBuf {
+    std::env::temp_dir().join("tcl-spectcl-cache-test-unused")
 }
 
 fn platform_dir() -> PathBuf {
@@ -253,6 +261,9 @@ fn entry_path(key: u64) -> PathBuf {
 fn disabled() -> bool {
     override_of(|(_, off)| *off).unwrap_or(false)
         || std::env::var_os(DISABLE_ENV).is_some_and(|v| v == "1")
+        || (cfg!(test)
+            && override_of(|_| ()).is_none()
+            && std::env::var_os(DIR_ENV).is_none_or(|dir| dir.is_empty()))
 }
 
 // The public entry point
@@ -1269,6 +1280,40 @@ speclib mylib 1 {
                 super::dir().display()
             );
         }
+    }
+
+    #[test]
+    fn an_unredirected_unit_test_leaves_no_cache_directory_behind() {
+        let _guard = LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        redirect_for_test(None);
+        if std::env::var_os(DIR_ENV).is_some_and(|v| !v.is_empty()) {
+            return;
+        }
+        let unused = unredirected_test_dir();
+        let _ = std::fs::remove_dir_all(&unused);
+        forget_snapshots();
+        let _ = evaluate_pack_cached(SOURCE, Tier::Bundled, WorkspaceTrust::Trusted);
+        assert!(
+            !unused.exists() && !super::dir().exists(),
+            "the disk tier is off for a test no guard redirected: {}",
+            unused.display()
+        );
+    }
+
+    #[test]
+    fn a_guarded_cache_directory_is_gone_after_the_guard_drops() {
+        let _guard = LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let directory = {
+            let cache = CacheDir::new("dropped");
+            let _ = evaluate_pack_cached(SOURCE, Tier::Bundled, WorkspaceTrust::Trusted);
+            assert!(!cache.entries().is_empty(), "the guarded cache is written");
+            cache.0.clone()
+        };
+        assert!(!directory.exists(), "{}", directory.display());
     }
 
     #[test]
