@@ -290,13 +290,13 @@ fn a_count_matching_no_window_stays_a_plain_arity_error() {
 fn no_resolvable_floor_falls_back_to_the_plain_arity() {
     let mut a = analyser_with_windows(0x1627_1006, None);
     assert_eq!(
-        arity_diags(&mut a, "probe::grew a\n").len(),
+        arity_diags(&mut a, "package require Probe\nprobe::grew a\n").len(),
         0,
         "the plain arity is exactly 1"
     );
 
     let mut a = analyser_with_windows(0x1627_1007, None);
-    let diags = arity_diags(&mut a, "probe::grew a b\n");
+    let diags = arity_diags(&mut a, "package require Probe\nprobe::grew a b\n");
     assert_eq!(diags.len(), 1, "{diags:?}");
     assert_eq!(
         diags[0].0, "E003",
