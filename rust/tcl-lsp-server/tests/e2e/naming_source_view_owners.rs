@@ -20,7 +20,7 @@
 
 use crate::common::Lsp;
 use serde_json::{Value, json};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::Duration;
 
 const TIMEOUT: Duration = Duration::from_secs(30);
@@ -29,7 +29,7 @@ const CHILD: &str = "proc run {} {héλper}\n";
 const RETIRED: &str = "# retired source edge\n";
 
 struct Fixture {
-    root: PathBuf,
+    root: crate::common::ScratchDir,
     a: String,
     b: String,
     child: String,
@@ -51,11 +51,11 @@ fn oracle(path: &Path, version: tcl_dialect::TclVersion, output: &[u8]) {
 
 impl Fixture {
     fn new() -> Self {
-        let root = std::env::temp_dir().join(format!(
+        let root = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
             "tcl-lsp-source-owners-{}-{}",
             std::process::id(),
             line!()
-        ));
+        )));
         for (folder, dialect) in [("A", "tcl8.6"), ("B", "tcl9.0")] {
             std::fs::create_dir_all(root.join(folder)).expect("parent directory");
             std::fs::write(
@@ -198,7 +198,7 @@ const INDEPENDENT: &str = "proc héλper {} {return GOOD}\nputs [héλper]\n";
 const HELD_CHILD: &str = "proc held {} {return HELD}\nputs [held]\n";
 
 struct FrontierFixture {
-    root: PathBuf,
+    root: crate::common::ScratchDir,
     pending: String,
     independent: String,
     held: String,
@@ -207,11 +207,11 @@ struct FrontierFixture {
 
 impl FrontierFixture {
     fn new() -> Self {
-        let root = std::env::temp_dir().join(format!(
+        let root = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
             "tcl-lsp-frontier-scopes-{}-{}",
             std::process::id(),
             line!()
-        ));
+        )));
         std::fs::create_dir_all(&root).expect("scope fixture directory");
         for (name, text) in [
             ("pending.tcl", UNSUPPORTED_DECODE),
@@ -320,7 +320,7 @@ mod path_advice_controls {
     const MISSING: &str = "# no incoming directory advice\n";
 
     struct PathFixture {
-        root: PathBuf,
+        root: crate::common::ScratchDir,
         parent: String,
         child: String,
         parent_text: String,
@@ -331,8 +331,10 @@ mod path_advice_controls {
 
     impl PathFixture {
         fn new(case: &str) -> Self {
-            let root = std::env::temp_dir()
-                .join(format!("tcl-lsp-path-owner-{}-{case}", std::process::id()));
+            let root = crate::common::ScratchDir::at(
+                std::env::temp_dir()
+                    .join(format!("tcl-lsp-path-owner-{}-{case}", std::process::id())),
+            );
             std::fs::create_dir_all(&root).expect("path fixture workspace");
             for marker in ["GOOD", "BAD"] {
                 std::fs::create_dir_all(root.join(marker)).expect("path provider directory");

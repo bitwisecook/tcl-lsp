@@ -170,10 +170,10 @@ fn server_binary() -> std::ffi::OsString {
 /// thread purely so the server's stderr pipe never fills and blocks it —
 /// unrelated to what this test asserts on.
 fn spawn_server(label: &str) -> Child {
-    let xdg_root = std::env::temp_dir().join(format!(
+    let xdg_root = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-watchdog-xdg-{label}-{}",
         std::process::id()
-    ));
+    )));
     std::fs::create_dir_all(xdg_root.join("config")).expect("mk xdg config");
     std::fs::create_dir_all(xdg_root.join("cache")).expect("mk xdg cache");
 
@@ -267,10 +267,10 @@ fn wait_for_exit(child: &mut Child) -> std::process::ExitStatus {
 /// check — that decides the outcome here, not a race with the normal exit.
 #[test]
 fn eof_mid_scan_without_shutdown_forces_exit_within_grace() {
-    let workspace = std::env::temp_dir().join(format!(
+    let workspace = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-watchdog-ws-eof-{}",
         std::process::id()
-    ));
+    )));
     write_slow_workspace(&workspace);
 
     let mut child = spawn_server("eof");
@@ -304,10 +304,10 @@ fn eof_mid_scan_without_shutdown_forces_exit_within_grace() {
 /// `exit` and stops driving it any further either way.
 #[test]
 fn shutdown_then_exit_mid_scan_forces_clean_exit_within_grace() {
-    let workspace = std::env::temp_dir().join(format!(
+    let workspace = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-watchdog-ws-exit-{}",
         std::process::id()
-    ));
+    )));
     write_slow_workspace(&workspace);
 
     let mut child = spawn_server("exit");

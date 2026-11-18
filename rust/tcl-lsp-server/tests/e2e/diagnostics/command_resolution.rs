@@ -173,11 +173,11 @@ fn autoload_library_command_not_unknown_issue_832() {
 
     // A library dir with a `tclIndex` that auto-loads two global procs by bare
     // name — no `package require` needed, the exact shape from the issue.
-    let libdir = std::env::temp_dir().join(format!(
+    let libdir = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-rbc-{}-{}",
         std::process::id(),
         RBC_LIB_N.fetch_add(1, Ordering::Relaxed)
-    ));
+    )));
     let pkgdir = libdir.join("rbc");
     std::fs::create_dir_all(&pkgdir).expect("mk rbc lib dir");
     std::fs::write(
@@ -243,11 +243,11 @@ fn autoload_library_command_go_to_definition_m8() {
     // `Rbc_ActiveLegend`, defined on line 0 of `graph.tcl`. The command is
     // defined nowhere in the open workspace, so go-to-definition must fall
     // through to the autoload tier (M8) and jump into the library file.
-    let libdir = std::env::temp_dir().join(format!(
+    let libdir = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-autoload-def-{}-{}",
         std::process::id(),
         AUTOLOAD_DEF_N.fetch_add(1, Ordering::Relaxed)
-    ));
+    )));
     let pkgdir = libdir.join("rbc");
     std::fs::create_dir_all(&pkgdir).expect("mk lib dir");
     std::fs::write(
@@ -321,7 +321,7 @@ static GUARDED_PKG_N: std::sync::atomic::AtomicUsize = std::sync::atomic::Atomic
 /// Oracle (both shapes verified by hand): `tclsh8.6` loads `mypkg` and runs
 /// `mypkgHello`; `tclsh9.0` fails with `can't find package mypkg`, so the call
 /// is a genuine `invalid command name` error there.
-fn guarded_pkg_libdir() -> std::path::PathBuf {
+fn guarded_pkg_libdir() -> crate::common::ScratchDir {
     pkg_libdir_with_index(
         "if {[package vsatisfies [package provide Tcl] 9-]} { return }\n\
          package ifneeded mypkg 1.0 [list source [file join $dir mypkg.tcl]]\n",
@@ -330,13 +330,13 @@ fn guarded_pkg_libdir() -> std::path::PathBuf {
 
 /// Build a `mypkg` library dir whose `pkgIndex.tcl` is exactly `index`, next to
 /// a `mypkg.tcl` defining `mypkgHello`.
-fn pkg_libdir_with_index(index: &str) -> std::path::PathBuf {
+fn pkg_libdir_with_index(index: &str) -> crate::common::ScratchDir {
     use std::sync::atomic::Ordering;
-    let libdir = std::env::temp_dir().join(format!(
+    let libdir = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-guardedpkg-{}-{}",
         std::process::id(),
         GUARDED_PKG_N.fetch_add(1, Ordering::Relaxed)
-    ));
+    )));
     let pkgdir = libdir.join("mypkg");
     std::fs::create_dir_all(&pkgdir).expect("mk mypkg lib dir");
     std::fs::write(pkgdir.join("pkgIndex.tcl"), index).expect("write pkgIndex.tcl");
@@ -526,11 +526,11 @@ fn a_command_absent_from_a_branch_declared_package_still_fires_w123_923_idx42() 
 #[test]
 fn a_load_only_package_does_not_suppress_unrelated_w120s_923_idx72() {
     use std::sync::atomic::Ordering;
-    let libdir = std::env::temp_dir().join(format!(
+    let libdir = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-loadonlypkg-{}-{}",
         std::process::id(),
         GUARDED_PKG_N.fetch_add(1, Ordering::Relaxed)
-    ));
+    )));
     let pkgdir = libdir.join("testpix");
     std::fs::create_dir_all(&pkgdir).expect("mk testpix lib dir");
     // Deliberately the *only* file in the directory — no companion `.tcl`.
@@ -590,11 +590,11 @@ static AUTOLOAD_REFS_N: std::sync::atomic::AtomicUsize = std::sync::atomic::Atom
 fn autoload_library_command_references_and_rename_m8() {
     use std::sync::atomic::Ordering;
 
-    let libdir = std::env::temp_dir().join(format!(
+    let libdir = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-autoload-refs-{}-{}",
         std::process::id(),
         AUTOLOAD_REFS_N.fetch_add(1, Ordering::Relaxed)
-    ));
+    )));
     let pkgdir = libdir.join("rbc");
     std::fs::create_dir_all(&pkgdir).expect("mk lib dir");
     // `Rbc_Wire` calls `Rbc_ActiveLegend` inside the library, so the library
@@ -688,11 +688,11 @@ static WS_FOLDER_RENAME_N: std::sync::atomic::AtomicUsize = std::sync::atomic::A
 fn consumer_rename_resolves_through_a_real_workspace_folder_m8() {
     use std::sync::atomic::Ordering;
 
-    let root = std::env::temp_dir().join(format!(
+    let root = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-ws-rename-{}-{}",
         std::process::id(),
         WS_FOLDER_RENAME_N.fetch_add(1, Ordering::Relaxed)
-    ));
+    )));
     let libdir = root.join("rbclib");
     std::fs::create_dir_all(&libdir).expect("mk lib dir");
     std::fs::write(

@@ -763,11 +763,11 @@ static AUTOLOAD_HOVER_N: std::sync::atomic::AtomicUsize = std::sync::atomic::Ato
 fn hover_resolves_an_autoloaded_library_proc_1018() {
     use std::sync::atomic::Ordering;
 
-    let libdir = std::env::temp_dir().join(format!(
+    let libdir = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-hover-autoload-{}-{}",
         std::process::id(),
         AUTOLOAD_HOVER_N.fetch_add(1, Ordering::Relaxed)
-    ));
+    )));
     let pkgdir = libdir.join("mathlib");
     std::fs::create_dir_all(&pkgdir).expect("mk mathlib dir");
     std::fs::write(

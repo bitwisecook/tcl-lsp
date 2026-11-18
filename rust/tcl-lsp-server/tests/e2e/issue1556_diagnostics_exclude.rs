@@ -69,11 +69,11 @@ fn editor_config_name_pattern_excludes_open_document() {
 /// and removing the exclusion brings them back — no restart either way.
 #[test]
 fn project_ini_exclude_live_reloads() {
-    let root = std::env::temp_dir().join(format!(
+    let root = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-diag-exclude-{}-{}",
         std::process::id(),
         line!()
-    ));
+    )));
     std::fs::create_dir_all(root.join("docs")).expect("mk workspace root");
     let doc_path = root.join("docs").join("gen.tcl");
     std::fs::write(&doc_path, WARNY_SRC).expect("write fixture");

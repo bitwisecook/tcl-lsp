@@ -27,7 +27,7 @@ use crate::Backend;
 use crate::{DocumentPublication, DocumentState};
 
 struct Fixture {
-    root: std::path::PathBuf,
+    root: crate::tests::ScratchDir,
     main: Uri,
     host: Uri,
     source: String,
@@ -59,10 +59,10 @@ async fn fixture(opaque: bool) -> (Fixture, Backend, Vec<crate::OriginalDocument
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_nanos();
-    let root = std::env::temp_dir().join(format!(
+    let root = crate::tests::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-completed-owner-{}-{nonce}",
         std::process::id()
-    ));
+    )));
     std::fs::create_dir(&root).unwrap();
     let child = root.join("child.tcl");
     std::fs::write(&child, "proc helper {value} {return $value}\n").unwrap();

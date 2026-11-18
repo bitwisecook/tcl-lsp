@@ -29,7 +29,7 @@
 use crate::common::helpers::{decode_semantic_tokens, hover_text};
 use crate::common::{Lsp, scaled_timeout};
 use serde_json::{Value, json};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 #[path = "spec_packs/environment_lifecycle.rs"]
 mod environment_lifecycle;
@@ -71,7 +71,7 @@ speclib mylib 1 {
 /// `Uri::from_file_path` says to. A directory named after `ThreadId(17)` is
 /// then two different strings depending on who built the URI, which is a
 /// property of the test fixture and not of anything worth testing.
-fn workspace(name: &str) -> PathBuf {
+fn workspace(name: &str) -> crate::common::ScratchDir {
     static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
     let unique = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let root = std::env::temp_dir().join(format!(
@@ -83,7 +83,7 @@ fn workspace(name: &str) -> PathBuf {
     // macOS exposes its temporary directory through `/var`, a symlink to
     // `/private/var`. Pack discovery canonicalises paths before publishing
     // diagnostics, so keep the client-side fixture URI in that same spelling.
-    std::fs::canonicalize(root).expect("canonical workspace root")
+    crate::common::ScratchDir::at(std::fs::canonicalize(root).expect("canonical workspace root"))
 }
 
 fn write(path: &Path, body: &str) {

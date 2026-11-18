@@ -134,7 +134,7 @@ fn assert_references_include_provider_and_call(
 }
 
 struct Fixture {
-    root: PathBuf,
+    root: crate::common::ScratchDir,
     workspace: PathBuf,
     libraries_a: PathBuf,
     libraries_b: PathBuf,
@@ -144,11 +144,11 @@ struct Fixture {
 }
 
 fn make_fixture(label: &str) -> Fixture {
-    let root = std::env::temp_dir().join(format!(
+    let root = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-naming-packages-{}-{label}-{}",
         std::process::id(),
         line!()
-    ));
+    )));
     let workspace = root.join("workspace");
     let libraries_a = root.join("libraries-a");
     let libraries_b = root.join("libraries-b");

@@ -307,10 +307,40 @@ where
     false
 }
 
-/// Build a unique scratch directory under the system temp dir
-/// for a disk-walk test, returning its path. The caller removes
-/// it when done.
-fn unique_scratch_dir(tag: &str) -> PathBuf {
+/// A scratch directory removed when dropped, including when the test panics.
+pub(crate) struct ScratchDir(PathBuf);
+
+impl ScratchDir {
+    /// Own `path`, a directory or a file: it is removed when this drops.
+    pub(crate) fn at(path: PathBuf) -> Self {
+        Self(path)
+    }
+}
+
+impl std::ops::Deref for ScratchDir {
+    type Target = PathBuf;
+    fn deref(&self) -> &PathBuf {
+        &self.0
+    }
+}
+
+impl AsRef<std::path::Path> for ScratchDir {
+    fn as_ref(&self) -> &std::path::Path {
+        &self.0
+    }
+}
+
+impl Drop for ScratchDir {
+    fn drop(&mut self) {
+        if std::fs::remove_dir_all(&self.0).is_err() {
+            let _ = std::fs::remove_file(&self.0);
+        }
+    }
+}
+
+/// Build a unique scratch directory under the system temp dir for a
+/// disk-walk test; it is removed when the returned guard drops.
+fn unique_scratch_dir(tag: &str) -> ScratchDir {
     use std::sync::atomic::{AtomicU64, Ordering};
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     loop {
@@ -318,7 +348,7 @@ fn unique_scratch_dir(tag: &str) -> PathBuf {
         let dir =
             std::env::temp_dir().join(format!("tcl-lsp-scan-{tag}-{}-{n}", std::process::id()));
         match std::fs::create_dir(&dir) {
-            Ok(()) => return dir,
+            Ok(()) => return ScratchDir(dir),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
             Err(error) => panic!(
                 "creating owned scratch directory {}: {error}",

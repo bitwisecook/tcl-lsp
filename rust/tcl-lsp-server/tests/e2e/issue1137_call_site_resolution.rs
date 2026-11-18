@@ -172,14 +172,14 @@ fn a_bare_helper_call_in_a_method_body_resolves_across_files() {
     // unconditionally `::oo::Helpers` (tclsh 8.6.16 / 9.0.4), so this is a
     // real cross-file reference; before the candidate-list fix the one
     // cross-file resolver could never see it.
-    let root = std::env::temp_dir().join(format!(
+    let root = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-oohelpers-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .expect("clock")
             .as_nanos(),
-    ));
+    )));
     std::fs::create_dir_all(&root).expect("create workspace root");
     std::fs::write(
         root.join("utils.tcl"),

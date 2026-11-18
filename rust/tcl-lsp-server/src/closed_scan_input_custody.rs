@@ -91,7 +91,7 @@ impl vfs::SourceStore for ReadPauseStore {
     }
 }
 struct Fixture {
-    root: PathBuf,
+    root: crate::tests::ScratchDir,
     uri: Uri,
     backend: Backend,
     store: Arc<ReadPauseStore>,
@@ -105,14 +105,14 @@ impl Fixture {
         Self::build(pauses, true).await
     }
     async fn build(pauses: usize, native_saved_sources: bool) -> Self {
-        let root = std::env::temp_dir().join(format!(
+        let root = crate::tests::ScratchDir::at(std::env::temp_dir().join(format!(
             "closed-scan-inputs-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_nanos()
-        ));
+        )));
         std::fs::create_dir(&root).unwrap();
         let path = root.join("source.tcl");
         std::fs::write(&path, "proc p {} {}\n").unwrap();

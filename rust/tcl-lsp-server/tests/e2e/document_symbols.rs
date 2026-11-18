@@ -676,11 +676,11 @@ fn event_handler_is_a_workspace_symbol() {
 /// as a flaky first test; this is the same race without an editor.
 #[test]
 fn workspace_symbol_waits_out_the_startup_scan() {
-    let root = std::env::temp_dir().join(format!(
+    let root = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-ws-symbol-scan-{}-{}",
         std::process::id(),
         line!()
-    ));
+    )));
     std::fs::create_dir_all(&root).expect("mk workspace root");
     std::fs::write(root.join("scanned.tcl"), "proc scan_race_helper {} {}\n")
         .expect("write fixture");
@@ -710,11 +710,11 @@ fn workspace_symbol_waits_out_the_startup_scan() {
 /// — kept working.
 #[test]
 fn workspace_symbol_finds_a_just_opened_documents_proc() {
-    let root = std::env::temp_dir().join(format!(
+    let root = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-ws-symbol-open-{}-{}",
         std::process::id(),
         line!()
-    ));
+    )));
     std::fs::create_dir_all(&root).expect("mk workspace root");
     let path = root.join("procs.tcl");
     let src = "proc open_race_fib {n} { return $n }\n";
@@ -743,11 +743,11 @@ fn workspace_symbol_finds_a_just_opened_documents_proc() {
 /// can outlast the scan's budget, which must then still be the scan's.
 #[test]
 fn workspace_symbol_waits_out_a_slow_start_to_the_scan() {
-    let root = std::env::temp_dir().join(format!(
+    let root = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-ws-symbol-slow-start-{}-{}",
         std::process::id(),
         line!()
-    ));
+    )));
     std::fs::create_dir_all(&root).expect("mk workspace root");
     std::fs::write(root.join("scanned.tcl"), "proc slow_start_helper {} {}\n")
         .expect("write fixture");

@@ -755,13 +755,13 @@ static PKG_LIB_N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsiz
 /// `mypkg_helper`, under a fresh temp dir; returns the dir (whose *parent* is
 /// the `libraryPaths` root — `PackageResolver::scan_path` descends one level,
 /// mirroring the `rbc/tclIndex` fixture in `diagnostics.rs`).
-fn write_mypkg_fixture() -> std::path::PathBuf {
+fn write_mypkg_fixture() -> crate::common::ScratchDir {
     use std::sync::atomic::Ordering;
-    let libdir = std::env::temp_dir().join(format!(
+    let libdir = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-mypkg-{}-{}",
         std::process::id(),
         PKG_LIB_N.fetch_add(1, Ordering::Relaxed)
-    ));
+    )));
     let pkgdir = libdir.join("mypkg");
     std::fs::create_dir_all(&pkgdir).expect("mk mypkg lib dir");
     std::fs::write(

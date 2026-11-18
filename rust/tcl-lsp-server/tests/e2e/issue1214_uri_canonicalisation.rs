@@ -27,12 +27,12 @@ use serde_json::{Value, json};
 /// A workspace root whose name contains a space, so the folder URI a
 /// `JetBrains`- / Neovim-style client sends carries a raw ` ` and is not a valid
 /// URI at all.
-fn spaced_workspace(label: &str) -> std::path::PathBuf {
-    let root = std::env::temp_dir().join(format!(
+fn spaced_workspace(label: &str) -> crate::common::ScratchDir {
+    let root = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl lsp e2e {label} {}-{}",
         std::process::id(),
         line!()
-    ));
+    )));
     std::fs::create_dir_all(&root).expect("mk workspace root");
     root
 }

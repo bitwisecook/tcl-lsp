@@ -93,14 +93,14 @@ fn argparse_injected_locals_draw_no_false_read_before_set_end_to_end() {
 /// `{nothing str no} {nothing str no} {nothing str no}`.
 #[test]
 fn a_cross_file_upvar_helper_draws_no_false_read_before_set_end_to_end() {
-    let root = std::env::temp_dir().join(format!(
+    let root = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-xfile-upvar-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .expect("clock")
             .as_nanos(),
-    ));
+    )));
     std::fs::create_dir_all(&root).expect("create workspace root");
     std::fs::write(
         root.join("utils.tcl"),

@@ -77,7 +77,7 @@ const REGISTRATION: (u32, u32) = (2, 20);
 /// One on-disk ILX workspace, plus the URIs of its two files.
 struct Fixture {
     plugin: String,
-    root: PathBuf,
+    root: crate::common::ScratchDir,
     rule_uri: String,
     extension_uri: String,
 }
@@ -87,7 +87,9 @@ impl Fixture {
     /// `extension` in it.  `label` keeps concurrent tests in their own tree.
     fn new(label: &str, extension_source: &str) -> Self {
         let plugin = format!("ilx_{label}_{}", std::process::id());
-        let root = std::env::temp_dir().join(format!("tcl-lsp-e2e-1707-{plugin}"));
+        let root = crate::common::ScratchDir::at(
+            std::env::temp_dir().join(format!("tcl-lsp-e2e-1707-{plugin}")),
+        );
         let workspace = root.join(&plugin);
         let rules = workspace.join("rules");
         let extension_dir = workspace.join("extensions").join("my_extension");
@@ -494,7 +496,7 @@ fn ordinary_tcl_named_ilx_call_is_untouched() {
 /// ```
 struct DeclaredFixture {
     plugin: String,
-    root: PathBuf,
+    root: crate::common::ScratchDir,
     inside_uri: String,
     outside_uri: String,
     extension_uri: String,
@@ -503,7 +505,9 @@ struct DeclaredFixture {
 impl DeclaredFixture {
     fn new(label: &str) -> Self {
         let plugin = format!("prod_{label}_{}", std::process::id());
-        let root = std::env::temp_dir().join(format!("tcl-lsp-e2e-1707d-{plugin}"));
+        let root = crate::common::ScratchDir::at(
+            std::env::temp_dir().join(format!("tcl-lsp-e2e-1707d-{plugin}")),
+        );
         let workspace = root.join("ws_alpha");
         let rules = workspace.join("rules");
         let extension_dir = workspace.join("extensions").join("my_extension");
@@ -692,7 +696,7 @@ fn the_ilx_references_command_ignores_an_ordinary_javascript_file() {
 /// exists to correct.
 struct OutsideFolderFixture {
     plugin: String,
-    root: PathBuf,
+    root: crate::common::ScratchDir,
     folder: PathBuf,
     inside_uri: String,
     workspace_rule_uri: String,
@@ -702,7 +706,9 @@ struct OutsideFolderFixture {
 impl OutsideFolderFixture {
     fn new(label: &str) -> Self {
         let plugin = format!("prod_{label}_{}", std::process::id());
-        let root = std::env::temp_dir().join(format!("tcl-lsp-e2e-1707o-{plugin}"));
+        let root = crate::common::ScratchDir::at(
+            std::env::temp_dir().join(format!("tcl-lsp-e2e-1707o-{plugin}")),
+        );
         let folder = root.join("app");
         let workspace = root.join("ws_alpha");
         let folder_rules = folder.join("rules");

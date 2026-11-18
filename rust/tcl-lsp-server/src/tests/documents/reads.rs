@@ -189,13 +189,13 @@ async fn an_edit_never_mutates_a_snapshot_an_in_flight_request_holds() {
 /// cannot retain every file it ever touched.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn reading_a_closed_on_disk_file_does_not_retain_it() {
-    let dir = std::env::temp_dir().join(format!(
+    let dir = crate::tests::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-1184-{}",
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .expect("clock")
             .as_nanos()
-    ));
+    )));
     std::fs::create_dir_all(&dir).expect("temp dir");
     let path = dir.join("ondisk.tcl");
     std::fs::write(&path, "proc onDisk {} { return 1 }\n").expect("write fixture");

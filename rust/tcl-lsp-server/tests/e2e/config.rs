@@ -549,11 +549,11 @@ fn diagnostic_severity_override_is_per_code() {
 /// suite (`multiFolderConfig.test.ts`) without an editor.
 #[test]
 fn folder_scoped_dialect_reaches_documents_in_that_folder() {
-    let base = std::env::temp_dir().join(format!(
+    let base = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-folder-dialect-{}-{}",
         std::process::id(),
         line!()
-    ));
+    )));
     let root_a = base.join("proj-a");
     let root_b = base.join("proj-b");
     std::fs::create_dir_all(&root_a).expect("mk proj-a");
@@ -665,11 +665,11 @@ fn folder_scoped_dialect_reaches_documents_in_that_folder() {
 /// must keep both.
 #[test]
 fn a_folder_scoped_feature_toggle_is_reported_and_applied_for_that_folder() {
-    let base = std::env::temp_dir().join(format!(
+    let base = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-folder-feature-{}-{}",
         std::process::id(),
         line!()
-    ));
+    )));
     let root_off = base.join("proj-off");
     let root_on = base.join("proj-on");
     std::fs::create_dir_all(&root_off).expect("mk proj-off");
@@ -910,11 +910,11 @@ fn a_configuration_burst_pulls_once_and_settles_on_the_last_generation() {
 fn watched_files_registration_folds_case_and_covers_project_config() {
     use std::time::Duration;
 
-    let root = std::env::temp_dir().join(format!(
+    let root = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-watch-glob-{}-{}",
         std::process::id(),
         line!()
-    ));
+    )));
     std::fs::create_dir_all(&root).expect("mk workspace root");
     let path = root.join("seed.tcl");
     std::fs::write(&path, "set x 1\n").expect("write fixture");
@@ -966,11 +966,11 @@ fn watched_files_registration_folds_case_and_covers_project_config() {
 fn watched_upper_case_extension_round_trips_through_the_index() {
     use std::time::{Duration, Instant};
 
-    let root = std::env::temp_dir().join(format!(
+    let root = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-upper-ext-{}-{}",
         std::process::id(),
         line!()
-    ));
+    )));
     std::fs::create_dir_all(&root).expect("mk workspace root");
     // An open buffer so the session has a document; the watched file itself is
     // never opened — the whole point is that only the watch event indexes it.
@@ -1063,11 +1063,11 @@ fn watched_upper_case_extension_round_trips_through_the_index() {
 fn watched_delete_retires_an_open_documents_index_entry() {
     use std::time::{Duration, Instant};
 
-    let root = std::env::temp_dir().join(format!(
+    let root = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-deleted-while-open-{}-{}",
         std::process::id(),
         line!()
-    ));
+    )));
     std::fs::create_dir_all(&root).expect("mk workspace root");
     let old_path = root.join("live.tcl");
     let new_path = root.join("live_moved.tcl");

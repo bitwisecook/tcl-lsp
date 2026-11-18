@@ -409,6 +409,15 @@ async fn after_integer_ms_is_not_flagged_w001_e2e() {
     server.abort();
 }
 
+/// Removes its directory when dropped, including when the test panics.
+struct Scratch(std::path::PathBuf);
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
 #[tokio::test]
 async fn closed_on_disk_file_retains_diagnostics_badge_e2e() {
     // Opening a file surfaces its problems; closing the editor tab must NOT
@@ -416,6 +425,7 @@ async fn closed_on_disk_file_retains_diagnostics_badge_e2e() {
     // server republishes its on-disk diagnostics so the File-Explorer badge and
     // Problems entry survive the close.
     let dir = std::env::temp_dir().join(format!("tcl-lsp-865-e2e-{}", std::process::id()));
+    let _scratch = Scratch(dir.clone());
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("retain.tcl");
     // `y` is set but never read → W211.
@@ -1593,6 +1603,7 @@ async fn member_effect_providers(
         std::process::id()
     ));
     let _ = std::fs::remove_dir_all(&root);
+    let _scratch = Scratch(root.clone());
     std::fs::create_dir_all(root.join(".tcl-lsp")).unwrap();
     let root = std::fs::canonicalize(&root).unwrap();
     std::fs::write(

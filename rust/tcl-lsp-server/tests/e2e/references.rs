@@ -996,14 +996,14 @@ fn a_dynamically_mapped_ensemble_dispatch_is_not_attributed_923_idx85() {
 /// one layer below the references handler; this drives the whole pipeline.
 #[test]
 fn find_references_reaches_an_unopened_tcltest_file_923_idx27() {
-    let root = std::env::temp_dir().join(format!(
+    let root = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-idx27-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .expect("clock")
             .as_nanos(),
-    ));
+    )));
     std::fs::create_dir_all(root.join("test")).expect("create workspace root");
     let lib = root.join("lib.tcl");
     std::fs::write(&lib, "proc greet {} { puts \"hello from greet\" }\n").expect("write lib.tcl");

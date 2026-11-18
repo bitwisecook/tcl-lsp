@@ -372,10 +372,10 @@ fn computed_metaclass_in_a_false_branch_resolves_nothing() {
 #[test]
 fn unopened_factory_documents_feed_an_open_consumer() {
     let seq = WORKSPACE_SEQ.fetch_add(1, Ordering::Relaxed);
-    let root = std::env::temp_dir().join(format!(
+    let root = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-unopened-factory-{}-{seq}",
         std::process::id()
-    ));
+    )));
     std::fs::create_dir_all(&root).expect("create workspace root");
     let meta = root.join("meta.tcl");
     let widget = root.join("widget.tcl");

@@ -57,9 +57,10 @@ const BODY: &str = "when HTTP_REQUEST priority 500 {\n    if { [HTTP::uri] eq \"
 
 /// Put `bytes` at a unique on-disk URI and return the URI plus the exact text
 /// a lossy editor decode would send in `didOpen`.
-fn malformed_file(bytes: &[u8], suffix: &str) -> (String, std::path::PathBuf, String) {
-    let path =
-        std::env::temp_dir().join(format!("tcl-lsp-issue1326-{}-{suffix}", std::process::id()));
+fn malformed_file(bytes: &[u8], suffix: &str) -> (String, crate::common::ScratchDir, String) {
+    let path = crate::common::ScratchDir::at(
+        std::env::temp_dir().join(format!("tcl-lsp-issue1326-{}-{suffix}", std::process::id())),
+    );
     std::fs::write(&path, bytes).expect("write encoding fixture");
     let uri = tcl_lsp_server::canonical_file_uri(&path)
         .expect("encoding fixture path has a representable file URI")

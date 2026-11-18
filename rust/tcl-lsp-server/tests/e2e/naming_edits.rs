@@ -22,7 +22,7 @@ use crate::common::Lsp;
 use crate::common::helpers::{locations, rename_edits};
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::Duration;
 
 const TIMEOUT: Duration = Duration::from_secs(30);
@@ -36,11 +36,11 @@ fn file_uri(path: &Path) -> String {
         .to_string()
 }
 
-fn fixture_root(label: &str) -> PathBuf {
-    let root = std::env::temp_dir().join(format!(
+fn fixture_root(label: &str) -> crate::common::ScratchDir {
+    let root = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-naming-edit-{}-{label}",
         std::process::id()
-    ));
+    )));
     std::fs::create_dir_all(&root).expect("create edit fixture workspace");
     root
 }

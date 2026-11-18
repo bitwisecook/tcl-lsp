@@ -149,7 +149,7 @@ const AUTHORING_PACK: &str = "speclib mylib 1 {\n\
                               }\n";
 
 /// Open a `.tclspec` in a workspace of its own and settle its diagnostics.
-fn open_pack(name: &str, body: &str) -> (PathBuf, Lsp, String) {
+fn open_pack(name: &str, body: &str) -> (crate::common::ScratchDir, Lsp, String) {
     let root = workspace(name);
     let pack = root.join(".tcl-lsp/mylib.tclspec");
     write(&pack, body);

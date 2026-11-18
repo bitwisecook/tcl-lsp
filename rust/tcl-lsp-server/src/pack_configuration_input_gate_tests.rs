@@ -65,10 +65,10 @@ async fn pack_notice_union_requires_matching_source_and_publication_owners() {
         .duration_since(std::time::UNIX_EPOCH)
         .expect("system clock is after the epoch")
         .as_nanos();
-    let path = std::env::temp_dir().join(format!(
+    let path = crate::tests::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-pack-notice-{}-{nonce}.tclspec",
         std::process::id(),
-    ));
+    )));
     let source = "speclib sample 1.0 {}\n";
     std::fs::write(&path, source).expect("write the exact loader source");
     let origin = backend

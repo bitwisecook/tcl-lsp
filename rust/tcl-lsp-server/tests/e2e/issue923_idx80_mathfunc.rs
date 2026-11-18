@@ -206,14 +206,14 @@ fn default_config_offers_no_command_rewrite_over_a_cross_file_mathfunc() {
 /// sibling itself rather than being handed it by a `didOpen`.
 #[test]
 fn workspace_scan_clears_w123_for_a_cross_file_mathfunc() {
-    let root = std::env::temp_dir().join(format!(
+    let root = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-idx80-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .expect("clock")
             .as_nanos(),
-    ));
+    )));
     std::fs::create_dir_all(&root).expect("create workspace root");
     std::fs::write(root.join("helper.tcl"), HELPER).expect("write helper.tcl");
     std::fs::write(

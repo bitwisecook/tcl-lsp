@@ -100,16 +100,90 @@ const REQUEST_TIMEOUT: Duration = Duration::from_mins(1);
 /// integration-test binary (each binary is its own process).
 static URI_COUNTER: AtomicU64 = AtomicU64::new(0);
 
+/// A scratch directory that removes itself when dropped, including when the
+/// test panics (unwinding drops it). It owns the path only; the creator makes
+/// the directory.
+pub struct ScratchDir(std::path::PathBuf);
+
+impl ScratchDir {
+    /// Take ownership of `path`: whatever is there when this drops is removed.
+    pub fn at(path: std::path::PathBuf) -> Self {
+        Self(path)
+    }
+}
+
+impl std::ops::Deref for ScratchDir {
+    type Target = std::path::PathBuf;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl AsRef<std::path::Path> for ScratchDir {
+    fn as_ref(&self) -> &std::path::Path {
+        &self.0
+    }
+}
+
+impl Drop for ScratchDir {
+    fn drop(&mut self) {
+        if std::fs::remove_dir_all(&self.0).is_err() {
+            let _ = std::fs::remove_file(&self.0);
+        }
+    }
+}
+
+/// The per-process workspace root, shared by every live [`Lsp`]. It is removed
+/// when the last one drops and recreated, at the same path, for the next.
+pub struct HarnessRoot(std::path::PathBuf);
+
+static HARNESS_ROOT: Mutex<std::sync::Weak<HarnessRoot>> = Mutex::new(std::sync::Weak::new());
+
+impl Drop for HarnessRoot {
+    fn drop(&mut self) {
+        let live = HARNESS_ROOT
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        // A spawn that raced this drop has already re-created and re-shared it.
+        if live.strong_count() == 0 {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+}
+
+/// How many servers in this process currently hold the shared root.
+#[cfg(test)]
+fn live_harness_servers() -> usize {
+    HARNESS_ROOT
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .strong_count()
+}
+
+fn harness_root_guard() -> Arc<HarnessRoot> {
+    let mut live = HARNESS_ROOT
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some(root) = live.upgrade() {
+        return root;
+    }
+    let dir = std::env::temp_dir().join(format!("tcl-lsp-e2e-root-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("create the e2e workspace root");
+    let root = Arc::new(HarnessRoot(dir));
+    *live = Arc::downgrade(&root);
+    root
+}
+
 /// The workspace root every default server is initialised with: one real,
-/// empty directory per test process. The server's scan of it completes, so
-/// workspace-gated edits are judged against a complete inventory, and every
-/// [`unique_uri`] document lies inside it as an editor's documents would.
+/// empty directory per test process while any server is alive. The server's
+/// scan of it completes, so workspace-gated edits are judged against a
+/// complete inventory, and every [`unique_uri`] document lies inside it as an
+/// editor's documents would.
 pub fn harness_root_uri() -> &'static str {
     static ROOT: std::sync::OnceLock<String> = std::sync::OnceLock::new();
     ROOT.get_or_init(|| {
-        let dir = std::env::temp_dir().join(format!("tcl-lsp-e2e-root-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("create the e2e workspace root");
-        tcl_lsp_server::canonical_file_uri(&dir)
+        let root = harness_root_guard();
+        tcl_lsp_server::canonical_file_uri(&root.0)
             .expect("the e2e workspace root has a file URI")
             .to_string()
             .trim_end_matches('/')
@@ -238,6 +312,8 @@ pub struct Lsp {
     /// URIs opened without a matching close, so `Drop` can tidy up.
     open_uris: Vec<String>,
     xdg_root: std::path::PathBuf,
+    /// Keeps the shared workspace root on disk while this server lives.
+    _harness_root: Arc<HarnessRoot>,
     /// The client capabilities sent at `initialize`; none unless a test says.
     client_capabilities: Value,
     /// The `initialize` result, populated by [`Lsp::initialize`].
@@ -345,6 +421,7 @@ impl Lsp {
             next_id: 0,
             open_uris: Vec::new(),
             xdg_root,
+            _harness_root: harness_root_guard(),
             client_capabilities: json!({}),
             initialize_result: Value::Null,
         }

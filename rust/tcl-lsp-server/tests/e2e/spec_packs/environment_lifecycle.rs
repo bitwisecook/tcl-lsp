@@ -116,7 +116,7 @@ struct Document {
 }
 
 struct Fixture {
-    root: PathBuf,
+    root: crate::common::ScratchDir,
     folder: PathBuf,
     control: PathBuf,
     provider: PathBuf,

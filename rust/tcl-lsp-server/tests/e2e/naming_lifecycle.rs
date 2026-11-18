@@ -226,12 +226,12 @@ fn await_workspace_scan(lsp: &Lsp) {
     lsp.await_log(&["workspace_folders_scan"], TIMEOUT, 0);
 }
 
-fn new_workspace_root() -> std::path::PathBuf {
-    let root = std::env::temp_dir().join(format!(
+fn new_workspace_root() -> crate::common::ScratchDir {
+    let root = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-naming-lifecycle-{}-{}",
         std::process::id(),
         line!()
-    ));
+    )));
     std::fs::create_dir_all(&root).expect("create lifecycle workspace");
     root
 }

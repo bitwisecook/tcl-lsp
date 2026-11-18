@@ -22,7 +22,7 @@ use crate::common::Lsp;
 use crate::common::helpers::locations;
 use serde_json::{Value, json};
 use std::fmt::Write as _;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::Duration;
 
 const TIMEOUT: Duration = Duration::from_secs(30);
@@ -34,12 +34,12 @@ fn file_uri(path: &Path) -> String {
         .to_string()
 }
 
-fn source_root() -> PathBuf {
-    let root = std::env::temp_dir().join(format!(
+fn source_root() -> crate::common::ScratchDir {
+    let root = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-deep-source-{}-{}",
         std::process::id(),
         line!()
-    ));
+    )));
     std::fs::create_dir_all(&root).expect("create deep-source workspace");
     root
 }

@@ -836,11 +836,11 @@ fn rename_rewrites_bare_calls_to_a_proc_installed_into_oo_helpers() {
 fn did_rename_files_retires_the_old_path_and_keeps_source_rehoming() {
     use std::time::Duration;
 
-    let root = std::env::temp_dir().join(format!(
+    let root = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-rename-sourced-{}-{}",
         std::process::id(),
         line!()
-    ));
+    )));
     std::fs::create_dir_all(&root).expect("mk workspace root");
     let old_path = root.join("sourced_old.tcl");
     let new_path = root.join("sourced_new.tcl");

@@ -138,6 +138,15 @@ fn file_analysis_incremental_matches_full() {
     }
 }
 
+/// Removes its directory when dropped, including when the test panics.
+struct RemoveOnDrop(std::path::PathBuf);
+
+impl Drop for RemoveOnDrop {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
 #[test]
 fn sidecar_stubs_reach_incremental_proc_bodies_and_invalidate() {
     use salsa::Setter as _;
@@ -147,6 +156,7 @@ fn sidecar_stubs_reach_incremental_proc_bodies_and_invalidate() {
         std::process::id(),
         std::thread::current().name().unwrap_or("test")
     ));
+    let _scratch = RemoveOnDrop(root.clone());
     let src_dir = root.join("src");
     std::fs::create_dir_all(&src_dir).unwrap();
     let sidecar = root.join("tcl8.6.tcl.stubs");

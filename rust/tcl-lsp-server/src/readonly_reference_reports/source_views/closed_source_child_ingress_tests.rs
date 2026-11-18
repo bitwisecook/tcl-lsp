@@ -32,7 +32,7 @@ const EXACT_APP: &str = include_str!("../../../../tcl-lsp-server-wasi/test/fixtu
 const EXACT_LIB: &str = include_str!("../../../../tcl-lsp-server-wasi/test/fixture/lib.tcl");
 
 struct Fixture {
-    root: std::path::PathBuf,
+    root: crate::tests::ScratchDir,
     main: Uri,
     child: Uri,
 }
@@ -73,10 +73,10 @@ async fn fixture() -> (Fixture, Backend) {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_nanos();
-    let root = std::env::temp_dir().join(format!(
+    let root = crate::tests::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-source-child-{}-{nonce}",
         std::process::id()
-    ));
+    )));
     std::fs::create_dir(&root).unwrap();
     std::fs::write(root.join("main.tcl"), CALLER).unwrap();
     std::fs::write(root.join("child.tcl"), CHILD).unwrap();
@@ -291,7 +291,7 @@ async fn unrelated_shared_source_root(
     let other = Fixture {
         main: Uri::from_file_path(other_root.join("main.tcl")).unwrap(),
         child: fixture.child.clone(),
-        root: other_root,
+        root: crate::tests::ScratchDir::at(other_root),
     };
     // Admit the closed physical input before issuing its independent root.
     assert!(matches!(
@@ -624,10 +624,10 @@ fn exact_source_fixture() -> Fixture {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_nanos();
-    let root = std::env::temp_dir().join(format!(
+    let root = crate::tests::ScratchDir::at(std::env::temp_dir().join(format!(
         "tcl-lsp-exact-wasi-first-{}-{nonce}",
         std::process::id()
-    ));
+    )));
     std::fs::create_dir(&root).unwrap();
     std::fs::write(root.join("app.tcl"), EXACT_APP).unwrap();
     std::fs::write(root.join("lib.tcl"), EXACT_LIB).unwrap();

@@ -33,24 +33,23 @@
 use crate::common::{Lsp, scaled_timeout};
 
 use serde_json::json;
-use std::path::PathBuf;
 use std::time::Duration;
 
 /// A throwaway workspace root holding `count` tiny Tcl files, removed on drop.
 struct ScanWorkspace {
-    root: PathBuf,
+    root: crate::common::ScratchDir,
 }
 
 impl ScanWorkspace {
     fn new(tag: &str, count: usize) -> Self {
-        let root = std::env::temp_dir().join(format!(
+        let root = crate::common::ScratchDir::at(std::env::temp_dir().join(format!(
             "tcl-lsp-e2e-scan-cap-{tag}-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .expect("clock")
                 .as_nanos(),
-        ));
+        )));
         std::fs::create_dir_all(&root).expect("mk workspace root");
         for i in 0..count {
             std::fs::write(

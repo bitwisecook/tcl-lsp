@@ -17,7 +17,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::{
-    BARRIER_TIMEOUT_MARKER, Duration, latency_barrier_timeout_note, load_factor, scaled_timeout,
+    BARRIER_TIMEOUT_MARKER, Duration, Lsp, ScratchDir, latency_barrier_timeout_note, load_factor,
+    scaled_timeout,
 };
 
 /// The footer every barrier timeout carries must keep classifying the
@@ -68,4 +69,47 @@ fn load_factor_never_tightens_a_barrier() {
         scaled_timeout(base) >= base,
         "a scaled barrier must never be shorter than the constant it scales"
     );
+}
+
+#[test]
+fn a_scratch_dir_is_removed_when_it_drops_even_on_panic() {
+    let dir = std::env::temp_dir().join(format!("tcl-lsp-e2e-guard-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("nested")).unwrap();
+    std::fs::write(dir.join("nested/file"), b"x").unwrap();
+    drop(ScratchDir::at(dir.clone()));
+    assert!(!dir.exists(), "dropped guard must remove the tree");
+
+    let file = std::env::temp_dir().join(format!("tcl-lsp-e2e-guard-file-{}", std::process::id()));
+    std::fs::write(&file, b"x").unwrap();
+    drop(ScratchDir::at(file.clone()));
+    assert!(!file.exists(), "dropped guard must remove a file path too");
+
+    let panicked =
+        std::env::temp_dir().join(format!("tcl-lsp-e2e-guard-panic-{}", std::process::id()));
+    std::fs::create_dir_all(&panicked).unwrap();
+    let path = panicked.clone();
+    let outcome = std::panic::catch_unwind(move || {
+        let _guard = ScratchDir::at(path);
+        panic!("the test body fails");
+    });
+    assert!(outcome.is_err());
+    assert!(
+        !panicked.exists(),
+        "unwinding must still remove the directory"
+    );
+}
+
+#[test]
+fn the_shared_workspace_root_exists_while_a_server_lives_and_is_gone_after() {
+    let uri = super::harness_root_uri().to_owned();
+    let root = std::path::PathBuf::from(uri.trim_start_matches("file://"));
+    let lsp = Lsp::tcl();
+    assert!(root.exists(), "a live server's workspace root is on disk");
+    drop(lsp);
+    // Other tests in this process may hold their own servers; the root is
+    // removed only once the last one drops, so only assert absence when none
+    // is alive in this process.
+    if super::live_harness_servers() == 0 {
+        assert!(!root.exists(), "the last server's drop removes the root");
+    }
 }
