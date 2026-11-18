@@ -80,7 +80,7 @@ EOF
 
         echo -n "  $base ... "
 
-        if "$TCLSH" "$DISASM_SCRIPT" "$SNIPPETS_DIR" 2>/dev/null | \
+        if "$TCLSH" "$DISASM_SCRIPT" "$snippet" 2>/dev/null | \
            sed -n "/^=== ${base}\.tcl ===/,/^=== END ===/p" > "$outfile.tmp" 2>/dev/null; then
             # Strip the delimiter lines
             sed '1d;$d' "$outfile.tmp" > "$outfile"

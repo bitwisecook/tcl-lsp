@@ -1,17 +1,14 @@
 #!/usr/bin/env tclsh
 # disasm.tcl — Generate reference bytecode disassembly from tclsh.
 #
-# Usage: tclsh disasm.tcl <snippets_dir>
+# Usage: tclsh disasm.tcl <snippet.tcl>
 #
-# Reads every .tcl file in <snippets_dir>.  Each file contains a single
-# Tcl script snippet.  For each, it outputs:
+# Reads one .tcl snippet and outputs:
 #
 #   === <filename> ===
 #   <disassembly output from tcl::unsupported::disassemble script>
+#   <the disassembly of each proc the snippet defines, in name order>
 #   === END ===
-#
-# When a snippet defines a proc (detected by the "proc" command at the
-# top level), the proc's disassembly is also emitted after the script's.
 
 proc emit_disasm {filename source} {
     puts "=== $filename ==="
@@ -24,31 +21,38 @@ proc emit_disasm {filename source} {
     }
     puts $asm
 
-    # If the script defines procs, disassemble them too.
-    # We eval the script in a child interp to discover proc names.
-    set child [interp create -safe]
-    if {![catch {$child eval $source}]} {
-        foreach cmd [$child eval {info procs}] {
-            if {![catch {set pasm [$child eval [list tcl::unsupported::disassemble proc $cmd]]}]} {
+    # If the script defines procs, disassemble them too. They are defined in
+    # this, the parent interpreter: Tcl compiles the compact second pass
+    # (no INST_START_CMD) only where Tcl_GetParent is NULL (tclCompile.c), so a
+    # child's bodies would differ. One snippet runs per process, so nothing
+    # is shared; only the procs the snippet defines are emitted, in name order
+    # as our listing has them.
+    set before [info procs ::*]
+    if {![catch {uplevel #0 $source}]} {
+        set defined {}
+        foreach cmd [info procs ::*] {
+            if {$cmd ni $before} {
+                lappend defined $cmd
+            }
+        }
+        foreach cmd [lsort $defined] {
+            if {![catch {set pasm [tcl::unsupported::disassemble proc $cmd]}]} {
                 puts ""
                 puts $pasm
             }
         }
     }
-    interp delete $child
 
     puts "=== END ==="
 }
 
 if {$argc != 1} {
-    puts stderr "Usage: tclsh disasm.tcl <snippets_dir>"
+    puts stderr "Usage: tclsh disasm.tcl <snippet.tcl>"
     exit 1
 }
 
-set dir [lindex $argv 0]
-foreach f [lsort [glob -directory $dir *.tcl]] {
-    set fd [open $f r]
-    set source [read $fd]
-    close $fd
-    emit_disasm [file tail $f] $source
-}
+set f [lindex $argv 0]
+set fd [open $f r]
+set source [read $fd]
+close $fd
+emit_disasm [file tail $f] $source
