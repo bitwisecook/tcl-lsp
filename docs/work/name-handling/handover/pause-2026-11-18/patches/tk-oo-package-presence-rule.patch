@@ -1,0 +1,621 @@
+diff --git a/rust/tcl-compiler/src/analyser/commands/instance_classes.rs b/rust/tcl-compiler/src/analyser/commands/instance_classes.rs
+index ce055c3dd..7bb36c77f 100644
+--- a/rust/tcl-compiler/src/analyser/commands/instance_classes.rs
++++ b/rust/tcl-compiler/src/analyser/commands/instance_classes.rs
+@@ -144,6 +144,7 @@ impl Analyser {
+             let Instance { class_name } = publication.kind() else {
+                 return None;
+             };
++            Self::factory_package_proved(&self.result, publication.original_invocation())?;
+             let name = std::str::from_utf8(publication.name_bytes()).ok()?;
+             Some((name.to_owned(), class_name.to_owned()))
+         });
+@@ -160,6 +161,7 @@ impl Analyser {
+             let Instance { class_name } = binding.factory().kind() else {
+                 return None;
+             };
++            Self::factory_package_proved(&self.result, binding.factory().original_invocation())?;
+             Some((
+                 std::str::from_utf8(binding.variable_bytes())
+                     .ok()?
+@@ -174,6 +176,18 @@ impl Analyser {
+         false
+     }
+ 
++    /// A factory whose owning package is not proved present names no instance.
++    fn factory_package_proved(
++        analysis: &super::super::types::AnalysisResult,
++        factory: &crate::registry_invocation::source_structure::OriginalRegistryWords,
++    ) -> Option<()> {
++        let head = factory.head_source()?.word()?.span().start();
++        (!crate::registry_invocation::source_structure::source_factory_package_unproved_at(
++            analysis, head,
++        ))
++        .then_some(())
++    }
++
+     /// Collision-safe registry instance reporting metadata. Differing class
+     /// labels withdraw an ambiguous entry for the complete file. A remaining
+     /// entry is presentation only; widget diagnostics independently require
+diff --git a/rust/tcl-compiler/src/analyser/commands/tests.rs b/rust/tcl-compiler/src/analyser/commands/tests.rs
+index 4ff49f675..d8889cde4 100644
+--- a/rust/tcl-compiler/src/analyser/commands/tests.rs
++++ b/rust/tcl-compiler/src/analyser/commands/tests.rs
+@@ -366,6 +366,73 @@ fn bareword_widget_constructor_binds_instance_class() {
+     );
+ }
+ 
++#[test]
++fn a_widget_constructor_without_its_package_publishes_no_instance() {
++    // tclsh 8.4.20-9.1.0 without `package require Tk`: invalid command name
++    // "ttk::treeview", so `.t` is never created.
++    let source =
++        "ttk::treeview .t\n.t instate {selected} {}\nset lb [listbox .l]\n$lb curselection\n";
++    for dialect in ["tcl8.6", "tcl9.0"] {
++        let mut a = super::super::state::Analyser::new();
++        let res = a.analyse(source, dialect);
++        assert!(
++            !res.instance_classes.contains_key(".t") && !res.instance_classes.contains_key("lb"),
++            "{dialect}: instance_classes: {:?}",
++            res.instance_classes
++        );
++        for call in [".t instate", "$lb curselection"] {
++            assert!(
++                crate::registry_invocation::source_structure::source_registered_instance_words_at(
++                    source,
++                    &res,
++                    u32::try_from(source.find(call).unwrap()).unwrap()
++                )
++                .is_none(),
++                "{dialect}: {call}"
++            );
++        }
++    }
++}
++
++#[test]
++fn a_widget_constructor_after_an_unproved_require_publishes_no_instance() {
++    // tclsh 8.6.18, 9.0.4 and 9.1.0 without Tk installed: a caught or
++    // conditional require leaves `info commands ttk::treeview` empty.
++    for prefix in [
++        "catch {package require Tk}\n",
++        "if {[info exists nothing]} {package require Tk}\n",
++    ] {
++        let source = format!("{prefix}ttk::treeview .t\n");
++        let mut a = super::super::state::Analyser::new();
++        let res = a.analyse(&source, "tcl8.6");
++        assert!(
++            !res.instance_classes.contains_key(".t"),
++            "{prefix}: instance_classes: {:?}",
++            res.instance_classes
++        );
++    }
++}
++
++#[test]
++fn a_widget_constructor_publishes_where_tk_is_present() {
++    // `wish` ships Tk ambient; a require inside a namespace body runs once.
++    for (source, dialect) in [
++        ("ttk::treeview .t\n", "tk"),
++        (
++            "namespace eval ui {package require Tk}\nttk::treeview .t\n",
++            "tcl8.6",
++        ),
++    ] {
++        let mut a = super::super::state::Analyser::new();
++        let res = a.analyse(source, dialect);
++        assert_eq!(
++            res.instance_classes.get(".t").map(String::as_str),
++            Some("ttk::treeview"),
++            "{dialect}: {source:?}"
++        );
++    }
++}
++
+ /// The `set w [ctor .path]` return-value-capture shape resolves through
+ /// the shared source handle-class receipt and retains a class label.
+ #[test]
+diff --git a/rust/tcl-compiler/src/analyser/diagnostics/widget_command.rs b/rust/tcl-compiler/src/analyser/diagnostics/widget_command.rs
+index 4b1560d34..e4a880bca 100644
+--- a/rust/tcl-compiler/src/analyser/diagnostics/widget_command.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics/widget_command.rs
+@@ -234,9 +234,12 @@ impl Analyser {
+ mod tests {
+     use crate::analyser::Analyser;
+ 
++    // Each fixture runs with Tk loaded: without `package require Tk`,
++    // tclsh 8.6.18, 9.0.4 and 9.1.0 answer `invalid command name
++    // "ttk::treeview"` and no widget exists.
+     fn codes(src: &str) -> Vec<(String, String)> {
+         Analyser::new()
+-            .analyse(src, "tcl8.6")
++            .analyse(&format!("package require Tk\n{src}"), "tcl8.6")
+             .diagnostics
+             .iter()
+             .map(|d| (d.code.to_string(), d.message.clone()))
+diff --git a/rust/tcl-compiler/src/command_binding/source_transition_advice.rs b/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
+index 0e055074d..b06dff8d0 100644
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
+@@ -611,6 +611,9 @@ pub(crate) struct OriginalSourceTransitionAdviceTape {
+     registered_instances: BTreeMap<u32, Option<OriginalSourceRegisteredInstanceWords>>,
+     registered_factories: BTreeMap<u32, Option<Arc<OriginalSourceRegisteredInstance>>>,
+     registered_handles: BTreeMap<u32, Option<Arc<OriginalSourceRegisteredHandleBinding>>>,
++    /// Factory call sites whose owning package was neither ambient nor proved
++    /// loaded on some path reaching them.
++    unloaded_factories: BTreeSet<u32>,
+     class_declarations: BTreeMap<u32, Option<Arc<OriginalSourceClassDeclaration>>>,
+     authored_jim_calls: BTreeMap<u32, Option<OriginalAuthoredJimClassCall>>,
+     authored_jim_procedure_members: BTreeMap<
+@@ -692,6 +695,9 @@ struct AdviceGraph {
+     /// Coordinates a possible branch created but did not install. A lookup
+     /// may not fall through one of them; they are never cells or headers.
+     possible_occupants: BTreeSet<ByteCommandSlot>,
++    /// Packages an unconditional `package require` on this path loaded. A
++    /// require in a branch, a `catch` or a loop never reaches this graph.
++    loaded_packages: BTreeSet<String>,
+     arity_debts: Vec<Arc<OriginalSourceCommandTransitionAdvice>>,
+     procedure_body: Option<Arc<crate::registry_invocation::OriginalSourceScriptBody>>,
+     procedure_declarations: Vec<Arc<source_procedure::OriginalSourceProcedureBody>>,
+diff --git a/rust/tcl-compiler/src/command_binding/source_transition_advice/advice_graph.rs b/rust/tcl-compiler/src/command_binding/source_transition_advice/advice_graph.rs
+index d81b7dd81..812118416 100644
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/advice_graph.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/advice_graph.rs
+@@ -107,6 +107,7 @@ impl AdviceGraph {
+             dialect,
+             uncertain_operations: Vec::new(),
+             possible_occupants: BTreeSet::new(),
++            loaded_packages: BTreeSet::new(),
+             arity_debts: Vec::new(),
+             handles: Vec::new(),
+             class_handles: Vec::new(),
+@@ -545,6 +546,13 @@ impl AdviceGraph {
+                 StateTransition::Namespace(transition) => {
+                     self.apply_source_namespace(receipt, transition)?;
+                 }
++                StateTransition::Package(
++                    tcl_registry::model::binding::PackageTransition::Require { package, .. },
++                ) => {
++                    if let Some(package) = package.literal() {
++                        self.loaded_packages.insert(package.to_owned());
++                    }
++                }
+                 _ => {}
+             }
+         }
+diff --git a/rust/tcl-compiler/src/command_binding/source_transition_advice/advice_tape.rs b/rust/tcl-compiler/src/command_binding/source_transition_advice/advice_tape.rs
+index 37903cd1a..091c6d5a6 100644
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/advice_tape.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/advice_tape.rs
+@@ -571,6 +571,7 @@ impl OriginalSourceTransitionAdviceTape {
+             }
+         }
+         merge_receipt_inventory(&mut self.registered_factories, other.registered_factories);
++        self.unloaded_factories.extend(other.unloaded_factories);
+         for (offset, receipt) in other.registered_instances {
+             self.registered_instances
+                 .entry(offset)
+diff --git a/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs b/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs
+index 689698f1a..272fdbb25 100644
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs
+@@ -120,6 +120,7 @@ impl AdviceGraph {
+             unknown_paths,
+             uncertain_operations,
+             possible_occupants,
++            loaded_packages,
+             arity_debts,
+             procedure_declarations,
+             class_declarations,
+@@ -135,6 +136,7 @@ impl AdviceGraph {
+         self.unknown_paths = unknown_paths;
+         self.uncertain_operations = uncertain_operations;
+         self.possible_occupants = possible_occupants;
++        self.loaded_packages = loaded_packages;
+         self.arity_debts = arity_debts;
+         self.procedure_declarations = procedure_declarations;
+         self.class_declarations = class_declarations;
+diff --git a/rust/tcl-compiler/src/command_binding/source_transition_advice/invocation_advice.rs b/rust/tcl-compiler/src/command_binding/source_transition_advice/invocation_advice.rs
+index 637e6ac70..85eba06c2 100644
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/invocation_advice.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/invocation_advice.rs
+@@ -593,7 +593,7 @@ impl AdviceInvocationContext<'_> {
+         if self.retain_original_invocation_prefix(graph, tape, invocation, &written) {
+             return Some(());
+         }
+-        let handle = self.before_operand_handle_binding(graph, &invocation.words, &written);
++        let handle = self.before_operand_handle_binding(tape, graph, &invocation.words, &written);
+         let class_handle =
+             self.before_operand_class_handle(tape, graph, &invocation.words, &written);
+         let Some(head) = written
+@@ -663,6 +663,7 @@ impl AdviceInvocationContext<'_> {
+         )?;
+         self.retain_interpreter_paths(tape, selected, graph, &schema);
+         let factory = self.registered_factory(graph, selected, &schema);
++        self.retain_unloaded_factory(tape, graph, selected, &schema);
+         let authored_jim = self.authored_jim_class_source(graph, selected, &schema, None);
+         let class = self.retain_source_class_declaration(tape, graph, selected, &schema);
+         self.retain_source_configured_class(tape, graph, selected, &schema);
+diff --git a/rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs b/rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs
+index 5a15a62f0..2ac2b6b5b 100644
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs
+@@ -790,7 +790,7 @@ impl LogicalBodyWalk<'_, '_> {
+         }
+         let handle = self
+             .context
+-            .before_operand_handle_binding(graph, native, &written);
++            .before_operand_handle_binding(tape, graph, native, &written);
+         let class_handle = self.context.retain_source_class_handle_body(
+             self.context
+                 .before_operand_class_handle(tape, graph, native, &written),
+@@ -921,6 +921,8 @@ impl LogicalBodyWalk<'_, '_> {
+         let (scope, handle, class_handle, operand_barrier) = owner;
+         let native = invocation.native;
+         let factory = self.context.registered_factory(graph, invocation, schema);
++        self.context
++            .retain_unloaded_factory(tape, graph, invocation, schema);
+         let authored_jim = crate::registry_invocation::source_structure::trace_jim_source_option(
+             "jim.class.logical_body_capture",
+             self.context.authored_jim_class_source(
+diff --git a/rust/tcl-compiler/src/command_binding/source_transition_advice/registered_instance.rs b/rust/tcl-compiler/src/command_binding/source_transition_advice/registered_instance.rs
+index 8d2b264d1..09e5d0e66 100644
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/registered_instance.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/registered_instance.rs
+@@ -436,6 +436,11 @@ impl OriginalSourceTransitionAdviceTape {
+     ) -> Option<&OriginalSourceRegisteredInstanceWords> {
+         self.registered_instances.get(&offset)?.as_ref()
+     }
++    /// Whether the factory call at `offset` ran without its owning package
++    /// proved present on some path reaching it.
++    pub(crate) fn unloaded_factory(&self, offset: u32) -> bool {
++        self.unloaded_factories.contains(&offset)
++    }
+     pub(crate) fn registered_handle(
+         &self,
+         offset: u32,
+@@ -456,12 +461,13 @@ impl OriginalSourceTransitionAdviceTape {
+ impl AdviceInvocationContext<'_> {
+     pub(super) fn before_operand_handle_binding(
+         &self,
++        tape: &mut OriginalSourceTransitionAdviceTape,
+         graph: &AdviceGraph,
+         native: &[NativeWord],
+         written: &[SourceAdviceWord],
+     ) -> Option<Arc<OriginalSourceRegisteredHandleBinding>> {
+         self.with_before_operand_handle_schema(graph, native, written, |invocation, schema| {
+-            self.registered_handle_binding(graph, invocation, schema)
++            self.registered_handle_binding(tape, graph, invocation, schema)
+         })
+     }
+     pub(super) fn with_before_operand_handle_schema<T>(
+@@ -554,6 +560,8 @@ impl AdviceInvocationContext<'_> {
+         // docs/design/analysis/name-resolution-proofs/source-original-registered-instance-words.md
+         let descriptor = schema.authored_source_descriptors().command;
+         descriptor.object_class?;
++        self.factory_package_present(graph, descriptor)
++            .then_some(())?;
+         if schema.facts().arity_accepts_frozen_arguments() != Some(true) {
+             return None;
+         }
+@@ -585,8 +593,40 @@ impl AdviceInvocationContext<'_> {
+             lineage: Vec::new(),
+         }))
+     }
++    /// A package-owned factory names its command only once the package is
++    /// ambient in the environment or proved loaded on this path. Without it
++    /// tclsh 8.4.20-9.1.0 answer `invalid command name "ttk::treeview"`,
++    /// and anything that later supplies the name is not the registry's
++    /// factory, so no instance is published.
++    fn factory_package_present(
++        &self,
++        graph: &AdviceGraph,
++        descriptor: &tcl_registry::CommandSpec,
++    ) -> bool {
++        descriptor.owning_package().is_none_or(|package| {
++            self.context.context().ambient_package(package)
++                || graph.loaded_packages.contains(package)
++        })
++    }
++    pub(super) fn retain_unloaded_factory(
++        &self,
++        tape: &mut OriginalSourceTransitionAdviceTape,
++        graph: &AdviceGraph,
++        invocation: AdviceInvocation<'_>,
++        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
++    ) {
++        let descriptor = schema.authored_source_descriptors().command;
++        if descriptor.object_class.is_some()
++            && descriptor.creates_instance_at.is_some()
++            && !self.factory_package_present(graph, descriptor)
++            && let Some(head) = invocation.native.first()
++        {
++            tape.unloaded_factories.insert(head.span().start());
++        }
++    }
+     pub(super) fn registered_handle_binding(
+         &self,
++        tape: &mut OriginalSourceTransitionAdviceTape,
+         graph: &AdviceGraph,
+         invocation: AdviceInvocation<'_>,
+         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+@@ -653,16 +693,14 @@ impl AdviceInvocationContext<'_> {
+                 tcl_dialect::model::InvocationRealm::RuleLoader,
+             );
+         let schema_factory = resolution.resolved()?;
+-        let instance = self.registered_factory(
+-            graph,
+-            AdviceInvocation {
+-                native: &substitution.command().words,
+-                head: &head,
+-                arguments: &arguments,
+-                lineage: &lineage,
+-            },
+-            &schema_factory,
+-        )?;
++        let construction = AdviceInvocation {
++            native: &substitution.command().words,
++            head: &head,
++            arguments: &arguments,
++            lineage: &lineage,
++        };
++        self.retain_unloaded_factory(tape, graph, construction, &schema_factory);
++        let instance = self.registered_factory(graph, construction, &schema_factory)?;
+         let mut setter = self.schema_advice(invocation, graph, schema)?;
+         setter
+             .obligations
+@@ -909,7 +947,7 @@ mod tests {
+     fn original_registered_instance_keeps_factory_argv_alias_move_and_method_prefix() {
+         // naming.source.original-registered-instance-words
+         // docs/design/analysis/name-resolution-proofs/source-original-registered-instance-words.md
+-        let source = "rename ttk::treeview make; make .t; rename .t .held; interp alias {} dispatch {} .held; dispatch mov onlyone";
++        let source = "package require Tk; rename ttk::treeview make; make .t; rename .t .held; interp alias {} dispatch {} .held; dispatch mov onlyone";
+         let analysis = Analyser::new().analyse(source, "tcl8.6");
+         let words =
+             source_registered_instance_words_at(source, &analysis, at(source, "dispatch mov"))
+@@ -962,9 +1000,9 @@ mod tests {
+     fn original_registered_handle_retains_whole_setter_and_factory_without_value_grant() {
+         // naming.source.original-registered-instance-words
+         // docs/design/analysis/name-resolution-proofs/source-original-registered-instance-words.md
+-        let source = "::set lb [listbox .l]; $lb curselection extra";
++        let source = "package require Tk; ::set lb [listbox .l]; $lb curselection extra";
+         let analysis = Analyser::new().analyse(source, "tcl8.6");
+-        let handle = source_registered_handle_binding_at(source, &analysis, 0)
++        let handle = source_registered_handle_binding_at(source, &analysis, at(source, "::set"))
+             .expect("whole original setter");
+         assert_eq!(handle.variable_input().bytes(), b"lb");
+         assert_eq!(handle.setter().original_words().len(), 3);
+@@ -998,12 +1036,12 @@ mod tests {
+         // naming.source.original-registered-instance-words
+         // docs/design/analysis/name-resolution-proofs/source-original-registered-instance-words.md
+         for source in [
+-            "proc ttk::treeview {args} {}; ttk::treeview .t; .t bogus",
+-            "ttk::treeview .t; proc .t {args} {}; .t bogus",
+-            "ttk::treeview .t; rename .t {}; .t bogus",
+-            "ttk::treeview $name; .t bogus",
+-            "set lb [listbox .l]; set lb other; $lb bogus",
+-            "interp alias {} keep {} set lb [listbox .l]; keep; $lb bogus",
++            "package require Tk; proc ttk::treeview {args} {}; ttk::treeview .t; .t bogus",
++            "package require Tk; ttk::treeview .t; proc .t {args} {}; .t bogus",
++            "package require Tk; ttk::treeview .t; rename .t {}; .t bogus",
++            "package require Tk; ttk::treeview $name; .t bogus",
++            "package require Tk; set lb [listbox .l]; set lb other; $lb bogus",
++            "package require Tk; interp alias {} keep {} set lb [listbox .l]; keep; $lb bogus",
+         ] {
+             let analysis = Analyser::new().analyse(source, "tcl8.6");
+             let offset = source.rfind(';').unwrap() + 2;
+@@ -1017,7 +1055,7 @@ mod tests {
+                 "{source}"
+             );
+         }
+-        let source = "ttk::treeview .t; .t {*}$method";
++        let source = "package require Tk; ttk::treeview .t; .t {*}$method";
+         let analysis = Analyser::new().analyse(source, "tcl8.6");
+         let words =
+             source_registered_instance_words_at(source, &analysis, at(source, ".t {*}")).unwrap();
+@@ -1030,7 +1068,7 @@ mod tests {
+         // naming.source.original-registered-instance-words
+         // docs/design/analysis/name-resolution-proofs/source-original-registered-instance-words.md
+         // The original factory remains source advice; no current widget or command is proved.
+-        let source = "ttk::treeview .t; eval $script; .t bogus";
++        let source = "package require Tk; ttk::treeview .t; eval $script; .t bogus";
+         let analysis = Analyser::new().analyse(source, "tcl8.6");
+         let words = source_registered_instance_words_at(source, &analysis, at(source, ".t bogus"))
+             .expect("conditional original factory survives unknown source widening");
+@@ -1044,7 +1082,7 @@ mod tests {
+         assert!(words.obligations().contains(
+             &crate::command_binding::SourceCommandTransitionObligation::UnavailableActualLookup
+         ));
+-        let source = "set lb [listbox .l]; eval $script; $lb bogus";
++        let source = "package require Tk; set lb [listbox .l]; eval $script; $lb bogus";
+         let analysis = Analyser::new().analyse(source, "tcl8.6");
+         assert!(
+             source_registered_instance_words_at(source, &analysis, at(source, "$lb bogus"))
+@@ -1159,11 +1197,13 @@ mod inherited_registered_provider_tests {
+         };
+         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+         let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+-        let source = "floorfactory .t; interp alias {} invoke {} .t; invoke lat payload";
+-        let offset = u32::try_from(source.rfind("invoke lat").unwrap()).unwrap();
+         for (factory_package, provider_package, selected) in
+             [("Itcl", "Tk", true), ("Tk", "Itcl", false)]
+         {
++            let source = &format!(
++                "package require {factory_package}; floorfactory .t; interp alias {{}} invoke {{}} .t; invoke lat payload"
++            );
++            let offset = u32::try_from(source.rfind("invoke lat").unwrap()).unwrap();
+             let mut registry = tcl_registry::CommandRegistry::build_default();
+             let mut factory = registry.get("ttk::treeview").unwrap().clone();
+             factory.name = "floorfactory";
+@@ -1250,7 +1290,7 @@ mod inherited_registered_provider_tests {
+             tcl_registry::model::ingress::static_context_for("tcl8.6")
+                 .with_command_store(Arc::new(registry)),
+         );
+-        let source = "incompletefactory .t; .t missing";
++        let source = "package require Tk; incompletefactory .t; .t missing";
+         let analysis = Analyser::new()
+             .with_resolved_input(ResolvedAnalysisInput::new(
+                 profile,
+diff --git a/rust/tcl-compiler/src/command_binding/source_transition_advice/source_procedure.rs b/rust/tcl-compiler/src/command_binding/source_transition_advice/source_procedure.rs
+index abb8d8a45..47b16d8c1 100644
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/source_procedure.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/source_procedure.rs
+@@ -920,11 +920,11 @@ mod tests {
+     fn original_future_procedure_local_handle_does_not_borrow_parent_value_or_escape_branch() {
+         // naming.source.original-future-procedure-body
+         // docs/design/analysis/name-resolution-proofs/source-original-future-procedure-body.md
+-        let source = "set lb [listbox .l]; proc p {} {$lb bogus}; p";
++        let source = "package require Tk; set lb [listbox .l]; proc p {} {$lb bogus}; p";
+         let analysis = Analyser::new().analyse(source, "tcl8.6");
+         let offset = u32::try_from(source.find("$lb bogus").unwrap()).unwrap();
+         assert!(source_registered_instance_words_at(source, &analysis, offset).is_none());
+-        let source = "proc p {} {set local [listbox .new]; $local bogus}; p; $local bogus";
++        let source = "package require Tk; proc p {} {set local [listbox .new]; $local bogus}; p; $local bogus";
+         let analysis = Analyser::new().analyse(source, "tcl8.6");
+         let inside = u32::try_from(source.find("$local bogus").unwrap()).unwrap();
+         let outside = u32::try_from(source.rfind("$local bogus").unwrap()).unwrap();
+diff --git a/rust/tcl-compiler/src/realm/source_transition_advice/class_advice.rs b/rust/tcl-compiler/src/realm/source_transition_advice/class_advice.rs
+index be8857f98..f4afb2de4 100644
+--- a/rust/tcl-compiler/src/realm/source_transition_advice/class_advice.rs
++++ b/rust/tcl-compiler/src/realm/source_transition_advice/class_advice.rs
+@@ -51,6 +51,31 @@ impl super::super::CommandBindingRealm {
+             .then(|| receipt.clone())
+     }
+ 
++    /// Whether the factory call whose head starts at `offset` ran on some path
++    /// without its owning package ambient or proved loaded.
++    pub(crate) fn original_source_unloaded_factory(
++        &self,
++        input: &crate::analyser::ResolvedAnalysisInput,
++        offset: u32,
++    ) -> bool {
++        if !self.matches_resolved_analysis_input(input) {
++            return false;
++        }
++        let context = input.context_registry();
++        let prepared = self.source_advice.get_or_prepare_shared_for(
++            &context,
++            crate::command_binding::OriginalSourceCataloguePurpose::CompleteProgram,
++            || {
++                self.bindings
++                    .original_source_transition_advice_tape_shared(&context)
++            },
++        );
++        prepared
++            .as_ref()
++            .as_ref()
++            .is_some_and(|tape| tape.unloaded_factory(offset))
++    }
++
+     /// Original selected named Registry factory, without successful allocation.
+     pub(crate) fn original_source_registered_factory(
+         &self,
+diff --git a/rust/tcl-compiler/src/registry_invocation/source_structure.rs b/rust/tcl-compiler/src/registry_invocation/source_structure.rs
+index dd645eee7..e2528e0f4 100644
+--- a/rust/tcl-compiler/src/registry_invocation/source_structure.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_structure.rs
+@@ -60,16 +60,17 @@ pub use advice_queries::{
+     source_class_declaration_at, source_class_instance_words_at, source_class_proc_call_at,
+     source_class_publications, source_class_reference_at, source_command_publication_at,
+     source_configured_class_at, source_configured_class_words_at, source_constructor_call_at,
+-    source_handle_class_advice_at, source_handle_construction_at,
+-    source_logical_absolute_command_candidate_at, source_logical_callback_candidates,
+-    source_logical_callback_candidates_at, source_logical_command_candidates,
+-    source_logical_command_candidates_at, source_logical_ensemble_transition_receipts,
+-    source_logical_name_references, source_logical_procedure_call_at,
+-    source_logical_procedure_call_for_cursor, source_logical_procedure_calls,
+-    source_native_procedure_body_commands, source_original_procedure_call_at,
+-    source_original_procedure_calls, source_procedure_publications,
+-    source_produced_command_prefix_words, source_registered_factory_at,
+-    source_registered_handle_binding_at, source_registered_instance_words_at,
++    source_factory_package_unproved_at, source_handle_class_advice_at,
++    source_handle_construction_at, source_logical_absolute_command_candidate_at,
++    source_logical_callback_candidates, source_logical_callback_candidates_at,
++    source_logical_command_candidates, source_logical_command_candidates_at,
++    source_logical_ensemble_transition_receipts, source_logical_name_references,
++    source_logical_procedure_call_at, source_logical_procedure_call_for_cursor,
++    source_logical_procedure_calls, source_native_procedure_body_commands,
++    source_original_procedure_call_at, source_original_procedure_calls,
++    source_procedure_publications, source_produced_command_prefix_words,
++    source_registered_factory_at, source_registered_handle_binding_at,
++    source_registered_instance_words_at,
+ };
+ pub(crate) use advice_queries::{
+     source_authored_jim_procedure_members_at, source_produced_command_prefix_words_in,
+diff --git a/rust/tcl-compiler/src/registry_invocation/source_structure/advice_queries.rs b/rust/tcl-compiler/src/registry_invocation/source_structure/advice_queries.rs
+index 75798b17f..2620302c6 100644
+--- a/rust/tcl-compiler/src/registry_invocation/source_structure/advice_queries.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_structure/advice_queries.rs
+@@ -346,6 +346,19 @@ pub fn source_handle_class_advice_at(
+     )
+ }
+ 
++/// Whether the factory call whose head starts at `offset` may run without
++/// its owning package ambient or proved loaded. Such a call names no instance.
++#[must_use]
++pub fn source_factory_package_unproved_at(analysis: &AnalysisResult, offset: u32) -> bool {
++    let (Some(input), Some(realm)) = (
++        analysis.resolved_input.as_ref(),
++        analysis.retained_command_realm(),
++    ) else {
++        return false;
++    };
++    realm.original_source_unloaded_factory(input, offset)
++}
++
+ /// Original named Registry factory source declaration. This retains actual
+ /// factory/name words and conditional applicability, without successful creation.
+ #[must_use]
+diff --git a/rust/tcl-lsp-core/src/diagnostic_subject/tests.rs b/rust/tcl-lsp-core/src/diagnostic_subject/tests.rs
+index 5376ca1a8..198f1dc37 100644
+--- a/rust/tcl-lsp-core/src/diagnostic_subject/tests.rs
++++ b/rust/tcl-lsp-core/src/diagnostic_subject/tests.rs
+@@ -210,7 +210,7 @@ fn lexical_next_arity_transport_retains_declaration_and_effective_count() {
+ fn registered_instance_transport_retains_factory_and_applicability_without_message_identity() {
+     // naming.source.original-registered-instance-words
+     // docs/design/analysis/name-resolution-proofs/source-original-registered-instance-words.md
+-    let source = "ttk::treeview .t; .t bogus";
++    let source = "package require Tk; ttk::treeview .t; .t bogus";
+     let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+     let diagnostic = analysis
+         .diagnostics
+diff --git a/rust/tcl-lsp-core/tests/it_5/command_prefix_integration.rs b/rust/tcl-lsp-core/tests/it_5/command_prefix_integration.rs
+index bd1ba078d..9f90c0373 100644
+--- a/rust/tcl-lsp-core/tests/it_5/command_prefix_integration.rs
++++ b/rust/tcl-lsp-core/tests/it_5/command_prefix_integration.rs
+@@ -374,7 +374,7 @@ fn tcllib_calculus_func_records_reference_with_fixed_arity() {
+ #[test]
+ fn tk_scale_command_bareword_head_is_a_callback_edge() {
+     let reg = CommandRegistry::build_default();
+-    let src = "proc onScale {v} { puts $v }\nproc build {} {\n    scale .s -command onScale\n}\n";
++    let src = "package require Tk\nproc onScale {v} { puts $v }\nproc build {} {\n    scale .s -command onScale\n}\n";
+     let g = graphs::call_graph(
+         src,
+         &reg,
+@@ -397,7 +397,7 @@ fn tk_scroll_callback_braced_widget_path_does_not_fire_w123() {
+     // head is not a literal bareword, so it is dropped — no W123.  (Regression
+     // guard for the conversion's headline benefit.)
+     let mut a = tcl_compiler::analyser::Analyser::new();
+-    let src = "listbox .lb -yscrollcommand {.sb set}\n";
++    let src = "package require Tk\nlistbox .lb -yscrollcommand {.sb set}\n";
+     let codes: Vec<_> = a
+         .analyse(src, "tcl9.0")
+         .diagnostics
+@@ -415,7 +415,7 @@ fn tk_scroll_callback_bareword_undefined_head_fires_w123() {
+     // A bareword scroll callback head that resolves to no proc is a genuine
+     // typo — now caught (it was silently missed under `script()`).
+     let mut a = tcl_compiler::analyser::Analyser::new();
+-    let bad = "listbox .lb -yscrollcommand missingScroller\n";
++    let bad = "package require Tk\nlistbox .lb -yscrollcommand missingScroller\n";
+     let codes: Vec<_> = a
+         .analyse(bad, "tcl9.0")
+         .diagnostics
+@@ -427,7 +427,7 @@ fn tk_scroll_callback_bareword_undefined_head_fires_w123() {
+         "an unknown bareword scroll callback head must fire W123; got {codes:?}"
+     );
+     // A defined head is silent.
+-    let ok = "proc myScroller {first last} { }\nlistbox .lb -yscrollcommand myScroller\n";
++    let ok = "package require Tk\nproc myScroller {first last} { }\nlistbox .lb -yscrollcommand myScroller\n";
+     assert!(
+         !a.analyse(ok, "tcl9.0")
+             .diagnostics
