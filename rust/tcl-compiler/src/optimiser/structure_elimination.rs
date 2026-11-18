@@ -874,9 +874,14 @@ mod tests {
     #[test]
     fn switch_regexp_mode_selects_through_the_owner() {
         let fold = the_fold("switch -regexp foo { ^foo$ { puts ok } }", "tcl8.6");
-        assert_eq!(fold.replacement, "puts ok");
+        assert_eq!(fold.replacement, " puts ok \n");
         assert!(fold.message.contains("always matches pattern '^foo$'"));
-        let none = the_fold("switch -regexp foo { ^bar$ { puts ok } }", "tcl8.6");
+        // A following statement: a switch whose result the script returns
+        // is not deleted.
+        let none = the_fold(
+            "switch -regexp foo { ^bar$ { puts ok } }\nputs done",
+            "tcl8.6",
+        );
         assert_eq!(none.replacement, "");
         assert!(none.message.contains("matches no pattern"));
     }
@@ -889,18 +894,18 @@ mod tests {
         let cases = [
             (
                 "switch -glob abc { a* {puts A} default {puts D} }",
-                "puts A",
+                "puts A\n",
             ),
             (
                 "switch -glob xyz { a* {puts A} default {puts D} }",
-                "puts D",
+                "puts D\n",
             ),
-            ("switch -regexp abc { ^b {puts B} c$ {puts C} }", "puts C"),
+            ("switch -regexp abc { ^b {puts B} c$ {puts C} }", "puts C\n"),
             (
                 "switch -glob abc { a* - z* {puts B} default {puts D} }",
-                "puts B",
+                "puts B\n",
             ),
-            ("switch abc { abc - def - default {puts D} }", "puts D"),
+            ("switch abc { abc - def - default {puts D} }", "puts D\n"),
         ];
         for (source, kept) in cases {
             for dialect in ["tcl8.6", "tcl9.0", "tcl"] {
@@ -915,7 +920,7 @@ mod tests {
         for dialect in ["tcl8.6", "tcl9.0"] {
             assert_eq!(
                 the_fold(nocase, dialect).replacement,
-                "puts yes",
+                "puts yes\n",
                 "{dialect}"
             );
         }
@@ -936,7 +941,7 @@ mod tests {
                 "{build}switch {mode}-- $acc {{\n    baz     {{ puts never }}\n    default {{ puts always }}\n}}\n"
             );
             let fold = the_fold(&source, "tcl8.6");
-            assert_eq!(fold.replacement, "puts always", "{source}");
+            assert_eq!(fold.replacement, " puts always \n", "{source}");
         }
     }
 
@@ -1066,7 +1071,7 @@ mod tests {
             for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
                 assert_eq!(
                     the_fold(source, dialect).replacement,
-                    "puts hit",
+                    "puts hit\n",
                     "{dialect}: {source}"
                 );
             }
