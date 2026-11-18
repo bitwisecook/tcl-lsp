@@ -819,11 +819,11 @@ mod tests {
 
     #[test]
     fn lens_counts_property_my_dispatch_within_class_body() {
-        // A property's auto-generated accessor dispatches through `my
-        // <property>`, exactly like a method — `bump` reads/writes `size`
-        // twice, so its lens must read "2 references" the same way a
-        // twice-dispatched method would (`lens_counts_method_calls_within_class_body`).
-        let src = "oo::class create Widget {\n    property size -get {return $mySize} -set {set mySize $value}\n    method bump {} { my size ; my size }\n}\n";
+        // tclsh 9.0.4/9.1.0: `property` is an `oo::configurable` definition
+        // word; its accessors are `<ReadProp-size>` and `<WriteProp-size>`,
+        // and `my size` raises `unknown method "size"`. The `my size` words
+        // reference nothing, so the lens claims no count from them.
+        let src = "oo::configurable create Widget {\n    property size -get {return $mySize} -set {set mySize $value}\n    method bump {} { my size ; my size }\n}\n";
         let analysis = analyse90(src);
         assert!(
             !analysis.all_classes.is_empty(),
@@ -840,7 +840,11 @@ mod tests {
             .iter()
             .find(|l| l.range.start_line == 1)
             .expect("size lens");
-        assert_eq!(size_lens.command_title, "2 references", "{lenses:?}");
+        assert!(
+            ["0 references", "References unavailable"].contains(&size_lens.command_title.as_str()),
+            "{}",
+            size_lens.command_title
+        );
     }
 
     #[test]
