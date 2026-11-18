@@ -1518,8 +1518,7 @@ fn collect_write_targets(
 /// A rooted spelling is first the naming owner's qualified name, so a colon
 /// run (`global ::::g`) records the same global as `global ::g`.
 fn insert_outer_name(names: &mut BTreeSet<String>, name: &str) {
-    let qualified = name
-        .starts_with("::")
+    let qualified = tcl_syntax::naming::is_absolute_bytes(name.as_bytes())
         .then(|| tcl_syntax::naming::normalise_qualified_name(name));
     crate::variable_observation_names::record_variable_write_name(
         names,
