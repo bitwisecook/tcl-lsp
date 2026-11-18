@@ -34,39 +34,6 @@ fn original_value_use_token(analyser: &Analyser, needle: &str) -> Token {
 }
 
 #[test]
-fn logical_dynamic_word_keeps_exact_braced_name_and_interpolation_sources() {
-    let source =
-        "set n WRONG; set {$n} RIGHT; set {scalar(open} SCALAR; puts ${n}:${$n}:${scalar(open}";
-    let mut analyser = Analyser::new();
-    analyser.analyse_and_retain_result_for_test(source, "tcl");
-    let token = original_value_use_token(&analyser, "${n}:${$n}:${scalar(open}");
-    assert_eq!(
-        analyser.resolve_dynamic_word("${n}:${$n}:${scalar(open}", Some(token), false, &[]),
-        Some("WRONG:RIGHT:SCALAR".to_owned())
-    );
-    analyser.source = source.replace("RIGHT", "OTHER").into();
-    assert!(
-        analyser
-            .resolve_dynamic_word("${n}:${$n}:${scalar(open}", Some(token), false, &[])
-            .is_none()
-    );
-}
-
-#[test]
-fn logical_nested_constant_fold_uses_original_variable_components() {
-    let source = "set n WRONG; set {$n} RIGHT; set result [list $n [list ${$n}]]; puts $result";
-    let mut analyser = Analyser::new();
-    analyser.analyse_and_retain_result_for_test(source, "tcl");
-    let token = original_value_use_token(&analyser, "$result");
-    assert_eq!(
-        analyser
-            .lookup_logical_const_substitution(token)
-            .map(|(value, _)| value),
-        Some("WRONG RIGHT")
-    );
-}
-
-#[test]
 fn logical_interpreter_handle_value_keeps_distinct_path_provenance_and_snapshot() {
     let source = "set child [interp create named]; interp eval $child {set x VALUE}";
     let mut analyser = Analyser::new();

@@ -810,3 +810,43 @@ fn references_reach_a_proc_dispatched_through_an_eval_of_a_list_computed_var() {
         "the `greetD` word inside `[list greetD World]` must be reachable too: {refs:?}"
     );
 }
+
+/// A command word built from braced and interpolated variable names folds
+/// to the procedure it calls. tclsh 8.4.20-9.1.0: the last word runs the
+/// procedure (hit1).
+#[test]
+fn references_reach_a_call_whose_head_folds_braced_and_interpolated_names() {
+    let src = "proc WRONG:RIGHT:SCALAR {} {return hit1}\nset n WRONG; set {$n} RIGHT; set {scalar(open} SCALAR; ${n}:${$n}:${scalar(open}\n";
+    let analysis = Analyser::new().analyse(src, "tcl").clone();
+    let profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
+    let refs = references(src, profile, 0, 6, &analysis, true);
+    let call = u32::try_from(src.rfind("${n}:").unwrap() - src.find('\n').unwrap() - 1).unwrap();
+    assert!(
+        refs.iter()
+            .any(|r| r.start_line == 1 && r.start_character == call),
+        "the folded command word is a call of the procedure: {refs:?}"
+    );
+    let stale = src.replace("RIGHT", "OTHER");
+    assert!(
+        references(&stale, profile, 0, 6, &analysis, true)
+            .iter()
+            .all(|r| r.start_line != 1),
+        "a changed source withdraws the folded call"
+    );
+}
+
+/// A nested list built from original variable components folds to the
+/// procedure's name. tclsh 8.4.20-9.1.0: `$result` runs {WRONG RIGHT} (hit2).
+#[test]
+fn references_reach_a_call_whose_head_folds_a_nested_list() {
+    let src = "proc {WRONG RIGHT} {} {return hit2}\nset n WRONG; set {$n} RIGHT; set result [list $n [list ${$n}]]; $result\n";
+    let analysis = Analyser::new().analyse(src, "tcl").clone();
+    let profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
+    let refs = references(src, profile, 0, 6, &analysis, true);
+    let call = u32::try_from(src.rfind("$result").unwrap() - src.find('\n').unwrap() - 1).unwrap();
+    assert!(
+        refs.iter()
+            .any(|r| r.start_line == 1 && r.start_character == call),
+        "the folded command word is a call of the procedure: {refs:?}"
+    );
+}
