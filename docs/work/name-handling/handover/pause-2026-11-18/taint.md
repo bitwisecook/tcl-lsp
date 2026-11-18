@@ -102,9 +102,11 @@ Coordinator ruling, 18 Nov 11:08: **(A)**, a single engine reading the registry 
 
 Also received before the pause:
 
-- **audit (11:23), on the Tk replay:** the second `entry .two` goes missing because `entry .one -validatecommand {…}` trips `requires_reentry_guard` (`command_binding/source_walk/completion_receipts.rs:299`). Its `source_callback_retention` clause withholds the command world after any registration that retains a callback. Controls without a callback resolve `.two`. Real Tk 9.0.3 does not run `-validatecommand` at registration.
-  - Proposed split, awaiting a ruling: the registry marks deferred-only surfaces (audit), and the walk guard honours that (binding owner).
-  - Until the guard changes, the batch test and the batches-past-the-first-batch test stay short a candidate, even with `taint-tk-callback-replay.patch` and the completion contracts.
+- **audit (11:23, corrected 11:53), on the Tk replay:** the second `entry .two` goes missing because the walk withholds the command world after `entry .one -validatecommand {…}`.
+  - **Trigger:** a Body-valued option word on the constructor. `entry` declares no `body_execution`, whereas `after` declares `DeferredGlobalScript`. It is not `requires_reentry_guard`, as audit first said.
+  - **Controls:** without a callback, `.two` resolves. Real Tk 9.0.3 does not run `-validatecommand` at registration.
+  - **Effect:** until the walk change lands, the batch test and the batches-past-the-first-batch test stay short a candidate, even with `taint-tk-callback-replay.patch` and the completion contracts.
+  - **Status:** nobody is writing the walk change; audit is paused too. Audit's handover is `docs/work/issue-sessions/handover/audit.md` (`886f3c683a`), with WIP on branch `issues/audit-22` (`279875ba60`). The fact-shape questions stay with analyser-binding and tk-oo.
 - **coordinator (11:04), on disk:** run `rm -rf /tmp/tcl-spectcl-cache-test-*` when the disk fills, before deleting `target/`. `cargo fmt` and clippy must finish before a push. Quote fixed counts only against a clean `origin/work` baseline.
 
 ## (f) Last measured counts
