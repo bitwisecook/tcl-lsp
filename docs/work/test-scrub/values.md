@@ -21,6 +21,12 @@ edited.
 | `type_infer` | 8 |
 | `it_5/var_escape_cfg_catch` | 7 |
 
+## Status, 18 November 07:00 UTC
+
+Of 219 rows: 31 open with values, 164 routed to the owner of their cause (analyser-binding 102,
+dataflow-optimiser 27, taint 21, the dataflow issue session 8, analysis-performance 3, class-facts 3),
+18 repaired and failing on a routed cause, 5 fixed, 1 deleted. The status column names each owner.
+
 ## Verdicts
 
 | Verdict | Tests |
