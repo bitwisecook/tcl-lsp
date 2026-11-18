@@ -358,19 +358,19 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
     assert_eq!(lexer_86.code, Code::Ok);
     assert_eq!(lexer_86.result.to_str().as_ref(), "1");
 
+    assert!(vm.set_child_native_engine_profile("child", v84));
     assert!(vm.set_child_dialect_profile("child", v84));
     assert!(vm.set_native_engine_profile(v84));
     vm.set_dialect_profile(v84);
 
     let stale = vm
-        .eval_source(
-            "catch {p} proc_msg; catch {o m} method_msg; catch {child_p} alias_msg; \\
-             list $proc_msg $method_msg $alias_msg",
-        )
+        .eval_source("catch {p} proc_msg; catch {child_p} alias_msg; list $proc_msg $alias_msg")
         .expect("8.4 probes compile");
+    // The TclOO object made under 8.6 has no 8.4 meaning: see
+    // a_whole_release_move_to_an_engine_without_tcloo_refuses_its_objects.
     assert_eq!(
         stale.result.to_str().as_ref(),
-        "{invalid command name \"lassign\"} {invalid command name \"lassign\"} {invalid command name \"lassign\"}"
+        "{invalid command name \"lassign\"} {invalid command name \"lassign\"}"
     );
     let handle_result = vm.invoke_function(&handle);
     assert_eq!(handle_result.code, Code::Error);
@@ -393,34 +393,28 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
         (Code::Error, "extra characters after close-brace".into())
     );
 
-    // A coroutine cannot be recompiled in place after it yielded: it owns a
-    // live PC/operand stack. The frame generation guard therefore rejects the
-    // stale continuation before it reaches its old inline lassign opcode.
-    let continuation = vm
-        .eval_source("catch {c} continuation_msg; set continuation_msg")
-        .expect("8.4 continuation probe compiles");
-    assert_eq!(
-        continuation.code,
-        Code::Ok,
-        "catch must absorb the stale frame"
-    );
-    assert_eq!(
-        continuation.result.to_str().as_ref(),
-        "cannot continue bytecode after dialect profile changed"
-    );
+    // The coroutine parked under 8.6 is state the 8.4 engine (no coroutines)
+    // cannot represent: the host refuses it, by the same ruling as a TclOO
+    // object. The frame guard's catchable rejection between two releases
+    // that both have coroutines is a_parked_coroutine_is_rejected_after_a_whole_release_move.
+    assert!(matches!(
+        vm.eval_source("catch {c} continuation_msg"),
+        Err(tcl_vm::TclError::Host(_))
+    ));
 
     // The reverse mutation gets fresh 8.5 bodies (including the child and
     // alias) rather than retaining the failed 8.4 recompilation.
+    assert!(vm.set_child_native_engine_profile("child", v85));
     assert!(vm.set_child_dialect_profile("child", v85));
     assert!(vm.set_native_engine_profile(v85));
     vm.set_dialect_profile(v85);
     let restored = vm
         .eval_source(
             "proc q {} {lassign {a b} x; return $x}; \\
-             list [p] [o m] [child_p] [q] [expr {0b10 + 1}]",
+             list [p] [child_p] [q] [expr {0b10 + 1}]",
         )
         .expect("8.5 restoration compiles");
-    assert_eq!(restored.result.to_str().as_ref(), "a a a a 3");
+    assert_eq!(restored.result.to_str().as_ref(), "a a a 3");
 
     // And the live-coroutine surface returns normally once a newly-created
     // continuation is compiled under a release that supports it.
@@ -567,4 +561,71 @@ fn a_logical_only_release_flip_refuses_expressions_without_an_authored_provider(
         .eval_source("lassign {a b} x; proc p {} {set y 1}; list $x [p]")
         .expect("non-expression commands compile on the logical surface");
     assert_eq!(surface.result.to_str().as_ref(), "a 1");
+}
+
+/// Coordinator ruling (18 Nov, G3 `o m`): after a whole-release move to an
+/// engine without `TclOO`, an object made under 8.6 is state the new engine
+/// cannot represent. The host refuses its use rather than inventing an 8.4
+/// answer no tclsh gives, as it refuses an old release's continuations.
+#[test]
+fn a_whole_release_move_to_an_engine_without_tcloo_refuses_its_objects() {
+    let v86 = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+    let v84 = tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile();
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(v86, Box::new(std::io::sink()));
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(v86)));
+    vm.eval_source("oo::class create C {method m {} {return made}}; C create o")
+        .expect("8.6 TclOO setup compiles");
+    assert!(vm.set_native_engine_profile(v84));
+    vm.set_dialect_profile(v84);
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(v84)));
+    assert!(matches!(
+        vm.eval_source("catch {o m} message"),
+        Err(tcl_vm::TclError::Host(tcl_vm::TclHostFailure::Execution(
+            tcl_runtime_api::NativeExecutionError::HostCommandRefusal(_)
+        )))
+    ));
+}
+
+/// A cached `TclOO` method body is recompiled after a whole-release move
+/// between two releases that both have `TclOO`: tclsh 8.6.18 `expr {010}` is 8,
+/// tclsh 9.0.4 is 10.
+#[test]
+fn a_cached_method_body_answers_as_the_release_it_moved_to() {
+    let v86 = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+    let v90 = tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(v86, Box::new(std::io::sink()));
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(v86)));
+    let before = vm
+        .eval_source("oo::class create C {method m {} {expr {010}}}; C create o; o m")
+        .expect("8.6 method compiles");
+    assert_eq!(before.result.to_str().as_ref(), "8");
+    assert!(vm.set_native_engine_profile(v90));
+    vm.set_dialect_profile(v90);
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(v90)));
+    let after = vm.eval_source("o m").expect("9.0 method compiles");
+    assert_eq!(after.result.to_str().as_ref(), "10");
+}
+
+/// A coroutine parked under one release cannot continue its bytecode after
+/// a whole-release move to another release that has coroutines: its frame
+/// owns a live PC and operand stack, so the frame generation guard rejects
+/// it as a catchable error instead of resuming stale instructions.
+#[test]
+fn a_parked_coroutine_is_rejected_after_a_whole_release_move() {
+    let v86 = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+    let v90 = tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(v86, Box::new(std::io::sink()));
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(v86)));
+    vm.eval_source("coroutine c apply {{} {yield ready; return done}}")
+        .expect("8.6 coroutine compiles");
+    assert!(vm.set_native_engine_profile(v90));
+    vm.set_dialect_profile(v90);
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(v90)));
+    let rejected = vm
+        .eval_source("list [catch {c} message] $message")
+        .expect("9.0 probe compiles");
+    assert_eq!(
+        rejected.result.to_str().as_ref(),
+        "1 {cannot continue bytecode after dialect profile changed}"
+    );
 }

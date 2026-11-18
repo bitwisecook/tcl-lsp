@@ -314,6 +314,20 @@ impl Vm {
     /// is parked in the interpreter arena, so route through `in_interp` rather
     /// than mutating a copied state and thereby skipping its bytecode-cache
     /// invalidation owner.
+    /// Re-pin a child interpreter's physical engine, the counterpart of
+    /// [`Self::set_child_dialect_profile`] for a whole-release move. `false`
+    /// when `name` is not a child or `profile` names no native engine.
+    pub fn set_child_native_engine_profile(
+        &mut self,
+        name: &str,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> bool {
+        let Some(id) = self.child_id(name) else {
+            return false;
+        };
+        self.in_interp(id, |child| child.set_native_engine_profile(profile))
+    }
+
     pub fn set_child_dialect_profile(
         &mut self,
         name: &str,

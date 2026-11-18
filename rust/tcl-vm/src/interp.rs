@@ -174,9 +174,9 @@ mod native_namespace_names;
 #[cfg(test)]
 mod native_operand_width_tests;
 #[cfg(test)]
-mod native_try_dispatch_tests;
-#[cfg(test)]
 mod native_source_manifest_tests;
+#[cfg(test)]
+mod native_try_dispatch_tests;
 pub(crate) use native_namespace_names::OriginalEnsembleNamespaceResult;
 #[cfg(test)]
 mod native_namespace_origin_tests;
