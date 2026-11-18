@@ -1281,7 +1281,9 @@ mod tests {
             .iter()
             .find(|l| l.range.start_line == 6)
             .expect("method get lens on line 6");
-        assert_eq!(get_lens.command_title, "1 reference", "{lenses:?}");
+        // original-method-candidates.md: a census with a `dict` call or a dynamic
+        // head is partial, so a positive count is a lower bound.
+        assert_eq!(get_lens.command_title, "at least 1 reference", "{lenses:?}");
     }
 
     #[test]
@@ -1309,7 +1311,9 @@ mod tests {
             .iter()
             .find(|l| l.range.start_line == 6)
             .expect("method get lens");
-        assert_eq!(get_lens.command_title, "1 reference", "{lenses:?}");
+        // original-method-candidates.md: a census with a `dict` call or a dynamic
+        // head is partial, so a positive count is a lower bound.
+        assert_eq!(get_lens.command_title, "at least 1 reference", "{lenses:?}");
     }
 
     #[test]
@@ -1548,7 +1552,9 @@ mod tests {
             .iter()
             .find(|l| l.range.start_line == 1)
             .expect("bark lens");
-        assert_eq!(bark.command_title, "1 reference", "{lenses:?}");
+        // original-method-candidates.md: a census with a `dict` call or a dynamic
+        // head is partial, so a positive count is a lower bound.
+        assert_eq!(bark.command_title, "at least 1 reference", "{lenses:?}");
     }
 
     #[test]

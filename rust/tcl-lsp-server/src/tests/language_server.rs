@@ -276,7 +276,8 @@ async fn code_lens_resolve_wires_show_references_command_for_method() {
         !command.command.is_empty(),
         "command id must never be empty"
     );
-    assert_eq!(command.title, "1 reference", "{command:?}");
+    // `dict get` and the dynamic `$b get` head keep the census partial.
+    assert_eq!(command.title, "at least 1 reference", "{command:?}");
     let args = command.arguments.expect("showReferences needs arguments");
     let locations = args[2].as_array().expect("locations array");
     assert_eq!(
@@ -401,7 +402,7 @@ async fn code_lens_resolve_for_inherited_method_counts_subclass_dispatch() {
     let resolved = resolve_member_lens_at_line(&backend, &uri, src, 1).await;
     let command = resolved.command.expect("Base::get must resolve");
     assert_eq!(
-        command.title, "1 reference",
+        command.title, "at least 1 reference",
         "`$s get x` dispatches to the inherited Base::get: {command:?}"
     );
 }

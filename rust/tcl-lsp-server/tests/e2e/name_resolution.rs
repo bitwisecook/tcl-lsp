@@ -287,7 +287,8 @@ mod my_method_dispatch {
         assert!(lines.contains(&5) && lines.contains(&9), "{lines:?}");
         assert_eq!(
             member_lens_title(&mut lsp, &uri, 5).as_deref(),
-            Some("1 reference")
+            // `dict get` keeps the census partial: a lower bound.
+            Some("at least 1 reference")
         );
     }
 

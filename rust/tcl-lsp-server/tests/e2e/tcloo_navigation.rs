@@ -820,7 +820,7 @@ fn tp_lattice_typed_receiver_agrees_across_references_lens_and_rename() {
 /// "0 references" and opens nothing — the cross-file layer must not invent
 /// sites for a member nobody calls.
 #[test]
-fn tn_method_with_no_cross_file_references_still_reads_zero() {
+fn tn_method_with_no_cross_file_references_does_not_claim_zero() {
     let mut lsp = Lsp::tcl();
     let animal = unique_uri("tcl");
     lsp.open_ready(
@@ -837,7 +837,9 @@ fn tn_method_with_no_cross_file_references_still_reads_zero() {
     let command = resolve_lens_on_line(&mut lsp, &animal, 2);
     assert_eq!(
         command["title"],
-        Value::String("0 references".to_owned()),
+        // Two retained documents leave the census partial: an unavailable
+        // count does not claim absence (original-method-candidates.md).
+        Value::String("References unavailable".to_owned()),
         "an uncalled method must not gain sites from the cross-file layer: {command:?}"
     );
     assert_eq!(
