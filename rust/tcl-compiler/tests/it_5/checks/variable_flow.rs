@@ -346,11 +346,25 @@ mod undescribed_script_word_bindings_no_false_w210 {
     /// frame, because an unknown command may `uplevel` the script.
     #[test]
     fn a_name_the_word_never_binds_still_warns() {
-        let src = "mycmd -body {\n\
+        // `mycmd` runs its script word in the caller's frame, so the read
+        // happens: tclsh 8.6.18 / 9.0.4 raise `can't read "never_set"`.
+        let src = "proc mycmd {args} {uplevel 1 [lindex $args end]}\n\
+                   mycmd -body {\n\
                    \x20   foreach it {1 2 3} { set last $it }\n\
                    \x20   puts $never_set\n\
                    }\n";
         assert_eq!(count(src, D, "W210"), 1, "{:?}", codes(src, D));
+    }
+
+    /// A bare undefined `mycmd` raises `invalid command name` under the
+    /// stock `unknown` and never runs its script word (ruling #2427; tclsh
+    /// 8.6.18 / 9.0.4), so nothing inside it is a read.
+    #[test]
+    fn an_undefined_command_never_runs_its_script_word() {
+        let src = "mycmd -body {\n\
+                   \x20   puts $never_set\n\
+                   }\n";
+        assert_eq!(count(src, D, "W210"), 0, "{:?}", codes(src, D));
     }
 }
 

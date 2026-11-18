@@ -239,7 +239,10 @@ mod report_scoped_commands {
     #[test]
     fn tp_typo_command_flagged() {
         // `toop` / `dataa` are not scoped commands → still W123.
-        let src = "::report::defstyle st {} {\n  toop set x\n  dataa set y\n}\n";
+        // tcllib report is loaded: without it `::report::defstyle` raises
+        // `invalid command name` and the style body never runs (tclsh 8.6.18).
+        let src =
+            "package require report\n::report::defstyle st {} {\n  toop set x\n  dataa set y\n}\n";
         let w = w123(src);
         assert!(
             w.iter().any(|m| m.contains("toop")),
@@ -263,7 +266,9 @@ mod report_scoped_commands {
 
     #[test]
     fn tp_bare_ensemble_requires_operation_e001() {
-        let src = "::report::defstyle st {} {\n  top\n}\n";
+        // tcllib report is loaded: without it `::report::defstyle` raises
+        // `invalid command name` and the style body never runs (tclsh 8.6.18).
+        let src = "package require report\n::report::defstyle st {} {\n  top\n}\n";
         assert!(
             fires(src, D, "E001"),
             "bare `top` → E001: {:?}",
@@ -274,7 +279,9 @@ mod report_scoped_commands {
     #[test]
     fn tp_operation_too_few_args_e002() {
         // `top set` needs the template value.
-        let src = "::report::defstyle st {} {\n  top set\n}\n";
+        // tcllib report is loaded: without it `::report::defstyle` raises
+        // `invalid command name` and the style body never runs (tclsh 8.6.18).
+        let src = "package require report\n::report::defstyle st {} {\n  top set\n}\n";
         assert!(
             fires(src, D, "E002"),
             "`top set` (no value) → E002: {:?}",
@@ -285,7 +292,9 @@ mod report_scoped_commands {
     #[test]
     fn tp_plain_command_too_many_args_e003() {
         // `columns` takes no arguments.
-        let src = "::report::defstyle st {} {\n  columns extra\n}\n";
+        // tcllib report is loaded: without it `::report::defstyle` raises
+        // `invalid command name` and the style body never runs (tclsh 8.6.18).
+        let src = "package require report\n::report::defstyle st {} {\n  columns extra\n}\n";
         assert!(
             fires(src, D, "E003"),
             "`columns extra` → E003: {:?}",
@@ -300,7 +309,10 @@ mod report_scoped_commands {
         // Core commands inside the body keep their normal arity checks — a
         // scoped env must not swallow them.  `set` with one arg is fine; a
         // genuinely unknown core-looking head is still W123.
-        let src = "::report::defstyle st {} {\n  set x 1\n  frobnicate a b\n}\n";
+        // tcllib report is loaded: without it `::report::defstyle` raises
+        // `invalid command name` and the style body never runs (tclsh 8.6.18).
+        let src =
+            "package require report\n::report::defstyle st {} {\n  set x 1\n  frobnicate a b\n}\n";
         assert!(
             w123(src).iter().any(|m| m.contains("frobnicate")),
             "unknown non-scoped head still W123: {:?}",

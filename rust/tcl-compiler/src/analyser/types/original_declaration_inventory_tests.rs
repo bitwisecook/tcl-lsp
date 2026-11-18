@@ -237,11 +237,19 @@ fn root_unknown_command_mutation_reports_only_unknown_table_changes() {
         ("set n [gets stdin]\neval \"proc $n {} {}\"\n", true),
         ("puts hello\n", false),
         ("set x $missing\n", false),
-        // C Tcl's init.tcl `::unknown` may auto_load and source files, and
-        // `package require` runs package scripts: both can define commands.
+        // `package require` runs package scripts, which can define commands
+        // (tclsh 8.6.18: 101 commands before `package require http`, 104
+        // after). A bare undefined head with no autoload entry raises
+        // `invalid command name` under the stock `unknown` and does nothing
+        // else (ruling #2427); with an `auto_index` entry it may source a
+        // file that defines anything.
         ("package require http\n", true),
-        ("catch {unknowncmd}\n", true),
-        ("unknowncmd arg\n", true),
+        ("catch {unknowncmd}\n", false),
+        ("unknowncmd arg\n", false),
+        (
+            "set ::auto_index(unknowncmd) {source lib.tcl}\ncatch {unknowncmd}\n",
+            true,
+        ),
         ("rename unknown {}\ncatch {unknowncmd}\n", false),
     ] {
         let result = crate::analyser::Analyser::new().analyse(source, "tcl8.6");

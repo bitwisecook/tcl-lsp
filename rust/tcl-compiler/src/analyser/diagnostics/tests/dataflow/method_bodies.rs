@@ -136,8 +136,18 @@ fn objdefine_per_object_variable_does_not_false_positive_w210() {
 fn snit_method_body_unbound_read_now_flags_w210() {
     // A snit method body must become a method unit, or this unbound read is
     // invisible.
+    // Snit is loaded: without it `snit::type` is an undefined command whose
+    // body never runs (tclsh 8.6.18 / 9.0.4: invalid command name).
     let src = "snit::type Dog {\n    method bark {} { return $neverBound }\n}\n";
-    let codes = codes_for(src);
+    let codes = crate::provider_fixtures::analyse(
+        &format!("package require snit\n{src}"),
+        "tcl8.6",
+        &[crate::provider_fixtures::Provider::Snit],
+    )
+    .diagnostics
+    .into_iter()
+    .map(|diagnostic| diagnostic.code.to_string())
+    .collect::<Vec<_>>();
     assert!(
         codes.contains(&"W210".to_string()),
         "an unbound read inside a snit method must flag W210: {codes:?}"
@@ -188,8 +198,18 @@ fn snit_widget_win_and_hull_do_not_false_positive_w210() {
 #[test]
 fn itcl_method_body_unbound_read_now_flags_w210() {
     // An itcl method body must become a method unit too.
+    // Itcl is loaded: without it `itcl::class` is an undefined command whose
+    // body never runs.
     let src = "itcl::class Toaster {\n    public method toast {} { return $neverBound }\n}\n";
-    let codes = codes_for(src);
+    let codes = crate::provider_fixtures::analyse(
+        &format!("package require Itcl\n{src}"),
+        "tcl8.6",
+        &[crate::provider_fixtures::Provider::Itcl],
+    )
+    .diagnostics
+    .into_iter()
+    .map(|diagnostic| diagnostic.code.to_string())
+    .collect::<Vec<_>>();
     assert!(
         codes.contains(&"W210".to_string()),
         "an unbound read inside an itcl method must flag W210: {codes:?}"

@@ -1577,7 +1577,10 @@ mod logical_relation_navigation_debt_tests {
 
     #[test]
     fn relation_navigation_retains_unknown_prefix_as_conditional_applicability() {
-        let source = "mystery; oo::class create Child {superclass Base}";
+        // `mystery` has an autoload entry, so the stock `unknown` may source a
+        // file that defines anything; a bare undefined head would raise and
+        // leave the class unreached (ruling #2427).
+        let source = "set ::auto_index(mystery) {source lib.tcl}; mystery; oo::class create Child {superclass Base}";
         let analysis = Analyser::new().analyse(source, "tcl");
         let child = &analysis.all_classes["::Child"];
         let statements = analysis

@@ -253,7 +253,9 @@ emitted: {:?}",
 /// word (`puts {$y}`) is known data.
 #[test]
 fn issue_1142_unclassified_braced_word_free_read_still_fires() {
-    let src = "proc f {} { mywrapper {puts $notset} }\n";
+    // `mywrapper` runs its script in the caller's frame; undefined, it would
+    // raise `invalid command name` and never run it (tclsh 8.6.18 / 9.0.4).
+    let src = "proc mywrapper {args} {uplevel 1 [lindex $args end]}\nproc f {} { mywrapper {puts $notset} }\n";
     assert!(
         fires(src, D, "W210"),
         "#1142 TN: an unclassified braced word may run in this frame; \

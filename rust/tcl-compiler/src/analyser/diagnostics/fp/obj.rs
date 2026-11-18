@@ -445,8 +445,10 @@ fn fp_obj_06_private_proc_body_analysed() {
     // FP-OBJ-06: a proc declared inside snit::type body is type-private but its body
     // must still be analysed. The `${a}($a)` scalar-vs-array smell inside the proc
     // body must still fire — proves the body isn't silently dropped.
+    // Snit is loaded: without it `snit::type` raises `invalid command name`
+    // and the body never runs (tclsh 8.6.18).
     let src = "snit::type T {\n    proc Helper {a} {\n        return ${a}($a)\n    }\n}";
-    let diags = codes(src, D);
+    let diags = loaded_snit_codes(src);
     let w216_fires = diags.iter().any(|c| c == "W216");
     assert!(
         w216_fires,
