@@ -1339,8 +1339,9 @@ mod tests {
 
     #[test]
     fn run_all_checks_reports_irule3101_end_to_end() {
-        let cu = CompilationUnit::build_for("HTTP::uri foo", &registry(), false)
-            .with_interprocedural(&registry(), Some(tcl_dialect::DialectProfile::irules()));
+        let cu =
+            CompilationUnit::build_for("when HTTP_REQUEST { HTTP::uri foo }", &registry(), false)
+                .with_interprocedural(&registry(), Some(tcl_dialect::DialectProfile::irules()));
         let diagnostics = run_all_checks(
             &cu,
             &registry(),
@@ -1434,7 +1435,9 @@ mod tests {
         // Under `f5-irules` it should warn with IRULE3101; under plain
         // Tcl it must stay silent (user-defined proc named "HTTP::uri"
         // must not trigger a high-severity error).
-        let src = "HTTP::uri foo";
+        // Inside an event, where an HTTP request exists (the IRULE3101 KCS
+        // example); at top level there is no request to rewrite.
+        let src = "when HTTP_REQUEST { HTTP::uri foo }";
 
         let irules_cu = CompilationUnit::build_for(src, &registry(), false)
             .with_interprocedural(&registry(), Some(tcl_dialect::DialectProfile::irules()));
