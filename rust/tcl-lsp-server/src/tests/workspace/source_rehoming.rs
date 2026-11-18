@@ -497,13 +497,22 @@ async fn rehoming_never_waits_for_live_publication_that_needs_its_gate_1854() {
         .expect("the sourced document is open")
         .publication = DocumentPublication::Pending;
 
-    crate::rt::timeout(
-        std::time::Duration::from_secs(1),
+    // A pass over a sourced document whose publication stays pending retries
+    // a bounded number of times (SOURCE_VIEW_CONTENTION_ATTEMPTS), then
+    // refuses; a deadlock would never return, so the bound is generous.
+    let refused = crate::rt::timeout(
+        std::time::Duration::from_secs(60),
         backend.refresh_source_rehoming(),
     )
     .await
-    .expect("rehoming must release its gate instead of waiting for publication")
-    .unwrap();
+    .expect("rehoming must release its gate instead of waiting for publication");
+    assert!(
+        matches!(
+            refused,
+            Err(crate::DocumentSourceUnavailable::ConditionalAdvice { ref uri }) if *uri == parent || *uri == sourced
+        ),
+        "a persistently pending sourced document refuses the pass: {refused:?}"
+    );
     assert!(
         backend.rehoming_gate.try_lock().is_ok(),
         "the pending publisher must be able to acquire the released gate",
