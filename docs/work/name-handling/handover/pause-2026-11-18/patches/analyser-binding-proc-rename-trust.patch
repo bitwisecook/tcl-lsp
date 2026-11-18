@@ -1,0 +1,77 @@
+From f65571a045ec86879d5e5c509b7d5a4f59a1ee7a Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 18 Nov 2026 05:42:41 +0000
+Subject: [PATCH] WIP (parked): proc rename trust; slot shapes and original
+ publications cannot tell a rename from a fresh proc. The walk's
+ proc_rebound_names record is lost before the CFG-prep lattice projects it.
+
+---
+ .../module_bindings/mutation_record.rs        | 40 ++++++++++++++++++-
+ 1 file changed, 38 insertions(+), 2 deletions(-)
+
+diff --git a/rust/tcl-compiler/src/command_binding/module_bindings/mutation_record.rs b/rust/tcl-compiler/src/command_binding/module_bindings/mutation_record.rs
+index 8803c3bd3..b7fd652e1 100644
+--- a/rust/tcl-compiler/src/command_binding/module_bindings/mutation_record.rs
++++ b/rust/tcl-compiler/src/command_binding/module_bindings/mutation_record.rs
+@@ -199,6 +199,16 @@ impl ModuleCommandBindings {
+     /// recorded by the same resolved invocation walk, including alias prefixes
+     /// and recovered executable roots.
+     #[must_use]
++    fn original_publication_withdrawn(&self, key: &SourceCommandKey) -> bool {
++        let Some(policy) = self.original_command_world.selected_policy() else {
++            return false;
++        };
++        !self.original_command_world.is_withdrawn()
++            && self
++                .original_slot_for_command_key(key, policy)
++                .is_some_and(|slot| self.original_publication_at(&slot, policy).is_none())
++    }
++
+     pub(crate) fn mutation_projection(&self, registry: &CommandRegistry) -> ModuleCommandMutations {
+         let mut names = std::collections::HashSet::new();
+         for (key, observed) in self.bindings.iter() {
+@@ -240,9 +250,13 @@ impl ModuleCommandBindings {
+                 // set excludes.
+                 .filter(|key| match key {
+                     SourceCommandKey::Authored(_) => true,
++                    // A changed slot that the original world no longer
++                    // publishes (`rename p q`, `rename p {}`) no longer holds
++                    // what its name declared.
+                     SourceCommandKey::Slot { namespace, .. } => {
+-                        self.baseline.native_entry.is_some()
+-                            && namespace.exact_native_path().is_some()
++                        (self.baseline.native_entry.is_some()
++                            && namespace.exact_native_path().is_some())
++                            || self.original_publication_withdrawn(key)
+                     }
+                 })
+                 .filter_map(|key| self.callable_spelling_for_key(key))
+@@ -332,3 +346,25 @@ impl ModuleCommandBindings {
+             .filter_map(SourceCommandKey::authored_spelling)
+     }
+ }
++#[cfg(test)]
++mod renamed_procedure_tests {
++    fn trusts(source: &str, name: &str) -> bool {
++        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
++        crate::compilation_unit::CompilationUnit::build_for_dialect(
++            source, registry, false, "tcl8.6",
++        )
++        .command_mutations
++        .trusts_proc_binding(name)
++    }
++
++    /// tclsh 8.4.20 to 9.1.0: after `rename bump bump2`, `info commands bump`
++    /// is empty and `bump2` is the procedure; after `rename gone {}`, `gone`
++    /// raises `invalid command name`.
++    #[test]
++    fn a_renamed_or_deleted_procedure_is_no_longer_trusted() {
++        let proc = "proc bump {name} {upvar 1 $name v; incr v}\n";
++        assert!(trusts(proc, "::bump"));
++        assert!(!trusts(&format!("{proc}rename bump bump2\n"), "::bump"));
++        assert!(!trusts(&format!("{proc}rename bump {{}}\n"), "::bump"));
++    }
++}
+-- 
+2.43.0
+

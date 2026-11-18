@@ -1,0 +1,31 @@
+From 04b96763d069815c2c6a6d882f5b7a0c12caf880 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 18 Nov 2026 04:27:57 +0000
+Subject: [PATCH] WIP (parked): a called procedure's own body is its
+ declared-frame body (waits on the declared-frame walk of called bodies)
+
+---
+ rust/tcl-compiler/src/lowering/declared_frame_bodies.rs | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/rust/tcl-compiler/src/lowering/declared_frame_bodies.rs b/rust/tcl-compiler/src/lowering/declared_frame_bodies.rs
+index cb5aa7564..33e5fc080 100644
+--- a/rust/tcl-compiler/src/lowering/declared_frame_bodies.rs
++++ b/rust/tcl-compiler/src/lowering/declared_frame_bodies.rs
+@@ -85,6 +85,13 @@ impl Lowerer<'_> {
+         self.source_bindings = enclosing;
+         self.suppress_proc_register = registering;
+         self.module = snapshot;
++        // The procedure's own body is the one every entry runs: a caller's
++        // activation is a fact about that call, not about the body.
++        for (id, procedure) in &bodies {
++            if let Some(own) = self.module.procedures.get_mut(id) {
++                own.body = procedure.body.clone();
++            }
++        }
+         self.module.declared_frame_bodies = bodies;
+     }
+ }
+-- 
+2.43.0
+

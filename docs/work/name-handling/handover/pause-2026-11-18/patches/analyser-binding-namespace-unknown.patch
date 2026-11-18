@@ -1,0 +1,118 @@
+From 6ee00a42c446aa72e6c16ca506a26ec69a01efc3 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 17 Nov 2026 23:30:27 +0000
+Subject: [PATCH] WIP (parked): operands joined across activations; Local frame
+ kept across activations of one body. Insufficient alone: a Local cell needs
+ an activation identity; the module body must bind through the declared frame.
+
+---
+ .../src/command_binding/invocation_binding.rs | 14 ++++++++++++-
+ .../original_variable_compilation.rs          | 10 +++++++++
+ .../original_variable_inventory.rs            |  5 ++++-
+ rust/tcl-compiler/src/variable_bindings.rs    | 21 +++++++++++++++++++
+ 4 files changed, 48 insertions(+), 2 deletions(-)
+
+diff --git a/rust/tcl-compiler/src/command_binding/invocation_binding.rs b/rust/tcl-compiler/src/command_binding/invocation_binding.rs
+index d5c3367ed..ab1fa1243 100644
+--- a/rust/tcl-compiler/src/command_binding/invocation_binding.rs
++++ b/rust/tcl-compiler/src/command_binding/invocation_binding.rs
+@@ -919,10 +919,22 @@ impl SourceInvocationBinding {
+             .join(&other.namespace_cell_presence);
+         let mut variables = self.variable_context.as_ref().clone();
+         variables.join(&other.variable_context);
++        // Two activations of one procedure body are each a Local frame of
++        // that body: the joined context keeps the frame and loses only the
++        // activation, so a compiled local is still the same slot.
++        let activations_of_one_body = matches!(
++            (&self.variable_frame, &other.variable_frame),
++            (
++                crate::var_resolve::VariableExecutionFrame::Procedure { namespace: left, .. },
++                crate::var_resolve::VariableExecutionFrame::Procedure { namespace: right, .. },
++            ) if left == right
++        );
+         if self.variable_frame != other.variable_frame {
+             self.variable_frame = crate::var_resolve::VariableExecutionFrame::Unknown;
+         }
+-        if self.variable_frame == crate::var_resolve::VariableExecutionFrame::Unknown {
++        if self.variable_frame == crate::var_resolve::VariableExecutionFrame::Unknown
++            && !activations_of_one_body
++        {
+             variables = variables.in_frame(&self.variable_frame);
+         }
+         self.variable_context = Arc::new(variables);
+diff --git a/rust/tcl-compiler/src/command_binding/original_variable_compilation.rs b/rust/tcl-compiler/src/command_binding/original_variable_compilation.rs
+index 95345fe54..7d570b0a1 100644
+--- a/rust/tcl-compiler/src/command_binding/original_variable_compilation.rs
++++ b/rust/tcl-compiler/src/command_binding/original_variable_compilation.rs
+@@ -373,6 +373,15 @@ enum OriginalVariableOperandPurpose {
+ }
+ 
+ impl OriginalCompiledVariableOperand {
++    /// The same operand in every activation of its body: the joined context
++    /// of several walks has no activation, and the compiled slot is the same.
++    pub(crate) fn without_activation(&self) -> Self {
++        Self {
++            activation: None,
++            ..self.clone()
++        }
++    }
++
+     pub(crate) fn resolve(
+         &self,
+         context: &ResolveContext,
+@@ -1137,3 +1146,4 @@ mod logical_substitution_tests {
+         assert_native_engines_refuse_logical_substitution();
+     }
+ }
++
+diff --git a/rust/tcl-compiler/src/command_binding/original_variable_inventory.rs b/rust/tcl-compiler/src/command_binding/original_variable_inventory.rs
+index fccb4eceb..7b769b28c 100644
+--- a/rust/tcl-compiler/src/command_binding/original_variable_inventory.rs
++++ b/rust/tcl-compiler/src/command_binding/original_variable_inventory.rs
+@@ -44,7 +44,10 @@ impl SourceCommandBindings {
+             })
+             .and_modify(|previous| {
+                 if previous.as_deref() != Some(operands) {
+-                    *previous = None;
++                    *previous = previous
++                        .as_deref()
++                        .and_then(|previous| previous.across_activations(operands))
++                        .map(Arc::new);
+                 }
+             })
+             .or_insert_with(|| Some(Arc::new(operands.clone())));
+diff --git a/rust/tcl-compiler/src/variable_bindings.rs b/rust/tcl-compiler/src/variable_bindings.rs
+index 880cb0fda..51b7c73a7 100644
+--- a/rust/tcl-compiler/src/variable_bindings.rs
++++ b/rust/tcl-compiler/src/variable_bindings.rs
+@@ -139,6 +139,27 @@ impl OriginalVariableInvocation {
+         }
+     }
+ 
++    /// This site as another walk of its body (another call, a later loop
++    /// iteration) recorded it, when the two differ only in the activation
++    /// their compiled operands were resolved under.
++    pub(crate) fn across_activations(&self, other: &Self) -> Option<Self> {
++        let erased = |operands: &[Option<crate::command_binding::original_variable_compilation::OriginalCompiledVariableOperand>]| {
++            operands
++                .iter()
++                .map(|operand| operand.as_ref().map(|operand| operand.without_activation()))
++                .collect::<Vec<_>>()
++        };
++        let compiled_operands = erased(&self.compiled_operands);
++        (self.inputs == other.inputs
++            && self.compiled_locals == other.compiled_locals
++            && compiled_operands == erased(&other.compiled_operands))
++        .then(|| Self {
++            compiled_operands,
++            inputs: self.inputs.clone(),
++            compiled_locals: self.compiled_locals.clone(),
++        })
++    }
++
+     pub(crate) fn with_compiled_operands(
+         mut self,
+         operands: Vec<Option<crate::command_binding::original_variable_compilation::OriginalCompiledVariableOperand>>,
+-- 
+2.43.0
+
