@@ -93,13 +93,20 @@ impl SourceCommandBindings {
     /// This interpretation as one procedure body's own declared frame sees
     /// it: inside `body`, a command is bound only by the points the walk
     /// recorded in `frame`, never by the activation of a caller that entered
-    /// the body; outside it, nothing changes. `None` when the walk reached no
-    /// command of the body in that frame.
+    /// the body; outside it, nothing changes. A called procedure's body is
+    /// read from the walk that also entered it in its declared frame
+    /// ([`Self::declared_frame_walk`]). `None` when no walk reached a command
+    /// of the body in that frame.
     pub(crate) fn declared_frame_view(
         &self,
         frame: &VariableExecutionFrame,
         body: tcl_lexer::Span,
     ) -> Option<Self> {
+        if let Some(walk) = self.declared_frame_walk.as_deref()
+            && let Some(view) = walk.declared_frame_view(frame, body)
+        {
+            return Some(view);
+        }
         let view = DeclaredFrameView {
             frame: frame.clone(),
             activation: activation(frame)?.to_owned(),

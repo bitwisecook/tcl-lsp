@@ -1179,6 +1179,9 @@ pub struct SourceCommandBindings {
     dispatch_points: SharedSourceInventory<BTreeMap<u32, Vec<usize>>>,
     /// Inside one procedure body, only the points of its own declared frame.
     declared_frame_view: Option<Arc<declared_frame_view::DeclaredFrameView>>,
+    /// This interpretation with every called procedure's body also walked
+    /// in its own declared frame, where a [`Self::declared_frame_view`] reads.
+    declared_frame_walk: Option<Arc<SourceCommandBindings>>,
     final_state: Arc<ModuleCommandBindings>,
     /// Closed normal root world, independently of the partial fallback state.
     /// This source-model fact grants no physical interpreter execution.

@@ -274,11 +274,26 @@ impl SourceCommandBindings {
         conditional.conditional_procedure_results = SharedSourceInventory::default();
         conditional.active_calls.clear();
         conditional.active_variable_observers.clear();
-        for (root, entry) in entries {
-            conditional.walk_deferred_entry(&root, &entry, config, registry);
+        let mut declared = SourceCommandBindings {
+            module_projection_memo: super::retained_source::ModuleProjectionMemo::default(),
+            declaration_flow_cache: super::declaration_flow::SourceDeclarationFlowCache::default(),
+            derived_indexes: super::shared_inventory::DerivedIndexes::default(),
+            ..conditional.clone()
+        };
+        for (root, entry) in &entries {
+            conditional.walk_deferred_entry(root, entry, config, registry);
         }
         self.merge_original_declaration_layouts(&conditional);
         self.merge_conditional_procedure_results(&conditional);
+        // A separate collector enters each called body as an uncalled one is
+        // entered, after the document has loaded, so its declared-frame
+        // points carry the same selected bindings; only a declared-frame
+        // view of the bindings reads them.
+        for (root, entry) in &entries {
+            let after_load = declared.uncalled_body_after_load(root, entry);
+            declared.walk_deferred_entry_with(root, entry, config, registry, after_load);
+        }
+        self.declared_frame_walk = Some(Arc::new(declared));
     }
 
     pub(super) fn deferred_entry_states(
