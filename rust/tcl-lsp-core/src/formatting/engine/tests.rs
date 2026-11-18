@@ -1679,13 +1679,13 @@ fn case_list_action_was_expanded(formatted: &str, marker: &str) -> bool {
 #[test]
 fn case_list_alias_formatting_uses_the_binding_at_each_call_position() {
     let source = concat!(
-        "pick subject {default {puts before_alias}}\n",
+        "catch {pick subject {default {puts before_alias}}}\n",
         "interp alias {} pick {} switch\n",
         "pick subject {default {puts through_alias}}\n",
         "interp alias {} pick {}\n",
-        "pick subject {default {puts deleted_alias}}\n",
+        "catch {pick subject {default {puts deleted_alias}}}\n",
         "interp alias {} pick {} puts\n",
-        "pick subject {default {puts rebound_other}}\n",
+        "catch {pick subject {default {puts rebound_other}}}\n",
         "interp alias {} pick {} switch\n",
         "pick subject {default {puts rebound_switch}}\n",
     );
@@ -1710,11 +1710,11 @@ fn case_list_alias_formatting_uses_the_binding_at_each_call_position() {
 #[test]
 fn case_list_rename_formatting_uses_the_binding_at_each_call_position() {
     let source = concat!(
-        "pick subject {default {puts before_rename}}\n",
+        "catch {pick subject {default {puts before_rename}}}\n",
         "rename switch pick\n",
         "pick subject {default {puts after_rename}}\n",
         "rename pick {}\n",
-        "pick subject {default {puts after_delete}}\n",
+        "catch {pick subject {default {puts after_delete}}}\n",
     );
     let formatted = fmt(source);
     for opaque in ["before_rename", "after_delete"] {
@@ -1728,8 +1728,8 @@ fn case_list_rename_formatting_uses_the_binding_at_each_call_position() {
 #[test]
 fn rooted_and_namespaced_case_list_aliases_format_at_their_positions() {
     let source = concat!(
-        "::root_pick subject {default {puts before_root}}\n",
-        "::case_alias::pick subject {default {puts before_namespace}}\n",
+        "catch {::root_pick subject {default {puts before_root}}}\n",
+        "catch {::case_alias::pick subject {default {puts before_namespace}}}\n",
         "namespace eval ::case_alias {}\n",
         "interp alias {} ::root_pick {} ::switch\n",
         "interp alias {} ::case_alias::pick {} switch\n",
