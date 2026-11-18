@@ -643,9 +643,9 @@ fn group_mate_replacement_does_not_resurrect_a_paired_deletion() {
     // are exempt. Both members must survive, or the assignment lands twice.
     let source = "set msg \"error\"\nif {$ok} { return } else { log $msg }";
     let mut selected = sink_group(source);
-    let registry = registry();
-    let cu = CompilationUnit::build_for(source, &registry, false);
-    drop_def_elims_resurrected_by_replacements(&cu, &registry, &mut selected);
+    let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
+    let cu = CompilationUnit::build_for_dialect(source, registry, false, "f5-irules");
+    drop_def_elims_resurrected_by_replacements(&cu, registry, &mut selected);
     assert_eq!(
         selected.len(),
         2,
@@ -669,9 +669,9 @@ fn a_dropped_deletion_takes_its_whole_group_with_it() {
         ),
         "puts $msg",
     ));
-    let registry = registry();
-    let cu = CompilationUnit::build_for(source, &registry, false);
-    drop_def_elims_resurrected_by_replacements(&cu, &registry, &mut selected);
+    let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
+    let cu = CompilationUnit::build_for_dialect(source, registry, false, "f5-irules");
+    drop_def_elims_resurrected_by_replacements(&cu, registry, &mut selected);
     assert_eq!(
         selected.len(),
         1,
