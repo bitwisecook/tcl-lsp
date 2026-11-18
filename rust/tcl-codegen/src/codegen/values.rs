@@ -705,7 +705,7 @@ impl CodegenCtx<'_> {
                 if source_index {
                     Op::LOAD_ARRAY_STK
                 } else {
-                    Op::LOAD_STK
+                    self.literal_scalar_stack(Op::LOAD_STK)
                 },
                 vec![],
             )
@@ -857,7 +857,8 @@ impl CodegenCtx<'_> {
             );
         } else {
             self.push_lit_exact(name);
-            self.emit(Op::LOAD_STK, vec![]);
+            let op = self.literal_scalar_stack(Op::LOAD_STK);
+            self.emit(op, vec![]);
         }
     }
 
@@ -911,14 +912,12 @@ impl CodegenCtx<'_> {
                 &format!("var \"{base}\""),
             );
         } else {
-            self.emit(
-                if array {
-                    Op::STORE_ARRAY_STK
-                } else {
-                    Op::STORE_STK
-                },
-                vec![],
-            );
+            let op = if array {
+                Op::STORE_ARRAY_STK
+            } else {
+                self.literal_scalar_stack(Op::STORE_STK)
+            };
+            self.emit(op, vec![]);
         }
     }
 
@@ -1156,6 +1155,7 @@ impl CodegenCtx<'_> {
             self.refuse_native_dependency();
             return false;
         };
+        let literal_name = matches!(target, NativeVariableWordOperand::Literal { .. });
         let (slot, array) = match target {
             NativeVariableWordOperand::Literal { name, index, .. } => {
                 let slot = self.command_variable_slot(&name).filter(|slot| *slot < 256);
@@ -1186,11 +1186,37 @@ impl CodegenCtx<'_> {
         if immediate.is_none() {
             self.emit_original_native_word(amount.expect("non-immediate original amount"));
         }
-        self.finish_increment(slot, array, immediate);
+        self.finish_increment(slot, array, immediate, literal_name);
         true
     }
 
-    fn finish_increment(&mut self, slot: Option<usize>, array: bool, immediate: Option<i32>) {
+    /// C before 8.6 reaches a literal scalar name with no local slot through
+    /// the scalar-specific stack forms (`TclPushVarName` isScalar): tclsh 8.5
+    /// `disassemble script {set x 1}` stores with `storeScalarStk`.
+    pub(crate) fn literal_scalar_stack(&self, op: Op) -> Op {
+        let before_86 = self
+            .native_entry
+            .and_then(|entry| entry.execution_point?.tcl_version())
+            .is_some_and(|version| version < tcl_dialect::TclVersion::V8_6);
+        if !before_86 {
+            return op;
+        }
+        match op {
+            Op::LOAD_STK => Op::LOAD_SCALAR_STK,
+            Op::STORE_STK => Op::STORE_SCALAR_STK,
+            Op::INCR_STK => Op::INCR_SCALAR_STK,
+            Op::INCR_STK_IMM => Op::INCR_SCALAR_STK_IMM,
+            other => other,
+        }
+    }
+
+    fn finish_increment(
+        &mut self,
+        slot: Option<usize>,
+        array: bool,
+        immediate: Option<i32>,
+        literal_name: bool,
+    ) {
         let op = match (array, slot.is_some(), immediate.is_some()) {
             (false, true, true) => Op::INCR_SCALAR1_IMM,
             (false, true, false) => Op::INCR_SCALAR1,
@@ -1200,6 +1226,11 @@ impl CodegenCtx<'_> {
             (false, false, false) => Op::INCR_STK,
             (true, false, true) => Op::INCR_ARRAY_STK_IMM,
             (true, false, false) => Op::INCR_ARRAY_STK,
+        };
+        let op = if literal_name {
+            self.literal_scalar_stack(op)
+        } else {
+            op
         };
         let mut operands = Vec::new();
         if let Some(slot) = slot {
@@ -1267,7 +1298,7 @@ impl CodegenCtx<'_> {
                 amount_braced,
             );
         }
-        self.finish_increment(slot, key.is_some(), immediate);
+        self.finish_increment(slot, key.is_some(), immediate, true);
     }
 
     /// Evaluate the original amount word once, retaining its brace semantics.

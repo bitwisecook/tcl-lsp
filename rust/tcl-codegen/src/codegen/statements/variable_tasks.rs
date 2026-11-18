@@ -73,23 +73,51 @@ impl CodegenCtx<'_> {
         let Some(target_word) = command.words.get(target_word) else {
             return false;
         };
+        // C before 8.6 reaches a literal scalar name with no local slot
+        // through the scalar-specific stack forms (`TclPushVarName` isScalar).
+        let literal_scalar = matches!(
+            &target,
+            tcl_syntax::native_variable_words::NativeVariableWordOperand::Literal {
+                index: None,
+                ..
+            }
+        ) && self
+            .native_entry
+            .and_then(|entry| entry.execution_point?.tcl_version())
+            .is_some_and(|version| version < tcl_dialect::TclVersion::V8_6);
         let (slot, array) =
             self.prepare_native_variable_tasks(target_word, target, increment, operations);
         if let Some(recipe) = append {
             return Self::append_native_append_tasks(command, &recipe, slot, array, operations);
         }
-        if increment {
-            return Self::append_native_increment_tasks(
+        let start = operations.len();
+        let appended = if increment {
+            Self::append_native_increment_tasks(
                 command,
                 amount_word,
                 immediate,
                 slot,
                 array,
                 operations,
-            );
+            )
+        } else {
+            Self::append_native_load_store_tasks(command, value_word, slot, array, operations);
+            true
+        };
+        if literal_scalar && slot.is_none() {
+            for task in &mut operations[start..] {
+                if let NativeEmissionTask::Operation(op, _) = task {
+                    *op = match *op {
+                        Op::LOAD_STK => Op::LOAD_SCALAR_STK,
+                        Op::STORE_STK => Op::STORE_SCALAR_STK,
+                        Op::INCR_STK => Op::INCR_SCALAR_STK,
+                        Op::INCR_STK_IMM => Op::INCR_SCALAR_STK_IMM,
+                        other => other,
+                    };
+                }
+            }
         }
-        Self::append_native_load_store_tasks(command, value_word, slot, array, operations);
-        true
+        appended
     }
 
     pub(super) fn prepare_native_variable_tasks(

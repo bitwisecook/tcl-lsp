@@ -251,8 +251,8 @@ fn a_body_ends_with_the_done_tclsh_appends() {
                 body,
                 "{release:?} proc {source}"
             );
-            // 8.5 scripts read variables through its own stack forms, a
-            // separate witness.
+            // 8.5 scripts also mark a compiled `return` with startCommand, a
+            // separate cause.
             if release >= tcl_dialect::TclVersion::V8_6 {
                 let (script, _) = oracle_of(
                     release,
@@ -265,6 +265,45 @@ fn a_body_ends_with_the_done_tclsh_appends() {
                     "{release:?} script {source}"
                 );
             }
+        }
+    }
+}
+
+/// A top-level script reaches variables through each release's stack forms:
+/// 8.5's scalar-specific ones (`storeScalarStk`, `loadScalarStk`,
+/// `incrScalarStkImm`), 8.6's generic ones (`storeStk`, `loadStk`, ...).
+#[test]
+fn a_script_reaches_variables_through_the_releases_stack_forms() {
+    for source in [
+        "set x 1",
+        "set x",
+        "return $x",
+        "incr x",
+        "incr x 2",
+        "append x a",
+        "lappend l a",
+        "unset x",
+        "set a(k) 1",
+        "set a(k)",
+        "incr a(k)",
+        "info exists x",
+    ] {
+        for release in [
+            tcl_dialect::TclVersion::V8_5,
+            tcl_dialect::TclVersion::V8_6,
+            tcl_dialect::TclVersion::V9_0,
+        ] {
+            let Some((script, _)) = oracle_of(
+                release,
+                &format!("puts [tcl::unsupported::disassemble script {{{source}}}]"),
+            ) else {
+                continue;
+            };
+            assert_eq!(
+                script_compiled(release, source),
+                script,
+                "{release:?} script {source}"
+            );
         }
     }
 }
