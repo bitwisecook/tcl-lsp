@@ -570,5 +570,8 @@ fn definition_follows_the_retained_grammar_and_refuses_an_unavailable_context() 
     )
     .analysis;
     assert!(unavailable.analysis_context_unavailable.is_some());
-    assert!(definition(source, 0, call, &unavailable).is_empty());
+    assert_eq!(
+        definition(source, 0, call, &unavailable),
+        [] as [LspRange; 0]
+    );
 }

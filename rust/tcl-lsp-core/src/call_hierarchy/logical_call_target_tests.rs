@@ -333,7 +333,7 @@ fn cross_document_member_advice_selects_only_the_actual_side_frames() {
 }
 
 /// A method body's absolute call reaches the procedure in the call
-/// hierarchy, from both ends. tclsh 8.6.18/9.1.0: [C new] m runs ::helper.
+/// hierarchy, from both ends. tclsh 8.6.18/9.1.0: `[C new] m` runs `::helper`.
 #[test]
 fn a_method_body_call_of_an_absolute_procedure_joins_both_hierarchy_ends() {
     let source = "proc helper {} {}\noo::class create C {method m {} {::helper}}\n[C new] m\n";
