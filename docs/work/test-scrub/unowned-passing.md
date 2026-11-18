@@ -1,6 +1,6 @@
 # Test scrub: the unowned crates' passing tests
 
-`tcl-lexer` (815 tests), `tcl-syntax` (926), `tcl-dialect` (217) and `tcl-core-types` (53): 2,011 tests, none failing, no session. Ledger: [`ledger/unowned-passing.tsv`](ledger/unowned-passing.tsv), 43 rows, written 18 November 2026. Nothing is deleted or edited; the ledger is for sampling.
+`tcl-lexer` (815 tests), `tcl-syntax` (926), `tcl-dialect` (217) and `tcl-core-types` (53): 2,011 tests, none failing, no session. Ledger: [`ledger/unowned-passing.tsv`](ledger/unowned-passing.tsv), 60 rows, written 18 November 2026. Nothing is deleted or edited; the ledger is for sampling.
 
 ## What was run
 
@@ -9,7 +9,7 @@
 - The four crates' whole suites with the oracles required (`bash scripts/dev/ensure-jim-oracle.sh`, `TCL_LSP_JIMSH` exported, `TCL_LSP_REQUIRE_ALL_TCL_ORACLES=1 TCL_LSP_REQUIRE_JIM_ORACLE=1 TCL_LSP_REQUIRE_TCLSH=1`): 2,008 run, 2,008 pass, 1 skipped (the `#[ignore]`d test below).
 - Every value a test states as "tclsh: …" re-run on tclsh 8.4.20, 8.6.18 and 9.0.4, and the two oracle comments of the exact clusters on those and on Jim 0.84.
 
-## Counts by verdict (43 rows)
+## Counts by verdict (60 rows)
 
 | Verdict | Rows |
 | --- | ---: |
@@ -81,8 +81,8 @@ Method: the inventory's helper column, grouped by (crate, helper(s) used, class)
 ### What this says for the crates
 
 - **Tables of distinct inputs, no overlap worth removing**: groups 1, 4, 6, 8, 10 to 14, 16, 18 to 22, 24 to 30. The restatement the scan found is inside the named test files, not across them.
-- **One restatement list**: group 2's twelve single-operator parser tests against group 20's `all_*_operators` (same op, same parser). I did not diff each pair; a MERGE needs the owner.
-- **Weak assertions to strengthen, not delete**: group 7 (`any(..)` membership, `t1_5`, `t3_3`), group 12 (`contains` lines that restate the `assert_eq!`), group 23 (count only, no row that names the input), group 9 (`span_is_copy`, `token_type_equality`).
+- **The twelve parser tests, diffed pair by pair** against `expr_parser_coverage`'s `all_*_operators` and `list_membership_operators`: both call `parse_expr(s, None)`. Eleven have the same source and assert no less than the table row (`add sub mul div modulo pow equality str_eq logical_and logical_or in_operator`): `MERGE`, one ledger row each, nothing edited. `shift_left` is `KEEP`: its source is `$a << 3` (a numeric literal right operand), which the table's `$a << $b` does not cover.
+- **Weak assertions, one `REWRITE` row per group** (7, 9, 12, 23), each naming the value to assert and a tclsh/Jim transcript (identical on 8.6, 9.0 and Jim). Group 9's two derive-pinning tests have no oracle (Rust-only); its bare-`$` rows do.
 - **Oracle values**: the 15 comments that cite tclsh or Jim in these samples were re-run; none is contradicted. Three notes: `lone_high_surrogate` is a representation choice; `nested_function_calls` needs "8.5+" in its comment (8.4 has no `min`); `dispatch_*` float rows already carry tolerances.
 - **No test in the sample asserts the opposite of an oracle, and none is vacuous beyond the one `VACUOUS` row.**
 
