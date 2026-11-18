@@ -70,6 +70,7 @@ mod original_diagnostic_values;
 pub use original_diagnostic_values::OriginalDiagnosticValues;
 
 mod argument_words;
+mod compiled_constants;
 mod context_key;
 mod enumeration_state;
 mod existence;

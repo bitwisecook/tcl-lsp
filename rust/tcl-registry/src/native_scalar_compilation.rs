@@ -61,6 +61,37 @@ impl NativeScalarOperation {
         }
     }
 
+    /// What the compiler pushes in this instruction's place when it knows
+    /// every operand (`TclWordKnownAtCompileTime`: a simple word in 8.4, a
+    /// static backslash word too from 8.5), and the representation that
+    /// value carries; `None` where the instruction runs. 8.4 to 9.0 push the
+    /// length of a known string as a literal, a pure string whose pooled
+    /// object may carry anything (tclCompCmds.c `STR_LENGTH`,
+    /// `TclCompileStringLenCmd`); 9.1 pushes an integer object.
+    #[must_use]
+    pub fn compiled_constant(
+        self,
+        operands: &[Shape],
+        version: TclVersion,
+    ) -> Option<crate::value_transfer::RepresentationEvidence> {
+        use crate::value_transfer::RepresentationEvidence;
+        let Self::StringLength = self else {
+            return None;
+        };
+        let [operand] = operands else {
+            return None;
+        };
+        let known = matches!(
+            operand,
+            Shape::Literal | Shape::QuotedLiteral | Shape::BracedLiteral
+        ) || (*operand == Shape::BackslashLiteral && version >= TclVersion::V8_5);
+        known.then_some(if version >= TclVersion::V9_1 {
+            RepresentationEvidence::Constructed(crate::TclType::Int)
+        } else {
+            RepresentationEvidence::Unknown
+        })
+    }
+
     /// Actual private String compiler registration, absent for list length.
     #[must_use]
     pub const fn implementation(self) -> Option<&'static NativeCompilerImplementationLookup> {
@@ -258,6 +289,35 @@ mod tests {
                 include_str!("../tests/data/native_scalar_compilation/9.1.0.tsv"),
             ),
         ]
+    }
+
+    #[test]
+    fn a_known_length_is_a_literal_before_9_1() {
+        use crate::value_transfer::RepresentationEvidence;
+        let length = NativeScalarOperation::StringLength;
+        for version in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V8_6, TclVersion::V9_0] {
+            for shape in [Shape::Literal, Shape::QuotedLiteral, Shape::BracedLiteral] {
+                assert_eq!(
+                    length.compiled_constant(&[shape], version),
+                    Some(RepresentationEvidence::Unknown),
+                    "{version:?} {shape:?}"
+                );
+            }
+            assert_eq!(length.compiled_constant(&[Shape::Substituted], version), None);
+        }
+        assert_eq!(length.compiled_constant(&[Shape::BackslashLiteral], TclVersion::V8_4), None);
+        assert_eq!(
+            length.compiled_constant(&[Shape::BackslashLiteral], TclVersion::V8_6),
+            Some(RepresentationEvidence::Unknown)
+        );
+        assert_eq!(
+            length.compiled_constant(&[Shape::Literal], TclVersion::V9_1),
+            Some(RepresentationEvidence::Constructed(crate::TclType::Int))
+        );
+        assert_eq!(
+            NativeScalarOperation::ListLength.compiled_constant(&[Shape::Literal], TclVersion::V8_6),
+            None
+        );
     }
 
     #[test]

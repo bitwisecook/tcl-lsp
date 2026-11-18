@@ -407,6 +407,14 @@ impl LatticeDriver<'_> {
             answer
         };
         let answer = inputs.carrying_word_writes(answer, route);
+        let answer = match original
+            .and_then(|tokens| super::compiled_constants::compiled_constant(tokens, resolved))
+        {
+            Some(representation) => {
+                super::compiled_constants::with_representation(answer, representation)
+            }
+            None => answer,
+        };
         let (answer, writes) = match policy {
             NestedPolicy::EffectFreeOnly => (answer, Vec::new()),
             NestedPolicy::LocalWrites | NestedPolicy::Protected => {

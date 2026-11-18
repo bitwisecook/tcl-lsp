@@ -23,15 +23,15 @@ edited.
 
 ## Status, 18 November 07:00 UTC
 
-Of 219 rows: 31 open with values, 164 routed to the owner of their cause (analyser-binding 102,
+Of 220 rows: 31 open with values, 163 routed to the owner of their cause (analyser-binding 101,
 dataflow-optimiser 27, taint 21, the dataflow issue session 8, analysis-performance 3, class-facts 3),
-18 repaired and failing on a routed cause, 5 fixed, 1 deleted. The status column names each owner.
+17 repaired and failing on a routed cause, 8 fixed, 1 deleted. The status column names each owner.
 
 ## Verdicts
 
 | Verdict | Tests |
 | --- | ---: |
-| KEEP-ORACLE | 127 |
+| KEEP-ORACLE | 128 |
 | KEEP-CONTRACT | 31 |
 | KEEP-F5 | 30 |
 | FIX-FIXTURE | 16 |
@@ -83,7 +83,7 @@ What is worth fixing, one line each; the wrong rewrites first.
    folded away; the original prints 1, the rewrite 0 (8.4.20, 8.6.18, 9.0.4).
 3. **Wrong rewrite, fixed in 88e66f2577:** `expr {1 << 70}` is folded under 8.4, where a shift count beyond the word
    width is undefined in C and differs by build (ruling of 17 November: O101 declines there).
-4. **Wrong diagnostic (new witness, 18 November):** in a procedure body S100 reports an
+4. **Wrong diagnostic, fixed 18 November (registry compiled-constant fact):** in a procedure body S100 reports an
    int-to-list conversion for `set n [string length abc]; lindex $n 0`; the bytecode compiler pushes
    a literal there from 8.4 to 9.0, a pure string (`shimmer-compiled-literal-representation`, values).
 5. A declined declared route is still folded by O129 (outputs agree on the releases present; the

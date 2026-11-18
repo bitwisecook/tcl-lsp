@@ -187,16 +187,14 @@ fn dynamic_integer_result_is_converted_by_literal_index_one() {
 /// a pure string that `lindex` reads without converting an integer
 /// (tclCompCmds.c `STR_LENGTH`, `TclCompileStringLenCmd`); 9.1 pushes an
 /// integer. A sourced file's top level runs through `Tcl_EvalEx`, which calls
-/// the command (`Tcl_SetIntObj` / `Tcl_NewIntObj`), and `INST_STR_LEN` over a
-/// computed word builds an integer in every release. With
+/// the command (`Tcl_SetIntObj` / `Tcl_NewIntObj`). With
 /// `::tcl::unsupported::representation`, tclsh 8.6.18 and 9.0.4 print `pure
-/// string` for the procedure's literal and `int` for the top level and the
-/// computed word; 9.1.0 prints `int` for all three.
+/// string` for the procedure's literal and `int` for the top level; 9.1.0
+/// prints `int` for both.
 #[test]
 fn a_compiled_literal_length_is_a_pure_string_before_9_1() {
     let literal = "proc p {} {set n [string length abc]; lindex $n 0}\np\n";
     let top_level = "set n [string length abc]; lindex $n 0";
-    let computed = "proc p {s} {set n [string length $s]; lindex $n 0}\np x\n";
     let converts = |source: &str, version: tcl_dialect::TclVersion| {
         warnings_for(source, version.dialect_profile_name())
             .iter()
@@ -213,7 +211,27 @@ fn a_compiled_literal_length_is_a_pure_string_before_9_1() {
             "{version:?}: {literal}"
         );
         assert_eq!(converts(top_level, version), int_to_list, "{version:?}: {top_level}");
-        assert_eq!(converts(computed, version), int_to_list, "{version:?}: {computed}");
+    }
+}
+
+/// `INST_STR_LEN` over a computed word builds an integer in every release
+/// (8.4.20 and 8.5.19 tclExecute.c `Tcl_NewIntObj`; tclsh 8.6.18, 9.0.4 and
+/// 9.1.0 `::tcl::unsupported::representation` print `int`), so `lindex`
+/// converts it to a list inside a procedure as at the top level.
+#[test]
+fn a_computed_length_is_an_integer_in_a_procedure() {
+    let source = "proc p {s} {set n [string length $s]; lindex $n 0}\np x\n";
+    for version in tcl_dialect::TclVersion::ALL {
+        let converted: Vec<_> = warnings_for(source, version.dialect_profile_name())
+            .iter()
+            .filter(|warning| warning.variable == "n")
+            .map(|warning| (warning.code, warning.from_type, warning.to_type))
+            .collect();
+        assert_eq!(
+            converted,
+            [(DiagCode::S100, TclType::Int, TclType::List)],
+            "{version:?}"
+        );
     }
 }
 
