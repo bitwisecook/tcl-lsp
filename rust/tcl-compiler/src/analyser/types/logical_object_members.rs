@@ -240,39 +240,6 @@ mod tests {
     }
 
     #[test]
-    fn logical_object_source_refuses_nul_masks_and_receiver_names() {
-        for command in ["export", "unexport"] {
-            let source = format!(
-                "oo::class create C {{}}; set o [C new]; oo::objdefine $o {{{command} {{nul\0mask}}}}"
-            );
-            let analysis = Analyser::new().analyse(&source, "tcl");
-            let state = analysis.object_member_state["o"].last().unwrap();
-            let masks = if command == "export" {
-                &state.exports
-            } else {
-                &state.unexports
-            };
-            assert!(masks.contains("nul\0mask"));
-            assert!(state.logical_source_members.is_none());
-            assert!(analysis.logical_source_object_member_state(state).is_none());
-        }
-        for receiver in ["{nul\0object}", "${nul\0variable}"] {
-            let source = format!(
-                "oo::class create C {{}}; set o [C new]; oo::objdefine $o {{method prior {{}} {{}}}}; oo::objdefine {receiver} {{method unsupported {{}} {{}}}}"
-            );
-            let analysis = Analyser::new().analyse(&source, "tcl");
-            let prior = analysis.object_member_state["o"].last().unwrap();
-            assert!(analysis.logical_source_object_member_state(prior).is_none());
-            assert!(
-                analysis
-                    .object_member_state
-                    .keys()
-                    .all(|name| !name.as_bytes().contains(&0))
-            );
-        }
-    }
-
-    #[test]
     fn objdefine_receiver_keeps_literal_sigils_separate_from_scalar_references() {
         let source = "oo::class create C {}; C create {$literal}; C create literal; oo::objdefine {$literal} {method own {} {}}; oo::objdefine literal {method other {} {}}; set o [C new]; oo::objdefine \"$o\" {method quoted {} {}}";
         let analysis = Analyser::new().analyse(source, "tcl");

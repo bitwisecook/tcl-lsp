@@ -196,3 +196,28 @@ fn a_cross_file_superclass_word_selects_the_declaring_document() {
         []
     );
 }
+
+/// A closed document is indexed from a structure-only analysis; Workspace
+/// Symbol must find its class at the same place as when the document is
+/// open and fully analysed. tclsh 8.6.18/9.1.0: `::ProjectThing create
+/// specimen` succeeds.
+#[test]
+fn a_structurally_indexed_class_is_the_same_workspace_symbol_as_a_fully_analysed_one() {
+    let source = "oo::class create ::ProjectThing {method kept {} {}}\n::ProjectThing create specimen\nproc bind {name} {upvar 1 $name cell; set cell 1}";
+    let symbols = |analysis: &AnalysisResult| {
+        WorkspaceIndex::from_documents([("file:///project.tcl", analysis)])
+            .symbols_matching("ProjectThing", 10)
+            .into_iter()
+            .map(|symbol| (symbol.name, symbol.kind, symbol.name_span))
+            .collect::<Vec<_>>()
+    };
+    let structural = Analyser::new().structure_only().analyse(source, "tcl");
+    let full = Analyser::new().analyse(source, "tcl");
+    let found = symbols(&full);
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(
+        &source[found[0].2.start() as usize..found[0].2.end() as usize],
+        "::ProjectThing"
+    );
+    assert_eq!(symbols(&structural), found);
+}

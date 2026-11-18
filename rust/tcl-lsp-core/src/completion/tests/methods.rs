@@ -666,3 +666,35 @@ fn method_typo_does_not_hijack_command_prefix_matches() {
     );
     assert!(items.iter().all(|i| i.filter_text.is_none()));
 }
+
+/// Per-object member masks reach method completion on the object.
+/// tclsh 8.6.18/9.1.0: `$o prior` runs the object's own method, and after
+/// `unexport "nul\0mask"` the class's `run` is still callable (RUN).
+#[test]
+fn object_member_completion_keeps_own_methods_and_ignores_a_nul_mask() {
+    let labels = |src: &str| {
+        let analysis = analyse_for(src, "tcl");
+        completions(
+            src,
+            1,
+            4,
+            &analysis,
+            None,
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+        )
+        .into_iter()
+        .map(|item| item.label)
+        .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        labels("oo::class create C {}; set o [C new]; oo::objdefine $o {method prior {} {}}\n$o p"),
+        ["prior"]
+    );
+    assert_eq!(
+        labels(
+            "oo::class create C {method run {} {}}; set o [C new]; oo::objdefine $o {unexport {nul\0mask}}\n$o r"
+        ),
+        ["run"]
+    );
+}
