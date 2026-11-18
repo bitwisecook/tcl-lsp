@@ -315,7 +315,10 @@ fn analyse_w101_rejects_multi_command_subscript() {
     // ``[list a; set x $user]`` — multi-command script can't be
     // proven safe (last command's result wins, and that's
     // ``set``, not ``list``).
-    let diags = w101_diags("eval [list a\\; set x $user]\n");
+    // Two commands in the substitution, with `user` a formal: an escaped
+    // `a\;` would make one command `a;` (tclsh 8.6.18 / 9.0.4), and an unset
+    // `user` would raise before eval.
+    let diags = w101_diags("proc p {user} {\n    eval [list a; set x $user]\n}\n");
     assert_eq!(diags.len(), 1, "got {diags:?}");
 }
 
