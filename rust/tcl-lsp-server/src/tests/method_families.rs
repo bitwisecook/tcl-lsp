@@ -246,47 +246,52 @@ async fn classmethod_rename_reaches_subclass_only_document() {
 
 #[tokio::test]
 async fn rename_disambiguates_method_and_classmethod_of_the_same_name() {
-    // Same fixture as `code_lens_resolve_disambiguates_method_and_classmethod_of_the_same_name`,
-    // but through the production `rename` handler: renaming from the
-    // cursor on `method make`'s declaration must rewrite only the
-    // method's own declaration and its `$f make` dispatch — never the
-    // unrelated `classmethod make`'s declaration or its `Factory make`
-    // dispatch.
-    let backend = test_backend();
-    let uri = Uri::from_str("file:///dual_make_rename.tcl").unwrap();
-    let src = "oo::class create Factory {\n    method make {} { return 1 }\n    classmethod make {} { return [Factory new] }\n}\nset f [Factory new]\n$f make\nFactory make\n";
-    register(&backend, &uri, src).await;
-    let params = RenameParams {
-        text_document_position: TextDocumentPositionParams {
-            text_document: TextDocumentIdentifier { uri: uri.clone() },
-            position: Position::new(1, 11), // on `make` in `method make`'s decl
-        },
-        new_name: "build".to_owned(),
-        work_done_progress_params: WorkDoneProgressParams::default(),
-    };
-    let edit = backend.rename(params).await.expect("ok").expect("some");
-    let changes = edit.changes.expect("changes");
-    let edits = &changes[&uri];
-    let renamed_lines: Vec<u32> = edits
-        .iter()
-        .filter(|e| e.new_text == "build")
-        .map(|e| e.range.start.line)
-        .collect();
-    assert!(
-        renamed_lines.contains(&1),
-        "method decl (l1) must be renamed: {edits:?}"
+    // tclsh 9.0.4/9.1.0: `classmethod make` writes the class side and an
+    // instance-side forward; `method make` writes the instance side; the
+    // later writer holds the instance side. Each rename keeps every renamed
+    // site's output (before -> after, the run's two printed calls):
+    //   A, method then classmethod: `$f make` obj, `Factory make` obj.
+    //     rename method -> build: obj obj (only its dead declaration moves).
+    //     rename classmethod -> build: obj obj; an unrenamed
+    //     `[Factory new] make` would now reach the revived method (obj -> 1),
+    //     and no site in this source is one.
+    //   B, classmethod then method: `$f make` 1, `Factory make` obj.
+    //     rename method -> build: 1 obj.  rename classmethod -> build: 1 obj.
+    async fn renamed_lines(src: &str, position: Position) -> Vec<u32> {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///dual_make_rename.tcl").unwrap();
+        register_in_dialect(&backend, &uri, src, "tcl9.0").await;
+        let params = RenameParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri: uri.clone() },
+                position,
+            },
+            new_name: "build".to_owned(),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+        };
+        let edit = backend.rename(params).await.expect("ok").expect("some");
+        let mut lines = edit.changes.expect("changes")[&uri]
+            .iter()
+            .filter(|e| e.new_text == "build")
+            .map(|e| e.range.start.line)
+            .collect::<Vec<_>>();
+        lines.sort_unstable();
+        lines
+    }
+    let method_first = "oo::class create Factory {\n    method make {} { return 1 }\n    classmethod make {} { return obj }\n}\nset f [Factory new]\n$f make\nFactory make\n";
+    assert_eq!(renamed_lines(method_first, Position::new(1, 11)).await, [1]);
+    assert_eq!(
+        renamed_lines(method_first, Position::new(2, 16)).await,
+        [2, 5, 6]
     );
-    assert!(
-        renamed_lines.contains(&5),
-        "`$f make` (l5) must be renamed: {edits:?}"
+    let classmethod_first = "oo::class create Factory {\n    classmethod make {} { return obj }\n    method make {} { return 1 }\n}\nset f [Factory new]\n$f make\nFactory make\n";
+    assert_eq!(
+        renamed_lines(classmethod_first, Position::new(1, 16)).await,
+        [1, 6]
     );
-    assert!(
-        !renamed_lines.contains(&2),
-        "classmethod decl (l2) must NOT be renamed: {edits:?}"
-    );
-    assert!(
-        !renamed_lines.contains(&6),
-        "`Factory make` (l6, classmethod dispatch) must NOT be renamed: {edits:?}"
+    assert_eq!(
+        renamed_lines(classmethod_first, Position::new(2, 11)).await,
+        [2, 5]
     );
 }
 

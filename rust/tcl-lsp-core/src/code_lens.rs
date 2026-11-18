@@ -749,27 +749,62 @@ mod tests {
 
     #[test]
     fn method_and_classmethod_qnames_never_collide_on_same_name() {
-        // FP guard: a class with both a `method foo` and a `classmethod foo`
-        // must get two distinct, disambiguated qnames — a naive
-        // `{class}::{name}` key would collide and let `codeLens/resolve`
-        // attach one member's locations to the other's lens.
-        let src = "oo::class create C {\n    method foo {} {}\n    classmethod foo {} {}\n}\n";
-        let analysis = Analyser::new().analyse(src, "tcl9.0").clone();
-        let lenses = code_lenses(
-            src,
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
-            Some(&analysis),
-            None,
-            "",
-        );
-        let qnames: std::collections::HashSet<&str> = lenses
-            .iter()
+        // tclsh 9.0.4/9.1.0: classmethod writes the class side and an
+        // instance-side forward, method writes the instance side, and the
+        // later writer holds the instance side.
+        //   C {method foo; classmethod foo}: info class methods C -all ->
+        //     destroy foo; [C new] foo -> class; C foo -> class.
+        //   D {classmethod foo; method foo}: [D new] foo -> inst;
+        //     D foo -> class.
+        let lenses = |src: &str| {
+            let analysis = Analyser::new().analyse(src, "tcl9.0").clone();
+            code_lenses(
+                src,
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+                Some(&analysis),
+                None,
+                "",
+            )
+            .into_iter()
             .filter(|l| l.range.start_line == 1 || l.range.start_line == 2)
-            .map(|l| l.qname.as_str())
-            .collect();
-        assert_eq!(qnames.len(), 2, "{lenses:?}");
-        assert!(qnames.contains("::C::method::foo"), "{qnames:?}");
-        assert!(qnames.contains("::C::classmethod::foo"), "{qnames:?}");
+            .map(|l| (l.range.start_line, l.qname, l.command_title))
+            .collect::<Vec<_>>()
+        };
+        // Method then classmethod: the method is superseded and has no
+        // reference set; both dispatches reach the classmethod.
+        let superseded = lenses(
+            "oo::class create C {\n    method foo {} {return inst}\n    classmethod foo {} {return class}\n}\n[C new] foo\nC foo\n",
+        );
+        assert!(
+            superseded.iter().any(|(line, _, title)| *line == 1
+                && title.contains("superseded")
+                && title.contains("classmethod")),
+            "{superseded:?}"
+        );
+        assert!(
+            superseded.contains(&(
+                2,
+                "::C::classmethod::foo".to_owned(),
+                "2 references".to_owned()
+            )),
+            "{superseded:?}"
+        );
+        // Classmethod then method: two live members, distinct reference sets.
+        let distinct = lenses(
+            "oo::class create D {\n    classmethod foo {} {return class}\n    method foo {} {return inst}\n}\n[D new] foo\nD foo\n",
+        );
+        assert!(
+            distinct.contains(&(
+                1,
+                "::D::classmethod::foo".to_owned(),
+                "1 reference".to_owned()
+            )),
+            "{distinct:?}"
+        );
+        assert!(
+            distinct.contains(&(2, "::D::method::foo".to_owned(), "1 reference".to_owned())),
+            "{distinct:?}"
+        );
     }
 
     // property-member lenses
