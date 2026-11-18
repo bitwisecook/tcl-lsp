@@ -192,8 +192,6 @@ pub(super) fn capture(
     capture_region(context, head, selected_prefixes, region)
 }
 
-/// The same authored barrier classifier over sealed original script ancestry.
-/// Parent source bodies supply regions only; no entered frame or table follows.
 thread_local! {
     static BARRIER_STEPS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
@@ -206,8 +204,9 @@ fn barrier_step() {
 /// each enclosing region a head consults and each command walked in one.
 /// A count the capture controls, so a scaling check can read it before and
 /// after an analysis.
+#[cfg(test)]
 #[must_use]
-pub fn vendor_source_barrier_steps() -> u64 {
+fn vendor_source_barrier_steps() -> u64 {
     BARRIER_STEPS.with(std::cell::Cell::get)
 }
 
@@ -229,6 +228,9 @@ thread_local! {
         std::cell::RefCell::default();
 }
 
+/// The same authored barrier classifier over sealed original script ancestry.
+/// Parent source bodies supply regions only; no entered frame or table follows.
+///
 /// The barriers preceding `head` in its script and in every region that
 /// encloses it. A pure function of the context, the head, the selected
 /// prefixes and the regions, and asked again for the same head by each
