@@ -303,22 +303,14 @@ fn rename_classmethod_does_not_corrupt_unrelated_instance_method_call_site() {
 
 // property rename
 
-/// Regression: renaming a property must rewrite every `my <property>`
-/// call site alongside the declaration.  Properties have no `$obj
-/// prop` dispatch and no override family — but they *are* read via
-/// `my <property>` inside the class's own methods, and a bare
-/// `<property>` occurrence is never valid `TclOO` dispatch (only `my
-/// <property>` reads it), so the bare-head scan `rename_method` also
-/// runs never matches this shape — without the dedicated `my`-aware
-/// scan, only the declaration was renamed, leaving call sites pointing
-/// at the old name.
+/// tclsh 9.0.4/9.1.0: `property` is an `oo::configurable` definition word, and
+/// `my color` raises `unknown method "color"`; the property is read through
+/// `configure -color`, from any instance. A rename must rewrite every such
+/// option word or refuse, so the product offers no declaration-only edit.
 #[test]
 fn rename_property_rewrites_decl_and_my_dispatch_call_sites() {
-    let src = "oo::class create C {\n    property color\n    method describe {} {\n        return [my color]\n    }\n}\n";
-    // `property` is Tcl 9.0+ — the shared `analyse()` helper fixes the
-    // dialect at 8.6, so this test analyses at 9.0 directly.
+    let src = "oo::configurable create C {\n    property color\n    method describe {} {\n        return [my configure -color]\n    }\n}\n";
     let analysis = Analyser::new().analyse(src, "tcl9.0").clone();
-    // Cursor on the `color` property declaration (line 1, col 13).
     let edits = rename(
         src,
         tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
@@ -328,18 +320,13 @@ fn rename_property_rewrites_decl_and_my_dispatch_call_sites() {
         &analysis,
         None,
     );
-    assert_eq!(edits.len(), 2, "decl + `my color` call site: {edits:?}");
-    assert!(edits.iter().all(|e| e.new_text == "shade"));
-    assert_eq!(edits[0].range.start_line, 1);
-    assert_eq!(edits[1].range.start_line, 3);
+    assert_eq!(edits, [] as [TextEdit; 0]);
 }
 
-/// FN→TP: a `my <property>` read nested
-/// inside `if` control flow is renamed too — the property rename path
-/// shares `scan_my_method_sites`'s control-flow recursion with methods.
+/// The same refusal holds when the `configure -color` read is nested in `if`.
 #[test]
 fn rename_property_rewrites_control_flow_nested_call_site() {
-    let src = "oo::class create C {\n    property color\n    method describe {} {\n        if {1} {\n            return [my color]\n        }\n    }\n}\n";
+    let src = "oo::configurable create C {\n    property color\n    method describe {} {\n        if {1} {\n            return [my configure -color]\n        }\n    }\n}\n";
     let analysis = Analyser::new().analyse(src, "tcl9.0").clone();
     let edits = rename(
         src,
@@ -350,13 +337,7 @@ fn rename_property_rewrites_control_flow_nested_call_site() {
         &analysis,
         None,
     );
-    assert_eq!(
-        edits.len(),
-        2,
-        "decl + nested `my color` call site: {edits:?}"
-    );
-    assert!(edits.iter().all(|e| e.new_text == "shade"));
-    assert_eq!(edits[1].range.start_line, 4);
+    assert_eq!(edits, [] as [TextEdit; 0]);
 }
 
 #[test]
