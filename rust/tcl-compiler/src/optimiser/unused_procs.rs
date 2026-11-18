@@ -342,8 +342,8 @@ mod tests {
                 .collect();
             actual.procedures.insert(body_id, bound);
         }
-        let mut ctx = PassContext::with_dialect(&cu.source, actual, dialect);
-        ctx.registry = Some(registry);
+        let mut ctx = super::super::manager::build_pass_context(&cu, registry, dialect);
+        ctx.interproc = actual;
         run(&mut ctx, &cu);
         ctx.optimisations
     }
@@ -360,24 +360,24 @@ mod tests {
             .get_mut(&event_id)
             .unwrap()
             .qualified_name = "::when::RULE_INIT".into();
-        let mut ctx = PassContext::with_dialect(
-            &cu.source,
-            InterproceduralAnalysis::default(),
-            Some(tcl_dialect::DialectProfile::irules()),
-        );
-        ctx.registry = Some(context.commands());
-        run(&mut ctx, &cu);
-        assert!(
+        let reports = |cu: &CompilationUnit| {
+            let mut ctx = super::super::manager::build_pass_context(
+                cu,
+                context.commands(),
+                Some(tcl_dialect::DialectProfile::irules()),
+            );
+            run(&mut ctx, cu);
             ctx.optimisations
+        };
+        assert!(
+            reports(&cu)
                 .iter()
                 .any(|candidate| candidate.code == DiagCode::O124)
         );
         let mut foreign = cu.ir_module.clone();
         foreign.irules_event_bodies.clear();
         cu.ir_module = foreign;
-        ctx.optimisations.clear();
-        run(&mut ctx, &cu);
-        assert_eq!(ctx.optimisations.len(), 0);
+        assert_eq!(reports(&cu).len(), 0);
     }
 
     #[test]

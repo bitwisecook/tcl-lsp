@@ -1225,9 +1225,13 @@ mod tests {
     /// [`run_pass`] under the module's own command-trust fact, as the
     /// optimiser entry points install it.
     fn run_pass_under_the_module_trust(source: &str) -> Vec<Optimisation> {
-        let cu = CompilationUnit::build_for(source, &registry(), false);
-        let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
-        ctx.command_mutations.clone_from(&cu.command_mutations);
+        let registry = registry();
+        let cu = CompilationUnit::build_for(source, &registry, false);
+        let mut ctx = super::super::manager::build_pass_context(
+            &cu,
+            &registry,
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
+        );
         run(&mut ctx, &cu);
         ctx.optimisations
     }

@@ -131,7 +131,7 @@ fn sort_optimisations(opts: &mut [Optimisation]) {
 /// renamed/redefined builtin, e.g. `rename string {}; [string length …]`,
 /// still gets const-folded with its original semantics, a silent
 /// miscompile). Every production entry point shares this context builder.
-fn build_pass_context<'a>(
+pub(crate) fn build_pass_context<'a>(
     cu: &'a CompilationUnit,
     registry: &'a CommandRegistry,
     dialect: Option<&'static tcl_dialect::DialectProfile>,

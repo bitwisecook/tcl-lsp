@@ -667,7 +667,6 @@ mod tests {
     use tcl_registry::CommandRegistry;
 
     use crate::compilation_unit::CompilationUnit;
-    use crate::interprocedural::InterproceduralAnalysis;
 
     fn registry() -> CommandRegistry {
         CommandRegistry::build_default().project_for_profile(
@@ -676,8 +675,11 @@ mod tests {
     }
 
     fn run_pass(source: &str) -> Vec<Optimisation> {
-        let cu = CompilationUnit::build_for(source, &registry(), false);
-        let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        let registry = registry();
+        let cu = CompilationUnit::build_for(source, &registry, false);
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let mut ctx = super::super::manager::build_pass_context(&cu, &registry, Some(profile));
         run(&mut ctx, &cu);
         ctx.optimisations
     }
@@ -688,7 +690,8 @@ mod tests {
     fn run_pass_in(source: &str, dialect: &str) -> Vec<Optimisation> {
         let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
         let cu = CompilationUnit::build_for_dialect(source, registry, false, dialect);
-        let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+        let mut ctx = super::super::manager::build_pass_context(&cu, registry, Some(profile));
         run(&mut ctx, &cu);
         ctx.optimisations
     }

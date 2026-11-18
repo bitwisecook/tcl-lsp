@@ -1424,8 +1424,13 @@ mod tests {
 
     #[test]
     fn run_passes_dispatches_expr_simplify() {
-        let cu = CompilationUnit::build_for("expr {1 + 2}", &registry(), false);
-        let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        let registry = registry();
+        let cu = CompilationUnit::build_for("expr {1 + 2}", &registry, false);
+        let mut ctx = super::super::manager::build_pass_context(
+            &cu,
+            &registry,
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
+        );
         super::super::run_passes(&mut ctx, &cu, &[super::super::PassId::ExprSimplify]);
         assert!(
             ctx.optimisations.iter().any(|o| o.code == DiagCode::O101),

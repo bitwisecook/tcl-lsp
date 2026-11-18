@@ -1492,12 +1492,17 @@ mod tests {
         // branch condition `$x < $y` is not a SCCP constant
         // branch (because $y is Unknown), so substituting $x → 5
         // is the only rewrite. Expect an O100.
+        let registry = registry();
         let cu = CompilationUnit::build_for(
             "set y [gets stdin]\nset x 5\nif {$x < $y} { set z 1 }",
-            &registry(),
+            &registry,
             false,
         );
-        let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        let mut ctx = super::super::manager::build_pass_context(
+            &cu,
+            &registry,
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
+        );
         run(&mut ctx, &cu);
         let got = ctx
             .optimisations
@@ -1538,12 +1543,17 @@ mod tests {
         // `if {[expr {$x}]} …` — the condition is a redundant `[expr {…}]`
         // wrapper; it unwraps to `$x`. Exercised at top level (proc bodies
         // with a returning branch collapse to a straight CFG).
+        let registry = registry();
         let cu = CompilationUnit::build_for(
             "if {[expr {$x}]} { puts a } else { puts b }",
-            &registry(),
+            &registry,
             false,
         );
-        let mut ctx = build_ctx(&cu.source);
+        let mut ctx = super::super::manager::build_pass_context(
+            &cu,
+            &registry,
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
+        );
         super::super::run_passes(&mut ctx, &cu, &[PassId::BranchFolding]);
         let o115 = ctx
             .optimisations

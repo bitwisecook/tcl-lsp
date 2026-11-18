@@ -353,8 +353,8 @@ mod tests {
     fn run_pass(source: &str) -> Vec<Optimisation> {
         let registry = registry();
         let cu = CompilationUnit::build_for(source, &registry, false);
-        let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
-        ctx.registry = Some(&registry);
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let mut ctx = super::super::manager::build_pass_context(&cu, &registry, Some(profile));
         run(&mut ctx, &cu);
         ctx.optimisations
     }

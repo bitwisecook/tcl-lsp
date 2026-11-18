@@ -31,8 +31,13 @@ fn registry() -> CommandRegistry {
 }
 
 fn run_pass(source: &str) -> Vec<Optimisation> {
-    let cu = CompilationUnit::build_for(source, &registry(), false);
-    let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+    let registry = registry();
+    let cu = CompilationUnit::build_for(source, &registry, false);
+    let mut ctx = super::super::manager::build_pass_context(
+        &cu,
+        &registry,
+        Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
+    );
     run(&mut ctx, &cu);
     ctx.optimisations
 }
