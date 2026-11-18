@@ -1369,7 +1369,9 @@ mod tests {
 
     #[test]
     fn genuine_own_member_frame_and_selectors_keep_unrepresented_inherited_alternatives() {
-        let source = "proc helper {} {}\noo::class create C {superclass $base; method known {} {}; method use {} {my known; my inherited; ::helper}}\n";
+        // tclsh 8.6.18-9.1.0: an unset `$base` raises inside the definition
+        // and destroys ::C, so the superclass is an unproved value instead.
+        let source = "proc helper {} {}\nset base [gets stdin]\noo::class create C {superclass $base; method known {} {}; method use {} {my known; my inherited; ::helper}}\n";
         let analysis = Analyser::new().analyse(source, "tcl");
         let docs = [document("file:///members.tcl", source, &analysis)];
         let prepared = prepare(docs[0].uri, source, source.find("use {}").unwrap(), &docs);

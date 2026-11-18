@@ -277,7 +277,10 @@ fn references_reach_my_dispatch_inside_a_static_switch_alias() {
 
 #[test]
 fn switch_braced_body_references_reach_nested_command() {
-    let source = "proc ready {} {}\nswitch $state { ready {ready} default {set x 1}}\n";
+    // tclsh 8.4.20-9.1.0: an unset `$state` raises before `switch` runs;
+    // with `set state ready` the `ready` arm calls the procedure.
+    let source =
+        "proc ready {} {}\nset state ready; switch $state { ready {ready} default {set x 1}}\n";
     let analysis = analyse(source);
     let refs = references(
         source,
