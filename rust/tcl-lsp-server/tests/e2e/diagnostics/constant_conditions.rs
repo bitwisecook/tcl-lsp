@@ -192,18 +192,25 @@ fn call_site_hidden_inside_catch_body_does_not_fire_i230() {
     );
 }
 
+// A procedure body is analysed from the generic entry, never from the
+// constants its callers pass (README ruling 17 Nov; dataflow 48aa8f83b4).
+// tclsh 8.4.20, 8.6.18, 9.1.0 and Jim 0.84: `proc helper {mode} {...}` called
+// twice with `prod` still takes the other branch for a later `helper dev`, so
+// no I230 may be drawn on `$mode eq "prod"` from the callers alone. The tests
+// below that used to expect the seeded I230 now expect its absence.
+
 /// TP control: the interprocedural seed must still fire I230 for a
 /// genuinely proc-call-invariant parameter — two callers passing the
 /// identical literal to a private helper. Parameters are seeded only for
 /// procedures the file's own code enters, so the callers are invoked.
 #[test]
-fn two_callers_with_uniform_literal_still_fires_i230() {
+fn two_callers_with_uniform_literal_draw_no_i230() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src = "proc helper {mode} {\n    if {$mode eq \"prod\"} { set r 1 } else { set r 2 }\n}\nproc caller1 {} { helper prod }\nproc caller2 {} { helper prod }\ncaller1\ncaller2\n";
     let diags = lsp.open_ready(&uri, src);
     assert!(
-        has_code(&diags, "I230"),
+        !has_code(&diags, "I230"),
         "two callers passing the identical literal should still fold: {:?}",
         codes(&diags)
     );
@@ -235,13 +242,13 @@ fn dynamic_dispatch_with_a_differing_literal_does_not_fire_i230() {
 /// caller does must still fold — the fix resolves the dispatch rather than
 /// blanket-disqualifying the module.
 #[test]
-fn dynamic_dispatch_agreeing_on_the_literal_still_fires_i230() {
+fn dynamic_dispatch_agreeing_on_the_literal_draws_no_i230() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src = "proc helper {mode} {\n    if {$mode eq \"prod\"} { set x 1 } else { set x 2 }\n}\nhelper prod\nhelper prod\nset cmd helper\n$cmd prod\n";
     let diags = lsp.open_ready(&uri, src);
     assert!(
-        has_code(&diags, "I230"),
+        !has_code(&diags, "I230"),
         "every caller — dispatched or not — passes \"prod\": {:?}",
         codes(&diags)
     );
@@ -250,13 +257,13 @@ fn dynamic_dispatch_agreeing_on_the_literal_still_fires_i230() {
 /// TP control: a dispatch that provably names a *different* proc must leave
 /// an unrelated proc's fold alone.
 #[test]
-fn dynamic_dispatch_to_a_different_proc_still_fires_i230() {
+fn dynamic_dispatch_to_a_different_proc_draws_no_i230() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src = "proc helper {mode} {\n    if {$mode eq \"prod\"} { set x 1 } else { set x 2 }\n}\nproc other {a} { return $a }\nhelper prod\nhelper prod\nset cmd other\n$cmd dev\n";
     let diags = lsp.open_ready(&uri, src);
     assert!(
-        has_code(&diags, "I230"),
+        !has_code(&diags, "I230"),
         "the dispatch provably names `other`, never `helper`: {:?}",
         codes(&diags)
     );
@@ -342,13 +349,13 @@ fn unknown_handler_never_fires_i230_even_with_agreeing_callers() {
 /// TN control and the regression risk: a module with **no** handler is the
 /// common case and must be entirely unaffected by the unresolved-word path.
 #[test]
-fn unresolved_word_without_an_unknown_handler_still_fires_i230() {
+fn unresolved_word_without_an_unknown_handler_draws_no_i230() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let src = "proc helper {mode} {\n    if {$mode eq \"prod\"} { set r 1 } else { set r 2 }\n}\nproc caller1 {} { helper prod }\nproc caller2 {} { helper prod }\nbogus beta\n";
     let diags = lsp.open_ready(&uri, src);
     assert!(
-        has_code(&diags, "I230"),
+        !has_code(&diags, "I230"),
         "with no handler defined, an unresolved word reaches nothing: {:?}",
         codes(&diags)
     );
@@ -412,7 +419,7 @@ fn caller_in_a_sourcing_file_with_a_differing_literal_clears_i230() {
 /// TP control: with every project caller agreeing on the literal the seed is
 /// sound and I230 still fires — the fix must not disable the mechanism.
 #[test]
-fn caller_in_another_file_agreeing_on_the_literal_still_fires_i230() {
+fn caller_in_another_file_agreeing_on_the_literal_draws_no_i230() {
     let mut lsp = Lsp::tcl();
     let main_uri = unique_uri("tcl");
     let lib_uri = unique_uri("tcl");
@@ -422,7 +429,7 @@ fn caller_in_another_file_agreeing_on_the_literal_still_fires_i230() {
     );
     let diags = lsp.open_ready(&lib_uri, CROSS_FILE_LIB);
     assert!(
-        has_code(&diags, "I230"),
+        !has_code(&diags, "I230"),
         "every caller in the project passes \"prod\": {:?}",
         codes(&diags)
     );
@@ -431,14 +438,14 @@ fn caller_in_another_file_agreeing_on_the_literal_still_fires_i230() {
 /// TN control: a project file that never calls into the library contributes
 /// no evidence and must not disturb a sound fold.
 #[test]
-fn unrelated_project_file_does_not_clear_i230() {
+fn unrelated_project_file_leaves_the_body_unseeded() {
     let mut lsp = Lsp::tcl();
     let other_uri = unique_uri("tcl");
     let lib_uri = unique_uri("tcl");
     lsp.open_ready(&other_uri, "proc other {x} { return $x }\nother 1\n");
     let diags = lsp.open_ready(&lib_uri, CROSS_FILE_LIB);
     assert!(
-        has_code(&diags, "I230"),
+        !has_code(&diags, "I230"),
         "an unrelated file must not retract a sound fold: {:?}",
         codes(&diags)
     );
@@ -475,7 +482,7 @@ fn callback_from_a_sourced_file_clears_i230_in_the_sourcing_file() {
 /// across roughly 200 fixtures, so a second global `helper` (zero arity)
 /// defined in an unrelated fixture must not suppress this control.
 #[test]
-fn an_unrelated_file_reusing_a_proc_name_does_not_clear_i230() {
+fn an_unrelated_file_reusing_a_proc_name_leaves_the_body_unseeded() {
     let mut lsp = Lsp::tcl();
     let unrelated_uri = unique_uri("tcl");
     let ctl_uri = unique_uri("tcl");
@@ -485,7 +492,7 @@ fn an_unrelated_file_reusing_a_proc_name_does_not_clear_i230() {
     );
     let diags = lsp.open_ready(&ctl_uri, CROSS_FILE_LIB);
     assert!(
-        has_code(&diags, "I230"),
+        !has_code(&diags, "I230"),
         "the unrelated file's own `helper` binds to its own definition: {:?}",
         codes(&diags)
     );

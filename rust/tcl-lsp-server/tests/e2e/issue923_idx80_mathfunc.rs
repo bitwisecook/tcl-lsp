@@ -179,8 +179,12 @@ fn default_config_offers_no_command_rewrite_over_a_cross_file_mathfunc() {
     lsp.open_ready(&helper, HELPER);
     let vector = unique_uri("tcl");
     lsp.open_ready(&vector, VECTOR);
+    // The first publish already names NeverDefinedAnywhere; the converged one
+    // is where the helper's mathfuncs have stopped being W123.
     lsp.await_diagnostics_settled(&vector, Duration::from_secs(20), |d| {
-        w123_names(d).iter().any(|n| n == "NeverDefinedAnywhere")
+        let names = w123_names(d);
+        names.iter().any(|n| n == "NeverDefinedAnywhere")
+            && !names.iter().any(|n| n.contains("Pi") || n.contains("Inv"))
     });
 
     let at_pi = titles_at_pi(&mut lsp, &vector);
