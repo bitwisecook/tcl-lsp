@@ -3,8 +3,8 @@
 # newly failing:
 analyser::diagnostics::security::source_paths::tests::original_path_advice_has_whole_source_and_per_item_value_parity
 analyser::diagnostics::security::source_patterns::tests::original_pattern_shape_keeps_whole_source_and_per_item_parity
-analyser::per_item::tests::counted_class_metadata_requires_original_owner_in_per_item_body
 # newly passing:
+analyser::per_item::tests::counted_class_metadata_requires_original_owner_in_per_item_body
 analyser::per_item::tests::many_small_bodies_totalling_over_the_threshold_stay_fast
 analyser::per_item::tests::ordinary_large_body_stays_on_the_fast_path
 analyser::per_item::tests::private_source_advice_requires_whole_document_owner
@@ -16,3 +16,5 @@ analyser::per_item::tests::tk_gate_tn_renamed_package_command_does_not_activate
 # closed since the previous list: instance creation in a wrapped body
 #   (every unbound site is captured in the wrapper realm and replayed against
 #   the document; a replay that names a class declared after the site is undone)
+# closed: counted class metadata (the wrapper's proc scope now carries the
+#   naming scope the proc handler derives from the declaration name)

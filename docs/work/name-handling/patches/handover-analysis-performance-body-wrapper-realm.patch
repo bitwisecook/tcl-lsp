@@ -115,6 +115,28 @@ index 84a385ef..677a0cf9 100644
          let Some(first) = argument_tokens.first() else {
              return;
          };
+diff --git a/rust/tcl-compiler/src/analyser/handlers/procedures.rs b/rust/tcl-compiler/src/analyser/handlers/procedures.rs
+index b727b5a4..860419f7 100644
+--- a/rust/tcl-compiler/src/analyser/handlers/procedures.rs
++++ b/rust/tcl-compiler/src/analyser/handlers/procedures.rs
+@@ -130,7 +130,7 @@ impl Analyser {
+         }
+     }
+ 
+-    pub(super) fn procedure_reporting_names(
++    pub(in crate::analyser) fn procedure_reporting_names(
+         &self,
+         original_name: Option<&crate::signature_scan::original_name::SourceOriginalNameOccurrence>,
+         name_word: Token,
+@@ -205,7 +205,7 @@ impl Analyser {
+             })
+     }
+ 
+-    pub(super) fn original_procedure_declaration_name(
++    pub(in crate::analyser) fn original_procedure_declaration_name(
+         &self,
+         name_tok: Token,
+     ) -> Option<crate::signature_scan::original_name::SourceOriginalNameOccurrence> {
 diff --git a/rust/tcl-compiler/src/analyser/per_item.rs b/rust/tcl-compiler/src/analyser/per_item.rs
 index 4ddfea65..eab9bfb0 100644
 --- a/rust/tcl-compiler/src/analyser/per_item.rs
@@ -523,7 +545,7 @@ index c982dde0..b2492204 100644
      debug_assert_eq!(
          *facts,
 diff --git a/rust/tcl-compiler/src/analyser/per_item/isolated_body.rs b/rust/tcl-compiler/src/analyser/per_item/isolated_body.rs
-index 827e51a8..71c9333f 100644
+index 827e51a8..6f95e8a5 100644
 --- a/rust/tcl-compiler/src/analyser/per_item/isolated_body.rs
 +++ b/rust/tcl-compiler/src/analyser/per_item/isolated_body.rs
 @@ -88,6 +88,10 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
@@ -537,7 +559,7 @@ index 827e51a8..71c9333f 100644
      // The isolated pass has no whole-file view, so the constant
      // command-substitution fold may trust only the snapshot
      // the shell attached — and must distrust EVERYTHING when none was
-@@ -130,11 +134,48 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
+@@ -130,11 +134,62 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
          kind,
      );
      seed_isolated_frame_state(&mut a, db, &proc_path);
@@ -564,6 +586,20 @@ index 827e51a8..71c9333f 100644
 +        a.head_identities = a.document_command_realm(&wrapper);
 +        a.result.command_realm = Some(std::sync::Arc::new(a.head_identities.clone()));
 +        a.record_original_formal_variables();
++        let name_tok = Token::new(
++            tcl_lexer::TokenType::Str,
++            tcl_lexer::Span::new(5, 5 + u32::try_from(name.len()).unwrap()),
++        );
++        let original = a.original_procedure_declaration_name(name_tok);
++        let (source_name, _, _) =
++            a.procedure_reporting_names(original.as_ref(), name_tok, &[], "::", &name);
++        if let Some(scope) =
++            super::super::scope::scope_at_mut(&mut a.result.global_scope, &proc_path)
++        {
++            scope.naming_scope = source_name
++                .as_ref()
++                .and_then(crate::signature_scan::scope::SignatureSourceCommand::body_scope);
++        }
 +        a.issuer_replays = Some(Vec::new());
 +        a.line_offsets = Some(super::super::state::compute_line_offsets(&wrapper));
 +        a.cached_line_index = tcl_lexer::LineIndex::new(&wrapper);
@@ -723,10 +759,10 @@ index 1099752e..87babf96 100644
              OriginalVariableSymbolPurpose, OriginalVariableSymbolReceiver,
          };
 diff --git a/rust/tcl-compiler/src/analyser/state.rs b/rust/tcl-compiler/src/analyser/state.rs
-index a3fc580b..c08bb97b 100644
+index 22b2852b..0151e69d 100644
 --- a/rust/tcl-compiler/src/analyser/state.rs
 +++ b/rust/tcl-compiler/src/analyser/state.rs
-@@ -983,6 +983,11 @@ pub struct Analyser {
+@@ -986,6 +986,11 @@ pub struct Analyser {
      /// presentation maps never admit a receiver. Whole-document scans use the
      /// same issuer inline.
      pub(super) pending_bareword_dispatch_sites: Option<Vec<VarCommandSite>>,
@@ -739,10 +775,10 @@ index a3fc580b..c08bb97b 100644
      /// take the duplicate-definition fallback, to measure the residual
      /// divergence the duplicate fast-path must still close.  Defaults to `false`.
 diff --git a/rust/tcl-compiler/src/analyser/state/configuration.rs b/rust/tcl-compiler/src/analyser/state/configuration.rs
-index 586439c2..ad3b57d8 100644
+index bb5c4aea..7c71dc19 100644
 --- a/rust/tcl-compiler/src/analyser/state/configuration.rs
 +++ b/rust/tcl-compiler/src/analyser/state/configuration.rs
-@@ -166,6 +166,8 @@ impl Analyser {
+@@ -167,6 +167,8 @@ impl Analyser {
              pending_instances: None,
              deferred_instance_replays: Vec::new(),
              pending_bareword_dispatch_sites: None,
