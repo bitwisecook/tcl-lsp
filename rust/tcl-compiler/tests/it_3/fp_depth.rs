@@ -1285,14 +1285,15 @@ dead; emitted {:?}",
         // truth source is an interprocedurally propagated caller argument.
         // tclsh: `proc f {d} {dict update d k v {info exists v}}`
         //        → `f {k 5}` = 1, `f {}` = 0.
-        let present = "proc f {d} { dict update d k v { puts $v } }\nproc g {} { f {k 5} }\n";
+        // `g` is called, so the caller's value reaches `f`.
+        let present = "proc f {d} { dict update d k v { puts $v } }\nproc g {} { f {k 5} }\ng\n";
         assert!(
             !fires(present, D, "W210"),
             "an interprocedurally-propagated key-present literal binds the value-var; \
 emitted {:?}",
             codes(present, D)
         );
-        let absent = "proc f {d} { dict update d k v { puts $v } }\nproc g {} { f {} }\n";
+        let absent = "proc f {d} { dict update d k v { puts $v } }\nproc g {} { f {} }\ng\n";
         assert!(
             fires(absent, D, "W210"),
             "an interprocedurally-propagated empty literal leaves the value-var unset; \
