@@ -136,8 +136,10 @@ fn analyse_w307_emitted_for_cmd_substitution_with_unknown_return_type() {
 
 #[test]
 fn analyse_w307_suppressed_for_my_self_dispatch() {
-    // ``[my method]`` is OO self-dispatch — never trips W307.
-    let src = "[my m] arg";
+    // ``[my method]`` is OO self-dispatch — never trips W307. It is one only
+    // inside a method: at file level `my` is an undefined command (tclsh
+    // 8.6.18 / 9.0.4).
+    let src = "oo::class create C {\n    method m {} {}\n    method n {} {[my m] arg}\n}\n";
     let mut a = Analyser::new();
     let r = a.analyse(src, "tcl");
     assert!(
