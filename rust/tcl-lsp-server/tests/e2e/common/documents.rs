@@ -94,9 +94,11 @@ impl Lsp {
         timeout: Duration,
     ) -> Vec<Value> {
         self.open_document_lang(uri, text, language_id, 1);
-        let diags = self.await_diagnostics_version(uri, Some(1), timeout);
+        self.await_diagnostics_version(uri, Some(1), timeout);
         self.await_log(&["workspace_state.update", uri], timeout, 0);
-        diags
+        // Read after the settle barrier: the first version-1 publish can
+        // precede start-up work that republishes the same version.
+        self.await_diagnostics_version(uri, Some(1), timeout)
     }
 
     /// Force `uri`'s analysis snapshot to `text` at `version` and block until it
