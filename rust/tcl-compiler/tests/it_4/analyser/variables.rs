@@ -196,7 +196,10 @@ mod var_read_role_references {
                 .iter()
                 .map(|r| text(r.start(), r.end()))
                 .collect::<Vec<_>>(),
-            vec![text(cell.definition_span.start(), cell.definition_span.end())],
+            vec![text(
+                cell.definition_span.start(),
+                cell.definition_span.end()
+            )],
             "the literal cell owns the read"
         );
         assert!(

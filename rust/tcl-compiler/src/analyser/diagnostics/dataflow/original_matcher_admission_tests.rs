@@ -61,7 +61,11 @@ fn selected_original_matcher_advice_keeps_alias_arguments_and_known_provider_bar
             } else {
                 &[expected]
             };
-            assert_eq!(output_names(source, dialect), expected, "{dialect}: {source}");
+            assert_eq!(
+                output_names(source, dialect),
+                expected,
+                "{dialect}: {source}"
+            );
         }
         for source in [
             "namespace eval app {proc regexp args {}}; ::app::regexp x y v",
@@ -94,7 +98,11 @@ fn selected_original_matcher_advice_keeps_alias_arguments_and_known_provider_bar
             &[]
         };
         for source in ["scan abc %b v", "scan abc %bad v"] {
-            assert_eq!(output_names(source, dialect), binary_scan, "{dialect}: {source}");
+            assert_eq!(
+                output_names(source, dialect),
+                binary_scan,
+                "{dialect}: {source}"
+            );
         }
     }
 }

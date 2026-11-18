@@ -262,10 +262,7 @@ fn binary_and_encoding_tables_follow_the_emulated_release() {
     let mut old = at(TclVersion::V8_5);
     let (code, message) = run(&mut old, "binary d base64 QQ==");
     assert_eq!(code, Code::Error);
-    assert_eq!(
-        message,
-        "bad option \"d\": must be format or scan"
-    );
+    assert_eq!(message, "bad option \"d\": must be format or scan");
     assert_eq!(
         run(&mut old, "encoding d").0,
         Code::Ok,

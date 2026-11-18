@@ -93,7 +93,8 @@ fn w123_says_the_call_widens_where_it_does() {
         )
     );
     assert!(
-        message_at("db_up_call", 0).starts_with("Unresolved command 'db_up_call' at this source point"),
+        message_at("db_up_call", 0)
+            .starts_with("Unresolved command 'db_up_call' at this source point"),
         "an `uplevel #0` body in a procedure nothing calls"
     );
 }

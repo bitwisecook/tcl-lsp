@@ -402,7 +402,10 @@ fn jim_alias_in_a_literal_foreach_defines_every_name() {
     let src = "foreach n {e f} {alias $n info exists}\nset q 1\ne q\nf q\n";
     let result = Analyser::new().analyse(src, "jim");
     assert!(
-        !result.diagnostics.iter().any(|d| d.code.to_string() == "W123"),
+        !result
+            .diagnostics
+            .iter()
+            .any(|d| d.code.to_string() == "W123"),
         "{:?}",
         result.diagnostics
     );

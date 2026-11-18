@@ -94,9 +94,9 @@ use registration::{
     define_host_command, define_prepared_host_command, open_publication_service,
     remove_host_command, remove_prepared_host_command,
 };
-use value_conversion::{ActualScalarImport, from_vm_value_using, to_vm_value_using};
 #[cfg(test)]
 use value_conversion::from_vm_object_value;
+use value_conversion::{ActualScalarImport, from_vm_value_using, to_vm_value_using};
 #[cfg(test)]
 use value_conversion::{from_vm_value, to_vm_value};
 

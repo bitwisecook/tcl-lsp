@@ -178,9 +178,18 @@ fn analyse_w001_fix_replaces_wrapped_literal_subcommand() {
     // tclsh8.6.18/9.0.4: `string length abc` and `string {length} abc`
     // both answer 3.
     for (src, expected) in [
-        ("set x abc\nstring {lenght} $x\n", "set x abc\nstring length $x\n"),
-        ("set x abc\nstring \"lenght\" $x\n", "set x abc\nstring length $x\n"),
-        ("set x abc\nstring lenght $x\n", "set x abc\nstring length $x\n"),
+        (
+            "set x abc\nstring {lenght} $x\n",
+            "set x abc\nstring length $x\n",
+        ),
+        (
+            "set x abc\nstring \"lenght\" $x\n",
+            "set x abc\nstring length $x\n",
+        ),
+        (
+            "set x abc\nstring lenght $x\n",
+            "set x abc\nstring length $x\n",
+        ),
     ] {
         let mut a = Analyser::new();
         let r = a.analyse(src, "tcl");

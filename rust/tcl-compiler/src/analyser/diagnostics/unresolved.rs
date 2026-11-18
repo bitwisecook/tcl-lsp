@@ -1465,7 +1465,8 @@ mod diagnostic_presence_controls {
                 .find(|invocation| invocation.name == name)
                 .unwrap_or_else(|| panic!("`{name}` is a reference"));
             let warned = result.diagnostics.iter().any(|d| {
-                d.code == tcl_core_types::DiagCode::W123 && d.span.start() == invocation.range.start()
+                d.code == tcl_core_types::DiagCode::W123
+                    && d.span.start() == invocation.range.start()
             });
             assert_eq!(warned, absent, "{name}: {:?}", result.diagnostics);
         }

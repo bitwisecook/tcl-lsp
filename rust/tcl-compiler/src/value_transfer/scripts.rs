@@ -290,13 +290,12 @@ impl LatticeDriver<'_> {
                     .or_else(|| {
                         // The gate refused before any route ran: report why,
                         // where the refusal names a reason of its own.
-                        let reason = match module
-                            .original_native_value_refusal(original, writes_land)?
-                        {
-                            NativeValueRefusal::StatefulNested => DeclineReason::StatefulNested,
-                            NativeValueRefusal::NotExact => DeclineReason::NotExact,
-                            NativeValueRefusal::Unsupported => return None,
-                        };
+                        let reason =
+                            match module.original_native_value_refusal(original, writes_land)? {
+                                NativeValueRefusal::StatefulNested => DeclineReason::StatefulNested,
+                                NativeValueRefusal::NotExact => DeclineReason::NotExact,
+                                NativeValueRefusal::Unsupported => return None,
+                            };
                         Some(ScriptRun {
                             head: head.to_owned(),
                             route: None,

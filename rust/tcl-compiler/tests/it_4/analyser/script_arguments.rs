@@ -35,7 +35,10 @@ mod list_quoted_script_arguments {
     use super::super::*;
 
     fn diag_codes(src: &str) -> Vec<String> {
-        analyser_diags(src, D).into_iter().map(|(c, _, _)| c).collect()
+        analyser_diags(src, D)
+            .into_iter()
+            .map(|(c, _, _)| c)
+            .collect()
     }
 
     fn scope_named(

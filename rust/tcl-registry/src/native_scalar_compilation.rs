@@ -295,7 +295,12 @@ mod tests {
     fn a_known_length_is_a_literal_before_9_1() {
         use crate::value_transfer::RepresentationEvidence;
         let length = NativeScalarOperation::StringLength;
-        for version in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V8_6, TclVersion::V9_0] {
+        for version in [
+            TclVersion::V8_4,
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+        ] {
             for shape in [Shape::Literal, Shape::QuotedLiteral, Shape::BracedLiteral] {
                 assert_eq!(
                     length.compiled_constant(&[shape], version),
@@ -303,9 +308,15 @@ mod tests {
                     "{version:?} {shape:?}"
                 );
             }
-            assert_eq!(length.compiled_constant(&[Shape::Substituted], version), None);
+            assert_eq!(
+                length.compiled_constant(&[Shape::Substituted], version),
+                None
+            );
         }
-        assert_eq!(length.compiled_constant(&[Shape::BackslashLiteral], TclVersion::V8_4), None);
+        assert_eq!(
+            length.compiled_constant(&[Shape::BackslashLiteral], TclVersion::V8_4),
+            None
+        );
         assert_eq!(
             length.compiled_constant(&[Shape::BackslashLiteral], TclVersion::V8_6),
             Some(RepresentationEvidence::Unknown)
@@ -315,7 +326,8 @@ mod tests {
             Some(RepresentationEvidence::Constructed(crate::TclType::Int))
         );
         assert_eq!(
-            NativeScalarOperation::ListLength.compiled_constant(&[Shape::Literal], TclVersion::V8_6),
+            NativeScalarOperation::ListLength
+                .compiled_constant(&[Shape::Literal], TclVersion::V8_6),
             None
         );
     }

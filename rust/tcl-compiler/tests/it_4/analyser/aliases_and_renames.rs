@@ -180,7 +180,10 @@ mod interp_alias {
         let safe = "proc ::api::add {a b} {\n    return [expr {$a + $b}]\n}\n\
                     set i [interp create -safe]\ninterp alias $i add {} ::api::add\n\
                     $i eval {add 2 3}\nadd 2 3\n";
-        assert!(!super::w123_at(safe, "add 2 3", 0), "the alias exists inside $i");
+        assert!(
+            !super::w123_at(safe, "add 2 3", 0),
+            "the alias exists inside $i"
+        );
         assert!(super::w123_at(safe, "add 2 3", 1), "not in the parent");
         // A parent-side alias into a live child runs the child's `greet`
         // (tclsh8.6.18/9.0.4: localGreet -> hello).

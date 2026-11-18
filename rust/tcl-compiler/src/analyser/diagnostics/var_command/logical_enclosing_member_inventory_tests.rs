@@ -34,6 +34,10 @@ fn logical_receiver_inventory_uses_actual_frame_and_refuses_unknown_members() {
                 && d.message.contains("knwon")
                 && d.fixes.iter().any(|fix| fix.new_text == "known")
         });
-        assert_eq!(proposes_known, expected, "{source}: {:?}", result.diagnostics);
+        assert_eq!(
+            proposes_known, expected,
+            "{source}: {:?}",
+            result.diagnostics
+        );
     }
 }

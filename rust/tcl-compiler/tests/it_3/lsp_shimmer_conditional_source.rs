@@ -207,10 +207,18 @@ fn a_compiled_literal_length_is_a_pure_string_before_9_1() {
         let compiled_int = version >= tcl_dialect::TclVersion::V9_1;
         assert_eq!(
             converts(literal, version),
-            if compiled_int { int_to_list.clone() } else { Vec::new() },
+            if compiled_int {
+                int_to_list.clone()
+            } else {
+                Vec::new()
+            },
             "{version:?}: {literal}"
         );
-        assert_eq!(converts(top_level, version), int_to_list, "{version:?}: {top_level}");
+        assert_eq!(
+            converts(top_level, version),
+            int_to_list,
+            "{version:?}: {top_level}"
+        );
     }
 }
 

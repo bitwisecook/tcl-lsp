@@ -523,7 +523,10 @@ mod unresolved_command {
     fn unknown_proc_empty_stub_handles_the_call() {
         // tclsh8.6.18/9.0.4: `proc unknown {args} {}; mycommand arg1;
         // puts done` prints done: the empty handler returns "".
-        assert_eq!(w123("proc unknown {args} {}\nmycommand arg1"), [] as [std::string::String; 0]);
+        assert_eq!(
+            w123("proc unknown {args} {}\nmycommand arg1"),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]

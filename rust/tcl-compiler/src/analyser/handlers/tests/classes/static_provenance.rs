@@ -38,8 +38,15 @@ fn original_if_conditions_keep_selected_grammar_and_unknown_evaluation_boundarie
     ] {
         let source = format!("if {{{condition}}} {{set x 1}} else {{set x 2}}");
         let result = Analyser::new().analyse(&source, dialect);
-        let i230 = result.diagnostics.iter().any(|d| d.code.to_string() == "I230");
-        assert_eq!(i230, decided, "{dialect}: {source}: {:?}", result.diagnostics);
+        let i230 = result
+            .diagnostics
+            .iter()
+            .any(|d| d.code.to_string() == "I230");
+        assert_eq!(
+            i230, decided,
+            "{dialect}: {source}: {:?}",
+            result.diagnostics
+        );
     }
 }
 
@@ -51,10 +58,16 @@ fn original_if_branches_use_clause_order_and_complete_original_bodies() {
     // the read unbound; a raising condition leaves the read unreached.
     for (source, unbound) in [
         ("if {1} {set x 1} else {set y 2}\nputs $x\n", false),
-        ("if {0} {set y 1} elseif {1} {set x 2} else {set y 3}\nputs $x\n", false),
+        (
+            "if {0} {set y 1} elseif {1} {set x 2} else {set y 3}\nputs $x\n",
+            false,
+        ),
         ("if {0} {set x 1}\nputs $x\n", true),
         ("if {0} {set x 1} else {set y 1}\nputs $x\n", true),
-        ("if {1} {set x 1} elseif {1 / 0} {set y 2}\nputs $x\n", false),
+        (
+            "if {1} {set x 1} elseif {1 / 0} {set y 2}\nputs $x\n",
+            false,
+        ),
         ("if {$unknown} {set x 1} else {set y 2}\nputs $x\n", false),
         ("if {1 / 0} {set x 1}\nputs $x\n", false),
     ] {

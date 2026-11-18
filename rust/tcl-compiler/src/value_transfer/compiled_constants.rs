@@ -39,7 +39,10 @@ pub(super) fn compiled_constant(
     ) {
         return None;
     }
-    let (operation, _) = resolved.semantics.native_compilation?.scalar_compilation()?;
+    let (operation, _) = resolved
+        .semantics
+        .native_compilation?
+        .scalar_compilation()?;
     let dialect = binding.variable_context.invocation_dialect?;
     if dialect.family() != Some(tcl_dialect::model::Family::Tcl) {
         return None;

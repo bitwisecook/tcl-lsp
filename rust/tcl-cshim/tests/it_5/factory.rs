@@ -58,7 +58,10 @@ fn index_cache_retains_original_table_and_survives_command_retirement() {
     // SAFETY: this linked static extension and table live for the entire process.
     unsafe { interp.load_static(index_cache_init) }.unwrap();
     interp.eval("set ::original a").unwrap();
-    assert_eq!(interp.eval("original_index $::original").unwrap().as_str(), Some("a"));
+    assert_eq!(
+        interp.eval("original_index $::original").unwrap().as_str(),
+        Some("a")
+    );
     // SAFETY: the extension mutates its own persistent table, with no concurrent use.
     unsafe { IndexCache_ChangeTable() };
     interp
@@ -66,7 +69,10 @@ fn index_cache_retains_original_table_and_survives_command_retirement() {
         .unwrap();
     // SAFETY: as above; the extension registers one more command.
     unsafe { interp.load_static(index_cache_reregister) }.unwrap();
-    assert_eq!(interp.eval("probe_index $::original").unwrap().as_str(), Some("a"));
+    assert_eq!(
+        interp.eval("probe_index $::original").unwrap().as_str(),
+        Some("a")
+    );
     assert!(interp.eval("probe_index [string index xa 1]").is_err());
 }
 
