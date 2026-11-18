@@ -54,7 +54,20 @@ impl Lowerer<'_> {
         if candidates.is_empty() {
             return;
         }
+        // The second lowering shares no cache and leaves no state behind:
+        // a body lowered under the view is never one the build reuses.
         let snapshot = self.module.clone();
+        let integrity = self.optimiser_lowering_integrity.take();
+        let body_cache = self.body_cache.take();
+        let syntax_cache = self.source_body_syntax_cache.take();
+        let original_cache = self.original_body_cache.take();
+        let aliases = self.aliases.clone();
+        let directives = self.namespace_directive_sites.clone();
+        let imports = self.namespace_imports.clone();
+        let exports = self.namespace_exports.clone();
+        let instance_vars = self.class_instance_vars.clone();
+        let when_counts = self.when_counts.clone();
+        let body_units = self.body_unit_count;
         let enclosing = self.source_bindings.take();
         let registering = std::mem::replace(&mut self.suppress_proc_register, true);
         let mut bodies = std::collections::BTreeMap::new();
@@ -85,6 +98,17 @@ impl Lowerer<'_> {
         self.source_bindings = enclosing;
         self.suppress_proc_register = registering;
         self.module = snapshot;
+        self.optimiser_lowering_integrity = integrity;
+        self.body_cache = body_cache;
+        self.source_body_syntax_cache = syntax_cache;
+        self.original_body_cache = original_cache;
+        self.aliases = aliases;
+        self.namespace_directive_sites = directives;
+        self.namespace_imports = imports;
+        self.namespace_exports = exports;
+        self.class_instance_vars = instance_vars;
+        self.when_counts = when_counts;
+        self.body_unit_count = body_units;
         self.module.declared_frame_bodies = bodies;
     }
 }
