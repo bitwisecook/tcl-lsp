@@ -480,7 +480,7 @@ impl Lowerer<'_> {
                 if dead {
                     self.dead_code_depth -= 1;
                 }
-                else_span = body_tok.map(|t| t.span);
+                else_span = body_tok.map(|t| self.script_word_span(t));
                 continue;
             };
             let cond_tok = arg_tokens.get(cond_idx);
