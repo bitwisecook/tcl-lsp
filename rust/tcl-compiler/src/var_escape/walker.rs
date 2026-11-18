@@ -659,7 +659,19 @@ fn walk_statement(
         return;
     }
     match stmt {
-        Statement::Call { .. } => handle_call(stmt, state, registry),
+        Statement::Call { args, .. } => {
+            handle_call(stmt, state, registry);
+            // A call the registry lowers as `eval` runs its joined words as a
+            // script, whichever statement shape carries it.
+            if matches!(
+                invocation_facts(stmt, registry).map(|facts| facts.operation),
+                Some(tcl_registry::SemanticOperationId::StructuredLowering(
+                    tcl_registry::hooks::LoweringHookId::Eval,
+                ))
+            ) {
+                handle_eval(args, state, registry);
+            }
+        }
         Statement::Barrier { args, .. } => handle_barrier(stmt, args, state, registry),
         Statement::UpFrame { tokens, .. } => {
             let args = synthesise_uplevel_args(tokens.as_ref());

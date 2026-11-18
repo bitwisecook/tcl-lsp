@@ -23,8 +23,8 @@ edited.
 
 ## Status, 18 November 07:00 UTC
 
-Of 220 rows: 22 open with values, 0 exposed (taint's rows, now failing on a values-family cause), 168 routed to the owner of their cause (analyser-binding 118, dataflow-optimiser 32, dataflow issue session 8, taint 4, class-facts 3, analysis-performance 3),
-20 repaired and failing on a routed cause, 9 fixed, 1 deleted. The status column names each owner.
+Of 220 rows: 18 open with values, 20 exposed (the test was corrected and fails on a product cause, most of them routed), 171 routed to the owner of their cause (analyser-binding 120, dataflow-optimiser 32, dataflow issue session 8, class-facts 4, taint 4, analysis-performance 3),
+0 repaired (corrected and passing), 10 fixed, 1 deleted. The status column names each owner.
 
 ## Verdicts
 
