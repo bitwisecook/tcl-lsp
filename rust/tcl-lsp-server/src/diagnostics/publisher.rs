@@ -100,6 +100,10 @@ pub(in super::super) struct PackNoticePublication {
     pub(in super::super) packs: Option<Arc<tcl_spectcl::PackSet>>,
     pub(in super::super) overlays: Vec<Arc<CommandRegistry>>,
     pub(in super::super) by_uri: HashMap<Uri, Vec<PackNoticeEntry>>,
+    /// The discovered files the loader read, and the trust it read them under:
+    /// what the loader needs to read an open buffer as the same pack file.
+    pub(in super::super) files: Vec<tcl_spectcl::PackFile>,
+    pub(in super::super) workspace_trust: tcl_dialect::model::WorkspaceTrust,
 }
 
 /// Existing source and selected provider/publication owners for one notice merge.
@@ -113,26 +117,26 @@ pub(in super::super) struct PackNoticeContext<'a> {
     pub(in super::super) store: &'a dyn vfs::SourceStore,
 }
 
-/// Whether `notice` still describes `current`, the buffer being reported.
-///
-/// A notice is anchored to the saved file the loader read. The saved image
-/// itself is checked against the disk by the source store; here the buffer
-/// may be ahead of it (an unsaved edit), and the notice stays on screen
-/// while the lines it covers are the same lines, at the same positions, in
-/// the buffer. An edit that changes or moves those lines drops it, so a
-/// squiggle is never drawn over text it was not written for.
-fn notice_anchor_holds(notice: &PackNoticeEntry, current: &str) -> bool {
-    if notice.source.as_ref() == current {
-        return true;
-    }
-    if matches!(notice.owner, PackNoticeSourceOwner::Studio(_)) {
-        return false;
-    }
-    let range = notice.diagnostic.range;
-    let (first, last) = (range.start.line as usize, range.end.line as usize);
-    let saved: Vec<&str> = notice.source.lines().collect();
-    let live: Vec<&str> = current.lines().collect();
-    last < saved.len() && last < live.len() && saved[first..=last] == live[first..=last]
+/// The loader's notices for `buffer` read as the pack file `uri` names, as
+/// wire diagnostics at the buffer's own positions. Empty when the file is not
+/// a discovered pack file the buffer can stand in for (a Spec Studio session
+/// source keeps the exact-source rule).
+fn buffer_pack_notices(
+    notices: &PackNoticePublication,
+    uri: &Uri,
+    buffer: &str,
+) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
+    let Some(file) = notices.files.iter().find(|file| {
+        file.tier != tcl_spectcl::Tier::StudioOverride
+            && crate::canonical_file_uri(&file.path).as_ref() == Some(uri)
+    }) else {
+        return Vec::new();
+    };
+    let trust = file.tier.trust_under(notices.workspace_trust);
+    tcl_spectcl::pack::check_buffer(file.clone(), buffer, trust)
+        .iter()
+        .map(|notice| crate::spec_packs::pack_notice_diagnostic(notice, None))
+        .collect()
 }
 
 pub(in super::super) struct DiagnosticPublisher {
@@ -217,14 +221,22 @@ impl DiagnosticPublisher {
         {
             return required.publish_base(store, &mut publish, &mut diagnostics);
         }
-        let matching: Vec<_> = notices
-            .by_uri
-            .get(uri)
-            .into_iter()
-            .flatten()
-            .filter(|notice| notice_anchor_holds(notice, source))
+        let entries: Vec<_> = notices.by_uri.get(uri).into_iter().flatten().collect();
+        let matching: Vec<_> = entries
+            .iter()
+            .copied()
+            .filter(|notice| notice.source.as_ref() == source)
             .collect();
-        if matching.is_empty() {
+        // The buffer is ahead of the saved file the standing notices were read
+        // from. A notice read from the saved image is dropped once the buffer
+        // differs, and the loader's own reading of the buffer replaces it, at
+        // buffer positions (README ruling 18 Nov).
+        let buffer_notices = if matching.is_empty() && !entries.is_empty() {
+            buffer_pack_notices(&notices, uri, source)
+        } else {
+            Vec::new()
+        };
+        if matching.is_empty() && buffer_notices.is_empty() {
             return required.publish_base(store, &mut publish, &mut diagnostics);
         }
         let saved_sources: Vec<_> = matching
@@ -246,10 +258,14 @@ impl DiagnosticPublisher {
                 }
             }
         }
-        let extra: Vec<_> = matching
-            .iter()
-            .map(|notice| notice.diagnostic.clone())
-            .collect();
+        let extra: Vec<_> = if matching.is_empty() {
+            buffer_notices
+        } else {
+            matching
+                .iter()
+                .map(|notice| notice.diagnostic.clone())
+                .collect()
+        };
         let mut result = None;
         let mut commit = || {
             let mut assembled = diagnostics.take().expect("base report is available");
@@ -288,6 +304,8 @@ impl DiagnosticPublisher {
         packs: Arc<tcl_spectcl::PackSet>,
         overlays: Vec<Arc<CommandRegistry>>,
         by_uri: HashMap<Uri, Vec<PackNoticeEntry>>,
+        files: Vec<tcl_spectcl::PackFile>,
+        workspace_trust: tcl_dialect::model::WorkspaceTrust,
     ) -> Vec<Uri> {
         let mut notices = self
             .pack_notices
@@ -323,6 +341,8 @@ impl DiagnosticPublisher {
             packs: Some(packs),
             overlays,
             by_uri,
+            files,
+            workspace_trust,
         };
         touched.sort_by(|a, b| a.as_str().cmp(b.as_str()));
         touched.dedup();

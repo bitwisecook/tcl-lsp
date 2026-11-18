@@ -25,8 +25,8 @@ use tcl_registry::CommandRegistry;
 use tower_lsp_server::ls_types::MessageType;
 
 use super::{
-    PackConfigurationPublication, PackReloadSourceViews, PublishedPackSet, ReloadTrigger,
-    SpecPacksReloaded,
+    LoadedPackConfiguration, PackConfigurationPublication, PackFilesRead, PackReloadSourceViews,
+    PublishedPackSet, ReloadTrigger, SpecPacksReloaded,
 };
 use crate::diagnostics::sync_evaluator_epoch;
 use crate::documents::DocumentSourceResult;
@@ -68,13 +68,7 @@ impl Backend {
         options: tcl_spectcl::DiscoveryOptions,
         held_tx: Option<tokio::sync::oneshot::Sender<()>>,
         hold: std::time::Duration,
-    ) -> (
-        tcl_spectcl::PackSet,
-        studio_source::StudioSourceSnapshot,
-        tcl_spectcl::DiscoveryOptions,
-        Vec<Vec<PathBuf>>,
-        tcl_spectcl::pack::LoadedSourceInputs,
-    ) {
+    ) -> LoadedPackConfiguration {
         let studio =
             studio_snapshot.retained_sources(pack_store.as_ref(), &options.workspace_roots);
         let active_paths = studio
@@ -110,13 +104,14 @@ impl Backend {
             let _ = tx.send(());
             std::thread::sleep(hold);
         }
-        (
+        LoadedPackConfiguration {
             loaded,
             studio_snapshot,
             options,
-            discovery.configured_sources,
+            configured_sources: discovery.configured_sources,
             loader_inputs,
-        )
+            files: discovery.files,
+        }
     }
 
     fn publish_pack_set_locked(
@@ -389,7 +384,14 @@ impl Backend {
         });
         self.announce_pack_snapshot_hold(hold, held_rx).await;
         let loaded = load.await;
-        let Ok((loaded, studio_snapshot, options, configured_sources, loader_inputs)) = loaded
+        let Ok(LoadedPackConfiguration {
+            loaded,
+            studio_snapshot,
+            options,
+            configured_sources,
+            loader_inputs,
+            files,
+        }) = loaded
         else {
             // A panic in the loader must not take the session with it: the
             // workspace keeps whatever pack set it already had.
@@ -459,6 +461,10 @@ impl Backend {
                 loader_inputs: &loader_inputs,
                 studio_snapshot: &studio_snapshot,
                 overlays: &overlays,
+                read: PackFilesRead {
+                    files: &files,
+                    workspace_trust: options.workspace_trust,
+                },
             },
         )
         .await?;
@@ -492,11 +498,6 @@ impl Backend {
         seq: u64,
         sources: PackReloadSourceViews<'_>,
     ) -> DocumentSourceResult<()> {
-        let PackReloadSourceViews {
-            loader_inputs,
-            studio_snapshot,
-            overlays,
-        } = sources;
         // Shipped-command collisions are not load notices — the loader has no
         // registry to compare against, so `PackSet::notices` cannot carry
         // them. They are computed here, against the session dialect's plain
@@ -525,15 +526,8 @@ impl Backend {
         // which rule and which pack rather than "some environments did not
         // load".
         collisions.extend(Self::environment_rejection_notices(packs, registration));
-        self.publish_spec_pack_notices(
-            packs,
-            &collisions,
-            seq,
-            loader_inputs,
-            studio_snapshot,
-            overlays,
-        )
-        .await?;
+        self.publish_spec_pack_notices(packs, &collisions, seq, sources)
+            .await?;
 
         let _: () = if changed {
             let commands: usize = packs.packs.iter().map(|p| p.commands.len()).sum();

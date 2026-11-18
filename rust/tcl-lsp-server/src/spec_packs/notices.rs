@@ -22,7 +22,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use tcl_lsp_core::code_actions as core_code_actions;
-use tcl_registry::CommandRegistry;
 use tower_lsp_server::ls_types::{MessageType, Uri};
 
 use crate::diagnostics::{
@@ -113,10 +112,14 @@ impl Backend {
         packs: &Arc<tcl_spectcl::PackSet>,
         collisions: &[tcl_spectcl::PackNotice],
         seq: u64,
-        loader_inputs: &tcl_spectcl::pack::LoadedSourceInputs,
-        studio_snapshot: &studio_source::StudioSourceSnapshot,
-        overlays: &[(&'static tcl_dialect::DialectProfile, Arc<CommandRegistry>)],
+        sources: super::PackReloadSourceViews<'_>,
     ) -> DocumentSourceResult<()> {
+        let super::PackReloadSourceViews {
+            loader_inputs,
+            studio_snapshot,
+            overlays,
+            read,
+        } = sources;
         self.trace_raw_pack_notices(packs, collisions, seq).await;
         let mut by_uri: HashMap<Uri, Vec<PackNoticeEntry>> = HashMap::new();
         for notice in packs.notices.iter().chain(collisions) {
@@ -173,6 +176,8 @@ impl Backend {
             Arc::clone(packs),
             registry_owners,
             by_uri,
+            read.files.to_vec(),
+            read.workspace_trust,
         );
         // Open documents go back through their current report owner. Closed
         // files rejoin the installed pack publication and provider source at
@@ -249,8 +254,6 @@ impl Backend {
         loader_inputs: &tcl_spectcl::pack::LoadedSourceInputs,
         studio_snapshot: &studio_source::StudioSourceSnapshot,
     ) -> DocumentSourceResult<Option<PreparedPackNotice>> {
-        use tower_lsp_server::ls_types::{Diagnostic, DiagnosticSeverity, NumberOrString};
-
         let Some(uri) = canonical_file_uri(&notice.path) else {
             return Ok(None);
         };
@@ -310,21 +313,7 @@ impl Backend {
         } else {
             None
         };
-        let severity = match notice.severity {
-            tcl_spectcl::pack::Severity::Warning => DiagnosticSeverity::WARNING,
-            tcl_spectcl::pack::Severity::Information => DiagnosticSeverity::INFORMATION,
-        };
-        let diagnostic = Diagnostic {
-            range: whole_line_range(notice),
-            severity: Some(severity),
-            code: Some(NumberOrString::String(
-                core_code_actions::SPEC_PACK_DIAGNOSTIC_CODE.to_owned(),
-            )),
-            source: Some("tcl-lsp".to_owned()),
-            message: format!("{}: {}", notice.context, notice.message),
-            data: notice_data,
-            ..Diagnostic::default()
-        };
+        let diagnostic = pack_notice_diagnostic(notice, notice_data);
         Ok(Some(PreparedPackNotice {
             uri,
             diagnostic,
@@ -332,6 +321,30 @@ impl Backend {
             owner: source_owner,
             _paths: paths,
         }))
+    }
+}
+
+/// The wire diagnostic for a loader notice, positioned by its own subject.
+pub(in super::super) fn pack_notice_diagnostic(
+    notice: &tcl_spectcl::PackNotice,
+    data: Option<serde_json::Value>,
+) -> tower_lsp_server::ls_types::Diagnostic {
+    use tower_lsp_server::ls_types::{Diagnostic, DiagnosticSeverity, NumberOrString};
+
+    let severity = match notice.severity {
+        tcl_spectcl::pack::Severity::Warning => DiagnosticSeverity::WARNING,
+        tcl_spectcl::pack::Severity::Information => DiagnosticSeverity::INFORMATION,
+    };
+    Diagnostic {
+        range: whole_line_range(notice),
+        severity: Some(severity),
+        code: Some(NumberOrString::String(
+            core_code_actions::SPEC_PACK_DIAGNOSTIC_CODE.to_owned(),
+        )),
+        source: Some("tcl-lsp".to_owned()),
+        message: format!("{}: {}", notice.context, notice.message),
+        data,
+        ..Diagnostic::default()
     }
 }
 

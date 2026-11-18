@@ -30,6 +30,7 @@ mod registrations;
 mod reload;
 mod reports;
 
+pub(super) use notices::pack_notice_diagnostic;
 #[cfg(test)]
 pub(super) use notices::whole_line_range;
 #[cfg(test)]
@@ -81,6 +82,25 @@ struct PackReloadSourceViews<'a> {
     loader_inputs: &'a tcl_spectcl::pack::LoadedSourceInputs,
     studio_snapshot: &'a studio_source::StudioSourceSnapshot,
     pub(super) overlays: &'a [(&'static tcl_dialect::DialectProfile, Arc<CommandRegistry>)],
+    read: PackFilesRead<'a>,
+}
+
+/// The discovered pack files a load read, and the trust it read them under.
+#[derive(Clone, Copy)]
+struct PackFilesRead<'a> {
+    files: &'a [tcl_spectcl::PackFile],
+    workspace_trust: tcl_dialect::model::WorkspaceTrust,
+}
+
+/// What one pack load read and loaded: the pack set, the sources it read and
+/// the discovered files it read them from.
+struct LoadedPackConfiguration {
+    loaded: tcl_spectcl::PackSet,
+    studio_snapshot: studio_source::StudioSourceSnapshot,
+    options: tcl_spectcl::DiscoveryOptions,
+    configured_sources: Vec<Vec<PathBuf>>,
+    loader_inputs: tcl_spectcl::pack::LoadedSourceInputs,
+    files: Vec<tcl_spectcl::PackFile>,
 }
 
 /// A successfully settled pack generation and its actual discovery input.

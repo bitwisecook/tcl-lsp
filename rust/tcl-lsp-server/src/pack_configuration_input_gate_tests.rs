@@ -171,6 +171,8 @@ fn install_saved_pack_notice(
         Arc::clone(packs),
         vec![Arc::clone(registry)],
         by_uri,
+        Vec::new(),
+        tcl_dialect::model::WorkspaceTrust::Trusted,
     );
 }
 
@@ -195,6 +197,8 @@ fn install_studio_pack_notice(
                 owner: PackNoticeSourceOwner::Studio(studio_admission),
             }],
         )]),
+        Vec::new(),
+        tcl_dialect::model::WorkspaceTrust::Trusted,
     );
 }
 
