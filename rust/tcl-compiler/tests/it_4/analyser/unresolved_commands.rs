@@ -314,16 +314,18 @@ mod unresolved_command {
     }
 
     #[test]
-    fn list_wrapped_namespace_unknown_installer_suppresses_w123() {
+    fn list_wrapped_namespace_unknown_installer_covers_only_its_namespace() {
         // FP: `namespace eval $ns [list namespace
         // unknown $handler]` (tcllib's `namespacex::hook::Set` idiom) is
         // a `Cmd`-kind body — `analyse_body`'s literal-`{...}`-only gate
         // never walks it, and the generic nested-substitution scan
         // resolves the head to `list`, never `namespace unknown` — so
         // this installer shape must be recognised separately, or it stays
-        // invisible to every path.
+        // invisible to every path. The handler covers only commands
+        // resolved from ::target: tclsh8.6.18/9.0.4/9.1.0 `mystery_cmd 1`
+        // from :: still raises invalid command name "mystery_cmd".
         let src = "proc handler {args} { puts $args }\nnamespace eval ::target [list namespace unknown handler]\nmystery_cmd 1\n";
-        assert!(w123(src).is_empty(), "got {:?}", w123(src));
+        assert_eq!(w123(src).len(), 1, "got {:?}", w123(src));
     }
 
     #[test]
@@ -338,12 +340,12 @@ mod unresolved_command {
     }
 
     #[test]
-    fn list_wrapped_namespace_unknown_via_namespace_inscope_suppresses_w123() {
-        // FP — `namespace inscope` shares the same
-        // `AnalyserHookId::NamespaceEval` hook as `namespace eval`, so
-        // one fix covers both call forms.
+    fn list_wrapped_namespace_unknown_via_namespace_inscope_covers_only_its_namespace() {
+        // `namespace inscope` shares the `namespace eval` hook; the handler
+        // it installs in ::target does not cover a lookup from ::
+        // (tclsh8.6.18/9.0.4/9.1.0: invalid command name "mystery_cmd").
         let src = "proc handler {args} { puts $args }\nnamespace inscope ::target [list namespace unknown handler]\nmystery_cmd 1\n";
-        assert!(w123(src).is_empty(), "got {:?}", w123(src));
+        assert_eq!(w123(src).len(), 1, "got {:?}", w123(src));
     }
 
     #[test]
