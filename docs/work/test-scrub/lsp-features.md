@@ -1,6 +1,6 @@
 # Test scrub: LSP features
 
-Ledger: [`ledger/lsp-features.tsv`](ledger/lsp-features.tsv), 672 failing tests: the `tcl-lsp-core` library (473 failing on `work` after today's fixes, plus the 19 minifier rows the owner retired), the 177 server navigation tests routed from server-e2e-db that still fail (127 end to end, 50 library; 4 of the 181 now pass), and the three `preview_tickets_e2e` tests. Measured on `work` on 17 November 2026; every Tcl claim was run on tclsh 8.4.20 to 9.1.0 (Jim 0.84 where it applies). Tk and Itcl cannot load here; rows that depend on them say so.
+Ledger: [`ledger/lsp-features.tsv`](ledger/lsp-features.tsv), 677 failing tests (672 triaged here plus five `$`-completion witnesses routed from server-e2e-db): the `tcl-lsp-core` library (473 failing on `work` after today's fixes, plus the 19 minifier rows the owner retired), the 177 server navigation tests routed from server-e2e-db that still fail (127 end to end, 50 library; 4 of the 181 now pass), and the three `preview_tickets_e2e` tests. Measured on `work` on 17 November 2026; every Tcl claim was run on tclsh 8.4.20 to 9.1.0 (Jim 0.84 where it applies). Tk and Itcl cannot load here; rows that depend on them say so.
 
 ## Counts by verdict
 
@@ -166,3 +166,11 @@ Red since the naming restructuring: their bodies are unchanged since `origin/rus
 - Vacuous passes for the second pass: negative `member_targets` tests (the helper answers None for every pinned input), `a_receiver_that_unexports_the_inherited_name_abstains_both_ways`, `an_export_sourced_after_the_import_does_not_resolve_end_to_end`, `check_actions_shimmer_noqa_suppress_honours_disabled_codes`.
 - Dead code: `fold_static_substrings` (test-only); `documents_in_namespace` has no production caller.
 - Stale documentation: `docs/kcs/features/kcs-feature-rename.md` says namespace rename is unsupported; the "Source-action obligation boundary" section of `refactor-original-source-rewrite-permissions.md` (ruled stale; amendment pending).
+
+## Targets the failing lists never covered
+
+The 16 and 17 November lists were taken from the library and `e2e` targets only, so the scoreboard undercounts. Never listed: the `tcl-lsp-core` integration targets `it_2`, `it_3`, `it_4` and `it_5` (a run on 17 November found 43 failing in the rename, references and command-table groups alone, all with empty answers; they are to be triaged as a further part of this ledger), and the `tcl-lsp-server` targets `preview_tickets_e2e` (three failing, triaged above), `smoke` and `stdio_deadlock` (not yet measured).
+
+## Rulings on the UNDECIDED rows (coordinator, 17 November)
+
+Applied in the ledger: call-hierarchy procedure items are labelled by qualified name; Go to Definition follows the display policy after an unbounded `$cmd` head; Definition lists only the sites that create the variable; inline needs a proved target, so an unsourced sibling's shadow refuses both ways; a mathfunc rename that returns no edits and no reason is a wrong answer of its own (`wrong-rename-returns-no-edits-no-reason`); an unsourced workspace `rename regexp {}` is no known shadow under a pinned release. The unbound `$` read (`navigation::an_unbound_dollar_read_never_resolves_to_a_same_named_method`) was run: its references are only the read itself, never the method, so the row is `FIX-EXPECTATION`.
