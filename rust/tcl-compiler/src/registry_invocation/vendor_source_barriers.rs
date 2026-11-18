@@ -211,14 +211,69 @@ pub fn vendor_source_barrier_steps() -> u64 {
     BARRIER_STEPS.with(std::cell::Cell::get)
 }
 
+type BodyBarrierKey = (
+    VendorSourceNameInput,
+    Vec<Vec<NameBytes>>,
+    Vec<tcl_lexer::Span>,
+    tcl_registry::RegistrySemanticKey,
+);
+type BodyBarrierEntries = Vec<(
+    tcl_registry::model::ResolvedContext,
+    Option<VendorSourceCatalogueBarriers>,
+)>;
+
+const BODY_BARRIER_CAPACITY: usize = 4096;
+
+thread_local! {
+    static BODY_BARRIERS: std::cell::RefCell<std::collections::HashMap<BodyBarrierKey, BodyBarrierEntries>> =
+        std::cell::RefCell::default();
+}
+
+/// The barriers preceding `head` in its script and in every region that
+/// encloses it. A pure function of the context, the head, the selected
+/// prefixes and the regions, and asked again for the same head by each
+/// enclosing body's walk, so it is computed once per distinct question.
 pub(super) fn capture_in_script_body(
     context: &ContextRegistry,
     head: &VendorSourceNameInput,
     selected_prefixes: &[Vec<NameBytes>],
     body: &super::OriginalSourceScriptBodyOrigin,
 ) -> Option<VendorSourceCatalogueBarriers> {
+    let key = (
+        head.clone(),
+        selected_prefixes.to_vec(),
+        body.source_regions().to_vec(),
+        context.commands().snapshot().semantic_key(),
+    );
+    let known = BODY_BARRIERS.with_borrow(|memo| {
+        memo.get(&key)?
+            .iter()
+            .find(|(resolved, _)| resolved == context.context())
+            .map(|(_, receipt)| receipt.clone())
+    });
+    if let Some(receipt) = known {
+        return receipt;
+    }
+    let receipt = capture_in_regions(context, head, selected_prefixes, body.source_regions());
+    BODY_BARRIERS.with_borrow_mut(|memo| {
+        if memo.len() >= BODY_BARRIER_CAPACITY {
+            memo.clear();
+        }
+        memo.entry(key)
+            .or_default()
+            .push((context.context().clone(), receipt.clone()));
+    });
+    receipt
+}
+
+fn capture_in_regions(
+    context: &ContextRegistry,
+    head: &VendorSourceNameInput,
+    selected_prefixes: &[Vec<NameBytes>],
+    regions: &[tcl_lexer::Span],
+) -> Option<VendorSourceCatalogueBarriers> {
     let mut receipt = capture(context, head, selected_prefixes)?;
-    for region in body.source_regions() {
+    for region in regions {
         barrier_step();
         let local = capture_region(context, head, selected_prefixes, *region)?;
         receipt.original.extend(local.original);
