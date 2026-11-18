@@ -382,7 +382,8 @@ fn tp_stored_callback_prefix_agrees_across_navigation_providers() {
                  set cb [namespace code [list my tick]]\n\
                  after 0 $cb\n\
              }\n\
-         }\n";
+         }\n\
+         [Test new] wire\n";
     let callback_char = u32::try_from(src.lines().nth(3).unwrap().find("tick").unwrap()).unwrap();
     lsp.open_ready(&uri, src);
 

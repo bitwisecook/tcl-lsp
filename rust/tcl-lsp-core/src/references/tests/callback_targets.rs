@@ -126,7 +126,9 @@ fn stored_callback_prefixes_abstain_on_qualified_and_aliased_variables() {
 
 #[test]
 fn stored_callback_prefix_cursor_resolves_to_method_declaration() {
-    let src = "oo::class create C {\n    method tick {} {}\n    method setup {} {\n        set cb [list my tick]\n        after 0 $cb\n    }\n}\n";
+    // tclsh 8.6.18/9.1.0: `after` runs a bare [list my tick] at global level
+    // (invalid command name "my"); namespace code runs it in the object.
+    let src = "oo::class create C {\n    method tick {} {}\n    method setup {} {\n        set cb [namespace code [list my tick]]\n        after 0 $cb\n    }\n}\n[C new] setup\n";
     let analysis = analyse(src);
     let col = u32::try_from(src.lines().nth(3).unwrap().find("tick").unwrap()).unwrap();
     let locations = crate::definition::definition(src, 3, col, &analysis);
