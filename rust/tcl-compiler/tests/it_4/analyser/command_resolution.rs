@@ -406,9 +406,10 @@ mod pack_declared_transitions {
     /// The analyser binds a pack command's alias facts as it binds
     /// `upvar`'s — it reads the invocation's transitions, never the
     /// command's name: `scoped_link #0 counter c` defines `c` and links it to the
-    /// global cell. Negative: with a computed level word the derived
-    /// resolver abstains for the whole call (the shipped `upvar` would state
-    /// its alias with an unknown frame), so nothing binds.
+    /// global cell. With a computed level word the derived resolver has
+    /// `upvar`'s abstentions (registry-consumer-contracts.md): tclsh8.6.18/
+    /// 9.0.4 `upvar $lvl counter c` makes `c` a local link to an unknown
+    /// frame, so `c` binds exactly as the `upvar` handler binds it.
     #[test]
     fn a_pack_declared_scope_alias_binds_its_local() {
         let bound = analyser_with_pack(LINKER_PACK).analyse(
@@ -423,12 +424,19 @@ mod pack_declared_transitions {
         assert_eq!(c.link_target.as_deref(), Some("::counter"));
         assert!(!c.warn_if_unused);
 
-        let unbound = analyser_with_pack(LINKER_PACK)
+        let computed = analyser_with_pack(LINKER_PACK)
             .analyse("proc p {lvl} {\n    scoped_link $lvl counter c\n}\n", D);
-        assert!(
-            !unbound.global_scope.children[0].variables.contains_key("c"),
-            "a computed level word binds nothing"
-        );
+        let shipped = analyser_with_pack(LINKER_PACK)
+            .analyse("proc p {lvl} {\n    upvar $lvl counter c\n}\n", D);
+        let derived = computed.global_scope.children[0]
+            .variables
+            .get("c")
+            .expect("a computed level still binds `c`");
+        let upvar = shipped.global_scope.children[0]
+            .variables
+            .get("c")
+            .expect("`upvar` binds `c`");
+        assert_eq!(derived.link_target, upvar.link_target);
     }
 
     /// A pack command whose grammar gives one clause two `LoopVarList`
