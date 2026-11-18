@@ -354,3 +354,12 @@ Reproducers, the first wrong value and the function that returns it. Nothing of 
 
 **4. `project_spec_packs`: `tcl-cli` `cli::project_spec_packs::analyser_only_verbs_install_the_current_projects_spec_pack_overlay`.**
 - Source: `package require tcl_lsp_fixture\n::tcl_lsp_fixture::collect output { proc nested {} { expr $input + 1 } }`. `tcl symbols` finds `nested`; `tcl find-legacy` returns no `W100` (`issues[0].code` null). Same family as item 1: the Body word of a pack command is entered by the symbol walk and not by the diagnostic walk; probably the same `body_barrier` at `default_call.rs:235` (not run on the project pack).
+
+## Prepared for taint: `f5-xc` 10 (18 November)
+
+The seven `switch_*` model tests, `event_shaped_procedure_names_do_not_select_response_event_semantics`, `diagnostics::tests::emitted_codes_are_catalogued` (XC101 pinned but never emitted) and `differential::rust_translator_matches_golden_fixture` share one first wrong value.
+
+- Smallest source: `when HTTP_REQUEST {\n    switch [HTTP::path] {\n        "/a*" { pool star_pool }\n    }\n}`, dialect `f5-irules` (`tests/model.rs::switch_exact_path_with_star_is_literal`).
+- Explorer, `tcl explore --source '<that rule>' --dialect f5-irules --show ir --text --no-colour`: the event body `::when::HTTP_REQUEST` holds `call switch [HTTP::path] ...` of kind `IRCall`. It is a plain call, not a `Statement::Switch`. The translator's `walk_statement` (`f5-xc/src/translator/ir_walk.rs:67`) only translates a `Statement::Switch`, and `SourceExpressionAdvice::command_for_operand` (`source_advice.rs:96`) is never reached for this rule (probe, removed): the route is lost before the subject lookup.
+- First wrong value: the IR statement kind of the `switch` inside a hosted event body (`IRCall`; expected `Switch` with its arms), from the lowering of `switch`; with `switch` arms entered as scripts the translator then asks `registry_words_for_original_substitution` for `[HTTP::path]`. This is the same family as the UPF barrier (`lowering/commands/default_call.rs:235`: `tokens.evaluated_body()` is `None` when the walk does not enter the body words).
+- Oracle for the test claims: tclsh 8.6.18 and 9.0.4 (ledger rows `KEEP-ORACLE`, cause `xc-switch-subject-lookup`): `switch -glob`, `-regexp`, `-nocase`, fall-through `-`, exact arms with `*` as a literal, `default`. Transcripts in the "Oracle runs" section above. The BIG-IP check for event-shaped procedure names is TS-07 (item 25).
