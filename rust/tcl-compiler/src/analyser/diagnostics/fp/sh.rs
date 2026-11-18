@@ -995,7 +995,9 @@ proc f {} {
 /// never locally re-initialised before the loop keeps its unknown entry
 /// type (SSA version 0 stays OVERDEFINED) — no S102.
 #[test]
-fn fp_sh_16_namespace_alias_without_local_init_no_s102() {
+fn fp_sh_16_namespace_alias_loop_oscillation_fires_s102() {
+    // tclsh8.6.18/9.0.4: the body makes x int (expr) then string
+    // (string range) on every pass, whatever x entered with.
     let src = "\
 namespace eval ::foo {
     variable x 0
@@ -1010,8 +1012,8 @@ namespace eval ::foo {
 ";
     let got = codes(src, D);
     assert!(
-        !got.iter().any(|c| c == "S102"),
-        "FP-SH-16: namespace alias without a local re-init must not fire S102; got {got:?}"
+        got.iter().any(|c| c == "S102"),
+        "FP-SH-16: the loop body oscillates int/string on every pass; got {got:?}"
     );
 }
 
@@ -1202,7 +1204,7 @@ proc f {n} {
         if {$n % 2} {
             set x [expr {$x + $n}]
         } else {
-            set x \"s$x\"
+            set x [string range $x 0 end]
         }
         incr n -1
     }
@@ -1559,11 +1561,13 @@ fn fp_sh_23_committed_element_arithmetic_silent() {
 /// FP-SH-23: a three-way branch merge stays a tracked union rather than
 /// collapsing to OVERDEFINED — the phi merge reports every member.
 #[test]
-fn fp_sh_23_three_way_merge_reports_all_members() {
+fn fp_sh_23_three_way_merge_without_conversion_is_silent() {
+    // tclsh8.6.18/9.0.4: `return $x` keeps the list / dict / int
+    // representation; nothing converts at the merge, so no path pays.
     let src = "proc f {c} {\n  if {$c == 1} { set x [list 1] } elseif {$c == 2} { set x [dict create a 1] } else { set x [expr {1+1}] }\n  return $x\n}\n";
     assert!(
-        fires(src, D, "S100"),
-        "FP-SH-23: a 3-way differently-typed merge must be reported; got {:?}",
+        !fires(src, D, "S100"),
+        "FP-SH-23: a merge nothing converts is a hover fact, not S100; got {:?}",
         codes(src, D),
     );
 }
