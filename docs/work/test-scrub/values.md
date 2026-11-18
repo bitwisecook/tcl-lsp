@@ -25,7 +25,7 @@ edited.
 
 | Verdict | Tests |
 | --- | ---: |
-| KEEP-ORACLE | 126 |
+| KEEP-ORACLE | 127 |
 | KEEP-CONTRACT | 31 |
 | KEEP-F5 | 30 |
 | FIX-FIXTURE | 16 |
@@ -77,23 +77,26 @@ What is worth fixing, one line each; the wrong rewrites first.
    folded away; the original prints 1, the rewrite 0 (8.4.20, 8.6.18, 9.0.4).
 3. **Wrong rewrite, fixed in 88e66f2577:** `expr {1 << 70}` is folded under 8.4, where a shift count beyond the word
    width is undefined in C and differs by build (ruling of 17 November: O101 declines there).
-4. A declined declared route is still folded by O129 (outputs agree on the releases present; the
+4. **Wrong diagnostic (new witness, 18 November):** in a procedure body S100 reports an
+   int-to-list conversion for `set n [string length abc]; lindex $n 0`; the bytecode compiler pushes
+   a literal there from 8.4 to 9.0, a pure string (`shimmer-compiled-literal-representation`, values).
+5. A declined declared route is still folded by O129 (outputs agree on the releases present; the
    route did not prove it).
-5. Procedure-body statements with substituted words define nothing (types, values, shimmer, escape).
-6. A rule procedure called at the iRules top level has no definitions.
-7. Commands in an iRules `when` body are unbound (S110 payload rows, handler types).
-8. `foreach` over a literal list is not enumerated.
-9. `switch` and `case` select nothing.
-10. Scripts run at another frame (`uplevel`, alias to `uplevel`/`eval`) are unread.
-11. Writes through `upvar 1 $name` do not reach the callee's summary.
-12. The `catch` result and options variables have no place; catch and try bodies transfer no state.
-13. Flow-sensitive untrust after an unknown head (dataflow), then the restated fixtures.
-14. Edge refinements in `if` arms and merges.
-15. Escape walker: the `eval` join, a `try` handler, a `switch` arm over-tagging, literal tracking of
+6. Procedure-body statements with substituted words define nothing (types, values, shimmer, escape).
+7. A rule procedure called at the iRules top level has no definitions.
+8. Commands in an iRules `when` body are unbound (S110 payload rows, handler types).
+9. `foreach` over a literal list is not enumerated.
+10. `switch` and `case` select nothing.
+11. Scripts run at another frame (`uplevel`, alias to `uplevel`/`eval`) are unread.
+12. Writes through `upvar 1 $name` do not reach the callee's summary.
+13. The `catch` result and options variables have no place; catch and try bodies transfer no state.
+14. Flow-sensitive untrust after an unknown head (dataflow), then the restated fixtures.
+15. Edge refinements in `if` arms and merges.
+16. Escape walker: the `eval` join, a `try` handler, a `switch` arm over-tagging, literal tracking of
     `set $target`.
-16. Global summaries: conditional alias joins, a renamed `set` behind an alias, an alias that
+17. Global summaries: conditional alias joins, a renamed `set` behind an alias, an alias that
     creates its namespace, a dynamic local linked to the global named "".
-17. Smaller single rows: increment amount words, release-dependent `try` handler numerals, stub
+18. Smaller single rows: increment amount words, release-dependent `try` handler numerals, stub
     frame effects, chained dead-list writes (O130), the `split ""` fold.
 
 ## Rulings of 17 November on the ten undecided rows

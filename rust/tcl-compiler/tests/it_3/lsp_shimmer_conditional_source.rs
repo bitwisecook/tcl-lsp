@@ -180,6 +180,43 @@ fn dynamic_integer_result_is_converted_by_literal_index_one() {
     }
 }
 
+/// What `[string length …]` leaves in `n` depends on whether the bytecode
+/// compiler sees the call. A procedure body is compiled: `string length` of a
+/// word the compiler knows (8.4 a simple word, 8.5 on any word
+/// `TclWordKnownAtCompileTime` reads) is pushed as a literal from 8.4 to 9.0,
+/// a pure string that `lindex` reads without converting an integer
+/// (tclCompCmds.c `STR_LENGTH`, `TclCompileStringLenCmd`); 9.1 pushes an
+/// integer. A sourced file's top level runs through `Tcl_EvalEx`, which calls
+/// the command (`Tcl_SetIntObj` / `Tcl_NewIntObj`), and `INST_STR_LEN` over a
+/// computed word builds an integer in every release. With
+/// `::tcl::unsupported::representation`, tclsh 8.6.18 and 9.0.4 print `pure
+/// string` for the procedure's literal and `int` for the top level and the
+/// computed word; 9.1.0 prints `int` for all three.
+#[test]
+fn a_compiled_literal_length_is_a_pure_string_before_9_1() {
+    let literal = "proc p {} {set n [string length abc]; lindex $n 0}\np\n";
+    let top_level = "set n [string length abc]; lindex $n 0";
+    let computed = "proc p {s} {set n [string length $s]; lindex $n 0}\np x\n";
+    let converts = |source: &str, version: tcl_dialect::TclVersion| {
+        warnings_for(source, version.dialect_profile_name())
+            .iter()
+            .filter(|warning| warning.variable == "n")
+            .map(|warning| (warning.code, warning.from_type, warning.to_type))
+            .collect::<Vec<_>>()
+    };
+    let int_to_list = vec![(DiagCode::S100, TclType::Int, TclType::List)];
+    for version in tcl_dialect::TclVersion::ALL {
+        let compiled_int = version >= tcl_dialect::TclVersion::V9_1;
+        assert_eq!(
+            converts(literal, version),
+            if compiled_int { int_to_list.clone() } else { Vec::new() },
+            "{version:?}: {literal}"
+        );
+        assert_eq!(converts(top_level, version), int_to_list, "{version:?}: {top_level}");
+        assert_eq!(converts(computed, version), int_to_list, "{version:?}: {computed}");
+    }
+}
+
 #[test]
 fn pure_and_pooled_literals_do_not_supply_integer_representation() {
     for source in [
