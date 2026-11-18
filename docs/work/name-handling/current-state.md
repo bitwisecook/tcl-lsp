@@ -10,7 +10,7 @@ Every hand-written Rust file under `rust/` and `runtime/rust/` is at most 2,000 
 
 The owner asked for a deep evaluation of the tests: what overlaps, and which failing tests are worth making pass. Method, inventory, verdicts and the families each session triages are in [`docs/work/test-scrub/README.md`](../test-scrub/README.md). Every session finishes what it has in hand and then writes its ledger before any further fix; nothing is deleted until the coordinator has sampled the ledger. At 22:40 UTC twelve of thirteen ledgers are signed off (3,252 failing tests: 62% hold behaviour worth making pass, 25% fail because the test is wrong, 9% are re-pointed, 4% go; about sixty wrong answers found, fixed before missing facts). First reading: 37,567 tests, 3,743 failing by the morning's lists; of the failing, 564 cite tclsh or Jim, 497 cite an issue or contract, 2,333 run Tcl source and cite nothing, 349 hold an internal structure.
 
-## Scoreboard, 18 November 2026, 03:55 UTC
+## Scoreboard, 18 November 2026, 04:55 UTC
 
 Failing tests by area on the restructured tree, from the successor sessions' baselines and first pushes.
 
@@ -21,18 +21,18 @@ Failing tests by area on the restructured tree, from the successor sessions' bas
 | Area | Failing | Of | Session |
 | --- | --- | --- | --- |
 | `tcl-compiler` (all areas below share this suite) | 2,075 at 22:13; the count now moves as repaired tests go green or show their real cause (areas: values 296, taint about 180; includes the accepted exposures of the stock-object-type rule) | 13,153 | analyser-binding, class-facts, diagnostics, dataflow-optimiser, values, taint, tk-oo |
-| `tcl-lsp-core` library | 492 (semantic tokens 14; the 43 minifier naming-pass expectations are being retired by owner decision) | 3,653 | lsp-features |
+| `tcl-lsp-core` library | 466 at 04:40 on 18 November, was 473 and 492 (semantic tokens 14; the 43 minifier naming-pass expectations are being retired by owner decision) | 3,653 | lsp-features |
 | `tcl-lsp-server` end to end | 265 | 1,651 | lsp-features (navigation), server-e2e-db |
 | `tcl-lsp-server` library unit tests | 109 | 1,002 | server-e2e-db (navigation reports to lsp-features) |
 | `tcl-lsp-db` | 75 (16 November; not yet re-measured) | 248 | server-e2e-db; the memo tests wait on analysis-performance |
-| Execution (`tcl-codegen`, `tcl-vm`, engines, `tcl-cshim`, `tcl-spec-hooks`) | about 242, after 51 compiler-only tests in `tcl-codegen`'s test crate moved to dataflow-optimiser (23) and values (28) | 5,485 | execution; `live-inlining` for the splice of pack reference bodies (off) |
-| `runtime/rust` (its own workspace) | 41 | 2,726 | execution |
-| Tooling (17 November, 16:00: `tcl-cli` 40, `tcl-spectcl` 23, `tcl-diagram` 13, `tcl-explorer` 13, re-measured 18 November 03:40: `tcl-cli` 36, `tcl-spectcl` 22, `tcl-explorer` 12, `tcl-irules` 1, `tcl-mcp` 1, 72 in all of 4,247; earlier: `tcl-mcp` 3, `tcl-irules` 0 at 19:28, `tcl-spec-studio` 1, `tcl-sslictcl` 0, `tcl-registry` 0; plus 4 rule-loader tests in `tcl-compiler`, now this area's to fix) | 93 | | irules-registry-tooling |
+| Execution (`tcl-codegen`, `tcl-vm`, engines, `tcl-cshim`, `tcl-spec-hooks`) | 212 of 5,450 at 04:34 on 18 November with every oracle required (the same set without the flags); earlier about 242, after 51 compiler-only tests in `tcl-codegen`'s test crate moved to dataflow-optimiser (23) and values (28) | 5,485 | execution; `live-inlining` for the splice of pack reference bodies (off) |
+| `runtime/rust` (its own workspace) | 38 at 04:34 on 18 November with every oracle required; was 41 | 2,727 | execution |
+| Tooling (17 November, 16:00: `tcl-cli` 40, `tcl-spectcl` 23, `tcl-diagram` 13, `tcl-explorer` 13, re-measured 18 November 03:40: `tcl-cli` 36, `tcl-spectcl` 22, `tcl-explorer` 12, `tcl-irules` 1, `tcl-mcp` 1, 72 in all of 4,247, and at 04:47 with every oracle required and `tcl-diagram` counted, 85 of 4,283 with nothing newly failing; earlier: `tcl-mcp` 3, `tcl-irules` 0 at 19:28, `tcl-spec-studio` 1, `tcl-sslictcl` 0, `tcl-registry` 0; plus 4 rule-loader tests in `tcl-compiler`, now this area's to fix) | 93 | | irules-registry-tooling |
 | F5 crates (`tcl-irule-test` 27 of 61, `f5-xc` 11 of 57, `bigip-report-gen` 5 of 126, `f5-cli` 2 of 185, `tcl-bigip` 0 of 362, `tcl-bigip-io` 0 of 28, `tcl-bigip-query` 0 of 179, `tcl-f5mku` 0 of 6) | 45 | 1,004 | irules-registry-tooling; the 29 simulator refusals with execution; the `f5-xc` and report causes with taint |
 | F5 crates (first baseline, 17 November: `tcl-irule-test` 27 of 61, `f5-xc` 11 of 57, `bigip-report-gen` 5 of 126, `f5-cli` 2 of 185, `tcl-bigip` 1 of 362, `tcl-bigip-io` 0 of 28, `tcl-bigip-query` 0 of 179, `tcl-f5mku` 0 of 6) | 46 | 1,004 | irules-registry-tooling; the 29 simulator refusals with execution |
 | Server end to end, `irules`, `spec_packs`, `sslictcl`, `jim` groups (within the server row above) | 26 | 131 | irules-registry-tooling |
 | `tcl-lexer`, `tcl-syntax`, `tcl-core-types`, `tcl-dialect` | 0 | 2,005 | no session; the coordinator rules |
-| `xtask` (38 drift gates) | 0 | | coordinator |
+| `xtask` (39 drift gates; 39 of 39 reported by four sessions' pushes between 04:26 and 04:47) | 0 | | coordinator |
 
 Compiler suite by owning session (counts overlap the first row): analyser and binding (walk) is the critical path; class and object facts (new, about 50 class-factory tests plus method-body and lenient-environment facts); diagnostics about 440; dataflow and optimiser; taint and iRules checks about 300; value transfers, escape, shimmer and types 349.
 

@@ -196,6 +196,10 @@ These go ahead of missing facts once the ledgers are in.
 | The top-level CFG the taint walk reads is replayed from the file's final state, so one later world-withdrawing statement turns every earlier call into an unseen-call marker | tk-oo writes, analyser-binding reviews |
 | Under `tcl`, inside `namespace eval`, a dynamic variable name is resolved to one branch's constant (`set n other; if {$c} {set n v}; set $n 2` claims `other`) | analyser-binding |
 | `tcl-lsp analyze` under the SpecTcl dialect reports W123 on a pack's root word where the analyser, rightly, abstains | lsp-features |
+| The top-level timeline fix above landed as `29547433` (a later unknown command no longer makes earlier calls unseen) | tk-oo, fixed |
+| `switch -exact -- $x {…}` (and `-glob`, `-regexp`) read as a possible-option subject, lowered to a call and withdrew the command world, so every `if`/`while` after it lowered to a call too; fixed in `f6d942f3`, 48 `tcl-compiler` tests | class-facts, fixed |
+| An `if`'s else body span stopped before its closing brace, so a constant-false `if` with an `else` never folded (tclsh 8.4 to 9.1 print `bye here`); fixed in `72eb66a1` | dataflow-optimiser, fixed |
+| 2,000 nested `if`s in a `when` body no longer finish in `find_enclosing_when_event` / `scan_file_events` (over 600 s; the whole core suite took 390 s); arrived 18 November between 01:50 and 04:30 UTC | analysis-performance bisects, the author fixes |
 
 ## Waiting on the owner's approval
 
@@ -275,27 +279,27 @@ The failing behaviours are far fewer than the failing tests. The causes ranked h
 
 The second pass (overlap among passing tests: 88 exact-copy groups, 385 overlap groups, the vacuous negatives on unwired helpers) follows the repairs.
 
-## Status of the rows, 18 November 2026, 03:55 UTC
+## Status of the rows, 18 November 2026, 04:55 UTC
 
 From `tools/ledger_status.py` (a cell that is not one of the seven words counts as open).
 
 | Ledger | open | repaired | exposed | fixed | deleted | blocked | routed | Rows |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | analyser-binding | 412 | 5 | 0 | 1 | 0 | 0 | 0 | 418 |
-| analysis-performance | 46 | 0 | 0 | 0 | 0 | 0 | 0 | 46 |
+| analysis-performance | 48 | 0 | 0 | 0 | 0 | 0 | 0 | 48 |
 | class-facts | 236 | 8 | 2 | 0 | 0 | 0 | 0 | 246 |
-| dataflow-optimiser | 365 | 24 | 24 | 7 | 0 | 1 | 2 | 423 |
-| diagnostics | 332 | 18 | 38 | 4 | 0 | 0 | 5 | 397 |
-| execution | 197 | 4 | 0 | 7 | 56 | 0 | 0 | 264 |
-| irules-registry-tooling | 134 | 0 | 0 | 0 | 0 | 19 | 0 | 153 |
+| dataflow-optimiser | 364 | 24 | 22 | 10 | 0 | 1 | 2 | 423 |
+| diagnostics | 300 | 39 | 49 | 4 | 0 | 0 | 5 | 397 |
+| execution | 198 | 4 | 0 | 8 | 56 | 0 | 0 | 266 |
+| irules-registry-tooling | 133 | 0 | 0 | 2 | 0 | 19 | 0 | 154 |
 | live-inlining | 27 | 0 | 0 | 0 | 0 | 0 | 0 | 27 |
-| lsp-features | 636 | 10 | 16 | 5 | 10 | 0 | 0 | 677 |
-| server-e2e-db-flaky | 2 | 3 | 0 | 0 | 0 | 0 | 1 | 6 |
-| server-e2e-db | 187 | 14 | 1 | 2 | 0 | 12 | 6 | 222 |
+| lsp-features | 625 | 10 | 19 | 12 | 10 | 0 | 1 | 677 |
+| server-e2e-db-flaky | 3 | 3 | 0 | 0 | 0 | 0 | 1 | 7 |
+| server-e2e-db | 162 | 14 | 1 | 12 | 0 | 12 | 21 | 222 |
 | taint | 136 | 5 | 26 | 6 | 0 | 0 | 1 | 174 |
 | tk-oo | 58 | 9 | 0 | 3 | 0 | 0 | 0 | 70 |
 | values | 195 | 18 | 0 | 4 | 1 | 0 | 0 | 218 |
-| **all** | 2963 | 118 | 107 | 39 | 67 | 32 | 15 | 3341 |
+| **all** | 2897 | 139 | 119 | 62 | 67 | 32 | 31 | 3347 |
 
 ## Progress
 
