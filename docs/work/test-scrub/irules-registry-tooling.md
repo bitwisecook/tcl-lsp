@@ -297,3 +297,21 @@ The full list is `docs/work/name-handling/lists/irules-registry-tooling-failing-
 ## Re-measured with the oracles required (18 November)
 
 `bash scripts/dev/ensure-jim-oracle.sh`, `TCL_LSP_JIMSH` exported, and `TCL_LSP_REQUIRE_ALL_TCL_ORACLES=1 TCL_LSP_REQUIRE_JIM_ORACLE=1 TCL_LSP_REQUIRE_TCLSH=1`: `tcl-irules`, `tcl-sslictcl`, `tcl-cli`, `tcl-mcp`, `tcl-explorer`, `tcl-spec-studio`, `tcl-spectcl`, `tcl-registry`, `tcl-diagram`, 4283 tests, 85 red. That is the 72 of the earlier measurement plus the 13 `tcl-diagram`; **nothing newly fails with the oracles required**. The one name not on the earlier list, `spec_verbs::test_against_package::spec_test_presence_keeps_literal_colons_and_wildcards`, passes alone and under the require flags (a load-dependent timing in the first run). These crates were already running their oracle comparisons (`tclsh` is on `PATH` here, and the differential tests locate Jim through `tcl-test-support`); the spec_verbs and pkg_build tests found `tclsh` by their own `PATH` scan, which the require flags did not reach. Their `tclsh_on_path()` helpers now go through `tcl_test_support::witness_tclsh` (Tcl 8.6): a missing interpreter fails the test when `TCL_LSP_REQUIRE_TCLSH` requires it. 50 tests, all pass with the flag set. No test body changed.
+
+## Blocked: `a_derived_body_runs_under_the_release_the_call_is_analysed_under` (18 November)
+
+Ruled by dataflow-optimiser: under the 17 November rulings an uncalled procedure body is analysed from a generic entry, and a fact that holds for every entry must be proved there. `set known [<pack command with a derived body>]` takes no formal, so `known` is the evaluator's result for every entry, provided the derived body's route is the trusted registry fold for the analysed release, which is what the test's title checks. The SCCP fold to `Const("xy")` is therefore right and the helper's `Overdefined` assertion (`original_reference_evaluation`, `tests/pack_source_e2e.rs`) is stale.
+
+Replacement, keeping the release check: drop the early `Overdefined` assertion and, after `original_literal_evaluation` has produced the answer for this release, assert the SCCP value is exactly that answer:
+
+```rust
+let answer = original_literal_evaluation(child.tokens.as_ref()?, registry, metadata, input.unit_profile())?;
+assert_eq!(
+    function.sccp.values.get(&(symbol, 1)),
+    Some(&LatticeValue::Const(ConstValue::Str(answer.clone()))),
+    "a call with no formal in an uncalled body holds for every entry: it is the evaluator's answer for this release"
+);
+Some(answer)
+```
+
+If a release must decline (no trusted fold), assert that row as `Overdefined` instead. The existing `is_none()` check without the installed host stays.
