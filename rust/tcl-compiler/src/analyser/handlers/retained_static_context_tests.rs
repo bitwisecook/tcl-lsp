@@ -93,7 +93,9 @@ fn original_static_fold_keeps_availability_and_selected_control_context() {
         current.borrowed_context_registry().commands(),
         older.borrowed_context_registry().commands()
     ));
-    let source = "proc p {} {original_length length café}";
+    // ASCII literal: a fold over the characters of a non-ASCII literal
+    // declines on 8.4-8.6 unless the script encoding is proved.
+    let source = "proc p {} {original_length length cafe}";
     let mut current_analyser = analyse(source, &current);
     assert_eq!(
         current_analyser.static_proc_result("::p", &[], &mut Vec::new(), 0),
