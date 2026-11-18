@@ -225,7 +225,17 @@ async fn resolve_member_lens_at_line(
     src: &str,
     decl_line: u32,
 ) -> CodeLens {
-    register(backend, uri, src).await;
+    resolve_member_lens_at_line_in(backend, uri, src, decl_line, "tcl8.6").await
+}
+
+async fn resolve_member_lens_at_line_in(
+    backend: &Backend,
+    uri: &Uri,
+    src: &str,
+    decl_line: u32,
+    dialect: &str,
+) -> CodeLens {
+    register_in_dialect(backend, uri, src, dialect).await;
     let lens_params = CodeLensParams {
         text_document: TextDocumentIdentifier { uri: uri.clone() },
         work_done_progress_params: WorkDoneProgressParams::default(),
@@ -282,7 +292,9 @@ async fn code_lens_resolve_wires_show_references_command_for_classmethod() {
     let backend = test_backend();
     let uri = Uri::from_str("file:///classmethod.tcl").unwrap();
     let src = "oo::class create Factory {\n    classmethod make {} {\n        return [Factory new]\n    }\n}\nset f [Factory make]\n";
-    let resolved = resolve_member_lens_at_line(&backend, &uri, src, 1).await;
+    // tclsh 8.6.18: invalid command name "classmethod"; 9.0.4/9.1.0 run
+    // Factory make.
+    let resolved = resolve_member_lens_at_line_in(&backend, &uri, src, 1, "tcl9.0").await;
     let command = resolved
         .command
         .expect("classmethod lens must resolve to a command, not stay inert");

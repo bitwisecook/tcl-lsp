@@ -728,10 +728,10 @@ mod tests {
     fn classmethod_lens_carries_class_member_key_qname() {
         let src =
             "oo::class create Factory {\n    classmethod make {} { return [Factory new] }\n}\n";
-        let analysis = analyse(src);
+        let analysis = Analyser::new().analyse(src, "tcl9.0").clone();
         let lenses = code_lenses(
             src,
-            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -754,10 +754,10 @@ mod tests {
         // `{class}::{name}` key would collide and let `codeLens/resolve`
         // attach one member's locations to the other's lens.
         let src = "oo::class create C {\n    method foo {} {}\n    classmethod foo {} {}\n}\n";
-        let analysis = analyse(src);
+        let analysis = Analyser::new().analyse(src, "tcl9.0").clone();
         let lenses = code_lenses(
             src,
-            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -1560,7 +1560,7 @@ mod tests {
             "}\n",
             "Factory build\n",
         );
-        let analysis = analyse(src);
+        let analysis = Analyser::new().analyse(src, "tcl9.0").clone();
         // Locate the classmethod lens by name span; skip if the analyser
         // build for this dialect didn't record the class-side method.
         let build_span = match analysis
