@@ -740,13 +740,13 @@ fn fp_obj_13_my_method_returns_literal_fires() {
 }
 
 #[test]
-fn fp_obj_13_my_method_returns_object_silent() {
-    // TN control: when `[my obj]` body returns `[D new]` (a cmd-sub), the conservative
-    // self-dispatch OBJECT suppression holds.
+fn fp_obj_13_method_returned_handle_still_fires_w307() {
+    // A handle returned by a method is untyped (kcs-diagnostic-w307): a
+    // subclass or mixin may override `obj` for some receiver.
     let src = "oo::class create D { method run {} { return ok } }\noo::class create C {\n    method obj {} { return [D new] }\n    method m {} { [my obj] run }\n}";
     assert!(
-        !fires(src, D, "W307"),
-        "FP-OBJ-13: [my obj] returning [D new] must NOT fire W307; emitted: {:?}",
+        fires(src, D, "W307"),
+        "FP-OBJ-13: [my obj] dispatch on a method-returned handle warns; emitted: {:?}",
         codes(src, D)
     );
 }
