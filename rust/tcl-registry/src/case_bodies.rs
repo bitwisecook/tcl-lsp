@@ -173,8 +173,20 @@ impl CaseListSpec {
         if values.len() == 2 && reserved == 2 {
             return false;
         }
+        // Only where the options end matters here. A mode or other axis
+        // effect is not read, and with no family listed it would make the
+        // walk treat a valid option (`switch -exact -- $x …`) as unknown.
+        let scanned = options
+            .iter()
+            .map(|option| {
+                let mut option = (*option).clone();
+                option.effect = option.effect.filter(|effect| effect.kind.axis().is_none());
+                option
+            })
+            .collect::<Vec<_>>();
+        let scanned = scanned.iter().collect::<Vec<_>>();
         let effects = crate::option_effect::option_effects_over(
-            options,
+            &scanned,
             &[],
             arguments,
             reserved,
@@ -473,5 +485,53 @@ mod tests {
                 )
                 .is_none()
         );
+    }
+
+    #[test]
+    fn a_mode_option_before_the_marker_keeps_the_subject_selection_known() {
+        // tclsh 8.4.20/8.5.19/8.6.18/9.0.4/9.1.0: `switch -exact -- $x {...}`
+        // reads `$x` as the subject whatever its value, so the layout is known.
+        // Without `--`, 8.4 reads a dash-led `$x` as an option (`bad option`).
+        for dialect_name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let registry = crate::model::ingress::static_context_for(dialect_name).commands();
+            let spec = registry.get("switch").unwrap();
+            let dialect = crate::InvocationDialect::of_profile(registry.profile().unwrap());
+            let options = spec.options.iter().collect::<Vec<_>>();
+            let words = [
+                crate::InvocationWord::Literal("-exact"),
+                crate::InvocationWord::Literal("--"),
+                crate::InvocationWord::Dynamic,
+                crate::InvocationWord::Literal("add {set r 1} default {set r 0}"),
+            ];
+            let selected = spec
+                .case_list
+                .unwrap()
+                .possible_body_operands(
+                    InvocationArguments::structured(&words).with_dialect(dialect),
+                    &options,
+                )
+                .expect("bodies");
+            assert!(!selected.selection_unknown, "{dialect_name}");
+            if dialect_name != "tcl8.4" {
+                continue;
+            }
+            let unmarked = [
+                crate::InvocationWord::Literal("-exact"),
+                crate::InvocationWord::Dynamic,
+                crate::InvocationWord::Literal("add {set r 1}"),
+            ];
+            let selected = spec
+                .case_list
+                .unwrap()
+                .possible_body_operands(
+                    InvocationArguments::structured(&unmarked).with_dialect(dialect),
+                    &options,
+                )
+                .expect("bodies");
+            assert!(
+                selected.selection_unknown,
+                "8.4 may read an unmarked dynamic subject as an option"
+            );
+        }
     }
 }
