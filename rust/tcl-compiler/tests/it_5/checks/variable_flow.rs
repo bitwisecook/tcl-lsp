@@ -499,8 +499,14 @@ mod structural_body_isolation {
     use super::super::*;
 
     fn outer_codes(structural_call: &str) -> std::collections::HashSet<String> {
-        let src =
-            format!("proc outer {{p}} {{\n    set x 1\n    puts $y\n    {structural_call}\n}}\n");
+        // The structural call runs before the raising `puts $y`, and every
+        // definer it uses exists: tclsh8.6.18/9.0.4 raise `invalid command
+        // name` for snit/uri without `package require`, and `oo::define C`
+        // raises when C does not refer to an object.
+        let src = format!(
+            "package require snit\npackage require uri\noo::class create C\n\
+             proc outer {{p}} {{\n    set x 1\n    {structural_call}\n    puts $y\n}}\n"
+        );
         codes(&src, D)
             .into_iter()
             .filter(|c| ["W210", "W211", "W214", "W220"].contains(&c.as_str()))
@@ -510,8 +516,8 @@ mod structural_body_isolation {
     #[test]
     fn structural_bodies_do_not_leak_into_outer_scope() {
         // For each structural call, the outer proc's own findings all survive:
-        // W210 (read $y before set), W214 (unused param p), and the dead `set x`
-        // (W220 on this surface).
+        // W210 (read $y never set), W214 (unused param p), and the never-read
+        // `set x` (W211, which suppresses W220 per kcs-diagnostic-w220).
         for structural_call in [
             "oo::class create C { method m {} { puts $x; set y 1; set p 2 } }",
             "oo::define C { method m {} { puts $x; set y 1; set p 2 } }",
@@ -529,9 +535,8 @@ mod structural_body_isolation {
                 cs.contains("W214"),
                 "missing W214 for {structural_call:?}: {cs:?}"
             );
-            // Dead `set x` surfaces as W220 on this surface.
             assert!(
-                cs.contains("W220"),
+                cs.contains("W211"),
                 "missing dead-store for {structural_call:?}: {cs:?}"
             );
         }
@@ -570,11 +575,13 @@ mod namespace_eval_body_scope {
 
     #[test]
     fn ns_eval_dead_store_still_fires_name_arg_recovered() {
-        // `set y 1` is dead in the caller (the body's `$y` runs in ::ns).
+        // `set y 1` is never read: the body's `$y` runs in ::ns (tclsh8.6.18
+        // falls back to the global y, 9.0.4 raises can't read "y"), so the
+        // store reports W211, which suppresses W220.
         assert!(fires(
             "proc g {} { set y 1; namespace eval ::ns { puts \"$y\" } }",
             D,
-            "W220"
+            "W211"
         ));
         // …but the namespace *name* expression IS evaluated in the caller scope.
         assert!(!fires(
