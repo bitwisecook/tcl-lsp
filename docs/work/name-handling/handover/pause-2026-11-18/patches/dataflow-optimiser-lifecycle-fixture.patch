@@ -1,0 +1,22 @@
+diff --git a/rust/tcl-compiler/src/cfg_builder/execution_regions.rs b/rust/tcl-compiler/src/cfg_builder/execution_regions.rs
+index 0ad81657ab..4b6f9e4718 100644
+--- a/rust/tcl-compiler/src/cfg_builder/execution_regions.rs
++++ b/rust/tcl-compiler/src/cfg_builder/execution_regions.rs
+@@ -914,10 +914,13 @@ mod tests {
+             ..crate::command_binding::SourceAnalysisOptions::default()
+         });
+         let mut module = crate::lowering::lower_to_ir_with(lowerer, source);
+-        if let Some(procedure) = {
+-            let id = fixture_id(&module.procedures, "::p");
+-            module.procedures.remove(&id)
+-        } {
++        if let Some(procedure) =
++            crate::interprocedural::test_body_identity::fixture_id_if_present(
++                &module.procedures,
++                "::p",
++            )
++            .and_then(|id| module.procedures.remove(&id))
++        {
+             return entry.retain(procedure.body);
+         }
+         let original = module
