@@ -355,6 +355,154 @@ fn retain_body_coordinates(
     Some(())
 }
 
+/// A body coordinate relative to the module that owns the facts.
+#[derive(PartialEq, Eq, Hash)]
+enum RelativeFrame {
+    Top,
+    Body(u32),
+}
+
+#[derive(PartialEq, Eq, Hash)]
+enum RelativeOwner<'a> {
+    Frame(RelativeFrame),
+    Definition(u32, ObjectScopeReceiver),
+    Original(
+        &'a crate::command_binding::CommandAllocation,
+        ObjectScopeReceiver,
+    ),
+}
+
+fn relative_frame(frame: BodyFrameId, module: ProcedureModuleId) -> Option<RelativeFrame> {
+    match frame {
+        BodyFrameId::Top(owner) => (owner == module).then_some(RelativeFrame::Top),
+        BodyFrameId::Body(id) => (id.module() == module).then(|| RelativeFrame::Body(id.ordinal())),
+    }
+}
+
+fn relative_owner(owner: &ObjectFactOwner, module: ProcedureModuleId) -> Option<RelativeOwner<'_>> {
+    Some(match owner {
+        ObjectFactOwner::Frame(frame) => RelativeOwner::Frame(relative_frame(*frame, module)?),
+        ObjectFactOwner::DefinitionScript {
+            definition,
+            receiver,
+        } => {
+            (definition.module() == module).then_some(())?;
+            RelativeOwner::Definition(definition.ordinal(), *receiver)
+        }
+        ObjectFactOwner::OriginalClass {
+            allocation,
+            receiver,
+        } => RelativeOwner::Original(allocation, *receiver),
+    })
+}
+
+type RelativeScope<'a> = (
+    Span,
+    &'a str,
+    RelativeFrame,
+    Option<RelativeOwner<'a>>,
+    Option<&'a str>,
+);
+
+impl ObjectHandleFacts {
+    /// The module whose top level owns these facts.
+    fn owning_module(&self) -> Option<ProcedureModuleId> {
+        self.owner_spans.iter().find_map(|scope| match scope.frame {
+            BodyFrameId::Top(module) => Some(module),
+            BodyFrameId::Body(_) => None,
+        })
+    }
+
+    fn relative_scopes(&self, module: ProcedureModuleId) -> Option<Vec<RelativeScope<'_>>> {
+        self.owner_spans
+            .iter()
+            .map(|scope| {
+                Some((
+                    scope.span,
+                    scope.unit.as_str(),
+                    relative_frame(scope.frame, module)?,
+                    match &scope.class_owner {
+                        Some(owner) => Some(relative_owner(owner, module)?),
+                        None => None,
+                    },
+                    scope.class.as_deref(),
+                ))
+            })
+            .collect()
+    }
+
+    fn relative_classes(
+        &self,
+        module: ProcedureModuleId,
+    ) -> Option<HashMap<(RelativeOwner<'_>, &str), &HashSet<String>>> {
+        self.by_scope
+            .iter()
+            .map(|((owner, name), classes)| {
+                Some(((relative_owner(owner, module)?, name.as_str()), classes))
+            })
+            .collect()
+    }
+
+    fn relative_returns(&self, module: ProcedureModuleId) -> Option<HashMap<u32, &String>> {
+        self.returns_object
+            .iter()
+            .map(|(id, class)| (id.module() == module).then(|| (id.ordinal(), class)))
+            .collect()
+    }
+
+    fn relative_type_reads(
+        &self,
+        module: ProcedureModuleId,
+    ) -> Option<Vec<(RelativeFrame, &super::PhysicalObjectTypeReadEvidence)>> {
+        self.physical_type_reads
+            .iter()
+            .map(|read| Some((relative_frame(read.frame, module)?, read)))
+            .collect()
+    }
+
+    /// Equality of two report-less fact sets with each body coordinate taken
+    /// relative to its own module, since module identities are issued per
+    /// process. A coordinate from any other module refuses.
+    fn module_relative_eq(&self, other: &Self) -> bool {
+        let (Some(a), Some(b)) = (self.owning_module(), other.owning_module()) else {
+            return self == other;
+        };
+        let reads_match = match (self.relative_type_reads(a), other.relative_type_reads(b)) {
+            (Some(left), Some(right)) => {
+                left.len() == right.len()
+                    && left.iter().zip(&right).all(|((lf, l), (rf, r))| {
+                        lf == rf
+                            && l.source == r.source
+                            && l.evaluation == r.evaluation
+                            && l.unit == r.unit
+                            && l.variable == r.variable
+                            && l.place == r.place
+                            && l.value == r.value
+                            && l.class == r.class
+                    })
+            }
+            _ => false,
+        };
+        reads_match
+            && self.report_source == other.report_source
+            && self.logical_source_candidates == other.logical_source_candidates
+            && self.any_scope == other.any_scope
+            && self.proven_reads == other.proven_reads
+            && self.collections == other.collections
+            && self.normal_procedure_results == other.normal_procedure_results
+            && self.global_object_cells == other.global_object_cells
+            && self
+                .relative_scopes(a)
+                .is_some_and(|left| other.relative_scopes(b) == Some(left))
+            && self
+                .relative_classes(a)
+                .is_some_and(|left| other.relative_classes(b) == Some(left))
+            && self
+                .relative_returns(a)
+                .is_some_and(|left| other.relative_returns(b) == Some(left))
+    }
+}
+
 impl ObjectHandleFacts {
     pub(crate) fn retain_report_source(
         &mut self,
@@ -434,7 +582,7 @@ impl ObjectHandleFacts {
             .filter(|source| source.matches_facts(other));
         let (a, b) = match (a, b) {
             (Some(a), Some(b)) => (a, b),
-            (None, None) => return self == other,
+            (None, None) => return self.module_relative_eq(other),
             _ => return false,
         };
         if a.image != b.image
