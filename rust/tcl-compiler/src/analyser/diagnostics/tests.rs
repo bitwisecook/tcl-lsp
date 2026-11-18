@@ -614,7 +614,16 @@ mod w114_unwrap_fix {
     /// an *automatic* code fix, not just a cosmetic one.
     #[test]
     fn tip461_string_ordering_context_gets_no_fix() {
-        let d = w114_for("set s 007\nif {[expr {$s}] lt \"010\"} {}\n");
+        // `lt` is a 9.0 operator (tclsh 8.6.18: invalid bareword "lt"), so the
+        // context is analysed under 9.0.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("set s 007\nif {[expr {$s}] lt \"010\"} {}\n", "tcl9.0");
+        let d = r
+            .diagnostics
+            .iter()
+            .find(|d| d.code == DiagCode::W114)
+            .cloned()
+            .unwrap_or_else(|| panic!("expected W114 in {:?}", r.diagnostics));
         assert_eq!(d.fixes.len(), 0, "no fix expected: {:?}", d.fixes);
     }
 
