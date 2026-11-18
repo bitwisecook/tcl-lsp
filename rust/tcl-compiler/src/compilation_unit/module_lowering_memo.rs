@@ -46,6 +46,10 @@ pub struct ModuleLoweringInputs {
     context: Option<Arc<tcl_registry::model::ContextRegistry>>,
     input: Option<crate::analyser::ResolvedAnalysisInput>,
     source_settings: Option<Arc<crate::analyser::OriginalAnalyserSourceSettings>>,
+    /// Process state a generation reads at use rather than at assembly: the
+    /// installed pack hook evaluators and the pack overlay epoch.
+    evaluator_generation: u64,
+    overlay_epoch: u64,
 }
 
 impl PartialEq for ModuleLoweringInputs {
@@ -60,12 +64,18 @@ impl PartialEq for ModuleLoweringInputs {
             && self.declared_commands == other.declared_commands
             && self.entry == other.entry
             && match (&self.context, &other.context) {
-                (Some(left), Some(right)) => Arc::ptr_eq(left, right),
+                (Some(left), Some(right)) => crate::analyser::same_context_generation(left, right),
                 (None, None) => true,
                 _ => false,
             }
-            && self.input == other.input
+            && match (&self.input, &other.input) {
+                (Some(left), Some(right)) => left.same_by_generation(right),
+                (None, None) => true,
+                _ => false,
+            }
             && self.source_settings == other.source_settings
+            && self.evaluator_generation == other.evaluator_generation
+            && self.overlay_epoch == other.overlay_epoch
     }
 }
 impl Eq for ModuleLoweringInputs {}
@@ -80,8 +90,12 @@ impl Hash for ModuleLoweringInputs {
             .map(tcl_dialect::DialectProfile::cache_key)
             .hash(state);
         self.entry.hash(state);
-        self.context.as_ref().map(Arc::as_ptr).hash(state);
-        self.input.hash(state);
+        self.context.is_some().hash(state);
+        self.evaluator_generation.hash(state);
+        self.overlay_epoch.hash(state);
+        if let Some(input) = &self.input {
+            input.hash_by_generation(state);
+        }
     }
 }
 
@@ -165,6 +179,8 @@ impl ModuleLoweringInputs {
             context: context.clone(),
             input: input.cloned(),
             source_settings: source_settings.cloned(),
+            evaluator_generation: u64::from(tcl_registry::pack_hooks::evaluator_generation().0),
+            overlay_epoch: tcl_registry::overlay_epoch(),
         })
     }
 }
@@ -283,6 +299,8 @@ mod tests {
             context: None,
             input: None,
             source_settings: None,
+            evaluator_generation: 0,
+            overlay_epoch: 0,
         }
     }
 
@@ -367,6 +385,14 @@ mod tests {
                 }),
             ),
             (
+                "evaluator_generation",
+                Box::new(|inputs| inputs.evaluator_generation += 1),
+            ),
+            (
+                "overlay_epoch",
+                Box::new(|inputs| inputs.overlay_epoch += 1),
+            ),
+            (
                 "source_settings",
                 Box::new(|inputs| {
                     inputs.source_settings =
@@ -374,6 +400,51 @@ mod tests {
                 }),
             ),
         ]
+    }
+
+    fn generation(
+        store: tcl_registry::CommandRegistry,
+    ) -> Arc<tcl_registry::model::ContextRegistry> {
+        Arc::new(
+            tcl_registry::model::ingress::static_context_for("tcl8.6")
+                .with_command_store(Arc::new(store)),
+        )
+    }
+
+    fn over(context: &Arc<tcl_registry::model::ContextRegistry>) -> ModuleLoweringInputs {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let mut inputs = base();
+        inputs.context = Some(Arc::clone(context));
+        inputs.input = Some(crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(context),
+            inputs.config,
+        ));
+        inputs
+    }
+
+    /// A host that assembles an equal registry generation again (a pack
+    /// overlay rebuilt for each build) must find the module it lowered
+    /// before; a generation over a different command store must not.
+    #[test]
+    fn an_equal_generation_assembled_again_is_the_same_module_key() {
+        use std::hash::BuildHasher;
+        let hash = |inputs: &ModuleLoweringInputs| {
+            std::hash::BuildHasherDefault::<std::collections::hash_map::DefaultHasher>::default()
+                .hash_one(inputs)
+        };
+        let first = generation(tcl_registry::CommandRegistry::build_default());
+        let again = generation(tcl_registry::CommandRegistry::build_default());
+        assert!(!Arc::ptr_eq(&first, &again));
+        assert_eq!(over(&first), over(&again));
+        assert_eq!(hash(&over(&first)), hash(&over(&again)));
+        let mut store = tcl_registry::CommandRegistry::build_default();
+        store.insert(tcl_registry::CommandSpec {
+            name: "forge",
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        assert_ne!(over(&first), over(&generation(store)));
     }
 
     /// A memo keyed by fewer inputs than lowering reads would serve one
@@ -402,7 +473,9 @@ mod tests {
             context: _,
             input: _,
             source_settings: _,
+            evaluator_generation: _,
+            overlay_epoch: _,
         } = base;
-        assert_eq!(variants.len(), 11);
+        assert_eq!(variants.len(), 13);
     }
 }

@@ -905,7 +905,7 @@ fn only_a_call_a_summary_may_answer_reads_the_module() {
     let registry = db.registry(&dialect);
     let surface = declared_command_surface(&db, file, registry);
     let options = unit_build_options(&db, file, cfg_key, registry, None, &surface);
-    let (unit, keys) = build_unit_with_keys(&db, source, options);
+    let (unit, keys) = build_unit_with_keys(&db, (None, source), options);
     let reads = |qname: &str| {
         let body = fixture_function(&unit, qname)
             .body_id

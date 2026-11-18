@@ -110,6 +110,7 @@ pub use diagnostic_subject::{
     SourceUnresolvedCommandSubject, SourceUnresolvedMathFunctionSubject,
     SourceUserCallAritySubject,
 };
+pub(crate) use input::same_context_generation;
 pub use input::{EntryProcedureFrame, ResolvedAnalysisInput};
 pub use interp_visibility::{
     ConditionalInterpreterVisibilitySubject, InterpreterVisibilityObligation,

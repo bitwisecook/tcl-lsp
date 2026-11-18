@@ -225,7 +225,7 @@ pub fn proc_taint_solve<'db>(
     let declared = declared_command_surface(db, file, registry);
     let (cu, lattice_keys) = build_unit_with_keys(
         db,
-        file.text(db),
+        (Some(file), file.text(db)),
         unit_build_options(db, file, cfg, registry, external.as_deref(), &declared),
     );
     Some(solve_checks_for_unit(

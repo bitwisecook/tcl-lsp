@@ -200,7 +200,7 @@ pub fn compilation_unit<'db>(
     let declared = declared_command_surface(db, file, &registry);
     Some(Arc::new(memoised_compilation_unit(
         db,
-        file.text(db),
+        (Some(file), file.text(db)),
         unit_build_options(db, file, cfg, &registry, external.as_deref(), &declared),
     )))
 }

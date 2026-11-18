@@ -184,10 +184,10 @@ pub fn lower_proc_body_source<'db>(
 #[must_use]
 pub(crate) fn memoised_compilation_unit(
     db: &dyn TclDb,
-    source: &str,
+    document: (Option<crate::SourceFile>, &str),
     options: UnitBuildOptions<'_>,
 ) -> CompilationUnit {
-    build_unit_with_keys(db, source, options).0
+    build_unit_with_keys(db, document, options).0
 }
 
 /// Return the issued body's retained lattice key when its memo does not read
@@ -213,13 +213,13 @@ pub(super) fn memo_key<'db>(
 /// query key and successful current-owner restoration.
 pub(super) fn build_unit_with_keys<'db>(
     db: &'db dyn TclDb,
-    source: &str,
+    document: (Option<crate::SourceFile>, &str),
     options: UnitBuildOptions<'_>,
 ) -> (
     CompilationUnit,
     HashMap<tcl_compiler::ir::ProcedureId, FnLatticeKey<'db>>,
 ) {
-    build_unit_with_keys_and_input(db, (None, source), options, None, None)
+    build_unit_with_keys_and_input(db, document, options, None, None)
 }
 
 fn lattice_memo_context<'db>(db: &'db dyn TclDb, req: &LatticeRequest<'_>) -> CfgContext<'db> {

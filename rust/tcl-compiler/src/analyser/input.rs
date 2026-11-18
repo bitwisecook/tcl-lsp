@@ -227,6 +227,46 @@ impl std::fmt::Debug for ResolvedAnalysisInput {
     }
 }
 
+/// Whether two availability contexts are the same registry generation by
+/// value: an equal resolved context assembled over a command store with an
+/// equal semantic key. Assembly is a function of those two, so independently
+/// assembled equal generations answer every query alike.
+pub(crate) fn same_context_generation(
+    left: &Arc<tcl_registry::model::ContextRegistry>,
+    right: &Arc<tcl_registry::model::ContextRegistry>,
+) -> bool {
+    Arc::ptr_eq(left, right)
+        || (left.context() == right.context()
+            && (Arc::ptr_eq(left.commands(), right.commands())
+                || left.commands().snapshot().semantic_key()
+                    == right.commands().snapshot().semantic_key()))
+}
+
+impl ResolvedAnalysisInput {
+    /// Equality with the registry generation compared by value rather than
+    /// by allocation, for a memo whose entries must recur when an equal
+    /// generation is assembled again.
+    pub(crate) fn same_by_generation(&self, other: &Self) -> bool {
+        self.profile.cache_key() == other.profile.cache_key()
+            && self.unit_profile.cache_key() == other.unit_profile.cache_key()
+            && self.config == other.config
+            && self.vendor_source_policy == other.vendor_source_policy
+            && self.script_encoding == other.script_encoding
+            && self.entry_procedure_frame == other.entry_procedure_frame
+            && self.workspace_source_modules == other.workspace_source_modules
+            && same_context_generation(&self.context, &other.context)
+    }
+
+    /// A hash consistent with [`Self::same_by_generation`].
+    pub(crate) fn hash_by_generation<H: std::hash::Hasher>(&self, state: &mut H) {
+        use std::hash::Hash;
+        self.profile.cache_key().hash(state);
+        self.unit_profile.cache_key().hash(state);
+        self.config.hash(state);
+        self.script_encoding.hash(state);
+    }
+}
+
 impl PartialEq for ResolvedAnalysisInput {
     fn eq(&self, other: &Self) -> bool {
         self.profile.cache_key() == other.profile.cache_key()
