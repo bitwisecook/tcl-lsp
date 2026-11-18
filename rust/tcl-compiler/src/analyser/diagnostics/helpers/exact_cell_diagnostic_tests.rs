@@ -680,15 +680,20 @@ fn procedure_namespace_effects_require_original_selected_cells() {
     assert!(!written.is_empty(), "selected entered namespace write");
     assert!(!read.is_empty(), "selected entered namespace read");
     assert!(written.intersection(&read).next().is_some());
-    let deferred = crate::compilation_unit::CompilationUnit::build_for_dialect(
-        "proc init {} {global counter; set counter 1}\nproc read {} {global counter; return $counter}",
-        registry,
-        false,
+    // A procedure nothing calls writes nothing: tclsh8.4.20/8.6.18/9.0.4/
+    // 9.1.0 `proc init {} {global counter; set counter 1}; puts $counter`
+    // -> can't read "counter": no such variable.
+    let deferred = crate::analyser::Analyser::new().analyse(
+        "proc init {} {global counter; set counter 1}\nproc read {} {global counter; return $counter}\nputs $counter\n",
         "tcl8.6",
     );
     assert!(
-        globals_written_by_procs(&deferred, registry).is_empty(),
-        "source declaration metadata cannot establish normal namespace writes"
+        deferred
+            .diagnostics
+            .iter()
+            .any(|d| d.code.to_string() == "W210" && d.message.contains("counter")),
+        "source declaration metadata cannot establish normal namespace writes: {:?}",
+        deferred.diagnostics
     );
     let observed = crate::compilation_unit::CompilationUnit::build_for_dialect(
         "set ::counter 0; proc changed args {error OBSERVED}; trace add variable ::counter write changed\nproc init {} {global counter; set counter 1}\ninit",
