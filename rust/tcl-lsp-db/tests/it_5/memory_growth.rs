@@ -64,7 +64,8 @@ use salsa::Setter as _;
 
 use tcl_compiler::analyser::{Analyser, NonAsciiMode};
 use tcl_lsp_db::{
-    AnalyserConfig, SourceFile, TclDatabase, compiler_check_diagnostics, file_analysis_incremental,
+    AnalyserConfig, SourceFile, TclDatabase, compiler_check_diagnostics,
+    document_compilation_unit_for, file_analysis_incremental,
 };
 
 /// Total retained bytes salsa reports across every interned/tracked struct
@@ -396,6 +397,61 @@ fn more_documents_than_the_memo_caps_reanalysed_under_alternating_configuration_
         seen[2..].iter().all(|&counts| counts == after_both),
         "rebuilds past the memo caps kept interning contexts or lattice keys \
          (CfgContext, FnLatticeKey per round): {seen:?}",
+    );
+}
+
+/// An unchanged document keeps its lowered module across a configuration that
+/// flips back, even when every round also advances the database through more
+/// revisions than salsa's interned-slot window, as a server does between pack
+/// reloads (several queries settle per reload), and other documents contend
+/// for the memo's interned slots. A memo whose interned key the collector
+/// reclaims is lost: the document is lowered again with new procedure
+/// identities, and every lattice key built from them is new (#2543,
+/// measured by the server issue session: 5-8 lowerings per document over 30
+/// rounds with unchanged text).
+#[test]
+fn many_revisions_between_configuration_flips_keep_the_lowered_module_2543() {
+    const ROUNDS: usize = 12;
+    let mut db = TclDatabase::default();
+    let source = "proc p {a b} {\n  upvar 1 $a v\n  set v [expr {$b + 1}]\n  return $v\n}\n\
+                  proc q {} { p x 1 }\nq\n";
+    let file = SourceFile::new(&db, source.to_owned(), "tcl8.6".to_owned(), None);
+    let other = SourceFile::new(&db, "set x 1\n".to_owned(), "tcl8.6".to_owned(), None);
+    let config = build_config(&db);
+    let mut modules = Vec::new();
+    for round in 0..ROUNDS {
+        let extra = if round % 2 == 0 {
+            Vec::new()
+        } else {
+            vec!["churnpack::noop".to_owned()]
+        };
+        config.set_extra_commands(&mut db).to(extra);
+        let _ = compiler_check_diagnostics(&db, file, config);
+        modules.push(
+            document_compilation_unit_for(&db, file, config)
+                .expect("no overlay always builds")
+                .ir_module
+                .procedure_ids
+                .module_id(),
+        );
+        // Documents that declare their own stub commands each lower under
+        // distinct inputs, so their memo keys contend for interned slots.
+        for step in 0..6 {
+            other.set_text(&mut db).to(format!(
+                "# tcl-lsp: stubs-begin\n# tcl-lsp: stub churn{round}x{step} {{x}}\n\
+                 # tcl-lsp: stubs-end\nproc r {{}} {{ churn{round}x{step} 1 }}\nr\n"
+            ));
+            let _ = compiler_check_diagnostics(&db, other, config);
+        }
+    }
+    // Each configuration's module, once lowered, is the one every later
+    // round under that configuration is built from.
+    assert!(
+        modules[2..]
+            .iter()
+            .zip(&modules)
+            .all(|(later, earlier)| later == earlier),
+        "an unchanged document under a revisited configuration was lowered again: {modules:?}",
     );
 }
 

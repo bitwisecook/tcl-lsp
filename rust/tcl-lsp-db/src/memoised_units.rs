@@ -136,14 +136,61 @@ pub fn lowered_document_module<'db>(
     key: ModuleLoweringKey<'db>,
 ) -> Option<Arc<tcl_compiler::compilation_unit::LoweredModule>> {
     let inputs = key.inputs(db).with_source(file.text(db));
+    let retained_key = (salsa::plumbing::AsId::as_id(&file), key.inputs(db).clone());
+    if let Some(module) = retained_modules()
+        .lock()
+        .expect("retained module table")
+        .get(&retained_key)
+        .filter(|module| module.inputs() == &inputs)
+    {
+        return Some(Arc::clone(module));
+    }
     let (body_memo, source_body_memo) = lowering_body_memos(
         db,
         inputs.dialect(),
         inputs.registry(),
         inputs.config().normalized(),
     );
-    tcl_compiler::compilation_unit::LoweredModule::lower(&inputs, &body_memo, &source_body_memo)
-        .map(Arc::new)
+    let module = tcl_compiler::compilation_unit::LoweredModule::lower(
+        &inputs,
+        &body_memo,
+        &source_body_memo,
+    )
+    .map(Arc::new)?;
+    let mut retained = retained_modules().lock().expect("retained module table");
+    if retained.len() >= RETAINED_MODULE_CAPACITY && !retained.contains_key(&retained_key) {
+        retained.clear();
+    }
+    retained.insert(retained_key, Arc::clone(&module));
+    Some(module)
+}
+
+type RetainedModuleKey = (
+    salsa::Id,
+    tcl_compiler::compilation_unit::ModuleLoweringInputs,
+);
+
+/// The memo's own capacity: one entry per live (document, configuration).
+const RETAINED_MODULE_CAPACITY: usize = 512;
+
+/// The lowered module of each (document, inputs other than the text), held
+/// apart from salsa. Salsa's interned collector reclaims a
+/// [`ModuleLoweringKey`] untouched for a few revisions, and its memo with it;
+/// a server settles several queries per pack reload, so a document revisited
+/// under a configuration would be lowered again with new procedure
+/// identities and every lattice key built from them would be new (#2543).
+/// An entry is returned only for inputs, text included, equal to the ones it
+/// was lowered from, so it is the module a fresh lowering would produce; an
+/// edit replaces the document's entry.
+fn retained_modules() -> &'static std::sync::Mutex<
+    HashMap<RetainedModuleKey, Arc<tcl_compiler::compilation_unit::LoweredModule>>,
+> {
+    static RETAINED: std::sync::OnceLock<
+        std::sync::Mutex<
+            HashMap<RetainedModuleKey, Arc<tcl_compiler::compilation_unit::LoweredModule>>,
+        >,
+    > = std::sync::OnceLock::new();
+    RETAINED.get_or_init(Default::default)
 }
 
 /// Lower neutral call syntax from genuine pre-lowering source dependencies.

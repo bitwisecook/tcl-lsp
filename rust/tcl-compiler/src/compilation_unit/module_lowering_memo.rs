@@ -262,6 +262,12 @@ impl LoweredModule {
         })
     }
 
+    /// The complete inputs this module was lowered from.
+    #[must_use]
+    pub const fn inputs(&self) -> &ModuleLoweringInputs {
+        &self.inputs
+    }
+
     /// A retained copy for a request with exactly these inputs.
     pub(super) fn retained_for(
         &self,
