@@ -567,6 +567,29 @@ fn widget_method_completion_follows_the_document_tk_floor() {
     );
 }
 
+/// Without Tk loaded the widget command does not exist (tclsh 8.6.18:
+/// `invalid command name "ttk::treeview"`), so its path offers no methods.
+#[test]
+fn widget_methods_need_the_widget_package() {
+    let src = "ttk::treeview .t\n.t i\n";
+    let analysis = analyse(src);
+    let registry = CommandRegistry::build_default();
+    let items = completions(
+        src,
+        1,
+        4,
+        &analysis,
+        Some(&registry),
+        None,
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
+    assert!(
+        !items.iter().any(|item| item.label == "instate"),
+        "{:?}",
+        items.iter().map(|item| &item.label).collect::<Vec<_>>()
+    );
+}
+
 /// The `set lb [listbox .l]` return-value-capture shape completes too.
 #[test]
 fn widget_var_captured_completion_offers_subcommands() {

@@ -72,6 +72,15 @@ pub(super) fn registered_instance_method_items(
     let spec = words.instance().descriptor(&context)?;
     let floor = crate::document_floor::DocumentFloor::new(analysis, profile);
     let available = floor.context()?;
+    // A package-owned factory (Tk's widgets) exists only once its package is
+    // loaded: tclsh 8.6.18 without `package require Tk` answers
+    // `invalid command name "ttk::treeview"`.
+    if spec
+        .owning_package()
+        .is_some_and(|package| !floor.advises_package(package))
+    {
+        return None;
+    }
     let commands: &CommandRegistry = context.commands();
     let methods = CommandRegistry::instance_method_providers_for_descriptor_at(
         commands,

@@ -60,6 +60,7 @@ mod embedded_operands;
 mod format_specifiers;
 mod pattern_syntax;
 mod procedures;
+mod registered_instance;
 mod source_documentation;
 mod variables;
 
@@ -689,6 +690,11 @@ fn hover_impl(
     let cursor_offset =
         crate::original_context::CurrentSourcePosition::capture(source, analysis, line, character)?
             .offset();
+    // A proved registered instance's method word (a Tk widget call).
+    if let Some(hover) = registered_instance::method_hover(source, analysis, cursor_offset, profile)
+    {
+        return Some(hover);
+    }
     if let std::ops::ControlFlow::Break(selected) = source_role_hover(
         source,
         line,
