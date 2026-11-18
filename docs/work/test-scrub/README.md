@@ -218,13 +218,14 @@ These go ahead of missing facts once the ledgers are in.
 | `proc p {} {if {$a} {$c}}` lacks the conversion `nop` tclsh 8.6 emits before `jumpFalse1` | execution |
 | The 8.4 error trace for `expr {0b10 + 1}` says "while compiling" where tclsh 8.4.20 says "while executing" | execution |
 | An authored F5 source-word provider seals words with a native 8.4 string protocol inside a C9 host engine, so `concat` and list copy refuse them (25 `tcl-irule-test` tests) | execution |
-| Under tcl8.4 the optimiser rewrites `proc f {args} {return $args}; puts [f # a]` to `puts {{#} a}`; tclsh 8.4.20 prints `# a` for the original and `{#} a` for the rewrite (the `args` seed is rendered with a release-agnostic list join) | dataflow-optimiser, first |
-| A class is recorded from a statement after a proved error (`error boom; oo::class create ::Wrong {}`; also after a `proc` into a missing namespace) | class-facts |
+| Under tcl8.4 the optimiser rewrites `proc f {args} {return $args}; puts [f # a]` to `puts {{#} a}`; tclsh 8.4.20 prints `# a` for the original and `{#} a` for the rewrite (`args` was joined without the release's quoting at three sites); fixed in `ff48bc25`, held by `release_optimiser_safety` (69 of 69) | dataflow-optimiser, fixed |
+| A class is recorded from a statement after a proved error (`error boom; oo::class create ::Wrong {}`; also after a `proc` into a missing namespace); fixed in `c0daade7` | class-facts, fixed |
 | Incoming Calls reported a call made inside a class method as coming from the top level; fixed | lsp-features, fixed |
-| `proc add` → `return 7`, cause found: the declared-frame collector skips a body that already runs in its own frame, and a single call binds the procedure there with that call's arguments | analyser-binding |
+| `proc add` → `return 7`, cause found: the declared-frame collector skips a body that already runs in its own frame, and a single call binds the procedure there with that call's arguments; fixed in `17abcf5d` (a body's expression is read in its declared frame; tclsh 8.4.20, 8.6.18 and 9.0.4 return 2 for `add 1 1`) | analyser-binding, fixed |
 | Under Jim, `proc g {p p(key)} …` raises `can't set "p(key)": variable isn't array` at the call (jimsh 0.84); the product reports W210 on the read after it | diagnostics |
 | After `rename C M`, a `C create b` inside `catch` is still bound to the class (tclsh 8.6.18 and 9.1.0: `invalid command name "C"`); the constructor receipt at the same site rightly says no | analyser-binding |
 | The declared-frame view drops entry-independent facts (nested `uplevel 1` reach, `uplevel #0` global writes, alias cells, interprocedural taint sinks), so switching called bodies to it breaks 66 tests; the `info exists` fold waits on it | `dataflow` issue session |
+| Two `tcl-compiler` tests fail only in the parallel run and pass alone (`command_binding::source_callable_static_tests::static_formals_update_one_retained_slot_across_actual_calls`, `source_command_world::tests::original_opaque_jim_callable_name_does_not_gate_ascii_static_capture`): state shared between analyses in one process, which in the server would be one document answering for another | analysis-performance finds the cache and the missing key |
 
 ## Waiting on the owner's approval
 
@@ -308,27 +309,27 @@ The failing behaviours are far fewer than the failing tests. The causes ranked h
 
 The second pass (overlap among passing tests: 88 exact-copy groups, 385 overlap groups, the vacuous negatives on unwired helpers) follows the repairs.
 
-## Status of the rows, 18 November 2026, 09:55 UTC
+## Status of the rows, 18 November 2026, 10:55 UTC
 
 From `tools/ledger_status.py` (a cell counts by its first word, so `routed (analyser-binding)` is routed; a cell that does not start with one of the seven words counts as open).
 
 | Ledger | open | repaired | exposed | fixed | deleted | blocked | routed | Rows |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | analyser-binding | 412 | 5 | 0 | 1 | 0 | 0 | 0 | 418 |
-| analysis-performance | 49 | 0 | 0 | 0 | 0 | 0 | 0 | 49 |
+| analysis-performance | 51 | 0 | 0 | 0 | 0 | 0 | 0 | 51 |
 | class-facts | 236 | 8 | 2 | 0 | 0 | 0 | 0 | 246 |
 | dataflow-optimiser | 339 | 31 | 32 | 18 | 0 | 2 | 2 | 424 |
 | diagnostics | 239 | 56 | 64 | 12 | 19 | 1 | 9 | 400 |
-| execution | 195 | 6 | 0 | 10 | 56 | 0 | 0 | 267 |
-| irules-registry-tooling | 130 | 0 | 0 | 2 | 0 | 36 | 0 | 168 |
+| execution | 192 | 9 | 0 | 10 | 56 | 0 | 0 | 267 |
+| irules-registry-tooling | 128 | 0 | 0 | 5 | 0 | 35 | 0 | 168 |
 | live-inlining | 18 | 0 | 0 | 0 | 0 | 9 | 0 | 27 |
-| lsp-features | 526 | 10 | 42 | 34 | 10 | 30 | 31 | 683 |
+| lsp-features | 495 | 10 | 52 | 52 | 10 | 32 | 32 | 683 |
 | server-e2e-db-flaky | 3 | 3 | 0 | 0 | 0 | 0 | 1 | 7 |
 | server-e2e-db | 157 | 14 | 1 | 19 | 0 | 11 | 25 | 227 |
 | taint | 135 | 5 | 34 | 10 | 0 | 0 | 1 | 185 |
 | tk-oo | 58 | 9 | 0 | 3 | 0 | 0 | 0 | 70 |
-| values | 22 | 20 | 0 | 9 | 1 | 0 | 168 | 220 |
-| **all** | 2519 | 167 | 175 | 118 | 86 | 89 | 237 | 3391 |
+| values | 18 | 0 | 20 | 10 | 1 | 0 | 171 | 220 |
+| **all** | 2481 | 150 | 205 | 140 | 86 | 90 | 241 | 3393 |
 
 ## Progress
 
