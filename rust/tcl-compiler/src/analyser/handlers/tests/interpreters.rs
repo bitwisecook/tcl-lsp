@@ -227,21 +227,12 @@ fn renamed_away_interp_handle_reused_as_a_proc_is_not_treated_as_interp_eval() {
 
 #[test]
 fn renamed_interp_handle_still_isolates_under_its_new_name() {
-    // TP — the other half of the same fix: a rename that *moves* the
-    // interpreter handle (`NEW` non-empty) rather than deleting it must
-    // keep the tracking, now keyed by `NEW` — confirmed against
-    // tclsh9.0 that `rename sandbox t; t eval {...}` still talks to the
-    // same child interpreter. A name-only invalidation (removing `OLD`
-    // without transferring state to `NEW`) would wrongly stop isolating
-    // `t eval { ... }` too (falling through to an ordinary, unisolated
-    // command call). The domain name itself is always derived from
-    // whichever key the call site actually writes — `@interp@t`, not
-    // the original `@interp@sandbox` — exactly like every other
-    // interpreter-domain lookup in this module (e.g. the literal
-    // `interp eval` form re-derives its domain from its own `PATH`
-    // argument text the same way); this test only asserts that the
-    // call is isolated *at all* under the new name, not which domain
-    // string it lands in.
+    // TP — a rename that moves the interpreter handle (`NEW` non-empty)
+    // keeps the child interpreter. tclsh8.6.18/9.0.4: after
+    // `interp create sandbox; rename sandbox t; t eval {proc p {} {}}`,
+    // `interp slaves` answers `sandbox` and `interp eval sandbox
+    // {info procs p}` finds `p`: the command moved, the interpreter
+    // keeps its path, so the body homes to the `sandbox` domain.
     let mut a = Analyser::new();
     let r = a.analyse(
         "interp create sandbox\n\
@@ -251,9 +242,10 @@ fn renamed_interp_handle_still_isolates_under_its_new_name() {
     );
     let keys: Vec<&str> = r.all_procs.keys().map(String::as_str).collect();
     assert!(
-        r.all_procs.contains_key("::@interp@t::shouldBeIsolated"),
-        "the renamed handle must still be tracked as an interpreter, \
-             isolating the eval body under its new name's domain: {keys:?}",
+        r.all_procs
+            .contains_key("::@interp@sandbox::shouldBeIsolated"),
+        "the renamed handle must still isolate into the interpreter it \
+             names, whose path stays `sandbox`: {keys:?}",
     );
 }
 
