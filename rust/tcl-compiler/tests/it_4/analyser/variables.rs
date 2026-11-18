@@ -652,10 +652,12 @@ mod braced_word_elements_are_literal {
     #[test]
     fn fp_foreach_simulation_still_abstains_on_a_substituting_list() {
         // FP guard: a quoted list word *does* substitute, so its elements are
-        // not knowable and the simulation must still decline.
-        let src = "foreach n \"aa $b cc\" { proc $n {} {} }\naa\n";
+        // not knowable and the simulation must still decline — declining is
+        // no claim, never a claim of absence. tclsh8.6.18/9.0.4: with b
+        // bound, the loop defines aa and the call runs.
+        let src = "set b bb\nforeach n \"aa $b cc\" { proc $n {} {} }\naa\n";
         assert!(
-            diag_codes(src).iter().any(|c| c == "W123"),
+            !diag_codes(src).iter().any(|c| c == "W123"),
             "a substituting list word must still abstain; got {:?}",
             diag_codes(src)
         );
