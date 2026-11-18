@@ -39,6 +39,22 @@ fn proc_completion_lists_user_defined_procs() {
     assert_eq!(items[0].label, "greet");
 }
 
+#[test]
+fn a_character_past_the_line_end_completes_at_the_line_end() {
+    // LSP: a character beyond the line length defaults back to the line end.
+    let src = "proc greet {} {}\nproc shout {} {}\ng\n";
+    let analysis = analyse(src);
+    let profile = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+    let labels = |character| {
+        completions(src, 2, character, &analysis, None, None, profile)
+            .into_iter()
+            .map(|item| item.label)
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(labels(1), ["greet"]);
+    assert_eq!(labels(7), labels(1));
+}
+
 // usage-bucket sort-text
 
 #[test]

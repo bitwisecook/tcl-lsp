@@ -718,7 +718,15 @@ fn word_prefix_at_position(
     let index = tcl_lexer::LineIndex::new(source);
     let cursor = crate::definition::byte_offset_at(&index, source, line, character);
     let position = index.position_at_utf16(cursor, source);
-    if position.line != line || position.character.get() != character {
+    // LSP: a character beyond the line length defaults back to the line end.
+    let at_line_end = matches!(
+        source.as_bytes().get(cursor as usize),
+        None | Some(b'\n' | b'\r')
+    );
+    if position.line != line
+        || (position.character.get() != character
+            && !(character > position.character.get() && at_line_end))
+    {
         return None;
     }
     crate::source_structure::original_word_cursor_prefix(source, analysis, cursor).ok()?
