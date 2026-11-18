@@ -119,6 +119,7 @@ pub mod procedure_symbol;
 mod receiver_identity;
 pub mod refactor;
 pub mod references;
+mod registered_instance;
 pub mod rename;
 pub mod rename_safety;
 pub mod selection_range;

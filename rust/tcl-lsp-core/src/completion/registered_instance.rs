@@ -23,7 +23,6 @@
 
 use super::{CompletionItem, CompletionKind, FilteredCandidates, filter_candidates};
 use tcl_compiler::analyser::AnalysisResult;
-use tcl_registry::CommandRegistry;
 
 /// The factory's methods for the registered-instance call whose method word
 /// the cursor is on, filtered by `partial`.
@@ -48,12 +47,7 @@ pub(super) fn registered_instance_method_items(
         })
         .max_by_key(|command| command.argv[0].span.start())?;
     let head = command.argv.first()?;
-    let words =
-        tcl_compiler::registry_invocation::source_structure::source_registered_instance_words_at(
-            source,
-            analysis,
-            head.span.start(),
-        )?;
+    let words = crate::registered_instance::words_at(source, analysis, head.span.start())?;
     let in_method_word = match words.argument_word(0) {
         Some(selector) if selector.word_span().start() <= cursor => {
             cursor <= selector.word_span().end()
@@ -68,34 +62,10 @@ pub(super) fn registered_instance_method_items(
     if !in_method_word {
         return None;
     }
-    let context = analysis.resolved_input.as_ref()?.context_registry();
-    let spec = words.instance().descriptor(&context)?;
-    let floor = crate::document_floor::DocumentFloor::new(analysis, profile);
-    let available = floor.context()?;
-    // A package-owned factory (Tk's widgets) exists only once its package is
-    // loaded: tclsh 8.6.18 without `package require Tk` answers
-    // `invalid command name "ttk::treeview"`.
-    if spec
-        .owning_package()
-        .is_some_and(|package| !floor.advises_package(package))
-    {
-        return None;
-    }
-    let commands: &CommandRegistry = context.commands();
-    let methods = CommandRegistry::instance_method_providers_for_descriptor_at(
-        commands,
-        spec,
-        Some(available.authoring_query()),
-        |owner| {
-            available
-                .resolve_spec(commands, owner.name)
-                .filter(|selected| std::ptr::eq(*selected, owner))
-                .map(|selected| floor.for_spec(selected))
-        },
-    );
+    let (spec, methods) = crate::registered_instance::methods(analysis, &words, profile)?;
     let mut items: Vec<CompletionItem> = methods
         .into_iter()
-        .filter_map(|(_owner, method)| {
+        .filter_map(|method| {
             let insert_text = super::methods::source_method_name_word(analysis, method.name)?;
             Some(CompletionItem {
                 label: method.name.to_owned(),

@@ -201,6 +201,9 @@ pub(super) fn insert_object_method_overrides(
     {
         return;
     }
+    if insert_registered_instance_method(ctx, seg, overrides) {
+        return;
+    }
     // Typed project mode cannot recover a refused source class from maps.
     let classes = ctx.project_classes.is_none().then_some(classes).flatten();
     let registry = ctx.registry;
@@ -293,6 +296,32 @@ pub(super) fn insert_object_method_overrides(
         mark_method_word(seg, overrides);
         insert_user_configure_options(seg, hierarchy, registry, cls, method, overrides);
     }
+}
+
+/// A proved registered instance (a Tk widget path or a handle variable bound
+/// by its constructor) takes its method from the factory's own descriptor
+/// under the document floor, ahead of any name-keyed class candidates.
+fn insert_registered_instance_method(
+    ctx: ScriptCtx<'_>,
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    overrides: &mut FxHashMap<u32, ArgOverride>,
+) -> bool {
+    let (Some(analysis), Some(head)) = (ctx.analysis, seg.argv.first()) else {
+        return false;
+    };
+    let Some(words) =
+        crate::registered_instance::words_at(ctx.full_source, analysis, head.span.start())
+    else {
+        return false;
+    };
+    let Some((_spec, method)) =
+        crate::registered_instance::selected_method(analysis, &words, ctx.dialect)
+    else {
+        return false;
+    };
+    mark_method_word(seg, overrides);
+    insert_registry_method_options(seg, method, overrides);
+    true
 }
 
 /// Highlight a dispatched object method's name word (`seg.argv[1]`) as a

@@ -22,7 +22,6 @@
 
 use super::Hover;
 use tcl_compiler::analyser::AnalysisResult;
-use tcl_registry::CommandRegistry;
 
 pub(super) fn method_hover(
     source: &str,
@@ -44,54 +43,12 @@ pub(super) fn method_hover(
         })
         .max_by_key(|command| command.argv[0].span.start())?;
     let head = command.argv.first()?;
-    let words =
-        tcl_compiler::registry_invocation::source_structure::source_registered_instance_words_at(
-            source,
-            analysis,
-            head.span.start(),
-        )?;
+    let words = crate::registered_instance::words_at(source, analysis, head.span.start())?;
     let selector = words.argument_word(0)?;
     if !(selector.word_span().start() <= cursor && cursor <= selector.word_span().end()) {
         return None;
     }
-    let written = std::str::from_utf8(words.argument_bytes(0)?).ok()?;
-    let context = analysis.resolved_input.as_ref()?.context_registry();
-    let spec = words.instance().descriptor(&context)?;
-    let floor = crate::document_floor::DocumentFloor::new(analysis, profile);
-    let available = floor.context()?;
-    // A package-owned factory (Tk's widgets) exists only once its package is
-    // loaded: tclsh 8.6.18 without `package require Tk` answers
-    // `invalid command name "ttk::treeview"`.
-    if spec
-        .owning_package()
-        .is_some_and(|package| !floor.advises_package(package))
-    {
-        return None;
-    }
-    let commands: &CommandRegistry = context.commands();
-    let methods = CommandRegistry::instance_method_providers_for_descriptor_at(
-        commands,
-        spec,
-        Some(available.authoring_query()),
-        |owner| {
-            available
-                .resolve_spec(commands, owner.name)
-                .filter(|selected| std::ptr::eq(*selected, owner))
-                .map(|selected| floor.for_spec(selected))
-        },
-    );
-    let method = methods
-        .iter()
-        .map(|(_owner, method)| method)
-        .find(|method| method.name == written)
-        .or_else(|| {
-            let mut prefixed = methods
-                .iter()
-                .map(|(_owner, method)| method)
-                .filter(|method| method.name.starts_with(written));
-            let only = prefixed.next()?;
-            prefixed.next().is_none().then_some(only)
-        })?;
+    let (spec, method) = crate::registered_instance::selected_method(analysis, &words, profile)?;
     let mut text = format!("**{} {}**", spec.name, method.name);
     if !method.detail.is_empty() {
         text.push_str("\n\n");
