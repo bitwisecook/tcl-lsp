@@ -144,6 +144,29 @@ impl CodegenCtx<'_> {
             } => NativeEmissionTask::ExpressionSyntax(message.clone(), error_code.clone()),
         }
     }
+
+    /// A control condition and the numeric conversion C compiles after a bare
+    /// primary before its jump: `tryCvtToNumeric` through 8.5, a `nop` in its
+    /// place from 8.6 (tclsh `disassemble proc p` for `if {$a} ...`).
+    fn native_condition_tasks(&self, program: &NativeExpressionProgram) -> Vec<NativeEmissionTask> {
+        use tcl_registry::native_expression_program::ScalarResultConversion;
+        let mut tasks = vec![Self::native_expression_task(program)];
+        if matches!(&program.tree,
+            NativeExpressionTree::Parsed(tree) if tree.needs_numeric_result_conversion())
+            && let Some(version) = self
+                .native_entry
+                .and_then(|entry| entry.execution_point?.tcl_version())
+        {
+            tasks.push(NativeEmissionTask::Operation(
+                match ScalarResultConversion::for_c_version(version) {
+                    ScalarResultConversion::TryNumeric => Op::TRY_CVT_TO_NUMERIC,
+                    ScalarResultConversion::NoOp => Op::NOP,
+                },
+                vec![],
+            ));
+        }
+        tasks
+    }
     pub(super) fn native_control_tasks(
         &mut self,
         command: &tcl_lexer::NativeScriptCommandWords,
@@ -310,7 +333,7 @@ impl CodegenCtx<'_> {
         for clause in clauses {
             let next = self.fresh_label("native_if_next");
             if let Some(NativeControlTest::Expression(program)) = clause.test {
-                tasks.push(Self::native_expression_task(&program));
+                tasks.extend(self.native_condition_tasks(&program));
                 tasks.push(Task::Operation(
                     Op::JUMP_FALSE4,
                     vec![Operand::Label(next.clone())],
@@ -369,7 +392,7 @@ impl CodegenCtx<'_> {
         let infinite = test == NativeControlTest::Constant(true);
         match test {
             NativeControlTest::Expression(program) => {
-                tasks.push(Self::native_expression_task(&program));
+                tasks.extend(self.native_condition_tasks(&program));
                 tasks.push(Task::Operation(
                     Op::JUMP_TRUE4,
                     vec![Operand::Label(start.clone())],
@@ -437,7 +460,7 @@ impl CodegenCtx<'_> {
         tasks.push(Task::Operation(Op::POP, vec![]));
         tasks.push(Task::Label(next_end.clone()));
         tasks.push(Task::Label(condition));
-        tasks.push(Self::native_expression_task(test));
+        tasks.extend(self.native_condition_tasks(test));
         tasks.push(Task::Operation(
             Op::JUMP_TRUE4,
             vec![Operand::Label(body_start.clone())],

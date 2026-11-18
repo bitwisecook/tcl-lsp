@@ -62,8 +62,12 @@ fn compiled(release: tcl_dialect::TclVersion, body: &str) -> (Vec<String>, Optio
     )
 }
 
-/// tclsh's instructions and its loop range's `(break, continue)` targets.
-fn oracle(release: tcl_dialect::TclVersion, body: &str) -> Option<(Vec<String>, LoopTargets)> {
+/// tclsh's instructions and, where it has one, its loop range's
+/// `(break, continue)` targets.
+fn oracle(
+    release: tcl_dialect::TclVersion,
+    body: &str,
+) -> Option<(Vec<String>, Option<LoopTargets>)> {
     let tclsh = tcl_test_support::witness_tclsh(release)?;
     let output = tcl_test_support::run_script(
         &tclsh.path,
@@ -78,17 +82,19 @@ fn oracle(release: tcl_dialect::TclVersion, body: &str) -> Option<(Vec<String>, 
             Some(format!("{pc}:{}", rest.split_whitespace().next()?))
         })
         .collect();
-    let range = text
+    let targets = text
         .lines()
         .find(|line| line.contains(", loop, pc "))
-        .expect("tclsh reports the loop range");
-    let target = |key: &str| {
-        range
-            .split(", ")
-            .find_map(|part| part.strip_prefix(key))
-            .and_then(|value| value.trim().parse().ok())
-    };
-    Some((instructions, (target("break "), target("continue "))))
+        .map(|range| {
+            let target = |key: &str| {
+                range
+                    .split(", ")
+                    .find_map(|part| part.strip_prefix(key))
+                    .and_then(|value| value.trim().parse().ok())
+            };
+            (target("break "), target("continue "))
+        });
+    Some((instructions, targets))
 }
 
 #[test]
@@ -102,9 +108,40 @@ fn an_invoked_command_in_a_loop_body_compiles_as_tclsh_compiles_it() {
             let Some((instructions, targets)) = oracle(release, body) else {
                 continue;
             };
+            assert!(targets.is_some(), "tclsh reports the loop range: {body}");
             assert_eq!(
                 compiled(release, body),
-                (instructions, Some(targets)),
+                (instructions, targets),
+                "{release:?} {body}"
+            );
+        }
+    }
+}
+
+/// tclsh converts a control condition that is a bare primary (variable,
+/// command substitution) before its jump: `tryCvtToNumeric` in 8.5, a `nop`
+/// in its place from 8.6.
+#[test]
+fn a_bare_primary_condition_converts_before_its_jump_as_tclsh_does() {
+    for body in [
+        "if {$a} {$c}",
+        "if {$a} {set b 1}",
+        "if {$a} {set b 1} elseif {$b} {set c 1}",
+        "if {[f]} {set b 1}",
+        "while {$a} {set a 0}",
+        "for {} {$a} {} {set a 0}",
+    ] {
+        for release in [
+            tcl_dialect::TclVersion::V8_5,
+            tcl_dialect::TclVersion::V8_6,
+            tcl_dialect::TclVersion::V9_0,
+        ] {
+            let Some((instructions, _)) = oracle(release, body) else {
+                continue;
+            };
+            assert_eq!(
+                compiled(release, body).0,
+                instructions,
                 "{release:?} {body}"
             );
         }
