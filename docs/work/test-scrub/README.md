@@ -202,6 +202,7 @@ Edits a session's permission classifier refused; the replacement text is in the 
 | --- | --- | --- |
 | Two `rule_declaration` tests re-pointed from a proved target to the declaration-inventory record | irules-registry-tooling | Nothing is proved at rule load (analyser-binding's analysis, ruling of 17 November 23:55) |
 | The second assertion of `an_open_pack_keeps_its_notices_while_it_is_edited` re-pointed from W123 to the pack's own notice on the buffer | irules-registry-tooling | A pack's root words belong to its grammar |
+| The fixture of `exact_custom_return_codes` replaced: its second `try` never runs, because `try {return -code 42} finally {}` leaves the procedure (tclsh) | irules-registry-tooling | The source is not what the test says it is |
 | `LIVE_REFERENCE_INLINING` switched on, with the guard test `the_live_compile_splices_no_reference_body` changed to assert that the differential is the gate | live-inlining | The differential is identical to tclsh 8.4 to 9.1 (ruling of 17 November 23:52). Measured on `2e8b3814`, switch off against on, eight packages (`tcl-codegen`, `tcl-spectcl`, `tcl-vm`, three engines, `tcl-cshim`, `tcl-spec-hooks`): the only new failure is the guard itself, the three `reference_bodies` tests are fixed, every other failing set is identical. A fuzz smoke with the switch on is still to run |
 
 ## Passing tests the oracle contradicts
