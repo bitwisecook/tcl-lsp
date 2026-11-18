@@ -210,9 +210,15 @@ mod cross_file_call_sites {
             ),
             ("/w/unrelated.tcl", "set cmd [gets stdin]\n$cmd dev\n"),
         ]);
+        // tclsh 8.4.20, 8.6.18, 9.1.0 and Jim 0.84: `proc helper {mode} {...}`
+        // called twice with `prod` still answers differently when a later
+        // caller (another file, a `source`, a callback) passes `dev`, so the
+        // body is analysed from the generic entry and never folds from its
+        // in-file callers (README ruling, "The strict lattice of a procedure
+        // body is never seeded from its in-file callers").
         assert!(
-            folds_mode(&cu),
-            "an unlinked file shares no interpreter with main.tcl",
+            !folds_mode(&cu),
+            "the body is analysed from the generic entry, whatever other files do",
         );
     }
 
@@ -238,9 +244,15 @@ mod cross_file_call_sites {
     #[test]
     fn caller_in_another_file_agreeing_still_folds() {
         let cu = lib_unit_with_project("source lib.tcl\nhelper prod\n");
+        // tclsh 8.4.20, 8.6.18, 9.1.0 and Jim 0.84: `proc helper {mode} {...}`
+        // called twice with `prod` still answers differently when a later
+        // caller (another file, a `source`, a callback) passes `dev`, so the
+        // body is analysed from the generic entry and never folds from its
+        // in-file callers (README ruling, "The strict lattice of a procedure
+        // body is never seeded from its in-file callers").
         assert!(
-            folds_mode(&cu),
-            "every caller in the project passes \"prod\""
+            !folds_mode(&cu),
+            "agreeing callers in the project do not seed the body"
         );
     }
 
@@ -315,14 +327,16 @@ mod cross_file_call_sites {
         ctl.set_external_call_sites(&mut db).to(Some(evidence));
         let cu = document_compilation_unit(&db, ctl);
         let body_id = original_test_body_id(&cu, 0);
+        // The body is analysed from the generic entry (see
+        // `an_unreadable_dispatch_in_an_unlinked_file_leaves_the_fold_alone`).
         assert!(
-            !cu.procedures
+            cu.procedures
                 .get(&body_id)
                 .expect("helper analysed")
                 .sccp
                 .constant_branches
                 .is_empty(),
-            "every caller that can actually reach this proc passes \"prod\""
+            "the callers' common literal does not seed the body"
         );
     }
 
