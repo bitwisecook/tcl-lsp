@@ -497,3 +497,35 @@ fn dis_names_a_literal_scalar_on_the_stack_before_8_6() {
         assert_eq!(variable_ops, expected, "{dialect}:\n{text}");
     }
 }
+
+/// A declaration's discarded empty result is blanked by the release's
+/// optimiser, which 8.5 lacks (#2545). `disassemble proc f` for `proc f {}
+/// {global x; set x 1}` on tclsh 8.5.19: `push1 push1 nsupvar pop push1 pop
+/// startCommand push1 storeScalar1 done`; on 8.6.18 `push1 push1 nsupvar pop
+/// nop nop nop startCommand push1 storeScalar1 done`.
+#[test]
+fn dis_keeps_a_declarations_result_without_an_optimiser() {
+    for (dialect, kept) in [("tcl8.5", true), ("tcl8.6", false), ("tcl9.0", false)] {
+        let out = run_tcl(&[
+            "dis",
+            "--dialect",
+            dialect,
+            "--source",
+            "proc f {} {global x; set x 1}",
+        ]);
+        let text = String::from_utf8(out).expect("utf-8");
+        let body = text.split("ByteCode ::f").nth(1).expect("procedure body");
+        let ops: Vec<_> = body
+            .lines()
+            .filter_map(|line| line.trim_start().strip_prefix('(')?.split_once(") "))
+            .filter_map(|(_, rest)| rest.split_whitespace().next())
+            .collect();
+        let after = &ops[ops.iter().position(|op| *op == "nsupvar").expect("nsupvar") + 1..];
+        let expected: &[&str] = if kept {
+            &["pop", "push1", "pop"]
+        } else {
+            &["pop", "nop", "nop", "nop"]
+        };
+        assert_eq!(&after[..expected.len()], expected, "{dialect}:\n{body}");
+    }
+}

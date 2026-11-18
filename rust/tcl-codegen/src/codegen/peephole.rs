@@ -90,6 +90,13 @@ impl CodegenCtx<'_> {
             .is_some_and(
                 tcl_registry::native_compiler_pass::native_optimizer_blanks_discarded_pushes,
             );
+        // A declaration's discarded result is blanked by the release's
+        // optimiser, which 8.5 lacks: tclsh 8.5.19 keeps `push1; pop` after
+        // `global x`, 8.6.18 has three `nop`s. A release not named keeps it
+        // blanked.
+        let declarations_blanked = self.target_version().is_none_or(
+            tcl_registry::native_compiler_pass::native_optimizer_blanks_discarded_pushes,
+        );
         // The blanked push is as wide as the release compiles it.
         let widened = if self.emits_wide_instructions_only() {
             usize::from(Op::PUSH4.size() - Op::PUSH1.size())
@@ -103,14 +110,15 @@ impl CodegenCtx<'_> {
             // `unset`/`variable` leave it directly after their op, while
             // `global`/`upvar` leave it after the `pop` that discards the
             // reused namespace/level reference (… nsupvar|upvar ; pop ; push "" ; pop).
-            let after_unset = (i > 0
-                && matches!(
-                    self.instructions[i - 1].op,
-                    Op::UNSET_STK | Op::UNSET_SCALAR | Op::UNSET_ARRAY
-                ))
-                || (i >= 2
-                    && self.instructions[i - 1].op == Op::POP
-                    && matches!(self.instructions[i - 2].op, Op::UPVAR | Op::NSUPVAR));
+            let after_unset = declarations_blanked
+                && ((i > 0
+                    && matches!(
+                        self.instructions[i - 1].op,
+                        Op::UNSET_STK | Op::UNSET_SCALAR | Op::UNSET_ARRAY
+                    ))
+                    || (i >= 2
+                        && self.instructions[i - 1].op == Op::POP
+                        && matches!(self.instructions[i - 2].op, Op::UPVAR | Op::NSUPVAR)));
             if self.instructions[i].op == Op::PUSH1
                 && self.instructions[i + 1].op == Op::POP
                 // VM substituting pushes may run commands, variable reads,
