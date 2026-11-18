@@ -351,7 +351,8 @@ fn receives_marker(instructions: &[tcl_bytecode::Instruction], index: usize) -> 
         && (marker.completion_option_scope.is_none() || next.completion_option_scope.is_none())
         && (!marker.source_command_boundary.is_start()
             || (!next.source_command_boundary.is_start()
-                && !next.source_command_boundary.is_inline_replay()))
+                && !next.source_command_boundary.is_inline_replay())
+            || (next.source_command_boundary.is_start() && next.source_span == marker.source_span))
         && next.source_cmd_text == marker.source_cmd_text
         && next.source_command_namespace == marker.source_command_namespace
         && next.source_command_namespace_context == marker.source_command_namespace_context
