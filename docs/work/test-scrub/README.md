@@ -288,7 +288,7 @@ The failing behaviours are far fewer than the failing tests. The causes ranked h
 
 The second pass (overlap among passing tests: 88 exact-copy groups, 385 overlap groups, the vacuous negatives on unwired helpers) follows the repairs.
 
-## Status of the rows, 18 November 2026, 05:55 UTC
+## Status of the rows, 18 November 2026, 06:55 UTC
 
 From `tools/ledger_status.py` (a cell that is not one of the seven words counts as open).
 
@@ -298,17 +298,17 @@ From `tools/ledger_status.py` (a cell that is not one of the seven words counts 
 | analysis-performance | 48 | 0 | 0 | 0 | 0 | 0 | 0 | 48 |
 | class-facts | 236 | 8 | 2 | 0 | 0 | 0 | 0 | 246 |
 | dataflow-optimiser | 364 | 24 | 20 | 12 | 0 | 1 | 2 | 423 |
-| diagnostics | 272 | 50 | 59 | 4 | 6 | 2 | 6 | 399 |
+| diagnostics | 249 | 55 | 66 | 4 | 6 | 2 | 17 | 399 |
 | execution | 196 | 5 | 0 | 9 | 56 | 0 | 0 | 266 |
-| irules-registry-tooling | 133 | 0 | 0 | 2 | 0 | 20 | 0 | 155 |
-| live-inlining | 27 | 0 | 0 | 0 | 0 | 0 | 0 | 27 |
-| lsp-features | 593 | 10 | 16 | 12 | 10 | 23 | 13 | 677 |
+| irules-registry-tooling | 131 | 0 | 0 | 2 | 0 | 35 | 0 | 168 |
+| live-inlining | 18 | 0 | 0 | 0 | 0 | 9 | 0 | 27 |
+| lsp-features | 582 | 10 | 16 | 13 | 10 | 23 | 23 | 677 |
 | server-e2e-db-flaky | 3 | 3 | 0 | 0 | 0 | 0 | 1 | 7 |
-| server-e2e-db | 158 | 14 | 1 | 14 | 0 | 12 | 23 | 222 |
+| server-e2e-db | 151 | 14 | 1 | 19 | 0 | 12 | 25 | 222 |
 | taint | 134 | 5 | 26 | 8 | 0 | 0 | 1 | 174 |
 | tk-oo | 58 | 9 | 0 | 3 | 0 | 0 | 0 | 70 |
 | values | 195 | 18 | 0 | 5 | 1 | 0 | 0 | 219 |
-| **all** | 2829 | 151 | 124 | 70 | 73 | 58 | 46 | 3351 |
+| **all** | 2777 | 156 | 131 | 76 | 73 | 82 | 69 | 3364 |
 
 ## Progress
 
