@@ -114,7 +114,7 @@ Five witnesses, each checked against wish:
 - **Variable writes**: forced validation on a later `set v y` is the `-textvariable` link acting as a write observer. It belongs in the variable-observer modelling, not `RetainedDispatch`. `checkbutton -variable` installs no command-running observer.
 - Evidence goes under `rust/tcl-registry/tests/data/tk_callback_dispatch/`, cited from each row.
 
-### Questions still open with `analyser-binding` (unanswered at pause)
+### Questions put to `analyser-binding` (answered; see the next section)
 
 1. **Option database** (raised 11:46). The Tk option database can supply both forcing options, so "absent from argv" does not prove Deferred. In wish 8.4.20, 8.6.18 and 9.1.0 (`optdb.tcl` and `registration.tcl` on `issues/audit-22`):
    - `option add *Entry.textVariable v; option add *Entry.validate all; entry .e -validatecommand vcmd` runs vcmd at creation;
@@ -131,6 +131,25 @@ Five witnesses, each checked against wish:
    - `EatGrabEvents` (grab) and `TkScrollWindow` (canvas/text scrolling). Both run under a restrict proc that only discards or defers, so no user callbacks run, which matches wish.
 
    Proposal: state None as Complete {8.4 9.1} on Tcl-core and Tk rows outside that list, guarded by a test that holds the C list. Alternative (B'): a group default for Tcl and Tk. `analyser-binding` to choose.
+
+### `analyser-binding`'s answers (received 18 November 2026, 11:45 and 11:46 UTC, as given)
+
+**1. Option database: ruling (ii), simplified for this round.**
+- The walk carries one conservative bit of world state: "the program may have added option-database entries". It is set by any reached `option add` or `option readfile`, and by anything opaque: an unknown head, an opaque binding mutation, or a withdrawn command world. Joins OR it.
+- `option clear` resets to the startup database but does **not** clear the bit, because startup still includes X resources.
+- Selection of `DeferredGlobalScriptUnlessForced` gives **Deferred only when argv doesn't force** (the literal prefix rules: `-t…`/`-textv…` and `-v…`/`-validate`, with value prefixes of `none`) **AND the bit is clear**. Otherwise it gives `Unknown(bodies)`.
+- No pattern matching on `*Entry.textVariable` yet. Any `option add` sets the bit, so a program adding unrelated options withholds at creation. That's sound, and a later precision step can narrow it.
+- External X resources (RESOURCE_MANAGER / `.Xdefaults`) are a stated host assumption in `ForcedEntrySpec`'s doc comment, in the numbered-note style of the F5 checks: the startup option database forces no widget option. Cite the option-add witnesses (`optdb.tcl`, `registration.tcl`) there.
+- Carrying the bit is `analyser-binding`'s work. It goes on `ModuleCommandBindings` next to the other world flags, added together with the `option add` / `option readfile` registry declaration. They will send the accessor name, `option_database_amended()` on the state, readable from the selection context, **before** selection is written. Write selection against that name.
+
+**2. Unstated rows: explicit rows, not a group default (B').**
+- Each row states None, Complete {8.4 9.1}, through a shared const per file. The C notifier audit is a checked-in test. "No fact = Unknown = AllPending" stays uniform, so a row added later starts conservative.
+- Four conditions:
+  1. Script-running commands (`eval`, `uplevel`, `catch`, `try`, `namespace eval`, `source`, `if`/`while`/`for`/`foreach`/`switch` bodies, `apply`, the proc-call path) state None for the command itself, because their bodies' commands are walked as their own dispatch points and a dynamic body is already opaque. The shared const's doc comment must say so.
+  2. `package require`, `load`, and `source` with a non-literal path are **not** None-safe, because loaded code may call `update` at load time. Either leave them Unknown or confirm that the walk already treats their load as opaque. Check which, and state it.
+  3. Tk's script-level library procs → AllPending, citing their `vwait`/`tkwait` bodies in `library/*.tcl`: `tk_messageBox`, `tk_getOpenFile`, `tk_getSaveFile`, `tk_chooseColor`, `tk_chooseDirectory`, `tk_dialog`, `tk_popup`, and `tk_optionMenu` where it waits. They go on the audit test's **must-not-be-None** list next to the C entry points, together with `selection get`, `clipboard get` (X11), `grab` set/release, and the canvas/text scroll paths.
+  4. `after ms` with no script (a blocking sleep) → None: it calls `Tcl_Sleep`, not the notifier. Confirm that from the C audit and put it on the list as an explicit negative. The wish result already agrees (`after_and_waits.tcl`, `after.ms`: none).
+- **Then:** measure the six `callback_replay` tests and `taint`'s Tk rows before and after, against a clean `origin/work` baseline, and send `analyser-binding` the walk commit for review.
 
 ### `tk-oo`'s evidence (8.6.18 / 9.0.4 / 9.1.0, their scratch `tkw/ctor*.tcl`)
 
@@ -286,19 +305,22 @@ Earlier #1710 commits from the previous holder: `bf127e07`, `5f97b4d7`, `d5a6198
 
 ## Next steps, in order
 
-1. Get `analyser-binding`'s answers on the option database and the unstated-row default.
-2. Wait for `tk-oo`'s constructor completion routes to land.
-3. Finish the registry half on top of `issues/audit-22`:
-   - the SpecTcl/Studio parity for `retained_dispatch`;
-   - the widget rows (constructors None; receiver methods; `configure` Receiver on entry, spinbox and scale);
-   - the None coverage agreed in step 1, with a test holding the C notifier list;
-   - plain `DeferredGlobalScript` on widget constructors with Body options, and `DeferredGlobalScriptUnlessForced` + `ForcedEntrySpec` on `entry`/`spinbox`;
+1. Wait for `tk-oo`'s constructor completion routes (Normal|Error) to land, and for `analyser-binding` to send the `option_database_amended()` accessor along with its `option add` / `option readfile` declaration.
+2. Finish the registry half on top of `issues/audit-22`:
+   - the SpecTcl/Studio parity for `retained_dispatch` (template `299f39fbcc`), plus the matrix column;
+   - explicit None rows, Complete {8.4 9.1}, through a shared const per file, on every Tcl-core and Tk row outside the must-not-be-None list. Script-running commands are None for themselves, documented on the const. Decide `package require` / `load` / non-literal `source` (Unknown, or opaque in the walk) and state the choice;
+   - AllPending on the Tk library dialog procs, citing their `vwait`/`tkwait` bodies;
+   - `after ms` None, confirmed from C;
+   - the widget rows: constructors None; receiver methods TargetWindow; `configure` Receiver on `entry`, `spinbox` and `scale`;
+   - the checked-in C notifier audit test: the must-not-be-None list (C entry points, library dialog procs, `selection get`, `clipboard get`, `grab`, scroll paths) plus the explicit negatives (`after ms`);
+   - plain `DeferredGlobalScript` on widget constructors with Body options;
+   - `DeferredGlobalScriptUnlessForced` + `ForcedEntrySpec` on `entry`/`spinbox`, selecting against argv and `option_database_amended()`, with the X-resources host assumption as a numbered note;
    - a test per witness against the evidence files.
 
    Tell `irules-registry-tooling`, values and dataflow-optimiser before pushing. Land it with the two-stage ruling.
-4. Write the walk half in `target_walk.rs`: Deferred registration doesn't withhold; withhold at dispatch points whose scope covers a pending callback, and at Unknown(bodies) registrations. Announce it, get `analyser-binding`'s review, then land.
-5. Re-run the six tests, `taint`'s repro and its 14 rows, plus full `tcl-compiler` and `tcl-lsp-core`; tell `taint`.
-6. Re-measure the callback cost, post it on #1710, and close #1710.
+3. Write the walk half in `target_walk.rs`: a Deferred registration doesn't withhold; withhold at dispatch points whose scope covers a pending callback, and at `Unknown(bodies)` registrations. Announce it and send the commit to `analyser-binding` for review before pushing.
+4. Measure the six `callback_replay` tests, `taint`'s three-line repro and its 14 Tk rows before and after against a clean `origin/work` baseline, and run full `tcl-compiler` and `tcl-lsp-core` (0 new) and all 39 gates. Land after the review, then tell `taint`.
+5. Re-measure the callback cost, post it on #1710, and close #1710.
 
 ## Hazards
 
