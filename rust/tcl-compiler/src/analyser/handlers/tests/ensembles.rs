@@ -292,7 +292,7 @@ fn a_nested_definition_no_longer_overwrites_a_same_named_global_923_idx85() {
 fn namespace_import_inside_a_qualified_name_proc_targets_that_namespace_923_idx85() {
     let mut a = Analyser::new();
     let r = a.analyse(
-        "namespace eval ::src { proc thing {} {} namespace export thing }\n\
+        "namespace eval ::src { proc thing {} {}; namespace export thing }\n\
              namespace eval ::dst {}\n\
              proc ::dst::setup {} { namespace import ::src::thing }\n",
         "tcl8.6",

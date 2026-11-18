@@ -20,7 +20,9 @@ use super::*;
 
 #[test]
 fn actual_selected_whole_braced_expression_owns_every_operator_edit() {
-    let source = "expr {  $a == \"literal == bytes\" && ($b != \"bar\") }";
+    // `a` holds the compared literal so `&&` evaluates its right operand;
+    // unset, `$a` raises first (tclsh 8.6.18 / 9.0.4).
+    let source = "set a {literal == bytes}\nset b bar\nexpr {  $a == \"literal == bytes\" && ($b != \"bar\") }";
     let result = Analyser::new().analyse(source, "tcl8.6");
     let diagnostic = result
         .diagnostics

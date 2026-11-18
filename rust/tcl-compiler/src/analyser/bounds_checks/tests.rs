@@ -1133,7 +1133,10 @@ fn w231_silent_without_recoverable_length() {
 
 #[test]
 fn w242_counter_not_modified() {
-    let m = code_msgs("while {$x < 10} {puts hi}\n", "W242");
+    // The counters arrive as parameters: at file level the first test reads
+    // an unset name and raises (tclsh 8.6.18 / 9.0.4: can't read "x"), so the
+    // loop would never iterate.
+    let m = code_msgs("proc p {x} {while {$x < 10} {puts hi}}\n", "W242");
     assert_eq!(m.len(), 1);
     assert!(
         m[0].contains("variable 'x' in the condition is never modified"),
@@ -1142,7 +1145,11 @@ fn w242_counter_not_modified() {
     // `for` with an empty step and a body that ignores the counter, over a
     // bound nothing proves: the condition does not decide.
     assert_eq!(
-        code_msgs("for {set i 0} {$i < $n} {} {puts hi}\n", "W242").len(),
+        code_msgs(
+            "proc q {n} {for {set i 0} {$i < $n} {} {puts hi}}\n",
+            "W242"
+        )
+        .len(),
         1
     );
 }
@@ -1205,7 +1212,7 @@ fn w242_silent_for_a_command_substitution_condition_even_when_nothing_is_modifie
 #[test]
 fn w242_severity_is_hint() {
     let mut a = Analyser::new();
-    let r = a.analyse("while {$x < 10} {puts hi}\n", "tcl8.6");
+    let r = a.analyse("proc p {x} {while {$x < 10} {puts hi}}\n", "tcl8.6");
     let w242 = r
         .diagnostics
         .iter()
@@ -1600,7 +1607,7 @@ fn a_callback_the_scan_cannot_read_keeps_w241_silent() {
     }
     for src in [
         "set done 0\nafter cancel {set done 1}\nwhile {!$done} { update }\n",
-        "set done 0\nafter cancel $id\nwhile {!$done} { update }\n",
+        "set id after#0\nset done 0\nafter cancel $id\nwhile {!$done} { update }\n",
         "set done 0\nafter 100 {puts hi}\nwhile {!$done} { update }\n",
         "set done 0\nafter 100 set other 1\nwhile {!$done} { update }\n",
         "proc tick {} { puts hi }\nset done 0\nafter 100 tick\nwhile {!$done} { update }\n",

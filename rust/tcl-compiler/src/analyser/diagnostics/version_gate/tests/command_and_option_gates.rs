@@ -224,8 +224,10 @@ fn sub_subcommand_follows_the_core_floor() {
     // `info object properties` / `info class definitionnamespace` are the
     // 9.0 TclOO introspection additions (TIP 558 / TIP 524).
     for src in [
-        "info object properties $o\n",
-        "info class definitionnamespace $c\n",
+        // The operands are bound: unset, `$o` raises before the subcommand
+        // is looked up (tclsh 8.6.18 / 9.0.4).
+        "set o [oo::object new]\ninfo object properties $o\n",
+        "set c [oo::class create K]\ninfo class definitionnamespace $c\n",
     ] {
         let diags = lifecycle_diags(src, "tcl8.6");
         assert!(
@@ -243,13 +245,16 @@ fn sub_subcommand_follows_the_core_floor() {
     // The 8.6 operations of the same ensembles stay silent, and a unique
     // prefix of a gated operation is gated exactly as the full word is.
     assert_eq!(
-        lifecycle_diags("info object class $o\n", "tcl8.6"),
+        lifecycle_diags("set o [oo::object new]\ninfo object class $o\n", "tcl8.6"),
         [] as [(std::string::String, std::string::String); 0]
     );
     assert!(
-        lifecycle_diags("info class definitionn $c\n", "tcl8.6")
-            .iter()
-            .any(|(code, _)| code == "W135"),
+        lifecycle_diags(
+            "set c [oo::class create K]\ninfo class definitionn $c\n",
+            "tcl8.6"
+        )
+        .iter()
+        .any(|(code, _)| code == "W135"),
         "an abbreviation resolves to the same gated operation"
     );
 }

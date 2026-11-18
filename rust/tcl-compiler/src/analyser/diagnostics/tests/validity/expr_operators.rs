@@ -388,7 +388,9 @@ fn w003_fires_inside_a_sub_interpreter_eval_body() {
     // walked like any other nested script. Static analysis can't know
     // the sub-interpreter's own Tcl version, so it reasonably applies
     // the enclosing file's dialect uniformly.
-    let src = "interp eval $safeInterp {\n  if {$x in $y} { return 1 }\n}\n";
+    // tclsh 8.4.20: with the interpreter created, the body raises `syntax
+    // error in expression "$x in $y"`; unset, `$safeInterp` raises first.
+    let src = "set safeInterp [interp create]\ninterp eval $safeInterp {\n  if {$x in $y} { return 1 }\n}\n";
     let hits = w003_hits(src, "tcl8.4");
     assert_eq!(hits.len(), 1, "{hits:?}");
 }

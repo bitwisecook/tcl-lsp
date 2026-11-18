@@ -20,7 +20,9 @@ use super::*;
 
 #[test]
 fn actual_diagnostic_uses_original_word_and_scanner_index_extent() {
-    let source = "set index x\nputs ${arr}(a\\)b)\nputs ${arr($index)}";
+    // `arr` is bound first: unset, `${arr}` raises (tclsh 8.6.18 / 9.0.4)
+    // and the third line is never reached.
+    let source = "set index x\nset arr v\nputs ${arr}(a\\)b)\nputs ${arr($index)}";
     let result = Analyser::new().analyse(source, "tcl8.6");
     let findings = result
         .diagnostics

@@ -284,8 +284,10 @@ fn branch_joined_const_dispatch_records_every_may_target_945() {
     // lexically last write — so BOTH procs are referenced, each with its
     // own writable literal.
     let mut a = Analyser::new();
+    // `runtime` is bound first: unset, its read raises (tclsh 8.4.20 to
+    // 9.1.0: can't read "runtime") and the dispatch is never reached.
     let src = "proc foo {} {return foo}\nproc bar {} {return bar}\n\
-               set cmd foo\nif {$runtime} {\n    set cmd bar\n}\n$cmd\n";
+               set runtime [gets stdin]\nset cmd foo\nif {$runtime} {\n    set cmd bar\n}\n$cmd\n";
     let r = a.analyse(src, "tcl");
     let dispatch = u32::try_from(src.rfind("$cmd").unwrap()).unwrap();
     let heads: Vec<&str> = r
@@ -315,7 +317,7 @@ fn branch_joined_const_dispatch_records_every_may_target_945() {
 fn switch_and_loop_joined_const_dispatch_records_every_may_target_945() {
     // The same φ-join soundness across `switch` arms…
     let mut a = Analyser::new();
-    let src = "proc left {} {}\nproc right {} {}\nset cmd left\n\
+    let src = "proc left {} {}\nproc right {} {}\nset x [gets stdin]\nset cmd left\n\
                switch -- $x {\n  a { set cmd right }\n  default {}\n}\n$cmd\n";
     let r = a.analyse(src, "tcl");
     let dispatch = u32::try_from(src.rfind("$cmd").unwrap()).unwrap();
@@ -332,7 +334,7 @@ fn switch_and_loop_joined_const_dispatch_records_every_may_target_945() {
     // …and across a `while` back-edge (the loop-carried φ folds the
     // pre-loop literal with the in-loop reassignment).
     let mut a2 = Analyser::new();
-    let src2 = "proc first {} {}\nproc next {} {}\nset cmd first\n\
+    let src2 = "proc first {} {}\nproc next {} {}\nset go [gets stdin]\nset cmd first\n\
                 while {$go} {\n    $cmd\n    set cmd next\n}\n";
     let r2 = a2.analyse(src2, "tcl");
     let dispatch2 = u32::try_from(src2.find("$cmd").unwrap()).unwrap();

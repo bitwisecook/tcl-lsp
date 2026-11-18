@@ -626,6 +626,7 @@ fn tp_e001_bare_dispatch_fires_even_when_class_is_ambiguous() {
     let src = "\
 oo::class create A { method same {x} {} }
 oo::class create B { method same {x y} {} }
+set cond [expr {rand() < 0.5}]
 if {$cond} { set f1 [A new] } else { set f1 [B new] }
 $f1
 ";

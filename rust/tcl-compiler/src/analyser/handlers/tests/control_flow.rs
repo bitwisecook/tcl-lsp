@@ -174,7 +174,10 @@ fn handle_foreach_rename_reinstall_idiom_is_not_overfit_to_two_elements() {
     // FP guard — a third element proves the per-iteration simulation
     // isn't hardcoded to exactly the corpus's own two widget names.
     let mut a = Analyser::new();
-    let src = "namespace eval ::ns {\n    \
+    // The widget commands exist first, as in Tk: in a fresh tclsh 8.6.18 /
+    // 9.0.4 `rename ::button` raises `command doesn't exist`.
+    let src = "proc button {args} {}\nproc entry {args} {}\nproc checkbutton {args} {}\n\
+                   namespace eval ::ns {\n    \
                    foreach wtype {button entry checkbutton} {\n        \
                    rename ::$wtype ::ns::orig_$wtype\n        \
                    proc ::$wtype {args} {return wrapped}\n    \

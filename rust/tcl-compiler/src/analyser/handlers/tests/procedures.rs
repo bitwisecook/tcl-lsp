@@ -731,7 +731,7 @@ fn nested_def_in_qualified_encloser_does_not_overwrite_global() {
     // overwritten in `all_procs`.
     let mut a = crate::analyser::Analyser::new();
     let r = a.analyse(
-            "proc helper {} { puts global }\nproc a::outer {} {\n    proc helper {} { puts nested }\n}\n",
+            "proc helper {} { puts global }\nnamespace eval a {}\nproc a::outer {} {\n    proc helper {} { puts nested }\n}\n",
             "tcl8.6",
         );
     assert!(
@@ -751,7 +751,7 @@ fn nested_def_in_qualified_encloser_does_not_overwrite_global() {
     // The same for a nested class.
     let mut b = crate::analyser::Analyser::new();
     let rc = b.analyse(
-        "oo::class create Widget {}\nproc a::outer {} {\n    oo::class create Widget {}\n}\n",
+        "oo::class create Widget {}\nnamespace eval a {}\nproc a::outer {} {\n    oo::class create Widget {}\n}\n",
         "tcl8.6",
     );
     assert!(

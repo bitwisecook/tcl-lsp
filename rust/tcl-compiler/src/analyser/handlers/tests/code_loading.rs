@@ -185,7 +185,7 @@ fn package_require_conditionality_per_try_clause_kind() {
     // stuck: the require after both is still unconditional.
     assert_eq!(
         conditional_flags(
-            "if {$x} { try { package require A } finally { set y 1 } }\npackage require B\n"
+            "set x [gets stdin]\nif {$x} { try { package require A } finally { set y 1 } }\npackage require B\n"
         ),
         vec![true, false],
     );
@@ -220,17 +220,17 @@ fn analyse_records_every_package_requirement_alternative() {
 fn analyse_marks_package_requires_in_control_flow() {
     let cases = [
         (
-            "while {$enabled} { package require WhileDep 1.0 }",
+            "set enabled [gets stdin]\nwhile {$enabled} { package require WhileDep 1.0 }",
             "tcl8.6",
             "WhileDep",
         ),
         (
-            "foreach item $items { package require ForeachDep 1.0 }",
+            "set items $argv\nforeach item $items { package require ForeachDep 1.0 }",
             "tcl8.6",
             "ForeachDep",
         ),
         (
-            "lmap item $items { package require LmapDep 1.0 }",
+            "set items $argv\nlmap item $items { package require LmapDep 1.0 }",
             "tcl8.6",
             "LmapDep",
         ),
@@ -255,7 +255,7 @@ fn analyse_marks_package_requires_in_control_flow() {
             "ArrayForDep",
         ),
         (
-            "switch $kind a { package require SwitchDep 1.0 }",
+            "set kind [gets stdin]\nswitch $kind a { package require SwitchDep 1.0 }",
             "tcl8.6",
             "SwitchDep",
         ),

@@ -700,7 +700,10 @@ fn same_file_relative_qualified_call_prefers_current_namespace_over_global() {
     // When both `::inner::p` (global) and `::ns::inner::p` (nested)
     // exist, a relative `inner::p` call from inside `::ns` resolves to
     // the nested one — confirmed against tclsh 9.0.4.
+    // `::inner` is created first: tclsh 8.6.18 / 9.0.4 refuse `proc
+    // ::inner::p` in an unknown namespace and nothing after it runs.
     let src = "\
+namespace eval ::inner {}
 proc ::inner::p {} {}
 namespace eval ::ns {
     namespace eval inner {

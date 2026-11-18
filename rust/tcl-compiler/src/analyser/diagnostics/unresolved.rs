@@ -1169,7 +1169,9 @@ mod require_ordering_tests {
     #[test]
     fn possible_consumed_names_preserve_navigation_without_absence_or_rename_authority() {
         use crate::signature_scan::types::SignatureCommandLookup;
-        let source = "if {$unknown} {rename info original; proc info args {return ordinary}}; info body missing";
+        // `unknown` is bound to a value the walk cannot fold; unset, its read
+        // raises (tclsh 8.6.18 / 9.0.4) and the rename is never possible.
+        let source = "set unknown [expr {rand() < 0.5}]; if {$unknown} {rename info original; proc info args {return ordinary}}; info body missing";
         let result = Analyser::new().analyse(source, "tcl8.6");
         // naming.source.native-baseline-conditional-source-roles
         // docs/design/analysis/name-resolution-proofs/native-baseline-conditional-source-roles.md

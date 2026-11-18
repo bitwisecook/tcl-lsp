@@ -179,6 +179,7 @@ fn foreach_objdefine_over_a_dynamic_list_abstains() {
     let r = a.analyse(
             "oo::class create Base { method hello {} { return hi } }\n\
              Base create ::a\n\
+             set objects $argv\n\
              foreach o $objects {\n    oo::objdefine $o {\n        method probe {} { return probed }\n    }\n}\n",
             "tcl9.0",
         );

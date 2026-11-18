@@ -460,12 +460,12 @@ fn w216_brace_then_paren_name_vs_value_positions() {
     let mut a = Analyser::new();
     for src in [
         "set token ::http::1\nset ${token}(status) eof\n",
-        "info exists ${token}(-pipeline)\n",
-        "unset ${tok}(socketcoro)\n",
-        "vwait ${token}(status)\n",
-        "incr ${arr}(n)\n",
-        "append ${arr}(buf) x\n",
-        "lappend ${arr}(list) item\n",
+        "set token ::http::1\ninfo exists ${token}(-pipeline)\n",
+        "set tok ::http::1\nunset ${tok}(socketcoro)\n",
+        "set token ::http::1\nvwait ${token}(status)\n",
+        "set arr ::state\nincr ${arr}(n)\n",
+        "set arr ::state\nappend ${arr}(buf) x\n",
+        "set arr ::state\nlappend ${arr}(list) item\n",
     ] {
         let r = a.analyse(src, "tcl");
         assert!(

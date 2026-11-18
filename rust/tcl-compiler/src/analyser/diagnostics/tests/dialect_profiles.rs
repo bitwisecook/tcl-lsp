@@ -534,7 +534,9 @@ fn nested_expect_clause_body_reports_unknown_command() {
 
 #[test]
 fn unbraced_expect_action_keeps_its_complete_script_span() {
-    let codes = codes_for_dialect("expect {ready puts;expect_semicolon_unknown}", "expect");
+    // `list` runs cleanly first; a bare `puts` would raise `wrong # args`
+    // and leave the unknown command unreached (tclsh 8.4.20 to 9.1.0).
+    let codes = codes_for_dialect("expect {ready list;expect_semicolon_unknown}", "expect");
     assert!(
         codes.iter().any(|code| code == "W123"),
         "the command after a semicolon in an unbraced Expect action must be analysed: {codes:?}"

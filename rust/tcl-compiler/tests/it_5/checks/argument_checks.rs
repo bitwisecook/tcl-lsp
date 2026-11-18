@@ -265,8 +265,22 @@ mod literal_expected {
         // engine a pattern that matches literally, so it is the remedy rather
         // than the foot-gun — and braces would defeat it by matching the
         // substitution's own source text. Both spellings are exempt.
-        assert!(!fires("regexp -- [regex::quote $p] $text", D, "W306"));
-        assert!(!fires("regexp -- \"[regex::quote $p]\" $text", D, "W306"));
+        // The helper is defined as the T103 quick fix inserts it and the
+        // operands are bound: otherwise tclsh 8.6.18 / 9.0.4 raise `can't
+        // read "p"` before the pattern is built.
+        let prelude = "namespace eval regex {}\n\
+            proc regex::quote {str} { regsub -all {[][{}()*+?.\\\\^$|]} $str {\\\\&} }\n\
+            set p {a.b}\nset text {a.b}\n";
+        assert!(!fires(
+            &format!("{prelude}regexp -- [regex::quote $p] $text"),
+            D,
+            "W306"
+        ));
+        assert!(!fires(
+            &format!("{prelude}regexp -- \"[regex::quote $p]\" $text"),
+            D,
+            "W306"
+        ));
     }
 
     #[test]

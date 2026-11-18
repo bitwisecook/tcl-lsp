@@ -565,7 +565,8 @@ fn w310_registry_credential_option() {
     // to the default flag set (Strategy 1 augmentation).
     let mut a = Analyser::new();
     let r = a.analyse(
-        "http::geturl $url -headers {Authorization \"Bearer abc123def456\"}\n",
+        "package require http\nset url http://example.invalid/\n\
+         http::geturl $url -headers {Authorization \"Bearer abc123def456\"}\n",
         "tcl8.6",
     );
     let w310 = r
