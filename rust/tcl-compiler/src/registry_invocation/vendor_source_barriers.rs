@@ -194,6 +194,23 @@ pub(super) fn capture(
 
 /// The same authored barrier classifier over sealed original script ancestry.
 /// Parent source bodies supply regions only; no entered frame or table follows.
+thread_local! {
+    static BARRIER_STEPS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+fn barrier_step() {
+    BARRIER_STEPS.with(|steps| steps.set(steps.get().saturating_add(1)));
+}
+
+/// Work units the vendor source-barrier capture has taken on this thread:
+/// each enclosing region a head consults and each command walked in one.
+/// A count the capture controls, so a scaling check can read it before and
+/// after an analysis.
+#[must_use]
+pub fn vendor_source_barrier_steps() -> u64 {
+    BARRIER_STEPS.with(std::cell::Cell::get)
+}
+
 pub(super) fn capture_in_script_body(
     context: &ContextRegistry,
     head: &VendorSourceNameInput,
@@ -202,6 +219,7 @@ pub(super) fn capture_in_script_body(
 ) -> Option<VendorSourceCatalogueBarriers> {
     let mut receipt = capture(context, head, selected_prefixes)?;
     for region in body.source_regions() {
+        barrier_step();
         let local = capture_region(context, head, selected_prefixes, *region)?;
         receipt.original.extend(local.original);
         receipt.schemas.extend(local.schemas);
@@ -273,6 +291,7 @@ fn capture_region(
     };
     let mut barriers = BTreeSet::new();
     for command in &plan.commands {
+        barrier_step();
         let Some(first) = command.words.first() else {
             continue;
         };
@@ -606,6 +625,39 @@ mod tests {
             !known
                 .authored_barriers()
                 .matches_context(tcl_registry::model::ingress::static_context_for("f5-iapps"))
+        );
+    }
+}
+
+#[cfg(test)]
+mod scaling_tests {
+    /// Each head nested in `depth` ifs consults the regions that enclose it.
+    /// Doubling the depth must at most about double the capture's work: a
+    /// head may not re-walk every ancestor region, which made a 2,000-deep
+    /// `when` body take minutes (tcl-lsp-core
+    /// `deeply_nested_bodies_survive_when_scanning`). A count, so it cannot
+    /// flake under load.
+    #[test]
+    fn nested_if_heads_take_barrier_work_linear_in_depth() {
+        let steps = |depth: usize| {
+            let mut src = String::from("when HTTP_REQUEST {\n");
+            for _ in 0..depth {
+                src.push_str("if {1} {\n");
+            }
+            src.push_str("log local0. deep\n");
+            for _ in 0..depth {
+                src.push_str("}\n");
+            }
+            src.push_str("}\n");
+            let before = super::vendor_source_barrier_steps();
+            let _ = crate::analyser::Analyser::new().analyse(&src, "f5-irules");
+            super::vendor_source_barrier_steps() - before
+        };
+        let (quarter, half, full) = (steps(50), steps(100), steps(200));
+        assert!(quarter > 0, "the fixture reaches the barrier capture");
+        assert!(
+            half * 10 <= quarter * 22 && full * 10 <= half * 22,
+            "doubling the nesting depth took {quarter} -> {half} -> {full} barrier steps"
         );
     }
 }
