@@ -7,6 +7,153 @@ say whether it matches. Nothing here needs knowledge of this repository's
 history; file paths are given so that the result can be filed against the code
 that depends on it.
 
+## Start here
+
+This document is a deliverable of its own: a work order for an agent with shell and `tmsh` access to a lab BIG-IP who has never seen this repository. Every check below is self-contained in the sense that it names the build and modules it needs, the objects to create, the rule or script text, the traffic to send, what to capture and the answer that confirms or refutes each test that waits on it. Read the two tables, pick a check, follow the section it points to.
+
+**What you need.** A lab BIG-IP (the measurements on record are BIG-IP 21.1.0.1 build 0.0.26; record the build with `tmsh show sys version` and the platform with `tmsh show sys hardware`) with LTM and iRules provisioned (`tmsh list sys provision ltm`), shell and `tmsh` access, a free lab address and port 19912, and four TMMs where a check says "per TMM" (`tmsh show sys tmm-info`). The tmsh, iApp and iCall checks need no extra module. Never run `tmsh save sys config`. Delete everything you create.
+
+**How to run one.** Checks `BIGIP-NAME-001` to `073` use the `BNC|` harness of section 2 (§2.1 gives the exact load, collect and clean-up commands, the `RULE_INIT` and `HTTP_REQUEST` wrappers and the virtual-server definition). The checks numbered 18 to 31 in section 6 are ordinary rules, not harness snippets: save the text as `ltm rule /Common/bnc_rN { ... }` in a file and load it exactly as §2.1 does (`tmsh load sys config merge file`); the answer to *does the loader accept it* is the loader's message, the answer to *what does it do* is `/var/log/ltm` (`log local0.`) and the traffic you send. Report in the form of section 5.
+
+**Optional objects some checks need** (create, use, delete):
+
+```sh
+tmsh create ltm pool /Common/bnc_pool members add { <lab member>:80 } monitor none
+tmsh create ltm data-group internal /Common/bnc_dg type string records add { abc { data one } /x { data two } }
+tmsh create auth partition TenantA ; tmsh create auth partition TenantB      # TS-08 only
+# virtual server with TCP and HTTP profiles: the stanza in section 2.1
+# cleanup: tmsh modify ltm virtual /Common/bnc_vs rules none ; tmsh delete ltm virtual /Common/bnc_vs ;
+#          tmsh delete ltm rule /Common/bnc_rN ; tmsh delete ltm data-group internal /Common/bnc_dg ;
+#          tmsh delete ltm pool /Common/bnc_pool ; tmsh delete auth partition TenantA ; tmsh delete auth partition TenantB
+```
+
+### Index A: the 73 harness checks
+
+"Tests waiting" counts the rows of the test-scrub ledgers (`docs/work/test-scrub/ledger/*.tsv`) that name the check.
+
+| Check | Area | What it settles | Environment | On record | Tests waiting | Ledger |
+|---|---|---|---|---|---|---|
+| BIGIP-NAME-001 | Identity | Interpreter identity and execution frame | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-002 | Command name resolution | Current namespace before global; absolute name bypasses the current namespace | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-003 | Command name resolution | Global fallback; no walk through ancestor namespaces | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-004 | Command name resolution | Relative-qualified command names | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-005 | Command name resolution | Runs of colons inside command names | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-006 | Command name resolution | Trailing `::` names the empty-named command | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-007 | Command name resolution | Single colons are ordinary name characters; leading `:` in a namespace | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-008 | Command name resolution | `namespace which -command` | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-009 | Command name resolution | `namespace origin` | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-010 | Command name resolution | `info commands` with qualified patterns | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-011 | Command name resolution | `rename` to and from qualified names | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-012 | Command name resolution | `interp alias` names and target anchoring | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-013 | Command name resolution | Alias record after `rename` | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-014 | Command name resolution | `unknown` and `namespace unknown` | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-015 | Command name resolution | Command heads that are braced, substituted, computed or list-built | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-016 | Command name resolution | Unique-prefix abbreviation of built-in subcommands | TMM, tmsh, iApp, iCall | no | 0 | - |
+| BIGIP-NAME-017 | Namespaces | `namespace eval` creation and name normalisation | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-018 | Namespaces | `namespace current`, `parent`, `children` and their missing-namespace messages | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-019 | Namespaces | `namespace qualifiers` and `namespace tail` on odd spellings | TMM, tmsh, iApp, iCall | no | 0 | - |
+| BIGIP-NAME-020 | Namespaces | `namespace exists` | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-021 | Namespaces | Deleting and recreating a namespace | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-022 | Namespaces | Tcl 8.5+ `namespace` subcommands are absent | TMM, tmsh, iApp, iCall | yes; rerun on other builds | 0 | - |
+| BIGIP-NAME-023 | Namespaces | `namespace code` and `namespace inscope` | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-024 | Namespaces | `namespace import`, `export`, `forget` | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-025 | Variables and array elements | Qualified variable names: read, write, missing parent | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-026 | Variables and array elements | Unqualified variables inside `namespace eval`: global fallback and creation | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-027 | Variables and array elements | The `variable` command | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-028 | Variables and array elements | The `global` command with plain and qualified names | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-029 | Variables and array elements | `upvar` name and level forms | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-030 | Variables and array elements | `uplevel` level forms | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-031 | Variables and array elements | Array element names given to commands (`set name(index)`) | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-032 | Variables and array elements | Variable names with unusual bytes | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-033 | Variables and array elements | `info exists`, `info vars`, `info globals` with qualified names and patterns | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-034 | `$` substitution | `$name(index)`: where the index ends and what it may contain | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-035 | `$` substitution | `${name}` and `${name(index)}` | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-036 | `$` substitution | Qualified names followed by `(` | TMM, tmsh, iApp, iCall | no | 0 | - |
+| BIGIP-NAME-037 | `$` substitution | Which characters end an unbraced `$name` | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-038 | `$` substitution | A lone `$`, `$$`, `$(`, and an unterminated index | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-039 | `$` substitution | Non-ASCII bytes after an unbraced `$name` | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-040 | Procedure naming | `proc` with a qualified name whose namespace does not exist | TMM, tmsh, iApp, iCall | no | 0 | - |
+| BIGIP-NAME-041 | Procedure naming | `proc` with a relative name inside `namespace eval` | TMM, tmsh, iApp, iCall | yes; rerun on other builds | 0 | - |
+| BIGIP-NAME-042 | Procedure naming | `info procs`, `info args`, `info body`, `info default` with qualified names | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-043 | Procedure naming | `proc` defined inside a proc; redefinition | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-044 | Procedure naming | Formal parameter names that are qualified or look like array elements | TMM, tmsh, iApp, iCall | no | 0 | - |
+| BIGIP-NAME-045 | iRules in TMM | Where a top-level iRule `proc` lives | TMM RULE_INIT | partly | 0 | - |
+| BIGIP-NAME-046 | iRules in TMM | `call` name forms across iRules | TMM RULE_INIT | yes; rerun on other builds | 0 | - |
+| BIGIP-NAME-047 | iRules in TMM | Inside a called iRule proc | TMM RULE_INIT and HTTP_REQUEST | partly | 0 | - |
+| BIGIP-NAME-048 | iRules in TMM | Is `static` a Tcl namespace? | TMM RULE_INIT | partly | 0 | - |
+| BIGIP-NAME-049 | iRules in TMM | `static::` across events, procs and TMMs | TMM RULE_INIT + HTTP_REQUEST | partly | 2 | taint 2 |
+| BIGIP-NAME-050 | iRules in TMM | Bare variables in `RULE_INIT` | TMM RULE_INIT | partly | 1 | taint 1 |
+| BIGIP-NAME-051 | iRules in TMM | `namespace eval` plus `set` from an event frame | TMM RULE_INIT | partly | 0 | - |
+| BIGIP-NAME-052 | iRules in TMM | Event-local variables against `::` globals | TMM HTTP_REQUEST | partly | 0 | - |
+| BIGIP-NAME-053 | iRules in TMM | Are protocol commands real namespaced commands? | TMM RULE_INIT | partly | 0 | - |
+| BIGIP-NAME-054 | iRules in TMM | Protocol commands from other namespaces and procs; user shadowing | TMM HTTP_REQUEST | partly | 0 | - |
+| BIGIP-NAME-055 | iRules in TMM | `rename` of a protocol command (lab only) | TMM RULE_INIT | partly | 0 | - |
+| BIGIP-NAME-056 | iRules in TMM | Subcommand abbreviation in iRules commands | TMM HTTP_REQUEST | no | 0 | - |
+| BIGIP-NAME-057 | iRules in TMM | Load-time resolution of literal command names | TMM rule load | yes; rerun on other builds | 1 | server-e2e-db 1 |
+| BIGIP-NAME-058 | iRules in TMM | `table` keys are not Tcl names | TMM HTTP_REQUEST | no | 0 | - |
+| BIGIP-NAME-059 | iRules in TMM | Inventory of namespaces and commands in TMM | TMM RULE_INIT | partly | 0 | - |
+| BIGIP-NAME-068 | iRules in TMM | `HTTP::header NAME VALUE` with no subcommand, before and after `HTTP::respond` | TMM rule load + HTTP_REQUEST | no | 0 | - |
+| BIGIP-NAME-070 | iRules in TMM | A backslash inside a braced argument | TMM HTTP_REQUEST | no | 0 | - |
+| BIGIP-NAME-071 | iRules in TMM | What runs after a response, a drop or a DNS answer, and payload without collect | TMM HTTP_REQUEST, DNS_REQUEST | no | 32 | taint 32 |
+| BIGIP-NAME-072 | iRules in TMM | A plain variable across the events of one connection, and `global` | TMM CLIENT_ACCEPTED + HTTP_REQUEST | no | 8 | taint 8 |
+| BIGIP-NAME-073 | iRules in TMM | Is there an `env` array in TMM | TMM RULE_INIT + HTTP_REQUEST | no | 1 | taint 1 |
+| BIGIP-NAME-060 | tmsh, iApp and iCall | Execution namespace and frame of tmsh-hosted scripts | tmsh cli script | partly | 0 | - |
+| BIGIP-NAME-061 | tmsh, iApp and iCall | The `tmsh::` command namespace | tmsh cli script | partly | 0 | - |
+| BIGIP-NAME-062 | tmsh, iApp and iCall | Where procs defined in a cli script live | tmsh cli script | partly | 0 | - |
+| BIGIP-NAME-063 | tmsh, iApp and iCall | cli script argument variables `tmsh::argc` and `tmsh::argv` | tmsh cli script | no | 0 | - |
+| BIGIP-NAME-064 | tmsh, iApp and iCall | APL fields as Tcl variables in an iApp implementation | iApp implementation | no | 0 | - |
+| BIGIP-NAME-065 | tmsh, iApp and iCall | `__` section separators, tables and name collisions in APL variables | iApp implementation | no | 0 | - |
+| BIGIP-NAME-066 | tmsh, iApp and iCall | The `iapp::` procs | iApp implementation | partly | 0 | - |
+| BIGIP-NAME-067 | tmsh, iApp and iCall | tmsh object field names with `tmsh::get_field_value` | tmsh cli script | no | 0 | - |
+| BIGIP-NAME-069 | tmsh, iApp and iCall | Which `proc` body formations define a procedure outside TMM | tmsh cli script | no | 0 | - |
+
+### Index B: the checks and decisions of section 6
+
+| Item | What it settles | Kind | Tests waiting | Ledger |
+|---|---|---|---|---|
+| 1 | Which 8.4 is the baseline? | decision for a human | - | - |
+| 2 | Which BIG-IP releases must be covered | decision for a human | - | - |
+| 3 | May the destructive check run? | decision for a human | - | - |
+| 4 | Relative `proc` placement in tmsh, iApp and iCall | decision for a human | - | - |
+| 5 | The TMM `namespace eval … set` result | check on a BIG-IP | - | - |
+| 6 | Rule procs and Tcl namespaces | check on a BIG-IP | - | - |
+| 7 | APL Tcl callbacks | decision for a human | - | - |
+| 8 | Filing | decision for a human | - | - |
+| 9 | `HTTP::header NAME VALUE` after a response | check on a BIG-IP | - | - |
+| 10 | Wide shift in an iRule expression | check on a BIG-IP | - | - |
+| 11 | String character model | check on a BIG-IP | - | - |
+| 12 | Prefix operator before an iRules comparison | check on a BIG-IP | - | - |
+| 13 | Constant integer expressions | check on a BIG-IP | - | - |
+| 14 | Double overflow | check on a BIG-IP | - | - |
+| 15 | Word operators on literals | check on a BIG-IP | - | - |
+| 16 | Sanitisers and getter colours the taint diagnostics trust | check on a BIG-IP | - | - |
+| 17 | A source literal read numerically after another command read it | check on a BIG-IP | - | - |
+| 18 | A top-level statement whose head is a rule procedure | check on a BIG-IP | 4 | analyser-binding (`rule_declaration` tests of `tcl-compiler`) |
+| 31 | What `event … disable` touches | check on a BIG-IP | 0 | none yet: filed for the registry change of the 1712 audit |
+| 19 | TS-01, per-TMM state | check on a BIG-IP | 17 | irules-registry-tooling 17 |
+| 20 | TS-02, `class match` operators | check on a BIG-IP | 1 | irules-registry-tooling 1 |
+| 21 | TS-03, request lifecycle | check on a BIG-IP | 6 | irules-registry-tooling 6 |
+| 22 | TS-04, word boolean operators | check on a BIG-IP | 3 | irules-registry-tooling 3 |
+| 23 | TS-05, string lengths and maths | check on a BIG-IP | 2 | irules-registry-tooling 2 |
+| 24 | TS-06, loader | check on a BIG-IP | 5 | irules-registry-tooling 5 |
+| 25 | TS-07, procs named like events | check on a BIG-IP | 2 | irules-registry-tooling 2 |
+| 26 | TS-08, partition-aware reachability | check on a BIG-IP | 2 | irules-registry-tooling 2 |
+| 27 | TS-09, the quick-fix claims | check on a BIG-IP | 12 | irules-registry-tooling 12 |
+| 28 | TS-10, payload round trips | check on a BIG-IP | 3 | irules-registry-tooling 3 |
+| 29 | CF-01, a valid `proc` after malformed declarations | check on a BIG-IP | 1 | class-facts 1 |
+| 30 | CF-02, a `when` nested in a procedure | check on a BIG-IP | 1 | class-facts 1 |
+
+### Overlaps and conflicts between checks
+
+Checks the other sessions added were folded in without renumbering (the ids are cited by ledgers and code); the overlaps are noted here instead so that one rule load or one traffic run answers several.
+
+- **One loader session: item 18, CF-01, CF-02, TS-06.** All four ask whether the rule loader accepts a rule and what it keeps. Load each rule on its own (`tmsh load sys config merge file`) and record ACCEPT or the loader's message; the same procedure answers all of them.
+- **One per-TMM run: BIGIP-NAME-049, 072 and TS-01.** TS-01's `static::` half restates 049 and its plain-variable half restates 072; it adds `after` callbacks and re-saving the rule. Run 049 and 072 first; TS-01 only needs the extra traffic.
+- **Item 18 extends BIGIP-NAME-057 (c); it is not a duplicate.** 057 (c) measured a direct `call` of a top-level proc from inside an event (rejected). Item 18 asks about a bare top-level statement, an unknown head, a `proc` named like a handler (`when`), and a variable-valued `priority`.
+- **Items 15 and TS-04 ask about the same words** (`and`, `or`, `not`, `eq` in an expression) from two sides, folding and evaluation; one rule answers both.
+- **One conflict between tests, decided by item 18 (c).** The passing test `rule_declaration::direct_loader_keeps_later_procedure_body_without_installation_proof` expects the loader to keep reading after an unknown top-level statement (`unresolvedOperation`) and to record the later `proc helper`. The rule-loader rejection model (`rule_loader_rejection` in `rule_declaration.rs`, written from F5 K36322151) treats such a statement as reported at load and reaching no handler. If the device rejects the whole rule on an unknown head, the first test's premise (a later proc is still inventoried) is moot; if it rejects only the statement, both stand. Check 18 (c) is the one measurement that decides it.
+- No other pair of tests was found that expects opposite answers from one check: for TS-01 to TS-10 and CF-01, CF-02 every waiting test on a check expects the same answer.
+
 ## 1. Purpose and rule
 
 The toolchain (language server, compiler, VM) resolves Tcl names through one
@@ -439,7 +586,7 @@ are published to an iApp implementation; `tmsh::argv`.
 
 ## 4. Check list
 
-69 checks. By area: Identity 1, Command name resolution 15, Namespaces 8, Variables and array elements 9, `$` substitution 6, Procedure naming 5, iRules in TMM 16, tmsh, iApp and iCall 9.
+73 checks. By area: Identity 1, Command name resolution 15, Namespaces 8, Variables and array elements 9, `$` substitution 6, Procedure naming 5, iRules in TMM 20, tmsh, iApp and iCall 9.
 
 Every check has: the question; why the toolchain needs the answer (Rust file
 and symbol); what is already on record; the snippet; the result Tcl 8.4 gives,
@@ -3667,6 +3814,24 @@ its citation and a regression that reads the recorded lines.
     - `bnq18nosuch\nwhen RULE_INIT { log local0. x }`
     Until answered, the walk keeps entering the call and the consumers that
     need a refusal stay conservative.
+    Also load, each as its own rule (tests: `rule_declaration`
+    `rule_loader_inventory_declines_unbraced_and_replaced_event_handlers`,
+    `frozen_priority_retains_only_the_rule_loader_file_policy_value`,
+    `direct_loader_keeps_later_procedure_body_without_installation_proof`):
+    - (c) `bnq18nosuch\nproc bnq18q {} { return 1 }\nwhen HTTP_REQUEST { log local0. [call bnq18q] }`: is the
+      whole rule refused, or only the statement? If accepted, send a request
+      and record whether `bnq18q` runs.
+    - (d) `proc when {args} { log local0. CUSTOM }\nwhen HTTP_REQUEST { log local0. handler }`: ACCEPT or REJECT. If accepted,
+      send a request and record `handler`, `CUSTOM` or nothing.
+    - (e) `set bnq18p 700\npriority $bnq18p\nwhen HTTP_REQUEST { log local0. one }` and a second rule
+      `when HTTP_REQUEST priority 600 { log local0. two }` on the same virtual
+      server: ACCEPT or REJECT for the first, and if accepted the order of
+      `one` and `two`.
+    Answers: (d) REJECT confirms that no handler can be replaced by a `proc`;
+    ACCEPT with `handler` logged means a `proc when` does not replace the
+    keyword. (e) is the evidence for whether a top-level variable can feed
+    `priority`; without it the tests keep treating `priority $var` as not a
+    declaration value.
 31. **What `event … disable` touches** (issue #1712 audit). Not a naming
     question; filed here because it needs a device. The registry stated it
     as a `ConnectionControl` write, the target the connection-terminating
