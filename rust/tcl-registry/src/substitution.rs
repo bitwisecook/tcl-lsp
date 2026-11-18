@@ -413,34 +413,33 @@ pub fn subst_substitutions(args: &[&str]) -> SubstitutionKinds {
 }
 
 fn subst_switches(switches: &[&str]) -> Result<SubstitutionKinds, SubstitutionOptionError> {
+    use crate::option_effect::{EffectAxis, OptionEffectKind, SubstitutionKind};
+    fn set(kinds: &mut SubstitutionKinds, kind: SubstitutionKind, on: bool) {
+        match kind {
+            SubstitutionKind::Backslashes => kinds.backslashes = on,
+            SubstitutionKind::Commands => kinds.commands = on,
+            SubstitutionKind::Variables => kinds.variables = on,
+        }
+    }
+    // The command's own switch table owns the names, the kind each turns off
+    // or on and the family it belongs to.
     let mut negated = SubstitutionKinds::ALL;
     let mut positive = SubstitutionKinds::NONE;
     let mut saw_negated = false;
     let mut saw_positive = false;
     for switch in switches {
-        match *switch {
-            "-nobackslashes" => {
-                negated.backslashes = false;
+        let effect = crate::commands::tcl::subst_::OPTIONS
+            .iter()
+            .find(|option| option.name == *switch)
+            .and_then(|option| option.effect)
+            .ok_or(SubstitutionOptionError::UnknownOption)?;
+        match effect.kind {
+            OptionEffectKind::Disables(EffectAxis::Substitution(kind)) => {
+                set(&mut negated, kind, false);
                 saw_negated = true;
             }
-            "-nocommands" => {
-                negated.commands = false;
-                saw_negated = true;
-            }
-            "-novariables" => {
-                negated.variables = false;
-                saw_negated = true;
-            }
-            "-backslashes" => {
-                positive.backslashes = true;
-                saw_positive = true;
-            }
-            "-commands" => {
-                positive.commands = true;
-                saw_positive = true;
-            }
-            "-variables" => {
-                positive.variables = true;
+            OptionEffectKind::Selects(EffectAxis::Substitution(kind)) => {
+                set(&mut positive, kind, true);
                 saw_positive = true;
             }
             _ => return Err(SubstitutionOptionError::UnknownOption),
