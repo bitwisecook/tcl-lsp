@@ -10,10 +10,10 @@ The owner paused this work and the burn-down together. Every issue session stopp
 
 | Slug | Open issues | Hand-over | Work in progress (unverified unless the hand-over says otherwise) | Paused session |
 | --- | --- | --- | --- | --- |
-| `dataflow` | #2408, #1796 | `handover/dataflow.md` (84f80e862c) | `issues/dataflow-2` at 429ef5dae2 | `session_017u5g3JkH4kppJ1LJpZQUus` |
-| `audit` | #1710 | `handover/audit.md` (886f3c683a, e4f6121629) | `issues/audit-22` at 279875ba60 | `session_017u5g3MNKJTTq44wzXNszit` |
-| `server` | #2543, #2243 | `handover/server.md` (68ba57b738, 5b952660e2) | `issues/server-2` at 673e7b9403 | `session_017u5g3HDHiPN1CimB7QiVSF` |
-| `bytecode` | #2545 | `handover/bytecode.md` (d0e255fed) | `issues/bytecode-3` at 7a7f1434a9 | `session_017u5g3KBvRVWYHVoF5FSZmT` |
+| `dataflow` | #2408, #1796 | `handover/dataflow.md` (84f80e862c) | `issues/dataflow-2` at fd63c9db64 | `session_017u5g3JkH4kppJ1LJpZQUus` |
+| `audit` | #1710 | `handover/audit.md` (886f3c683a, e4f6121629) | `issues/audit-23` at eb51396245 (contains `audit-22`); `issues/audit-24` at a8c41c1a6f is a backup of pre-squash copies | `session_017u5g3MNKJTTq44wzXNszit` |
+| `server` | #2543, #2243, #2546 | `handover/server.md` (68ba57b738, 5b952660e2) | `issues/server-2` at 72bb19cac9 | `session_017u5g3HDHiPN1CimB7QiVSF` |
+| `bytecode` | #2545 | `handover/bytecode.md` (d0e255fed) | `issues/bytecode-3` at 6d3a12b617 | `session_017u5g3KBvRVWYHVoF5FSZmT` |
 
 Closed since 15 November: #2437, #1755, #1830, #2528, #2246, #2207, #1778, #2427, #2129, #1714, #1734, #2490, #2426, #2542, #1797, #1657, #1712, #2544. Opened on the owner's instruction: #2542 and #2544 (closed), #2543 and #2545 (open).
 
@@ -28,9 +28,13 @@ Settled by the owner on 18 November:
 - #2546 is open for document-free requests that take up to 18–20 s while 183 documents are re-analysed. It belongs to the `server` session, after #2543.
 - #2547 is open for the `tcl-spectcl-cache-test-*` directories tests leave in the temp directory. No session has it yet; `tcl-spectcl` is the burn-down's `irules-registry-tooling` area.
 - F5: the 36 builtins pure under Tcl 8.4 stay impure for `f5-irules` until device check 33 is complete (recorded on #1712).
-- Stale `issues/*` branches: the owner deletes them, since no session here can. Every tip as it stood at the pause is in `branch-tips-2026-11-18.txt`. Keep `issues/dataflow-2`, `issues/audit-22`, `issues/server-2` and `issues/bytecode-3`; all others hold only work that has landed.
+- Stale `issues/*` branches: the owner deletes them, since no session here can. Every tip as it stood at the pause is in `branch-tips-2026-11-18.txt`. Keep `issues/dataflow-2`, `issues/audit-23`, `issues/audit-24`, `issues/server-2` and `issues/bytecode-3`; all others hold only work that has landed (`issues/audit-22` is contained in `audit-23`; `issues/server-3` is an ancestor of `work`).
 
 Still not for these sessions: #2324, #1956, #1655 (the burn-down's `tk-oo`); #2151, #2165 (BIG-IP device checks 11 and 12).
+
+At the pause every session confirmed, from inside its container, that nothing was left uncommitted, stashed, untracked or on a local branch with no remote; each then pushed the scratch files worth keeping (scripts, baselines, measurement logs) under `scripts/dev/wip/<slug>/` on its branch.
+
+`work` was never rewritten. Several hand-overs speak of a "re-root" or a "re-import" (at cbc50aa7 or 8d12353794): that is a shallow clone's boundary commit, which looks like a root that adds every file. In a clone deepened past them both are ordinary one-parent commits and everything older is an ancestor of `origin/work`.
 
 Lessons from this round, for whoever resumes:
 
