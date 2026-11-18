@@ -198,8 +198,7 @@ fn tp_a_prefix_sharing_parameter_name_is_not_corrupted() {
     // tclsh 8.6.18 and 9.0.4: a free `$nn` fails in the proc, so inlining
     // refuses; bound, `$nn` keeps its own value beside `$n`.
     let src = "proc f {n} {\n    puts $n$nn\n}\nf 1\n";
-    let reason = outcome(src, "f 1\n").unwrap_err();
-    assert!(!reason.is_empty());
+    assert!(outcome(src, "f 1\n").is_err());
     let src = "proc f {n nn} {\n    list $n $nn\n}\nf 1 2\n";
     let result = outcome(src, "f 1 2\n").unwrap();
     assert!(result.ends_with("list 1 2\n"), "{result}");

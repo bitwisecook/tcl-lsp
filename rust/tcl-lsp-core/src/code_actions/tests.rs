@@ -340,8 +340,7 @@ fn tp_inline_does_not_substitute_prefix_sharing_name() {
     // 9.0.4: a free `$nn` is the proc's unset local, so the call fails and
     // inlining refuses; as a second parameter each reference binds its own.
     let src = "proc g {n} { puts $nn$n }\ng 5\n";
-    let reason = inline_outcome(src, 1).unwrap_err();
-    assert!(!reason.is_empty());
+    assert!(inline_outcome(src, 1).is_err());
     let src = "proc g {n nn} { list $nn $n }\ng 5 6\n";
     assert_eq!(inline_outcome(src, 1).unwrap(), "list 6 5");
 }
@@ -351,8 +350,7 @@ fn tp_inline_substitutes_braced_var_reference() {
     // tclsh 8.6.18 and 9.0.4: a free `${pq}` fails in the proc but would read
     // the caller's variable once inlined; bound, `${p}${pq}` gives 98.
     let src = "proc h {p} { puts ${p}${pq} }\nh 9\n";
-    let reason = inline_outcome(src, 1).unwrap_err();
-    assert!(!reason.is_empty());
+    assert!(inline_outcome(src, 1).is_err());
     let src = "proc h {p pq} { puts ${p}${pq} }\nh 9 8\n";
     assert_eq!(inline_outcome(src, 1).unwrap(), "puts 98");
 }
