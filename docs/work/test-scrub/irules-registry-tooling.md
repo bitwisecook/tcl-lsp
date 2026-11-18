@@ -315,3 +315,7 @@ Some(answer)
 ```
 
 If a release must decline (no trusted fold), assert that row as `Overdefined` instead. The existing `is_none()` check without the installed host stays.
+
+## `tcl-diagram` ledgered, and the blocked rows re-run (18 November, later)
+
+The 13 red `tcl-diagram` tests are now rows of `irules-registry-tooling.tsv`, by cause: five where the body or its card is missing (`diagram-body-card-missing`: `trap_patterns…`, `registry_actions…`, `procedure_aliases…`, `hosted_diagram_procedures…`, `original_diagram_metadata…`), seven return/exit completions (`diagram-return-completions`, `KEEP-ORACLE` against tclsh 8.6 and 9.0), one loop exit reason, and `exact_custom_return_codes…` as `FIX-FIXTURE`, `blocked` (the dead-code fixture above). The 15 MERGE survivors were run again on the current `work` and still all fail, so those rows stay `blocked`; the FIX-EXPECTATION rows wait on the owner's approval and are unchanged.
