@@ -544,14 +544,11 @@ fn o103_folds_variadic_args_proc_ignoring_trailing_args() {
 /// production entry point (`optimise_unit_raw`, `find_dead_stores`,
 /// `optimise_by_pass`) performs before running passes.
 fn run_pass_with_command_mutations(source: &str) -> Vec<Optimisation> {
-    let registry = CommandRegistry::build_default();
-    let cu =
-        CompilationUnit::build_for(source, &registry, false).with_interprocedural(&registry, None);
-    let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
-    ctx.registry = Some(&registry);
-    ctx.command_mutations =
-        crate::command_binding::scan_module_command_mutations(&cu.ir_module, &registry);
-    ctx.ir_module = Some(&cu.ir_module);
+    let profile = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+    let registry = CommandRegistry::build_default().project_for_profile(profile);
+    let cu = CompilationUnit::build_for_profile(source, &registry, false, profile)
+        .with_interprocedural(&registry, Some(profile));
+    let mut ctx = crate::optimiser::manager::build_pass_context(&cu, &registry, Some(profile));
     run(&mut ctx, &cu);
     ctx.optimisations
 }
@@ -578,7 +575,10 @@ fn o103_folds_the_actual_procedure_selected_by_interp_alias() {
             .any(|o| o.code == DiagCode::O103 && !o.hint_only && o.replacement == "99"),
         "the exact alias target must fold to its own result, got {opts:?}",
     );
-    let jim = crate::optimiser::optimise_raw(src, &registry(), Some("jim"));
+    // jimsh 0.84 rejects the four-word `interp alias` (`wrong # args`), so
+    // the call never reaches either body.
+    let jim_registry = tcl_registry::model::ingress::static_context_for("jim").commands();
+    let jim = crate::optimiser::optimise_raw(src, jim_registry, Some("jim"));
     assert!(jim.iter().all(|o| o.code != DiagCode::O103 || o.hint_only));
 }
 

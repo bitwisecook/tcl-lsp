@@ -207,15 +207,16 @@ fn return_expr_folds_argument_sensitive_constant() {
     // expr genuinely depends only on the constant call arguments — the
     // documented `[::add 2 4]` → 6 case (params bound at version 0).
     use tcl_registry::CommandRegistry;
-    let registry = CommandRegistry::build_default();
-    let cu = CompilationUnit::build_for(
+    let profile = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+    let registry = CommandRegistry::build_default().project_for_profile(profile);
+    let cu = CompilationUnit::build_for_profile(
         "proc ::add {a b} { return [expr {$a + $b}] }\nputs [::add 2 4]",
         &registry,
         false,
+        profile,
     )
-    .with_interprocedural(&registry, None);
-    let mut ctx = PassContext::new(&cu.source, cu.interproc.clone().unwrap_or_default());
-    ctx.registry = Some(&registry);
+    .with_interprocedural(&registry, Some(profile));
+    let mut ctx = crate::optimiser::manager::build_pass_context(&cu, &registry, Some(profile));
     run(&mut ctx, &cu);
     assert!(
         ctx.optimisations
