@@ -457,8 +457,13 @@ impl Analyser {
             );
             return;
         }
-        let (_, event, previous_event) =
+        let (valid, event, previous_event) =
             self.enter_registry_event_context(command, traits, args, arg_tokens, arg_single);
+        // A handler the rule loader rejects never runs: its body is inert data
+        // (IRULE1002 on the declaration is the only finding).
+        if !valid {
+            return;
+        }
         let conditional = traits.contains(tcl_registry::Traits::BRANCH_SELECTED_BODY);
         let control_flow = traits.contains(tcl_registry::Traits::CONTROL_FLOW);
         if conditional {
