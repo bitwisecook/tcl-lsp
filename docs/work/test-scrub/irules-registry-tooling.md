@@ -235,3 +235,21 @@ fn a_hover_key_written_outside_the_block_is_dropped_by_the_loader_not_called_unk
     );
 }
 ```
+
+## `tcl-cli` red by cause (18 November re-measure)
+
+36 of 281 `tcl-cli` tests are red and every one traces to a compiler, dataflow or codegen fact another area owns; none is a CLI fault. By cause, not by crate:
+
+| Cause (owner) | Tests |
+| --- | --- |
+| value transfers / optimiser output (values, dataflow) | 24 |
+| minimise variable edits, actual availability (analyser-binding) | 2 |
+| cross-file call-site agreement (analyser-binding / diagnostics) | 2 |
+| codegen (execution) | 2 |
+| package-requires facts (analyser-binding) | 2 |
+| Jim document diagnostics (diagnostics) | 1 |
+| samples golden (blocked on dataflow) | 1 |
+| other: project_spec_packs::analyser_only_verbs_install_the_current_projects_spec_pack_overlay | 1 |
+| other: explorer_gui::post_ssa_card_words_selected_facts_and_lists_selections | 1 |
+
+The full list is `docs/work/name-handling/lists/irules-registry-tooling-failing-2026-11-18.txt`.
