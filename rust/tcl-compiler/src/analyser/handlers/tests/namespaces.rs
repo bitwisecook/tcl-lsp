@@ -248,12 +248,11 @@ fn handle_namespace_export_flag_after_a_pattern_is_a_pattern() {
 
 #[test]
 fn handle_namespace_import_consumes_only_one_force_flag() {
-    // Symmetric to the export case: `namespace import -force -force
-    // ::src::*` reads the second `-force` as an import *pattern* (and
-    // aborts with `no namespace specified in import pattern "-force"`,
-    // tclsh 8.6.14/9.0.4). Only the first is skipped as a flag, so the
-    // second is recorded as the pattern word it is — one whose empty
-    // source namespace both wildcard resolvers already decline.
+    // `namespace import -force -force ::src::*` reads the second `-force`
+    // as an import pattern and aborts with `no namespace specified in
+    // import pattern "-force"` before `::src::*` is imported (tclsh
+    // 8.6.18/9.0.4: `info commands ::a` stays empty). The command raises,
+    // so it records no import.
     let mut a = Analyser::new();
     a.registry = Some(std::sync::Arc::clone(
         tcl_registry::model::ingress::static_context_for("tcl").commands(),
@@ -279,7 +278,7 @@ fn handle_namespace_import_consumes_only_one_force_flag() {
         .iter()
         .map(|i| i.pattern.as_str())
         .collect();
-    assert_eq!(patterns, vec!["::-force", "::src::*"]);
+    assert_eq!(patterns, Vec::<&str>::new());
 }
 
 #[test]
@@ -340,21 +339,19 @@ fn handle_namespace_path_records_and_replaces() {
 /// `$` and abstains from the whole command; the token kind is the
 /// authority.
 ///
-/// tclsh-proof: tclsh8.6.14 —
-/// `set nn {::$ns}; namespace eval $nn {}; namespace eval a {}` then
-/// `namespace eval n { namespace path {::$ns ::a} }` and
+/// tclsh-proof: tclsh8.6.18/9.0.4 — `namespace path {::$ns ::a}` alone
+/// raises `namespace "::$ns" not found`; with both namespaces created
+/// first, `namespace eval n { namespace path {::$ns ::a} }` then
 /// `namespace eval n { namespace path }` answers `{::$ns} ::a` — the
 /// entry is a namespace literally *named* `::$ns`.
 #[test]
 fn handle_namespace_path_records_a_braced_dollar_bearing_word() {
-    let mut a = Analyser::new();
-    a.handle_namespace_path_command(
-        &["path".to_string(), "::$ns ::a".to_string()],
-        &[esc_tok(span(0, 4)), str_tok(span(5, 16))],
-        &[],
+    let r = Analyser::new().analyse(
+        "namespace eval {::$ns} {}\nnamespace eval ::a {}\nnamespace eval n { namespace path {::$ns ::a} }\n",
+        "tcl8.6",
     );
     assert_eq!(
-        a.namespace_paths.get("::").map(Vec::as_slice),
+        r.namespace_paths.get("::n").map(Vec::as_slice),
         Some(&["::$ns".to_string(), "::a".to_string()][..]),
         "a braced word never substitutes, so its entries are literal names",
     );
@@ -451,11 +448,11 @@ fn namespace_inscope_runs_the_body_in_the_named_namespace() {
     );
 }
 
-/// `namespace code { proc foo }` captures the *current* namespace, so its
-/// script is analysed in this scope — inside `::x`, `foo` homes to
-/// `::x::foo`.
+/// `namespace code { proc foo }` returns a script and runs nothing
+/// (tclsh8.6.18/9.0.4: it answers `::namespace inscope ::x { proc foo {} {} }`
+/// and `info procs ::x::*` stays empty), so it defines no proc.
 #[test]
-fn namespace_code_analyses_the_script_in_the_current_namespace() {
+fn namespace_code_returns_its_script_without_running_it() {
     let mut a = Analyser::new();
     let r = a.analyse(
         "namespace eval ::x { namespace code { proc foo {} {} } }\n",
@@ -463,8 +460,8 @@ fn namespace_code_analyses_the_script_in_the_current_namespace() {
     );
     let keys: Vec<&str> = r.all_procs.keys().map(String::as_str).collect();
     assert!(
-        r.all_procs.contains_key("::x::foo"),
-        "namespace code script should analyse in the current namespace: {keys:?}",
+        !r.all_procs.contains_key("::x::foo") && !r.all_procs.contains_key("::foo"),
+        "namespace code returns its script without running it: {keys:?}",
     );
 }
 
