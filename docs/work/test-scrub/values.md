@@ -61,7 +61,7 @@ row that is kept still needs its citation written into the test; the evidence co
 | 3 each | `edge-refinement`, `escape-catch-body-walk`, `rebase-memoised-receipts` | dataflow, values, analysis-performance | |
 | 3 | `binding-procedure-absent-after-statement` | analyser-binding | A procedure defined in the file is absent after a top-level statement |
 | 2 each | `binding-catch-body-children-unavailable`, `binding-conditional-alias-join`, `binding-renamed-builtin-head`, `class-facts-object-element`, `escape-param-upvar-source-precision`, `escape-entry-point-ignores-registry`, `existence-chain-fold`, `expr-decline-reason`, `fixture-body-absent`, `ordered-nested-write`, `orig-diagnostic-refusal`, `wrong-rewrite-callback-write` | | |
-| 1 each | 30 more, listed in the ledger, among them `catch-body-transfer` (the code table), `original-body-of-lifted-call` (dataflow-optimiser: no original body for the script of a `catch` lifted from a substitution word), `wrong-rewrite-try-error-path`, `wrong-rewrite-shift-beyond-width`, `release-tower-fold` and `panics-before-assertion` | | |
+| 1 each | 30 more, listed in the ledger, among them `catch-body-transfer` (the code table), `lifted-call-body-not-original` (dataflow-optimiser: no original body for the script of a `catch` lifted from a substitution word), `o101-non-finite-render` (dataflow-optimiser: O101 renders no non-finite double), `wrong-rewrite-try-error-path`, `wrong-rewrite-shift-beyond-width`, `release-tower-fold` and `panics-before-assertion` | | |
 
 By owner of the cause: analyser-binding 94, values 62, dataflow 22 and its issue session 12, taint
 21, analysis-performance 4, class-facts 3 (the 12 unknown-head rows count under dataflow; their
@@ -74,9 +74,9 @@ What is worth fixing, one line each; the wrong rewrites first.
 
 1. **Wrong rewrite:** `try {set x [expr {1 / $d}]; error boom} on error {} {}` then
    `info exists x`: the rewrite drops the `yes` path (original prints no, yes; rewrite no, no).
-2. **Wrong rewrite:** a write made by an `after` callback (`tick`, or `{*}[list set done 1]`) is
+2. **Wrong rewrite, fixed in d8402cd92f:** a write made by an `after` callback (`tick`, or `{*}[list set done 1]`) is
    folded away; the original prints 1, the rewrite 0 (8.4.20, 8.6.18, 9.0.4).
-3. **Wrong rewrite:** `expr {1 << 70}` is folded under 8.4, where a shift count beyond the word
+3. **Wrong rewrite, fixed in 88e66f2577:** `expr {1 << 70}` is folded under 8.4, where a shift count beyond the word
    width is undefined in C and differs by build (ruling of 17 November: O101 declines there).
 4. A declined declared route is still folded by O129 (outputs agree on the releases present; the
    route did not prove it).
