@@ -521,17 +521,17 @@ fn a_cross_file_live_alias_is_an_import_conflict_for_a_different_source() {
     let a = analyse("namespace eval ::A { proc p {} { return AP }\n namespace export p }\n");
     let b = analyse("namespace eval ::B { proc p {} { return BP }\n namespace export p }\n");
     let dst = analyse(
-        "namespace eval ::dst {\n    namespace import ::A::*\n}\nnamespace eval ::dst {\n    namespace import ::B::*\n}\n",
+        "source a.tcl\nsource b.tcl\nnamespace eval ::dst {\n    namespace import ::A::*\n}\nnamespace eval ::dst {\n    namespace import ::B::*\n}\n",
     );
-    let index = WorkspaceIndex::from_documents([
-        ("file:///a.tcl", &a),
-        ("file:///b.tcl", &b),
-        ("file:///dst.tcl", &dst),
+    let index = sourced_index([
+        ("file:///p/a.tcl", &a),
+        ("file:///p/b.tcl", &b),
+        ("file:///p/dst.tcl", &dst),
     ]);
     let resolved = index.resolve_wildcard_import(
         "p",
         &["::dst::p".to_string(), "::p".to_string()],
-        call_from("file:///dst.tcl"),
+        call_from("file:///p/dst.tcl"),
     );
     assert_eq!(
         resolved.as_deref(),
