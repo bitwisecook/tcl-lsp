@@ -424,18 +424,6 @@ impl OriginalDiagnosticInvocation {
         }
         Some((text, tokens, single))
     }
-    /// Whether `argument` is a slot an interpreter alias captured. Such a
-    /// slot can select metadata but cannot receive a selector, option,
-    /// condition, shape or terminator anchor
-    /// (diagnostic-registry-source-ownership.md).
-    pub(super) fn is_captured(&self, argument: usize) -> bool {
-        argument.checked_add(1).is_some_and(|index| {
-            matches!(
-                self.words.origins().get(index),
-                Some(crate::registry_invocation::InvocationWordOrigin::BindingPrefix(_))
-            )
-        })
-    }
     pub(super) fn written_index(&self, argument: usize) -> Option<usize> {
         self.operand(argument)?;
         match self.words.origins().get(argument.checked_add(1)?)? {

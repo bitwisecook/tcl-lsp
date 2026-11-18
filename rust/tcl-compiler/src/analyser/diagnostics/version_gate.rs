@@ -475,9 +475,6 @@ impl Analyser {
         item: VersionGateItem,
         surface: Option<&'static [SpecSurface]>,
     ) {
-        if argument.is_some_and(|index| invocation.original.is_captured(index)) {
-            return;
-        }
         let Some(payload) = deprecation_fix_payload(invocation, argument) else {
             return;
         };

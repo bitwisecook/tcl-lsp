@@ -49,9 +49,6 @@ impl Analyser {
             tcl_registry::AuthoredSourceOptionBoundary::Unknown(index) => (index, false),
             _ => return,
         };
-        if original.is_captured(argument) {
-            return;
-        }
         let Some(word) = original.word(argument) else {
             return;
         };
@@ -182,7 +179,7 @@ impl Analyser {
         for selected in scan
             .options
             .into_iter()
-            .filter(|selected| !selected.available && !original.is_captured(selected.argument))
+            .filter(|selected| !selected.available)
         {
             let Some(word) = original.word(selected.argument) else {
                 continue;

@@ -109,15 +109,8 @@ fn selector_and_option_proposals_keep_written_origin_separate_from_capture() {
         let diagnostic = indirect
             .diagnostics
             .iter()
-            .find(|diagnostic| diagnostic.code == code);
-        if code == DiagCode::W001 {
-            // A captured selector cannot borrow a selector anchor
-            // (diagnostic-registry-source-ownership.md); tclsh still raises
-            // unknown or ambiguous subcommand "indez" at the call.
-            assert!(diagnostic.is_none(), "{captured}: {diagnostic:?}");
-            continue;
-        }
-        let diagnostic = diagnostic.unwrap();
+            .find(|diagnostic| diagnostic.code == code)
+            .unwrap();
         assert!(diagnostic.fixes.is_empty(), "{captured}");
     }
 }

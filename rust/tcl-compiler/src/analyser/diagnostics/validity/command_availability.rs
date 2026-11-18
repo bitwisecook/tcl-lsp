@@ -121,7 +121,7 @@ impl Analyser {
         };
         use tcl_registry::AuthoredSourceSubcommandDiagnostic;
 
-        let Some(original) = original.filter(|original| !original.is_captured(0)) else {
+        let Some(original) = original else {
             return;
         };
         let Some(word) = original.literal(0) else {
