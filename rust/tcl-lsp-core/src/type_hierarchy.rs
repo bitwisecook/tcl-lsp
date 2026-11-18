@@ -1244,6 +1244,10 @@ mod logical_source_selection_tests {
                 "{body}"
             );
         }
+        // tclsh 8.6.18/9.1.0: Base does not refer to an object.
+        let source = "proc Base {} {}\noo::class create Child {superclass Base}\n";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert!(supertypes("::Child", source, &analysis).is_empty());
     }
     #[test]
     fn logical_hierarchy_lifts_lone_cr_source_positions() {
