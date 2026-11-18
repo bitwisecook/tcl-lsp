@@ -169,6 +169,7 @@ fn render(rows: &[Row], evidence: &Evidence, formerly: &[(String, String, String
     render_groups(&mut out, rows);
     render_pure_rows(&mut out, rows);
     render_formerly_pure(&mut out, rows, evidence, formerly);
+    render_f5(&mut out, formerly);
     render_findings(&mut out, rows);
     render_dispositions(&mut out);
     out
@@ -310,6 +311,72 @@ fn render_formerly_pure(
         };
         let _ = writeln!(out, "| {group} | `{name}` | {why} |");
     }
+}
+
+/// Rows authored pure that a dialect's own release does not close: those
+/// the core-Tcl evidence closes at 8.4, and the rest.
+fn f5_lost(dialect: &str, formerly: &[(String, String, String)]) -> (Vec<String>, usize) {
+    let authored: BTreeSet<(&str, &str)> = formerly
+        .iter()
+        .map(|(_, command, sub)| (command.as_str(), sub.as_str()))
+        .collect();
+    let context = tcl_registry::model::resolve_environment(dialect).default_context_registry();
+    let registry = context.commands();
+    let query = registry
+        .profile()
+        .map(tcl_dialect::DialectProfile::surface_query);
+    let at_84 = SurfaceQuery::core(Family::Tcl, "8.4");
+    let mut core = BTreeSet::new();
+    let mut others = 0usize;
+    let names: Vec<String> = registry.command_names().map(str::to_owned).collect();
+    for name in &names {
+        let Some(spec) = registry.get(name) else {
+            continue;
+        };
+        let mut check = |sub: &str, domains: PurityDomains| {
+            if !authored.contains(&(name.as_str(), sub)) || domains.pure_at(query.as_ref()) {
+                return;
+            }
+            if domains.pure_at(Some(&at_84)) {
+                let row = if sub.is_empty() {
+                    name.clone()
+                } else {
+                    format!("{name} {sub}")
+                };
+                core.insert(row);
+            } else {
+                others += 1;
+            }
+        };
+        check("", PurityDomains::of_command(spec));
+        for sub in spec.subcommands {
+            check(sub.name, PurityDomains::of_subcommand(spec, sub));
+        }
+    }
+    (core.into_iter().collect(), others)
+}
+
+fn render_f5(out: &mut String, formerly: &[(String, String, String)]) {
+    let _ = writeln!(out, "\n## Pure under Tcl 8.4, not evidenced for F5\n");
+    let (core, others) = f5_lost("f5-irules", formerly);
+    let _ = writeln!(
+        out,
+        "An iRules call resolves at the F5 iRules and F5 Tcl releases, which descend from \
+         Tcl 8.4 by a fork whose source is not available, so the core-Tcl evidence does not \
+         close them. These {} rows were authored pure and are pure at Tcl 8.4, and are not \
+         pure under `f5-irules`; `docs/work/name-handling/bigip-name-checks.md` check 32 is the \
+         device test that would evidence them. A further {others} rows authored pure under \
+         `f5-irules` (iRules commands and core rows not closed at 8.4) have no evidence at all.\n",
+        core.len()
+    );
+    let _ = writeln!(
+        out,
+        "{}",
+        core.iter()
+            .map(|row| format!("`{row}`"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
 }
 
 fn render_findings(out: &mut String, rows: &[Row]) {

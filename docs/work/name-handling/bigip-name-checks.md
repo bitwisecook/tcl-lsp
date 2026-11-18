@@ -3876,6 +3876,29 @@ its citation and a regression that reads the recorded lines.
     If every connection completes and only the named events stop firing,
     the effect is event control and gets its own target; until answered it
     stays `Unknown`.
+32. **The core builtins TMM shares with Tcl 8.4** (issue #1712). Not a
+    naming question; filed here because it needs a device. Purity is derived
+    from source evidence, and the evidence for these 36 builtins is the
+    tcl8.4.20 C source; TMM's Tcl is F5's fork of it, so under `f5-irules`
+    they are not pure (`docs/generated/semantics-coverage.md`, "Pure under Tcl
+    8.4, not evidenced for F5"): `concat`, `format`, `join`, `list`,
+    `llength`, `lindex`, `linsert`, `lrange`, `lreplace`, `split`,
+    `info complete`, `info sharedlibextension`, `namespace qualifiers`,
+    `namespace tail`, `file extension`, `file rootname`, and `string`
+    `bytelength`, `compare`, `equal`, `first`, `index`, `last`, `length`,
+    `map`, `match`, `range`, `repeat`, `replace`, `tolower`, `totitle`,
+    `toupper`, `trim`, `trimleft`, `trimright`, `wordend`, `wordstart`.
+    Run `scripts/dev/bigip-probes/suites/12-pure-builtins.tcl` through
+    `tclsh8.4` for the reference lines (`ref ID RESULT`), load the rule it
+    prints after `---` on one virtual server and send one HTTP request. The
+    rule logs one `got ID RESULT` line per probe, the result or the error
+    message of 48 calls (empty, ASCII, `\xe9`, a list with braces,
+    out-of-range indices, `end-1`, `-nocase`, a bad option), with ` CHANGED`
+    appended when the call changed the event's `info vars` or `info procs`.
+    tclsh 8.4.20 marks none changed. A builtin is evidenced pure for
+    `f5-irules` when each of its `got` lines matches its `ref` line byte for
+    byte; one whose line differs keeps no purity, and the difference is filed
+    as its own check.
 
 32. **`lassign` in TMM** (simulator refusal, test scrub). `tcl-irule-test` `live::tests::harness_runs_the_tmm_84_surface` runs `lassign` and the Rust VM refuses it under `f5-irules` because no list-assignment invocation grammar is selected for an F5 profile (`tcl-registry` `native_list_assignment.rs`, `list_assignment_invocation`: Tcl 8.5, 8.6, 9.x and Jim only). Not on record for 21.1.0.1. In `when HTTP_REQUEST`, log the result of each, each in its own rule load:
     - `log local0. [catch {lassign {a b c} x y} r] ; log local0. "r=$r x=$x y=$y"`

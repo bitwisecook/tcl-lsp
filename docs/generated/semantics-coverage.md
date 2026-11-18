@@ -981,6 +981,12 @@ Rows authored pure before purity was derived (`formerly_pure.tsv`) that no evide
 | tk | `ttk::treeview style` | no source evidence for `tk` |
 | tk | `ttk::treeview visible` | no source evidence for `tk` |
 
+## Pure under Tcl 8.4, not evidenced for F5
+
+An iRules call resolves at the F5 iRules and F5 Tcl releases, which descend from Tcl 8.4 by a fork whose source is not available, so the core-Tcl evidence does not close them. These 36 rows were authored pure and are pure at Tcl 8.4, and are not pure under `f5-irules`; `docs/work/name-handling/bigip-name-checks.md` check 32 is the device test that would evidence them. A further 927 rows authored pure under `f5-irules` (iRules commands and core rows not closed at 8.4) have no evidence at all.
+
+`concat`, `file extension`, `file rootname`, `format`, `info complete`, `info sharedlibextension`, `join`, `lindex`, `linsert`, `list`, `llength`, `lrange`, `lreplace`, `namespace qualifiers`, `namespace tail`, `split`, `string bytelength`, `string compare`, `string equal`, `string first`, `string index`, `string last`, `string length`, `string map`, `string match`, `string range`, `string repeat`, `string replace`, `string tolower`, `string totitle`, `string toupper`, `string trim`, `string trimleft`, `string trimright`, `string wordend`, `string wordstart`
+
 ## Audit findings recorded as unknown
 
 - `tmsh::*`: 30 iApps rows state no side effects, so their side effects are `Unknown`, never verified empty. `tmsh::create`, `modify` and `delete` change the BIG-IP configuration; what each touches needs a device (`docs/work/name-handling/bigip-name-checks.md`).
