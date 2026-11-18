@@ -158,6 +158,7 @@ Commit ids, what the repaired test now shows, and who it waits on go in `note`. 
 - **A witness whose oracle is tclsh does not run under f5-irules with a source that is not a rule.** A rule's top level admits only `when`, `proc`, `priority` and `timing`; a fixture with a top-level call is not an iRule, and a rule procedure has no proved execution target at load. Such witnesses take the list of dialects whose oracle is a Tcl core (narrowed at the witness, row by row), and rule-procedure summaries get iRule-shaped tests, a `proc` invoked from a `when` body, asserted as hosted advice. A top-level call in an iRule is not modelled (18 November, 07:55 UTC).
 - **An instance is published only where its factory's package is proved present.** Without the owning package ambient in the environment or loaded by an unconditional `package require` (or another proved load) earlier on the walk, the identity of a factory word such as `ttk::treeview` is unproved: tclsh 8.4.20 to 9.1.0 raise `invalid command name`, and if the next statement is reached something else supplied the name. No instance is published; W120 and its fix are unchanged; a conditional or caught require is not a proved load; the call is not treated as a proved error. This is the compiler agreeing with the display tier's existing gate. The rule lands together with the repair of every fixture that used Tk without loading it. The same principle for all package-owned commands is written up, not built (18 November, 09:10 UTC).
 - **A `classmethod` and a `method` of one name are two slots, and the order decides.** tclsh 9.0.4 and 9.1.0: with `method foo` then `classmethod foo`, both `[C new] foo` and `C foo` reach the classmethod and the method declaration is superseded; with `classmethod foo` then `method foo`, the instance reaches the method and the class the classmethod, two live members with distinct reference sets. A superseded declaration keeps a lens marked as superseded and has no reference set; tests carry both orders with the transcript; a rename runs the source on tclsh before and after and asserts the same output at each renamed site, or the product refuses (18 November, 09:25 UTC).
+- **A scaling bound is the reference's own shape.** Scanning nested bodies is bounded at 4.0× counted steps per doubling of depth (quadratic): the source has that much body text, and tclsh 8.6.18 and 9.0.4 evaluate nested `if {1} {` at 4× per doubling (5 ms at 500, 19 ms at 1,000) and refuse depth 2,000 with `too many nested compilations`. Cubic was the fault. A survival test may exceed the oracle's limit on purpose and then asserts survival only (18 November, 09:30 UTC).
 
 ## Wrong answers found by the scrub
 
@@ -220,6 +221,8 @@ These go ahead of missing facts once the ledgers are in.
 | Incoming Calls reported a call made inside a class method as coming from the top level; fixed | lsp-features, fixed |
 | `proc add` → `return 7`, cause found: the declared-frame collector skips a body that already runs in its own frame, and a single call binds the procedure there with that call's arguments | analyser-binding |
 | Under Jim, `proc g {p p(key)} …` raises `can't set "p(key)": variable isn't array` at the call (jimsh 0.84); the product reports W210 on the read after it | diagnostics |
+| After `rename C M`, a `C create b` inside `catch` is still bound to the class (tclsh 8.6.18 and 9.1.0: `invalid command name "C"`); the constructor receipt at the same site rightly says no | analyser-binding |
+| The declared-frame view drops entry-independent facts (nested `uplevel 1` reach, `uplevel #0` global writes, alias cells, interprocedural taint sinks), so switching called bodies to it breaks 66 tests; the `info exists` fold waits on it | `dataflow` issue session |
 
 ## Waiting on the owner's approval
 
@@ -235,6 +238,7 @@ Edits a session's permission classifier refused; the replacement text is in the 
 | Six merges, test into survivor: e2e `diagnostic_matrix::expr_not_redefined_still_folds` into `constant_expr_folds`; e2e `dialect_gating::issue_968_version_gated_math_function_dual_fires_end_to_end` into `undotted_vscode_language_ids_resolve_to_the_same_dialect_end_to_end`; e2e `hover::var_hover_shows_refs` into `hover::var_hover` (the survivor gains the `reference` assertion first); `tcl-irules` `walker::tests::extracts_refs_nested_in_body_and_command_substitution` into `object_refs::extract_irules_refs_nested_in_body_and_command_substitution`; `tcl-cli` `inspection_verbs::smoke_explore_reports_summary_for_tiny_snippet` into `explore_summary_lists_views`; e2e `recovery::c5_break_then_fix` into `c5_rapid_toggling_stays_consistent`. One rewrite: the seven `tcl-registry` `native_jim_lookup::namespace_helper_source_tests` `*_helper_descriptor_keeps_…` tests become one table over `NativeJimNamespaceHelperKind::ALL` that keeps every per-kind row | irules-registry-tooling | Sampled and signed off by the coordinator (rows in `ledger/irules-registry-tooling-passing.tsv`); that session's permission check asks the owner before it edits a test body, and the edits are not routed through another session |
 | Eight `tcl-diagram` fixtures repaired: dynamic words read unset variables (`$code`, `$options`, `$status`, `$pattern`, `$ready`, `$items`; tclsh 8.6.18 and 9.0.4: `can't read "code": no such variable`, the rest of the script is dead) or statements follow a certain exit, so the code under test is never reached (names in `ledger/irules-registry-tooling.tsv`) | irules-registry-tooling | The source is not what the test says it is |
 | In the four crates no session owns (`tcl-lexer`, `tcl-syntax`, `tcl-dialect`, `tcl-core-types`; 2,008 run, all pass with every oracle required, no expectation contradicted): 16 merges into named survivors (five exact copies and eleven single-operator parser tests the `expr_parser_coverage` tables already state), one vacuous test (`word_parts::tests::oracle_sheet_is_recorded`), seven Jim tests that return silently without the oracle moved onto the shared locator, four weak-assertion groups rewritten to assert a value, nine crash guards given a value to assert (rows in `ledger/unowned-passing.tsv`; about 1,600 tests in small groups were not read) | irules-registry-tooling | Sampled and signed off by the coordinator; test-body edits |
+| `tcl-cli` `spec_test_presence_keeps_literal_colons_and_wildcards`: its Jim leg uses a `pkgIndex` layout Jim does not load, which showed once the Jim oracle was required; the fixture takes Jim's own package layout | irules-registry-tooling | A test that returns early for want of its oracle is not a pass |
 
 ## Passing tests the oracle contradicts
 
@@ -302,7 +306,7 @@ The failing behaviours are far fewer than the failing tests. The causes ranked h
 
 The second pass (overlap among passing tests: 88 exact-copy groups, 385 overlap groups, the vacuous negatives on unwired helpers) follows the repairs.
 
-## Status of the rows, 18 November 2026, 08:55 UTC
+## Status of the rows, 18 November 2026, 09:55 UTC
 
 From `tools/ledger_status.py` (a cell counts by its first word, so `routed (analyser-binding)` is routed; a cell that does not start with one of the seven words counts as open).
 
@@ -314,15 +318,15 @@ From `tools/ledger_status.py` (a cell counts by its first word, so `routed (anal
 | dataflow-optimiser | 339 | 31 | 32 | 18 | 0 | 2 | 2 | 424 |
 | diagnostics | 239 | 56 | 64 | 12 | 19 | 1 | 9 | 400 |
 | execution | 195 | 6 | 0 | 10 | 56 | 0 | 0 | 267 |
-| irules-registry-tooling | 130 | 0 | 0 | 2 | 0 | 35 | 0 | 167 |
+| irules-registry-tooling | 130 | 0 | 0 | 2 | 0 | 36 | 0 | 168 |
 | live-inlining | 18 | 0 | 0 | 0 | 0 | 9 | 0 | 27 |
-| lsp-features | 584 | 10 | 13 | 20 | 10 | 23 | 23 | 683 |
+| lsp-features | 526 | 10 | 42 | 34 | 10 | 30 | 31 | 683 |
 | server-e2e-db-flaky | 3 | 3 | 0 | 0 | 0 | 0 | 1 | 7 |
 | server-e2e-db | 157 | 14 | 1 | 19 | 0 | 11 | 25 | 227 |
 | taint | 135 | 5 | 34 | 10 | 0 | 0 | 1 | 185 |
 | tk-oo | 58 | 9 | 0 | 3 | 0 | 0 | 0 | 70 |
-| values | 22 | 18 | 1 | 9 | 1 | 0 | 169 | 220 |
-| **all** | 2577 | 165 | 147 | 104 | 86 | 81 | 230 | 3390 |
+| values | 22 | 20 | 0 | 9 | 1 | 0 | 168 | 220 |
+| **all** | 2519 | 167 | 175 | 118 | 86 | 89 | 237 | 3391 |
 
 ## Progress
 
