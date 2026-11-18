@@ -109,7 +109,7 @@ async fn method_rename_spans_override_family_across_documents() {
     register(
             &backend,
             &dog,
-            "oo::class create Dog {\n    superclass Animal\n    method speak {} {}\n}\nset d [Dog new]\n$d speak\n",
+            "source animal.tcl; oo::class create Dog {\n    superclass Animal\n    method speak {} {}\n}\nset d [Dog new]\n$d speak\n",
         )
         .await;
     let params = RenameParams {

@@ -28,11 +28,14 @@ async fn original_type_hierarchy_wire_preserves_owner_and_rejects_labels_and_sta
     let base = Uri::from_str("file:///original-hierarchy-base.tcl").unwrap();
     let child = Uri::from_str("file:///original-hierarchy-child.tcl").unwrap();
     let base_source = r"oo::class create B\uD800 {}";
-    let child_source = r"oo::class create Child {superclass B\uD800}";
+    // tclsh 8.6.18-9.1.0: with the base sourced first, [info class
+    // superclasses Child] is ::B\uD800.
+    let child_source = r"source original-hierarchy-base.tcl
+oo::class create Child {superclass B\uD800}";
     register(&backend, &base, base_source).await;
     register(&backend, &child, child_source).await;
     let params = serde_json::from_value(serde_json::json!({
-        "textDocument": {"uri": child.as_str()}, "position": {"line": 0, "character": 18}
+        "textDocument": {"uri": child.as_str()}, "position": {"line": 1, "character": 18}
     }))
     .unwrap();
     let mut items = backend
