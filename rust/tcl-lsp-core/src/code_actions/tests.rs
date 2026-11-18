@@ -1099,13 +1099,13 @@ fn check_actions_skip_a_diagnostic_a_noqa_already_silences() {
     use tcl_compiler::compilation_unit::CompilationUnit;
     use tcl_compiler::compiler_checks::run_all_checks;
 
-    let registry = tcl_registry::CommandRegistry::build_default();
-    let src = "set x hello\n# noqa: S100\nincr x\n";
-    let cu = CompilationUnit::build_for(src, &registry, false);
-    let checks = run_all_checks(&cu, &registry, None);
+    let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+    let src = "set x [string repeat 1 2]\n# noqa: S100\nincr x\n";
+    let cu = CompilationUnit::build_for(src, registry, false);
+    let checks = run_all_checks(&cu, registry, Some(tcl_dialect::DialectProfile::find("tcl8.6").unwrap()));
     let analysis = check_analysis(
         src,
-        &registry,
+        registry,
         tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
         tcl_lexer::LexerConfig::default(),
     );
@@ -1142,13 +1142,13 @@ fn check_actions_surface_shimmer_noqa_suppress_action() {
     use tcl_compiler::compilation_unit::CompilationUnit;
     use tcl_compiler::compiler_checks::run_all_checks;
 
-    let registry = tcl_registry::CommandRegistry::build_default();
-    let src = "set x hello\nincr x\n";
-    let cu = CompilationUnit::build_for(src, &registry, false);
-    let checks = run_all_checks(&cu, &registry, None);
+    let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+    let src = "set x [string repeat 1 2]\nincr x\n";
+    let cu = CompilationUnit::build_for(src, registry, false);
+    let checks = run_all_checks(&cu, registry, Some(tcl_dialect::DialectProfile::find("tcl8.6").unwrap()));
     let analysis = check_analysis(
         src,
-        &registry,
+        registry,
         tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
         tcl_lexer::LexerConfig::default(),
     );
@@ -1202,13 +1202,13 @@ fn check_actions_shimmer_noqa_suppress_matches_indentation() {
     use tcl_compiler::compilation_unit::CompilationUnit;
     use tcl_compiler::compiler_checks::run_all_checks;
 
-    let registry = tcl_registry::CommandRegistry::build_default();
-    let src = "proc f {} {\n    set x hello\n    incr x\n}\n";
-    let cu = CompilationUnit::build_for(src, &registry, false);
-    let checks = run_all_checks(&cu, &registry, None);
+    let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+    let src = "proc f {} {\n    set x [string repeat 1 2]\n    incr x\n}\n";
+    let cu = CompilationUnit::build_for(src, registry, false);
+    let checks = run_all_checks(&cu, registry, Some(tcl_dialect::DialectProfile::find("tcl8.6").unwrap()));
     let analysis = check_analysis(
         src,
-        &registry,
+        registry,
         tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
         tcl_lexer::LexerConfig::default(),
     );

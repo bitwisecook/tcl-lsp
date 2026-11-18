@@ -572,11 +572,11 @@ mod source_survey_owner_tests {
     }
     #[test]
     fn decoded_registration_retains_native_value_original_words() {
-        let registry = CommandRegistry::build_default();
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
         let mut found = Vec::new();
         scan(
             "if 1 \"package ifneeded caf\\u00e9 1.0 {}\"",
-            &registry,
+            registry,
             &mut |reached| {
                 assert_eq!(
                     reached.original_words.as_ref().unwrap()[0]

@@ -29,13 +29,10 @@ pub use tcl_irules::object_ref_spans;
 #[cfg(test)]
 mod tests {
     use super::object_ref_spans;
-    use tcl_dialect::model::{Family, SurfaceLayer};
-    use tcl_registry::CommandRegistry;
 
     fn spans(src: &str) -> Vec<(usize, &str)> {
-        let mut reg = CommandRegistry::build_default();
-        reg.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
-        object_ref_spans(src, &reg)
+        let reg = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
+        object_ref_spans(src, reg)
             .into_iter()
             .map(|s| (s.start() as usize, &src[s.as_range()]))
             .collect()
