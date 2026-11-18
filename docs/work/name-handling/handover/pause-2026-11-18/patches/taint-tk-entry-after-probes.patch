@@ -1,0 +1,161 @@
+diff --git a/rust/tcl-compiler/src/command_binding/binding_projection.rs b/rust/tcl-compiler/src/command_binding/binding_projection.rs
+index 581d475e9..c67d5e489 100644
+--- a/rust/tcl-compiler/src/command_binding/binding_projection.rs
++++ b/rust/tcl-compiler/src/command_binding/binding_projection.rs
+@@ -187,6 +187,7 @@ impl SourceBindingPoint {
+             proof.entered_execution_observer = self.observer_execution;
+             // A retained Logical source continuation is conditional even at
+             // the root. Its interpreted target supplies no entered handler.
++            if std::env::var_os("ZZ_EA").is_some() && matches!(self.head.as_deref(), Some("eval" | "gets" | "set")) { eprintln!("ZZB head={:?} walk_entry={:?} preview={} logical={}", self.head, self.walk_entry, self.declaration_preview, self.original_logical_lookup_head().is_some()); }
+             proof.runtime_reachability = if self.walk_entry == PointWalkEntry::NeverEntered {
+                 SourceRuntimeReachability::NotEntered
+             } else if self.declaration_preview || self.original_logical_lookup_head().is_some() {
+diff --git a/rust/tcl-compiler/src/command_binding/compiled_invocation/execution_proofs.rs b/rust/tcl-compiler/src/command_binding/compiled_invocation/execution_proofs.rs
+index 202d3adb4..110cfa81d 100644
+--- a/rust/tcl-compiler/src/command_binding/compiled_invocation/execution_proofs.rs
++++ b/rust/tcl-compiler/src/command_binding/compiled_invocation/execution_proofs.rs
+@@ -358,6 +358,12 @@ impl SourceInvocationBinding {
+         self.closed_selected_execution_target()
+     }
+ 
++    /// Probe.
++    #[doc(hidden)]
++    pub fn zz_execution_debug(&self) -> String {
++        format!("reach={:?} unknown={} live={} compiled={:?} named={}", self.runtime_reachability, self.compiled_execution_unknown(), self.may_use_live_dispatch, self.compiled_candidates.iter().map(|c| format!("{:?}/{:?}", c.certainty, c.target.runtime_implementation_generation)).collect::<Vec<_>>(), self.compiled_named_candidates.len())
++    }
++
+     pub(in super::super) fn closed_selected_execution_target(
+         &self,
+     ) -> Option<&SourceCommandTarget> {
+diff --git a/rust/tcl-compiler/src/command_binding/deferred_entries.rs b/rust/tcl-compiler/src/command_binding/deferred_entries.rs
+index 16f279be8..7fdcd9793 100644
+--- a/rust/tcl-compiler/src/command_binding/deferred_entries.rs
++++ b/rust/tcl-compiler/src/command_binding/deferred_entries.rs
+@@ -380,6 +380,11 @@ impl SourceCommandBindings {
+         root: &DeferredSourceBody,
+         incoming: &ModuleCommandBindings,
+     ) -> bool {
++        if std::env::var_os("ZZ_EA").is_some() {
++            let c = self.original_completed_root_state.as_deref();
++            let keys: Vec<String> = c.map(|c| c.bindings.keys_not_sharing_a_value(&incoming.bindings).map(|k| format!("{k:?}")).take(5).collect()).unwrap_or_default();
++            eprintln!("ZZU completed={} same={} stamp_same={} keys={keys:?} spe={} ev={} rm={} ff={}", c.is_some(), c.is_some_and(|c| c.same_state(incoming)), false, incoming.baseline.source_point_entry.is_some(), root.event.is_some(), root.receiver_method, root.future_frame.is_some());
++        }
+         incoming.baseline.source_point_entry.is_none()
+             && root.event.is_none()
+             && !root.receiver_method
+diff --git a/rust/tcl-compiler/src/command_binding/module_bindings/source_order.rs b/rust/tcl-compiler/src/command_binding/module_bindings/source_order.rs
+index 261eebf60..c1723c5b2 100644
+--- a/rust/tcl-compiler/src/command_binding/module_bindings/source_order.rs
++++ b/rust/tcl-compiler/src/command_binding/module_bindings/source_order.rs
+@@ -279,11 +279,29 @@ impl SourceBindingTimeline {
+         });
+         let next = suffixes.partition_point(|(start, _)| *start <= definition_span.start());
+         let mut entry = suffixes.get(next).map_or(post, |(_, state)| state).clone();
++        if std::env::var_os("ZZ_EA").is_some() {
++            let a = format!("{:#?}", post.non_binding_observation_stamp());
++            let b = format!("{:#?}", entry.non_binding_observation_stamp());
++            let (al, bl): (Vec<_>, Vec<_>) = (a.lines().collect(), b.lines().collect());
++            let mut field = String::new();
++            let mut diffs = std::collections::BTreeSet::new();
++            for (i, line) in bl.iter().enumerate() {
++                if line.starts_with("    ") && !line.starts_with("     ") { field = line.trim().split(':').next().unwrap_or("").to_owned(); }
++                if al.get(i) != Some(line) { diffs.insert(field.clone()); }
++            }
++            eprintln!("ZZEA def={definition_span:?} next={next}/{} differs={diffs:?} bindings_same={}", suffixes.len(), Arc::ptr_eq(&post.bindings, &entry.bindings) || post.bindings == entry.bindings);
++            let keys: Vec<_> = entry.bindings.keys_not_sharing_a_value(&post.bindings).map(|k| format!("{k:?}")).collect();
++            eprintln!("ZZEA keys_differ={} first={:?}", keys.len(), keys.iter().take(6).collect::<Vec<_>>());
++        }
+         let mut boundary = module.clone();
+         boundary.bindings = Arc::clone(&module.root_boundary_bindings);
+         if !entry.same_state(&boundary) {
+             entry.join(&boundary);
+         }
++        if std::env::var_os("ZZ_EA").is_some() {
++            eprintln!("ZZEB def={definition_span:?} world={:?}", entry.original_command_world);
++            eprintln!("ZZEB def={definition_span:?} post_world={:?}", post.original_command_world);
++        }
+         Some(entry)
+     }
+ 
+diff --git a/rust/tcl-compiler/src/command_binding/source_walk/outcomes.rs b/rust/tcl-compiler/src/command_binding/source_walk/outcomes.rs
+index d51c48fc7..a5ec82647 100644
+--- a/rust/tcl-compiler/src/command_binding/source_walk/outcomes.rs
++++ b/rust/tcl-compiler/src/command_binding/source_walk/outcomes.rs
+@@ -267,6 +267,7 @@ impl SourceOutcomes {
+         // An `Unknown` route (`puts` on a reflected or transformed channel)
+         // may have run handler scripts that redefined commands, so only
+         // catalogued errors leave the normal-path world complete.
++        if std::env::var_os("ZZ_EA").is_some() { eprintln!("ZZO abrupt={:?} normal_completion={:?}", self.abrupt.iter().map(|(r, _)| format!("{r:?}")).collect::<Vec<_>>(), self.normal_completion.is_some()); }
+         let errors_only = self.abrupt.iter().all(|(route, _)| {
+             matches!(
+                 route,
+diff --git a/rust/tcl-compiler/src/registry_invocation.rs b/rust/tcl-compiler/src/registry_invocation.rs
+index 52d46ed10..c4f4d3323 100644
+--- a/rust/tcl-compiler/src/registry_invocation.rs
++++ b/rust/tcl-compiler/src/registry_invocation.rs
+@@ -679,8 +679,9 @@ pub fn resolved_tokens_invocation_with_metadata_context(
+     if tokens.synthetic.is_some() {
+         return None;
+     }
+-    let (resolution, authored_case_body_selection) =
+-        resolve_command_tokens_with_metadata_context_and_case(registry, context, tokens).ok()?;
++    let resolved = resolve_command_tokens_with_metadata_context_and_case(registry, context, tokens);
++    if std::env::var_os("ZZ_EA").is_some() { eprintln!("ZZR cmd={:?} result={}", tokens.argv_texts.first(), match &resolved { Err(e) => format!("Err({e:?})"), Ok((RegistryInvocationResolution::Resolved(_), _)) => "Resolved".into(), Ok((other, _)) => format!("{other:?}").chars().take(200).collect() }); }
++    let (resolution, authored_case_body_selection) = resolved.ok()?;
+     let RegistryInvocationResolution::Resolved(facts) = resolution else {
+         return None;
+     };
+diff --git a/rust/tcl-compiler/src/registry_invocation/word_resolution.rs b/rust/tcl-compiler/src/registry_invocation/word_resolution.rs
+index 38b4896fb..2c7a79080 100644
+--- a/rust/tcl-compiler/src/registry_invocation/word_resolution.rs
++++ b/rust/tcl-compiler/src/registry_invocation/word_resolution.rs
+@@ -715,6 +715,9 @@ pub(super) fn resolve_command_tokens_with_metadata_context_and_case(
+         }
+         return Ok((resolution, AuthoredSourceCaseBodySelection::Unavailable));
+     };
++    if std::env::var_os("ZZ_EA").is_some() && binding.proved_execution_target().is_none() {
++        eprintln!("ZZP cmd={:?} detail={}", tokens.argv_texts.first(), binding.zz_execution_debug());
++    }
+     let Some(target) = binding
+         .proved_execution_target()
+         .filter(|target| target.registry_backed)
+diff --git a/rust/tcl-compiler/src/taint/sink_warnings/statement_warnings.rs b/rust/tcl-compiler/src/taint/sink_warnings/statement_warnings.rs
+index a665d224d..b262c518d 100644
+--- a/rust/tcl-compiler/src/taint/sink_warnings/statement_warnings.rs
++++ b/rust/tcl-compiler/src/taint/sink_warnings/statement_warnings.rs
+@@ -452,6 +452,7 @@ fn emit_retained_invocation_warnings<S: std::hash::BuildHasher, H: std::hash::Bu
+         return;
+     };
+     let (candidates, _) = retained_sink_candidates(tokens, context);
++    if std::env::var_os("ZZ_EA").is_some() { let b = tokens.source_binding.as_ref(); eprintln!("ZZC cmd={:?} candidates={} proved={:?} dbg_len={} targets={:?}", tokens.argv_texts.first(), candidates.len(), b.and_then(|b| b.proved_target()).map(|t| t.command.clone()), b.map(|b| format!("{b:?}").len()).unwrap_or(0), b.map(|b| { let d = format!("{b:?}"); d.matches("SourceCommandTarget {").count() })); }
+     for (command, effective, source_metadata) in candidates {
+         let original_reads = (!context.source.allows_nominal_metadata())
+             .then(|| {
+diff --git a/rust/tcl-compiler/src/taint/substitution_taint.rs b/rust/tcl-compiler/src/taint/substitution_taint.rs
+index 1afae6869..5504a3946 100644
+--- a/rust/tcl-compiler/src/taint/substitution_taint.rs
++++ b/rust/tcl-compiler/src/taint/substitution_taint.rs
+@@ -420,6 +420,7 @@ fn classify_substitution_taint(
+         .and_then(crate::command_binding::SourceInvocationBinding::proved_target);
+     let registry_allowed =
+         (ctx.source.allows_nominal_metadata() && ctx.source_tokens.is_none()) || resolved.is_some();
++    if std::env::var_os("ZZ_EA").is_some() { eprintln!("ZZS word={word} resolved={:?} point={:?} binding={:?}", resolved.as_ref().map(|r| r.facts.canonical_command.clone()), point_target.map(|t| t.command.clone()), nested.as_ref().and_then(|n| n.source_binding.as_ref()).map(|b| format!("{b:?}").chars().take(200).collect::<String>())); }
+     if let Some(hosted) = hosted.as_ref() {
+         let written = effective_args.as_deref().unwrap_or(args);
+         let subject = (&hosted.metadata, &hosted.effective);
+diff --git a/rust/tcl-compiler/tests/it_3/taint/object_instance_sources.rs b/rust/tcl-compiler/tests/it_3/taint/object_instance_sources.rs
+index d09286930..484263783 100644
+--- a/rust/tcl-compiler/tests/it_3/taint/object_instance_sources.rs
++++ b/rust/tcl-compiler/tests/it_3/taint/object_instance_sources.rs
+@@ -843,3 +843,11 @@ mod object_instance_taint_sources {
+         );
+     }
+ }
++
++#[test]
++fn zz_probe() {
++    use super::*;
++    for src in ["proc q {} {set v [gets stdin]; eval $v}\nafter 10 {puts x}", "proc q {} {set v [gets stdin]; eval $v}\nlabel .l", "proc q {} {set v [gets stdin]; eval $v}\nfoo"] {
++        eprintln!("ZZ {src:?} {}", of_code(src, "tk", "T100").len());
++    }
++}

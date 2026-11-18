@@ -1,0 +1,253 @@
+diff --git a/rust/tcl-compiler/src/irules_checks/source_query.rs b/rust/tcl-compiler/src/irules_checks/source_query.rs
+index 3bbbe27b3..874ae666e 100644
+--- a/rust/tcl-compiler/src/irules_checks/source_query.rs
++++ b/rust/tcl-compiler/src/irules_checks/source_query.rs
+@@ -219,6 +219,8 @@ impl<'a> IrulesSourceQuery<'a> {
+             ) {
+                 continue;
+             }
++            eprintln!("PS {:?} {:?}", std::mem::discriminant(statement), statement.child_scripts().len());
++            eprintln!("PSD {}", format!("{statement:?}").chars().take(300).collect::<String>());
+             if !statement.child_scripts().is_empty() {
+                 // A statement with bodies is walked path by path by the flow
+                 // advice. The census keeps its written command so the handler
+@@ -226,10 +228,10 @@ impl<'a> IrulesSourceQuery<'a> {
+                 let tokens = input
+                     .procedure
+                     .body
+-                    .retained_source_tokens_for_statement(statement)?;
+-                let vector = self.original_argv(tokens)?;
++                    .retained_source_tokens_for_statement(statement).or_else(|| { eprintln!("PR 1"); None })?;
++                let vector = self.original_argv(tokens).or_else(|| { eprintln!("PR 2"); None })?;
+                 if !input.commands.iter().any(|command| command.words == vector) {
+-                    return None;
++                    { eprintln!("PR ret"); return None; }
+                 }
+                 output.original.push(vector);
+                 continue;
+@@ -237,49 +239,50 @@ impl<'a> IrulesSourceQuery<'a> {
+             let tokens = input
+                 .procedure
+                 .body
+-                .retained_source_tokens_for_statement(statement)?;
+-            let vector = self.original_argv(tokens)?;
++                .retained_source_tokens_for_statement(statement).or_else(|| { eprintln!("PR 3"); None })?;
++            let vector = self.original_argv(tokens).or_else(|| { eprintln!("PR 4"); None })?;
+             if !input.commands.iter().any(|command| command.words == vector)
+                 || !state
+                     .source_argv
+                     .iter()
+                     .any(|(owner, words)| owner == input.id && words == &vector)
+             {
+-                return None;
++                { eprintln!("PR ret"); return None; }
+             }
+             output.original.push(vector);
+-            let children = self.argument_calls(tokens, self.function_config(input.function)?)?;
++            let children = self.argument_calls(tokens, self.function_config(input.function).or_else(|| { eprintln!("PR 5"); None })?).or_else(|| { eprintln!("PR 6"); None })?;
+             for token in children
+                 .iter()
+                 .map(|child| child.tokens.as_ref())
+-                .collect::<Option<Vec<_>>>()?
++                .collect::<Option<Vec<_>>>().or_else(|| { eprintln!("PR 7"); None })?
+                 .into_iter()
+                 .chain(std::iter::once(tokens))
+             {
+-                let vector = self.original_argv(token)?;
++                let vector = self.original_argv(token).or_else(|| { eprintln!("PR 8"); None })?;
+                 if !state
+                     .source_argv
+                     .iter()
+                     .any(|(owner, words)| owner == input.id && words == &vector)
+                 {
+-                    return None;
++                    { eprintln!("PR ret"); return None; }
+                 }
+-                let possible = crate::registry_invocation::original_registry_invocation_assistance_with_metadata_context(self.registry, Some(input.metadata), token)?;
++                let possible = crate::registry_invocation::original_registry_invocation_assistance_with_metadata_context(self.registry, Some(input.metadata), token).or_else(|| { eprintln!("PR 9"); None })?;
+                 if possible.candidates.is_empty() {
+-                    return None;
++                    { eprintln!("PR ret"); return None; }
+                 }
+                 if let OriginalIrulesFlowPresence::Relevant(command) =
+-                    possible_irule_flow_command(self.registry, token, &possible)?
++                    possible_irule_flow_command(self.registry, token, &possible).or_else(|| { eprintln!("PR 10"); None })?
+                 {
+                     output.handler_flow_commands.push(command);
+                 }
+                 for candidate in &possible.candidates {
++                    
+                     let completion = candidate.with_possible_source_schema(
+                         self.registry,
+                         input.metadata,
+                         token,
+                         leaf_handler_source_completion,
+-                    )?;
++                    ).or_else(|| { eprintln!("PR11 {:?}", token.argv_texts); None })?;
+                     output.schemas.push(candidate.clone());
+                     output.completions.push(completion);
+                 }
+@@ -293,40 +296,59 @@ impl<'a> IrulesSourceQuery<'a> {
+         state: &'query CollectFlowState,
+     ) -> Option<ConditionalSourcePairingAdvice<'query, 'a>> {
+         let metadata = self.metadata?;
++        eprintln!("PA 1");
+         let input = metadata.source_analysis_input()?;
++        eprintln!("PA 2");
+         input.has_hosted_source_name_context().then_some(())?;
++        eprintln!("PA 3");
+         let context = input.borrowed_context_registry();
++        eprintln!("PA 4");
+         let module = &self.unit.ir_module;
++        eprintln!("PA 5");
+         let root = tcl_lexer::native_script_words_in(
+             module.source.clone(),
+             Span::new(0, u32::try_from(module.source.len()).ok()?),
+             module.lexer_config,
+         )
+         .ok()?;
++        eprintln!("PA 6");
+         if root.fatal_tail.is_some() || root.commands.len() != module.irules_event_bodies.len() {
+             return None;
++            eprintln!("PA 7");
+         }
+         let mut declarations_seen = Vec::new();
++        eprintln!("PA 8");
+         let mut handlers = Vec::new();
++        eprintln!("PA 9");
+         let mut schemas = Vec::new();
++        eprintln!("PA 10");
+         let mut completions = Vec::new();
++        eprintln!("PA 11");
+         let mut flow_commands = Vec::new();
++        eprintln!("PA 12");
+         for id in module.irules_event_bodies.keys() {
+             let function = self.unit.procedures.get(id)?;
++            eprintln!("PA 13");
+             let event = self.event(function)?.into_event()?;
++            eprintln!("PA 14");
+             let mut declarations = module
+                 .top_level
+                 .statements
+                 .iter()
+                 .filter(|statement| statement.span() == event.procedure.span);
++                eprintln!("PA 15");
+             let declaration = declarations.next()?;
++            eprintln!("PA 16");
+             if declarations.next().is_some() {
+                 return None;
++                eprintln!("PA 17");
+             }
+             let declaration = module
+                 .top_level
+                 .retained_source_tokens_for_statement(declaration)?;
++                eprintln!("PA 18");
+             let declaration_vector = self.original_argv(declaration)?;
++            eprintln!("PA 19");
+             if !root
+                 .commands
+                 .iter()
+@@ -334,22 +356,31 @@ impl<'a> IrulesSourceQuery<'a> {
+                 || declarations_seen.contains(&declaration_vector)
+             {
+                 return None;
++                eprintln!("PA 20");
+             }
+             declarations_seen.push(declaration_vector.clone());
++            eprintln!("PA 21");
+             let words = self.pairing_declaration_words(metadata, declaration, &event, context)?;
++            eprintln!("PA 22");
+             let mut bodies = words.source_script_bodies_for_mutation_coverage(context)?;
++            eprintln!("PA 23");
+             if bodies.len() != 1 {
+                 return None;
++                eprintln!("PA 24");
+             }
+             let body = bodies.pop()?;
++            eprintln!("PA 25");
+             for word in &declaration_vector {
+                 if word != body.original_container() {
+                     tcl_syntax::word_rules::original_static_word_unicode_value(word)?;
+                 }
+             }
+             let commands = body.original_commands(context)?;
++            eprintln!("PA 26");
+             let mut original = Vec::new();
++            eprintln!("PA 27");
+             let mut handler_flow_commands = Vec::new();
++            eprintln!("PA 28");
+             self.retain_pairing_handler_commands(
+                 state,
+                 &PairingHandlerInput {
+@@ -366,15 +397,19 @@ impl<'a> IrulesSourceQuery<'a> {
+                     completions: &mut completions,
+                 },
+             )?;
++            eprintln!("PA 29");
+             if commands.len() != original.len()
+                 || commands
+                     .iter()
+                     .any(|command| !original.contains(&command.words))
+             {
+                 return None;
++                eprintln!("PA 30");
+             }
+             handlers.push((*id, body));
++            eprintln!("PA 31");
+             flow_commands.push((*id, handler_flow_commands));
++            eprintln!("PA 32");
+         }
+         if root
+             .commands
+@@ -382,6 +417,7 @@ impl<'a> IrulesSourceQuery<'a> {
+             .any(|command| !declarations_seen.contains(&command.words))
+         {
+             return None;
++            eprintln!("PA 33");
+         }
+         (!handlers.is_empty()).then_some(ConditionalSourcePairingAdvice {
+             _source: self,
+diff --git a/rust/tcl-compiler/src/irules_checks/tests.rs b/rust/tcl-compiler/src/irules_checks/tests.rs
+index 049204efe..c9ce65d9c 100644
+--- a/rust/tcl-compiler/src/irules_checks/tests.rs
++++ b/rust/tcl-compiler/src/irules_checks/tests.rs
+@@ -20,8 +20,10 @@ use tcl_dialect::model::{Family, SurfaceQuery};
+ 
+ use super::*;
+ 
+-fn registry() -> CommandRegistry {
+-    CommandRegistry::build_default().project_for_profile(tcl_dialect::DialectProfile::irules())
++/// The f5-irules document's own command world. A dialect-blind projection
++/// of the default registry names no rule handler, so no check visits a body.
++fn registry() -> &'static CommandRegistry {
++    tcl_registry::model::ingress::static_context_for("f5-irules").commands()
+ }
+ 
+ fn warnings_for_irules(source: &str) -> Vec<IrulesCheckWarning> {
+@@ -1715,3 +1717,26 @@ fn irule4004_counts_the_writes_a_switch_arm_makes() {
+         "expected IRULE4004 when no arm writes svc, got {ws:?}",
+     );
+ }
++
++#[test]
++fn zz_probe_source_flow() {
++    let (cu, context) = source_unit("when HTTP_REQUEST { catch { HTTP::respond 200 content ok }; HTTP::header insert X y }");
++    let registry = context.commands();
++    let module = &cu.ir_module;
++    eprintln!("P doc-match {}", module.source == tcl_lexer::SourceImage::document(&cu.source));
++    eprintln!("P standalone {} smi {}", module.source_entry.metadata_context.is_standalone(), module.source_metadata_input.is_some());
++    eprintln!("P meta {}", crate::registry_invocation::InvocationMetadataContext::for_module(registry, module).is_some());
++    if let Some(input) = module.source_metadata_input.as_ref() {
++        eprintln!("P lexer-eq {}", input.lexer_config() == module.lexer_config);
++    }
++    eprintln!("P realm {}", crate::realm::document_realm_bindings_for_module(module, registry).is_some());
++    let Some(source) = super::IrulesSourceQuery::capture(&cu, registry) else { eprintln!("P capture none"); return; };
++    for fu in cu.analysable_functions() {
++        eprintln!("P fn {:?} event {:?}", fu.name, source.event(fu).map(|e| matches!(e, super::OriginalEventPresence::Event(_))));
++    }
++    let state = super::collect_flow_state(&source);
++    eprintln!("P state {}", state.is_some());
++    if let Some((state, _)) = state {
++        eprintln!("P advice {}", source.conditional_pairing_advice(&state).is_some());
++    }
++}

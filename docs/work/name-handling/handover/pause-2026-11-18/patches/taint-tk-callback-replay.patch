@@ -1,0 +1,56 @@
+diff --git a/rust/tcl-compiler/src/taint/callback_replay.rs b/rust/tcl-compiler/src/taint/callback_replay.rs
+index 8521af085..3ae5fb926 100644
+--- a/rust/tcl-compiler/src/taint/callback_replay.rs
++++ b/rust/tcl-compiler/src/taint/callback_replay.rs
+@@ -623,7 +623,9 @@ pub(super) fn callback_replay_unit(
+                 registry,
+                 defer_top_level: false,
+                 config: cu.ir_module.lexer_config,
+-                dialect,
++                // The replay is the document's own source under its unit
++                // profile; an analyser profile would withdraw its metadata.
++                dialect: cu.ir_module.dialect_profile.or(dialect),
+                 external_call_sites: None,
+                 declared_commands: None,
+             },
+diff --git a/rust/tcl-compiler/src/taint/propagation.rs b/rust/tcl-compiler/src/taint/propagation.rs
+index 8f16a8686..c182d8a9e 100644
+--- a/rust/tcl-compiler/src/taint/propagation.rs
++++ b/rust/tcl-compiler/src/taint/propagation.rs
+@@ -361,6 +361,15 @@ fn widen_opaque_native_taints(taints: &mut HashMap<ValueKey, TaintLattice>, ssa:
+     }
+ }
+ 
++fn declared_formal(source: TaintSourceContext<'_>, name: &str) -> bool {
++    let (Some(module), Some(body)) = (source.module(), source.body_id()) else {
++        return false;
++    };
++    module
++        .original_source_procedure_bodies()
++        .any(|(id, procedure)| *id == body && procedure.params.iter().any(|formal| formal == name))
++}
++
+ /// Seed the initial taint map: tainted interprocedural parameters, plus
+ /// version-0 global reads when a reachable callee writes globals.
+ pub(super) fn is_actual_formal_entry(
+@@ -372,11 +381,15 @@ pub(super) fn is_actual_formal_entry(
+     let Some(key) = ssa.cell_key(symbol) else {
+         return false;
+     };
+-    if !matches!(
+-        key.root(),
+-        crate::var_resolve::VariableCellKey::Activation { .. }
+-    ) {
+-        return false;
++    match key.root() {
++        crate::var_resolve::VariableCellKey::Activation { .. } => {}
++        // A declared procedure no caller reaches keeps a symbolic frame. Only
++        // its own declared formal takes an explicit entry seed (the callback
++        // replay's input); caller flows never reach such a body.
++        crate::var_resolve::VariableCellKey::Authored(_) => {
++            return declared_formal(source, name);
++        }
++        _ => return false,
+     }
+     if source.authored_body_formal(ssa, name) {
+         return true;

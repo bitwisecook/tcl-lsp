@@ -1,0 +1,255 @@
+diff --git a/rust/tcl-compiler/src/command_binding/compiled_invocation/execution_proofs.rs b/rust/tcl-compiler/src/command_binding/compiled_invocation/execution_proofs.rs
+index 202d3adb4..bfa5cd898 100644
+--- a/rust/tcl-compiler/src/command_binding/compiled_invocation/execution_proofs.rs
++++ b/rust/tcl-compiler/src/command_binding/compiled_invocation/execution_proofs.rs
+@@ -358,6 +358,23 @@ impl SourceInvocationBinding {
+         self.closed_selected_execution_target()
+     }
+ 
++    /// The closed selected target of an invocation that is reached only
++    /// conditionally (a declaration preview: a rule procedure or handler body
++    /// whose entry is advice). For advice only: a caller must not let it
++    /// prove execution, feed the strict lattice or license a rewrite.
++    /// Probe.
++    pub fn zz_reach(&self) -> String {
++        format!("{:?} closed={:?}", self.runtime_reachability, self.closed_selected_execution_target().map(|t| (t.command.clone(), t.registry_backed)))
++    }
++
++    pub(crate) fn advisory_execution_target(&self) -> Option<&SourceCommandTarget> {
++        if self.runtime_reachability != super::super::SourceRuntimeReachability::Conditional {
++            return None;
++        }
++        self.closed_selected_execution_target()
++            .filter(|target| target.registry_backed)
++    }
++
+     pub(in super::super) fn closed_selected_execution_target(
+         &self,
+     ) -> Option<&SourceCommandTarget> {
+diff --git a/rust/tcl-compiler/src/registry_invocation.rs b/rust/tcl-compiler/src/registry_invocation.rs
+index 52d46ed10..313ba272f 100644
+--- a/rust/tcl-compiler/src/registry_invocation.rs
++++ b/rust/tcl-compiler/src/registry_invocation.rs
+@@ -316,6 +316,7 @@ pub(crate) use normal_representation::{
+     normal_statement_representation_with_metadata_context,
+     normal_taint_invocation_with_metadata_context,
+ };
++pub(crate) use normal_transfer::advisory_normal_transfer_invocation_with_metadata_context;
+ pub use normal_transfer::{
+     NormalContainerElementWrite, NormalTransferInvocation, normal_transfer_invocation,
+     normal_transfer_invocation_in_context, normal_transfer_invocation_with_metadata_context,
+@@ -711,6 +712,50 @@ pub fn resolved_tokens_invocation_with_metadata_context(
+     })
+ }
+ 
++/// [`resolved_tokens_invocation_with_metadata_context`] for advice: an
++/// invocation reached only conditionally is resolved through its closed
++/// selected target ([`crate::command_binding::SourceInvocationBinding::advisory_execution_target`]).
++/// Only semantic advice may consume this; it proves no execution.
++pub(crate) fn advisory_tokens_invocation_with_metadata_context(
++    registry: &CommandRegistry,
++    context: Option<InvocationMetadataContext<'_>>,
++    tokens: &CommandTokens,
++) -> Option<ResolvedStatementInvocation> {
++    if let Some(invocation) = resolved_tokens_invocation_with_metadata_context(registry, context, tokens)
++    {
++        return Some(invocation);
++    }
++    if tokens.synthetic.is_some() {
++        return None;
++    }
++    let binding = tokens.source_binding.as_ref()?;
++    let target = binding.advisory_execution_target()?;
++    let effective = effective_words_for_target(tokens, target)?;
++    let dialect = binding.variable_context.invocation_dialect.or_else(|| {
++        registry
++            .profile()
++            .map(tcl_registry::InvocationDialect::of_profile)
++    });
++    let (resolution, authored_case_body_selection) =
++        word_resolution::resolve_effective_tokens_with_metadata_context_and_case(
++            registry, context, tokens, &effective, dialect,
++        )
++        .ok()?;
++    let RegistryInvocationResolution::Resolved(facts) = resolution else {
++        return None;
++    };
++    let arguments = effective.argument_presentations(tokens.argv_texts.get(1..)?)?;
++    Some(ResolvedStatementInvocation {
++        dialect,
++        facts,
++        arguments,
++        evaluated_arguments: frozen_argument_values(tokens, &effective),
++        evaluated_words: frozen_argument_words(tokens, &effective),
++        effective,
++        authored_case_body_selection: Some(authored_case_body_selection),
++    })
++}
++
+ /// Compiler metadata of an admitted recipe; no normal effects are exposed.
+ #[derive(Debug)]
+ pub struct AdmittedNativeCompilerInvocation {
+diff --git a/rust/tcl-compiler/src/registry_invocation/normal_transfer.rs b/rust/tcl-compiler/src/registry_invocation/normal_transfer.rs
+index 8a2b81435..1570a3dbf 100644
+--- a/rust/tcl-compiler/src/registry_invocation/normal_transfer.rs
++++ b/rust/tcl-compiler/src/registry_invocation/normal_transfer.rs
+@@ -643,6 +643,33 @@ pub fn normal_transfer_invocation_in_context(
+     )
+ }
+ 
++/// [`normal_transfer_invocation_with_metadata_context`] for semantic advice:
++/// a conditionally reached invocation is described by its closed selected
++/// target's ordinary transfer. Never a strict-lattice or rewrite input.
++pub(crate) fn advisory_normal_transfer_invocation_with_metadata_context(
++    registry: &CommandRegistry,
++    context: Option<InvocationMetadataContext<'_>>,
++    tokens: &CommandTokens,
++) -> Option<NormalTransferInvocation> {
++    if let Some(normal) = normal_transfer_invocation_with_metadata_context(registry, context, tokens)
++    {
++        return Some(normal);
++    }
++    let invocation =
++        super::advisory_tokens_invocation_with_metadata_context(registry, context, tokens)?;
++    Some(NormalTransferInvocation {
++        invocation,
++        compilation: normal_output_compilation(tokens),
++        alias_frame: normal_alias_frame(tokens),
++        captured_outputs: false,
++        original_operands: tokens
++            .source_binding
++            .as_ref()
++            .and_then(|binding| binding.original_variable_operands_for_tokens(tokens))
++            .cloned(),
++    })
++}
++
+ /// Select successful transfer metadata with the complete supplied source owner.
+ /// Missing or foreign input cannot reconstruct a standalone catalogue context.
+ #[must_use]
+diff --git a/rust/tcl-compiler/src/sccp/original_value_facts/block_transfer.rs b/rust/tcl-compiler/src/sccp/original_value_facts/block_transfer.rs
+index f109a095d..caeba6d0e 100644
+--- a/rust/tcl-compiler/src/sccp/original_value_facts/block_transfer.rs
++++ b/rust/tcl-compiler/src/sccp/original_value_facts/block_transfer.rs
+@@ -219,7 +219,11 @@ pub(super) fn sccp_process_statements(
+                     policy,
+                     folds,
+                     math,
+-                    reference_config,
++                    (
++                        reference_config,
++                        math_dependencies
++                            .is_some_and(|ledger| ledger.purpose == SolverPurpose::SemanticAnalysis),
++                    ),
+                 )
+             };
+             let val = if ssa.cell_key(var).is_none_or(|cell| observed.contains(cell))
+@@ -258,6 +262,9 @@ pub(super) fn sccp_process_statements(
+             } else {
+                 evaluated()
+             };
++            if std::env::var_os("ZZ_ADV").is_some() && math_dependencies.is_some_and(|ledger| ledger.purpose == SolverPurpose::SemanticAnalysis) {
++                eprintln!("ZZDEF {}#{} stmt={} cell_none={} observed={} ext={:?} val={val:?}", ssa.var_name(var), ver, format!("{:?}", stmt_ssa.statement).chars().take(40).collect::<String>(), ssa.cell_key(var).is_none(), ssa.cell_key(var).is_some_and(|c| observed.contains(c)), lookup.externally_mutable_given(var, escaping, has_dynamic_variable_trace, opaque_native_accesses, registry));
++            }
+             if set_value(values, (var, *ver), &val) {
+                 changed = true;
+             }
+diff --git a/rust/tcl-compiler/src/sccp/original_value_facts/definition_values.rs b/rust/tcl-compiler/src/sccp/original_value_facts/definition_values.rs
+index df6d0ab28..70ca4d81d 100644
+--- a/rust/tcl-compiler/src/sccp/original_value_facts/definition_values.rs
++++ b/rust/tcl-compiler/src/sccp/original_value_facts/definition_values.rs
+@@ -59,7 +59,7 @@ pub(in super::super) fn evaluate_fixture_def_with_folds<'a, S: std::hash::BuildH
+         policy,
+         folds,
+         None,
+-        Some(config),
++        (Some(config), false),
+     )
+ }
+ 
+@@ -70,7 +70,7 @@ pub(super) fn evaluate_def_with_math<S: std::hash::BuildHasher>(
+     policy: FoldPolicy,
+     folds: Option<BuiltinFoldInputs<'_>>,
+     math: Option<MathFoldContext<'_>>,
+-    reference_config: Option<tcl_lexer::LexerConfig>,
++    (reference_config, advisory): (Option<tcl_lexer::LexerConfig>, bool),
+ ) -> LatticeValue {
+     match &stmt_ssa.statement {
+         Statement::AssignConst { value, .. } => LatticeValue::Const(parse_literal_value(value)),
+@@ -120,8 +120,16 @@ pub(super) fn evaluate_def_with_math<S: std::hash::BuildHasher>(
+         Statement::Call {
+             tokens: Some(tokens),
+             ..
+-        } => fold_normal_store_value(tokens, stmt_ssa, values, ssa, policy, folds, math)
+-            .unwrap_or(LatticeValue::Overdefined),
++        } => fold_normal_store_value(
++            tokens,
++            stmt_ssa,
++            values,
++            ssa,
++            (policy, advisory),
++            folds,
++            math,
++        )
++        .unwrap_or(LatticeValue::Overdefined),
+         Statement::Incr { name, amount, .. } => {
+             // Track `incr NAME ?AMOUNT?` through the lattice
+             // when the current value of NAME is a single Const(Int)
+@@ -414,22 +422,35 @@ fn fold_normal_store_value<S: std::hash::BuildHasher>(
+     statement: &SsaStatement,
+     values: &HashMap<ValueKey, LatticeValue, S>,
+     source: SsaSourceView<'_>,
+-    policy: FoldPolicy,
++    (policy, advisory): (FoldPolicy, bool),
+     folds: Option<BuiltinFoldInputs<'_>>,
+     math: Option<MathFoldContext<'_>>,
+ ) -> Option<LatticeValue> {
+     let inputs = folds?;
+     let registry = inputs.registry;
+-    let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+-        registry,
+-        inputs.source_metadata_input?,
+-    )?;
++    let input = inputs.source_metadata_input?;
++    let metadata =
++        crate::registry_invocation::InvocationMetadataContext::for_analysis_input(registry, input)?;
+     let binding = tokens.source_binding.as_ref()?;
+-    let invocation = crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+-        registry,
+-        Some(metadata),
+-        tokens,
+-    )?;
++    // Advice for a hosted F5 body (a rule procedure or handler reached only
++    // as a declaration preview) describes a conditionally reached call by its
++    // closed target's ordinary transfer. Semantic analysis only.
++    if std::env::var_os("ZZ_ADV").is_some() {
++        eprintln!("ZZADV cmd={:?} advisory={advisory} hosted={} strict={} adv={} target={:?} reach={}", tokens.argv_texts.first(), input.has_hosted_source_name_context(), crate::registry_invocation::normal_transfer_invocation_with_metadata_context(registry, Some(metadata), tokens).is_some(), crate::registry_invocation::advisory_normal_transfer_invocation_with_metadata_context(registry, Some(metadata), tokens).is_some(), binding.advisory_execution_target().map(|t| t.command.clone()), binding.zz_reach());
++    }
++    let invocation = if advisory && input.has_hosted_source_name_context() {
++        crate::registry_invocation::advisory_normal_transfer_invocation_with_metadata_context(
++            registry,
++            Some(metadata),
++            tokens,
++        )?
++    } else {
++        crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
++            registry,
++            Some(metadata),
++            tokens,
++        )?
++    };
+     let (spelling, word) = invocation.stored_value_operand(&binding.variable_context, registry)?;
+     if let Some(value) = fold_retained_expression_word(
+         word,
+diff --git a/rust/tcl-compiler/tests/it_2/value_transfer_witnesses.rs b/rust/tcl-compiler/tests/it_2/value_transfer_witnesses.rs
+index 455df9045..44f5b5f35 100644
+--- a/rust/tcl-compiler/tests/it_2/value_transfer_witnesses.rs
++++ b/rust/tcl-compiler/tests/it_2/value_transfer_witnesses.rs
+@@ -67,6 +67,7 @@ mod rule_procedures;
+ mod try_and_errors;
+ mod typed_statements;
+ mod unseen_code;
++mod zz_probe;
+ 
+ /// The releases the oracle runs, oldest first.
+ const RELEASES: [&str; 5] = ["8.4", "8.5", "8.6", "9.0", "9.1"];

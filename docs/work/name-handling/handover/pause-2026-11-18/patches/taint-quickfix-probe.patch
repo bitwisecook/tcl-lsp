@@ -1,0 +1,41 @@
+diff --git a/rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs b/rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs
+index 646b1d26e..ca69cd301 100644
+--- a/rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs
++++ b/rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs
+@@ -1111,3 +1111,36 @@ mod tests {
+         assert!(!helper_proposal("", &native));
+     }
+ }
++
++#[cfg(test)]
++mod zz_probe {
++    #[test]
++    fn zz_probe() {
++        let source = "when HTTP_REQUEST {\n    set raw [HTTP::uri]\n    HTTP::respond 200 content $raw\n}\n";
++        let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
++        let context = environment.default_context_registry();
++        let config = tcl_lexer::LexerConfig::for_file_grammar(environment.grammar());
++        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
++            environment.analyser_profile(),
++            environment.unit_profile(),
++            context.clone(),
++            config,
++        );
++        let unit = tcl_compiler::compilation_unit::CompilationUnit::build_with_analysis_input(
++            source,
++            tcl_compiler::compilation_unit::UnitBuildOptions {
++                registry: context.commands(),
++                defer_top_level: false,
++                config,
++                dialect: Some(environment.unit_profile()),
++                external_call_sites: None,
++                declared_commands: None,
++            },
++            None,
++            &input,
++        );
++        for d in tcl_compiler::compiler_checks::run_all_checks(&unit, context.commands(), Some(environment.unit_profile())) {
++            eprintln!("ZZ {} ctx={:?}", d.code.as_str(), d.source_context.as_ref().map(|c| c.context_action_tier()));
++        }
++    }
++}

@@ -1,0 +1,35 @@
+diff --git a/rust/tcl-compiler/src/ssa/construction/read_references.rs b/rust/tcl-compiler/src/ssa/construction/read_references.rs
+index 00ca36bf..78d5e851 100644
+--- a/rust/tcl-compiler/src/ssa/construction/read_references.rs
++++ b/rust/tcl-compiler/src/ssa/construction/read_references.rs
+@@ -161,10 +161,12 @@ pub(super) fn retained_read_references(
+         for index in (0..block.statements.len()).chain(std::iter::once(usize::MAX)) {
+             for access in points.source_reads_at(block_id, index) {
+                 let place = source_read_place(access, registry);
++                if access.original_spelling.contains("uri") { eprintln!("ZZ rr {:?} {:?} key={:?}", access.original_spelling, access.source, crate::var_resolve::canonical_binding_value_key(&place)); }
+                 let Some(name) = crate::var_resolve::canonical_binding_value_key(&place) else {
+                     continue;
+                 };
+                 let Some(&symbol) = interner.to_symbol.get(&name) else {
++                    if access.original_spelling.contains("uri") { eprintln!("ZZ rr no symbol"); }
+                     continue;
+                 };
+                 let candidate = if index == usize::MAX {
+diff --git a/rust/tcl-compiler/tests/it_3/taint.rs b/rust/tcl-compiler/tests/it_3/taint.rs
+index 2e94e55c..b12b0b72 100644
+--- a/rust/tcl-compiler/tests/it_3/taint.rs
++++ b/rust/tcl-compiler/tests/it_3/taint.rs
+@@ -198,3 +198,13 @@ fn of_code(src: &str, dialect: &str, code: &str) -> Vec<TaintWarning> {
+         .filter(|w| w.code.to_string() == code)
+         .collect()
+ }
++
++#[test]
++fn zz_probe() {
++    for src in [
++        "set uri [HTTP::uri]\nset z ${uri}/suffix\nregexp $z test",
++        "set uri [HTTP::uri]\nset z $uri/suffix\nregexp $z test",
++    ] {
++        eprintln!("ZZ {src:?}\n   {:?}", warns(src, IR).iter().map(|w| (w.code.to_string(), w.variable.clone())).collect::<Vec<_>>());
++    }
++}
