@@ -34,7 +34,7 @@ tmsh create auth partition TenantA ; tmsh create auth partition TenantB      # T
 | Check | Area | What it settles | Environment | On record | Tests waiting | Ledger |
 |---|---|---|---|---|---|---|
 | BIGIP-NAME-001 | Identity | Interpreter identity and execution frame | TMM, tmsh, iApp, iCall | partly | 0 | - |
-| BIGIP-NAME-002 | Command name resolution | Current namespace before global; absolute name bypasses the current namespace | TMM, tmsh, iApp, iCall | partly | 0 | - |
+| BIGIP-NAME-002 | Command name resolution | Current namespace before global; absolute name bypasses the current namespace | TMM, tmsh, iApp, iCall | partly | 1 | irules-registry-tooling |
 | BIGIP-NAME-003 | Command name resolution | Global fallback; no walk through ancestor namespaces | TMM, tmsh, iApp, iCall | partly | 0 | - |
 | BIGIP-NAME-004 | Command name resolution | Relative-qualified command names | TMM, tmsh, iApp, iCall | partly | 0 | - |
 | BIGIP-NAME-005 | Command name resolution | Runs of colons inside command names | TMM, tmsh, iApp, iCall | partly | 0 | - |
