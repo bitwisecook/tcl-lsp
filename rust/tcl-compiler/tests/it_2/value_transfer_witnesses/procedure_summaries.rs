@@ -153,9 +153,11 @@ fn a_return_inside_a_call_holding_a_body_stops_the_fold() {
 /// its own: without `p`'s unit, which the re-run needs, `[p]` still folds to
 /// `foo`, and the bare call `p` draws the summary path's hint. A return that
 /// reads a parameter stays `UsesParam` with no constant; and `r`'s value,
-/// exact only under the literal its one caller passes, which the unit's
-/// seeded lattice holds, never enters the summary (R7). tclsh 8.4 to 9.1
-/// print what each program prints, before and after `tcl opt`.
+/// exact only under the literal its one caller passes, never enters the
+/// summary (R7): a procedure body is not seeded from its callers (the
+/// generic-entry ruling), so the call `[r foobar]` is what folds, by O103's
+/// argument-sensitive re-run, to `foo`. tclsh 8.4 to 9.1 print what each
+/// program prints, before and after `tcl opt`.
 #[test]
 fn o103_summary_path_folds_a_computed_return() {
     let source = "proc p {} {set x [string range foobar 0 2]; return $x}\nputs [p]\n";
@@ -198,11 +200,8 @@ fn o103_summary_path_folds_a_computed_return() {
         assert!(!summary.returns_constant, "{dialect}: {summary:?}");
         assert_eq!(summary.return_depends_on_params, ["a"], "{dialect}");
 
-        assert_eq!(
-            last_value(seeded, dialect, "::r", "x"),
-            text("foo"),
-            "{dialect}"
-        );
+        let (rewritten, _) = optimised(seeded, dialect);
+        assert!(rewritten.contains("puts foo"), "{dialect}\n{rewritten}");
         let summary = summary_of(seeded, dialect, "::r");
         assert!(
             !summary.returns_constant && summary.constant_return.is_none(),

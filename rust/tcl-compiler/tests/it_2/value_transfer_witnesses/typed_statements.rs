@@ -182,38 +182,45 @@ fn set_result_incr_keeps_its_increment() {
 }
 
 /// The string and list build chains fold through a `$var` piece the
-/// lattice proves: `append s $p` (O104) — a leading space kept (#2052) —
-/// and `lappend l a $x` (O130).
+/// lattice proves — `append s $p`, a leading space kept (#2052), and
+/// `lappend l a $x` — and the folded value reaches the read: the optimised
+/// program prints it as a constant, whichever of the chain fold (O104/O130)
+/// or forwarding and dead-store removal takes the statements (the
+/// optimiser's order, ruling of 18 November), and prints what tclsh 8.4 to
+/// 9.1 print. The programs run at the top level, which is no iRule.
 #[test]
 fn o104_and_o130_fold_a_chain_through_a_lattice_operand() {
     let cases = [
         (
             "set s hello\nset p again\nappend s $p\nputs $s\n",
-            DiagCode::O104,
-            "set s helloagain",
+            "puts helloagain",
             "helloagain\n",
         ),
         (
             "set s hello\nset p { again}\nappend s $p\nputs $s\n",
-            DiagCode::O104,
-            "set s {hello again}",
+            "puts {hello again}",
             "hello again\n",
         ),
         (
             "set l {}\nset x b\nlappend l a $x\nputs $l\n",
-            DiagCode::O130,
-            "set l {a b}",
+            "puts {a b}",
             "a b\n",
         ),
     ];
-    for (source, code, folded, output) in cases {
-        for dialect in DIALECTS {
-            let rewrites = rewrites_of(source, dialect);
+    for (source, read, output) in cases {
+        for dialect in TCL_CORE_DIALECTS {
+            let (rewritten, rewrites) = optimised(source, dialect);
             assert!(
-                rewrites
-                    .iter()
-                    .any(|r| r.code == code && r.replacement == folded),
-                "{dialect}: {source}\n{rewrites:#?}"
+                rewritten.contains(read),
+                "{dialect}: {source}\n{rewritten}\n{rewrites:#?}"
+            );
+        }
+        for (series, tclsh) in releases_on_path() {
+            let (rewritten, _) = optimised(source, &dialect_of(series));
+            assert_eq!(
+                run_script(&tclsh, &rewritten),
+                Some((true, output.to_owned())),
+                "tclsh{series}:\n{rewritten}"
             );
         }
         prints_under_every_release(source, output);
