@@ -91,30 +91,28 @@ fn vm_output(src: &str, version: TclVersion) -> String {
 
 /// Run `src` under a real tclsh, or `None` when that binary isn't available.
 fn tclsh_output(bin_env: &str, names: &[&str], src: &str) -> Option<String> {
-    use std::io::Write as _;
-    let mut candidates: Vec<String> = Vec::new();
-    if let Ok(explicit) = std::env::var(bin_env) {
-        candidates.push(explicit);
-    }
-    candidates.extend(names.iter().map(ToString::to_string));
-    for name in candidates {
-        let Ok(mut child) = std::process::Command::new(&name)
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
-            .spawn()
-        else {
-            continue;
-        };
-        if let Some(stdin) = child.stdin.as_mut() {
-            let _ = stdin.write_all(src.as_bytes());
-        }
-        let Ok(out) = child.wait_with_output() else {
-            continue;
-        };
-        return Some(String::from_utf8_lossy(&out.stdout).trim().to_string());
-    }
-    None
+    let release = std::iter::once(bin_env)
+        .chain(names.iter().copied())
+        .find_map(oracle_release)
+        .unwrap_or_else(|| panic!("no Tcl release named by {bin_env} / {names:?}"));
+    shared_tclsh_output(release, src)
+}
+
+/// The release a `TCLSH86` variable or `tclsh8.6` binary name stands for.
+fn oracle_release(name: &str) -> Option<tcl_dialect::TclVersion> {
+    let digits: String = name.chars().filter(char::is_ascii_digit).collect();
+    tcl_dialect::TclVersion::ALL
+        .into_iter()
+        .find(|version| version.version_string().replace('.', "") == digits)
+}
+
+/// `src` under the shared oracle locator: a missing interpreter is reported,
+/// or fails the test when `TCL_LSP_REQUIRE_TCLSH` requires the release.
+fn shared_tclsh_output(release: tcl_dialect::TclVersion, src: &str) -> Option<String> {
+    let tclsh = tcl_test_support::witness_tclsh(release)?;
+    let outcome =
+        tcl_test_support::run_script(&tclsh.path, src.as_bytes()).expect("the oracle runs");
+    Some(String::from_utf8_lossy(&outcome.stdout).trim().to_owned())
 }
 
 /// One script and what each release must print.

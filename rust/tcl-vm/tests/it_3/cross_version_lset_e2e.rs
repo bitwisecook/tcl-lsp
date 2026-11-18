@@ -27,7 +27,6 @@
 //! table cannot drift from C Tcl.
 
 use std::cell::RefCell;
-use std::io::Write as _;
 use std::rc::Rc;
 
 use tcl_codegen::compile_service::BytecodeCompileService;
@@ -56,23 +55,13 @@ fn vm_output(src: &str, version: TclVersion) -> String {
     String::from_utf8_lossy(&cap.0.borrow()).trim().to_string()
 }
 
-fn tclsh_output(version: TclVersion, src: &str) -> Option<String> {
-    let mut child = std::process::Command::new(format!("tclsh{}", version.version_string()))
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .ok()?;
-    child
-        .stdin
-        .as_mut()
-        .expect("stdin")
-        .write_all(src.as_bytes())
-        .expect("write");
-    let out = child.wait_with_output().expect("run");
-    out.status
-        .success()
-        .then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
+/// `src` under the shared oracle locator: a missing interpreter is reported,
+/// or fails the test when `TCL_LSP_REQUIRE_TCLSH` requires the release.
+fn tclsh_output(release: TclVersion, src: &str) -> Option<String> {
+    let tclsh = tcl_test_support::witness_tclsh(release)?;
+    let outcome =
+        tcl_test_support::run_script(&tclsh.path, src.as_bytes()).expect("the oracle runs");
+    Some(String::from_utf8_lossy(&outcome.stdout).trim().to_owned())
 }
 
 /// The expected stdout of one vector under each release, in `TclVersion::ALL`

@@ -24,7 +24,6 @@
 //! release, so this command-table view cannot drift from the registry surface.
 
 use std::cell::RefCell;
-use std::io::Write as _;
 use std::rc::Rc;
 
 use tcl_codegen::compile_service::BytecodeCompileService;
@@ -57,29 +56,28 @@ fn vm_output(src: &str, version: TclVersion) -> String {
 }
 
 fn tclsh_output(bin_env: &str, names: &[&str], src: &str) -> Option<String> {
-    let mut candidates = std::env::var(bin_env).ok().into_iter().collect::<Vec<_>>();
-    candidates.extend(names.iter().map(ToString::to_string));
-    for name in candidates {
-        let Ok(mut child) = std::process::Command::new(name)
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
-            .spawn()
-        else {
-            continue;
-        };
-        child
-            .stdin
-            .as_mut()
-            .expect("stdin")
-            .write_all(src.as_bytes())
-            .expect("write Tcl script");
-        let output = child.wait_with_output().expect("run Tcl script");
-        if output.status.success() {
-            return Some(String::from_utf8_lossy(&output.stdout).trim().to_owned());
-        }
-    }
-    None
+    let release = std::iter::once(bin_env)
+        .chain(names.iter().copied())
+        .find_map(oracle_release)
+        .unwrap_or_else(|| panic!("no Tcl release named by {bin_env} / {names:?}"));
+    shared_tclsh_output(release, src)
+}
+
+/// The release a `TCLSH86` variable or `tclsh8.6` binary name stands for.
+fn oracle_release(name: &str) -> Option<tcl_dialect::TclVersion> {
+    let digits: String = name.chars().filter(char::is_ascii_digit).collect();
+    tcl_dialect::TclVersion::ALL
+        .into_iter()
+        .find(|version| version.version_string().replace('.', "") == digits)
+}
+
+/// `src` under the shared oracle locator: a missing interpreter is reported,
+/// or fails the test when `TCL_LSP_REQUIRE_TCLSH` requires the release.
+fn shared_tclsh_output(release: tcl_dialect::TclVersion, src: &str) -> Option<String> {
+    let tclsh = tcl_test_support::witness_tclsh(release)?;
+    let outcome =
+        tcl_test_support::run_script(&tclsh.path, src.as_bytes()).expect("the oracle runs");
+    Some(String::from_utf8_lossy(&outcome.stdout).trim().to_owned())
 }
 
 const SCRIPT: &str = "puts [info tclversion]\n\

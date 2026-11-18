@@ -465,16 +465,24 @@ fn math_function_vectors_match_real_tclsh_when_available() {
 
 /// Run `src` under a real tclsh, or `None` when that binary isn't available.
 fn tclsh_output(bin: &str, src: &str) -> Option<String> {
-    use std::io::Write as _;
-    let mut child = std::process::Command::new(bin)
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .ok()?;
-    if let Some(stdin) = child.stdin.as_mut() {
-        let _ = stdin.write_all(src.as_bytes());
-    }
-    let out = child.wait_with_output().ok()?;
-    Some(String::from_utf8_lossy(&out.stdout).trim().to_string())
+    let release =
+        oracle_release(bin).unwrap_or_else(|| panic!("no Tcl release named by {bin}"));
+    shared_tclsh_output(release, src)
+}
+
+/// The release a `TCLSH86` variable or `tclsh8.6` binary name stands for.
+fn oracle_release(name: &str) -> Option<tcl_dialect::TclVersion> {
+    let digits: String = name.chars().filter(char::is_ascii_digit).collect();
+    tcl_dialect::TclVersion::ALL
+        .into_iter()
+        .find(|version| version.version_string().replace('.', "") == digits)
+}
+
+/// `src` under the shared oracle locator: a missing interpreter is reported,
+/// or fails the test when `TCL_LSP_REQUIRE_TCLSH` requires the release.
+fn shared_tclsh_output(release: tcl_dialect::TclVersion, src: &str) -> Option<String> {
+    let tclsh = tcl_test_support::witness_tclsh(release)?;
+    let outcome =
+        tcl_test_support::run_script(&tclsh.path, src.as_bytes()).expect("the oracle runs");
+    Some(String::from_utf8_lossy(&outcome.stdout).trim().to_owned())
 }
