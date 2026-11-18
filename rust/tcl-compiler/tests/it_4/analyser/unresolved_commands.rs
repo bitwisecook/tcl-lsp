@@ -80,11 +80,15 @@ mod unresolved_command {
         // command set is unknowable and W123 must abstain file-wide.
         for src in [
             "load mylib.so\nmycommand arg1",
-            "lappend auto_path /opt/mylib\nmycmd arg",
-            "namespace import ::foo::[computed]::*\nbar arg",
+            // An undefined `[computed]` would raise first (tclsh8.6.18/9.0.4:
+            // invalid command name "computed"); read the part instead.
+            "namespace import ::foo::[gets stdin]::*\nbar arg",
         ] {
             assert!(w123(src).is_empty(), "expected no W123 for {src:?}");
         }
+        // tclsh8.6.18/9.0.4: an auto_path entry no index in the document
+        // backs provides nothing: `mycmd arg` raises invalid command name.
+        assert_eq!(w123("lappend auto_path /opt/mylib\nmycmd arg").len(), 1);
     }
 
     #[test]
@@ -508,16 +512,16 @@ mod unresolved_command {
         let handled = "proc unknown {cmd args} {\n    switch $cmd {\n        foo { puts foo }\n        bar { puts bar }\n    }\n}\nfoo x\nbar y\n";
         assert_eq!(w123(handled), [] as [std::string::String; 0]);
         let unhandled = "proc unknown {cmd args} {\n    switch $cmd {\n        foo { puts foo }\n    }\n}\nfoo x\nbaz y\n";
-        let d = w123(unhandled);
-        assert_eq!(d.len(), 1);
-        assert!(d[0].contains("baz"));
+        // tclsh8.6.18/9.0.4: `baz y` runs the handler, no arm matches and
+        // it returns; nothing raises.
+        assert_eq!(w123(unhandled), [] as [std::string::String; 0]);
     }
 
     #[test]
-    fn unknown_proc_empty_stub_does_not_suppress() {
-        let d = w123("proc unknown {args} {}\nmycommand arg1");
-        assert_eq!(d.len(), 1);
-        assert!(d[0].contains("mycommand"));
+    fn unknown_proc_empty_stub_handles_the_call() {
+        // tclsh8.6.18/9.0.4: `proc unknown {args} {}; mycommand arg1;
+        // puts done` prints done: the empty handler returns "".
+        assert_eq!(w123("proc unknown {args} {}\nmycommand arg1"), [] as [std::string::String; 0]);
     }
 
     #[test]
@@ -549,8 +553,10 @@ mod unresolved_command {
         let upi = r.unknown_proc_info.as_ref().expect("upi");
         assert!(!upi.chains_original);
         assert!(upi.dispatch_targets.contains("foo"));
+        // tclsh8.6.18/9.0.4: `baz y` runs the last handler, which matches
+        // no arm and returns; nothing raises, so no W123.
         assert!(
-            r.diagnostics
+            !r.diagnostics
                 .iter()
                 .any(|d| d.code.to_string() == "W123" && d.message.contains("baz"))
         );
@@ -596,10 +602,12 @@ mod unresolved_command {
 
     #[test]
     fn tcl_unknown_qualified_recognised() {
-        let src = "proc ::tcl::unknown {cmd args} {\n    switch $cmd {\n        foo { puts foo }\n    }\n}\n";
+        // tclsh8.6.18/9.0.4: Tcl consults `::unknown`, not `::tcl::unknown`;
+        // `foo x` raises `invalid command name "foo"`.
+        let src = "proc ::tcl::unknown {cmd args} {\n    switch $cmd {\n        foo { puts foo }\n    }\n}\nfoo x\n";
         let r = Analyser::new().analyse(src, D);
-        let upi = r.unknown_proc_info.as_ref().expect("upi");
-        assert!(upi.dispatch_targets.contains("foo"));
+        assert!(r.unknown_proc_info.is_none());
+        assert_eq!(w123(src).len(), 1);
     }
 
     // Dead/live short-circuit arms.
