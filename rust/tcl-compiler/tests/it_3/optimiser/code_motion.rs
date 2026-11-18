@@ -28,13 +28,13 @@ fn code_sinking_o125_positive() {
     // OR O100 is accepted (propagation may subsume sinking); here O125 fires.
     // tclsh: `set b foo; if {$a} {puts $b}` and the sunk form
     // `if {$a} {set b foo; puts $b}` both print foo iff $a is true.
-    let basic = "set b foo\nif {$a} {\n    puts $b\n}";
+    let basic = "set a [llength $argv]\nset b foo\nif {$a} {\n    puts $b\n}";
     let codes = opt_codes(basic, TCL);
     assert!(codes.iter().any(|c| c == "O125" || c == "O100"));
 
     // Sink preserves indentation when a nested redefine blocks O100 folding.
     // The sunk `set b foo` lands at the outer-if body indent (4 spaces).
-    let indent = "set b foo\nif {$a} {\n    if {$c} {\n        set b bar\n    }\n    if {$d} {\n        puts $b\n    }\n}";
+    let indent = "lassign $argv a c d\nset b foo\nif {$a} {\n    if {$c} {\n        set b bar\n    }\n    if {$d} {\n        puts $b\n    }\n}";
     assert!(opt_fires(indent, TCL, "O125"));
     let io = optimised(indent, TCL);
     let sunk: Vec<&str> = io
@@ -44,7 +44,7 @@ fn code_sinking_o125_positive() {
     assert!(!sunk.is_empty(), "expected a sunk `set b foo` line: {io}");
 
     // Coexists with O120 (string-compare rewrite in the condition).
-    let with120 = "set b foo\nif {$kind == \"x\"} {\n    puts $b\n}";
+    let with120 = "set kind [lindex $argv 0]\nset b foo\nif {$kind == \"x\"} {\n    puts $b\n}";
     assert!(opt_fires(with120, TCL, "O120"));
     assert!(optimised(with120, TCL).contains("$kind eq \"x\""));
     let c120 = opt_codes(with120, TCL);
@@ -113,12 +113,12 @@ fn code_sinking_o125_applies_both_grouped_edits_and_reparses() {
     // nowhere after the decision.
     for (before, after) in [
         (
-            "set msg {error}\nif {$ok} { return } else { log $msg }",
-            "if {$ok} { return } else { set msg {error}; log $msg }",
+            "proc log {m} {puts $m}\nset ok [llength $argv]\nset msg {error}\nif {$ok} { return } else { log $msg }",
+            "proc log {m} {puts $m}\nset ok [llength $argv]\nif {$ok} { return } else { set msg {error}; log $msg }",
         ),
         (
-            "set msg \"error\"\nif {$ok} { return } else { log $msg }",
-            "if {$ok} { return } else { set msg \"error\"; log $msg }",
+            "proc log {m} {puts $m}\nset ok [llength $argv]\nset msg \"error\"\nif {$ok} { return } else { log $msg }",
+            "proc log {m} {puts $m}\nset ok [llength $argv]\nif {$ok} { return } else { set msg \"error\"; log $msg }",
         ),
     ] {
         assert_eq!(

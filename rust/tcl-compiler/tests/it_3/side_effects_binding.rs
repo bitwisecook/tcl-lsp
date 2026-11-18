@@ -1149,7 +1149,7 @@ fn binding_rename_on_both_arms_agrees() {
     // on every path ⇒ opaque, not ⊤.
     let reg = static_context_for("tcl9.0").commands();
     let cu = build_top(
-        "if {$x} {rename string ::s2} else {rename string ::s2}\nputs [string length hi]\n",
+        "set x [llength $argv]\nif {$x} {rename string ::s2} else {rename string ::s2}\nputs [string length hi]\n",
     );
     let fu = cu.fixture_function("::top").unwrap();
     let cb = analyse_command_binding(&fu.cfg, reg, &[]);

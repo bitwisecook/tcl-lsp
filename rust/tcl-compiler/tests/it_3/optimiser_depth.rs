@@ -353,7 +353,8 @@ fn code_sinking_o125_into_switch_arm() {
     // preserved (with the matching subject `a == x`):
     //   `set b foo; set a x; switch $a { x { set out $b } y { set out no } }; set out` ⇒ foo
     //   sunk:      `set a x; switch $a { x { set b foo; set out $b } … }; set out`     ⇒ foo
-    let src = "set b foo\nswitch $a {\n    x { puts $b }\n    y { puts no }\n}";
+    let src =
+        "set a [lindex $argv 0]\nset b foo\nswitch $a {\n    x { puts $b }\n    y { puts no }\n}";
     assert!(
         opt_fires(src, TCL, "O125"),
         "O125 should sink into the switch arm"
@@ -533,8 +534,15 @@ fn branch_folding_condition_cascade() {
     // Strength reduction in a condition: `$x % 8` ⇒ `$x & 7`. tclsh sweep
     // proves equivalence for x ≥ 0:
     //   `foreach x {0 1 5 8 15 16 100} { if {($x % 8) != ($x & 7)} {…} }` ⇒ never differs
-    let sred = "if {$x % 8} { puts a }";
-    assert_eq!(optimised(sred, TCL), "if {$x & 7} { puts a }");
+    // `%` and `&` agree on integers only (tclsh 8.4-9.1 raise different
+    // errors for `abc` and `1.5`): `$x` is a loop counter.
+    let in_loop = |body: &str| {
+        format!(
+            "proc f {{n}} {{\n  for {{set x 0}} {{$x < $n}} {{incr x}} {{\n    set y [expr {{$x + 1}}]\n    {body}\n  }}\n}}\n"
+        )
+    };
+    let sred = &in_loop("if {$x % 8} { puts a }");
+    assert_eq!(optimised(sred, TCL), in_loop("if {$x & 7} { puts a }"));
     assert!(
         opt_fires(sred, TCL, "O113"),
         "modulo strength-reduction in a condition is O113"
@@ -544,7 +552,7 @@ fn branch_folding_condition_cascade() {
     // if-condition rewrite is carried under O113 (the
     // strength-reduce pass owns the condition path), not O110. tclsh sweep:
     //   `foreach x {0 1 5} { foreach y {0 1 5} { if {(!($x && $y)) != (!$x || !$y)} {…} } }` ⇒ never differs
-    let demorgan = "if {!($x && $y)} { puts yes }";
+    let demorgan = &in_loop("if {!($x && $y)} { puts yes }");
     assert!(optimised(demorgan, TCL).contains("!$x || !$y"));
     assert!(
         opt_fires(demorgan, TCL, "O110") || opt_fires(demorgan, TCL, "O113"),

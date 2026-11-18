@@ -574,7 +574,9 @@ fn an_opaque_switch_arm_that_may_write_any_name_is_followed_by_a_barrier() {
 
 #[test]
 fn supplied_switch_may_writes_keep_actual_context_and_unavailable_residual() {
-    let (context, unit) = logical_metadata_fixture("switch -glob $subject {a {set arm ONE}}");
+    let (context, unit) = logical_metadata_fixture(
+        "set subject [lindex $argv 0]\nswitch -glob $subject {a {set arm ONE}}",
+    );
     let registry = context.commands();
     let metadata = unit
         .top_level

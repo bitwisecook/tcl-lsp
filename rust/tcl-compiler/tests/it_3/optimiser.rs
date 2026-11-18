@@ -183,6 +183,12 @@ fn in_proc(body: &str) -> String {
     format!("proc p {{a b c d x s}} {{\n  {body}{tail}\n}}\n")
 }
 
+/// `body` at file level after `vars` are assigned from the script's
+/// arguments, so each read is of a set variable whose value is unknown.
+fn from_argv(vars: &str, body: &str) -> String {
+    format!("lassign $argv {vars}\n{body}")
+}
+
 // Cross-event DSE — stores consumed by a later event must survive
 
 // NOTE — this group of cross-event DSE cases is OMITTED here (they were a

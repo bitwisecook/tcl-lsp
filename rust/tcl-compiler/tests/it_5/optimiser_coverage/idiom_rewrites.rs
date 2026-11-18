@@ -91,7 +91,7 @@ fn o114_incr_idiom() {
 fn o115_nested_expr_unwrap() {
     // `if {[expr {...}]}` — the nested expr is redundant in a condition. tclsh:
     // `if {[expr {$x + 1}]}` == `if {$x + 1}`.
-    let in_if = "if {[expr {$x + 1}]} {}";
+    let in_if = &int_xy("if {[expr {$x + 1}]} {}");
     assert!(!optimised(in_if, TCL).contains("[expr"));
     assert!(opt_fires(in_if, TCL, "O115"));
 
@@ -102,7 +102,11 @@ fn o115_nested_expr_unwrap() {
     assert!(opt_fires(in_ret, TCL, "O115"));
 
     // `[string length $s]` is not an expr — not unwrapped.
-    assert!(opt_absent("if {[string length $s]} {}", TCL, "O115"));
+    assert!(opt_absent(
+        &in_proc("if {[string length $s]} {}"),
+        TCL,
+        "O115"
+    ));
 
     // NOTE on gaps (sound): `while {[expr {...}]}` and
     // `set y [expr {[expr {...}]}]` are not unwrapped (only if/return paths fire).
@@ -285,13 +289,13 @@ fn o120_string_compare_eq_ne() {
 fn o120_with_sccp_const_and_mixed() {
     // A var known non-numeric via SCCP CONST ("foo") proves the string path.
     // tclsh: `set a foo; expr {$a == $b}` == `expr {$a eq $b}` for every $b.
-    let vc = "set a foo\nif {$a == $b} {}";
+    let vc = &in_proc("set a foo\n  if {$a == $b} {}");
     assert!(opt_fires(vc, TCL, "O120"));
     assert!(optimised(vc, TCL).contains("eq $b"));
 
     // Mixed expr: only the string compare is rewritten; numeric `$n == 1` stays.
     // Rust carries this via O110 canonicalisation; the eq-half is present.
-    let mixed = "set a [string trim $raw]\nif {$a == \"x\" && $n == 1} {}";
+    let mixed = "lassign $argv raw n\nset a [string trim $raw]\nif {$a == \"x\" && $n == 1} {}";
     let mx = optimised(mixed, TCL);
     assert!(mx.contains("$a eq \"x\""));
     assert!(mx.contains("$n == 1"));

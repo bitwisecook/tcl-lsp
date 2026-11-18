@@ -199,7 +199,7 @@ fn pass_interactions() {
     // String-compare ⇒ eq rewrite inside [expr {...}]. Rust routes the expr-subst
     // form through O110 (instcombine) rather than O120; the rewrite is identical.
     // tclsh: $a == "hello" <=> $a eq "hello".
-    let expr_eq = "set ok [expr {$a == \"hello\"}]";
+    let expr_eq = &in_proc("set ok [expr {$a == \"hello\"}]");
     assert!(optimised(expr_eq, TCL).contains("$a eq \"hello\""));
     assert!(opt_any_of(expr_eq, TCL, &["O120", "O110"]));
 }

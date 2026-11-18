@@ -71,7 +71,7 @@ fn strength_reduction_o113() {
     assert!(opt_fires(pow, TCL, "O113"));
 
     // tclsh sweep (x≥0): x % 8 == x & 7.
-    let modp = "if {$x % 8} {}";
+    let modp = &int_xy("if {$x % 8} {}");
     let m = optimised(modp, TCL);
     assert!(m.contains('&'));
     assert!(!m.contains('%'));
@@ -106,7 +106,7 @@ fn incr_idiom_o114() {
 fn nested_expr_unwrap_o115() {
     // `if {[expr {...}]}` — the nested expr is redundant in a condition. tclsh:
     // `if {[expr {$x + 1}]}` == `if {$x + 1}`.
-    let in_if = "if {[expr {$x + 1}]} {}";
+    let in_if = &int_xy("if {[expr {$x + 1}]} {}");
     assert!(!optimised(in_if, TCL).contains("[expr"));
     assert!(opt_fires(in_if, TCL, "O115"));
 
@@ -162,13 +162,13 @@ fn list_and_lindex_folding() {
 #[test]
 fn strlen_zero_check_o117() {
     // tclsh sweep: ([string length $s] == 0) <=> ($s eq "").
-    let eq0 = "if {[string length $s] == 0} {}";
+    let eq0 = &in_proc("if {[string length $s] == 0} {}");
     let e = optimised(eq0, TCL);
     assert!(e.contains("eq \"\"") || !e.contains("string length"));
     assert!(opt_fires(eq0, TCL, "O117"));
 
     // tclsh sweep: ([string length $s] != 0) <=> ($s ne "").
-    let ne0 = "if {[string length $s] != 0} {}";
+    let ne0 = &in_proc("if {[string length $s] != 0} {}");
     let n = optimised(ne0, TCL);
     assert!(n.contains("ne \"\"") || !n.contains("string length"));
     assert!(opt_fires(ne0, TCL, "O117"));
@@ -179,7 +179,7 @@ fn strlen_zero_check_o117() {
     // a known gap.
     assert_eq!(
         optimised(&in_proc("if {[string length $s] > 0} {}"), TCL),
-        "if {[string length $s] > 0} {}"
+        in_proc("if {[string length $s] > 0} {}")
     );
 }
 
@@ -188,7 +188,7 @@ fn strlen_zero_check_o117() {
 #[test]
 fn string_compare_eq_ne_o120() {
     // tclsh sweep: $a == "hello" <=> $a eq "hello" ("hello" is non-numeric).
-    let eq = "if {$a == \"hello\"} {}";
+    let eq = &in_proc("if {$a == \"hello\"} {}");
     assert!(optimised(eq, TCL).contains("$a eq \"hello\""));
     assert!(opt_fires(eq, TCL, "O120"));
 
@@ -203,14 +203,17 @@ fn string_compare_eq_ne_o120() {
     // A var known non-numeric via SCCP CONST ("foo") proves the string path:
     // tclsh: `set a foo; expr {$a == $b}` == `expr {$a eq $b}` for every $b.
     // Rust folds the CONST in and rewrites to eq.
-    let vc = "set a foo\nif {$a == $b} {}";
+    let vc = &in_proc("set a foo\n  if {$a == $b} {}");
     assert!(opt_fires(vc, TCL, "O120"));
     assert!(optimised(vc, TCL).contains("eq $b"));
 
     // Mixed expr: only the string comparison is rewritten, numeric `$n == 1`
     // left alone. tclsh: $a (string) eq "x" preserves the && result. Rust
     // carries this via O110 canonicalisation; the eq-half is present.
-    let mixed = "set a [string trim $raw]\nif {$a == \"x\" && $n == 1} {}";
+    let mixed = &from_argv(
+        "raw n",
+        "set a [string trim $raw]\nif {$a == \"x\" && $n == 1} {}",
+    );
     let mx = optimised(mixed, TCL);
     assert!(mx.contains("$a eq \"x\""));
     assert!(mx.contains("$n == 1"));
@@ -317,19 +320,29 @@ fn end_offset_rewrites_o128() {
             "set x [lindex $L end 0]",
         ),
     ];
+    // The containers are the script's arguments: set, and unknown.
+    let bound = |body: &str| {
+        format!(
+            "namespace eval my {{}}\n{}",
+            from_argv("L s a(1) my::list", body)
+        )
+    };
     for (src, want) in cases {
-        assert_eq!(optimised(src, TCL), *want, "O128 rewrite: {src}");
-        assert!(opt_fires(src, TCL, "O128"), "O128 should fire: {src}");
+        let (src, want) = (bound(src), bound(want));
+        assert_eq!(optimised(&src, TCL), want, "O128 rewrite: {src}");
+        assert!(opt_fires(&src, TCL, "O128"), "O128 should fire: {src}");
     }
 
     // lreplace rewrites BOTH indices ⇒ two O128.
-    let lr = "set x [lreplace $L [expr {[llength $L] - 2}] [expr {[llength $L] - 1}] foo]";
-    assert_eq!(optimised(lr, TCL), "set x [lreplace $L end-1 end foo]");
+    let lr = &bound("set x [lreplace $L [expr {[llength $L] - 2}] [expr {[llength $L] - 1}] foo]");
+    assert_eq!(
+        optimised(lr, TCL),
+        bound("set x [lreplace $L end-1 end foo]")
+    );
     assert_eq!(opt_count(lr, TCL, "O128"), 2);
 
     // Inside a proc body.
-    let inproc =
-        "proc last {L} {\n    set r [lindex $L [expr {[llength $L] - 1}]]\n    return $r\n}";
+    let inproc = "proc last {L} {\n    set r [lindex $L [expr {[llength $L] - 1}]]\n    return $r\n}\nputs [last $argv]";
     assert!(optimised(inproc, TCL).contains("[lindex $L end]"));
     assert!(opt_fires(inproc, TCL, "O128"));
 }
@@ -369,11 +382,17 @@ fn end_offset_o128_must_not_fire() {
     }
 
     // Partial rewrites: when only one index matches, exactly one O128 fires.
-    let one = "set x [lrange $L 2 [expr {[llength $L] - 1}]]";
-    assert_eq!(optimised(one, TCL), "set x [lrange $L 2 end]");
+    let one = &from_argv("L", "set x [lrange $L 2 [expr {[llength $L] - 1}]]");
+    assert_eq!(
+        optimised(one, TCL),
+        from_argv("L", "set x [lrange $L 2 end]")
+    );
     assert_eq!(opt_count(one, TCL, "O128"), 1);
 
-    let mismatch = "set x [lreplace $L [expr {[llength $M] - 1}] [expr {[llength $L] - 1}] foo]";
+    let mismatch = &from_argv(
+        "L M",
+        "set x [lreplace $L [expr {[llength $M] - 1}] [expr {[llength $L] - 1}] foo]",
+    );
     let mo = optimised(mismatch, TCL);
     assert!(mo.contains("end"));
     assert!(mo.contains("[llength $M] - 1"));
@@ -381,13 +400,19 @@ fn end_offset_o128_must_not_fire() {
 
     // First-position multi-index IS relative to $L ⇒ rewrites even with a
     // trailing index. tclsh: `[lindex $L [...-1] 0]` == `[lindex $L end 0]`.
-    let first = "set x [lindex $L [expr {[llength $L] - 1}] 0]";
-    assert_eq!(optimised(first, TCL), "set x [lindex $L end 0]");
+    let first = &from_argv("L", "set x [lindex $L [expr {[llength $L] - 1}] 0]");
+    assert_eq!(
+        optimised(first, TCL),
+        from_argv("L", "set x [lindex $L end 0]")
+    );
     assert!(opt_fires(first, TCL, "O128"));
 
     // Matching array element rewrites.
-    let arr = "set x [lindex $a(1) [expr {[llength $a(1)] - 1}]]";
-    assert_eq!(optimised(arr, TCL), "set x [lindex $a(1) end]");
+    let arr = &from_argv("a(1)", "set x [lindex $a(1) [expr {[llength $a(1)] - 1}]]");
+    assert_eq!(
+        optimised(arr, TCL),
+        from_argv("a(1)", "set x [lindex $a(1) end]")
+    );
     assert!(opt_fires(arr, TCL, "O128"));
 
     // MORE precise (tclsh-proven sound): one might expect

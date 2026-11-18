@@ -94,7 +94,7 @@ fn o125_code_sinking() {
     // Basic sink into an `if` whose condition does not read the var. Either O125
     // or O100 is accepted; here O125 fires. tclsh: `set b foo; if {$a} {puts $b}`
     // and the sunk form both print foo iff $a is true.
-    let basic = "set b foo\nif {$a} {\n    puts $b\n}";
+    let basic = "set a [llength $argv]\nset b foo\nif {$a} {\n    puts $b\n}";
     assert!(opt_any_of(basic, TCL, &["O125", "O100"]));
 
     // O125 must NOT fire when the var is read in the condition or its RHS is a
@@ -111,7 +111,7 @@ fn o125_code_sinking() {
     )); // cmd-sub RHS
 
     // Coexists with O120 (string-compare rewrite in the condition).
-    let with120 = "set b foo\nif {$kind == \"x\"} {\n    puts $b\n}";
+    let with120 = "set kind [lindex $argv 0]\nset b foo\nif {$kind == \"x\"} {\n    puts $b\n}";
     assert!(opt_fires(with120, TCL, "O120"));
     assert!(optimised(with120, TCL).contains("$kind eq \"x\""));
 }
