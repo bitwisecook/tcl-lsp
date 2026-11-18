@@ -96,7 +96,7 @@ The second pass, after the failing tests, takes the passing ones through the exa
 
 1. The wrong answers it found, each with its tclsh witness as a new test.
 2. The repairs: `FIX-FIXTURE` and `FIX-EXPECTATION`, by cause, one commit per cause naming the ledger rows and the evidence. A repaired test then passes or shows a real product fault; it is re-read in the ledger, never adjusted until green.
-3. `RETIRE` and `MERGE`, in commits of their own that name the rows; a merge only after the survivor asserts at least as much.
+3. `RETIRE` and `MERGE`, in commits of their own that name the rows; a merge only after the survivor asserts at least as much. Where the survivor is itself failing, either wait until it passes or record in the survivor's note that it is the survivor of those merged tests: it then carries the only copy of the behaviour and cannot be retired, merged or have its expectation changed without re-reading what was folded into it.
 4. `REWRITE`, re-pointed at the named observable, by cause.
 5. The `KEEP` causes, ranked by tests blocked.
 
