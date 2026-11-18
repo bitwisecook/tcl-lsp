@@ -92,6 +92,19 @@ impl Analyser {
         }
     }
 
+    /// Every constant of this scope stops dominating what follows: an
+    /// unentered body may have stored to any of them.
+    pub(in super::super) fn withdraw_dominating_constants(&mut self, scope_path: &[usize]) {
+        let Some(names) = self.const_strings.get(scope_path) else {
+            return;
+        };
+        let names: Vec<String> = names.keys().cloned().collect();
+        self.nondominating_consts
+            .entry(scope_path.to_vec())
+            .or_default()
+            .extend(names);
+    }
+
     /// Remove constant-value knowledge for `var_name` (re-assigned
     /// dynamically).
     pub fn clear_const_string(&mut self, var_name: &str, scope_path: &[usize]) {
@@ -378,5 +391,22 @@ impl Analyser {
         if let Some(map) = self.interp_var_bindings.get_mut(scope_path) {
             map.remove(var_name);
         }
+    }
+}
+
+#[cfg(test)]
+mod unentered_body_tests {
+    /// tclsh 8.4.20 and 9.1.0: after `ns::p 1`, `$::ns::v` is 2: `set $n 2`
+    /// wrote `v`, not `other`, so the name is not the constant `other`.
+    #[test]
+    fn a_body_the_analysis_cannot_enter_withdraws_the_constants_before_it() {
+        let source = "namespace eval ::ns {\n    variable v 1\n    proc p {c} { set n other ; if {$c} { set n v } ; variable v ; set $n 2 }\n}\n";
+        let result = crate::analyser::Analyser::new().analyse(source, "tcl");
+        let resolved = result
+            .dynamic_variable_names
+            .iter()
+            .map(|site| site.resolved.clone())
+            .collect::<Vec<_>>();
+        assert_eq!(resolved, [None]);
     }
 }

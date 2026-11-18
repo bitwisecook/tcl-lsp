@@ -100,6 +100,19 @@ fn body_argument_indices(
     indices
 }
 
+/// Whether the registry declares a body argument for some invocation of
+/// `spec` or one of its subcommands.
+fn may_run_a_body(spec: &tcl_registry::CommandSpec) -> bool {
+    let declares = |roles: &[(u8, ArgRole)], resolved: &[ArgRole]| {
+        roles.iter().any(|(_, role)| *role == ArgRole::Body) || resolved.contains(&ArgRole::Body)
+    };
+    declares(spec.arg_roles, spec.arg_role_resolver_roles)
+        || spec
+            .subcommands
+            .iter()
+            .any(|sub| declares(sub.arg_roles, sub.arg_role_resolver_roles))
+}
+
 fn is_dynamic_eval_body(view: &crate::registry_invocation::InvocationBodyAssistance) -> bool {
     view.definite_traits
         .contains(tcl_registry::Traits::DYNAMIC_EVAL_BODY)
@@ -275,6 +288,11 @@ impl Analyser {
             arg_tokens,
         );
         if body_indices.is_empty() {
+            // A body the registry says this command may run, which the
+            // analysis could not enter, may store anything in this scope.
+            if logical.is_none() && registry.get(cmd_name).is_some_and(may_run_a_body) {
+                self.withdraw_dominating_constants(scope_path);
+            }
             return;
         }
         let dynamic_eval = is_dynamic_eval_body(&view);
