@@ -761,3 +761,106 @@ fn method_declaration_retains_local_frame_without_receiver_namespace() {
         crate::registry_invocation::normal_transfer_invocation(&registry, None, &tokens).is_none()
     );
 }
+
+/// The receipts a stock creation through a user metaclass stamped, by the
+/// created command and the metaclass that made it.
+fn custom_metaclass_receipts(source: &str, dialect: &str) -> Vec<(String, String)> {
+    let profile = tcl_dialect::DialectProfile::find(dialect).unwrap();
+    let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+    let entry: crate::environment_ingress::CapturedNativeEntry =
+        crate::environment_ingress::captured_native_entry(profile);
+    let bindings = SourceCommandBindings::analyse_with_options(
+        source,
+        tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+        registry,
+        SourceAnalysisOptions {
+            native_entry: Some(&entry),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
+                mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+    );
+    let offset = u32::try_from(source.rfind("puts done").unwrap()).unwrap();
+    let binding = bindings.invocation_at_source("puts", offset);
+    let mut stamped = binding
+        .lookup_state
+        .as_ref()
+        .map_or_else(Vec::new, |lookup| {
+            lookup
+                .state
+                .class_definitions
+                .iter()
+                .filter_map(|(token, receipt)| {
+                    Some((
+                        token.origin.clone(),
+                        receipt.custom_metaclass.as_ref()?.command.clone(),
+                    ))
+                })
+                .collect::<Vec<_>>()
+        });
+    stamped.sort();
+    stamped
+}
+
+#[test]
+fn a_user_metaclass_that_adds_nothing_stamps_only_the_class_it_names() {
+    // tclsh 8.6.18/9.0.4/9.1.0: `info object class ::N` is ::Meta, while a
+    // stock class a definition script makes (::oo::define::Inner) is an
+    // instance of ::oo::class.
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        assert_eq!(
+            custom_metaclass_receipts(
+                "oo::class create Meta {superclass oo::class}; Meta create N {method m {} {}}; puts done",
+                dialect
+            ),
+            [("::N".to_owned(), "::Meta".to_owned())],
+            "{dialect}"
+        );
+        let inner = custom_metaclass_receipts(
+            "oo::class create Meta {superclass oo::class}; Meta create N {::oo::class create Inner; method m {} {}}; puts done",
+            dialect,
+        );
+        assert!(
+            inner.iter().all(|(created, _)| created == "::N"),
+            "{dialect}: {inner:?}"
+        );
+    }
+}
+
+#[test]
+fn an_override_of_create_on_the_metaclass_is_not_walked_as_the_stock_creation() {
+    // tclsh 8.6.18/9.0.4: a per-object `create` method or an object mixin on
+    // Meta runs when `Meta create N {}` is called ("own", "mixin"). A class
+    // mixin or filter on Meta leaves `Meta create` stock but runs when a class
+    // Meta made creates (`N create C` prints "mixin"), so neither creation is
+    // walked as the stock one there.
+    let mix = "oo::class create Mix {method create args {next {*}$args}; method f args {next {*}$args}}; ";
+    for (prefix, suffix) in [
+        (
+            "oo::objdefine Meta method create args {next {*}$args}; ",
+            "",
+        ),
+        ("oo::objdefine Meta mixin Mix; ", ""),
+        ("oo::define Meta mixin Mix; ", "N create C {}; "),
+        (
+            "oo::define Meta mixin Mix; oo::define Meta filter f; ",
+            "N create C {}; ",
+        ),
+    ] {
+        let source = format!(
+            "{mix}oo::class create Meta {{superclass oo::class}}; {prefix}Meta create N {{}}; {suffix}puts done"
+        );
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            // The creation the override changes is never walked as stock.
+            let changed = if suffix.is_empty() { "::N" } else { "::C" };
+            let stamped = custom_metaclass_receipts(&source, dialect);
+            assert!(
+                stamped.iter().all(|(created, _)| created != changed),
+                "{dialect}: {source}: {stamped:?}"
+            );
+        }
+    }
+}

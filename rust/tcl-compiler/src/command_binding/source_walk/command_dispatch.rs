@@ -358,8 +358,17 @@ impl SourceCommandBindings {
                     stock,
                     context,
                 );
-                if let Some(normal) = result.normal.as_deref_mut() {
-                    normal.mark_custom_metaclass_creations(incoming, stock, target);
+                if let Some(normal) = result.normal.as_deref_mut()
+                    && normal
+                        .mark_custom_metaclass_creation(
+                            stock,
+                            target,
+                            &projected.effective,
+                            *context,
+                        )
+                        .is_none()
+                {
+                    normal.mark_opaque_binding_mutation();
                 }
                 result
             } else if target.registry_backed
@@ -503,8 +512,12 @@ impl SourceCommandBindings {
                     stock,
                     context,
                 );
-                if let Some(normal) = result.normal.as_deref_mut() {
-                    normal.mark_custom_metaclass_creations(&incoming, stock, target);
+                if let Some(normal) = result.normal.as_deref_mut()
+                    && normal
+                        .mark_custom_metaclass_creation(stock, target, effective, *context)
+                        .is_none()
+                {
+                    normal.mark_opaque_binding_mutation();
                 }
                 result
             } else if target.registry_backed

@@ -247,6 +247,10 @@ impl ModuleCommandBindings {
         let grammar = definition.original_factory.as_ref()?.recipe().grammar();
         let selector = effective.get(1)?.as_registry_word().literal()?;
         let manufacturer = grammar.manufacturer(selector)?;
+        // The created class must be named by a written word, so the receipt
+        // this call makes is found by that name afterwards.
+        let name = usize::from(manufacturer.names_instance_at?).checked_add(1)?;
+        effective.get(name)?.as_registry_word().literal()?;
         (manufacturer.visibility == tcl_registry::definer::MemberVisibility::Exported)
             .then_some(stock)
     }
@@ -324,34 +328,40 @@ impl ModuleCommandBindings {
         stock
     }
 
-    /// Stamp each class the stock creation at this call just made with the
-    /// user metaclass the call named, so later dispatch and precision gates
-    /// see that the class was not made by the registry factory itself.
-    pub(in super::super) fn mark_custom_metaclass_creations(
+    /// Stamp the class this stock creation named with the user metaclass the
+    /// call went through. Only the named result is stamped: a definition
+    /// script may make stock classes of its own (`oo::class create Inner`).
+    /// `None` when that class cannot be found, so the caller can withdraw.
+    pub(in super::super) fn mark_custom_metaclass_creation(
         &mut self,
-        before: &ModuleCommandBindings,
         stock: &super::super::SourceCommandTarget,
         metaclass: &super::super::SourceCommandTarget,
-    ) {
-        let created = self
+        effective: &[crate::registry_invocation::EffectiveInvocationWord],
+        context: SourceExecutionContext<'_>,
+    ) -> Option<()> {
+        let grammar = self
             .class_definitions
-            .iter()
-            .filter(|(identity, receipt)| {
-                receipt.factory == stock.command
-                    && receipt.custom_metaclass.is_none()
-                    && before.class_definitions.get(*identity) != Some(*receipt)
-            })
-            .map(|(identity, _)| identity.clone())
-            .collect::<Vec<_>>();
-        if created.is_empty() {
-            return;
+            .get(metaclass.identity.as_ref()?)?
+            .original_factory
+            .as_ref()?
+            .recipe()
+            .grammar();
+        let selector = effective.get(1)?.as_registry_word().literal()?;
+        let index = usize::from(grammar.manufacturer(selector)?.names_instance_at?);
+        let name = effective
+            .get(index.checked_add(1)?)?
+            .as_registry_word()
+            .literal()?;
+        let created = source_binding(self, name, &context.namespace_identity())
+            .proved_target()?
+            .clone();
+        let receipt =
+            Arc::make_mut(&mut self.class_definitions).get_mut(created.identity.as_ref()?)?;
+        if receipt.factory != stock.command || receipt.custom_metaclass.is_some() {
+            return None;
         }
-        let definitions = Arc::make_mut(&mut self.class_definitions);
-        for identity in created {
-            if let Some(receipt) = definitions.get_mut(&identity) {
-                receipt.custom_metaclass = Some(metaclass.clone());
-            }
-        }
+        receipt.custom_metaclass = Some(metaclass.clone());
+        Some(())
     }
 
     /// A shipped base class (`oo::object`, `oo::class`) inherits members the
