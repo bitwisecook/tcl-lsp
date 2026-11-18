@@ -230,25 +230,30 @@ fn publication_revision_refuses_foreign_dead_and_exhausted_worlds() {
     assert!(world.original_publication_revision().is_none());
 }
 
+/// A compiled caller sees a rename and a redefinition at its next command:
+/// the renamed command keeps answering under its new name and the caller
+/// reaches the new definition. tclsh 8.4.20-9.1.0 print `A NEW A` for
+/// `proc a {} {return A}; proc call {} {a}; set r [call]; rename a b;
+/// proc a {} {return NEW}; list $r [call] [b]`.
 #[test]
 fn publication_revision_tracks_moves_and_callback_rebound_rename_sources() {
-    let mut world = Namespaces::new();
-    world.bind(GLOBAL, b"old", cmd());
-    let moved = world.command_generation(GLOBAL, b"old").unwrap();
-    let before = world.original_publication_revision().unwrap();
-    let publication = world
-        .publish_rename_destination(GLOBAL, b"old", b"new")
-        .unwrap();
-    assert!(!before.matches(&world.original_publication_revision().unwrap()));
-    assert!(world.original_publication_is_current(GLOBAL, b"new", moved));
-    assert!(!world.original_publication_is_current(GLOBAL, b"old", moved));
-    world.bind(GLOBAL, b"old", cmd());
-    let rebound = world.command_generation(GLOBAL, b"old").unwrap();
-    let rebound_revision = world.original_publication_revision().unwrap();
-    world.retire_rename_source(&publication);
-    assert!(!rebound_revision.matches(&world.original_publication_revision().unwrap()));
-    assert!(!world.original_publication_is_current(GLOBAL, b"old", rebound));
-    assert!(world.original_publication_is_current(GLOBAL, b"new", moved));
+    for version in [
+        tcl_dialect::TclVersion::V8_4,
+        tcl_dialect::TclVersion::V8_6,
+        tcl_dialect::TclVersion::V9_0,
+    ] {
+        let mut interp = crate::interp::Interp::new();
+        interp.set_runtime_version(version);
+        assert_eq!(
+            interp.eval_str(
+                b"proc a {} {return A}; proc call {} {a}; set r [call]; rename a b; \
+                  proc a {} {return NEW}; list $r [call] [b]"
+            ),
+            Code::Ok,
+            "{version:?}"
+        );
+        assert_eq!(interp.result_bytes(), b"A NEW A".as_slice(), "{version:?}");
+    }
 }
 
 #[test]
