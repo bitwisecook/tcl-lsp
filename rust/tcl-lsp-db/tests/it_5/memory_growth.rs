@@ -366,3 +366,85 @@ fn an_unchanged_document_reanalysed_under_alternating_configuration_interns_noth
          (CfgContext, FnLatticeKey per round): {seen:?}",
     );
 }
+
+/// The checks one configuration of one document yields, comparable across
+/// databases.
+fn checks_of(db: &TclDatabase, file: SourceFile, config: AnalyserConfig) -> Vec<String> {
+    let mut checks: Vec<String> = compiler_check_diagnostics(db, file, config)
+        .checks
+        .iter()
+        .map(|check| format!("{:?} {:?} {}", check.code, check.span, check.message))
+        .collect();
+    checks.sort();
+    checks
+}
+
+/// What `source` yields under `dialect` in a database that has seen nothing
+/// else.
+fn fresh_checks(source: &str, dialect: &str) -> Vec<String> {
+    let db = TclDatabase::default();
+    let file = SourceFile::new(&db, source.to_owned(), dialect.to_owned(), None);
+    let config = build_config(&db);
+    checks_of(&db, file, config)
+}
+
+/// Memoised per-procedure lattices are shared between modules only when they
+/// are the same analysis. Two documents whose procedures sit at the same
+/// ordinals but have different bodies, and one body under two releases' command
+/// surfaces, must each get exactly what a database that has seen nothing else
+/// gives, however often they are rebuilt in between (#2543). `dict` exists from
+/// Tcl 8.5 (tclsh 8.4.20: `invalid command name "dict"`), so under 8.4 the
+/// value read from stdin never reaches the sink.
+#[test]
+fn equal_procedure_ordinals_never_share_a_lattice_between_different_analyses_2543() {
+    // Same procedure layout (p then q), different bodies of p: one evaluates
+    // what it read from stdin, the other a constant.
+    let tainted = "proc p {} {\n  set x [gets stdin]\n  eval $x\n}\nproc q {} { p }\nq\n";
+    let clean = "proc p {} {\n  set x {puts hi}\n  eval $x\n}\nproc q {} { p }\nq\n";
+    // One body, two releases' command surfaces.
+    let surface =
+        "proc p {} {\n  set x [dict get [gets stdin] k]\n  eval $x\n}\nproc q {} { p }\nq\n";
+    let cases = [
+        (tainted, "tcl8.6"),
+        (clean, "tcl8.6"),
+        (surface, "tcl8.6"),
+        (surface, "tcl8.4"),
+    ];
+    let expected: Vec<_> = cases
+        .iter()
+        .map(|(source, dialect)| fresh_checks(source, dialect))
+        .collect();
+    assert_ne!(
+        expected[0], expected[1],
+        "the two bodies must analyse differently: {expected:?}"
+    );
+    assert_ne!(
+        expected[2], expected[3],
+        "the two command surfaces must analyse the same body differently: {expected:?}",
+    );
+
+    let mut db = TclDatabase::default();
+    let files: Vec<_> = cases
+        .iter()
+        .map(|(source, dialect)| {
+            SourceFile::new(&db, (*source).to_owned(), (*dialect).to_owned(), None)
+        })
+        .collect();
+    let config = build_config(&db);
+    for round in 0..4 {
+        for (index, &file) in files.iter().enumerate() {
+            // Moving the configuration forces every module to be rebuilt.
+            let extra = if (round + index) % 2 == 0 {
+                Vec::new()
+            } else {
+                vec!["churnpack::noop".to_owned()]
+            };
+            config.set_extra_commands(&mut db).to(extra);
+            assert_eq!(
+                checks_of(&db, file, config),
+                expected[index],
+                "case {index} in round {round} took another analysis's lattice",
+            );
+        }
+    }
+}
