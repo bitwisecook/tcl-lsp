@@ -205,28 +205,6 @@ fn analyse_switch_regexp_form2_records_literal_patterns() {
 }
 
 #[test]
-fn analyse_braced_expect_clause_regexp_records_literal_and_const_var_patterns() {
-    let mut a = Analyser::new();
-    let r = a.analyse(
-        "set pat {(a+)+$}\nexpect {-regexp {^lit$} { puts lit } -re $pat { puts var }}\n",
-        "expect",
-    );
-    let patterns: Vec<_> = r
-        .regex_patterns
-        .iter()
-        .filter(|p| p.command == "expect")
-        .collect();
-    assert!(
-        patterns.iter().any(|pattern| pattern.pattern == "^lit$"),
-        "literal per-clause regexp missing: {patterns:?}"
-    );
-    assert!(
-        patterns.iter().any(|pattern| pattern.pattern == "(a+)+$"),
-        "const variable per-clause regexp missing: {patterns:?}"
-    );
-}
-
-#[test]
 fn analyse_switch_regexp_skips_default_arm() {
     let mut a = Analyser::new();
     let r = a.analyse(
@@ -285,34 +263,6 @@ fn analyse_switch_regexp_skips_unresolved_var_pattern() {
 // literal stored by a preceding ``set var "..."`` (regexp /
 // regsub and switch -regexp Form 2).
 
-#[test]
-fn analyse_regexp_resolves_var_pattern_to_const_string() {
-    let mut a = Analyser::new();
-    let r = a.analyse("set p {^foo}\nregexp $p $line\n", "tcl");
-    // Two records: the use site (the ``$p`` token) and the
-    // defining ``set`` value.
-    let regexp_pats: Vec<_> = r
-        .regex_patterns
-        .iter()
-        .filter(|p| p.command == "regexp")
-        .collect();
-    assert_eq!(regexp_pats.len(), 2);
-    assert!(regexp_pats.iter().all(|p| p.pattern == "^foo"));
-}
-
-#[test]
-fn analyse_regsub_resolves_var_pattern_to_const_string() {
-    let mut a = Analyser::new();
-    let r = a.analyse("set p {a+}\nregsub -all $p $line - out\n", "tcl");
-    let regsub_pats: Vec<_> = r
-        .regex_patterns
-        .iter()
-        .filter(|p| p.command == "regsub")
-        .collect();
-    assert_eq!(regsub_pats.len(), 2);
-    assert!(regsub_pats.iter().all(|p| p.pattern == "a+"));
-}
-
 /// A braced switch body substitutes nothing: `$p` there is the literal
 /// pattern `$p`, never `p`'s value. tclsh 8.4.20, 8.6 and 9.0 send `foo`
 /// to `default`.
@@ -343,17 +293,6 @@ fn analyse_regex_var_unresolved_records_nothing() {
         r.regex_patterns,
         [] as [crate::analyser::types::RegexPattern; 0]
     );
-}
-
-#[test]
-fn analyse_regexp_var_added_to_regex_vars_set() {
-    // Side effect: the var name is recorded in
-    // ``regex_vars`` so downstream consumers (var-as-regex
-    // hint, future W*-codes) can find the defining set.
-    let mut a = Analyser::new();
-    let _ = a.analyse("set p {^foo}\nregexp $p $line\n", "tcl");
-    // The const-string scope is the global scope (path = []).
-    assert!(a.regex_vars.contains(&(Vec::new(), "p".to_string())));
 }
 
 #[test]

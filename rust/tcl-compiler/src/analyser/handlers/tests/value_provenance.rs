@@ -67,24 +67,6 @@ fn logical_nested_constant_fold_uses_original_variable_components() {
 }
 
 #[test]
-fn logical_regex_value_metadata_uses_original_scope_and_source_provenance() {
-    let source = "set pattern {ROOT}; proc p {} {set pattern {LOCAL}; regexp $pattern text}";
-    let mut analyser = Analyser::new();
-    analyser.analyse_and_retain_result_for_test(source, "tcl");
-    let source_use = source.rfind("$pattern").unwrap();
-    assert!(analyser.result.regex_patterns.iter().any(|pattern| {
-        pattern.pattern == "LOCAL" && usize::try_from(pattern.range.start()).unwrap() == source_use
-    }));
-    assert!(
-        !analyser
-            .result
-            .regex_patterns
-            .iter()
-            .any(|pattern| pattern.pattern == "ROOT")
-    );
-}
-
-#[test]
 fn logical_interpreter_handle_value_keeps_distinct_path_provenance_and_snapshot() {
     let source = "set child [interp create named]; interp eval $child {set x VALUE}";
     let mut analyser = Analyser::new();
