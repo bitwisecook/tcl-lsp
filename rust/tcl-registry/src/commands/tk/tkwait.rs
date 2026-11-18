@@ -33,6 +33,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Wait until the global variable name is set.",
         synopsis: "tkwait variable name",
         arg_roles: &[(0, ArgRole::VarRead)],
+        // tests/data/tk_callback_dispatch/after_and_waits.tcl
+        retained_dispatch: crate::retained_dispatch::ALL_PENDING,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -40,6 +42,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Wait until the visibility state of window changes.",
         synopsis: "tkwait visibility window",
+        // tests/data/tk_callback_dispatch/after_and_waits.tcl
+        retained_dispatch: crate::retained_dispatch::ALL_PENDING,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -47,6 +51,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Wait until window is destroyed.",
         synopsis: "tkwait window window",
+        // tests/data/tk_callback_dispatch/after_and_waits.tcl
+        retained_dispatch: crate::retained_dispatch::ALL_PENDING,
         ..SubCommand::DEFAULT
     },
 ];
@@ -83,6 +89,8 @@ pub fn spec() -> CommandSpec {
         warn_missing_import: false,
         forms: FORMS,
         side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
+        // tests/data/tk_callback_dispatch/after_and_waits.tcl
+        retained_dispatch: crate::retained_dispatch::ALL_PENDING,
         ..CommandSpec::DEFAULT
     }
 }

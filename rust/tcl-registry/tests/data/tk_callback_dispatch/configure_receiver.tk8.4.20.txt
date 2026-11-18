@@ -1,0 +1,9 @@
+entry.configure-textvariable: runs
+entry.configure-validatecommand: none
+entry.cget: none
+spinbox.configure-textvariable: runs
+ttk-entry.configure-textvariable: setup-error invalid command name "ttk::entry"
+checkbutton.configure-variable: none
+scale.configure-variable: runs
+button.configure-command: none
+TK 8.4

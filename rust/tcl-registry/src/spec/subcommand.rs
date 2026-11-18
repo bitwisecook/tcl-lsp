@@ -402,6 +402,14 @@ pub struct SubCommand {
     /// `taint_knowledge`, which counts any stated taint fact as `Partial`.
     pub taint: crate::knowledge::Knowledge<()>,
 
+    /// Which already-retained callbacks this row may run before it returns
+    /// (issue #1710): the event loop, one target window's, or none. It says
+    /// nothing about callbacks run through traces or observers the row fires
+    /// itself; those stay with `world_effects`. Read it through
+    /// [`crate::retained_dispatch::RetainedDispatch::read`], where `Unknown`
+    /// is `AllPending`.
+    pub retained_dispatch: crate::knowledge::Knowledge<crate::retained_dispatch::RetainedDispatch>,
+
     /// Credential-value argument index, counting the selected subcommand word
     /// itself as zero. This field preserves the `SpecTcl` verbatim coordinate,
     /// unlike other subcommand-relative argument fields. `None` = none.

@@ -28,6 +28,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Append data to the clipboard on the specified display.",
         synopsis: "clipboard append ?-displayof window? ?-format format? ?-type type? data",
         options: APPEND_OPTIONS,
+        // tests/data/tk_callback_dispatch/no_dispatch.tcl
+        retained_dispatch: crate::retained_dispatch::NONE,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -36,6 +38,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Claim ownership of the clipboard and clear its contents.",
         synopsis: "clipboard clear ?-displayof window?",
         options: CLEAR_OPTIONS,
+        // tests/data/tk_callback_dispatch/no_dispatch.tcl
+        retained_dispatch: crate::retained_dispatch::NONE,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -47,6 +51,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         options: GET_OPTIONS,
         return_type: Some(TclType::String),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
+        // tkUnixSelect.c waits in Tcl_DoOneEvent when another client owns it
+        retained_dispatch: crate::retained_dispatch::ALL_PENDING,
         ..SubCommand::DEFAULT
     },
 ];

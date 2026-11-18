@@ -81,6 +81,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // re-cancelled, which is why `catch {after cancel $id}` is the
         // documented fire-and-forget idiom the W302 suppression keys off.
         destructive: true,
+        // tests/data/tk_callback_dispatch/after_and_waits.tcl
+        retained_dispatch: crate::retained_dispatch::NONE,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -104,6 +106,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "after idle script ?script script ...?",
         return_type: Some(TclType::String),
         mutator: true,
+        // tests/data/tk_callback_dispatch/after_and_waits.tcl
+        retained_dispatch: crate::retained_dispatch::NONE,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -118,6 +122,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ..SideEffect::DEFAULT
         }]),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
+        // tests/data/tk_callback_dispatch/after_and_waits.tcl
+        retained_dispatch: crate::retained_dispatch::NONE,
         ..SubCommand::DEFAULT
     },
 ];
@@ -193,6 +199,8 @@ pub fn spec() -> CommandSpec {
             return_value: "An empty string for the blocking after ms and after cancel forms; an identifier for after ms script and after idle; a list of ids, or a two-element {script type} list, for after info.",
         }),
         forms: FORMS,
+        // tests/data/tk_callback_dispatch/after_and_waits.tcl
+        retained_dispatch: crate::retained_dispatch::NONE,
         ..CommandSpec::DEFAULT
     }
 }

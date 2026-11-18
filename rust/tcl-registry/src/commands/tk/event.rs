@@ -27,6 +27,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(2),
         detail: "Associate a virtual event with one or more physical event sequences.",
         synopsis: "event add <<virtual>> sequence ?sequence ...?",
+        // tests/data/tk_callback_dispatch/no_dispatch.tcl
+        retained_dispatch: crate::retained_dispatch::NONE,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -34,6 +36,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(1),
         detail: "Delete physical event sequences from a virtual event.",
         synopsis: "event delete <<virtual>> ?sequence sequence ...?",
+        // tests/data/tk_callback_dispatch/no_dispatch.tcl
+        retained_dispatch: crate::retained_dispatch::NONE,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -42,6 +46,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Generate an event and arrange for it to be processed.",
         synopsis: "event generate window event ?option value ...?",
         options: OPTIONS,
+        // tests/data/tk_callback_dispatch/dispatch_points_mapped.tcl
+        retained_dispatch: crate::knowledge::Knowledge::Complete(crate::retained_dispatch::RetainedDispatch::TargetWindow(crate::retained_dispatch::DispatchTarget::Argument(1)), crate::retained_dispatch::EVIDENCED),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -49,6 +55,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::new(0, 1),
         detail: "Return information about virtual events.",
         synopsis: "event info ?<<virtual>>?",
+        // tests/data/tk_callback_dispatch/no_dispatch.tcl
+        retained_dispatch: crate::retained_dispatch::NONE,
         ..SubCommand::DEFAULT
     },
 ];

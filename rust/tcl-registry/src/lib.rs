@@ -267,6 +267,7 @@ pub use command_descriptor_key::{
     rooted_command_descriptor_label, unique_command_descriptor_coordinates,
 };
 pub mod result_stability;
+pub mod retained_dispatch;
 pub mod return_type;
 pub mod runtime_backing;
 pub mod runtime_expr_validation;

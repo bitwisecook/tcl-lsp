@@ -1,0 +1,11 @@
+after.ms: none
+after.ms-script: none
+after.idle-script: none
+after.cancel: none
+after.info: none
+tkwait.visibility: dispatches timer idle
+selection.get-own: none
+clipboard.get-own: none
+update: dispatches timer idle
+update.idletasks: dispatches idle
+TK 8.6.18

@@ -1040,6 +1040,14 @@ pub struct CommandSpec {
     /// `taint_knowledge`, which counts any stated taint fact as `Partial`.
     pub taint: crate::knowledge::Knowledge<()>,
 
+    /// Which already-retained callbacks this row may run before it returns
+    /// (issue #1710): the event loop, one target window's, or none. It says
+    /// nothing about callbacks run through traces or observers the row fires
+    /// itself; those stay with `world_effects`. Read it through
+    /// [`crate::retained_dispatch::RetainedDispatch::read`], where `Unknown`
+    /// is `AllPending`.
+    pub retained_dispatch: crate::knowledge::Knowledge<crate::retained_dispatch::RetainedDispatch>,
+
     /// Option flags whose value carries a secret (e.g. `-password`,
     /// `-headers`) — drives credential-exposure checks. Empty = none.
     pub credential_options: &'static [&'static str],

@@ -273,6 +273,11 @@ pub struct InvocationSemantics<'r, 'w> {
     /// This remains borrowed until [`ResolvedInvocation::state_transitions`]
     /// materialises owned facts for a common consumer.
     pub state_transitions: ResolvedStateTransitions,
+    /// Which retained callbacks this invocation may run before it returns:
+    /// the selected subcommand's own fact, or the command's when none is
+    /// selected. A subcommand never borrows its command's fact.
+    pub retained_dispatch:
+        crate::knowledge::Knowledge<crate::retained_dispatch::RetainedDispatch>,
     /// Required live-interpreter stability proofs for this resolution.
     ///
     /// This descriptor chain is independent of backend guard encodings. An

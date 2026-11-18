@@ -54,6 +54,8 @@ pub fn spec() -> CommandSpec {
         warn_missing_import: false,
         forms: FORMS,
         side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
+        // tests/data/tk_callback_dispatch/dispatch_points.tcl
+        retained_dispatch: crate::knowledge::Knowledge::Complete(crate::retained_dispatch::RetainedDispatch::TargetWindow(crate::retained_dispatch::DispatchTarget::ArgumentsFrom(0)), crate::retained_dispatch::EVIDENCED),
         ..CommandSpec::DEFAULT
     }
 }

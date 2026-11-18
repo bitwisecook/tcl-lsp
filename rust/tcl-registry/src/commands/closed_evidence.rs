@@ -74,6 +74,11 @@ fn close_command(spec: &mut CommandSpec, surfaces: &'static [SpecSurface]) {
         crate::knowledge::Knowledge::Complete(StateTransitionDescriptor::EMPTY, surfaces),
         crate::knowledge::Knowledge::Partial,
     );
+    // A closed row runs no script, so it cannot run a retained callback.
+    spec.retained_dispatch = spec.retained_dispatch.stated().map_or(
+        Knowledge::Complete(crate::retained_dispatch::RetainedDispatch::None, surfaces),
+        Knowledge::Partial,
+    );
     spec.dispatch_dependencies =
         spec.dispatch_dependencies
             .or(Some(DispatchDependencyDescriptor::replace(
@@ -90,6 +95,11 @@ fn close_subcommand(sub: &mut SubCommand, surfaces: &'static [SpecSurface]) {
     sub.state_transitions = sub.state_transitions.stated().map_or(
         crate::knowledge::Knowledge::Complete(StateTransitionDescriptor::EMPTY, surfaces),
         crate::knowledge::Knowledge::Partial,
+    );
+    // A closed row runs no script, so it cannot run a retained callback.
+    sub.retained_dispatch = sub.retained_dispatch.stated().map_or(
+        Knowledge::Complete(crate::retained_dispatch::RetainedDispatch::None, surfaces),
+        Knowledge::Partial,
     );
     sub.dispatch_dependencies =
         sub.dispatch_dependencies

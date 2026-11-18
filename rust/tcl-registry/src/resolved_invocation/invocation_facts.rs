@@ -118,6 +118,10 @@ pub struct InvocationFacts {
     /// Complete registry transition facts, or a typed wildcard obligation for
     /// an unstamped generic Tcl invocation.
     pub state_transitions: StateTransitionKnowledge,
+    /// Which already-retained callbacks this invocation may run before it
+    /// returns; an unknown row reads as `AllPending`. Callbacks run through
+    /// traces the invocation fires itself are not this fact's business.
+    pub retained_dispatch: crate::retained_dispatch::RetainedDispatch,
     /// Registry contract identifying legacy or explicit writes whose
     /// completion-edge transition facts are authoritative.
     pub transition_effect_coverage: TransitionEffectCoverages,
@@ -866,6 +870,9 @@ impl ResolvedInvocation<'_, '_> {
             } else {
                 StateTransitionKnowledge::UnknownInvocation
             },
+            retained_dispatch: crate::retained_dispatch::RetainedDispatch::read(
+                self.semantics.retained_dispatch,
+            ),
             transition_effect_coverage,
             dispatch_dependencies: self.semantics.dispatch_dependencies.resolve(),
             traits: self.semantics.traits,

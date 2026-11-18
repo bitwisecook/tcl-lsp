@@ -57,6 +57,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Clear the selection so that no window owns it.",
         synopsis: "selection clear ?-displayof window? ?-selection selection?",
         options: CLEAR_OPTIONS,
+        // tests/data/tk_callback_dispatch/no_dispatch.tcl
+        retained_dispatch: crate::retained_dispatch::NONE,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -68,6 +70,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         options: GET_OPTIONS,
         return_type: Some(TclType::String),
         side_effects: crate::knowledge::Knowledge::declared(super::common::TTK_WIDGET_READS),
+        // tkUnixSelect.c waits in Tcl_DoOneEvent when another client owns it
+        retained_dispatch: crate::retained_dispatch::ALL_PENDING,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -86,6 +90,8 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Query or set the owner of the selection.",
         synopsis: "selection own ?-command command? ?-selection selection? window",
         options: OWN_OPTIONS,
+        // tests/data/tk_callback_dispatch/no_dispatch.tcl
+        retained_dispatch: crate::retained_dispatch::NONE,
         ..SubCommand::DEFAULT
     },
 ];

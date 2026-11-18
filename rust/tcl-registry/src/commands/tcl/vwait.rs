@@ -291,6 +291,8 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         options: OPTIONS,
         side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
+        // tests/data/tk_callback_dispatch/dispatch_points.tcl
+        retained_dispatch: crate::retained_dispatch::ALL_PENDING,
         ..CommandSpec::DEFAULT
     }
 }

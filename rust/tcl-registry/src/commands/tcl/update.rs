@@ -120,6 +120,8 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         arg_values: &[(0, IDLETASKS_VALUES)],
+        // tests/data/tk_callback_dispatch/after_and_waits.tcl
+        retained_dispatch: crate::retained_dispatch::ALL_PENDING,
         ..CommandSpec::DEFAULT
     }
 }

@@ -394,6 +394,11 @@ pub(super) fn resolve_invocation_semantics<'r, 'w>(
             }),
             form: form.and_then(|form| form.state_transitions.stated()),
         },
+        retained_dispatch: match sub {
+            Some(sub) => sub.retained_dispatch,
+            None if inherit_command => spec.retained_dispatch,
+            None => crate::knowledge::Knowledge::Unknown,
+        },
         dispatch_dependencies: ResolvedDispatchDependencies {
             command: inherit_command
                 .then_some(spec.dispatch_dependencies)
