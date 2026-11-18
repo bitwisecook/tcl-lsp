@@ -8,8 +8,8 @@ Failing tests of `tcl-codegen`, `tcl-vm`, `tcl-runtime`, the engines, `tcl-cshim
 | --- | ---: |
 | `KEEP-ORACLE` | 110 |
 | `KEEP-CONTRACT` | 57 |
-| `MERGE` | 49 |
-| `REWRITE` | 33 |
+| `MERGE` | 48 |
+| `REWRITE` | 34 |
 | `RETIRE` | 8 |
 | `FIX-EXPECTATION` | 3 |
 | `FIX-FIXTURE` | 2 |
@@ -19,7 +19,8 @@ Failing tests of `tcl-codegen`, `tcl-vm`, `tcl-runtime`, the engines, `tcl-cshim
 
 ## Status (the ledger's `status` column)
 
-248 open, 5 fixed, 4 repaired, 8 deleted, as of 17 November 2026 night:
+199 open, 5 fixed, 4 repaired, 56 deleted, as of 18 November 2026:
+- Deleted: the 48 `MERGE` rows, each survivor read first (all exist and assert the group's observable; G3's and G4's survivors still fail on the compile-admission refusal, not on that observable). The runtime row `publication_revision_tracks_moves_and_callback_rebound_rename_sources` became `REWRITE`: its survivor is a tcl-vm test, and the standalone runtime needs its own copy of the script.
 - Deleted: the 8 `RETIRE` rows (G9 analysis records, G12 self-referential golden, and the three per-test G16 retirements).
 - Fixed: `errorstack-inner-uplevel-and-fold-options` (8c92829a, the folded syntax options), `bad-option-wording-below-8.6` (ec05d9fc: `encoding` below 8.6 was a product fault, the expectation half right) and the three `optimiser-drops-effectful-foreach-list` rows (fixed upstream).
 - Repaired: `delete-proc-runs-in-delete-command` (42cde941), `interp-option-list` (f4452996) and two `fixture-body-identity-lookup` rows (a release registry defines `proc`). The third, `procedure_target_matches_static_proc_across_profiles_and_dispatches`, needed `namespace eval ::matrix` first (tclsh refuses `proc ::matrix::p` in an unknown namespace) and now shows a product fault: `KEEP-CONTRACT` `procedure-target-folds-less-than-static`.

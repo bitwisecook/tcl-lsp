@@ -339,62 +339,6 @@ fn every_applicable_typed_codegen_hook_retains_operation_selection() {
 }
 
 #[test]
-fn inline_hooks_with_whole_unit_mutation_specialise_and_retain_binding() {
-    let cases = [
-        (
-            "lrange",
-            "lrange {a b c} 0 1",
-            tcl_bytecode::Op::LIST_RANGE_IMM,
-        ),
-        ("linsert", "linsert {a b} 1 x", tcl_bytecode::Op::LREPLACE4),
-    ];
-    let service = BytecodeCompileService::default();
-    for (name, command, expected_op) in cases {
-        let module = service
-            .compile(&format!(
-                "proc mutate {{}} {{rename {name} saved_{name}}}; \
-                     proc p {{}} {{set result [{command}]}}"
-            ))
-            .unwrap();
-        assert!(
-            module
-                .procedures
-                .get(&fixture_id(&module.procedures, "::p"))
-                .expect("authored fixture body")
-                .instructions
-                .iter()
-                .any(|instruction| instruction.op == expected_op),
-            "{name} lost its inline specialisation"
-        );
-        assert!(
-            module
-                .procedures
-                .get(&fixture_id(&module.procedures, "::p"))
-                .expect("authored fixture body")
-                .command_bindings
-                .iter()
-                .any(|binding| binding.name == name && binding.identity == name),
-            "{name} lost its runtime-validated command binding"
-        );
-        assert!(
-            module
-                .procedures
-                .get(&fixture_id(&module.procedures, "::p"))
-                .expect("authored fixture body")
-                .instructions
-                .iter()
-                .all(|instruction| {
-                    !matches!(
-                        instruction.op,
-                        tcl_bytecode::Op::INVOKE_STK1 | tcl_bytecode::Op::INVOKE_STK4
-                    )
-                }),
-            "{name} unexpectedly fell back to generic dispatch"
-        );
-    }
-}
-
-#[test]
 fn return_expr_alias_retains_the_source_binding_identity() {
     let module = BytecodeCompileService::default()
         .compile("interp alias {} e {} expr; proc p {} {return [e {1 + 2}]}")

@@ -73,23 +73,6 @@ fn deeply_nested_if() {
 }
 
 #[test]
-fn while_with_nested_switch() {
-    let src = "proc dispatch {items} { set i 0; set result {}; while {$i < 10} { switch -exact -- $i { 0 { set result \"zero\" } 1 { set result \"one\" } default { set result \"other\" } }; incr i }; return $result }";
-    let ir = ir_for(src);
-    let cfg = build_cfg(&ir, false);
-    let proc_cfg = cfg
-        .procedures
-        .get(&fixture_id(&cfg.procedures, "::dispatch"))
-        .expect("authored fixture body");
-    let branch_count = proc_cfg
-        .blocks
-        .values()
-        .filter(|b| matches!(b.terminator, Some(Terminator::Branch { .. })))
-        .count();
-    assert!(branch_count >= 3);
-}
-
-#[test]
 fn nested_for_loops() {
     let src = "proc matrix_fill {rows cols} { for {set i 0} {$i < $rows} {incr i} { for {set j 0} {$j < $cols} {incr j} { set val [expr {$i * $cols + $j}] } } }";
     let ops = opcodes(&proc_asm(src, "::matrix_fill"));
@@ -108,78 +91,6 @@ fn foreach_inside_for() {
 }
 
 // Switch edge cases
-
-#[test]
-fn switch_fallthrough_stays_irswitch() {
-    let src = "proc classify {x} { switch -exact $x { a - b - c { set r \"letter\" } 1 - 2 - 3 { set r \"digit\" } default { set r \"other\" } }; return $r }";
-    let ir = ir_for(src);
-    let cfg = build_cfg(&ir, false);
-    let proc_cfg = cfg
-        .procedures
-        .get(&fixture_id(&cfg.procedures, "::classify"))
-        .expect("authored fixture body");
-    let irswitch_count: usize = proc_cfg
-        .blocks
-        .values()
-        .flat_map(|b| &b.statements)
-        .filter(|s| matches!(s, Statement::Switch { .. }))
-        .count();
-    assert_eq!(
-        irswitch_count, 1,
-        "fallthrough switch should stay as IRSwitch"
-    );
-    // Codegen still works.
-    assert!(opcodes(&proc_asm(src, "::classify")).contains(&Op::DONE));
-}
-
-#[test]
-fn switch_glob_stays_as_irswitch() {
-    let src = "proc ext {filename} { switch -glob $filename { *.c { return \"c_source\" } *.h { return \"c_header\" } default { return \"unknown\" } } }";
-    let ir = ir_for(src);
-    let cfg = build_cfg(&ir, false);
-    let proc_cfg = cfg
-        .procedures
-        .get(&fixture_id(&cfg.procedures, "::ext"))
-        .expect("authored fixture body");
-    let has_barrier = proc_cfg.blocks.values().any(|b| {
-        b.statements.iter().any(
-            |s| matches!(s, Statement::Barrier { reason, .. } if reason.contains("switch -glob")),
-        )
-    });
-    assert!(!has_barrier, "-glob should not lower to a Barrier");
-    let has_switch = proc_cfg.blocks.values().any(|b| {
-        b.statements
-            .iter()
-            .any(|s| matches!(s, Statement::Switch { .. }))
-    });
-    assert!(has_switch, "-glob should keep IRSwitch for inline codegen");
-}
-
-#[test]
-fn switch_regexp_stays_switch() {
-    let src = "proc match {s} { switch -regexp $s { {^[0-9]+$} { return \"number\" } {^[a-z]+$} { return \"alpha\" } default { return \"mixed\" } } }";
-    let ir = ir_for(src);
-    let cfg = build_cfg(&ir, false);
-    let proc_cfg = cfg
-        .procedures
-        .get(&fixture_id(&cfg.procedures, "::match"))
-        .expect("authored fixture body");
-    let has_barrier = proc_cfg.blocks.values().any(|b| {
-        b.statements.iter().any(
-            |s| matches!(s, Statement::Barrier { reason, .. } if reason.contains("switch -regexp")),
-        )
-    });
-    assert!(!has_barrier, "-regexp should not lower to a Barrier");
-    let has_switch = proc_cfg.blocks.values().any(|b| {
-        b.statements
-            .iter()
-            .any(|s| matches!(s, Statement::Switch { .. }))
-    });
-    assert!(
-        has_switch,
-        "-regexp should keep IRSwitch for inline codegen"
-    );
-}
 
 #[test]
 fn switch_many_arms() {

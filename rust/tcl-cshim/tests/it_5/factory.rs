@@ -704,4 +704,3 @@ fn native_completion_preserves_raw_codes_options_and_new_object_aliases() {
         }
     }
 }
-

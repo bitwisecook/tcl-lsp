@@ -24,8 +24,8 @@
 //! present) validates the bytes for full structural validity.
 
 use tcl_codegen::codegen::wasm::{
-    RESERVED_DATA_BASE, SemanticOptimisationConfig, SemanticOptimisationPassId, ValType,
-    WasmCompileOptions, WasmModule, WasmOp, compile_wasm as compile_wasm_unit,
+    RESERVED_DATA_BASE, SemanticOptimisationConfig, SemanticOptimisationPassId, WasmCompileOptions,
+    WasmModule, WasmOp, compile_wasm as compile_wasm_unit,
 };
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_registry::CommandRegistry;
@@ -200,34 +200,6 @@ fn function_calls(wat: &str, name: &str) -> usize {
 /// How many `tcl_eval_code` source-span fallbacks the module still performs.
 fn eval_fallbacks(wat: &str) -> usize {
     import_calls(wat, "tcl_eval_code")
-}
-
-#[test]
-fn analysed_add_program_uses_direct_tcl_object_operations() {
-    let source = r"proc add {b c} {
-    return [expr {$b + $c}]
-}
-
-set e 2
-set f 4
-puts [add $e $f]
-";
-    let mut module = compile_wasm_analysed(source);
-    let wat = module.to_wat();
-
-    assert!(
-        wat.contains(r#"(func $::add (export "::add") (param $b i32) (param $c i32) (result i32)"#),
-        "{wat}"
-    );
-    assert!(wat.contains(r#""tcl_codegen_local_bind""#), "{wat}");
-    assert!(wat.contains(r#""tcl_codegen_expr_add""#), "{wat}");
-    assert_eq!(import_calls(&wat, "tcl_codegen_proc_register"), 0, "{wat}");
-    assert_eq!(eval_fallbacks(&wat), 0, "{wat}");
-    // Both assignments retain their proven direct forms. The procedure
-    // declaration, nested add call and puts dispatch with original evaluated argv.
-    assert_eq!(import_calls(&wat, "tcl_invoke_argv"), 3, "{wat}");
-    assert_eq!(import_calls(&wat, "tcl_codegen_puts"), 0, "{wat}");
-    assert_eq!(&module.to_bytes()[0..4], b"\0asm");
 }
 
 /// A rebound command must never become a direct call to the procedure's own
@@ -656,33 +628,6 @@ fn analysed_leaf_command_compiles_a_scalar_variable_word() {
     assert_eq!(import_calls(&wat, "tcl_invoke_argv"), 1, "{wat}");
     assert!(wat.contains(r#""value""#), "{wat}");
     assert_eq!(&module.to_bytes()[0..4], b"\0asm");
-}
-
-/// `$a(b)` is an array-element read; `${a(b)}` names a scalar. The two have the
-/// same compatibility spelling, so the emitted read proves they stayed apart.
-#[test]
-fn analysed_leaf_command_separates_array_and_scalar_variable_spellings() {
-    let mut element = compile_wasm_analysed("string length $a(b)\n");
-    let element = element.to_wat();
-    assert_eq!(
-        import_calls(&element, "tcl_codegen_var_get_element"),
-        1,
-        "{element}"
-    );
-    assert_eq!(
-        import_calls(&element, "tcl_codegen_var_get"),
-        0,
-        "{element}"
-    );
-
-    let mut scalar = compile_wasm_analysed("string length ${a(b)}\n");
-    let scalar = scalar.to_wat();
-    assert_eq!(
-        import_calls(&scalar, "tcl_codegen_var_get_element"),
-        0,
-        "{scalar}"
-    );
-    assert_eq!(import_calls(&scalar, "tcl_codegen_var_get"), 1, "{scalar}");
 }
 
 /// A quoted or compound word is evaluated part by part and joined by the
@@ -1385,93 +1330,6 @@ fn import_index(module: &WasmModule, id: CodegenAbiImportId) -> u64 {
     index as u64
 }
 
-/// A compiled procedure body is emitted in the runtime's proc-entry shape and
-/// takes neither an activation nor a Tcl frame.
-///
-/// This is the contract `NativeProcEntry`'s doc comment states: `run_proc` has
-/// already pushed the variable frame and bound the formals, and
-/// `run_native_body` holds the activation and the `CmdFrame`. Reusing the
-/// module-function prologue here would push a second, nameless frame at the
-/// caller's namespace and halve the recursion depth Tcl allows, and neither
-/// mistake shows up in a result assertion.
-#[test]
-fn a_compiled_proc_body_is_emitted_prologue_free() {
-    let module = compile_native("proc add {a b} { return [expr {$a + $b}] }\nset r [add 1 2]\n");
-    let entry = module
-        .functions
-        .iter()
-        .find(|function| function.name == "::add")
-        .expect("the tier emits the procedure body");
-    assert_eq!(entry.kind, "native-proc");
-    assert_eq!(
-        (entry.params.as_slice(), entry.results.as_slice()),
-        (
-            [ValType::I32, ValType::I32, ValType::I32].as_slice(),
-            [ValType::I32].as_slice()
-        ),
-        "a proc entry is (argv, argc, out) -> status"
-    );
-    let targets = call_targets(entry);
-    for absent in [
-        CodegenAbiImportId::ActivationEnter,
-        CodegenAbiImportId::ActivationLeave,
-        CodegenAbiImportId::FramePush,
-        CodegenAbiImportId::FramePop,
-    ] {
-        let index = import_index(&module, absent);
-        assert!(
-            !targets.contains(&index),
-            "a proc entry must not call {}",
-            absent.descriptor().name
-        );
-    }
-    // The module's own entry point still holds its activation.
-    let top = module
-        .functions
-        .iter()
-        .find(|function| function.name == "::top")
-        .expect("the tier emits ::top");
-    assert!(top.params.is_empty() && top.results.is_empty());
-    assert!(
-        call_targets(top).contains(&import_index(&module, CodegenAbiImportId::ActivationEnter))
-    );
-}
-
-/// `::top` grows the runtime's shared table once and installs one entry per
-/// bound body, and the definition statement hands the runtime that index.
-#[test]
-fn top_installs_one_table_entry_per_bound_body() {
-    let mut module = compile_native("proc a {} { return 1 }\nproc b {} { return 2 }\nset r [a]\n");
-    assert!(module.import_table, "the module imports the shared table");
-    assert_eq!(module.globals.len(), 1, "one table-base global");
-    assert_eq!(
-        module.elem_declared.len(),
-        2,
-        "both bodies are declared for ref.func"
-    );
-    let wat = module.to_wat();
-    assert!(wat.contains("table.grow"), "{wat}");
-    assert_eq!(
-        wat.matches("table.set").count(),
-        2,
-        "one install per bound body:\n{wat}"
-    );
-    let top = module
-        .functions
-        .iter()
-        .find(|function| function.name == "::top")
-        .expect("the tier emits ::top");
-    assert_eq!(
-        call_targets(top)
-            .iter()
-            .filter(|target| **target
-                == import_index(&module, CodegenAbiImportId::ProcDefineOriginalArgv))
-            .count(),
-        2,
-        "each definition binds through the definition ABI"
-    );
-}
-
 /// A module that binds nothing asks for no table, no global and no element
 /// segment — so it still instantiates against a runtime that never exported
 /// one.
@@ -1714,48 +1572,6 @@ fn semantic_host_refusal_does_not_adopt_completion_output() {
         let host = backend_refusal_host(&module, if refuse { 1 } else { -1 });
         run_backend_refusal_case(&mut module, &host, &body, &format!("semantic-{refuse}"));
     }
-}
-
-/// Two definitions of one name: only the statement whose body became this
-/// module's function binds an entry. The other stays a generic invocation, so
-/// re-running it at run time installs an ordinary source-only procedure —
-/// which is what makes a mid-script redefinition behave.
-#[test]
-fn only_the_definition_whose_body_was_compiled_binds_an_entry() {
-    let module = compile_native("proc pick {} { return first }\nset a [pick]\n");
-    let top = module
-        .functions
-        .iter()
-        .find(|function| function.name == "::top")
-        .expect("the tier emits ::top");
-    assert_eq!(
-        call_targets(top)
-            .iter()
-            .filter(|target| **target
-                == import_index(&module, CodegenAbiImportId::ProcDefineOriginalArgv))
-            .count(),
-        1
-    );
-    // The second definition of the same name keeps the front end's first
-    // `Procedure`, so its own statement never matches a compiled body.
-    let redefined =
-        compile_native("proc pick {} { return first }\nproc pick {} { return second }\n");
-    assert_eq!(
-        call_targets(
-            redefined
-                .functions
-                .iter()
-                .find(|function| function.name == "::top")
-                .expect("the tier emits ::top")
-        )
-        .iter()
-        .filter(|target| **target
-            == import_index(&redefined, CodegenAbiImportId::ProcDefineOriginalArgv))
-        .count(),
-        1,
-        "only one of the two statements binds"
-    );
-    assert_eq!(redefined.elem_declared.len(), 1);
 }
 
 /// A compiled statement logs its own `errorInfo` site, with the line counted

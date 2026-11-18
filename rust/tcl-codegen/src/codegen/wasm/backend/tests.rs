@@ -17,7 +17,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use crate::codegen::wasm::backend::function_facts::function_facts;
-use crate::codegen::wasm::backend::function_facts::procedure_plan;
 use crate::codegen::wasm::backend::function_facts::span_key;
 use crate::codegen::wasm::backend::imports::add_codegen_import;
 use crate::codegen::wasm::backend::imports::add_general_imports;
@@ -293,58 +292,6 @@ fn original_publication_names_ignore_reports_and_keep_duplicate_issued_ids() {
     missing.retained_source_bindings = None;
     assert!(OriginalProcedureNames::capture(&missing, registry).is_none());
     assert!(procedure_shadow_obligations(&missing, registry, false).is_none());
-}
-
-#[test]
-fn original_native_body_compilation_keeps_publication_and_direct_authority_separate() {
-    let registry = CommandRegistry::build_default();
-    let unit = CompilationUnit::build_for_dialect(
-        "proc p {x} {return $x}\nset answer [p 42]\n",
-        &registry,
-        false,
-        "tcl9.0",
-    );
-    assert!(unit.ir_module.source_entry.native_entry.is_none());
-    assert!(unit.ir_module.procedures.is_empty());
-    let plan = procedure_plan(&unit.ir_module, Some((&unit, &registry)), 0);
-    assert_eq!(plan.procs.len(), 1);
-    assert!(plan.direct.is_empty());
-    let (id, procedure) = plan.procs[0];
-    assert_eq!(
-        procedure.body_kind,
-        tcl_compiler::ir::ProcedureBodyKind::OriginalDeclaration
-    );
-    assert!(procedure.publication.is_none());
-    assert_eq!(unit.function_for_body(Some(id)).unwrap().body_id, Some(id));
-    let site = procedure.declaration_site.as_ref().unwrap();
-    let command_span =
-        tcl_lexer::Span::new(0, u32::try_from("proc p {x} {return $x}".len()).unwrap());
-    assert_ne!(procedure.span, command_span);
-    assert_eq!(
-        unit.ir_module
-            .native_source_procedure_bodies_for_compilation_at_declaration(site, command_span)
-            .map(|(id, _)| *id)
-            .collect::<Vec<_>>(),
-        vec![id]
-    );
-    assert!(
-        unit.ir_module
-            .native_source_procedure_bodies_for_compilation_at_declaration(site, procedure.span)
-            .next()
-            .is_none()
-    );
-    let mut missing = unit.ir_module.clone();
-    missing.original_native_declaration_body_units.clear();
-    assert_eq!(
-        procedure_plan(&missing, None, 0).procs,
-        [] as [(tcl_runtime_api::ProcedureId, &tcl_compiler::ir::Procedure); 0]
-    );
-    let mut stale = unit.ir_module.clone();
-    stale.source = tcl_lexer::SourceImage::document("changed source");
-    assert_eq!(
-        procedure_plan(&stale, None, 0).procs,
-        [] as [(tcl_runtime_api::ProcedureId, &tcl_compiler::ir::Procedure); 0]
-    );
 }
 
 #[test]

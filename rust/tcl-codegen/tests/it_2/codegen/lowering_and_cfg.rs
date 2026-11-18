@@ -243,19 +243,3 @@ fn if_without_braces_fallback() {
         stmts.iter().map(std::mem::discriminant).collect::<Vec<_>>()
     );
 }
-
-#[test]
-fn switch_modes_tracked() {
-    for src in [
-        "switch -exact $x {a {set r 1}}",
-        "switch -glob $x {*.c {set r 1}}",
-        "switch -regexp $x {^a {set r 1}}",
-    ] {
-        let ir = ir_for(src);
-        let stmts = &ir.top_level.statements;
-        let ok = stmts
-            .iter()
-            .any(|s| matches!(s, Statement::Switch { .. } | Statement::Barrier { .. }));
-        assert!(ok, "{src}: expected Switch or Barrier");
-    }
-}

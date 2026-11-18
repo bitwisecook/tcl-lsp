@@ -207,50 +207,6 @@ fn active_proc_frame_revalidates_a_cfg_consumed_while_head() {
 }
 
 #[test]
-fn active_proc_frame_revalidates_a_cfg_consumed_eval_head() {
-    let (mut vm, _output) = vm();
-    let source = "proc p {} {mutate; eval {set ::body_ran 1}}";
-    let compiled = BytecodeCompileService::default()
-        .compile(source)
-        .expect("module compiles");
-    assert!(
-        sole_compiled_procedure(&compiled)
-            .command_bindings
-            .iter()
-            .any(|binding| binding.name == "eval" && binding.identity == "eval")
-    );
-    assert!(
-        sole_compiled_procedure(&compiled)
-            .instructions
-            .iter()
-            .any(|instruction| {
-                instruction.op == tcl_bytecode::Op::START_CMD
-                    && instruction.source_cmd_text == "eval {set ::body_ran 1}"
-            })
-    );
-
-    eval_ok(
-        &mut vm,
-        "set ::body_ran 0; proc p {} {mutate; eval {set ::body_ran 1}}",
-    );
-    eval_ok(
-        &mut vm,
-        "proc mutate {} {rename eval real_eval; proc eval args {return EVAL_OVERRIDE}}",
-    );
-    let fast_calls = Rc::new(Cell::new(0));
-    let plain_calls = Rc::new(Cell::new(0));
-    vm.set_compiler(Box::new(CountingCompilerSvc {
-        inner: BytecodeCompileService::default(),
-        fast_calls: Rc::clone(&fast_calls),
-        plain_calls: Rc::clone(&plain_calls),
-    }));
-
-    assert_eq!(eval_ok(&mut vm, "p"), "EVAL_OVERRIDE");
-    assert_eq!(eval_ok(&mut vm, "set ::body_ran"), "0");
-    assert!(plain_calls.get() > 0, "the live eval frame must deopt");
-}
-
-#[test]
 fn stale_constant_if_boundary_replays_only_the_owning_command() {
     let (mut vm, _output) = vm();
     eval_ok(

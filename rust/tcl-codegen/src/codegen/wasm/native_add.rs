@@ -756,13 +756,6 @@ mod tests {
     }
 
     #[test]
-    fn a_selected_addition_records_no_decline() {
-        let plan = plan_of(SEALED, options(&REQUIRED_PASSES));
-        assert!(matches!(plan, WasmCodegenPlan::NativeI64Add { .. }));
-        assert_eq!(plan.native_declines(), []);
-    }
-
-    #[test]
     fn an_addition_nobody_asked_for_records_the_options_premises_alone() {
         let plan = plan_of(SEALED, WasmCompileOptions::hosted());
         assert_eq!(
@@ -809,55 +802,6 @@ mod tests {
     }
 
     #[test]
-    fn a_rejected_body_records_each_premise_it_takes_down() {
-        let registry = CommandRegistry::build_default();
-        let unit = CompilationUnit::build_for_dialect(SEALED, &registry, false, "tcl9.0");
-        let plan = compile_wasm(
-            &unit,
-            &registry,
-            options(&without(SemanticOptimisationPassId::NativeInteger)),
-        )
-        .plan;
-        assert_eq!(
-            summary(&plan),
-            [
-                "pass native-integer: pass-disabled",
-                "direct-body: native-integer-pass-disabled x1",
-                "frame: frame-not-elidable x1",
-                "native-integer: pass-disabled x1",
-            ]
-        );
-        let site = DirectCallSiteId {
-            module_id: unit.ir_module.procedure_ids.module_id(),
-            body_id: None,
-            function: "::top".to_owned(),
-            block: tcl_compiler::cfg::BlockId(0),
-            statement_index: 3,
-            nested_argument: Some(0),
-        };
-        assert!(
-            plan.native_declines()[1..]
-                .iter()
-                .all(|decline| decline.sites == [site.clone()])
-        );
-    }
-
-    #[test]
-    fn a_surviving_statement_rejects_the_closed_program_and_the_actuals_it_hides() {
-        let source = format!("puts before\n{SEALED}");
-        let plan = plan_of(&source, options(&REQUIRED_PASSES));
-        assert!(matches!(plan, WasmCodegenPlan::General { .. }));
-        assert_eq!(
-            summary(&plan),
-            [
-                "closed-program: uncovered-statement",
-                // Two actuals, one call: the site is named once.
-                "actuals: no-local-slot x1",
-            ]
-        );
-    }
-
-    #[test]
     fn a_program_without_a_procedure_call_names_the_missing_call() {
         let plan = plan_of("puts before\n", options(&REQUIRED_PASSES));
         assert_eq!(
@@ -865,37 +809,6 @@ mod tests {
             [
                 "closed-program: uncovered-statement",
                 "direct-call: no-direct-call",
-            ]
-        );
-    }
-
-    #[test]
-    fn a_second_call_to_the_callee_is_recorded_at_both_sites() {
-        let source = format!("{SEALED}puts [add $e $d]\n");
-        let plan = plan_of(&source, options(&REQUIRED_PASSES));
-        assert_eq!(
-            summary(&plan),
-            [
-                "closed-program: closed-program-shape x2",
-                "native-integer: caller-set-differs x2",
-            ]
-        );
-    }
-
-    #[test]
-    fn the_target_and_its_packaging_are_premises_too() {
-        let options = REQUIRED_PASSES.iter().fold(
-            WasmCompileOptions::standalone(false)
-                .for_sealed_program()
-                .for_eval_only_test_host(),
-            |options, pass| options.with_semantic_optimisation(*pass),
-        );
-        let plan = plan_of(SEALED, options);
-        assert_eq!(
-            summary(&plan),
-            [
-                "semantic-plans: eval-only-test-host",
-                "packaging: standalone-bootstrap",
             ]
         );
     }

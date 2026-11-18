@@ -1139,67 +1139,6 @@ fn custom_math_handler_does_not_acquire_stock_integer_fold() {
 }
 
 #[test]
-fn removed_expression_retains_its_consumed_implicit_lookup_dependency() {
-    let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
-    let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
-    let ir = native_c86_ir("expr {abs(-3) + 1}");
-    let mut cfg = tcl_compiler::cfg_builder::build_cfg_codegen_with_registry_and_config(
-        &ir, false, registry, config,
-    );
-    let proof = cfg
-        .top_level
-        .implicit_math_invocations
-        .iter()
-        .find(|proof| proof.function == "abs")
-        .expect("actual reached function proof")
-        .clone();
-    assert!(tcl_compiler::math_function_binding::native_fold_dependency(&proof).is_some());
-    cfg.top_level.required_math_invocations.push(proof);
-    for block in cfg.top_level.blocks.values_mut() {
-        block.statements.clear();
-    }
-    let module = codegen_module(&cfg, &ir, registry).expect("original source namespace");
-    assert!(
-        module.top_level.command_bindings.iter().any(|binding| {
-            binding.name == "tcl::mathfunc::abs" && binding.identity == "tcl::mathfunc::abs"
-        }),
-        "a transform cannot discard the guard when it removes the original expression"
-    );
-}
-
-#[test]
-fn unrepresentable_consumed_math_dependency_refuses_the_artifact() {
-    let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
-    let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
-    let ir = native_c86_ir(
-        "proc observe args {}; trace add execution ::tcl::mathfunc::abs enter observe; expr {abs(-3)}",
-    );
-    let mut cfg = tcl_compiler::cfg_builder::build_cfg_codegen_with_registry_and_config(
-        &ir, false, registry, config,
-    );
-    let proof = cfg
-        .top_level
-        .implicit_math_invocations
-        .iter()
-        .find(|proof| proof.function == "abs")
-        .expect("actual reached function proof")
-        .clone();
-    assert!(
-        !proof
-            .reached()
-            .expect("actual observed dispatch")
-            .unobserved
-    );
-    assert!(tcl_compiler::math_function_binding::native_fold_dependency(&proof).is_none());
-    cfg.top_level.required_math_invocations.push(proof);
-    let module = codegen_module(&cfg, &ir, registry).expect("original source namespace");
-    assert_eq!(
-        module.top_level.native_compilation_preflight,
-        tcl_runtime_api::NativeCompilationPreflight::ProviderRequired
-    );
-}
-
-#[test]
 fn missing_expression_preparation_cannot_license_an_execution_fold() {
     let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
     let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
@@ -1225,46 +1164,6 @@ fn missing_expression_preparation_cannot_license_an_execution_fold() {
             .iter()
             .any(|literal| literal == "5")
     );
-}
-
-#[test]
-fn analysis_store_keeps_the_original_native_dispatch_selection() {
-    for (dialect, inline) in [("tcl8.4", false), ("tcl8.5", false), ("tcl8.6", true)] {
-        let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
-        let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
-        let ir = tcl_compiler::lowering::lower_to_ir_with_dialect(
-            r"se\x74 value 7",
-            registry,
-            config,
-            registry.profile(),
-        );
-        assert!(matches!(
-            ir.top_level.statements[0],
-            Statement::AssignConst { .. }
-        ));
-        let cfg = tcl_compiler::cfg_builder::build_cfg_codegen_with_registry_and_config(
-            &ir, false, registry, config,
-        );
-        let module = codegen_module(&cfg, &ir, registry).expect("original source namespace");
-        assert_eq!(
-            module
-                .top_level
-                .command_bindings
-                .iter()
-                .any(|binding| binding.identity == "set"),
-            inline,
-            "{dialect}: a handler proof cannot replace the native compiler selection",
-        );
-        assert_eq!(
-            module
-                .top_level
-                .instructions
-                .iter()
-                .any(|instruction| { matches!(instruction.op, Op::INVOKE_STK1 | Op::INVOKE_STK4) }),
-            !inline,
-            "{dialect}: generic dispatch retains the escaped original head",
-        );
-    }
 }
 
 #[test]

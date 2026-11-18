@@ -800,35 +800,9 @@ mod tests {
     }
 
     #[test]
-    fn break_and_continue_are_completion_codes_in_a_loop() {
-        assert_eq!(
-            events("while {1} {if {$x} {break} else {continue}}\n"),
-            [
-                "loop{", "test(1)", "body{", "if($x)", "break", "else", "continue", "endif",
-                "}body", "}loop",
-            ],
-        );
-    }
-
-    #[test]
     fn break_outside_a_loop_is_an_ordinary_command() {
         // No enclosing loop ⇒ `break` is eval-fallback'd (the runtime raises).
         assert_eq!(events("break\n"), ["cmd(break)"]);
-    }
-
-    #[test]
-    fn shadowed_loop_control_commands_keep_runtime_dispatch_and_the_normal_successor() {
-        for name in ["break", "continue"] {
-            let source =
-                format!("proc {name} {{}} {{return NORMAL}}; while {{1}} {{{name}; puts after}}");
-            let emitted = events(&source);
-            assert!(emitted.contains(&format!("cmd({name})")), "{emitted:?}");
-            assert!(
-                emitted.contains(&"cmd(puts after)".to_owned()),
-                "{emitted:?}"
-            );
-            assert!(!emitted.iter().any(|event| event == name), "{emitted:?}");
-        }
     }
 
     #[test]
@@ -864,14 +838,6 @@ mod tests {
         assert_eq!(
             events("return 1\nputs after\n"),
             ["cmd(return 1)", "return"]
-        );
-    }
-
-    #[test]
-    fn statement_after_break_in_loop_is_dead() {
-        assert_eq!(
-            events("while {1} {break\nputs never}\n"),
-            ["loop{", "test(1)", "body{", "break", "}body", "}loop"],
         );
     }
 

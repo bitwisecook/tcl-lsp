@@ -814,14 +814,9 @@ fn selection_facts(function: &ExecutableFunction) -> SelectionFacts<'_> {
 mod tests {
     use tcl_compiler::interprocedural::test_body_identity::fixture_id;
 
-    use super::super::{ValType, WasmOp};
+    use super::super::WasmOp;
     use super::*;
-    use tcl_compiler::common_aot_plan::{
-        CommonAotProofPlan, DirectProcDecision, MaterialisableSlotDecision,
-    };
-    use tcl_compiler::native_integer_proof::{
-        NativeAddDecision, NativeIntegerPolicy, NativeIntegerProof, prove_native_integer_adds,
-    };
+    use tcl_compiler::common_aot_plan::{CommonAotProofPlan, DirectProcDecision};
     use tcl_runtime_api::codegen_abi::CodegenAbiImportId;
 
     fn unit(source: &str, registry: &CommandRegistry) -> CompilationUnit {
@@ -985,56 +980,6 @@ mod tests {
                 .iter()
                 .any(|segment| segment.data.as_slice() == b"set before 1; set")
         );
-    }
-    #[test]
-    fn the_native_tier_emits_the_t0_program_without_source_or_expression_rungs() {
-        use tcl_compiler::native_lowering::FunctionStatus;
-        let registry = CommandRegistry::build_default();
-        let unit = CompilationUnit::build_for_dialect(
-            "set x 10\nset y 3\nset z [expr {$x * $y + 7}]\nincr z -1\nputs $z\n",
-            &registry,
-            false,
-            "tcl9.0",
-        );
-        let output = compile_wasm(
-            &unit,
-            &registry,
-            WasmCompileOptions::standalone(true).native_tier(),
-        );
-        assert!(output.native.enabled);
-        assert_eq!(
-            output.native.function("::top").map(|report| &report.status),
-            Some(&FunctionStatus::Lowered)
-        );
-        assert_eq!(calls_to(&output.module, CodegenAbiImportId::EvalCode), 0);
-        assert_eq!(calls_to(&output.module, CodegenAbiImportId::ExprBool), 0);
-        assert_eq!(calls_to(&output.module, CodegenAbiImportId::InvokeArgv), 0);
-        assert_eq!(calls_to(&output.module, CodegenAbiImportId::Puts), 1);
-        assert_eq!(
-            calls_to(&output.module, CodegenAbiImportId::ActivationEnter),
-            1
-        );
-        let top = output
-            .module
-            .functions
-            .iter()
-            .find(|function| function.name == "::top")
-            .expect("native top");
-        assert_eq!(top.kind, "native-top");
-        let native_ops = top
-            .body
-            .iter()
-            .filter(|instruction| {
-                matches!(
-                    instruction.op,
-                    WasmOp::I64Add | WasmOp::I64Mul | WasmOp::I64Sub
-                )
-            })
-            .count();
-        assert!(native_ops >= 3, "{native_ops} native i64 operations");
-        // The binary encodes and every function still validates its shape.
-        let mut module = output.module;
-        assert_eq!(&module.to_bytes()[..4], b"\0asm");
     }
 
     #[test]
@@ -1213,165 +1158,6 @@ mod tests {
                     );
                 }
             }
-        }
-    }
-
-    #[test]
-    fn incoming_native_operands_use_declared_arguments_without_inventing_ssa() {
-        // naming.variable.aot-original-slot-purpose
-        // docs/design/analysis/name-resolution-proofs/aot-original-slot-purpose.md
-        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
-        let context =
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
-        let (_owner, captured) = crate::test_support::captured_native_entry_with_owner(profile);
-        let entry = tcl_compiler::command_binding::SourceAnalysisEntry {
-            native_entry: Some(std::sync::Arc::new(captured)),
-            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
-            native_compilation: tcl_compiler::environment_ingress::authoring_native_compilation(),
-            ..Default::default()
-        };
-        let unit = CompilationUnit::build_with_context_registry(
-            "proc add {b c} {return [expr {$b + $c}]}; add 2 4; add 3 5",
-            tcl_compiler::compilation_unit::UnitBuildOptions {
-                registry: context.commands(),
-                defer_top_level: false,
-                config: tcl_lexer::LexerConfig::for_profile(Some(profile)),
-                dialect: Some(profile),
-                external_call_sites: None,
-                declared_commands: None,
-            },
-            Some(&entry),
-            std::sync::Arc::clone(&context),
-        );
-        let config = native_i64_options().semantic_optimisations();
-        let common = CommonAotProofPlan::build_with_retained_metadata(
-            &unit,
-            context.commands(),
-            config,
-            CommonAotEnvironment::Hosted,
-        );
-        let direct = common
-            .direct_calls()
-            .find_map(|(_, decision)| {
-                if let DirectProcDecision::Selected(evidence) = decision {
-                    Some(evidence)
-                } else {
-                    None
-                }
-            })
-            .expect("actual calling site retains its original declaration");
-        let NativeIntegerProof::Analysed(decisions) = prove_native_integer_adds(
-            &unit,
-            "::add",
-            context.commands(),
-            config,
-            NativeIntegerPolicy::default(),
-            &common,
-        ) else {
-            panic!("actual original body has arithmetic proof context");
-        };
-        let [NativeAddDecision::Proven(evidence)] = decisions.as_slice() else {
-            trace_incoming_arguments(&unit, &common);
-            panic!("{decisions:#?}");
-        };
-        for operand in [&evidence.left.identity, &evidence.right.identity] {
-            let tcl_compiler::native_integer_proof::NativeOperandIdentity::IncomingSlot(read) =
-                operand
-            else {
-                panic!("separate activations cannot become one SSA value: {operand:?}");
-            };
-            assert!(read.cells.len() >= 2);
-            assert!(selected_native_operand_argument(&common, direct, operand));
-            let mut invalid = read.clone();
-            invalid.cells.clear();
-            assert!(!selected_native_operand_argument(
-                &common,
-                direct,
-                &tcl_compiler::native_integer_proof::NativeOperandIdentity::IncomingSlot(invalid)
-            ));
-            let mut other_declaration = direct.clone();
-            other_declaration.callee.definition_start += 1;
-            assert!(!selected_native_operand_argument(
-                &common,
-                &other_declaration,
-                operand
-            ));
-        }
-        assert!(
-            common
-                .materialisable_slots()
-                .all(|(identity, decision)| identity.function != "::add"
-                    || !matches!(decision, MaterialisableSlotDecision::Selected(_)))
-        );
-    }
-
-    #[test]
-    fn sealed_common_proofs_emit_native_i64_add_at_a_boxed_boundary() {
-        let (unit, context) = native_whole_program_unit(SEALED_NATIVE_ADD);
-        let mut output = compile_wasm(&unit, context.commands(), native_i64_options());
-
-        assert!(matches!(output.plan, WasmCodegenPlan::NativeI64Add { .. }));
-        let bytes = output.to_bytes();
-        assert_eq!(
-            &bytes[..4],
-            b"\0asm",
-            "native path must use the shared encoder"
-        );
-        let add = output
-            .functions
-            .iter()
-            .find(|function| function.name == "::add")
-            .expect("selected native function");
-        assert_eq!(add.params, vec![ValType::I64, ValType::I64]);
-        assert_eq!(add.results, vec![ValType::I64]);
-        assert!(
-            !add.exported,
-            "raw native helper must remain module-private"
-        );
-        let top = output
-            .functions
-            .iter()
-            .find(|function| function.name == "::top")
-            .expect("native top-level function");
-        assert_eq!(top.locals, vec![ValType::I32]);
-        assert_eq!(
-            calls_to(&output.module, CodegenAbiImportId::HostRefusalPending),
-            1
-        );
-        assert!(top.body.windows(10).any(|window| {
-            window.iter().map(|instruction| instruction.op).eq([
-                WasmOp::LocalSet,
-                WasmOp::Call,
-                WasmOp::If,
-                WasmOp::Return,
-                WasmOp::End,
-                WasmOp::LocalGet,
-                WasmOp::If,
-                WasmOp::Return,
-                WasmOp::End,
-                WasmOp::Return,
-            ])
-        }));
-        let wat = output.to_wat();
-        assert!(wat.contains("tcl_value_new_wide_int"), "{wat}");
-        assert!(wat.contains("tcl_codegen_puts"), "{wat}");
-        assert!(wat.contains("(func $::add"), "{wat}");
-        assert!(!wat.contains("(export \"::add\")"), "{wat}");
-        assert!(
-            wat.contains("(param $left i64) (param $right i64) (result i64)"),
-            "{wat}"
-        );
-        assert!(wat.contains("i64.add"), "{wat}");
-        for absent in [
-            "tcl_codegen_frame_push",
-            "tcl_codegen_local_bind",
-            "tcl_codegen_local_set",
-            "tcl_codegen_local_get",
-            "tcl_codegen_var_set",
-            "tcl_codegen_var_get",
-            "tcl_value_new_string",
-        ] {
-            assert!(!wat.contains(absent), "unexpected {absent}: {wat}");
         }
     }
 

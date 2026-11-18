@@ -613,68 +613,6 @@ fn original_byte_commands_retain_exact_boundaries_and_restore_enclosing_source()
 }
 
 #[test]
-fn original_c_source_reporting_retains_parser_extent_without_promoting_vectors_or_jim() {
-    // naming.runtime.original-command-source-extent
-    // docs/design/analysis/name-resolution-proofs/runtime-original-command-source-extent.md
-    // This emitter contract binds physical source metadata only; Native286
-    // separately measures public C/Jim results and supplies no opcode grant.
-    let registry = CommandRegistry::build_default();
-    let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
-    let entry: crate::test_support::CapturedNativeEntry =
-        crate::test_support::captured_native_entry(profile);
-    let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
-    let image =
-        tcl_lexer::SourceImage::native(b"opaque \"first\xff\"  ;\nother \"second\" \t".as_slice());
-    let plan = tcl_lexer::native_script_words_in(
-        image.clone(),
-        Span::new(0, u32::try_from(image.len()).unwrap()),
-        config,
-    )
-    .unwrap();
-    let mut context = CodegenCtx::new(false, &[], &registry);
-    context.native_entry = Some(&entry);
-    context.invocation_dialect = Some(tcl_registry::InvocationDialect::of_profile(profile));
-    context.run_native_emission(
-        plan.commands
-            .iter()
-            .rev()
-            .cloned()
-            .map(NativeEmissionTask::Command)
-            .collect(),
-    );
-    let boundaries = context
-        .instructions
-        .iter()
-        .filter(|instruction| instruction.source_command_boundary.is_start())
-        .collect::<Vec<_>>();
-    assert_eq!(boundaries.len(), plan.commands.len());
-    for (instruction, command) in boundaries.iter().zip(&plan.commands) {
-        let extent = command.source_extent.unwrap();
-        assert_eq!(
-            instruction.source_cmd_text.bytes(),
-            &image.bytes()[extent.as_range()]
-        );
-        assert_eq!(instruction.source_span, Some(extent));
-        assert_ne!(extent, command.span);
-    }
-    let mut vector = plan.commands[0].clone();
-    vector.source_extent = None;
-    assert_eq!(context.native_command_source_span(&vector), vector.span);
-    context.invocation_dialect = Some(tcl_registry::InvocationDialect::of_profile(
-        tcl_dialect::DialectProfile::find("jim").unwrap(),
-    ));
-    assert_eq!(
-        context.native_command_source_span(&plan.commands[0]),
-        plan.commands[0].span
-    );
-    context.invocation_dialect = None;
-    assert_eq!(
-        context.native_command_source_span(&plan.commands[0]),
-        plan.commands[0].span
-    );
-}
-
-#[test]
 fn retained_quoted_components_execute_but_braced_and_rewritten_values_do_not() {
     let registry = CommandRegistry::build_default();
     let source = "list \"boom-$x\" {boom-$x}";

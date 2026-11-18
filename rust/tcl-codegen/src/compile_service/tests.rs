@@ -81,73 +81,6 @@ fn policy_entry(
     }
 }
 
-fn opaque_set_namespace_entry(
-    profile: &tcl_dialect::DialectProfile,
-    namespace: tcl_core_types::ByteNamespacePath,
-) -> tcl_runtime_api::native_compilation::NativeCompilationEntry {
-    use tcl_runtime_api::native_compilation::{
-        NativeCommandImplementation, NativeCompilationBinding, NativeCompilationEntry,
-        NativeCompilationFrame, NativeCompilationNamespace, NativeInterpreterIdentity,
-    };
-    NativeCompilationEntry {
-        interpreter: NativeInterpreterIdentity {
-            owner: 31,
-            interpreter: 0,
-        },
-        epoch: 4,
-        profile: profile.cache_key(),
-        invocation_policy: Some(profile.cache_key()),
-        expression_policy: None,
-        execution_point: tcl_registry::InvocationDialect::of_profile(profile).core_point,
-        execution_name_policy: None,
-        name_protocol: tcl_registry::InvocationDialect::of_profile(profile)
-            .core_point
-            .and_then(tcl_syntax::naming::NamePolicyProtocol::for_native_point),
-        compiled_variable_protocol: tcl_registry::InvocationDialect::of_profile(profile)
-            .native_compiled_variable_protocol(),
-        compiled_local_layout: None,
-        oo_classes: None,
-        ensemble_target_objects: None,
-        source_string_protocol: tcl_registry::InvocationDialect::of_profile(profile)
-            .native_source_string_protocol(),
-        lexer_grammar: None,
-        inline_compilation_disabled: false,
-        direct_evaluation: false,
-        authored_tmm_static: None,
-        namespace_variable_tables: None,
-        empty_literal_world: None,
-        compiler_pass_environment: None,
-        command_resolvers: None,
-        variable_observers:
-            tcl_runtime_api::native_compilation::NativeVariableObserverPresence::Unknown,
-        math_functions: None,
-        closed: true,
-        commands: vec![NativeCompilationBinding {
-            slot: tcl_core_types::NativeByteCommandSlot::new(namespace.clone(), "set".into()),
-            namespace_token: 1,
-            token: 19,
-            implementation_generation: 19,
-            implementation: NativeCommandImplementation::Opaque,
-            compiler_hook: tcl_runtime_api::native_compilation::NativeCompilerHookPresence::Absent,
-            has_execution_trace: false,
-            compiler: None,
-            procedure_header: None,
-        }]
-        .into(),
-        namespaces: vec![NativeCompilationNamespace {
-            path: namespace,
-            jim_namespace_object: None,
-            token: 1,
-            visible: true,
-            exports: Vec::new(),
-            command_path: Vec::new(),
-            unknown_handler: None,
-        }],
-        current_namespace: 1,
-        frame: NativeCompilationFrame::Namespace,
-    }
-}
-
 /// The registry a profile-backed service compiles `profile` against.
 fn profile_registry<'a>(
     service: &'a BytecodeCompileService,
@@ -157,19 +90,6 @@ fn profile_registry<'a>(
         .registry
         .registry_for_profile(profile)
         .expect("a profile-backed registry")
-}
-
-fn registry_with_custom_list_expr_hook() -> CommandRegistry {
-    let mut registry = CommandRegistry::build_default();
-    let mut custom = registry.get("list").expect("list spec").clone();
-    // SpecTcl overrides are commonly profile-independent authored rows.
-    // They must still replace the core row after an explicit-profile
-    // compiler projection.
-    custom.surface = None;
-    custom.lowering_hook = Some(tcl_registry::hooks::LoweringHookId::Expr);
-    custom.inline_codegen_hook = Some(tcl_registry::hooks::InlineCodegenHookId::Expr);
-    registry.insert(custom);
-    registry
 }
 
 fn instructions_without_source_spans(

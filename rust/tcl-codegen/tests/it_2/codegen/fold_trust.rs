@@ -98,36 +98,6 @@ fn dict_create_fold_bails_when_the_unit_deletes_dict() {
 }
 
 #[test]
-fn statement_position_hook_with_unit_rename_retains_runtime_binding() {
-    let ops = ops_of("set l {a b c}\nllength $l\n");
-    assert!(
-        ops.contains(&Op::LIST_LENGTH),
-        "baseline specialises: {ops:?}"
-    );
-
-    let asm = top_asm("rename llength myll\nset l {a b c}\nllength $l\n");
-    let ops = opcodes(&asm);
-    assert!(
-        ops.contains(&Op::LIST_LENGTH),
-        "the exact runtime binding lets `llength` remain specialised: {ops:?}"
-    );
-    assert!(
-        asm.command_bindings
-            .iter()
-            .any(|binding| binding.name == "llength" && binding.identity == "llength"),
-        "the specialised opcode must retain its exact command dependency: {:?}",
-        asm.command_bindings,
-    );
-    assert!(
-        asm.instructions.iter().any(|instruction| {
-            instruction.source_command_boundary.is_start()
-                && instruction.source_cmd_text == "llength $l"
-        }),
-        "the VM needs an explicit replay boundary before the stale opcode"
-    );
-}
-
-#[test]
 fn value_position_hook_with_unit_rename_retains_runtime_binding() {
     // A unit rename in a module lowered with no interpreter: a live
     // interpreter runs the `rename` before it compiles the rest.
