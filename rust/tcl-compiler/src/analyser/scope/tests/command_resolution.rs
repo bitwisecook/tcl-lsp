@@ -391,25 +391,6 @@ fn navigation_uses_reached_body_definition_before_later_redefinition() {
 }
 
 #[test]
-fn definition_navigation_uses_retained_grammar_instead_of_display_dialect() {
-    let source = "proc p {} {return FIRST}; p";
-    let mut result = Analyser::new().analyse(source, "tcl8.4");
-    let definition = result
-        .command_invocations
-        .iter()
-        .find(|invocation| invocation.name == "p")
-        .unwrap()
-        .resolved_definition
-        .clone()
-        .unwrap();
-    assert!(!result.body_lexer_config.unwrap().expand_syntax);
-    result.dialect = "custom-display-name".to_owned();
-    assert!(result.proc_for_definition(&definition, source).is_some());
-    result.body_lexer_config = None;
-    assert!(result.proc_for_definition(&definition, source).is_none());
-}
-
-#[test]
 fn class_navigation_retains_selected_declaration_after_name_reuse() {
     let source = "oo::class create C {}; C create nav_before; rename C {}; oo::class create C {}; C create nav_after";
     let call_offsets = ["C create nav_before", "C create nav_after"]

@@ -538,3 +538,37 @@ fn constructed_itcl_member_projection_preserves_colon_tail_and_actual_family_gua
     analysis.all_classes.get_mut("::茶").unwrap().metaclass = "oo::class".to_owned();
     assert!(itcl_class_proc_at_in_registry(&analysis, registry, "::茶:::").is_none());
 }
+
+/// Definition answers from the analysis' own retained grammar, and an
+/// analysis whose metadata context is unavailable (an uninstalled pack
+/// overlay, the real route) refuses. tclsh 8.4.20: `p` returns FIRST.
+#[test]
+fn definition_follows_the_retained_grammar_and_refuses_an_unavailable_context() {
+    let source = "proc p {} {return FIRST}; p";
+    let call = u32::try_from(source.rfind('p').unwrap()).unwrap();
+    let analysis = Analyser::new().analyse(source, "tcl8.4").clone();
+    assert_eq!(
+        definition(source, 0, call, &analysis),
+        [LspRange {
+            start_line: 0,
+            start_character: 5,
+            end_line: 0,
+            end_character: 6,
+        }]
+    );
+    let unavailable = crate::diagnostic_report::standalone_findings(
+        &crate::diagnostic_report::StandaloneDocument {
+            source,
+            file_path: None,
+            dialect: crate::profile_for_dialect("tcl8.4"),
+            registry: crate::registry_for_dialect("tcl8.4"),
+            pack_overlay: u64::MAX,
+            external_call_sites: None,
+            script_encoding: tcl_registry::value_transfer::ScriptEncoding::Auto,
+        },
+        &std::collections::BTreeSet::new(),
+    )
+    .analysis;
+    assert!(unavailable.analysis_context_unavailable.is_some());
+    assert!(definition(source, 0, call, &unavailable).is_empty());
+}
