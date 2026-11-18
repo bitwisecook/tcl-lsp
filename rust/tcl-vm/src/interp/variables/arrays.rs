@@ -62,9 +62,12 @@ impl Vm {
         resolved: &ResolvedVar,
     ) -> Result<(), Completion<Value>> {
         let input = tcl_syntax::naming::NativeVariableInputForm::Combined(name);
+        // An element-form target fails its lookup as an array (`TclLookupArray`
+        // reports with `set`): tclsh 8.4-9.1 `array set z(k) {}` and
+        // `array set z(k) {a 1}` both say `can't set "z(k)": variable isn't array`.
         if resolved.elem.is_some() {
             return Err(self.variable_access_error_input(
-                "array set",
+                "set",
                 input,
                 "variable isn't array",
             ));
