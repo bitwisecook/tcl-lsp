@@ -384,11 +384,21 @@ impl SourceOrderContext {
         for (index, command) in structure.commands.iter().enumerate() {
             let at = command.argv.first()?.span.start();
             let body = analysis.original_definition_body_span(at);
+            // A body run during its own invocation (`namespace eval`) is
+            // ordered in place when the command is a straight-line sequence
+            // position, as `ordered_point` already treats it.
+            let straight = sequence
+                .as_ref()
+                .is_some_and(|sequence| sequence.contains(at));
             if body.is_none()
                 && structure
                     .caller_context_unavailable_bodies
                     .iter()
-                    .any(|span| span.start() <= at && at < span.end())
+                    .any(|span| {
+                        span.start() <= at
+                            && at < span.end()
+                            && !(straight && structure.invocation_scoped_bodies.contains(span))
+                    })
             {
                 continue;
             }
