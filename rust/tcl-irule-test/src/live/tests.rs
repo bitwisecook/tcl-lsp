@@ -1942,3 +1942,19 @@ fn harness_runs_the_tmm_84_surface() {
         "lmap must be blocked in the event: {blocked}"
     );
 }
+
+#[test]
+fn an_irule_expression_reads_numerals_by_the_f5_policy_not_the_host_engine() {
+    // The ::expr override evaluates the rewritten expression in the caller's
+    // context, not under the framework's host catch. F5 expressions take 8.4
+    // rules (BIG-IP check 23); tclsh 8.4.20 reads 077 as octal.
+    let mut session = LiveSession::embedded().expect("framework");
+    for (script, expected) in [
+        ("expr {077}", "63"),
+        ("expr {abs(077)}", "63"),
+        ("set e 077; expr $e", "63"),
+        ("proc octal {} {expr {077 + 1}}; octal", "64"),
+    ] {
+        assert_eq!(session.eval(script).unwrap(), expected, "{script}");
+    }
+}

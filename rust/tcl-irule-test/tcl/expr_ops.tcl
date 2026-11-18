@@ -348,22 +348,22 @@ this harness refuses to guess one. Parenthesise the intended grouping."
             if {$_in_rewrite} {
                 return [uplevel 1 ::tmm::expr_ops::_orig_expr $args]
             }
+            # Only the rewrite runs under the host's catch; the expression
+            # itself is evaluated in the caller's iRule context, under the
+            # F5 expression policy rather than the host engine's.
             set _in_rewrite 1
             set code [::tmm::_host_catch {
                 if {[llength $args] == 1} {
                     set rewritten [::tmm::expr_ops::rewrite_expr [lindex $args 0]]
-                    set _result [uplevel 1 [list ::tmm::expr_ops::_orig_expr $rewritten]]
                 } else {
-                    set joined [join $args " "]
-                    set rewritten [::tmm::expr_ops::rewrite_expr $joined]
-                    set _result [uplevel 1 [list ::tmm::expr_ops::_orig_expr $rewritten]]
+                    set rewritten [::tmm::expr_ops::rewrite_expr [join $args " "]]
                 }
             } result]
             set _in_rewrite 0
             if {$code} {
                 return -code $code $result
             }
-            return $_result
+            return [uplevel 1 [list ::tmm::expr_ops::_orig_expr $rewritten]]
         }
     }
 
