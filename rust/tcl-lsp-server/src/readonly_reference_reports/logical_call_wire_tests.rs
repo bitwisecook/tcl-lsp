@@ -167,7 +167,7 @@ async fn equal_bytes_republication_and_reindex_cannot_renew_prepared_call_stamp(
 async fn typed_call_debt_and_parent_target_stamps_survive_until_final_source_lease() {
     let backend = crate::tests::test_backend();
     let uri: Uri = "file:///tmp/issued-call-final-lease.tcl".parse().unwrap();
-    let source = "mystery\nproc caller {} {helper; $head}\nproc helper {} {}\n";
+    let source = "set ::auto_index(mystery) {source lib.tcl}; mystery\nproc caller {} {helper; $head}\nproc helper {} {}\n";
     register(&backend, &uri, source).await;
     let documents = backend.logical_call_documents(&uri).await.unwrap().unwrap();
     let epoch = backend.diag_inputs_epoch();

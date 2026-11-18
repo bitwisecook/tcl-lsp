@@ -40,7 +40,7 @@ async fn typed_hierarchy_debt_survives_wire_publication_and_parent_currentness()
     let uri: Uri = "file:///tmp/conditional-hierarchy-debt.tcl"
         .parse()
         .unwrap();
-    let source = "oo::class create Base {}; mystery; oo::class create Child {superclass Base}";
+    let source = "set ::auto_index(mystery) {source lib.tcl}; oo::class create Base {}; mystery; oo::class create Child {superclass Base}";
     register(&backend, &uri, source).await;
     let offset = u32::try_from(source.rfind("Base").unwrap()).unwrap();
     let items = backend
@@ -97,7 +97,7 @@ async fn implementation_possible_locations_keep_typed_debt_until_final_source_le
     let uri: Uri = "file:///tmp/conditional-implementation-debt.tcl"
         .parse()
         .unwrap();
-    let source = "oo::class create Base {method run {} {}}\nmystery\noo::class create Child {superclass Base; method run {} {}}\noo::class create Other {superclass $missing}";
+    let source = "set ::auto_index(mystery) {source lib.tcl}; oo::class create Base {method run {} {}}\nmystery\noo::class create Child {superclass Base; method run {} {}}\noo::class create Other {superclass $missing}";
     register(&backend, &uri, source).await;
     let offset = u32::try_from(source.find("run").unwrap()).unwrap();
     let locations = backend

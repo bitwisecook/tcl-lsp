@@ -1475,7 +1475,7 @@ mod conditional_local_hierarchy_tests {
 
     #[test]
     fn conditional_relation_operand_keeps_namespace_and_original_labels_with_prefix_debt() {
-        let source = "namespace eval N {oo::class create Base {}; mystery; oo::class create Child {superclass Base}}\nputs Base";
+        let source = "set ::auto_index(mystery) {source lib.tcl}; namespace eval N {oo::class create Base {}; mystery; oo::class create Child {superclass Base}}\nputs Base";
         let mut analysis = Analyser::new().analyse(source, "tcl");
         let child = &analysis.all_classes["::N::Child"];
         assert!(analysis.logical_source_direct_classes(child).is_none());
@@ -1542,8 +1542,9 @@ mod conditional_local_hierarchy_tests {
             "superclass Missing",
             "superclass Base; mystery",
         ] {
-            let source =
-                format!("oo::class create Base {{}}\nmystery\noo::class create Child {{{body}}}");
+            let source = format!(
+                "set ::auto_index(mystery) {{source lib.tcl}}; oo::class create Base {{}}\nmystery\noo::class create Child {{{body}}}"
+            );
             let analysis = Analyser::new().analyse(&source, "tcl");
             let cursor = u32::try_from(source.find("superclass ").unwrap() + 11).unwrap();
             assert!(
@@ -1551,7 +1552,7 @@ mod conditional_local_hierarchy_tests {
                 "{body}"
             );
         }
-        let source = "oo::class create Base {}; mystery; oo::class create Child {superclass Base}";
+        let source = "set ::auto_index(mystery) {source lib.tcl}; oo::class create Base {}; mystery; oo::class create Child {superclass Base}";
         let mut analysis = Analyser::new().analyse(source, "tcl");
         let cursor = u32::try_from(source.rfind("Base").unwrap()).unwrap();
         assert!(logical_class_at("", source, &analysis, cursor).is_some());
@@ -1576,7 +1577,7 @@ mod retained_hierarchy_applicability_tests {
 
     #[test]
     fn prepared_operand_identity_keeps_debt_and_revalidates_both_current_snapshots() {
-        let source = "oo::class create Base {}; mystery; oo::class create Child {superclass Base}";
+        let source = "set ::auto_index(mystery) {source lib.tcl}; oo::class create Base {}; mystery; oo::class create Child {superclass Base}";
         let analysis = Analyser::new().analyse(source, "tcl");
         let at = LineIndex::new_lsp(source).position_at_utf16(
             u32::try_from(source.rfind("Base").unwrap()).unwrap(),

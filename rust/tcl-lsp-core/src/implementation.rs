@@ -910,7 +910,7 @@ mod conditional_source_implementation_tests {
 
     #[test]
     fn conditional_edges_keep_root_and_genuine_descendant_without_inventing_unknown_parent() {
-        let source = "oo::class create Base {method run {} {}}\nmystery\noo::class create Child {superclass Base; method run {} {}}\noo::class create Other {superclass $missing; method run {} {}}";
+        let source = "set ::auto_index(mystery) {source lib.tcl}; oo::class create Base {method run {} {}}\nmystery\noo::class create Child {superclass Base; method run {} {}}\noo::class create Other {superclass $missing; method run {} {}}";
         let analysis = Analyser::new().analyse(source, "tcl");
         let root = &analysis.all_classes["::Base"];
         let advice =
@@ -967,7 +967,7 @@ mod retained_implementation_applicability_tests {
 
     #[test]
     fn implementation_reply_keeps_debt_and_revalidates_every_positive_target() {
-        let source = "oo::class create Base {method run {} {}}\nmystery\noo::class create Child {superclass Base; method run {} {}}\noo::class create Other {superclass $missing}";
+        let source = "set ::auto_index(mystery) {source lib.tcl}; oo::class create Base {method run {} {}}\nmystery\noo::class create Child {superclass Base; method run {} {}}\noo::class create Other {superclass $missing}";
         let analysis = Analyser::new().analyse(source, "tcl");
         let at = LineIndex::new_lsp(source)
             .position_at_utf16(u32::try_from(source.find("run").unwrap()).unwrap(), source);
