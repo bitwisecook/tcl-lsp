@@ -568,7 +568,7 @@ fn rename_method_from_external_call_site() {
 
 #[test]
 fn rename_method_external_rewrites_proc_body_sites() {
-    let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nproc f {} { $d bark }\n";
+    let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nproc f {} { global d; $d bark }\nf\n";
     let analysis = analyse(src);
     let edits = rename(
         src,

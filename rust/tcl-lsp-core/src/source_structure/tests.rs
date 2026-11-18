@@ -794,7 +794,7 @@ fn source_member_disposition_prevents_unavailable_layout_global_fallback() {
 fn original_structure_uses_genuine_definition_wrappers_and_clears_ordinary_bodies() {
     // Implementation contract: naming.source.original-editor-body-structure
     // docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md
-    let source = "oo::class create C {self self {method café {} {puts wrapper}}; if 1 {method café {} {puts immediate}}; method m {} {method ordinary {} {puts data}}}";
+    let source = "oo::class create C {self {method café {} {puts wrapper}}; if 1 {method café {} {puts immediate}}; method m {} {method ordinary {} {puts data}}}";
     let analysis = Analyser::new().analyse(source, "tcl8.6");
     let config = analysis.body_lexer_config.unwrap();
     let structure = SourceStructure::capture(source, Some(&analysis), config).unwrap();

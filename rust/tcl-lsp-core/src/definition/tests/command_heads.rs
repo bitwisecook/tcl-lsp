@@ -381,7 +381,7 @@ fn tn_a_command_head_in_every_registry_known_script_argument_still_resolves() {
     // cover every registry-declared script argument. A call written in
     // an `if` body, a `switch` arm, a `foreach` body, and a command
     // -prefix callback must all still resolve.
-    let src = "proc helper {} {}\nif {1} {\n    helper\n}\nswitch x {\n    a { helper }\n}\nforeach i {1} {\n    helper\n}\nlsort -command helper {1 2}\n";
+    let src = "proc helper {args} {return 0}\nif {1} {\n    helper\n}\nswitch x {\n    a { helper }\n}\nforeach i {1} {\n    helper\n}\nlsort -command helper {1 2}\n";
     let analysis = analyse(src);
     for (line, col) in [(2, 4), (5, 8), (8, 4), (10, 15)] {
         let locs = definition(src, line, col, &analysis);

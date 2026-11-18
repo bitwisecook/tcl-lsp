@@ -913,7 +913,7 @@ mod tests {
         // A `global` nested in an `if` body (no scope of its own) must be
         // reached via body recursion, not just the top-level proc scan.
         let src = "proc p {} {\n\
-                   if {[info exists x]} { global x }\n\
+                   if {[gets stdin] ne \"\"} { global x }\n\
                    puts $x\n\
                    }\n";
         let analysis = analyse(src);
