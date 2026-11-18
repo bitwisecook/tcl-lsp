@@ -229,7 +229,8 @@ fn rename_method_does_not_rewrite_unrelated_bare_command_with_same_name() {
 #[test]
 fn rename_disambiguates_property_and_method_sharing_a_name_by_cursor() {
     // tclsh 9.0.4/9.1.0: property is an oo::configurable definition word.
-    let src = "oo::configurable create C {\n    property color\n    method color {} { return c }\n}\n";
+    let src =
+        "oo::configurable create C {\n    property color\n    method color {} { return c }\n}\n";
     let analysis = Analyser::new().analyse(src, "tcl9.0").clone();
     // Cursor on the *property* declaration (line 1, col 13).
     let property_edits = rename(

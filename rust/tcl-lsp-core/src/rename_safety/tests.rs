@@ -221,8 +221,7 @@ fn fp_refuses_when_two_classes_bind_the_same_qualified_object_command() {
     let src = "namespace eval ::a {\n\
                    \x20   oo::class create Factory { method make {} { return f } }\n\
                    \x20   oo::class create Widget { method make {} { return w } }\n\
-                   \x20   Factory create rex\n\
-                   \x20   Widget create rex\n\
+                   \x20   if {[gets stdin] eq \"a\"} {Factory create rex} else {Widget create rex}\n\
                    \x20   puts [rex make]\n\
                    }\n";
     let reason = hazard(src, &["::a::Factory"], "make", false)
@@ -542,7 +541,7 @@ fn original_dynamic_name_value_narrowing_stays_in_its_logical_purpose() {
                     &analysis,
                     site.span,
                     "target",
-                    tcl_dialect::DialectProfile::find(dialect).unwrap()
+                    tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile()
                 ),
                 "{dialect}"
             );

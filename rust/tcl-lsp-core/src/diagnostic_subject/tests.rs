@@ -80,8 +80,7 @@ fn original_callback_transport_keeps_unavailable_frame_and_registration_premises
     use tcl_compiler::analyser::{
         Analyser, Diagnostic, DiagnosticSubject, Severity, SourceCallbackAritySubject,
     };
-    let source =
-        "# tcl-lsp: requires smtp\nproc cb {} {}\nsmtp::sendmessage message -tokenCallback ::cb";
+    let source = "# tcl-lsp: requires smtp\npackage require smtp\nproc cb {} {}\nsmtp::sendmessage message -tlspolicy ::cb";
     let analysis = Analyser::new().analyse(source, "tcl9.0");
     let selection = analysis
         .command_invocations

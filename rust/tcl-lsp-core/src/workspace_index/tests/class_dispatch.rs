@@ -919,7 +919,7 @@ fn owner_aware_super_resolution_picks_same_namespace_and_abstains_on_ambiguity()
     // namespace with no local Base must abstain (ambiguous tail), not
     // guess.
     let a = analyse(
-        "oo::class create ::A::Base {}\noo::class create ::A::Derived {\n    superclass Base\n}\n",
+        "oo::class create ::A::Base {}\nnamespace eval ::A {oo::class create Derived {\n    superclass Base\n}}\n",
     );
     let b = analyse("oo::class create ::B::Base {}\n");
     let c = analyse("oo::class create ::C::Widget {\n    superclass Base\n}\n");
