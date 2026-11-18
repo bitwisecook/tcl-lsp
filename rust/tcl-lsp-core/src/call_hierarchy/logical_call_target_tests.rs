@@ -331,3 +331,28 @@ fn cross_document_member_advice_selects_only_the_actual_side_frames() {
         assert_eq!(calls[0].from_ranges.len(), 1);
     }
 }
+
+/// A method body's absolute call reaches the procedure in the call
+/// hierarchy, from both ends. tclsh 8.6.18/9.1.0: [C new] m runs ::helper.
+#[test]
+fn a_method_body_call_of_an_absolute_procedure_joins_both_hierarchy_ends() {
+    let source = "proc helper {} {}\noo::class create C {method m {} {::helper}}\n[C new] m\n";
+    let analysis = analysed(source);
+    let profile = analysis.resolved_profile().unwrap();
+    let helper = proc_item(source, &analysis, "::helper");
+    let method = member_item(source, &analysis, "::C", "m", MemberSide::Instance);
+    let incoming = incoming_calls(source, profile, &helper, &analysis);
+    assert!(
+        incoming
+            .iter()
+            .any(|call| call.from.selection_range == method.selection_range),
+        "::helper's callers include method m: {incoming:?}"
+    );
+    let outgoing = outgoing_calls(source, profile, &method, &analysis);
+    assert!(
+        outgoing
+            .iter()
+            .any(|call| call.to.selection_range == helper.selection_range),
+        "method m calls ::helper: {outgoing:?}"
+    );
+}

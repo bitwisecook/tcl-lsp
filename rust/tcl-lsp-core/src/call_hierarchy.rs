@@ -736,6 +736,25 @@ fn enclosing_proc<'a>(
     best
 }
 
+/// The innermost class member whose body contains `inv_span`, ranked by
+/// (body length, body start) so ties never depend on hash order.
+fn enclosing_member(
+    analysis: &AnalysisResult,
+    inv_span: tcl_lexer::Span,
+) -> Option<(&ClassDef, &MethodDef)> {
+    analysis
+        .all_classes
+        .values()
+        .flat_map(|class_def| class_methods_iter(class_def).map(move |member| (class_def, member)))
+        .filter(|(_, member)| span_contains(member.body_span, inv_span))
+        .min_by_key(|(_, member)| {
+            (
+                member.body_span.end() - member.body_span.start(),
+                member.body_span.start(),
+            )
+        })
+}
+
 /// `true` when an execution site targets `proc_def`.
 ///
 /// Retains the lookup-purpose distinction before delegating target identity
@@ -1157,8 +1176,25 @@ pub fn incoming_calls_for_target(
             continue;
         }
         let inv_range = span_to_range(source, &line_index, inv.range);
-        let caller_key = enclosing_proc(analysis, inv.range)
-            .map_or_else(|| TOP_LEVEL_NAME.to_owned(), |(qn, _)| qn.to_owned());
+        let proc = enclosing_proc(analysis, inv.range);
+        // A call inside a class member body belongs to that member when it is
+        // the innermost body around the call.
+        if let Some((class_def, method)) = enclosing_member(analysis, inv.range)
+            .filter(|(_, m)| proc.is_none_or(|(_, p)| span_contains(p.body_span, m.body_span)))
+        {
+            let key = CallItemKey::for_method(class_def, method);
+            let entry = by_caller
+                .entry(format!("{}\0{}", key.name, key.decl.0))
+                .or_insert_with(|| {
+                    (
+                        item_for_method(source, class_def, method, &line_index),
+                        Vec::new(),
+                    )
+                });
+            entry.1.push(inv_range);
+            continue;
+        }
+        let caller_key = proc.map_or_else(|| TOP_LEVEL_NAME.to_owned(), |(qn, _)| qn.to_owned());
         let entry = by_caller.entry(caller_key.clone()).or_insert_with(|| {
             let caller_item = if caller_key == TOP_LEVEL_NAME {
                 top_level_item()

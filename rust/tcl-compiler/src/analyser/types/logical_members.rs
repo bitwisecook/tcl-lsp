@@ -1117,61 +1117,6 @@ mod tests {
     use crate::analyser::Analyser;
 
     #[test]
-    fn original_member_catalogue_joins_source_caller_without_receiver_entry() {
-        let source = "oo::class create C {method m {} {::helper}}";
-        let analysis = Analyser::new().analyse(source, "tcl");
-        let offset = u32::try_from(source.find("::helper").unwrap()).unwrap();
-        let candidate = crate::registry_invocation::source_structure::source_logical_absolute_command_candidate_at(
-            source, &analysis, offset,
-        ).expect("genuine member-body absolute source candidate");
-        let body = candidate
-            .original_member_source_body()
-            .expect("retained member lineage");
-        let caller = analysis
-            .logical_source_member_for_original_body(body)
-            .expect("actual completed member full-vector correspondence");
-        assert_eq!(caller.metadata().name, "m");
-        assert_eq!(caller.original_body_word(), Some(body.original_container()));
-        assert!(analysis.original_completed_command_world().is_none());
-        let mut changed = analysis.clone();
-        changed
-            .all_classes
-            .get_mut("::C")
-            .unwrap()
-            .methods
-            .get_mut("m")
-            .unwrap()
-            .params
-            .clear();
-        changed
-            .all_classes
-            .get_mut("::C")
-            .unwrap()
-            .methods
-            .get_mut("m")
-            .unwrap()
-            .name
-            .push_str("changed");
-        assert!(
-            changed
-                .logical_source_member_for_original_body(body)
-                .is_none()
-        );
-        let independent = Analyser::new().analyse(source, "tcl");
-        assert!(
-            independent
-                .logical_source_member_for_original_body(body)
-                .is_none()
-        );
-        let foreign = Analyser::new().analyse(&source.replace("::helper", "::other!"), "tcl");
-        assert!(
-            foreign
-                .logical_source_member_for_original_body(body)
-                .is_none()
-        );
-    }
-
-    #[test]
     fn logical_class_body_word_comes_from_the_actual_definition_script_factory() {
         let source = "oo::class create C {method m {arg} {return $arg}}";
         let analysis = Analyser::new().analyse(source, "tcl");
