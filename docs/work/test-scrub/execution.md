@@ -7,9 +7,9 @@ Failing tests of `tcl-codegen`, `tcl-vm`, `tcl-runtime`, the engines, `tcl-cshim
 | Verdict | Tests |
 | --- | ---: |
 | `KEEP-ORACLE` | 110 |
-| `KEEP-CONTRACT` | 57 |
+| `KEEP-CONTRACT` | 58 |
 | `MERGE` | 48 |
-| `REWRITE` | 34 |
+| `REWRITE` | 33 |
 | `RETIRE` | 8 |
 | `FIX-EXPECTATION` | 3 |
 | `FIX-FIXTURE` | 2 |
