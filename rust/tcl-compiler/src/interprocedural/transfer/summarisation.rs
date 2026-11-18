@@ -200,11 +200,19 @@ impl ModuleProcedures<'_> {
             || component
                 .first()
                 .is_some_and(|qname| calls[qname].contains(qname));
+        // The component's outer writes rest only on the summaries of its
+        // callees outside it, so they are known before its rounds run.
+        let Some(outer) = self.component_outer_writes(component, calls, inputs) else {
+            return;
+        };
         let mut roles: Vec<Option<Vec<ParamRole>>> = vec![None; component.len()];
         let mut settled = !recursive;
         if recursive {
             for qname in component {
                 self.provisional.borrow_mut().insert(*qname, None);
+                if outer.is_empty() {
+                    self.provisional_closed.borrow_mut().insert(*qname);
+                }
             }
             for round in 1.. {
                 if rounds.exceeded(round) {
@@ -226,13 +234,11 @@ impl ModuleProcedures<'_> {
             }
             for qname in component {
                 self.provisional.borrow_mut().remove(qname);
+                self.provisional_closed.borrow_mut().remove(qname);
             }
         } else if let Some(qname) = component.first() {
             roles[0] = self.roles(qname, inputs);
         }
-        let Some(outer) = self.component_outer_writes(component, calls, inputs) else {
-            return;
-        };
         let Some(outer_report) = outer
             .iter()
             .map(|(place, outcome)| {

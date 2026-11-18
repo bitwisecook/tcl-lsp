@@ -290,6 +290,9 @@ pub(crate) struct ModuleProcedures<'a> {
     /// The roles of the procedures of a cycle being solved: `None` while a
     /// procedure is not yet known to complete normally.
     provisional: RefCell<HashMap<crate::ir::ProcedureId, Option<Vec<ParamRole>>>>,
+    /// The procedures of a cycle being solved whose component writes no
+    /// place outside its frames.
+    provisional_closed: RefCell<HashSet<crate::ir::ProcedureId>>,
     /// The revision every summary rides on.
     revision: u64,
     /// The module's flow graphs.
@@ -346,6 +349,7 @@ impl<'a> ModuleProcedures<'a> {
             ),
             summaries: RefCell::new(HashMap::new()),
             provisional: RefCell::new(HashMap::new()),
+            provisional_closed: RefCell::new(HashSet::new()),
             revision: revision_of(inputs.ir, inputs.mutations),
             cfg: inputs.cfg,
             registry: inputs.registry,
@@ -393,6 +397,7 @@ impl<'a> ModuleProcedures<'a> {
             ),
             summaries: RefCell::new(cu.transfers.0.clone()),
             provisional: RefCell::new(HashMap::new()),
+            provisional_closed: RefCell::new(HashSet::new()),
             revision: revision_of(&cu.ir_module, &cu.command_mutations),
             cfg: &cu.cfg_module,
             registry,
@@ -527,6 +532,9 @@ impl<'a> ModuleProcedures<'a> {
         &self,
         callee: &crate::ir::ProcedureId,
     ) -> Option<Vec<(String, ExistenceStep)>> {
+        if self.provisional_closed.borrow().contains(callee) {
+            return Some(Vec::new());
+        }
         let summaries = self.summaries.borrow();
         let summary = summaries.get(callee)?;
         // Source coordinates cannot select a current cell or grant Normal.
