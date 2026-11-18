@@ -370,16 +370,15 @@ fn the_old_folder_stays_within_the_targets_tower() {
                 .with_intrinsic_math(),
         )
     };
-    // The fixed-width model answers a wide shift as tclsh 8.4.20 does:
-    // `puts [expr {1 << 70}]` prints 0, `expr {(1 << 70) == 0}` 1 and
-    // `expr {-(1 << 70)}` 0. A profile naming no release has no model.
-    for (expr, wide) in [("1 << 70", 0), ("(1 << 70) == 0", 1), ("-(1 << 70)", 0)] {
+    // The fixed-width model shifts a C integer, where a count at or past
+    // the width is undefined: tclsh 8.4.20 here prints 0 for
+    // `puts [expr {1 << 70}]`, a masked build 64, so the fold declines. A
+    // profile naming no release has no model.
+    assert_eq!(fold("5 >> 64", "tcl8.4"), None);
+    assert_eq!(fold("1 << 62", "tcl8.4"), Some(TclValue::Int(1 << 62)));
+    for expr in ["1 << 70", "(1 << 70) == 0", "-(1 << 70)"] {
         for dialect in ["tcl8.4", "f5-irules"] {
-            assert_eq!(
-                fold(expr, dialect),
-                Some(TclValue::Int(wide)),
-                "{dialect}: {expr}"
-            );
+            assert_eq!(fold(expr, dialect), None, "{dialect}: {expr}");
         }
         assert_eq!(fold(expr, "f5-bigip"), None, "f5-bigip: {expr}");
         assert!(fold(expr, "tcl8.6").is_some(), "tcl8.6: {expr}");

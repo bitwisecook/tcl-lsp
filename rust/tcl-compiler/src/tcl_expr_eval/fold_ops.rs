@@ -686,6 +686,15 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         if self.arithmetic != tcl_dialect::NativeArithmetic::TclBignum
             && let (TclValue::Int(x), TclValue::Int(y)) = (&a, &b)
         {
+            // Tcl 8.4 shifts a C `long` / `Tcl_WideInt`: a count at or past
+            // the width is undefined in C, and builds answer apart (tclsh
+            // 8.4.20 here prints 0 for `1 << 70`; a masked build gives 64).
+            if self.arithmetic == tcl_dialect::NativeArithmetic::Tcl84Wide
+                && matches!(op, BinOp::LShift | BinOp::RShift)
+                && !(0..64).contains(y)
+            {
+                return Err(());
+            }
             return tcl_syntax::expr::wide::binary(self.arithmetic, op, *x, *y)
                 .map(FoldValue::Int)
                 .map_err(|_| ());

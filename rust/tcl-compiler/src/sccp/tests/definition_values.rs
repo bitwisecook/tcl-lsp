@@ -257,16 +257,17 @@ fn a_fused_expression_answers_its_full_value() {
     );
 }
 
-/// A shift past the wide boundary is the release's own answer. tclsh
-/// 8.4.20 prints 0 for `puts [expr {1 << 70}]`, where the count runs off
-/// its fixed-width integer; tclsh 8.5 to 9.1 print
-/// 1180591620717411303424. The `f5-irules` row waits on BIG-IP check 10
+/// A shift past the wide boundary is the release's own answer: tclsh 8.5
+/// to 9.1 print 1180591620717411303424 for `puts [expr {1 << 70}]`. Tcl
+/// 8.4 shifts a C integer, where a count at or past the width is undefined
+/// and builds answer apart (tclsh 8.4.20 here prints 0, a masked build 64),
+/// so 8.4 settles nothing. The `f5-irules` row waits on BIG-IP check 10
 /// and on handler bodies lowering with plain names.
 #[test]
 fn a_wide_shift_settles_what_each_release_prints() {
     let big = LatticeValue::Const(ConstValue::String("1180591620717411303424".into()));
     for (dialect, want) in [
-        ("tcl8.4", LatticeValue::Const(ConstValue::Int(0))),
+        ("tcl8.4", LatticeValue::Overdefined),
         ("tcl8.5", big.clone()),
         ("tcl8.6", big.clone()),
         ("tcl9.0", big.clone()),
