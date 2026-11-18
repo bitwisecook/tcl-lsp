@@ -190,6 +190,9 @@ These go ahead of missing facts once the ledgers are in.
 | Native lowering still emits a definition after `proc` is replaced; `unset` in a callback not counted as a write; a Jim entry lexed with the 8.6 configuration; `[dict size DATA]` inside an unknown command's braced word listed as a nested call | analyser-binding |
 | `-force` imports followed to the deleted local (10 tests); an inner namespaced class does not shadow the global one; a mathfunc rename that returns no edits and no reason | lsp-features |
 | A helper's condition concluded, and its body rewritten, from in-file callers although another file calls it differently (the body-seed cause above); W210 after a raising `unset x`; `namespace export *` in `namespace eval` scanned as no export boundary | analyser-binding |
+| The top-level CFG the taint walk reads is replayed from the file's final state, so one later world-withdrawing statement turns every earlier call into an unseen-call marker | tk-oo writes, analyser-binding reviews |
+| Under `tcl`, inside `namespace eval`, a dynamic variable name is resolved to one branch's constant (`set n other; if {$c} {set n v}; set $n 2` claims `other`) | analyser-binding |
+| `tcl-lsp analyze` under the SpecTcl dialect reports W123 on a pack's root word where the analyser, rightly, abstains | lsp-features |
 
 ## Waiting on the owner's approval
 
@@ -267,7 +270,7 @@ The failing behaviours are far fewer than the failing tests. The causes ranked h
 
 The second pass (overlap among passing tests: 88 exact-copy groups, 385 overlap groups, the vacuous negatives on unwired helpers) follows the repairs.
 
-## Status of the rows, 18 November 2026, 00:55 UTC
+## Status of the rows, 18 November 2026, 01:55 UTC
 
 From `tools/ledger_status.py` (a cell that is not one of the seven words counts as open).
 
@@ -275,18 +278,19 @@ From `tools/ledger_status.py` (a cell that is not one of the seven words counts 
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | analyser-binding | 412 | 5 | 0 | 1 | 0 | 0 | 0 | 418 |
 | analysis-performance | 46 | 0 | 0 | 0 | 0 | 0 | 0 | 46 |
-| class-facts | 246 | 0 | 0 | 0 | 0 | 0 | 0 | 246 |
-| dataflow-optimiser | 415 | 0 | 0 | 1 | 0 | 1 | 6 | 423 |
-| diagnostics | 388 | 0 | 0 | 4 | 0 | 0 | 5 | 397 |
+| class-facts | 236 | 8 | 2 | 0 | 0 | 0 | 0 | 246 |
+| dataflow-optimiser | 414 | 0 | 0 | 2 | 0 | 1 | 6 | 423 |
+| diagnostics | 366 | 8 | 14 | 4 | 0 | 0 | 5 | 397 |
 | execution | 199 | 4 | 0 | 5 | 56 | 0 | 0 | 264 |
 | irules-registry-tooling | 149 | 0 | 0 | 0 | 0 | 3 | 0 | 152 |
 | live-inlining | 27 | 0 | 0 | 0 | 0 | 0 | 0 | 27 |
-| lsp-features | 655 | 9 | 0 | 3 | 10 | 0 | 0 | 677 |
-| server-e2e-db | 193 | 5 | 1 | 2 | 0 | 10 | 5 | 216 |
-| taint | 173 | 0 | 0 | 0 | 0 | 0 | 1 | 174 |
-| tk-oo | 51 | 11 | 0 | 1 | 0 | 0 | 0 | 63 |
+| lsp-features | 653 | 9 | 0 | 5 | 10 | 0 | 0 | 677 |
+| server-e2e-db-flaky | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 3 |
+| server-e2e-db | 192 | 5 | 1 | 2 | 0 | 10 | 6 | 216 |
+| taint | 136 | 5 | 26 | 6 | 0 | 0 | 1 | 174 |
+| tk-oo | 58 | 11 | 0 | 1 | 0 | 0 | 0 | 70 |
 | values | 198 | 18 | 0 | 1 | 1 | 0 | 0 | 218 |
-| **all** | 3152 | 52 | 1 | 18 | 67 | 14 | 17 | 3321 |
+| **all** | 3089 | 73 | 43 | 27 | 67 | 14 | 18 | 3331 |
 
 ## Progress
 
