@@ -783,6 +783,22 @@ impl NamespaceInventoryClosure {
 }
 
 impl ResolveContext {
+    /// A variadic `args` value as this runtime renders it: a first element
+    /// that starts with `#` is braced from 8.5 and bare in 8.4 (tclsh
+    /// 8.4.20 prints `[list # a]` as `# a`, 8.5.19 to 9.1.0 as `{#} a`);
+    /// `None` where the runtime names no release and the rendering depends
+    /// on one.
+    pub(crate) fn render_rest_list<S: AsRef<str>>(&self, elements: &[S]) -> Option<String> {
+        tcl_registry::value_transfer::TargetSemantics {
+            quotes_leading_hash: self
+                .invocation_dialect
+                .and_then(|dialect| dialect.tcl_version)
+                .map(|version| version >= tcl_dialect::TclVersion::V8_5),
+            ..tcl_registry::value_transfer::TargetSemantics::of(None)
+        }
+        .render_list(elements)
+    }
+
     /// Select a frame's existing policies without claiming observer completeness.
     #[must_use]
     pub(crate) fn for_frame(

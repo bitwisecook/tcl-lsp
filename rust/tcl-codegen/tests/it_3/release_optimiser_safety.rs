@@ -1164,3 +1164,29 @@ fn code_after_a_region_and_dead_code_keep_what_runs() {
         preserves(source, "8.4");
     }
 }
+
+/// A list whose first element starts with `#` is printed bare by 8.4 and
+/// braced from 8.5 (`[list # a]` is `# a` under tclsh 8.4.20, `{#} a`
+/// under 8.5.19 to 9.1.0): a variadic `args` seed, and every other list a
+/// fold renders, prints as the release does.
+#[test]
+fn a_leading_hash_list_prints_as_the_release_does() {
+    for source in [
+        "proc f {args} {return $args}\nputs [f # a]\nputs [f #x b]\n",
+        "proc f {args} {return [llength $args]:$args}\nputs [f # a]\n",
+        "set l [list # a]\nputs $l\n",
+        "proc p {} {set l [list #x b]; return $l}\nputs [p]\n",
+        "puts [lrepeat 2 #]\n",
+        "proc p {} {return [lrepeat 2 # a]}\nputs [p]\n",
+        "set l {}\nlappend l # a\nputs $l\n",
+        "proc p {} {set l {}; lappend l #x; return $l}\nputs [p]\n",
+    ] {
+        preserves(source, "8.4");
+    }
+    for source in [
+        "set d [dict create # 1]\nputs $d\n",
+        "proc p {} {dict set d # 1; return $d}\nputs [p]\n",
+    ] {
+        preserves(source, "8.5");
+    }
+}

@@ -598,15 +598,12 @@ fn bind_source_parameters(
             Binding::Rest {
                 name, start, len, ..
             } => {
-                if let Some(values) = actual
+                if let Some(list) = actual
                     .get(start..start + len)
                     .and_then(|values| values.iter().copied().collect::<Option<Vec<_>>>())
+                    .and_then(|values| context.render_rest_list(&values))
                 {
-                    context.bind_literal_incoming(
-                        &name,
-                        &tcl_syntax::list::join_list(values),
-                        registry,
-                    );
+                    context.bind_literal_incoming(&name, &list, registry);
                 } else {
                     context.bind_unknown_incoming(&name, registry);
                 }

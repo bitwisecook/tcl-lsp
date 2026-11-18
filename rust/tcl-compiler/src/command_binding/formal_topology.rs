@@ -516,7 +516,7 @@ impl OriginalFormalTopology {
                         .iter()
                         .copied()
                         .collect::<Option<Vec<_>>>()
-                        .map(tcl_syntax::list::join_list);
+                        .and_then(|values| context.render_rest_list(&values));
                     if context.bind_original_formal_incoming(
                         name,
                         value.as_deref(),

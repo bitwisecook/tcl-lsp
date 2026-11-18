@@ -148,7 +148,14 @@ pub(super) fn seed_params_from_args(
                     .iter()
                     .map(|value| const_value_text(value, policy))
                     .collect::<Option<Vec<_>>>()?;
-                (name, ConstValue::String(tcl_syntax::list::join_list(tail)))
+                (
+                    name,
+                    // A leading `#` is braced from 8.5 and bare in 8.4.
+                    ConstValue::String(
+                        tcl_registry::value_transfer::TargetSemantics::of(policy.dialect)
+                            .render_list(&tail)?,
+                    ),
+                )
             }
             FormalArgumentBinding::CallerLink { .. } => return None,
         };
