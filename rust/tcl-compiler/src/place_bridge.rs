@@ -225,7 +225,7 @@ pub fn statement_destruction_places_with_continuation(
     )
 }
 
-fn statement_destruction_places_with_continuation_with_metadata_context(
+pub(crate) fn statement_destruction_places_with_continuation_with_metadata_context(
     statement: &Statement,
     before: &ResolveContext,
     after: &ResolveContext,

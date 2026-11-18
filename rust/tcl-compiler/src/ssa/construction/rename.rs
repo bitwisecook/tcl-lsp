@@ -18,7 +18,7 @@
 
 //! The renaming walk over the dominator tree: version stacks, each statement's reads and definitions, and the φ operands of successor blocks.
 
-use super::super::defs::{bound_defs, bound_names, switch_may_defs_in_context};
+use super::super::defs::{bound_defs, bound_names, defs_of_in_context, switch_may_defs_in_context};
 use super::super::uses::uses_of_classified_with_source;
 use super::super::{
     RegistryClobberNames, SourceMaySsaCall, SsaInvocationContext, SsaStatement, Symbol, UseClass,
@@ -268,51 +268,129 @@ impl<'a> RenameWalk<'a> {
         true
     }
 
-    /// The linked locals of a summary's SSA that `stmt` may reach the places
-    /// of by some route other than its own definitions: every one but those
-    /// it defines, unless it is a `return` or a store to locals that are no
-    /// linked ones, running no command substitution. A store through one
-    /// link may reach every other (two may name one place); `lappend`,
-    /// `unset`, a re-linking `upvar` or a call may reach any. Each such local
-    /// may be written or unset there.
-    fn summary_links_reached(
+    /// What `stmt` does to the linked locals of a summary's SSA
+    /// ([`RenameWalk::summary_links`]), under the summary's own guards (its
+    /// frame closed, no code it cannot see). A write or `unset` through a
+    /// link — a place the walk could not name, beside a name that is a
+    /// linked local — defines or destroys that local; the place it reached
+    /// may be any other linked local's too. A write to a place outside the
+    /// frame, or a call to a command the registry does not describe, may
+    /// reach every linked place, and so may a scope-alias command that
+    /// re-links a local already written. A call that names a linked local
+    /// in a word defines it: its evaluation states the outcome. Each linked
+    /// local a statement may reach, and does not define or destroy, may be
+    /// written or unset there.
+    fn summary_link_effects(
         &self,
         stmt: &Statement,
-        context: &ResolveContext,
+        point: (BlockId, usize),
         registry: &CommandRegistry,
         (direct_defs, fallback): (&[VariableCellKey], bool),
-    ) -> Vec<VariableCellKey> {
+    ) -> SummaryLinkEffects {
+        let mut effects = SummaryLinkEffects::default();
         let Some(links) = self.summary_links.as_ref() else {
-            return Vec::new();
+            return effects;
         };
+        let before = self.points.before_statement(point.0, point.1);
+        let after = self.points.after_statement(point.0, point.1);
         let linked = links
             .iter()
-            .filter_map(|name| canonical_variable_key(name, context, registry))
+            .filter_map(|name| canonical_variable_key(name, before, registry))
             .collect::<Vec<_>>();
-        let substitutes = |text: &str| text.contains('[');
-        let plain = match stmt {
-            Statement::Return { tokens, .. } => tokens
-                .as_ref()
-                .is_some_and(|tokens| !tokens.argv_texts.iter().any(|text| substitutes(text))),
-            Statement::AssignConst { .. } => true,
-            Statement::AssignValue { value, .. } => !substitutes(value),
-            Statement::Incr { amount, .. } => {
-                amount.as_deref().is_none_or(|amount| !substitutes(amount))
-            }
-            _ => false,
-        };
-        let leaves_links = !fallback
-            && plain
-            && direct_defs.iter().all(|cell| {
-                !linked.contains(cell) && matches!(cell, VariableCellKey::Activation { .. })
-            });
-        if leaves_links {
-            return Vec::new();
+        if linked.is_empty() || !stmt.is_executable_invocation() {
+            return effects;
         }
-        linked
-            .into_iter()
-            .filter(|cell| !direct_defs.contains(cell))
-            .collect()
+        let named = || {
+            defs_of_in_context(stmt, Some(self.invocation_context(registry)))
+                .into_iter()
+                .filter_map(|name| canonical_variable_key(&name, before, registry))
+                .filter(|cell| linked.contains(cell))
+                .collect::<Vec<_>>()
+        };
+        let unnamed = |places: &[crate::place::Place]| {
+            places
+                .iter()
+                .any(|place| crate::var_resolve::canonical_binding_value_key(place).is_none())
+        };
+        let written = unnamed(&crate::place_bridge::def_places_at(
+            stmt,
+            point.0,
+            point.1,
+            &self.points,
+            registry,
+        ));
+        let destroyed = unnamed(
+            &crate::place_bridge::statement_destruction_places_with_continuation_with_metadata_context(
+                stmt,
+                before,
+                after,
+                registry,
+                self.points
+                    .source_metadata_owner()
+                    .metadata_context(registry),
+            ),
+        );
+        if written {
+            effects.defined = named();
+        }
+        // A call to a command the registry does not describe — a procedure
+        // of the module — that names a linked local in a word: the call's
+        // own evaluation states what that place becomes (its callee's
+        // transfer summary, or any outcome).
+        if let Statement::Call { command, args, .. } = stmt
+            && registry.get(command).is_none()
+        {
+            for word in args {
+                if let Some(cell) = canonical_variable_key(word, before, registry)
+                    && linked.contains(&cell)
+                    && !effects.defined.contains(&cell)
+                {
+                    effects.defined.push(cell);
+                }
+            }
+        }
+        if destroyed {
+            effects.destroyed = named();
+        }
+        let through_a_link = fallback && direct_defs.iter().any(|cell| linked.contains(cell))
+            || !effects.defined.is_empty()
+            || !effects.destroyed.is_empty()
+            || written
+            || destroyed;
+        let outside = direct_defs
+            .iter()
+            .any(|cell| !matches!(cell, VariableCellKey::Activation { .. }));
+        let (unknown_command, relinks) = match stmt {
+            Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. } => {
+                match registry.get(command) {
+                    None => (true, false),
+                    Some(spec)
+                        if spec
+                            .traits
+                            .contains(tcl_registry::Traits::CREATES_SCOPE_ALIAS) =>
+                    {
+                        let relinks = args.iter().any(|word| {
+                            canonical_variable_key(word, before, registry)
+                                .is_some_and(|cell| linked.contains(&cell) && self.top(&cell) != 0)
+                        });
+                        (false, relinks)
+                    }
+                    Some(_) => (false, false),
+                }
+            }
+            _ => (false, false),
+        };
+        if through_a_link || outside || unknown_command || relinks {
+            effects.reached = linked
+                .into_iter()
+                .filter(|cell| {
+                    !direct_defs.contains(cell)
+                        && !effects.defined.contains(cell)
+                        && !effects.destroyed.contains(cell)
+                })
+                .collect();
+        }
+        effects
     }
 
     /// The cells `stmt` defines (its proved places, or, in a summary's SSA,
@@ -334,8 +412,8 @@ impl<'a> RenameWalk<'a> {
         );
         let fallback = self.summary_links.is_some()
             && self.retain_summary_store(stmt, point, registry, &mut direct_defs);
-        let reached_links =
-            self.summary_links_reached(stmt, context, registry, (&direct_defs, fallback));
+        let links = self.summary_link_effects(stmt, point, registry, (&direct_defs, fallback));
+        direct_defs.extend(links.defined.iter().cloned());
         let mut destructions = crate::place_bridge::ssa_destruction_keys(
             stmt,
             context,
@@ -345,7 +423,10 @@ impl<'a> RenameWalk<'a> {
                 .source_metadata_owner()
                 .metadata_context(registry),
         );
-        destructions.extend(reached_links.iter().map(|cell| (cell.clone(), true)));
+        destructions.extend(links.destroyed.iter().map(|cell| (cell.clone(), false)));
+        destructions.extend(links.reached.iter().map(|cell| (cell.clone(), true)));
+        direct_defs.extend(links.destroyed.iter().cloned());
+        let reached_links = links.reached;
         let switch_may = bound_names(
             switch_may_defs_in_context(stmt, self.invocation_context(registry)),
             context,
@@ -933,4 +1014,16 @@ struct DefinitionCells {
     destructions: Vec<(VariableCellKey, bool)>,
     switch_may: Vec<VariableCellKey>,
     all: Vec<VariableCellKey>,
+}
+
+/// What one statement does to a summary's linked locals
+/// ([`RenameWalk::summary_link_effects`]).
+#[derive(Default)]
+struct SummaryLinkEffects {
+    /// Written through the link.
+    defined: Vec<VariableCellKey>,
+    /// Unset through the link.
+    destroyed: Vec<VariableCellKey>,
+    /// May be written or unset by another route.
+    reached: Vec<VariableCellKey>,
 }
