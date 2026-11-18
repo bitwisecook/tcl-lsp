@@ -91,11 +91,10 @@ fn a_rule_procedure_formal_is_bound_and_an_unassigned_local_is_not() {
 
 #[test]
 fn a_rule_procedure_summary_returns_its_constant() {
-    let source = format!(
-        "proc p {{a}} {{return 1.0}}\nwhen HTTP_REQUEST {{ set y [call p 1]; log local0. $y }}\n"
-    );
+    let source =
+        "proc p {a} {return 1.0}\nwhen HTTP_REQUEST { set y [call p 1]; log local0. $y }\n";
     assert_eq!(
-        summary_of(&source, IRULES, "::p").constant_return,
+        summary_of(source, IRULES, "::p").constant_return,
         Some(ConstantReturn::Float(1.0))
     );
 }
