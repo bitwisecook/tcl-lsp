@@ -25,7 +25,7 @@ use super::argument_rows::{
 use super::definition_grammar::{
     clause_grammar_block, hook_window_rows, semantic_operation_row, semantic_operation_window_rows,
 };
-use super::effects::{form_side_effect_rows, semantics_block, side_effect_rows};
+use super::effects::{form_side_effect_rows, semantics_block, side_effect_rows, taint_row};
 use super::option_rows::{option_block, option_row, versioned_arg_value_rows_for};
 use super::properties::{
     catalogue_hook, count, enum_word, expr_row, expr_word, flag, gap_todo, native_hook, set_word,
@@ -330,6 +330,7 @@ pub(super) fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft,
     gap_todo(out_body, ctx, sub, "world_effects");
     gap_todo(out_body, ctx, sub, "state_transitions");
 
+    taint_row(out_body, sub.get("taint_knowledge").unwrap_or(&Value::Null));
     text(out_body, ctx, sub, "taint_output_sink");
     set_word(out_body, ctx, sub, "taint_transform");
     enum_word(out_body, ctx, sub, "taint_transform_when");

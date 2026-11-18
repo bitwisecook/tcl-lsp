@@ -385,6 +385,17 @@ result_stability ReferentiallyTransparent -complete {8.4 9.1}
 state_transitions {} -complete {8.4 9.1}  ;# no command, namespace, trace or alias comes into being
 ```
 
+Taint is spread over many rows (sources, sinks, transforms, callback
+inputs), so its completeness is a row of its own, read like `effects`:
+
+```tcl
+taint -complete {8.4 9.1}   ;# the taint rows here are all of it; none means none
+taint -partial              ;# what is stated holds, and there may be more
+```
+
+Any stated taint row already reads back as `Partial`; no taint row and no
+`taint` row claim nothing.
+
 No row is `Unknown`; a row without flags is `Partial`; each `-complete`
 window closes it for those releases. `-partial` is accepted for symmetry.
 

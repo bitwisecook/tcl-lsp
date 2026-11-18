@@ -99,37 +99,23 @@ impl SecurityFloor {
         ))
     }
 
-    /// Raise `spec` to this floor, in place.
-    ///
-    /// Three merge rules, one per shape of fact:
-    ///
-    /// - **Set-valued** facts (traits, side effects, the sink subcommand and
-    ///   credential lists) are **unioned**: the override keeps everything it
-    ///   declared and gains everything the shipped command declared.
-    /// - **Single-valued** facts (a sink name, a taint colour, a codegen hook,
-    ///   a lowering or analyser hook, a semantic operation, a state-transition
-    ///   descriptor, a native lowering, a BPF op) take the **shipped** value
-    ///   whenever the shipped command has one. Not
-    ///   "keep the override's if it set one": restating a built-in taint colour
-    ///   as `Clean` is exactly the weakening this exists to stop, and the
-    ///   override has no standing to reclassify a command the server ships.
-    /// - Everything else is left alone.
-    pub fn apply(&self, spec: &mut CommandSpec) {
-        let shipped = self.spec;
+    /// The merged taint facts are the union of the override's and the
+    /// shipped command's, which neither row's completeness describes, so the
+    /// floor keeps them a lower bound, as for side effects.
+    fn floored_taint(
+        taint: crate::knowledge::Knowledge<()>,
+        shipped: crate::knowledge::Knowledge<()>,
+    ) -> crate::knowledge::Knowledge<()> {
+        if taint.is_unknown() && shipped.is_unknown() {
+            crate::knowledge::Knowledge::Unknown
+        } else {
+            crate::knowledge::Knowledge::Partial(())
+        }
+    }
 
-        spec.traits = spec.traits.union(Self::security_traits(shipped.traits));
-
-        spec.side_effects = Self::floored_effects(spec.side_effects, shipped.side_effects);
-        spec.taint_output_sink_subcommands = union_leaked(
-            spec.taint_output_sink_subcommands,
-            shipped.taint_output_sink_subcommands,
-        );
-        spec.taint_interp_eval_subcommands = union_leaked(
-            spec.taint_interp_eval_subcommands,
-            shipped.taint_interp_eval_subcommands,
-        );
-        spec.credential_options = union_leaked(spec.credential_options, shipped.credential_options);
-
+    /// The single-valued taint facts: the shipped value wherever the shipped
+    /// command states one.
+    fn take_shipped_taint(spec: &mut CommandSpec, shipped: &CommandSpec) {
         take_shipped(&mut spec.taint_output_sink, shipped.taint_output_sink);
         take_shipped(&mut spec.taint_log_sink, shipped.taint_log_sink);
         take_shipped(
@@ -157,6 +143,41 @@ impl SecurityFloor {
             &mut spec.taint_numeric_coercion,
             shipped.taint_numeric_coercion,
         );
+    }
+
+    /// Raise `spec` to this floor, in place.
+    ///
+    /// Three merge rules, one per shape of fact:
+    ///
+    /// - **Set-valued** facts (traits, side effects, the sink subcommand and
+    ///   credential lists) are **unioned**: the override keeps everything it
+    ///   declared and gains everything the shipped command declared.
+    /// - **Single-valued** facts (a sink name, a taint colour, a codegen hook,
+    ///   a lowering or analyser hook, a semantic operation, a state-transition
+    ///   descriptor, a native lowering, a BPF op) take the **shipped** value
+    ///   whenever the shipped command has one. Not
+    ///   "keep the override's if it set one": restating a built-in taint colour
+    ///   as `Clean` is exactly the weakening this exists to stop, and the
+    ///   override has no standing to reclassify a command the server ships.
+    /// - Everything else is left alone.
+    pub fn apply(&self, spec: &mut CommandSpec) {
+        let shipped = self.spec;
+
+        spec.traits = spec.traits.union(Self::security_traits(shipped.traits));
+
+        spec.side_effects = Self::floored_effects(spec.side_effects, shipped.side_effects);
+        spec.taint = Self::floored_taint(spec.taint, shipped.taint);
+        spec.taint_output_sink_subcommands = union_leaked(
+            spec.taint_output_sink_subcommands,
+            shipped.taint_output_sink_subcommands,
+        );
+        spec.taint_interp_eval_subcommands = union_leaked(
+            spec.taint_interp_eval_subcommands,
+            shipped.taint_interp_eval_subcommands,
+        );
+        spec.credential_options = union_leaked(spec.credential_options, shipped.credential_options);
+
+        Self::take_shipped_taint(spec, shipped);
         take_shipped(&mut spec.codegen_hook, shipped.codegen_hook);
         take_shipped(&mut spec.inline_codegen_hook, shipped.inline_codegen_hook);
         take_shipped_windows(
@@ -379,6 +400,7 @@ pub const MERGED_FIELDS: &[&str] = &[
     "taint_numeric_coercion",
     "credential_options",
     "callback_taint_inputs",
+    "taint",
     "codegen_hook",
     "codegen_hook_windows",
     "inline_codegen_hook",

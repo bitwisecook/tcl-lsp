@@ -1079,6 +1079,24 @@ append log $line",
         },
     ),
     (
+        "taint_knowledge",
+        Example {
+            code: "set n [string length [HTTP::uri]]\nlog local0. \"length $n\"",
+            focuses: &[
+                focus(
+                    0,
+                    "[HTTP::uri]",
+                    "a source: what the client sent is tainted",
+                ),
+                focus(
+                    0,
+                    "string length",
+                    "taint complete and empty: it is neither a source, a sink nor a sanitiser, so its count stays tainted only as its input was",
+                ),
+            ],
+        },
+    ),
+    (
         "taint_output_sink",
         Example {
             code: "set name [HTTP::header X-User]\nHTTP::respond 200 content \"<b>$name</b>\"",

@@ -987,6 +987,16 @@ Rare; leave at 0 unless the command's documentation spells such arguments \
 out.",
     ),
     (
+        "taint_knowledge",
+        "How much of the command's taint behaviour is known. **Unknown** \
+claims nothing. **Partial** says the sources, sinks, transforms and callback \
+inputs stated hold and there may be more; a row that states any of them is at \
+least partial. **Complete** says they are all of them for the release windows \
+you evidenced from the implementation's source, so a complete row stating none \
+neither taints, sanitises nor sinks.\n\n```\ntaint -complete {8.4 9.1}\n```\n\n\
+One release never vouches for another.",
+    ),
+    (
         "taint_output_sink",
         "Marks the command as a place where attacker-influenced data becomes \
 *output* — echoed into a page or response — and names the diagnostic to \

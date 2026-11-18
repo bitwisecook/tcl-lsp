@@ -520,6 +520,7 @@ pub(super) fn command_options(d: &mut Draft, spec: &CommandSpec, lost: &mut Unre
 /// Taint and credential metadata.
 pub(super) fn command_taint(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     d.insert("taint_output_sink".into(), opt_str(spec.taint_output_sink));
+    d.insert("taint_knowledge".into(), knowledge(&spec.taint));
     d.insert(
         "taint_output_sink_subcommands".into(),
         str_list(spec.taint_output_sink_subcommands),

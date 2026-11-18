@@ -56,6 +56,7 @@ struct Row {
     /// and the callbacks the world effects carry.
     state_transitions: KnowledgeLevel,
     callbacks: KnowledgeLevel,
+    taint: KnowledgeLevel,
 }
 
 fn groups() -> Vec<(&'static str, Vec<CommandSpec>)> {
@@ -84,6 +85,7 @@ fn rows() -> Vec<Row> {
                 domains: PurityDomains::of_command(spec),
                 state_transitions: spec.state_transitions.level(),
                 callbacks: callback_knowledge(spec.world_effects).level(),
+                taint: spec.taint_knowledge().level(),
             });
             for sub in spec.subcommands {
                 rows.push(Row {
@@ -92,6 +94,7 @@ fn rows() -> Vec<Row> {
                     domains: PurityDomains::of_subcommand(spec, sub),
                     state_transitions: sub.state_transitions.or(spec.state_transitions).level(),
                     callbacks: callback_knowledge(sub.world_effects.or(spec.world_effects)).level(),
+                    taint: sub.taint_knowledge(spec).level(),
                 });
             }
         }
@@ -196,12 +199,12 @@ fn render_groups(out: &mut String, rows: &[Row]) {
     );
     let _ = writeln!(
         out,
-        "| group | rows | side effects | world effects | completion | result stability | state transitions | callbacks | pure at {} |",
+        "| group | rows | side effects | world effects | completion | result stability | state transitions | callbacks | taint | pure at {} |",
         RELEASES.join(" / ")
     );
     let _ = writeln!(
         out,
-        "| --- | ---: | --- | --- | --- | --- | --- | --- | --- |"
+        "| --- | ---: | --- | --- | --- | --- | --- | --- | --- | --- |"
     );
     let mut by_group: BTreeMap<&str, Vec<&Row>> = BTreeMap::new();
     for row in rows {
@@ -237,7 +240,7 @@ fn render_groups(out: &mut String, rows: &[Row]) {
             .collect();
         let _ = writeln!(
             out,
-            "| {group} | {} | {} | {} | {} | {} | {} | {} | {} |",
+            "| {group} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
             rows.len(),
             count(&|row| level(&row.domains.side_effects)),
             count(&world),
@@ -245,6 +248,7 @@ fn render_groups(out: &mut String, rows: &[Row]) {
             count(&|row| level(&row.domains.result_stability)),
             count(&|row| row.state_transitions),
             count(&|row| row.callbacks),
+            count(&|row| row.taint),
             pure.join(" / ")
         );
     }

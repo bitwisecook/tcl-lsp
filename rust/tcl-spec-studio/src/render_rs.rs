@@ -410,10 +410,13 @@ fn subcommand_literal(sub: &Value, default: &Draft, indent: &str) -> String {
                 field_expr(field, value, default_value, &inner),
                 sub.get("side_effects_knowledge").unwrap_or(&Value::Null),
             ),
+            FieldKind::Knowledge if field.key == "taint_knowledge" => {
+                knowledge_expr(Some("()".to_owned()), value)
+            }
             _ => field_expr(field, value, default_value, &inner),
         };
         if let Some(expr) = expr {
-            lines.push(format!("{inner}{}: {expr},", field.key));
+            lines.push(format!("{inner}{}: {expr},", rust_field_name(field.key)));
         }
     }
     for note in unrenderable_notes(sub, &inner) {
@@ -655,11 +658,16 @@ pub fn render(draft: &Draft) -> String {
                 field_expr(field, value, default_value, "        "),
                 draft.get("side_effects_knowledge").unwrap_or(&Value::Null),
             ),
+            // The taint marker carries no facts of its own: its knowledge is
+            // the field (issue #1712).
+            FieldKind::Knowledge if field.key == "taint_knowledge" => {
+                knowledge_expr(Some("()".to_owned()), value)
+            }
             _ => field_expr(field, value, default_value, "        "),
         };
         if let Some(expr) = expr {
             out.push_str("        ");
-            out.push_str(field.key);
+            out.push_str(rust_field_name(field.key));
             out.push_str(": ");
             out.push_str(&expr);
             out.push_str(",\n");
@@ -737,3 +745,13 @@ mod tests;
 
 #[cfg(test)]
 mod authored_construction_hint_render_controls;
+
+/// The Rust field a draft key renders to: the draft names the taint
+/// marker by its completeness, the spec by its domain.
+fn rust_field_name(key: &str) -> &str {
+    if key == "taint_knowledge" {
+        "taint"
+    } else {
+        key
+    }
+}

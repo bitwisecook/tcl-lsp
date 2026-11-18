@@ -320,6 +320,28 @@ pub struct SetterConstraint {
     pub message: &'static str,
 }
 
+/// The traits that state a taint fact on their own.
+pub const TAINT_TRAITS: Traits = Traits::TAINT_SOURCE
+    .union(Traits::TAINT_SOURCE_ZERO_ARGS)
+    .union(Traits::TAINT_SINK)
+    .union(Traits::TAINTS_VAR_WRITES);
+
+/// A row's taint knowledge (issue #1712): its stated completeness, raised to
+/// `Partial` where it states a taint fact but no completeness, so a stated
+/// source or sink is never read as nothing known.
+#[must_use]
+pub fn stated_taint_knowledge(
+    stated: crate::knowledge::Knowledge<()>,
+    states_a_fact: bool,
+) -> crate::knowledge::Knowledge<()> {
+    match stated {
+        crate::knowledge::Knowledge::Unknown if states_a_fact => {
+            crate::knowledge::Knowledge::Partial(())
+        }
+        knowledge => knowledge,
+    }
+}
+
 /// Namespaces whose commands return attacker-controlled data when
 /// invoked under the iRules dialect.
 ///
@@ -1093,6 +1115,39 @@ pub fn setter_constraints(
 #[cfg(test)]
 mod tests {
     use tcl_dialect::model::{Family, SurfaceQuery};
+
+    /// A row that states a taint fact is never read as nothing known; a
+    /// stated completeness stands; a row that states neither claims nothing
+    /// (issue #1712).
+    #[test]
+    fn taint_knowledge_is_at_least_partial_where_a_fact_is_stated() {
+        use crate::knowledge::{Knowledge, KnowledgeLevel};
+        use crate::spec::CommandSpec;
+        let bare = CommandSpec {
+            name: "probe",
+            ..CommandSpec::DEFAULT
+        };
+        assert!(bare.taint_knowledge().is_unknown());
+        let source = CommandSpec {
+            taint_source: Some(super::TaintColour::TAINTED),
+            ..bare.clone()
+        };
+        assert_eq!(source.taint_knowledge().level(), KnowledgeLevel::Partial);
+        let closed = CommandSpec {
+            taint: Knowledge::Complete((), tcl_dialect::model::SpecSurface::ALL_TCL),
+            ..bare.clone()
+        };
+        assert_eq!(closed.taint_knowledge().level(), KnowledgeLevel::Complete);
+        let sub = crate::spec::SubCommand {
+            name: "sub",
+            ..crate::spec::SubCommand::DEFAULT
+        };
+        assert_eq!(
+            sub.taint_knowledge(&source).level(),
+            KnowledgeLevel::Partial,
+            "a subcommand that states nothing inherits its command's"
+        );
+    }
 
     use super::*;
 

@@ -395,6 +395,13 @@ pub struct SubCommand {
     /// sink.
     pub taint_output_sink: Option<&'static str>,
 
+    /// How completely the taint facts of this row describe it (issue #1712):
+    /// `Complete` for the release windows whose evidence shows the stated
+    /// sources, sinks, transforms and callback inputs are all of them;
+    /// otherwise what the row states is a lower bound. Read it through
+    /// `taint_knowledge`, which counts any stated taint fact as `Partial`.
+    pub taint: crate::knowledge::Knowledge<()>,
+
     /// Credential-value argument index, counting the selected subcommand word
     /// itself as zero. This field preserves the `SpecTcl` verbatim coordinate,
     /// unlike other subcommand-relative argument fields. `None` = none.
@@ -631,6 +638,30 @@ impl SubCommand {
         query: Option<&tcl_dialect::model::SurfaceQuery<'_>>,
     ) -> bool {
         crate::purity::PurityDomains::of_subcommand(parent, self).pure_at(query)
+    }
+
+    /// Whether the subcommand states any taint fact of its own.
+    #[must_use]
+    pub fn states_taint(&self) -> bool {
+        self.traits.intersects(crate::taint::TAINT_TRAITS)
+            || self.taint_transform.is_some()
+            || self.taint_transform_when.is_some()
+            || self.taint_double_encode_colour.is_some()
+            || self.taint_output_sink.is_some()
+            || self.credential_arg.is_some()
+            || !self.sensitive_headers.is_empty()
+            || !self.callback_taint_inputs.is_empty()
+    }
+
+    /// What is known of this subcommand's taint behaviour: its own, or, where
+    /// it states nothing, its command's (issue #1712).
+    #[must_use]
+    pub fn taint_knowledge(
+        &self,
+        parent: &crate::spec::CommandSpec,
+    ) -> crate::knowledge::Knowledge<()> {
+        crate::taint::stated_taint_knowledge(self.taint, self.states_taint())
+            .or(parent.taint_knowledge())
     }
 
     /// The clause plan of a call to this subcommand: its

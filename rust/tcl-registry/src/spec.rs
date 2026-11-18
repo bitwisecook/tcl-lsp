@@ -1033,6 +1033,13 @@ pub struct CommandSpec {
     /// caller controls. See [`TaintNumericCoercion`].
     pub taint_numeric_coercion: Option<TaintNumericCoercion>,
 
+    /// How completely the taint facts of this row describe it (issue #1712):
+    /// `Complete` for the release windows whose evidence shows the stated
+    /// sources, sinks, transforms and callback inputs are all of them;
+    /// otherwise what the row states is a lower bound. Read it through
+    /// `taint_knowledge`, which counts any stated taint fact as `Partial`.
+    pub taint: crate::knowledge::Knowledge<()>,
+
     /// Option flags whose value carries a secret (e.g. `-password`,
     /// `-headers`) — drives credential-exposure checks. Empty = none.
     pub credential_options: &'static [&'static str],
@@ -1366,6 +1373,36 @@ impl CommandSpec {
     #[must_use]
     pub fn is_pure_at(&self, query: Option<&tcl_dialect::model::SurfaceQuery<'_>>) -> bool {
         crate::purity::PurityDomains::of_command(self).pure_at(query)
+    }
+
+    /// Whether the row states any taint fact: a source, sink, transform,
+    /// sanitiser colour, coercion or callback input, or a taint trait.
+    #[must_use]
+    pub fn states_taint(&self) -> bool {
+        self.traits.intersects(crate::taint::TAINT_TRAITS)
+            || self.taint_source.is_some()
+            || self.taint_transform.is_some()
+            || self.taint_transform_when.is_some()
+            || self.taint_double_encode_colour.is_some()
+            || self.taint_sink_safe_colour.is_some()
+            || self.taint_sink_gate.is_some()
+            || self.taint_numeric_coercion.is_some()
+            || self.taint_output_sink.is_some()
+            || !self.taint_output_sink_subcommands.is_empty()
+            || self.taint_log_sink.is_some()
+            || self.taint_network_sink_args.is_some()
+            || self.taint_code_sink_args.is_some()
+            || !self.taint_interp_eval_subcommands.is_empty()
+            || !self.callback_taint_inputs.is_empty()
+    }
+
+    /// What is known of this command's taint behaviour (issue #1712): the
+    /// stated completeness, and at least `Partial` where the row states any
+    /// taint fact. `Unknown` claims nothing; an empty `Complete` taint
+    /// domain says the command neither taints, sanitises nor sinks.
+    #[must_use]
+    pub fn taint_knowledge(&self) -> crate::knowledge::Knowledge<()> {
+        crate::taint::stated_taint_knowledge(self.taint, self.states_taint())
     }
 
     /// Whether argument roles have a declared dynamic input contract.

@@ -46,6 +46,21 @@ pub(in super::super) enum StatedKnowledge {
 /// release ladder, both releases inclusive, or `{package NAME ?FROM UNTIL?}`
 /// on a package's own axis. Repeated `-complete` flags add windows.
 pub(in super::super) fn effects_row(stmt: &Stmt, log: &mut Log) -> Option<StatedKnowledge> {
+    completeness_row("effects", stmt, log)
+}
+
+/// Read a `taint -partial` / `taint -complete WINDOW…` row: how completely
+/// the scope's taint facts describe it (issue #1712).
+pub(in super::super) fn taint_row(stmt: &Stmt, log: &mut Log) -> Knowledge<()> {
+    match completeness_row("taint", stmt, log) {
+        Some(StatedKnowledge::Partial) => Knowledge::Partial(()),
+        Some(StatedKnowledge::Complete(surfaces)) => Knowledge::Complete((), surfaces),
+        None => Knowledge::Unknown,
+    }
+}
+
+/// A row whose words are only `-partial` and `-complete WINDOW` flags.
+fn completeness_row(row: &str, stmt: &Stmt, log: &mut Log) -> Option<StatedKnowledge> {
     let words = &stmt.words;
     let mut stated: Option<StatedKnowledge> = None;
     let mut surfaces: Vec<SpecSurface> = Vec::new();
@@ -55,10 +70,10 @@ pub(in super::super) fn effects_row(stmt: &Stmt, log: &mut Log) -> Option<Stated
             "-partial" => stated = Some(StatedKnowledge::Partial),
             "-complete" => {
                 let text = next_text(words, &mut i);
-                surfaces.push(complete_window("effects", &text, stmt.line, log)?);
+                surfaces.push(complete_window(row, &text, stmt.line, log)?);
                 stated = Some(StatedKnowledge::Complete(&[]));
             }
-            _ => log.unknown_flag("effects", stmt.line, &words[i]),
+            _ => log.unknown_flag(row, stmt.line, &words[i]),
         }
         i += 1;
     }
@@ -68,7 +83,7 @@ pub(in super::super) fn effects_row(stmt: &Stmt, log: &mut Log) -> Option<Stated
         None => {
             log.say(
                 stmt.line,
-                "`effects` takes `-partial` or `-complete {FROM UNTIL}`",
+                format!("`{row}` takes `-partial` or `-complete {{FROM UNTIL}}`"),
             );
             None
         }

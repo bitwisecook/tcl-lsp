@@ -47,6 +47,7 @@ use super::super::{
 };
 use super::effect_rows::{
     completion_value, effects_row, frame_effect_row, option_relation_row, side_effect_row,
+    taint_row,
 };
 use super::refinements::{load_refinement, variable_receivers_value};
 use super::role_resolvers::{
@@ -412,6 +413,7 @@ pub(in super::super) fn apply_command_stmt(
             }
         }
         "effects" => acc.effects = effects_row(stmt, log),
+        "taint" => spec.taint = taint_row(stmt, log),
         "command_table_effect" => {
             const EFFECTS: &[CommandTableEffect] = &[
                 CommandTableEffect::DefinesProcedure,

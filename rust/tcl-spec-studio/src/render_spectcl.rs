@@ -96,7 +96,7 @@ use definition_grammar::{
     object_class_block, runtime_backing_row, semantic_operation_row,
     semantic_operation_window_rows,
 };
-use effects::{semantics_block, side_effect_rows};
+use effects::{semantics_block, side_effect_rows, taint_row};
 pub use gaps::{GAPS, Gap, GapKind, gap};
 use nested_blocks::{refine_blocks, subcommand_block};
 use option_rows::{option_block, push_values, versioned_arg_value_rows_for};
@@ -758,6 +758,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
 
     // Taint and security.
     out.gap();
+    taint_row(out, draft.get("taint_knowledge").unwrap_or(&Value::Null));
     text(out, ctx, draft, "taint_output_sink");
     text_list(out, ctx, draft, "taint_output_sink_subcommands");
     text(out, ctx, draft, "taint_log_sink");

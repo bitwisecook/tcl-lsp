@@ -254,6 +254,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         body_interpreter: _, body_execution: _, procedure_definition: _, native_compilation: _, successful_handler: _, variable_receivers: _,
         body_arg_implicit_args: _,
         taint_output_sink: _,
+        taint: _,
         taint_output_sink_subcommands: _,
         taint_log_sink: _,
         taint_network_sink_args: _,
@@ -488,6 +489,7 @@ pub const COMMAND_SPEC: &[Field] = &[
         Surface::Key("body_arg_implicit_args"),
     ),
     f("taint_output_sink", Surface::Key("taint_output_sink")),
+    f("taint", Surface::Key("taint_knowledge")),
     f(
         "taint_output_sink_subcommands",
         Surface::Key("taint_output_sink_subcommands"),
@@ -662,6 +664,7 @@ pub fn witness_sub_command(sub: &SubCommand) {
         taint_transform_when: _,
         taint_double_encode_colour: _,
         taint_output_sink: _,
+        taint: _,
         credential_arg: _,
         channel_configuration: _,
         sensitive_headers: _,
@@ -811,6 +814,7 @@ pub const SUB_COMMAND: &[Field] = &[
         Surface::Key("taint_double_encode_colour"),
     ),
     f("taint_output_sink", Surface::Key("taint_output_sink")),
+    f("taint", Surface::Key("taint_knowledge")),
     f(
         "channel_configuration",
         Surface::Key("channel_configuration"),

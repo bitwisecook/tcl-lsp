@@ -162,6 +162,7 @@ pub const CLUSTERS: &[Cluster] = &[
         why: "Where tainted data must not arrive, and what makes an arrival \
               safe.",
         members: &[
+            "taint_knowledge",
             "taint_output_sink",
             "taint_output_sink_subcommands",
             "taint_log_sink",

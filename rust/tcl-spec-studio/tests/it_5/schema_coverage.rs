@@ -112,6 +112,8 @@ const EXPANDED_FIELDS: &[(&str, &[&str])] = &[
         "result_stability",
         &["result_stability", "result_stability_knowledge"],
     ),
+    // The taint marker has no facts of its own, only their completeness.
+    ("taint", &["taint_knowledge"]),
 ];
 
 fn expansion_of(field: &str) -> &'static [&'static str] {

@@ -834,6 +834,18 @@ How attacker-influenced data flows through the command: whether it is a source (
 
 Lists only callback substitutions whose bytes are externally controlled. For Tk validation, `%P`, `%s`, and `%S` carry editable text; for key bindings, `%A` and `%K` carry the typed character or keysym. Do not declare widget paths, indices, validation actions, or reasons (`%W`, `%i`, `%d`, `%V`) here: those are framework metadata, not taint sources. The callback must be deferred; dynamic script construction remains intentionally unanalysed. In SpecTcl, write an option's `-callback-taint-inputs {%P %S}` or the positional `callback_taint_inputs {{INDEX {%A %K}}}` table.
 
+### `taint_knowledge` — Taint completeness
+
+*command and subcommand* — How completely the taint facts are known: unknown, partial (the stated sources, sinks and transforms, and maybe more), or complete for the release windows evidenced from the implementation.
+
+How much of the command's taint behaviour is known. **Unknown** claims nothing. **Partial** says the sources, sinks, transforms and callback inputs stated hold and there may be more; a row that states any of them is at least partial. **Complete** says they are all of them for the release windows you evidenced from the implementation's source, so a complete row stating none neither taints, sanitises nor sinks.
+
+```
+taint -complete {8.4 9.1}
+```
+
+One release never vouches for another.
+
 ### `taint_output_sink` — Output-sink code
 
 *command and subcommand* — Diagnostic code emitted when tainted data reaches the output position (`T101`).

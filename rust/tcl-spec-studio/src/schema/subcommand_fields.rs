@@ -658,6 +658,13 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Input colour whose presence means this subcommand would double-encode (T106).",
     ),
     f(
+        "taint_knowledge",
+        "Taint completeness",
+        TAINT,
+        FieldKind::Knowledge,
+        "How completely the taint facts are known: unknown, partial (the stated sources, sinks and transforms, and maybe more), or complete for the release windows evidenced from the implementation.",
+    ),
+    f(
         "taint_output_sink",
         "Output-sink code",
         TAINT,

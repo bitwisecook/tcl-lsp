@@ -87,6 +87,7 @@ fn subcommand_value_and_effect_fields(d: &mut Draft, sub: &SubCommand, lost: &mu
         taint(sub.taint_double_encode_colour),
     );
     d.insert("taint_output_sink".into(), opt_str(sub.taint_output_sink));
+    d.insert("taint_knowledge".into(), knowledge(&sub.taint));
     d.insert(
         "channel_configuration".into(),
         sub.channel_configuration.map_or(Value::Null, |descriptor| {

@@ -173,6 +173,25 @@ fn effects_row(out: &mut Out, knowledge: &Value, has_rows: bool) {
     }
 }
 
+/// The `taint` row a scope's taint completeness needs (issue #1712). The
+/// taint fields themselves already read back as a lower bound, so only a
+/// stated level is written.
+pub(super) fn taint_row(out: &mut Out, knowledge: &Value) {
+    match knowledge["level"].as_str() {
+        Some("partial") => out.line("taint -partial"),
+        Some("complete") => {
+            let mut row = vec!["taint".to_owned()];
+            for words in as_array(&knowledge["complete"]) {
+                let words: Vec<&str> = as_array(words).iter().filter_map(Value::as_str).collect();
+                row.push("-complete".to_owned());
+                row.push(format!("{{{}}}", words.join(" ")));
+            }
+            emit_row(out, "taint_knowledge", &row, false, "");
+        }
+        _ => {}
+    }
+}
+
 /// The `side_effect …` rows of one effect table, wherever it hangs.
 fn side_effect_rows_of(out: &mut Out, effects: &Value, availability: bool) {
     for effect in as_array(effects) {

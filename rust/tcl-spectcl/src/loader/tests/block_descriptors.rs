@@ -688,3 +688,48 @@ fn state_transitions_rows_state_their_completeness_issue_1712() {
     assert!(narrow.complete_at(Some(&at("9.0"))).is_some());
     assert!(narrow.complete_at(Some(&at("8.6"))).is_none());
 }
+
+/// A `taint` row states how completely the scope's taint facts describe it:
+/// no row claims nothing, a stated source makes it at least partial, and
+/// `-complete WINDOW` closes it for exactly those releases (issue #1712).
+#[test]
+fn taint_rows_state_their_completeness_issue_1712() {
+    use tcl_dialect::model::{Family, SurfaceQuery};
+    use tcl_registry::knowledge::KnowledgeLevel;
+    let load = |row: &str| {
+        let pack = evaluate_pack(&format!("speclib probe 2.2 {{ command demo {{ {row} }} }}"));
+        (pack.command("demo").unwrap().spec.clone(), pack.notices)
+    };
+    let at = |release| SurfaceQuery::core(Family::Tcl, release);
+
+    let (absent, _) = load("arity 0");
+    assert!(
+        absent.taint_knowledge().is_unknown(),
+        "no row states nothing"
+    );
+
+    let (partial, notices) = load("taint -partial");
+    assert!(notices.is_empty(), "{notices:?}");
+    assert_eq!(partial.taint_knowledge().level(), KnowledgeLevel::Partial);
+
+    let (complete, notices) = load("taint -complete {8.4 9.1}");
+    assert!(notices.is_empty(), "{notices:?}");
+    for release in ["8.4", "8.5", "8.6", "9.0", "9.1"] {
+        assert!(
+            complete
+                .taint_knowledge()
+                .complete_at(Some(&at(release)))
+                .is_some(),
+            "{release}"
+        );
+    }
+
+    let (bad, notices) = load("taint");
+    assert!(bad.taint_knowledge().is_unknown());
+    assert!(
+        notices
+            .iter()
+            .any(|n| n.message.contains("`taint` takes `-partial` or `-complete")),
+        "{notices:?}"
+    );
+}

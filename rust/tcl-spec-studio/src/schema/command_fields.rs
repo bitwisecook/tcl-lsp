@@ -884,6 +884,13 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Runtime-supplied positional arguments the body's first command receives.",
     ),
     f(
+        "taint_knowledge",
+        "Taint completeness",
+        TAINT,
+        FieldKind::Knowledge,
+        "How completely the taint facts are known: unknown, partial (the stated sources, sinks and transforms, and maybe more), or complete for the release windows evidenced from the implementation.",
+    ),
+    f(
         "taint_output_sink",
         "Output-sink code",
         TAINT,
