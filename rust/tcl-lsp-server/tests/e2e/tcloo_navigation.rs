@@ -39,7 +39,10 @@ use crate::common::{Lsp, unique_uri};
 use serde_json::Value;
 
 /// The start lines of every rename edit landing in `uri`.
-fn edit_lines(edits: &std::collections::BTreeMap<String, Vec<Value>>, uri: &str) -> Vec<i64> {
+pub(crate) fn edit_lines(
+    edits: &std::collections::BTreeMap<String, Vec<Value>>,
+    uri: &str,
+) -> Vec<i64> {
     edits
         .get(uri)
         .into_iter()
@@ -50,7 +53,7 @@ fn edit_lines(edits: &std::collections::BTreeMap<String, Vec<Value>>, uri: &str)
 
 /// The `(uri, start line)` pairs of every location in a references /
 /// lens-resolve payload.
-fn location_lines(result: &Value, uri: &str) -> std::collections::BTreeSet<i64> {
+pub(crate) fn location_lines(result: &Value, uri: &str) -> std::collections::BTreeSet<i64> {
     locations(result)
         .iter()
         .filter(|l| l.uri == uri)
@@ -79,7 +82,7 @@ fn all_location_lines(result: &Value) -> std::collections::BTreeSet<(String, i64
 
 /// Resolve the code lens anchored at `line` in `uri`, returning its
 /// `command` object (`{title, command, arguments}`).
-fn resolve_lens_on_line(lsp: &mut Lsp, uri: &str, line: i64) -> Value {
+pub(crate) fn resolve_lens_on_line(lsp: &mut Lsp, uri: &str, line: i64) -> Value {
     let all = match lsp.code_lens(uri) {
         Value::Array(a) => a,
         _ => Vec::new(),
@@ -93,7 +96,7 @@ fn resolve_lens_on_line(lsp: &mut Lsp, uri: &str, line: i64) -> Value {
 }
 
 /// The lens label the server emits for `count` sites.
-fn expected_title(count: usize) -> Value {
+pub(crate) fn expected_title(count: usize) -> Value {
     Value::String(match count {
         1 => "1 reference".to_owned(),
         n => format!("{n} references"),
@@ -101,7 +104,7 @@ fn expected_title(count: usize) -> Value {
 }
 
 /// The `locations` argument a resolved lens hands `tcl-lsp.showReferences`.
-fn lens_locations(command: &Value) -> Value {
+pub(crate) fn lens_locations(command: &Value) -> Value {
     command
         .get("arguments")
         .and_then(Value::as_array)
