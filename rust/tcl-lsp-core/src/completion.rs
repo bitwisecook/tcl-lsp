@@ -49,6 +49,7 @@ use tcl_dialect::model::SpecSurface;
 mod argument_values;
 mod commands;
 mod methods;
+mod registered_instance;
 mod scoped_environments;
 mod variables;
 
@@ -357,6 +358,11 @@ fn context_aware_completions(
             partial,
             Some((source, cursor, line)),
         ));
+    }
+    if let Some(items) = registered_instance::registered_instance_method_items(
+        analysis, source, cursor, partial, profile,
+    ) {
+        return Some(items);
     }
     if !analysis.allows_lexical_declaration_advice() {
         return nonlexical_context_completions(source, line, character, cursor, analysis, partial);
