@@ -109,6 +109,12 @@ impl Lowerer<'_> {
         self.class_instance_vars = instance_vars;
         self.when_counts = when_counts;
         self.body_unit_count = body_units;
+        // ZZSWITCH (parked analyser-binding switch, measure only)
+        for (id, procedure) in &bodies {
+            if let Some(own) = self.module.procedures.get_mut(id) {
+                own.body = procedure.body.clone();
+            }
+        }
         self.module.declared_frame_bodies = bodies;
     }
 }

@@ -637,3 +637,15 @@ fn transfer_unused_formals_use_actual_variable_roots_and_metadata() {
         "formal syntax supplies no scalar activation closure"
     );
 }
+
+#[test]
+fn zz_probe_top_level_call() {
+    for source in [
+        "proc bump {name} {upvar 1 $name v; incr v}\nset n 1\nbump n\nincr n\n",
+        "proc bump {name} {upvar 1 $name v; incr v}\nset n 1\nbump n\nset m $n\n",
+    ] {
+        let env = "tcl8.6";
+        let s = summaries(source, env);
+        eprintln!("ZZKEYS {source:?} {:?}", s.keys().collect::<Vec<_>>());
+    }
+}

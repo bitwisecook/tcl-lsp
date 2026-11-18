@@ -348,6 +348,11 @@ impl SourceInvocationBinding {
         self.compiled_execution_residual == CompiledExecutionResidual::Unknown
     }
 
+    #[doc(hidden)]
+    pub fn zz_proof(&self) -> String {
+        format!("reach={:?} unknown={} live={} cands={:?} named={}", self.runtime_reachability, self.compiled_execution_unknown(), self.may_use_live_dispatch, self.compiled_candidates.iter().map(|c| format!("{:?}", c.certainty)).collect::<Vec<_>>(), self.compiled_named_candidates.len())
+    }
+
     /// Actual execution's unique target, retaining native selection separately
     /// from the command that a later generic lookup would have found.
     #[must_use]

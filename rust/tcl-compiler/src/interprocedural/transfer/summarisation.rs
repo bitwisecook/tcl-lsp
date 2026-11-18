@@ -41,6 +41,7 @@ impl ModuleProcedures<'_> {
     pub(super) fn summarise(&self, inputs: &ModuleInputs<'_>, rounds: RecursionLimit) {
         // A rebinding whose subject the scan cannot name may have moved any
         // command a typed statement stands for.
+        if std::env::var_os("ZZ").is_some() { eprintln!("ZZ summarise rebound={:?} source={}", inputs.mutations.nameable_rebound_builtins().map(|r| r.len()), self.source.is_some()); }
         let Some(rebound) = inputs.mutations.nameable_rebound_builtins() else {
             return;
         };
@@ -54,6 +55,7 @@ impl ModuleProcedures<'_> {
             .filter(|qname| !spells_a_rebound_builtin(inputs.ir, qname, rebound))
             .filter_map(|&qname| Some((qname, self.local_calls(&qname, inputs)?)))
             .collect();
+        if std::env::var_os("ZZ").is_some() { eprintln!("ZZ calls {calls:?}"); }
         // A procedure that calls a barrier is one.
         loop {
             let barred: Vec<crate::ir::ProcedureId> = calls
@@ -85,6 +87,16 @@ impl ModuleProcedures<'_> {
         let cfg = inputs.summary_cfg(qname)?;
         let source = self.source.as_ref()?;
         let declared = source.procedure(qname)?;
+        if std::env::var_os("ZZ").is_some() { eprintln!("ZZ lc {qname:?} walked={} scalar={} frame={:?} outer={:?} computed={:?}", source.walked_in_declared_frame(qname), crate::registry_invocation::original_procedure_scalar_bindings(self.ir, declared, self.registry).is_some(), self.frame_facts.get(qname).map(|f| frame_is_closed(f, &declared.params)), self.outer_facts.get(qname).map(|w| w.opaque_global_frame), { let c = crate::dynamic_names::dynamic_name_barrier(cfg, inputs.registry, inputs.config); (c.writes, c.destroys) }); }
+        if std::env::var_os("ZZ").is_some() { eprintln!("ZZ declared={} stmts={:#?}", inputs.cfg.declared_frame_procedures.contains_key(qname), cfg.blocks.values().flat_map(|b| b.statements.iter().map(|s| format!("{s:?}").chars().take(400).collect::<String>())).collect::<Vec<_>>()); }
+        if std::env::var_os("ZZ").is_some() {
+            let cf = cfg.caller_frame_barrier_in(|_| true);
+            eprintln!("ZZ cfb w={} d={}", cf.writes, cf.destroys);
+            for (id, b) in &cfg.blocks { for (i, st) in b.statements.iter().enumerate() {
+                let x = crate::dynamic_names::statement_barrier_for_cfg(st, (cfg, *id, i), inputs.registry, inputs.config);
+                eprintln!("ZZ sb {i} w={} d={} tok={}", x.writes, x.destroys, cfg.source_tokens_at(*id, i).is_some());
+            } if let Some(t) = &b.terminator { let x = crate::dynamic_names::terminator_barrier_for_cfg(t, cfg, inputs.registry, inputs.config); eprintln!("ZZ tb w={} d={} {t:?}", x.writes, x.destroys); } }
+        }
         if !source.walked_in_declared_frame(qname) {
             return None;
         }

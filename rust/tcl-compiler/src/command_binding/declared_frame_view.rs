@@ -27,6 +27,12 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct DeclaredFrameView {
     frame: VariableExecutionFrame,
+    /// The commands of the body the walk recorded in `frame`, by offset,
+    /// with their ends; the commands of a script the body runs in another
+    /// frame are not among them.
+    own: Arc<std::collections::BTreeMap<u32, u32>>,
+    /// Every command of the body any walk recorded, by offset, with ends.
+    commands: Arc<std::collections::BTreeMap<u32, u32>>,
     activation: String,
     body: tcl_lexer::Span,
 }
@@ -39,7 +45,17 @@ impl DeclaredFrameView {
 
     /// Whether `point` was recorded in the covered body's declared frame.
     pub(super) fn admits(&self, point: &SourceBindingPoint) -> bool {
-        point.state.variable_frame == self.frame
+        !self.own.contains_key(&point.offset) || point.state.variable_frame == self.frame
+    }
+
+    /// Whether a read at `offset` belongs to a command of the body's own
+    /// frame: the innermost command around it is one.
+    fn owns_read_at(&self, offset: u32) -> bool {
+        self.commands
+            .range(..=offset)
+            .rev()
+            .find(|(_, end)| offset < **end)
+            .is_some_and(|(start, _)| self.own.contains_key(start))
     }
 
     /// Whether a variable read resolved under `context` ran in the covered
@@ -102,30 +118,49 @@ impl SourceCommandBindings {
         frame: &VariableExecutionFrame,
         body: tcl_lexer::Span,
     ) -> Option<Self> {
-        if let Some(walk) = self.declared_frame_walk.as_deref()
-            && let Some(view) = walk.declared_frame_view(frame, body)
-        {
-            return Some(view);
+        let mut own = std::collections::BTreeMap::new();
+        let mut commands = std::collections::BTreeMap::new();
+        for (offset, indexes) in self.dispatch_points.range(body.start()..body.end()) {
+            for index in indexes {
+                let point = &self.points[*index];
+                commands.insert(*offset, point.end);
+                if point.state.variable_frame == *frame {
+                    own.insert(*offset, point.end);
+                }
+            }
         }
         let view = DeclaredFrameView {
+            own: Arc::new(own),
+            commands: Arc::new(commands),
             frame: frame.clone(),
             activation: activation(frame)?.to_owned(),
             body,
         };
-        let reached = self
-            .dispatch_points
-            .range(body.start()..body.end())
-            .flat_map(|(_, indexes)| indexes)
-            .any(|index| view.admits(&self.points[*index]));
+        let reached = !view.own.is_empty();
+        if std::env::var_os("ZZ").is_some() {
+            let mut seen = std::collections::BTreeMap::new();
+            for (off, idx) in self.dispatch_points.range(body.start()..body.end()) {
+                for i in idx { let p = &self.points[*i]; *seen.entry(format!("{} adm={} prev={} frame={:?}", off, view.admits(p), p.declaration_preview, p.state.variable_frame)).or_insert(0) += 1; }
+            }
+            eprintln!("ZZ view frame={frame:?} reached={reached} points={seen:#?}");
+        }
         if !reached {
             return None;
         }
         let mut variable_accesses = self.variable_accesses.clone();
-        for (_, accesses) in variable_accesses.range_mut(body.start()..body.end()) {
+        for (_, accesses) in variable_accesses
+            .range_mut(body.start()..body.end())
+            .filter(|(offset, _)| view.owns_read_at(**offset))
+        {
             *accesses = accesses
                 .iter()
                 .filter_map(|access| access.in_declared_frame(&view))
                 .collect();
+        }
+        if std::env::var_os("ZZ").is_some() {
+            for (off, acc) in self.variable_accesses.range(body.start()..body.end()) {
+                for a in acc { eprintln!("ZZ acc {off} own={} kept={} acts={:?}", view.owns_read_at(*off), a.in_declared_frame(&view).is_some(), a.context_alternatives.iter().map(|c| c.activation.clone()).collect::<Vec<_>>()); }
+            }
         }
         Some(Self {
             declared_frame_view: Some(Arc::new(view)),
@@ -135,5 +170,30 @@ impl SourceCommandBindings {
             declaration_flow_cache: super::declaration_flow::SourceDeclarationFlowCache::default(),
             ..self.clone()
         })
+    }
+
+    /// Take into this interpretation what `walk`, the declared-frame walk
+    /// of the called `bodies`, recorded inside them: each point it made
+    /// from `first` on, and the reads, which carry its contexts beside this
+    /// interpretation's own. A consumer of either frame then finds it.
+    pub(super) fn adopt_declared_walk(
+        &mut self,
+        walk: &Self,
+        first: usize,
+        bodies: &[tcl_lexer::Span],
+    ) {
+        for body in bodies {
+            for (offset, indexes) in walk.dispatch_points.range(body.start()..body.end()) {
+                for index in indexes.iter().filter(|index| **index >= first) {
+                    let own = self.points.len();
+                    self.points.push(walk.points[*index].clone());
+                    self.dispatch_points.entry(*offset).or_default().push(own);
+                }
+            }
+            for (offset, accesses) in walk.variable_accesses.range(body.start()..body.end()) {
+                self.variable_accesses.insert(*offset, accesses.clone());
+            }
+        }
+        self.invalidate_unpositioned_projections();
     }
 }

@@ -983,6 +983,9 @@ fn scan_call_with_tokens(
         metadata,
         tokens,
     );
+    if std::env::var_os("ZZ").is_some() && command == "upvar" {
+        eprintln!("ZZ upvar names={:?} inv={} res={:?}", names.as_ref().map(|n| n.unknown_residual()), invocation.is_some(), crate::registry_invocation::zz_resolve(commands.registry, metadata, tokens)); if let Some(b) = &tokens.source_binding { eprintln!("ZZ proof {}", b.zz_proof()); }
+    }
     if let Some(names) = &names {
         scan_possible_variable_names(names, barrier);
     }

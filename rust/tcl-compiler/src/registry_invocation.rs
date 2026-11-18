@@ -1191,3 +1191,11 @@ mod original_body_parameter_source_tests;
 
 #[cfg(test)]
 mod authored_simulation_structure_controls;
+
+#[doc(hidden)]
+pub fn zz_resolve(registry: &CommandRegistry, context: Option<InvocationMetadataContext<'_>>, tokens: &CommandTokens) -> String {
+    match word_resolution::resolve_command_tokens_with_metadata_context_and_case(registry, context, tokens) {
+        Ok((r, _)) => match r { RegistryInvocationResolution::Resolved(_) => "resolved".to_owned(), other => format!("{other:?}").chars().take(800).collect() },
+        Err(e) => format!("err {e:?}"),
+    }
+}

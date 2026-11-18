@@ -323,15 +323,16 @@ impl<'a> LatticeDriver<'a> {
         else {
             return None;
         };
+        if std::env::var_os("ZZ").is_some() { eprintln!("ZZ call {command} defs={} reads_exits={} marker={:?} throwing={}", stmt_ssa.defs.len(), self.reads_exits, stmt_ssa.statement.synthetic_marker(), self.is_throwing()); }
         if (stmt_ssa.defs.is_empty() && !self.reads_exits)
             || stmt_ssa.statement.synthetic_marker().is_some()
             || self.is_throwing()
         {
             return None;
         }
-        let module = self.procedures_for(command)?;
+        let Some(module) = self.procedures_for(command) else { if std::env::var_os("ZZ").is_some() { eprintln!("ZZ no-module {command}"); } return None; };
         let original = tokens.as_ref()?;
-        let call = module.resolve_call_at(original, self.procedure_trust())?;
+        let Some(call) = module.resolve_call_at(original, self.procedure_trust()) else { if std::env::var_os("ZZ").is_some() { eprintln!("ZZ no-resolve {command}"); } return None; };
         let callee = &call.id;
         self.reads_module.set(true);
         let defs = named_defs(stmt_ssa, ssa);
@@ -348,6 +349,7 @@ impl<'a> LatticeDriver<'a> {
         }
         let words = literal_words(&cooked);
         let Some(outer) = module.outer_steps(callee) else {
+            if std::env::var_os("ZZ").is_some() { eprintln!("ZZ no-outer {command}"); } 
             self.record_undecided();
             return None;
         };
@@ -358,6 +360,7 @@ impl<'a> LatticeDriver<'a> {
             _ if defs.is_empty() => return None,
             Some(crate::interprocedural::CallTransfer::Places(places)) => places,
             None => {
+                if std::env::var_os("ZZ").is_some() { eprintln!("ZZ no-transfer {command}"); } 
                 self.record_undecided();
                 return None;
             }
@@ -371,6 +374,7 @@ impl<'a> LatticeDriver<'a> {
                 (&cooked, &places),
                 (values, ssa),
             ) else {
+                if std::env::var_os("ZZ").is_some() { eprintln!("ZZ no-rerun {command}"); } 
                 self.record_undecided();
                 return None;
             };
@@ -387,6 +391,7 @@ impl<'a> LatticeDriver<'a> {
             _ if self.level != crate::sccp::ModuleLevel::Outcomes => self.record_undecided(),
             _ => {}
         }
+        if std::env::var_os("ZZ").is_some() { eprintln!("ZZ answer {command} {places:?} {outer:?} after={:?}", after.as_deref().map(|a| (a.completes, a.decided, a.places.iter().map(|p| (p.existence, p.value.clone())).collect::<Vec<_>>()))); }
         Some(DefValues::PerDef(place_answers(
             &defs,
             (&places, &outer),

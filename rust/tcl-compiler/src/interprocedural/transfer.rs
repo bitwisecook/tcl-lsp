@@ -536,6 +536,7 @@ impl<'a> ModuleProcedures<'a> {
             return Some(Vec::new());
         }
         let summaries = self.summaries.borrow();
+        if std::env::var_os("ZZ").is_some() { eprintln!("ZZ outer {callee:?} n={} has={} gs={:?}", summaries.len(), summaries.contains_key(callee), summaries.get(callee).map(|s| s.global_sources.len())); }
         let summary = summaries.get(callee)?;
         // Source coordinates cannot select a current cell or grant Normal.
         // Until that independent application owner exists, retain a barrier.

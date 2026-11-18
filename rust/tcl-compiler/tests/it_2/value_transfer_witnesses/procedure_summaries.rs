@@ -1002,3 +1002,14 @@ fn a_callback_read_and_a_qualified_upvar_write_keep_their_stores() {
         "2\n",
     );
 }
+
+#[test]
+fn zz_probe_c_bump() {
+    for source in [
+        "proc incr {args} {puts \"shadowed\"; return 0}\nproc bump {name} {upvar 1 $name v; set v [expr {$v + 1}]}\nproc c {} {set x 0; bump x; return $x}\nputs [c]\n",
+        "proc bump {name} {upvar 1 $name v; set v [expr {$v + 1}]}\nproc c {} {set x 0; bump x; return $x}\nputs [c]\n",
+    ] {
+        let (rewritten, opts) = optimised(source, "tcl8.6");
+        eprintln!("ZZOPT {rewritten:?} {:?}", opts.iter().map(|o| format!("{o:?}").chars().take(200).collect::<String>()).collect::<Vec<_>>());
+    }
+}

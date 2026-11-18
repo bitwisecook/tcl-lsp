@@ -289,11 +289,29 @@ impl SourceCommandBindings {
         // entered, after the document has loaded, so its declared-frame
         // points carry the same selected bindings; only a declared-frame
         // view of the bindings reads them.
+        let first_declared = declared.points.len();
         for (root, entry) in &entries {
-            let after_load = declared.uncalled_body_after_load(root, entry);
-            declared.walk_deferred_entry_with(root, entry, config, registry, after_load);
+            if declared.uncalled_body_after_load(root, entry) {
+                declared.walk_deferred_entry_with(root, entry, config, registry, true);
+            } else if declared.called_body_in_closed_world(root, entry) {
+                // Nothing after the definition changes the command world, so
+                // a call anywhere sees the commands the definition saw; the
+                // variables it sees are any, with their observers kept.
+                let mut widened = ModuleCommandBindings::clone(entry);
+                Arc::make_mut(&mut widened.source_variables).widen_keeping_observers();
+                declared.walk_deferred_entry_with(root, &widened, config, registry, true);
+            } else {
+                declared.walk_deferred_entry_with(root, entry, config, registry, false);
+            }
         }
-        self.declared_frame_walk = Some(Arc::new(declared));
+        let bodies = entries
+            .iter()
+            .map(|(root, _)| {
+                let length = u32::try_from(root.source.len()).unwrap_or(u32::MAX);
+                tcl_lexer::Span::new(root.offset, root.offset.saturating_add(length))
+            })
+            .collect::<Vec<_>>();
+        self.adopt_declared_walk(&declared, first_declared, &bodies);
     }
 
     pub(super) fn deferred_entry_states(
@@ -388,6 +406,24 @@ impl SourceCommandBindings {
                 .original_completed_root_state
                 .as_deref()
                 .is_some_and(|completed| completed.same_state(incoming))
+    }
+
+    /// Whether a called body is entered, wherever it is called, in the
+    /// command world it was declared in: the document leaves the command
+    /// world as the declaration found it, whatever it does to variables.
+    fn called_body_in_closed_world(
+        &self,
+        root: &DeferredSourceBody,
+        incoming: &ModuleCommandBindings,
+    ) -> bool {
+        incoming.baseline.source_point_entry.is_none()
+            && root.event.is_none()
+            && !root.receiver_method
+            && root.future_frame.is_none()
+            && self
+                .original_completed_root_state
+                .as_deref()
+                .is_some_and(|completed| completed.same_state_but_variables(incoming))
     }
 
     pub(super) fn walk_deferred_entry(

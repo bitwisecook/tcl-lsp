@@ -144,6 +144,15 @@ impl ModuleCommandBindings {
     /// equality remains semantic for Salsa/context interning; the fixpoint
     /// owns one baseline [`Arc`], so its allocation identity is sufficient.
     pub(in super::super) fn same_state(&self, other: &Self) -> bool {
+        self.same_state_but_variables(other)
+            && self.source_variables == other.source_variables
+            && self.variable_frame == other.variable_frame
+    }
+
+    /// [`Self::same_state`] in everything but the variables: the command
+    /// bindings, the command world and every table a command lookup reads
+    /// are the same, while variable cells and the frame may differ.
+    pub(in super::super) fn same_state_but_variables(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.baseline, &other.baseline)
             && (Arc::ptr_eq(&self.original_command_world, &other.original_command_world)
                 || self.original_command_world == other.original_command_world)
@@ -155,8 +164,6 @@ impl ModuleCommandBindings {
             && self.tainted_object_dispatch == other.tainted_object_dispatch
             && self.tainted_provider_state == other.tainted_provider_state
             && self.command_observers == other.command_observers
-            && self.source_variables == other.source_variables
-            && self.variable_frame == other.variable_frame
             && (Arc::ptr_eq(&self.bindings, &other.bindings) || self.bindings == other.bindings)
             && self.objects == other.objects
             && self.namespace_exports == other.namespace_exports
@@ -187,6 +194,52 @@ impl ModuleCommandBindings {
             && self.proc_rebound_names == other.proc_rebound_names
             && self.has_redefined_procedures == other.has_redefined_procedures
             && self.source_order_user_call_effects == other.source_order_user_call_effects
+    }
+
+    #[doc(hidden)]
+    pub(in super::super) fn zz_diff(&self, other: &Self) -> Vec<&'static str> {
+        let mut d = Vec::new();
+        if !Arc::ptr_eq(&self.baseline, &other.baseline) { d.push("baseline"); }
+        if self.original_command_world != other.original_command_world { d.push("original_command_world"); }
+        if self.logical_alias_prefixes != other.logical_alias_prefixes { d.push("logical_alias_prefixes"); }
+        if self.ordinary_literal_pool != other.ordinary_literal_pool { d.push("ordinary_literal_pool"); }
+        if self.class_definitions != other.class_definitions { d.push("class_definitions"); }
+        if self.object_instances != other.object_instances { d.push("object_instances"); }
+        if self.bounded_constructions != other.bounded_constructions { d.push("bounded_constructions"); }
+        if self.tainted_object_dispatch != other.tainted_object_dispatch { d.push("tainted_object_dispatch"); }
+        if self.tainted_provider_state != other.tainted_provider_state { d.push("tainted_provider_state"); }
+        if self.command_observers != other.command_observers { d.push("command_observers"); }
+        if self.source_variables != other.source_variables { d.push("source_variables"); }
+        if self.variable_frame != other.variable_frame { d.push("variable_frame"); }
+        if self.bindings != other.bindings { d.push("bindings"); }
+        if self.objects != other.objects { d.push("objects"); }
+        if self.namespace_exports != other.namespace_exports { d.push("namespace_exports"); }
+        if self.namespace_paths != other.namespace_paths { d.push("namespace_paths"); }
+        if self.namespaces != other.namespaces { d.push("namespaces"); }
+        if self.unknown_lookup_namespaces != other.unknown_lookup_namespaces { d.push("unknown_lookup_namespaces"); }
+        if self.unknown_namespace_paths != other.unknown_namespace_paths { d.push("unknown_namespace_paths"); }
+        if self.namespace_unknown_handlers != other.namespace_unknown_handlers { d.push("namespace_unknown_handlers"); }
+        if self.ensemble_owner_namespaces != other.ensemble_owner_namespaces { d.push("ensemble_owner_namespaces"); }
+        if self.ensemble_dispatches != other.ensemble_dispatches { d.push("ensemble_dispatches"); }
+        if self.unknown_export_namespaces != other.unknown_export_namespaces { d.push("unknown_export_namespaces"); }
+        if self.packages != other.packages { d.push("packages"); }
+        if self.revoked_loaders != other.revoked_loaders { d.push("revoked_loaders"); }
+        if self.loader_handler_unknown != other.loader_handler_unknown { d.push("loader_handler_unknown"); }
+        if self.root_boundary_bindings != other.root_boundary_bindings { d.push("root_boundary_bindings"); }
+        if self.opaque_domain != other.opaque_domain { d.push("opaque_domain"); }
+        if self.opaque_binding_mutation != other.opaque_binding_mutation { d.push("opaque_binding_mutation"); }
+        if self.dynamic_proc_binding != other.dynamic_proc_binding { d.push("dynamic_proc_binding"); }
+        if self.unnameable_rebinding_subject != other.unnameable_rebinding_subject { d.push("unnameable_rebinding_subject"); }
+        if self.unclosed_command_world != other.unclosed_command_world { d.push("unclosed_command_world"); }
+        if self.diagnostic_command_world_closed != other.diagnostic_command_world_closed { d.push("diagnostic_command_world_closed"); }
+        if self.receiver_frame_opacity != other.receiver_frame_opacity { d.push("receiver_frame_opacity"); }
+        if self.namespace_resolution != other.namespace_resolution { d.push("namespace_resolution"); }
+        if self.procedure_bodies != other.procedure_bodies { d.push("procedure_bodies"); }
+        if self.rebound_names != other.rebound_names { d.push("rebound_names"); }
+        if self.proc_rebound_names != other.proc_rebound_names { d.push("proc_rebound_names"); }
+        if self.has_redefined_procedures != other.has_redefined_procedures { d.push("has_redefined_procedures"); }
+        if self.source_order_user_call_effects != other.source_order_user_call_effects { d.push("source_order_user_call_effects"); }
+        d
     }
 
     pub(super) fn non_binding_observation_stamp(&self) -> NonBindingObservationStamp {
