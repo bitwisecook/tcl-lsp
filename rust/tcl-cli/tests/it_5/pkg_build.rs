@@ -25,11 +25,10 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// The first `tclsh` on `PATH`, when there is one.
+/// The Tcl 8.6 reference `tclsh`, located as every oracle test locates it: a
+/// missing one fails the test when `TCL_LSP_REQUIRE_TCLSH` requires it.
 fn tclsh_on_path() -> Option<PathBuf> {
-    std::env::split_paths(&std::env::var_os("PATH")?)
-        .map(|dir| dir.join("tclsh"))
-        .find(|candidate| candidate.is_file())
+    tcl_test_support::witness_tclsh(tcl_dialect::TclVersion::V8_6).map(|tclsh| tclsh.path)
 }
 
 /// A fresh project directory of its own.
