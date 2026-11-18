@@ -131,19 +131,14 @@ fn namespace_upvar_with_a_computed_word_keeps_the_cell_as_written() {
     let mut a = Analyser::new();
     dispatch_words(&mut a, &["namespace", "upvar", "::a", "x", "$local"]);
     assert!(!a.result.global_scope.variables.contains_key("local"));
-    // Legacy alias reports preserve computed namespace/otherVar spellings.
-    // Core candidates and rename coverage use typed source receipts instead.
-    let mut a = Analyser::new();
-    dispatch_words(&mut a, &["namespace", "upvar", "$ns", "x", "l"]);
-    assert_eq!(
-        a.result.global_scope.variables["l"].link_target.as_deref(),
-        Some("::$ns::x"),
-    );
-    // The cell is named by the `otherVar` word, not the local.
-    assert_eq!(
-        a.result.global_scope.variables["l"].link_target_span,
-        Some(span(12, 13)),
-    );
+    // Inside a procedure whose formal names the namespace (at file level
+    // `$ns` is unbound: tclsh8.6.18/9.0.4 can't read "ns"), the local's
+    // definition points at the written `otherVar` word.
+    let src = "proc p {ns} {\n    namespace upvar $ns x l\n    return $l\n}\n";
+    let r = Analyser::new().analyse(src, "tcl8.6");
+    let l = &r.global_scope.children[0].variables["l"];
+    let target = l.link_target_span.expect("the otherVar word");
+    assert_eq!(&src[target.start() as usize..target.end() as usize], "x");
     let mut a = Analyser::new();
     dispatch_words(&mut a, &["namespace", "upvar", "::mypkg", "$v", "l"]);
     assert_eq!(
