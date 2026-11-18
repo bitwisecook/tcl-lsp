@@ -126,9 +126,8 @@ fn build(src: &str) -> CompilationUnit {
 /// resolves to the `When` lowering hook (else `when` falls through to
 /// `lower_default` and no `::when::*` procedure is produced).
 fn build_irules(src: &str) -> CompilationUnit {
-    let mut registry = CommandRegistry::build_default();
-    registry.load_irules();
-    CompilationUnit::build_for(src, &registry, false)
+    let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
+    CompilationUnit::build_for_dialect(src, registry, false, "f5-irules")
 }
 
 // interval_bounds.rs — the `classify` *negative*-index reason.
