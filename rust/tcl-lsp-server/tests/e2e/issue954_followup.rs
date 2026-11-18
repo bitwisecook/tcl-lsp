@@ -46,7 +46,9 @@ struct TypedToken {
 }
 
 fn typed(lsp: &mut Lsp, legend: &[String], uri: &str) -> Vec<TypedToken> {
-    let raw = lsp.semantic_tokens(uri);
+    // The first stream can be the coarse tier; the enriched stream is the one
+    // these assertions mean.
+    let raw = lsp.semantic_tokens_settled(uri);
     decode_semantic_tokens(&raw)
         .into_iter()
         .map(|t| TypedToken {
