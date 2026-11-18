@@ -126,6 +126,7 @@ pub(in crate::analyser) use usage::W110Anchor;
 mod const_dispatch;
 mod dataflow;
 pub(in crate::analyser) mod helpers;
+pub use helpers::phi_undef::phi_undef_trace_steps;
 #[cfg(test)]
 mod original_control_advice;
 #[cfg(test)]

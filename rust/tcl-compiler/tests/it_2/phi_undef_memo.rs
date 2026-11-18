@@ -72,6 +72,28 @@ fn fires(src: &str, dialect: &str, code: &str) -> bool {
     codes(src, dialect).iter().any(|c| c == code)
 }
 
+/// The codes `src` yields and the phi-from-undef walk's work units it took.
+fn codes_and_phi_steps(src: &str) -> (Vec<String>, u64) {
+    let before = tcl_compiler::analyser::diagnostics::phi_undef_trace_steps();
+    let found = codes(src, D);
+    (
+        found,
+        tcl_compiler::analyser::diagnostics::phi_undef_trace_steps() - before,
+    )
+}
+
+/// Doubling the stages at most about doubles the walk: a reachability over
+/// the phi graph, not an enumeration of its 2^n paths (#2021). A count the
+/// algorithm controls, so it cannot flake under load.
+fn assert_phi_walk_scales_linearly(half: u64, full: u64, shape: &str) {
+    assert!(half > 0, "{shape}: the fixture reaches the phi walk");
+    assert!(
+        full * 10 <= half * 22,
+        "{shape}: doubling the stages took {half} -> {full} phi-walk steps; \
+         path enumeration would multiply them by 2^n"
+    );
+}
+
 /// The issue #2021 shape: `n` sibling two-deep conditional writes to one
 /// variable, after a dominating `set x 0` and before a read of it. Each stage
 /// contributes a merge phi whose operands are the previous stage's phi and the
@@ -95,27 +117,20 @@ fn nested_if_stages(n: usize) -> String {
     src
 }
 
-/// 60 stages is ~2^60 phi-trace visits without the memo, and a handful with
-/// it. The budget is deliberately generous (the memoised analysis is
-/// milliseconds); anything that reintroduces path enumeration cannot finish
-/// this side of the heat death of the universe, so the test is decisive
-/// without being flaky on a loaded machine.
+/// 60 stages is ~2^60 phi-trace visits without the memo, and a number linear
+/// in the stages with it: the walk at 60 stages is at most about twice the
+/// walk at 30 (ledger analysis-performance, rewritten from a 10 s budget).
 #[test]
 fn nested_if_stages_analyse_in_linear_time() {
-    let src = nested_if_stages(60);
-    let started = std::time::Instant::now();
-    let found = codes(&src, D);
-    let elapsed = started.elapsed();
+    let (found, full) = codes_and_phi_steps(&nested_if_stages(60));
     // tclsh: `set x 0` dominates every conditional write, so `$x` always
     // reads a value — no read-before-set.
     assert!(
         !found.iter().any(|c| c == "W210"),
         "`x` is defined on every path; no W210 expected, got {found:?}"
     );
-    assert!(
-        elapsed.as_secs() < 10,
-        "phi-from-undef trace must not enumerate paths: 60 stages took {elapsed:?}"
-    );
+    let (_, half) = codes_and_phi_steps(&nested_if_stages(30));
+    assert_phi_walk_scales_linearly(half, full, "nested if stages");
 }
 
 /// The same shape scaled: each added stage doubles the unmemoised walk, so a
@@ -149,32 +164,31 @@ fn nested_if_stages_do_not_grow_exponentially() {
 /// linear too.
 #[test]
 fn nested_if_stages_in_a_loop_analyse_in_linear_time() {
-    let mut src = String::new();
-    src.push_str("set items [lindex $argv 0]\n");
-    for i in 0..60 {
-        let _ = writeln!(src, "set c{i} [lindex $argv {i}]");
-        let _ = writeln!(src, "set d{i} [lindex $argv {i}]");
-    }
-    src.push_str("set x 0\nforeach it $items {\n");
-    for i in 0..60 {
-        let _ = writeln!(
-            src,
-            "    if {{$c{i}}} {{\n        if {{$d{i}}} {{ set x {i} }}\n    }}"
-        );
-    }
-    src.push_str("}\nputs $x\n");
-    let started = std::time::Instant::now();
-    let found = codes(&src, D);
-    let elapsed = started.elapsed();
+    let looped = |stages: usize| {
+        let mut src = String::new();
+        src.push_str("set items [lindex $argv 0]\n");
+        for i in 0..stages {
+            let _ = writeln!(src, "set c{i} [lindex $argv {i}]");
+            let _ = writeln!(src, "set d{i} [lindex $argv {i}]");
+        }
+        src.push_str("set x 0\nforeach it $items {\n");
+        for i in 0..stages {
+            let _ = writeln!(
+                src,
+                "    if {{$c{i}}} {{\n        if {{$d{i}}} {{ set x {i} }}\n    }}"
+            );
+        }
+        src.push_str("}\nputs $x\n");
+        src
+    };
+    let (found, full) = codes_and_phi_steps(&looped(60));
     // tclsh: `set x 0` runs before the loop, so `$x` always reads a value.
     assert!(
         !found.iter().any(|c| c == "W210"),
         "`x` is defined before the loop; no W210 expected, got {found:?}"
     );
-    assert!(
-        elapsed.as_secs() < 10,
-        "conditional writes inside a loop must not enumerate paths: took {elapsed:?}"
-    );
+    let (_, half) = codes_and_phi_steps(&looped(30));
+    assert_phi_walk_scales_linearly(half, full, "nested if stages in a loop");
 }
 
 /// A `switch` with empty arms multiplies the operand count per stage (each

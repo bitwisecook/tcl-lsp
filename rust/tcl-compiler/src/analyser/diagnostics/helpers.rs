@@ -36,7 +36,7 @@ use rustc_hash::FxHashSet;
 mod existence_guards;
 mod hidden_writes;
 mod original_cells;
-mod phi_undef;
+pub(in crate::analyser) mod phi_undef;
 mod undef_suppression;
 
 pub(super) use existence_guards::{

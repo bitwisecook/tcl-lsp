@@ -347,6 +347,23 @@ impl PhiUndefIndex {
     }
 }
 
+thread_local! {
+    static TRACE_STEPS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+fn trace_step() {
+    TRACE_STEPS.with(|steps| steps.set(steps.get().saturating_add(1)));
+}
+
+/// Work units the phi-from-undef walk has taken on this thread: each operand
+/// edge examined and each undef version propagated. The walk is a reachability
+/// over the phi graph, so this grows with the graph, not with its paths
+/// (#2021); a scaling check reads it before and after an analysis.
+#[must_use]
+pub fn phi_undef_trace_steps() -> u64 {
+    TRACE_STEPS.with(std::cell::Cell::get)
+}
+
 /// The reachability walk behind [`PhiUndefIndex::build`]: which versions can
 /// reach an undef origin, over the operand edges of the phis and of the
 /// opaque `switch` may-definitions.
@@ -369,6 +386,7 @@ impl UndefWalk {
         killed: &FxHashMap<VersionKey, bool>,
         readable_at_startup: bool,
     ) {
+        trace_step();
         let origin = if let Some(&answer) = killed.get(&operand) {
             answer
         } else if operand.1 == 0 {
@@ -398,6 +416,7 @@ impl UndefWalk {
                 continue;
             };
             for &user in users {
+                trace_step();
                 let up = (node.0, user);
                 if self.undef.insert(up) {
                     self.worklist.push(up);
