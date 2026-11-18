@@ -344,10 +344,20 @@ impl AnalysisResult {
                     })
             })
         };
+        // The local word of an alias whose written target tail rules out
+        // both cells names only that alias.
+        let excluded_alias_local = |span: tcl_lexer::Span| {
+            self.original_variable_alias_operands
+                .iter()
+                .any(|operand| operand.1 == span && written_tail_differs(operand.2))
+        };
         self.dynamic_variable_names
             .iter()
             .all(|site| cannot_spell(site.span))
-            && self.original_variable_name_unknowns.is_empty()
+            && self
+                .original_variable_name_unknowns
+                .iter()
+                .all(|&span| excluded_alias_local(span))
             && self
                 .original_variable_alias_obligations
                 .iter()
@@ -543,5 +553,32 @@ impl AnalysisResult {
         self.retained_command_realm()?
             .source_bindings_ref()
             .original_variable_frame_at_offset(offset, config)
+    }
+}
+
+#[cfg(test)]
+mod computed_alias_exclusion_tests {
+    /// tclsh 9.0.4: `namespace upvar $ns counter local` with ns `::mypkg`
+    /// links `counter`; its local word names only that alias. A written tail
+    /// spelling either cell, or a computed tail, keeps the barrier.
+    #[test]
+    fn an_alias_local_word_is_excluded_only_when_its_written_tail_rules_out_both_cells() {
+        let cells = ["::mypkg::version", "::mypkg::release"];
+        for (tail, excluded) in [
+            ("counter", true),
+            ("version", false),
+            ("release", false),
+            ("$t", false),
+            ("{counter}", false),
+        ] {
+            let source =
+                format!("proc show {{ns t}} {{\n    namespace upvar $ns {tail} local\n}}\n");
+            let analysis = crate::analyser::Analyser::new().analyse(&source, "tcl8.6");
+            assert_eq!(
+                analysis.original_variable_alias_coverage_excluding(&cells),
+                excluded,
+                "{tail}"
+            );
+        }
     }
 }
