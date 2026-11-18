@@ -84,8 +84,10 @@ fn host_barrier(command: String) -> Statement {
     }
 }
 
+/// Built under the tcl9.1 projection the host tokens were lowered under.
 fn build_analysis_cfg(name: &str, script: &Script) -> Function {
-    CfgBuilder::new(true, tcl_registry::default_registry())
+    let registry = native_registry();
+    CfgBuilder::new(true, &registry)
         .with_faithful_exceptions()
         .build_function(name, script)
 }
