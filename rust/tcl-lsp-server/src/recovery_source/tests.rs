@@ -133,7 +133,7 @@ async fn provider_pack(backend: &Backend) -> tcl_lsp_db::AnalyserConfig {
 command recovery362::define {
 arity 3
 arg 0 -role Name
-arg 1 -role Params
+arg 1 -role ParamList
 arg 2 -role Body
 analyser_hook -native Proc
 command_table_effect DefinesProcedure
