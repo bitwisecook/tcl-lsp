@@ -99,3 +99,39 @@ fn eight_four_keeps_a_return_only_outside_a_catch_body() {
         Some(ReleaseBinding::CompiledInProcedureOutsideCatch)
     );
 }
+
+/// `string wordstart`/`wordend` compile without a native compiler provider:
+/// 8.4/8.5 decline them and invoke `string`, 8.6+ `TclCompileBasic2ArgCmd`
+/// invokes the private worker by its full name. tclsh 8.5.19 disassembles
+/// `proc p {w} {string wordstart $w 5}` as `push "string"; push "wordstart";
+/// loadScalar1 %v0; push "5"; invokeStk1 4`; 8.6.18, 9.0.4 and 9.1.0 as
+/// `push "::tcl::string::wordstart"; loadScalar1 %v0; push "5"; invokeStk1 3`.
+#[test]
+fn string_word_boundaries_compile_as_each_release_invokes_them() {
+    for (member, worker) in [
+        ("wordstart", "::tcl::string::wordstart"),
+        ("wordend", "::tcl::string::wordend"),
+    ] {
+        let source = format!("proc p {{w}} {{string {member} $w 5}}");
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let asm = procedure(environment, &source, "::p");
+            assert_eq!(
+                asm.native_compilation_preflight,
+                tcl_runtime_api::NativeCompilationPreflight::NotRequired,
+                "{environment} {member}"
+            );
+            let literals: Vec<_> = asm
+                .literals
+                .entries()
+                .iter()
+                .map(|literal| String::from_utf8_lossy(literal.bytes()).into_owned())
+                .collect();
+            let expected: &[&str] = if matches!(environment, "tcl8.4" | "tcl8.5") {
+                &["string", member, "5"]
+            } else {
+                &[worker, "5"]
+            };
+            assert_eq!(literals, expected, "{environment} {member}");
+        }
+    }
+}

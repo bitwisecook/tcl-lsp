@@ -141,7 +141,7 @@ fn registered_fallback_admission(
     invocation: tcl_registry::InvocationWords<'_>,
 ) -> NativeCompilationSelection {
     let shapes = selected.shapes;
-    if original_named_selection_is_closed(selected, facts, state, context) {
+    if original_named_selection_is_closed(selected.words, selected.offset, facts, state, context) {
         spec.select_for_original_facts(
             invocation,
             shapes,
@@ -166,8 +166,9 @@ fn registered_fallback_admission(
 /// and premises the namespace-binding seal owns. An undeclared or other
 /// transition keeps the compiler selection unknown, and so does an earlier
 /// ensemble creation, which may have replaced a stock ensemble command.
-fn original_named_selection_is_closed(
-    selected: CompilerInvocation<'_>,
+pub(in crate::command_binding) fn original_named_selection_is_closed(
+    words: &[crate::ir::WordExpr],
+    offset: u32,
     facts: &tcl_registry::InvocationFacts,
     state: &ModuleCommandBindings,
     context: super::super::SourceExecutionContext<'_>,
@@ -179,7 +180,7 @@ fn original_named_selection_is_closed(
         return false;
     };
     if origin
-        .original_lexical_command(selected.words, selected.offset, context.config)
+        .original_lexical_command(words, offset, context.config)
         .is_none()
     {
         return false;

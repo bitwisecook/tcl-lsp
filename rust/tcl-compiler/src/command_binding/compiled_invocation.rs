@@ -31,6 +31,7 @@ use tcl_registry::native_compilation::{
 mod compiler_targets;
 mod execution_proofs;
 mod registered_compiler;
+pub(super) use registered_compiler::original_named_selection_is_closed;
 mod target_selection;
 
 pub use compiler_targets::{NativeCompilationSnapshot, NativeCompilerTargets};

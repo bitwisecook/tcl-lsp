@@ -1846,17 +1846,29 @@ fn compilation_selection(
                 },
             )
         });
+    // As the registered compiler's own fallback: a named ensemble compiler
+    // selects from the retained original words once their selection closes.
     let (selected, recipe) = original.unwrap_or_else(|| {
-        (
+        let selection = if super::compiled_invocation::original_named_selection_is_closed(
+            words, offset, facts, state, context,
+        ) {
+            spec.select_for_original_facts(
+                invocation,
+                &shapes,
+                facts,
+                invocation.arguments().dialect(),
+                context.compilation(),
+            )
+        } else {
             spec.select_for_facts(
                 invocation,
                 &shapes,
                 facts,
                 invocation.arguments().dialect(),
                 context.compilation(),
-            ),
-            None,
-        )
+            )
+        };
+        (selection, None)
     });
     (shapes, selected, recipe)
 }

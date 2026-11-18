@@ -1573,7 +1573,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
-        ..SubCommand::DEFAULT
+        ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
     SubCommand {
         name: "wordstart",
@@ -1631,7 +1631,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
-        ..SubCommand::DEFAULT
+        ..SubCommand::CLOSED_REFERENTIALLY_TRANSPARENT
     },
 ];
 
