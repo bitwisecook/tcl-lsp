@@ -723,6 +723,24 @@ append log $line",
         },
     ),
     (
+        "state_transitions_knowledge",
+        Example {
+            code: "set n [llength $items]\nproc helper {} {}",
+            focuses: &[
+                focus(
+                    0,
+                    "llength",
+                    "complete and empty from the 8.4–9.1 sources: it creates no command, namespace or trace",
+                ),
+                focus(
+                    1,
+                    "proc",
+                    "so no binding it could have made can change what this call resolves to",
+                ),
+            ],
+        },
+    ),
+    (
         "state_transitions",
         Example {
             code: "proc greet {} { puts hi }\ninterp alias {} hi {} greet",

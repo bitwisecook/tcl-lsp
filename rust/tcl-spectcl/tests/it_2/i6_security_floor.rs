@@ -178,7 +178,7 @@ const FLOOR_CASES: &[FloorCase] = &[
         dialect: "tcl8.6",
         command: "join",
         body: "state_transitions {\n      composition Extend\n      argument_shape Positional\n    }",
-        read: |spec| format!("{:?}", spec.state_transitions),
+        read: |spec| format!("{:?}", spec.state_transitions.stated()),
         shipped_as: "Some(",
     },
     FloorCase {

@@ -141,7 +141,7 @@ fn incomplete_effect_and_transition_blocks_cannot_claim_empty_semantics() {
     );
     let spec = pack.command("demo").unwrap().spec;
     assert_eq!(
-        spec.state_transitions.unwrap().composition,
+        spec.state_transitions.stated().unwrap().composition,
         tcl_registry::state_transition::StateTransitionComposition::Replace
     );
     let effects = spec.world_effects.stated().unwrap();
@@ -213,6 +213,7 @@ fn state_transition_blocks_preserve_complete_authored_rows() {
         .unwrap()
         .spec
         .state_transitions
+        .stated()
         .unwrap();
     assert_eq!(descriptor.composition, StateTransitionComposition::Replace);
     assert_eq!(
@@ -267,7 +268,7 @@ fn assert_transition_composition_controls() {
     );
     assert!(pack.notices.is_empty(), "{:?}", pack.notices);
     let spec = pack.command("demo").unwrap().spec;
-    let descriptor = spec.state_transitions.expect("a descriptor");
+    let descriptor = spec.state_transitions.stated().expect("a descriptor");
     assert_eq!(
         descriptor.composition,
         tcl_registry::state_transition::StateTransitionComposition::Replace,
@@ -648,4 +649,42 @@ fn result_stability_rows_state_their_completeness_issue_1712() {
         Some(&ResultStability::ReferentiallyTransparent)
     );
     assert!(complete.complete_at(Some(&at("8.5"))).is_none());
+}
+
+/// A `state_transitions` row states its completeness with the same trailing
+/// flags as the other domains: no row is `Unknown`, a row alone is a lower
+/// bound, and `-complete WINDOW` closes it for exactly those releases
+/// (issue #1712).
+#[test]
+fn state_transitions_rows_state_their_completeness_issue_1712() {
+    use tcl_dialect::model::{Family, SurfaceQuery};
+    use tcl_registry::knowledge::KnowledgeLevel;
+    let load = |row: &str| {
+        let pack = evaluate_pack(&format!("speclib probe 2.2 {{ command demo {{ {row} }} }}"));
+        (
+            pack.command("demo").unwrap().spec.state_transitions,
+            pack.notices,
+        )
+    };
+    let at = |release| SurfaceQuery::core(Family::Tcl, release);
+
+    let (absent, _) = load("arity 0");
+    assert!(absent.is_unknown(), "no row states nothing");
+
+    let (stated, notices) = load("state_transitions {}");
+    assert!(notices.is_empty(), "{notices:?}");
+    assert_eq!(stated.level(), KnowledgeLevel::Partial);
+
+    let (complete, notices) = load("state_transitions {} -complete {8.4 9.1}");
+    assert!(notices.is_empty(), "{notices:?}");
+    for release in ["8.4", "8.5", "8.6", "9.0", "9.1"] {
+        assert!(
+            complete.complete_at(Some(&at(release))).is_some(),
+            "{release}"
+        );
+    }
+
+    let (narrow, _) = load("state_transitions {} -complete {9.0 9.0}");
+    assert!(narrow.complete_at(Some(&at("9.0"))).is_some());
+    assert!(narrow.complete_at(Some(&at("8.6"))).is_none());
 }

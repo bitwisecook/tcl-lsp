@@ -520,7 +520,9 @@ fn scaffold_constructors_require_actual_selected_descriptor_identity() {
     assert!(ScaffoldConstructors::required(registry, None, false, false, false).is_ok());
     let mut unavailable = tcl_registry::CommandRegistry::build_default();
     unavailable.insert(tcl_registry::CommandSpec {
-        state_transitions: Some(tcl_registry::StateTransitionDescriptor::EMPTY),
+        state_transitions: tcl_registry::knowledge::Knowledge::Partial(
+            tcl_registry::StateTransitionDescriptor::EMPTY,
+        ),
         ..registry.get("proc").unwrap().clone()
     });
     assert!(matches!(
@@ -535,7 +537,9 @@ fn public_report_keeps_constructor_refusal_beside_an_independent_warning() {
         tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
     let mut supplied = tcl_registry::CommandRegistry::build_default();
     supplied.insert(tcl_registry::CommandSpec {
-        state_transitions: Some(tcl_registry::StateTransitionDescriptor::EMPTY),
+        state_transitions: tcl_registry::knowledge::Knowledge::Partial(
+            tcl_registry::StateTransitionDescriptor::EMPTY,
+        ),
         ..baseline.commands().get("proc").unwrap().clone()
     });
     let context = std::sync::Arc::new(baseline.with_command_store(std::sync::Arc::new(supplied)));

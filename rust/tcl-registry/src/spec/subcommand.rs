@@ -433,7 +433,7 @@ pub struct SubCommand {
     pub world_effects: crate::knowledge::Knowledge<WorldEffectDescriptor>,
 
     /// Target-neutral transitions specific to this subcommand.
-    pub state_transitions: Option<StateTransitionDescriptor>,
+    pub state_transitions: crate::knowledge::Knowledge<StateTransitionDescriptor>,
 
     /// Dispatch-stability dependency refinement for this subcommand.
     /// Irreducible live-interpreter dependencies cannot be removed.

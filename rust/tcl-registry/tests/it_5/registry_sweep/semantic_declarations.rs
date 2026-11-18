@@ -45,7 +45,7 @@ fn semantic_declarations(spec: &tcl_registry::CommandSpec) -> Vec<SemanticDeclar
         traits: spec.traits,
         result_stability: spec.result_stability.stated(),
         world_effects: spec.world_effects.stated(),
-        state_transitions: spec.state_transitions,
+        state_transitions: spec.state_transitions.stated(),
         dispatch_dependencies: spec.dispatch_dependencies,
     }];
     for sub in spec.subcommands {
@@ -54,7 +54,7 @@ fn semantic_declarations(spec: &tcl_registry::CommandSpec) -> Vec<SemanticDeclar
             traits: sub.traits,
             result_stability: sub.result_stability.stated(),
             world_effects: sub.world_effects.stated(),
-            state_transitions: sub.state_transitions,
+            state_transitions: sub.state_transitions.stated(),
             dispatch_dependencies: sub.dispatch_dependencies,
         });
     }
@@ -300,6 +300,7 @@ fn sweep_closed_referentially_transparent_dispatch_resolves_to_base() {
                     .is_some_and(is_empty_world_effect)
                 && spec
                     .state_transitions
+                    .stated()
                     .is_some_and(is_empty_state_transition);
             if is_closed_command {
                 commands_checked += 1;

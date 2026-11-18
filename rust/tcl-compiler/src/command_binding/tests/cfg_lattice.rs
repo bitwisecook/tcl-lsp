@@ -209,7 +209,9 @@ fn closed_static_descriptor_does_not_mask_a_live_object_receiver() {
     let mut reg = CommandRegistry::build_default();
     reg.insert(tcl_registry::CommandSpec {
         name: "Animal",
-        state_transitions: Some(tcl_registry::StateTransitionDescriptor::EMPTY),
+        state_transitions: tcl_registry::knowledge::Knowledge::Partial(
+            tcl_registry::StateTransitionDescriptor::EMPTY,
+        ),
         ..tcl_registry::CommandSpec::DEFAULT
     });
     let cu = CompilationUnit::build_for(

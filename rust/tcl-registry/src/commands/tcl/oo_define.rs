@@ -506,7 +506,7 @@ pub fn spec() -> CommandSpec {
         arg_values: &[(1, OO_DEFINE_SUBCOMMAND_VALUES)],
         side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         world_effects: crate::knowledge::Knowledge::Partial(OO_DEFINE_EFFECTS),
-        state_transitions: Some(OO_DEFINE_TRANSITIONS),
+        state_transitions: crate::knowledge::Knowledge::Partial(OO_DEFINE_TRANSITIONS),
         definition_body: Some(&crate::definer::TCLOO_GRAMMAR),
         analyser_hook: Some(crate::hooks::AnalyserHookId::OoDefine),
         ..CommandSpec::DEFAULT

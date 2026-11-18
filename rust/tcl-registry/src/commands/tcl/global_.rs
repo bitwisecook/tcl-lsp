@@ -183,7 +183,7 @@ pub fn spec() -> CommandSpec {
         codegen_hook: Some(CodegenHookId::Global),
         forms: FORMS,
         world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
-        state_transitions: Some(GLOBAL_TRANSITIONS),
+        state_transitions: crate::knowledge::Knowledge::Partial(GLOBAL_TRANSITIONS),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::scope_alias::GLOBAL),
         ..CommandSpec::DEFAULT
     }

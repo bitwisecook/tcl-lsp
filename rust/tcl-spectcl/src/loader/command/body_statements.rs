@@ -53,7 +53,7 @@ use super::role_resolvers::{
     arg_role_capabilities, index_list, native_count_role_resolver, native_id,
     native_layout_role_resolver,
 };
-use super::world_state::{state_transitions_value, world_effects_value};
+use super::world_state::{state_transitions_knowledge, world_effects_value};
 use super::{
     CommandAcc, case_list_value, definition_body_value, event_requires_value, hook_source,
     native_fold,
@@ -426,20 +426,20 @@ pub(in super::super) fn apply_command_stmt(
         "world_effects" => spec.world_effects = world_effects_value(stmt, tables, log),
         "state_transitions" => {
             let scope = log.command.clone();
-            spec.state_transitions =
-                state_transitions_value(stmt, tables, &scope, log).map(|(descriptor, source)| {
-                    if let Some((source, line)) = source {
-                        acc.hooks.push(HookDecl {
-                            owner: HookOwner::Command,
-                            field: HookFamily::StateTransitionResolver.field(),
-                            family: HookFamily::StateTransitionResolver,
-                            source,
-                            line,
-                            row: None,
-                        });
-                    }
-                    descriptor
+            let (knowledge, source) = state_transitions_knowledge(stmt, tables, &scope, log);
+            spec.state_transitions = knowledge;
+            if !knowledge.is_unknown()
+                && let Some((source, line)) = source
+            {
+                acc.hooks.push(HookDecl {
+                    owner: HookOwner::Command,
+                    field: HookFamily::StateTransitionResolver.field(),
+                    family: HookFamily::StateTransitionResolver,
+                    source,
+                    line,
+                    row: None,
                 });
+            }
         }
         // The ratified words (design §6.2, §6.3's blind spot).
         "result_stability" => {

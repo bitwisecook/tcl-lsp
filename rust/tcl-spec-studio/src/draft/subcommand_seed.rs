@@ -334,7 +334,11 @@ fn subcommand_hooks(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
     );
     d.insert(
         "state_transitions".into(),
-        lost.expr("state_transitions", sub.state_transitions.is_some()),
+        lost.expr("state_transitions", !sub.state_transitions.is_unknown()),
+    );
+    d.insert(
+        "state_transitions_knowledge".into(),
+        knowledge(&sub.state_transitions),
     );
     d.insert(
         "dispatch_dependencies".into(),

@@ -185,7 +185,9 @@ fn checkbutton() -> CommandSpec {
         object_class: Some(&CHECKBUTTON_CLASS),
         creates_instance_at: Some(0),
         return_type: Some(crate::TclType::Object),
-        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+        state_transitions: crate::knowledge::Knowledge::Partial(
+            crate::state_transition::command_binding::CREATES_WIDGET,
+        ),
         native_result: Some(
             crate::native_result::NativeResultContract::FreshArgumentString { at: 0 },
         ),
@@ -312,7 +314,9 @@ fn menubutton() -> CommandSpec {
         object_class: Some(&MENUBUTTON_CLASS),
         creates_instance_at: Some(0),
         return_type: Some(crate::TclType::Object),
-        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+        state_transitions: crate::knowledge::Knowledge::Partial(
+            crate::state_transition::command_binding::CREATES_WIDGET,
+        ),
         native_result: Some(
             crate::native_result::NativeResultContract::FreshArgumentString { at: 0 },
         ),
@@ -451,7 +455,9 @@ fn panedwindow() -> CommandSpec {
         object_class: Some(&PANEDWINDOW_CLASS),
         creates_instance_at: Some(0),
         return_type: Some(crate::TclType::Object),
-        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+        state_transitions: crate::knowledge::Knowledge::Partial(
+            crate::state_transition::command_binding::CREATES_WIDGET,
+        ),
         native_result: Some(
             crate::native_result::NativeResultContract::FreshArgumentString { at: 0 },
         ),
@@ -600,7 +606,9 @@ fn radiobutton() -> CommandSpec {
         object_class: Some(&RADIOBUTTON_CLASS),
         creates_instance_at: Some(0),
         return_type: Some(crate::TclType::Object),
-        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+        state_transitions: crate::knowledge::Knowledge::Partial(
+            crate::state_transition::command_binding::CREATES_WIDGET,
+        ),
         native_result: Some(
             crate::native_result::NativeResultContract::FreshArgumentString { at: 0 },
         ),
@@ -913,7 +921,9 @@ fn spinbox() -> CommandSpec {
         object_class: Some(&SPINBOX_CLASS),
         creates_instance_at: Some(0),
         return_type: Some(crate::TclType::Object),
-        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+        state_transitions: crate::knowledge::Knowledge::Partial(
+            crate::state_transition::command_binding::CREATES_WIDGET,
+        ),
         native_result: Some(
             crate::native_result::NativeResultContract::FreshArgumentString { at: 0 },
         ),

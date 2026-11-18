@@ -188,7 +188,7 @@ pub fn spec() -> CommandSpec {
         // above. Identical in every fetched manpage, Tcl 8.4 through
         // 9.1.
         arity: Arity::at_least(1),
-        state_transitions: Some(StateTransitionDescriptor {
+        state_transitions: crate::knowledge::Knowledge::Partial(StateTransitionDescriptor {
             resolver: Some(indexed_autoload),
             ..StateTransitionDescriptor::EMPTY
         }),

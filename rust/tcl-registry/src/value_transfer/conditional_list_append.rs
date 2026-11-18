@@ -243,7 +243,7 @@ impl ResolvedInvocation<'_, '_> {
             || !facts.arg_roles_complete
             || !direct_phase_execution_is_stock(self, native)
             || facts.operation != native.operation
-            || self.selected.spec.state_transitions.is_some()
+            || !self.selected.spec.state_transitions.is_unknown()
             || self.semantics.state_transitions.is_declared()
             || !self.selected.spec.world_effects.is_unknown()
             || self.semantics.world_effects.is_declared()
@@ -642,10 +642,11 @@ mod tests {
                 let mut registry = CommandRegistry::build_default().project_for_profile(profile);
                 let mut spec = registry.get("lappend").unwrap().clone();
                 if state_descriptor {
-                    spec.state_transitions = Some(crate::StateTransitionDescriptor {
-                        resolver: Some(transitions),
-                        ..crate::StateTransitionDescriptor::EMPTY
-                    });
+                    spec.state_transitions =
+                        crate::knowledge::Knowledge::Partial(crate::StateTransitionDescriptor {
+                            resolver: Some(transitions),
+                            ..crate::StateTransitionDescriptor::EMPTY
+                        });
                 } else {
                     spec.world_effects = crate::knowledge::Knowledge::Partial(
                         crate::WorldEffectDescriptor::VARIABLE_WRITE,
@@ -666,7 +667,7 @@ mod tests {
                     .resolved()
                     .unwrap();
                 if state_descriptor {
-                    assert!(selected.selected.spec.state_transitions.is_some());
+                    assert!(selected.selected.spec.state_transitions.stated().is_some());
                     assert!(selected.semantics.state_transitions.is_declared());
                     selected.semantics.state_transitions =
                         crate::state_transition::ResolvedStateTransitions::default();

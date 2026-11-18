@@ -112,7 +112,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             Arity::new(1, 2),
             tcl_dialect::TclVersion::V8_6,
         )),
-        state_transitions: Some(StateTransitionDescriptor {
+        state_transitions: crate::knowledge::Knowledge::Partial(StateTransitionDescriptor {
             logical_source_resolver: None,
             commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
             success_resolver: None,
@@ -135,7 +135,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "attributes",
         native_compilation: Some(named_file_compiler!("attributes", no_hook)),
-        state_transitions: Some(StateTransitionDescriptor {
+        state_transitions: crate::knowledge::Knowledge::Partial(StateTransitionDescriptor {
             logical_source_resolver: None,
             commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
             success_resolver: None,
@@ -174,7 +174,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // form is selected automatically when target is a directory).
         name: "copy",
         native_compilation: Some(named_file_compiler!("copy", no_hook)),
-        state_transitions: Some(StateTransitionDescriptor {
+        state_transitions: crate::knowledge::Knowledge::Partial(StateTransitionDescriptor {
             logical_source_resolver: None,
             commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
             success_resolver: None,
@@ -229,7 +229,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             Arity::at_least(0),
             tcl_dialect::TclVersion::V8_6,
         )),
-        state_transitions: Some(StateTransitionDescriptor {
+        state_transitions: crate::knowledge::Knowledge::Partial(StateTransitionDescriptor {
             logical_source_resolver: None,
             commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
             success_resolver: None,
@@ -504,7 +504,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             Arity::at_least(0),
             tcl_dialect::TclVersion::V8_6,
         )),
-        state_transitions: Some(StateTransitionDescriptor {
+        state_transitions: crate::knowledge::Knowledge::Partial(StateTransitionDescriptor {
             logical_source_resolver: None,
             commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
             success_resolver: None,
@@ -531,7 +531,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             Arity::new(1, 2),
             tcl_dialect::TclVersion::V8_6,
         )),
-        state_transitions: Some(StateTransitionDescriptor {
+        state_transitions: crate::knowledge::Knowledge::Partial(StateTransitionDescriptor {
             logical_source_resolver: None,
             commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
             success_resolver: None,
@@ -671,7 +671,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // more `source`s moved into an existing `targetDir`.
         name: "rename",
         native_compilation: Some(named_file_compiler!("rename", no_hook)),
-        state_transitions: Some(StateTransitionDescriptor {
+        state_transitions: crate::knowledge::Knowledge::Partial(StateTransitionDescriptor {
             logical_source_resolver: None,
             commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
             success_resolver: None,

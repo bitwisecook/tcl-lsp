@@ -551,7 +551,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 world_effects: crate::knowledge::Knowledge::Partial(
                     crate::WorldEffectDescriptor::EMPTY,
                 ),
-                state_transitions: Some(crate::StateTransitionDescriptor::EMPTY),
+                state_transitions: crate::knowledge::Knowledge::Partial(
+                    crate::StateTransitionDescriptor::EMPTY,
+                ),
                 result_stability: crate::knowledge::Knowledge::Partial(
                     crate::ResultStability::ReferentiallyTransparent,
                 ),

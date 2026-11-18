@@ -294,7 +294,9 @@ fn function_level_gvn_declines_volatile_result_despite_closed_effects() {
         world_effects: tcl_registry::knowledge::Knowledge::Partial(
             tcl_registry::WorldEffectDescriptor::EMPTY,
         ),
-        state_transitions: Some(tcl_registry::StateTransitionDescriptor::EMPTY),
+        state_transitions: tcl_registry::knowledge::Knowledge::Partial(
+            tcl_registry::StateTransitionDescriptor::EMPTY,
+        ),
         ..tcl_registry::CommandSpec::DEFAULT
     });
     let cu = crate::compilation_unit::CompilationUnit::build_for_profile(

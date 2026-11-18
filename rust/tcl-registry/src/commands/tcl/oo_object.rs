@@ -165,7 +165,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "class new ?arg ...?",
         return_type: Some(TclType::String),
         world_effects: crate::knowledge::Knowledge::Partial(OBJECT_CREATE_EFFECTS),
-        state_transitions: Some(OBJECT_NEW_TRANSITIONS),
+        state_transitions: crate::knowledge::Knowledge::Partial(OBJECT_NEW_TRANSITIONS),
         // Unlike `oo::class` (which hides its own `new`, per class.n:
         // "the oo::class object hides the new method on itself"),
         // `oo::object` does not hide its own `new` — object.n's
@@ -188,7 +188,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         defines_command_at: Some(0),
         return_type: Some(TclType::String),
         world_effects: crate::knowledge::Knowledge::Partial(OBJECT_CREATE_EFFECTS),
-        state_transitions: Some(OBJECT_CREATE_TRANSITIONS),
+        state_transitions: crate::knowledge::Knowledge::Partial(OBJECT_CREATE_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
 ];

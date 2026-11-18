@@ -254,7 +254,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         xc_translatable: Some(false),
         world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
-        state_transitions: Some(UPVAR_TRANSITIONS),
+        state_transitions: crate::knowledge::Knowledge::Partial(UPVAR_TRANSITIONS),
         ..CommandSpec::DEFAULT
     }
 }

@@ -198,7 +198,15 @@ pub const GAPS: &[Gap] = &[
     Gap {
         key: "state_transitions",
         spelling: "state_transitions NAME|{ composition … argument_shape … resolver \
-                   none|from-frame-effect|-native ID|{words ctx} {…} widen … covers … commit … }",
+                   none|from-frame-effect|-native ID|{words ctx} {…} widen … covers … commit … } \
+                   ?-partial? ?-complete WINDOW?…",
+        kind: GapKind::DraftOpaque,
+    },
+    Gap {
+        // Spelled on the `state_transitions` row itself, so it travels with
+        // that opaque row.
+        key: "state_transitions_knowledge",
+        spelling: "state_transitions … -complete WINDOW",
         kind: GapKind::DraftOpaque,
     },
     Gap {

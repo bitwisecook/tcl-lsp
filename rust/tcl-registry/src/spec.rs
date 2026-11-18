@@ -722,7 +722,7 @@ pub struct CommandSpec {
     /// The resolver receives structured invocation words, keeping dynamic
     /// operands conservatively typed rather than treating source spelling as
     /// a Tcl value.
-    pub state_transitions: Option<StateTransitionDescriptor>,
+    pub state_transitions: crate::knowledge::Knowledge<StateTransitionDescriptor>,
 
     /// Mutable Tcl domains whose stability is required before a compiler may
     /// treat registry resolution as the live dispatch behaviour.

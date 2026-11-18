@@ -105,6 +105,10 @@ const EXPANDED_FIELDS: &[(&str, &[&str])] = &[
     ),
     ("completion", &["completion", "completion_knowledge"]),
     (
+        "state_transitions",
+        &["state_transitions", "state_transitions_knowledge"],
+    ),
+    (
         "result_stability",
         &["result_stability", "result_stability_knowledge"],
     ),

@@ -417,7 +417,10 @@ pub const COMMAND_SPEC: &[Field] = &[
         "world_effects",
         Surface::Keys(&["world_effects", "world_effects_knowledge"]),
     ),
-    f("state_transitions", Surface::Key("state_transitions")),
+    f(
+        "state_transitions",
+        Surface::Keys(&["state_transitions", "state_transitions_knowledge"]),
+    ),
     f(
         "dispatch_dependencies",
         Surface::Key("dispatch_dependencies"),
@@ -824,7 +827,10 @@ pub const SUB_COMMAND: &[Field] = &[
         "world_effects",
         Surface::Keys(&["world_effects", "world_effects_knowledge"]),
     ),
-    f("state_transitions", Surface::Key("state_transitions")),
+    f(
+        "state_transitions",
+        Surface::Keys(&["state_transitions", "state_transitions_knowledge"]),
+    ),
     f(
         "dispatch_dependencies",
         Surface::Key("dispatch_dependencies"),

@@ -51,6 +51,8 @@ struct Row {
     group: &'static str,
     name: String,
     domains: PurityDomains,
+    /// The other domains that state their completeness: state transitions.
+    state_transitions: KnowledgeLevel,
 }
 
 fn groups() -> Vec<(&'static str, Vec<CommandSpec>)> {
@@ -77,12 +79,14 @@ fn rows() -> Vec<Row> {
                 group,
                 name: spec.name.trim_start_matches("::").to_owned(),
                 domains: PurityDomains::of_command(spec),
+                state_transitions: spec.state_transitions.level(),
             });
             for sub in spec.subcommands {
                 rows.push(Row {
                     group,
                     name: format!("{} {}", spec.name.trim_start_matches("::"), sub.name),
                     domains: PurityDomains::of_subcommand(spec, sub),
+                    state_transitions: sub.state_transitions.or(spec.state_transitions).level(),
                 });
             }
         }
@@ -184,10 +188,10 @@ fn render_groups(out: &mut String, rows: &[Row]) {
     );
     let _ = writeln!(
         out,
-        "| group | rows | side effects | world effects | completion | result stability | pure at {} |",
+        "| group | rows | side effects | world effects | completion | result stability | state transitions | pure at {} |",
         RELEASES.join(" / ")
     );
-    let _ = writeln!(out, "| --- | ---: | --- | --- | --- | --- | --- |");
+    let _ = writeln!(out, "| --- | ---: | --- | --- | --- | --- | --- | --- |");
     let mut by_group: BTreeMap<&str, Vec<&Row>> = BTreeMap::new();
     for row in rows {
         by_group.entry(row.group).or_default().push(row);
@@ -222,12 +226,13 @@ fn render_groups(out: &mut String, rows: &[Row]) {
             .collect();
         let _ = writeln!(
             out,
-            "| {group} | {} | {} | {} | {} | {} | {} |",
+            "| {group} | {} | {} | {} | {} | {} | {} | {} |",
             rows.len(),
             count(&|row| level(&row.domains.side_effects)),
             count(&world),
             count(&|row| level(&row.domains.completion)),
             count(&|row| level(&row.domains.result_stability)),
+            count(&|row| row.state_transitions),
             pure.join(" / ")
         );
     }

@@ -1096,12 +1096,14 @@ mod tests {
             }),
             arg_roles: &[(0, tcl_registry::ArgRole::VarWrite)],
             assigns_variable_at: Some(0),
-            state_transitions: Some(tcl_registry::StateTransitionDescriptor {
-                logical_source_resolver: None,
-                success_resolver: None,
-                resolver: Some(overlay_alias_transitions),
-                ..tcl_registry::StateTransitionDescriptor::EMPTY
-            }),
+            state_transitions: tcl_registry::knowledge::Knowledge::Partial(
+                tcl_registry::StateTransitionDescriptor {
+                    logical_source_resolver: None,
+                    success_resolver: None,
+                    resolver: Some(overlay_alias_transitions),
+                    ..tcl_registry::StateTransitionDescriptor::EMPTY
+                },
+            ),
             ..tcl_registry::CommandSpec::DEFAULT
         }
     }

@@ -533,7 +533,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         analyser_hook: Some(crate::hooks::AnalyserHookId::InterpAlias),
         side_effects: crate::knowledge::Knowledge::declared(ALIAS_SIDE_EFFECTS),
         world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
-        state_transitions: Some(crate::state_transition::command_binding::CREATES_ALIASES),
+        state_transitions: crate::knowledge::Knowledge::Partial(
+            crate::state_transition::command_binding::CREATES_ALIASES,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -558,7 +560,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         command_prefix_resolver: Some(interp_bgerror_command_prefixes),
         script_timing_resolver: Some(interp_bgerror_script_timing),
         world_effects: crate::knowledge::Knowledge::Partial(INTERP_BGERROR_EFFECTS),
-        state_transitions: Some(INTERP_BGERROR_TRANSITIONS),
+        state_transitions: crate::knowledge::Knowledge::Partial(INTERP_BGERROR_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -649,7 +651,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         },
         analyser_hook: Some(crate::hooks::AnalyserHookId::InterpCreate),
         world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
-        state_transitions: Some(INTERP_CREATE_TRANSITIONS),
+        state_transitions: crate::knowledge::Knowledge::Partial(INTERP_CREATE_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -699,7 +701,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         analyser_hook: Some(crate::hooks::AnalyserHookId::InterpDelete),
         world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
-        state_transitions: Some(INTERP_DELETE_TRANSITIONS),
+        state_transitions: crate::knowledge::Knowledge::Partial(INTERP_DELETE_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -746,7 +748,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         analyser_hook: Some(crate::hooks::AnalyserHookId::InterpExpose),
         world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
-        state_transitions: Some(INTERP_EXPOSE_TRANSITIONS),
+        state_transitions: crate::knowledge::Knowledge::Partial(INTERP_EXPOSE_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -770,7 +772,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         analyser_hook: Some(crate::hooks::AnalyserHookId::InterpHide),
         world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
-        state_transitions: Some(INTERP_HIDE_TRANSITIONS),
+        state_transitions: crate::knowledge::Knowledge::Partial(INTERP_HIDE_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -929,7 +931,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "interp marktrusted path",
         return_type: Some(TclType::String),
         world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
-        state_transitions: Some(INTERP_MARK_TRUSTED_TRANSITIONS),
+        state_transitions: crate::knowledge::Knowledge::Partial(INTERP_MARK_TRUSTED_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -940,7 +942,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "interp recursionlimit path ?newlimit?",
         return_type: Some(TclType::Int),
         world_effects: crate::knowledge::Knowledge::Partial(INTERP_RECURSION_LIMIT_EFFECTS),
-        state_transitions: Some(INTERP_RECURSION_LIMIT_TRANSITIONS),
+        state_transitions: crate::knowledge::Knowledge::Partial(INTERP_RECURSION_LIMIT_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1066,7 +1068,7 @@ pub fn jim_spec() -> CommandSpec {
             ..FormSpec::DEFAULT
         }],
         side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
-        state_transitions: Some(StateTransitionDescriptor {
+        state_transitions: crate::knowledge::Knowledge::Partial(StateTransitionDescriptor {
             logical_source_resolver: None,
             success_resolver: None,
             resolver: Some(jim_interp_create_transitions),

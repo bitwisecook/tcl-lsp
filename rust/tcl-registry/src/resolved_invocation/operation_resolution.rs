@@ -380,19 +380,19 @@ pub(super) fn resolve_invocation_semantics<'r, 'w>(
             // shorthand and the shipped declaration share one transition resolver.
             command: inherit_command
                 .then(|| {
-                    spec.state_transitions.or_else(|| {
+                    spec.state_transitions.stated().or_else(|| {
                         spec.command_table_effect
                             .map(CommandTableEffect::transitions)
                     })
                 })
                 .flatten(),
             subcommand: sub.and_then(|sub| {
-                sub.state_transitions.or_else(|| {
+                sub.state_transitions.stated().or_else(|| {
                     sub.command_table_effect
                         .map(CommandTableEffect::transitions)
                 })
             }),
-            form: form.and_then(|form| form.state_transitions),
+            form: form.and_then(|form| form.state_transitions.stated()),
         },
         dispatch_dependencies: ResolvedDispatchDependencies {
             command: inherit_command

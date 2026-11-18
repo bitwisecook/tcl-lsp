@@ -70,7 +70,7 @@ pub fn spec() -> CommandSpec {
         // this mirrors directly.
         traits: Traits::BYTE_COMPILED | Traits::SAFE_INTERP_HIDDEN | Traits::TAINT_SINK,
         arity: Arity::new(0, 1),
-        state_transitions: Some(StateTransitionDescriptor {
+        state_transitions: crate::knowledge::Knowledge::Partial(StateTransitionDescriptor {
             logical_source_resolver: None,
             success_resolver: None,
             resolver: Some(discovery_changed),

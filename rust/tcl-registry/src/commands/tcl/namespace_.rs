@@ -1310,7 +1310,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arg_role_count_resolver: Some(namespace_delete_count_arg_roles),
         arg_role_resolver_roles: &[ArgRole::NamespaceName],
         world_effects: crate::knowledge::Knowledge::Partial(NAMESPACE_DELETE_EFFECTS),
-        state_transitions: Some(NAMESPACE_DELETE_TRANSITIONS),
+        state_transitions: crate::knowledge::Knowledge::Partial(NAMESPACE_DELETE_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1356,7 +1356,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // ensembles observes command names (REFLECTS_COMMAND_NAMES).
         traits: Traits::EXPORTS_COMMAND.union(Traits::REFLECTS_COMMAND_NAMES),
         world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
-        state_transitions: Some(NAMESPACE_ENSEMBLE_TRANSITIONS),
+        state_transitions: crate::knowledge::Knowledge::Partial(NAMESPACE_ENSEMBLE_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1408,7 +1408,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             .union(Traits::SCRIPT_CONCATENATES_ARGS)
             .union(Traits::DECLARES_NAMESPACE),
         world_effects: crate::knowledge::Knowledge::Partial(NAMESPACE_EVAL_EFFECTS),
-        state_transitions: Some(NAMESPACE_EVAL_TRANSITIONS),
+        state_transitions: crate::knowledge::Knowledge::Partial(NAMESPACE_EVAL_TRANSITIONS),
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceEval),
         ..SubCommand::DEFAULT
     },
@@ -1449,7 +1449,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // (REFLECTS_COMMAND_NAMES).
         traits: Traits::EXPORTS_COMMAND.union(Traits::REFLECTS_COMMAND_NAMES),
         world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
-        state_transitions: Some(NAMESPACE_EXPORT_TRANSITIONS),
+        state_transitions: crate::knowledge::Knowledge::Partial(NAMESPACE_EXPORT_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1473,7 +1473,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // (`namespace import`'s own hook is the install half).
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceForget),
         world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
-        state_transitions: Some(NAMESPACE_FORGET_TRANSITIONS),
+        state_transitions: crate::knowledge::Knowledge::Partial(NAMESPACE_FORGET_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1511,7 +1511,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // when it cannot), so nothing is lost by leaving the coarse
         // boundary flag off.
         world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
-        state_transitions: Some(NAMESPACE_IMPORT_TRANSITIONS),
+        state_transitions: crate::knowledge::Knowledge::Partial(NAMESPACE_IMPORT_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1589,7 +1589,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         surface: Some(SpecSurface::TCL85_PLUS),
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespacePath),
         world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
-        state_transitions: Some(NAMESPACE_PATH_TRANSITIONS),
+        state_transitions: crate::knowledge::Knowledge::Partial(NAMESPACE_PATH_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1667,7 +1667,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         script_timing_resolver: Some(namespace_unknown_script_timing),
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceUnknown),
         world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
-        state_transitions: Some(NAMESPACE_UNKNOWN_TRANSITIONS),
+        state_transitions: crate::knowledge::Knowledge::Partial(NAMESPACE_UNKNOWN_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1728,7 +1728,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             CompletionCode::Error,
         ])),
         world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
-        state_transitions: Some(NAMESPACE_UPVAR_TRANSITIONS),
+        state_transitions: crate::knowledge::Knowledge::Partial(NAMESPACE_UPVAR_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1808,7 +1808,7 @@ pub fn jim_spec() -> CommandSpec {
                 }
                 if subcommand.name == "export" {
                     subcommand.options = &[];
-                    subcommand.state_transitions = None;
+                    subcommand.state_transitions = crate::knowledge::Knowledge::Unknown;
                 }
             }
             subcommands.push(SubCommand {

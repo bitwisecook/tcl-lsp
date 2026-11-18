@@ -58,7 +58,7 @@ fn original_namespace_patterns_close_only_their_represented_byte_ordinals() {
                 .subcommands
                 .iter()
                 .find(|entry| entry.name == operation)
-                .and_then(|entry| entry.state_transitions)
+                .and_then(|entry| entry.state_transitions.stated())
                 .unwrap();
             let words = [
                 crate::InvocationWord::Literal(operation),

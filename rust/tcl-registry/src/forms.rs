@@ -215,7 +215,7 @@ pub struct CommandForm {
 
     /// Target-neutral command-binding and variable-cell transitions specific
     /// to this concrete invocation shape.
-    pub state_transitions: Option<StateTransitionDescriptor>,
+    pub state_transitions: crate::knowledge::Knowledge<StateTransitionDescriptor>,
 
     /// Dispatch-stability dependency refinement for this invocation shape.
     /// Irreducible live-interpreter dependencies cannot be removed.
@@ -268,7 +268,7 @@ impl CommandForm {
         mutator: None,
         side_effects: None,
         world_effects: crate::knowledge::Knowledge::Unknown,
-        state_transitions: None,
+        state_transitions: crate::knowledge::Knowledge::Unknown,
         dispatch_dependencies: None,
         literal_argument_validator: None,
         lowering_hook: None,

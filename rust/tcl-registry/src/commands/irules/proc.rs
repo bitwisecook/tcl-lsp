@@ -67,7 +67,9 @@ pub const fn spec() -> CommandSpec {
         }]),
         analyser_hook: Some(crate::hooks::AnalyserHookId::Proc),
         // Declared once, by naming the stock descriptor.
-        state_transitions: Some(crate::state_transition::command_binding::DEFINES_PROCEDURE),
+        state_transitions: crate::knowledge::Knowledge::Partial(
+            crate::state_transition::command_binding::DEFINES_PROCEDURE,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

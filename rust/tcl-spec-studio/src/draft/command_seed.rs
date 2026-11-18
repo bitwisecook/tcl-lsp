@@ -312,7 +312,11 @@ fn command_effects(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     );
     d.insert(
         "state_transitions".into(),
-        lost.expr("state_transitions", spec.state_transitions.is_some()),
+        lost.expr("state_transitions", !spec.state_transitions.is_unknown()),
+    );
+    d.insert(
+        "state_transitions_knowledge".into(),
+        knowledge(&spec.state_transitions),
     );
     d.insert(
         "dispatch_dependencies".into(),

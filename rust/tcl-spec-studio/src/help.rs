@@ -641,6 +641,16 @@ effects; used by the most exacting optimiser proofs. Leave unset unless a \
 maintainer asks for it.",
     ),
     (
+        "state_transitions_knowledge",
+        "How much of the state-transition footprint is known. **Unknown** \
+claims nothing. **Partial** says the transitions listed happen and there may \
+be more. **Complete** says they are all of them for the release windows you \
+evidenced from the implementation's source.\n\n```\n\
+state_transitions {} -complete {8.4 9.1}\n```\n\n\
+The flags sit on the `state_transitions` row itself, so the completeness \
+travels with the row. One release never vouches for another.",
+    ),
+    (
         "dispatch_dependencies",
         "What must stay *unchanged* for the registry's knowledge about this \
 command to remain trustworthy at a call site — e.g. that nobody renamed or \

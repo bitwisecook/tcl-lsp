@@ -102,6 +102,11 @@ const UNTRANSCRIBED_STABILITY_KNOWLEDGE: &str = "the completeness of a shipped \
 const UNTRANSCRIBED_COMPLETION_KNOWLEDGE: &str = "the completeness of a shipped \
      `completion` descriptor the port does not transcribe; it is spelled on that \
      row, so the port states none";
+/// The same for `state_transitions_knowledge` beside an untranscribed
+/// `state_transitions`.
+const UNTRANSCRIBED_TRANSITION_KNOWLEDGE: &str = "the completeness of a shipped \
+     `state_transitions` descriptor the port does not transcribe; it is spelled on \
+     that row, so the port states none";
 const UNTRANSCRIBED_WORLD_KNOWLEDGE: &str = "the completeness of a shipped \
      `world_effects` descriptor the port does not transcribe; it is spelled on that \
      row, so the port states none";
@@ -281,6 +286,10 @@ const PORTS: &[Port] = &[
                  `upvar`; every field the port does carry matches",
                 ),
                 ("world_effects_knowledge", UNTRANSCRIBED_WORLD_KNOWLEDGE),
+                (
+                    "state_transitions_knowledge",
+                    UNTRANSCRIBED_TRANSITION_KNOWLEDGE,
+                ),
             ],
             unequal_subcommand: NO_SUBS,
             subcommand_subset: ALL_SUBS,
@@ -316,6 +325,11 @@ const PORTS: &[Port] = &[
                     "world_effects_knowledge",
                     UNTRANSCRIBED_WORLD_KNOWLEDGE,
                 ),
+                (
+                    "create",
+                    "state_transitions_knowledge",
+                    UNTRANSCRIBED_TRANSITION_KNOWLEDGE,
+                ),
                 ("new", "__unrenderable", OO_CLASS_FACTORY_DESCRIPTORS),
                 (
                     "new",
@@ -323,9 +337,19 @@ const PORTS: &[Port] = &[
                     UNTRANSCRIBED_WORLD_KNOWLEDGE,
                 ),
                 (
+                    "new",
+                    "state_transitions_knowledge",
+                    UNTRANSCRIBED_TRANSITION_KNOWLEDGE,
+                ),
+                (
                     "createWithNamespace",
                     "world_effects_knowledge",
                     UNTRANSCRIBED_WORLD_KNOWLEDGE,
+                ),
+                (
+                    "createWithNamespace",
+                    "state_transitions_knowledge",
+                    UNTRANSCRIBED_TRANSITION_KNOWLEDGE,
                 ),
                 (
                     "createWithNamespace",
@@ -368,6 +392,11 @@ const PORTS: &[Port] = &[
                 ),
                 (
                     "length",
+                    "state_transitions_knowledge",
+                    UNTRANSCRIBED_TRANSITION_KNOWLEDGE,
+                ),
+                (
+                    "length",
                     "completion_knowledge",
                     UNTRANSCRIBED_COMPLETION_KNOWLEDGE,
                 ),
@@ -393,6 +422,11 @@ const PORTS: &[Port] = &[
                 ),
                 (
                     "map",
+                    "state_transitions_knowledge",
+                    UNTRANSCRIBED_TRANSITION_KNOWLEDGE,
+                ),
+                (
+                    "map",
                     "completion_knowledge",
                     UNTRANSCRIBED_COMPLETION_KNOWLEDGE,
                 ),
@@ -406,6 +440,11 @@ const PORTS: &[Port] = &[
                     "range",
                     "world_effects_knowledge",
                     UNTRANSCRIBED_WORLD_KNOWLEDGE,
+                ),
+                (
+                    "range",
+                    "state_transitions_knowledge",
+                    UNTRANSCRIBED_TRANSITION_KNOWLEDGE,
                 ),
                 (
                     "range",

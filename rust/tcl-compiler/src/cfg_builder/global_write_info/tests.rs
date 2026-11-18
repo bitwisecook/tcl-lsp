@@ -747,7 +747,9 @@ fn custom_replacement_under_builtin_spelling_uses_its_own_descriptor() {
     registry.insert(CommandSpec {
         name: "global",
         arg_roles: &[(0, ArgRole::VarWrite)],
-        state_transitions: Some(StateTransitionDescriptor::EMPTY),
+        state_transitions: tcl_registry::knowledge::Knowledge::Partial(
+            StateTransitionDescriptor::EMPTY,
+        ),
         world_effects: tcl_registry::knowledge::Knowledge::Partial(
             tcl_registry::WorldEffectDescriptor::VARIABLE_WRITE,
         ),

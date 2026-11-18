@@ -557,7 +557,9 @@ pub fn spec() -> CommandSpec {
         object_class: Some(&LISTBOX_CLASS),
         creates_instance_at: Some(0),
         return_type: Some(crate::TclType::Object),
-        state_transitions: Some(crate::state_transition::command_binding::CREATES_WIDGET),
+        state_transitions: crate::knowledge::Knowledge::Partial(
+            crate::state_transition::command_binding::CREATES_WIDGET,
+        ),
         native_result: Some(
             crate::native_result::NativeResultContract::FreshArgumentString { at: 0 },
         ),

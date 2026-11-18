@@ -118,6 +118,14 @@ impl<T: Copy> Knowledge<T> {
         }
     }
 
+    /// The stated facts, mutably, whatever their completeness.
+    pub const fn as_mut(&mut self) -> Option<&mut T> {
+        match self {
+            Self::Unknown => None,
+            Self::Partial(value) | Self::Complete(value, _) => Some(value),
+        }
+    }
+
     /// This knowledge, or `other` when this states nothing: how a more
     /// specific layer (a form, then a subcommand) overrides the one it
     /// refines.

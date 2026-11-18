@@ -192,6 +192,7 @@ pub const CLUSTERS: &[Cluster] = &[
             "world_effects",
             "world_effects_knowledge",
             "state_transitions",
+            "state_transitions_knowledge",
             "result_stability",
             "result_stability_knowledge",
             "const_fold",

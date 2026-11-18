@@ -100,7 +100,9 @@ pub fn spec() -> CommandSpec {
         // The command-table mutation is declared **once**, by naming the
         // stock descriptor, rather than also stamping
         // `command_table_effect` with the same fact in a second vocabulary.
-        state_transitions: Some(crate::state_transition::command_binding::RENAMES_COMMANDS),
+        state_transitions: crate::knowledge::Knowledge::Partial(
+            crate::state_transition::command_binding::RENAMES_COMMANDS,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

@@ -609,7 +609,9 @@ fn versioned_world_results_key_on_the_read_domain_version() {
         side_effects,
         world_effects,
         completion,
-        state_transitions: Some(tcl_registry::StateTransitionDescriptor::EMPTY),
+        state_transitions: tcl_registry::knowledge::Knowledge::Partial(
+            tcl_registry::StateTransitionDescriptor::EMPTY,
+        ),
         ..tcl_registry::CommandSpec::DEFAULT
     });
 

@@ -69,7 +69,9 @@ pub fn spec() -> CommandSpec {
         required_package: Some("opt"),
         side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         analyser_hook: Some(crate::hooks::AnalyserHookId::OptProc),
-        state_transitions: Some(crate::state_transition::command_binding::DEFINES_PROCEDURE),
+        state_transitions: crate::knowledge::Knowledge::Partial(
+            crate::state_transition::command_binding::DEFINES_PROCEDURE,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

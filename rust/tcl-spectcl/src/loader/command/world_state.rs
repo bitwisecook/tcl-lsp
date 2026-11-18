@@ -125,7 +125,26 @@ fn world_effects_descriptor(
 /// § *The two hook bodies that remain*). A row this build cannot read
 /// withdraws the complete descriptor and excludes strong analysis. The hook
 /// source comes back with its `resolver` row's line.
-pub(in super::super) fn state_transitions_value(
+/// A `state_transitions` row with its trailing `-partial` / `-complete
+/// WINDOW` flags: the descriptor's completeness, and where its resolver is.
+pub(in super::super) fn state_transitions_knowledge(
+    stmt: &Stmt,
+    tables: &PackTables,
+    scope: &str,
+    log: &mut Log,
+) -> (
+    Knowledge<StateTransitionDescriptor>,
+    Option<(HookSource, u32)>,
+) {
+    let (stated, value) = split_knowledge_flags(stmt, log);
+    let (descriptor, source) = state_transitions_value(&value, tables, scope, log)
+        .map_or((None, None), |(descriptor, source)| {
+            (Some(descriptor), source)
+        });
+    (stated_knowledge(descriptor, stated), source)
+}
+
+fn state_transitions_value(
     stmt: &Stmt,
     tables: &PackTables,
     scope: &str,
@@ -422,8 +441,11 @@ pub(super) fn form_state_transitions(
     tables: &PackTables,
     path: &str,
     log: &mut Log,
-) -> Option<StateTransitionDescriptor> {
-    let (mut descriptor, source) = state_transitions_value(stmt, tables, path, log)?;
+) -> Knowledge<StateTransitionDescriptor> {
+    let (mut knowledge, source) = state_transitions_knowledge(stmt, tables, path, log);
+    let Some(descriptor) = knowledge.as_mut() else {
+        return knowledge;
+    };
     if matches!(
         source,
         Some((HookSource::Body { .. } | HookSource::Derived { .. }, _))
@@ -436,7 +458,7 @@ pub(super) fn form_state_transitions(
         );
         descriptor.resolver = None;
     }
-    Some(descriptor)
+    knowledge
 }
 
 /// Install the resolver each `resolver from-frame-effect` of this command —

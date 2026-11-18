@@ -187,7 +187,7 @@ pub fn spec() -> CommandSpec {
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
-        state_transitions: Some(StateTransitionDescriptor {
+        state_transitions: crate::knowledge::Knowledge::Partial(StateTransitionDescriptor {
             logical_source_resolver: None,
             commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
             success_resolver: None,
@@ -251,6 +251,7 @@ mod discovery_tests {
     fn writable_open_revokes_loader_discovery_but_read_only_does_not() {
         let descriptor = spec()
             .state_transitions
+            .stated()
             .expect("owned discovery descriptor");
         for (words, changed) in [
             (vec!["pkgIndex.tcl"], false),

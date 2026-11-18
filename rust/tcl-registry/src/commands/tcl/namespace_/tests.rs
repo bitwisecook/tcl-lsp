@@ -260,7 +260,7 @@ fn jim_scripted_ensemble_metadata_requires_exact_words_and_separate_helper_bindi
     assert!(ensemble.native_compilation.is_none());
     assert!(ensemble.successful_handler.is_none());
     assert!(ensemble.analyser_hook.is_none());
-    assert!(ensemble.state_transitions.is_none());
+    assert!(ensemble.state_transitions.stated().is_none());
     assert!(ensemble.world_effects.is_unknown());
 }
 

@@ -111,7 +111,7 @@ fn check_extension_default_spec(spec: &tcl_registry::CommandSpec) {
     // The wildcard axes are unstated, not stated narrower.
     assert!(
         spec.command_table_effect.is_none()
-            && spec.state_transitions.is_none()
+            && spec.state_transitions.stated().is_none()
             && spec.world_effects.is_unknown()
     );
 }

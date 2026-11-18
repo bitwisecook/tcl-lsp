@@ -68,7 +68,7 @@ pub(super) use role_resolvers::{
     validate_arg_role_capabilities,
 };
 use world_state::derive_transitions_from_frame_effect;
-pub(super) use world_state::{state_transitions_value, world_effects_value};
+pub(super) use world_state::{state_transitions_knowledge, world_effects_value};
 
 // Command loading
 

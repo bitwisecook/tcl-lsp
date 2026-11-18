@@ -265,7 +265,9 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         analyser_hook: Some(crate::hooks::AnalyserHookId::Source),
-        state_transitions: Some(crate::source_file::SOURCE_TRANSITIONS),
+        state_transitions: crate::knowledge::Knowledge::Partial(
+            crate::source_file::SOURCE_TRANSITIONS,
+        ),
         ..CommandSpec::DEFAULT
     }
 }

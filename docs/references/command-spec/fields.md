@@ -684,6 +684,18 @@ The flags sit on the `world_effects` row itself, so the completeness travels wit
 
 Declares precise identity changes the command performs on the Tcl world — a command coming into being, a namespace appearing, a trace being attached, a variable cell changing identity. Finer-grained than world effects; used by the most exacting optimiser proofs. Leave unset unless a maintainer asks for it.
 
+### `state_transitions_knowledge` — State-transition completeness
+
+*command and subcommand* — How completely the state transitions are known: unknown, partial (a lower bound), or complete for the release windows evidenced from the implementation.
+
+How much of the state-transition footprint is known. **Unknown** claims nothing. **Partial** says the transitions listed happen and there may be more. **Complete** says they are all of them for the release windows you evidenced from the implementation's source.
+
+```
+state_transitions {} -complete {8.4 9.1}
+```
+
+The flags sit on the `state_transitions` row itself, so the completeness travels with the row. One release never vouches for another.
+
 ### `dispatch_dependencies` — Dispatch dependencies
 
 *command and subcommand* — Mutable Tcl domains that must remain stable before specialisation.

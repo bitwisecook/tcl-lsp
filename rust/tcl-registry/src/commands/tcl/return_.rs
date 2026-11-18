@@ -389,7 +389,7 @@ pub fn spec() -> CommandSpec {
         return_type: Some(TclType::String),
         side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         world_effects: crate::knowledge::Knowledge::Partial(RETURN_WORLD_EFFECTS),
-        state_transitions: Some(RETURN_STATE_TRANSITIONS),
+        state_transitions: crate::knowledge::Knowledge::Partial(RETURN_STATE_TRANSITIONS),
         hover: Some(HoverSnippet {
             summary: "Return from the current procedure/script with optional control-code metadata.",
             synopsis: &[

@@ -183,7 +183,7 @@ impl SecurityFloor {
         take_shipped(&mut spec.lowering_hook, shipped.lowering_hook);
         take_shipped(&mut spec.analyser_hook, shipped.analyser_hook);
         take_shipped(&mut spec.semantic_operation, shipped.semantic_operation);
-        take_shipped(&mut spec.state_transitions, shipped.state_transitions);
+        take_shipped_knowledge(&mut spec.state_transitions, shipped.state_transitions);
         take_shipped(&mut spec.native_lowering, shipped.native_lowering);
         take_shipped(&mut spec.bpf_op, shipped.bpf_op);
         // A backing is a variant rather than an `Option`, whose `None` is
@@ -254,7 +254,7 @@ fn apply_subcommand_floor(target: &mut crate::SubCommand, shipped: &crate::SubCo
         shipped.semantic_operation.is_some(),
         shipped.semantic_operation_windows,
     );
-    take_shipped(&mut target.state_transitions, shipped.state_transitions);
+    take_shipped_knowledge(&mut target.state_transitions, shipped.state_transitions);
     if !shipped.subcommand_forms.is_empty() {
         let forms: Vec<_> = target
             .subcommand_forms
@@ -280,7 +280,7 @@ fn apply_form_floor(target: &mut crate::forms::CommandForm, shipped: &crate::for
     take_shipped(&mut target.lowering_hook, shipped.lowering_hook);
     take_shipped(&mut target.codegen_hook, shipped.codegen_hook);
     take_shipped(&mut target.semantic_operation, shipped.semantic_operation);
-    take_shipped(&mut target.state_transitions, shipped.state_transitions);
+    take_shipped_knowledge(&mut target.state_transitions, shipped.state_transitions);
 }
 
 /// Match a form by the invocation route it describes, not its display name.
@@ -297,6 +297,16 @@ fn same_form_route(left: &crate::forms::CommandForm, right: &crate::forms::Comma
 /// The shipped value wins wherever the shipped command has one.
 fn take_shipped<T>(target: &mut Option<T>, shipped: Option<T>) {
     if shipped.is_some() {
+        *target = shipped;
+    }
+}
+
+/// The shipped knowledge wins wherever the shipped command states any.
+fn take_shipped_knowledge<T>(
+    target: &mut crate::knowledge::Knowledge<T>,
+    shipped: crate::knowledge::Knowledge<T>,
+) {
+    if !shipped.is_unknown() {
         *target = shipped;
     }
 }
@@ -480,7 +490,9 @@ mod tests {
         semantic_operation: Some(crate::semantic_operation::SemanticOperationId::Intrinsic(
             crate::intrinsic::IntrinsicId::ChannelWrite,
         )),
-        state_transitions: Some(crate::state_transition::StateTransitionDescriptor::EMPTY),
+        state_transitions: crate::knowledge::Knowledge::Partial(
+            crate::state_transition::StateTransitionDescriptor::EMPTY,
+        ),
         native_lowering: Some(crate::native_lowering::NativeLowering::Completion(
             crate::completion::CompletionCode::Break,
         )),
@@ -599,7 +611,7 @@ mod tests {
         assert_eq!(declared.lowering_hook, Some(LoweringHookId::While));
         assert!(declared.analyser_hook.is_none());
         assert!(declared.semantic_operation.is_none());
-        assert!(declared.state_transitions.is_none());
+        assert!(declared.state_transitions.stated().is_none());
         assert!(declared.native_lowering.is_none());
         assert!(declared.bpf_op.is_none());
         assert!(declared.runtime_backing.is_none());

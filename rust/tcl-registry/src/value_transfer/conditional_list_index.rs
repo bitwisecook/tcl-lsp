@@ -129,7 +129,7 @@ fn closed_single_index_effects(selected: &ResolvedInvocation<'_, '_>) -> bool {
         && closed_empty_world(world.command.stated())
         && world.subcommand.is_unknown()
         && world.form.is_unknown()
-        && closed_empty_transitions(selected.selected.spec.state_transitions)
+        && closed_empty_transitions(selected.selected.spec.state_transitions.stated())
         && closed_empty_transitions(transitions.command)
         && transitions.subcommand.is_none()
         && transitions.form.is_none()
@@ -476,16 +476,18 @@ mod tests {
                 spec.world_effects = crate::knowledge::Knowledge::Partial(DIRECT_WRITE);
             }
             IndexEffectMutation::VariableCellTransition => {
-                spec.state_transitions = Some(StateTransitionDescriptor {
-                    resolver: Some(variable_transition),
-                    ..StateTransitionDescriptor::EMPTY
-                });
+                spec.state_transitions =
+                    crate::knowledge::Knowledge::Partial(StateTransitionDescriptor {
+                        resolver: Some(variable_transition),
+                        ..StateTransitionDescriptor::EMPTY
+                    });
             }
             IndexEffectMutation::CommandBindingTransition => {
-                spec.state_transitions = Some(StateTransitionDescriptor {
-                    resolver: Some(command_transition),
-                    ..StateTransitionDescriptor::EMPTY
-                });
+                spec.state_transitions =
+                    crate::knowledge::Knowledge::Partial(StateTransitionDescriptor {
+                        resolver: Some(command_transition),
+                        ..StateTransitionDescriptor::EMPTY
+                    });
             }
         }
     }

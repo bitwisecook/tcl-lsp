@@ -380,7 +380,7 @@ const PROVIDE_FORMS: &[SubCommandForm] = &[SubCommandForm {
         ..WorldEffectDescriptor::EMPTY
     }),
     // Replace, so a dynamic package operand adds no package-state widening.
-    state_transitions: Some(StateTransitionDescriptor {
+    state_transitions: crate::knowledge::Knowledge::Partial(StateTransitionDescriptor {
         composition: StateTransitionComposition::Replace,
         ..StateTransitionDescriptor::EMPTY
     }),
@@ -404,7 +404,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "forget",
-        state_transitions: Some(package_descriptor(forget_transitions)),
+        state_transitions: crate::knowledge::Knowledge::Partial(package_descriptor(
+            forget_transitions,
+        )),
         arity: Arity::any(),
         detail: "Removes all information about each specified package from this interpreter, clearing both its package ifneeded script(s) and its package provide record.",
         synopsis: "package forget ?package package ...?",
@@ -423,7 +425,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "ifneeded",
-        state_transitions: Some(package_descriptor(ifneeded_transitions)),
+        state_transitions: crate::knowledge::Knowledge::Partial(package_descriptor(
+            ifneeded_transitions,
+        )),
         world_effects: crate::knowledge::Knowledge::Partial(PACKAGE_REGISTRATION_EFFECTS),
         arity: Arity::new(2, 3),
         detail: "Registers script to be evaluated (in the global namespace) the next time package require needs this version and it is not yet provided; replaces any script already registered for the same package/version pair. With script omitted, returns the currently registered script, or an empty string if none is registered.",
@@ -466,7 +470,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "prefer",
-        state_transitions: Some(package_descriptor(prefer_transitions)),
+        state_transitions: crate::knowledge::Knowledge::Partial(package_descriptor(
+            prefer_transitions,
+        )),
         arity: Arity::new(0, 1),
         detail: "Returns or sets the current mode of selection logic used by package require/present: \"stable\" (the default) or \"latest\". Once set to latest, an attempt to set it back to stable is silently ineffective.",
         synopsis: "package prefer ?latest|stable?",
@@ -514,7 +520,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "provide",
         source_package_query: Some(crate::source_navigation::SourcePackageQuery::ProvidedVersion),
-        state_transitions: Some(package_descriptor(provide_transitions)),
+        state_transitions: crate::knowledge::Knowledge::Partial(package_descriptor(
+            provide_transitions,
+        )),
         // Reads, and in the setter form writes, only the package database;
         // `Tcl_PkgProvideEx` runs no script or handler.
         world_effects: crate::knowledge::Knowledge::Partial(PACKAGE_REGISTRATION_EFFECTS),
@@ -535,7 +543,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "require",
         source_package_query: Some(crate::source_navigation::SourcePackageQuery::RequiredVersion),
-        state_transitions: Some(package_descriptor(require_transitions)),
+        state_transitions: crate::knowledge::Knowledge::Partial(package_descriptor(
+            require_transitions,
+        )),
         arity: Arity::at_least(1),
         detail: "Ensures a version of package satisfying the given requirements is loaded: if not already provided, evaluates the highest-acceptable package ifneeded script (in the global namespace), falling back to package unknown as a last resort. Returns the loaded version; raises an error if no acceptable version becomes available. The highest acceptable version is selected; from Tcl 8.5, this is subject to the package prefer mode (stable by default, preferring a stable version over an unstable one) — Tcl 8.4 has no package prefer and no stable/unstable distinction, so it always simply picks the highest acceptable version.",
         synopsis: "package require ?-exact? package ?requirement...?",
@@ -554,7 +564,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "unknown",
-        state_transitions: Some(package_descriptor(unknown_transitions)),
+        state_transitions: crate::knowledge::Knowledge::Partial(package_descriptor(
+            unknown_transitions,
+        )),
         surface: None,
         arity: Arity::new(0, 1),
         detail: "Sets the last-resort command invoked by package require when no suitable version is found in the ifneeded database. With command omitted, returns the current handler, or an empty string if none is set; an empty-string command clears it.",
@@ -627,7 +639,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "package vsatisfies version requirement ?requirement ...?",
         // Compares its operands only; no interpreter state or callback.
         world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
-        state_transitions: Some(StateTransitionDescriptor::EMPTY),
+        state_transitions: crate::knowledge::Knowledge::Partial(StateTransitionDescriptor::EMPTY),
         return_type: Some(TclType::Boolean),
         subcommand_forms: VSATISFIES_FORMS,
         semantics: SemanticsDeclaration::Declared(
@@ -668,14 +680,18 @@ const JIM_SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "forget",
         arity: Arity::at_least(1),
-        state_transitions: Some(package_descriptor(forget_transitions)),
+        state_transitions: crate::knowledge::Knowledge::Partial(package_descriptor(
+            forget_transitions,
+        )),
         synopsis: "package forget package ?package ...?",
         ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "provide",
         arity: Arity::new(1, 2),
-        state_transitions: Some(package_descriptor(jim_provide_transitions)),
+        state_transitions: crate::knowledge::Knowledge::Partial(package_descriptor(
+            jim_provide_transitions,
+        )),
         synopsis: "package provide name ?version?",
         detail: "Provides the package at version 1.0; the optional version word is ignored. Repeated provide is an error.",
         ..SubCommand::DEFAULT
@@ -683,7 +699,9 @@ const JIM_SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "require",
         arity: Arity::new(1, 2),
-        state_transitions: Some(package_descriptor(jim_require_transitions)),
+        state_transitions: crate::knowledge::Knowledge::Partial(package_descriptor(
+            jim_require_transitions,
+        )),
         traits: Traits::LOADS_EXTERNAL_UNIT,
         synopsis: "package require name ?version?",
         detail: "Loads a package by file lookup; the optional version word is ignored.",

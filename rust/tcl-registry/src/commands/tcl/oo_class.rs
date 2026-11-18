@@ -229,7 +229,7 @@ pub(crate) const CLASS_FACTORY_SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         defines_command_at: Some(0),
         world_effects: crate::knowledge::Knowledge::Partial(CLASS_FACTORY_EFFECTS),
-        state_transitions: Some(CLASS_CREATE_TRANSITIONS),
+        state_transitions: crate::knowledge::Knowledge::Partial(CLASS_CREATE_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -241,7 +241,7 @@ pub(crate) const CLASS_FACTORY_SUBCOMMANDS: &[SubCommand] = &[
         body_kind: BodyKind::Structural,
         return_type: Some(TclType::String),
         world_effects: crate::knowledge::Knowledge::Partial(CLASS_FACTORY_EFFECTS),
-        state_transitions: Some(CLASS_NEW_TRANSITIONS),
+        state_transitions: crate::knowledge::Knowledge::Partial(CLASS_NEW_TRANSITIONS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -254,7 +254,9 @@ pub(crate) const CLASS_FACTORY_SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         defines_command_at: Some(0),
         world_effects: crate::knowledge::Knowledge::Partial(CLASS_FACTORY_EFFECTS),
-        state_transitions: Some(CLASS_CREATE_WITH_NAMESPACE_TRANSITIONS),
+        state_transitions: crate::knowledge::Knowledge::Partial(
+            CLASS_CREATE_WITH_NAMESPACE_TRANSITIONS,
+        ),
         ..SubCommand::DEFAULT
     },
 ];

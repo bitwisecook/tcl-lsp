@@ -30,7 +30,7 @@ use super::command::{
     StatedKnowledge, arg_role_capabilities, completion_value, effects_knowledge, effects_row,
     hook_path, hook_source, load_refinement, native_count_role_resolver, native_fold, native_id,
     native_layout_role_resolver, option_relation_row, repeat_row, side_effect_row,
-    state_transitions_value, validate_arg_role_capabilities, validate_role_resolver_inputs,
+    state_transitions_knowledge, validate_arg_role_capabilities, validate_role_resolver_inputs,
     variable_receivers_value, world_effects_value,
 };
 use super::statement_reader::{Stmt, Word, block};
@@ -583,20 +583,20 @@ pub(super) fn apply_subcommand_stmt(
         "world_effects" => sub.world_effects = world_effects_value(stmt, tables, log),
         "state_transitions" => {
             let scope = hook_path(&log.command, owner);
-            sub.state_transitions =
-                state_transitions_value(stmt, tables, &scope, log).map(|(descriptor, source)| {
-                    if let Some((source, line)) = source {
-                        hooks.push(HookDecl {
-                            owner: HookOwner::Subcommand(owner.to_owned()),
-                            field: HookFamily::StateTransitionResolver.field(),
-                            family: HookFamily::StateTransitionResolver,
-                            source,
-                            line,
-                            row: None,
-                        });
-                    }
-                    descriptor
+            let (knowledge, source) = state_transitions_knowledge(stmt, tables, &scope, log);
+            sub.state_transitions = knowledge;
+            if !knowledge.is_unknown()
+                && let Some((source, line)) = source
+            {
+                hooks.push(HookDecl {
+                    owner: HookOwner::Subcommand(owner.to_owned()),
+                    field: HookFamily::StateTransitionResolver.field(),
+                    family: HookFamily::StateTransitionResolver,
+                    source,
+                    line,
+                    row: None,
                 });
+            }
         }
         "arg_role_resolver"
         | "command_prefix_resolver"

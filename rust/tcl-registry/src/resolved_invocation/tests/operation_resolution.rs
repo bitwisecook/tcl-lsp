@@ -184,7 +184,7 @@ fn registry_exposes_standard_code_descriptors_and_conservative_invoke_fallback()
 
     registry.insert(CommandSpec {
         name: "explicit-closed-transition-fixture",
-        state_transitions: Some(StateTransitionDescriptor::EMPTY),
+        state_transitions: crate::knowledge::Knowledge::Partial(StateTransitionDescriptor::EMPTY),
         ..CommandSpec::DEFAULT
     });
     let explicit_transitions = registry

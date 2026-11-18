@@ -70,9 +70,10 @@ fn close_command(spec: &mut CommandSpec, surfaces: &'static [SpecSurface]) {
     spec.world_effects = world_effects;
     spec.completion = closed_completion(spec.completion, completion);
     spec.result_stability = result_stability;
-    spec.state_transitions = spec
-        .state_transitions
-        .or(Some(StateTransitionDescriptor::EMPTY));
+    spec.state_transitions = spec.state_transitions.stated().map_or(
+        crate::knowledge::Knowledge::Complete(StateTransitionDescriptor::EMPTY, surfaces),
+        crate::knowledge::Knowledge::Partial,
+    );
     spec.dispatch_dependencies =
         spec.dispatch_dependencies
             .or(Some(DispatchDependencyDescriptor::replace(
@@ -86,9 +87,10 @@ fn close_subcommand(sub: &mut SubCommand, surfaces: &'static [SpecSurface]) {
     sub.world_effects = world_effects;
     sub.completion = closed_completion(sub.completion, completion);
     sub.result_stability = result_stability;
-    sub.state_transitions = sub
-        .state_transitions
-        .or(Some(StateTransitionDescriptor::EMPTY));
+    sub.state_transitions = sub.state_transitions.stated().map_or(
+        crate::knowledge::Knowledge::Complete(StateTransitionDescriptor::EMPTY, surfaces),
+        crate::knowledge::Knowledge::Partial,
+    );
     sub.dispatch_dependencies =
         sub.dispatch_dependencies
             .or(Some(DispatchDependencyDescriptor::replace(

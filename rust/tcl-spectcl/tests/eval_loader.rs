@@ -1367,6 +1367,7 @@ fn a_state_transitions_block_loads_its_rows_and_its_resolver_body() {
         let descriptor = command
             .spec
             .state_transitions
+            .stated()
             .expect("the descriptor loads");
         assert_eq!(
             descriptor.argument_shape,
@@ -1464,6 +1465,7 @@ fn from_frame_effect_derives_the_alias_pairs_resolver() {
         let resolver = alias
             .spec
             .state_transitions
+            .stated()
             .and_then(|descriptor| descriptor.resolver)
             .expect("the derived resolver");
         let facts = resolver(InvocationArguments::literals(&["1", "other", "mine"]));
@@ -1478,6 +1480,7 @@ fn from_frame_effect_derives_the_alias_pairs_resolver() {
         assert!(
             alias.spec.subcommands[0]
                 .state_transitions
+                .stated()
                 .and_then(|descriptor| descriptor.resolver)
                 .is_some(),
             "the subcommand derives from its command's frame effect"
@@ -1487,6 +1490,7 @@ fn from_frame_effect_derives_the_alias_pairs_resolver() {
             plain
                 .spec
                 .state_transitions
+                .stated()
                 .is_some_and(|descriptor| descriptor.resolver.is_none())
         );
         assert!(
@@ -1603,6 +1607,7 @@ fn derived_frame_aliases_register_explicit_logical_source_dispatch() {
             alias
                 .spec
                 .state_transitions
+                .stated()
                 .unwrap()
                 .logical_source_resolver
                 .is_some()
@@ -1612,6 +1617,7 @@ fn derived_frame_aliases_register_explicit_logical_source_dispatch() {
             plain
                 .spec
                 .state_transitions
+                .stated()
                 .unwrap()
                 .logical_source_resolver
                 .is_none()

@@ -540,9 +540,16 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "State transitions",
         EFFECTS,
         FieldKind::RustExpr {
-            hint: "Some(StateTransitionDescriptor::EMPTY)",
+            hint: "Knowledge::Partial(StateTransitionDescriptor::EMPTY)",
         },
         "Target-neutral command, namespace, interpreter, trace, and alias transitions.",
+    ),
+    f(
+        "state_transitions_knowledge",
+        "State-transition completeness",
+        EFFECTS,
+        FieldKind::Knowledge,
+        "How completely the state transitions are known: unknown, partial (a lower bound), or complete for the release windows evidenced from the implementation.",
     ),
     f(
         "dispatch_dependencies",

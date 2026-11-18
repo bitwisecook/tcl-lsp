@@ -469,6 +469,7 @@ mod tests {
             .expect("authored native return storage");
         let transitions = selected
             .state_transitions
+            .stated()
             .expect("independent native return identity effects");
         for version in tcl_dialect::TclVersion::ALL {
             let dialect = InvocationDialect::for_version(version);
