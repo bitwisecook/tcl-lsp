@@ -253,3 +253,17 @@ fn a_hover_key_written_outside_the_block_is_dropped_by_the_loader_not_called_unk
 | other: explorer_gui::post_ssa_card_words_selected_facts_and_lists_selections | 1 |
 
 The full list is `docs/work/name-handling/lists/irules-registry-tooling-failing-2026-11-18.txt`.
+
+## `tcl-explorer` red by cause (18 November re-measure, 12 of 142)
+
+| Cause | Tests | Owner |
+| --- | --- | --- |
+| Native i64 premise record: the compiler declines with 4 premises where the tests expect 7 (`direct-body`, `frame`, `actuals`, `native-integer`) and "general" where `native-i64-add` is expected | `aot_text_follows_the_pass_selection`, `aot_view_carries_the_plan_and_every_rejected_native_premise`, `wasm_view_exposes_common_native_i64_selection_evidence` | execution / dataflow (native tier) |
+| SCCP views over value facts: the `lassign` route, the selection and the unreached arms | `sccp_text_prints_the_route_of_each_cell_update`, `sccp_reports_each_statements_completion_paths`, `sccp_reports_the_selection`, `sccp_reports_the_unreached_arms` | values / dataflow |
+| Taint replay completeness: with the top-level `namespace_context` cleared the report is still complete (`analysed`), the tests expect `unavailable` | `taint_replay_availability_is_separate_from_empty_warning_arrays`, `remaining_actual_cu_views_retain_profiles_and_ignore_display_labels` | taint |
+| Codegen output: `storeStk` absent from the top-level assembly, `invoke` absent from the native-tier lowering record | `asm_emits_structured_instructions_for_top_level`, `wasm_view_exposes_the_native_tier_lowering_record` | execution |
+| Wasm row names: **the explorer's own presentation** (below) | `source_function_rows_preserve_duplicate_names_and_named_top` | tooling |
+
+### The wasm row names are ours, and the fix needs a test-helper edit
+
+`finish_owned_function_names` (`tcl-codegen`, `owned_function_names.rs`) gives every colliding function a body-owned symbol, `__tcl_wasm_body_<ordinal>`, on purpose: the wasm name is a physical symbol and no canonical Tcl name is left pointing at one of several definitions. In `proc p {} {...}; proc p {} {...}; proc ::top {} {...}` the user procedure `::top` collides with the module's own top-level function, so all three procedure rows come out as `__tcl_wasm_body_0..2` and the explorer row `name` (read from `function.name`) is no longer a source name. The test asks for the source names (`p`, `p`, `::top`), which is also what an explorer user needs. The fix belongs to `tcl-explorer`: resolve each row's source name from `module.source_function_ids` through the unit's procedure table instead of the physical symbol. That changes the signature of `wasm_to_explorer_json` (it needs the unit), and so the test helper `wasm_entries` that calls it: a test-body edit held for the owner's approval like the others. Nothing was changed.
