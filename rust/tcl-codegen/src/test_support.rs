@@ -88,7 +88,7 @@ pub(crate) fn captured_native_namespace_entry_with_owner(
     let (owner, entry) = captured_native_entry_with_request(
         profile,
         |vm| {
-            let _ = vm.invoke_command(
+            let created = vm.invoke_command(
                 "namespace",
                 &[
                     tcl_vm::Value::string("eval"),
@@ -96,11 +96,15 @@ pub(crate) fn captured_native_namespace_entry_with_owner(
                     tcl_vm::Value::string(""),
                 ],
             );
-            vm.try_define_procedure(&procedure, &[], "set entry_probe 1")
-                .expect("authentic namespace procedure definition");
+            assert_eq!(created.code, tcl_vm::Code::Ok, "{namespace} exists");
         },
         |vm| {
-            let _ = vm.invoke_command(&procedure, &[]);
+            // Defined under the capture service, so its first compilation is
+            // the one captured, whenever the engine compiles it. The service
+            // declines the body; only the captured entry matters here.
+            vm.try_define_procedure(&procedure, &[], "set entry_probe 1")
+                .expect("authentic namespace procedure definition");
+            let _ = vm.try_invoke_command(&procedure, &[]);
         },
     );
     assert_eq!(
@@ -136,6 +140,16 @@ pub(crate) fn captured_native_entry_with_request(
         fn compile_procedure_bytes_with_entry(
             &self,
             _: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+            _: &'static tcl_dialect::DialectProfile,
+            entry: &tcl_runtime_api::NativeCompilationEntry,
+            _: tcl_runtime_api::ProcedureDispatch,
+        ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            *self.0.borrow_mut() = Some(entry.clone());
+            self.compile("")
+        }
+        fn compile_original_procedure_bytes_with_entry(
+            &self,
+            _: &tcl_runtime_api::OriginalProcedureCompileRequest,
             _: &'static tcl_dialect::DialectProfile,
             entry: &tcl_runtime_api::NativeCompilationEntry,
             _: tcl_runtime_api::ProcedureDispatch,
@@ -180,6 +194,11 @@ pub(crate) fn captured_native_entry_with_request(
         },
     )
     .expect("authentic native registration before entry capture");
+    // Setup scripts (`namespace eval`, definitions) compile like any other;
+    // only the request's compilation is captured instead of compiled.
+    vm.set_compiler(Box::new(
+        crate::compile_service::BytecodeCompileService::for_profile(profile),
+    ));
     setup(&mut vm);
     vm.set_compiler(Box::new(Capture(Rc::clone(&captured))));
     request(&mut vm);
