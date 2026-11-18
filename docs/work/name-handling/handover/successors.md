@@ -21,7 +21,6 @@ The burn-down continues with new sessions. This file is what every one of them r
 | `live-inlining` | Pack reference bodies inlined on the VM's live compile: landed, switched off until an error inside a spliced body presents as tclsh's does; then discrete command-binding items from `analyser-binding` | Opus | `session_017u5g3KCTRHzSduK23yDtc2` |
 
 The coordinator is session `session_017u5g3KpKgjfMZcPMj8rx4F`. It rules on questions, keeps the scoreboard and does not write area code. `tcl-syntax::naming`, `tcl-lexer` and `xtask` have no session: a session that needs a change there asks the coordinator, then makes it as one small separate commit with the tclsh oracle in the test, after the `tcl-syntax` and `tcl-lexer` suites, `make xtask-gates` and the whole `tcl-compiler` suite against its baseline, and tells the analyser-binding session before pushing.
-- **Format and lint before the push, not after.** `cargo fmt` on the files you changed and clippy to completion come before `git push`; on 18 November one session had to push a formatting commit for 18 files others left unformatted, and two pushes went out with clippy still running. A count of fixed tests is quoted only against a baseline taken at a clean `origin/work` head.
 
 The owner's open issues are worked by a separate set of sessions under their own orchestrator (session `session_017u5g3KDVBH5v5PXpMYy7KP`); their roster and hand-overs are in `docs/work/issue-sessions/`. They push to `work` too and announce changes in an area's files to that area's session: answer them directly. Issues #2324, #1956 and #1655 stay with `tk-oo`; queue item "No procedure has a transfer summary" of `dataflow-optimiser` is the issue session `dataflow`'s (#2408, #1796).
 
@@ -50,6 +49,7 @@ The owner's open issues are worked by a separate set of sessions under their own
 - Collapse tests that assert the same thing at the same layer once they pass, as tables; not while they fail.
 - Disk and memory are small (4 cores, 15 GB, about 10 GB of free disk): one cargo build at a time, the test profile at `opt-level 1`, and remove `target/debug/incremental` when the disk fills.
 - Keep your area's section of `current-state.md` a short current snapshot; replace the outgoing session's notes after your first full run.
+- **Format and lint before the push, not after.** `cargo fmt` on the files you changed and clippy to completion come before `git push`; on 18 November one session had to push a formatting commit for 18 files others left unformatted, and two pushes went out with clippy still running. A count of fixed tests is quoted only against a baseline taken at a clean `origin/work` head.
 
 ## Reporting
 
