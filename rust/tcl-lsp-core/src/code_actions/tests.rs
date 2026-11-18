@@ -336,18 +336,25 @@ fn fp_inline_refuses_a_braced_argument_that_is_not_a_plain_word() {
 
 #[test]
 fn tp_inline_does_not_substitute_prefix_sharing_name() {
-    // Param `n`; body reads `$nn` (a different variable) and `$n`. Only the
-    // complete `$n` reference is replaced — `$nn` must survive intact,
-    // where a naive `replace("$n", …)` would corrupt it (issue 179).
+    // Issue 179: a naive `replace("$n", …)` corrupts `$nn`. tclsh 8.6.18 and
+    // 9.0.4: a free `$nn` is the proc's unset local, so the call fails and
+    // inlining refuses; as a second parameter each reference binds its own.
     let src = "proc g {n} { puts $nn$n }\ng 5\n";
-    assert_eq!(inline_outcome(src, 1).unwrap(), "puts $nn5");
+    let reason = inline_outcome(src, 1).unwrap_err();
+    assert!(!reason.is_empty());
+    let src = "proc g {n nn} { list $nn $n }\ng 5 6\n";
+    assert_eq!(inline_outcome(src, 1).unwrap(), "list 6 5");
 }
 
 #[test]
 fn tp_inline_substitutes_braced_var_reference() {
-    // `${p}` is a complete reference and is substituted; `${pq}` is not.
+    // tclsh 8.6.18 and 9.0.4: a free `${pq}` fails in the proc but would read
+    // the caller's variable once inlined; bound, `${p}${pq}` gives 98.
     let src = "proc h {p} { puts ${p}${pq} }\nh 9\n";
-    assert_eq!(inline_outcome(src, 1).unwrap(), "puts 9${pq}");
+    let reason = inline_outcome(src, 1).unwrap_err();
+    assert!(!reason.is_empty());
+    let src = "proc h {p pq} { puts ${p}${pq} }\nh 9 8\n";
+    assert_eq!(inline_outcome(src, 1).unwrap(), "puts 98");
 }
 
 // W213 unset -nocomplain action
