@@ -193,7 +193,7 @@ fn find_obj_method_call_sites_covers_top_level_and_subst() {
 
 #[test]
 fn find_obj_method_call_sites_finds_calls_in_proc_body() {
-    let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nproc f {} { global d; $d bark }\n";
+    let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nproc f {} { global d; $d bark }\nf\n";
     let analysis = analyse(src);
     let sites = find_obj_method_call_sites(
         src,

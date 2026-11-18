@@ -428,8 +428,8 @@ fn a_mixin_branch_decides_its_own_providers_visibility() {
     //   oo::class create MChild { superclass MBase } ; unexport m
     //   oo::class create D { superclass A ; mixin MChild }
     //   [D new] m  ->  A-m   (not MBase-m)
-    let src = "oo::class create A {\n    method m {} { return 1 }\n}\noo::class create MBase {\n    method m {} { return 2 }\n}\noo::class create MChild {\n    superclass MBase\n    unexport m\n}\noo::class create D {\n    superclass A\n    mixin MChild\n    method wire {} {\n        after idle [list [self] m]\n    }\n}\n";
-    let analysis = analyse(src);
+    let src = "oo::class create A {\n    method m {} { return 1 }\n}\noo::class create MBase {\n    method m {} { return 2 }\n}\noo::class create MChild {\n    superclass MBase\n    unexport m\n}\noo::class create D {\n    superclass A\n    mixin MChild\n    method wire {} {\n        after idle [list [self] m]\n    }\n}\n[D new] wire\n";
+    let analysis = Analyser::new().analyse(src, "tcl").clone();
     let dialect = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
     let cursor = u32::try_from(src.find("] m]").unwrap() + 2).unwrap();
     assert_eq!(
@@ -456,8 +456,8 @@ fn a_live_mixin_branch_still_outranks_the_spine() {
     // The control for the case above: with the branch left public, the
     // mixin's inherited `MBase::m` is what `[D new] m` enters (tclsh
     // 8.6.16 / 9.0.4 -> MBase-m), so the capture belongs to *its* family.
-    let src = "oo::class create A {\n    method m {} { return 1 }\n}\noo::class create MBase {\n    method m {} { return 2 }\n}\noo::class create MPub {\n    superclass MBase\n}\noo::class create D {\n    superclass A\n    mixin MPub\n    method wire {} {\n        after idle [list [self] m]\n    }\n}\n";
-    let analysis = analyse(src);
+    let src = "oo::class create A {\n    method m {} { return 1 }\n}\noo::class create MBase {\n    method m {} { return 2 }\n}\noo::class create MPub {\n    superclass MBase\n}\noo::class create D {\n    superclass A\n    mixin MPub\n    method wire {} {\n        after idle [list [self] m]\n    }\n}\n[D new] wire\n";
+    let analysis = Analyser::new().analyse(src, "tcl").clone();
     let dialect = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
     let cursor = u32::try_from(src.find("] m]").unwrap() + 2).unwrap();
     assert_eq!(
@@ -473,8 +473,8 @@ fn a_mixin_branch_can_revive_its_own_bases_unexported_member() {
     // the mixin `NChild` exports the inherited name, and tclsh 8.6.16 /
     // 9.0.4 run `NBase`'s body for `[D new] n` — ahead of the spine's
     // public `A2::n`.
-    let src = "oo::class create A2 {\n    method n {} { return 1 }\n}\noo::class create NBase {\n    method n {} { return 2 }\n    unexport n\n}\noo::class create NChild {\n    superclass NBase\n    export n\n}\noo::class create D {\n    superclass A2\n    mixin NChild\n    method wire {} {\n        after idle [list [self] n]\n    }\n}\n";
-    let analysis = analyse(src);
+    let src = "oo::class create A2 {\n    method n {} { return 1 }\n}\noo::class create NBase {\n    method n {} { return 2 }\n    unexport n\n}\noo::class create NChild {\n    superclass NBase\n    export n\n}\noo::class create D {\n    superclass A2\n    mixin NChild\n    method wire {} {\n        after idle [list [self] n]\n    }\n}\n[D new] wire\n";
+    let analysis = Analyser::new().analyse(src, "tcl").clone();
     let dialect = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
     let cursor = u32::try_from(src.find("] n]").unwrap() + 2).unwrap();
     assert_eq!(
@@ -489,8 +489,8 @@ fn a_mixin_declared_on_a_superclass_governs_its_branch_too() {
     // Branch roots are collected transitively, so a `mixin` written on a
     // superclass behaves exactly as one written on the receiver: tclsh
     // 8.6.16 / 9.0.4 answer `[D new] m` with `A-m`.
-    let src = "oo::class create A {\n    method m {} { return 1 }\n}\noo::class create MBase {\n    method m {} { return 2 }\n}\noo::class create MChild {\n    superclass MBase\n    unexport m\n}\noo::class create S {\n    superclass A\n    mixin MChild\n}\noo::class create D {\n    superclass S\n    method wire {} {\n        after idle [list [self] m]\n    }\n}\n";
-    let analysis = analyse(src);
+    let src = "oo::class create A {\n    method m {} { return 1 }\n}\noo::class create MBase {\n    method m {} { return 2 }\n}\noo::class create MChild {\n    superclass MBase\n    unexport m\n}\noo::class create S {\n    superclass A\n    mixin MChild\n}\noo::class create D {\n    superclass S\n    method wire {} {\n        after idle [list [self] m]\n    }\n}\n[D new] wire\n";
+    let analysis = Analyser::new().analyse(src, "tcl").clone();
     let dialect = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
     let cursor = u32::try_from(src.find("] m]").unwrap() + 2).unwrap();
     assert_eq!(
@@ -595,8 +595,8 @@ fn list_built_self_callback_cannot_reach_an_unexported_method() {
 
 #[test]
 fn wrapped_my_callback_cursor_resolves_private_dispatch() {
-    let src = "oo::class create C {\n    method tick {} { return 1 }\n    unexport tick\n    method wire {chan} {\n        fileevent $chan readable [namespace code [list my tick]]\n    }\n}\n";
-    let analysis = analyse(src);
+    let src = "oo::class create C {\n    method tick {} { return 1 }\n    unexport tick\n    method wire {chan} {\n        fileevent $chan readable [namespace code [list my tick]]\n    }\n}\n[C new] wire stdin\n";
+    let analysis = Analyser::new().analyse(src, "tcl").clone();
     let cursor = u32::try_from(src.rfind("tick]").unwrap()).unwrap();
     assert_eq!(
         list_built_self_method_target_at_cursor(
@@ -697,8 +697,8 @@ fn qualified_tcloo_self_helper_builds_the_same_callback() {
 
 #[test]
 fn callback_cursor_classifier_reaches_constructor_and_destructor_bodies() {
-    let src = "oo::class create C {\n    method tick {} { return 1 }\n    constructor {} {\n        after idle [list [self] tick]\n    }\n    destructor {\n        after idle [list [self] tick]\n    }\n}\n";
-    let analysis = analyse(src);
+    let src = "oo::class create C {\n    method tick {} { return 1 }\n    constructor {} {\n        after idle [list [self] tick]\n    }\n    destructor {\n        after idle [list [self] tick]\n    }\n}\n[C new] destroy\n";
+    let analysis = Analyser::new().analyse(src, "tcl").clone();
     let dialect = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
     let first = src.find("] tick").unwrap() + 2;
     let second = src[first + 1..].find("] tick").unwrap() + first + 3;
@@ -757,8 +757,8 @@ fn inherited_callback_joins_the_providers_reference_set() {
     // 9.0.4 both run `Base`'s body for `[list [Child new] tick]`.  Both
     // directions must agree on that, or rename would edit one and not the
     // other.
-    let src = "oo::class create Base {\n    method tick {} { return 1 }\n}\noo::class create Child {\n    superclass Base\n    method wire {} {\n        after idle [list [self] tick]\n    }\n}\n";
-    let analysis = analyse(src);
+    let src = "oo::class create Base {\n    method tick {} { return 1 }\n}\noo::class create Child {\n    superclass Base\n    method wire {} {\n        after idle [list [self] tick]\n    }\n}\n[Child new] wire\n";
+    let analysis = Analyser::new().analyse(src, "tcl").clone();
     let dialect = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
     let cursor = u32::try_from(src.find("] tick").unwrap() + 2).unwrap();
     assert_eq!(
@@ -802,8 +802,8 @@ fn a_receiver_that_reexports_an_unexported_provider_resolves_both_ways() {
     // the other direction: `Base` unexports its own `tock`, `Child`
     // exports the inherited name, and tclsh 8.6.16 / 9.0.4 run `Base`'s
     // body for `[Child new] tock`.
-    let src = "oo::class create Base {\n    method tock {} { return 1 }\n    unexport tock\n}\noo::class create Child {\n    superclass Base\n    export tock\n    method wire {} {\n        after idle [list [self] tock]\n    }\n}\n";
-    let analysis = analyse(src);
+    let src = "oo::class create Base {\n    method tock {} { return 1 }\n    unexport tock\n}\noo::class create Child {\n    superclass Base\n    export tock\n    method wire {} {\n        after idle [list [self] tock]\n    }\n}\n[Child new] wire\n";
+    let analysis = Analyser::new().analyse(src, "tcl").clone();
     let dialect = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
     let cursor = u32::try_from(src.find("] tock").unwrap() + 2).unwrap();
     assert_eq!(
@@ -824,8 +824,8 @@ fn an_overriding_receiver_keeps_its_callback_in_its_own_family() {
     // `Child` declares its own `tick`, so the capture dispatches there.
     // `Base::tick`'s family must not claim it (renaming `Base::tick`
     // would otherwise rewrite a word that never called it).
-    let src = "oo::class create Base {\n    method tick {} { return 1 }\n}\noo::class create Child {\n    superclass Base\n    method tick {} { return 2 }\n    method wire {} {\n        after idle [list [self] tick]\n    }\n}\n";
-    let analysis = analyse(src);
+    let src = "oo::class create Base {\n    method tick {} { return 1 }\n}\noo::class create Child {\n    superclass Base\n    method tick {} { return 2 }\n    method wire {} {\n        after idle [list [self] tick]\n    }\n}\n[Child new] wire\n";
+    let analysis = Analyser::new().analyse(src, "tcl").clone();
     let dialect = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
     let cursor = u32::try_from(src.find("] tick").unwrap() + 2).unwrap();
     assert_eq!(
@@ -859,8 +859,8 @@ fn a_mixins_unexport_does_not_suppress_the_superclass_capture() {
     // C enters each mixin with a fresh copy of the dispatch flags, so a
     // mixin that unexports the name empties only its own branch: tclsh
     // 8.6.16 / 9.0.4 still run `Base`'s `tick` for `[Child new] tick`.
-    let src = "oo::class create Base {\n    method tick {} { return 1 }\n}\noo::class create Mix {\n    unexport tick\n}\noo::class create Child {\n    superclass Base\n    mixin Mix\n    method wire {} {\n        after idle [list [self] tick]\n    }\n}\n";
-    let analysis = analyse(src);
+    let src = "oo::class create Base {\n    method tick {} { return 1 }\n}\noo::class create Mix {\n    unexport tick\n}\noo::class create Child {\n    superclass Base\n    mixin Mix\n    method wire {} {\n        after idle [list [self] tick]\n    }\n}\n[Child new] wire\n";
+    let analysis = Analyser::new().analyse(src, "tcl").clone();
     let dialect = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
     let cursor = u32::try_from(src.find("] tick").unwrap() + 2).unwrap();
     assert_eq!(
