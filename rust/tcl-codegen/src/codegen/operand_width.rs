@@ -23,7 +23,7 @@ use super::CodegenCtx;
 
 impl CodegenCtx<'_> {
     /// The release this compile targets: the live entry's, else the profile's.
-    pub(super) fn target_version(&self) -> Option<tcl_dialect::TclVersion> {
+    pub(crate) fn target_version(&self) -> Option<tcl_dialect::TclVersion> {
         self.native_entry
             .and_then(|entry| entry.execution_point?.tcl_version())
             .or_else(|| {

@@ -86,6 +86,17 @@ pub fn native_optimizer_blanks_discarded_pushes(version: TclVersion) -> bool {
     version >= TclVersion::V8_6
 }
 
+/// Whether a literal scalar name with no local slot is reached through the
+/// scalar-specific stack forms (`loadScalarStk`, `storeScalarStk`,
+/// `incrScalarStk`, `incrScalarStkImm`), as before Tcl 8.6, whose
+/// `TclCompileSetCmd` and `TclCompileIncrCmd` (tclCompCmds.c 8.5.19) emit them
+/// for an `isScalar` name. From 8.6 such a name uses the generic `loadStk`
+/// forms.
+#[must_use]
+pub fn native_compiler_names_scalars_on_stack(version: TclVersion) -> bool {
+    version < TclVersion::V8_6
+}
+
 /// Whether a compiled `subst` sends an exceptional substitution's return
 /// code through one numeric jump table (`jumpTableNum`) behind a jump to the
 /// shared break target, as Tcl 9.1's `TclCompileSubstCmd` does

@@ -1190,15 +1190,11 @@ impl CodegenCtx<'_> {
         true
     }
 
-    /// C before 8.6 reaches a literal scalar name with no local slot through
-    /// the scalar-specific stack forms (`TclPushVarName` isScalar): tclsh 8.5
-    /// `disassemble script {set x 1}` stores with `storeScalarStk`.
+    /// A literal scalar name with no local slot, reached through the stack
+    /// form the target release compiles: tclsh 8.5 `disassemble script {set
+    /// x 1}` stores with `storeScalarStk`, 8.6 with `storeStk`.
     pub(crate) fn literal_scalar_stack(&self, op: Op) -> Op {
-        let before_86 = self
-            .native_entry
-            .and_then(|entry| entry.execution_point?.tcl_version())
-            .is_some_and(|version| version < tcl_dialect::TclVersion::V8_6);
-        if !before_86 {
+        if !self.names_scalars_on_stack() {
             return op;
         }
         match op {
@@ -1208,6 +1204,13 @@ impl CodegenCtx<'_> {
             Op::INCR_STK_IMM => Op::INCR_SCALAR_STK_IMM,
             other => other,
         }
+    }
+
+    /// The registry's `native_compiler_names_scalars_on_stack` for the target
+    /// release.
+    pub(crate) fn names_scalars_on_stack(&self) -> bool {
+        self.target_version()
+            .is_some_and(tcl_registry::native_compiler_pass::native_compiler_names_scalars_on_stack)
     }
 
     fn finish_increment(

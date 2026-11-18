@@ -81,10 +81,7 @@ impl CodegenCtx<'_> {
                 index: None,
                 ..
             }
-        ) && self
-            .native_entry
-            .and_then(|entry| entry.execution_point?.tcl_version())
-            .is_some_and(|version| version < tcl_dialect::TclVersion::V8_6);
+        ) && self.names_scalars_on_stack();
         let (slot, array) =
             self.prepare_native_variable_tasks(target_word, target, increment, operations);
         if let Some(recipe) = append {

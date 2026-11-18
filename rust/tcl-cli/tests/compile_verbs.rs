@@ -458,3 +458,42 @@ fn dis_document_bom_policy_keeps_the_actual_non_root_command_literal() {
         );
     }
 }
+
+/// Before 8.6 a literal scalar name with no local slot is reached through
+/// the scalar stack forms (#2545). `disassemble script {set x 1; incr x; set y
+/// $x}` on tclsh 8.5.19: `push1 push1 storeScalarStk pop startCommand push1
+/// incrScalarStkImm pop startCommand push1 push1 loadScalarStk storeScalarStk
+/// done`; on 8.6.18 and 9.0.4 the same with `storeStk`, `incrStkImm` and
+/// `loadStk` (and no markers).
+#[test]
+fn dis_names_a_literal_scalar_on_the_stack_before_8_6() {
+    for (dialect, expected) in [
+        (
+            "tcl8.5",
+            [
+                "storeScalarStk",
+                "incrScalarStkImm",
+                "loadScalarStk",
+                "storeScalarStk",
+            ],
+        ),
+        ("tcl8.6", ["storeStk", "incrStkImm", "loadStk", "storeStk"]),
+        ("tcl9.0", ["storeStk", "incrStkImm", "loadStk", "storeStk"]),
+    ] {
+        let out = run_tcl(&[
+            "dis",
+            "--dialect",
+            dialect,
+            "--source",
+            "set x 1; incr x; set y $x",
+        ]);
+        let text = String::from_utf8(out).expect("utf-8");
+        let variable_ops: Vec<_> = text
+            .lines()
+            .filter_map(|line| line.trim_start().strip_prefix('(')?.split_once(") "))
+            .filter_map(|(_, rest)| rest.split_whitespace().next())
+            .filter(|op| op.contains("Stk"))
+            .collect();
+        assert_eq!(variable_ops, expected, "{dialect}:\n{text}");
+    }
+}
