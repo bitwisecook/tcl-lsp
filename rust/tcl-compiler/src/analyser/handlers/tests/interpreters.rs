@@ -20,30 +20,37 @@
 
 use super::*;
 
+/// Whether a W123 is reported at the `nth` occurrence of `needle` in `src`.
+fn w123_at(src: &str, needle: &str, nth: usize) -> bool {
+    let offset = src.match_indices(needle).nth(nth).expect("the needle").0;
+    Analyser::new()
+        .analyse(src, "tcl8.6")
+        .diagnostics
+        .iter()
+        .any(|d| d.code.to_string() == "W123" && d.span.start() as usize == offset)
+}
+
 #[test]
 fn interp_create_value_words_strip_a_single_braced_path_issue_1025() {
-    // TP — `{child}` is one Tcl word naming interpreter `child`; the
-    // direct handler sees it segmenter-decoded, so the value-flow path
-    // must strip the braces too rather than binding to `"{child}"`.
-    assert_eq!(
-        elements("[interp create {child}]"),
-        Some(vec!["interp".into(), "create".into(), "child".into()])
-    );
+    // TP — `{child}` is one Tcl word naming interpreter `child`, so the
+    // value-flow path reaches the same interpreter as the literal name.
+    // tclsh8.6.18/9.0.4: `interp eval child p` runs, a top-level `p`
+    // raises invalid command name "p".
+    let src = "set i [interp create {child}]\n$i eval { proc p {} {} }\n\
+               interp eval child { p }\np\n";
+    assert!(!w123_at(src, "p }", 0));
+    assert!(w123_at(src, "p\n", 0));
 }
 
 #[test]
 fn interp_create_value_words_keep_a_nested_path_as_one_word_issue_1025() {
     // TP — `{parent child}` is one word (a descent path), not two.
-    // `split_whitespace` would yield `["{parent", "child}"]`, whose first
-    // fragment would become the bound key.
-    assert_eq!(
-        elements("[interp create {parent child}]"),
-        Some(vec![
-            "interp".into(),
-            "create".into(),
-            "parent child".into()
-        ])
-    );
+    // tclsh8.6.18/9.0.4: after `interp eval $i {proc p {} {}}`,
+    // `interp eval {parent child} p` runs and a top-level `p` raises.
+    let src = "interp create parent\nset i [interp create {parent child}]\n\
+               interp eval $i { proc p {} {} }\ninterp eval {parent child} { p }\np\n";
+    assert!(!w123_at(src, "p }", 0));
+    assert!(w123_at(src, "p\n", 0));
 }
 
 #[test]
@@ -70,18 +77,20 @@ fn interp_create_value_words_unchanged_for_bare_and_flagged_forms_issue_1025() {
 
 #[test]
 fn interp_create_value_words_reject_an_unmatched_brace_issue_1025() {
-    // A malformed (mid-edit) path is not a list at all, so the whole
-    // substitution is rejected. Returning the prefix parsed before the
-    // error instead would read as a bare `interp create`, binding the
-    // variable to an auto-named interpreter real Tcl never creates.
-    // Later `$i eval` / `interp alias $i …` sites then resolve against
-    // that phantom.
-    assert_eq!(elements("[interp create {child]"), None);
-    assert_eq!(
-        elements("[interp create good {child]"),
-        None,
-        "a valid prefix does not rescue a malformed tail",
-    );
+    // A malformed (mid-edit) path: tclsh8.6.18/9.0.4 reject the script
+    // (missing close-brace) and create no interpreter, so no auto-named
+    // phantom may back a later `$i eval`: nothing it defines exists.
+    for src in [
+        "set i [interp create {child]\n$i eval { proc p {} {} }\n",
+        "set i [interp create good {child]\n$i eval { proc p {} {} }\n",
+    ] {
+        let r = Analyser::new().analyse(src, "tcl8.6");
+        assert!(
+            !r.all_procs.keys().any(|k| k.ends_with("::p")),
+            "{src}: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+    }
 }
 
 // `interp create` — the registry's `InterpreterTransition::Create`,
