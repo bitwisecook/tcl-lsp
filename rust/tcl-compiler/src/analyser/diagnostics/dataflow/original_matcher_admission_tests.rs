@@ -54,11 +54,14 @@ fn selected_original_matcher_advice_keeps_alias_arguments_and_known_provider_bar
             "interp alias {} matcher {} regexp x y; rename matcher moved; moved v",
         ] {
             let expected = if source.contains("{$v}") { "$v" } else { "v" };
-            assert_eq!(
-                output_names(source, dialect),
-                vec![expected],
-                "{dialect}: {source}"
-            );
+            // Jim has no `interp alias` (jimsh 0.84: wrong # args: should be
+            // "interp"), so no alias is made and nothing is written.
+            let expected: &[&str] = if dialect == "jim" && source.starts_with("interp alias") {
+                &[]
+            } else {
+                &[expected]
+            };
+            assert_eq!(output_names(source, dialect), expected, "{dialect}: {source}");
         }
         for source in [
             "namespace eval app {proc regexp args {}}; ::app::regexp x y v",
@@ -72,17 +75,26 @@ fn selected_original_matcher_advice_keeps_alias_arguments_and_known_provider_bar
             "regexp -expanded {a b} ab v",
             "regexp -start end x y v",
             "regexp {$p} y v",
-            "scan abc %b v",
             "scan abc {%d %d} v",
             "scan abc %2d v",
             "scan abc %n v",
-            "scan abc %bad v",
             "regexp é y v",
         ] {
             assert!(
                 output_names(source, dialect).is_empty(),
                 "{dialect}: {source}"
             );
+        }
+        // `%b` is a conversion from 8.6: tclsh8.6.18/9.0.4/9.1.0 `scan abc %b v`
+        // and `scan abc %bad v` -> 0 with v unset; tclsh8.4.20/8.5.19 and
+        // jimsh 0.84 raise bad scan conversion character.
+        let binary_scan: &[&str] = if matches!(dialect, "tcl8.6" | "tcl9.0" | "tcl9.1") {
+            &["v"]
+        } else {
+            &[]
+        };
+        for source in ["scan abc %b v", "scan abc %bad v"] {
+            assert_eq!(output_names(source, dialect), binary_scan, "{dialect}: {source}");
         }
     }
 }
@@ -129,9 +141,10 @@ fn original_matcher_query_refuses_missing_foreign_and_stale_source_inputs() {
         .is_none()
     );
     let mut changed = analysis.clone();
-    changed.body_lexer_config = Some(tcl_lexer::LexerConfig::for_profile(Some(
-        tcl_dialect::DialectProfile::find("jim").unwrap(),
-    )));
+    // Jim is an environment, not a catalogued profile row: take its lexer
+    // configuration from a Jim analysis.
+    changed.body_lexer_config = Analyser::new().analyse(source, "jim").body_lexer_config;
+    assert_ne!(changed.body_lexer_config, analysis.body_lexer_config);
     assert!(
         crate::registry_invocation::source_structure::source_registry_words(
             source, &changed, &command
