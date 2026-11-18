@@ -898,11 +898,10 @@ mod no_read_before_set {
     }
 
     #[test]
-    fn array_get_is_a_value_read_still_flagged() {
-        // `array get FOO` reads the array contents — not an existence check.
-        // tclsh: `array get FOO` on unset FOO returns "" but is a value read;
-        // `puts $undefined`-style unset access through it is flagged.
-        assert!(fires("proc p {} { puts [array get FOO] }", "W210"));
+    fn array_get_of_an_unset_array_is_silent() {
+        // tclsh8.4.20/8.6.18/9.0.4: `array get FOO` on an unset FOO returns
+        // "" without raising, so the read never runs unbound.
+        assert!(!fires("proc p {} { puts [array get FOO] }", "W210"));
     }
 
     #[test]
@@ -1315,12 +1314,11 @@ mod soundness_gates {
     }
 
     #[test]
-    fn array_element_of_touched_array_is_not_folded() {
-        // Any touch of the base array abstains the element fold — a sibling
-        // element write may be `array set`-style populating the guard's key
-        // path in a shape the scan conflates, so the fold is kept one-sided
-        // and base-name-driven.
-        assert!(!fires(
+    fn array_element_no_write_reaches_folds_false() {
+        // tclsh8.6.18/9.0.4: `proc p {} {set A(x) 1; info exists A(k)}`
+        // answers 0 on every entry: a sibling element write never creates
+        // A(k), and nothing else (barrier, trace, array set) can.
+        assert!(fires(
             "proc p {} { set A(x) 1; if {[info exists A(k)]} { puts a } else { puts b } }",
             "I230"
         ));
