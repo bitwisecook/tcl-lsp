@@ -292,6 +292,21 @@ pub fn format_function_asm_named(asm: &FunctionAsm, wide_names: bool) -> String 
                 Operand::Imm(flags) if wide_names && instr.op == Op::LREPLACE4 && j == 1 => {
                     (lreplace_flags(*flags).to_owned(), String::new())
                 }
+                // Tcl 9.1 names `unset`'s complain flag (`OPERAND_UNSF1`).
+                Operand::Imm(complain)
+                    if wide_names
+                        && j == 0
+                        && matches!(
+                            instr.op,
+                            Op::UNSET_SCALAR
+                                | Op::UNSET_ARRAY
+                                | Op::UNSET_STK
+                                | Op::UNSET_ARRAY_STK
+                        ) =>
+                {
+                    let silent = if *complain == 0 { "yes" } else { "no" };
+                    (format!("silent={silent}"), String::new())
+                }
                 _ => format_operand(operand, instr, j, &asm.labels),
             };
             parts.push(part);
@@ -417,6 +432,29 @@ mod tests {
         asm.instructions.push(lreplace);
         assert!(format_function_asm_named(&asm, false).contains("(0) lreplace4 3 2"));
         assert!(format_function_asm_named(&asm, true).contains("(0) lreplace 3 singleIdx"));
+    }
+
+    /// `unset x` and `unset -nocomplain x` on tclsh 9.0.4 are `unsetScalar 1
+    /// %v0` and `unsetScalar 0 %v0`; on 9.1.0 `unsetScalar silent=no %v0` and
+    /// `unsetScalar silent=yes %v0`. `dict update`'s local is `%v0` on both.
+    #[test]
+    fn tcl_9_1_names_the_unset_flag_and_dict_locals_are_slots() {
+        let mut asm = FunctionAsm::default();
+        for (op, operands) in [
+            (Op::UNSET_SCALAR, vec![Operand::Imm(1), Operand::Imm(0)]),
+            (Op::UNSET_SCALAR, vec![Operand::Imm(0), Operand::Imm(0)]),
+            (Op::DICT_RECOMBINE_IMM, vec![Operand::Imm(0)]),
+        ] {
+            let mut instruction = Instruction::new(op, operands);
+            instruction.offset = 0;
+            asm.instructions.push(instruction);
+        }
+        let narrow = format_function_asm_named(&asm, false);
+        let wide = format_function_asm_named(&asm, true);
+        assert!(narrow.contains("unsetScalar 1 %v0") && narrow.contains("unsetScalar 0 %v0"));
+        assert!(wide.contains("unsetScalar silent=no %v0"));
+        assert!(wide.contains("unsetScalar silent=yes %v0"));
+        assert!(narrow.contains("dictRecombineImm %v0") && wide.contains("dictRecombineImm %v0"));
     }
 
     #[test]
