@@ -659,7 +659,9 @@ fn check_namespace_value_coverage(
                 .iter()
                 .any(|span| super::spans_overlap(*span, token.span))
                 || coverage.bodies.iter().any(|(start, end)| {
-                    (token.span.start() as usize) < *end && *start < token.span.end() as usize
+                    // The word carrying a script; the script's own commands
+                    // are coverage commands and are examined in their turn.
+                    (token.span.start() as usize) < *start && *end <= token.span.end() as usize
                 })
             {
                 continue;
@@ -683,9 +685,15 @@ fn check_namespace_value_coverage(
         }
     }
     if let Some(span) = hazard {
+        let written = plan.source.get(span.as_range()).unwrap_or("");
         return Err(plan.refusal(
             Some(span),
-            "an original value may name this namespace in an unsupported callback or data position",
+            &format!(
+                "`{written}` may name something beneath this namespace in a position this rename \
+                 cannot attribute — a callback script, a dispatch-table literal, or another \
+                 embedded name. Rewriting the declarations would leave it naming a namespace \
+                 that no longer exists."
+            ),
         ));
     }
     Ok(())
