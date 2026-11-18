@@ -112,8 +112,7 @@ fn original_registry_and_collection_receivers_keep_selected_child_operands() {
         "curselection"
     ));
 
-    let collision =
-        "# tcl-lsp: requires Tk\npackage require Tk\noo::class create listbox {}; [listbox new] curselection";
+    let collision = "# tcl-lsp: requires Tk\npackage require Tk\noo::class create listbox {}; [listbox new] curselection";
     assert!(!method_at(
         collision,
         &analyse(collision, "tcl8.6"),

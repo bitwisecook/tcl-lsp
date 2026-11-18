@@ -49,6 +49,7 @@ const MAIN: &str = "namespace eval src {\n    proc helper {} { return SRC }\n   
 fn both_tiers_on_main(others: &[(&str, &AnalysisResult)]) -> (Option<String>, Option<String>) {
     let main = analyse(MAIN);
     let mut index = WorkspaceIndex::new();
+    index.set_source_resolver(test_resolve, test_fold);
     index.add_document("file:///main.tcl", &main);
     for (uri, analysis) in others {
         index.add_document(uri, analysis);
@@ -101,7 +102,11 @@ fn both_tiers_shadow_when_another_file_holds_the_covering_export() {
     // TP (CRITICAL) — the export that decides it lives in `exports.tcl`.
     // Oracle: SRC / `::src::helper`.
     let exports = analyse("namespace eval src {\n    namespace export helper\n}\n");
-    let (in_document, cross_document) = both_tiers_on_main(&[("file:///exports.tcl", &exports)]);
+    let loader = analyse("source exports.tcl\nsource main.tcl\n");
+    let (in_document, cross_document) = both_tiers_on_main(&[
+        ("file:///exports.tcl", &exports),
+        ("file:///loader.tcl", &loader),
+    ]);
     assert_eq!(in_document.as_deref(), Some("::src::helper"));
     assert_eq!(
         in_document, cross_document,
@@ -189,9 +194,11 @@ fn the_settled_call_moves_to_the_import_source_when_the_shadow_is_live() {
     // go-to-definition no longer answers with.
     let exports = analyse("namespace eval src {\n    namespace export helper\n}\n");
     let main = analyse(MAIN);
-    let index = WorkspaceIndex::from_documents([
+    let loader = analyse("source exports.tcl\nsource main.tcl\n");
+    let index = sourced_index([
         ("file:///main.tcl", &main),
         ("file:///exports.tcl", &exports),
+        ("file:///loader.tcl", &loader),
     ]);
     assert_eq!(
         index

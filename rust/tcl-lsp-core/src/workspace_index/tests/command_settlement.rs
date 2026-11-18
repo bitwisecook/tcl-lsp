@@ -928,14 +928,13 @@ fn export_replacement_re_settles_wildcard_import_callers() {
     // call disappear, even though its own text did not change.
     let lib =
         analyse("namespace eval ::lib {\n    proc helper {} {}\n    namespace export helper\n}\n");
-    let app = analyse("namespace import ::lib::*\nhelper\n");
-    let mut index =
-        WorkspaceIndex::from_documents([("file:///lib.tcl", &lib), ("file:///app.tcl", &app)]);
+    let app = analyse("source lib.tcl\nnamespace import ::lib::*\nhelper\n");
+    let mut index = sourced_index([("file:///p/lib.tcl", &lib), ("file:///p/app.tcl", &app)]);
     assert_eq!(index.linked_invocations_of("::lib::helper", "").len(), 1);
     let cold = index.settled_invocations[1].settled_documents();
 
     let edited_lib = analyse("namespace eval ::lib {\n    proc helper {} {}\n}\n");
-    index.replace_document("file:///lib.tcl", &edited_lib);
+    index.replace_document("file:///p/lib.tcl", &edited_lib);
     assert!(
         index.linked_invocations_of("::lib::helper", "").is_empty(),
         "the caller must not retain an export which no longer exists",

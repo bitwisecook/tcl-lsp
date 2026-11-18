@@ -116,9 +116,8 @@ fn the_precomputed_export_gate_still_admits_exactly_what_is_exported() {
     let lib = analyse(
         "namespace eval ::Lib {\n    proc shown {} {}\n    proc hidden {} {}\n    namespace export shown\n}\n",
     );
-    let app = analyse("namespace import ::Lib::*\nshown\nhidden\n");
-    let index =
-        WorkspaceIndex::from_documents([("file:///lib.tcl", &lib), ("file:///app.tcl", &app)]);
+    let app = analyse("source lib.tcl\nnamespace import ::Lib::*\nshown\nhidden\n");
+    let index = sourced_index([("file:///p/lib.tcl", &lib), ("file:///p/app.tcl", &app)]);
     // TP: `shown` is exported, so the bare call reaches it through the import.
     assert_eq!(
         index.linked_invocations_of("::Lib::shown", "").len(),
@@ -141,9 +140,8 @@ fn a_glob_export_pattern_still_covers_the_names_it_matches() {
     let lib = analyse(
         "namespace eval ::Lib {\n    proc getThing {} {}\n    proc setThing {} {}\n    namespace export get*\n}\n",
     );
-    let app = analyse("namespace import ::Lib::*\ngetThing\nsetThing\n");
-    let index =
-        WorkspaceIndex::from_documents([("file:///lib.tcl", &lib), ("file:///app.tcl", &app)]);
+    let app = analyse("source lib.tcl\nnamespace import ::Lib::*\ngetThing\nsetThing\n");
+    let index = sourced_index([("file:///p/lib.tcl", &lib), ("file:///p/app.tcl", &app)]);
     assert_eq!(index.linked_invocations_of("::Lib::getThing", "").len(), 1);
     assert!(
         index
@@ -200,10 +198,10 @@ fn a_forced_wildcard_import_still_shadows_a_registry_builtin() {
         tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
     );
     let b = analyse_as(
-        "namespace import -force ::Foo::*\nset x 1\n",
+        "source a.tcl\nnamespace import -force ::Foo::*\nset x 1\n",
         tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
     );
-    let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
+    let index = sourced_index([("file:///p/a.tcl", &a), ("file:///p/b.tcl", &b)]);
     assert_eq!(
         index.linked_invocations_of("::Foo::set", "").len(),
         1,
@@ -243,10 +241,10 @@ fn a_wildcard_import_of_a_non_builtin_name_is_unaffected() {
         tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
     );
     let b = analyse_as(
-        "namespace import ::Foo::*\nmything\n",
+        "source a.tcl\nnamespace import ::Foo::*\nmything\n",
         tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
     );
-    let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
+    let index = sourced_index([("file:///p/a.tcl", &a), ("file:///p/b.tcl", &b)]);
     assert_eq!(index.linked_invocations_of("::Foo::mything", "").len(), 1);
 }
 
@@ -262,10 +260,10 @@ fn importing_an_operator_name_into_the_global_namespace_still_binds() {
         tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
     );
     let b = analyse_as(
-        "namespace import ::Ops::*\n+ 1 2\n",
+        "source a.tcl\nnamespace import ::Ops::*\n+ 1 2\n",
         tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
     );
-    let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
+    let index = sourced_index([("file:///p/a.tcl", &a), ("file:///p/b.tcl", &b)]);
     assert_eq!(
         index.linked_invocations_of("::Ops::+", "").len(),
         1,
@@ -411,9 +409,8 @@ fn a_row_indexed_twice_is_admitted_once() {
 fn the_admission_index_still_resolves_a_wildcard_imported_call() {
     let lib =
         analyse("namespace eval ::Lib {\n    proc helper {} {}\n    namespace export helper\n}\n");
-    let app = analyse("namespace import ::Lib::*\nhelper\n");
-    let index =
-        WorkspaceIndex::from_documents([("file:///lib.tcl", &lib), ("file:///app.tcl", &app)]);
+    let app = analyse("source lib.tcl\nnamespace import ::Lib::*\nhelper\n");
+    let index = sourced_index([("file:///p/lib.tcl", &lib), ("file:///p/app.tcl", &app)]);
     assert_eq!(index.linked_invocations_of("::Lib::helper", "").len(), 1);
 }
 

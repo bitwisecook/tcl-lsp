@@ -589,17 +589,19 @@ fn a_cross_file_import_chain_follows_to_the_original_source() {
     // ::A::p` → `::C::p`. The middle hop is in no workspace proc table,
     // so a single-hop walk abstained.
     let c = analyse("namespace eval ::C { proc p {} { return CP }\n namespace export p }\n");
-    let b = analyse("namespace eval ::B { namespace import ::C::*\n namespace export p }\n");
-    let a = analyse("namespace eval ::A { namespace import ::B::* }\n");
-    let index = WorkspaceIndex::from_documents([
-        ("file:///c.tcl", &c),
-        ("file:///b.tcl", &b),
-        ("file:///a.tcl", &a),
+    let b = analyse(
+        "source c.tcl\nnamespace eval ::B { namespace import ::C::*\n namespace export p }\n",
+    );
+    let a = analyse("source b.tcl\nnamespace eval ::A { namespace import ::B::* }\n");
+    let index = sourced_index([
+        ("file:///p/c.tcl", &c),
+        ("file:///p/b.tcl", &b),
+        ("file:///p/a.tcl", &a),
     ]);
     let resolved = index.resolve_wildcard_import(
         "p",
         &["::A::p".to_string(), "::p".to_string()],
-        call_from("file:///caller.tcl"),
+        call_from("file:///p/caller.tcl"),
     );
     assert_eq!(resolved.as_deref(), Some("::C::p"), "{resolved:?}");
 }
