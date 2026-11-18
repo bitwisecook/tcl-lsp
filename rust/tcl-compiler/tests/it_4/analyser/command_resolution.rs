@@ -403,6 +403,41 @@ mod pack_declared_transitions {
         \x20   }\n\
         }\n";
 
+    /// A regex-quoting helper a pack declares, as a user's own quoting
+    /// procedure is made known: its result is a literal pattern.
+    const QUOTING_PACK: &str = "speclib quoting 1.0 {\n\
+        \x20   command rxquote {\n\
+        \x20       arity 1\n\
+        \x20       taint_transform {REGEX_LITERAL}\n\
+        \x20   }\n\
+        }\n";
+
+    /// tclsh8.6.18/9.0.4: with `rxquote` escaping regex metacharacters,
+    /// `regexp -- [rxquote $v] axb` with v = a.b answers 0: the quoted pattern
+    /// is a literal. A declared quoting helper, called directly or through an
+    /// alias, leaves no W306; an undeclared procedure of the same shape does.
+    #[test]
+    fn a_pack_declared_regex_quoting_helper_settles_the_pattern_word() {
+        let codes = |src: &str| -> Vec<String> {
+            analyser_with_pack(QUOTING_PACK)
+                .analyse(src, D)
+                .diagnostics
+                .iter()
+                .map(|d| d.code.to_string())
+                .collect()
+        };
+        for src in [
+            "set v a.b\nregexp -- [rxquote $v] axb\n",
+            "interp alias {} quote {} rxquote\nset v a.b\nregexp -- [quote $v] axb\n",
+        ] {
+            let got = codes(src);
+            assert!(!got.iter().any(|c| c == "W306"), "{src}: {got:?}");
+        }
+        let undeclared = "proc myquote {s} {return $s}\nset v a.b\nregexp -- [myquote $v] axb\n";
+        let got = codes(undeclared);
+        assert!(got.iter().any(|c| c == "W306"), "{undeclared}: {got:?}");
+    }
+
     /// The analyser binds a pack command's alias facts as it binds
     /// `upvar`'s — it reads the invocation's transitions, never the
     /// command's name: `scoped_link #0 counter c` defines `c` and links it to the
