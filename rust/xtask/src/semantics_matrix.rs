@@ -39,6 +39,7 @@ use tcl_registry::commands;
 use tcl_registry::knowledge::{Knowledge, KnowledgeLevel, complete_window_words};
 use tcl_registry::purity::PurityDomains;
 use tcl_registry::spec::CommandSpec;
+use tcl_registry::world_effect::callback_knowledge;
 
 use crate::util::repo_root;
 
@@ -51,8 +52,10 @@ struct Row {
     group: &'static str,
     name: String,
     domains: PurityDomains,
-    /// The other domains that state their completeness: state transitions.
+    /// The other domains that state their completeness: state transitions,
+    /// and the callbacks the world effects carry.
     state_transitions: KnowledgeLevel,
+    callbacks: KnowledgeLevel,
 }
 
 fn groups() -> Vec<(&'static str, Vec<CommandSpec>)> {
@@ -80,6 +83,7 @@ fn rows() -> Vec<Row> {
                 name: spec.name.trim_start_matches("::").to_owned(),
                 domains: PurityDomains::of_command(spec),
                 state_transitions: spec.state_transitions.level(),
+                callbacks: callback_knowledge(spec.world_effects).level(),
             });
             for sub in spec.subcommands {
                 rows.push(Row {
@@ -87,6 +91,7 @@ fn rows() -> Vec<Row> {
                     name: format!("{} {}", spec.name.trim_start_matches("::"), sub.name),
                     domains: PurityDomains::of_subcommand(spec, sub),
                     state_transitions: sub.state_transitions.or(spec.state_transitions).level(),
+                    callbacks: callback_knowledge(sub.world_effects.or(spec.world_effects)).level(),
                 });
             }
         }
@@ -184,14 +189,20 @@ fn render_groups(out: &mut String, rows: &[Row]) {
     let _ = writeln!(
         out,
         "Rows are commands and subcommands. Each domain is counted as unknown / partial / \
-         complete; the last columns count the rows pure at each Tcl release.\n"
+         complete; the last columns count the rows pure at each Tcl release. Callbacks are \
+         the `callback` of the world-effect footprint, so their completeness is the world \
+         effects' (`tcl_registry::world_effect::callback_knowledge`), only a lower bound where \
+         the descriptor computes more per call.\n"
     );
     let _ = writeln!(
         out,
-        "| group | rows | side effects | world effects | completion | result stability | state transitions | pure at {} |",
+        "| group | rows | side effects | world effects | completion | result stability | state transitions | callbacks | pure at {} |",
         RELEASES.join(" / ")
     );
-    let _ = writeln!(out, "| --- | ---: | --- | --- | --- | --- | --- | --- |");
+    let _ = writeln!(
+        out,
+        "| --- | ---: | --- | --- | --- | --- | --- | --- | --- |"
+    );
     let mut by_group: BTreeMap<&str, Vec<&Row>> = BTreeMap::new();
     for row in rows {
         by_group.entry(row.group).or_default().push(row);
@@ -226,13 +237,14 @@ fn render_groups(out: &mut String, rows: &[Row]) {
             .collect();
         let _ = writeln!(
             out,
-            "| {group} | {} | {} | {} | {} | {} | {} | {} |",
+            "| {group} | {} | {} | {} | {} | {} | {} | {} | {} |",
             rows.len(),
             count(&|row| level(&row.domains.side_effects)),
             count(&world),
             count(&|row| level(&row.domains.completion)),
             count(&|row| level(&row.domains.result_stability)),
             count(&|row| row.state_transitions),
+            count(&|row| row.callbacks),
             pure.join(" / ")
         );
     }

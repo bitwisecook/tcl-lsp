@@ -990,6 +990,26 @@ const CELL_CALLBACK: CallbackEffect = CallbackEffect {
     reentrancy: Reentrancy::CurrentInterpreter,
 };
 
+/// What is known of the callbacks a layer's world effects state (issue
+/// #1712). The callback domain is the `callback` of the world-effect
+/// footprint, so its completeness is the world effects': one source of
+/// truth. A descriptor with a resolver computes more per call, so its static
+/// callbacks are only a lower bound.
+#[must_use]
+pub fn callback_knowledge(
+    world_effects: crate::knowledge::Knowledge<WorldEffectDescriptor>,
+) -> crate::knowledge::Knowledge<CallbackEffect> {
+    use crate::knowledge::Knowledge;
+    match world_effects {
+        Knowledge::Complete(descriptor, _)
+            if descriptor.resolver.is_some() || descriptor.source_resolver.is_some() =>
+        {
+            Knowledge::Partial(descriptor.static_footprint.callback)
+        }
+        knowledge => knowledge.map(|descriptor| descriptor.static_footprint.callback),
+    }
+}
+
 impl WorldEffectDescriptor {
     /// Whether the descriptor states no world access, no callback and no
     /// resolver.
@@ -1245,6 +1265,19 @@ impl ResolvedWorldEffects {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn callback_knowledge_is_the_world_effects_callback_and_its_completeness() {
+        use crate::knowledge::{Knowledge, KnowledgeLevel};
+        use tcl_dialect::model::SpecSurface;
+        let every = SpecSurface::ALL_TCL;
+        assert!(callback_knowledge(Knowledge::Unknown).is_unknown());
+        let closed = callback_knowledge(Knowledge::Complete(WorldEffectDescriptor::EMPTY, every));
+        assert_eq!(closed.level(), KnowledgeLevel::Complete);
+        assert_eq!(closed.stated(), Some(CallbackEffect::NONE));
+        let stated = callback_knowledge(Knowledge::Partial(WorldEffectDescriptor::EMPTY));
+        assert_eq!(stated.level(), KnowledgeLevel::Partial);
+    }
+
     use super::*;
 
     #[test]
