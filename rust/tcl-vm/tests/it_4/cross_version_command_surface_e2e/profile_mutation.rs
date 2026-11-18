@@ -20,6 +20,18 @@
 
 use super::*;
 
+/// A guest error's code and message: one raised while running, or one the
+/// parser raised before anything ran. A host refusal is not a guest answer.
+fn guest_error(
+    answer: Result<tcl_vm::Completion<tcl_vm::Value>, tcl_vm::TclError>,
+) -> (Code, String) {
+    let completion = match answer {
+        Ok(completion) | Err(tcl_vm::TclError::Guest(completion)) => completion,
+        Err(error) => panic!("host refusal, not a guest answer: {error:?}"),
+    };
+    (completion.code, completion.result.to_str().to_string())
+}
+
 struct CountingCompilerSvc {
     calls: Rc<Cell<usize>>,
 }
@@ -224,6 +236,7 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
         )
         .expect("8.6 TclOO setup compiles");
     assert!(oo_setup.code.is_ok(), "{}", oo_setup.result.to_str());
+    assert!(vm.set_native_engine_profile(v85));
     vm.set_dialect_profile(v85);
 
     // Prime every cache/body owner that retains executable bytecode: an
@@ -289,6 +302,7 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
     // The reported escape, exactly: a body compiled under 8.5 must not retain
     // its inline lassign lowering after a direct 8.4 flip, and the reverse
     // flip must compile it back onto the newer surface.
+    assert!(vm.set_native_engine_profile(v84));
     vm.set_dialect_profile(v84);
     let exact_84 = vm
         .eval_source("catch {p} message; set message")
@@ -297,19 +311,20 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
         exact_84.result.to_str().as_ref(),
         "invalid command name \"lassign\""
     );
-    // 8.4 compiles the script whole, and `expr`'s compile procedure refuses
-    // the `0b10` it has no grammar for (tclsh 8.4.20).
+    // tclsh 8.4.20: `expr`'s compile procedure refuses the `0b10` it has no
+    // grammar for, and `{*}` is a brace word followed by more characters.
     assert_eq!(
-        &*vm.eval_source("expr {0b10 + 1}")
-            .expect_err("8.4 refuses to compile the expression")
-            .message_bytes()
-            .unwrap(),
-        b"syntax error in expression \"0b10 + 1\": extra tokens at end of expression"
+        guest_error(vm.eval_source("expr {0b10 + 1}")),
+        (
+            Code::Error,
+            "syntax error in expression \"0b10 + 1\": extra tokens at end of expression".into()
+        )
     );
-    assert!(
-        vm.eval_source("{*}[list set ::profile_mutation_lexer 1]")
-            .is_err()
+    assert_eq!(
+        guest_error(vm.eval_source("{*}[list set ::profile_mutation_lexer 1]")),
+        (Code::Error, "extra characters after close-brace".into())
     );
+    assert!(vm.set_native_engine_profile(v85));
     vm.set_dialect_profile(v85);
     assert_eq!(
         vm.eval_source("list [p] [expr {0b10 + 1}]")
@@ -323,6 +338,7 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
     // `coroutine` begins in 8.6. Retain the 8.5-built proc/handle above, then
     // add a live continuation and child-owned profile while the newer surface
     // is selected.
+    assert!(vm.set_native_engine_profile(v86));
     vm.set_dialect_profile(v86);
     let newer_setup = vm
         .eval_source(
@@ -343,6 +359,7 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
     assert_eq!(lexer_86.result.to_str().as_ref(), "1");
 
     assert!(vm.set_child_dialect_profile("child", v84));
+    assert!(vm.set_native_engine_profile(v84));
     vm.set_dialect_profile(v84);
 
     let stale = vm
@@ -365,15 +382,15 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
     // The exact same source must not be served from its newer-profile eval cache:
     // expression grammar and lexer grammar changed with the profile too.
     assert_eq!(
-        &*vm.eval_source("expr {0b10 + 1}")
-            .expect_err("8.4 refuses to compile the expression")
-            .message_bytes()
-            .unwrap(),
-        b"syntax error in expression \"0b10 + 1\": extra tokens at end of expression"
+        guest_error(vm.eval_source("expr {0b10 + 1}")),
+        (
+            Code::Error,
+            "syntax error in expression \"0b10 + 1\": extra tokens at end of expression".into()
+        )
     );
-    assert!(
-        vm.eval_source("{*}[list set ::profile_mutation_lexer 1]")
-            .is_err()
+    assert_eq!(
+        guest_error(vm.eval_source("{*}[list set ::profile_mutation_lexer 1]")),
+        (Code::Error, "extra characters after close-brace".into())
     );
 
     // A coroutine cannot be recompiled in place after it yielded: it owns a
@@ -395,6 +412,7 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
     // The reverse mutation gets fresh 8.5 bodies (including the child and
     // alias) rather than retaining the failed 8.4 recompilation.
     assert!(vm.set_child_dialect_profile("child", v85));
+    assert!(vm.set_native_engine_profile(v85));
     vm.set_dialect_profile(v85);
     let restored = vm
         .eval_source(
@@ -406,6 +424,7 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
 
     // And the live-coroutine surface returns normally once a newly-created
     // continuation is compiled under a release that supports it.
+    assert!(vm.set_native_engine_profile(v86));
     vm.set_dialect_profile(v86);
     let resumed = vm
         .eval_source("coroutine c2 apply {{} {yield ready; lassign {a b} x; return $x}}; c2")
@@ -516,4 +535,36 @@ fn a_profile_flip_answers_as_a_fresh_interpreter_of_the_new_release() {
         answer.result.to_str().as_ref(),
         "1 {syntax error in expression \"0b10 + 1\": extra tokens at end of expression}"
     );
+}
+
+/// A `Native(point)` expression policy is the engine's
+/// (`tcl_registry::native_expression_program::expression_function_dispatch`:
+/// "a missing logical policy or physical engine remains missing instead of
+/// borrowing the other axis"). A logical-only flip to another release with no
+/// installed authored expression provider therefore refuses `expr` whole,
+/// while the commands whose surface moves with the dialect still compile.
+#[test]
+fn a_logical_only_release_flip_refuses_expressions_without_an_authored_provider() {
+    let v86 = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+    let v85 = tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile();
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(v86, Box::new(std::io::sink()));
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(v85)));
+    vm.set_dialect_profile(v85);
+    for source in ["expr {1 + 2}", "expr {0b10 + 1}"] {
+        assert!(
+            matches!(
+                vm.eval_source(source),
+                Err(tcl_vm::TclError::Host(tcl_vm::TclHostFailure::Execution(
+                    tcl_runtime_api::NativeExecutionError::CompilationAdmission(
+                        tcl_runtime_api::NativeCompilationAdmissionError::NativePreflightRequired
+                    )
+                )))
+            ),
+            "{source}"
+        );
+    }
+    let surface = vm
+        .eval_source("lassign {a b} x; proc p {} {set y 1}; list $x [p]")
+        .expect("non-expression commands compile on the logical surface");
+    assert_eq!(surface.result.to_str().as_ref(), "a 1");
 }
