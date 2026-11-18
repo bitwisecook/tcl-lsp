@@ -489,6 +489,15 @@ impl OriginalSourceCommandWorld {
         self.unavailable = true;
     }
 
+    /// This world reopened for a replay from an available `entry`: the replay
+    /// is withdrawn only where its own walk reaches an unknown command again.
+    /// An entry that is itself unavailable leaves the world as it is.
+    pub(super) fn with_entry_availability(&self, entry: &Self) -> Self {
+        let mut world = self.clone();
+        world.unavailable &= entry.unavailable;
+        world
+    }
+
     pub(super) fn join(&mut self, other: &Self) -> bool {
         if self == other {
             return false;

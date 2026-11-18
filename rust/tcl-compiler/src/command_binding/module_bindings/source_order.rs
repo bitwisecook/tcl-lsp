@@ -171,6 +171,11 @@ impl ModuleCommandBindings {
                 initial.packages = Arc::clone(&entry.packages);
                 initial.revoked_loaders = Arc::clone(&entry.revoked_loaders);
                 initial.loader_handler_unknown = entry.loader_handler_unknown;
+                initial.original_command_world = Arc::new(
+                    initial
+                        .original_command_world
+                        .with_entry_availability(&entry.command_world),
+                );
             }
             initial.root_boundary_bindings = Arc::new(SourceCommandTable::default());
             initial.logical_alias_prefixes = Arc::new(BTreeMap::new());

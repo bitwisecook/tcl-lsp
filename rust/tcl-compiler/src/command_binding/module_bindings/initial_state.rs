@@ -258,6 +258,15 @@ impl ModuleCommandBindings {
             packages: Arc::clone(&state.packages),
             revoked_loaders: Arc::clone(&state.revoked_loaders),
             loader_handler_unknown: state.loader_handler_unknown,
+            command_world: if state.baseline.host_extensible_command_table {
+                // An embedding host may hook any command: nothing about the
+                // command world is proved before the first command runs.
+                let mut world = (*state.original_command_world).clone();
+                world.withdraw();
+                Arc::new(world)
+            } else {
+                Arc::clone(&state.original_command_world)
+            },
         }));
         state
     }

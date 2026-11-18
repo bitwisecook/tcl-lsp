@@ -1653,6 +1653,10 @@ struct OriginalEntryPackages {
     packages: Arc<BTreeMap<String, BTreeSet<PackageProvision>>>,
     revoked_loaders: Arc<BTreeSet<String>>,
     loader_handler_unknown: bool,
+    /// The command world before the first command runs. A top-level replay
+    /// takes its availability: a later unknown command withdraws the world
+    /// from that point on, not for the commands that ran before it.
+    command_world: Arc<source_command_world::OriginalSourceCommandWorld>,
 }
 
 /// CFG queries are projections of the shared command-table state.

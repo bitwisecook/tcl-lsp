@@ -622,3 +622,24 @@ fn supplied_switch_may_writes_keep_actual_context_and_unavailable_residual() {
         &mut BTreeSet::new(),
     ));
 }
+
+/// Trust ends where an unknown command runs, not for the whole file: a
+/// later `eval $y` withdraws the command world from that point on, so the
+/// calls that ran before it keep their resolved targets and carry no
+/// unseen-call marker. tclsh 8.4.20, 8.6.18, 9.0.4 and 9.1.0 run
+/// `set x 1; puts hi; puts $x` before the eval raises `can't read "y"`.
+#[test]
+fn a_later_unknown_script_leaves_the_calls_before_it_seen() {
+    let source = "set x 1\nputs hi\nputs $x\neval $y\n";
+    let eval_at = u32::try_from(source.find("eval").unwrap()).unwrap();
+    let ssa = ssa_of_function(source, "::top");
+    let markers: Vec<u32> = ssa_statements(&ssa)
+        .into_iter()
+        .filter(|statement| is_unseen_call_marker(&statement.statement))
+        .map(|statement| statement.statement.span().start())
+        .collect();
+    assert!(
+        markers.iter().all(|&start| start >= eval_at),
+        "only the eval may be unseen: {markers:?}"
+    );
+}
