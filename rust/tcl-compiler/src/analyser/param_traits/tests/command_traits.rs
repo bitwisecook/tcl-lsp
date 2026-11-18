@@ -124,14 +124,12 @@ fn trait_inference_is_dialect_aware_via_expand_syntax() {
 }
 
 #[test]
-fn uplevel_records_eval_on_last_arg_only() {
+fn uplevel_records_eval_on_its_script_arg() {
+    // tclsh8.4.20/8.6.18/9.0.4: `proc u {lvl script} {uplevel $lvl $script};
+    // u {puts A;} {puts B}` prints A then B: a first word that is not a level
+    // joins the script, so `lvl` may also be evaluated.
     let traits = infer(&["lvl", "script"], "uplevel $lvl $script");
     assert_trait(&traits, "script", ProcArgTrait::Eval);
-    assert!(
-        !traits
-            .get("lvl")
-            .is_some_and(|s| s.contains(&ProcArgTrait::Eval))
-    );
 }
 
 /// Eval follows the registry's evaluation traits: every word of a script
