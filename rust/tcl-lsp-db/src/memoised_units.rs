@@ -136,14 +136,15 @@ pub fn lowered_document_module<'db>(
     key: ModuleLoweringKey<'db>,
 ) -> Option<Arc<tcl_compiler::compilation_unit::LoweredModule>> {
     let inputs = key.inputs(db).with_source(file.text(db));
+    let retained = RetainedModules::try_get(db).map(|modules| Arc::clone(modules.table(db)));
     let retained_key = (salsa::plumbing::AsId::as_id(&file), key.inputs(db).clone());
-    if let Some(module) = retained_modules()
-        .lock()
-        .expect("retained module table")
-        .get(&retained_key)
-        .filter(|module| module.inputs() == &inputs)
-    {
-        return Some(Arc::clone(module));
+    if let Some(module) = retained.as_ref().and_then(|table| {
+        table
+            .lock()
+            .expect("retained module table")
+            .get(&retained_key, &inputs)
+    }) {
+        return Some(module);
     }
     let (body_memo, source_body_memo) = lowering_body_memos(
         db,
@@ -157,11 +158,12 @@ pub fn lowered_document_module<'db>(
         &source_body_memo,
     )
     .map(Arc::new)?;
-    let mut retained = retained_modules().lock().expect("retained module table");
-    if retained.len() >= RETAINED_MODULE_CAPACITY && !retained.contains_key(&retained_key) {
-        retained.clear();
+    if let Some(table) = retained {
+        table
+            .lock()
+            .expect("retained module table")
+            .insert(retained_key, Arc::clone(&module));
     }
-    retained.insert(retained_key, Arc::clone(&module));
     Some(module)
 }
 
@@ -174,23 +176,70 @@ type RetainedModuleKey = (
 const RETAINED_MODULE_CAPACITY: usize = 512;
 
 /// The lowered module of each (document, inputs other than the text), held
-/// apart from salsa. Salsa's interned collector reclaims a
+/// apart from salsa's memo. Salsa's interned collector reclaims a
 /// [`ModuleLoweringKey`] untouched for a few revisions, and its memo with it;
 /// a server settles several queries per pack reload, so a document revisited
 /// under a configuration would be lowered again with new procedure
 /// identities and every lattice key built from them would be new (#2543).
 /// An entry is returned only for inputs, text included, equal to the ones it
 /// was lowered from, so it is the module a fresh lowering would produce; an
-/// edit replaces the document's entry.
-fn retained_modules() -> &'static std::sync::Mutex<
-    HashMap<RetainedModuleKey, Arc<tcl_compiler::compilation_unit::LoweredModule>>,
-> {
-    static RETAINED: std::sync::OnceLock<
-        std::sync::Mutex<
-            HashMap<RetainedModuleKey, Arc<tcl_compiler::compilation_unit::LoweredModule>>,
-        >,
-    > = std::sync::OnceLock::new();
-    RETAINED.get_or_init(Default::default)
+/// edit replaces the document's entry. Past the capacity the least recently
+/// used entry goes, so a workspace with more live pairs than that loses reuse
+/// one entry at a time rather than all at once.
+#[derive(Default)]
+pub struct RetainedModuleTable {
+    entries: HashMap<RetainedModuleKey, (u64, Arc<tcl_compiler::compilation_unit::LoweredModule>)>,
+    clock: u64,
+}
+
+impl RetainedModuleTable {
+    fn get(
+        &mut self,
+        key: &RetainedModuleKey,
+        inputs: &tcl_compiler::compilation_unit::ModuleLoweringInputs,
+    ) -> Option<Arc<tcl_compiler::compilation_unit::LoweredModule>> {
+        self.clock += 1;
+        let clock = self.clock;
+        let (used, module) = self.entries.get_mut(key)?;
+        (module.inputs() == inputs).then(|| {
+            *used = clock;
+            Arc::clone(module)
+        })
+    }
+
+    fn insert(
+        &mut self,
+        key: RetainedModuleKey,
+        module: Arc<tcl_compiler::compilation_unit::LoweredModule>,
+    ) {
+        self.clock += 1;
+        if self.entries.len() >= RETAINED_MODULE_CAPACITY
+            && !self.entries.contains_key(&key)
+            && let Some(oldest) = self
+                .entries
+                .iter()
+                .min_by_key(|(_, (used, _))| *used)
+                .map(|(key, _)| key.clone())
+        {
+            self.entries.remove(&oldest);
+        }
+        self.entries.insert(key, (self.clock, module));
+    }
+
+    /// The modules the table holds.
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.entries.len()
+    }
+}
+
+/// The database's retained-module table. An input, so the interned collector
+/// never reclaims it, created with the database and dropped with it; clones
+/// of a database (snapshots) share it.
+#[salsa::input(singleton)]
+pub struct RetainedModules {
+    #[returns(ref)]
+    pub table: Arc<std::sync::Mutex<RetainedModuleTable>>,
 }
 
 /// Lower neutral call syntax from genuine pre-lowering source dependencies.
@@ -591,4 +640,78 @@ pub(super) fn lattice_request_key<'db>(
         },
         ValueTransferContext::of(db, req.analysis_context.clone(), epoch),
     )
+}
+
+#[cfg(test)]
+mod retained_module_tests {
+    use super::{RETAINED_MODULE_CAPACITY, RetainedModuleTable, RetainedModules};
+    use crate::{SourceFile, TclDatabase};
+    use std::sync::Arc;
+
+    type Entry = (
+        super::RetainedModuleKey,
+        Arc<tcl_compiler::compilation_unit::LoweredModule>,
+    );
+
+    /// A database holding the retained module of one analysed document.
+    fn analysed() -> (TclDatabase, Entry) {
+        let db = TclDatabase::default();
+        let file = SourceFile::new(
+            &db,
+            "proc p {} { return 1 }\np\n".to_owned(),
+            "tcl8.6".to_owned(),
+            None,
+        );
+        let config = crate::tests::cfg(&db);
+        let _ = crate::compiler_check_diagnostics(&db, file, config);
+        let entry = {
+            let table = RetainedModules::get(&db).table(&db).lock().unwrap();
+            let (key, (_, module)) = table
+                .entries
+                .iter()
+                .next()
+                .expect("the build retains its module");
+            (key.clone(), Arc::clone(module))
+        };
+        (db, entry)
+    }
+
+    /// Past its capacity the table gives up the least recently used module,
+    /// one at a time: a workspace with more live (document, configuration)
+    /// pairs than the capacity keeps reusing the ones it touches rather than
+    /// losing every entry at once (#2543 review).
+    #[test]
+    fn past_capacity_only_the_least_recently_used_module_goes() {
+        let (_db, ((_, inputs), module)) = analysed();
+        let full = module.inputs().clone();
+        let mut table = RetainedModuleTable::default();
+        let key = |n: u64| (salsa::Id::from_bits(n + 1), inputs.clone());
+        for n in 0..RETAINED_MODULE_CAPACITY as u64 {
+            table.insert(key(n), Arc::clone(&module));
+        }
+        assert!(table.get(&key(0), &full).is_some());
+        table.insert(key(9999), Arc::clone(&module));
+        assert_eq!(table.len(), RETAINED_MODULE_CAPACITY);
+        assert!(
+            table.get(&key(0), &full).is_some(),
+            "a recently used entry stays"
+        );
+        assert!(
+            table.get(&key(1), &full).is_none(),
+            "the least recently used goes"
+        );
+        assert!(table.get(&key(9999), &full).is_some());
+    }
+
+    /// The table belongs to its database: dropping the database releases
+    /// every module it retained (#2543 review).
+    #[test]
+    fn a_dropped_database_releases_its_retained_modules() {
+        let (db, (_, module)) = analysed();
+        let weak = Arc::downgrade(&module);
+        drop(module);
+        assert!(weak.upgrade().is_some(), "the database retains the module");
+        drop(db);
+        assert!(weak.upgrade().is_none(), "the dropped database released it");
+    }
 }

@@ -96,7 +96,7 @@ fn a_key_that_installs_is_reported_again_if_it_misses_later() {
     );
 }
 
-fn cfg(db: &TclDatabase) -> AnalyserConfig {
+pub(crate) fn cfg(db: &TclDatabase) -> AnalyserConfig {
     AnalyserConfig::new(
         db,
         Vec::new(),

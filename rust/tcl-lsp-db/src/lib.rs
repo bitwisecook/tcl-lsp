@@ -325,8 +325,8 @@ pub use function_lattices::{
 #[cfg(test)]
 use memoised_units::lattice_request_key;
 pub use memoised_units::{
-    ProcBodyKey, SourceProcBodyKey, lower_proc_body, lower_proc_body_source,
-    original_lower_proc_body,
+    ProcBodyKey, RetainedModuleTable, RetainedModules, SourceProcBodyKey, lower_proc_body,
+    lower_proc_body_source, original_lower_proc_body,
 };
 #[cfg(test)]
 use memoised_units::{build_unit_with_keys, build_unit_with_keys_and_input};
@@ -470,6 +470,7 @@ impl TclDatabase {
         let db = Self { storage };
         let _epoch = EvaluatorEpoch::new(&db, 0);
         let _overlays = OverlayEpoch::new(&db, 0);
+        let _modules = memoised_units::RetainedModules::new(&db, Arc::default());
         db
     }
 
