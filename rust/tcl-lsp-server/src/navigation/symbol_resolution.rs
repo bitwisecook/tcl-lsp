@@ -98,10 +98,30 @@ impl Backend {
             return WorkspaceSymbolSelection::Miss;
         };
         let covers = |span: tcl_lexer::Span| span.start() <= offset && offset < span.end();
+        // A document sourced inside a namespace is indexed under the
+        // identities its source views give it (`::x::helper` for a `proc
+        // helper` sourced in `namespace eval ::x`), not under the standalone
+        // name its own analysis states. The declaration at the cursor is the
+        // index's procedure whose name token is the one under the cursor, so
+        // the index names it — every runtime identity of a multi-seeded one.
+        let indexed_procedures: Vec<String> = {
+            let index = self.workspace_index.read().await;
+            let mut found: Vec<String> = index
+                .live_procs()
+                .filter(|proc| proc.uri == uri.as_str() && covers(proc.name_span))
+                .map(|proc| proc.qualified_name.clone())
+                .collect();
+            found.sort();
+            found.dedup();
+            found
+        };
+        let has_indexed_procedures = !indexed_procedures.is_empty();
         let mut names = analysis
             .original_procedure_declarations()
             .filter(|record| covers(record.name_input().span()))
             .map(|record| record.metadata().qualified_name.clone())
+            .filter(|_| !has_indexed_procedures)
+            .chain(indexed_procedures)
             .chain(
                 analysis
                     .original_class_declarations()
