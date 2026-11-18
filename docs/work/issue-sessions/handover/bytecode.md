@@ -1,71 +1,104 @@
-# Hand-over: bytecode (#2490)
+# Hand-over: bytecode (#2490, #2542, #2544, #2545)
 
-Written 17 November 2026 by the outgoing session, paused since 16 November, as a message to the orchestrator and filed here unedited. The successor is the `bytecode` issue session.
+Written 18 November 2026 by the `bytecode` issue session (`session_017u5g3KBvRVWYHVoF5FSZmT`), paused on the owner's instruction. A fresh session in a clean container continues from this file alone.
 
-The paths and commits below predate the file split of 16 November: see *Starting* in `../README.md` before applying anything.
+## Issues
 
-```text
-HANDOFF — session_017u5g3LQRXsvGjGUg7g3tgp, group "bytecode issues" (#2207, #2490)
+- **#2490** (braced `[expr {…}]` compiled inline, `startCommand` placement): closed, completed. Commits: 61edc359 (no `startCommand` under 8.4), 08fccbc8 (joined compiler selections: nested commands starting on one marker share it, a stale one replays the outermost), d0575d5a and 0ba17bb2 (an enclosing command where C has no marker rides on the nested start as `Instruction.start_hosts`). Closing comment 6953432126.
+- **#2542** (Tcl 9.1 operand widths): closed, completed. Commits: 2f0c68b2 (`Op::wide_form`, four new 9.1 `incr` ops, widening after jump shortening under `TclVersion::emits_wide_instructions_only`), e979b915 (capture script and skill cover 9.1), 850ac5ca (9.1 names `lreplace` flags).
+- **#2544** (9.1 `try` and `subst` through `jumpTableNum`): closed, completed. Commits: 72a785805 (a `try` with `finally` emits the `-` bridge, last jump and pop only where C does; changes 8.6/9.0 towards tclsh), 1f3364f18 (a marker hands over to its own command's start: no pc-0 marker on a declined `try`), ef1f95bb2 (`Op::JUMP_TABLE_NUM`; 9.1 `try` and `subst` dispatch through it; no `returnCodeBranch` under 9.1). Closing comment 6976930986.
+- **#2545** (codegen corpus against tclsh): open. Title carries the scoreboard. Triage table: comment 6976452208; follow-up with the invalidated counts and the items deferred from #2544: comment 6976935184.
 
-1. ISSUES
-- #2207 (catch / info exists inlined only in assignment position): CLOSED as completed. Evidence from tclsh 8.5.19–9.1.0 is in comment 6901093861.
-- #2490: OPEN. The `tcl dis` half was done earlier (static fold shows `syntax`; inline expr/if). Placement progress is in comment 6904298430. Left before it can close:
-  (a) Two commands starting on one instruction. Ours `I S1 N S1 S1`, C `I S3 S1`, for `puts $x; set y [expr {[string length $x]+1}]; return $y`. Also the 8.5 compactible pc-0 nested case `set a [expr {$x+1}]; set b [string length $a]` (C `S2`; compact `""` from 8.6). Plan in §6.
-  (b) Under 8.4 (no INST_START_CMD): fixed in c90b3510, which is on the branch only and not yet verified for `work`.
-  (c) 9.1: tclsh 9.1.0 blanks `push`+`pop` to SIX nops because 9.1 deprecates every one-byte-operand opcode (tclCompile.h:666 DEPRECATED_OPCODE(INST_PUSH1); INST_PUSH = 2). Our 9.1 profile still emits 8.6-width ops (PUSH1, JUMP1…), and no width mechanism exists. That's a separate encoding design change; post it on #2490 as a blocker or split it into its own issue. The optimiser test deliberately stops at 9.0.
+### #2545 scoreboard
 
-2. BRANCHES / COMMITS
-- On `work`: 96799b39, daf8da6e, 2bae1b38, 13b851d8, f908ba05 (#2207 and earlier #2490 work), plus 16c18f36 (place live startCommand like C's atCmdStart; layout test) and 478ef476 (8.6+ optimiser blanks a discarded push; placement after the fold).
-- Only on `issues/bytecode`: c90b3510 "Emit no startCommand under Tcl 8.4" (parent 478ef476 = work as of 0e42e0ab+2). The tree is clean and pushed.
+`tcl dis --dialect tcl<release>` against the captured references, out of 72:
 
-3. VERIFICATION
-- Env: `export CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0`, dev profile only. On ENOSPC, `rm -rf target/debug`.
-- Suites, each with `cargo test -p <crate> --lib --tests --no-fail-fast` for tcl-registry, tcl-codegen, tcl-vm, tcl-explorer, tcl-cli:
-  - also `cargo test -p tcl-explorer --features live-entry --lib --tests --no-fail-fast`;
-  - and `cargo test -p tcl-compiler --lib --tests --no-fail-fast -- --skip depth_guard::tests::the_source_walk_cap_fits_its_stack_budget`.
-- Baseline: `grep -E '^test .* FAILED$' log | sed 's/^test //;s/ \.\.\. FAILED//' | sort -u`, then `comm -23`.
-  - The baseline files were in /tmp and are lost. Regenerate by running the same commands at the parent SHA (git checkout <sha>; run; checkout back). To check one new failure, run that single test at the parent commit.
-- Pre-push checks:
-  - `rustfmt --edition 2024 <files>`;
-  - `cargo clippy -p tcl-registry -p tcl-vm --lib --tests -- -D warnings -A clippy::assert_is_empty`, and `-p tcl-codegen --lib --tests` the same way. Codegen lib tests build now that 18055039 is in;
-  - `cargo xtask registry-axes`, `cargo xtask value-transfers --check`, `cargo xtask owner-resolution`, `cargo xtask callback-inventory --check`.
-- 478ef476 (as 6aa1625d before the rebase): full suites, no new failures. Clippy and the 4 xtasks passed. Codegen LIB tests could NOT build then (FrameReach), so 16c18f36 and 478ef476 have never been checked against codegen lib tests.
-- c90b3510 full-suite run, compared with the old baselines and NOT yet triaged. New failure names:
-  - registry: taint::tests::a_getter_called_with_only_its_own_flags_keeps_its_colour. Probably from upstream fcd7b971/taint.rs; unverified.
-  - vm: cmd_thread_e2e::{mutex_serialises_a_non_atomic_read_modify_write, rwmutex_write_lock_guards_a_non_atomic_increment, thread_id_and_platform_flag, tsv_counter_is_atomic_across_threads, tsv_get_missing_key_errors_but_with_var_reports_presence}. Thread e2e tests that may depend on the environment; unverified.
-  - compiler: taint_depth::interproc_depth::sanitising_helper_result_via_var_clears_t101. Likely upstream taint work; unverified.
-  - codegen: 189 failing in total, now including lib tests. There is NO lib baseline: run codegen lib at 0e42e0ab and compare.
-  - Known pre-existing: cli diag_reads_the_jim_program_under_jim_and_refuses_it_under_tcl_8_6, compiler it_4 caller_frame_effects::global_aliases_write_the_global_variable, codegen it_3 release_optimiser_safety::issue_2218_preserves_known_command_heads (fails on origin/work 0e42e0ab), tcl-runtime --all-targets tcl_test_support unresolved.
-- Key focused tests:
-  - `cargo test -p tcl-vm --lib native_command_start_layout` (3 tests: the C layout skeletons over 8.5–9.1; tcl_8_4_bodies_have_no_start_command; the_optimiser_blanks_an_empty_for_start_from_8_6);
-  - `cargo test -p tcl-codegen --test it_2 empty_` (empty_init_clause / empty_step_clause).
+| | 8.5 | 8.6 | 9.0 | 9.1 |
+|---|---:|---:|---:|---:|
+| on `work` (82cece48e) | 62 | 63 | 64 | 63 |
+| with the WIP on `issues/bytecode-3` | 62 | 65 | 66 | 65 |
 
-4. DESIGN DECISIONS
-- `place_command_starts` (tcl-codegen/src/codegen/native_compiler_pass.rs) runs in generate.rs `finalize_function`, only when native_entry is set, AFTER fold_const_push_pop_nops.
-  - Rule: a marker before each compiled command; none for a generic invoke; none at pc 0; a marker straight after another adds its count to the earlier one; none in the compact second pass.
-  - An omitted marker gives its metadata (selections, entered, cos, boundary) to the next instruction of the same command (`receives_marker`); otherwise it stays.
-  - `collapse_repeated_starts` merges duplicate same-text starts.
-  - Selection NOPs at index>0 are materialised to START_CMD [Label(end), Imm(1)].
-  - The generic tag counts only when the marker carries no selections.
-- 8.6+ optimiser: registry fact `tcl_registry::native_compiler_pass::native_optimizer_blanks_discarded_pushes(version) = version >= 8.6` (TclCreateInterp installs TclOptimizeBytecode from 8.6). The fold now also blanks `push ""; pop` under it unless the pop is a label target. The first nop keeps the push's metadata so the pc-0 marker can hand over.
-- 8.4: reuses `TclVersion::revalidates_running_bytecode()`, whose doc ties it to INST_START_CMD. `omit_release_markers` removes every START_CMD: it hands over when possible, else converts it to a NOP that keeps the metadata. Our VM already gives 8.4's answer to the redefinition probe (2, vs hijack on 8.5+), and the test pins that.
-- Release keying: profile != tcl8.5 → compact. tclsh skeletons are identical for 8.5–9.1.
+### #2545 remaining groups
 
-5. DEAD ENDS
-- Running placement BEFORE the fold: it sets no_fold through the handed marker and breaks the empty for-clause nops.
-- Incrementing the count when merging a selection of the same command: wrong. Only add the count when source_cmd_text differs.
-- Tagging catch/list starts as generic dropped needed markers.
-- Rewriting the fold with Instruction::new loses metadata and leaves a pc-0 START.
-- rustfmt on runtime/ files recurses into submodules: format individual files only.
+Each with tclsh's listing (9.0 unless named) and ours, and the fix.
 
-6. NEXT STEPS
-1) Triage the c90b3510 run. Run codegen lib at 0e42e0ab to get a baseline, and check the new names at 478ef476. If clean, rebase onto origin/work, rerun the focused tests, clippy and xtasks, then `git push origin HEAD:work`. work moves often: fetch, rebase, push in quick succession.
-2) For (a), "joined compiler selections", following C's semantics: one combined marker = one epoch check, and on stale C re-evaluates the OUTERMOST command from that pc.
-   - Add `Instruction.joined_compiler_selections: Vec<NativeCompilerSelectionSite>` (tcl-bytecode lib.rs ~1512).
-   - In place_command_starts, when merged && the marker has a selection && no entered/cos, drop the marker and push its site into the host START. Optionally guard with outer text containing inner text.
-   - VM exec.rs `enter_native_compiler_selection` (~5674) must require the primary AND all joined prerequisites. On failure it replays the host's source_cmd_text and continues at the host's end (the primary site.end, else the START_CMD label0).
-   - Also include joined sites in the chunk-entry prerequisite collection (~2283) and in closed_native_execution/owned_application.rs:346.
-   - Then add `puts $x; set y [expr {[string length $x]+1}]; return $y` → "I S3 S1" to CASES.
-3) (c) needs a design decision; comment on #2490.
-- Pitfalls: the full suites take about 2h, so don't edit the tree while they run. Disk is about 12G free with target at 14G. tclsh8.4–9.1 are in ~/.local/bin; 8.4 has no disassemble. Comments must end with the Generated-by footer; commits use Refs #2490 and the Co-Authored-By / Claude-Session trailers.
-```
+1. **Top-level command markers** (`format-literal`, `dict-create-fold` on 8.6+; `expr-add`, `multi-stmt`, `if-else`, `while-simple`, `for-body-break` on 8.5). `set z [expr {$a + $b}]` on 8.5.19: `push1; startCommand +16 1; push1; loadScalarStk; …`; ours had no marker. `set s [format {%d+%d=%d} 1 2 3]` on 9.0.4: `push1; push1; storeStk; done`; ours had `startCommand` at pc 2. Cause: a static compile (no live entry) never ran the placement pass and never compacted. Fix in progress on `issues/bytecode-3` (`settle_command_starts`): a named release without a live entry compacts where `native_compiler_opcodes_compact` says (C's `IsCompactibleCompileEnv` for a root interpreter without limits, as `disassemble script` compiles) and otherwise places markers by C's `atCmdStart` rule. It fixes the 8.6+ rows; the five 8.5 rows still differ and need reading (8.5 has no compact pass and its `atCmdStart` handling is in `tclCompile.c` 8.5.19 around line 1425).
+2. **Ensemble subcommand calls** (`array-names`, `array-for`, `dict-set-ensemble`, `namespace-eval`, 8.5–9.1). tclsh invokes the implementation: `array names $arr` is `push "::tcl::array::names"; push "arr"; loadStk; invokeStk1 2`; `dict set d k v` is `push dict; push set; push d; push k; push v; push "::tcl::dict::set"; invokeReplace 5 2`; ours invokes the ensemble generically (`push array; push names; …; invokeStk1 3`). Fix: the ensemble rewrite C does in `TclCompileEnsemble`/`CompileToInvokedCommand`; check which subcommands are compiled vs rewritten per release.
+3. **`linsert` before 9.0** (`linsert`, 8.5 and 8.6). tclsh 8.6.18: `push1; loadStk; push1; list 1; over 1; listRangeImm 0 1; reverse 3; listRangeImm 2 end; listConcat; listConcat; done`; ours emits 9.0's `lreplace4 3 2`. Fix: a release fact for `TclCompileLinsertCmd`'s shape before 9.0.
+4. **`list` of expansions** (`list-expand-concat`, all releases). tclsh: `push; push; loadStk; push; loadStk; listConcat; storeStk`; ours: `startCommand; expandStart; …; invokeExpanded`. Fix: `TclCompileListCmd`'s all-expanded case.
+5. **`continue` in a `for` body** (`for-continue-runs-next`, all releases). tclsh: `jump1 +13; jump4 +6; pop; push1 0; incrStkImm…`; ours: `jump1 +12; jump4 +5; push1 0; …` (no `pop` at the continue target). Fix in the `for` emitter's continue target.
+6. **8.4**: unmeasured (see the 8.4 plan below).
+
+### Deferred to #2545 from #2544 (not in the corpus; add a snippet for each when fixing)
+
+- Our 8.6/9.0 `try` uses shorter jumps than C in places (`jumpFalse1` where tclsh 8.6.18/9.0.4 print `jumpFalse4`).
+- Our 8.6/9.0 compiled `subst` lacks C's leading `jump start; jump end` break trampoline (9.1 has it, from ef1f95bb2).
+
+### 8.4 plan
+
+`scripts/capture/bytecode_84.sh` reads `tcl_traceCompile 2`, which prints only in a Tcl built with `TCL_COMPILE_DEBUG`; neither `~/.local/bin/tclsh8.4` nor `tmp/tcl8.4.20/unix/tclsh` is. Build one in scratch: copy `tmp/tcl8.4.20`, `cd unix && ./configure && make COMPILE_DEBUG_FLAGS='-DTCL_COMPILE_DEBUG -DTCL_COMPILE_STATS'` (the `COMPILE_DEBUG_FLAGS` line in `unix/Makefile`, commented out by default), then `./scripts/capture/bytecode_84.sh <that tclsh>`. Record the build steps in the capture script's header so it can be repeated. Note that the script wraps each snippet as a procedure body `_snippet_`, so its references are procedure bodies, not top-level scripts.
+
+## On `work`
+
+This session's commits since 17 November, newest last:
+
+- 61edc359 Emit no startCommand under Tcl 8.4
+- 08fccbc8 Join a nested command's compiler selection to the startCommand it shares
+- d0575d5a Omit the first startCommand where a nested command starts with it
+- 0ba17bb2 Carry an enclosing command that starts where C has no marker as a host
+- 2f0c68b2 Compile Tcl 9.1's four-byte operand forms under the tcl9.1 profile
+- e979b915 Compare bytecode against tclsh 9.1 in the capture script and skill
+- 850ac5ca Name lreplace's flags as tclsh 9.1 disassembles them
+- e21d3aa1a An opaque foreach or lmap writes what its body writes (#2385)
+- 861386277 Expand a foreach with a qualified binder in the analysis CFG (#2385)
+- 72a785805 A try with finally emits a handler's entry bridge, jump and pop only where C does
+- 1f3364f18 A command marker hands over to its own command's start
+- ef1f95bb2 Tcl 9.1 dispatches try handlers and subst codes through jumpTableNum
+- 945d9446c Capture tclsh's procedure bodies as the parent interpreter compiles them
+- 6b84e9b57 Disassemble dict update's and dict with's local as a slot
+- 738313739 Name unset's complain flag as tclsh 9.1 disassembles it
+- 6caba173d Name a literal scalar on the stack before 8.6 for the target release
+- 82cece48e Keep a declaration's result where the release has no optimiser
+
+## Only on branches
+
+- `issues/bytecode-3` at 7a7f1434a: "WIP: settle command markers for a static compile of a named release" (group 1 above). Unverified: no suite, clippy or gates run. It rebases onto `work` as one commit; touches `tcl-codegen` `emitter/generate.rs` and `native_compiler_pass.rs`, and `tcl-registry` `native_compiler_pass.rs`.
+- `issues/bytecode-2`: superseded; everything on it is on `work`.
+
+## How to measure
+
+- References: `export PATH=$HOME/.local/bin:$PATH; ./scripts/capture/bytecode.sh` writes `tests/bytecode_reference/{8.5,8.6,9.0,9.1}/` (git-ignored; about a minute). 945d9446c fixed the capture: it used to disassemble procs in a safe child interpreter, which from 9.0 has no `tcl::unsupported::disassemble` (so 9.0/9.1 references had no procedure bodies: the "extra done" rows), and a child interpreter never takes C's compact pass (`Tcl_GetParent(interp) == NULL`, `tclCompile.c`). Each snippet now runs in its own process's interpreter; only the procs it defines are emitted, in name order. Every count given before 945d9446c (21/51, 23/49) is invalid.
+- Ours per release: `tcl dis --dialect tcl<release> <snippet.tcl>` (`cargo build -p tcl-cli --bin tcl`, then `target/debug/tcl`). The committed goldens are dialect-blind (`tcl8.6` registry, no profile) and `codegen_golden::rust_codegen_matches_golden_corpus` fails in the baseline; do not compare against them.
+- Scoreboard: a small Python loop over `bytecode_compare.py`'s helpers, run with `python3 -I` from the repository root: `sys.path.insert(0, '.claude/skills/bytecode-compare')`, then for each `bc.snippet_names()` and release compare `[bc.normalise_instruction(i) for i in bc.extract_instructions(text)]` of `tcl dis --dialect` output against `bc.load_disasm(bc.ref_dir(v) / f'{name}.disasm')`. The skill itself: `python3 .claude/skills/bytecode-compare/bytecode_compare.py -v <8.5|8.6|9.0|9.1> summary|diff <snippet>`; `-v 9.1` uses `tcl dis --dialect tcl9.1`, other releases use the goldens.
+- tclsh skeletons for a body: `proc t {x} $body; foreach l [split [tcl::unsupported::disassemble proc t] \n] {if {[regexp {^\s+\((\d+)\) (\S+)} $l -> pc op]} {lappend out $pc:$op}}`.
+- Suites: `source scripts/dev/agent-build-env.sh; export CARGO_PROFILE_TEST_OPT_LEVEL=1 RUST_BACKTRACE=0; cargo nextest run -p tcl-bytecode -p tcl-codegen -p tcl-vm -p tcl-registry -p tcl-explorer -p tcl-cli --no-fail-fast --status-level fail --final-status-level fail --failure-output never`. Failing names: `grep -E '^\s+(FAIL|SIGKILL|SIGSEGV|SIGABRT|TIMEOUT) ' log | awk '{print $NF}' | sort -u`; compare with `comm -13 base new`. Cold build about 25 minutes, run about 6 minutes, rebuild after a codegen edit about 7 minutes. Baseline at a50d3b1e4: 230 failing of 7,643.
+- For a `tcl-compiler` change: `-p tcl-compiler -p tcl-codegen` with `TCL_LSP_AGENT_INCREMENTAL=0 CARGO_BUILD_JOBS=3` (a second selection with incremental on fills the disk); about 10 minutes to run.
+- Before a push: clippy on the touched crates with `-D warnings -A clippy::assert_is_empty` (check its exit code, not a grep: an `&&` after a grep let one failing clippy through), `make xtask-gates` (39 gates, about 4 minutes), `cargo check --workspace` after the final rebase, then `git merge-base --is-ancestor <sha> origin/work`.
+
+## Rulings in force
+
+- For #2545, changing existing 8.5–9.0 output towards what tclsh prints is wanted, construct by construct, each with its tclsh listing and a VM run. Release differences are registry facts read by codegen, citing `tmp/tcl*/generic/`.
+- Announce every change in `tcl-codegen` or `tcl-vm` to `execution` (session_017u5g3HoXkKEw6EtdbxXPDn) and `live-inlining` (session_017u5g3KCTRHzSduK23yDtc2) before the push. 6caba173d and 82cece48e were pushed before `execution` was told; it was told afterwards.
+- #2385 (a `foreach` with a `::`-qualified binder miscompiled by O100): fixed by e21d3aa1a (the opaque `foreach`/`lmap` call defines and reads what its body may write) and 861386277 (analysis builds expand a qualified binder; codegen keeps it opaque). #2385 stays closed; its tests are `release_optimiser_safety::issue_2385` and `issue_2385_loop_bodies_keep_their_writes`.
+- A test that turns green is marked in its `docs/work/test-scrub/ledger/` row in the same push.
+
+## Dead ends
+
+- Comparing against the committed goldens: they are dialect-blind and stale.
+- Measuring 8.4 with the toolchain's tclsh: `tcl_traceCompile` prints nothing.
+- Changing a test's expected 9.0 skeletons to exact widths for #2544: our 8.6/9.0 jump widths differ from C's; that is #2545 work, and the #2544 test compares 8.6/9.0 without width suffixes by ruling.
+
+## Next steps, in order
+
+1. Verify and land `issues/bytecode-3` (group 1): run the suites, clippy and gates; then read the five 8.5 top-level rows against `tclCompile.c` 8.5.19 and fix them in a following commit. Add a `tcl dis` witness in `rust/tcl-cli/tests/compile_verbs.rs`, where the 8.5 witnesses are.
+2. Ensemble subcommand calls (group 2).
+3. `continue` in `for`, `list` of expansions, `linsert` before 9.0 (groups 3–5), and the two items deferred from #2544, each with a new corpus snippet.
+4. 8.4: the debug build and its references.
+5. The gate: committed references (no tclsh at test time) and a test over the corpus and releases, as the issue's second "Done when" item asks; it can land only once every row matches or has its reason and pinning test on the issue.
+6. Keep the issue title's scoreboard current with each landing.
+
+## Hazards
+
+- Disk: about 5 GB free with a full `target/`. A second package selection with incremental builds fills it; remove `target/debug/incremental` when it does. `rm -rf target` before a fresh baseline frees about 20 GB.
+- `/tmp/tcl-spectcl-cache-test-*` directories from `tcl-spectcl` tests leak and can fill `/tmp`; delete them between runs.
+- `work` moves about 100 commits an hour: fetch, rebase, check and push in quick succession, and re-run the focused tests on what landed.
