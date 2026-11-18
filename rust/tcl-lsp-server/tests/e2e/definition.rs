@@ -942,7 +942,7 @@ fn a_computed_source_path_keeps_the_pre_graph_abstention_end_to_end() {
     lsp.open_ready(&imp_uri, "namespace import ::Lib::*\n");
     lsp.open_ready(
         &app_uri,
-        "set dir /nowhere\nsource mod.tcl\nsource imp.tcl\nsource $dir/exp.tcl\nbar\n",
+        "set dir [lindex $argv 0]\nsource mod.tcl\nsource imp.tcl\nsource $dir/exp.tcl\nbar\n",
     );
     let locs = locations(&lsp.definition(&app_uri, 4, 0));
     assert_eq!(

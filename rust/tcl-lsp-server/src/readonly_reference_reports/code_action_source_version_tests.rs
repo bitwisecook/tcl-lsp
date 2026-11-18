@@ -25,6 +25,7 @@ use tower_lsp_server::ls_types::{
 };
 
 const SOURCE: &str = "unset xs\n";
+const W213_SOURCE: &str = "proc p {} {unset xs}\np\n";
 
 async fn open(backend: &Backend, uri: &Uri, source: &str) -> DocumentState {
     let document = DocumentState::with_version(source.to_owned(), "tcl8.6".to_owned(), 23);
@@ -140,11 +141,13 @@ async fn readonly_action_producer_retains_exact_optional_project_evidence() {
 async fn actual_code_action_endpoint_publishes_the_original_document_version() {
     let backend = crate::tests::test_backend();
     let uri: Uri = "file:///source-action-version.tcl".parse().unwrap();
-    open(&backend, &uri, SOURCE).await;
+    // W213 is a procedure-body diagnostic; tclsh 8.6.18/9.0.4: `proc p {}
+    // {unset xs}; p` raises can't unset "xs".
+    open(&backend, &uri, W213_SOURCE).await;
     let actions = backend
         .code_action(CodeActionParams {
             text_document: TextDocumentIdentifier { uri: uri.clone() },
-            range: Range::new(Position::new(0, 0), Position::new(0, 8)),
+            range: Range::new(Position::new(0, 11), Position::new(0, 19)),
             context: CodeActionContext::default(),
             work_done_progress_params: tower_lsp_server::ls_types::WorkDoneProgressParams::default(
             ),

@@ -1174,12 +1174,13 @@ async fn class_member_bareword_call_requires_link_e2e() {
     did_open(
         &mut writer,
         "file:///link.tcl",
-        "oo::class create Widget {\n    method foo {x} { return \"foo-called:$x\" }\n    method bar {} { return [foo 42] }\n}\n",
+        "# tcl-dialect: tcl9.0\noo::class create Widget {\n    method foo {x} { return \"foo-called:$x\" }\n    method bar {} { return [foo 42] }\n}\n",
     )
     .await;
-    // `foo` inside `bar`'s body (`method bar {} { return [foo 42] }`) —
-    // line 2, char 28 lands on the `f` of `foo`.
-    let def_req = r#"{"jsonrpc":"2.0","id":2,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///link.tcl"},"position":{"line":2,"character":28}}}"#;
+    // tclsh 8.6.18 has no `link` (oo::Helpers::link is 9.0+), so both
+    // documents are pinned to tcl9.0. `foo` inside `bar`'s body —
+    // line 3, char 28 lands on the `f` of `foo`.
+    let def_req = r#"{"jsonrpc":"2.0","id":2,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///link.tcl"},"position":{"line":3,"character":28}}}"#;
     writer.write_all(frame(def_req).as_bytes()).await.unwrap();
     let def_resp = read_until_id(&mut reader, "\"id\":2")
         .await
@@ -1188,7 +1189,7 @@ async fn class_member_bareword_call_requires_link_e2e() {
         def_resp.contains(r#""result":[]"#) || def_resp.contains(r#""result":null"#),
         "un-linked bareword sibling call must abstain from definition: {def_resp}",
     );
-    let hover_req = r#"{"jsonrpc":"2.0","id":3,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///link.tcl"},"position":{"line":2,"character":28}}}"#;
+    let hover_req = r#"{"jsonrpc":"2.0","id":3,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///link.tcl"},"position":{"line":3,"character":28}}}"#;
     writer.write_all(frame(hover_req).as_bytes()).await.unwrap();
     let hover_resp = read_until_id(&mut reader, "\"id\":3")
         .await
@@ -1201,22 +1202,22 @@ async fn class_member_bareword_call_requires_link_e2e() {
     did_open(
         &mut writer,
         "file:///link2.tcl",
-        "oo::class create Widget {\n    constructor {} { link foo }\n    method foo {x} { return \"foo-called:$x\" }\n    method bar {} { return [foo 42] }\n}\n",
+        "# tcl-dialect: tcl9.0\noo::class create Widget {\n    constructor {} { link foo }\n    method foo {x} { return \"foo-called:$x\" }\n    method bar {} { return [foo 42] }\n}\n",
     )
     .await;
-    // `foo` inside `bar`'s body — now line 3, char 28 (constructor line
+    // `foo` inside `bar`'s body — now line 4, char 28 (constructor line
     // shifted everything down by one; same column as above, the body
     // text itself is unchanged).
-    let def_req2 = r#"{"jsonrpc":"2.0","id":4,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///link2.tcl"},"position":{"line":3,"character":28}}}"#;
+    let def_req2 = r#"{"jsonrpc":"2.0","id":4,"method":"textDocument/definition","params":{"textDocument":{"uri":"file:///link2.tcl"},"position":{"line":4,"character":28}}}"#;
     writer.write_all(frame(def_req2).as_bytes()).await.unwrap();
     let def_resp2 = read_until_id(&mut reader, "\"id\":4")
         .await
         .expect("definition response");
     assert!(
-        def_resp2.contains(r#""line":2"#),
-        "linked bareword sibling call must resolve to foo's declaration on line 2: {def_resp2}",
+        def_resp2.contains(r#""line":3"#),
+        "linked bareword sibling call must resolve to foo's declaration on line 3: {def_resp2}",
     );
-    let hover_req2 = r#"{"jsonrpc":"2.0","id":5,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///link2.tcl"},"position":{"line":3,"character":28}}}"#;
+    let hover_req2 = r#"{"jsonrpc":"2.0","id":5,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///link2.tcl"},"position":{"line":4,"character":28}}}"#;
     writer
         .write_all(frame(hover_req2).as_bytes())
         .await
