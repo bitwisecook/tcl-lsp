@@ -974,21 +974,20 @@ fn check_actions_surface_irule5002_flow_fix() {
     use tcl_compiler::compiler_checks::run_all_checks;
     use tcl_lexer::LexerConfig;
 
-    let mut registry = tcl_registry::CommandRegistry::build_default();
-    registry.load_irules();
+    let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
     let src = "when CLIENT_ACCEPTED { drop }\n";
     let profile = tcl_dialect::DialectProfile::irules();
     let cu = CompilationUnit::build_for_with_config(
         src,
-        &registry,
+        registry,
         false,
         LexerConfig::for_dialect("f5-irules"),
     )
-    .with_interprocedural(&registry, Some(profile));
-    let checks = run_all_checks(&cu, &registry, Some(profile));
+    .with_interprocedural(registry, Some(profile));
+    let checks = run_all_checks(&cu, registry, Some(profile));
     let analysis = check_analysis(
         src,
-        &registry,
+        registry,
         profile,
         LexerConfig::for_dialect("f5-irules"),
     );

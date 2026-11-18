@@ -804,18 +804,20 @@ mod current_source_implementation_tests {
 
     #[test]
     fn logical_method_implementation_requires_current_source_and_complete_input() {
+        // The cursor is on the `method run` declaration: a top-level bare
+        // `run` is no method call (tclsh 9.0.4: invalid command name "run").
         let source = "oo::class create C {method run {} {}}\nrun";
         let mut analysis = Analyser::new().analyse(source, "tcl");
         assert!(analysis.allows_lexical_declaration_advice());
-        assert_eq!(implementation(source, 1, 1, &analysis).len(), 1);
+        assert_eq!(implementation(source, 0, 27, &analysis).len(), 1);
         assert_eq!(
-            implementation(&format!("{source}\n# changed"), 1, 1, &analysis),
+            implementation(&format!("{source}\n# changed"), 0, 27, &analysis),
             [] as [crate::definition::LspRange; 0]
         );
         let config = analysis.body_lexer_config.unwrap();
         analysis.body_lexer_config.as_mut().unwrap().strict_quoting = !config.strict_quoting;
         assert_eq!(
-            implementation(source, 1, 1, &analysis),
+            implementation(source, 0, 27, &analysis),
             [] as [crate::definition::LspRange; 0]
         );
         analysis.body_lexer_config = Some(config);
@@ -827,12 +829,12 @@ mod current_source_implementation_tests {
             config,
         ));
         assert_eq!(
-            implementation(source, 1, 1, &analysis),
+            implementation(source, 0, 27, &analysis),
             [] as [crate::definition::LspRange; 0]
         );
         analysis.resolved_input = None;
         assert_eq!(
-            implementation(source, 1, 1, &analysis),
+            implementation(source, 0, 27, &analysis),
             [] as [crate::definition::LspRange; 0]
         );
     }
