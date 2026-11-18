@@ -266,6 +266,10 @@ class Probe:
     max_latency: float = 0.0
     wedged_at: float | None = None
     latencies: list[float] = field(default_factory=list)
+    slow_after: float = 2.0
+    round_no: int = -1
+    # (round, seconds) of every probe slower than `slow_after`.
+    slow: list[tuple[int, float]] = field(default_factory=list)
     stop: threading.Event = field(default_factory=threading.Event)
     # One thread sends every request, so the client's ids never race: the
     # churn loop asks for an extra command through `ask`.
@@ -297,6 +301,7 @@ class Probe:
                     answer = {"error": str(error)}
                 self._answers.put(answer)
             started = time.monotonic()
+            round_no = self.round_no
             try:
                 self._execute("tcl-lsp.getEffectiveConfig")
             except TimeoutError:
@@ -310,6 +315,8 @@ class Probe:
             self.answered += 1
             self.max_latency = max(self.max_latency, latency)
             self.latencies.append(latency)
+            if latency >= self.slow_after:
+                self.slow.append((round_no, round(latency, 3)))
             self.stop.wait(self.interval)
 
 
@@ -425,7 +432,9 @@ def run(args: argparse.Namespace) -> int:
         workspace=str(workspace),
     )
     status = 0
-    probe = Probe(client, args.probe_timeout, args.probe_interval)
+    probe = Probe(
+        client, args.probe_timeout, args.probe_interval, slow_after=args.slow_probe
+    )
     try:
         lsp_client.initialize(client)
         for path in documents:
@@ -436,6 +445,7 @@ def run(args: argparse.Namespace) -> int:
         time.sleep(args.warm_up)
         pack = workspace / PACK_RELATIVE
         for round_no in range(args.rounds):
+            probe.round_no = round_no
             if probe.wedged_at is not None:
                 break
             if not prober.is_alive():
@@ -489,6 +499,7 @@ def run(args: argparse.Namespace) -> int:
             answered=probe.answered,
             max_latency=round(probe.max_latency, 3),
             latency=latency_summary(probe.latencies),
+            slow=probe.slow,
         )
     finally:
         probe.stop.set()
@@ -549,6 +560,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--max-interval", type=float, default=2.0)
     parser.add_argument("--warm-up", type=float, default=5.0)
     parser.add_argument("--probe-interval", type=float, default=0.5)
+    parser.add_argument(
+        "--slow-probe",
+        type=float,
+        default=2.0,
+        help="record the round of every probe slower than this many seconds",
+    )
     parser.add_argument("--probe-timeout", type=float, default=120.0)
     parser.add_argument("--rss-every", type=int, default=10)
     parser.add_argument(

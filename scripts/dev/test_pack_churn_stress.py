@@ -163,3 +163,41 @@ def test_latency_summary_reports_median_p95_and_max() -> None:
     got = churn.latency_summary([float(n) for n in range(1, 101)])
     assert got == {"median": 51.0, "p95": 96.0, "max": 100.0}
     assert churn.latency_summary([]) == {}
+
+
+class SlowClient:
+    def __init__(self, delay: float) -> None:
+        self.delay = delay
+
+    def send_request(self, method: str, params: dict, timeout: float) -> dict:
+        churn.time.sleep(self.delay)
+        return {}
+
+
+def test_probe_records_the_round_of_a_slow_answer() -> None:
+    probe = churn.Probe(SlowClient(0.05), timeout=1.0, interval=0.0, slow_after=0.01)
+    probe.round_no = 7
+    thread = churn.threading.Thread(target=probe.run, daemon=True)
+    thread.start()
+    try:
+        deadline = churn.time.monotonic() + 5.0
+        while not probe.slow and churn.time.monotonic() < deadline:
+            churn.time.sleep(0.01)
+    finally:
+        probe.stop.set()
+        thread.join(timeout=5.0)
+    assert probe.slow
+    assert all(round_no == 7 and seconds >= 0.01 for round_no, seconds in probe.slow)
+
+
+def test_probe_leaves_a_fast_answer_out_of_the_slow_list() -> None:
+    probe = churn.Probe(SlowClient(0.0), timeout=1.0, interval=0.0, slow_after=1.0)
+    thread = churn.threading.Thread(target=probe.run, daemon=True)
+    thread.start()
+    try:
+        while probe.answered < 3:
+            churn.time.sleep(0.01)
+    finally:
+        probe.stop.set()
+        thread.join(timeout=5.0)
+    assert probe.slow == []
