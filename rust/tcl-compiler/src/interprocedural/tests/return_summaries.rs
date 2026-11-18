@@ -118,8 +118,9 @@ fn passthrough_param_detected() {
 /// Whether a statement of `::p`'s flow graph may run a `return` of its
 /// own, as the return reading asks of each executable block.
 fn p_may_return(source: &str) -> bool {
-    let registry = CommandRegistry::build_default();
-    let unit = CompilationUnit::build_for(source, &registry, false);
+    let profile = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+    let registry = CommandRegistry::build_default().project_for_profile(profile);
+    let unit = CompilationUnit::build_for_profile(source, &registry, false, profile);
     unit.procedures
         .get(&fixture_id(&unit.procedures, "::p"))
         .expect("authored fixture body")
