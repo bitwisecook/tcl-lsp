@@ -18,6 +18,16 @@
 
 //! `interp alias`, alias targets flowing through values, and `rename`.
 
+/// Whether a W123 is reported at the `nth` occurrence of `needle` in `src`.
+fn w123_at(src: &str, needle: &str, nth: usize) -> bool {
+    let offset = src.match_indices(needle).nth(nth).expect("the needle").0;
+    tcl_compiler::analyser::Analyser::new()
+        .analyse(src, "tcl8.6")
+        .diagnostics
+        .iter()
+        .any(|d| d.code.to_string() == "W123" && d.span.start() as usize == offset)
+}
+
 // interp alias records in `command_aliases`.
 mod interp_alias {
     use super::super::*;
@@ -164,27 +174,18 @@ mod interp_alias {
     #[test]
     fn real_world_safe_and_cross_interp_aliases_945() {
         // A dynamic source path bound by a tracked `set i [interp create
-        // ...]` resolves through that binding rather
-        // than aborting: `add` is defined *inside* `$i`'s domain (calling
-        // `::api::add` back in the parent), so it homes under `$i`'s
-        // synthetic `@interp@@autoname@<offset>` domain — never under the
-        // bare `::add` a plain top-level alias would use.
-        let safe = "set i [interp create -safe]\ninterp alias $i add {} ::api::add\nproc ::api::add {a b} {\n    return [expr {$a + $b}]\n}\n";
-        assert!(alias(safe, "::add").is_none());
-        assert_eq!(
-            alias(safe, "::@interp@@autoname@6::add"),
-            Some(("::api::add".to_string(), vec![])),
-        );
-        // A literal parent-side alias into a live child is tracked with a
-        // domain-qualified target: `localGreet` runs
-        // the child's `greet`, so navigation follows the alias link into
-        // the child's `@interp@` domain, where `interp eval` homed the
-        // proc's definition.
+        // ...]` resolves through that binding: `add` exists inside `$i`
+        // only. tclsh8.6.18/9.0.4: `$i eval {add 2 3}` -> 5, a top-level
+        // `add 2 3` -> invalid command name "add".
+        let safe = "proc ::api::add {a b} {\n    return [expr {$a + $b}]\n}\n\
+                    set i [interp create -safe]\ninterp alias $i add {} ::api::add\n\
+                    $i eval {add 2 3}\nadd 2 3\n";
+        assert!(!super::w123_at(safe, "add 2 3", 0), "the alias exists inside $i");
+        assert!(super::w123_at(safe, "add 2 3", 1), "not in the parent");
+        // A parent-side alias into a live child runs the child's `greet`
+        // (tclsh8.6.18/9.0.4: localGreet -> hello).
         let cross = "interp create child\ninterp eval child { proc greet {} { return hello } }\ninterp alias {} localGreet child greet\nlocalGreet\ninterp delete child\n";
-        assert_eq!(
-            alias(cross, "::localGreet"),
-            Some(("::@interp@child::greet".to_string(), vec![])),
-        );
+        assert!(!super::w123_at(cross, "localGreet\n", 0));
     }
 
     #[test]
@@ -381,14 +382,17 @@ mod interp_value_flow {
         // `child`). The value-flow path must not `split_whitespace` the raw
         // substitution text: doing so would bind `$i` to `"{child}"`, a
         // domain the direct handler never records.
-        let via_value = "set i [interp create {child}]\n$i eval { proc helper {} {} }\n";
-        let direct = "interp create {child}\ninterp eval child { proc helper {} {} }\n";
-        assert_eq!(
-            interp_domains(via_value),
-            interp_domains(direct),
-            "value-flow and direct keys must agree"
-        );
-        assert_eq!(interp_domains(via_value), vec!["@interp@child".to_string()]);
+        // tclsh8.6.18/9.0.4: either way `interp eval child helper` -> 1 and a
+        // top-level `helper` -> invalid command name "helper".
+        for src in [
+            "set i [interp create {child}]\n$i eval { proc helper {} { return 1 } }\n\
+             interp eval child { helper }\nhelper\n",
+            "interp create {child}\ninterp eval child { proc helper {} { return 1 } }\n\
+             interp eval child { helper }\nhelper\n",
+        ] {
+            assert!(!super::w123_at(src, "helper }", 0), "{src}");
+            assert!(super::w123_at(src, "helper\n", 0), "{src}");
+        }
     }
 
     #[test]
@@ -422,19 +426,14 @@ mod interp_value_flow {
 
     #[test]
     fn synthetic_autoname_key_used_for_pathless_interp_create() {
-        // TP — pins the synthetic per-call-site key convention (mirrors
-        // `handle_namespace_eval_dynamic_target_gets_a_synthetic_span_keyed_name`'s
-        // `@dynns@15` pin): a pathless `interp create` inside `set` gets an
-        // `@autoname@<offset-of-the-substitution's-opening-bracket>` key,
-        // not the variable's raw text, so `foo`'s definition homes under a
-        // synthetic, call-site-unique domain rather than one keyed on `s`.
-        let src = "set s [interp create -safe]\ninterp eval $s { proc foo {} {} }\n";
-        let r = Analyser::new().analyse(src, D);
-        assert!(
-            r.all_procs.keys().any(|k| k.contains("@autoname@6")),
-            "{:?}",
-            r.all_procs.keys().collect::<Vec<_>>()
-        );
+        // A pathless `interp create` names a generated interpreter
+        // (tclsh8.6.18/9.0.4: interp0); `foo` exists in it and not in the
+        // parent: `interp eval $s foo` runs, a top-level `foo` raises
+        // invalid command name "foo".
+        let src = "set s [interp create -safe]\ninterp eval $s { proc foo {} {} }\n\
+                   interp eval $s { foo }\nfoo\n";
+        assert!(!super::w123_at(src, "foo }", 0));
+        assert!(super::w123_at(src, "foo\n", 0));
     }
 }
 
@@ -522,20 +521,12 @@ pub(super) mod rename {
 
     #[test]
     fn foreach_loop_variable_over_a_literal_list_is_constant_folded() {
-        // A `foreach VAR {literal list} { ... }` loop over a fully
-        // literal list must bind `VAR` to each element in turn before
-        // simulating the body's own `rename`/`proc` sub-commands (the two
-        // constant-fold-sensitive callers go-to-definition/references/
-        // rename care about), rather than leaving the loop variable out of
-        // the constant-string lattice entirely. `renamed_commands` is
-        // populated the same as if `c` had been a plain top-level `set`
-        // constant.
-        let src =
-            "proc ::foo_impl {} { return impl }\nforeach c {foo} { rename ::${c}_impl ::${c} }\n";
-        assert_eq!(
-            renamed_commands(src).get("::foo"),
-            Some(&"::foo_impl".to_string())
-        );
+        // A `foreach VAR {literal list} { ... }` loop over a fully literal
+        // list binds `VAR` to each element before the body's `rename` runs.
+        // tclsh8.6.18/9.0.4: the later `foo` -> impl.
+        let src = "proc ::foo_impl {} { return impl }\n\
+                   foreach c {foo} { rename ::${c}_impl ::${c} }\nfoo\n";
+        assert!(!super::w123_at(src, "foo\n", 0));
     }
 
     #[test]
