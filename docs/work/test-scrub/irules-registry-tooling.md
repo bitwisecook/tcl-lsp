@@ -196,3 +196,7 @@ assert!(
 ```
 
 The barrier is still a fact of the edited text, because the added word cannot be named by any notice computed from the buffer it replaced. Blocked on the owner's approval of the test-body edit and on the buffer-notice product work (check over the buffer text in `tcl-spectcl`, publication in the server).
+
+## MERGE rows wait on failing survivors (18 November)
+
+All 15 survivors named above were run on the rebased tree and all 15 fail today (`branch_selection` 2, `catch` 4, `cell_updates` 1, `declared_routes` 1, `loops` 1, `ordered_state` 1, `procedure_summaries` 4, `refinements` 1). A merge that deletes a passing CLI test in favour of a failing survivor would lower coverage, so none is made. Each row is `status waits`; the CLI test stays. When a survivor passes, its merge is one commit naming the row, after reading the two programs side by side (for `o103_summary_path_folds_a_computed_return` the witness already holds the fold, the summary and the hint-only bare call; its tclsh runs per release are the part to confirm before deleting the CLI copy).
