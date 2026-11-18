@@ -115,6 +115,22 @@ impl Analyser {
         }
     }
 
+    /// A creation the load walk proves unreached (it follows a proved error
+    /// in an executed unit) runs in no proof environment, so it declares no
+    /// class. A body never called is a separate, display case.
+    pub(in super::super::super) fn load_creation_proved_unreached(
+        &self,
+        cmd_name: &str,
+        start: u32,
+    ) -> bool {
+        !self.result.offset_is_inside_any_definition_body(start)
+            && self
+                .head_identities
+                .invocation_at_source(cmd_name, start)
+                .runtime_reachability()
+                == crate::command_binding::SourceRuntimeReachability::NotEntered
+    }
+
     /// Handle `oo::class create NAME ?BODY?` — record the class.
     ///
     /// Records a [`super::super::super::types::ClassDef`] in ``result.all_classes``
@@ -154,6 +170,9 @@ impl Analyser {
         let Some(cmd_tok) = cmd_tok else {
             return false;
         };
+        if self.load_creation_proved_unreached(cmd_name, cmd_tok.span.start()) {
+            return false;
+        }
         // Keep the written head for original source and factory lookups.
         let Some(ResolvedClassCreation {
             user_factory,

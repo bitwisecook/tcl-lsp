@@ -526,3 +526,29 @@ fn analyse_oo_class_body_records_property_def() {
     assert!(pd.has_getter);
     assert!(!pd.has_setter);
 }
+
+#[test]
+fn a_creation_after_a_proved_error_declares_no_class() {
+    // tclsh 8.6.18/9.0.4: `error boom` stops the script, so the creation
+    // after it never runs and `::Wrong` does not exist. `proc` into a missing
+    // namespace raises the same way (`can't create procedure
+    // "::clay::define": unknown namespace`).
+    for source in [
+        "error boom; oo::class create ::Wrong {method connect {} {}}",
+        "proc ::clay::define args {}; oo::class create ::Wrong {}",
+    ] {
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let analysis = Analyser::new().analyse(source, dialect);
+            assert!(
+                !analysis.all_classes.contains_key("::Wrong"),
+                "{dialect}: {source}"
+            );
+        }
+    }
+    let reached = Analyser::new().analyse(
+        "catch {error boom}; oo::class create ::Right {method connect {} {}}",
+        "tcl9.0",
+    );
+    assert!(reached.all_classes.contains_key("::Right"));
+}
+

@@ -45,6 +45,9 @@ impl Analyser {
         call: &ClassDefinerCall<'_>,
     ) -> Option<InventoryDefinition> {
         let command = call.cmd_tok?;
+        if self.load_creation_proved_unreached(call.cmd_name, command.span.start()) {
+            return None;
+        }
         let tokens = self.retained_invocation_tokens(command.span.start(), call.arg_tokens)?;
         let head = self.original_static_source_name_at_span(command.span)?;
         let generation = self.analysis_context();
