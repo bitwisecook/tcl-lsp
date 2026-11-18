@@ -776,19 +776,12 @@ mod tests {
             selected_read(&commented, &analysis, sink, issuer).is_some(),
             "the typed sink subject retains its exact original variable read"
         );
-        let offered = actions(&commented, &analysis, &diagnostic);
-        assert_eq!(offered.len(), 1, "{offered:?}");
-        assert!(
-            offered[0]
-                .edits
-                .iter()
-                .any(|edit| edit.new_text.starts_with("proc html_encode "))
-        );
-        assert!(
-            offered[0]
-                .edits
-                .iter()
-                .any(|edit| edit.new_text == "[::html_encode $x]")
+        // An inserted helper called as `[::html_encode $x]` is a direct proc
+        // call (IRULE5005: iRules procs are invoked with `call`), and hosted
+        // generation purposes remain unavailable, so nothing is offered.
+        assert_eq!(
+            actions(&commented, &analysis, &diagnostic),
+            [] as [crate::code_actions::CodeAction; 0]
         );
         let occupied = format!("proc {{html_encode}} {{value}} {{return $value}}\n{body}");
         let (analysis, diagnostic) = issued(&occupied, "f5-irules", "IRULE3001");
@@ -1055,7 +1048,10 @@ mod tests {
         }
         let source = format!("proc ::other {{value}} {{return $value}}\n{body}");
         let (analysis, diagnostic) = issued(&source, "f5-irules", "IRULE3001");
-        assert_eq!(actions(&source, &analysis, &diagnostic).len(), 1);
+        assert_eq!(
+            actions(&source, &analysis, &diagnostic),
+            [] as [crate::code_actions::CodeAction; 0]
+        );
     }
 
     #[test]

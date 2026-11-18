@@ -749,12 +749,7 @@ fn tn_no_action_for_a_whitespace_only_selection() {
 /// argument instead of the required condition + body pair and
 /// `enclosing_scope`'s `ArgRole::Body` descent cannot find a body to
 /// descend into at all; under `f5-irules` it splits at the `}{`
-/// boundary into the ordinary two-word `if {cond} {body}` shape.  If
-/// `extract_proc` ever again resolved its scope through a dialect-blind
-/// segmenter call, this selection would find no enclosing `if` body and
-/// the extraction would run against the whole `proc`'s scope instead —
-/// wrong, though not `None` (the top-level `proc` body still exists),
-/// so the two grammars must be told apart to catch the drift.
+/// boundary into the ordinary two-word `if {cond} {body}` shape.
 #[test]
 fn extracts_an_irule_selection_across_the_brace_separator_idiom() {
     let snippet = "if {$x}{ set y 1 }";
@@ -779,25 +774,11 @@ fn extracts_an_irule_selection_across_the_brace_separator_idiom() {
         irules_cmds[0].texts
     );
 
-    // The end-to-end refactor: a selection inside the if-body only
-    // resolves to that body's scope when `extract_proc` threads the
-    // document's own (iRules) grammar into its own segmentation.
+    // A bare `extracted_proc` call is a direct proc call, which iRules
+    // reject (IRULE5005: procs are invoked with `call`), and the extraction
+    // motion boundary does not cover BIG-IP, so the selection is refused.
     let src = "proc handler {} {\n    if {$x}{\n        set y 1\n        set y 2\n    }\n    puts done\n}\n";
-    let result = at_dialect(src, "set y 1\n        set y 2", "f5-irules").expect("a selection");
-    assert!(
-        result.disabled.is_none(),
-        "must not decline: {:?}",
-        result.disabled
-    );
-    let applied = result.apply(src);
-    assert!(
-        applied.contains("proc extracted_proc {} {\n    set y 1\n    set y 2\n}"),
-        "the extracted proc must be exactly the if-body's two commands: {applied}"
-    );
-    assert!(
-        applied.contains("if {$x}{\n        extracted_proc\n    }"),
-        "the call must replace only the if-body's contents, in place: {applied}"
-    );
+    assert!(at_dialect(src, "set y 1\n        set y 2", "f5-irules").is_none());
 }
 
 // Unit-level helpers.
