@@ -233,3 +233,34 @@ fn the_shipped_resolver_answers_from_its_precompiled_table() {
     assert_eq!(resolver(&["model"]), Vec::new());
     assert_eq!(tcl_spectcl::hooks::hosts_built(), 0, "no VM was started");
 }
+
+/// The resolver's trailing `Body` word is a script the analyser enters, so an
+/// unknown command inside it is reported; a braced UPF data list is not.
+#[test]
+fn the_analyser_enters_the_trailing_body_the_resolver_names() {
+    let set = tcl_spectcl::bundled::load_from(&repo_root().join("specs"));
+    tcl_spectcl::hooks::publish(&set);
+    let key = set.key;
+    let _installed = tcl_spectcl::bundled::set_active(Some(std::sync::Arc::new(set)));
+    let source = "define_power_model PM {\n    upf_body_plain_missing\n}\ndefine_power_model PM2 -for {MODEL} {\n    upf_body_option_missing\n}\ncreate_power_domain PD -elements {\n    upf_body_data_missing\n}\n";
+    let analysis = tcl_compiler::analyser::Analyser::new()
+        .with_pack_overlay(key)
+        .analyse(source, "xilinx-eda-tcl");
+    let unresolved: Vec<&str> = analysis
+        .unresolved_command_sites
+        .iter()
+        .map(|(_, name)| name.as_str())
+        .collect();
+    assert!(
+        unresolved.contains(&"upf_body_plain_missing"),
+        "{unresolved:?}"
+    );
+    assert!(
+        unresolved.contains(&"upf_body_option_missing"),
+        "{unresolved:?}"
+    );
+    assert!(
+        !unresolved.contains(&"upf_body_data_missing"),
+        "{unresolved:?}"
+    );
+}
