@@ -578,6 +578,15 @@ mod tests {
     /// inert nested text. It is reached
     /// by completion/code-actions on essentially every keystroke. The
     /// assertion is that both request-local views return, not their contents.
+    ///
+    /// The depth exceeds what Tcl itself runs, on purpose: tclsh 8.6.18 and
+    /// 9.0.4 refuse 2,000 nested `if` bodies with `too many nested
+    /// compilations (infinite loop?)` (their limit is 1,000 nested
+    /// evaluations), but a user can paste such text, and scanning it must
+    /// survive without overflowing the stack or panicking. Its cost scales
+    /// with the nested body text, which is quadratic in the depth; the
+    /// count-based bound is tcl-compiler's
+    /// `nested_if_heads_take_barrier_work_at_most_quadratic_in_depth`.
     #[test]
     fn deeply_nested_bodies_survive_when_scanning() {
         const DEPTH: usize = 2000;

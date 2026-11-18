@@ -689,13 +689,20 @@ mod tests {
 #[cfg(test)]
 mod scaling_tests {
     /// Each head nested in `depth` ifs consults the regions that enclose it.
-    /// Doubling the depth must at most about double the capture's work: a
-    /// head may not re-walk every ancestor region, which made a 2,000-deep
-    /// `when` body take minutes (tcl-lsp-core
-    /// `deeply_nested_bodies_survive_when_scanning`). A count, so it cannot
-    /// flake under load.
+    /// The source itself holds O(depth^2) body text (each nested body word
+    /// spans the rest of the nest), and the reference implementation has the
+    /// same shape, so the contract is the quadratic ceiling: doubling the
+    /// depth at most quadruples the capture's counted work. Cubic was the
+    /// fault (each enclosing body re-asked for every head below it), and made
+    /// a 2,000-deep `when` body take minutes (tcl-lsp-core
+    /// `deeply_nested_bodies_survive_when_scanning`). The counts are
+    /// deterministic, so the bound carries no tolerance.
+    ///
+    /// tclsh, `eval` of N nested `if {1} {` (coordinator, 18 Nov):
+    /// 8.6.18 and 9.0.4, depth 500: 4-5 ms; depth 1000: 15-19 ms (4x per
+    /// doubling); depth 2000: `too many nested compilations (infinite loop?)`.
     #[test]
-    fn nested_if_heads_take_barrier_work_linear_in_depth() {
+    fn nested_if_heads_take_barrier_work_at_most_quadratic_in_depth() {
         let steps = |depth: usize| {
             let mut src = String::from("when HTTP_REQUEST {\n");
             for _ in 0..depth {
@@ -713,7 +720,7 @@ mod scaling_tests {
         let (quarter, half, full) = (steps(50), steps(100), steps(200));
         assert!(quarter > 0, "the fixture reaches the barrier capture");
         assert!(
-            half * 10 <= quarter * 22 && full * 10 <= half * 22,
+            half <= quarter * 4 && full <= half * 4,
             "doubling the nesting depth took {quarter} -> {half} -> {full} barrier steps"
         );
     }
