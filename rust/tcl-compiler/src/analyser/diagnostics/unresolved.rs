@@ -1454,26 +1454,20 @@ mod diagnostic_presence_controls {
 
     #[test]
     fn actual_presence_suppresses_absence_without_a_target_allocation() {
+        // tclsh8.6.18/9.0.4: `local` runs, `absent` raises invalid command
+        // name "absent". Both heads are references; only `absent` warns.
         let source = "proc local {} {}; local; absent";
-        let mut analyser = Analyser::new();
-        analyser.analyse(source, "tcl8.6");
-        for (name, expected) in [
-            ("local", SourceCommandSlotPresence::Present),
-            ("absent", SourceCommandSlotPresence::Absent),
-        ] {
-            let invocation = analyser
-                .result
+        let result = Analyser::new().analyse(source, "tcl8.6");
+        for (name, absent) in [("local", false), ("absent", true)] {
+            let invocation = result
                 .command_invocations
                 .iter()
                 .find(|invocation| invocation.name == name)
-                .unwrap();
-            let actual: SourceCommandSlotPresence = analyser.command_diagnostic_slot_presence(
-                &invocation.name,
-                invocation.range,
-                invocation.lookup,
-                false,
-            );
-            assert_eq!(actual, expected);
+                .unwrap_or_else(|| panic!("`{name}` is a reference"));
+            let warned = result.diagnostics.iter().any(|d| {
+                d.code == tcl_core_types::DiagCode::W123 && d.span.start() == invocation.range.start()
+            });
+            assert_eq!(warned, absent, "{name}: {:?}", result.diagnostics);
         }
     }
 }
