@@ -23,11 +23,12 @@ What waits on a burn-down session, which is paused too (`docs/work/name-handling
 - `audit`: `analyser-binding`'s review of the walk half of the callback fix for #1710; its two answers on the fact shape are in the hand-over. `taint` has two replay-side fixes parked behind it.
 - `server`: `analysis-performance` on #2543's two closing conditions (the retained-module table clears everything at 512 entries; entries outlive their database) and on #2243 (`lassign` in a nested body ends the walk, with `analyser-binding`).
 
-Open with the owner:
+Settled by the owner on 18 November:
 
-- Whether to open an issue for document-free requests that take up to 18–20 s while 183 documents are re-analysed (measured, not an artefact; see `handover/server.md`).
-- The F5 ruling on #1712 stands unless overruled: 36 builtins pure under Tcl 8.4 stay impure for `f5-irules` until device check 33.
-- Deleting the stale `issues/*` branches, which no session here is allowed to do. Live ones to keep: the four in the table above.
+- #2546 is open for document-free requests that take up to 18–20 s while 183 documents are re-analysed. It belongs to the `server` session, after #2543.
+- #2547 is open for the `tcl-spectcl-cache-test-*` directories tests leave in the temp directory. No session has it yet; `tcl-spectcl` is the burn-down's `irules-registry-tooling` area.
+- F5: the 36 builtins pure under Tcl 8.4 stay impure for `f5-irules` until device check 33 is complete (recorded on #1712).
+- Stale `issues/*` branches: the owner deletes them, since no session here can. Every tip as it stood at the pause is in `branch-tips-2026-11-18.txt`. Keep `issues/dataflow-2`, `issues/audit-22`, `issues/server-2` and `issues/bytecode-3`; all others hold only work that has landed.
 
 Still not for these sessions: #2324, #1956, #1655 (the burn-down's `tk-oo`); #2151, #2165 (BIG-IP device checks 11 and 12).
 
