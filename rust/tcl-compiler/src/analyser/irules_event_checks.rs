@@ -811,6 +811,9 @@ impl Analyser {
             return false;
         };
         let flags = self.irules_debug_flag_names().to_vec();
+        // An open index cannot rule out that some event assigns the variable;
+        // a hint about a missing gate then accepts any variable gate.
+        let open = self.irules_debug_flags_open;
         let Some(registry) = self.registry.as_deref() else {
             return false;
         };
@@ -826,7 +829,7 @@ impl Analyser {
                         tcl_registry::TraceOperation::Read,
                     );
                     if crate::connection_scope::cell_from_place(&place)
-                        .is_some_and(|cell| flags.contains(&cell))
+                        .is_some_and(|cell| open || flags.contains(&cell))
                         || names_static_variable(&access.original_spelling)
                         || (!place.dynamic
                             && place.is_global()
@@ -858,7 +861,7 @@ impl Analyser {
                     tcl_registry::TraceOperation::Read,
                 );
                 crate::connection_scope::cell_from_place(&place)
-                    .is_some_and(|cell| flags.contains(&cell))
+                    .is_some_and(|cell| open || flags.contains(&cell))
                     || names_static_variable(name)
                     || (!place.dynamic
                         && place.is_global()
@@ -921,16 +924,20 @@ impl Analyser {
     /// [`Self::irules_event_bodies`], which supplies its input.
     fn irules_debug_flag_names(&mut self) -> &[crate::connection_scope::EventCell] {
         if self.irules_debug_flags.is_none() {
-            let flags = self.registry.as_deref().map_or_else(Vec::new, |registry| {
-                collect_debug_flag_names(
-                    registry,
-                    &self.source,
-                    &self.head_identities,
-                    self.file_lexer_config(),
-                    &self.analysis_context(),
-                )
-            });
+            let (flags, open) =
+                self.registry
+                    .as_deref()
+                    .map_or_else(Default::default, |registry| {
+                        collect_debug_flag_names(
+                            registry,
+                            &self.source,
+                            &self.head_identities,
+                            self.file_lexer_config(),
+                            &self.analysis_context(),
+                        )
+                    });
             self.irules_debug_flags = Some(flags);
+            self.irules_debug_flags_open = open;
         }
         self.irules_debug_flags.as_deref().unwrap_or_default()
     }
@@ -1000,9 +1007,10 @@ fn collect_debug_flag_names(
     resolver: &crate::realm::CommandBindingRealm,
     config: tcl_lexer::LexerConfig,
     metadata: &std::sync::Arc<tcl_registry::model::ContextRegistry>,
-) -> Vec<crate::connection_scope::EventCell> {
+) -> (Vec<crate::connection_scope::EventCell>, bool) {
     use tcl_registry::events::EventExecutionMultiplicity;
     let mut names = std::collections::HashSet::new();
+    let mut open = false;
     let bindings = resolver.source_bindings_ref();
     let declarations = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
     for candidate in declarations.iter().flat_map(|command| {
@@ -1071,6 +1079,7 @@ fn collect_debug_flag_names(
         );
         for (&block_id, block) in &cfg.blocks {
             for (index, statement) in block.statements.iter().enumerate() {
+                open |= has_unseen_effects(statement, registry);
                 for place in crate::place_bridge::def_places_with_continuation(
                     statement,
                     points.before_statement(block_id, index),
@@ -1084,7 +1093,27 @@ fn collect_debug_flag_names(
             }
         }
     }
-    names.into_iter().collect()
+    (names.into_iter().collect(), open)
+}
+
+/// A statement whose writes the flag index cannot see: a barrier, an opaque
+/// native call, or a call whose script bodies lowering left unlowered (a
+/// `switch` with no single layout under 8.4, BIGIP-NAME-074).
+fn has_unseen_effects(statement: &crate::ir::Statement, registry: &CommandRegistry) -> bool {
+    match statement {
+        crate::ir::Statement::Barrier { .. } | crate::ir::Statement::NativeCall { .. } => true,
+        crate::ir::Statement::Call { args, .. } => {
+            let words: Vec<&str> = args.iter().map(String::as_str).collect();
+            !registry
+                .arg_indices_for_role(
+                    statement.canonical_command_or_source(),
+                    &words,
+                    ArgRole::Body,
+                )
+                .is_empty()
+        }
+        _ => false,
+    }
 }
 
 /// Is `$var_name` referenced in *body*?  Matches

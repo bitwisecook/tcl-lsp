@@ -1028,6 +1028,10 @@ pub struct Analyser {
     /// [`Self::irules_event_bodies`] and cleared with it at the top of each
     /// analysis run.
     pub(super) irules_debug_flags: Option<Vec<crate::connection_scope::EventCell>>,
+    /// Whether a setup-event body holds a statement whose effects the index
+    /// cannot see (an unlowered body or a barrier): the index is then open
+    /// and cannot prove that no event assigns a gate variable.
+    pub(super) irules_debug_flags_open: bool,
     /// Creation calls the walk could not classify because their head was not
     /// yet known to be a class factory — replayed once the parameterised-class
     /// observation join has settled.

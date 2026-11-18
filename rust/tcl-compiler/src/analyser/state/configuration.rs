@@ -174,6 +174,7 @@ impl Analyser {
             irules_file_profiles: None,
             irules_event_bodies: None,
             irules_debug_flags: None,
+            irules_debug_flags_open: false,
             deferred_class_creations: Vec::new(),
         }
     }

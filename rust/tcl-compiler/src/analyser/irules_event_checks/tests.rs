@@ -326,6 +326,43 @@ fn irule5001_quiet_for_flag_set_in_a_switch_arm_of_a_setup_event() {
     );
 }
 
+/// The `--` twin of the switch-arm case: `switch -- $mode {…}` has one
+/// layout on every release (tclsh 8.4.20 to 9.1.0), so its arms are lowered
+/// and `debug` enters the flag index by proof.
+#[test]
+fn irule5001_quiet_for_flag_set_in_a_terminated_switch_arm_of_a_setup_event() {
+    let source = "when CLIENT_ACCEPTED { switch -- $mode { \
+             loud { set debug 1 } default { set debug 0 } } }\n\
+             when HTTP_REQUEST { if {$debug} { log local0. hi } }";
+    let mut analyser = Analyser::new();
+    let result = analyser.analyse(source, "f5-irules");
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code != DiagCode::Irule5001),
+        "flags: {:?}; diagnostics: {:?}",
+        analyser.irules_debug_flag_names(),
+        result.diagnostics
+    );
+    assert!(
+        !analyser.irules_debug_flags_open,
+        "a laid-out switch leaves the flag index closed"
+    );
+}
+
+/// Control for the open-index rule: with every setup body laid out and no
+/// event assigning the gate variable, the index is closed and the `log` is
+/// still reported as ungated.
+#[test]
+fn irule5001_still_fires_when_no_event_assigns_the_gate_variable() {
+    assert!(has(
+        "when CLIENT_ACCEPTED { set other 1 }\n\
+         when HTTP_REQUEST { if {$debug} { log local0. hi } }",
+        "IRULE5001"
+    ));
+}
+
 #[test]
 fn irule5001_still_fires_for_catch_naming_a_static_result_variable() {
     // `catch`'s body always runs, so it can never be a gate. Its other
