@@ -131,6 +131,7 @@ tmsh create auth partition TenantA ; tmsh create auth partition TenantB      # T
 | 17 | A source literal read numerically after another command read it | check on a BIG-IP | - | - |
 | 18 | A top-level statement whose head is a rule procedure | check on a BIG-IP | 4 | analyser-binding (`rule_declaration` tests of `tcl-compiler`) |
 | 31 | What `event … disable` touches | check on a BIG-IP | 0 | none yet: filed for the registry change of the 1712 audit |
+| 32 | `lassign` in TMM | check on a BIG-IP | 1 | irules-registry-tooling (`tcl-irule-test` `harness_runs_the_tmm_84_surface`) |
 | 19 | TS-01, per-TMM state | check on a BIG-IP | 17 | irules-registry-tooling 17 |
 | 20 | TS-02, `class match` operators | check on a BIG-IP | 1 | irules-registry-tooling 1 |
 | 21 | TS-03, request lifecycle | check on a BIG-IP | 6 | irules-registry-tooling 6 |
@@ -3875,6 +3876,13 @@ its citation and a regression that reads the recorded lines.
     If every connection completes and only the named events stop firing,
     the effect is event control and gets its own target; until answered it
     stays `Unknown`.
+
+32. **`lassign` in TMM** (simulator refusal, test scrub). `tcl-irule-test` `live::tests::harness_runs_the_tmm_84_surface` runs `lassign` and the Rust VM refuses it under `f5-irules` because no list-assignment invocation grammar is selected for an F5 profile (`tcl-registry` `native_list_assignment.rs`, `list_assignment_invocation`: Tcl 8.5, 8.6, 9.x and Jim only). Not on record for 21.1.0.1. In `when HTTP_REQUEST`, log the result of each, each in its own rule load:
+    - `log local0. [catch {lassign {a b c} x y} r] ; log local0. "r=$r x=$x y=$y"`
+    - `log local0. [catch {lassign {a b}} r]` and `log local0. $r` (arity: tclsh 8.5 and later require a target variable list, 8.4 has no `lassign`)
+    - `log local0. [catch {lassign {a b c} x y z w} r]` and `log local0. $r`
+    - `log local0. [info commands lassign]`
+    Confirms the test and lets `list_assignment_invocation` take an F5 row: `lassign` exists with the Tcl 8.5 grammar and its extra elements are returned (`b c` for the first line), or it is absent (`invalid command name "lassign"`), in which case the test's use of `lassign` is the claim that fails.
 
 #### Checks for tests that hold iRules behaviour no Tcl core shows (test scrub, `irules-registry-tooling`)
 
