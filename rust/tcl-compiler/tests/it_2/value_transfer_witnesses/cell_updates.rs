@@ -266,7 +266,7 @@ fn a_value_position_set_reads_the_variable() {
 #[test]
 fn program_three_folds_in_every_consumer() {
     let source = "proc p {} {set n 1; incr n; incr n 2; puts $n}\np\n";
-    for dialect in DIALECTS {
+    for dialect in TCL_CORE_DIALECTS {
         let unit = unit_of(source, dialect);
         assert_eq!(
             value_at(&unit, "::p", "n", 3),

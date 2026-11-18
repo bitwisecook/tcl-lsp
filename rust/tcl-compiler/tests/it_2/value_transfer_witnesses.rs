@@ -63,6 +63,7 @@ mod ordered_state;
 mod preserving_outcomes;
 mod procedure_summaries;
 mod refinements;
+mod rule_procedures;
 mod try_and_errors;
 mod typed_statements;
 mod unseen_code;
@@ -78,6 +79,13 @@ const PASSES: usize = 8;
 /// under the 8.4 base it declares (ruling 8); and the lenient `tcl` profile,
 /// which declares no release, so every axis answers by unanimity (ruling 7).
 const DIALECTS: [&str; 5] = ["tcl8.4", "tcl8.6", "tcl9.0", "f5-irules", "tcl"];
+
+/// The dialects whose oracle is a Tcl core release: a witness whose program
+/// runs a command at the top level (a call, a `puts`, a `catch`) is no iRule,
+/// since a rule's top level admits only `when`, `proc`, `priority` and
+/// `timing` (IRULE5006/5007), and its tclsh oracle says nothing about TMM.
+/// Rule procedures are witnessed in `rule_procedures` instead.
+const TCL_CORE_DIALECTS: [&str; 4] = ["tcl8.4", "tcl8.6", "tcl9.0", "tcl"];
 
 /// Run `script` from a file under `tclsh`: whether it exited cleanly and
 /// what it printed. A script run from a file exits non-zero on an error,

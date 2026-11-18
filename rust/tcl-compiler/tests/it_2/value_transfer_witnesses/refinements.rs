@@ -262,7 +262,7 @@ fn the_twelve_refinement_witnesses() {
 
 /// The lines, from 1, of the S100 shimmer warnings in `source` under
 /// `dialect`, in order.
-fn shimmer_lines(source: &str, dialect: &str) -> Vec<usize> {
+pub(super) fn shimmer_lines(source: &str, dialect: &str) -> Vec<usize> {
     let registry = static_context_for(dialect).commands();
     let unit = CompilationUnit::build_for_dialect(source, registry, false, dialect);
     let mut lines: Vec<usize> =
@@ -288,7 +288,7 @@ fn shimmer_lines(source: &str, dialect: &str) -> Vec<usize> {
 #[test]
 fn a_string_is_test_types_its_arm() {
     let source = "proc p {s} {\n    set i [string trim $s]\n    if {[string is integer -strict $i]} {\n        puts [lindex {a b c} $i]\n    }\n    puts [lindex {a b c} $i]\n}\nset ::v 1\np $::v\n";
-    for dialect in DIALECTS {
+    for dialect in TCL_CORE_DIALECTS {
         assert_eq!(shimmer_lines(source, dialect), vec![6], "{dialect}");
     }
     prints_under_every_release(source, "b\nb\n");
@@ -341,7 +341,7 @@ fn a_range_from_a_comparison_narrows_only_a_proved_integer() {
     let end = "proc q {s} {\n    set i [string trim $s]\n    if {$i > 5} {\n        set x [lindex {a b c} $i]\n        puts $x\n    }\n}\nq end\n";
     let point = "proc g {s} {\n    set i [string trim $s]\n    if {$i != 7} { puts no } else { set x [lindex {a b c} $i]; puts $x }\n}\ng 7.0\n";
     let proved = "proc h {s} {\n    set i [string trim $s]\n    if {[string is integer -strict $i] && $i > 5} {\n        set x [lindex {a b c} $i]\n        puts <$x>\n    }\n}\nh 9\n";
-    for dialect in DIALECTS {
+    for dialect in TCL_CORE_DIALECTS {
         assert!(!reports(end, dialect, DiagCode::W230), "{dialect}: end");
         assert!(!reports(point, dialect, DiagCode::W230), "{dialect}: 7.0");
         assert!(reports(proved, dialect, DiagCode::W230), "{dialect}: 9");

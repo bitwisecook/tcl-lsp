@@ -209,7 +209,7 @@ fn the_iteration_cap_publishes_nothing() {
              if {{$i == {bound}}} {{puts yes}} else {{puts no}}\n}}\np\n"
         );
         let condition = format!("$i == {bound}");
-        for dialect in DIALECTS {
+        for dialect in TCL_CORE_DIALECTS {
             let unit = unit_of(&source, dialect);
             let function = unit
                 .procedures
@@ -397,7 +397,7 @@ fn a_loops_own_test_is_the_branch_that_leaves_it() {
     let source = "proc p {} {\n    set n 0\n    for {set i 0} {$i < 3} {incr i} {\n        \
                   set k 1\n        if {$k == 1} { incr n }\n    }\n    puts $n\n}\n\
                   proc q {} {\n    while 1 { return done }\n}\np\nputs [q]\n";
-    for dialect in DIALECTS {
+    for dialect in TCL_CORE_DIALECTS {
         assert_eq!(condition_claims(source, dialect), [true], "{dialect}");
     }
     prints_under_every_release(source, "3\ndone\n");

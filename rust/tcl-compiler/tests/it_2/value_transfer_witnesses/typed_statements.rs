@@ -306,7 +306,7 @@ fn a_typed_assignment_reads_its_word_as_tcl_substitutes_it() {
         ),
     ];
     for (source, var, value, output) in cases {
-        for dialect in DIALECTS {
+        for dialect in TCL_CORE_DIALECTS {
             assert_eq!(
                 last_value(source, dialect, "::p", var),
                 value,
@@ -368,7 +368,6 @@ fn a_leading_hash_is_quoted_per_release() {
         ("tcl8.4", Some("# a"), Some("# b")),
         ("tcl8.6", Some("{#} a"), Some("{#} b")),
         ("tcl9.0", Some("{#} a"), Some("{#} b")),
-        ("f5-irules", Some("# a"), Some("# b")),
         ("tcl", None, None),
     ] {
         let expect = |value: Option<&str>| value.map_or(LatticeValue::Overdefined, text);

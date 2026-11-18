@@ -50,7 +50,7 @@ fn the_summary_folds_only_a_call_the_rerun_could_make() {
         ),
     ];
     for (source, printed, call) in kept {
-        for dialect in DIALECTS {
+        for dialect in TCL_CORE_DIALECTS {
             let (rewritten, _) = optimised(source, dialect);
             assert!(
                 rewritten.contains(call),
@@ -61,7 +61,7 @@ fn the_summary_folds_only_a_call_the_rerun_could_make() {
     }
     let folded = "proc p {a} {return foo}\nputs [p x]\n";
     let bare = "proc p {a} {return foo}\np x\np [incr n]\n";
-    for dialect in DIALECTS {
+    for dialect in TCL_CORE_DIALECTS {
         let (rewritten, _) = optimised(folded, dialect);
         assert!(rewritten.contains("puts foo"), "{dialect}\n{rewritten}");
         let hints: Vec<&str> = rewrites_of(bare, dialect)
@@ -162,7 +162,7 @@ fn o103_summary_path_folds_a_computed_return() {
     let bare = "proc p {} {set x [string range foobar 0 2]; return $x}\np\n";
     let uses = "proc q {a} {return [expr {$a + 1}]}\nputs [q 5]\n";
     let seeded = "proc r {a} {set x [string range $a 0 2]; return $x}\nputs [r foobar]\n";
-    for dialect in DIALECTS {
+    for dialect in TCL_CORE_DIALECTS {
         let summary = summary_of(source, dialect, "::p");
         assert!(summary.can_fold_static_calls, "{dialect}: {summary:?}");
         assert_eq!(
@@ -238,7 +238,7 @@ fn the_summary_returns_the_value_exactly() {
     ];
     for (word, constant, printed) in literals {
         let source = format!("proc p {{a}} {{return {word}}}\nputs [p 1]\n");
-        for dialect in DIALECTS {
+        for dialect in TCL_CORE_DIALECTS {
             let summary = summary_of(&source, dialect, "::p");
             assert_eq!(summary.constant_return, constant, "{dialect}: {word}");
             assert_eq!(summary.return_passthrough_param, None, "{dialect}: {word}");
@@ -249,7 +249,7 @@ fn the_summary_returns_the_value_exactly() {
     let arg_sensitive =
         "proc p {a} {if {$a} {return \" 5\"} else {return [expr {$a}]}}\nset y [p 1]\nputs <$y>\n";
     for source in [padded, arg_sensitive] {
-        for dialect in DIALECTS {
+        for dialect in TCL_CORE_DIALECTS {
             assert!(
                 rewrites_of(source, dialect)
                     .iter()
@@ -260,7 +260,7 @@ fn the_summary_returns_the_value_exactly() {
         prints_under_every_release(source, "< 5>\n");
     }
     let braced_read = "proc p {} {set x 5; return {$x}}\nputs [p]\n";
-    for dialect in DIALECTS {
+    for dialect in TCL_CORE_DIALECTS {
         assert!(
             rewrites_of(braced_read, dialect)
                 .iter()

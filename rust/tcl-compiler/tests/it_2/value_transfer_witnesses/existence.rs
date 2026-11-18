@@ -272,7 +272,7 @@ fn o109_keeps_a_store_an_existence_read_observes() {
 fn a_parameter_binds_and_a_never_assigned_local_stays_unbound() {
     let source = "proc p {a} {\n    if {[info exists a]} {puts yes} else {puts no}\n    \
                   if {[info exists b]} {puts wrong} else {puts right}\n}\np 1\n";
-    for dialect in DIALECTS {
+    for dialect in TCL_CORE_DIALECTS {
         let unit = unit_of(source, dialect);
         assert_eq!(
             last_existence(&unit, "::p", "a"),

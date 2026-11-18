@@ -228,7 +228,7 @@ fn a_computed_template_that_runs_commands_keeps_the_stores_it_reads() {
 #[test]
 fn the_no_match_preserve_witness() {
     let source = "proc p {} {\n    set a before\n    regexp {(x)(y)} zz a b\n    puts $a\n}\np\n";
-    for dialect in DIALECTS {
+    for dialect in TCL_CORE_DIALECTS {
         assert_eq!(
             last_value(source, dialect, "::p", "a"),
             text("before"),
@@ -251,7 +251,7 @@ fn the_no_match_preserve_witness() {
 fn the_partial_scan_witness() {
     let source = "proc p {} {\n    set a before\n    set b before\n    \
                   scan \"12\" \"%d %d\" a b\n    puts \"$a $b\"\n}\np\n";
-    for dialect in DIALECTS {
+    for dialect in TCL_CORE_DIALECTS {
         assert_eq!(
             last_value(source, dialect, "::p", "a"),
             LatticeValue::Const(ConstValue::Int(12)),
@@ -277,7 +277,7 @@ fn the_percent_n_count_witness() {
     use tcl_compiler::analyser::Analyser;
     let kept = "proc p {} {\n    set n 5\n    scan \"\" %n%d n a\n    puts $n\n}\np\n";
     let bound = "proc q {} {\n    scan \"\" %n%d n a\n    puts $n\n}\nq\n";
-    for dialect in DIALECTS {
+    for dialect in TCL_CORE_DIALECTS {
         assert_eq!(
             last_value(kept, dialect, "::p", "n"),
             LatticeValue::Const(ConstValue::Int(0)),
@@ -366,7 +366,7 @@ fn const_writes_only_an_absent_place() {
 #[test]
 fn the_repeated_target_witness() {
     let source = "proc p {} {\n    regexp {(a)(b)} ab -> x x\n    puts $x\n}\np\n";
-    for dialect in DIALECTS {
+    for dialect in TCL_CORE_DIALECTS {
         assert_eq!(
             last_value(source, dialect, "::p", "x"),
             text("b"),

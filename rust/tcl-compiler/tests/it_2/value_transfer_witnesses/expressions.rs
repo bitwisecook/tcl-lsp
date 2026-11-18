@@ -167,7 +167,7 @@ fn a_finite_condition_decides_when_every_member_agrees() {
     };
     let agree = "proc p {} {foreach a {1 2} {if {$a > 0} {puts pos} else {puts neg}}}\np\n";
     let split = "proc p {} {foreach a {1 2} {if {$a > 1} {puts big} else {puts small}}}\np\n";
-    for dialect in DIALECTS {
+    for dialect in TCL_CORE_DIALECTS {
         assert!(
             decided(agree, dialect).contains(&("$a > 0".to_owned(), true)),
             "{dialect}: {:?}",
@@ -387,7 +387,7 @@ fn expr_acceptance_list() {
     ];
     for (description, prelude, expr_call, expected) in cases {
         let source = format!("proc p {{}} {{{prelude}\nset r [{expr_call}]\n}}");
-        for (dialect, want) in DIALECTS.into_iter().zip(expected) {
+        for (dialect, want) in TCL_CORE_DIALECTS.into_iter().zip(expected) {
             let unit = unit_of(&source, dialect);
             let folded = value_at(&unit, "::p", "r", 1).and_then(lattice_text);
             assert_eq!(

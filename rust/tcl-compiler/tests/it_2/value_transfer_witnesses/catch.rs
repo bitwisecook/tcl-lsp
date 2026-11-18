@@ -1016,7 +1016,7 @@ fn an_opaque_catch_reads_its_own_writes_as_its_own() {
             "0\n1\n2\n",
         ),
     ] {
-        for dialect in DIALECTS {
+        for dialect in TCL_CORE_DIALECTS {
             assert!(
                 !reports(source, dialect, DiagCode::W210),
                 "{dialect}: {source}"
@@ -1025,7 +1025,7 @@ fn an_opaque_catch_reads_its_own_writes_as_its_own() {
         prints_under_every_release(source, printed);
     }
     let may_set = "proc p {c} {catch {if {$c} {set x 1}}; puts $x}\np 1\np 0\n";
-    for dialect in DIALECTS {
+    for dialect in TCL_CORE_DIALECTS {
         assert!(reports(may_set, dialect, DiagCode::W210), "{dialect}");
     }
     for (series, tclsh) in releases_on_path() {
