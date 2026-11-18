@@ -209,3 +209,29 @@ All 15 survivors named above were run on the rebased tree and all 15 fail today 
 - **Not a fixture: `literal_invalid_return_forms_project_as_catchable_errors`.** There `on error` catches the first `try`, so both statements are reached (tclsh runs both, exit code 0). Index 0 (`-code bogus`) projects `error`; index 1 (`-level -1 payload`) projects no completion. Whether the registry's completion knowledge for `return -level -1` is `Error` is the open question; `tcl-registry` owns it and I have not changed it.
 
 The test-body edit for the fixture repair is held for the owner's approval like the other test-body edits; nothing in `tcl-diagram` was changed.
+
+## Blocked: `a_hover_key_written_outside_the_block_is_still_unknown` (18 November)
+
+Found when the area was re-measured (`tcl-spectcl` 22 red). It contradicts the ruling on pack root words: its first assertion demands the analyser's `W123` for a `summary` row written at command level, but a pack's words belong to the SpecTcl document grammar, so the analyser abstains and the pack's own notice is the signal. Its second assertion (the loader drops `summary` as an unknown property) is the right one and passes. Replacement: keep the loader assertion as it is and replace the first with the abstention, so the test still pins that the editor does not call a pack word an unknown Tcl command:
+
+```rust
+#[test]
+fn a_hover_key_written_outside_the_block_is_dropped_by_the_loader_not_called_unknown() {
+    let source = "speclib probe 1.1 {\n    command demo {\n        arity 1\n        summary {Not here.}\n    }\n}\n";
+    assert!(
+        !diagnostics(source)
+            .iter()
+            .any(|(code, message)| *code == DiagCode::W123 && message.contains("'summary'")),
+        "a pack word is the document grammar's, not an unknown command: {:?}",
+        diagnostics(source)
+    );
+    let pack = tcl_spectcl::evaluate_pack(source);
+    assert!(
+        pack.notices
+            .iter()
+            .any(|notice| notice.message.contains("unknown property `summary` dropped")),
+        "{:?}",
+        pack.notices
+    );
+}
+```
