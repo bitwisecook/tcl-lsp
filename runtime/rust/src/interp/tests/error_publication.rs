@@ -172,6 +172,34 @@ fn c84_direct_invalid_expression_preserves_code_until_eval() {
     });
 }
 
+/// What the stage above is for, as a script sees it: tclsh 8.4.20 leaves
+/// `errorCode` NONE after a non-numeric or non-boolean operand, and sets the
+/// arithmetic code after a domain error.
+#[test]
+#[cfg(have_tommath)]
+fn c84_invalid_expression_operands_leave_error_code_none() {
+    leak_free(|interp| {
+        interp.set_runtime_version(tcl_dialect::TclVersion::V8_4);
+        for (script, expected) in [
+            (
+                b"set errorCode PROBE; list [catch {expr {\"bad\" + 1}} m] $m $errorCode".as_slice(),
+                "1 {can't use non-numeric string as operand of \"+\"} NONE",
+            ),
+            (
+                b"set errorCode PROBE; list [catch {expr {\"bad\" ? 1 : 0}} m] $m $errorCode".as_slice(),
+                "1 {expected boolean value but got \"bad\"} NONE",
+            ),
+            (
+                b"set errorCode PROBE; list [catch {expr {NaN + 1}} m] $m $errorCode".as_slice(),
+                "1 {domain error: argument not in valid range} {ARITH DOMAIN {domain error: argument not in valid range}}",
+            ),
+        ] {
+            assert_eq!(interp.eval_str(script), Code::Ok);
+            assert_eq!(String::from_utf8_lossy(&interp.result_bytes()), expected);
+        }
+    });
+}
+
 #[test]
 #[cfg(have_tommath)]
 fn counted_syntax_failures_keep_direct_code_and_apply_eval_update() {
