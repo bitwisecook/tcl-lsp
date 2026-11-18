@@ -598,7 +598,15 @@ impl CodegenCtx<'_> {
                 }
             }
             Task::DeclareNamespaceLocal(name) => {
-                if self.command_variable_slot(&name).is_none() {
+                // A compiler's local declaration has nothing to declare where
+                // the code has no compiled locals: C's `TclFindCompiledLocal`
+                // returns -1 outside a procedure, so a script-level
+                // `array exists a(x)` declares nothing and invokes.
+                let dynamic = self.compiled_variable_protocol.is_some_and(|protocol| {
+                    protocol.command_lookup(&name, self.source_variable_environment())
+                        == tcl_syntax::naming::NativeCompiledVariableLookup::DynamicName
+                });
+                if !dynamic && self.command_variable_slot(&name).is_none() {
                     self.refuse_native_dependency();
                 }
             }
