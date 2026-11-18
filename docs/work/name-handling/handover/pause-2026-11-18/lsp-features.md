@@ -126,3 +126,30 @@ Others waiting on me: none known.
 - The disk allowance fills with `target/debug/build` (19 GB seen). Keep the newest two hash directories per crate (`ls -1t | tail -n +3 | xargs rm -rf`), and remove `target/debug/incremental`.
 - `cargo fmt -p tcl-compiler` reformats other areas' files. Revert anything you did not mean to touch.
 - Test names are keys in `docs/work/test-scrub/data/inventory.tsv` and the ledger. Keep names when correcting expectations; fix the comments instead.
+
+## Addendum: messages received after the handover commit
+
+These were queued before the pause and reached this session only after `f499969f`. They are recorded here and not acted on.
+
+- **Computed-head rename barrier: the owner is diagnostics** (session_017u5g3HXzMVEcpUS6bxGcmA; `rust/tcl-compiler/src/analyser/types/variable_renames.rs`).
+  - Not yet sent. Send them the fixtures, the `peek` transcripts on 8.6.18 and 9.0.4, and the three controls (`$w x; return $dir`, `eval $w`, `uplevel 0 $w`).
+  - The rule the fix must satisfy: a strict local rename is complete only if no command that could reach the local by name runs while the local is in scope. The barrier is the unproved call, not a later read. A proved, non-linking target does not block.
+  - Ask diagnostics to state why the controls refuse while `${dir}view` does not. Ask for one positive witness: a body whose every call is proved and non-linking still renames.
+  - The two tests stay red, exposed, blocked on that fix.
+- **switch_to_dict ruling (coordinator, 18 Nov).** It replaces the summary in (e).
+  1. Each of the nine rows expects a disabled action naming its reason (no default arm, or the fresh-store obligation), with no edits. Each row carries a tclsh 8.5.19 to 9.1.0 transcript for a matched and an unmatched subject.
+  2. In the same commit, amend `refactor-original-source-rewrite-permissions.md`. Such tests are restated to the explicit no-edit obligation with the oracle transcript; the earlier expectation is recorded in the ledger row.
+  3. Product fix: `set_pattern` returning `None` becomes the same disabled action with a reason. `dictionary_conversion_does_not_unwrap_literal_command_name_data_twice` then expects the disabled refusal, unless its row says why no action is the designed answer.
+  4. A mandatory positive control: an enabled edit where equivalence is proved (a default arm assigning the same variable, `-exact`, literal arms, no fall-through, no other effects). Run it on tclsh before and after, for a matched and an unmatched subject, with identical output. It stays red (KEEP-ORACLE) if the product cannot prove it.
+  5. Edges:
+     - tcl8.4 has no `dict`: not offered, or disabled naming the release. Say which.
+     - `-glob`, `-regexp`, fall-through arms, duplicate patterns (first wins in `switch`, last wins in `dict create`; show the transcript) and arms with other effects: one row per refusal reason.
+- **Integration targets (coordinator).** `rust/tcl-lsp-core/tests/it_2` to `it_5` (about 1,254 tests) were never measured by this area.
+  - Run them from a clean head with the oracle flags.
+  - Push the failing list, and send run/failed per target before triage.
+  - Then triage into the ledger. The 24 `it_5` `command_prefix_integration` call-graph callback-edge failures are one cause until shown otherwise.
+  - Also list any `tcl-lsp-server` test target besides `e2e`, `lib` and `preview_tickets_e2e`, and say whether it was ever run.
+  - This is queue item 1 in (c).
+- **Clippy.** The `doc_markdown` warning at `logical_call_target_tests.rs:336` was already fixed in `ac859842`. Standing rule: clippy `--all-targets` must finish clean before any push.
+- **Disk.** Run `rm -rf /tmp/tcl-spectcl-cache-test-*` before touching `target/`.
+- **analyser-binding:** the stale `C` binding after `rename C M` was a probe offset fault. Probe offset 54 (the `catch` head, which is unresolved), not 42 (the `rename` operand). If `original_oo::class_for_invocation` at 54 still answers a class, that is a core lookup bypassing the invocation's empty reference; re-check it.
