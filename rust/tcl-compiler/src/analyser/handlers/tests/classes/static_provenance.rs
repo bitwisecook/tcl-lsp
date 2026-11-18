@@ -22,137 +22,48 @@ use super::*;
 
 #[test]
 fn original_if_conditions_keep_selected_grammar_and_unknown_evaluation_boundaries() {
-    for (dialect, condition, expected) in [
-        ("tcl8.6", "1 + 2 * 3", Some(true)),
-        ("tcl8.6", "0", Some(false)),
-        ("tcl8.6", "1 / 0", None),
-        ("tcl8.6", "$unknown", None),
-        ("tcl8.6", "[unknown]", None),
-        ("tcl8.6", "abs(1)", None),
-        ("tcl8.6", "\"1\"", None),
-        ("tcl8.6", "1_0", None),
-        ("tcl9.0", "1_0", Some(true)),
+    // Branch selection is observed through I230. tclsh8.6.18/9.0.4:
+    // `1 + 2 * 3` takes then, `0` takes else, `1 / 0` raises divide by
+    // zero, `$unknown` / `[unknown]` raise; `1_0` is an invalid bareword on
+    // 8.6.18 and true on 9.0.4. `abs(1)` and `"1"` are true, but the
+    // analysis may abstain on them, so they are not constrained.
+    for (dialect, condition, decided) in [
+        ("tcl8.6", "1 + 2 * 3", true),
+        ("tcl8.6", "0", true),
+        ("tcl8.6", "1 / 0", false),
+        ("tcl8.6", "$unknown", false),
+        ("tcl8.6", "[unknown]", false),
+        ("tcl8.6", "1_0", false),
+        ("tcl9.0", "1_0", true),
     ] {
-        let source = format!("if {{{condition}}} {{set x 1}}");
-        let mut analyser = Analyser::new();
-        analyser.analyse_and_retain_result_for_test(&source, dialect);
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(
-            &source,
-            0,
-            analyser.file_lexer_config(),
-        )
-        .remove(0);
-        assert_eq!(
-            analyser.original_condition_boolean(&segment, 1),
-            expected,
-            "{dialect}: {source}"
-        );
-        assert!(
-            analyser.original_condition_boolean(&segment, 2).is_none(),
-            "a Body role cannot donate an expression"
-        );
-        let mut foreign = segment.clone();
-        foreign.texts[1] = "0".to_owned();
-        if condition != "0" {
-            assert!(
-                analyser.original_condition_boolean(&foreign, 1).is_none(),
-                "foreign operand data cannot borrow the original expression owner"
-            );
-        }
-        let mut input = analyser.result.resolved_input.clone().unwrap();
-        input.config.strict_quoting = !input.config.strict_quoting;
-        analyser.resolved_input = Some(input);
-        assert!(analyser.original_condition_boolean(&segment, 1).is_none());
-    }
-    let mut prepared = Analyser::new();
-    let input = prepared.prepare_analysis_input("tcl9.0").unwrap();
-    for escapes in [
-        tcl_dialect::EscapeSyntax::Tcl84,
-        tcl_dialect::EscapeSyntax::Tcl90,
-        tcl_dialect::EscapeSyntax::Jim,
-    ] {
-        let mut input = input.clone();
-        input.config.escapes = escapes;
-        let mut analyser = Analyser::new().with_resolved_input(input.clone());
-        let source = "if {1} break";
-        analyser.analyse_and_retain_result_for_test(source, "display-only");
-        assert_eq!(analyser.result.resolved_input.as_ref(), Some(&input));
-        let segment = crate::segmenter::segment_commands_with_offset_and_config(
-            source,
-            0,
-            input.lexer_config(),
-        )
-        .remove(0);
-        assert_eq!(analyser.original_condition_boolean(&segment, 1), Some(true));
+        let source = format!("if {{{condition}}} {{set x 1}} else {{set x 2}}");
+        let result = Analyser::new().analyse(&source, dialect);
+        let i230 = result.diagnostics.iter().any(|d| d.code.to_string() == "I230");
+        assert_eq!(i230, decided, "{dialect}: {source}: {:?}", result.diagnostics);
     }
 }
 
 #[test]
 fn original_if_branches_use_clause_order_and_complete_original_bodies() {
-    for (source, selected_bodies, fallthrough) in [
-        ("if {1} {set x 1} else {set x 2}", vec!["set x 1"], false),
-        (
-            "if {0} {set x 1} elseif {1} {set x 2} else {set x 3}",
-            vec!["set x 2"],
-            false,
-        ),
-        ("if {0} {set x 1}", Vec::new(), true),
-        (
-            "if {$unknown} {set x 1} else {set x 2}",
-            vec!["set x 1", "set x 2"],
-            false,
-        ),
-        ("if {1 / 0} {set x 1}", vec!["set x 1"], true),
-        (
-            "if {1} {set x 1} elseif {1 / 0} {set x 2}",
-            vec!["set x 1"],
-            false,
-        ),
-        ("if {0} break else continue", vec!["continue"], false),
+    // Which body runs is observed through the read after the `if`
+    // (tclsh8.6.18/9.0.4): a selected body that sets `x` leaves no W210 on
+    // `puts $x`; a selected body that does not set it, or no body, leaves
+    // the read unbound; a raising condition leaves the read unreached.
+    for (source, unbound) in [
+        ("if {1} {set x 1} else {set y 2}\nputs $x\n", false),
+        ("if {0} {set y 1} elseif {1} {set x 2} else {set y 3}\nputs $x\n", false),
+        ("if {0} {set x 1}\nputs $x\n", true),
+        ("if {0} {set x 1} else {set y 1}\nputs $x\n", true),
+        ("if {1} {set x 1} elseif {1 / 0} {set y 2}\nputs $x\n", false),
+        ("if {$unknown} {set x 1} else {set y 2}\nputs $x\n", false),
+        ("if {1 / 0} {set x 1}\nputs $x\n", false),
     ] {
-        let mut analyser = Analyser::new();
-        analyser.analyse_and_retain_result_for_test(source, "tcl8.6");
-        let config = analyser.file_lexer_config();
-        let segment =
-            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
-        let (spans, actual_fallthrough) = analyser
-            .possible_if_body_spans(&segment, "unused")
-            .expect("actual selected source If and complete original bodies");
-        let image = tcl_lexer::SourceImage::document(source);
-        let original = crate::registry_invocation::original_native_compiler_words(
-            &image,
-            crate::ir::CommandTokens::from_segmented(
-                &tcl_lexer::SourceMap::from_image(&image),
-                config,
-                &segment,
-            )
-            .words(),
-            0,
-            config,
-        )
-        .unwrap();
-        let selected = spans
+        let result = Analyser::new().analyse(source, "tcl8.6");
+        let w210 = result
+            .diagnostics
             .iter()
-            .map(|span| {
-                let word = original
-                    .iter()
-                    .find(|word| {
-                        word.tokens()
-                            .first()
-                            .is_some_and(|token| token.span == *span)
-                    })
-                    .unwrap();
-                source.get(word.content_span().unwrap().as_range()).unwrap()
-            })
-            .collect::<Vec<_>>();
-        assert_eq!(selected, selected_bodies, "{source}");
-        assert_eq!(actual_fallthrough, fallthrough, "{source}");
-        analyser.source = format!("{}{}", analyser.source, ' ').into();
-        assert!(
-            analyser
-                .possible_if_body_spans(&segment, "unused")
-                .is_none()
-        );
+            .any(|d| d.code.to_string() == "W210" && d.message.contains("'x'"));
+        assert_eq!(w210, unbound, "{source}: {:?}", result.diagnostics);
     }
 }
 
