@@ -1102,7 +1102,11 @@ fn check_actions_skip_a_diagnostic_a_noqa_already_silences() {
     let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
     let src = "set x [string repeat 1 2]\n# noqa: S100\nincr x\n";
     let cu = CompilationUnit::build_for(src, registry, false);
-    let checks = run_all_checks(&cu, registry, Some(tcl_dialect::DialectProfile::find("tcl8.6").unwrap()));
+    let checks = run_all_checks(
+        &cu,
+        registry,
+        Some(tcl_dialect::DialectProfile::find("tcl8.6").unwrap()),
+    );
     let analysis = check_analysis(
         src,
         registry,
@@ -1145,7 +1149,11 @@ fn check_actions_surface_shimmer_noqa_suppress_action() {
     let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
     let src = "set x [string repeat 1 2]\nincr x\n";
     let cu = CompilationUnit::build_for(src, registry, false);
-    let checks = run_all_checks(&cu, registry, Some(tcl_dialect::DialectProfile::find("tcl8.6").unwrap()));
+    let checks = run_all_checks(
+        &cu,
+        registry,
+        Some(tcl_dialect::DialectProfile::find("tcl8.6").unwrap()),
+    );
     let analysis = check_analysis(
         src,
         registry,
@@ -1205,7 +1213,11 @@ fn check_actions_shimmer_noqa_suppress_matches_indentation() {
     let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
     let src = "proc f {} {\n    set x [string repeat 1 2]\n    incr x\n}\n";
     let cu = CompilationUnit::build_for(src, registry, false);
-    let checks = run_all_checks(&cu, registry, Some(tcl_dialect::DialectProfile::find("tcl8.6").unwrap()));
+    let checks = run_all_checks(
+        &cu,
+        registry,
+        Some(tcl_dialect::DialectProfile::find("tcl8.6").unwrap()),
+    );
     let analysis = check_analysis(
         src,
         registry,

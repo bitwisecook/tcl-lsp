@@ -746,7 +746,7 @@ fn original_reparse_transport_keeps_both_selected_purposes_without_presentation_
         tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
         tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
     );
-    let source = "interp alias {} run {} eval {set local}; interp alias {} render {} subst; run [render $tmpl]";
+    let source = "set tmpl [gets stdin]; interp alias {} run {} eval {set local}; interp alias {} render {} subst; run [render $tmpl]";
     let result = tcl_compiler::analyser::Analyser::new()
         .with_resolved_input(input)
         .analyse(source, "tcl");
@@ -790,7 +790,7 @@ fn original_path_transport_keeps_alias_ordinals_and_proven_value_premises() {
         tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
         tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
     );
-    let source = "interp alias {} load {} source -encoding utf-8; load \"rép/$path\"; proc f {} {set p {|literal}; open $p}";
+    let source = "set path [gets stdin]; interp alias {} load {} source -encoding utf-8; load \"rép/$path\"; proc f {} {set p {|literal}; open $p}";
     let result = tcl_compiler::analyser::Analyser::new()
         .with_resolved_input(input)
         .analyse(source, "tcl");
@@ -980,7 +980,7 @@ fn original_crossing_transport_keeps_captured_ordinals_and_ignores_presentation(
         tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry(),
         tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
     );
-    let source = "interp alias {} frame {} uplevel 1; interp alias {} child {} interp invokehidden {} -namespace ::N; frame \"pré $value\"; child $command";
+    let source = "set value [gets stdin]; set command [gets stdin]; interp alias {} frame {} uplevel 1; interp alias {} child {} interp invokehidden {} -namespace ::N; frame \"pré $value\"; child $command";
     let result = tcl_compiler::analyser::Analyser::new()
         .with_resolved_input(input)
         .analyse(source, "tcl");

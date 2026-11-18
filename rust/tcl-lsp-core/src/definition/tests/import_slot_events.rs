@@ -361,14 +361,19 @@ fn an_unforced_import_onto_an_existing_command_installs_nothing() {
     // import command "p": already exists`, the local survives, and
     // `namespace origin ::dst::p` answers `::dst::p`. The import must not
     // make the call a reference to `::src::p`.
-    let src = "namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    proc p {} { return LOCAL }\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\n";
+    // tclsh 8.4.20-9.1.0: the caught import fails, `p` in dst -> LOCAL and
+    // namespace origin ::dst::p -> ::dst::p.
+    let src = "namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    proc p {} { return LOCAL }\n}\nnamespace eval dst {\n    catch {namespace import ::src::*}\n}\nnamespace eval dst {p}\n";
     let analysis = analyse(src);
+    let call =
+        u32::try_from(src.rfind("namespace eval dst {p}").unwrap() + "namespace eval dst {".len())
+            .unwrap();
     assert!(
-        proc_visible_via_wildcard_import(&analysis, DOC, "dst", "p", u32::MAX).is_none(),
+        proc_visible_via_wildcard_import(&analysis, DOC, "dst", "p", call).is_none(),
         "a conflicting non-`-force` import installs nothing"
     );
     // …and the ordinary namespace lookup still answers the local.
-    let hit = resolve_called_proc(&analysis, src, "::dst", "p", u32::MAX, DOC);
+    let hit = resolve_called_proc(&analysis, src, "::dst", "p", call, DOC);
     assert!(
         hit.is_some_and(|p| p.qualified_name == "::dst::p"),
         "the local definition survives the failed import: {hit:?}"
@@ -388,10 +393,12 @@ fn a_local_defined_after_the_import_is_not_a_conflict_but_does_end_the_alias() {
     //   namespace eval ::dst {proc p {} {return LOCAL}}    (rc 0, silent)
     //   ::dst::p                    → LOCAL ; origin → ::dst::p
     //   ::src::p                    → SRC   (untouched)
-    let src = "rename auto_import savedPrelude; namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\np\nnamespace eval dst {\n    proc p {} { return LOCAL }\n}\n";
+    // tclsh 8.4.20-9.1.0: the calls run in dst (SRC, then LOCAL).
+    let src = "rename auto_import savedPrelude; namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval dst {p}\nnamespace eval dst {\n    proc p {} { return LOCAL }\n}\nnamespace eval dst {p}\n";
     let analysis = analyse(src);
     // TP — between the import and the redefinition, the alias is live.
-    let between = at_first(src, "\np\n") + 1;
+    let between = at_first(src, "namespace eval dst {p}")
+        + u32::try_from("namespace eval dst {".len()).unwrap();
     let hit = proc_visible_via_wildcard_import(&analysis, DOC, "dst", "p", between);
     assert!(
         hit.is_some_and(|p| p.qualified_name == "::src::p"),
@@ -399,7 +406,9 @@ fn a_local_defined_after_the_import_is_not_a_conflict_but_does_end_the_alias() {
     );
     // TN — after it, the alias is gone and the local command is what the
     // ordinary namespace lookup answers.
-    let after = after_last(src, "return LOCAL }");
+    let after =
+        u32::try_from(src.rfind("namespace eval dst {p}").unwrap() + "namespace eval dst {".len())
+            .unwrap();
     assert!(
         proc_visible_via_wildcard_import(&analysis, DOC, "dst", "p", after).is_none(),
         "redefining the imported name ends the alias"
