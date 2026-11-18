@@ -1,0 +1,6 @@
+{"documents": 183, "event": "start", "pid": 11186, "server": "/root/srv-bins/tcl-lsp-server-e54c33e2-parent", "t": 1794939141.47, "workspace": "/tmp/claude-0/-home-user-tcl-lsp/b626e89b-32e0-583b-b7ec-9f82529edaaa/scratchpad/pack-churn-agoj1r15/workspace"}
+{"documents": 183, "event": "opened", "t": 1794939141.797}
+{"event": "rss", "round": 0, "rss_kib": 1135336, "t": 1794939146.82, "threads": 193, "trimmed_kib": null}
+{"action": "write", "answered": 5, "event": "round", "max_latency": 1.475, "round": 0, "t": 1794939146.82}
+{"event": "rss", "round": 25, "rss_kib": 1302556, "t": 1794939185.52, "threads": 69, "trimmed_kib": null}
+{"action": "write", "answered": 82, "event": "round", "max_latency": 1.475, "round": 25, "t": 1794939185.52}

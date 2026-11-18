@@ -14,3 +14,6 @@ measurements. The hand-over is `docs/work/issue-sessions/handover/server.md` on 
 | `summ.py STACKS [N]` | Groups a gdb `thread apply all bt` dump by thread name and top frames. |
 | `id_carrier_scan.py` | Text scan for types that transitively carry `ProcedureId` (run from `rust/`). |
 | `data/ms8-{100,200}.ms` | Massif snapshots, 10 documents, rounds 100 and 200, on 8febb23f (depth 30). |
+| `data/ms8-50.ms`, `data/ms9-100.ms` | Massif snapshot at round 50 (depth 30), and at round 100 with depth 150, from the run killed by the pause (its round-200 snapshot was never taken). |
+| `data/runs/*.jsonl` | Every driver log from this session, including those quoted on #2543. 0f09b12e era: `final-0f09b12e`, `final-latency` (183 documents), `sets-40` (40-document counts), `attr-40`, `scale-*`. ac289446: `memo-40`, `memo-40-trim`. 43d017e0: `b2-40-trim`. 8febb23f: `b3-40-trim`, `b3-183`, `b3-10-trim`, `m8`/`m9` (under massif). |
+| `data/runs/cfg*.log` | `cfg_log_instrument.py` output; `cfg2.log` is the 30-round run that showed the key-slot recycling on 43d017e0. |

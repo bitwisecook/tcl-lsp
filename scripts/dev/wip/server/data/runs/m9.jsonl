@@ -1,0 +1,10 @@
+{"documents": 10, "event": "start", "pid": 29618, "server": "/tmp/claude-0/-home-user-tcl-lsp/b626e89b-32e0-583b-b7ec-9f82529edaaa/scratchpad/massif-8feb.sh", "t": 1795002379.917, "workspace": "/tmp/claude-0/-home-user-tcl-lsp/b626e89b-32e0-583b-b7ec-9f82529edaaa/scratchpad/pack-churn-0mvdjqc6/workspace"}
+{"documents": 10, "event": "opened", "t": 1795002382.948}
+{"cpu_ticks": 793, "event": "rss", "round": 0, "rss_kib": 324568, "t": 1795002387.95, "threads": 19, "trimmed_kib": null}
+{"action": "write", "answered": 0, "event": "round", "max_latency": 0.0, "round": 0, "t": 1795002387.95}
+{"cpu_ticks": 8404, "event": "rss", "round": 50, "rss_kib": 2155992, "t": 1795002464.591, "threads": 21, "trimmed_kib": null}
+{"action": "delete", "answered": 11, "event": "round", "max_latency": 27.187, "round": 50, "t": 1795002464.592}
+{"cpu_ticks": 15871, "event": "rss", "round": 100, "rss_kib": 3472768, "t": 1795002539.911, "threads": 27, "trimmed_kib": null}
+{"action": "write", "answered": 18, "event": "round", "max_latency": 27.187, "round": 100, "t": 1795002539.912}
+{"cpu_ticks": 23795, "event": "rss", "round": 150, "rss_kib": 3905720, "t": 1795002619.873, "threads": 32, "trimmed_kib": null}
+{"action": "write", "answered": 30, "event": "round", "max_latency": 27.187, "round": 150, "t": 1795002619.873}

@@ -1,0 +1,12 @@
+{"documents": 10, "event": "start", "pid": 29078, "server": "/tmp/claude-0/-home-user-tcl-lsp/b626e89b-32e0-583b-b7ec-9f82529edaaa/scratchpad/massif-8feb.sh", "t": 1795001533.679, "workspace": "/tmp/claude-0/-home-user-tcl-lsp/b626e89b-32e0-583b-b7ec-9f82529edaaa/scratchpad/pack-churn-7mwwb33d/workspace"}
+{"documents": 10, "event": "opened", "t": 1795001537.107}
+{"cpu_ticks": 826, "event": "rss", "round": 0, "rss_kib": 328112, "t": 1795001542.108, "threads": 20, "trimmed_kib": null}
+{"action": "write", "answered": 0, "event": "round", "max_latency": 0.0, "round": 0, "t": 1795001542.108}
+{"cpu_ticks": 8444, "event": "rss", "round": 50, "rss_kib": 2126376, "t": 1795001618.747, "threads": 20, "trimmed_kib": null}
+{"action": "delete", "answered": 9, "event": "round", "max_latency": 17.467, "round": 50, "t": 1795001618.748}
+{"cpu_ticks": 15906, "event": "rss", "round": 100, "rss_kib": 3167152, "t": 1795001694.067, "threads": 24, "trimmed_kib": null}
+{"action": "write", "answered": 22, "event": "round", "max_latency": 17.467, "round": 100, "t": 1795001694.067}
+{"cpu_ticks": 23826, "event": "rss", "round": 150, "rss_kib": 3463768, "t": 1795001774.032, "threads": 27, "trimmed_kib": null}
+{"action": "write", "answered": 36, "event": "round", "max_latency": 17.467, "round": 150, "t": 1795001774.032}
+{"cpu_ticks": 31132, "event": "rss", "round": 200, "rss_kib": 3412444, "t": 1795001847.844, "threads": 27, "trimmed_kib": null}
+{"answered": 58, "event": "end", "latency": {"max": 17.467, "median": 3.601, "p95": 14.162}, "max_latency": 17.467, "slow": [[-1, 17.467], [7, 10.163], [14, 12.023], [22, 2.361], [25, 13.825], [37, 14.162], [47, 14.242], [57, 4.958], [61, 10.403], [70, 6.4], [75, 2.44], [78, 5.229], [82, 5.287], [86, 2.147], [89, 4.583], [92, 13.706], [102, 7.568], [108, 6.146], [112, 6.726], [116, 8.744], [122, 6.005], [125, 8.147], [131, 2.73], [134, 5.288], [137, 3.71], [140, 2.833], [142, 5.239], [146, 7.755], [156, 3.31], [160, 4.27], [163, 4.653], [166, 3.778], [170, 2.859], [173, 2.414], [175, 6.49], [179, 2.37], [181, 2.707], [185, 2.476], [187, 3.601], [190, 7.804]], "status": 0, "t": 1795001848.844}

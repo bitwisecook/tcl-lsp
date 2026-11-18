@@ -1,0 +1,24 @@
+{"documents": 183, "event": "start", "pid": 28111, "server": "/root/srv-bins/tcl-lsp-server-e54c33e2-parent", "t": 1794938344.182, "workspace": "/tmp/claude-0/-home-user-tcl-lsp/b626e89b-32e0-583b-b7ec-9f82529edaaa/scratchpad/pack-churn-ngrfyfqj/workspace"}
+{"documents": 183, "event": "opened", "t": 1794938344.812}
+{"event": "rss", "round": 0, "rss_kib": 1126496, "t": 1794938349.851, "threads": 160, "trimmed_kib": null}
+{"action": "write", "answered": 5, "event": "round", "max_latency": 1.034, "round": 0, "t": 1794938349.851}
+{"event": "rss", "round": 25, "rss_kib": 4028792, "t": 1794938388.563, "threads": 221, "trimmed_kib": null}
+{"action": "write", "answered": 44, "event": "round", "max_latency": 2.025, "round": 25, "t": 1794938388.563}
+{"event": "rss", "round": 50, "rss_kib": 5821144, "t": 1794938426.511, "threads": 70, "trimmed_kib": null}
+{"action": "delete", "answered": 117, "event": "round", "max_latency": 2.025, "round": 50, "t": 1794938426.511}
+{"event": "rss", "round": 75, "rss_kib": 7557304, "t": 1794938463.346, "threads": 70, "trimmed_kib": null}
+{"action": "write", "answered": 191, "event": "round", "max_latency": 2.025, "round": 75, "t": 1794938463.346}
+{"event": "rss", "round": 100, "rss_kib": 8362104, "t": 1794938501.833, "threads": 70, "trimmed_kib": null}
+{"action": "write", "answered": 267, "event": "round", "max_latency": 2.025, "round": 100, "t": 1794938501.833}
+{"event": "rss", "round": 125, "rss_kib": 9070252, "t": 1794938542.833, "threads": 132, "trimmed_kib": null}
+{"action": "delete", "answered": 346, "event": "round", "max_latency": 2.025, "round": 125, "t": 1794938542.833}
+{"event": "rss", "round": 150, "rss_kib": 10030360, "t": 1794938581.798, "threads": 312, "trimmed_kib": null}
+{"action": "write", "answered": 388, "event": "round", "max_latency": 8.013, "round": 150, "t": 1794938581.798}
+{"event": "rss", "round": 175, "rss_kib": 10374092, "t": 1794938617.413, "threads": 103, "trimmed_kib": null}
+{"action": "write", "answered": 455, "event": "round", "max_latency": 8.013, "round": 175, "t": 1794938617.413}
+{"event": "rss", "round": 200, "rss_kib": 11057356, "t": 1794938655.63, "threads": 121, "trimmed_kib": null}
+{"action": "delete", "answered": 523, "event": "round", "max_latency": 8.013, "round": 200, "t": 1794938655.63}
+{"event": "rss", "round": 225, "rss_kib": 11556852, "t": 1794938692.91, "threads": 198, "trimmed_kib": null}
+{"action": "write", "answered": 587, "event": "round", "max_latency": 8.013, "round": 225, "t": 1794938692.91}
+{"event": "rss", "round": 250, "rss_kib": 11951768, "t": 1794938729.306, "threads": 195, "trimmed_kib": null}
+{"answered": 659, "event": "end", "max_latency": 8.013, "status": 0, "t": 1794938730.306}
