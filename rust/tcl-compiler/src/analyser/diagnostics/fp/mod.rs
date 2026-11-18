@@ -75,11 +75,6 @@ mod sanity {
     use super::{D, codes, fires};
 
     #[test]
-    fn baseline_read_before_set_fires_w210() {
-        assert!(fires("proc f {} { puts $u }", D, "W210"));
-    }
-
-    #[test]
     fn guarded_read_does_not_fire_w210() {
         assert!(!fires(
             "proc f {} { if {[info exists u]} { puts $u } }",

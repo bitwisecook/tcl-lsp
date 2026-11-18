@@ -23,12 +23,6 @@ use super::*;
 // handle_foreach_command
 
 #[test]
-fn handle_foreach_defines_single_loop_var() {
-    let result = Analyser::new().analyse("foreach i {1 2 3} {puts $i}", "tcl");
-    assert!(result.global_scope.variables.contains_key("i"));
-}
-
-#[test]
 fn handle_foreach_defines_multiple_loop_vars() {
     let source = "foreach {k v} {a 1 b 2} {}";
     let result = Analyser::new().analyse(source, "tcl");

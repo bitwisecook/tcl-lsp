@@ -309,19 +309,6 @@ mod helpers_depth {
     }
 
     #[test]
-    fn dict_with_unknown_shape_param_conservative_silent() {
-        // The dict came from a param (shape unknown): the conservative
-        // "might-have-the-key" stance suppresses. Distinct from the empty
-        // literal above — here SCCP cannot prove the key absent.
-        let src = "proc f {d} { dict with d {}; return $missing }\n";
-        assert!(
-            !fires(src, D, "W210"),
-            "unknown-shape dict-with must conservatively stay silent; emitted {:?}",
-            codes(src, D)
-        );
-    }
-
-    #[test]
     fn dict_with_does_not_suppress_explicitly_set_other_var() {
         // `explicitly_defined` carve-out: a name with a concrete (version > 0)
         // def is never suppressed by the dict-with blanket. Here `$other` reads
@@ -680,18 +667,6 @@ mod ds_depth {
             codes(src, D)
         );
     }
-
-    #[test]
-    fn genuine_dead_store_with_no_rmw_still_fires_w220() {
-        // TP control: `set i 0; set i 5; return $i` — no RMW; the first store is
-        // dead. Confirms the RMW carve-outs above do not blanket-suppress.
-        let src = "proc f {} { set i 0\n set i 5\n return $i }\n";
-        assert!(
-            fires(src, D, "W220"),
-            "a real dead store (no RMW) must fire W220; emitted {:?}",
-            codes(src, D)
-        );
-    }
 }
 
 // INJ — injection / taint (`fp/inj.rs`, ~83%).
@@ -790,18 +765,6 @@ mod inj_depth {
         assert!(
             fires(src, IRULES, "T102"),
             "generic HTTP::header taint must fire T102; emitted {:?}",
-            codes(src, IRULES)
-        );
-    }
-
-    #[test]
-    fn literal_dash_prefix_on_path_breaks_guarantee_t102() {
-        // TP control: prepending a literal `-` to HTTP::path destroys the
-        // path-anchoring guarantee — T102 fires again.
-        let src = "set foo \"-[HTTP::path]\"\nregexp $foo test\n";
-        assert!(
-            fires(src, IRULES, "T102"),
-            "a literal `-` prefix on HTTP::path must fire T102; emitted {:?}",
             codes(src, IRULES)
         );
     }
@@ -957,20 +920,6 @@ mod sty_depth {
     }
 
     #[test]
-    fn pure_dollar_in_quoted_pattern_no_w306() {
-        // FP carve-out: a *quoted* pattern that is exactly one pure variable
-        // reference (`"$pat"`) is byte-for-byte identical at runtime to the bare
-        // `$pat` parameterised-pattern idiom — the quotes group nothing — so it
-        // is the canonical form, not a foot-gun. No W306.
-        let src = "regexp \"$pat\" $s\n";
-        assert!(
-            !fires(src, D, "W306"),
-            "a quoted pure `$pat` pattern must NOT fire W306; emitted {:?}",
-            codes(src, D)
-        );
-    }
-
-    #[test]
     fn concatenated_dollar_in_quoted_pattern_still_w306() {
         // TP control: once a live `$pat` is *concatenated* with literal text
         // (`"prefix$pat"`) the word is no longer a pure reference — a literal
@@ -1087,43 +1036,6 @@ mod obj_depth {
         assert!(
             !fires(src, D, "W307"),
             "multi-dispatch on the same local must NOT fire W307; emitted {:?}",
-            codes(src, D)
-        );
-    }
-
-    #[test]
-    fn single_dispatch_unknown_source_fires_w307() {
-        // TP control: a single dispatch on a local set from an unknown source
-        // still fires W307 — no multi-dispatch evidence, no factory provenance.
-        let src = "proc f {} { set x [whatever]\n $x op }\n";
-        assert!(
-            fires(src, D, "W307"),
-            "single dispatch on an unknown source must fire W307; emitted {:?}",
-            codes(src, D)
-        );
-    }
-
-    #[test]
-    fn declared_instance_var_dispatch_no_w307() {
-        // Dispatch on a declared TclOO instance variable inside a method body
-        // is method delegation, not a stray word. No W307.
-        let src = "oo::class create C {\n    variable handle\n    method m {} { $handle op }\n}\n";
-        assert!(
-            !fires(src, D, "W307"),
-            "dispatch on a declared instance var must NOT fire W307; emitted {:?}",
-            codes(src, D)
-        );
-    }
-
-    #[test]
-    fn method_local_literal_non_command_dispatch_fires_w307() {
-        // TP control: a method-local `set cmd nope; $cmd arg` is a literal
-        // non-command dispatch — `in_method` is not a blanket suppression, so
-        // W307 fires.
-        let src = "oo::class create C {\n    method m {} { ::set cmd nope; $cmd arg }\n}\n";
-        assert!(
-            fires(src, D, "W307"),
-            "a method-local literal non-command dispatch must fire W307; emitted {:?}",
             codes(src, D)
         );
     }

@@ -31,6 +31,9 @@ fn diag_codes(source: &str, dialect: &str) -> Vec<String> {
 
 #[test]
 fn w215_fires_for_unreachable_quoted_name() {
+    // TN: the dynamic-suffix reconstruction path must not blunt the check
+    // for the genuine case it exists for — a fully static (no `$`/`[`)
+    // stray-delimiter typo.
     assert!(diag_codes("set \"a}b\" 1", "tcl").contains(&"W215".to_string()));
 }
 
@@ -79,13 +82,6 @@ fn w215_quiet_for_dynamic_suffix_without_namespace() {
 fn w215_quiet_for_dynamic_suffix_with_command_substitution() {
     // FP: `[cmd]` pieces hit the same reconstruction path as `$var`.
     assert!(!diag_codes("set prefix_[cmd] 1", "tcl").contains(&"W215".to_string()));
-}
-
-#[test]
-fn w215_still_fires_for_static_typo_after_the_fix() {
-    // TN: the reconstruction path must not blunt the check for the genuine
-    // case it exists for — a fully static (no `$`/`[`) stray-delimiter typo.
-    assert!(diag_codes("set \"a}b\" 1", "tcl").contains(&"W215".to_string()));
 }
 
 #[test]

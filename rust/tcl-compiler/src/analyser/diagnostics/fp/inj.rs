@@ -229,21 +229,6 @@ fn fp_inj_06_split_lindex_strips_path_prefixed_proof() {
     );
 }
 
-#[test]
-fn fp_inj_06_pure_copy_still_suppresses() {
-    // TN control: a *pure variable copy* (no command substitution at all)
-    // is unaffected — `shape_unproven` only strips the proof for values
-    // that passed through an unclassified command, not this simpler path
-    // (already covered by FP-INJ-03, repeated here as a companion control
-    // for the two repros above).
-    let src = "when HTTP_REQUEST {\nset uri [HTTP::uri]\nset x $uri\nregexp $x test\n}";
-    assert!(
-        !fires(src, IRULES, "T102"),
-        "FP-INJ-06 control: plain copy must still suppress T102; emitted {:?}",
-        codes(src, IRULES)
-    );
-}
-
 // FP-INJ-07 — `exec -encoding <name>` must not mask the option-injection
 // scan for the arguments that follow it — `exec`'s option list must declare
 // `-encoding`.

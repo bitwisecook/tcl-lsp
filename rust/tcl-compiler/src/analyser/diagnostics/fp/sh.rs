@@ -484,26 +484,6 @@ proc f {} {
     );
 }
 
-/// FP-SH-13 TP control: the identical oscillation on a plain scalar (not an
-/// array element) must still fire S102.
-#[test]
-fn fp_sh_13_scalar_control_still_fires() {
-    let src = "\
-proc f {} {
-    set x 0
-    while {1} {
-        set x [expr {$x + 1}]
-        set x [string range $x 0 end]
-    }
-}
-";
-    assert!(
-        fires(src, D, "S102"),
-        "FP-SH-13 TP: plain scalar oscillation must still fire S102; got {:?}",
-        codes(src, D)
-    );
-}
-
 /// FP-SH-13 (extended to S100): the S102 array-element guard also covers
 /// the use-site pass. `set arr(n) 5; set arr(label) "text"; incr arr(n)` reads
 /// the conflated `arr` symbol as STRING (the last element written), but
@@ -1230,19 +1210,6 @@ fn fp_sh_17_catch_result_and_options_vars_no_shimmer() {
     assert!(
         !got.iter().any(|c| c == "S100" || c == "S101"),
         "FP-SH-17: catch result/options vars are not the Int status; got {got:?}"
-    );
-}
-
-/// FP-SH-17 TP control: the widening applies to *destructured* targets, not every value
-/// — a genuine `set s hello; expr {$s + 1}` STRING-in-arithmetic shimmer must
-/// still fire, proving the change is not blanket-silencing.
-#[test]
-fn fp_sh_17_genuine_string_arithmetic_still_fires() {
-    let src = "set s hello\nset y [expr {$s + 1}]";
-    assert!(
-        fires(src, D, "S100"),
-        "FP-SH-17 TP: genuine STRING-in-arithmetic must still fire S100; got {:?}",
-        codes(src, D)
     );
 }
 

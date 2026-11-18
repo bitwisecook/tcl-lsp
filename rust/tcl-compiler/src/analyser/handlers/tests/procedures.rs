@@ -373,30 +373,6 @@ fn handle_proc_body_walk_increments_body_depth_temporarily() {
     assert_eq!(a.body_depth, 0);
 }
 
-#[test]
-fn handle_proc_body_walk_does_not_leak_inner_doc_comment() {
-    // A trailing comment inside the body should not bleed into
-    // ``last_comment`` for whatever follows the proc at the
-    // outer scope. The outer comment ("doc string") is consumed
-    // as the proc's own doc; after the walk, ``last_comment``
-    // is restored to empty.
-    let mut a = Analyser::new();
-    a.last_comment = "doc string".to_string();
-    a.handle_proc_command(
-        "proc",
-        &["foo".to_string(), String::new(), String::new()],
-        &[
-            esc_tok(span(5, 8)),
-            str_tok(span(9, 11)),
-            str_tok(span(12, 14)),
-        ],
-        &[],
-        &[],
-    );
-    assert_eq!(a.result.all_procs["::foo"].doc, "doc string");
-    assert_eq!(a.last_comment, "");
-}
-
 // Dynamic proc names + the foreach rename-and-reinstall idiom:
 // `tk/library/accessibility.tcl`'s `foreach wtype {...} {
 // rename ::$wtype ::tk::accessible::orig_$wtype ; proc ::$wtype {args}

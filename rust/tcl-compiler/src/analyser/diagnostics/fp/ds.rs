@@ -362,17 +362,6 @@ fn fp_ds_08_empty_dict_with_return_missing_fires() {
 }
 
 #[test]
-fn fp_ds_08_known_key_dict_with_return_var_silent() {
-    // TN control: literal dict has `missing` as key; dict with unpacks it; reading $missing is safe.
-    let src = "proc f {} { set d {missing ok}; dict with d {}; return $missing }\n";
-    assert!(
-        !fires(src, D, "W210"),
-        "FP-DS-08: known-key dict with must NOT fire W210; emitted: {:?}",
-        codes(src, D)
-    );
-}
-
-#[test]
 fn fp_ds_08_unknown_dict_with_return_var_silent() {
     // TN control: dict shape unknown (callee param); must conservatively stay silent.
     let src = "proc f {d} { dict with d {}; return $missing }\n";

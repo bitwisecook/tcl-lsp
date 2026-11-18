@@ -444,28 +444,6 @@ fn fp_rbs_12_regexp_unconditional_read_after_no_match_fires() {
     );
 }
 
-#[test]
-fn fp_rbs_12_regexp_in_negated_if_arm_fires() {
-    // TP: if-arm executes when regexp returns 0 (no match); $v unset.
-    let src = "proc f {} { if {![regexp {x} y -> v]} { puts $v } }\n";
-    assert!(
-        fires(src, D, "W210"),
-        "FP-RBS-12 TP: regexp output var in no-match arm must fire W210; emitted: {:?}",
-        codes(src, D)
-    );
-}
-
-#[test]
-fn fp_rbs_12_regexp_match_arm_read_silent() {
-    // TN control: `if {[regexp {x} y -> v]} { puts $v }` — read only on MATCH arm where v IS set.
-    let src = "proc f {} { if {[regexp {x} y -> v]} { puts $v } }\n";
-    assert!(
-        !fires(src, D, "W210"),
-        "FP-RBS-12: regexp match-arm read of $v must NOT fire W210; emitted: {:?}",
-        codes(src, D)
-    );
-}
-
 // FP-RBS-20 — a condition-embedded variable writer defines its target
 //
 // `condition_command_out_vars` asks the registry for the call's

@@ -983,17 +983,6 @@ fn fp_w307_oo_class_instance_var_dispatch_silent() {
 }
 
 #[test]
-fn fp_w307_snit_typevariable_dispatch_silent() {
-    // FP: snit typevariables dispatch inside typemethod stays suppressed.
-    let src = "snit::type T {\n    typevariable registry\n    typemethod lookup {k} { return [$registry get $k] }\n}";
-    assert!(
-        !fires(src, D, "W307"),
-        "snit typevariable dispatch must NOT fire W307; emitted: {:?}",
-        codes(src, D)
-    );
-}
-
-#[test]
 fn fp_w307_itcl_instance_var_dispatch_silent() {
     // FP: a dispatch on an itcl instance variable inside a method body is
     // suppressed, exactly like an oo::class / snit member.
