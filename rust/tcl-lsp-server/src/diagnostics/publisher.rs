@@ -113,6 +113,28 @@ pub(in super::super) struct PackNoticeContext<'a> {
     pub(in super::super) store: &'a dyn vfs::SourceStore,
 }
 
+/// Whether `notice` still describes `current`, the buffer being reported.
+///
+/// A notice is anchored to the saved file the loader read. The saved image
+/// itself is checked against the disk by the source store; here the buffer
+/// may be ahead of it (an unsaved edit), and the notice stays on screen
+/// while the lines it covers are the same lines, at the same positions, in
+/// the buffer. An edit that changes or moves those lines drops it, so a
+/// squiggle is never drawn over text it was not written for.
+fn notice_anchor_holds(notice: &PackNoticeEntry, current: &str) -> bool {
+    if notice.source.as_ref() == current {
+        return true;
+    }
+    if matches!(notice.owner, PackNoticeSourceOwner::Studio(_)) {
+        return false;
+    }
+    let range = notice.diagnostic.range;
+    let (first, last) = (range.start.line as usize, range.end.line as usize);
+    let saved: Vec<&str> = notice.source.lines().collect();
+    let live: Vec<&str> = current.lines().collect();
+    last < saved.len() && last < live.len() && saved[first..=last] == live[first..=last]
+}
+
 pub(in super::super) struct DiagnosticPublisher {
     pub(in super::super) completion: Mutex<HashMap<Uri, DiagnosticCompletionEntry>>,
     pub(in super::super) client: Client,
@@ -200,7 +222,7 @@ impl DiagnosticPublisher {
             .get(uri)
             .into_iter()
             .flatten()
-            .filter(|notice| notice.source.as_ref() == source)
+            .filter(|notice| notice_anchor_holds(notice, source))
             .collect();
         if matching.is_empty() {
             return required.publish_base(store, &mut publish, &mut diagnostics);
