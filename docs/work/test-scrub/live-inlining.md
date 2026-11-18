@@ -114,3 +114,106 @@ Total: 142 cells, or 426 runs instead of 1,449. That is about a 3.4× cut, rough
 The splice-count bound then has to be stated per cell class instead of as `shapes * 6`. The cleanest form is an expected spliced or kept verdict on each site class. That also turns the count failure into a list of the nested sites the release unit does not splice: loop, while, switch, static eval, lmap, dict map, catch, try, substitution and uplevel. Those are what dataflow owns.
 
 To split it further, the 15 site classes could each become one `#[test]` over the 7 routing shapes. That gives parallel runs and a named failure per site class.
+
+## Switching live splicing on: the case for the owner
+
+**Status:** blocked on the owner. The switch commit and the guard-test change below need the owner's approval; this session's permission check refused the guard rewrite as weakening an oversight check, which is right while the approval is the owner's to give.
+
+### What the switch does
+
+`tcl_codegen::compile_service::LIVE_REFERENCE_INLINING` turns on splicing of pack reference bodies (`runtime_backing tcl-body`) into the VM's own compile of a calling procedure (`compile_procedure_bytes_target_with` under a live native entry). Today it is `false` and nothing is spliced on any production path. With it on, a call whose binding the live entry proves to reach a pack's Tcl body is replaced by that body, under these conditions:
+
+- The body is proved re-executable from its start (`command_binding::re_executable_body`) both as a fresh interpreter reads it and as the caller's live entry lowers it: every command reaches one registry implementation whose declared effects stay in the frame, no callback but an untraced variable access, and every `expr` runs only its arithmetic at its site (`ExpressionMathBindings::runs_only_its_arithmetic`).
+- The call stands directly in the caller's body (operand stack empty), its words are evaluated once into anonymous slots, and the body's locals are anonymous slots no name reaches.
+- The body is bracketed as a `SpliceRange` and followed by the call itself made from those slots. On a failed guard or any abnormal completion inside the range the VM resumes at that call, so errors, codes, `-errorstack`, traces and introspection are the uninlined call's.
+- A function whose range cannot be formed exactly is compiled without inlining. 8.4 splices nothing.
+
+### The gate: `tcl-spectcl` it_5 `codegen_stamps::live_differential`
+
+Compared with tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 for every row: the result, `errorInfo`, `errorCode`, `-errorstack`, `info errorstack`, and how many definitions the live compile spliced. Rows:
+
+- shapes: no parameters, one, two, a default, `args`, a parameter run as the command, an error raised inside the body (`format`, `expr`, wrong arity), `return -code error`, `break`, `continue`, `error` with custom info, `return -level 2`;
+- `expr` at its site: plain operands spliced; a math function, a redefined `::tcl::mathfunc::abs`, a command substitution and a traced global kept as calls;
+- frame: `info locals`, `info vars` and `uplevel 1 {info locals}` after the call; caller variables spelled as the splice's hidden names, directly and through a computed name;
+- traces: execution `enter`, `leave`, `enterstep` and `leavestep` added between two calls (the splice falls back and the trace fires as tclsh's), `enter`, `leave` and `enterstep` set before the caller compiles (kept as a call), a read trace on the word's variable (kept);
+- words with effects (`[incr n]`), kept as calls;
+- structured control (`if`, an error in an arm, `while`, `for`, `foreach`, `if` renamed between two calls), kept as calls until the reading of a reference body's structured control lands.
+
+With the switch on, every row is identical to tclsh on every release.
+
+### Measurement, switch off against on (work at 2e8b3814)
+
+| Package | Failing, off | Failing, on |
+| --- | ---: | ---: |
+| tcl-codegen (1,487) | 110 | 111 |
+| tcl-spectcl (622) | 20 + 1 timeout | 17 + 1 timeout |
+| tcl-vm (3,209) | 80 | 80 |
+| tcl-engine-api (9) | 0 | 0 |
+| tcl-engine-tclvm (84) | 7 | 7 |
+| tcl-engine-wasm (54) | 3 | 3 |
+| tcl-cshim (123) | 14 | 14 |
+| tcl-spec-hooks (77) | 3 | 3 |
+
+Test by test: the only new failure is `tcl-codegen` it_5 `inliner_containment::the_live_compile_splices_no_reference_body`, the guard that asserts the switch is off (below). Fixed: `reference_bodies::a_tcl_body_backed_command_is_inlined_and_admitted`, `a_pack_text_body_that_diverges_turns_the_site_plain`, `a_host_native_backing_never_defines_a_proc`. Every other failing set is identical. `runtime/rust` depends on neither `tcl-codegen` nor `tcl-vm`.
+
+### Fuzz smoke
+
+`tcl-fuzz run --iterations 2000 --seed 90000`, `tclvm` subject against tclsh 9.0.4, the same seeds with the switch off and on: 2000 of 2000 matched both ways, no findings either way. This shows the switch harmless where no pack is loaded, not that splicing is fuzz-clean: the `tclvm` CLI loads no spec pack, so no generated script reaches a reference body. A fuzz arm over a pack with reference bodies does not exist yet. (The switch-on binary was rebuilt while the reference-body structured-control option was being added to `tcl-compiler`; that option acts only when a reference body is lowered, which the CLI never does.)
+
+### What stays declined
+
+A call whose word writes a variable (until analyser-binding's trace-free-local proof); a body wrapped for an early return; structured control in the body (until its reading lands); a math function or a list command on a value the live entry cannot see; any command with a callback, a frame or state effect, or a foreign variable; a call not directly in the caller's body; a caller in another namespace than the definition; 8.4. `info cmdcount` is not implemented by the VM on any release (execution's); when it is, a splice counts as the call it replaces.
+
+### Replacement text for the guard test
+
+In `rust/tcl-codegen/tests/it_5/inliner_containment.rs`, replace the module doc, `REMOVAL` and `the_live_compile_splices_no_reference_body` with:
+
+```rust
+//! Inlined procedure bodies reach a shipped compile only through the live
+//! splice, whose gate is the live differential.
+//!
+//! A spliced body runs in its caller's frame; it presents as the procedure
+//! call does only because its locals are anonymous slots and any abnormal exit
+//! from its range falls back to the call itself. The live differential
+//! (`tcl-spectcl` `codegen_stamps::live_differential`) holds that against
+//! tclsh on every release. The release unit's procedure inliner
+//! (`inlining::inline_module`) has no such gate and reaches no shipped compile.
+
+const REMOVAL: &str = "the release unit's procedure inliner reaches a shipped compile \
+    without a differential that compares errorInfo, errorCode, the errorstack, frame \
+    introspection and traces with tclsh on every release";
+
+/// What the live differential compares with tclsh for every spliced shape:
+/// what a script can observe of a call that a splice could change.
+const OBSERVED: &[&str] = &[
+    "$::errorInfo",
+    "$::errorCode",
+    "-errorstack",
+    "info errorstack",
+    "info locals",
+    "info vars",
+    "uplevel 1",
+    "trace add execution",
+    "trace add variable",
+    "TclVersion::ALL",
+];
+
+#[test]
+fn the_live_compile_is_gated_by_the_live_differential() {
+    let gate = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../tcl-spectcl/tests/it_5/codegen_stamps/live_differential.rs");
+    let text = std::fs::read_to_string(&gate).expect("the live differential");
+    let missing: Vec<_> = OBSERVED
+        .iter()
+        .filter(|observed| !text.contains(**observed))
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "live splicing ships only behind a differential comparing every observable: \
+         {missing:?} missing from {}",
+        gate.display()
+    );
+}
+```
+
+`no_production_source_calls_the_procedure_inliner` stays as it is. The switch commit itself changes only `LIVE_REFERENCE_INLINING` to `true`, names `live_differential` as the gate and lists what stays declined.
