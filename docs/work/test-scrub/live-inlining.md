@@ -156,6 +156,17 @@ With the switch on, every row is identical to tclsh on every release.
 
 Test by test: the only new failure is `tcl-codegen` it_5 `inliner_containment::the_live_compile_splices_no_reference_body`, the guard that asserts the switch is off (below). Fixed: `reference_bodies::a_tcl_body_backed_command_is_inlined_and_admitted`, `a_pack_text_body_that_diverges_turns_the_site_plain`, `a_host_native_backing_never_defines_a_proc`. Every other failing set is identical. `runtime/rust` depends on neither `tcl-codegen` nor `tcl-vm`.
 
+Repeated on 18 November at 1a99ba86 with every oracle required (`TCL_LSP_REQUIRE_ALL_TCL_ORACLES=1 TCL_LSP_REQUIRE_JIM_ORACLE=1 TCL_LSP_REQUIRE_TCLSH=1`, Jim built by `scripts/dev/ensure-jim-oracle.sh`):
+
+| Package | Failing, off | Failing, on |
+| --- | ---: | ---: |
+| tcl-codegen (1,488) | 110 | 111 |
+| tcl-spectcl (625) | 21 + 1 timeout | 18 + 1 timeout |
+
+The same test-by-test result: the guard is the only new failure, and the three `reference_bodies` tests are fixed.
+
+**Jim.** `live_differential` does not compare against Jim: it runs tclsh 8.4 to 9.1 only. A Jim unit splices nothing, so there is nothing to compare. `build_inlinable_map` (`tcl-codegen/src/inlining/mod.rs`) returns no inlinable body unless the module's parameter grammar is Tcl's, and the live import's reference spec is built through it.
+
 ### Fuzz smoke
 
 `tcl-fuzz run --iterations 2000 --seed 90000`, `tclvm` subject against tclsh 9.0.4, the same seeds with the switch off and on: 2000 of 2000 matched both ways, no findings either way. This shows the switch harmless where no pack is loaded, not that splicing is fuzz-clean: the `tclvm` CLI loads no spec pack, so no generated script reaches a reference body. A fuzz arm over a pack with reference bodies does not exist yet. (The switch-on binary was rebuilt while the reference-body structured-control option was being added to `tcl-compiler`; that option acts only when a reference body is lowered, which the CLI never does.)
