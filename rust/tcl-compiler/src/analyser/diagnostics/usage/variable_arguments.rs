@@ -53,6 +53,9 @@ impl Analyser {
             return;
         };
         for argument in layout.values.clone() {
+            if original.is_captured(argument) {
+                continue;
+            }
             let Some(word) = original.word(argument) else {
                 continue;
             };

@@ -51,6 +51,7 @@ pub(super) fn channel_arguments(
             .into_iter()
             .flatten()
             .filter(|(_, role)| *role == tcl_registry::ArgRole::Channel)
+            .filter(|&&(argument, _)| !original.is_captured(argument))
             .filter_map(|&(argument, _)| {
                 Some(OriginalChannelArgument {
                     word: original.word(argument)?.clone(),

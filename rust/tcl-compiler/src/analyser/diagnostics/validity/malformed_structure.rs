@@ -227,6 +227,9 @@ impl Analyser {
             ClauseShapeError::MissingBody { after } => Some(after),
             ClauseShapeError::ExtraWords { first_extra } => Some(first_extra),
         };
+        if argument.is_some_and(|index| original.is_captured(index)) {
+            return;
+        }
         let Some(subject) = original.subject(
             super::super::super::RegistrySourceDiagnosticKind::ClauseShape,
             argument,
