@@ -234,6 +234,19 @@ impl<'a> SourceSummaryContext<'a> {
         .then_some(procedure)
     }
 
+    /// The procedure's body as the module lowered it and, where the walk
+    /// also entered it from a caller, as its declared frame runs it: a
+    /// statement of either is the procedure's. The lattice reads the first,
+    /// the summary the second.
+    fn bodies(&self, id: &crate::ir::ProcedureId) -> Option<Vec<&'a Script>> {
+        let procedure = self.procedure(id)?;
+        let mut bodies = vec![&procedure.body];
+        if let Some(declared) = self.module.declared_frame_bodies.get(id) {
+            bodies.push(&declared.body);
+        }
+        Some(bodies)
+    }
+
     /// The procedure as its own declared frame runs it: its body lowered
     /// again in that frame where the walk also entered it from a caller,
     /// else the module's. Its declaration is the module's procedure.
@@ -392,10 +405,12 @@ impl<'a> SourceSummaryContext<'a> {
             else {
                 continue;
             };
-            if self
-                .same_frame_commands(body)?
-                .iter()
-                .any(|command| command == tokens)
+            let in_body = |body: &Procedure| {
+                self.same_frame_commands(body)
+                    .map(|commands| commands.iter().any(|command| command == tokens))
+            };
+            if in_body(body)?
+                || (!std::ptr::eq(body, procedure) && in_body(procedure).unwrap_or(false))
             {
                 if owner.is_some() {
                     return None;
@@ -925,8 +940,7 @@ impl<'a> SourceSummaryContext<'a> {
         let end = base.checked_add(u32::try_from(script.len()).ok()?)?;
         let mut selected: Option<Vec<CommandTokens>> = None;
         for id in self.module.procedures.keys() {
-            let procedure = self.declared_frame_procedure(id)?;
-            let mut pending = vec![&procedure.body];
+            let mut pending = self.bodies(id)?;
             while let Some(body) = pending.pop() {
                 for statement in &body.statements {
                     let children = crate::ir_helpers::nested_bodies(statement);
@@ -999,14 +1013,18 @@ impl<'a> SourceSummaryContext<'a> {
         body_id: Option<crate::ir::ProcedureId>,
         statement: &Statement,
     ) -> Option<CommandTokens> {
-        let mut pending = Vec::new();
-        match body_id {
-            Some(id) => pending.push(&self.declared_frame_procedure(&id)?.body),
-            None => pending.push(&self.module.top_level),
-        }
-        if pending.is_empty() {
-            return None;
-        }
+        let Some(id) = body_id else {
+            return self.statement_tokens_in(&self.module.top_level, statement);
+        };
+        // The statement is one of either lowering of the body; each owns its
+        // own tokens for the same span.
+        self.bodies(&id)?
+            .into_iter()
+            .find_map(|body| self.statement_tokens_in(body, statement))
+    }
+
+    fn statement_tokens_in(&self, body: &Script, statement: &Statement) -> Option<CommandTokens> {
+        let mut pending = vec![body];
         let mut found = None;
         while let Some(script) = pending.pop() {
             for original in &script.statements {
