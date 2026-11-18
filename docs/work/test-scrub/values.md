@@ -53,7 +53,6 @@ row that is kept still needs its citation written into the test; the evidence co
 | 9 | `binding-catch-result-variable-no-place` | analyser-binding | `catch {…} m ?opts?`: the result variable gets no place, and the commands from the catch end on are unproved, so the computed-name hazard widens the whole procedure (root found by analyser-binding: the walk is widened after a raising catch body). Four rows moved here from `catch-body-transfer` and two from `try-body-transfer` on 18 November |
 | 5 | `ssa-var-symbol-lookup-refused` | dataflow | The procedure lists the variable (`vars [x, m, o]`, or two symbols named `g`) yet `var_symbol` returns None |
 | 5 | `f5-top-level-not-executable` | values | f5-irules rows of top-level fixtures expect Tcl folding; iRules refuses executable top-level code (IRULE5007) |
-| 5 | `declared-route-evaluation` | values | Declared package routes through the driver (pack writes, raising arguments, shadowing, folded types) |
 | 4 | `escape-top-level-fixture` | values | Escape fixtures run at `#0`, where `global` links nothing and a variable is Local by ruling (37cf6fd2); they need a procedure |
 | 4 | `binding-alias-invocation-metadata` | analyser-binding | An aliased invocation keeps no original Logical invocation |
 | 4 | `ssa-link-statement-version` | dataflow issue session | Which SSA version a link statement defines (REWRITE three to the observable, RETIRE one) |
@@ -61,11 +60,11 @@ row that is kept still needs its citation written into the test; the evidence co
 | 3 | `binding-procedure-absent-after-statement` | analyser-binding | A procedure defined in the file is absent after a top-level statement |
 | 2 | `lifted-call-body-not-original` | dataflow-optimiser | No original body for the script of a `catch` lifted from a substitution word (`set c [catch {return 5} m]`), so the catch declines unsupported; the code table and the nested catch body |
 | 2 each | `binding-catch-body-children-unavailable`, `binding-conditional-alias-join`, `binding-renamed-builtin-head`, `class-facts-object-element`, `escape-param-upvar-source-precision`, `escape-entry-point-ignores-registry`, `existence-chain-fold`, `expr-decline-reason`, `fixture-body-absent`, `ordered-nested-write`, `orig-diagnostic-refusal`, `wrong-rewrite-callback-write` | | |
-| 1 each | 30 more, listed in the ledger, among them `optimiser-handler-forwarding` and `dead-store-unreachable-use` (dataflow-optimiser, from `try-body-transfer`), `o101-non-finite-render` (dataflow-optimiser: O101 renders no non-finite double), `wrong-rewrite-try-error-path`, `wrong-rewrite-shift-beyond-width`, `release-tower-fold` and `panics-before-assertion` | | |
+| 1 each | 35 more, listed in the ledger, among them the five former `declared-route-evaluation` rows (three analyser-binding, two dataflow-optimiser; the route answers in each), `optimiser-handler-forwarding` and `dead-store-unreachable-use` (dataflow-optimiser, from `try-body-transfer`), `o101-non-finite-render` (dataflow-optimiser: O101 renders no non-finite double), `wrong-rewrite-try-error-path`, `wrong-rewrite-shift-beyond-width`, `release-tower-fold` and `panics-before-assertion` | | |
 
-By owner of the cause: analyser-binding 97, values 56, dataflow-optimiser 25 and its issue session 12, taint
+By owner of the cause: analyser-binding 100, values 51, dataflow-optimiser 27 and its issue session 12, taint
 21, analysis-performance 4, class-facts 3 (the 12 unknown-head rows count under dataflow; their
-fixtures are restated here afterwards). What values can move now: declared routes, the escape walker, 5 f5 expectations and
+fixtures are restated here afterwards). What values can move now: the escape walker, 5 f5 expectations and
 the fixtures.
 
 ## Distinct failing behaviours
