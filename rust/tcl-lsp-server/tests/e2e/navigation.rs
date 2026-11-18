@@ -295,6 +295,7 @@ oo::class create Widget {
         puts \"name=$name params=$params\"
     }
 }
+Widget new {-base 1}
 ";
 
 /// Character of the `name` inside `puts "name=$name params=$params"` on

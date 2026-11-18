@@ -44,7 +44,6 @@ fn member_variable_colours_require_genuine_parent_roles_and_original_words() {
         for (source, spelling) in [
             (r"oo::class create C {variable a\ b}", r"a\ b"),
             ("oo::class create C {variable {a b}}", "{a b}"),
-            ("oo::class create C {variable arr($index)}", "arr("),
             (
                 r"oo::class create C {self variable wrapped\ name}",
                 r"wrapped\ name",
@@ -71,6 +70,10 @@ fn member_variable_colours_require_genuine_parent_roles_and_original_words() {
             ),
             ("oo::class create C {variable a${root}(index)}", "a${root}"),
             ("oo::class create C {variable arr($index)tail}", "arr("),
+            // tclsh 8.6.18: can't read "index"; with index set, invalid
+            // declared variable name "arr(1)": must not refer to an array
+            // element. 9.0.4/9.1.0: can't read "index".
+            ("oo::class create C {variable arr($index)}", "arr("),
         ] {
             let analysis = Analyser::new().analyse(source, profile);
             assert!(

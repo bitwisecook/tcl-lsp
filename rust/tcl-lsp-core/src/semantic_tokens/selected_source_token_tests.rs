@@ -83,7 +83,8 @@ fn original_semantic_handle_collectors_keep_later_selected_commands_and_inert_da
 fn original_member_handle_advice_uses_the_genuine_factory_member_body() {
     // naming.core.original-inlay-retained-context
     // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
-    let source = "snit::type Engine {method run {} {}}
+    let source = "package require snit
+snit::type Engine {method run {} {}}
 snit::type Wrapper {constructor {} {install item using Engine $win.a; install unknown using $type instance; proc nested {} {install borrowed using Engine instance}}}
 set inert {install leaked using Engine instance}";
     let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
@@ -117,7 +118,8 @@ set inert {install leaked using Engine instance}";
 
 #[test]
 fn original_member_handle_advice_preserves_literal_name_and_class_data() {
-    let source = "snit::type {Engine $[literal]} {method run {} {}}\n\
+    let source = "package require snit\n\
+            snit::type {Engine $[literal]} {method run {} {}}\n\
             snit::type Wrapper {constructor {} {\n\
             install {slot $[literal]} using {Engine $[literal]} instance\n\
             install dynamic using $type instance\n\

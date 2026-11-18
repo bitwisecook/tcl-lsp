@@ -410,13 +410,10 @@ fn user_proc_var_read_arg_highlights_as_reference() {
 }
 
 #[test]
-fn user_proc_dynamic_name_read_args_highlight() {
-    // A proc that reads a dynamic variable name built from its parameters
-    // inside a command substitution — `return [set ${v}($k)]` — infers a
-    // read role for both `v` and `k`, so the literal call-site args
-    // (`b aa foo`) highlight as plain `Variable` references.  Exercises the
-    // full path: cmd-substitution recursion + compound-name inference in
-    // the analyser, through to the token retag.
+fn user_proc_dynamic_name_read_args_stay_uncoloured() {
+    // `return [set ${v}($k)]` reads in b's own frame, so the call-site words
+    // `aa` and `foo` name no caller variable. tclsh 8.4.20-9.1.0: `b aa foo`
+    // raises can't read "aa(foo)": no such variable.
     use tcl_compiler::analyser::Analyser;
     use tcl_compiler::compilation_unit::CompilationUnit;
     let registry = release_reg("tcl9.0");
@@ -434,16 +431,11 @@ fn user_proc_dynamic_name_read_args_highlight() {
         Some(&cu),
         Some(&analysis),
     ));
-    // On the call line (`b aa foo`, line 4) both `aa` (col 2) and `foo`
-    // (col 5) highlight as plain `Variable` references (no declaration).
-    let refs: Vec<_> = toks
-        .iter()
-        .filter(|&&(line, _, _, k, m)| line == 4 && k == TokenKind::Variable as u32 && m == 0)
-        .collect();
     assert!(
-        refs.iter().any(|&&(_, col, _, _, _)| col == 2)
-            && refs.iter().any(|&&(_, col, _, _, _)| col == 5),
-        "expected `aa` and `foo` as variable references on the call line; got {toks:?}"
+        !toks.iter().any(|&(line, col, _, k, _)| line == 4
+            && (col == 2 || col == 5)
+            && k == TokenKind::Variable as u32),
+        "`aa` and `foo` are not caller variables on the call line; got {toks:?}"
     );
 }
 
