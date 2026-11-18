@@ -21,7 +21,6 @@
 use crate::ExplorerResult;
 use crate::formatters::format_return_shape;
 use serde_json::{Value, json};
-use std::collections::BTreeMap;
 use tcl_compiler::interprocedural::InterproceduralAnalysis;
 
 /// Format a declared arity's arity string:
@@ -103,7 +102,7 @@ pub fn serialise_unit_scope(result: &ExplorerResult) -> Value {
 #[must_use]
 pub fn serialise_interproc(
     interproc: &InterproceduralAnalysis,
-    param_constants: &BTreeMap<tcl_compiler::ir::ProcedureId, Vec<(String, u32, String)>>,
+    call_sites: &tcl_compiler::unit_scope::CallSiteEvidence,
 ) -> Value {
     let mut out: Vec<Value> = Vec::new();
 
@@ -132,17 +131,21 @@ pub fn serialise_interproc(
             // What a call does to its caller's places, or nothing where a
             // call to the procedure is a barrier.
             "transfer": interproc.transfers.describe(qname, &s.params),
-            // The caller-uniform-literal SCCP seed this procedure was
-            // analysed under — the fact that explains a folded condition on
-            // a parameter (and, by its absence, an indirect call site the
-            // scan could not enumerate).  See
+            // Advice only: the literal every call in this file passes at a
+            // parameter. The body is analysed from a generic entry and never
+            // reads it. See
             // `docs/design/compiler/interprocedural-call-site-seeding.md`.
-            "paramConstants": param_constants
-                .get(qname)
-                .map_or_default(|seeds| {
-                    seeds
+            "everyCallPasses": call_sites
+                .get(&s.qualified_name)
+                .map_or_default(|evidence| {
+                    s.params
                         .iter()
-                        .map(|(param, _version, literal)| format!("{param} = {literal}"))
+                        .enumerate()
+                        .filter_map(|(index, param)| {
+                            evidence
+                                .uniform_literal_at(index)
+                                .map(|literal| format!("{param} = {literal}"))
+                        })
                         .collect::<Vec<_>>()
                 }),
         }));

@@ -86,10 +86,9 @@ pub struct LatticeRequest<'a> {
     /// Whether command spellings must retain ordinary runtime dispatch rather
     /// than acquiring registry-declared builtin control-flow edges.
     pub plain_command_dispatch: bool,
-    /// Interprocedural caller-uniform-literal SCCP seeds for this procedure
-    /// (from [`params_constants_from_native_call_sites`]), encoded in the
-    /// deterministic, hashable `(param, version, string)` form the memo key
-    /// interns (see [`encode_param_constants`]).  Empty means "no seeds".
+    /// SCCP parameter seeds, encoded in the deterministic, hashable
+    /// `(param, version, string)` form the memo key interns. Procedure bodies
+    /// are built from a generic entry, so the build passes none.
     /// Position-independent — keyed by parameter name + SSA version, never by
     /// span — so it rebases trivially with the rest of the offset-0 unit.
     pub param_constants: &'a [(String, u32, String)],
@@ -218,37 +217,7 @@ impl LatticeRequest<'_> {
 /// caller owns the backing store and its eviction policy.
 pub type ProcLatticeCache<'a> = dyn FnMut(&LatticeRequest<'_>) -> FunctionUnit + 'a;
 
-/// Encode interprocedural `param_constants` (caller-uniform-literal SCCP seeds)
-/// into the deterministic, hashable form interned into the salsa-native
-/// `FnLatticeKey`.  [`params_constants_from_native_call_sites`] only ever emits
-/// `Const(String)` seeds, so the encoding is a sorted vec of `(param, version,
-/// string)` triples; sorting makes the encoding independent of hash-map
-/// iteration order so equal seeds always intern to the same key.
-///
-/// `None` input (no seeds) encodes to an empty vec.  Returns `None` only if a
-/// seed has some other lattice shape — a shape we can't faithfully intern, so
-/// the caller falls back to a fresh build rather than silently dropping it.
-/// Defensive: the current producer never emits a non-string seed.
-#[must_use]
-pub(crate) fn encode_param_constants(
-    param_constants: Option<&HashMap<(String, crate::ssa::Version), crate::analyses::LatticeValue>>,
-) -> Option<Vec<(String, u32, String)>> {
-    use crate::analyses::{ConstValue, LatticeValue};
-    let Some(map) = param_constants else {
-        return Some(Vec::new());
-    };
-    let mut out = Vec::with_capacity(map.len());
-    for ((name, version), val) in map {
-        let LatticeValue::Const(ConstValue::String(s)) = val else {
-            return None;
-        };
-        out.push((name.clone(), *version, s.clone()));
-    }
-    out.sort();
-    Some(out)
-}
-
-/// Inverse of [`encode_param_constants`]: rebuild the SCCP seed map a
+/// Rebuild the SCCP seed map a
 /// `function_lattice` build feeds to [`FunctionUnit::build_with_param_constants`].
 /// An empty slice (no seeds) decodes to `None`.
 #[must_use]

@@ -65,7 +65,10 @@ fn interproc_method_rows_retain_equal_labels_and_scoped_call_ids() {
             },
         );
     }
-    let encoded = serialise_interproc(&interproc, &BTreeMap::new());
+    let encoded = serialise_interproc(
+        &interproc,
+        &tcl_compiler::unit_scope::CallSiteEvidence::default(),
+    );
     let rows = encoded.as_array().unwrap();
     assert_eq!(rows.len(), 2);
     assert_eq!(rows[0]["name"], rows[1]["name"]);
@@ -547,12 +550,11 @@ fn wasm_view_serialises_multiple_mixed_regions_in_node_order() {
     assert!(regions[2]["slowPath"].is_null());
 }
 
-/// The interprocedural view surfaces the caller-uniform-literal SCCP
-/// seed, and stops surfacing it when a dynamic dispatch reaches the
-/// same procedure with a different literal — the one fact that explains
-/// why a condition on a parameter did or did not fold.
+/// The interprocedural view surfaces, as advice, the literal every call in
+/// the file passes, and stops surfacing it when a dynamic dispatch reaches
+/// the same procedure with a different literal.
 #[test]
-fn interproc_view_shows_the_param_constant_seed_and_its_withdrawal() {
+fn interproc_view_shows_what_every_call_passes_and_its_withdrawal() {
     const HELPER: &str = "proc helper {mode} {\n\
              if {$mode eq \"prod\"} { set x 1 } else { set x 2 }\n\
              }\nhelper prod\nhelper prod\n";
@@ -563,7 +565,7 @@ fn interproc_view_shows_the_param_constant_seed_and_its_withdrawal() {
         .iter()
         .find(|p| p["name"] == "::helper")
         .expect("::helper summarised");
-    assert_eq!(entry["paramConstants"], json!(["mode = prod"]));
+    assert_eq!(entry["everyCallPasses"], json!(["mode = prod"]));
 
     let src = format!("{HELPER}set cmd helper\n$cmd dev\n");
     let withdrawn = serialise_result(&run_pipeline(&src, "tcl8.6"))["interprocedural"].clone();
@@ -574,7 +576,7 @@ fn interproc_view_shows_the_param_constant_seed_and_its_withdrawal() {
         .find(|p| p["name"] == "::helper")
         .expect("::helper summarised");
     assert_eq!(
-        entry["paramConstants"],
+        entry["everyCallPasses"],
         json!([]),
         "the `$cmd dev` dispatch also reaches helper, with a differing literal",
     );

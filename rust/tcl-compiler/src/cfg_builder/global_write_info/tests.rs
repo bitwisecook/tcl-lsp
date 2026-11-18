@@ -95,57 +95,42 @@ fn module_in(src: &str, registry: &CommandRegistry, environment: &str) -> Module
     crate::lowering::lower_to_ir_with(lowerer, src)
 }
 
+/// The globals a summary names, each spelling unrooted: the naming owner
+/// records an outer-scope write under its rooted and its plain spelling
+/// (`variable_observation_names::record_variable_write_name`).
+fn unrooted_names(row: &GlobalWriteInfo) -> BTreeSet<&str> {
+    row.names
+        .iter()
+        .map(|name| tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name))
+        .collect()
+}
+
 #[test]
-fn original_logical_outer_writes_retain_typed_alias_targets_and_incomplete_coverage() {
+fn a_global_link_spelled_with_a_colon_run_writes_the_same_global() {
+    // `global ::g` and `global ::::g` link the same global: tclsh 8.4.20,
+    // 8.6.18, 9.0.4 and 9.1.0 print 1 then 2 for `left; puts $::g; right;
+    // puts $::g`. Each procedure's summary names g, so no read of ::g folds
+    // across a call to either (rewritten from an internal footprint check by
+    // ruling of 17 November).
     let original =
         module("proc left {} {global ::g; set g 1}\nproc right {} {global ::::g; set g 2}");
     let rows = detect_global_write_procs(&original);
-    let left = &rows[&summary_id(&original, "::left")];
-    let right = &rows[&summary_id(&original, "::right")];
-    let [left] = left
-        .original_source_writes()
-        .expect("complete first source footprint")
-    else {
-        panic!("one original alias target");
-    };
-    let [right] = right
-        .original_source_writes()
-        .expect("complete second source footprint")
-    else {
-        panic!("one original alias target");
-    };
-    assert_eq!(left.symbol(), right.symbol());
-    assert_ne!(left.span(), right.span());
-    let mut changed = original.clone();
-    changed.source = tcl_lexer::SourceImage::document(
-        "proc left {} {global ::other; set other 1}\nproc right {} {global ::::g; set g 2}",
-    );
-    assert!(
-        detect_global_write_procs(&changed)
-            .values()
-            .all(|row| row.original_source_writes().is_none())
-    );
-    let mut observed = original.clone();
-    observed.traced_commands.insert("::set".to_owned());
-    assert!(
-        detect_global_write_procs(&observed)
-            .values()
-            .all(|row| row.original_source_writes().is_none())
-    );
+    for name in ["::left", "::right"] {
+        let row = &rows[&summary_id(&original, name)];
+        assert_eq!(
+            unrooted_names(row),
+            BTreeSet::from(["g"]),
+            "{name}: {row:?}"
+        );
+        assert!(!row.opaque_global_frame, "{name}");
+    }
     let unknown = module("proc p {} {global g; set g 1; unknown_call}");
     let rows = detect_global_write_procs(&unknown);
     let row = &rows[&summary_id(&unknown, "::p")];
-    assert!(row.opaque_global_frame);
+    assert!(row.names.contains("g"));
     assert!(
-        row.original_source_writes().is_none(),
+        row.opaque_global_frame,
         "a known write cannot close an unknown call remainder"
-    );
-    let dynamic = module("proc p {name} {global g; set $name 1}");
-    let rows = detect_global_write_procs(&dynamic);
-    assert!(
-        rows[&summary_id(&dynamic, "::p")]
-            .original_source_writes()
-            .is_none()
     );
 }
 
@@ -314,50 +299,19 @@ fn logical_source_child_effects_keep_readonly_ownership_and_refuse_stale_modules
 }
 
 #[test]
-fn protected_child_substitutions_retain_their_own_source_effect_carriers() {
-    let module = module("catch {set ::hits [incr ::other]}");
-    let registry = module.resolved_registry();
-    let metadata =
-        crate::registry_invocation::InvocationMetadataContext::for_module(registry, &module)
-            .unwrap();
-    let parent = module
-        .top_level
-        .retained_source_tokens_for_statement(&module.top_level.statements[0])
-        .unwrap();
-    let body =
-        crate::registry_invocation::source_structure::original_immediate_body_commands_for_module(
-            &module, registry, parent,
-        )
-        .unwrap();
-    let children = crate::word_subst::checked_original_lifted_calls_with_metadata_context(
-        &body[0],
-        module.native_lexer_config(),
-        registry,
-        metadata,
-    )
-    .unwrap();
-    assert_eq!(children.len(), 1);
-    let child = children[0].tokens.as_ref().unwrap();
-    let (writes, _) =
-        crate::registry_invocation::original_logical_variable_footprint_with_metadata_context(
-            registry, metadata, child,
-        )
-        .unwrap();
-    assert_eq!(writes.literal_names, vec!["::other"]);
-    assert!(!writes.opaque_variable_frame);
-    assert!(
-        crate::registry_invocation::source_structure::original_logical_registry_words_for_module(
-            &module, registry, child
-        )
-        .is_some()
-    );
-    let mut stale = child.clone();
-    stale.argv_texts[1] = "::unowned".to_owned();
-    assert!(
-        crate::registry_invocation::source_structure::original_logical_registry_words_for_module(
-            &module, registry, &stale
-        )
-        .is_none()
+fn a_catch_bodys_nested_substitution_writes_its_globals() {
+    // `catch {set ::hits [incr ::other]}` writes both globals: tclsh 8.6.18,
+    // 9.0.4 and 9.1.0 print `1 1` for `p; puts "$::hits $::other"` (8.4's
+    // `incr` refuses an unset variable, so the module runs as 8.6). The
+    // summary names both, so neither folds across a call (rewritten from an
+    // internal carrier check by ruling of 17 November).
+    let m = module("proc p {} {catch {set ::hits [incr ::other]}}");
+    let rows = detect_global_write_procs(&m);
+    let row = &rows[&summary_id(&m, "::p")];
+    assert_eq!(
+        unrooted_names(row),
+        BTreeSet::from(["hits", "other"]),
+        "{row:?}"
     );
 }
 

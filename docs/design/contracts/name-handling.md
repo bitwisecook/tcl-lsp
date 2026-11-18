@@ -1618,6 +1618,28 @@ obligation-to-receipt and conflict checks; rename keeps its prior Realm/formal
 gate and independent original coverage, collision and container edit owner.
 Coverage is neither runtime census nor successful alias/target continuity.
 
+Namespace-variable rename narrows the dynamic-name barrier (owner ruling, 17
+November 2026): a computed variable name is a barrier only when it could spell
+the old or the new cell, both checked. The exclusion is the compiler's naming
+fact `dynamic_names::computed_variable_name_cannot_spell`, read through
+`original_variable_rename_is_complete_for`; the server and core read the fact
+and never split names themselves. It excludes a word only by (i) an absolute
+written prefix whose components, each closed by its own separator, are not the
+cell's namespace path, or (ii) a fully written final component after a
+separator that is not the cell's tail; an unreceipted alias whose written
+target tail differs from both tails is excluded by (ii). Still barriers: a
+fully computed name, `::mypkg::$n`, `::my$n`, `::mypkg::ver$n`, `upvar #0
+$name`, `variable $n`, a relative written prefix (`other::$n`), a quoted or
+braced word, and computed scripts. An excluded site is neither edited nor
+counted as covered; the complete indexed-document scan is unchanged. A write
+through a link is no reason to refuse: the dynamic site spells the alias, and
+the link's own creation site is covered by the alias-source rule. Custom
+variable resolvers (Itcl-style) are out of scope. Evidence, tclsh 8.4.20 and
+9.0.4: with n `::mypkg::version`, `mypkg::version` or `:::mypkg::version`,
+`set ::other::$n 2` creates `::other::mypkg::version` and leaves
+`::mypkg::version` alone; `namespace upvar $ns counter local` with ns `::mypkg`
+links `counter`, not `version`.
+
 Workspace variable rename keeps original cursor selection terminal. A readonly
 Logical coordinate without its original cursor symbol cannot issue sibling edits.
 Actual typed proposed-symbol collisions determine refusal; independently present

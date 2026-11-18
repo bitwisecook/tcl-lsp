@@ -1,13 +1,9 @@
-# per_item group with PROBE_WRAP=1 (narrowed gate), against the unpatched tree
+# per_item group with PROBE_WRAP=1 (held patch), against the same tree with PROBE_WRAP unset
+# (an empty PROBE_WRAP= still counts as set: var_os)
 # newly failing:
 analyser::diagnostics::security::source_paths::tests::original_path_advice_has_whole_source_and_per_item_value_parity
 analyser::diagnostics::security::source_patterns::tests::original_pattern_shape_keeps_whole_source_and_per_item_parity
 analyser::per_item::tests::counted_class_metadata_requires_original_owner_in_per_item_body
-analyser::per_item::tests::duplicate_proc_same_local_last_wins
-analyser::per_item::tests::duplicate_proc_unique_locals_unioned
-analyser::per_item::tests::instance_creation_before_class_definition_stays_unresolved
-analyser::per_item::tests::instance_creation_in_proc_body
-analyser::per_item::tests::top_level_global_read_in_body
 # newly passing:
 analyser::per_item::tests::many_small_bodies_totalling_over_the_threshold_stay_fast
 analyser::per_item::tests::ordinary_large_body_stays_on_the_fast_path
@@ -17,3 +13,6 @@ analyser::per_item::tests::tk_gate_fp_package_provide_tk_and_require_tcl
 analyser::per_item::tests::tk_gate_fp_three_words_scattered_across_unrelated_commands
 analyser::per_item::tests::tk_gate_tn_dynamic_package_name_does_not_activate
 analyser::per_item::tests::tk_gate_tn_renamed_package_command_does_not_activate
+# closed since the previous list: instance creation in a wrapped body
+#   (every unbound site is captured in the wrapper realm and replayed against
+#   the document; a replay that names a class declared after the site is undone)

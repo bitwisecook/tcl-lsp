@@ -276,31 +276,23 @@ fn alias_to_unresolved_handler_keeps_terminal_barrier_effect() {
 /// tclsh 8.4.20 – 9.1b0 (unanimous): with the shadow, `[llength {a b c}]` is
 /// 99, so a lattice claiming `v == 3` is wrong.
 #[test]
-fn a_shadowing_module_is_served_a_lattice_keyed_by_its_trust() {
-    let (shadowed, hits, shadowed_contexts) = memoised_unit(
+fn a_shadowing_module_is_not_served_the_builtin_answer() {
+    // tclsh: with `proc llength {l} { return 99 }` defined, `g` returns 99;
+    // without it, 3. The shadowing module must not be answered from a lattice
+    // that proves the builtin's 3, and the control must still prove it (so
+    // the shadowed case measures the trust, not a lattice that never had the
+    // fact). Whether the memo stays on is a performance property, kept in the
+    // analysis-performance ledger (ruling of 17 November).
+    let (shadowed, _, _) = memoised_unit(
         "proc llength {l} { return 99 }\nproc g {} { set v [llength {a b c}]; return $v }\n",
     );
-    assert!(hits > 0, "the memo stays on, keyed by the module's trust");
     assert!(
         !g_proves_v_is_three(&shadowed),
-        "the memoised lattice must not answer with the builtin's 3"
+        "the shadowing module must not be answered with the builtin's 3"
     );
-
-    // Positive control: the same shape with nothing shadowed reaches the
-    // memo under a different key, and the unit it returns does prove
-    // `v == 3` — so the assertions above measure the trust in the key, not
-    // an unreachable memo or a lattice that never had the fact.
-    let (control, hits, control_contexts) =
-        memoised_unit("proc g {} { set v [llength {a b c}]; return $v }\n");
-    assert!(hits > 0, "the control must reach the memo");
+    let (control, _, _) = memoised_unit("proc g {} { set v [llength {a b c}]; return $v }\n");
     assert!(
         g_proves_v_is_three(&control),
-        "the control's memoised lattice does prove v == 3"
-    );
-    assert!(
-        shadowed_contexts
-            .iter()
-            .all(|context| !control_contexts.contains(context)),
-        "a shadowing module's requests must not share the control's key"
+        "the control's lattice does prove v == 3"
     );
 }

@@ -60,12 +60,11 @@ pub(super) fn build_interproc(d: &Value) -> Vec<ViewNode> {
                     if c.is_empty() { "—".to_owned() } else { c }
                 }),
             ];
-            // The caller-uniform-literal seed SCCP ran this procedure under.
-            // Shown only when there is one, so the common unseeded procedure
-            // reads no differently than before.
-            let seeds = join_str_array(&p["paramConstants"]);
-            if !seeds.is_empty() {
-                detail.push(det("param constants", seeds));
+            // Advice only: what every call in this file passes. Shown only
+            // when the calls agree.
+            let passes = join_str_array(&p["everyCallPasses"]);
+            if !passes.is_empty() {
+                detail.push(det("every call in this file passes", passes));
             }
             detail.push(det(
                 "transfer",

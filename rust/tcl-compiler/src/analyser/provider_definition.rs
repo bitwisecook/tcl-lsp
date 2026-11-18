@@ -77,9 +77,9 @@ impl Analyser {
             let binding = realm
                 .invocation_at_source("", at)
                 .lookup_command_word(written);
-            let canonical = metadata.command().trim_start_matches("::");
+            let canonical = crate::naming::normalise_qualified_name(metadata.command());
             let redeclared = || {
-                let ours = |name: &str| name.trim_start_matches("::") == canonical;
+                let ours = |name: &str| crate::naming::normalise_qualified_name(name) == canonical;
                 self.result
                     .proc_declaration_sites
                     .iter()

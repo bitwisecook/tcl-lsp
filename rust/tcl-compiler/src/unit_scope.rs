@@ -21,12 +21,13 @@
 //! [`CompilationUnit`](crate::compilation_unit::CompilationUnit) is
 //! single-source-text by construction, but Tcl has no `static`: every `proc`
 //! lands in a global command table any file sharing the interpreter can
-//! reach.  The interprocedural SCCP seed
-//! ([`params_constants_from_native_call_sites`]) binds a parameter to a compile-time
-//! literal only when **every** caller passes that literal — so the seed is
-//! only as sound as the claim "the call sites I found are all of them".
+//! reach.  The evidence here says what this file's calls pass, as advice
+//! ("every call in this file passes 3"); it never seeds a procedure body's
+//! lattice. A body is analysed from a generic entry, since the procedure stays
+//! callable from a later `source`, a callback or an interactive session,
+//! which no enumeration of call sites bounds.
 //!
-//! This module owns that claim, in three layers:
+//! This module collects that evidence, in three layers:
 //!
 //! 1. **In-unit evidence** — [`collect_call_site_constants`] walks the
 //!    module's own CFGs (top level, every proc, plus the `TclOO` method and
@@ -62,8 +63,6 @@
 //!    when a host supplied any.  No command name appears here — the traits
 //!    are registry data ([`tcl_registry::UNIT_LINKAGE_TRAITS`]).
 //!
-//! The gate [`params_constants_from_native_call_sites`] applies is stated in full on
-//! that function.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
@@ -80,7 +79,6 @@ mod body_invocations;
 mod call_recording;
 mod cfg_scan;
 mod extra_scan_contexts;
-mod param_seeds;
 mod scope_var_facts;
 mod source_scan;
 mod unit_linkage;
@@ -98,9 +96,6 @@ use extra_scan_contexts::collect_upframes;
 pub(crate) use extra_scan_contexts::{
     build_extra_call_site_scan_contexts, needs_extra_call_site_scan_contexts,
 };
-#[cfg(test)]
-pub(crate) use param_seeds::params_constants_from_call_sites;
-pub(crate) use param_seeds::{UnitCallerView, params_constants_from_native_call_sites};
 use scope_var_facts::collect_module_scope_var_facts;
 #[cfg(test)]
 use scope_var_facts::collect_scope_var_facts;

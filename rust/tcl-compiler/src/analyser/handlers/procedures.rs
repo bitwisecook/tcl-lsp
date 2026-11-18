@@ -671,6 +671,7 @@ impl Analyser {
                     arg_single.first().copied().unwrap_or(false),
                     scope_path,
                 )
+                .or_else(|| self.literal_foreach_name(raw_name, name_tok))
                 .unwrap_or_else(|| raw_name.to_owned())
             },
             |(_, text)| text.clone(),
@@ -679,6 +680,40 @@ impl Analyser {
             finite: finite_name,
             resolved: resolved_name,
         })
+    }
+
+    /// A name word whose only substitutions read the variable of the literal
+    /// `foreach` iteration being walked, spelled with that iteration's
+    /// element: `foreach c {a {bar baz}} {proc ::$c {} {}}` declares `::a`
+    /// and `::bar baz` (tclsh 8.6.18, 9.0.4).
+    fn literal_foreach_name(&self, text: &str, name: Token) -> Option<String> {
+        let (variable, value, _) =
+            self.literal_foreach_bindings
+                .iter()
+                .rev()
+                .find(|(_, _, body)| {
+                    body.start() <= name.span.start() && name.span.end() <= body.end()
+                })?;
+        let text = text.replace(&format!("${{{variable}}}"), value);
+        let reference = format!("${variable}");
+        let mut spelled = String::with_capacity(text.len());
+        let mut rest = text.as_str();
+        while let Some(at) = rest.find(&reference) {
+            let after = &rest[at + reference.len()..];
+            spelled.push_str(&rest[..at]);
+            if after
+                .chars()
+                .next()
+                .is_some_and(|next| next.is_ascii_alphanumeric() || matches!(next, '_' | ':' | '('))
+            {
+                spelled.push_str(&reference);
+            } else {
+                spelled.push_str(value);
+            }
+            rest = after;
+        }
+        spelled.push_str(rest);
+        (!crate::naming::is_dynamic_word(&spelled)).then_some(spelled)
     }
 
     fn procedure_reporting_body_span(&self, body: Token, finite: bool) -> Span {

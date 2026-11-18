@@ -341,10 +341,14 @@ fn resolve_analyser_hook_uses_registry_rooted_resolution() {
 /// naming factory (`struct::graph g`) — a bareword `ttk::treeview .t`
 /// retains a conditional `.t` class label through the shared original
 /// source factory receipt, without publishing successful creation.
+/// Tk widgets exist only once Tk is loaded (tclsh 8.4.20-9.1.0 without it:
+/// `invalid command name "ttk::treeview"`).
+const BAREWORD_WIDGET: &str = "package require Tk\nttk::treeview .t\n.t instate {selected} {}\n";
+
 #[test]
 fn bareword_widget_constructor_binds_instance_class() {
     let mut a = super::super::state::Analyser::new();
-    let res = a.analyse("ttk::treeview .t\n.t instate {selected} {}\n", "tcl8.6");
+    let res = a.analyse(BAREWORD_WIDGET, "tcl8.6");
     assert_eq!(
         res.instance_classes.get(".t").map(String::as_str),
         Some("ttk::treeview"),
@@ -354,9 +358,9 @@ fn bareword_widget_constructor_binds_instance_class() {
     assert!(res.created_instance_commands.is_empty());
     assert!(
         crate::registry_invocation::source_structure::source_command_publication_at(
-            "ttk::treeview .t\n.t instate {selected} {}\n",
+            BAREWORD_WIDGET,
             &res,
-            0
+            u32::try_from(BAREWORD_WIDGET.find("ttk::treeview").unwrap()).unwrap()
         )
         .is_some()
     );
@@ -367,7 +371,7 @@ fn bareword_widget_constructor_binds_instance_class() {
 #[test]
 fn var_captured_widget_constructor_binds_instance_class() {
     let mut a = super::super::state::Analyser::new();
-    let res = a.analyse("set lb [listbox .l]\n$lb curselection\n", "tcl8.6");
+    let res = a.analyse("package require Tk\nset lb [listbox .l]\n$lb curselection\n", "tcl8.6");
     assert_eq!(
         res.instance_classes.get("lb").map(String::as_str),
         Some("listbox"),
@@ -383,7 +387,7 @@ fn var_captured_widget_constructor_binds_instance_class() {
 #[test]
 fn simple_widget_without_subcommands_still_binds_instance_class() {
     let mut a = super::super::state::Analyser::new();
-    let res = a.analyse("button .b -text hi\n", "tcl8.6");
+    let res = a.analyse("package require Tk\nbutton .b -text hi\n", "tcl8.6");
     assert_eq!(
         res.instance_classes.get(".b").map(String::as_str),
         Some("button"),

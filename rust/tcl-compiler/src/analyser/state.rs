@@ -581,6 +581,9 @@ pub struct Analyser {
     /// words. The lowering retains no command at those source offsets, so
     /// a declaration there keeps its written layout as in a recovered tail.
     pub(super) concatenated_script: bool,
+    /// The loop variable of each literal `foreach` iteration being walked,
+    /// with its element and the body it is bound for.
+    pub(super) literal_foreach_bindings: Vec<(String, String, tcl_lexer::Span)>,
     /// Every fully static concatenated script walked, by its in-place source
     /// window, for the registry's count errors on its commands.
     pub(super) concatenated_windows: Vec<(String, tcl_lexer::Span)>,

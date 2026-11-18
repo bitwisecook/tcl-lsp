@@ -84,6 +84,13 @@ fn an_uncaught_error_reports_its_trace_and_where_in_the_file() {
              (file \"PATH\" line 1)\n",
         ),
         (
+            "after.tcl",
+            "set x 1\nif {1} {\n  break\n}\nset y 2\n",
+            "",
+            "invoked \"break\" outside of a loop\n    while executing\n\"if {1} {\n  break\n}\"\n    \
+             (file \"PATH\" line 2)\n",
+        ),
+        (
             "return.tcl",
             "puts a\nreturn -code error boom\n",
             "a\n",

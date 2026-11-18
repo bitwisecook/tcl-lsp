@@ -14,6 +14,8 @@ Does the original edit plan account for both derived global reads and independen
 
 The edit contract requires complete original target/read coverage and preserves the actual alias naming purpose. The regression applies edits to the namespace declaration, global target and derived $v read, plus the upvar target, while alias and $alias remain exact. Unknown/computed targets without independently editable geometry decline; native alias execution and cell identity are separate questions.
 
+Amended 17 November 2026 (owner ruling): for a namespace-variable rename a computed name or an unreceipted alias declines only when it could spell the old or the new cell. The compiler's `computed_variable_name_cannot_spell` excludes a word by an absolute written prefix that diverges from the cell's namespace path, or by a fully written final component that is not the cell's tail; everything else still declines (see the alias-source coverage passage of `docs/design/contracts/name-handling.md`). An excluded site is neither edited nor counted as covered.
+
 ## Scope
 
 Current Rust source edit correspondence, original byte/policy symbol, selected receiver purpose, independently issued written root/list-container geometry, complete source/grammar currency and typed coverage. Native Tcl/Jim/BIG-IP language observations motivate separate questions and do not execute this invariant. Named tests are linked coverage obligations; no execution result is asserted. Edit authority is distinct from readonly selection, source occurrence counts and any physical runtime frame/cell/value capability.

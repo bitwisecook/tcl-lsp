@@ -135,7 +135,10 @@ fn procedure_target_matches_static_proc_across_profiles_and_dispatches() {
         let profile =
             tcl_registry::model::ingress::resolve_environment(environment).analyser_profile();
         let service = BytecodeCompileService::for_profile(profile);
-        let static_source = format!("proc ::matrix::p {{value suffix}} {{{body}}}");
+        // `proc ::matrix::p` needs its namespace: tclsh 8.4.20/9.0.4 refuse it
+        // otherwise (`can't create procedure "::matrix::p": unknown namespace`).
+        let static_source =
+            format!("namespace eval ::matrix {{}}; proc ::matrix::p {{value suffix}} {{{body}}}");
         let static_module = service
             .compile_for_profile(&static_source, profile)
             .unwrap();

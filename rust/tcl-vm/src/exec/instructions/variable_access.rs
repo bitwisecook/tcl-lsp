@@ -261,7 +261,8 @@ impl Vm {
                     let direct = f
                         .script_command
                         .and_then(|start| f.asm.instructions.get(start))
-                        .and_then(|start| start.source_span)
+                        .and_then(|start| start.script_command.as_ref())
+                        .map(|command| command.span)
                         .zip(instr.source_span)
                         .is_some_and(|(command, own)| {
                             command.start() <= own.start() && own.end() <= command.end()

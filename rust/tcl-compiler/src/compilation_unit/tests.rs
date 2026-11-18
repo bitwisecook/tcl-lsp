@@ -599,6 +599,18 @@ mod call_site_param_constants {
         )
     }
 
+    /// The literal every call in this file passes at `qname`'s formal
+    /// `index`: advice for display, never a seed for the body. tclsh 8.4-9.1
+    /// and jimsh: after sourcing a file whose only calls are `helper prod`,
+    /// `list [helper prod] [helper dev]` is `1 2`.
+    fn every_call_passes(cu: &CompilationUnit, qname: &str, index: usize) -> Option<String> {
+        cu.caller_scope
+            .call_sites
+            .get(qname)?
+            .uniform_literal_at(index)
+            .map(ToOwned::to_owned)
+    }
+
     fn knows_condition_mentioning(fu: &FunctionUnit, needle: &str) -> bool {
         fu.diagnostic_value_facts()
             .constant_branches()
@@ -815,18 +827,12 @@ mod call_site_param_constants {
         );
     }
 
-    /// TN control and documented scope boundary: a dynamic (non-literal)
-    /// call-site head elsewhere in the module is simply unresolvable —
-    /// it contributes no evidence for or against any proc's params,
-    /// exactly like any other call this scan can't attribute to a
-    /// specific callee. `helper`'s own two uniform-literal callers still
-    /// fold. Closing the residual "the dynamic call might secretly
-    /// target `helper` too" gap would need a value-set fact for `$cmd`
-    /// this pass runs too early in the pipeline to have (it produces
-    /// the very SCCP seed such a fact would depend on) — a pre-existing
-    /// limitation of this call-site scan, not a regression.
+    /// A dispatch through `$cmd` whose value the scope assigns is resolved by
+    /// value and recorded as a `helper prod` call, so the evidence still
+    /// says every call passes `prod`. That is advice only: the body is
+    /// analysed from a generic entry.
     #[test]
-    fn dynamic_dispatch_elsewhere_does_not_disqualify_an_unrelated_seed() {
+    fn dynamic_dispatch_elsewhere_keeps_an_unrelated_procedures_evidence() {
         let reg = registry();
         let src = "
                 proc helper {mode} {
@@ -842,9 +848,13 @@ mod call_site_param_constants {
             .and_then(|id| cu.procedures.get(&id))
             .expect("helper analysed");
         assert!(
-            knows_condition_mentioning(helper, "mode"),
-            "an unrelated dynamic call site must not disqualify helper's own uniform-literal seed: {:?}",
+            !knows_condition_mentioning(helper, "mode"),
+            "a body is analysed from a generic entry; this file's calls are advice only: {:?}",
             helper.sccp.constant_branches,
+        );
+        assert_eq!(
+            every_call_passes(&cu, "::helper", 0).as_deref(),
+            Some("prod"),
         );
     }
 
@@ -905,11 +915,9 @@ mod call_site_param_constants {
         );
     }
 
-    /// TN control: an unrelated call inside a `catch` body must not
-    /// disqualify a *different*, genuinely call-site-invariant proc's
-    /// seed — the recursive Body-arg scan must attribute evidence to the
-    /// right callee, not blanket-disqualify everything the way the
-    /// (reverted) dynamic-dispatch wildcard did.
+    /// An unrelated call inside a `catch` body leaves a *different*
+    /// procedure's evidence in place: the recursive Body-arg scan attributes
+    /// evidence to the right callee.
     #[test]
     fn unrelated_catch_body_does_not_disqualify_a_different_proc() {
         let reg = registry();
@@ -929,9 +937,13 @@ mod call_site_param_constants {
             .and_then(|id| cu.procedures.get(&id))
             .expect("helper analysed");
         assert!(
-            knows_condition_mentioning(helper, "mode"),
-            "an unrelated catch body must not disqualify helper's own uniform-literal seed: {:?}",
+            !knows_condition_mentioning(helper, "mode"),
+            "a body is analysed from a generic entry; this file's calls are advice only: {:?}",
             helper.sccp.constant_branches,
+        );
+        assert_eq!(
+            every_call_passes(&cu, "::helper", 0).as_deref(),
+            Some("prod"),
         );
     }
 
@@ -983,10 +995,8 @@ mod call_site_param_constants {
         );
     }
 
-    /// TN control: a plain script with no `package provide` keeps
-    /// folding — the guard above must be scoped to the specific
-    /// evidence (`package provide` presence), not silently disable the
-    /// whole mechanism.
+    /// A plain script with no `package provide` still records its calls'
+    /// literals as advice; the body is analysed from a generic entry.
     #[test]
     fn non_package_file_is_unaffected_by_package_provide_guard() {
         let reg = registry();
@@ -1002,16 +1012,19 @@ mod call_site_param_constants {
             .and_then(|id| cu.procedures.get(&id))
             .expect("helper analysed");
         assert!(
-            knows_condition_mentioning(helper, "mode"),
-            "no package-provide in this file, seed should still fold: {:?}",
+            !knows_condition_mentioning(helper, "mode"),
+            "a body is analysed from a generic entry; this file's calls are advice only: {:?}",
             helper.sccp.constant_branches,
+        );
+        assert_eq!(
+            every_call_passes(&cu, "::helper", 0).as_deref(),
+            Some("prod"),
         );
     }
 
-    /// FP guard: `package provide` merely *mentioned* in a comment must
-    /// not disable the interprocedural seed — the guard checks the lowered
-    /// IR for a real, resolved invocation, not a raw-text substring match
-    /// over the whole file.
+    /// `package provide` merely *mentioned* in a comment leaves the calls'
+    /// evidence in place: the guard reads a real, resolved invocation, not
+    /// a raw-text substring of the file.
     #[test]
     fn package_provide_mentioned_only_in_a_comment_does_not_disqualify() {
         let reg = registry();
@@ -1028,9 +1041,13 @@ mod call_site_param_constants {
             .and_then(|id| cu.procedures.get(&id))
             .expect("helper analysed");
         assert!(
-            knows_condition_mentioning(helper, "mode"),
-            "a comment merely mentioning the phrase must not disqualify: {:?}",
+            !knows_condition_mentioning(helper, "mode"),
+            "a body is analysed from a generic entry; this file's calls are advice only: {:?}",
             helper.sccp.constant_branches,
+        );
+        assert_eq!(
+            every_call_passes(&cu, "::helper", 0).as_deref(),
+            Some("prod"),
         );
     }
 
@@ -1198,11 +1215,12 @@ mod call_site_param_constants {
             assert_eq!(helper.uniform_literal_at(0), Some("dev"));
         }
 
-        /// TP control — the mechanism must still fold when the other file
-        /// agrees. `main.tcl` passing `prod` too leaves one literal
-        /// across the whole project, so the seed is sound and fires.
+        /// `main.tcl` passing `prod` too leaves one literal across the
+        /// project's calls, which is advice only: the body is still analysed
+        /// from a generic entry, since a later `source` or an interactive
+        /// session can call it with any value.
         #[test]
-        fn sourcing_file_agreeing_on_the_literal_still_folds() {
+        fn sourcing_file_agreeing_on_the_literal_is_advice_only() {
             let reg = registry();
             let evidence = evidence_from("source lib.tcl\nhelper prod\n", &reg);
             let cu = build_with_evidence(LIB, &reg, &evidence);
@@ -1210,14 +1228,18 @@ mod call_site_param_constants {
                 .and_then(|id| cu.procedures.get(&id))
                 .expect("helper analysed");
             assert!(
-                knows_condition_mentioning(helper, "mode"),
-                "every caller in the project passes \"prod\"; the seed is sound: {:?}",
+                !knows_condition_mentioning(helper, "mode"),
+                "a body is analysed from a generic entry; this file's calls are advice only: {:?}",
                 helper.sccp.constant_branches,
+            );
+            assert_eq!(
+                every_call_passes(&cu, "::helper", 0).as_deref(),
+                Some("prod"),
             );
         }
 
-        /// TN control — a workspace file that never mentions `helper`
-        /// contributes no evidence and must not disturb the fold.
+        /// A workspace file that never mentions `helper` contributes no
+        /// evidence, and the body stays at its generic entry.
         #[test]
         fn unrelated_workspace_file_contributes_nothing() {
             let reg = registry();
@@ -1239,9 +1261,13 @@ mod call_site_param_constants {
                 .and_then(|id| cu.procedures.get(&id))
                 .expect("helper analysed");
             assert!(
-                knows_condition_mentioning(helper, "mode"),
-                "an unrelated file must not retract a sound fold: {:?}",
+                !knows_condition_mentioning(helper, "mode"),
+                "a body is analysed from a generic entry; this file's calls are advice only: {:?}",
                 helper.sccp.constant_branches,
+            );
+            assert_eq!(
+                every_call_passes(&cu, "::helper", 0).as_deref(),
+                Some("prod"),
             );
         }
 

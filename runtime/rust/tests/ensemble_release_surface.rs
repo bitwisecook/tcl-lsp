@@ -255,10 +255,8 @@ fn file_tempfile_prefix_is_unique_before_tcl9() {
 ///                                       convertto, names, or system
 /// tclsh8.5.19:  encoding d           -> the encoding directory list
 ///
-/// The *sentence* differs below 8.6 — C only made these ensembles in 8.6, so
-/// 8.4/8.5 word the miss `bad option` — which this engine does not model; it
-/// speaks the ensemble sentence at every release. What the rows pin is the
-/// resolution and the enumeration, not that older wording.
+/// C only made these ensembles in 8.6, so 8.4/8.5 word the miss `bad option`
+/// without the ensemble's comma, and this engine does too.
 #[test]
 fn binary_and_encoding_tables_follow_the_emulated_release() {
     let mut old = at(TclVersion::V8_5);
@@ -266,8 +264,7 @@ fn binary_and_encoding_tables_follow_the_emulated_release() {
     assert_eq!(code, Code::Error);
     assert_eq!(
         message,
-        // Two entries still take the ensemble owner's comma before `or`.
-        "unknown or ambiguous subcommand \"d\": must be format, or scan"
+        "bad option \"d\": must be format or scan"
     );
     assert_eq!(
         run(&mut old, "encoding d").0,
@@ -286,7 +283,7 @@ fn binary_and_encoding_tables_follow_the_emulated_release() {
     assert_eq!(code, Code::Error);
     assert_eq!(
         message,
-        "unknown or ambiguous subcommand \"d\": must be convertfrom, convertto, names, or system"
+        "bad option \"d\": must be convertfrom, convertto, names, or system"
     );
 }
 

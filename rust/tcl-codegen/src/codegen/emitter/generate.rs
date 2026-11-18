@@ -520,6 +520,7 @@ fn emit_block_statements(
         .values()
         .any(|info| info.catch_end == *bname);
     for (stmt_idx, stmt) in blk.statements.iter().enumerate() {
+        ctx.splice_boundary(stmt.span());
         ctx.pending_math_source = cfg
             .block_id(bname)
             .and_then(|id| cfg.statement_sources.get(&(id, stmt_idx)))
@@ -588,6 +589,7 @@ fn emit_block_statements(
         }
         ctx.emit_stmt_with_start_cmd(stmt, None, None);
     }
+    ctx.close_splice();
 }
 
 /// Emit the owning command boundary for a structured block that CFG lowering
@@ -1103,14 +1105,34 @@ fn finalize_function(
         }
     }
 
-    let direct_commands = std::mem::take(&mut ctx.direct_commands);
-    for instruction in &mut ctx.instructions {
-        instruction.script_command = instruction.source_command_boundary.is_start()
-            && instruction
-                .source_span
-                .is_some_and(|span| direct_commands.contains(&span));
+    // Each direct command's first instruction names it, even one of a
+    // command nested in it: a folded `if {1} {break}` runs only `break`.
+    let mut script_commands = Vec::new();
+    let mut current = None;
+    for (index, instruction) in ctx.instructions.iter().enumerate() {
+        let Some(own) = instruction.source_span else {
+            continue;
+        };
+        let Some(&command) = ctx
+            .direct_commands
+            .iter()
+            .find(|command| command.start() <= own.start() && own.end() <= command.end())
+        else {
+            continue;
+        };
+        if current != Some(command) {
+            current = Some(command);
+            script_commands.push((index, command));
+        }
     }
-    ctx.direct_commands = direct_commands;
+    for (index, span) in script_commands {
+        let command = tcl_bytecode::ScriptCommand {
+            span,
+            text: ctx.source_text(span),
+            line: ctx.source_line(span),
+        };
+        ctx.instructions[index].script_command = Some(command);
+    }
 
     stamp_release_units(ctx, cfg, block_order);
 
@@ -1279,7 +1301,7 @@ fn finalize_function(
         body_base_line: 0,
         proc_body_src: None,
         error_regions,
-        splice_ranges: Vec::new(),
+        splice_ranges: std::mem::take(&mut ctx.splices).into_ranges(),
         plain_command_dispatch: ctx.plain_command_dispatch,
         command_bindings: std::mem::take(&mut ctx.command_binding_requirements)
             .into_iter()

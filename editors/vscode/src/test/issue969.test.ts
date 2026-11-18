@@ -26,12 +26,7 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import {
-  getDocUri,
-  activate,
-  waitForDiagnosticsSnapshot,
-  waitForCurrentDiagnosticsSnapshot,
-} from "./helper";
+import { getDocUri, activate, waitForCurrentDiagnosticsSnapshot } from "./helper";
 
 function codeOf(d: vscode.Diagnostic): string {
   return typeof d.code === "object" && d.code !== null ? String(d.code.value) : String(d.code);
@@ -72,20 +67,22 @@ suite("Issue #969 I230 false positive", () => {
     );
   });
 
-  test("TP control: two callers passing a uniform literal still fire I230", async () => {
+  test("two callers passing a uniform literal leave the condition open", async () => {
+    // A body is analysed from a generic entry; a later `source`, a callback or
+    // an interactive session can call the procedure with another value.
     const docUri = getDocUri("issue969UniformLiteralControl.tcl");
-    await activate(docUri);
+    const document = await activate(docUri);
 
-    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(docUri, {
-      predicate: (d) => d.some((x) => codeOf(x) === "I230"),
+    const currentSnapshotFor_diags = await waitForCurrentDiagnosticsSnapshot(docUri, {
+      expectedSource: document.getText(),
     });
     if (!currentSnapshotFor_diags.isCurrent()) {
       throw new Error("The retained diagnostics report became stale before its assertions");
     }
     const diags = [...currentSnapshotFor_diags.report.diagnostics];
     assert.ok(
-      diags.some((d) => codeOf(d) === "I230"),
-      `two callers passing the identical literal should still fold: ${JSON.stringify(diags.map((d) => codeOf(d)))}`,
+      !diags.some((d) => codeOf(d) === "I230"),
+      `a condition over a parameter is never constant: ${JSON.stringify(diags.map((d) => codeOf(d)))}`,
     );
   });
 });

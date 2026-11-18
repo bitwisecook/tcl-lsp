@@ -16,9 +16,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! One `FunctionUnit` per procedure: parameter seeds, the complexity guard and the lattice memo.
+//! One `FunctionUnit` per procedure: the complexity guard and the lattice memo.
 
-use super::lattice_request::{LatticeRequest, ProcLatticeCache, encode_param_constants};
+use super::lattice_request::{LatticeRequest, ProcLatticeCache};
 use super::source_lowering::module_source_metadata_input;
 use super::{
     FunctionUnit, ModuleTraceFacts, ProcedureBuildContext, UnitDialect, original_lattice_worker,
@@ -26,8 +26,7 @@ use super::{
 use crate::cfg::{CfgModule, Function as CfgFunction};
 use crate::cfg_builder::PreparedCfgContext;
 use crate::ir::Module as IrModule;
-use crate::unit_scope::params_constants_from_native_call_sites;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::sync::Arc;
 use tcl_registry::CommandRegistry;
 
@@ -49,7 +48,6 @@ struct ProcedureMemoInputs<'a> {
 fn memoized_procedure_unit(
     cache: &mut Option<&mut ProcLatticeCache<'_>>,
     input: ProcedureMemoInputs<'_>,
-    encoded_pc: Option<Vec<(String, u32, String)>>,
     has_instance_global_writes: bool,
 ) -> Option<FunctionUnit> {
     let ProcedureMemoInputs {
@@ -69,7 +67,6 @@ fn memoized_procedure_unit(
         cache.as_mut(),
         proc,
         ctx.cfg_context,
-        encoded_pc,
         has_instance_global_writes,
         ctx.ir_module.source.try_text().ok(),
     ) {
@@ -83,7 +80,6 @@ fn memoized_procedure_unit(
                 command_bindings,
                 procedure_summary_owners,
             )),
-            Some(encoded_pc),
             false,
             Some(source),
         ) => {
@@ -111,7 +107,7 @@ fn memoized_procedure_unit(
                 lexer_config: memo_config,
                 dialect: ctx.dialect,
                 plain_command_dispatch: ctx.ir_module.plain_command_dispatch,
-                param_constants: &encoded_pc,
+                param_constants: &[],
                 known_classes: ctx.known_classes,
                 traced_variables: ctx.traced_variable_names,
                 analysis_context: ctx.analysis_context,
@@ -190,10 +186,6 @@ fn procedure_is_complexity_guarded(proc: Option<&crate::ir::Procedure>, cfg: &Cf
     body_bytes > crate::ssa::DEEP_ANALYSIS_BODY_BYTES || crate::ssa::is_complexity_guarded(cfg)
 }
 
-/// Build one [`FunctionUnit`] per procedure: seed its SCCP with the
-/// caller-uniform literals [`crate::unit_scope`] proved, route the build
-/// through the per-procedure lattice memo when one is available, and skip
-/// both for an oversized body.
 fn retain_procedure_source_analysis(
     unit: FunctionUnit,
     context: &ProcedureBuildContext<'_>,
@@ -206,16 +198,6 @@ fn retain_procedure_source_analysis(
     )
 }
 
-fn retain_procedure_parameter_constants(
-    retained: &mut BTreeMap<crate::ir::ProcedureId, Vec<(String, u32, String)>>,
-    id: &crate::ir::ProcedureId,
-    encoded: Option<&[(String, u32, String)]>,
-) {
-    if let Some(encoded) = encoded.filter(|values| !values.is_empty()) {
-        retained.insert(*id, encoded.to_vec());
-    }
-}
-
 struct ProcedureBuildInfo<'a> {
     id: &'a crate::ir::ProcedureId,
     pub(super) cfg: &'a CfgFunction,
@@ -223,9 +205,6 @@ struct ProcedureBuildInfo<'a> {
     proc: Option<&'a crate::ir::Procedure>,
     pub(super) qname: &'a str,
     pub(super) event_body: Option<Arc<crate::ir::SourceIrulesEventBody>>,
-    pub(super) param_constants:
-        Option<HashMap<(String, crate::ssa::Version), crate::analyses::LatticeValue>>,
-    encoded_pc: Option<Vec<(String, u32, String)>>,
     pub(super) body_offset: u32,
     has_instance_global_writes: bool,
 }
@@ -240,7 +219,6 @@ fn prepare_procedure_build<'a>(
     id: &'a crate::ir::ProcedureId,
     cfg: &'a CfgFunction,
     config: tcl_lexer::LexerConfig,
-    param_constants_by_proc: &mut BTreeMap<crate::ir::ProcedureId, Vec<(String, u32, String)>>,
 ) -> PreparedProcedureBuild<'a> {
     let params = ctx
         .ir_module
@@ -250,16 +228,6 @@ fn prepare_procedure_build<'a>(
     let proc = ctx.ir_module.procedures.get(id);
     let qname = cfg.name.as_str();
     let event_body = retained_procedure_event_body(ctx, id, proc, config);
-    let param_constants = proc.and_then(|procedure| {
-        params_constants_from_native_call_sites(
-            ctx.ir_module,
-            *id,
-            procedure,
-            ctx.ir_module.parameter_grammar(),
-            ctx.call_sites,
-            ctx.caller_view,
-        )
-    });
     if procedure_is_complexity_guarded(proc, cfg) {
         let mut unit = FunctionUnit::trivial_guarded(qname, cfg.clone()).with_source_metadata(
             module_source_metadata_input(ctx.ir_module, ctx.registry),
@@ -269,8 +237,6 @@ fn prepare_procedure_build<'a>(
         return PreparedProcedureBuild::Guarded(*id, Box::new(unit.with_body_id(*id)));
     }
     let body_offset = proc.map_or(0, |p| p.span.start());
-    let encoded_pc = encode_param_constants(param_constants.as_ref());
-    retain_procedure_parameter_constants(param_constants_by_proc, id, encoded_pc.as_deref());
     let has_instance_global_writes = ctx
         .tainted_global_writes
         .get(id)
@@ -282,18 +248,21 @@ fn prepare_procedure_build<'a>(
         proc,
         qname,
         event_body,
-        param_constants,
-        encoded_pc,
         body_offset,
         has_instance_global_writes,
     })
 }
 
+/// Build one [`FunctionUnit`] per procedure from a generic entry: a formal is
+/// unknown inside the body whatever this file's calls pass, since the
+/// procedure stays callable from a later `source`, a callback or another
+/// file. The build goes through the per-procedure lattice memo when one is
+/// available, and both are skipped for an oversized body.
 pub(super) fn build_procedure_units(
     ctx: &ProcedureBuildContext<'_>,
     mut cache: Option<&mut ProcLatticeCache<'_>>,
     config: tcl_lexer::LexerConfig,
-) -> BuiltProcedureUnits {
+) -> HashMap<crate::ir::ProcedureId, FunctionUnit> {
     let original_request_scope = cache.as_ref().and(ctx.cfg_context).map(|context| {
         original_lattice_worker::OriginalLatticeRequestScope::capture(ctx.ir_module, context)
     });
@@ -304,17 +273,14 @@ pub(super) fn build_procedure_units(
     let memo_input = module_source_metadata_input(ctx.ir_module, ctx.registry)
         .map(crate::analyser::ResolvedAnalysisInput::for_nested_source);
     let mut procedures: HashMap<crate::ir::ProcedureId, FunctionUnit> = HashMap::new();
-    let mut param_constants_by_proc: BTreeMap<crate::ir::ProcedureId, Vec<(String, u32, String)>> =
-        BTreeMap::new();
     for (id, cfg) in &ctx.cfg_module.procedures {
-        let build =
-            match prepare_procedure_build(ctx, id, cfg, config, &mut param_constants_by_proc) {
-                PreparedProcedureBuild::Guarded(id, unit) => {
-                    procedures.insert(id, *unit);
-                    continue;
-                }
-                PreparedProcedureBuild::Ready(build) => build,
-            };
+        let build = match prepare_procedure_build(ctx, id, cfg, config) {
+            PreparedProcedureBuild::Guarded(id, unit) => {
+                procedures.insert(id, *unit);
+                continue;
+            }
+            PreparedProcedureBuild::Ready(build) => build,
+        };
         let ProcedureBuildInfo {
             id,
             cfg,
@@ -322,8 +288,6 @@ pub(super) fn build_procedure_units(
             proc,
             qname,
             event_body,
-            param_constants,
-            encoded_pc,
             body_offset,
             has_instance_global_writes,
         } = build;
@@ -342,7 +306,6 @@ pub(super) fn build_procedure_units(
                 memo_input: memo_input.as_ref(),
                 body_offset,
             },
-            encoded_pc,
             has_instance_global_writes,
         );
         let mut fu = memoised.unwrap_or_else(|| {
@@ -353,7 +316,7 @@ pub(super) fn build_procedure_units(
                     qname,
                 ),
                 cfg.clone(),
-                (params, param_constants.as_ref()),
+                (params, None),
                 UnitDialect {
                     registry: ctx.registry,
                     config,
@@ -379,17 +342,5 @@ pub(super) fn build_procedure_units(
         fu = retain_procedure_source_analysis(fu, ctx, proc);
         procedures.insert(*id, fu.with_body_id(*id));
     }
-    BuiltProcedureUnits {
-        procedures,
-        param_constants_by_proc,
-    }
-}
-
-/// [`build_procedure_units`]'s two outputs: the units themselves, and the
-/// interprocedural seed each was built under (explorer provenance only —
-/// the pipeline consumes the seed where it is produced).
-pub(super) struct BuiltProcedureUnits {
-    pub(super) procedures: HashMap<crate::ir::ProcedureId, FunctionUnit>,
-    pub(super) param_constants_by_proc:
-        BTreeMap<crate::ir::ProcedureId, Vec<(String, u32, String)>>,
+    procedures
 }

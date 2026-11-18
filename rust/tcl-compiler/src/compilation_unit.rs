@@ -28,7 +28,7 @@
 //! accessor methods that return `Option<&T>` — `None` when the analysis
 //! hasn't been run on this unit yet.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
 use tcl_registry::CommandRegistry;
@@ -971,11 +971,6 @@ pub struct UnitCallerScope {
     pub has_cross_file_evidence: bool,
     /// The merged (in-unit + cross-file) call-site evidence the seed read.
     pub call_sites: crate::unit_scope::CallSiteEvidence,
-    /// The seed each procedure was actually built under, keyed by body ID.
-    /// name and encoded as the same sorted `(param, version, literal)`
-    /// triples the lattice memo key interns.  Only procedures that received
-    /// a seed appear.  Sorted so the explorer's rendering is deterministic.
-    pub param_constants_by_proc: BTreeMap<crate::ir::ProcedureId, Vec<(String, u32, String)>>,
     /// Narrow declared-procedure identity trust projected from the prepared
     /// command-binding summary. Unlike the unit's `command_mutations`, this
     /// excludes transitive opacity introduced by an unresolved/autoloaded
@@ -1059,12 +1054,6 @@ struct ProcedureBuildContext<'a> {
     cfg_context: Option<&'a CfgContext>,
     registry: &'a CommandRegistry,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
-    /// Merged in-unit + cross-file call-site evidence
-    /// ([`crate::unit_scope::CallSiteEvidence`]).
-    call_sites: &'a crate::unit_scope::CallSiteEvidence,
-    /// Who else can call these procedures
-    /// ([`crate::unit_scope::UnitCallerView`]).
-    caller_view: &'a crate::unit_scope::UnitCallerView<'a>,
     known_class_set: &'a HashSet<String>,
     known_classes: &'a [String],
     traced_variable_names: &'a [String],

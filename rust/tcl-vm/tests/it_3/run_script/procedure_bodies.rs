@@ -391,7 +391,10 @@ fn spliced_caller(
             start: "splice_start".to_owned(),
             end: "splice_end".to_owned(),
             entry_depth: 0,
-            words: words.iter().map(|&slot| u32::try_from(slot).unwrap()).collect(),
+            words: words
+                .iter()
+                .map(|&slot| u32::try_from(slot).unwrap())
+                .collect(),
             resumes_with_value: true,
         }],
         ..FunctionAsm::default()

@@ -61,6 +61,11 @@ impl Lowering<'_> {
     /// `body` lowered under the live entry as the body of a procedure with
     /// `parameters` made in `namespace` (rooted), offsets relative to the body.
     fn body(&self, body: &str, parameters: &[String], namespace: &str) -> Script {
+        self.body_module(body, parameters, namespace).top_level
+    }
+
+    /// [`Self::body`], with the module it was lowered as.
+    fn body_module(&self, body: &str, parameters: &[String], namespace: &str) -> Module {
         // The definition's own formals, not the caller's.
         let mut options = self.options;
         options.incoming_formals = &[];
@@ -76,7 +81,6 @@ impl Lowering<'_> {
             false,
             Some(options),
         )
-        .top_level
     }
 }
 
@@ -317,7 +321,16 @@ fn place(
     lowering: &Lowering<'_>,
 ) -> Option<(Procedure, Script)> {
     let body = definition.body_source.clone()?;
-    let lowered = lowering.body(&body, &definition.params, &namespace_of(&definition)?);
+    let live_module = lowering.body_module(&body, &definition.params, &namespace_of(&definition)?);
+    // A splice may run the body again from its start in the caller's world,
+    // where a command or function the fresh reading proved may be rebound.
+    tcl_compiler::command_binding::re_executable_body(
+        &live_module,
+        &live_module.top_level,
+        lowering.registry,
+    )
+    .ok()?;
+    let lowered = live_module.top_level;
     let mut fresh = definition.body.clone();
     tcl_compiler::lattice_rebase::rebase_script(&mut fresh, -i64::from(definition.body_offset));
     if shape(&fresh) != shape(&lowered) {

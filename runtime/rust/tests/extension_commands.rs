@@ -341,7 +341,10 @@ fn deleting_a_command_from_inside_its_own_procedure_leaves_its_client_data_live(
     static COUNTERS: Counters = Counters::new();
 
     /// `selfdelete` — deletes itself, then reads its client data and answers
-    /// whether the delete procedure had run yet.
+    /// whether the delete procedure had run yet. C's
+    /// `Tcl_DeleteCommandFromToken` (tclBasic.c, 8.6.18 and 9.0.4) calls the
+    /// delete procedure before it returns, while the running call keeps its
+    /// own reference, so the data is read after that procedure ran.
     unsafe extern "C" fn selfdelete(
         client_data: *mut c_void,
         interp: *mut Interp,
@@ -367,10 +370,10 @@ fn deleting_a_command_from_inside_its_own_procedure_leaves_its_client_data_live(
     );
     assert_eq!(
         run(&mut interp, "selfdelete"),
-        (Code::Ok, "0 0".to_owned()),
-        "the command is gone and the delete procedure has not yet run"
+        (Code::Ok, "0 1".to_owned()),
+        "the command is gone and its delete procedure already ran"
     );
-    assert_eq!(COUNTERS.deletions(), 1, "it ran when the call returned");
+    assert_eq!(COUNTERS.deletions(), 1, "it ran exactly once");
 }
 
 #[test]

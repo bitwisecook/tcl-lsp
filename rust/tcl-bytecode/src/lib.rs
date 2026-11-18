@@ -43,7 +43,7 @@ pub use instruction::{
     CommandStartHost, EnteredCommandSite, ErrorInfoCommand, ErrorOrigin, ErrorStackContext,
     Instruction, LiteralRep, NativeCompilerSelectionSite, NativeEachAuxiliary,
     NativeOperationSelectionSite, NativeStringIndexPurpose, Operand, ReleaseBodyEntry,
-    ReleaseCompiled, SourceCommandBoundary,
+    ReleaseCompiled, ScriptCommand, SourceCommandBoundary,
 };
 pub use literals::{
     LiteralTable, NativeExpressionNumberLiteral, NativeLiteralAction, NativeLiteralAllocation,

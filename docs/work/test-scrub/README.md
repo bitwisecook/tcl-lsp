@@ -100,13 +100,26 @@ The second pass, after the failing tests, takes the passing ones through the exa
 4. `REWRITE`, re-pointed at the named observable, by cause.
 5. The `KEEP` causes, ranked by tests blocked.
 
-The ledger gains a `status` column (open, repaired, fixed, deleted) and is kept current, so the number of distinct failing behaviours can always be read from it.
+The ledger gains a `status` column and a free `note` column after it, and is kept current, so progress can be counted. A status is exactly one word:
+
+| Status | Meaning |
+| --- | --- |
+| `open` (or empty) | nothing done yet |
+| `repaired` | the test was wrong, was corrected, and passes |
+| `exposed` | the test was corrected and now fails on a product fault (its verdict is re-read to a `KEEP` with the cause) |
+| `fixed` | the product was fixed and the test passes |
+| `deleted` | merged into its survivor or retired |
+| `blocked` | waits on a named row or session (named in `note`) |
+| `routed` | moved to another session's ledger |
+
+Commit ids, what the repaired test now shows, and who it waits on go in `note`. `python3 docs/work/test-scrub/tools/ledger_status.py docs/work/test-scrub/ledger` prints the table; `--check` fails on any other word.
 
 ## Rulings made during the scrub
 
 - *Tests of `inlining::inline_module`* (23, no production caller): read per test by the live-inlining session. "The inlined program answers as the original" is `KEEP-ORACLE`; an assertion on the inliner's internal shape is `REWRITE` to the differential or `MERGE` into a `live_differential` row; an assertion that names the renamed locals is `FIX-EXPECTATION`, since they become anonymous slots.
 - *A procedure body is never rewritten from call-site facts.* The procedure stays callable with other arguments from another file, a later `source`, a callback or an interactive session. The call site may fold; the body may not. The product does this today (`proc add {a b} {...}` becomes `return 7` from its one in-file call): a wrong rewrite, top of the dataflow fix list.
 - *The strict lattice of a procedure body is never seeded from its in-file callers* (the cause of the body rewrite above, and of I230 on a condition over a formal in a library file). A body is analysed from a generic entry; a value the in-file calls pass may be shown by hover as advice from the advisory side, never from the strict lattice.
+- *At rule load nothing is proved, by design.* With no execution-name policy no head is an original input, and a hosted entry binds heads through hosted metadata, which is advice. A top-level `proc` or `when` is a declaration-inventory record (name, body, namespace; a `priority` value is inventory-only; a replaced `when` declines the inventory). Tests that wanted a proved target there are re-pointed at the inventory record.
 - *Store removal by liveness in a `when` body is not a licensed rewrite.* Handler variables are connection-scoped and what hosted commands read is advice; the finding may be offered as advice, never applied. The same-event case gets a BIG-IP check row.
 - *A binding's target is the command as tclsh names it.* After `rename a b` it is `::b`; the defining declaration is the binding's definition record.
 - *A proof nothing consumes is not behaviour.* Range joins that only the sealed four-statement add could use, on sources it can never select, are retired; the unconsumed code is noted for removal or a consumer.
@@ -208,7 +221,7 @@ session whose area note names it, and analyser-binding decides the rest.
 
 ## Where it stands, 17 November 2026, 22:40 UTC
 
-Twelve of thirteen ledgers are signed off: 3,252 failing tests triaged (only the Tk and TclOO ledger, about 60 tests, is outstanding).
+All thirteen ledgers are signed off (the last, Tk and TclOO, at 23:06 UTC with 35 rows of its own): about 3,290 failing tests triaged. The table below is the first twelve.
 
 | Verdict | Tests | Share |
 | --- | ---: | ---: |
@@ -260,5 +273,5 @@ Updated at the hourly check from the ledgers on `work`.
 | server-e2e-db | 216 (plus 214 routed: 181 navigation to lsp-features, 33 memo to analysis-performance) | 216, complete (KEEP-CONTRACT 163, KEEP-ORACLE 29, MERGE 10, KEEP-F5 10, REWRITE 2, FIX-FIXTURE 1, UNDECIDED 1 ruled) | signed off 21:12 UTC; three publication faults first |
 | execution | 264 (23 routed to live-inlining) | 264, complete (KEEP-ORACLE 109, KEEP-CONTRACT 56, MERGE 49, REWRITE 33, RETIRE 8, FIX-EXPECTATION 4, FIX-FIXTURE 3, KEEP-F5 2) | signed off 21:20 UTC, after the receipt-ordering retirements were redone test by test (26 back to KEEP-CONTRACT) |
 | irules-registry-tooling | 151 | 151, complete (KEEP-F5 48, KEEP-CONTRACT 47, KEEP-ORACLE 40, MERGE 15, FIX-FIXTURE 1); BIG-IP checks TS-01 to TS-10 | signed off 21:00 UTC |
-| tk-oo | 60 | 0 | |
+| tk-oo | 63 (28 cross-listed from lsp-features and class-facts, not counted twice) | 35, complete (KEEP-ORACLE 20, FIX-FIXTURE 12, KEEP-CONTRACT 3) | signed off 23:06 UTC |
 | live-inlining | 29 | 29, complete (REWRITE 13, KEEP-CONTRACT 8, FIX-EXPECTATION 4, KEEP-ORACLE 2, FIX-FIXTURE 1, MERGE 1); the splice matrix (1,449 VM pairs, 20 minutes) to become 142 cells holding the same shapes | signed off 21:45 UTC |

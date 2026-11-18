@@ -118,7 +118,7 @@ fn original_variable_rename_edits_impl(
             "conditional source rename requires the original Logical source input",
         ));
     }
-    if !conditional && !analysis.original_variable_rename_is_complete(symbol) {
+    if !conditional && !analysis.original_variable_rename_is_complete_for(symbol, &proposed) {
         return Err(refuse(
             "cannot account for every original variable name, alias target and read in this document",
         ));

@@ -174,47 +174,17 @@ fn analyse_emits_w304_for_load_variable() {
 
 #[test]
 fn analyse_w304_constant_propagation_emits_info_with_origin() {
-    // ``set X "datagroup"; exec $X`` — the variable resolves to a
-    // literal value that doesn't start with `-`, so severity drops
-    // to INFO and a second "origin" diagnostic anchors at the
-    // literal's range.  (The two-arg braced ``switch $X { ... }``
-    // form is exempt from W304 entirely — FP-NAB-05 — so an
-    // option-bearing command that still flags is used here.)
+    // ``set X "datagroup"; exec $X`` — the word is proved to be a constant
+    // that cannot read as an option, so the site has nothing to defend and
+    // no W304 is reported (coordinator ruling, 17 November 2026). tclsh
+    // 8.6.18 / 9.0.4: `exec datagroup` raises `couldn't execute
+    // "datagroup"`, never an option error. (The two-arg braced
+    // ``switch $X { ... }`` form is exempt from W304 entirely — FP-NAB-05 —
+    // so an option-bearing command is used here.)
     let src = "set totp_key_storage \"datagroup\"\n\
                    exec $totp_key_storage\n";
     let diags = w304_diags(src);
-    assert_eq!(diags.len(), 2, "got {diags:?}");
-
-    let main = diags
-        .iter()
-        .find(|d| !d.fixes.is_empty())
-        .expect("main diag");
-    let origin = diags
-        .iter()
-        .find(|d| d.fixes.is_empty())
-        .expect("origin diag");
-
-    assert!(
-        matches!(main.severity, crate::analyser::Severity::Suggestion),
-        "main severity {:?}",
-        main.severity
-    );
-    assert!(
-        main.message.contains("totp_key_storage") && main.message.contains("datagroup"),
-        "main message {:?}",
-        main.message
-    );
-
-    let highlighted = &src[main.span.start() as usize..main.span.end() as usize];
-    assert_eq!(highlighted, "$totp_key_storage", "got {highlighted:?}");
-
-    // The origin diag points at the ``"datagroup"`` literal in
-    // the preceding ``set``.
-    let origin_text = &src[origin.span.start() as usize..origin.span.end() as usize];
-    assert!(
-        origin_text.contains("datagroup"),
-        "origin span text {origin_text:?}"
-    );
+    assert!(diags.is_empty(), "got {diags:?}");
 }
 
 #[test]

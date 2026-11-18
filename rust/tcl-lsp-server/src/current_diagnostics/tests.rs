@@ -308,6 +308,58 @@ fn assert_document_rewrites(
     }
 }
 
+/// Reproduction of the sourced-file fault seen end to end: a document that
+/// `source`s an open sibling must still report an unknown command as W123
+/// (tclsh: `invalid command name`). With the source of a file that does not
+/// exist the report abstains, which `cross-file-diagnostics.md` states.
+/// tclsh 8.6.18 and 9.1.0, with lib.tcl beside the script: `source lib.tcl`
+/// then an undefined command -> `invalid command name`.
+#[tokio::test]
+async fn an_unknown_command_in_a_sourcing_document_draws_w123() {
+    let mut silent = Vec::new();
+    for dialect in ["tcl", "tcl8.6"] {
+        let backend = crate::tests::test_backend();
+        backend.workspace_scan_ready.mark_complete();
+        let lib = Uri::from_str("file:///w/lib.tcl").unwrap();
+        let main = Uri::from_str("file:///w/main.tcl").unwrap();
+        for (uri, text) in [
+            (&lib, "proc libtest {} {}\n"),
+            (&main, "source lib.tcl\nneverDefinedAnywhereAtAll x\n"),
+        ] {
+            backend
+                .documents
+                .lock("sourcing_w123_fixture")
+                .await
+                .insert(
+                    uri.clone(),
+                    DocumentState::with_version(text.into(), dialect.into(), 1),
+                );
+            backend
+                .db_set_source(uri, text, dialect.into())
+                .await
+                .unwrap();
+        }
+        let report = backend
+            .produce_direct_diagnostic_report(&main)
+            .await
+            .unwrap_or_else(|_| panic!("direct report"));
+        let w123: Vec<_> = report
+            .diagnostics
+            .iter()
+            .filter(|d| {
+                matches!(&d.code, Some(tower_lsp_server::ls_types::NumberOrString::String(c)) if c == "W123")
+            })
+            .collect();
+        if w123.len() != 1 {
+            silent.push(format!("{dialect}: {:?}", report.diagnostics));
+        }
+    }
+    assert!(
+        silent.is_empty(),
+        "no W123 for the unknown command: {silent:?}"
+    );
+}
+
 async fn open_source(backend: &Backend, expected: &DiagnosticSourceExpectation) {
     // A running server has finished its startup scan before a current report
     // can settle; the fixture models that, as the scan-dependent tests do.

@@ -314,7 +314,8 @@ fn tp_list_built_self_bind_callback_is_a_method_reference_everywhere() {
              method anim {wl} {\n\
                  bind $wl <ButtonPress-1> [list [self] animTick %x %y]\n\
              }\n\
-         }\n",
+         }\n\
+         [Test new] anim .\n",
     );
 
     let refs = lsp.references(&uri, 2, 11, false);
@@ -364,7 +365,9 @@ fn tp_list_built_self_bind_callback_is_a_method_reference_everywhere() {
 }
 
 /// A one-hop local constant carries a registry-declared callback
-/// prefix.  Every navigation provider must use the builder method span, not
+/// prefix. `after` runs its script at global level, so the prefix is wrapped
+/// in `namespace code`: a bare `[list my tick]` raises `invalid command name
+/// "my"` (tclsh 8.6.18, 9.0.4, 9.1.0).  Every navigation provider must use the builder method span, not
 /// the later `$cb` registration as a guessed command reference.
 #[test]
 fn tp_stored_callback_prefix_agrees_across_navigation_providers() {
@@ -373,7 +376,7 @@ fn tp_stored_callback_prefix_agrees_across_navigation_providers() {
     let src = "oo::class create Test {\n\
              method tick {} { return {} }\n\
              method wire {} {\n\
-                 set cb [list my tick]\n\
+                 set cb [namespace code [list my tick]]\n\
                  after 0 $cb\n\
              }\n\
          }\n";
@@ -421,7 +424,8 @@ fn tp_inherited_list_built_self_callback_joins_the_provider_family() {
              method wire {} {\n\
                  after idle [list [self] tick]\n\
              }\n\
-         }\n";
+         }\n\
+         [Child new] wire\n";
     let callback_char = u32::try_from(src.lines().nth(6).unwrap().rfind("tick").unwrap()).unwrap();
     lsp.open_ready(&uri, src);
 
@@ -514,7 +518,8 @@ fn tp_overriding_receiver_keeps_its_callback_in_its_own_family() {
              method wire {} {\n\
                  after idle [list [self] tick]\n\
              }\n\
-         }\n";
+         }\n\
+         [Child new] wire\n";
     let callback_char = u32::try_from(src.lines().nth(7).unwrap().rfind("tick").unwrap()).unwrap();
     lsp.open_ready(&uri, src);
 
@@ -545,7 +550,7 @@ fn tp_cross_file_inherited_self_callback_agrees_everywhere() {
         &base,
         "oo::class create Base {\n    method tick {} { return 1 }\n}\n",
     );
-    let child_src = "oo::class create Child {\n    superclass Base\n    method wire {} {\n        after idle [list [self] tick]\n    }\n}\n";
+    let child_src = "oo::class create Child {\n    superclass Base\n    method wire {} {\n        after idle [list [self] tick]\n    }\n}\n[Child new] wire\n";
     let callback_char =
         u32::try_from(child_src.lines().nth(3).unwrap().rfind("tick").unwrap()).unwrap();
     lsp.open_ready(&child, child_src);
@@ -590,7 +595,7 @@ fn tp_cross_file_receiver_reexport_revives_the_inherited_callback() {
         &base,
         "oo::class create Base {\n    method tock {} { return 1 }\n    unexport tock\n}\n",
     );
-    let child_src = "oo::class create Child {\n    superclass Base\n    export tock\n    method wire {} {\n        after idle [list [self] tock]\n    }\n}\n";
+    let child_src = "oo::class create Child {\n    superclass Base\n    export tock\n    method wire {} {\n        after idle [list [self] tock]\n    }\n}\n[Child new] wire\n";
     let callback_char =
         u32::try_from(child_src.lines().nth(4).unwrap().rfind("tock").unwrap()).unwrap();
     lsp.open_ready(&child, child_src);
@@ -646,7 +651,8 @@ fn tp_namespace_wrapped_my_callback_agrees_across_navigation_providers() {
              method wire {chan} {\n\
                  fileevent $chan readable [namespace code [list my read]]\n\
              }\n\
-         }\n",
+         }\n\
+         [C new] wire stdin\n",
     );
 
     let refs = lsp.references(&uri, 2, 11, false);
@@ -686,7 +692,7 @@ fn tp_cross_file_inherited_wrapped_my_callback_agrees_everywhere() {
     );
     lsp.open_ready(
         &child,
-        "oo::class create Child {\n    superclass Base\n    method wire {chan} {\n        fileevent $chan readable [namespace code [list my read]]\n    }\n}\n",
+        "oo::class create Child {\n    superclass Base\n    method wire {chan} {\n        fileevent $chan readable [namespace code [list my read]]\n    }\n}\n[Child new] wire stdin\n",
     );
 
     assert_eq!(
@@ -950,7 +956,8 @@ fn tp_consumer_bare_dispatch_belongs_to_the_matching_namespaces_class() {
 /// `::`-qualified command word rather than the two-word `Factory make` shape
 /// `TclOO` / snit use.  Definition, references, and rename must all follow it.
 ///
-/// Oracle (tclsh 8.6.14 + Itcl 3.4): `Factory::make` and `::Factory::make`
+/// Without `package require itcl`, `itcl::class` is an invalid command on
+/// every release. Oracle (tclsh 8.6.14 + Itcl 3.4): `Factory::make` and `::Factory::make`
 /// both dispatch the class proc, a bare `make` inside a sibling class body
 /// does too, and the two-word `Factory make` instead creates an *object*
 /// named `make`.
@@ -961,7 +968,7 @@ fn tp_itcl_class_proc_colon_dispatch_navigates_end_to_end() {
     lsp.open_ready(
         &uri,
         concat!(
-            "itcl::class Factory {\n",
+            "package require itcl; itcl::class Factory {\n",
             "    proc make {} { return 1 }\n",
             "    proc other {} { return [make] }\n",
             "}\n",

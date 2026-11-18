@@ -1,31 +1,31 @@
-# Interprocedural call-site literal seeding
+# Interprocedural call-site literal evidence
 
-The compiler binds a procedure parameter to a compile-time literal when
-every caller passes the same value there, and hands that binding to the
-callee's own [SCCP](../../GLOSSARY.md#sccp) run as `param_constants`. The
-fold that follows feeds `I230`, the optimiser's `O101` constant-condition
-suggestion, and `O107`'s unreachable-code suggestion.
+The compiler records, for each procedure, the literals this file's calls (and
+a host's workspace view) pass at each parameter position. That evidence is
+advice only. It never seeds the procedure body's lattice: a body is analysed
+from a generic entry, each formal unknown, because a procedure stays callable
+from a later `source`, a callback or an interactive session, which no
+enumeration of call sites bounds. tclsh 8.4 to 9.1: with
+`proc helper {mode} {if {$mode eq "prod"} {set x 1} else {set x 2}}` and a file
+whose only calls are `helper prod`, a later `list [helper prod] [helper dev]`
+is `1 2`.
 
-The seed is the procedure's own lattice's alone. What the interprocedural
-summary says a procedure returns is read from a run with no seed
-([interprocedural-analysis.md](interprocedural-analysis.md) § *Step 2b*), so a
-value exact only because every caller passes the same literal never becomes
-the procedure's constant return, which O103 applies to every call.
+No proof consumer reads the evidence: not the strict SCCP lattice, the
+optimiser's rewrites, codegen, or body diagnostics such as `I230`. A display
+may say what the file's calls pass ("every call in this file passes `prod`"),
+worded as advice, from the evidence itself. A call site may still fold (`O103`)
+through its own re-run with the arguments that call passes; the body is never
+rewritten.
 
-The whole contract of that seed is one sentence: **it is sound only if the
-scan enumerated every caller.** A caller the scan fails to attribute does
-not merely go uncounted — it vanishes from the "every caller agrees"
-evidence, so an absence of contradicting evidence reads as agreement. Every
-bug in this area (issues #969, #976, #977, #978) has been an instance of
-that single failure, reached through a different kind of caller.
+The rest of this page is the enumeration contract the evidence keeps, so the
+advice it gives is not wrong: a caller the scan fails to attribute must not
+read as agreement.
 
 ## Ownership
 
 | Concern | Current owner |
 |---|---|
 | Enumerating source call-site evidence | `unit_scope.rs::collect_call_site_constants` and `record_call_site_evidence` |
-| Turning evidence into an SCCP seed | `unit_scope.rs::params_constants_from_call_sites` |
-| Interning seed and other lattice inputs | `tcl-lsp-db::lattice_request_key` / `FnLatticeKey` |
 | Identifying candidate script/callback argument positions | `tcl-registry` (`ArgRole`, `Traits`) |
 | Resolving an ordinary source call target | retained source binding, `NormalUserProcedureInvocation`, and `lookup_command_word` in the source realm |
 | Callback target evidence | `original_source_callback_targets_for_tokens` and `record_original_callback_callers` |
@@ -165,8 +165,8 @@ the only one — and a call a word nests (`set z [bump m]`) is a call site too
 
 ## Seeing it
 
-The compiler explorer's **interprocedural** view reports each procedure's
-`param constants` — the seed it was analysed under:
+The compiler explorer's **interprocedural** view reports, as advice, what
+every call in this file passes:
 
 ```text
 $ tcl explore --show interproc --text example.tcl
@@ -177,31 +177,25 @@ $ tcl explore --show interproc --text example.tcl
     · foldable: …
     · return shape: …
     · calls: —
-    · param constants: mode = prod
+    · every call in this file passes: mode = prod
     · flags: —
 ```
 
-Each procedure is one leaf node labelled `<qname> arity=<arity>`, with its
-facts as `· key: value` detail rows in the order `view_tree.rs` pushes them.
-`param constants` is the only row that can be absent — it is pushed only when
-the seed is non-empty.
-
-The line disappears when an indirection withdraws the seed, which makes the
-difference between "every caller agrees" and "a call site could not be
-enumerated" directly observable — the first thing to check when a condition
-on a parameter folded and it should not have.
+The row is pushed only when the calls agree, and disappears when an
+indirection reaches the procedure with a differing or unknown argument. It
+never changes what the body's analysis proves.
 
 ## Tests
 
 - `rust/tcl-compiler/src/unit_scope.rs::tests` — the evidence map, the
   per-scope variable facts, and the shape helpers.
 - `rust/tcl-compiler/src/compilation_unit.rs::tests::call_site_param_constants`
-  — the TP/FP/TN/FN suite over namespaces, recursion, methods, imports,
-  rename, dispatch, callbacks, and `package provide`.  It also holds
-  `uplevel_zero_body_resolves_against_global_not_enclosing_namespace`.
+  — the suite over namespaces, recursion, methods, imports, rename,
+  dispatch, callbacks, and `package provide`; a body never folds a condition
+  over a parameter, whatever the evidence says.
 - `rust/tcl-lsp-server/tests/e2e/diagnostics.rs` — the same behaviour over LSP.
 - `editors/vscode/src/test/issue969.test.ts`, `issue976.test.ts`.
-- `rust/tcl-explorer/src/serialise.rs::interproc_view_shows_the_param_constant_seed_and_its_withdrawal`.
+- `rust/tcl-explorer/src/serialise.rs::interproc_view_shows_what_every_call_passes_and_its_withdrawal`.
 
 ## Related
 

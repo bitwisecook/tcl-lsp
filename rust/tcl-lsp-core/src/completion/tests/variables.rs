@@ -153,3 +153,65 @@ fn fuzzy_array_element_offers_key_for_kye() {
     assert_eq!(labels, vec!["$arr(key)"], "typo'd array index");
     assert_eq!(items[0].filter_text.as_deref(), Some("$arr(kye"));
 }
+
+/// Labels of `$`-completion at `(line, character)` under Tcl 8.6.
+fn dollar_labels(src: &str, line: u32, character: u32) -> Vec<String> {
+    let analysis = analyse_for(src, "tcl8.6");
+    let registry = CommandRegistry::build_default();
+    completions(
+        src,
+        line,
+        character,
+        &analysis,
+        Some(&registry),
+        None,
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    )
+    .into_iter()
+    .map(|item| item.label)
+    .collect()
+}
+
+// tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0: `proc q {} {set local 1;
+// uplevel 1 {set local}}; q` raises `can't read "local"` (the body runs in
+// the caller's frame), while `uplevel 0 {set local}` reads the proc's own.
+
+#[test]
+fn uplevel_hash_zero_body_completes_global_variables_only() {
+    let src = "set ::globalvar 9\nproc p {} {\n    set local_var 1\n    uplevel #0 {\n        set inside_var 99\n        puts $\n    }\n}\n";
+    let labels = dollar_labels(src, 5, 14);
+    assert!(labels.contains(&"$::globalvar".to_owned()), "{labels:?}");
+    assert!(labels.contains(&"$inside_var".to_owned()), "{labels:?}");
+    assert!(!labels.contains(&"$local_var".to_owned()), "{labels:?}");
+}
+
+#[test]
+fn uplevel_one_body_offers_its_own_variables_not_the_procs_locals() {
+    let src = "proc p {} {\n    set local_var 1\n    uplevel 1 {\n        set body_var 5\n        puts $\n    }\n}\n";
+    let labels = dollar_labels(src, 4, 14);
+    assert!(!labels.contains(&"$local_var".to_owned()), "{labels:?}");
+    assert!(labels.contains(&"$body_var".to_owned()), "{labels:?}");
+}
+
+#[test]
+fn try_on_error_bindings_complete_inside_the_handler() {
+    let src = "proc p {} {\n    try {\n        error boom\n    } on error {try_msg try_opts} {\n        puts $\n    }\n}\n";
+    let labels = dollar_labels(src, 4, 14);
+    assert!(labels.contains(&"$try_msg".to_owned()), "{labels:?}");
+    assert!(labels.contains(&"$try_opts".to_owned()), "{labels:?}");
+}
+
+#[test]
+fn an_upvar_alias_completes_after_its_declaration() {
+    let src = "proc inner {var} {\n    upvar 1 $var alias\n    puts $\n}\n";
+    assert!(dollar_labels(src, 2, 10).contains(&"$alias".to_owned()));
+}
+
+#[test]
+fn dict_with_keys_of_a_literal_complete_in_its_body() {
+    let src =
+        "proc p {} {\n    set d {name alice age 30}\n    dict with d {\n        puts $\n    }\n}\n";
+    let labels = dollar_labels(src, 3, 14);
+    assert!(labels.contains(&"$name".to_owned()), "{labels:?}");
+    assert!(labels.contains(&"$age".to_owned()), "{labels:?}");
+}

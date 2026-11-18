@@ -16,9 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// The interprocedural call-site seed must stay sound for a plain
-// library file — no `package provide` to guard it —
-// `source`d by another file that calls its procs with a different literal.
+// A condition over a procedure parameter is never folded from the file's
+// calls, whether or not a `source`ing file passes a different literal.
 // The deep TP/FP/TN/FN coverage lives in `tcl-compiler`'s `unit_scope` /
 // `call_site_param_constants` unit tests, `tcl-lsp-db`'s
 // `cross_file_call_sites` module, and the native `e2e` suite; these prove the
@@ -31,7 +30,6 @@ import {
   getDocUri,
   activate,
   waitForCurrentDiagnostics,
-  waitForDiagnosticsSnapshot,
   waitForCurrentDiagnosticsSnapshot,
 } from "./helper";
 
@@ -66,21 +64,24 @@ suite("Issue #977 cross-file interprocedural seeding", () => {
     );
   });
 
-  test("TP control: every project caller agreeing on the literal still fires I230", async () => {
+  test("every project caller agreeing on the literal still leaves the condition open", async () => {
+    // A body is analysed from a generic entry: the procedure stays callable
+    // from a later `source`, a callback or an interactive session. tclsh 8.4 to
+    // 9.1: after sourcing, `list [helper prod] [helper dev]` is `1 2`.
     await activate(getDocUri("issue977AgreeingMain.tcl"));
     const libUri = getDocUri("issue977AgreeingLib.tcl");
-    await activate(libUri);
+    const document = await activate(libUri);
 
-    const currentSnapshotFor_diags = await waitForDiagnosticsSnapshot(libUri, {
-      predicate: (d) => d.some((x) => codeOf(x) === "I230"),
+    const currentSnapshotFor_diags = await waitForCurrentDiagnosticsSnapshot(libUri, {
+      expectedSource: document.getText(),
     });
     if (!currentSnapshotFor_diags.isCurrent()) {
       throw new Error("The retained diagnostics report became stale before its assertions");
     }
     const diags = [...currentSnapshotFor_diags.report.diagnostics];
     assert.ok(
-      diags.some((d) => codeOf(d) === "I230"),
-      `every caller in the project passes "prod", so the seed is sound: ${JSON.stringify(
+      !diags.some((d) => codeOf(d) === "I230"),
+      `a condition over a parameter is never constant: ${JSON.stringify(
         diags.map((d) => codeOf(d)),
       )}`,
     );

@@ -343,7 +343,7 @@ fn instruction_is_closed(instruction: &Instruction, body: bool) -> bool {
         && dict_vars.is_none()
         && release_binding.is_none()
         && release_hold.is_none()
-        && !*script_command
+        && script_command.is_none()
         && *release_body == 0
         && release_body_entry.is_none()
         && entered_command.is_none()
@@ -441,7 +441,11 @@ mod tests {
             ..FunctionAsm::default()
         };
         let mut invoke = Instruction::new(Op::INVOKE_STK1, vec![Operand::Imm(1)]);
-        invoke.script_command = true;
+        invoke.script_command = Some(tcl_bytecode::ScriptCommand {
+            span: tcl_lexer::Span::empty(0),
+            text: tcl_lexer::SourceImage::default(),
+            line: 0,
+        });
         function.instructions.push(invoke);
         assert!(check_function(&function, false, config).is_err());
         let plain = FunctionAsm::default();

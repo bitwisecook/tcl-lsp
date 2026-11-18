@@ -65,32 +65,6 @@ fn known(names: &[&str]) -> HashSet<String> {
     names.iter().map(|n| (*n).to_owned()).collect()
 }
 
-fn params(names: &[&str]) -> Vec<String> {
-    names.iter().map(|n| (*n).to_owned()).collect()
-}
-
-fn seed(
-    params: &[String],
-    evidence: &CallSiteEvidence,
-    qname: &str,
-    linkage: Traits,
-    has_cross_file_evidence: bool,
-) -> Option<HashMap<(String, crate::ssa::Version), crate::analyses::LatticeValue>> {
-    let proc_binding_trust = crate::command_binding::ProcBindingTrustProjection::default();
-    params_constants_from_call_sites(
-        params,
-        evidence,
-        qname,
-        &UnitCallerView {
-            linkage,
-            has_cross_file_evidence,
-            proc_binding_trust: &proc_binding_trust,
-            source: None,
-            entered: None,
-        },
-    )
-}
-
 fn source_loader_entry(text: &str) -> crate::command_binding::SourceAnalysisEntry {
     let profile = tcl_dialect::DialectProfile::find("tcl9.0").expect("native profile");
     crate::command_binding::SourceAnalysisEntry {

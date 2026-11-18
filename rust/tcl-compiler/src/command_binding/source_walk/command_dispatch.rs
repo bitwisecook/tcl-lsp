@@ -18,7 +18,7 @@
 
 //! Dispatch of a selected command to receiver, named, unknown, resolved and document targets.
 
-use super::super::binding_projection::source_binding_from_original_input_boxed;
+use super::super::binding_projection::{source_binding, source_binding_from_original_input_boxed};
 use super::super::named_invocation::SourceNamedInvocationProof;
 use super::super::{
     DeferredSourceBody, ModuleCommandBindings, SourceCommandBindings, SourceCommandInput,
@@ -219,12 +219,22 @@ impl SourceCommandBindings {
             incoming,
             *context,
         );
-        if let Some(target) = compiled.stable_handler_after_original_arguments(
-            head.as_ref(),
-            incoming,
-            &context.namespace_identity(),
-        ) && let Some(declaration) =
-            self.walk_rule_loader_procedure(segment, words, effective, incoming, target, *context)
+        let loader_binding = (head.is_none()
+            && super::super::rule_declaration::is_rule_loader_top_level(context))
+        .then(|| source_binding(incoming, segment.name(), &context.namespace_identity()));
+        if let Some(target) = compiled
+            .stable_handler_after_original_arguments(
+                head.as_ref(),
+                incoming,
+                &context.namespace_identity(),
+            )
+            .or_else(|| {
+                loader_binding
+                    .as_ref()
+                    .and_then(SourceInvocationBinding::proved_target)
+            })
+            && let Some(declaration) = self
+                .walk_rule_loader_procedure(segment, words, effective, incoming, target, *context)
         {
             return declaration;
         }
@@ -277,7 +287,16 @@ impl SourceCommandBindings {
             );
         } else {
             let mut residual = boxed_source_branch(incoming);
-            residual.mark_opaque_binding_mutation();
+            // A validated loader declaration is inventory, not a command-world
+            // mutation; only an unresolved statement stays opaque.
+            if !(head.is_none()
+                && super::super::rule_declaration::is_rule_loader_top_level(context)
+                && super::super::rule_declaration::is_rule_loader_declaration_head(
+                    segment, incoming, context,
+                ))
+            {
+                residual.mark_opaque_binding_mutation();
+            }
             outcomes.join(&SourceOutcomes::invocation(
                 &residual,
                 tcl_registry::completion_route::InvocationCompletionRoute::Unknown,

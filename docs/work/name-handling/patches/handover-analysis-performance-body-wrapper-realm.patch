@@ -60,16 +60,58 @@ index 69a05f50..7f3d4467 100644
          &mut self,
          invocation_offset: u32,
          argument_tokens: &[Token],
+diff --git a/rust/tcl-compiler/src/analyser/commands/instance_classes.rs b/rust/tcl-compiler/src/analyser/commands/instance_classes.rs
+index ce055c3d..feb4b4e2 100644
+--- a/rust/tcl-compiler/src/analyser/commands/instance_classes.rs
++++ b/rust/tcl-compiler/src/analyser/commands/instance_classes.rs
+@@ -42,21 +42,25 @@ impl Analyser {
+         // Per-item bodies retain the exact source producer site until their
+         // canonical declarations join the shell metadata during replay.
+         if self.pending_instances.is_some() {
+-            let shape_a =
+-                crate::registry_invocation::source_structure::source_handle_construction_at(
++            // A body walked in its wrapper realm cannot see the document's
++            // classes, so every unbound site replays against the document.
++            let wrapped = self.issuer_replays.is_some();
++            let shape_a = !wrapped
++                && crate::registry_invocation::source_structure::source_handle_construction_at(
++                    &self.source,
++                    &self.result,
++                    site_offset,
++                )
++                .is_some();
++            let shape_b = !wrapped
++                && crate::registry_invocation::source_structure::source_constructor_call_at(
+                     &self.source,
+                     &self.result,
+                     site_offset,
+                 )
+                 .is_some();
+-            let shape_b = crate::registry_invocation::source_structure::source_constructor_call_at(
+-                &self.source,
+-                &self.result,
+-                site_offset,
+-            )
+-            .is_some();
+             // A registry factory already bound above needs no user-class replay.
+-            if (shape_a || shape_b)
++            if (wrapped || shape_a || shape_b)
+                 && !bound_registry_factory
+                 && let Some(pending) = self.pending_instances.as_mut()
+             {
 diff --git a/rust/tcl-compiler/src/analyser/commands/original_source.rs b/rust/tcl-compiler/src/analyser/commands/original_source.rs
-index 84a385ef..731b0d23 100644
+index 84a385ef..677a0cf9 100644
 --- a/rust/tcl-compiler/src/analyser/commands/original_source.rs
 +++ b/rust/tcl-compiler/src/analyser/commands/original_source.rs
-@@ -37,7 +37,7 @@ pub(in crate::analyser) struct OriginalFormatTemplate {
+@@ -37,7 +37,10 @@ pub(in crate::analyser) struct OriginalFormatTemplate {
  }
  
  impl Analyser {
 -    pub(super) fn retain_original_static_source_names(&mut self, argument_tokens: &[Token]) {
-+    pub(in super::super) fn retain_original_static_source_names(&mut self, argument_tokens: &[Token]) {
++    pub(in super::super) fn retain_original_static_source_names(
++        &mut self,
++        argument_tokens: &[Token],
++    ) {
          let Some(first) = argument_tokens.first() else {
              return;
          };
@@ -145,19 +187,27 @@ index 4ddfea65..eab9bfb0 100644
  mod tests;
  
 diff --git a/rust/tcl-compiler/src/analyser/per_item/body_pass.rs b/rust/tcl-compiler/src/analyser/per_item/body_pass.rs
-index 539e9526..09ff0660 100644
+index 7d036b12..fb4d09d0 100644
 --- a/rust/tcl-compiler/src/analyser/per_item/body_pass.rs
 +++ b/rust/tcl-compiler/src/analyser/per_item/body_pass.rs
-@@ -108,7 +108,7 @@ impl Analyser {
+@@ -108,10 +108,12 @@ impl Analyser {
          let deferred = std::mem::take(&mut self.deferred_bodies);
          // Whole declaration words cannot be reconstructed from a body-only
          // fragment by rebasing coordinates. Preserve the existing source owner.
 -        if deferred.iter().any(|body| {
-+        if std::env::var_os("PROBE_SKIP_OWNER").is_none() && deferred.iter().any(|body| {
-             super::super::scope::scope_at(&self.result.global_scope, &body.scope_path)
-                 .is_some_and(|scope| scope.original_member_context.is_some())
-         }) {
-@@ -140,9 +140,10 @@ impl Analyser {
+-            super::super::scope::scope_at(&self.result.global_scope, &body.scope_path)
+-                .is_some_and(|scope| scope.original_member_context.is_some())
+-        }) {
++        if std::env::var_os("PROBE_SKIP_OWNER").is_none()
++            && deferred.iter().any(|body| {
++                super::super::scope::scope_at(&self.result.global_scope, &body.scope_path)
++                    .is_some_and(|scope| scope.original_member_context.is_some())
++            })
++        {
+             self.per_item_fallback = Some(PerItemFallback::OriginalSourceOwnership);
+             return Err(Box::new(self.fresh_full_analyse(source, dialect)));
+         }
+@@ -140,9 +142,10 @@ impl Analyser {
          // longer a false duplicate.)
          let duplicate_method = !self.probe_skip_duplicate_fallback && {
              let mut seen = std::collections::HashSet::new();
@@ -171,38 +221,85 @@ index 539e9526..09ff0660 100644
          };
          // Checked for proc *and* method bodies alike: a `variable ns::v`
          // (or in-body `namespace import`/`export`) inside a method body
-@@ -208,6 +209,9 @@ impl Analyser {
+@@ -208,6 +211,22 @@ impl Analyser {
              // the shell.  Methods reconstruct a `Method` scope with the class's
              // instance variables pre-bound (see `analyse_proc_body_isolated`).
              let frag = body_fn(db);
 +            if std::env::var_os("PROBE_SKIP_OWNER").is_some() {
-+                if false { eprintln!("FRAG body={:?} vars={:?} invs={} diags={:?} scopevars={:?}", db.body_text, frag.result.all_variables.keys().collect::<Vec<_>>(), frag.result.command_invocations.len(), frag.result.diagnostics.iter().map(|d| d.message.clone()).collect::<Vec<_>>(), frag.proc_scope.variables.keys().collect::<Vec<_>>()); }
++                if false {
++                    eprintln!(
++                        "FRAG body={:?} vars={:?} invs={} diags={:?} scopevars={:?}",
++                        db.body_text,
++                        frag.result.all_variables.keys().collect::<Vec<_>>(),
++                        frag.result.command_invocations.len(),
++                        frag.result
++                            .diagnostics
++                            .iter()
++                            .map(|d| d.message.clone())
++                            .collect::<Vec<_>>(),
++                        frag.proc_scope.variables.keys().collect::<Vec<_>>()
++                    );
++                }
 +            }
              // A body that defines a proc whose name is defined elsewhere is a
              // duplicate at the shared `all_procs` key — the graft can't reproduce
              // last-definition-wins there, so fall back.
-@@ -229,7 +233,11 @@ impl Analyser {
+@@ -229,7 +248,15 @@ impl Analyser {
                  self.per_item_fallback = Some(PerItemFallback::ClassFactsCollide);
                  return Err(Box::new(self.fresh_full_analyse(source, dialect)));
              }
 -            if fragment_needs_original_source_owner(&frag) {
-+            if frag.wrapper_offset > db.body_tok.span.start() + u32::from(db.body_tok.content_offset) {
++            if frag.wrapper_offset
++                > db.body_tok.span.start() + u32::from(db.body_tok.content_offset)
++            {
 +                self.per_item_fallback = Some(PerItemFallback::OriginalSourceOwnership);
 +                return Err(Box::new(self.fresh_full_analyse(source, dialect)));
 +            }
-+            if std::env::var_os("PROBE_SKIP_OWNER").is_none() && fragment_needs_original_source_owner(&frag) {
++            if std::env::var_os("PROBE_SKIP_OWNER").is_none()
++                && fragment_needs_original_source_owner(&frag)
++            {
                  self.per_item_fallback = Some(PerItemFallback::OriginalSourceOwnership);
                  return Err(Box::new(self.fresh_full_analyse(source, dialect)));
              }
-@@ -325,6 +333,16 @@ impl Analyser {
+@@ -306,7 +333,30 @@ impl Analyser {
+                 }
+             }
+             let before = from_method.then(|| self.result.instance_classes.clone());
++            let undo = (!stash.is_empty()).then(|| {
++                (
++                    self.result.instance_classes.clone(),
++                    self.result.instance_command_bindings.len(),
++                )
++            });
+             self.record_instance_creation(&cmd, &args, &ns, off);
++            // A class declared after the site is one the whole-file walk had
++            // not met there, whatever the document realm answers now.
++            if let Some((classes, bindings)) = undo {
++                let hidden = |class: &String| stash.iter().any(|(k, _)| k == class);
++                if self
++                    .result
++                    .instance_classes
++                    .iter()
++                    .any(|(var, class)| classes.get(var) != Some(class) && hidden(class))
++                    || self.result.instance_command_bindings[bindings..]
++                        .iter()
++                        .any(|binding| hidden(&binding.class_q))
++                {
++                    self.result.instance_classes = classes;
++                    self.result.instance_command_bindings.truncate(bindings);
++                }
++            }
+             for (k, v) in stash {
+                 self.result.all_classes.insert(k, v);
+             }
+@@ -325,6 +375,15 @@ impl Analyser {
  /// the existing owner that can issue these receipts from original command rows.
  pub(super) fn fragment_needs_original_source_owner(fragment: &BodyFragment) -> bool {
      let result = &fragment.result;
 +    // A replayed body still falls back where its facts depend on the walk
 +    // point's command world: object creation and nested declarations.
 +    if !fragment.issuer_replays.is_empty()
-+        && (!fragment.instances.is_empty()
-+            || !fragment.instance_class_sites.is_empty()
++        && (!fragment.instance_class_sites.is_empty()
 +            || !result.proc_declaration_sites.is_empty()
 +            || !result.class_body_spans.is_empty())
 +    {
@@ -211,7 +308,7 @@ index 539e9526..09ff0660 100644
      if !fragment.private_ns_calls.is_empty()
          || !fragment.pending_ctor_arity.is_empty()
          || !fragment.pending_next_arity.is_empty()
-@@ -345,8 +363,8 @@ pub(super) fn fragment_needs_original_source_owner(fragment: &BodyFragment) -> b
+@@ -346,8 +405,8 @@ pub(super) fn fragment_needs_original_source_owner(fragment: &BodyFragment) -> b
          || !result.original_vendor_class_metadata.is_empty()
          || !result.original_vendor_symbol_metadata.is_empty()
          || !result.original_symbol_metadata.is_empty()
@@ -222,7 +319,7 @@ index 539e9526..09ff0660 100644
          || !result.command_aliases.is_empty()
          || !result.renamed_commands.is_empty()
          || !result.package_requires.is_empty()
-@@ -359,10 +377,19 @@ pub(super) fn fragment_needs_original_source_owner(fragment: &BodyFragment) -> b
+@@ -360,10 +419,19 @@ pub(super) fn fragment_needs_original_source_owner(fragment: &BodyFragment) -> b
          || result.command_invocations.iter().any(|invocation| {
              invocation.original_callback_signature_lookup.is_some()
                  || invocation.original_callback_prefix.is_some()
@@ -247,7 +344,7 @@ index 539e9526..09ff0660 100644
          })
          || result.diagnostics.iter().any(|diagnostic| {
 diff --git a/rust/tcl-compiler/src/analyser/per_item/graft.rs b/rust/tcl-compiler/src/analyser/per_item/graft.rs
-index 9f2185e7..8af58c00 100644
+index c982dde0..b2492204 100644
 --- a/rust/tcl-compiler/src/analyser/per_item/graft.rs
 +++ b/rust/tcl-compiler/src/analyser/per_item/graft.rs
 @@ -71,7 +71,8 @@ impl Analyser {
@@ -255,8 +352,8 @@ index 9f2185e7..8af58c00 100644
      ) {
          // Rebase: body facts are relative to the body content start.
 -        let delta = db.body_tok.span.start() + u32::from(db.body_tok.content_offset);
-+        let delta = db.body_tok.span.start() + u32::from(db.body_tok.content_offset)
-+            - frag.wrapper_offset;
++        let delta =
++            db.body_tok.span.start() + u32::from(db.body_tok.content_offset) - frag.wrapper_offset;
          let line_delta = self.line_offsets.as_deref().map_or(0, |lo| {
              super::super::state::line_at_offset(lo, delta as usize)
          });
@@ -394,7 +491,7 @@ index 9f2185e7..8af58c00 100644
      /// The [`Self::graft_proc_body`] half that merges a rebased fragment's
      /// `AnalysisResult` collections into the shell's.  Split out only to
      /// keep each function within the line budget.
-@@ -200,7 +324,9 @@ impl Analyser {
+@@ -203,7 +327,9 @@ impl Analyser {
              .extend(std::mem::take(&mut r.ambiguous_instance_names));
          self.merge_fragment_source_shell_advice(&mut r);
          self.merge_fragment_original_advice(&mut r);
@@ -405,7 +502,7 @@ index 9f2185e7..8af58c00 100644
          self.result.namespace_refs.extend(r.namespace_refs);
          self.result
              .namespace_name_unknowns
-@@ -550,6 +676,19 @@ impl Analyser {
+@@ -553,6 +679,19 @@ impl Analyser {
  /// comment rests on: an isolated body fragment never reaches the fact's one
  /// producer, so there is nothing to merge.  A future change that starts
  /// producing facts inside a body fails here instead of silently dropping them.
@@ -426,18 +523,10 @@ index 9f2185e7..8af58c00 100644
      debug_assert_eq!(
          *facts,
 diff --git a/rust/tcl-compiler/src/analyser/per_item/isolated_body.rs b/rust/tcl-compiler/src/analyser/per_item/isolated_body.rs
-index 827e51a8..a59eeceb 100644
+index 827e51a8..71c9333f 100644
 --- a/rust/tcl-compiler/src/analyser/per_item/isolated_body.rs
 +++ b/rust/tcl-compiler/src/analyser/per_item/isolated_body.rs
-@@ -22,6 +22,7 @@ use super::super::state::Analyser;
- use super::{BodyFragment, DeferredBody};
- use tcl_lexer::Token;
- 
-+
- /// Seed an isolated body's throwaway result with the ensemble facts the shell
- /// attached ([`Analyser::attach_ensemble_facts`]) — the `subcommand → target`
- /// maps, so an `<ensemble> <sub> …` call inside the body records the same
-@@ -88,6 +89,10 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
+@@ -88,6 +88,10 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
      // Offset 0: the body content is the whole source; a synthetic `Str` body
      // token spans it with `content_offset = 0` (no `{` to skip).
      a.retain_walk_source(&db.body_text);
@@ -448,7 +537,7 @@ index 827e51a8..a59eeceb 100644
      // The isolated pass has no whole-file view, so the constant
      // command-substitution fold may trust only the snapshot
      // the shell attached — and must distrust EVERYTHING when none was
-@@ -130,11 +135,45 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
+@@ -130,11 +134,48 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
          kind,
      );
      seed_isolated_frame_state(&mut a, db, &proc_path);
@@ -479,7 +568,10 @@ index 827e51a8..a59eeceb 100644
 +        a.line_offsets = Some(super::super::state::compute_line_offsets(&wrapper));
 +        a.cached_line_index = tcl_lexer::LineIndex::new(&wrapper);
 +        a.cached_line_index_source_len = wrapper.len();
-+        let body_tok = Token::new(tcl_lexer::TokenType::Str, tcl_lexer::Span::new(k, k + body_len));
++        let body_tok = Token::new(
++            tcl_lexer::TokenType::Str,
++            tcl_lexer::Span::new(k, k + body_len),
++        );
 +        a.analyse_body(&db.body_text, body_tok, &proc_path);
 +        wrapper_offset = k;
 +    } else {
@@ -513,10 +605,10 @@ index 4418831f..6f0c46b4 100644
      for x in &mut r.package_requires {
          x.range = shift(x.range, d);
 diff --git a/rust/tcl-compiler/src/analyser/per_item/tests.rs b/rust/tcl-compiler/src/analyser/per_item/tests.rs
-index ee35ba35..1f3ea178 100644
+index ee35ba35..cb8e07fe 100644
 --- a/rust/tcl-compiler/src/analyser/per_item/tests.rs
 +++ b/rust/tcl-compiler/src/analyser/per_item/tests.rs
-@@ -1066,3 +1066,33 @@ fn param_list_with_backslash_continuation_no_spurious_w215() {
+@@ -1066,3 +1066,63 @@ fn param_list_with_backslash_continuation_no_spurious_w215() {
      // Method form (instance vars + params rebind under the same suppression).
      eq("oo::class create K {\n  method m {a b\\\n    c} { return $a }\n}\n");
  }
@@ -533,23 +625,53 @@ index ee35ba35..1f3ea178 100644
 +            let mut a = Analyser::new();
 +            let got = a.analyse_per_item(src, d);
 +            let want = Analyser::new().analyse(src, d);
-+            eprintln!("=== {src:?} gate={:?} eq={}", a.per_item_fallback, got == want);
++            eprintln!(
++                "=== {src:?} gate={:?} eq={}",
++                a.per_item_fallback,
++                got == want
++            );
 +            if got != want {
-+                let mut gk: Vec<_> = got.original_conditional_registry_metadata.iter().map(|(k, v)| (*k, v.is_some())).collect();
-+                let mut wk: Vec<_> = want.original_conditional_registry_metadata.iter().map(|(k, v)| (*k, v.is_some())).collect();
-+                gk.sort(); wk.sort();
++                let mut gk: Vec<_> = got
++                    .original_conditional_registry_metadata
++                    .iter()
++                    .map(|(k, v)| (*k, v.is_some()))
++                    .collect();
++                let mut wk: Vec<_> = want
++                    .original_conditional_registry_metadata
++                    .iter()
++                    .map(|(k, v)| (*k, v.is_some()))
++                    .collect();
++                gk.sort();
++                wk.sort();
 +                eprintln!("CRM got={gk:?} want={wk:?}");
-+                eprintln!("VSYM got={:?} want={:?}", got.original_variable_symbols.iter().map(|s| s.span()).collect::<Vec<_>>(), want.original_variable_symbols.iter().map(|s| s.span()).collect::<Vec<_>>());
++                eprintln!(
++                    "VSYM got={:?} want={:?}",
++                    got.original_variable_symbols
++                        .iter()
++                        .map(|s| s.span())
++                        .collect::<Vec<_>>(),
++                    want.original_variable_symbols
++                        .iter()
++                        .map(|s| s.span())
++                        .collect::<Vec<_>>()
++                );
 +                if got.object_handle_facts != want.object_handle_facts {
-+                    let _ = std::fs::write("/tmp/claude-0/-home-user-tcl-lsp/f2675be4-68bd-52f6-acc5-f3f53026f3ce/scratchpad/ohf-got.txt", format!("{:#?}", got.object_handle_facts));
-+                    let _ = std::fs::write("/tmp/claude-0/-home-user-tcl-lsp/f2675be4-68bd-52f6-acc5-f3f53026f3ce/scratchpad/ohf-want.txt", format!("{:#?}", want.object_handle_facts));
++                    let _ = std::fs::write(
++                        "/tmp/claude-0/-home-user-tcl-lsp/f2675be4-68bd-52f6-acc5-f3f53026f3ce/scratchpad/ohf-got.txt",
++                        format!("{:#?}", got.object_handle_facts),
++                    );
++                    let _ = std::fs::write(
++                        "/tmp/claude-0/-home-user-tcl-lsp/f2675be4-68bd-52f6-acc5-f3f53026f3ce/scratchpad/ohf-want.txt",
++                        format!("{:#?}", want.object_handle_facts),
++                    );
 +                }
-+                if std::env::var_os("PROBE_FULLDIFF").is_some() { eprintln!("{}", got.bounded_mismatch_summary(&want)); }
++                if std::env::var_os("PROBE_FULLDIFF").is_some() {
++                    eprintln!("{}", got.bounded_mismatch_summary(&want));
++                }
 +            }
 +        }
 +    }
 +}
-+
 diff --git a/rust/tcl-compiler/src/analyser/scope/namespace_variables.rs b/rust/tcl-compiler/src/analyser/scope/namespace_variables.rs
 index de2d3bcd..166b7b7c 100644
 --- a/rust/tcl-compiler/src/analyser/scope/namespace_variables.rs
@@ -601,10 +723,10 @@ index 1099752e..87babf96 100644
              OriginalVariableSymbolPurpose, OriginalVariableSymbolReceiver,
          };
 diff --git a/rust/tcl-compiler/src/analyser/state.rs b/rust/tcl-compiler/src/analyser/state.rs
-index 327800df..c336243c 100644
+index a3fc580b..c08bb97b 100644
 --- a/rust/tcl-compiler/src/analyser/state.rs
 +++ b/rust/tcl-compiler/src/analyser/state.rs
-@@ -976,6 +976,11 @@ pub struct Analyser {
+@@ -983,6 +983,11 @@ pub struct Analyser {
      /// presentation maps never admit a receiver. Whole-document scans use the
      /// same issuer inline.
      pub(super) pending_bareword_dispatch_sites: Option<Vec<VarCommandSite>>,
@@ -617,10 +739,10 @@ index 327800df..c336243c 100644
      /// take the duplicate-definition fallback, to measure the residual
      /// divergence the duplicate fast-path must still close.  Defaults to `false`.
 diff --git a/rust/tcl-compiler/src/analyser/state/configuration.rs b/rust/tcl-compiler/src/analyser/state/configuration.rs
-index bcd44af6..f0e88cc4 100644
+index 586439c2..ad3b57d8 100644
 --- a/rust/tcl-compiler/src/analyser/state/configuration.rs
 +++ b/rust/tcl-compiler/src/analyser/state/configuration.rs
-@@ -164,6 +164,8 @@ impl Analyser {
+@@ -166,6 +166,8 @@ impl Analyser {
              pending_instances: None,
              deferred_instance_replays: Vec::new(),
              pending_bareword_dispatch_sites: None,

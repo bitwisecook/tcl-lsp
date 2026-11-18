@@ -759,6 +759,7 @@ impl BytecodeCompileService {
                 || fresh_document_input(registry, config, profile),
             )
             && let Ok(module) = emit(&inlined)
+            && module.top_level_body.splice_ranges.len() == inlined.reference_bodies.splices.len()
         {
             return Ok(module);
         }

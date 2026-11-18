@@ -168,13 +168,23 @@ fn encoding_in_scope(
         "encoding",
         ENCODING_SUBS,
     );
-    let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(subs, &word, true) else {
-        return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
-            subs,
-            &word,
-            true,
-            b"::tcl::encoding",
-        ));
+    // `encoding` became an ensemble in 8.6; before it, `Tcl_EncodingObjCmd`
+    // reads its option with `Tcl_GetIndexFromObj` (`bad option "d": ...`).
+    let index = if interp.runtime_version() < tcl_dialect::TclVersion::V8_6 {
+        match interp.native_static_option_index(argv[1], subs, false, "option") {
+            Ok(index) => index,
+            Err(error) => return interp.report_cmd_error(error),
+        }
+    } else {
+        let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(subs, &word, true) else {
+            return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+                subs,
+                &word,
+                true,
+                b"::tcl::encoding",
+            ));
+        };
+        index
     };
     match subs[index] {
         // `encoding dirs ?list?` — we don't search encoding files; accept + ignore.

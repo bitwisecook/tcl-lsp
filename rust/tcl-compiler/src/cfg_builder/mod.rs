@@ -87,7 +87,6 @@ pub use function_entry_points::{
 pub(crate) use guaranteed_iteration::{foreach_never_runs, foreach_runs_at_least_once};
 #[cfg(test)]
 use opaque_constructs::{dedup_preserve_order, drop_word};
-pub(crate) use prepared_context::entered_procedures;
 pub use prepared_context::{
     detect_upvar_procs, detect_upvar_procs_with_registry, prepare_cfg_context,
     prepare_cfg_context_bundle, prepare_cfg_context_with_registry,

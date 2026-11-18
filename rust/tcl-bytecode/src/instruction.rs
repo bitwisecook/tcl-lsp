@@ -158,6 +158,17 @@ pub enum NativeStringIndexPurpose {
     ReachedNamespaceUnicode,
 }
 
+/// One command of a directly evaluated script, as `TclEvalEx` logs it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScriptCommand {
+    /// The command's extent in the script.
+    pub span: Span,
+    /// The command's text.
+    pub text: tcl_lexer::SourceImage,
+    /// The line the command starts on.
+    pub line: u32,
+}
+
 /// A single bytecode instruction (labels unresolved until layout).
 #[derive(Debug, Clone, PartialEq)]
 #[allow(clippy::struct_excessive_bools)] // independent per-instruction flags, not a state machine
@@ -286,11 +297,12 @@ pub struct Instruction {
     /// across a command-table change rather than evaluating the command
     /// afresh.
     pub release_hold: Option<tcl_runtime_api::ReleaseBinding>,
-    /// A boundary of one of the commands of a script the release evaluates
-    /// directly, as `tclsh` evaluates the script file it is given: the
-    /// outermost command running, which C's level-0 evaluation names when it
-    /// turns an unexpected completion code into an error.
-    pub script_command: bool,
+    /// The first instruction of one of the commands of a script the release
+    /// evaluates directly, as `tclsh` evaluates the script file it is given:
+    /// that outermost command, which C's level-0 evaluation names when it
+    /// turns an unexpected completion code into an error. Its own text, as
+    /// the instruction may belong to a command nested in it.
+    pub script_command: Option<ScriptCommand>,
     /// Under such a release, the script body this compiler inlined that this
     /// instruction runs part of: `0` for none, otherwise one more than the
     /// body's index in the function.
@@ -442,7 +454,7 @@ impl Instruction {
             evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
             release_binding: None,
             release_hold: None,
-            script_command: false,
+            script_command: None,
             release_body: 0,
             release_body_entry: None,
             entered_command: None,

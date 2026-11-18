@@ -123,6 +123,74 @@ pub fn qualifier_component_extents(
     })
 }
 
+/// What one literal fragment of a partly computed name fixes whatever its
+/// computed neighbours hold. Only a component closed by a separator run inside
+/// the fragment is fixed on its right, and only one opened by a separator run
+/// inside it is fixed on its left: a neighbour can add colons to an edge run,
+/// which leaves it a separator, but cannot join a component across one.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WrittenFragmentComponents<'a> {
+    /// The fragment starts with a separator run.
+    pub rooted: bool,
+    /// Components each followed by a separator run inside the fragment, in
+    /// order, up to the first component that is not.
+    pub closed: Vec<&'a [u8]>,
+    /// The text after the fragment's last separator run, when the fragment
+    /// has one; empty when the fragment ends with that run.
+    pub tail_after_separator: Option<&'a [u8]>,
+}
+
+/// Split a literal fragment of a partly computed name by the same separator
+/// rule as [`qualifier_component_extents`].
+///
+/// ```
+/// use tcl_syntax::naming::written_fragment_components;
+/// let prefix = written_fragment_components(b"::other::");
+/// assert!(prefix.rooted);
+/// assert_eq!(prefix.closed, [b"other".as_slice()]);
+/// let open = written_fragment_components(b"::other:");
+/// assert!(open.closed.is_empty());
+/// assert_eq!(written_fragment_components(b"::counter").tail_after_separator, Some(b"counter".as_slice()));
+/// assert_eq!(written_fragment_components(b"ver").tail_after_separator, None);
+/// ```
+#[must_use]
+pub fn written_fragment_components(fragment: &[u8]) -> WrittenFragmentComponents<'_> {
+    let separator = |range: std::ops::Range<usize>| range.len() >= 2;
+    let extents: Vec<_> = qualifier_component_extents(fragment).collect();
+    let rooted = match extents.first() {
+        Some(first) => separator(0..first.start),
+        None => fragment.len() >= 2,
+    };
+    let mut closed = Vec::new();
+    for (index, extent) in extents.iter().enumerate() {
+        let next = extents
+            .get(index + 1)
+            .map_or(fragment.len(), |next| next.start);
+        if !separator(extent.end..next) {
+            break;
+        }
+        closed.push(&fragment[extent.clone()]);
+    }
+    let tail_after_separator = match extents.last() {
+        Some(last) if last.end < fragment.len() => {
+            separator(last.end..fragment.len()).then_some(&fragment[fragment.len()..])
+        }
+        Some(last) => {
+            let previous = extents
+                .len()
+                .checked_sub(2)
+                .map_or(0, |index| extents[index].end);
+            separator(previous..last.start).then_some(&fragment[last.clone()])
+        }
+        None => rooted.then_some(&fragment[fragment.len()..]),
+    };
+    WrittenFragmentComponents {
+        rooted,
+        closed,
+        tail_after_separator,
+    }
+}
+
 /// The exact byte extent of the final written namespace separator run.
 /// Each complete run of two or more colons separates components; a lone colon
 /// remains component data. The counted input is not truncated or normalised.

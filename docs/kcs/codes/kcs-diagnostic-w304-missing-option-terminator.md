@@ -31,6 +31,10 @@ peers. `file exists` takes no options, so it is never flagged.
   before substituted input to reduce option-injection risk."*
 - When the variable's most recent literal `set` starts with `-`, the same
   finding is raised to a warning and names the value.
+- When the value is proved to be a constant that cannot read as an option
+  (`set mode datagroup; exec $mode`), there is nothing to defend at that
+  site and no `W304` is reported. The proof is redone when the assignment
+  changes.
 - A quick fix, **Insert '--' option terminator**, is offered on the
   diagnostic.
 

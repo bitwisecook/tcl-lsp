@@ -20,7 +20,7 @@
 
 use super::summary_candidates::OriginalProcedureSummaryOwners;
 use super::upvar_info::UpvarInfo;
-use super::{CfgCommandClasses, CfgContext, PreparedCfgContext, frame_effects, global_write_info};
+use super::{CfgCommandClasses, CfgContext, PreparedCfgContext, frame_effects};
 use crate::command_binding::ModuleCommandBindings;
 use crate::ir::Module;
 use crate::registry_invocation::OwnedInvocationMetadataContext as CfgMetadataContext;
@@ -49,53 +49,6 @@ pub(crate) fn detect_upvar_bodies_with_registry(
     registry: &CommandRegistry,
 ) -> HashMap<crate::ir::ProcedureId, UpvarInfo> {
     frame_effects::detect_caller_frame_bodies(module, registry)
-}
-
-/// The procedures the module's own code can enter: those reachable over the
-/// summaries' direct-call edges ([`global_write_info::direct_call_targets`])
-/// from the top level, method bodies and lowered bodies. `None` when a body on
-/// the way calls something the edges cannot name, which may be any procedure.
-#[must_use]
-pub(crate) fn entered_procedures(
-    module: &Module,
-    registry: &CommandRegistry,
-) -> Option<std::collections::HashSet<crate::ir::ProcedureId>> {
-    let owners = OriginalProcedureSummaryOwners::for_module(module, registry);
-    let bodies: HashMap<_, _> = module
-        .summary_procedure_bodies()
-        .map(|(id, procedure)| (*id, &procedure.body))
-        .collect();
-    let roots = std::iter::once(&module.top_level)
-        .chain(module.methods.values().map(|method| &method.body))
-        .chain(
-            module
-                .body_lowerings()
-                .filter(|(id, _)| !bodies.contains_key(id))
-                .map(|(_, unit)| &unit.body),
-        );
-    let mut entered = std::collections::HashSet::new();
-    let mut pending = Vec::new();
-    for root in roots {
-        let (calls, opaque) = global_write_info::direct_call_targets(root, &owners, registry);
-        if opaque {
-            return None;
-        }
-        pending.extend(calls);
-    }
-    while let Some(id) = pending.pop() {
-        if !entered.insert(id) {
-            continue;
-        }
-        let Some(body) = bodies.get(&id) else {
-            continue;
-        };
-        let (calls, opaque) = global_write_info::direct_call_targets(body, &owners, registry);
-        if opaque {
-            return None;
-        }
-        pending.extend(calls);
-    }
-    Some(entered)
 }
 
 impl PreparedCfgContext {
