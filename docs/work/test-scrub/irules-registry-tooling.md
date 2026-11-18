@@ -112,3 +112,55 @@ So the folds are right only from 8.5 (the test's `folds` set), the 8.4 range-err
 - `decided_branches::program_four_reaches_diag_and_opt_in_every_form`: runs the program under tclsh and checks that `diag` (the printed diagnostics and exit code) and `opt` (the optimised text) agree; the witness holds the analysis facts.
 - `transfer_routes::explore_sccp_prints_the_route_tally`: the one test of the `explore sccp` text format (the tally lines and their order); `expressions::route_entries_are_counted_per_family` holds the counts.
 The CLI adds the printed format, the exit code and the flags (`--profile`, `--dialect`, `--json`); the other 15 assert only the value fact the witness holds. `release_spellings` (4) and `ordered_state::opt_prints_what_tclsh_prints_for_the_seven_ordered_state_programs` are `KEEP-ORACLE`: they run the release themselves.
+
+## Blocked: two `rule_declaration` re-points
+
+FIX-EXPECTATION ruled 17 November 23:55 (analyser-binding's analysis); replacement bodies ready; test-body edit refused by the session's permission classifier; waits on the owner's approval. Both stay red until then. The product half (a declared `proc when` makes the later `when` decline the inventory) is pushed.
+
+Why: the loader's world is unproved from its first statement by design. With no execution-name policy nothing is an original input, and under a hosted entry the heads bind through hosted metadata, which is advice. So a top-level `proc` at rule load has no proved target; the declaration inventory is what the loader model keeps. Each body keeps what the test protected: a declaration never invents an installation, an execution or a compiler admission.
+
+`direct_loader_registration_preserves_the_later_original_procedure_handler` becomes `direct_loader_records_the_later_procedure_without_proving_its_target`: it asserts the inventory record for the later `proc helper` (a `Procedure` declaration, `procedure_name == "helper"`, body `return $value`) and that `invocation_at_source("proc", offset).proved_execution_target()` is `None`.
+
+```rust
+#[test]
+fn direct_loader_records_the_later_procedure_without_proving_its_target() {
+    // same source and options as today
+    let candidates = bindings.deferred_rule_declaration_candidates(offset).unwrap();
+    assert!(candidates.iter().any(|candidate| {
+        matches!(
+            candidate.declaration,
+            tcl_registry::events::IrulesTopLevelDeclaration::Procedure { .. }
+        ) && candidate.procedure_name.as_deref() == Some("helper")
+            && candidate
+                .body
+                .as_ref()
+                .is_some_and(|body| body.text.try_text().unwrap() == "return $value")
+    }));
+    assert!(
+        bindings.invocation_at_source("proc", offset).proved_execution_target().is_none(),
+        "a declaration at rule load proves no installation"
+    );
+}
+```
+
+`frozen_priority_retains_only_the_rule_loader_file_policy_value` becomes `a_literal_priority_is_inventory_and_a_variable_one_is_not`: `priority 700` records a `Priority { value: 700 }` candidate with no body; `set selected 700; priority $selected` records nothing at the priority site and proves no execution target.
+
+```rust
+#[test]
+fn a_literal_priority_is_inventory_and_a_variable_one_is_not() {
+    let bindings = analyse("priority 700; when HTTP_REQUEST {set later YES}");
+    let candidates = bindings.deferred_rule_declaration_candidates(0).unwrap();
+    assert!(candidates.iter().any(|candidate| matches!(
+        candidate.declaration,
+        tcl_registry::events::IrulesTopLevelDeclaration::Priority { value: 700 }
+    ) && !candidate.unknown && candidate.body.is_none()));
+
+    let source = "set selected 700; priority $selected; when HTTP_REQUEST {set later YES}";
+    let bindings = analyse(source);
+    let offset = u32::try_from(source.find("priority").unwrap()).unwrap();
+    assert!(bindings.deferred_rule_declaration_candidates(offset).is_none());
+    assert!(bindings.invocation_at_source("", offset).proved_execution_target().is_none());
+}
+```
+
+BIG-IP check: whether the device honours a variable-valued top-level `priority` is not covered by TS-01..TS-10; the unproved-world model does not claim it either way.
