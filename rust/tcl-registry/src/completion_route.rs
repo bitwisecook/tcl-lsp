@@ -676,6 +676,33 @@ mod tests {
         }
     }
 
+    /// tclsh 8.4 has no `-level` (bad option), 8.5, 8.6 and 9.0 raise
+    /// `bad -level value: expected non-negative integer but got "-1"`; every
+    /// release completes with an error.
+    #[test]
+    fn a_negative_return_level_completes_with_an_error() {
+        for release in tcl_dialect::TclVersion::ALL {
+            let dialect = InvocationDialect::for_version(release);
+            assert_eq!(
+                route(&["-level", "-1", "payload"], dialect),
+                InvocationCompletionRoute::Tcl(CompletionCode::Error),
+                "{release:?}"
+            );
+            assert_eq!(
+                CommandRegistry::build_default().invocation_completion_knowledge(
+                    "return",
+                    InvocationArguments::literals(&["-level", "-1", "payload"])
+                        .with_dialect(dialect),
+                    dialect.authoring_query(),
+                ),
+                Some(crate::registry::InvocationCompletionKnowledge::Exact(
+                    crate::registry::ExactInvocationCompletion::Tcl(CompletionCode::Error)
+                )),
+                "knowledge {release:?}"
+            );
+        }
+    }
+
     #[test]
     fn jim_keeps_return_code_until_its_procedure_boundary() {
         let dialect = InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
