@@ -183,12 +183,20 @@ mod var_read_role_references {
         // variable *called* `$n`. tclsh 9.0.4 / 8.6.16: `set {$n} v; set {$n}`
         // -> v, while `info exists n` -> 0.
         let src = "proc f {} {\n    set {$n} 1\n    puts [set {$n}]\n}\n";
-        // The recorded span is the word token's, which follows the inner-end
-        // convention — the closing `}` sits one past its end, exactly as the
-        // `{$n}` *declaration*'s span does.
+        // The read's range follows the same convention as the `{$n}`
+        // declaration's range, whatever that convention is.
+        let r = Analyser::new().analyse(src, D);
+        let cell = r.global_scope.children[0]
+            .variables
+            .get("$n")
+            .expect("the literal cell `$n` is declared");
+        let text = |start: u32, end: u32| src[start as usize..end as usize].to_owned();
         assert_eq!(
-            read_texts(src, "$n"),
-            vec!["{$n".to_owned()],
+            cell.references
+                .iter()
+                .map(|r| text(r.start(), r.end()))
+                .collect::<Vec<_>>(),
+            vec![text(cell.definition_span.start(), cell.definition_span.end())],
             "the literal cell owns the read"
         );
         assert!(
