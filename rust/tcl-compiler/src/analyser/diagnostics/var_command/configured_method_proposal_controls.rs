@@ -20,34 +20,21 @@ use super::*;
 
 #[test]
 fn actual_method_word_and_parent_argv_own_configured_proposal() {
+    // tclsh8.6.18/9.0.4: `[Dog new] {bakr}` -> unknown method "bakr": must be
+    // bark or destroy. The proposal replaces the whole written method word.
     let source = "oo::class create Dog {method bark {} {return {}}}\n[Dog new] {bakr}";
-    let mut analyser = Analyser::new();
-    analyser.analyse_and_retain_result_for_test(source, "tcl");
-    let method = u32::try_from(source.rfind("bakr").unwrap()).unwrap();
-    let head = u32::try_from(source.rfind("[Dog new]").unwrap()).unwrap();
-    let site = W308DiagnosticSite {
-        reach: tcl_registry::definer::MethodReach::ObjectCommand,
-        method_span: Some(tcl_lexer::Span::new(method, method + 4)),
-        cmd_span: tcl_lexer::Span::new(head, head + 9),
-    };
-    let (span, proposal) = analyser
-        .w308_configured_method_proposal(site, "$name [not_a_call]")
-        .unwrap();
-    assert_eq!(source.get(span.as_range()), Some("{bakr}"));
-    assert!(tcl_syntax::word_rules::lexical_unicode_source_word_matches(
-        &proposal,
-        "$name [not_a_call]",
-        analyser.file_lexer_config()
-    ));
-    let foreign_parent = W308DiagnosticSite {
-        cmd_span: tcl_lexer::Span::new(0, 9),
-        ..site
-    };
-    assert!(
-        analyser
-            .w308_configured_method_proposal(foreign_parent, "bark")
-            .is_none()
-    );
+    let result = Analyser::new().analyse(source, "tcl");
+    let diagnostic = result
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == DiagCode::W308)
+        .unwrap_or_else(|| panic!("W308: {:?}", result.diagnostics));
+    let fix = diagnostic
+        .fixes
+        .iter()
+        .find(|fix| fix.new_text == "bark")
+        .expect("a did-you-mean fix");
+    assert_eq!(source.get(fix.span.as_range()), Some("{bakr}"));
     let source = "oo::class create Dog {method bark {} {return {}}}\n[Dog new] bakr";
     let result = Analyser::new().analyse_per_item(source, "tcl");
     let diagnostic = result
