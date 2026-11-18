@@ -44,6 +44,15 @@ fn a_pack_added_after_startup_reloads_and_re_analyses_open_documents() {
     notify_pack_changed(&mut lsp, &pack, CREATED);
 
     await_pack_named(&mut lsp, "mylib");
+    // The pack name is visible before the open document is re-analysed
+    // against it, and no publication marks the moment: the pack command had
+    // no unresolved-command finding to lose. Poll the state the test asserts
+    // (the hover), bounded, so a reload that never reaches the document fails
+    // here rather than by a race.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    while hover_text(&lsp.hover(&uri, 0, 4)).is_empty() && std::time::Instant::now() < deadline {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
     let hover = hover_text(&lsp.hover(&uri, 0, 4));
     assert!(
         hover.contains("Run a script with a caller variable bound."),
