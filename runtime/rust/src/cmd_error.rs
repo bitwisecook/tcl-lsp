@@ -825,6 +825,24 @@ fn try_clause_arguments(
     interp.report_cmd_error(tcl_cmd_core::CmdError::with_error_code_bytes(message, code))
 }
 
+fn try_clause_failure(
+    interp: &mut Interp,
+    failure: tcl_registry::NativeTryClauseFailure,
+    message: &[u8],
+) -> Code {
+    let Some(code) = interp
+        .native_invocation_dialect()
+        .try_clause_failure_error_code(failure)
+    else {
+        return interp.refuse_native_access(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "try clause failure",
+            ),
+        );
+    };
+    interp.report_cmd_error(tcl_cmd_core::CmdError::with_error_code_bytes(message, code))
+}
+
 /// `try body ?handler ...? ?finally script?` — structured exception handling
 /// (TIP 329). Handlers are `on code varList script` and `trap pattern varList
 /// script`, tried in order; the first match runs and its completion becomes the
@@ -856,7 +874,11 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         match handler_type {
             b"finally" => {
                 if j < argv.len() - 2 {
-                    return interp.set_error(b"finally clause must be last");
+                    return try_clause_failure(
+                        interp,
+                        tcl_registry::NativeTryClauseFailure::FinallyNonterminal,
+                        b"finally clause must be last",
+                    );
                 }
                 if j == argv.len() - 1 {
                     return try_clause_arguments(
@@ -902,9 +924,13 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 let pattern = obj_bytes(argv[j + 1]);
                 if crate::parse::split_list(&pattern).is_err() {
                     let mut m = b"bad prefix '".to_vec();
-                    m.extend_from_slice(&pattern);
+                    m.extend_from_slice(tcl_core_types::c_string_extent(&pattern));
                     m.extend_from_slice(b"': must be a list");
-                    return interp.set_error(&m);
+                    return try_clause_failure(
+                        interp,
+                        tcl_registry::NativeTryClauseFailure::TrapPrefixFormat,
+                        &m,
+                    );
                 }
                 let script = argv[j + 3];
                 let vars = match HandlerVariables::parse(interp, argv[j + 2]) {
@@ -935,7 +961,11 @@ fn try_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     // The last non-finally clause may not be a `-` fall-through (nothing follows).
     if handlers.last().is_some_and(|h| h.is_dash) {
-        return interp.set_error(b"last non-finally clause must not have a body of \"-\"");
+        return try_clause_failure(
+            interp,
+            tcl_registry::NativeTryClauseFailure::BadFallthrough,
+            b"last non-finally clause must not have a body of \"-\"",
+        );
     }
 
     if try_compiles_script_word(interp, argv) {
@@ -1323,6 +1353,17 @@ mod tests {
             assert_eq!(run(i, b"try {set x ok} o error {} {set x h}"), b"ok");
             assert_eq!(run(i, b"try {set x ok} f {set y 1}"), b"ok");
             assert_eq!(run(i, b"try {set x ok} t {} {} {set x h}"), b"ok");
+            for (script, cause) in [
+                ("try {} trap [format %c 123] m {}", "TRAP EXNFORMAT"),
+                ("try {} finally {} on ok m {}", "FINALLY NONTERMINAL"),
+                ("try {} on ok m -", "BADFALLTHROUGH"),
+            ] {
+                let script = format!("catch {{{script}}} m o; dict get $o -errorcode");
+                assert_eq!(
+                    run(i, script.as_bytes()),
+                    format!("TCL OPERATION TRY {cause}").as_bytes()
+                );
+            }
             // The empty word prefixes all three ⇒ ambiguous.
             assert_eq!(i.eval_str(b"try good {} error {} {x}"), Code::Error);
             assert_eq!(
