@@ -642,6 +642,36 @@ mod tests {
         std::fs::remove_dir_all(base).unwrap();
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn fish_activation_exposes_one_quoted_library_directory() {
+        let Some(fish) = which("fish") else { return };
+        let root = tmp("fish's path");
+        std::fs::create_dir_all(&root).unwrap();
+        let script = root.join("activate.fish");
+        std::fs::write(&script, activate_fish(&root).unwrap()).unwrap();
+        let profile = tcl_sandbox::Profile::new("venv-fish-list", &fish, &root)
+            .arg("--no-config").arg("-c")
+            .arg(r#"source "$ACTIVATE"; printf '%s\n' "$TCLLIBPATH"; deactivate; printf '%s\n' "$TCLLIBPATH""#)
+            .set_env("ACTIVATE", script.as_os_str())
+            .set_env("TCLLIBPATH", "{/other path} /next:dir");
+        let result =
+            crate::exec::execute(&profile, &tcl_sandbox::SandboxPolicy::default()).unwrap();
+        assert!(result.success, "{:?}", result.stderr);
+        let stdout = String::from_utf8(result.stdout).unwrap();
+        let (active, original) = stdout.trim_end().split_once('\n').unwrap();
+        assert_eq!(original, "{/other path} /next:dir");
+        assert_eq!(
+            tcllibpath_directories(Some(OsStr::new(active))),
+            [
+                root.join("lib"),
+                PathBuf::from("/other path"),
+                PathBuf::from("/next:dir")
+            ]
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     fn create_refuses_existing() {
         if find_tclsh().is_none() {
