@@ -398,18 +398,18 @@ fn a_stub_that_states_its_frame_effect_is_a_named_head() {
             );
         }
     }
-    let registry = static_context_for("tcl8.6").commands();
     let barrier_of = |source: &str, head: &str| {
-        let declared =
-            tcl_compiler::analyser::utils::document_declared_surface(source, None, "tcl8.6");
-        let module = tcl_compiler::lowering::lower_to_ir_with(
-            tcl_compiler::lowering::Lowerer::with_config(
-                registry,
-                tcl_lexer::LexerConfig::for_profile(registry.profile()),
-            )
-            .with_declared_commands(Some(&declared)),
-            source,
-        );
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let registry = analysis
+            .resolved_input
+            .as_ref()
+            .unwrap()
+            .borrowed_context_registry()
+            .commands();
+        let unit = analysis
+            .original_optimiser_source_unit(source, registry, None)
+            .expect("authored source unit");
+        let module = &unit.ir_module;
         let mut reasons = Vec::new();
         tcl_compiler::ir::for_each_statement(
             &module
