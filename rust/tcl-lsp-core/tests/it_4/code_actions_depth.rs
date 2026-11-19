@@ -526,22 +526,16 @@ fn invert_comparison_flips_tip461_string_ordering_operator() {
 
 #[test]
 fn invert_comparison_absent_without_top_level_operator() {
-    // A selection with no space-delimited top-level comparison operator offers
-    // no inversion (a bare `$a` can't be inverted).
-    let src = "puts $value\n";
-    let analysis = analyse(src);
-    // Select `$value` (cols 5..11).
-    let actions = code_actions(
-        src,
-        selection(0, 5, 11),
-        Some(&analysis),
-        &report_of(&analysis, src),
-    );
-    assert!(
-        find(&actions, "Invert comparison").is_none(),
-        "no comparison operator -> no inversion; got {:?}",
-        titles(&actions),
-    );
+    let src = "expr {\"1 == 2\"}\n";
+    let analysis = analyse_dialect(src, "tcl9.1");
+    for range in [selection(0, 6, 14), selection(0, 7, 13)] {
+        let actions = code_actions(src, range, Some(&analysis), &report_of(&analysis, src));
+        assert!(
+            find(&actions, "Invert comparison").is_none(),
+            "{:?}",
+            titles(&actions)
+        );
+    }
 }
 
 #[test]

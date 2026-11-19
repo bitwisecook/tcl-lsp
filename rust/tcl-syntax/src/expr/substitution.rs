@@ -100,6 +100,12 @@ impl OriginalSourceExpression {
             config,
         })
     }
+    /// Root of the complete checked parse; all offsets are relative to `source()`.
+    #[must_use]
+    pub const fn root(&self) -> &ExprNode {
+        &self.tree
+    }
+
     /// Compare a retained lowered tree with this complete checked source tree.
     /// Equality preserves source offsets and topology; it grants no evaluation,
     /// operand value, successful completion or rewrite equivalence.

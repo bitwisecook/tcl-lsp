@@ -288,6 +288,25 @@ pub(crate) struct SourceExpressionOperand {
 }
 
 impl SourceExpressionOperand {
+    /// A braced source word preserves expression text until evaluation. A
+    /// computed or quoted argument may deliver a different expression.
+    pub(crate) fn original_expression(
+        &self,
+        source: &str,
+        analysis: &AnalysisResult,
+    ) -> Option<tcl_syntax::expr::substitution::OriginalSourceExpression> {
+        let input = analysis.resolved_input.as_ref()?;
+        let config = self.word.config();
+        if self.word.group().kind != tcl_lexer::WordKind::Braced || config != input.lexer_config() {
+            return None;
+        }
+        let mut context = tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+            .expression_parse_context(Some(input.unit_profile()));
+        context.lexer_grammar = config.grammar_over(context.lexer_grammar);
+        let content = source.get(self.content_span()?.as_range())?;
+        tcl_syntax::expr::substitution::OriginalSourceExpression::capture(content, &context, config)
+    }
+
     pub(crate) fn content_span(&self) -> Option<tcl_lexer::Span> {
         self.word.content_span().ok()
     }

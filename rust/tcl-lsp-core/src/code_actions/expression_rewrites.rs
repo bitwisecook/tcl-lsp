@@ -19,9 +19,11 @@
 //! Rewrites of a selected expression: De Morgan and comparison inversion.
 
 use super::{ActionKind, CodeAction};
-use crate::definition::{LspRange, utf16_col_to_char_col};
+use crate::definition::LspRange;
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
+use tcl_syntax::expr::ast::{BinOp, ExprNode, UnaryOp, render_expr};
+use tcl_syntax::expr::substitution::OriginalSourceExpression;
 
 // Expression rewrites: De Morgan + invert comparison.
 
@@ -54,16 +56,13 @@ pub(super) fn expr_rewrite_actions(
     if start < extent.start() || finish > extent.end() {
         return Vec::new();
     }
-    let Some(line_text) = source.split('\n').nth(range.start_line as usize) else {
+    let Some(expression) = operand.original_expression(source, analysis) else {
         return Vec::new();
     };
-    let chars: Vec<char> = line_text.chars().collect();
-    let s = utf16_col_to_char_col(line_text, range.start_character).min(chars.len());
-    let e = utf16_col_to_char_col(line_text, range.end_character).min(chars.len());
-    if s >= e {
+    let selected = (start - extent.start()) as usize..(finish - extent.start()) as usize;
+    let Some(node) = selected_node(&expression, selected.clone()) else {
         return Vec::new();
-    }
-    let sel: String = chars[s..e].iter().collect();
+    };
     let mut out = Vec::new();
     let edit_range = LspRange {
         start_line: range.start_line,
@@ -71,7 +70,12 @@ pub(super) fn expr_rewrite_actions(
         end_line: range.end_line,
         end_character: range.end_character,
     };
-    if let Some(rewritten) = demorgan_transform(&sel) {
+    if let Some(rewritten) = demorgan_transform(node) {
+        let rewritten = if selected == (0..expression.source().len()) {
+            rewritten
+        } else {
+            format!("({rewritten})")
+        };
         out.push((
             CodeAction {
                 title: "Apply De Morgan's law".to_string(),
@@ -87,7 +91,7 @@ pub(super) fn expr_rewrite_actions(
             OriginalExpressionOperatorRewriteKind::DeMorgan,
         ));
     }
-    if let Some(rewritten) = invert_comparison(&sel) {
+    if let Some(rewritten) = invert_comparison(&expression, node, selected) {
         out.push((
             CodeAction {
                 title: "Invert comparison".to_string(),
@@ -154,234 +158,118 @@ fn original_operator_rewrite_allowed(
     })
 }
 
-/// De Morgan: `!(X && Y)` ↔ `!X || !Y`, `!(X || Y)` ↔ `!X && !Y` — plus the
-/// iRules word-operator equivalents (`not`/`and`/`or`, i.e.
-/// `UnaryOp::WordNot`/`BinOp::WordAnd`/`BinOp::WordOr`). Recognising only
-/// the symbolic forms would never offer the rewrite for a selection written
-/// in iRules' word style (`!($a and $b)`) — an inconsistent gap given the
-/// sibling `invert_comparison` rewrite in this same file handles TIP 461's
-/// word operators (`lt`/`le`/`gt`/`ge`).
-fn demorgan_transform(sel: &str) -> Option<String> {
-    let t = sel.trim();
-    let word_and = tcl_syntax::expr::ast::BinOp::WordAnd.spec().spelling;
-    let word_or = tcl_syntax::expr::ast::BinOp::WordOr.spec().spelling;
-    let word_not = tcl_syntax::expr::ast::UnaryOp::WordNot.spec().spelling;
-
-    // Forward: `!( X <op> Y )` or `not ( X <op> Y )`. The outer negation
-    // prefix and the inner operator's symbol/word spelling are independent
-    // choices in iRules — `!($a and $b)` mixes both — so each outer prefix
-    // tries every inner operator spelling, negating operands in the same
-    // style as its own prefix.
-    if let Some(inner) = t.strip_prefix("!(").and_then(|s| s.strip_suffix(')')) {
-        return demorgan_forward_inner(inner, word_and, word_or, negate);
+/// Select an actual parsed subtree. Parsing the highlighted bytes alone would
+/// mistake matching text inside a quoted literal for a comparison.
+fn selected_node(
+    expression: &OriginalSourceExpression,
+    selection: std::ops::Range<usize>,
+) -> Option<&ExprNode> {
+    if selection == (0..expression.source().len()) {
+        return Some(expression.root());
     }
-    if let Some(inner) = t
-        .strip_prefix(word_not)
-        .map(str::trim_start)
-        .and_then(|s| s.strip_prefix('('))
-        .and_then(|s| s.strip_suffix(')'))
-    {
-        return demorgan_forward_inner(inner, word_and, word_or, |o| negate_word(o, word_not));
-    }
-    // Reverse: `!X || !Y` → `!(X && Y)`, `!X && !Y` → `!(X || Y)` — and the
-    // word-operator equivalents (`not X or not Y` → `not (X and Y)`, …).
-    if let Some((l, r)) = split_top_logical(t, "||")
-        && let (Some(li), Some(ri)) = (l.trim().strip_prefix('!'), r.trim().strip_prefix('!'))
-    {
-        return Some(format!("!({} && {})", li.trim(), ri.trim()));
-    }
-    if let Some((l, r)) = split_top_logical(t, "&&")
-        && let (Some(li), Some(ri)) = (l.trim().strip_prefix('!'), r.trim().strip_prefix('!'))
-    {
-        return Some(format!("!({} || {})", li.trim(), ri.trim()));
-    }
-    if let Some((l, r)) = split_top_logical_word(t, word_or)
-        && let (Some(li), Some(ri)) = (
-            strip_word_not(l.trim(), word_not),
-            strip_word_not(r.trim(), word_not),
-        )
-    {
-        return Some(format!(
-            "{word_not} ({} {word_and} {})",
-            li.trim(),
-            ri.trim()
-        ));
-    }
-    if let Some((l, r)) = split_top_logical_word(t, word_and)
-        && let (Some(li), Some(ri)) = (
-            strip_word_not(l.trim(), word_not),
-            strip_word_not(r.trim(), word_not),
-        )
-    {
-        return Some(format!(
-            "{word_not} ({} {word_or} {})",
-            li.trim(),
-            ri.trim()
-        ));
-    }
-    None
+    let expression_text = expression.source().get(selection.clone())?;
+    let subexpression = OriginalSourceExpression::capture(
+        expression_text,
+        expression.context(),
+        expression.lexer_config(),
+    )?;
+    let rendered = render_expr(subexpression.root());
+    let mut matching = expression
+        .root()
+        .evaluation_nodes()
+        .into_iter()
+        .filter(|node| {
+            node.lexical_source_extent()
+                .and_then(|(a, b)| {
+                    tcl_syntax::expr::substitution::expression_span(expression.source(), a, b)
+                })
+                .is_some_and(|span| span.as_range() == selection)
+                && render_expr(node) == rendered
+        });
+    let node = matching.next()?;
+    matching.next().is_none().then_some(node)
 }
 
-/// The body of forward-direction De Morgan (`negate_op` applies whichever
-/// negation spelling matches the outer prefix that was stripped — `!` or
-/// `not`), tried against every inner connective spelling (`&&`/`||` and
-/// their word-operator equivalents `and`/`or`).
-fn demorgan_forward_inner(
-    inner: &str,
-    word_and: &str,
-    word_or: &str,
-    negate_op: impl Fn(&str) -> String,
+fn invert_comparison(
+    expression: &OriginalSourceExpression,
+    node: &ExprNode,
+    selection: std::ops::Range<usize>,
 ) -> Option<String> {
-    if let Some((l, r)) = split_top_logical(inner, "&&") {
-        return Some(format!(
-            "{} || {}",
-            negate_op(l.trim()),
-            negate_op(r.trim())
-        ));
-    }
-    if let Some((l, r)) = split_top_logical(inner, "||") {
-        return Some(format!(
-            "{} && {}",
-            negate_op(l.trim()),
-            negate_op(r.trim())
-        ));
-    }
-    if let Some((l, r)) = split_top_logical_word(inner, word_and) {
-        return Some(format!(
-            "{} {word_or} {}",
-            negate_op(l.trim()),
-            negate_op(r.trim())
-        ));
-    }
-    if let Some((l, r)) = split_top_logical_word(inner, word_or) {
-        return Some(format!(
-            "{} {word_and} {}",
-            negate_op(l.trim()),
-            negate_op(r.trim())
-        ));
-    }
-    None
+    let ExprNode::Binary { op, .. } = node else {
+        return None;
+    };
+    let inverse = op.inverse()?;
+    let operator = expression.binary_operator_span(node)?.as_range();
+    let mut replacement = expression.source().get(selection.clone())?.to_owned();
+    replacement.replace_range(
+        operator.start.checked_sub(selection.start)?..operator.end.checked_sub(selection.start)?,
+        inverse.as_str(),
+    );
+    Some(replacement)
 }
 
-/// Like [`split_top_logical`], but for a whitespace-delimited word operator
-/// (`and`/`or`) rather than a punctuation symbol — requires a single space
-/// on each side (via [`find_top_level`]) so the word appearing inside a
-/// longer identifier or string (`for`, `orange`, …) is never mistaken for
-/// the operator.
-fn split_top_logical_word<'a>(expr: &'a str, word: &str) -> Option<(&'a str, &'a str)> {
-    let needle = format!(" {word} ");
-    let pos = find_top_level(expr, &needle)?;
-    Some((&expr[..pos], &expr[pos + needle.len()..]))
-}
-
-/// Negate a word-style operand: `$a` → `not $a`, `not $a` → `$a`, a bare
-/// `!`-prefixed operand also collapses (mixed-style input) — mirrors
-/// [`negate`] but for iRules' `not` spelling.
-fn negate_word(operand: &str, word_not: &str) -> String {
-    let o = operand.trim();
-    if let Some(rest) = o.strip_prefix('!') {
-        return rest.trim().to_string();
-    }
-    if let Some(rest) = strip_word_not(o, word_not) {
-        return rest.trim().to_string();
-    }
-    format!("{word_not} {o}")
-}
-
-/// `Some(rest)` when `operand` is `"<word_not> rest"` — a word-boundary
-/// check (a required space after `word_not`) so `notify_x` is never
-/// mistaken for a negated `x`.
-fn strip_word_not<'a>(operand: &'a str, word_not: &str) -> Option<&'a str> {
-    operand.strip_prefix(word_not)?.strip_prefix(' ')
-}
-
-/// Negate an operand: `$a` → `!$a`, `!$a` → `$a`, `($a && $b)` → `!($a && $b)`.
-fn negate(operand: &str) -> String {
-    let o = operand.trim();
-    if let Some(rest) = o.strip_prefix('!') {
-        rest.trim().to_string()
-    } else {
-        format!("!{o}")
-    }
-}
-
-/// Split `expr` on the top-level (brace/paren-depth 0) occurrence of `op`.
-fn split_top_logical<'a>(expr: &'a str, op: &str) -> Option<(&'a str, &'a str)> {
-    let bytes = expr.as_bytes();
-    let opb = op.as_bytes();
-    let mut depth = 0i32;
-    let mut i = 0;
-    while i + opb.len() <= bytes.len() {
-        match bytes[i] {
-            b'(' | b'{' | b'[' => depth += 1,
-            b')' | b'}' | b']' => depth -= 1,
-            _ => {}
-        }
-        if depth == 0 && &bytes[i..i + opb.len()] == opb {
-            return Some((&expr[..i], &expr[i + opb.len()..]));
-        }
-        i += 1;
-    }
-    None
-}
-
-/// Every comparison operator spelling paired with its inverse — derived
-/// from `BinOp::inverse()` (`tcl_syntax::expr::operators`) rather than a
-/// hand-typed list, which would miss the TIP 461 string-ordering four
-/// (`lt`/`le`/`gt`/`ge`) and never offer the "Invert comparison" quick fix
-/// for a selection containing one. Order doesn't matter for correctness — each
-/// needle is matched as a *space-delimited* unit (`find_top_level` looks
-/// for `" op "`), so e.g. `" < "` and `" <= "` can never collide as
-/// substrings of each other regardless of which is tried first.
-fn comparison_inversions() -> &'static [(&'static str, &'static str)] {
-    static OPS: std::sync::OnceLock<Vec<(&'static str, &'static str)>> = std::sync::OnceLock::new();
-    OPS.get_or_init(|| {
-        tcl_syntax::expr::operators::ALL_BIN_OPS
-            .iter()
-            .filter_map(|op| {
-                let inv = op.inverse()?;
-                Some((op.spec().spelling, inv.spec().spelling))
-            })
-            .collect()
+fn opposite_connective(op: BinOp) -> Option<BinOp> {
+    Some(match op {
+        BinOp::And => BinOp::Or,
+        BinOp::Or => BinOp::And,
+        BinOp::WordAnd => BinOp::WordOr,
+        BinOp::WordOr => BinOp::WordAnd,
+        _ => return None,
     })
 }
 
-/// Invert the (single) top-level comparison operator in `sel`.
-fn invert_comparison(sel: &str) -> Option<String> {
-    let t = sel.trim();
-    for (from, to) in comparison_inversions() {
-        // Require the operator to be surrounded by spaces so `$a == $b` matches
-        // but a bare `<` inside a name doesn't; word ops need word boundaries.
-        let needle = format!(" {from} ");
-        if let Some(pos) = find_top_level(t, &needle) {
-            let mut result = String::with_capacity(t.len());
-            result.push_str(&t[..pos]);
-            result.push(' ');
-            result.push_str(to);
-            result.push(' ');
-            result.push_str(&t[pos + needle.len()..]);
-            return Some(result);
+fn negate_node(operand: &ExprNode, op: UnaryOp) -> ExprNode {
+    if let ExprNode::Unary { op: inner, operand } = operand
+        && inner.yields_boolean()
+    {
+        *operand.clone()
+    } else {
+        ExprNode::Unary {
+            op,
+            operand: Box::new(operand.clone()),
         }
     }
-    None
 }
 
-/// Find ` needle ` at brace/paren depth 0.
-fn find_top_level(expr: &str, needle: &str) -> Option<usize> {
-    let bytes = expr.as_bytes();
-    let nb = needle.as_bytes();
-    let mut depth = 0i32;
-    let mut i = 0;
-    while i + nb.len() <= bytes.len() {
-        match bytes[i] {
-            b'(' | b'{' | b'[' => depth += 1,
-            b')' | b'}' | b']' => depth -= 1,
-            _ => {}
+fn demorgan_transform(node: &ExprNode) -> Option<String> {
+    let rewritten = match node {
+        ExprNode::Unary { op: not, operand } if not.yields_boolean() => {
+            let ExprNode::Binary { op, left, right } = operand.as_ref() else {
+                return None;
+            };
+            ExprNode::Binary {
+                op: opposite_connective(*op)?,
+                left: Box::new(negate_node(left, *not)),
+                right: Box::new(negate_node(right, *not)),
+            }
         }
-        if depth == 0 && &bytes[i..i + nb.len()] == nb {
-            return Some(i);
+        ExprNode::Binary { op, left, right } => {
+            let (
+                ExprNode::Unary {
+                    op: first,
+                    operand: l,
+                },
+                ExprNode::Unary {
+                    op: second,
+                    operand: r,
+                },
+            ) = (left.as_ref(), right.as_ref())
+            else {
+                return None;
+            };
+            if !first.yields_boolean() || first != second {
+                return None;
+            }
+            ExprNode::Unary {
+                op: *first,
+                operand: Box::new(ExprNode::Binary {
+                    op: opposite_connective(*op)?,
+                    left: l.clone(),
+                    right: r.clone(),
+                }),
+            }
         }
-        i += 1;
-    }
-    None
+        _ => return None,
+    };
+    Some(render_expr(&rewritten))
 }
