@@ -93,25 +93,37 @@ fn irule3101_generic_taint_warns() {
 
 #[test]
 fn irule3101_pure_var_ref_always_warns_without_safe_colour() {
-    // A plain `$p` setter value (no taint + no provable path colour)
-    // that the lattice cannot pin — two arms set two values — cannot be
-    // proved `/`-prefixed by the static analyser, so IRULE3101 fires.
-    // Latent suppression paths via tainted-with-PATH_PREFIXED /
-    // _NORMALISED / _BOUNDED colours will light up once iRules source
-    // `taint_hints` reach the lattice. A value the lattice proves is
-    // checked as a literal is (#2055): `set p /safe` is clean.
-    let w = setter_warnings_for(
-        "if {[HTTP::has_responded]} { set p /safe } else { set p safe }\nHTTP::uri $p",
-    );
-    assert!(
-        w.iter().any(|x| x.code == DiagCode::Irule3101),
-        "pure var-ref setter value must warn without tainted-safe-colour, got {w:?}"
-    );
-    let w = setter_warnings_for("set p /safe\nHTTP::uri $p");
-    assert!(
-        !w.iter().any(|x| x.code == DiagCode::Irule3101),
-        "a proven `/` path is clean, got {w:?}"
-    );
+    use crate::compilation_unit::CompilationUnit;
+    use tcl_registry::model::ingress::resolve_environment;
+
+    let environment = resolve_environment("f5-irules");
+    let context = environment.default_context_registry();
+    let registry = context.commands();
+    let profile = Some(environment.analyser_profile());
+    for (assignment, warns) in [
+        ("set p /safe", false),
+        ("set p unsafe", true),
+        ("set p [HTTP::query]", true),
+        (
+            "if {[HTTP::has_responded]} {set p /safe} else {set p unsafe}",
+            true,
+        ),
+    ] {
+        let source = format!("when HTTP_REQUEST {{{assignment}; HTTP::uri $p}}");
+        let unit = CompilationUnit::build_for_dialect(&source, registry, false, "f5-irules")
+            .with_interprocedural(registry, profile);
+        let warnings = find_taint_warnings_for_cu(&unit, registry, profile);
+        let setters: Vec<_> = warnings
+            .iter()
+            .filter(|warning| warning.code == DiagCode::Irule3101)
+            .collect();
+        assert_eq!(setters.len(), usize::from(warns), "{assignment}");
+        if let [warning] = setters.as_slice() {
+            assert_eq!(warning.sink_command, "HTTP::uri");
+            assert_eq!(warning.variable, "p");
+            assert_eq!(&source[warning.span.as_range()], "$p");
+        }
+    }
 }
 
 #[test]
