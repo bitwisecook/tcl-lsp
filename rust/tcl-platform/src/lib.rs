@@ -255,12 +255,29 @@ pub trait SourceFile {
     }
 }
 
+/// A filesystem's access check under its current process or guest identity.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FileAccess {
+    Read,
+    Write,
+    Execute,
+}
+
 /// Whole-file and directory access. Streaming channels (the per-fd table,
 /// buffering, encoding) layer on top separately; this is the stateless
 /// surface the path/`glob`/`file` commands need.
 pub trait Filesystem {
     /// Whether `path` exists.
     fn exists(&self, path: &str) -> bool;
+    /// Access available to this filesystem's guest. Portable filesystems
+    /// model read and write access to existing entries, and expose executable
+    /// state in their metadata. Identity-aware hosts override this primitive.
+    fn allows_access(&self, path: &str, access: FileAccess) -> bool {
+        self.metadata(path).is_ok_and(|entry| match access {
+            FileAccess::Read | FileAccess::Write => true,
+            FileAccess::Execute => entry.executable,
+        })
+    }
     /// Metadata for `path`, following symlinks (so a link reports its target's
     /// kind). Backs `file stat`/`size`/`isdirectory`/`isfile`.
     fn metadata(&self, path: &str) -> Result<Metadata, HostError>;

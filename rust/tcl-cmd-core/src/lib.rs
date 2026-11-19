@@ -47,6 +47,7 @@ pub mod encoding;
 pub mod ensemble;
 pub mod error;
 pub mod event;
+pub mod filesystem_glob;
 pub mod format;
 pub mod frame;
 pub mod index;

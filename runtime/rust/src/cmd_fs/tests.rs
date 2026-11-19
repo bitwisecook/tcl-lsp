@@ -563,8 +563,8 @@ fn assert_glob_type_row(interp: &mut Interp, capture: &str, label: &str, types: 
 
 #[cfg(unix)]
 const GLOB_TYPE_C86_ROWS: &str = include_str!(
-        "../../../../experiments/name-handling/results/runtime-c86-real-suites/glob-type-union-question/capture-01/8.6.18/stdout.txt"
-    );
+    "../../../../experiments/name-handling/results/runtime-c86-real-suites/glob-type-union-question/capture-01/8.6.18/stdout.txt"
+);
 
 #[cfg(unix)]
 #[test]
@@ -611,8 +611,8 @@ fn glob_type_kind_union_still_requires_executable_qualification() {
 fn glob_type_readable_writable_executable_qualifiers_remain_conjunctive() {
     let (mut interp, _fixture) = glob_type_fixture("rwx_qualifiers");
     let capture = include_str!(
-            "../../../../experiments/name-handling/results/runtime-c86-real-suites/glob-type-union-rwx-question/capture-01/8.6.18/stdout.txt"
-        );
+        "../../../../experiments/name-handling/results/runtime-c86-real-suites/glob-type-union-rwx-question/capture-01/8.6.18/stdout.txt"
+    );
     assert_glob_type_row(
         &mut interp,
         capture,
@@ -657,6 +657,18 @@ fn glob_option_words_resolve_like_tcl_get_index_from_obj() {
         assert_eq!(i.eval_str(src), Code::Error, "expected an error");
         String::from_utf8_lossy(&i.result_bytes()).into_owned()
     };
+    assert_eq!(
+        err_of(&mut i, b"glob -d"),
+        r#"missing argument to "-directory""#
+    );
+    assert_eq!(
+        err_of(&mut i, b"glob -types bogus /dev/null"),
+        r#"bad argument to "-types": bogus"#
+    );
+    assert_eq!(
+        err_of(&mut i, b"glob -types [format %c 123] /dev/null"),
+        "unmatched open brace in list"
+    );
     // Only a `-`-leading word reaches the table.
     assert_eq!(ok(&mut i, b"glob -nocomplain {}"), b"");
     // Unique prefixes resolve: `-n` is `-nocomplain`.
@@ -680,6 +692,9 @@ fn glob_option_words_resolve_like_tcl_get_index_from_obj() {
         err_of(&mut i, b"glob -t d a"),
         format!("ambiguous option \"-t\": {MUST}")
     );
+    // Each occurrence must be a list. C interprets only the last list's members.
+    let repeated = format!("glob -d {} -ta -ty bogus -ty f -- a.tcl", dir.display());
+    assert_eq!(ok(&mut i, repeated.as_bytes()), b"a.tcl");
     // `-j` is `-join`, and `--` still ends the scan.
     let joined = format!("glob -n -d {} -j -- *.tcl", dir.display());
     assert_eq!(

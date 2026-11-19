@@ -497,135 +497,29 @@ fn file_join(base: &str, name: &str) -> String {
     String::from_utf8(path::join(&[base, name], PathReading::Tcl9)).unwrap_or_default()
 }
 
-/// `glob`'s option words, in C table order (`globOptions[]`, `tclFileName.c`),
-/// resolved with `Tcl_GetIndexFromObj(…, "option", 0)`: `-n`/`-d`/`-j`
-/// abbreviate, `-t` prefixes both `-tails` and `-types` and so is
-/// `ambiguous option "-t"`, and the lone `-` prefixes every entry. Only a word
-/// starting with `-` reaches the table, so an empty word is a pattern
-/// (tclsh: `glob {}` → `.`), never a miss.
-///
-/// Silently skipping an unrecognised `-word` here would let
-/// `glob -x a` run and `-types d` leak its value into the pattern list.
-/// Rejecting an unknown option is a deliberate behaviour choice; every name
-/// the table advertises is honoured below.
-const GLOB_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static> =
-    tcl_cmd_core::prefix::OptionTable::abbreviating(
-        "option",
-        &[
-            "-directory",
-            "-join",
-            "-nocomplain",
-            "-path",
-            "-tails",
-            "-types",
-            "--",
-        ],
-    );
-
-/// Whether the entry at `path` satisfies every `-types` specifier — the same
-/// portable rule the WASM runtime applies (`cmd_fs::entry_matches_types`):
-/// file-kind `d f l` and permission `r w x` over the [`Filesystem`] seam, with
-/// the Unix special-device kinds `p s b c` never matching because the seam
-/// cannot express them. An empty list matches everything.
-fn glob_types_match(filesystem: &dyn Filesystem, path: &str, types: &[char]) -> bool {
-    if types.is_empty() {
-        return true;
-    }
-    // `symlink_metadata` so `l` (and the kind tests) see the link itself.
-    let Ok(meta) = filesystem.symlink_metadata(path) else {
-        return false;
-    };
-    types.iter().all(|&t| match t {
-        'd' => meta.is_dir,
-        'f' => meta.is_file,
-        'l' => meta.is_symlink,
-        'x' => meta.executable,
-        'p' | 's' | 'b' | 'c' => false, // special devices: not portable
-        _ => true, // `r`/`w` are best-effort; an unknown letter does not exclude
-    })
-}
-
 /// `glob ?-nocomplain? ?-directory dir? ?-tails? ?-types list? ?-join? ?--?
 /// pattern ...` — minimal matching against the directory's entries.
 fn cmd_glob(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    // We never error on no match (effectively always `-nocomplain`).
-    let mut dir: Option<String> = None;
-    let mut join = false;
-    let mut tails = false;
-    let mut types: Vec<char> = Vec::new();
-    let mut i = 0;
-    while i < args.len() {
-        let word = match vm.native_name_operand_bytes_checked(&args[i]) {
-            Ok(bytes) => bytes,
-            Err(error) => {
-                return crate::command::completion_from_cmd_error(vm, error);
-            }
-        };
-        // Only a `-`-leading word reaches the table, as in C — a bare word
-        // (the empty one included) is the first pattern.
-        if !word.starts_with(b"-") {
-            break;
-        }
-        match vm.native_static_option_index_checked(&args[i], GLOB_OPTIONS.names(), false, "option")
-        {
-            // `-directory dir` and `-path prefix` are distinct in C; this
-            // engine models both as the search root.
-            Ok(0 | 3) => {
-                dir = args.get(i + 1).map(|v| v.to_str().to_string());
-                i += 2;
-            }
-            Ok(1) => {
-                join = true;
-                i += 1;
-            }
-            Ok(2) => i += 1,
-            Ok(4) => {
-                tails = true;
-                i += 1;
-            }
-            Ok(5) => {
-                // A list of one-letter type specifiers (`d`, `f`, `r`, …); a
-                // name must satisfy every requested test.
-                types = args
-                    .get(i + 1)
-                    .and_then(|v| v.as_list().ok())
-                    .map_or_default(|items| {
-                        items
-                            .iter()
-                            .filter_map(|s| {
-                                let s = s.to_str();
-                                let mut cs = s.chars();
-                                cs.next().filter(|_| cs.next().is_none())
-                            })
-                            .collect()
-                    });
-                i += 2;
-            }
-            // `--` ends the option scan.
-            Ok(_) => {
-                i += 1;
-                break;
-            }
-            Err(e) => return crate::command::completion_from_cmd_error(vm, e),
-        }
-    }
-    if tails && dir.is_none() {
-        return err("\"-tails\" must be used with either \"-directory\" or \"-path\"");
-    }
-    let patterns = &args[i..];
+    let version = vm.runtime_version();
+    let jim = vm.native_invocation_dialect().family() == Some(tcl_dialect::model::Family::Jim);
+    let options = match tcl_cmd_core::filesystem_glob::GlobOptions::parse(vm, args, version, jim) {
+        Ok(options) => options,
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+    };
+    let dir = options.directory.map(|i| args[i].to_str().to_string());
+    let patterns = &args[options.patterns_start..];
     let base = dir.clone().unwrap_or_else(|| ".".to_string());
     let mut results: Vec<String> = Vec::new();
     let Some(filesystem) = vm.host().filesystem() else {
         return ok(Value::list(Vec::new()));
     };
-    if join {
+    if options.join {
         glob_join(filesystem, &base, patterns, &mut results);
     } else if let Ok(entries) = filesystem.read_dir(&base) {
         for name in entries {
-            let matches = patterns.is_empty()
-                || patterns
-                    .iter()
-                    .any(|p| tcl_syntax::glob::string_match(&p.to_str(), &name));
+            let matches = patterns
+                .iter()
+                .any(|p| tcl_syntax::glob::string_match(&p.to_str(), &name));
             if matches {
                 let full = if dir.is_some() {
                     file_join(&base, &name)
@@ -636,17 +530,37 @@ fn cmd_glob(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             }
         }
     }
-    finish_glob_results(filesystem, &base, dir.is_some(), &types, tails, results)
+    let value = finish_glob_results(
+        filesystem,
+        &base,
+        dir.is_some(),
+        &options.types,
+        options.tails,
+        results,
+    );
+    if value.is_empty() {
+        let mut words: Vec<_> = patterns
+            .iter()
+            .map(|p| p.to_str().as_bytes().to_vec())
+            .collect();
+        if options.join {
+            words = vec![path::join(&words, PathReading::of_release(version))];
+        }
+        if let Some(error) = options.no_match(&words, version, jim) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+    }
+    ok(Value::list(value.into_iter().map(Value::string).collect()))
 }
 
 fn finish_glob_results(
     filesystem: &dyn Filesystem,
     base: &str,
     qualified: bool,
-    types: &[char],
+    types: &tcl_cmd_core::filesystem_glob::GlobTypes,
     tails: bool,
     mut results: Vec<String>,
-) -> Completion<Value> {
+) -> Vec<String> {
     // `-types` filters on the entry's real path; `-tails` then reports each hit
     // relative to the `-directory`/`-path` root, as C does.
     let prefix = format!("{}/", base.trim_end_matches('/'));
@@ -656,7 +570,7 @@ fn finish_glob_results(
         } else {
             file_join(base, r)
         };
-        glob_types_match(filesystem, &probe, types)
+        types.matches(filesystem, &probe)
     });
     if tails {
         for r in &mut results {
@@ -666,9 +580,7 @@ fn finish_glob_results(
         }
     }
     results.sort();
-    ok(Value::list(
-        results.into_iter().map(Value::string).collect(),
-    ))
+    results
 }
 
 fn glob_join(

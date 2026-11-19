@@ -1179,82 +1179,24 @@ fn cd_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 // glob
 
-/// `glob`'s option words, in C table order (`globOptions[]`, `tclFileName.c`),
-/// resolved with `Tcl_GetIndexFromObj(…, "option", 0)`: `-n`/`-d`/`-j`
-/// abbreviate, `-t` prefixes both `-tails` and `-types` and so is
-/// `ambiguous option "-t"`, and the lone `-` prefixes every entry. Only a word
-/// starting with `-` reaches the table, so the empty word is a pattern
-/// (tclsh: `glob {}` → `.`), never a miss.
-///
-/// This scan already rejected an unknown option exactly as C does, so routing
-/// it through the owner changes no accept/reject decision — it only makes the
-/// words abbreviate, and turns the lone `-` from `bad` into `ambiguous`. The
-/// bytecode VM's `glob` is a separate, deliberately non-erroring
-/// simplification and is *not* converted (see the contract's "Known
-/// deliberate exceptions").
-const GLOB_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
-    tcl_cmd_core::prefix::OptionTable::abbreviating(
-        "option",
-        &[
-            b"-directory",
-            b"-join",
-            b"-nocomplain",
-            b"-path",
-            b"-tails",
-            b"-types",
-            b"--",
-        ],
-    );
-
 /// `glob ?-nocomplain? ?-directory dir? ?-tails? ?-join? ?--? pattern ...` —
 /// filesystem name matching.
 fn glob_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    let mut nocomplain = false;
-    let mut tails = false;
-    let mut join_mode = false;
-    let mut directory: Option<Vec<u8>> = None;
-    let mut types: Vec<u8> = Vec::new();
-    let mut i = 1;
-    while i < argv.len() {
-        let word = obj_bytes(argv[i]);
-        // Only a `-`-leading word reaches the table, as in C — a bare word
-        // (the empty one included) is the first pattern.
-        if !word.starts_with(b"-") {
-            break;
-        }
-        match interp.native_static_option_index(argv[i], GLOB_OPTIONS.names(), false, "option") {
-            // `-directory dir` and `-path prefix` are distinct in C; this
-            // runtime models both as the search root.
-            Ok(0 | 3) => {
-                i += 1;
-                directory = argv.get(i).map(|&a| obj_bytes(a));
-            }
-            Ok(1) => join_mode = true,
-            Ok(2) => nocomplain = true,
-            Ok(4) => tails = true,
-            Ok(5) => {
-                i += 1;
-                // File kinds form a union; permission qualifiers all apply.
-                if let Some(&a) = argv.get(i) {
-                    types = crate::parse::split_list(&obj_bytes(a))
-                        .unwrap_or_default()
-                        .into_iter()
-                        .filter_map(|s| (s.len() == 1).then_some(s[0]))
-                        .collect();
-                }
-            }
-            // `--` ends the option scan.
-            Ok(_) => {
-                i += 1;
-                break;
-            }
-            Err(m) => return interp.report_cmd_error(m),
-        }
-        i += 1;
-    }
+    let version = interp.runtime_version();
+    let jim = interp.native_invocation_dialect().family() == Some(tcl_dialect::model::Family::Jim);
+    let args = &argv[1..];
+    let options =
+        match tcl_cmd_core::filesystem_glob::GlobOptions::parse(interp, args, version, jim) {
+            Ok(options) => options,
+            Err(error) => return interp.report_cmd_error(error),
+        };
+    let directory = options.directory.map(|i| obj_bytes(args[i]));
     // Patterns: each remaining arg, or (with -join) all joined into one.
-    let pats: Vec<Vec<u8>> = argv[i..].iter().map(|&a| obj_bytes(a)).collect();
-    let patterns: Vec<Vec<u8>> = if join_mode {
+    let pats: Vec<Vec<u8>> = args[options.patterns_start..]
+        .iter()
+        .map(|&a| obj_bytes(a))
+        .collect();
+    let patterns: Vec<Vec<u8>> = if options.join {
         vec![path::join(&pats, reading(interp))]
     } else {
         pats
@@ -1268,20 +1210,21 @@ fn glob_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let host = interp.host();
     let fs = host.filesystem();
     for pat in &patterns {
-        glob_one(fs, base.as_deref(), pat, tails, &types, &mut hits);
+        glob_one(
+            fs,
+            base.as_deref(),
+            pat,
+            options.tails,
+            &options.types,
+            &mut hits,
+        );
     }
     hits.sort();
     hits.dedup();
-    if hits.is_empty() && !nocomplain && patterns.iter().any(|p| !p.is_empty()) {
-        let mut m = b"no files matched glob pattern".to_vec();
-        if patterns.len() == 1 {
-            m.extend_from_slice(b" \"");
-            m.extend_from_slice(&patterns[0]);
-            m.push(b'"');
-        } else {
-            m.extend_from_slice(b"s");
+    if hits.is_empty() {
+        if let Some(error) = options.no_match(&patterns, version, jim) {
+            return interp.report_cmd_error(error);
         }
-        return interp.set_error(&m);
     }
     let objs: Vec<*mut TclObj> = hits.iter().map(|h| new_string(h)).collect();
     interp.set_result(interp.new_list_object(&objs));
@@ -1296,7 +1239,7 @@ fn glob_one(
     directory: Option<&[u8]>,
     pattern: &[u8],
     tails: bool,
-    types: &[u8],
+    types: &tcl_cmd_core::filesystem_glob::GlobTypes,
     hits: &mut Vec<Vec<u8>>,
 ) {
     // Starting directory + whether results are absolute.
@@ -1322,7 +1265,7 @@ fn walk(
     prefix: &[u8],
     segs: &[&[u8]],
     idx: usize,
-    types: &[u8],
+    types: &tcl_cmd_core::filesystem_glob::GlobTypes,
     hits: &mut Vec<Vec<u8>>,
 ) {
     if idx >= segs.len() {
@@ -1354,7 +1297,7 @@ fn walk(
         child_path.extend_from_slice(name_b);
         if last {
             // Apply file-kind and permission filters.
-            if !entry_matches_types(fs, &child_path, types) {
+            if !fs.is_some_and(|fs| types.matches(fs, as_str(&child_path))) {
                 continue;
             }
             hits.push(child_prefix);
@@ -1364,48 +1307,10 @@ fn walk(
     }
 }
 
-/// File-kind selectors form a union, intersected with permission qualifiers.
-/// The portable filesystem supports `d f l`; other kinds cannot match here.
-/// `r`/`w` retain their best-effort checks and `x` uses the executable flag.
-fn entry_matches_types(fs: Option<&dyn Filesystem>, path: &[u8], types: &[u8]) -> bool {
-    if types.is_empty() {
-        return true;
-    }
-    // `symlink_metadata` so `l` (and the kind tests) see the link itself, like C.
-    let Some(meta) = fs.and_then(|fs| fs.symlink_metadata(as_str(path)).ok()) else {
-        return false;
-    };
-    let mut kind_requested = false;
-    let mut kind_matched = false;
-    for &t in types {
-        let kind = match t {
-            b'd' => Some(meta.is_dir),
-            b'f' => Some(meta.is_file),
-            b'l' => Some(meta.is_symlink),
-            b'p' | b's' | b'b' | b'c' => Some(false),
-            _ => None,
-        };
-        if let Some(matched) = kind {
-            kind_requested = true;
-            kind_matched |= matched;
-            continue;
-        }
-        let ok = match t {
-            b'r' | b'w' => true, // permission probes — best-effort (assume yes)
-            b'x' => meta.executable,
-            _ => true, // unknown specifier: don't exclude
-        };
-        if !ok {
-            return false;
-        }
-    }
-    !kind_requested || kind_matched
-}
-
 /// Whether a single path segment matches a glob segment. A literal segment (no
 /// glob metacharacters) matches by equality; otherwise by `string match`.
 fn glob_seg_match(pat: &[u8], name: &[u8]) -> bool {
-    if pat.iter().any(|&c| matches!(c, b'*' | b'?' | b'[')) {
+    if pat.iter().any(|&c| matches!(c, b'*' | b'?' | b'[' | b'\\')) {
         // Hidden files (leading `.`) only match an explicit leading `.` (Unix).
         if name.starts_with(b".") && !pat.starts_with(b".") {
             return false;

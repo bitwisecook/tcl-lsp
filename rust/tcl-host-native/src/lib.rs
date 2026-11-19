@@ -397,6 +397,17 @@ impl Filesystem for NativeFs {
         std::path::Path::new(path).exists()
     }
 
+    #[cfg(unix)]
+    fn allows_access(&self, path: &str, access: tcl_platform::FileAccess) -> bool {
+        use nix::unistd::{AccessFlags, access as native_access};
+        let flags = match access {
+            tcl_platform::FileAccess::Read => AccessFlags::R_OK,
+            tcl_platform::FileAccess::Write => AccessFlags::W_OK,
+            tcl_platform::FileAccess::Execute => AccessFlags::X_OK,
+        };
+        native_access(path, flags).is_ok()
+    }
+
     fn metadata(&self, path: &str) -> Result<Metadata, HostError> {
         let m = std::fs::metadata(path).map_err(|e| map_io(&e))?;
         Ok(meta_from(&m))
