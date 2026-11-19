@@ -325,7 +325,7 @@ fn run_pass_b(ablations: &[Ablation], pa: &PassA) -> PassB {
                 &a.sites,
                 &a.ns,
                 &ab.cfg,
-                tcl_lexer::LexerConfig::default(),
+                a.cu.ir_module.lexer_config,
             );
             resolve_time += t0.elapsed();
             agg.merge(&stats);

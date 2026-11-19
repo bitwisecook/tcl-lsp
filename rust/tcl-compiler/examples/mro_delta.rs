@@ -237,7 +237,7 @@ fn build_worksheet(data: &[FileData], merged: &HashMap<String, ClassDef>) -> Wor
             &fd.sites,
             &fd.ns,
             &cfg,
-            tcl_lexer::LexerConfig::default(),
+            fd.cu.ir_module.lexer_config,
         );
         for r in reports {
             let Some(method) = &r.method else { continue };

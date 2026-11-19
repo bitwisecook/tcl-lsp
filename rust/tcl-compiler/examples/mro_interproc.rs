@@ -198,7 +198,7 @@ fn analyse_file(
             merged,
             &ns,
             &AblationConfig::full(),
-            tcl_lexer::LexerConfig::default(),
+            cu.ir_module.lexer_config,
         );
         // Build proc + method scopes.
         let mut scopes = Vec::new();
@@ -480,7 +480,7 @@ fn receiver_taxonomy(
             &u.sites,
             &u.ns,
             &AblationConfig::full(),
-            tcl_lexer::LexerConfig::default(),
+            u.cu.ir_module.lexer_config,
         );
         for rep in &reports {
             if !matches!(rep.verdict, DispatchVerdict::Abstain(TopReason::Unknown)) {
