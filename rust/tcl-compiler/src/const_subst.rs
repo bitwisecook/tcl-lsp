@@ -429,11 +429,7 @@ impl<'a> ConstSubstCtx<'a> {
             return None;
         }
         let binding = tokens.source_binding.as_ref()?;
-        let target = binding.proved_execution_target().or_else(|| {
-            binding
-                .scoped_procedure_evaluation(tokens)
-                .map(|receipt| receipt.target)
-        })?;
+        let target = binding.proved_execution_target()?;
         let dialect = binding.variable_context.invocation_dialect?;
         let effective = crate::registry_invocation::effective_words_for_target(tokens, target)?;
         effective

@@ -400,10 +400,9 @@ pub(super) fn try_o103_proc_fold(
     let ia = cu.interproc.as_ref()?;
     let tokens = call.tokens.as_ref()?;
     let binding = tokens.source_binding.as_ref()?;
-    let scoped = binding.scoped_procedure_evaluation(tokens);
-    let target = binding
-        .proved_execution_target()
-        .or_else(|| scoped.as_ref().map(|receipt| receipt.target))?;
+    // A conditional declaration can supply a result when entered under its
+    // captured command world. A source edit needs the actual selected target.
+    let target = binding.proved_execution_target()?;
     if target.kind != crate::command_binding::BindingKind::Proc || target.registry_backed {
         return None;
     }
@@ -449,14 +448,6 @@ pub(super) fn try_o103_proc_fold(
         )
     }) {
         return None;
-    }
-    if summary.pure
-        && let Some(scoped) = scoped
-    {
-        return Some((
-            qname,
-            render_propagation_word(scoped.result.text(), ctx.lexer_config())?,
-        ));
     }
     if summary.pure
         && binding.original_invocation_completes_normally(tokens)

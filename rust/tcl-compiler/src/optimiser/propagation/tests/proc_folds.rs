@@ -253,7 +253,6 @@ fn o103_cmd_subst_fires_on_set_value_target() {
 fn o103_scoped_call_withdraws_later_callee_changes_and_unknown_entry() {
     for source in [
         "proc answer {} {return 42}; proc f {} {set y [answer]}; rename answer saved; proc answer {} {return 99}",
-        "proc answer {} {return 42}; proc f {} {set y [answer]}; unknown_future_entry",
         "proc answer {} {return 42}; proc f {} {set y [answer]}; trace add execution answer enter callback",
     ] {
         let opts = run_pass_with_command_mutations(source);
@@ -262,6 +261,16 @@ fn o103_scoped_call_withdraws_later_callee_changes_and_unknown_entry() {
                 .all(|optimisation| optimisation.code != DiagCode::O103 || optimisation.hint_only),
             "{source}: {opts:?}"
         );
+    }
+    // A host can install unknown_future_entry before evaluating this document.
+    // With its body {rename ::answer ::saved; proc ::answer {} {return 99}},
+    // all five C releases and Jim return 99 from f. With an empty body, 42.
+    let source = "proc answer {} {return 42}; proc f {} {set y [answer]}; unknown_future_entry";
+    for release in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+        let registry = tcl_registry::model::ingress::static_context_for(release).commands();
+        let opts = crate::optimiser::optimise_with_dialect(source, registry, registry.profile());
+        let edited = crate::optimiser::apply_optimisations(source, &opts);
+        assert!(edited.contains("[answer]"), "{release}: {edited}");
     }
 }
 

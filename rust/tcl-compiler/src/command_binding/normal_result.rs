@@ -157,9 +157,11 @@ pub(super) type ConditionalProcedureResults =
 
 /// Equivalence under an exact original scoped procedure-entry interpretation.
 /// This proves neither document entry nor an arbitrary future interpreter world.
-pub(crate) struct SourceScopedProcedureEvaluation<'a> {
-    pub(crate) target: &'a SourceCommandTarget,
-    pub(crate) result: &'a SourceNormalResult,
+pub struct SourceScopedProcedureEvaluation<'a> {
+    /// Callee selected in this declaration entry.
+    pub target: &'a SourceCommandTarget,
+    /// Result under this declaration entry.
+    pub result: &'a SourceNormalResult,
 }
 
 impl SourceInvocationBinding {
@@ -226,7 +228,7 @@ impl SourceInvocationBinding {
     /// Exact scoped normal result plus independent complete-evaluation proof.
     /// All captured world, compiler, source, argv and declaration owners remain
     /// prerequisites. This receipt cannot supply actual dispatch or native CPP.
-    pub(crate) fn scoped_procedure_evaluation(
+    pub fn scoped_procedure_evaluation(
         &self,
         tokens: &crate::ir::CommandTokens,
     ) -> Option<SourceScopedProcedureEvaluation<'_>> {

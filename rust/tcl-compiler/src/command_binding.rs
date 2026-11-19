@@ -341,7 +341,7 @@ pub use literal_object_pool::SourceStockLiteralObject;
 mod normal_result;
 mod normal_variable_continuation;
 mod original_variable_inventory;
-pub use normal_result::SourceNormalResult;
+pub use normal_result::{SourceNormalResult, SourceScopedProcedureEvaluation};
 pub(crate) mod object_callbacks;
 pub use invocation_reads::{
     SourceInvocationVariableRead, SourceInvocationVariableReads, SourceVariableReadResidual,
