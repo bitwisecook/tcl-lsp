@@ -14,7 +14,7 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | definition_body | 15 |
 | options | 19 |
 | special_vars | 2 |
-| irreducible | 49 |
+| irreducible | 47 |
 
 | Axis | Until | File | Sites | Waiver | Reason |
 |---|---|---|---|---|---|
@@ -56,7 +56,6 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens/object_dispatch.rs` | 1 | site | `props` (above) is derived entirely from the class's own declared properties, not from any registered `OptionSpec` row — a generated property accessor has no command-level "--" fact in the registry to read at all |
 | irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens/object_dispatch.rs` | 1 | site | generic across every object method's option set; only `switch` and `regexp` have `OptionEffectKind::EndsOptions` populated on a "--" row today, so reading `method_sub`'s own row here would stop recognising "--" for virtually every other method (`formatting/keywords.rs`'s `scan_options` has the same gap, for the same reason) |
 | irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens/object_dispatch.rs` | 1 | site | same reason as this loop's other "--" check above |
-| irreducible | never | `rust/tcl-lsp-core/src/semantic_tokens/regex_subtokens.rs` | 2 | site | ARE (`regexp`/`regsub` pattern-string) metacharacters, not Tcl command syntax; `\|`/`^`/`$` coincide with `::tcl::mathop` operator spellings the same way `eq`/`ne`/`-` do elsewhere in the tree (see the irreducible waivers on those) |
 | irreducible | never | `rust/tcl-mcp/src/datagroup.rs` | 1 | site | `set` and `return` are recognised as Tcl's own primitive syntax for this one-command-body shape, not as a pack-authorable command |
 | irreducible | never | `rust/tcl-mcp/src/datagroup.rs` | 1 | site | same primitive-syntax reason |
 | irreducible | never | `rust/tcl-syntax/src/execution_conformance.rs` | 1 | file | a conformance table's empty-cell marker, not a Tcl word |
@@ -166,7 +165,7 @@ Every other scanned file with an unwaived site, and its count, which is the pin 
 | `rust/tcl-lsp-core/src/diagnostic_policy.rs` | 1 |
 | `rust/tcl-lsp-core/src/diagnostic_policy/truth_table.rs` | 2 |
 | `rust/tcl-lsp-core/src/document_symbols.rs` | 1 |
-| `rust/tcl-lsp-core/src/hover.rs` | 4 |
+| `rust/tcl-lsp-core/src/hover.rs` | 2 |
 | `rust/tcl-lsp-core/src/package_resolver.rs` | 1 |
 | `rust/tcl-lsp-core/src/refactor/inline_proc.rs` | 2 |
 | `rust/tcl-lsp-core/src/refactor/switch_to_dict.rs` | 1 |

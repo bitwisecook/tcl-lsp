@@ -1185,10 +1185,10 @@ Every reviewed site the source lint found, with the waiver that names the axis i
 | irreducible | `rust/tcl-compiler/src/command_binding/source_transition_advice/transition_capture.rs:294` | site | selects which calls a debug trace logs. |
 | irreducible | `rust/tcl-compiler/src/command_binding/source_transition_advice/transition_capture.rs:304` | site | selects which calls a debug trace logs. |
 | irreducible | `rust/tcl-compiler/src/optimiser/propagation/command_substitution_folds.rs:254` | site | names the reported |
-| irreducible | `rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs:369` | site | tokenless legacy fold; a retained |
-| irreducible | `rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs:400` | site | tokenless legacy fold, as for llength. |
-| irreducible | `rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs:405` | site | tokenless legacy fold, as above. |
-| irreducible | `rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs:432` | site | tokenless legacy fold, as for llength. |
+| irreducible | `rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs:384` | site | tokenless legacy fold; a retained |
+| irreducible | `rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs:415` | site | tokenless legacy fold, as for llength. |
+| irreducible | `rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs:420` | site | tokenless legacy fold, as above. |
+| irreducible | `rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs:447` | site | tokenless legacy fold, as for llength. |
 | irreducible | `rust/tcl-compiler/src/sccp/original_value_facts/definition_values.rs:485` | site | the tokenless legacy caller has |
 
 ## The ratchet
