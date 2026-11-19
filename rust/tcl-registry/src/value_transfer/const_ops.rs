@@ -1190,6 +1190,13 @@ impl ValueOps for ConstOps<'_> {
         }
     }
 
+    fn string_compare_length(&mut self, value: &ConstValue) -> Result<Option<usize>, ValueError> {
+        // A larger magnitude needs the release's native int or size getter
+        // and target width. Preserve its original completion in that case.
+        let limit = i32::try_from(self.as_int(value)?).map_err(|_| ValueError::IntegerOverflow)?;
+        Ok(usize::try_from(limit).ok())
+    }
+
     /// The bignum format path's magnitude: a wide integer or the full
     /// digits of a bignum, never narrowed through `i64`.
     fn integer_magnitude(

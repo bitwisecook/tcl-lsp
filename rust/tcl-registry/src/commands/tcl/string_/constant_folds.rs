@@ -353,60 +353,50 @@ pub(crate) fn fold_last(args: &[&str]) -> Option<String> {
     Some(pos.map_or_else(|| "-1".to_owned(), |i| i.to_string()))
 }
 
-/// `string compare ?-nocase? ?-length N? string1 string2`.
-/// ASCII-restricted.  Returns `-1` / `0` / `1`.
-pub(crate) fn fold_compare(args: &[&str]) -> Option<String> {
-    let mut nocase = false;
-    let mut length: Option<usize> = None;
-    let mut i = 0;
-    while i < args.len() && args[i].starts_with('-') {
-        match args[i] {
-            "-nocase" => {
-                nocase = true;
-                i += 1;
-            }
-            "-length" if i + 1 < args.len() => {
-                length = Some(args[i + 1].parse().ok()?);
-                i += 2;
-            }
-            "--" => {
-                i += 1;
-                break;
-            }
-            _ => return None,
-        }
-    }
-    if args.len() - i != 2 {
+/// Use the native command's option grammar and the selected scalar conversion.
+/// ASCII operands have identical comparison units across the supported engines.
+/// Without a C release, only the two-operand form has an admitted native model.
+fn fold_comparison(
+    args: &[&str],
+    version: Option<TclVersion>,
+    mode: tcl_cmd_core::string::CompareMode,
+) -> Option<String> {
+    use crate::value_transfer::{AnalysisContext, Budget, ConstOps, ConstValue, Needs};
+
+    if (version.is_none() && args.len() != 2)
+        || args
+            .iter()
+            .any(|word| !word.is_ascii() || word.contains('\0'))
+    {
         return None;
     }
-    let (mut s1, mut s2) = (args[i].to_owned(), args[i + 1].to_owned());
-    if !s1.is_ascii() || !s2.is_ascii() {
-        return None;
-    }
-    if nocase {
-        s1 = s1.to_ascii_lowercase();
-        s2 = s2.to_ascii_lowercase();
-    }
-    if let Some(n) = length {
-        s1.truncate(n.min(s1.len()));
-        s2.truncate(n.min(s2.len()));
-    }
-    Some(
-        match s1.cmp(&s2) {
-            std::cmp::Ordering::Less => "-1",
-            std::cmp::Ordering::Equal => "0",
-            std::cmp::Ordering::Greater => "1",
-        }
-        .to_owned(),
-    )
+    let profile = version
+        .and_then(|release| tcl_dialect::DialectProfile::find(release.dialect_profile_name()));
+    let context = AnalysisContext::detached(profile);
+    let mut budget = Budget::evaluation();
+    let mut ops = ConstOps::admit(&context, &mut budget, Needs::NUMERAL_GRAMMAR).ok()?;
+    let words = args
+        .iter()
+        .map(|word| ConstValue::text(word))
+        .collect::<Vec<_>>();
+    let result = tcl_cmd_core::string::compare(&mut ops, &words, mode).ok()?;
+    String::from_utf8(ops.take(result).ok()?.bytes).ok()
 }
 
-/// `string equal ?-nocase? ?-length N? string1 string2`.
+pub(crate) fn fold_compare(args: &[&str]) -> Option<String> {
+    fold_compare_versioned(args, None)
+}
+
+pub(crate) fn fold_compare_versioned(args: &[&str], version: Option<TclVersion>) -> Option<String> {
+    fold_comparison(args, version, tcl_cmd_core::string::CompareMode::Compare)
+}
+
 pub(crate) fn fold_equal(args: &[&str]) -> Option<String> {
-    match fold_compare(args)?.as_str() {
-        "0" => Some("1".to_owned()),
-        _ => Some("0".to_owned()),
-    }
+    fold_equal_versioned(args, None)
+}
+
+pub(crate) fn fold_equal_versioned(args: &[&str], version: Option<TclVersion>) -> Option<String> {
+    fold_comparison(args, version, tcl_cmd_core::string::CompareMode::Equal)
 }
 
 /// `string map ?-nocase? mapping string`.  ASCII-restricted (byte-exact

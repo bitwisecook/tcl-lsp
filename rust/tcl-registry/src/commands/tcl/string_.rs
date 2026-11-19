@@ -24,11 +24,11 @@ mod constant_folds;
 mod is_classes;
 
 pub(crate) use constant_folds::{
-    fold_cat, fold_compare, fold_equal, fold_first, fold_index, fold_last, fold_length, fold_match,
-    fold_match_versioned, fold_range, fold_range_unanimous, fold_repeat, fold_repeat_versioned,
-    fold_replace, fold_reverse, fold_string_map, fold_tolower, fold_totitle, fold_toupper,
-    fold_trim, fold_trim_versioned, fold_trimleft, fold_trimleft_versioned, fold_trimright,
-    fold_trimright_versioned,
+    fold_cat, fold_compare, fold_compare_versioned, fold_equal, fold_equal_versioned, fold_first,
+    fold_index, fold_last, fold_length, fold_match, fold_match_versioned, fold_range,
+    fold_range_unanimous, fold_repeat, fold_repeat_versioned, fold_replace, fold_reverse,
+    fold_string_map, fold_tolower, fold_totitle, fold_toupper, fold_trim, fold_trim_versioned,
+    fold_trimleft, fold_trimleft_versioned, fold_trimright, fold_trimright_versioned,
 };
 use is_classes::IS_CLASSES;
 pub(crate) use is_classes::fold_is;
@@ -218,6 +218,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ),
         return_type: Some(TclType::Int),
         const_fold: Some(fold_compare),
+        const_fold_versioned: Some(fold_compare_versioned),
         options: const {
             &[
                 OptionSpec {
@@ -288,6 +289,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ),
         return_type: Some(TclType::Boolean),
         const_fold: Some(fold_equal),
+        const_fold_versioned: Some(fold_equal_versioned),
         options: const {
             &[
                 OptionSpec {
