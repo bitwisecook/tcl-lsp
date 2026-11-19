@@ -332,7 +332,7 @@ The second pass (overlap among passing tests: 88 exact-copy groups, 385 overlap 
 
 ## Status of the rows, 19 November 2026
 
-On clean `a6c66517c7`, `tcl-compiler` integration target `it_2` ran 501 cases in isolated processes with every oracle required. There were 359 passes, 142 failures and zero skips. The two named O129 and I230 regressions are among the failures. The separate compiler library ran 10,322 cases on that head with 8,863 passes, 1,457 failures and two skipped incremental/full fuzz controls. Keep the package-wide count open until the remaining binaries finish. [Exact failing selectors](../name-handling/lists/compiler-it_2-failing-2026-11-19.txt)
+On clean `a6c66517c7`, `tcl-compiler` integration target `it_2` ran 501 cases in isolated processes with every oracle required. There were 359 passes, 142 failures and zero skips. The two named O129 and I230 regressions are among the failures. The compiler library ledger reconciliation retained all 402 analyser-binding failures, found two passing class-facts rows among 193, and retained all three Tk/OO failures. The three Tk/OO rows in core integration target `it_5` still fail. The separate compiler library ran 10,322 cases on that head with 8,863 passes, 1,457 failures and two skipped incremental/full fuzz controls. Keep the package-wide count open until the remaining binaries finish. [Exact failing selectors](../name-handling/lists/compiler-it_2-failing-2026-11-19.txt)
 
 Recounted from the committed ledgers at clean `origin/work` head `2ea0ea7fd5` with `tools/ledger_status.py --check`. These are recorded dispositions. Fresh oracle-required runs verify which tests pass at the restart. The 18 November pause table contained 3,397 rows.
 
