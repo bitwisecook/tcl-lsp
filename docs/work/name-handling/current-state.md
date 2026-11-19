@@ -109,6 +109,8 @@ The worktree census matched all 35,804 tracked paths at `d9b4c677e6`. The [revie
 
 **F5 CLI source comparison ruling, 19 November.** Treat separators and comments as insignificant only where the selected embedded Tcl grammar gives them that role. Preserve literal hash characters, whitespace inside values and incomplete or uncertain source. Test actual `f5 diff` output for a literal change, a comment and a separator-only change.
 
+**Jim O103, 19 November.** The normal optimiser on `c989476b24` changes the output of the exact paused O103 programme from 99 to 42 on Jim when its external entry rebinds the called procedure. Five C Tcl releases preserve 99, and an external no-op gives 42 on all six. Analyser-binding and dataflow are tracing the selected binding proof. The [scrub row](../test-scrub/README.md#wrong-answers-found-by-the-scrub) includes the reproducer.
+
 ## Scoreboard, 18 November 2026, 11:55 UTC (at the pause)
 
 Failing tests by area on the restructured tree, from the successor sessions' baselines and first pushes.
