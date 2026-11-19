@@ -1036,7 +1036,7 @@ fn scan_bracketed_commands_with_config(
 ) -> Option<Vec<(String, Vec<String>)>> {
     use tcl_lexer::word_parts::ExecutablePart;
     let plan = tcl_lexer::native_script_words_in_with_purpose(
-        tcl_lexer::SourceImage::native(text.as_bytes()),
+        tcl_lexer::SourceImage::document(text),
         tcl_lexer::Span::new(0, u32::try_from(text.len()).ok()?),
         config,
         tcl_lexer::SourceSegmentationPurpose::NestedScript,
