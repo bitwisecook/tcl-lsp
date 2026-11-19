@@ -2,7 +2,7 @@
 
 ## Paused on 19 November 2026
 
-The owner paused the naming, test-scrub and shared-parser work. The hourly check is disabled. Start with the [coordinator handover and thirteen area handovers](handover/pause-2026-11-19/coordinator.md) for the saved work, last measurements and restart order. The seven owner decisions below stand.
+The owner paused the naming, test-scrub and shared-parser work. The hourly check is disabled. Start with the [coordinator handover and thirteen area handovers](handover/pause-2026-11-19/coordinator.md) for the saved work, last measurements and restart order. The seven owner decisions below stand. Final workspace formatting passed. The pause run passed 38 of 40 drift gates and strict all-target clippy stopped on a compiler lint. See the [exact failures and owners](handover/pause-2026-11-19/coordinator.md#final-pause-checks).
 
 Earlier measurements include a 15 November 2026 snapshot. Results apply to their captured source and stated purpose. **The LSP is not release-ready.** Sections below the measured state are dated snapshots from 4 to 13 November.
 
