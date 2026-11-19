@@ -20,18 +20,25 @@
 
 use std::{borrow::Cow, ops::Range};
 
+/// Lexical role of a token in the outer SCF stanza.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ShellTokenKind {
+    /// A shell word, including its quoted or escaped fragments.
     Word,
+    /// An unquoted opening body brace.
     Open,
+    /// An unquoted closing body brace.
     Close,
+    /// A physical, unescaped newline between words.
     Newline,
 }
 
+/// A token and its original byte range in an SCF document.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ShellToken<'a> {
     /// Original UTF-8 byte extent, including quote delimiters and escapes.
     pub range: Range<usize>,
+    /// The role selected by the outer SCF tokenizer.
     pub kind: ShellTokenKind,
     /// False for a word with an unfinished quote or final backslash.
     pub complete: bool,

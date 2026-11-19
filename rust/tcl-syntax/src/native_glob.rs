@@ -24,6 +24,7 @@
 
 use std::{borrow::Cow, collections::HashSet};
 
+use crate::glob::GlobRole;
 use tcl_core_types::c_string_extent;
 use tcl_dialect::{TclVersion, model::DialectPoint};
 
@@ -661,7 +662,7 @@ pub fn c_string_pattern_components(
 }
 
 fn c_components(pattern: GlobInput<'_>) -> Option<Vec<crate::glob::GlobComponent>> {
-    use crate::glob::{GlobComponent, GlobRole};
+    use crate::glob::GlobComponent;
     let mut result = Vec::new();
     let mut pos = 0;
     while pos < pattern.len() {
@@ -722,7 +723,6 @@ fn c_match(pattern: GlobInput<'_>, subject: GlobInput<'_>, nocase: bool) -> bool
                 }
                 break;
             }
-            use crate::glob::GlobRole;
             let role = GlobRole::from_unit(pattern.raw(pi));
             if role == Some(GlobRole::AnySequence) {
                 while pi < pattern.len() && pattern.raw(pi) == u32::from(b'*') {
