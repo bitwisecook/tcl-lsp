@@ -270,9 +270,7 @@ pub fn enter_dictionary_scope(
     // The Jim interpreter bypasses the whole epilogue when the body has no
     // bytes. Without that fact a single physical activation cannot promise
     // a definite write on a normally completed route.
-    if plan.writeback == tcl_registry::dictionary_scope::DictionaryWriteback::NormalOnly
-        && plan.empty_script.is_none()
-    {
+    if plan.skips_empty_body() && plan.empty_script.is_none() {
         return DictionaryScopeEntry::Unknown;
     }
     let Some(name) = arguments.literal_at(plan.dictionary_argument) else {
@@ -510,9 +508,7 @@ pub fn finish_dictionary_scope(
     if state.dynamic_bindings {
         return DictionaryScopeFinish::Unknown;
     }
-    if activation.plan.writeback == tcl_registry::dictionary_scope::DictionaryWriteback::NormalOnly
-        && updates.as_ref().is_some_and(Vec::is_empty)
-    {
+    if activation.plan.skips_empty_body() && updates.as_ref().is_some_and(Vec::is_empty) {
         return DictionaryScopeFinish::Skipped;
     }
     let value = match (current.as_deref(), updates) {
@@ -556,7 +552,7 @@ fn read_mapped_contents(
     for (key, name) in activation.bindings.as_ref()? {
         if !activation
             .plan
-            .writes_mapped_name(&activation.dictionary_name, key)
+            .writes_mapped_name(activation.dictionary_name.as_bytes(), key.as_bytes())
         {
             continue;
         }
@@ -749,7 +745,7 @@ fn writeback_effects(
         for (key, name) in bindings {
             if !activation
                 .plan
-                .writes_mapped_name(&activation.dictionary_name, key)
+                .writes_mapped_name(activation.dictionary_name.as_bytes(), key.as_bytes())
             {
                 continue;
             }

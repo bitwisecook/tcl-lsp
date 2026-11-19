@@ -286,8 +286,14 @@ impl DictionaryScopePlan {
 
     /// Jim with leaves a same-named root alone when reflecting its member variables.
     #[must_use]
-    pub fn writes_mapped_name(&self, dictionary_name: &str, key: &str) -> bool {
+    pub fn writes_mapped_name(&self, dictionary_name: &[u8], key: &[u8]) -> bool {
         self.writeback != DictionaryWriteback::NormalOnly || key != dictionary_name
+    }
+
+    /// Whether original evaluated script bytes bypass both evaluation and writeback.
+    #[must_use]
+    pub fn skips_empty_body(&self) -> bool {
+        self.writeback == DictionaryWriteback::NormalOnly
     }
 
     /// Known completion paths reaching the epilogue. Unknown paths remain split.
