@@ -668,7 +668,7 @@ fn format_args(
 /// Push a `Type`-kind specifier hint at the byte offset `abs_byte`
 /// (converted to a UTF-16 position) when it lies within `range`.
 fn push_format_hint(
-    label: &str,
+    label: String,
     abs_byte: usize,
     range: LspRange,
     source: &str,
@@ -682,7 +682,7 @@ fn push_format_hint(
     out.push(InlayHint {
         position_line: pos.line,
         position_character: pos.character.get(),
-        label: label.to_owned(),
+        label,
         kind: InlayHintKind::Type,
         padding_left: true,
     });
@@ -759,7 +759,7 @@ fn format_specifier_labels(
     content: &str,
     format: tcl_registry::FormatStringArg,
     profile: &tcl_dialect::DialectProfile,
-) -> Vec<(usize, &'static str)> {
+) -> Vec<(usize, String)> {
     let mut labels = Vec::new();
     match format.kind {
         tcl_registry::FormatType::Sprintf if format.scan => {
@@ -770,7 +770,7 @@ fn format_specifier_labels(
                     verb => sprintf_short(verb),
                 };
                 if let Some(label) = label {
-                    labels.push((field.conversion.end, label));
+                    labels.push((field.conversion.end, label.to_owned()));
                 }
             }
         }
@@ -797,7 +797,7 @@ fn format_specifier_labels(
                     && tcl_cmd_core::format::is_available(&spec, profile)
                     && let Some(label) = sprintf_short(char::from(spec.verb))
                 {
-                    labels.push((end, label));
+                    labels.push((end, label.to_owned()));
                 }
                 i = end;
             }
@@ -805,7 +805,7 @@ fn format_specifier_labels(
         tcl_registry::FormatType::Clock => {
             for spec in tcl_cmd_core::clock::specifiers(content) {
                 if let Some(label) = clock_short(char::from(spec.letter)) {
-                    labels.push((spec.end, label));
+                    labels.push((spec.end, label.to_owned()));
                 }
             }
         }
@@ -815,17 +815,19 @@ fn format_specifier_labels(
                 tcl_cmd_core::binary::signedness_available(profile),
             ) {
                 if let Some(label) = binary_short(char::from(spec.letter)) {
-                    labels.push((spec.end, label));
+                    labels.push((spec.end, label.to_owned()));
                 }
             }
         }
         tcl_registry::FormatType::Regsub => {
-            const LABELS: [&str; 10] = [
-                "match", "grp1", "grp2", "grp3", "grp4", "grp5", "grp6", "grp7", "grp8", "grp9",
-            ];
             for (span, part) in tcl_cmd_core::regex::replacement_parts(content.as_bytes()) {
                 if let tcl_cmd_core::regex::ReplacementPart::Capture(group) = part {
-                    labels.push((span.end, LABELS[usize::from(group)]));
+                    let label = if group == 0 {
+                        "match".to_owned()
+                    } else {
+                        format!("grp{group}")
+                    };
+                    labels.push((span.end, label));
                 }
             }
         }
