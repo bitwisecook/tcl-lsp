@@ -21,49 +21,33 @@
 use super::*;
 
 #[test]
-fn parse_uplevel_level_decimal() {
-    let relative = |shift| {
-        Some(UplevelLevel {
-            shift,
-            absolute: false,
-        })
-    };
-    assert_eq!(parse_uplevel_level("1"), relative(1));
-    assert_eq!(parse_uplevel_level("3"), relative(3));
-    assert_eq!(parse_uplevel_level("0"), relative(0));
-}
-
-#[test]
-fn parse_uplevel_level_hash_form() {
-    let absolute = |shift| {
-        Some(UplevelLevel {
-            shift,
+fn uplevel_resolves_the_original_level_and_requires_a_single_body_word() {
+    let module = lower_to_ir("uplevel #0x0 {set x 1}", &reg());
+    assert!(matches!(
+        module.top_level.statements.first(),
+        Some(Statement::UpFrame {
+            frame_shift: 0,
             absolute: true,
+            ..
         })
-    };
-    assert_eq!(parse_uplevel_level("#0"), absolute(0));
-    assert_eq!(parse_uplevel_level("#3"), absolute(3));
-}
+    ));
 
-#[test]
-fn parse_uplevel_level_zero_keeps_absolute_and_relative_apart() {
-    // `uplevel #0` runs the body in the global frame; `uplevel 0` runs it
-    // in the current frame. Both carry the magnitude 0, so only the
-    // `absolute` flag tells them apart — conflating them miscompiled the
-    // command-word namespace of every `uplevel 0` body.
-    let hash_zero = parse_uplevel_level("#0").expect("#0 parses");
-    let bare_zero = parse_uplevel_level("0").expect("0 parses");
-    assert_eq!(hash_zero.shift, bare_zero.shift);
-    assert!(hash_zero.absolute);
-    assert!(!bare_zero.absolute);
-    assert_ne!(hash_zero, bare_zero);
-}
-
-#[test]
-fn parse_uplevel_level_dynamic_returns_none() {
-    assert_eq!(parse_uplevel_level("$lvl"), None);
-    assert_eq!(parse_uplevel_level("[expr {1+1}]"), None);
-    assert_eq!(parse_uplevel_level("foo"), None);
+    // A dynamic level might instead be the first script operand. A numeric
+    // word alone is a level without any script; neither may create a body.
+    for program in [
+        "uplevel $lvl {set x 1}",
+        "uplevel 1",
+        "uplevel foo {set x 1}",
+    ] {
+        let module = lower_to_ir(program, &reg());
+        assert!(
+            !matches!(
+                module.top_level.statements.first(),
+                Some(Statement::UpFrame { .. })
+            ),
+            "{program}"
+        );
+    }
 }
 
 #[test]

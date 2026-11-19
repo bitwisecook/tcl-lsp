@@ -24,42 +24,6 @@ use crate::segmenter::SegmentedCommand;
 use tcl_lexer::{SourceSegmentationPurpose, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
 
-/// An `uplevel` level argument, parsed.
-///
-/// The two forms address different frames and must not be conflated:
-/// `#N` counts *down* from the global frame, `N` counts *up* from the
-/// current one. They coincide only when the current frame is the
-/// global frame, which static analysis cannot assume.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in super::super) struct UplevelLevel {
-    /// The level number as written, without the `#`.
-    pub(in super::super) shift: i32,
-    /// `true` for the `#N` absolute form, `false` for the relative form.
-    pub(in super::super) absolute: bool,
-}
-
-/// Parse the level argument of an `uplevel` call. Accepts the
-/// canonical relative form (`uplevel 1 body`, `uplevel 3 body`) and
-/// the absolute form (`#0` / `#N`), returning `None` when the argument
-/// is dynamic (`$lvl`, `[expr {...}]`) or otherwise unparseable.
-///
-/// `#0` and `0` both yield a `shift` of `0` and are told apart by
-/// `absolute` — `uplevel #0 {…}` runs the body in the global frame
-/// while `uplevel 0 {…}` runs it in the current one
-/// (tclsh8.6/9.0-confirmed).
-pub(in super::super) fn parse_uplevel_level(text: &str) -> Option<UplevelLevel> {
-    if let Some(rest) = text.strip_prefix('#') {
-        return rest.parse::<i32>().ok().map(|shift| UplevelLevel {
-            shift,
-            absolute: true,
-        });
-    }
-    text.parse::<i32>().ok().map(|shift| UplevelLevel {
-        shift,
-        absolute: false,
-    })
-}
-
 /// If *`cmd_text`* is `list lit1 lit2 ...` with all-literal
 /// arguments, return the body text the list would evaluate to —
 /// otherwise `None`.
@@ -279,17 +243,33 @@ impl Lowerer<'_> {
         // activation) is an opt-in optimiser pass, not wired into codegen.
         let args = seg.args();
         let arg_tokens = seg.arg_tokens();
-        let (level, body_tok_idx) = match args.len() {
-            // A bare `uplevel {body}` means relative level 1.
-            1 => (
-                UplevelLevel {
-                    shift: 1,
-                    absolute: false,
-                },
-                0,
-            ),
-            2 => (parse_uplevel_level(&args[0])?, 1),
-            _ => return None,
+        let tokens = self.cmd_tokens(seg);
+        let invocation = self.resolved_metadata_invocation(&tokens)?;
+        let frame = invocation.facts.frame_effect?;
+        if frame.layout != tcl_registry::frame_effect::FrameArgLayout::ScriptInSelectedFrame {
+            return None;
+        }
+        let offset = invocation.facts.argument_offset;
+        let tcl_registry::frame_effect::FrameArgumentResolution::Valid {
+            level_word_len,
+            level,
+        } = invocation.with_argument_words(|words| {
+            frame.resolve_arguments(words.arguments().slice_from(offset))
+        })
+        else {
+            return None;
+        };
+        // A multiword body first undergoes the selected engine's concat.
+        // Only an original single body operand can use the direct-script path.
+        let body_argument = offset.checked_add(level_word_len)?;
+        if invocation.arguments.len() != body_argument.checked_add(1)? {
+            return None;
+        }
+        let body_tok_idx = invocation.effective.written_argument(body_argument)?;
+        let (shift, absolute) = match level {
+            tcl_registry::FrameLevel::Relative(number) => (i32::try_from(number).ok()?, false),
+            tcl_registry::FrameLevel::Absolute(number) => (i32::try_from(number).ok()?, true),
+            tcl_registry::FrameLevel::Dynamic => return None,
         };
         let body_tok = arg_tokens.get(body_tok_idx)?;
         // Barrier gate: see `try_lower_eval_static` for the
@@ -301,7 +281,7 @@ impl Lowerer<'_> {
                 return None;
             }
         }
-        let body_namespace = match (level.absolute, level.shift) {
+        let body_namespace = match (absolute, shift) {
             (true, 0) => "::",
             // A non-zero relative frame is selected only at runtime. Keep the
             // lexical fallback for lowering; ExecutionNamespace later marks
@@ -325,10 +305,10 @@ impl Lowerer<'_> {
         };
         Some(Statement::UpFrame {
             span: seg.span,
-            frame_shift: level.shift,
-            absolute: level.absolute,
+            frame_shift: shift,
+            absolute,
             body,
-            tokens: Some(self.cmd_tokens(seg)),
+            tokens: Some(tokens),
         })
     }
 

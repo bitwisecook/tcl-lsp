@@ -37,9 +37,7 @@ mod static_eval;
 pub(super) use const_map::{assigned_local_body_literal, invalidate_const_map_for};
 pub(super) use original_bodies::unavailable_original_body_script;
 #[cfg(test)]
-pub(super) use static_eval::{
-    UplevelLevel, body_has_dynamic_barrier, eval_list_literal_body, parse_uplevel_level,
-};
+pub(super) use static_eval::{body_has_dynamic_barrier, eval_list_literal_body};
 
 /// Stand-in `Script` for a body past [`MAX_LOWER_NEST_DEPTH`]: a single
 /// [`Statement::Barrier`] spanning `[base_offset, base_offset + len)`, so

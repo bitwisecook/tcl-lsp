@@ -93,8 +93,8 @@ use module_assembly::populate_trace_facts;
 use script_bodies::over_depth_script;
 #[cfg(test)]
 use script_bodies::{
-    UplevelLevel, assigned_local_body_literal, body_has_dynamic_barrier, eval_list_literal_body,
-    invalidate_const_map_for, parse_uplevel_level,
+    assigned_local_body_literal, body_has_dynamic_barrier, eval_list_literal_body,
+    invalidate_const_map_for,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
