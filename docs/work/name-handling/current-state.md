@@ -58,6 +58,12 @@ Six workers cover the thirteen area handoffs in this coordinator chat. Progress 
 
 **Coordinator decision.** Use the selected command's existing evaluator and value grammar for a literal fold, including its error and string result. Retain the original command when equivalence cannot be proved. dataflow-optimiser owns the confirmed wrong rewrites in the scrub table. For O103, compare the bare unresolved name control to an actual rebinding handler. All six oracles return 99 for `proc answer {} {return 42}; proc f {} {set y [answer]}; proc unknown {name args} {rename ::answer ::saved; proc ::answer {} {return 99}}; future; puts [f]`. Product verification is pending.
 
+**Shared parsing review, 19 November.** All six workers contributed to the [audit of production readers](parser-audit.md). The [common-library plan](parser-crate-plan.md) maps the grammar families, inputs and proposed crate boundaries. Route strict literal evaluation through the selected command implementation first. Fix wrong product answers ahead of crate extraction. The proposed crate splits have design status.
+
+**Integration hole closed.** On clean `a6c66517c7` with all six verified interpreters required, `tcl-lsp-core` integration failures were 26/294 (`it_2`), 25/289 (`it_3`), 47/322 (`it_4`) and 81/349 (`it_5`), **179 of 1,254 with zero skipped**. [Exact failures](lists/lsp-features-integration-failing-2026-11-19.txt). The new full compiler baseline was interrupted by the memory limit and is being retried using the prepared LSP checkout. DB per-test timings, the collector merge and the #2543 residue remain open. execution reproduced the 8.4 source error specifically through `source`; direct-file, literal catch, eval and uplevel controls matched.
+
+analyser-binding reproduced O101 on the normal 8.6 optimiser path. The two-call witness changes from `no/yes` to `no/no` when the optimiser folds `info exists x`. The explicit rebinding and autoload O103 controls remained unchanged on the tested 8.6 path. Keep O101 active and verify O103 against the original entry conditions before claiming a product fault.
+
 ## Scoreboard, 18 November 2026, 11:55 UTC (at the pause)
 
 Failing tests by area on the restructured tree, from the successor sessions' baselines and first pushes.

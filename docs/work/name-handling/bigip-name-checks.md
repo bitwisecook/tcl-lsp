@@ -3715,6 +3715,18 @@ its citation and a regression that reads the recorded lines.
 7. **APL Tcl callbacks.** `BigIpExecutionContext::IAppPresentationTclCallback`
    is documented as never measured, yet `evidence/tcl/bigip-apl-*.md` records
    about 150 callback executions on 21.1.0.1. Is that context now in scope?
+   Parser review follow-up, pending device evidence: capture the exported APL source,
+   import outcome and selected field/callback result with an optional expression containing
+   `[list {]} yes]`. The braced first element contains a literal closing bracket.
+   Compare a simple bracketed expression in the same context. Record TMOS version and
+   original source range. Prior callback measurements do not answer this boundary case.
+
+   Separate config-reader probe: in a disposable config, observe load, save and block
+   identity for a quoted object name containing an opening brace followed by a sibling
+   stanza. Also compare an iRule stanza containing a Tcl bare word with an interior
+   quote (`set x a"`) with the equivalent braced word. Record tmsh's file boundary
+   and, where accepted, the executed event value separately. The native editor and
+   tree-sitter readers disagree on boundaries; the appliance result is pending.
 8. **Filing.** This document files returned blocks under
    `experiments/name-handling/f5/` and converted evidence under
    `evidence/tcl/`. Confirm that split, or name the single place wanted.

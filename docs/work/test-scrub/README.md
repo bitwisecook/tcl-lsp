@@ -232,13 +232,19 @@ These go ahead of missing facts once the ledgers are in.
 | 8.5 top-level script: no `startCommand` before a compiled `return` after another command (`set y 1; return $x`) | execution, open |
 | 8.6+: an unreachable `jump` after a `done` stays a jump where tclsh fills the jump width with no-ops (two on 8.6 and 9.0, five on 9.1) (`if {$a} {return 1}; return 2`) | execution, open |
 | 8.6+: `if {!$a}` compiles `not; jumpFalse` where tclsh gives `nop; jumpTrue` | execution, open |
-| 8.4 errorInfo for `expr {0b10 + 1}` depends on entry. C Tcl 8.4.20 says “while executing” for a script file, `source`, `eval $src` and `uplevel #0 $src`. It says “while compiling” for the literal inside `catch`. Compare the VM at the same entry and retain both controls. | execution, open |
+| 8.4 errorInfo for `expr {0b10 + 1}` depends on entry. C Tcl 8.4.20 says “while executing” for a script file, `source`, `eval $src` and `uplevel #0 $src`. It says “while compiling” for the literal inside `catch`. On the normal VM `source` gives “while compiling”. Direct-file, literal catch, eval and uplevel controls matched their corresponding C Tcl entries. | execution, open |
 | O129 rewrites `set x [split ""]` to `set x {{}}` and `puts [llength $x]` to `puts 1`; tclsh 8.4.20 to 9.1.0 print 0. #2418 back, through the optimiser's constant-fold engine. Witness `procedure_summaries::split_of_the_empty_string_is_the_empty_list` | dataflow-optimiser, first when resumed |
 | Strict local rename goes past a computed command head that may read the local by name: `proc m {w dir} { $w ${dir}view }` renames `dir` although `proc peek {args} {upvar 1 dir d; return $d}` then fails (tclsh 8.6.18, 9.0.4) | diagnostics (`analyser/types/variable_renames.rs`) |
 | I230 "condition is always true" for `if {$g == 5}` after a stubbed body-role call that sets `g` (`db_eval {select 1} {set g 6}`); tclsh prints `other`. Witness `unseen_code::a_stub_that_states_its_frame_effect_is_a_named_head` | diagnostics |
 | `puts [lrepeat 0 x]` folds to `puts {}` on C Tcl 8.5, which raises. The same folder accepts `08` and reads `010` as ten on 8.5/8.6. Both releases reject `08` and read `010` as eight. Reproduced through the production optimiser on `079afe5230`. | dataflow-optimiser, open |
 | Direct `puts [list # a]` and `puts [split {#a} {}]` acquire braces around the leading hash on C Tcl 8.4.20. The earlier green `set` fixture covers a different call path. | dataflow-optimiser, open |
 | Jim `puts [dict merge {a 1 a 2} {}]` returns `a 2`. The rewrite preserves the original duplicate-key text. C Tcl 8.5–9.1 preserve that text. | dataflow-optimiser, open |
+| Registry folders also change 8.6 non-BMP list ordering, `string repeat x 010` and `08`, `format %f 010`, and default `string trim` on vertical tabs. Rewrites and release controls are in the [parser audit](../name-handling/parser-audit.md#product-reproductions-to-fix-first). | dataflow-optimiser |
+| Definition misses a braced semicolon command. BIG-IP document symbols drop a quoted name and its sibling. `regsub` and `scan` hints, format/binary hovers and a quoted-string comparison action read different grammars from the selected command. | lsp-features |
+| Spec Studio publishes a false closed vocabulary and invents an option from constant text. The SpecTcl loader drops a supported domain when an inner list element has redundant braces. A generated venv wrapper splits a single library path containing a space into two elements. | irules-registry-tooling |
+| VM Thread pool wait accepts an invalid job ID or malformed list. Shared-variable increment misreads hex and octal. Verified with Thread 2.8.13 on C Tcl 8.6.18. | execution |
+| Public analysis skips unknown Tk options containing literal dollars or brackets in braced words and offers a W110 comparison edit past an invalid leading non-breaking space in an expression. | diagnostics, tk-oo |
+| The auto-path evaluator returns a joined path for a two-command script and reads `$a:b` as the scalar `a:b`. Both disagree with the public compiler API versus Tcl comparison. | analyser-binding |
 
 <a id="waiting-on-the-owners-approval"></a>
 
