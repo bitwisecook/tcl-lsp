@@ -60,116 +60,116 @@ pub(in crate::analyser) fn original_word_has_substitution(word: &tcl_lexer::Nati
 }
 
 impl Analyser {
-    /// **W105.** Emit "unbraced code block" warnings for body
-    /// arguments that aren't braced.
-    ///
-    /// Severity is ERROR when the unbraced body contains
-    /// substitutions (``$var`` / ``[cmd]``) — those risk double
-    /// substitution.  Severity is WARNING otherwise.  Single
-    /// barewords without substitution are silently allowed
-    /// (some commands accept a proc name as a body alternative).
+    /// Classify the selected original script word before its outer substitutions.
     pub(in crate::analyser) fn emit_w105_unbraced_body(
         &mut self,
-        cmd_name: &str,
-        body_text: &str,
-        body_tok: tcl_lexer::Token,
-        is_single_token: bool,
+        command: &str,
+        word: &tcl_lexer::NativeWord,
     ) {
-        // Already braced — `Str` token kind means the source
-        // started with ``{``.
-        if matches!(body_tok.kind, tcl_lexer::TokenType::Str) {
+        use crate::analyser::types::{CodeFix, Diagnostic, FixSafety};
+        use tcl_lexer::{ExecutablePart, WordKind};
+        use tcl_syntax::word_rules::{
+            WordValueRules, original_static_word_unicode_value, whole_braced_word,
+        };
+        let span = word.span();
+        if word.group().expand
+            || word.group().kind == WordKind::Braced
+            || self
+                .result
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W105 && d.span == span)
+        {
             return;
         }
-        // The source-schema pass and the body walk both reach a script word.
-        if self
-            .result
-            .diagnostics
+        let Ok(content) = word.content_span() else {
+            return;
+        };
+        let Some(written) = self.source.get(content.as_range()) else {
+            return;
+        };
+        let arena = word.executable_parts();
+        let parts = arena.list(arena.root());
+        if parts
             .iter()
-            .any(|diagnostic| diagnostic.code == DiagCode::W105 && diagnostic.span == body_tok.span)
+            .any(|part| matches!(part.part, ExecutablePart::ParseError(_)))
         {
             return;
         }
-        // A whole-word command-substitution body — `eval [list set y $x]`
-        // (the recommended *safe* form), `uplevel [buildScript]` — is
-        // produced dynamically and parsed once by the consumer: there is
-        // no double-substitution risk and it cannot be braced
-        // (`eval {[list …]}` changes the meaning).  (A `Var` body such as
-        // `while {$cond} $body` is *not* exempt — only a `Cmd` word is.)
-        if matches!(body_tok.kind, tcl_lexer::TokenType::Cmd)
-            || self.is_prefixed_command_substitution(body_tok)
-        {
-            return;
+        // A whole script-valued reference, or a Tk +[list ...] prefix,
+        // already supplies the script value the receiver will execute.
+        let separates =
+            |byte| word.config().word_separators.is_separator(byte) || matches!(byte, b'\n' | b';');
+        match parts {
+            [only]
+                if matches!(
+                    only.part,
+                    ExecutablePart::Variable { .. } | ExecutablePart::Command { .. }
+                ) =>
+            {
+                return;
+            }
+            [prefix, command]
+                if word.group().kind == WordKind::Bare
+                    && matches!(command.part, ExecutablePart::Command { .. })
+                    && arena
+                        .text(prefix)
+                        .is_some_and(|bytes| !bytes.iter().copied().any(separates)) =>
+            {
+                return;
+            }
+            _ => {}
         }
-        // A body that is a *single bare variable substitution* (`eval $cmd`,
-        // `proc $n $a $body`, `after 0 $coroName`, `$state(-command)`) is a
-        // script-valued reference, not an inline code block: the variable
-        // already holds the script.  Bracing it (`{$cmd}`) would turn the
-        // reference into the literal text `$cmd` — the W105 quick-fix is
-        // actively wrong here — and the genuine double-substitution (eval) /
-        // dynamic-dispatch (command name) risks are W101's and W307's to
-        // flag.  A *single-token* word whose token is a `Var` is exactly this
-        // case; a composite word (`${t}--Coro`) or quoted interpolated body
-        // (`"do $script"`) has more than one fragment and is not exempt.
-        if is_single_token && matches!(body_tok.kind, tcl_lexer::TokenType::Var) {
-            return;
-        }
-        let trimmed = body_text.trim();
-        // Textual ``$`` / ``[`` count as substitutions, and so do
-        // ``Var`` / ``Cmd`` tokens — even when the entire body is a direct
-        // substitution (``while {$cond} $body``).  Those still
-        // emit W105 at ERROR severity because an unbraced
-        // substituted body double-evaluates at runtime.
-        let has_substitution = trimmed.contains('$')
-            || trimmed.contains('[')
-            || matches!(
-                body_tok.kind,
-                tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
-            );
-        // Single bareword + no substitution is the alternative
-        // form (e.g. body = a proc name).  Skip.
-        if !trimmed.contains(char::is_whitespace) && !has_substitution {
-            return;
-        }
-        // Deliberate severity escalation (documented in the DiagCode
-        // catalogue): a provable substitution in an unbraced block is a
-        // double-substitution bug waiting to run, not just style — the
-        // W-family code stays, the severity is Error.
-        let severity = if has_substitution {
-            super::super::types::Severity::Error
-        } else {
-            super::super::types::Severity::Warning
-        };
-        let message = if has_substitution {
-            format!(
-                "Code block argument to '{cmd_name}' is not braced and \
-contains substitutions \u{2014} risk of double substitution. \
-Use braces: {{ \u{2026} }}"
+        let dynamic = original_word_has_substitution(word);
+        let (inner, severity, safety, message) = if dynamic {
+            (
+                std::borrow::Cow::Borrowed(written),
+                Severity::Error,
+                FixSafety::BehaviourHardening,
+                format!(
+                    "Code block argument to '{command}' is not braced and contains substitutions — risk of double substitution."
+                ),
             )
         } else {
-            format!(
-                "Code block argument to '{cmd_name}' should be braced \
-for clarity and to prevent accidental substitution. \
-Use braces: {{ \u{2026} }}"
+            let Some(value) = original_static_word_unicode_value(word)
+                .and_then(|value| String::from_utf8(value).ok())
+            else {
+                return;
+            };
+            if !value.bytes().any(separates) {
+                return;
+            }
+            (
+                std::borrow::Cow::Owned(value),
+                Severity::Warning,
+                FixSafety::SemanticsEquivalent,
+                format!(
+                    "Code block argument to '{command}' should be braced for clarity and to prevent accidental substitution."
+                ),
             )
         };
-        let new_text = format!("{{{body_text}}}");
-        self.result.diagnostics.push(
-            crate::analyser::types::Diagnostic::new(
-                DiagCode::W105,
-                body_tok.span,
-                message,
-                severity,
+        let replacement = format!("{{{inner}}}");
+        // The braced replacement must form one word, and a continuation in
+        // its selected dialect must preserve the intended body bytes.
+        let can_brace = whole_braced_word(&replacement).is_some_and(|text| {
+            WordValueRules::from_config(&word.config()).collapse_braced_word(text) == inner
+        });
+        let (message, fixes) = if can_brace {
+            (
+                format!("{message} Use braces: {{ … }}"),
+                vec![CodeFix {
+                    span,
+                    new_text: replacement,
+                    description: "Wrap code block in braces".to_owned(),
+                    safety,
+                }],
             )
-            .with_fixes(vec![super::super::types::CodeFix {
-                span: body_tok.span,
-                new_text,
-                description: "Wrap code block in braces".to_string(),
-                // Per-instance: bracing a substitution-free body reaches the
-                // command byte-identically; bracing one that substitutes
-                // removes a round of substitution by design.
-                safety: super::super::helpers::brace_wrap_fix_safety(trimmed, has_substitution),
-            }]),
-        );
+        } else {
+            (message, Vec::new())
+        };
+        self.result
+            .diagnostics
+            .push(Diagnostic::new(DiagCode::W105, span, message, severity).with_fixes(fixes));
     }
 
     /// W105 at the script positions the selected source schema declares.
@@ -217,61 +217,12 @@ Use braces: {{ \u{2026} }}"
         else {
             return;
         };
-        let Some((texts, tokens, single)) = original.source_arguments() else {
-            return;
-        };
-        let command = original.command().to_owned();
         let count = if concatenates { 1 } else { scripts.len() };
         for index in scripts.into_iter().take(count) {
-            let (Some(text), Some(&first), Some(&one), Some(word)) = (
-                texts.get(index),
-                tokens.get(index),
-                single.get(index),
-                original.word(index),
-            ) else {
-                continue;
-            };
-            // The whole written word, as the body walk reports it.
-            let token = tcl_lexer::Token::new(first.kind, word.span());
-            self.emit_w105_unbraced_body(&command, text, token, one);
-        }
-    }
-
-    /// A bare word that is one command substitution behind a literal,
-    /// whitespace-free prefix (`bind $w <Destroy> +[list [self] destroy]`):
-    /// the substitution builds the script once, so the prefix changes nothing
-    /// about double substitution and bracing would stop the list being built.
-    fn is_prefixed_command_substitution(&self, body_tok: tcl_lexer::Token) -> bool {
-        if body_tok.kind != tcl_lexer::TokenType::Esc {
-            return false;
-        }
-        let Ok(arena) = tcl_lexer::ExecutablePartArena::decompose(
-            tcl_lexer::SourceImage::document(&self.source),
-            body_tok.span,
-            tcl_lexer::word_parts::SubstFlags::default(),
-            self.file_lexer_config(),
-        ) else {
-            return false;
-        };
-        let mut commands = 0usize;
-        let mut ends_with_command = false;
-        for part in arena.all_parts() {
-            ends_with_command = false;
-            match part.part {
-                tcl_lexer::ExecutablePart::Command { .. } => {
-                    commands += 1;
-                    ends_with_command = true;
-                }
-                tcl_lexer::ExecutablePart::Text(_)
-                    if commands == 0
-                        && self
-                            .source
-                            .get(part.span.as_range())
-                            .is_some_and(|text| !text.contains(char::is_whitespace)) => {}
-                _ => return false,
+            if let Some(word) = original.operand(index).and_then(|operand| operand.word()) {
+                self.emit_w105_unbraced_body(original.command(), word);
             }
         }
-        commands == 1 && ends_with_command
     }
 
     /// W100 source advice at original expression words selected by the shared

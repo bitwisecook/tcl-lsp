@@ -303,6 +303,27 @@ impl Analyser {
             &body_indices,
             scope_path,
         );
+        let source_words =
+            crate::registry_invocation::source_structure::original_registry_words_for_tokens(
+                &self.source,
+                &self.result,
+                &tokens,
+            );
+        let script_count =
+            if logical_traits.contains(tcl_registry::Traits::SCRIPT_CONCATENATES_ARGS) {
+                1
+            } else {
+                body_indices.len()
+            };
+        if let Some(words) = &source_words {
+            for &written in body_indices.iter().take(script_count) {
+                if let Some(word) = body_written_effective_index(Some(words), written)
+                    .and_then(|effective| words.original_argument_word(effective))
+                {
+                    self.emit_w105_unbraced_body(cmd_name, word);
+                }
+            }
+        }
         // The `Tcl_ConcatObj` eval family: when the spec carries
         // `SCRIPT_CONCATENATES_ARGS` and words follow the first body index,
         // the script is the *concatenation* of every trailing word, not the
@@ -313,25 +334,12 @@ impl Analyser {
             first + 1 < args.len()
                 && logical_traits.contains(tcl_registry::Traits::SCRIPT_CONCATENATES_ARGS)
         }) {
-            self.dispatch_concatenated_script(
-                cmd_name,
-                args,
-                arg_tokens,
-                arg_single,
-                body_indices[0],
-                scope_path,
-            );
+            self.dispatch_concatenated_script(args, arg_tokens, body_indices[0], scope_path);
             return;
         }
         let body_scope = self.selected_body_scope(registry, &view, logical.as_ref(), args);
         let (_, entered_event, prev_event) =
             self.enter_body_event_context(cmd_name, &view, args, arg_tokens, arg_single);
-        let source_words =
-            crate::registry_invocation::source_structure::original_registry_words_for_tokens(
-                &self.source,
-                &self.result,
-                &tokens,
-            );
         let plan = self.prepare_body_clause_variables(
             source_words.as_ref(),
             generation.as_ref(),
@@ -348,15 +356,7 @@ impl Analyser {
                     logical_traits,
                 );
                 self.enter_body_depths(conditional, control_flow);
-                let is_single_token = arg_single.get(idx).copied().unwrap_or(false);
-                self.dispatch_one_body_argument(
-                    cmd_name,
-                    body_text,
-                    body_tok,
-                    is_single_token,
-                    scope_path,
-                    body_scope,
-                );
+                self.dispatch_one_body_argument(body_text, body_tok, scope_path, body_scope);
                 self.leave_body_depths(conditional, control_flow);
             }
         }
@@ -452,9 +452,8 @@ impl Analyser {
         if bodies.first().is_some_and(|&first| first + 1 < args.len())
             && traits.contains(tcl_registry::Traits::SCRIPT_CONCATENATES_ARGS)
         {
-            self.dispatch_concatenated_script(
-                command, args, arg_tokens, arg_single, bodies[0], scope_path,
-            );
+            self.emit_w105_unbraced_body(command, &metadata.original_words()[bodies[0] + 1]);
+            self.dispatch_concatenated_script(args, arg_tokens, bodies[0], scope_path);
             return;
         }
         let (valid, event, previous_event) =
@@ -482,14 +481,8 @@ impl Analyser {
                     crate::signature_scan::vendor_variable::VendorSourceVariableBodyKind::Event,
                 );
             }
-            self.dispatch_one_body_argument(
-                command,
-                &args[argument],
-                body,
-                arg_single.get(argument).copied().unwrap_or(false),
-                scope_path,
-                None,
-            );
+            self.emit_w105_unbraced_body(command, &metadata.original_words()[argument + 1]);
+            self.dispatch_one_body_argument(&args[argument], body, scope_path, None);
         }
         if conditional {
             self.conditional_depth -= 1;
@@ -725,10 +718,8 @@ impl Analyser {
     ///   written words would be a guess.
     fn dispatch_concatenated_script(
         &mut self,
-        cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
-        arg_single: &[bool],
         first: usize,
         scope_path: &[usize],
     ) {
@@ -738,16 +729,6 @@ impl Analyser {
         let Some(first_tok) = tokens.first() else {
             return;
         };
-        // W105 still belongs to the written first word (`eval set …` is an
-        // unbraced body however the tail concatenates), so fire it before the
-        // shape decision — with that word's own single-token flag, so a bare
-        // `eval $cmd arg` stays exempt exactly as `eval $cmd` is.
-        self.emit_w105_unbraced_body(
-            cmd_name,
-            &words[0],
-            *first_tok,
-            arg_single.get(first).copied().unwrap_or(false),
-        );
         let Some((script, span)) =
             super::super::utils::concat_script_window(words, tokens, &self.source)
         else {
@@ -789,7 +770,7 @@ impl Analyser {
         self.concatenated_script = outer;
     }
 
-    /// Analyse a single body-role argument: fires `W105`, walks the script
+    /// Walk a single selected body-role argument
     /// (through a scoped command environment when `body_scope` names one),
     /// and — for a bareword (unbraced) body — also dispatches it as a
     /// zero-arg command call. Split out of [`Self::dispatch_body_arguments`]
@@ -797,20 +778,15 @@ impl Analyser {
     /// always run together, once per body-role index.
     fn dispatch_one_body_argument(
         &mut self,
-        cmd_name: &str,
         body_text: &str,
         body_tok: Token,
-        is_single_token: bool,
         scope_path: &[usize],
         body_scope: Option<&'static tcl_registry::scoped::ScopedCommandEnv>,
     ) {
-        self.emit_w105_unbraced_body(cmd_name, body_text, body_tok, is_single_token);
         // A bareword body (`if {$cond} mymod::foo`, `uplevel 1
         // mymod::qux`) is a single, statically-known zero-arg command
         // call — a legitimate alternative form real Tcl accepts
-        // identically to a braced block (the exact shape
-        // `emit_w105_unbraced_body` above already exempts from its
-        // own warning). `analyse_body` below only ever recurses into
+        // identically to a braced block. `analyse_body` only recurses into
         // a `Str` (braced) body, so without this such a call is
         // invisible to `command_invocations` entirely: found by
         // hover/definition (which resolve independently off the

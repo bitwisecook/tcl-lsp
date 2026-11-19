@@ -23,17 +23,49 @@ use super::*;
 // -- W105 unbraced-body emitter
 
 #[test]
-fn analyse_emits_w105_for_unbraced_if_body_with_substitution() {
-    let mut a = Analyser::new();
-    let r = a.analyse("if {$cond} \"puts $x\"\n", "tcl");
-    let w105: Vec<_> = r
-        .diagnostics
-        .iter()
-        .filter(|d| d.code == DiagCode::W105)
-        .collect();
-    assert!(!w105.is_empty(), "expected W105, got {:?}", r.diagnostics);
-    // Substitution-bearing bodies are flagged at error severity.
-    assert!(matches!(w105[0].severity, crate::analyser::Severity::Error));
+fn w105_braces_the_complete_original_quoted_body() {
+    use crate::analyser::{FixSafety, Severity};
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+        for (body, severity, replacement) in [
+            (
+                r#""set x \$""#,
+                Severity::Warning,
+                Some(("{set x $}", FixSafety::SemanticsEquivalent)),
+            ),
+            (
+                r#""set x $who""#,
+                Severity::Error,
+                Some(("{set x $who}", FixSafety::BehaviourHardening)),
+            ),
+            (r#""set x }""#, Severity::Warning, None),
+        ] {
+            let source = format!("if {{1}} {body}");
+            let result = Analyser::new().analyse(&source, dialect);
+            let diagnostics: Vec<_> = result
+                .diagnostics
+                .iter()
+                .filter(|d| d.code == DiagCode::W105)
+                .collect();
+            let [diagnostic] = diagnostics.as_slice() else {
+                panic!("{dialect} {body}: {diagnostics:?}");
+            };
+            assert_eq!(&source[diagnostic.span.as_range()], body);
+            assert_eq!(diagnostic.severity, severity);
+            let fixes: Vec<_> = diagnostic
+                .fixes
+                .iter()
+                .map(|fix| {
+                    assert_eq!(fix.span, diagnostic.span);
+                    (fix.new_text.as_str(), fix.safety)
+                })
+                .collect();
+            assert_eq!(
+                fixes,
+                replacement.into_iter().collect::<Vec<_>>(),
+                "{dialect} {body}"
+            );
+        }
+    }
 }
 
 #[test]
