@@ -150,6 +150,102 @@ impl ScanSpecError {
 /// Returns a [`ScanSpecError`] for a width on `%c`, a wide size modifier on
 /// `%c`/`%n`/`%s`/`%[`, an unterminated `%[`, or an unknown verb.
 pub fn parse_conversion(fmt: &[char], i: &mut usize) -> Result<ScanConversion, ScanSpecError> {
+    parse_conversion_with_offsets(fmt, i, &mut ConversionOffsets::default(), false)
+}
+
+#[derive(Default)]
+struct ConversionOffsets {
+    width_start: usize,
+    size_start: usize,
+    verb_start: usize,
+}
+
+/// Byte extents in a scan format *value*, before any mapping to a source word.
+#[derive(Debug, PartialEq, Eq)]
+pub struct ConversionSpan {
+    /// The introducing percent sign.
+    pub percent: std::ops::Range<usize>,
+    /// The `*` or `n$` after the percent, if present.
+    pub assignment: std::ops::Range<usize>,
+    /// The decimal width and size modifier, each empty when absent.
+    pub width: std::ops::Range<usize>,
+    /// The modifier as written, distinguishing `l` from `ll`.
+    pub size: std::ops::Range<usize>,
+    /// The verb, including the full bracket expression for a scanset.
+    pub conversion: std::ops::Range<usize>,
+    /// The parsed conversion and its operand-consuming behaviour.
+    pub spec: ScanConversion,
+}
+
+/// Read value-bearing directives up to the first invalid or unproved conversion.
+/// Literal `%%` consumes its two bytes without introducing a field. This is
+/// per-directive syntax; positional agreement and variable arity belong to the call.
+#[must_use]
+pub fn conversion_spans(value: &str, profile: &tcl_dialect::DialectProfile) -> Vec<ConversionSpan> {
+    use tcl_dialect::{TclVersion, model::Family};
+    let version = profile.runtime_version();
+    let jim = profile.runtime_core_family() == Some(Family::Jim);
+    // Counted and NUL-terminated template readers can diverge after this point.
+    let value = value.split_once('\0').map_or(value, |(prefix, _)| prefix);
+    let (mut offsets, chars): (Vec<_>, Vec<_>) = value.char_indices().unzip();
+    offsets.push(value.len());
+    let mut fields = Vec::new();
+    let mut at = 0;
+    while let Some(&ch) = chars.get(at) {
+        let start = at;
+        at += 1;
+        if ch != '%' {
+            continue;
+        }
+        let mut parts = ConversionOffsets::default();
+        let Ok(spec) = parse_conversion_with_offsets(&chars, &mut at, &mut parts, jim) else {
+            break;
+        };
+        if spec.verb == '%' {
+            continue;
+        }
+        let size = offsets[parts.size_start]..offsets[parts.verb_start];
+        let admitted = match &value[size.clone()] {
+            "j" | "q" | "z" | "t" => version >= Some(TclVersion::V9_0),
+            "ll" => {
+                version >= Some(TclVersion::V8_5)
+                    && (spec.verb != 'u' || version >= Some(TclVersion::V9_0))
+            }
+            "l" | "L" if spec.verb == 'u' => version.is_some(),
+            "h" if spec.verb == '[' => version.is_some(),
+            _ => true,
+        } && match spec.verb {
+            'b' => version >= Some(TclVersion::V8_6),
+            'E' | 'G' | 'X' => version >= Some(TclVersion::V8_5),
+            _ => true,
+        };
+        if !admitted
+            || spec.xpg_index == Some(0)
+            || spec.width.is_some_and(|w| {
+                w >= i32::MAX as usize && version < Some(TclVersion::V9_0)
+                    || w >= isize::MAX as usize
+            })
+        {
+            break;
+        }
+        fields.push(ConversionSpan {
+            percent: offsets[start]..offsets[start + 1],
+            assignment: offsets[start + 1]..offsets[parts.width_start],
+            width: offsets[parts.width_start]..offsets[parts.size_start],
+            size,
+            conversion: offsets[parts.verb_start]..offsets[at],
+            spec,
+        });
+    }
+    fields
+}
+
+fn parse_conversion_with_offsets(
+    fmt: &[char],
+    i: &mut usize,
+    offsets: &mut ConversionOffsets,
+    jim: bool,
+) -> Result<ScanConversion, ScanSpecError> {
     let flen = fmt.len();
     let peek = |k: usize| if k < flen { fmt[k] } else { '\0' };
 
@@ -182,6 +278,7 @@ pub fn parse_conversion(fmt: &[char], i: &mut usize) -> Result<ScanConversion, S
         }
     }
 
+    offsets.width_start = *i;
     // Width.
     let width = if peek(*i).is_ascii_digit() {
         let (val, end) = decimal(fmt, *i);
@@ -191,6 +288,7 @@ pub fn parse_conversion(fmt: &[char], i: &mut usize) -> Result<ScanConversion, S
         None
     };
 
+    offsets.size_start = *i;
     // Size modifier (`hh` is not accepted; a second `h` falls to the verb).
     let size = match peek(*i) {
         'z' | 't' | 'j' | 'q' => {
@@ -216,7 +314,8 @@ pub fn parse_conversion(fmt: &[char], i: &mut usize) -> Result<ScanConversion, S
         }
         _ => None,
     };
-    let wide = size.is_some_and(SizeModifier::is_wide);
+    offsets.verb_start = *i;
+    let wide = !jim && size.is_some_and(SizeModifier::is_wide);
 
     let verb = peek(*i);
     let conv = |charset| ScanConversion {
@@ -229,7 +328,7 @@ pub fn parse_conversion(fmt: &[char], i: &mut usize) -> Result<ScanConversion, S
     };
     match verb {
         'c' => {
-            if width.is_some() {
+            if width.is_some_and(|w| !jim || w != 0) {
                 return Err(ScanSpecError::WidthOnChar);
             }
             if wide {
@@ -250,7 +349,7 @@ pub fn parse_conversion(fmt: &[char], i: &mut usize) -> Result<ScanConversion, S
             Ok(conv(None))
         }
         '[' => {
-            if wide {
+            if wide || (jim && size.is_some()) {
                 return Err(ScanSpecError::SizeModifier('['));
             }
             *i += 1; // past `[`
@@ -343,4 +442,55 @@ pub fn version_gated_uses(fmt: &str) -> Vec<(usize, &'static str, tcl_dialect::T
         }
     }
     uses
+}
+
+#[cfg(test)]
+mod spans_tests {
+    use super::*;
+
+    #[test]
+    fn scan_spans_retain_the_selected_grammar_and_original_byte_offsets() {
+        use tcl_dialect::model::{DialectPoint, Release};
+        let jim = tcl_dialect::DialectProfile::projected_from_point(
+            "jim",
+            &[],
+            "Jim",
+            DialectPoint::canonical(Release::JIM_0_84),
+        );
+        let source = "é%%d %*3d %1$hx %[a-z] %n";
+        for (name, uppercase, binary, extended) in [
+            ("tcl8.4", false, false, false),
+            ("tcl8.5", true, false, false),
+            ("tcl8.6", true, true, false),
+            ("tcl9.0", true, true, true),
+            ("tcl9.1", true, true, true),
+            ("jim", false, false, false),
+        ] {
+            let profile = if name == "jim" {
+                &jim
+            } else {
+                tcl_dialect::DialectProfile::find(name).unwrap()
+            };
+            let fields = conversion_spans(source, profile);
+            assert_eq!(fields.len(), 4, "{name}");
+            assert_eq!(&source[fields[0].assignment.clone()], "*");
+            assert_eq!(&source[fields[0].width.clone()], "3");
+            assert_eq!(&source[fields[1].assignment.clone()], "1$");
+            assert_eq!(&source[fields[1].size.clone()], "h");
+            assert_eq!(&source[fields[2].conversion.clone()], "[a-z]");
+            assert_eq!(fields[3].spec.verb, 'n');
+            for (template, accepted) in [
+                ("%E", uppercase),
+                ("%b", binary),
+                ("%jd", extended),
+                ("%#d", false),
+            ] {
+                assert_eq!(
+                    !conversion_spans(template, profile).is_empty(),
+                    accepted,
+                    "{name} {template}"
+                );
+            }
+        }
+    }
 }
