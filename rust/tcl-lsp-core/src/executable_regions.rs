@@ -30,7 +30,7 @@ use tcl_compiler::lambda_literal::{split_lambda_literal, split_original_lambda_l
 use tcl_compiler::realm::CommandBindingRealm;
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_dialect::model::SurfaceQuery;
-use tcl_lexer::{Lexer, LexerConfig, SourceMap, Token, TokenType, close_quote_offset};
+use tcl_lexer::{Lexer, LexerConfig, SourceMap, Token, TokenType, close_quote_offset_in};
 use tcl_registry::definer::DefinitionBodyGrammar;
 use tcl_registry::{ArgRole, CommandRegistry, ScriptTiming};
 
@@ -450,7 +450,7 @@ impl<F: FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool>
                     .copied()
                     .unwrap_or(false);
                 if let Some((body_start, body_end)) =
-                    literal_body_region(self.source, token, single_token)
+                    literal_body_region(self.source, token, single_token, self.config)
                     && self.region(
                         body_start,
                         body_end,
@@ -749,10 +749,15 @@ fn case_action_region(source: &str, token: Token) -> Option<(usize, usize)> {
 /// (`"puts $value"`, `"[build]"`) have multiple lexer fragments and are
 /// deliberately withheld: reparsing their written source would invent a body
 /// that does not exist until the enclosing command performs substitution.
-fn literal_body_region(source: &str, token: Token, single_token: bool) -> Option<(usize, usize)> {
+fn literal_body_region(
+    source: &str,
+    token: Token,
+    single_token: bool,
+    config: LexerConfig,
+) -> Option<(usize, usize)> {
     match token.kind {
         TokenType::Str => braced_body_region(source, token),
-        TokenType::Esc if single_token => quoted_literal_body_region(source, token),
+        TokenType::Esc if single_token => quoted_literal_body_region(source, token, config),
         _ => None,
     }
 }
@@ -774,7 +779,11 @@ fn braced_body_region(source: &str, token: Token) -> Option<(usize, usize)> {
 }
 
 /// Return a substitution-free quoted body's verbatim content.
-fn quoted_literal_body_region(source: &str, token: Token) -> Option<(usize, usize)> {
+fn quoted_literal_body_region(
+    source: &str,
+    token: Token,
+    config: LexerConfig,
+) -> Option<(usize, usize)> {
     if token.kind != TokenType::Esc || token.content_offset != 1 {
         return None;
     }
@@ -790,7 +799,7 @@ fn quoted_literal_body_region(source: &str, token: Token) -> Option<(usize, usiz
     // and nested command substitutions). An unterminated opening token runs
     // through EOF, which is also the provisional inner end signature help
     // needs while the closing quote is still being typed.
-    let end = close_quote_offset(source, raw_start)
+    let end = close_quote_offset_in(source, raw_start, config)
         .map_or_else(|| (raw_end == source.len()).then_some(raw_end), Some)?;
     let content = source.get(start..end)?;
     (!content.as_bytes().contains(&b'\\')).then_some((start, end))

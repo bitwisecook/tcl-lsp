@@ -148,8 +148,6 @@ use tcl_compiler::ssa::Version;
 use tcl_compiler::taint::TaintLattice;
 #[cfg(test)]
 use tcl_lexer::TokenType;
-#[cfg(test)]
-use tcl_lexer::close_quote_offset;
 use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token};
 use tcl_registry::CommandRegistry;
 #[cfg(test)]

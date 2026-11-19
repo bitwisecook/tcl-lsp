@@ -303,8 +303,10 @@ impl SourceExpressionOperand {
         let mut context = tcl_registry::InvocationDialect::of_profile(input.unit_profile())
             .expression_parse_context(Some(input.unit_profile()));
         context.lexer_grammar = config.grammar_over(context.lexer_grammar);
-        let content = source.get(self.content_span()?.as_range())?;
-        tcl_syntax::expr::substitution::OriginalSourceExpression::capture(content, &context, config)
+        let expression = source.get(self.content_span()?.as_range())?;
+        tcl_syntax::expr::substitution::OriginalSourceExpression::capture(
+            expression, &context, config,
+        )
     }
 
     pub(crate) fn content_span(&self) -> Option<tcl_lexer::Span> {

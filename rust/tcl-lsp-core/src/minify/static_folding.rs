@@ -27,8 +27,6 @@ use super::TaintLattice;
 #[cfg(test)]
 use super::Version;
 #[cfg(test)]
-use super::close_quote_offset;
-#[cfg(test)]
 use super::command_rendering::utf8_len;
 use super::{apply_edits, original};
 use std::collections::BTreeMap;
@@ -42,6 +40,8 @@ use tcl_compiler::taint::TaintColour;
 use tcl_lexer::LexerConfig;
 #[cfg(test)]
 use tcl_lexer::Span;
+#[cfg(test)]
+use tcl_lexer::close_quote_offset_in;
 use tcl_registry::CommandRegistry;
 
 // Static-substring folding: the aggressive tier's pass between the
@@ -311,7 +311,7 @@ fn collect_folds_for_scope(
                             if has_unsafe_tainted_inputs(content, &uses, &fu.taints, view, style) {
                                 continue;
                             }
-                            if let Some(close) = close_quote_offset(source, arg_off)
+                            if let Some(close) = close_quote_offset_in(source, arg_off, cx.config)
                                 && let Some(replacement) =
                                     tcl_syntax::word_rules::lexical_unicode_source_word(
                                         &folded, cx.config,
@@ -360,7 +360,7 @@ fn try_fold_region(
         return;
     };
     let abs_start = start + q;
-    let Some(close) = close_quote_offset(source, abs_start) else {
+    let Some(close) = close_quote_offset_in(source, abs_start, cx.config) else {
         return;
     };
     let inner = &source[abs_start + 1..close];
