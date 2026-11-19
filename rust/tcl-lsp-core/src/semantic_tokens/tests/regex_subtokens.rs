@@ -93,9 +93,10 @@ fn regex_pattern_with_substitution_splits_regex_and_tcl() {
         "expected $var as a variable; got {toks:?}"
     );
     assert!(
-        toks.iter()
+        !toks
+            .iter()
             .any(|(_, _, _, k, _)| *k == TokenKind::RegexpQuantifier as u32),
-        "expected the `*` quantifier from the literal part; got {toks:?}"
+        "a substituted value can open a bracket expression around the star: {toks:?}"
     );
     // No overlaps.
     let simple = decode("regexp \"abc$var.*\" $s\n", tcl(), &reg());
@@ -323,22 +324,6 @@ fn regex_alternation_and_escape_subtokens() {
 }
 
 #[test]
-fn scan_are_class_spans_posix_collating_equivalence_subbrackets() {
-    // `[[:alpha:]]` is one bracket expression (the inner `[:alpha:]` is a
-    // POSIX class whose `]` does not close the outer bracket) — the scanner
-    // must span the whole thing, not stop at the first `]`.
-    assert_eq!(scan_are_class(b"[[:alpha:]]", 0), Some(11));
-    assert_eq!(scan_are_class(b"[[:digit:]xyz]", 0), Some(14));
-    assert_eq!(scan_are_class(b"[[.ch.]]", 0), Some(8));
-    assert_eq!(scan_are_class(b"[[=a=]]", 0), Some(7));
-    // A plain class is unaffected; a leading literal `]` still works.
-    assert_eq!(scan_are_class(b"[a-z]", 0), Some(5));
-    assert_eq!(scan_are_class(b"[]a]", 0), Some(4));
-    // An unterminated sub-bracket is not a token.
-    assert_eq!(scan_are_class(b"[[:alpha", 0), None);
-}
-
-#[test]
 fn regex_posix_class_has_no_dangling_bracket_token() {
     // Without the sub-bracket rule `[[:alpha:]]+` scans as `[[:alpha:]`
     // (char class) + a stray literal `]` + `+`. The whole `[[:alpha:]]` is
@@ -381,28 +366,6 @@ fn regex_without_metachars_stays_single_regexp() {
 }
 
 #[test]
-fn classify_regex_component_maps_each_kind() {
-    assert_eq!(classify_regex_component("("), TokenKind::RegexpGroup);
-    assert_eq!(classify_regex_component("(?:"), TokenKind::RegexpGroup);
-    assert_eq!(
-        classify_regex_component("[a-z]"),
-        TokenKind::RegexpCharClass
-    );
-    assert_eq!(classify_regex_component("\\d"), TokenKind::RegexpCharClass);
-    assert_eq!(classify_regex_component("."), TokenKind::RegexpCharClass);
-    assert_eq!(classify_regex_component("+"), TokenKind::RegexpQuantifier);
-    assert_eq!(
-        classify_regex_component("{2,3}"),
-        TokenKind::RegexpQuantifier
-    );
-    assert_eq!(classify_regex_component("^"), TokenKind::RegexpAnchor);
-    assert_eq!(classify_regex_component("\\b"), TokenKind::RegexpAnchor);
-    assert_eq!(classify_regex_component("\\n"), TokenKind::RegexpEscape);
-    assert_eq!(classify_regex_component("\\3"), TokenKind::RegexpBackref);
-    assert_eq!(classify_regex_component("|"), TokenKind::RegexpAlternation);
-}
-
-#[test]
 fn regsub_replacement_backref_subtokens() {
     // Each Tcl oracle substitutes the first two references in {\1-&-\&-\\1}.
     let ks = kinds(r"regsub {(a)} a {\1-&-\&-\\1} out", tcl(), &reg());
@@ -426,4 +389,28 @@ fn regsub_replacement_backref_subtokens() {
 fn regsub_replacement_without_backrefs_stays_string() {
     let ks = kinds("regsub {a} $s {plain} out\n", tcl(), &reg());
     assert!(!ks.contains(&(TokenKind::Operator as u32)), "{ks:?}");
+}
+
+#[test]
+fn native_regex_subtokens_distinguish_backspace_backrefs_and_literal_mode() {
+    let registry = reg();
+    let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+    let escape = kinds("regexp {é(a)\\1\\b} subject", profile, &registry);
+    assert!(
+        escape.contains(&(TokenKind::RegexpBackref as u32)),
+        "{escape:?}"
+    );
+    assert!(
+        escape.contains(&(TokenKind::RegexpEscape as u32)),
+        "{escape:?}"
+    );
+    assert!(
+        !escape.contains(&(TokenKind::RegexpAnchor as u32)),
+        "{escape:?}"
+    );
+    let literal = kinds("regexp {***=a.*} subject", profile, &registry);
+    assert!(
+        !literal.contains(&(TokenKind::RegexpQuantifier as u32)),
+        "{literal:?}"
+    );
 }

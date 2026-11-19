@@ -1594,7 +1594,10 @@ fn collect_source_parameter_fields(
 
 /// The complete written word that starts at `tok`, lexed on its own from the
 /// document. Display only: it carries no command, value or name receipt.
-fn written_word(ctx: ScriptCtx<'_>, tok: tcl_lexer::Token) -> Option<tcl_lexer::NativeWord> {
+pub(super) fn written_word(
+    ctx: ScriptCtx<'_>,
+    tok: tcl_lexer::Token,
+) -> Option<tcl_lexer::NativeWord> {
     let plan = tcl_lexer::native_script_words_in(
         SourceImage::document(ctx.full_source),
         tcl_lexer::word_span_at(ctx.full_source, tok.span),

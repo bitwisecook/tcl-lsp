@@ -228,7 +228,7 @@ fn push_case_pattern(
             entries,
         );
     } else if regexp {
-        if !push_regex_subtokens(line_index, full_source, pat_tok, entries) {
+        if !push_regex_subtokens(ctx, pat_tok, entries) {
             push_token(
                 line_index,
                 full_source,

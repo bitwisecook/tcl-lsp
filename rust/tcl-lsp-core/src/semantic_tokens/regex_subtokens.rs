@@ -30,6 +30,7 @@ pub(super) fn push_template_subtokens(
     source: &str,
     tok: Token,
     parts: &[(std::ops::Range<usize>, TokenKind)],
+    literal: TokenKind,
     entries: &mut Vec<Entry>,
 ) -> bool {
     let Some((cstart, inner)) = subspec_content(source, tok) else {
@@ -42,7 +43,7 @@ pub(super) fn push_template_subtokens(
             continue;
         }
         let start = span.start - cstart;
-        flush_run(pos, cstart, inner, run, start, TokenKind::String, entries);
+        flush_run(pos, cstart, inner, run, start, literal, entries);
         push_subtoken(
             source,
             line_index,
@@ -56,15 +57,7 @@ pub(super) fn push_template_subtokens(
     if run == 0 {
         return false;
     }
-    flush_run(
-        pos,
-        cstart,
-        inner,
-        run,
-        inner.len(),
-        TokenKind::String,
-        entries,
-    );
+    flush_run(pos, cstart, inner, run, inner.len(), literal, entries);
     true
 }
 
@@ -80,6 +73,20 @@ pub(super) fn mark_literal_fragments(
     ov: &ArgOverride,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
+    let coarse = ArgOverride::TemplateParts(TokenKind::Regexp, Vec::new());
+    let ov = if matches!(ov, ArgOverride::RegexPattern)
+        && !seg
+            .argv
+            .iter()
+            .zip(&seg.single_token_word)
+            .any(|(word, single)| word.span.start() == word_span.start() && *single)
+    {
+        // A missing fragment can turn later punctuation into class members,
+        // a comment or literal text. Preserve only the known pattern role.
+        &coarse
+    } else {
+        ov
+    };
     for t in &seg.all_tokens {
         if t.span.start() >= word_span.start()
             && t.span.end() <= word_span.end()
@@ -87,6 +94,13 @@ pub(super) fn mark_literal_fragments(
         {
             overrides
                 .entry(t.span.start())
+                .and_modify(|current| {
+                    if matches!(current, ArgOverride::RegexPattern)
+                        && matches!(ov, ArgOverride::TemplateParts(TokenKind::Regexp, _))
+                    {
+                        current.clone_from(ov);
+                    }
+                })
                 .or_insert_with(|| ov.clone());
         }
     }
@@ -112,269 +126,77 @@ pub(super) fn mark_regex_source_words(
     }
 }
 
-/// Sub-tokenise a regex pattern token into ARE components (groups,
-/// character classes, quantifiers, anchors, escapes, backreferences,
-/// alternation), with the literal runs between them classified as
-/// `regexp`.  Returns `false` (emitting nothing) when the token isn't a
-/// braced/quoted literal or contains no metacharacters — the caller then
-/// falls back to a single `regexp` token.
+/// First-paint or definition-site display. Only a complete configured word
+/// can supply regex components. Substituted words retain their Tcl tokens.
 pub(super) fn push_regex_subtokens(
-    line_index: &LineIndex,
-    source: &str,
+    ctx: super::ScriptCtx<'_>,
     tok: Token,
     entries: &mut Vec<Entry>,
 ) -> bool {
-    let Some((cstart, inner)) = subspec_content(source, tok) else {
+    let Some(word) = super::original::written_word(ctx, tok) else {
         return false;
     };
-    let bytes = inner.as_bytes();
-    let pos_ctx = TokenPositionContext { source, line_index };
-    let mut matched_any = false;
-    let mut pos = 0usize;
-    let mut i = 0usize;
-    while i < bytes.len() {
-        if let Some(end) = scan_are_token(bytes, i) {
-            flush_run(pos_ctx, cstart, inner, pos, i, TokenKind::Regexp, entries);
-            let kind = classify_regex_component(&inner[i..end]);
-            push_subtoken(
-                source,
-                line_index,
-                cstart + i,
-                &inner[i..end],
-                kind,
-                entries,
-            );
-            matched_any = true;
-            i = end;
-            pos = i;
-        } else {
-            i += 1;
-        }
-    }
-    if !matched_any {
+    let Some(value) = tcl_syntax::word_rules::original_static_word_ascii_presentation(&word) else {
         return false;
-    }
-    if pos < inner.len() {
-        push_subtoken(
-            source,
-            line_index,
-            cstart + pos,
-            &inner[pos..],
-            TokenKind::Regexp,
-            entries,
-        );
-    }
-    true
+    };
+    let Ok(text) = std::str::from_utf8(&value) else {
+        return false;
+    };
+    let flags = ctx
+        .original_words
+        .and_then(|words| {
+            words.with_source_schema(ctx.generation, crate::pattern_components::source_flags)
+        })
+        .flatten();
+    let Some(roles) = crate::pattern_components::components(text, ctx.dialect, flags) else {
+        return false;
+    };
+    let spans = original_component_spans(roles, |offset| {
+        usize::try_from(
+            tcl_syntax::word_rules::original_static_word_ascii_source_offset(&word, offset)?,
+        )
+        .ok()
+    });
+    push_template_subtokens(
+        ctx.line_index,
+        ctx.full_source,
+        tok,
+        &spans,
+        TokenKind::Regexp,
+        entries,
+    )
 }
 
-/// Recognise one ARE metacharacter construct starting at `b[i]`,
-/// returning its exclusive end, or `None` when `b[i]` is a literal
-/// character.
-fn scan_are_token(b: &[u8], i: usize) -> Option<usize> {
-    let len = b.len();
-    match b[i] {
-        b'(' => {
-            if b.get(i + 1) != Some(&b'?') {
-                return Some(i + 1); // group open
-            }
-            // non-capturing / lookaround open: `(?:` `(?=` `(?!` `(?>`
-            if let Some(b':' | b'=' | b'!' | b'>') = b.get(i + 2) {
-                return Some(i + 3);
-            }
-            // embedded flags `(?imsx-imsx)`
-            let mut j = i + 2;
-            while j < len
-                && matches!(
-                    b[j],
-                    b'i' | b'm' | b'n' | b's' | b'x' | b'w' | b'p' | b'q' | b'-'
-                )
-            {
-                j += 1;
-            }
-            // Closed flag group → the whole `(?…)`; else just `(`.
-            if b.get(j) == Some(&b')') {
-                Some(j + 1)
-            } else {
-                Some(i + 1)
-            }
-        }
-        b')' | b'|' | b'^' | b'$' | b'.' => Some(i + 1),
-        b'*' | b'+' | b'?' => Some(if b.get(i + 1) == Some(&b'?') {
-            i + 2
-        } else {
-            i + 1
-        }),
-        b'[' => scan_are_class(b, i),
-        b'{' => scan_are_brace_quant(b, i),
-        b'\\' if i + 1 < len => scan_are_escape(b, i),
-        _ => None,
-    }
+/// Preserve each independently mapped component. A decoded value may have no
+/// contiguous source spelling for an interior boundary.
+pub(super) fn original_component_spans(
+    roles: Vec<tcl_regex::PatternComponent>,
+    mut offset: impl FnMut(usize) -> Option<usize>,
+) -> Vec<(std::ops::Range<usize>, TokenKind)> {
+    roles
+        .into_iter()
+        .filter_map(|item| {
+            let range = offset(item.range.start)?..offset(item.range.end)?;
+            (!range.is_empty()).then(|| (range, component_kind(item.role)))
+        })
+        .collect()
 }
 
-/// Scan a bracket expression `[…]` starting at `b[i] == '['`.
-///
-/// `[` optional `^` optional leading `]`, then members up to the closing `]`.
-/// A member is a `\`-escape (ARE recognises backslash escapes inside brackets,
-/// e.g. `[\d]`), or a POSIX / collating / equivalence **sub-bracket**
-/// (`[:alpha:]`, `[.ch.]`, `[=a=]`) whose internal `]` does **not** close the
-/// outer bracket — so `[[:alpha:]]` scans as one char class, matching the ARE
-/// engine (and C Tcl), not `[[:alpha:]` + a dangling `]`.
-pub(super) fn scan_are_class(b: &[u8], i: usize) -> Option<usize> {
-    let len = b.len();
-    let mut j = i + 1;
-    if b.get(j) == Some(&b'^') {
-        j += 1;
-    }
-    // A `]` immediately after `[` / `[^` is a literal member, not the close.
-    if b.get(j) == Some(&b']') {
-        j += 1;
-    }
-    while j < len && b[j] != b']' {
-        if b[j] == b'[' && matches!(b.get(j + 1), Some(b':' | b'.' | b'=')) {
-            // Sub-bracket `[X … X]` (X ∈ `:.=`): skip to the matching `X]`.
-            let delim = b[j + 1];
-            let mut k = j + 2;
-            while k + 1 < len && !(b[k] == delim && b[k + 1] == b']') {
-                k += 1;
-            }
-            if k + 1 < len {
-                j = k + 2; // past the closing `X]`
-            } else {
-                return None; // unterminated sub-bracket → not a token
-            }
-        } else if b[j] == b'\\' && j + 1 < len {
-            j += 2;
-        } else {
-            j += 1;
-        }
-    }
-    (j < len).then_some(j + 1) // unterminated class → not a token
-}
-
-/// Scan a brace quantifier `{n}` / `{n,}` / `{n,m}` at `b[i] == '{'`.
-fn scan_are_brace_quant(b: &[u8], i: usize) -> Option<usize> {
-    let len = b.len();
-    let mut j = i + 1;
-    let digits = j;
-    while j < len && b[j].is_ascii_digit() {
-        j += 1;
-    }
-    if j == digits {
-        return None;
-    }
-    if b.get(j) == Some(&b',') {
-        j += 1;
-        while j < len && b[j].is_ascii_digit() {
-            j += 1;
-        }
-    }
-    (b.get(j) == Some(&b'}')).then_some(j + 1)
-}
-
-/// Scan a backslash escape at `b[i] == '\\'` (caller guarantees `i + 1`
-/// is in bounds): a two-char class/anchor/backref/escaped-metachar, or a
-/// `\xHH` / `\uHHHH` / `\UHHHHHHHH` hex escape.
-fn scan_are_escape(b: &[u8], i: usize) -> Option<usize> {
-    let len = b.len();
-    let esc = b[i + 1];
-    match esc {
-        // class shortcuts / anchors / backref / escaped metachar /
-        // escape sequence — all two characters.
-        b'A'
-        | b'b'
-        | b'B'
-        | b'd'
-        | b'D'
-        | b'm'
-        | b'M'
-        | b's'
-        | b'S'
-        | b'w'
-        | b'W'
-        | b'y'
-        | b'Y'
-        | b'z'
-        | b'Z'
-        | b'0'..=b'9'
-        | b'a'
-        | b'e'
-        | b'f'
-        | b'n'
-        | b'r'
-        | b't'
-        | b'v'
-        | b'.'
-        | b'*'
-        | b'+'
-        | b'?'
-        | b'('
-        | b')'
-        | b'{'
-        | b'}'
-        | b'['
-        | b']'
-        | b'|'
-        | b'^'
-        | b'$'
-        | b'\\' => Some(i + 2),
-        // `\xHH` (1-2 hex), `\uHHHH` (1-4), `\UHHHHHHHH` (1-8).
-        b'x' | b'u' | b'U' => {
-            let max = match esc {
-                b'x' => 2,
-                b'u' => 4,
-                _ => 8,
-            };
-            let mut j = i + 2;
-            while j < len && j < i + 2 + max && b[j].is_ascii_hexdigit() {
-                j += 1;
-            }
-            // Requires at least one hex digit, else not a token.
-            (j > i + 2).then_some(j)
-        }
-        _ => None, // `\` before an unrecognised char → literal
-    }
-}
-
-/// Classify a single ARE metacharacter run.
-pub(super) fn classify_regex_component(matched: &str) -> TokenKind {
-    let bytes = matched.as_bytes();
-    if matched.starts_with('[') {
-        return TokenKind::RegexpCharClass;
-    }
-    if matched.starts_with('\\') && bytes.len() >= 2 {
-        let ch = bytes[1];
-        return if ch.is_ascii_digit() {
-            TokenKind::RegexpBackref
-        } else if matches!(
-            ch,
-            b'a' | b'e' | b'f' | b'n' | b'r' | b't' | b'v' | b'x' | b'u' | b'U'
-        ) {
-            TokenKind::RegexpEscape
-        } else if matches!(ch, b'd' | b'D' | b's' | b'S' | b'w' | b'W') {
-            TokenKind::RegexpCharClass
-        } else if matches!(
-            ch,
-            b'b' | b'B' | b'm' | b'M' | b'y' | b'Y' | b'A' | b'z' | b'Z'
-        ) {
-            TokenKind::RegexpAnchor
-        } else {
-            TokenKind::RegexpEscape
-        };
-    }
-    // registry-axis-ok: irreducible — ARE (`regexp`/`regsub` pattern-string)
-    // metacharacters, not Tcl command syntax; `|`/`^`/`$` coincide with
-    // `::tcl::mathop` operator spellings the same way `eq`/`ne`/`-` do
-    // elsewhere in the tree (see the irreducible waivers on those); until
-    // never
-    match matched {
-        "^" | "$" => TokenKind::RegexpAnchor,
-        "|" => TokenKind::RegexpAlternation,
-        "." => TokenKind::RegexpCharClass,
-        // A group's *closer* is as much a group delimiter as its opener —
-        // falling through to the quantifier catch-all below would paint every
-        // `)` in the quantifier colour.
-        ")" => TokenKind::RegexpGroup,
-        _ if matched.starts_with('(') => TokenKind::RegexpGroup,
-        _ => TokenKind::RegexpQuantifier,
+fn component_kind(role: tcl_regex::PatternRole) -> TokenKind {
+    use tcl_regex::PatternRole as Role;
+    match role {
+        Role::Options
+        | Role::CaptureOpen
+        | Role::NoncaptureOpen
+        | Role::PositiveLookahead
+        | Role::NegativeLookahead
+        | Role::GroupClose => TokenKind::RegexpGroup,
+        Role::Comment => TokenKind::Comment,
+        Role::Anchor => TokenKind::RegexpAnchor,
+        Role::CharacterClass => TokenKind::RegexpCharClass,
+        Role::Alternation => TokenKind::RegexpAlternation,
+        Role::Quantifier => TokenKind::RegexpQuantifier,
+        Role::Escape => TokenKind::RegexpEscape,
+        Role::Backreference => TokenKind::RegexpBackref,
     }
 }

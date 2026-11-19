@@ -44,7 +44,7 @@ pub(in crate::semantic_tokens) fn insert_format_overrides(
                         let Some(parts) = template_subtoken_spans(ctx, words, found) else {
                             continue;
                         };
-                        ArgOverride::TemplateParts(parts)
+                        ArgOverride::TemplateParts(TokenKind::String, parts)
                     }
                     tcl_registry::FormatType::Sprintf => ArgOverride::SprintfFormat,
                     tcl_registry::FormatType::Clock => ArgOverride::ClockFormat,
@@ -53,7 +53,7 @@ pub(in crate::semantic_tokens) fn insert_format_overrides(
                         let Some(captures) = template_subtoken_spans(ctx, words, found) else {
                             continue;
                         };
-                        ArgOverride::TemplateParts(captures)
+                        ArgOverride::TemplateParts(TokenKind::String, captures)
                     }
                 };
                 mark_literal_fragments(command, token.span, &kind, overrides);
@@ -134,7 +134,34 @@ pub(in crate::semantic_tokens) fn insert_pattern_overrides(
                 && let Some(token) =
                     original_argument_token(command, words, usize::from(pattern.index))
             {
-                mark_literal_fragments(command, token.span, &ArgOverride::RegexPattern, overrides);
+                let index = usize::from(pattern.index);
+                let mapped = ctx
+                    .analysis
+                    .and_then(|analysis| analysis.resolved_input.as_ref())
+                    .and_then(|input| {
+                        crate::format_template::FormatOperand::capture(words, input, index)
+                    })
+                    .and_then(|operand| {
+                        let template = crate::format_template::FormatTemplate::from_operand(
+                            ctx.full_source,
+                            &operand,
+                        )?;
+                        let roles = crate::pattern_components::components(
+                            &template.content,
+                            ctx.dialect,
+                            crate::pattern_components::source_flags(schema),
+                        )?;
+                        Some(
+                            crate::semantic_tokens::regex_subtokens::original_component_spans(
+                                roles,
+                                |offset| template.original_offset(offset),
+                            ),
+                        )
+                    });
+                let kind = mapped.map_or(ArgOverride::RegexPattern, |parts| {
+                    ArgOverride::TemplateParts(TokenKind::Regexp, parts)
+                });
+                mark_literal_fragments(command, token.span, &kind, overrides);
             }
         }
     });

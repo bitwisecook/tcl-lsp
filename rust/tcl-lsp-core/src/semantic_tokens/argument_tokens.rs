@@ -51,6 +51,29 @@ fn verbatim_token_kind(ov: &ArgOverride) -> Option<(TokenKind, u32)> {
     }
 }
 
+fn emit_template_parts(
+    ctx: ScriptCtx<'_>,
+    tok: Token,
+    literal: TokenKind,
+    parts: &[(std::ops::Range<usize>, TokenKind)],
+    entries: &mut Vec<Entry>,
+) {
+    if !push_template_subtokens(
+        ctx.line_index,
+        ctx.full_source,
+        tok,
+        parts,
+        literal,
+        entries,
+    ) {
+        if literal == TokenKind::Regexp {
+            push_token(ctx.line_index, ctx.full_source, tok, literal, 0, entries);
+        } else {
+            classify_and_push_if(true, ctx, tok, entries);
+        }
+    }
+}
+
 pub(super) fn emit_arg_token(
     ctx: ScriptCtx<'_>,
     body_ctx: ScriptCtx<'_>,
@@ -78,7 +101,7 @@ pub(super) fn emit_arg_token(
     }
     match override_kind {
         Some(ArgOverride::RegexPattern) => {
-            if !push_regex_subtokens(line_index, full_source, *tok, entries) {
+            if !push_regex_subtokens(ctx, *tok, entries) {
                 push_token(line_index, full_source, *tok, TokenKind::Regexp, 0, entries);
             }
         }
@@ -96,9 +119,8 @@ pub(super) fn emit_arg_token(
                 push_binary_subtokens(line_index, full_source, *tok, ctx.dialect, entries);
             classify_and_push_if(!emitted, ctx, *tok, entries);
         }
-        Some(ArgOverride::TemplateParts(captures)) => {
-            let emitted = push_template_subtokens(line_index, full_source, *tok, captures, entries);
-            classify_and_push_if(!emitted, ctx, *tok, entries);
+        Some(ArgOverride::TemplateParts(literal, parts)) => {
+            emit_template_parts(ctx, *tok, *literal, parts, entries);
         }
         Some(ArgOverride::LambdaLiteral) => {
             collect_lambda_literal(ctx, *tok, entries, depth + 1);

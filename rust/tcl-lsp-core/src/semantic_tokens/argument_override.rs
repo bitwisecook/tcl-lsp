@@ -45,7 +45,7 @@ pub(super) enum ArgOverride {
     /// when no specifier is recognised.
     BinaryFormat,
     /// Embedded-language token roles mapped back to original source bytes.
-    TemplateParts(Vec<(std::ops::Range<usize>, TokenKind)>),
+    TemplateParts(TokenKind, Vec<(std::ops::Range<usize>, TokenKind)>),
     /// Recurse into a braced command-body argument (`ArgRole::Body`),
     /// re-segmenting its inner script so nested commands / vars / strings
     /// are tokenised rather than emitted as one opaque `string`.

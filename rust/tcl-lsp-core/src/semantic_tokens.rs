@@ -136,8 +136,6 @@ use object_handles::{augment_loop_var_handles, augment_snit_handles};
 #[cfg(test)]
 use object_handles::{selected_member_handle_regions, static_loop_var_names};
 use regex_subtokens::mark_literal_fragments;
-#[cfg(test)]
-use regex_subtokens::{classify_regex_component, scan_are_class};
 use script_walk::{MAX_TOKEN_RECURSION, ScriptCtx, WalkFacts, collect_script};
 pub use variable_name_roles::VarNameArgRoles;
 
