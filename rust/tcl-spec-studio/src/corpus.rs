@@ -59,9 +59,11 @@ use serde_json::{Value, json};
 use tcl_compiler::parsing::syntax::build::build_document;
 use tcl_compiler::parsing::syntax::segment::segments_from_document;
 use tcl_compiler::signature_scan::types::ParamDef;
+use tcl_dialect::DialectProfile;
 use tcl_lexer::{LexerConfig, SourceMap, SourceSegmentationPurpose};
 use tcl_registry::arg_role::ArgRole;
 use tcl_registry::registry::CommandRegistry;
+use tcl_syntax::expr::{BinOp, ExprNode};
 
 use crate::draft::{self, Draft};
 
@@ -241,14 +243,12 @@ fn option_row(option: &OptionShape) -> Value {
 struct Stmt {
     words: Vec<String>,
     scalar_reads: Vec<Option<String>>,
+    conditions: Vec<usize>,
 }
 
 impl Stmt {
     fn head(&self) -> &str {
         self.words.first().map_or("", String::as_str)
-    }
-    fn word(&self, index: usize) -> &str {
-        self.words.get(index).map_or("", String::as_str)
     }
     fn scalar_read(&self, index: usize) -> Option<&str> {
         self.scalar_reads.get(index)?.as_deref()
@@ -280,6 +280,16 @@ fn statements(
             }
         }
         let tokens = tcl_compiler::ir::CommandTokens::from_segmented(&source_map, config, &segment);
+        let conditions = if head == "if" {
+            registry
+                .arg_indices_for_role(&head, &args, ArgRole::Expr)
+                .into_iter()
+                .filter(|index| tokens.arg_is_braced_literal(*index))
+                .map(|index| index + 1)
+                .collect()
+        } else {
+            Vec::new()
+        };
         let scalar_reads = tokens
             .words()
             .iter()
@@ -303,6 +313,7 @@ fn statements(
         out.push(Stmt {
             words,
             scalar_reads,
+            conditions,
         });
     }
 }
@@ -397,8 +408,14 @@ pub fn scan(body: &str, params: &[ParamDef], dialect: &str) -> Shape {
     let registry = crate::environment::store_for_dialect(dialect);
     // The body is the authored pack's own Tcl, so it is read under the
     // grammar of the environment the pack is being authored for.
-    let config = LexerConfig::for_profile(Some(crate::environment::profile_for_dialect(dialect)));
-    scan_in(body, params, registry, config)
+    let profile = crate::environment::profile_for_dialect(dialect);
+    scan_in(
+        body,
+        params,
+        registry,
+        profile,
+        LexerConfig::for_profile(Some(profile)),
+    )
 }
 
 /// Conditional body-value advice under its retained grammar and Registry.
@@ -407,20 +424,50 @@ pub(crate) fn scan_in(
     body: &str,
     params: &[ParamDef],
     registry: &CommandRegistry,
+    profile: &DialectProfile,
     config: LexerConfig,
 ) -> Shape {
     let mut stmts = Vec::new();
     statements(registry, config, body, 0, &mut stmts);
 
     let mut shape = Shape::default();
-    options_from_dispatch(&stmts, config, &mut shape);
+    options_from_dispatch(&stmts, params, profile, config, &mut shape);
     values_from_dispatch(&stmts, params, config, &mut shape);
     callbacks(&stmts, params, &mut shape);
     shape
 }
 
+/// A comparison supplies an option spelling only from a fixed string operand
+/// beside a whole scalar read of a procedure parameter.
+fn compared_option<'a>(
+    variable: &ExprNode,
+    value: &'a ExprNode,
+    params: &[ParamDef],
+    config: LexerConfig,
+) -> Option<&'a str> {
+    let ExprNode::Var { text, .. } = variable else {
+        return None;
+    };
+    let name = tcl_syntax::naming::whole_scalar_variable_reference_name(text, config)?;
+    params
+        .iter()
+        .any(|param| param.name == name)
+        .then_some(())?;
+    let ExprNode::String { text, .. } = value else {
+        return None;
+    };
+    let word = tcl_syntax::expr::fixed_string_operand(text)?;
+    (word == "--" || is_option_word(word)).then_some(word)
+}
+
 /// Options from a `switch` over option words, or an `if` chain comparing one.
-fn options_from_dispatch(stmts: &[Stmt], config: LexerConfig, shape: &mut Shape) {
+fn options_from_dispatch(
+    stmts: &[Stmt],
+    params: &[ParamDef],
+    profile: &DialectProfile,
+    config: LexerConfig,
+    shape: &mut Shape,
+) {
     // Preserve first-seen order, and let a later site upgrade a flag to a
     // value option rather than contradict it.
     let mut found: Vec<OptionShape> = Vec::new();
@@ -471,21 +518,40 @@ fn options_from_dispatch(stmts: &[Stmt], config: LexerConfig, shape: &mut Shape)
                 );
             }
         }
-        if stmt.head() == "if" || stmt.head() == "elseif" {
-            let condition = stmt.word(1);
-            if !condition.contains('$') {
-                continue;
-            }
-            for word in condition.split_whitespace() {
-                let word = word.trim_matches(|c| c == '"' || c == '{' || c == '}' || c == ')');
-                if word == "--" {
-                    terminator = true;
-                } else if is_option_word(word) {
-                    add(
-                        word.to_owned(),
-                        false,
-                        format!("`{word}` is compared against an argument in an `if` condition"),
-                    );
+        for &index in &stmt.conditions {
+            let condition = tcl_syntax::expr::parser::parse_expr_for_profile_with_lexer_config(
+                &stmt.words[index],
+                Some(profile),
+                config,
+            );
+            let mut pending = vec![&condition];
+            while let Some(node) = pending.pop() {
+                let ExprNode::Binary { op, left, right } = node else {
+                    continue;
+                };
+                match op {
+                    BinOp::And | BinOp::Or => {
+                        pending.push(right);
+                        pending.push(left);
+                    }
+                    BinOp::Eq | BinOp::Ne | BinOp::StrEq | BinOp::StrNe => {
+                        if let Some(word) = compared_option(left, right, params, config)
+                            .or_else(|| compared_option(right, left, params, config))
+                        {
+                            if word == "--" {
+                                terminator = true;
+                            } else {
+                                add(
+                                    word.to_owned(),
+                                    false,
+                                    format!(
+                                        "`{word}` is compared against a parameter in an `if` condition"
+                                    ),
+                                );
+                            }
+                        }
+                    }
+                    _ => {}
                 }
             }
         }

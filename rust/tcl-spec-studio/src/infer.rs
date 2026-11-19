@@ -493,7 +493,12 @@ fn draft_for_proc(
     package: Option<&str>,
     version: Option<&str>,
     file: &str,
-    body: Option<(&str, tcl_lexer::LexerConfig, &tcl_registry::CommandRegistry)>,
+    body: Option<(
+        &str,
+        tcl_lexer::LexerConfig,
+        &tcl_registry::CommandRegistry,
+        &tcl_dialect::DialectProfile,
+    )>,
     facts: &InferredFacts,
 ) -> Inferred {
     let mut d = draft::default_command_draft();
@@ -552,8 +557,8 @@ fn draft_for_proc(
     // What the body says about the caller-visible shape, each conclusion with
     // its own evidence line. Runs after the signature pass so a role the
     // analyser proved is never overwritten by a shape guess.
-    if let Some((body, config, registry)) = body {
-        crate::corpus::scan_in(body, params, registry, config).apply(&mut d, &mut notes);
+    if let Some((body, config, registry, profile)) = body {
+        crate::corpus::scan_in(body, params, registry, profile, config).apply(&mut d, &mut notes);
     }
     facts.apply(&mut d, &mut notes);
     describe(&mut d, proc_def, &name, package, version, file, &mut notes);
@@ -707,7 +712,12 @@ pub fn import_package(files: &[SourceFile], dialect: &str) -> Import {
             };
             let body = original_body_data(&file.text, &result, proc_def);
             let body = body.as_ref().and_then(|(body, config)| {
-                Some((body.as_str(), *config, result.resolved_registry()?))
+                Some((
+                    body.as_str(),
+                    *config,
+                    result.resolved_registry()?,
+                    result.resolved_profile()?,
+                ))
             });
             let inferred = draft_for_proc(proc_def, None, None, &file.name, body, &facts);
             by_name.insert(proc_def.qualified_name.clone(), inferred);
@@ -917,6 +927,29 @@ mod tests {
             "the `--` handling must be reported: {:?}",
             render.notes
         );
+    }
+
+    #[test]
+    fn imported_if_options_require_a_fixed_comparison_with_a_parameter() {
+        let import = import_package(
+            &file(
+                r#"
+            proc p {x} {
+                if {$x && [string equal "two -bogus flags" "no"]} {return}
+                if {$local eq "-local"} {return}
+                if {$x eq "-left" || {-right} ne ${x}} {return}
+                if {$x eq "-$other"} {return}
+            }
+        "#,
+            ),
+            "tcl9.1",
+        );
+        let options = find(&import, "p").draft["options"].as_array().unwrap();
+        let names: Vec<_> = options
+            .iter()
+            .filter_map(|option| option["name"].as_str())
+            .collect();
+        assert_eq!(names, ["-left", "-right"]);
     }
 
     /// What a body states about the command it implements is read from the
