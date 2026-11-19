@@ -26,6 +26,7 @@ use std::process::{Command, ExitCode};
 use anyhow::{Context, Result, ensure};
 use syn::visit::{self, Visit};
 
+mod expansions;
 mod reviewed;
 
 const CENSUS: &str = "docs/work/name-handling/validation-tools/parser_census.py";
@@ -359,6 +360,7 @@ struct Source {
     test_module: bool,
     scopes: Vec<String>,
     declarations: BTreeMap<String, usize>,
+    expansion_operations: Vec<String>,
 }
 
 impl Facts {
@@ -565,6 +567,7 @@ pub fn run(report: bool) -> Result<ExitCode> {
     let inventory = census(&root, "--files")?;
     let signed = reviewed::Reviewed::parse(&std::fs::read_to_string(root.join(reviewed::INDEX))?)?;
     let mut errors = Vec::new();
+    let mut expansions = expansions::Inventory::default();
     let mut seen = BTreeSet::new();
     let mut unreviewed = 0;
     let mut structural = 0;
@@ -599,6 +602,7 @@ pub fn run(report: bool) -> Result<ExitCode> {
         let mut source = Source::default();
         match syn::parse_file(&text) {
             Ok(tree) => {
+                source.expansion_operations = expansions.add(file, &tree);
                 source.visit_file(&tree);
                 ast_sources += 1;
             }
@@ -681,6 +685,7 @@ pub fn run(report: bool) -> Result<ExitCode> {
     }
     signed.missing(&seen, &mut errors);
     let targets = census(&root, "--cargo-targets")?;
+    expansions.report(&root, &seen, &targets, report);
     let mut manifests = BTreeSet::new();
     let mut target_count = 0;
     for line in targets.lines().skip(1) {

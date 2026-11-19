@@ -167,6 +167,12 @@ fn owner_call(call: &str) -> bool {
 
 pub(super) fn operations(source: &Source) -> BTreeSet<String> {
     let mut observed = BTreeSet::new();
+    let mut expansion_occurrences = BTreeMap::<&str, usize>::new();
+    for operation in &source.expansion_operations {
+        let n = expansion_occurrences.entry(operation).or_default();
+        *n += 1;
+        observed.insert(format!("{operation} [{n}]"));
+    }
     for entries in source.functions.values() {
         for facts in entries.iter().filter(|f| relevant(f)) {
             let mut occurrences = BTreeMap::<String, usize>::new();
@@ -213,7 +219,10 @@ mod tests {
 
     fn parse(text: &str) -> Source {
         let mut parsed = Source::default();
-        parsed.visit_file(&syn::parse_file(text).unwrap());
+        let syntax = syn::parse_file(text).unwrap();
+        parsed.expansion_operations =
+            super::super::expansions::Inventory::default().add("fixture.rs", &syntax);
+        parsed.visit_file(&syntax);
         parsed
     }
 
@@ -244,6 +253,14 @@ mod tests {
             .is_empty()
         );
         assert!(!errors(file, "fn words(data: S) { group_commands(t, data, config); } fn renamed(s: &[u8]) { for &x in s { if x == b']' { break; } } }").is_empty());
+        assert!(
+            !errors(
+                file,
+                "fn words(data: S) { group_commands(t, data, config); alternate!(); }"
+            )
+            .is_empty()
+        );
+        assert!(!errors(file, "macro_rules! hidden { () => { fn reader(s: &[u8]) { for b in s {} } } } fn words(data: S) { group_commands(t, data, config); }").is_empty());
         assert!(!errors("runtime/rust/src/new.rs", "fn unrelated_name() {}").is_empty());
         let mut foreign = Vec::new();
         signed.check_file("runtime/rust/src/new_adapter.py", None, &mut foreign);

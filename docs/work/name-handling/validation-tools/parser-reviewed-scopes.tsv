@@ -15,3 +15,4 @@ operation	rust/tcl-syntax/src/manifest_words.rs	literal_commands | edge Vec::new
 operation	rust/tcl-syntax/src/manifest_words.rs	literal_commands | edge Vec::with_capacity [1]	Container construction or explicit success/failure return within the checked declarative command reader.
 operation	rust/tcl-syntax/src/manifest_words.rs	literal_commands | for [1]	Iterates declared CommandSpan rows or their WordSpan ranges. Neither loop scans source bytes for new boundaries.
 operation	rust/tcl-syntax/src/manifest_words.rs	literal_commands | for [2]	Iterates declared CommandSpan rows or their WordSpan ranges. Neither loop scans source bytes for new boundaries.
+operation	rust/tcl-syntax/src/manifest_words.rs	<module> | derive expansion Debug , PartialEq , Eq [1]	The literal declaration result derives host debug and equality implementations. Grouping stays in the configured command reader.
