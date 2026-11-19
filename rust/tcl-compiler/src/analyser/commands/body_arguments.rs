@@ -135,6 +135,38 @@ fn body_written_effective_index(
         .and_then(|index| index.checked_sub(1))
 }
 
+/// A bare body can name a zero-argument call when its outer value is the
+/// unchanged word and the second (script) parse gives that same whole head.
+fn original_bare_body_command(word: &tcl_lexer::NativeWord) -> Option<(&str, Token)> {
+    use tcl_lexer::{ExecutablePart, ExecutableText, SourceSegmentationPurpose, WordKind};
+    let arena = word.executable_parts();
+    let [literal] = arena.list(arena.root()) else {
+        return None;
+    };
+    if word.group().kind != WordKind::Bare
+        || word.group().expand
+        || !matches!(literal.part, ExecutablePart::Text(ExecutableText::Original))
+    {
+        return None;
+    }
+    let script = tcl_lexer::native_script_words_in_with_purpose(
+        word.image().clone(),
+        word.span(),
+        word.config(),
+        SourceSegmentationPurpose::NestedScript,
+    )
+    .ok()?;
+    let [command] = script.commands.as_slice() else {
+        return None;
+    };
+    let [head] = command.words.as_slice() else {
+        return None;
+    };
+    let [token] = head.tokens() else { return None };
+    (script.fatal_tail.is_none() && head.span() == word.span() && token.kind == TokenType::Esc)
+        .then_some((word.try_text().ok()?, *token))
+}
+
 impl Analyser {
     fn define_clause_loop_variables(
         &mut self,
@@ -356,7 +388,9 @@ impl Analyser {
                     logical_traits,
                 );
                 self.enter_body_depths(conditional, control_flow);
-                self.dispatch_one_body_argument(body_text, body_tok, scope_path, body_scope);
+                let word = effective
+                    .and_then(|index| source_words.as_ref()?.original_argument_word(index));
+                self.dispatch_one_body_argument(body_text, body_tok, word, scope_path, body_scope);
                 self.leave_body_depths(conditional, control_flow);
             }
         }
@@ -482,7 +516,13 @@ impl Analyser {
                 );
             }
             self.emit_w105_unbraced_body(command, &metadata.original_words()[argument + 1]);
-            self.dispatch_one_body_argument(&args[argument], body, scope_path, None);
+            self.dispatch_one_body_argument(
+                &args[argument],
+                body,
+                Some(&metadata.original_words()[argument + 1]),
+                scope_path,
+                None,
+            );
         }
         if conditional {
             self.conditional_depth -= 1;
@@ -780,34 +820,12 @@ impl Analyser {
         &mut self,
         body_text: &str,
         body_tok: Token,
+        original: Option<&tcl_lexer::NativeWord>,
         scope_path: &[usize],
         body_scope: Option<&'static tcl_registry::scoped::ScopedCommandEnv>,
     ) {
-        // A bareword body (`if {$cond} mymod::foo`, `uplevel 1
-        // mymod::qux`) is a single, statically-known zero-arg command
-        // call — a legitimate alternative form real Tcl accepts
-        // identically to a braced block. `analyse_body` only recurses into
-        // a `Str` (braced) body, so without this such a call is
-        // invisible to `command_invocations` entirely: found by
-        // hover/definition (which resolve independently off the
-        // cursor token) but missed by references/rename — silently
-        // producing an incomplete rename that breaks the program at
-        // the missed call site.
-        // Dispatched through the ordinary `process_command` path
-        // (not a hand-rolled invocation record) so it gets full
-        // treatment: arity checking, W123, nested diagnostics —
-        // everything a real call site deserves.
-        if body_tok.kind == TokenType::Esc
-            && !body_text.trim().contains(char::is_whitespace)
-            && !super::super::diagnostics::helpers::has_substitution(body_text.trim(), &body_tok)
-        {
-            self.process_command(
-                &[body_text.trim().to_string()],
-                &[body_tok],
-                &[true],
-                &[false],
-                scope_path,
-            );
+        if let Some((name, head)) = original.and_then(original_bare_body_command) {
+            self.process_command(&[name.to_owned()], &[head], &[true], &[false], scope_path);
         }
         self.record_var_body_const_dispatch(body_tok, scope_path);
         // When the body runs in a scoped command environment, record its

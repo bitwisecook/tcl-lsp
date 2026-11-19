@@ -132,6 +132,41 @@ fn analyse_emits_w105_for_quoted_interpolated_body() {
     assert!(matches!(w105[0].severity, crate::analyser::Severity::Error));
 }
 
+#[test]
+fn bare_body_command_reports_its_actual_dialect_spelling() {
+    let name = "\u{a0}incr\u{a0}";
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+        for (definition, missing) in [
+            (String::new(), true),
+            (format!("proc {name} {{}} {{return actual}}\n"), false),
+        ] {
+            let source = format!("{definition}if {{1}} {name}");
+            let result = Analyser::new().analyse(&source, dialect);
+            let call = result
+                .command_invocations
+                .iter()
+                .find(|call| call.range.end() as usize == source.len())
+                .expect("actual bare body occurrence");
+            assert_eq!(call.name, name);
+            let unresolved = result
+                .diagnostics
+                .iter()
+                .find(|diag| diag.code == DiagCode::W123 && diag.span == call.range);
+            assert_eq!(unresolved.is_some(), missing);
+            if let Some(message) = unresolved {
+                assert!(message.message.contains(&format!("'{name}'")));
+            }
+        }
+        let commented = Analyser::new().analyse("if {1} #not_a_call", dialect);
+        assert!(
+            !commented
+                .command_invocations
+                .iter()
+                .any(|call| call.name == "#not_a_call")
+        );
+    }
+}
+
 // -- W110 string-compare-in-expr emitter
 
 #[test]
