@@ -1190,3 +1190,20 @@ fn a_leading_hash_list_prints_as_the_release_does() {
         preserves(source, "8.5");
     }
 }
+
+/// #2418. An empty input to `split` yields zero elements, including with
+/// explicit separators. A nonempty list renders in the selected release.
+#[test]
+fn issue_2418_empty_split_keeps_the_list_empty() {
+    preserves(
+        r##"proc p {} {
+    set x [split ""]
+    puts [llength $x]
+    puts "<[split {} ,]>"
+    puts [split "#ab" ""]
+}
+p
+"##,
+        "8.4",
+    );
+}

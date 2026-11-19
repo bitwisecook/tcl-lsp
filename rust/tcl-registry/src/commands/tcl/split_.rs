@@ -56,6 +56,7 @@ pub fn spec() -> CommandSpec {
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         byte_array_effect: ByteArrayEffect::Coerces,
         const_fold: Some(crate::const_fold::fold_split),
+        const_fold_versioned: Some(crate::const_fold::fold_split_versioned),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::SPLIT),
         traits: Traits::FRAMELESS_RUNTIME | Traits::CSE_CANDIDATE,
         // `split string ?splitChars?` — synopsis, argument defaults, and

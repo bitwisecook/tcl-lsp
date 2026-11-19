@@ -401,33 +401,24 @@ pub(crate) fn fold_join(args: &[&str]) -> Option<String> {
     Some(split_list(l)?.join(sep))
 }
 
-/// `split string ?splitChars?`.
+/// A literal `split` whose release is unknown uses the shared list route's
+/// release-independent answer.
 pub(crate) fn fold_split(args: &[&str]) -> Option<String> {
-    let (s, chars) = match args {
-        // Tcl's default split set is " \n\t\r" (whitespace incl. carriage
-        // return); omitting `\r` mis-folds `split "a\r\nb"`.
-        [s] => (*s, " \t\n\r"),
-        [s, c] => (*s, *c),
-        _ => return None,
-    };
-    let pieces: Vec<String> = if chars.is_empty() {
-        // Split on every character.
-        s.chars().map(|c| c.to_string()).collect()
-    } else {
-        let set: Vec<char> = chars.chars().collect();
-        let mut res = Vec::new();
-        let mut cur = String::new();
-        for ch in s.chars() {
-            if set.contains(&ch) {
-                res.push(std::mem::take(&mut cur));
-            } else {
-                cur.push(ch);
-            }
-        }
-        res.push(cur);
-        res
-    };
-    Some(list_join(&pieces))
+    fold_split_versioned(args, None)
+}
+
+/// The selected release owns both source decoding and list rendering.
+pub(crate) fn fold_split_versioned(
+    args: &[&str],
+    version: Option<tcl_dialect::TclVersion>,
+) -> Option<String> {
+    crate::value_transfer::evaluate_literal(
+        &crate::value_transfer::builtins::SPLIT,
+        "split",
+        None,
+        args,
+        version,
+    )
 }
 
 /// Cap on a single constant-fold's materialised output (1 MiB) — bound the

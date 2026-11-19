@@ -207,6 +207,10 @@ pub const CONST_FOLD_NATIVE: &[(&str, ConstFoldFn)] = &[
 /// constant folders.
 pub const CONST_FOLD_VERSIONED_NATIVE: &[(&str, VersionedConstFoldFn)] = &[
     (
+        "split::const_fold_versioned",
+        crate::const_fold::fold_split_versioned,
+    ),
+    (
         "string::is::const_fold_versioned",
         crate::commands::tcl::fold_is,
     ),
