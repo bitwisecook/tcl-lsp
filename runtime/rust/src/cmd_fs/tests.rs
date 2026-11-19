@@ -670,7 +670,13 @@ fn glob_option_words_resolve_like_tcl_get_index_from_obj() {
         "unmatched open brace in list"
     );
     // Only a `-`-leading word reaches the table.
-    assert_eq!(ok(&mut i, b"glob -nocomplain {}"), b"");
+    assert_eq!(
+        ok(
+            &mut i,
+            b"set r [glob -nocomplain {}]; list [llength $r] [lindex $r 0]"
+        ),
+        b"1 ."
+    );
     // Unique prefixes resolve: `-n` is `-nocomplain`.
     assert_eq!(ok(&mut i, b"glob -n /nonexistent-zz/*"), b"");
     let dir = std::env::temp_dir().join(format!("tclrt_globopt_{}", std::process::id()));
@@ -692,6 +698,10 @@ fn glob_option_words_resolve_like_tcl_get_index_from_obj() {
         err_of(&mut i, b"glob -t d a"),
         format!("ambiguous option \"-t\": {MUST}")
     );
+    let brace = format!(r"glob -d {} -ta -- {{{{a.tcl,a.tcl}}}}", dir.display());
+    assert_eq!(ok(&mut i, brace.as_bytes()), b"a.tcl a.tcl");
+    let escaped = format!(r"glob -d {} -ta -- {{a\.tcl}}", dir.display());
+    assert_eq!(ok(&mut i, escaped.as_bytes()), b"a.tcl");
     // Each occurrence must be a list. C interprets only the last list's members.
     let repeated = format!("glob -d {} -ta -ty bogus -ty f -- a.tcl", dir.display());
     assert_eq!(ok(&mut i, repeated.as_bytes()), b"a.tcl");

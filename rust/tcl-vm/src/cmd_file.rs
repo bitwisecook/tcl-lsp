@@ -506,8 +506,39 @@ fn cmd_glob(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(options) => options,
         Err(error) => return crate::command::completion_from_cmd_error(vm, error),
     };
-    let dir = options.directory.map(|i| args[i].to_str().to_string());
+    let dir = options
+        .base
+        .map(|base| args[base.index()].to_str().to_string());
     let patterns = &args[options.patterns_start..];
+    if !jim {
+        let mut words = Vec::with_capacity(patterns.len());
+        for pattern in patterns {
+            let bytes = match vm.native_name_operand_bytes_checked(pattern) {
+                Ok(bytes) => bytes,
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+            };
+            words.push(bytes.to_vec());
+        }
+        if options.join {
+            words = vec![path::join(&words, PathReading::of_release(version))];
+        }
+        let directory = if let Some(base) = options.base {
+            match vm.native_name_operand_bytes_checked(&args[base.index()]) {
+                Ok(bytes) => Some(bytes),
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+            }
+        } else {
+            None
+        };
+        if let Some(filesystem) = vm.host().filesystem() {
+            return match options.c_unix_matches(filesystem, directory.as_deref(), &words, version) {
+                Ok(hits) => ok(Value::list(
+                    hits.into_iter().map(Value::from_string_bytes).collect(),
+                )),
+                Err(error) => crate::command::completion_from_cmd_error(vm, error),
+            };
+        }
+    }
     let base = dir.clone().unwrap_or_else(|| ".".to_string());
     let mut results: Vec<String> = Vec::new();
     let Some(filesystem) = vm.host().filesystem() else {

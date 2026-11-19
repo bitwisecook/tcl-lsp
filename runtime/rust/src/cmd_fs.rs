@@ -1190,7 +1190,7 @@ fn glob_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Ok(options) => options,
             Err(error) => return interp.report_cmd_error(error),
         };
-    let directory = options.directory.map(|i| obj_bytes(args[i]));
+    let directory = options.base.map(|base| obj_bytes(args[base.index()]));
     // Patterns: each remaining arg, or (with -join) all joined into one.
     let pats: Vec<Vec<u8>> = args[options.patterns_start..]
         .iter()
@@ -1209,21 +1209,28 @@ fn glob_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // result/error tail still needs mutably.
     let host = interp.host();
     let fs = host.filesystem();
-    for pat in &patterns {
-        glob_one(
-            fs,
-            base.as_deref(),
-            pat,
-            options.tails,
-            &options.types,
-            &mut hits,
-        );
-    }
-    hits.sort();
-    hits.dedup();
-    if hits.is_empty() {
-        if let Some(error) = options.no_match(&patterns, version, jim) {
-            return interp.report_cmd_error(error);
+    if let (false, Some(fs)) = (jim, fs) {
+        hits = match options.c_unix_matches(fs, base.as_deref(), &patterns, version) {
+            Ok(hits) => hits,
+            Err(error) => return interp.report_cmd_error(error),
+        };
+    } else {
+        for pat in &patterns {
+            glob_one(
+                fs,
+                base.as_deref(),
+                pat,
+                options.tails,
+                &options.types,
+                &mut hits,
+            );
+        }
+        hits.sort();
+        hits.dedup();
+        if hits.is_empty() {
+            if let Some(error) = options.no_match(&patterns, version, jim) {
+                return interp.report_cmd_error(error);
+            }
         }
     }
     let objs: Vec<*mut TclObj> = hits.iter().map(|h| new_string(h)).collect();

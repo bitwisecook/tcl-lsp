@@ -18,6 +18,10 @@
 
 //! Filesystem `glob` filters applied after the original switch scan.
 
+mod unix_pattern;
+
+pub use unix_pattern::{CGlobHead, GlobBraceError, c_glob_head};
+
 use crate::CmdError;
 use tcl_core_types::c_string_extent;
 use tcl_dialect::TclVersion;
@@ -85,10 +89,27 @@ impl GlobOption {
     }
 }
 
+/// Whether the command's search root is a directory or the original
+/// path prefix whose last component is literal.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GlobBase {
+    Directory(usize),
+    Path(usize),
+}
+
+impl GlobBase {
+    #[must_use]
+    pub fn index(self) -> usize {
+        match self {
+            Self::Directory(index) | Self::Path(index) => index,
+        }
+    }
+}
+
 /// Selected switches and the first unconsumed pattern in the original argv.
 #[derive(Debug)]
 pub struct GlobOptions {
-    pub directory: Option<usize>,
+    pub base: Option<GlobBase>,
     pub join: bool,
     pub tails: bool,
     pub no_complain: bool,
@@ -107,14 +128,14 @@ impl GlobOptions {
         jim: bool,
     ) -> Result<Self, CmdError> {
         let mut result = Self {
-            directory: None,
+            base: None,
             join: false,
             tails: false,
             no_complain: !jim && version >= TclVersion::V9_0,
             types: GlobTypes::default(),
             patterns_start: 0,
         };
-        let mut directory_option = None;
+
         let mut types = Vec::new();
         let mut i = 0;
         while let Some(original) = args.get(i) {
@@ -148,10 +169,13 @@ impl GlobOptions {
                         types = ops.list_elements(value)?;
                     } else {
                         let path = option == GlobOption::Path;
-                        if !jim && let Some(previous) = directory_option {
+                        if !jim && result.base.is_some() {
                             let legacy = version < TclVersion::V8_6;
-                            let message: &[u8] = match (path, previous == GlobOption::Path, legacy)
-                            {
+                            let message: &[u8] = match (
+                                path,
+                                matches!(result.base, Some(GlobBase::Path(_))),
+                                legacy,
+                            ) {
                                 (false, false, false) => br#""-directory" may only be used once"#,
                                 (false, _, _) => br#""-directory" cannot be used with "-path""#,
                                 (true, true, false) => br#""-path" may only be used once"#,
@@ -164,8 +188,11 @@ impl GlobOptions {
                                 b"TCL OPERATION GLOB BADOPTIONCOMBINATION",
                             ));
                         }
-                        result.directory = Some(i);
-                        directory_option = Some(option);
+                        result.base = Some(if path {
+                            GlobBase::Path(i)
+                        } else {
+                            GlobBase::Directory(i)
+                        });
                     }
                     i += 1;
                 }
@@ -182,7 +209,7 @@ impl GlobOptions {
                 CmdError::wrong_args("glob ?switches? name ?name ...?")
             });
         }
-        if !jim && result.tails && result.directory.is_none() {
+        if !jim && result.tails && result.base.is_none() {
             return Err(argument_error(
                 version,
                 br#""-tails" must be used with either "-directory" or "-path""#.to_vec(),
@@ -192,6 +219,29 @@ impl GlobOptions {
         result.types = GlobTypes::from_members(ops, &types, version)?;
         result.patterns_start = i;
         Ok(result)
+    }
+
+    /// Traverse Unix filesystem patterns one at a time, in the caller's
+    /// order, retaining repeated explicit patterns and brace alternatives.
+    pub fn c_unix_matches(
+        &self,
+        fs: &dyn Filesystem,
+        directory: Option<&[u8]>,
+        patterns: &[Vec<u8>],
+        version: TclVersion,
+    ) -> Result<Vec<Vec<u8>>, CmdError> {
+        let mut matches = Vec::new();
+        for pattern in patterns {
+            matches.extend(unix_pattern::c_matches(
+                fs, self, directory, pattern, version,
+            )?);
+        }
+        if matches.is_empty()
+            && let Some(error) = self.no_match(patterns, version, false)
+        {
+            return Err(error);
+        }
+        Ok(matches)
     }
 
     /// Applied only after traversal produced no matches. Joined patterns
@@ -322,14 +372,21 @@ impl GlobTypes {
     /// permission tests. The link test independently admits a dangling link.
     #[must_use]
     pub fn matches(&self, fs: &dyn Filesystem, path: &str) -> bool {
+        self.matches_entry(fs, path, true)
+    }
+
+    fn matches_entry(&self, fs: &dyn Filesystem, path: &str, check_hidden: bool) -> bool {
         if self.kinds.is_empty() && self.permissions.is_empty() && !self.hidden && !self.readonly {
             return true;
         }
         let name = path.rsplit('/').next().unwrap_or(path);
-        if self.hidden && !name.starts_with('.') {
+        if self.hidden && check_hidden && !name.starts_with('.') {
             return false;
         }
         let meta = fs.metadata(path).ok();
+        if self.hidden && meta.is_none() {
+            return false;
+        }
         if self.readonly && meta.is_none_or(|m| m.mode & 0o222 != 0) {
             return false;
         }
