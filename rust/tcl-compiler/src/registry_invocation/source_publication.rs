@@ -28,13 +28,18 @@ use tcl_registry::model::ContextRegistry;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OriginalSourceCommandPublication {
     words: OriginalRegistryWords,
+    site: Option<crate::command_binding::CommandAllocationSite>,
     naming: tcl_registry::AuthoredSourceCommandPublication,
     original: NativeWord,
     input: Option<crate::signature_scan::scope::SignatureSourceNameInput>,
     bytes: Arc<[u8]>,
 }
 impl OriginalSourceCommandPublication {
-    pub(super) fn capture(words: OriginalRegistryWords, context: &ContextRegistry) -> Option<Self> {
+    pub(super) fn capture(
+        words: OriginalRegistryWords,
+        context: &ContextRegistry,
+        site: Option<crate::command_binding::CommandAllocationSite>,
+    ) -> Option<Self> {
         // naming.source.original-command-name-publications
         // docs/design/analysis/name-resolution-proofs/original-command-name-publications.md
         let naming = words.with_source_schema(context, |schema| {
@@ -46,11 +51,16 @@ impl OriginalSourceCommandPublication {
         let input = operand.input().cloned();
         Some(Self {
             words,
+            site,
             naming,
             original,
             input,
             bytes,
         })
+    }
+    /// Reached original invocation, when independently present in the issuing realm.
+    pub(crate) fn invocation_site(&self) -> Option<&crate::command_binding::CommandAllocationSite> {
+        self.site.as_ref()
     }
     /// Same selected immutable source argv and its conditional applicability.
     #[must_use]

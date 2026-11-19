@@ -30,14 +30,8 @@ impl super::super::CommandBindingRealm {
         let Some(spec) = instance.descriptor(context) else {
             return false;
         };
-        instance
-            .factory()
-            .original_words()
-            .first()
-            .is_some_and(|head| {
-                self.bindings
-                    .package_factory_is_proved_at(head, spec, context)
-            })
+        self.bindings
+            .package_factory_is_proved_at(Some(instance.factory().site()), spec)
     }
 
     /// Conditional instance method source syntax, with its own actual factory.

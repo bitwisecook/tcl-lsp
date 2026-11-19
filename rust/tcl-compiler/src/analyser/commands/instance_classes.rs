@@ -144,7 +144,7 @@ impl Analyser {
             let Instance { class_name } = publication.kind() else {
                 return None;
             };
-            Self::factory_package_proved(&self.result, publication.original_invocation())?;
+            Self::factory_package_proved(&self.result, &publication)?;
             let name = std::str::from_utf8(publication.name_bytes()).ok()?;
             Some((name.to_owned(), class_name.to_owned()))
         });
@@ -161,7 +161,7 @@ impl Analyser {
             let Instance { class_name } = binding.factory().kind() else {
                 return None;
             };
-            Self::factory_package_proved(&self.result, binding.factory().original_invocation())?;
+            Self::factory_package_proved(&self.result, binding.factory())?;
             Some((
                 std::str::from_utf8(binding.variable_bytes())
                     .ok()?
@@ -179,20 +179,21 @@ impl Analyser {
     /// A factory whose owning package is not proved present names no instance.
     fn factory_package_proved(
         analysis: &super::super::types::AnalysisResult,
-        factory: &crate::registry_invocation::source_structure::OriginalRegistryWords,
+        factory: &crate::registry_invocation::OriginalSourceCommandPublication,
     ) -> Option<()> {
         let context = analysis
             .resolved_input
             .as_ref()?
             .borrowed_context_registry();
-        let head = factory.head_source()?.word()?;
-        let descriptor = factory.with_source_schema(context, |schema| {
-            schema.authored_source_descriptors().command
-        })?;
+        let descriptor = factory
+            .original_invocation()
+            .with_source_schema(context, |schema| {
+                schema.authored_source_descriptors().command
+            })?;
         analysis
             .retained_command_realm()?
             .source_bindings_ref()
-            .package_factory_is_proved_at(head, descriptor, context)
+            .package_factory_is_proved_at(factory.invocation_site(), descriptor)
             .then_some(())
     }
 

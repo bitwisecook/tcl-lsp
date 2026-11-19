@@ -338,21 +338,19 @@ impl SourceCommandBindings {
     /// dispatch carries that provider. A provided version alone is insufficient.
     pub(crate) fn package_factory_is_proved_at(
         &self,
-        head: &tcl_lexer::NativeWord,
+        site: Option<&super::CommandAllocationSite>,
         descriptor: &tcl_registry::CommandSpec,
-        context: &tcl_registry::model::ContextRegistry,
     ) -> bool {
         let Some(package) = descriptor.owning_package() else {
             return true;
         };
-        let Some(origin) = self.source_origin() else {
+        let Some(site) = site else {
             return false;
         };
-        if head.image() != origin.source_image() {
+        let binding = self.invocation_at_source("", site.offset);
+        if binding.invocation_site() != Some(site) {
             return false;
         }
-        let offset = head.span().start();
-        let binding = self.invocation_at_source("", offset);
         if binding
             .proved_execution_target()
             .and_then(super::SourceCommandTarget::registry_identity)
@@ -363,16 +361,10 @@ impl SourceCommandBindings {
             return false;
         }
         let slot = tcl_registry::rooted_command_descriptor_label(descriptor.name);
-        let mut points = self.dispatch_points_at(offset).peekable();
+        let mut points = self.dispatch_points_at(site.offset).peekable();
         points.peek().is_some()
             && points.all(|point| {
                 let state = &point.state;
-                if context.context().ambient_package(package)
-                    && state.baseline.native_entry.is_some()
-                    && !state.has_opaque_domain()
-                {
-                    return true;
-                }
                 if state.has_opaque_domain() {
                     return false;
                 }

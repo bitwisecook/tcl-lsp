@@ -440,8 +440,10 @@ fn a_widget_constructor_publishes_where_tk_is_present() {
 fn a_widget_constructor_in_a_sourced_document_uses_its_actual_entry() {
     use crate::registry_invocation::source_structure::original_project_source_load_at;
     let child = "ttk::treeview .t";
+    let mut previous_site = None;
     for (prefix, expected) in [
         ("package require Tk", true),
+        ("set before 1; package require Tk", true),
         ("package provide Tk 8.6; package require Tk", false),
         (
             "package require Tk; rename ttk::treeview {}; proc ttk::treeview args {}",
@@ -462,6 +464,27 @@ fn a_widget_constructor_in_a_sourced_document_uses_its_actual_entry() {
             expected,
             "{prefix}"
         );
+        if expected {
+            let context = child
+                .resolved_input
+                .as_ref()
+                .unwrap()
+                .borrowed_context_registry();
+            let descriptor = context
+                .context()
+                .resolve_spec(context.commands(), "ttk::treeview")
+                .unwrap();
+            let realm = child.retained_command_realm().unwrap();
+            let binding = realm.invocation_at_source("", 0);
+            let site = binding.invocation_site().expect("reached child factory");
+            let bindings = realm.source_bindings_ref();
+            assert!(bindings.package_factory_is_proved_at(Some(site), descriptor));
+            if let Some(other) = &previous_site {
+                assert_ne!(site, other);
+                assert!(!bindings.package_factory_is_proved_at(Some(other), descriptor));
+            }
+            previous_site = Some(site.clone());
+        }
     }
 }
 
