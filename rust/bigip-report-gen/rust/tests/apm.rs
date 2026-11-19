@@ -35,7 +35,7 @@ fn scf() -> (String, String) {
 
 #[test]
 fn model_retains_complete_apm_stanzas_after_comment_and_quoted_braces() {
-    let source = "# {\napm profile access \"/Common/profile { one\" {\n}\napm profile access /Common/next {\n}\n";
+    let source = "# {\napm profile access \"/Common/profile { one\" {\n}\napm profile access /Common/next {\n    # } ignored by the shell\n    access-policy \"/Common/my\"policy\n}\n";
     let model = collect_model(&[("apm.scf".into(), source.into())], "APM");
     let profiles = model["devices"][0]["apmProfiles"]
         .as_array()
@@ -45,6 +45,7 @@ fn model_retains_complete_apm_stanzas_after_comment_and_quoted_braces() {
         .map(|p| p["name"].as_str().unwrap())
         .collect();
     assert_eq!(names, ["next", "profile { one"]);
+    assert_eq!(profiles[0]["policyPath"], "/Common/mypolicy");
 }
 
 #[test]

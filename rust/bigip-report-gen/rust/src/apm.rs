@@ -42,6 +42,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::{Map, Value as J};
+use tcl_bigip::parser::{ShellTokenKind, shell_tokens};
 
 use crate::jutil::bstr;
 
@@ -100,95 +101,39 @@ fn top_level_objects(src: &str) -> Vec<(Vec<String>, String)> {
         .collect()
 }
 
-/// Tokens of a TMSH body: words, block delimiters, and statement boundaries.
-enum Tok {
-    Word(String),
-    Open,
-    Close,
-    Break,
-}
-
-fn tokenise(body: &str) -> Vec<Tok> {
-    let mut toks = Vec::new();
-    let mut word = String::new();
-    let mut in_quote = false;
-    let mut escaped = false;
-    let flush = |word: &mut String, toks: &mut Vec<Tok>| {
-        if !word.is_empty() {
-            toks.push(Tok::Word(std::mem::take(word)));
-        }
-    };
-    for ch in body.chars() {
-        if in_quote {
-            if escaped {
-                word.push(ch);
-                escaped = false;
-            } else if ch == '\\' {
-                word.push(ch);
-                escaped = true;
-            } else if ch == '"' {
-                in_quote = false;
-            } else {
-                word.push(ch);
-            }
-            continue;
-        }
-        match ch {
-            '"' => in_quote = true,
-            '{' => {
-                flush(&mut word, &mut toks);
-                toks.push(Tok::Open);
-            }
-            '}' => {
-                flush(&mut word, &mut toks);
-                toks.push(Tok::Close);
-            }
-            '\n' => {
-                flush(&mut word, &mut toks);
-                toks.push(Tok::Break);
-            }
-            c if c.is_whitespace() => flush(&mut word, &mut toks),
-            c => word.push(c),
-        }
-    }
-    flush(&mut word, &mut toks);
-    toks
-}
-
-/// Parse a TMSH body into its child statements.
+/// Group the shared SCF word and shell delimiter tokens into APM properties.
 fn parse_body(body: &str) -> Vec<Node> {
-    let toks = tokenise(body);
-    let mut pos = 0;
-    parse_nodes(&toks, &mut pos)
-}
-
-fn parse_nodes(toks: &[Tok], pos: &mut usize) -> Vec<Node> {
+    let mut parents = Vec::<(Vec<Node>, Node)>::new();
     let mut nodes = Vec::new();
-    let mut cur = Node::default();
-    let flush = |cur: &mut Node, nodes: &mut Vec<Node>| {
-        if !cur.words.is_empty() || cur.has_block {
-            nodes.push(std::mem::take(cur));
+    let mut current = Node::default();
+    let finish = |current: &mut Node, nodes: &mut Vec<Node>| {
+        if !current.words.is_empty() || current.has_block {
+            nodes.push(std::mem::take(current));
         }
     };
-    while *pos < toks.len() {
-        match &toks[*pos] {
-            Tok::Word(w) => cur.words.push(w.clone()),
-            Tok::Break => flush(&mut cur, &mut nodes),
-            Tok::Open => {
-                *pos += 1;
-                cur.children = parse_nodes(toks, pos);
-                cur.has_block = true;
-                flush(&mut cur, &mut nodes);
+    for token in shell_tokens(body) {
+        match token.kind {
+            ShellTokenKind::Word => {
+                if let Some(word) = token.word_with_escapes() {
+                    current.words.push(word.into_owned());
+                }
             }
-            Tok::Close => {
-                flush(&mut cur, &mut nodes);
-                *pos += 1;
-                return nodes;
+            ShellTokenKind::Newline => finish(&mut current, &mut nodes),
+            ShellTokenKind::Open => {
+                parents.push((std::mem::take(&mut nodes), std::mem::take(&mut current)));
+            }
+            ShellTokenKind::Close => {
+                finish(&mut current, &mut nodes);
+                let Some((siblings, mut block)) = parents.pop() else {
+                    break;
+                };
+                block.children = std::mem::replace(&mut nodes, siblings);
+                block.has_block = true;
+                nodes.push(block);
             }
         }
-        *pos += 1;
     }
-    flush(&mut cur, &mut nodes);
+    finish(&mut current, &mut nodes);
     nodes
 }
 
