@@ -34,6 +34,20 @@ fn scf() -> (String, String) {
 }
 
 #[test]
+fn model_retains_complete_apm_stanzas_after_comment_and_quoted_braces() {
+    let source = "# {\napm profile access \"/Common/profile { one\" {\n}\napm profile access /Common/next {\n}\n";
+    let model = collect_model(&[("apm.scf".into(), source.into())], "APM");
+    let profiles = model["devices"][0]["apmProfiles"]
+        .as_array()
+        .expect("APM profiles");
+    let names: Vec<_> = profiles
+        .iter()
+        .map(|p| p["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, ["next", "profile { one"]);
+}
+
+#[test]
 fn model_carries_apm_walk() {
     let m = collect_model(&[scf()], "APM");
     let d = &m["devices"][0];

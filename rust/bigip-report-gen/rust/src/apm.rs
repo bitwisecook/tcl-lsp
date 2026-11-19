@@ -87,67 +87,17 @@ impl Node {
     }
 }
 
-/// Split the config into top-level stanzas, returning `(header words, body)`
-/// for each. Quote-aware brace tracking so a value like
-/// `expression "expr {[mcget {x}] == 1}"` never unbalances the scan.
+/// Select complete stanzas from the same shell reader that owns the model.
 fn top_level_objects(src: &str) -> Vec<(Vec<String>, String)> {
-    let mut out = Vec::new();
-    let mut header = String::new();
-    let mut body = String::new();
-    let mut depth = 0usize;
-    let mut in_quote = false;
-    let mut escaped = false;
-
-    for ch in src.chars() {
-        if depth == 0 {
-            // Accumulating a stanza header up to its opening brace.
-            match ch {
-                '{' => {
-                    depth = 1;
-                    body.clear();
-                }
-                _ => header.push(ch),
-            }
-            continue;
-        }
-
-        // Inside a stanza body: copy verbatim, tracking depth and quotes.
-        if in_quote {
-            body.push(ch);
-            if escaped {
-                escaped = false;
-            } else if ch == '\\' {
-                escaped = true;
-            } else if ch == '"' {
-                in_quote = false;
-            }
-            continue;
-        }
-        match ch {
-            '"' => {
-                in_quote = true;
-                body.push(ch);
-            }
-            '{' => {
-                depth += 1;
-                body.push(ch);
-            }
-            '}' => {
-                depth -= 1;
-                if depth == 0 {
-                    let words: Vec<String> = header.split_whitespace().map(str::to_owned).collect();
-                    if !words.is_empty() {
-                        out.push((words, std::mem::take(&mut body)));
-                    }
-                    header.clear();
-                } else {
-                    body.push(ch);
-                }
-            }
-            _ => body.push(ch),
-        }
-    }
-    out
+    tcl_bigip::parser::block_spans(src)
+        .filter(|block| block.closed)
+        .map(|block| {
+            (
+                tcl_bigip::parser::tokenise_header(&src[block.header]),
+                src[block.body].to_owned(),
+            )
+        })
+        .collect()
 }
 
 /// Tokens of a TMSH body: words, block delimiters, and statement boundaries.
