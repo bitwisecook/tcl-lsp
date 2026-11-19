@@ -101,6 +101,8 @@ The hourly review confirmed O129's original programme now prints zero before and
 
 **Editor grammar ownership, 19 November.** Zed compiles the APL tree-sitter grammar to C. Its outer grammar chooses the byte slice that reaches the injected Tcl grammar. Verify that boundary against the authoritative embedded-script reader on nested words, incomplete input and escaped delimiters. The downstream Tcl parser alone cannot recover bytes that the outer grammar omitted.
 
+**Named incident rerun, 19 November at 13:44 UTC.** On clean combined `8d6ae9adde` with all six interpreters required, `tcl-compiler::it_2` passed the original #2418 / O129 regression. Two other selected tests failed. The original I230 assertion passed before the fixture failed to find `::p`. The O101 two-call witness still changes `no/yes` to `no/no`. These are three selected tests from a 501-case target. For the collector comparison on clean `a6c66517c7`, 65 compiler preservation controls pass and all six proposed fixes fail. The historical LSP indentation control needs a separate measurement.
+
 ## Scoreboard, 18 November 2026, 11:55 UTC (at the pause)
 
 Failing tests by area on the restructured tree, from the successor sessions' baselines and first pushes.
