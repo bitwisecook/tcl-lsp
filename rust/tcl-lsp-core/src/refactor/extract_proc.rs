@@ -540,7 +540,12 @@ fn plan_extraction(
     let unavailable_reference = || {
         "a captured variable has no complete reference under the original source grammar".to_owned()
     };
-    let definition = render_definition(&name, &by_value, &by_name, block, &indent, config)
+    let input = analysis
+        .resolved_input
+        .as_ref()
+        .ok_or_else(unavailable_reference)?;
+    let syntax = (config, input.unit_profile().parameter_grammar());
+    let definition = render_definition(&name, &by_value, &by_name, block, &indent, syntax)
         .ok_or_else(unavailable_reference)?;
     let call = render_call_for_config(&name, &by_value, &by_name, config)
         .ok_or_else(unavailable_reference)?;
@@ -1147,9 +1152,10 @@ fn render_definition(
     by_name: &[String],
     block: &str,
     block_indent: &str,
-    config: LexerConfig,
+    syntax: (LexerConfig, Option<tcl_dialect::ParameterGrammar>),
 ) -> Option<String> {
     use std::fmt::Write as _;
+    let (config, parameter_grammar) = syntax;
     let mut params: Vec<String> = by_value.to_vec();
     params.extend(by_name.iter().map(|var| format!("{var}Name")));
     let mut body = String::new();
@@ -1160,7 +1166,7 @@ fn render_definition(
             body,
             "    upvar 1 {} {}",
             tcl_syntax::naming::scalar_source_reference(&format!("{var}Name"), config, false)?,
-            word(var)
+            tcl_syntax::word_rules::lexical_unicode_source_word(var, config)?
         );
     }
     for line in block.lines() {
@@ -1171,15 +1177,55 @@ fn render_definition(
             let _ = writeln!(body, "    {}", stripped.trim_end());
         }
     }
-    // The parameter list is a Tcl *list*, so each name goes in as a properly
-    // quoted element rather than raw text.
-    let param_list = tcl_syntax::list::join_list(params.iter());
-    Some(format!("proc {name} {{{param_list}}} {{\n{body}}}\n\n"))
+    let formals = required_formal_word(&params, config, parameter_grammar)?;
+    Some(format!("proc {name} {formals} {{\n{body}}}\n\n"))
 }
 
-/// `name` as a single command word, list-quoted when it cannot stand raw.
-fn word(name: &str) -> String {
-    tcl_syntax::list::join_list(std::iter::once(name))
+/// A formal word contains a list of specifiers, each itself a Tcl list.
+/// A selected binding must assign every supplied argument to its intended name.
+fn required_formal_word(
+    names: &[String],
+    config: LexerConfig,
+    selected: Option<tcl_dialect::ParameterGrammar>,
+) -> Option<String> {
+    use tcl_dialect::ParameterGrammar;
+    use tcl_syntax::formal_params::{
+        FormalArgumentBinding, bind_formal_arguments, parse_formal_parameters_in,
+    };
+    if names.iter().collect::<BTreeSet<_>>().len() != names.len() {
+        return None;
+    }
+    let specs = names
+        .iter()
+        .map(|name| tcl_syntax::list::list_element(name));
+    let list = tcl_syntax::list::join_list(specs);
+    let actual =
+        tcl_syntax::list::split_list_with_syntax(&list, config.list_parse, config.escapes).ok()?;
+    if actual.len() != names.len() {
+        return None;
+    }
+    for (spec, name) in actual.iter().zip(names) {
+        let fields =
+            tcl_syntax::list::split_list_with_syntax(spec, config.list_parse, config.escapes)
+                .ok()?;
+        if fields.as_slice() != [name.as_str()] {
+            return None;
+        }
+    }
+    for grammar in [ParameterGrammar::Tcl, ParameterGrammar::Jim] {
+        if selected.is_some_and(|required| required != grammar) {
+            continue;
+        }
+        let params = parse_formal_parameters_in(&list, grammar).ok()?;
+        if !params.iter().map(|p| &p.name).eq(names) {
+            return None;
+        }
+        let bindings = bind_formal_arguments(&params, names.len(), grammar).ok()?;
+        if !bindings.iter().enumerate().all(|(index,binding)| matches!(binding,FormalArgumentBinding::Value{parameter,argument} if *parameter == index && *argument == index)) {return None;}
+    }
+    let braced = format!("{{{list}}}");
+    tcl_syntax::word_rules::lexical_unicode_source_word_matches(&braced, &list, config)
+        .then_some(braced)
 }
 
 /// Render the call that replaces the selection.
@@ -1198,7 +1244,11 @@ fn render_call_for_config(
             var, config, false,
         )?);
     }
-    words.extend(by_name.iter().map(|var| word(var)));
+    for var in by_name {
+        words.push(tcl_syntax::word_rules::lexical_unicode_source_word(
+            var, config,
+        )?);
+    }
     Some(words.join(" "))
 }
 

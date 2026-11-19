@@ -174,6 +174,22 @@ fn tp_extracts_a_read_only_selection_as_value_parameters() {
     assert!(result.contains("extracted_proc $x"), "{result}");
 }
 
+#[test]
+fn generated_required_formals_preserve_the_actual_local_names() {
+    use tcl_dialect::ParameterGrammar::{Jim, Tcl};
+    let source = "set {two words} hello\nputs ${two words}\n";
+    // Plain Tcl analysis has to preserve either selected engine; otherwise it refuses.
+    let logical = at_dialect(source, "puts ${two words}", "tcl");
+    assert!(logical.is_none_or(|action| action.disabled.is_some()));
+    let tcl = tcl_lexer::LexerConfig::for_profile(tcl_dialect::DialectProfile::find("tcl8.6"));
+    assert_eq!(
+        required_formal_word(&["two words".into()], tcl, Some(Tcl)).as_deref(),
+        Some("{{{two words}}}")
+    );
+    assert!(required_formal_word(&["two words".into()], tcl, Some(Jim)).is_none());
+    assert!(required_formal_word(&["args".into()], tcl, Some(Tcl)).is_none());
+}
+
 /// The captured-variable set decides the generated proc's
 /// parameters and its call-site arguments, so a brace-bearing `${…}`
 /// name must be read by the **document's** release rule, not always the
