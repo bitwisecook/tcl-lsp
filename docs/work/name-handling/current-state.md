@@ -79,6 +79,8 @@ The owner authorised the complete [library and consumer migration](parser-crate-
 | lsp_features | Regex replacement/pattern spans and original cursor word | Hints, tokens, definition, code actions, BIG-IP symbols and editor consumers; keep source ranges and proof. |
 | irules_registry_tooling | Pack, CLI, F5 host/embedded boundaries and drift checks | Spec Studio/SpecTcl, venv/sandbox, APL, tmsh, tools. Expose the configured existing lexer bracket-end reader for APL, preserving original bytes. Verify package or device questions at the corresponding entry. |
 
+The owner requires every shipping parser and dialect-sensitive consumer to be accounted for. Use the [family register](parser-coverage.tsv) and the complete tracked-file inventory in the [crate plan](parser-crate-plan.md#coverage-and-sign-off). Mark a family complete only with a reviewed owner and caller inventory, public-entry evidence and a regression check. Unreviewed paths stay open.
+
 ## Scoreboard, 18 November 2026, 11:55 UTC (at the pause)
 
 Failing tests by area on the restructured tree, from the successor sessions' baselines and first pushes.

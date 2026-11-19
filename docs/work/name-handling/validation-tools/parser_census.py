@@ -1,7 +1,8 @@
 """List first-party source files and lexical leads for the parser ownership review.
 
 From the repo root run python3 docs/work/name-handling/validation-tools/parser_census.py.
-Use --sites for a file and line index. Hits require caller and grammar review.
+Use --sites for lexical leads. Use --files for every tracked path, including paths
+with no lexical lead. A surface classification describes review scope, not sign-off.
 """
 
 import argparse
@@ -67,9 +68,77 @@ LEADS = {
 }
 
 
+def component_for(path: Path, packages: set[Path]) -> str:
+    package = next((parent for parent in path.parents if parent in packages), None)
+    if package is not None:
+        return str(package)
+    if path.parts[0] in {"editors", "grammars"}:
+        return str(Path(*path.parts[:2]))
+    return path.parts[0] if len(path.parts) > 1 else "."
+
+
+def surface_for(path: Path) -> str:
+    """Describe the tracked input. Never discard a new root, language or extension."""
+    parts = set(path.parts)
+    top = path.parts[0]
+    if parts & {"vendor", "third_party", "node_modules"}:
+        return "vendored"
+    if parts & {"tests", "testdata", "testFixture", "fixtures", "benches", "examples"}:
+        return "test-or-example"
+    if path.name == "tests.rs" or path.stem.endswith(("_tests", "_test", ".test")):
+        return "test-or-example"
+    if top in {"samples", "tests", "experiments", "evidence"}:
+        return "corpus-or-oracle"
+    if parts & {"gen", "generated"} or (top == "grammars" and path.name == "parser.c"):
+        return "generated"
+    if (
+        top == "grammars"
+        or "syntaxes" in parts
+        or path.suffix in {".scm", ".sublime-syntax"}
+    ):
+        return "grammar-or-editor-rules"
+    if (
+        path.suffix
+        in {".tclspec", ".tm", ".jim", ".irule", ".irules", ".apl", ".iapp", ".scf"}
+        or top == "specs"
+    ):
+        return "pack-or-script"
+    if path.suffix in SUFFIXES | {".swift", ".pyi", ".cjs", ".j2", ".jinja", ".bat"}:
+        return "source"
+    if (
+        path.name in {"Makefile", "Cargo.lock", "Cargo.toml", "CMakeLists.txt"}
+        or top == ".github"
+    ):
+        return "build-or-workflow"
+    if path.suffix == ".conf" and "bigip-probes" in parts:
+        return "device-probe"
+    if path.suffix in {
+        ".json",
+        ".jsonc",
+        ".jsonl",
+        ".toml",
+        ".yaml",
+        ".yml",
+        ".xml",
+        ".tsv",
+        ".csv",
+        ".conf",
+    }:
+        return "declarative-data"
+    if path.suffix in {".md", ".rst"}:
+        return "documentation"
+    return "other-review"
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--sites", action="store_true")
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--sites", action="store_true")
+    modes.add_argument(
+        "--files",
+        action="store_true",
+        help="list every tracked path and its review surface",
+    )
     args = parser.parse_args()
     root = Path(
         subprocess.check_output(
@@ -82,6 +151,13 @@ def main():
         .split("\0")
     )
     packages = {Path(name).parent for name in tracked if name.endswith("/Cargo.toml")}
+    if args.files:
+        print("component\tsurface\tpath")
+        for name in tracked:
+            if name:
+                path = Path(name)
+                print(component_for(path, packages), surface_for(path), name, sep="\t")
+        return
     totals = {}
     if args.sites:
         print("component\tpath\tline\tlead\ttext")
@@ -97,15 +173,7 @@ def main():
             path.parts[0] == "grammars" and path.name == "parser.c"
         ):
             continue
-        component = next(
-            (parent for parent in path.parents if parent in packages), None
-        )
-        if component is None:
-            component = (
-                Path(*path.parts[:2])
-                if path.parts[0] in {"editors", "grammars"}
-                else Path(path.parts[0])
-            )
+        component = component_for(path, packages)
         counts = totals.setdefault(str(component), Counter())
         counts["files"] += 1
         for index, line in enumerate(

@@ -80,6 +80,12 @@ Other command-specific operand grammars belong with the command owner. `trace` l
 5. **Introduce the library boundaries.** Begin with value-syntax and numeric modules, then extract their crates behind forwarding exports after eliminating cycles. Follow with expression syntax once naming and numeric dependencies are isolated. Keep names, spans and decoder lifetimes stable for existing callers. Measure native and WASM builds and allocation-sensitive paths (large lists, deeply nested scripts, repeated incremental queries). Keep the existing owner when moving a crate would add a dependency without removing a second implementation.
 6. **Close the migration per family.** The area owner records source, consumer, selected policy, tests and independent reviewer in the [scrub](../test-scrub/README.md). Run the C/Jim matrix with all required flags, `cargo fmt`, `cargo clippy --all-targets` and `make xtask-gates` on the rebased head. Extend `owner-resolution`, `segmentation-drift`, `number-drift` and registry gates for specific retired readers and their proved replacement. Include standalone runtime and feature-gated WASM callers in coverage. Keep intentionally different scanners only with their purpose and a differential corpus. A gate that recognises a spelling cannot establish equivalence by itself.
 
+## Coverage and sign-off
+
+The [family register](parser-coverage.tsv) gives each grammar an intended owner, a concrete starting fixture and the work still needed. A fixture proves only the cases it exercises. All rows opened with the implementation request. To close a row, record the reviewed source revision, owning API, callers in each shipping product, applicable oracle results, and the checks that would catch a second implementation. Record a reason and evidence for each inapplicable caller or dialect. Keep device observations in the [F5 ledger](bigip-name-checks.md).
+
+Use the all-files inventory alongside Cargo targets/features, standalone manifests, build scripts, generated grammars, packaged files and embedded-language boundaries. Trace host-language scanners, regular expressions, splitting, joining and manual byte/character loops to their inputs and consumers. Follow data into delegates and generated artifacts. Check a deliberately introduced private scanner, a forwarding adapter and a genuine host-language parser when validating the ownership gate. A newly tracked source or a previously unseen grammar requires review.
+
 ## Source census and limits
 
 From the checkout run:
@@ -87,6 +93,7 @@ From the checkout run:
 ```sh
 python3 docs/work/name-handling/validation-tools/parser_census.py
 python3 docs/work/name-handling/validation-tools/parser_census.py --sites > /tmp/tcl-parser-sites.tsv
+python3 docs/work/name-handling/validation-tools/parser_census.py --files > /tmp/tcl-parser-files.tsv
 ```
 
 The [census](validation-tools/parser_census.py) lists components, source files, reader/writer declarations, common host parsing primitives and known shared-owner calls. The second command emits a file and line for each lexical lead. At the reviewed revision it scanned **6,772 files across 73 component groups** under `rust`, the separate runtime, editors, grammars, scripts, AI and spec roots. It reported 2,375 declaration matches, 1,051 host-primitive matches and 1,299 owner-call matches. These are line matches, not counts of implementations or defects. Configured source suffixes and exclusions are in the script. Inline test modules and some generated inputs can still match. The counts exclude generated tree-sitter C parsers and vendored sources. TextMate assets, tree-sitter injection queries and associated generator ownership were also examined separately.
