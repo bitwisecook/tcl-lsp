@@ -317,7 +317,17 @@ fn source_in(vm: &mut Vm, args: &[Value], names: &OriginalNameConsumerScope) -> 
         vm.push_script(label.to_owned());
     }
     let image = tcl_lexer::SourceImage::native(std::sync::Arc::<[u8]>::from(prepared.script));
-    let completion = match vm.eval_source_image_at_internal(&image, None) {
+    let evaluation = match dialect.native_source_file_protocol() {
+        Some(tcl_cmd_core::encoding::NativeSourceFileProtocol::CSystem(version))
+            if tcl_registry::release_compilation::evaluates_script_directly(
+                version, "source", 1,
+            ) =>
+        {
+            tcl_runtime_api::CommandEvaluation::Direct
+        }
+        _ => tcl_runtime_api::CommandEvaluation::Compiled,
+    };
+    let completion = match vm.eval_source_image_as_internal(&image, None, evaluation) {
         Ok(completion) => completion,
         Err(error) => completion_from_tcl_error(vm, error),
     };

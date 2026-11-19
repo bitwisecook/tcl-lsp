@@ -167,15 +167,22 @@ fn source_settles_a_return_and_records_where_an_error_occurred() {
     let early = write("early.tcl", "return -code break\n");
     let value = write("value.tcl", "return x\n");
     let errs = write("errs.tcl", "set a 1\nerror boom\n");
+    let expression = write("expression.tcl", "expr {0b10 + 1}\n");
     let source = format!(
         "puts [catch {{source {raises}}} m]-$m\n\
          puts [catch {{source {early}}} m]\n\
          puts [source {value}]\n\
          catch {{source {errs}}}\n\
-         puts [lindex [split $errorInfo \\n] 3]\n"
+         puts [lindex [split $errorInfo \\n] 3]\n\
+         if {{[catch {{source {expression}}} m]}} {{puts [lindex [split $errorInfo \\n] 1]}} else {{puts $m}}\n"
     );
-    check(&dir, &source, |_| {
-        format!("1-boom\n3\nx\n    (file \"{errs}\" line 2)\n")
+    check(&dir, &source, |version| {
+        let frame_or_value = if version == TclVersion::V8_4 {
+            "    while executing"
+        } else {
+            "3"
+        };
+        format!("1-boom\n3\nx\n    (file \"{errs}\" line 2)\n{frame_or_value}\n")
     });
     let _ = std::fs::remove_dir_all(&dir);
 }

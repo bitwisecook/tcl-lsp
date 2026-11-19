@@ -456,6 +456,19 @@ impl Vm {
         source: &tcl_lexer::SourceImage,
         location: Option<tcl_runtime_api::script_source_location::ScriptSourceLocation>,
     ) -> Result<Completion<Value>, TclError> {
+        self.eval_source_image_as_internal(
+            source,
+            location,
+            tcl_runtime_api::CommandEvaluation::Compiled,
+        )
+    }
+
+    pub(crate) fn eval_source_image_as_internal(
+        &mut self,
+        source: &tcl_lexer::SourceImage,
+        location: Option<tcl_runtime_api::script_source_location::ScriptSourceLocation>,
+        evaluation: tcl_runtime_api::CommandEvaluation,
+    ) -> Result<Completion<Value>, TclError> {
         if let Some(refusal) = self.execution_refusal.clone() {
             return Err(TclError::from_execution_failure(refusal));
         }
@@ -468,10 +481,9 @@ impl Vm {
         self.reset_error_state_for_eval();
         let current = self.current_native_compilation_namespace()?;
         let namespace = self.ns_path(current);
-        let entry = self.native_compilation_entry_for_namespace_token(
-            self.current_native_compilation_namespace()?,
-            false,
-        );
+        let direct = evaluation == tcl_runtime_api::CommandEvaluation::Direct;
+        let mut entry = self.native_compilation_entry_for_namespace_token(current, false);
+        entry.direct_evaluation = direct;
         let Some(compiler) = self.compiler.clone() else {
             return Err(self.compile_service_error_bytes(
                 tcl_runtime_api::CompileError::Unsupported(
@@ -525,8 +537,9 @@ impl Vm {
             source.bytes()[..plan.complete_prefix_len].to_vec(),
             source.channel(),
         );
-        let module =
-            self.compile_module_bytes(&prefix, &namespace, self.requires_plain_command_dispatch())?;
+        let plain = self.requires_plain_command_dispatch()
+            || (direct && self.runtime_version().compile_errors_fail_scripts());
+        let module = self.compile_module_bytes_as(&prefix, &namespace, plain, direct)?;
         let mut completion = self.run_current_module_at(&module, location);
         if self.execution_refusal.is_some() {
             return Ok(completion);
