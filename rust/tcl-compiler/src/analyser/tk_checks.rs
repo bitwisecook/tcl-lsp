@@ -317,7 +317,7 @@ impl Analyser {
                 .insert(path.clone());
 
             // TK1003: unknown option for the widget command.
-            self.emit_tk1003_unknown_options(cmd_name, args, arg_tokens, cmd_tok);
+            self.emit_tk1003_unknown_options(cmd_name, arg_tokens);
         }
 
         // Registry-declared Tk teardown ends both the pathname lifetime and
@@ -802,13 +802,7 @@ impl Analyser {
     /// option position ends the scan (Tk itself errors there).  Each
     /// finding anchors on the offending option word and carries a "did you
     /// mean…?" replace fix drawn from the declared option set.
-    fn emit_tk1003_unknown_options(
-        &mut self,
-        cmd_name: &str,
-        args: &[String],
-        arg_tokens: &[Token],
-        cmd_tok: Token,
-    ) {
+    fn emit_tk1003_unknown_options(&mut self, cmd_name: &str, arg_tokens: &[Token]) {
         let Some(registry) = self.registry.as_deref() else {
             return;
         };
@@ -816,28 +810,34 @@ impl Analyser {
             return;
         };
         let known: Vec<&str> = spec.switch_names(None);
-        let mut findings: Vec<(String, tcl_lexer::Span)> = Vec::new();
-        let mut i = 1;
-        while i < args.len() {
-            let arg = &args[i];
-            if !arg.starts_with('-') || arg == "-" || arg.starts_with("--") {
-                // Non-option word in option position — Tk stops parsing
-                // options here, so anything after is not ours to judge.
+        let options = tcl_registry::abbrev::KeywordTable::new(
+            known.iter().copied(),
+            tcl_registry::abbrev::PrefixMatching::Enabled,
+        );
+        let mut findings = Vec::new();
+        for (index, token) in arg_tokens.iter().enumerate() {
+            let Some(word) = self.retained_value_word(*token) else {
+                break;
+            };
+            if word.group().expand {
                 break;
             }
-            // Dynamic option word (`-$style`, `-[pick]`) — unknowable.
-            if arg.contains('$') || arg.contains('[') {
-                i += 2;
+            if index % 2 == 0 {
                 continue;
             }
-            let exact = known.contains(&arg.as_str());
-            let prefix_hits = known.iter().filter(|k| k.starts_with(arg.as_str())).count();
-            if !exact && prefix_hits == 0 {
-                let span = arg_tokens.get(i).map_or(cmd_tok.span, |t| t.span);
-                findings.push((arg.clone(), span));
+            let Some(bytes) = tcl_syntax::word_rules::original_static_word_unicode_value(&word)
+            else {
+                continue;
+            };
+            let Ok(option) = String::from_utf8(bytes) else {
+                continue;
+            };
+            if !option.starts_with('-') {
+                break;
             }
-            // Skip the option's value word.
-            i += 2;
+            if options.resolve(&option) == tcl_registry::abbrev::KeywordMatch::Unknown {
+                findings.push((option, word.span()));
+            }
         }
         for (arg, span) in findings {
             let suggestions = crate::text::suggest_similar(
@@ -1428,6 +1428,29 @@ proc build {} {
     /// checked here with a `ttk::` constructor and a plain-Tk one, so this is a
     /// coverage check on the *mechanism*, not a re-assertion of the case
     /// `tk1002_fires_for_missing_parent` uses.
+    #[test]
+    fn tk_option_names_follow_their_original_word() {
+        for (option, warns) in [
+            ("-bad", true),
+            ("{-b$ad}", true),
+            ("{-b[ad}", true),
+            (r"-b\$ad", true),
+            ("-b$ad", false),
+            ("-text", false),
+        ] {
+            let source = format!("package require Tk\nbutton .x {option} Hello");
+            let result = Analyser::new().analyse(&source, "tcl8.6");
+            assert_eq!(
+                result
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.code == DiagCode::Tk1003),
+                warns,
+                "{source}"
+            );
+        }
+    }
+
     #[test]
     fn tk1002_fires_for_ttk_and_listbox_constructors() {
         assert!(has("ttk::treeview .outer.inner", "tk", "TK1002"));
