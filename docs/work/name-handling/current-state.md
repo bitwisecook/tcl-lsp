@@ -91,6 +91,10 @@ The clean `tcl-compiler` integration target `it_2` on `a6c66517c7` ran 501 cases
 
 Apply the configured escape policy when a shared list reader receives selected word rules. The C 8.4/8.5 switch-arm list `\x41b` consumes all three hex digits and gives U+001B. C 8.6/9.0/9.1 and the pinned Jim return two characters beginning with U+0041. The value-syntax and tooling owners coordinate the shared correction and caller regression. Keep F5 behaviour requiring physical hardware in the [device ledger](bigip-name-checks.md).
 
+**Shared parser development checkpoint, 19 November.** The first combined batch moves numeric, value and expression parsing into shared crates, routes public consumers to them, and adds a parser ownership gate. Whole-workspace format checking passed. Canonical all-target clippy found two new registry lints (similar switch-binding names and a local import below statements). The combined gate run passed 37 of 40. It found a stale link to the extracted native string module, an expression owner manifest with an invalid gate and stale package identities, and a semantic-token module over the file-size limit. The link has been corrected. The remaining corrections have been prepared in the next integration. Individual crate checks are recorded separately. Publish this as a development checkpoint under the existing work-branch rule.
+
+The hourly review confirmed O129's original programme now prints zero before and after the public optimiser on C Tcl 8.4–9.1 and Jim. Strict reachability on the eight I230 cases survived the SSA repair. The actual named tests and the broader caller inventory continue. The clean compiler measurement on `a6c66517c7` with every oracle required is 11,289 passed, 1,871 failed, and six skipped (13,166 listed). O101, the declared-frame collector, database timings, and #2543 remain open. Device-only checks remain in the [F5 ledger](bigip-name-checks.md).
+
 ## Scoreboard, 18 November 2026, 11:55 UTC (at the pause)
 
 Failing tests by area on the restructured tree, from the successor sessions' baselines and first pushes.
