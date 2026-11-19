@@ -18,6 +18,7 @@
 
 //! Compile-time folds of the pure `string` subcommands.
 
+use tcl_syntax::number::Numbers;
 use super::TclVersion;
 use crate::const_fold::{NativeIndexSelection, parse_element_index, parse_index, parse_range};
 
@@ -95,7 +96,6 @@ pub(crate) fn fold_repeat_versioned(args: &[&str], version: Option<TclVersion>) 
     let [s, count] = args else {
         return None;
     };
-    use tcl_syntax::number::Numbers;
     let numbers = version.map_or(Numbers::Unknown, |version| {
         Numbers::Target(version.number_syntax())
     });
