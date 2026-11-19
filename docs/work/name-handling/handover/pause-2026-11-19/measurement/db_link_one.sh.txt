@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "${DB_CHECKOUT:?}"
+source "${ORACLE_ENV:?}"
+test "$(git rev-parse --short=10 HEAD)" = "${DB_HEAD:?}"
+test -z "$(git status --porcelain)"
+case "$1" in it_5|interned_gc|compiler_check_corpus) ;; *) exit 2 ;; esac
+export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:?}" CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_TEST_OPT_LEVEL=1 CARGO_TERM_COLOR=never
+timing_dir="${DB_EVIDENCE:?}"
+mkdir -p "$timing_dir"
+cargo test --offline --locked --no-run -p tcl-lsp-db --test "$1" --message-format=json-render-diagnostics >"$timing_dir/$1.jsonl" 2>"$timing_dir/$1-build.log"

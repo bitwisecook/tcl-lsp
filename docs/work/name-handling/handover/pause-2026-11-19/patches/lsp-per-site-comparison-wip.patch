@@ -1,0 +1,843 @@
+diff --git a/rust/tcl-lsp-core/src/refactor/if_to_switch.rs b/rust/tcl-lsp-core/src/refactor/if_to_switch.rs
+index 92470e14b3..67123937e8 100644
+--- a/rust/tcl-lsp-core/src/refactor/if_to_switch.rs
++++ b/rust/tcl-lsp-core/src/refactor/if_to_switch.rs
+@@ -22,6 +22,7 @@ use crate::original_invocation::schema_clause_plan;
+ use tcl_compiler::analyser::AnalysisResult;
+ use tcl_lexer::{LexerConfig, LineIndex};
+ use tcl_registry::ArgRole;
++use tcl_registry::hooks::LoweringHookId;
+ 
+ use super::datagroup::ScalarVariableSourceSyntax;
+ use super::equality_source::scalar_string_equality as parse_eq_test;
+@@ -58,16 +59,15 @@ pub fn if_to_switch(
+     analysis: &AnalysisResult,
+     line_index: &LineIndex,
+ ) -> Option<Refactoring> {
+-    let (cmd, obligation) = select(
++    let (cmd, _) = select(
+         source,
+         cursor,
+         analysis,
+         tcl_registry::hooks::LoweringHookId::If,
+         RewriteObligation::ControlFlowEvaluation,
+     )?;
+-    if let Some(obligation) = obligation {
+-        return Some(obligation.refusal("Convert if chain to switch"));
+-    }
++    let refuse = || RewriteObligation::ControlFlowEvaluation.refusal("Convert if chain to switch");
++    let walk = super::FrameWalk::new(source, analysis)?;
+     let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+     let config = current.config();
+     let mut expression = tcl_syntax::expr::parser::ExprParseContext::for_profile(
+@@ -79,54 +79,76 @@ pub fn if_to_switch(
+     let context = current.context();
+     let original = crate::original_invocation::source_registry_words(source, analysis, &cmd)?;
+     let plan = original.with_source_schema(&context, schema_clause_plan)??;
+-    if plan.defect.is_some() {
+-        return None;
++    let chain = EqualityChain::read(&original, &plan, config, &expression)?;
++    let EqualityChain {
++        subject: target_var,
++        conditions,
++        branches,
++        else_body,
++    } = chain;
++    if !super::source_rewrite::document_comparison(&walk, source, &cmd) {
++        return Some(refuse());
+     }
+-
+-    // Parse the if/elseif chain: `if cond body ?elseif cond body?... ?else body?`.
+-    let mut branches: Vec<(String, String)> = Vec::new(); // (value, body)
+-    let mut else_body: Option<String> = None;
+-    let mut target_var: Option<ScalarVariableSourceSyntax> = None;
+-
+-    for clause in &plan.clauses {
+-        let literal = |role| {
+-            let index = clause.operand(role)?;
+-            std::str::from_utf8(original.arguments.get(index)?.literal_bytes()?).ok()
+-        };
+-        let body = literal(ArgRole::Body)?.to_owned();
+-        if clause.is_default {
+-            else_body = Some(body);
+-            continue;
+-        }
+-        let condition = literal(ArgRole::Expr)?;
+-
+-        let parsed = parse_eq_test(condition, config, &expression)?;
+-        match &target_var {
+-            None => target_var = Some(parsed.subject.clone()),
+-            Some(v) if v.name() != parsed.subject.name() => return None,
+-            _ => {}
+-        }
+-        if parsed.negated {
+-            return None;
+-        }
+-        branches.push((parsed.value, body));
++    let Some(tokens) =
++        super::source_rewrite::comparison_tokens(&walk, source, &cmd, LoweringHookId::If)
++    else {
++        return Some(refuse());
++    };
++    let mut domains = conditions.iter().map(|word| {
++        super::source_rewrite::scalar_read_values(
++            source,
++            &tokens,
++            word,
++            target_var.name(),
++            current.registry(),
++        )
++    });
++    let Some(subject_domain) = domains.next().flatten() else {
++        return Some(refuse());
++    };
++    if domains.any(|domain| domain.as_ref() != Some(&subject_domain))
++        || branches
++            .iter()
++            .any(|(pattern, _)| !pattern.is_ascii() || pattern.as_bytes().contains(&0))
++    {
++        return Some(refuse());
+     }
+ 
+-    let target_var = target_var?;
+-    if branches.len() < 2 {
+-        return None;
++    if !quiet_selected_arms(
++        &walk,
++        source,
++        &cmd,
++        &branches,
++        else_body.as_deref(),
++        &subject_domain,
++    ) {
++        return Some(refuse());
+     }
+-
+     // Build the switch statement.
+     let lines: Vec<&str> = source.split('\n').collect();
+     let cmd_line = line_index.line_at(cmd.span.start());
+     let indent = lines
+         .get(cmd_line as usize)
+         .map_or("", |l| super::line_indent(l));
+-    let replacement = render_switch(&target_var, &branches, else_body.as_deref(), indent, config)?;
++    let table = render_switch_table(&branches, else_body.as_deref(), indent, config)?;
++    let Some(head) = tokens
++        .source_binding
++        .as_ref()?
++        .original_comparison_rewrite_command(
++            &tokens,
++            current.registry(),
++            tcl_compiler::command_binding::ComparisonRewriteCommand::ExactSwitch { table: &table },
++        )
++    else {
++        return Some(refuse());
++    };
++    let replacement = format!(
++        "{} -exact -- {} {{{table}}}",
++        head.source_word(),
++        target_var.reference()
++    );
+ 
+-    let (start, end) =
+-        super::FrameWalk::new(source, analysis)?.command_span_offsets(source, &cmd)?;
++    let (start, end) = walk.command_span_offsets(source, &cmd)?;
+     Some(Refactoring {
+         title: format!("Convert to switch on {}", target_var.reference()),
+         edits: vec![RefactorEdit {
+@@ -140,8 +162,108 @@ pub fn if_to_switch(
+     })
+ }
+ 
+-fn render_switch(
+-    subject: &ScalarVariableSourceSyntax,
++struct EqualityChain<'a> {
++    subject: ScalarVariableSourceSyntax,
++    conditions: Vec<&'a tcl_lexer::NativeWord>,
++    branches: Vec<(String, String)>,
++    else_body: Option<String>,
++}
++
++impl<'a> EqualityChain<'a> {
++    fn read(
++        original: &'a crate::original_invocation::OriginalRegistryWords,
++        plan: &tcl_registry::clause_grammar::ClausePlan,
++        config: LexerConfig,
++        expression: &tcl_syntax::expr::parser::ExprParseContext,
++    ) -> Option<Self> {
++        if plan.defect.is_some() {
++            return None;
++        }
++        let mut subject: Option<ScalarVariableSourceSyntax> = None;
++        let mut branches = Vec::new();
++        let mut conditions = Vec::new();
++        let mut else_body = None;
++        for clause in &plan.clauses {
++            let literal = |role| {
++                let index = clause.operand(role)?;
++                std::str::from_utf8(original.arguments.get(index)?.literal_bytes()?).ok()
++            };
++            let body = literal(ArgRole::Body)?.to_owned();
++            if clause.is_default {
++                else_body = Some(body);
++                continue;
++            }
++            let test = parse_eq_test(literal(ArgRole::Expr)?, config, expression)?;
++            if test.negated
++                || subject
++                    .as_ref()
++                    .is_some_and(|previous| previous.name() != test.subject.name())
++            {
++                return None;
++            }
++            subject.get_or_insert(test.subject);
++            let word = original
++                .operands
++                .get(clause.operand(ArgRole::Expr)?)?
++                .as_ref()?
++                .word
++                .as_ref()?;
++            conditions.push(word);
++            branches.push((test.value, body));
++        }
++        if branches.len() < 2 {
++            return None;
++        }
++        Some(Self {
++            subject: subject?,
++            conditions,
++            branches,
++            else_body,
++        })
++    }
++}
++
++fn quiet_selected_arms(
++    walk: &super::FrameWalk<'_>,
++    source: &str,
++    command: &tcl_compiler::segmenter::SegmentedCommand,
++    branches: &[(String, String)],
++    else_body: Option<&str>,
++    subject_domain: &[&str],
++) -> bool {
++    // A script can inspect its invoking command and source frame. Only
++    // transfer a body whose selected literal return or quiet store cannot
++    // observe that the enclosing control command changed.
++    let Some(arms) = super::source_rewrite::mapping_arms(walk, source, command) else {
++        return false;
++    };
++    if arms.len() != branches.len() + usize::from(else_body.is_some())
++        || arms
++            .iter()
++            .zip(
++                branches
++                    .iter()
++                    .map(|(_, body)| body)
++                    .map(String::as_str)
++                    .chain(else_body),
++            )
++            .any(|(arm, body)| arm.body_text() != Some(body))
++    {
++        return false;
++    }
++    for possible in subject_domain {
++        let arm = branches
++            .iter()
++            .position(|(pattern, _)| pattern == *possible)
++            .or_else(|| else_body.as_ref().map(|_| branches.len()));
++        if arm.is_some_and(|i| !arms[i].quiet() || arms[i].literal_assignment().is_none()) {
++            return false;
++        }
++    }
++    true
++}
++
++fn render_switch_table(
+     branches: &[(String, String)],
+     else_body: Option<&str>,
+     indent: &str,
+@@ -190,20 +312,12 @@ fn render_switch(
+         .ok()?;
+     if !actual
+         .iter()
+-        .map(std::convert::AsRef::as_ref)
++        .map(|field| field.as_ref() as &str)
+         .eq(expected.iter().map(String::as_str))
+     {
+         return None;
+     }
+-    let replacement = format!("switch -exact -- {} {container}", subject.reference());
+-
+-    let generated = tcl_lexer::native_script_words_in(
+-        tcl_lexer::SourceImage::document(&replacement),
+-        tcl_lexer::Span::new(0, u32::try_from(replacement.len()).ok()?),
+-        config,
+-    )
+-    .ok()?;
+-    (generated.fatal_tail.is_none() && generated.commands.len() == 1).then_some(replacement)
++    Some(case_list)
+ }
+ 
+ #[cfg(test)]
+@@ -275,11 +389,20 @@ mod tests {
+     #[test]
+     fn preserves_literal_default_and_body_values_and_refuses_switch_fallthrough() {
+         let body = "set value {line one\n line two}\nreturn $value";
+-        let source =
+-            format!(r#"if {{$k eq "a"}} {{{body}}} elseif {{$k eq "default"}} {{return two}}"#);
+-        let replacement = run(&source, 0).unwrap().apply(&source);
+-        assert!(replacement.contains(body), "{replacement}");
+-        assert!(replacement.contains("default {}"), "{replacement}");
++        let cases = vec![
++            ("a".to_owned(), body.to_owned()),
++            ("default".to_owned(), "return two".to_owned()),
++        ];
++        let table =
++            render_switch_table(&cases, None, "", LexerConfig::for_dialect("tcl8.6")).unwrap();
++        let fields = tcl_syntax::word_rules::WordValueRules::from_config(
++            &LexerConfig::for_dialect("tcl8.6"),
++        )
++        .split_list(&table)
++        .unwrap();
++        assert_eq!(fields[1], body);
++        assert_eq!(fields[4], "default");
++        assert_eq!(fields[5], "");
+         for source in [
+             r#"if {$k eq "a"} {-} elseif {$k eq "b"} {return two}"#,
+             r#"if {$k eq "a"} $script elseif {$k eq "b"} {return two}"#,
+diff --git a/rust/tcl-lsp-core/src/refactor/source_rewrite.rs b/rust/tcl-lsp-core/src/refactor/source_rewrite.rs
+index f7b43bd029..c81b2ae5c4 100644
+--- a/rust/tcl-lsp-core/src/refactor/source_rewrite.rs
++++ b/rust/tcl-lsp-core/src/refactor/source_rewrite.rs
+@@ -60,6 +60,7 @@ pub(super) struct SourceMappingArm {
+     body: tcl_lexer::Span,
+     words: tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+     hook: LoweringHookId,
++    quiet: bool,
+ }
+ 
+ impl SourceMappingArm {
+@@ -68,6 +69,25 @@ impl SourceMappingArm {
+         std::str::from_utf8(word.image().bytes().get(self.body.as_range())?).ok()
+     }
+ 
++    pub(super) const fn quiet(&self) -> bool {
++        self.quiet
++    }
++
++    pub(super) fn literal_assignment(&self) -> Option<(Option<&str>, &str)> {
++        let literal = |index: usize| {
++            let value = self.words.arguments().get(index)?.literal_bytes()?;
++            (value.is_ascii() && !value.contains(&0))
++                .then(|| std::str::from_utf8(value).ok())
++                .flatten()
++        };
++        match self.hook {
++            LoweringHookId::Set => Some((Some(literal(0)?), literal(1)?)),
++            LoweringHookId::Return => Some((None, literal(0)?)),
++            _ => None,
++        }
++    }
++
++    #[cfg(test)]
+     pub(super) fn assignment(&self) -> Option<(Option<String>, String)> {
+         let (target, value) = match self.hook {
+             LoweringHookId::Set => (
+@@ -127,6 +147,11 @@ pub(super) fn mapping_arms(
+             body: tcl_lexer::Span::new(u32::try_from(start).ok()?, u32::try_from(end).ok()?),
+             words,
+             hook,
++            quiet: comparison_tokens(walk, source, command, hook).is_some()
++                && (hook == LoweringHookId::Return
++                    || walk
++                        .quiet_store_for_rename_coverage(source, command)
++                        .is_some()),
+         });
+     }
+     Some(arms)
+@@ -144,32 +169,95 @@ pub(super) fn select(
+     if !walk.complete() {
+         return None;
+     }
+-    // Selecting a source handler does not establish evaluation equivalence or
+-    // fresh-cell/insertion permission; those obligations stand on every
+-    // profile. An `if` chain over one scalar and its `switch -exact` form
+-    // differ only in how often the scalar is read (once per condition against
+-    // once), which a script observes through a read trace and no other way, so
+-    // that obligation stands only where a trace cannot be ruled out.
+-    let stands = !matches!(obligation, RewriteObligation::ControlFlowEvaluation)
+-        || trace_possible(source, analysis, &walk);
+-    Some((command, stands.then_some(obligation)))
++    // Selection preserves the independent obligation. Only the action that
++    // constructs the proposed source can establish equivalence for that edit.
++    Some((command, Some(obligation)))
+ }
+ 
+-/// Whether the document establishes a trace, or holds commands the walk
+-/// cannot visit and so might.
+-fn trace_possible(source: &str, analysis: &AnalysisResult, walk: &FrameWalk<'_>) -> bool {
+-    let mut traced = false;
+-    let coverage = crate::executable_regions::visit_checked_analysis_executable_commands(
+-        source,
+-        analysis,
+-        &mut |command, _, _| {
+-            traced |= walk.source_traits(source, command).is_some_and(|traits| {
+-                traits.contains(tcl_registry::Traits::ESTABLISHES_VARIABLE_TRACE)
+-            });
+-            false
+-        },
+-    );
+-    traced || coverage != crate::executable_regions::PotentialSourceVisit::Complete
++/// A document-level reached command can use its actual straight-line input.
++/// A callable can still be entered by other scripts; a body rewrite needs a
++/// separate generic-entry proof and cannot borrow its observed call sites.
++pub(super) fn document_comparison(
++    walk: &FrameWalk<'_>,
++    source: &str,
++    command: &SegmentedCommand,
++) -> bool {
++    walk.segment_document(source)
++        .iter()
++        .any(|top| top.span == command.span)
++}
++
++/// Actual original handler and observer state at a comparison command.
++pub(super) fn comparison_tokens(
++    walk: &FrameWalk<'_>,
++    source: &str,
++    command: &SegmentedCommand,
++    hook: LoweringHookId,
++) -> Option<tcl_compiler::ir::CommandTokens> {
++    use tcl_compiler::command_binding::BindingKind;
++    let tokens = walk.tokens(source, command);
++    let binding = tokens.source_binding.as_ref()?;
++    let target = binding.proved_execution_target()?;
++    let selected = walk.structure_of_tokens(&tokens)?;
++    (target.registry_backed
++        && target.kind == BindingKind::Builtin
++        && target.prepended.is_empty()
++        && target.implementation_generation == 0
++        && target.implementation_allocation.is_none()
++        && binding.unobserved_native_dispatch()
++        && selected.facts.operation == tcl_registry::SemanticOperationId::StructuredLowering(hook))
++    .then_some(tokens)
++}
++
++/// Closed literal alternatives at the actual scalar read in this operand.
++/// An observed, missing, transformed or dynamically selected read declines.
++pub(super) fn scalar_read_values<'a>(
++    source: &str,
++    tokens: &'a tcl_compiler::ir::CommandTokens,
++    word: &tcl_lexer::NativeWord,
++    scalar: &str,
++    registry: &tcl_registry::CommandRegistry,
++) -> Option<Vec<&'a str>> {
++    let span = word.span();
++    let mut reads = tokens.variable_accesses.iter().filter(|read| {
++        span.start() <= read.source.span.start() && read.source.span.end() <= span.end()
++    });
++    let read = reads.next()?;
++    if reads.next().is_some()
++        || read.context_residual()
++            != tcl_compiler::command_binding::SourceVariableReadResidual::Closed
++        || read.context_alternatives().is_empty()
++        || source.get(read.source.span.as_range())? != read.original_spelling
++        || tcl_syntax::naming::variable_reference_root_bytes(
++            read.original_spelling.as_bytes(),
++            word.config(),
++        )
++        .ok()??
++            != scalar.as_bytes()
++    {
++        return None;
++    }
++    read.context_alternatives()
++        .iter()
++        .map(|context| {
++            let place = tcl_compiler::var_resolve::resolve_substitution_access(
++                &read.original_spelling,
++                context,
++                registry,
++                tcl_registry::TraceOperation::Read,
++            );
++            if place.dynamic
++                || place.observed
++                || place.kind != tcl_compiler::place::PlaceKind::Scalar
++                || place.cell.is_none()
++            {
++                return None;
++            }
++            context
++                .literal_contents_at(&place, registry)
++                .filter(|value| value.is_ascii() && !value.as_bytes().contains(&0))
++        })
++        .collect()
+ }
+ 
+ fn original_command_at(
+diff --git a/rust/tcl-lsp-core/src/refactor/switch_to_dict.rs b/rust/tcl-lsp-core/src/refactor/switch_to_dict.rs
+index f0ef726b03..50309acf7f 100644
+--- a/rust/tcl-lsp-core/src/refactor/switch_to_dict.rs
++++ b/rust/tcl-lsp-core/src/refactor/switch_to_dict.rs
+@@ -28,6 +28,7 @@ use super::{RefactorEdit, Refactoring};
+ use crate::code_actions::ActionKind;
+ 
+ /// A parsed single-command arm body.
++#[cfg(test)]
+ enum BranchBody {
+     /// `set var value` → `(var, raw_value)`.
+     Set(String, String),
+@@ -74,11 +75,10 @@ pub fn switch_to_dict(
+     source: &str,
+     cursor: u32,
+     analysis: &AnalysisResult,
+-    line_index: &LineIndex,
++    _line_index: &LineIndex,
+ ) -> Option<Refactoring> {
+     let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+-    let config = current.config();
+-    let (cmd, obligation) = select(
++    let (cmd, _) = select(
+         source,
+         cursor,
+         analysis,
+@@ -90,64 +90,17 @@ pub fn switch_to_dict(
+         analysis,
+         cmd.argv.first()?.span.start(),
+     )?;
+-    if let Some(obligation) = obligation {
+-        return Some(obligation.refusal("Convert to dict lookup"));
+-    }
+-    let subject = original.subject().try_text().ok()?;
+     let walk = super::FrameWalk::new(source, analysis)?;
+-    let selected = super::source_rewrite::mapping_arms(&walk, source, &cmd)?;
+-    if selected.len() != original.pairs().len() {
+-        return None;
+-    }
+-    let pairs = original
+-        .pairs()
+-        .iter()
+-        .zip(&selected)
+-        .map(|((pattern, body), selected)| {
+-            (selected.body_text()? == body).then_some(())?;
+-            let (target, value) = selected.assignment()?;
+-            Some((
+-                pattern.clone(),
+-                match target {
+-                    Some(target) => BranchBody::Set(target, value),
+-                    None => BranchBody::Return(value),
+-                },
+-            ))
+-        })
+-        .collect::<Option<Vec<_>>>()?;
+-    let arms = assemble_arms(pairs)?;
+-    if arms.dict_entries.len() < 2 {
+-        return None;
+-    }
+-
+-    let indent = source
+-        .split('\n')
+-        .nth(line_index.line_at(cmd.span.start()) as usize)
+-        .map_or("", super::line_indent);
+-    let replacement = build_dict_replacement(&arms, subject, indent, config)?;
+-    let generated = tcl_lexer::native_script_words_in(
+-        tcl_lexer::SourceImage::document(&replacement),
+-        tcl_lexer::Span::new(0, u32::try_from(replacement.len()).ok()?),
+-        config,
+-    )
+-    .ok()?;
+-    if generated.fatal_tail.is_some() || generated.commands.len() != 2 {
+-        return None;
+-    }
+-
+-    let (start, end) =
+-        super::FrameWalk::new(source, analysis)?.command_span_offsets(source, &cmd)?;
+-    let title = if arms.use_return {
+-        "Convert to dict lookup".to_owned()
+-    } else {
+-        format!("Convert to dict lookup on '{}'", arms.target_var)
++    let (start, end) = walk.command_span_offsets(source, &cmd)?;
++    let Some(new_text) = proven_dictionary_lookup(source, &walk, &cmd, &original, &current) else {
++        return Some(RewriteObligation::FreshStoreAndInsertion.refusal("Convert to dict lookup"));
+     };
+     Some(Refactoring {
+-        title,
++        title: "Convert to dict lookup".to_owned(),
+         edits: vec![RefactorEdit {
+             start,
+             end,
+-            new_text: replacement,
++            new_text,
+         }],
+         kind: ActionKind::RefactorRewrite,
+         data_group: None,
+@@ -155,74 +108,134 @@ pub fn switch_to_dict(
+     })
+ }
+ 
+-/// The arms of a convertible switch, all of one shape.
+-struct ParsedArms {
+-    target_var: String,
+-    use_return: bool,
+-    dict_entries: Vec<(String, String)>,
+-    default_value: Option<String>,
+-}
++fn proven_dictionary_lookup(
++    source: &str,
++    walk: &super::FrameWalk<'_>,
++    command: &tcl_compiler::segmenter::SegmentedCommand,
++    original: &super::OriginalExactCaseSource,
++    current: &crate::original_context::CurrentSourceContext<'_>,
++) -> Option<String> {
++    use tcl_compiler::command_binding::ComparisonRewriteCommand;
++    if !super::source_rewrite::document_comparison(walk, source, command) {
++        return None;
++    }
++    let tokens = super::source_rewrite::comparison_tokens(
++        walk,
++        source,
++        command,
++        tcl_registry::hooks::LoweringHookId::Switch,
++    )?;
++    let binding = tokens.source_binding.as_ref()?;
++    let proposed =
++        |shape| binding.original_comparison_rewrite_command(&tokens, current.registry(), shape);
++    let config = current.config();
++    let word = original.subject();
++    let spelling = word.try_text().ok()?;
++    let literal = tcl_syntax::word_rules::original_static_word_unicode_value(word);
++    let domain = if let Some(value) = literal.as_deref() {
++        let value = std::str::from_utf8(value).ok()?;
++        if !value.is_ascii()
++            || value.as_bytes().contains(&0)
++            || !tcl_syntax::word_rules::lexical_unicode_source_word_matches(
++                spelling,
++                value,
++                config.nested(),
++            )
++        {
++            return None;
++        }
++        vec![value]
++    } else {
++        let subject = super::datagroup::scalar_variable_source_syntax(spelling, config)?;
++        super::source_rewrite::scalar_read_values(
++            source,
++            &tokens,
++            word,
++            subject.name(),
++            current.registry(),
++        )?
++    };
+ 
+-/// Parse every arm, requiring a single uniform `set VAR …` / `return …`
+-/// shape.  Returns `None` on a fallthrough marker, a body that is neither
+-/// form, or a mixed shape.
+-#[cfg(test)]
+-fn parse_arms(pairs: &[(String, String)], config: LexerConfig) -> Option<ParsedArms> {
+-    assemble_arms(
+-        pairs
++    let arms = super::source_rewrite::mapping_arms(walk, source, command)?;
++    if arms.len() != original.pairs().len() || arms.len() < 2 {
++        return None;
++    }
++    let mut entries = Vec::new();
++    let mut defaults = None;
++    let mut target = None;
++    for (i, ((pattern, body), arm)) in original.pairs().iter().zip(&arms).enumerate() {
++        if arm.body_text()? != body || !pattern.is_ascii() || pattern.as_bytes().contains(&0) {
++            return None;
++        }
++        let (assigned, value) = arm.literal_assignment()?;
++        if target.is_some_and(|previous| previous != assigned) {
++            return None;
++        }
++        target = Some(assigned);
++        if pattern == "default" && i + 1 == arms.len() {
++            defaults = Some((value, arm));
++        } else if !entries.iter().any(|(key, _, _)| key == &pattern.as_str()) {
++            // switch selects the first match; Tcl dictionaries retain the last duplicate.
++            entries.push((pattern.as_str(), value, arm));
++        }
++    }
++    if entries.len() < 2 {
++        return None;
++    }
++    for possible in &domain {
++        let selected = entries
+             .iter()
+-            .map(|(pattern, body)| Some((pattern.clone(), parse_branch_assignment(body, config)?)))
+-            .collect::<Option<Vec<_>>>()?,
+-    )
+-}
+-
+-fn assemble_arms(pairs: Vec<(String, BranchBody)>) -> Option<ParsedArms> {
+-    let mut target_var: Option<String> = None;
+-    let mut use_return = false;
+-    let mut dict_entries: Vec<(String, String)> = Vec::new();
+-    let mut default_value: Option<String> = None;
+-
+-    for (pattern, body) in pairs {
+-        let value = match body {
+-            BranchBody::Set(var, value) => {
+-                match &target_var {
+-                    None => {
+-                        target_var = Some(var);
+-                        use_return = false;
+-                    }
+-                    Some(v) if *v != var => return None,
+-                    _ => {}
+-                }
+-                if use_return {
+-                    return None;
+-                }
+-                value
+-            }
+-            BranchBody::Return(value) => {
+-                match &target_var {
+-                    None => {
+-                        target_var = Some("__return__".to_owned());
+-                        use_return = true;
+-                    }
+-                    Some(_) if !use_return => return None,
+-                    _ => {}
+-                }
+-                value
+-            }
+-        };
+-        if pattern == "default" {
+-            default_value = Some(value);
+-        } else {
+-            dict_entries.push((pattern.clone(), value));
++            .find(|(key, _, _)| key == possible)
++            .map(|(_, _, arm)| *arm)
++            .or_else(|| defaults.map(|(_, arm)| arm))?;
++        if !selected.quiet() {
++            return None;
+         }
+     }
+-
+-    Some(ParsedArms {
+-        target_var: target_var?,
+-        use_return,
+-        dict_entries,
+-        default_value,
+-    })
++    let data =
++        tcl_syntax::list::join_list(entries.iter().flat_map(|(key, value, _)| [*key, *value]));
++    let elements = tcl_syntax::word_rules::WordValueRules::from_config(&config)
++        .split_list(&data)
++        .ok()?;
++    if !elements
++        .iter()
++        .map(|element| element.as_ref() as &str)
++        .eq(entries.iter().flat_map(|(key, value, _)| [*key, *value]))
++    {
++        return None;
++    }
++    let dictionary = literal_pattern_source(&data, config)?;
++    let present = domain
++        .iter()
++        .all(|possible| entries.iter().any(|(key, _, _)| key == possible));
++    let lookup = if present {
++        let head = proposed(ComparisonRewriteCommand::DictionaryGet { dictionary: &data })?;
++        format!("{} get {dictionary} {spelling}", head.source_word())
++    } else {
++        let fallback = defaults?.0;
++        let head = proposed(ComparisonRewriteCommand::DictionaryGetWithDefault {
++            dictionary: &data,
++            fallback,
++        })?;
++        format!(
++            "{} getwithdefault {dictionary} {spelling} {}",
++            head.source_word(),
++            literal_pattern_source(fallback, config)?
++        )
++    };
++    if let Some(name) = target? {
++        let head = proposed(ComparisonRewriteCommand::SetValue { name })?;
++        Some(format!(
++            "{} {} [{lookup}]",
++            head.source_word(),
++            literal_pattern_source(name, config)?
++        ))
++    } else {
++        Some(format!(
++            "{} [{lookup}]",
++            proposed(ComparisonRewriteCommand::ReturnValue)?.source_word()
++        ))
++    }
+ }
+ 
+ /// Completed literal keys enter proposed Tcl source through the shared list
+@@ -233,59 +246,6 @@ fn literal_pattern_source(value: &str, config: LexerConfig) -> Option<String> {
+         .then_some(proposed)
+ }
+ 
+-/// Build the `dict create` + lookup replacement from the parsed arms.
+-fn build_dict_replacement(
+-    arms: &ParsedArms,
+-    subject: &str,
+-    indent: &str,
+-    config: LexerConfig,
+-) -> Option<String> {
+-    let dict_items = arms
+-        .dict_entries
+-        .iter()
+-        .map(|(k, v)| Some(format!("{} {v}", literal_pattern_source(k, config)?)))
+-        .collect::<Option<Vec<_>>>()?
+-        .join(" ");
+-    let dict_name = if arms.use_return {
+-        "result_map".to_owned()
+-    } else {
+-        format!("{}_map", arms.target_var)
+-    };
+-    let target_var = literal_pattern_source(&arms.target_var, config)?;
+-    let dict_word = literal_pattern_source(&dict_name, config)?;
+-    let dict_reference = tcl_syntax::naming::scalar_source_reference(&dict_name, config, false)?;
+-
+-    let mut parts: Vec<String> = vec![format!("set {dict_word} [dict create {dict_items}]")];
+-    if let Some(default) = &arms.default_value {
+-        parts.push(format!(
+-            "{indent}if {{[dict exists {dict_reference} {subject}]}} {{"
+-        ));
+-        if arms.use_return {
+-            parts.push(format!(
+-                "{indent}    return [dict get {dict_reference} {subject}]"
+-            ));
+-            parts.push(format!("{indent}}} else {{"));
+-            parts.push(format!("{indent}    return {default}"));
+-        } else {
+-            parts.push(format!(
+-                "{indent}    set {target_var} [dict get {dict_reference} {subject}]"
+-            ));
+-            parts.push(format!("{indent}}} else {{"));
+-            parts.push(format!("{indent}    set {target_var} {default}"));
+-        }
+-        parts.push(format!("{indent}}}"));
+-    } else if arms.use_return {
+-        parts.push(format!(
+-            "{indent}return [dict get {dict_reference} {subject}]"
+-        ));
+-    } else {
+-        parts.push(format!(
+-            "{indent}set {target_var} [dict get {dict_reference} {subject}]"
+-        ));
+-    }
+-    Some(parts.join("\n"))
+-}
+-
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+@@ -607,7 +567,10 @@ mod decoded_arm_script_value_tests {
+         let original =
+             crate::refactor::original_exact_case_source_at_analysis(source, &analysis, 0).unwrap();
+         assert_eq!(original.pairs()[0].1, "{return one}");
+-        assert!(parse_arms(original.pairs(), analysis.body_lexer_config.unwrap()).is_none());
++        assert!(
++            parse_branch_assignment(&original.pairs()[0].1, analysis.body_lexer_config.unwrap())
++                .is_none()
++        );
+         assert!(switch_to_dict(source, 0, &analysis, &LineIndex::new(source)).is_none());
+         let source = "switch -exact -- {$x} {a {return one} b {return two}}";
+         let analysis = crate::refactor::source_rewrite::lexical_analysis(source, &registry);

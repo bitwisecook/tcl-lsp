@@ -1,0 +1,8 @@
+if {![llength [info commands oo::class]]} {puts "TclOO unavailable"; exit}
+oo::class create {A;B}
+oo::class create {A B}
+oo::class create C
+foreach parent {{A;B} {A B}} {
+   oo::define C superclass $parent
+   puts [list $parent [info class superclasses C]]
+}

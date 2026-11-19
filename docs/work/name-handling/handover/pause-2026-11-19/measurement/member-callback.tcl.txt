@@ -1,0 +1,10 @@
+if {[llength [info commands oo::class]] == 0} {puts "TclOO unavailable"; exit}
+foreach name {pick {m;n} {m n} m(n)} {
+    oo::class create C [list method $name {} {return body}]
+    C create object
+    set cb [list object $name]
+    set before [eval $cb]
+    oo::define C renamemethod $name changed
+    puts [list $name $before [catch {eval $cb} message] $message]
+    C destroy
+}

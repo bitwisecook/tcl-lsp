@@ -1,0 +1,36 @@
+From ca48b18add864a5045264be2c48f94f0cc3a4d96 Mon Sep 17 00:00:00 2001
+From: None None <openai@bragi0.com>
+Date: Thu, 19 Nov 2026 14:12:18 +0000
+Subject: [PATCH] Format the confirmed-trim measurement branch
+
+---
+ scripts/dev/pack_churn_stress.py | 14 ++++++++++----
+ 1 file changed, 10 insertions(+), 4 deletions(-)
+
+diff --git a/scripts/dev/pack_churn_stress.py b/scripts/dev/pack_churn_stress.py
+index d52ff8483c..e828c85927 100755
+--- a/scripts/dev/pack_churn_stress.py
++++ b/scripts/dev/pack_churn_stress.py
+@@ -355,12 +355,18 @@ def measure_rss(
+     before = rss_kib(pid)
+     after = None
+     if trim:
+-        result = gdb_batch(pid, [r'printf "malloc_trim_result=%d\n", (int) malloc_trim(0)'])
+-        if any(line in {"malloc_trim_result=0", "malloc_trim_result=1"}
+-               for line in result.splitlines()):
++        result = gdb_batch(
++            pid, [r'printf "malloc_trim_result=%d\n", (int) malloc_trim(0)']
++        )
++        if any(
++            line in {"malloc_trim_result=0", "malloc_trim_result=1"}
++            for line in result.splitlines()
++        ):
+             after = rss_kib(pid)
+         else:
+-            log("trim_error", round=round_no, detail=result.strip() or "gdb unavailable")
++            log(
++                "trim_error", round=round_no, detail=result.strip() or "gdb unavailable"
++            )
+     log(
+         "rss",
+         round=round_no,

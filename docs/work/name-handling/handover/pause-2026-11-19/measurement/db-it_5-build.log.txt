@@ -1,0 +1,8 @@
+   Compiling tcl-lexer v0.1.0 (/tmp/bd-lsp/rust/tcl-lexer)
+   Compiling tcl-syntax v0.1.0 (/tmp/bd-lsp/rust/tcl-syntax)
+   Compiling tcl-runtime-api v0.1.0 (/tmp/bd-lsp/rust/tcl-runtime-api)
+   Compiling tcl-cmd-core v0.1.0 (/tmp/bd-lsp/rust/tcl-cmd-core)
+   Compiling tcl-regex v0.1.0 (/tmp/bd-lsp/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/tmp/bd-lsp/rust/tcl-registry)
+   Compiling tcl-bytecode v0.1.0 (/tmp/bd-lsp/rust/tcl-bytecode)
+   Compiling tcl-compiler v0.1.0 (/tmp/bd-lsp/rust/tcl-compiler)

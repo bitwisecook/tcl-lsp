@@ -1,0 +1,10 @@
+proc via_if {k} {
+  if {$k eq "a"} {return one} elseif {$k eq "default"} {return two}
+}
+proc via_switch {k} {
+  switch -exact -- $k {a {return one} default {return two}}
+}
+proc protected_switch {k} {
+  switch -exact -- $k {a {return one} default {return two} default {}}
+}
+foreach k {a default z} {puts [list $k [via_if $k] [via_switch $k] [protected_switch $k]]}

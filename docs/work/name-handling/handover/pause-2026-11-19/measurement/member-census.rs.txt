@@ -1,0 +1,34 @@
+use tcl_compiler::analyser::Analyser;
+use tcl_lsp_core::original_declaration::{OriginalDeclarationDocument, OriginalDeclarationIdentity};
+use tcl_lsp_core::original_member_rename::original_member_rename_edits;
+
+fn main() {
+    for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+        for (name, captured) in [
+            ("pick", ""), ("m;n", ""), ("m n", ""), ("m,n", ""),
+            ("pick", "set callback [list object pick]"),
+            ("pick", r"set callback [list object p\x69ck]"),
+            ("pick", "set callback [list object pick-extra]"),
+            ("m;n", "set callback [list object {m;n}]"),
+            ("m n", "set callback [list object {m n}]"),
+            ("m(n)", "set callback [list object {m(n)}]"),
+            ("m,n", "set callback [list object {m,n}]"),
+            ("pick", "set callback [list object {m;n}]"),
+        ] {
+            let source=format!("oo::class create C {{method {{{name}}} {{}} {{return body}}}}\nC create object\nobject {{{name}}}\n{captured}\n");
+            let analysis=Analyser::new().analyse(&source,dialect);
+            let profile=analysis.resolved_profile().unwrap();
+            let cursor=source.find(name).unwrap() as u32;
+            let public=tcl_lsp_core::rename::rename_with_diagnosis(&source,profile,0,cursor,"changed",&analysis,None);
+            let public=public.map(|edits|edits.len()).map_err(|reason|reason.reason);
+            let lower=analysis.original_class_declarations().next().and_then(|class| {
+                let method=class.metadata().original_members.declarations().next()?;
+                let uri="file:///owner.tcl";
+                let target=OriginalDeclarationIdentity::for_method(uri,&source,&analysis,class,method)?;
+                let doc=OriginalDeclarationDocument{uri,source:&source,analysis:&analysis};
+                Some(original_member_rename_edits(&[doc],&target,"changed").map(|edits|edits.len()))
+            });
+            println!("{dialect} {name:?} {captured:?} -> public={public:?} retained={lower:?}");
+        }
+    }
+}

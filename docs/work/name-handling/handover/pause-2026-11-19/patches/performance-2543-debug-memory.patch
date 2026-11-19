@@ -1,0 +1,37 @@
+diff --git a/rust/tcl-lsp-server/Cargo.toml b/rust/tcl-lsp-server/Cargo.toml
+index 99c61933..3598f6bf 100644
+--- a/rust/tcl-lsp-server/Cargo.toml
++++ b/rust/tcl-lsp-server/Cargo.toml
+@@ -60,7 +60,7 @@ tcl-diagram = { path = "../tcl-diagram" }
+ # worker. Trimming it in `tcl-lsp-db` alone would achieve nothing — cargo
+ # unions features across the graph, so a defaults-on dependant puts rayon
+ # straight back.
+-salsa = { version = "0.28.5", default-features = false, features = ["macros", "inventory"] }
++salsa = { version = "0.28.5", default-features = false, features = ["macros", "inventory", "salsa_unstable"] }
+ serde = { workspace = true }
+ serde_json = "1"
+ sha2 = "0.11"
+diff --git a/rust/tcl-lsp-server/src/commands.rs b/rust/tcl-lsp-server/src/commands.rs
+index 8e7868e2..6355e1cd 100644
+--- a/rust/tcl-lsp-server/src/commands.rs
++++ b/rust/tcl-lsp-server/src/commands.rs
+@@ -22,6 +22,7 @@ mod bigip_objects;
+ mod bigip_rules;
+ mod catalogue_queries;
+ mod config_reports;
++mod debug_memory;
+ mod dialect_selection;
+ mod document_views;
+ mod fix_all;
+diff --git a/rust/tcl-lsp-server/src/commands/requests.rs b/rust/tcl-lsp-server/src/commands/requests.rs
+index 2c0ff542..444ff5b8 100644
+--- a/rust/tcl-lsp-server/src/commands/requests.rs
++++ b/rust/tcl-lsp-server/src/commands/requests.rs
+@@ -74,6 +74,7 @@ impl Backend {
+             "tcl-lsp.proposalDiagnostics" => {
+                 self.proposal_diagnostics_command(&params.arguments).await
+             }
++            "tcl-lsp.debugMemory" => Ok(Some(self.debug_memory_report().await)),
+             "tcl-lsp.getEffectiveConfig" => {
+                 self.get_effective_config_command(&params.arguments).await
+             }

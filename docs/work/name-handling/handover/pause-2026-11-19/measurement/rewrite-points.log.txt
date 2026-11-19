@@ -1,0 +1,12 @@
+set Reached Some(("::set", Builtin)) quiet=true argreads=0
+if Reached Some(("::if", Builtin)) quiet=true argreads=2
+  $k Span { start: 12, end: 14 } Closed -> [Some("a")]
+  $k Span { start: 44, end: 46 } Closed -> [Some("a")]
+set Reached Some(("::set", Builtin)) quiet=true argreads=0
+if Reached Some(("::if", Builtin)) quiet=true argreads=2
+  $k Span { start: 12, end: 14 } Closed -> [Some("b")]
+  $k Span { start: 44, end: 46 } Closed -> [Some("b")]
+set Reached Some(("::set", Builtin)) quiet=true argreads=0
+switch Reached Some(("::switch", Builtin)) quiet=true argreads=1
+  $k Span { start: 25, end: 27 } Closed -> [Some("a")]
+switch Reached Some(("::switch", Builtin)) quiet=true argreads=0

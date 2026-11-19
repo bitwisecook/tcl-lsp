@@ -1,0 +1,161 @@
+From cec1caee5ce2b4deaf97b8b4e03fa9b8c98d271d Mon Sep 17 00:00:00 2001
+From: None None <openai@bragi0.com>
+Date: Thu, 19 Nov 2026 13:43:24 +0000
+Subject: [PATCH] Preserve if body values and the literal final default during
+ switch conversion
+
+---
+ .../tcl-lsp-core/src/refactor/if_to_switch.rs | 105 ++++++++++++------
+ 1 file changed, 74 insertions(+), 31 deletions(-)
+
+diff --git a/rust/tcl-lsp-core/src/refactor/if_to_switch.rs b/rust/tcl-lsp-core/src/refactor/if_to_switch.rs
+index d8e8d0a8d7..92470e14b3 100644
+--- a/rust/tcl-lsp-core/src/refactor/if_to_switch.rs
++++ b/rust/tcl-lsp-core/src/refactor/if_to_switch.rs
+@@ -27,7 +27,7 @@ use super::datagroup::ScalarVariableSourceSyntax;
+ use super::equality_source::scalar_string_equality as parse_eq_test;
+ 
+ use super::source_rewrite::{RewriteObligation, select};
+-use super::{RefactorEdit, Refactoring, reindent_body};
++use super::{RefactorEdit, Refactoring};
+ use crate::code_actions::ActionKind;
+ 
+ /// Render literal pattern data through the shared list and source-word owners.
+@@ -74,17 +74,8 @@ pub fn if_to_switch(
+         analysis.resolved_input.as_ref()?.unit_profile(),
+     );
+     expression.lexer_grammar = config.grammar_over(expression.lexer_grammar);
+-    let texts = &cmd.texts;
+-    if texts.len() < 3 {
+-        return None;
+-    }
+-
+-    // Walk the chain through `if`'s own clause grammar — the condition and
+-    // body of each `if` / `elseif` clause, and the default (`else`, or its
+-    // optional-keyword bare final body) — rather than comparing keyword
+-    // spellings by hand; a structural defect (a stray word, a chain the
+-    // grammar cannot parse) declines the conversion.
+-    let args: Vec<&str> = texts[1..].iter().map(String::as_str).collect();
++    // Every evaluated condition and body must have a literal value. Replaying
++    // a computed word in a later switch arm changes outer substitution timing.
+     let context = current.context();
+     let original = crate::original_invocation::source_registry_words(source, analysis, &cmd)?;
+     let plan = original.with_source_schema(&context, schema_clause_plan)??;
+@@ -98,12 +89,16 @@ pub fn if_to_switch(
+     let mut target_var: Option<ScalarVariableSourceSyntax> = None;
+ 
+     for clause in &plan.clauses {
+-        let body = args[clause.operand(ArgRole::Body)?].to_owned();
++        let literal = |role| {
++            let index = clause.operand(role)?;
++            std::str::from_utf8(original.arguments.get(index)?.literal_bytes()?).ok()
++        };
++        let body = literal(ArgRole::Body)?.to_owned();
+         if clause.is_default {
+             else_body = Some(body);
+             continue;
+         }
+-        let condition = args[clause.operand(ArgRole::Expr)?];
++        let condition = literal(ArgRole::Expr)?;
+ 
+         let parsed = parse_eq_test(condition, config, &expression)?;
+         match &target_var {
+@@ -152,26 +147,55 @@ fn render_switch(
+     indent: &str,
+     config: LexerConfig,
+ ) -> Option<String> {
+-    let inner = format!("{indent}    ");
+-
+-    let mut parts: Vec<String> = vec![format!("switch -exact -- {} {{", subject.reference())];
+-    for (value, body) in branches {
+-        let body_trimmed = reindent_body(body, &format!("{inner}    "));
+-        parts.push(format!(
+-            "{inner}{} {{",
+-            render_switch_pattern(value, config)?
++    let mut expected = Vec::new();
++    let mut rows = Vec::new();
++    let mut emit = |pattern: &str, body: &str| {
++        // A literal "-" in a switch body is the fall-through marker. Tcl if
++        // would evaluate that body as an ordinary command script instead.
++        if body == "-" {
++            return None;
++        }
++        expected.extend([pattern.to_owned(), body.to_owned()]);
++        rows.push(format!(
++            "{indent}    {} {}",
++            render_switch_pattern(pattern, config)?,
++            render_switch_pattern(body, config)?
+         ));
+-        parts.push(body_trimmed);
+-        parts.push(format!("{inner}}}"));
++        Some(())
++    };
++    for (pattern, body) in branches {
++        emit(pattern, body)?;
+     }
+-    if let Some(eb) = else_body {
+-        let body_trimmed = reindent_body(eb, &format!("{inner}    "));
+-        parts.push(format!("{inner}default {{"));
+-        parts.push(body_trimmed);
+-        parts.push(format!("{inner}}}"));
++    if let Some(otherwise) = else_body {
++        emit("default", otherwise)?;
++    } else if branches
++        .last()
++        .is_some_and(|(pattern, _)| pattern == "default")
++    {
++        // A final 'default' is special even if its spelling was quoted. Keep
++        // the original comparison literal by giving no-match its empty body.
++        emit("default", "")?;
++    }
++    let case_list = format!("\n{}\n{indent}", rows.join("\n"));
++    let container = format!("{{{case_list}}}");
++    if !tcl_syntax::word_rules::lexical_unicode_source_word_matches(
++        &container,
++        &case_list,
++        config.nested(),
++    ) {
++        return None;
+     }
+-    parts.push(format!("{indent}}}"));
+-    let replacement = parts.join("\n");
++    let actual = tcl_syntax::word_rules::WordValueRules::from_config(&config)
++        .split_list(&case_list)
++        .ok()?;
++    if !actual
++        .iter()
++        .map(std::convert::AsRef::as_ref)
++        .eq(expected.iter().map(String::as_str))
++    {
++        return None;
++    }
++    let replacement = format!("switch -exact -- {} {container}", subject.reference());
+ 
+     let generated = tcl_lexer::native_script_words_in(
+         tcl_lexer::SourceImage::document(&replacement),
+@@ -248,6 +272,25 @@ mod tests {
+         if_to_switch(source, cursor, &analysis, &li)
+     }
+ 
++    #[test]
++    fn preserves_literal_default_and_body_values_and_refuses_switch_fallthrough() {
++        let body = "set value {line one\n line two}\nreturn $value";
++        let source =
++            format!(r#"if {{$k eq "a"}} {{{body}}} elseif {{$k eq "default"}} {{return two}}"#);
++        let replacement = run(&source, 0).unwrap().apply(&source);
++        assert!(replacement.contains(body), "{replacement}");
++        assert!(replacement.contains("default {}"), "{replacement}");
++        for source in [
++            r#"if {$k eq "a"} {-} elseif {$k eq "b"} {return two}"#,
++            r#"if {$k eq "a"} $script elseif {$k eq "b"} {return two}"#,
++        ] {
++            assert!(
++                run(source, 0).is_none_or(|a| a.edits.is_empty()),
++                "{source}"
++            );
++        }
++    }
++
+     #[test]
+     fn simple_eq_chain() {
+         let source = "if {$x eq \"a\"} {\n    puts \"alpha\"\n} elseif {$x eq \"b\"} {\n    puts \"beta\"\n} elseif {$x eq \"c\"} {\n    puts \"gamma\"\n}";

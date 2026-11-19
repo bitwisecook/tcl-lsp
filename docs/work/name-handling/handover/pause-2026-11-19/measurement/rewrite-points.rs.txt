@@ -1,0 +1,14 @@
+use tcl_compiler::{analyser::Analyser,ir::CommandTokens,segmenter::segment_commands_with_offset_and_config};
+fn main(){
+ for s in ["set k a\nif {$k eq \"a\"} {return one} elseif {$k eq \"b\"} {return two}", "set k b\nif {$k eq \"a\"} {return one} elseif {$k eq \"b\"} {return two}", "set k a\nswitch -exact -- $k {a {return one} b {return two}}", "switch -exact -- a {a {return one} b {return two}}"]{
+  let a=Analyser::new().analyse(s,"tcl8.6");let realm=a.retained_command_realm().unwrap();let reg=a.resolved_registry().unwrap();let config=a.body_lexer_config.unwrap();
+  for cmd in segment_commands_with_offset_and_config(s,0,config){
+    let mut ts=CommandTokens::from_segmented(&tcl_lexer::SourceMap::new(s),config,&cmd); realm.stamp_original_tokens(&mut ts);
+    let Some(b)=ts.source_binding.as_ref() else {println!("missing {}",cmd.texts[0]);continue};
+    println!("{} {:?} {:?} quiet={} argreads={}",cmd.texts[0], b.runtime_reachability(),b.proved_execution_target().map(|t|(&t.command,&t.kind)), b.unobserved_native_dispatch(),ts.variable_accesses.len());
+    for read in realm.source_bindings_ref().variable_accesses_during_expression_invocation(cmd.span.start()){
+       println!("  {} {:?} {:?} -> {:?}",read.original_spelling,read.source.span,read.context_residual(),read.context_alternatives().iter().map(|c|c.substitution_literal_value(&read.original_spelling,reg)).collect::<Vec<_>>());
+    }
+  }
+ }
+}

@@ -1,0 +1,90 @@
+"""Time one clean-head DB integration binary; resume at the first unmeasured test."""
+import csv
+import json
+import os
+import signal
+import subprocess
+import sys
+import time
+import threading
+from pathlib import Path
+
+root = Path(os.environ['DB_CHECKOUT']).resolve()
+head = os.environ['DB_HEAD']
+evidence = Path(os.environ['DB_EVIDENCE']).resolve()
+evidence.mkdir(parents=True, exist_ok=True)
+if len(sys.argv) != 2 or sys.argv[1] not in ('it_5','interned_gc','compiler_check_corpus'):
+    sys.exit('expected one requested DB target')
+target = sys.argv[1]
+def git(*args):
+    return subprocess.check_output(['git','-C',str(root),*args], text=True).strip()
+assert git('rev-parse','--short=10','HEAD') == head
+assert not git('status','--porcelain')
+for name in ('TCL_LSP_REQUIRE_ALL_TCL_ORACLES','TCL_LSP_REQUIRE_JIM_ORACLE','TCL_LSP_REQUIRE_TCLSH'):
+    assert os.environ[name] == '1'
+oracle_names=['TCL_LSP_TCLSH'+x for x in ('84','85','86','90','91')]+['TCL_LSP_JIMSH']
+for name in oracle_names: assert Path(os.environ[name]).is_file()
+pin=dict(line.split('=',1) for line in (root/'rust/tcl-test-support/jim-reference.txt').read_text().splitlines() if '=' in line and not line.startswith('#'))
+assert subprocess.check_output([os.environ['TCL_LSP_JIMSH'],'-e','puts [info patchlevel]'],text=True).strip() == pin['patchlevel']
+artifact = None
+for path in (evidence/(target+'.jsonl'),evidence/'build.jsonl'):
+    if not path.is_file(): continue
+    for line in path.open():
+        event=json.loads(line)
+        if (event.get('executable') and event['target'].get('kind') == ['test']
+                and event['target']['name'] == target and 'tcl-lsp-db' in event.get('package_id','')):
+            artifact=Path(event['executable'])
+    if artifact and artifact.is_file():break
+if artifact is None or not artifact.is_file():sys.exit('clean source has not linked '+target)
+listing=subprocess.check_output([artifact,'--list','--format=terse'],text=True)
+tests=[line.removesuffix(': test') for line in listing.splitlines() if line.endswith(': test')]
+assert tests
+ignored_listing = subprocess.check_output([artifact,'--ignored','--list','--format=terse'],text=True)
+ignored = {line.removesuffix(': test') for line in ignored_listing.splitlines() if line.endswith(': test')}
+def drain(stream, sink):
+    limit=1024*1024
+    written=0
+    for chunk in iter(lambda: stream.read(65536), b''):
+        emit=chunk[:max(0,limit-written)]
+        if emit: sink.write(emit)
+        written+=len(chunk)
+    if written>limit: sink.write(b'\n[log truncated after 1 MiB]\n')
+(evidence/(target+'.list')).write_text(listing)
+results=evidence/(target+'-results.tsv')
+completed=set()
+if results.is_file():
+    for row in csv.DictReader(results.open(),delimiter='\t'):
+        assert row['source']==head and row['target']==target
+        completed.add(row['test'])
+with results.open('a',buffering=1) as out:
+    writer=csv.writer(out,delimiter='\t')
+    if out.tell()==0:writer.writerow(('source','target','test','status','wall_seconds','returncode','test_binary'))
+    for name in tests:
+        if name in completed: continue
+        if name in ignored:
+            writer.writerow((head,target,name,'ignored',0,'',artifact))
+            continue
+        start=time.monotonic()
+        log=evidence/(target+'-'+name.replace('::','--')+'.log')
+        with log.open('wb') as sink:
+            proc=subprocess.Popen([str(artifact),'--exact',name,'--test-threads=1','--nocapture'],cwd=root/'rust/tcl-lsp-db',stdout=subprocess.PIPE,stderr=subprocess.STDOUT,start_new_session=True)
+            reader=threading.Thread(target=drain,args=(proc.stdout,sink),daemon=True)
+            reader.start()
+            try:
+                rc=proc.wait(timeout=600)
+                outcome='pass' if rc==0 else 'fail'
+            except subprocess.TimeoutExpired:
+                os.killpg(proc.pid,signal.SIGTERM)
+                try:rc=proc.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    os.killpg(proc.pid,signal.SIGKILL)
+                    rc=proc.wait()
+                outcome='timeout'
+            except BaseException:
+                os.killpg(proc.pid,signal.SIGTERM)
+                raise
+            finally:
+                reader.join(timeout=3)
+        runtime=round(time.monotonic()-start,2)
+        writer.writerow((head,target,name,outcome,runtime,rc,artifact))
+        print(target,name,outcome,runtime,flush=True)
