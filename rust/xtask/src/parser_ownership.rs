@@ -627,7 +627,10 @@ pub fn run(report: bool) -> Result<ExitCode> {
         errors.extend(source.drift(file));
         signed.check_file(file, Some(&source), &mut errors);
         if report && signed.covers(file) {
-            for op in reviewed::operations(&source) {
+            for op in reviewed::operations(&source)
+                .into_iter()
+                .filter(|op| signed.reports(file, op))
+            {
                 println!("{file}\t{op}\tsigned-scope operation");
             }
         }

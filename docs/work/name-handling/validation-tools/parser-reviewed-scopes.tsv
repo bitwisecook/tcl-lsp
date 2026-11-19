@@ -16,3 +16,22 @@ operation	rust/tcl-syntax/src/manifest_words.rs	literal_commands | edge Vec::wit
 operation	rust/tcl-syntax/src/manifest_words.rs	literal_commands | for [1]	Iterates declared CommandSpan rows or their WordSpan ranges. Neither loop scans source bytes for new boundaries.
 operation	rust/tcl-syntax/src/manifest_words.rs	literal_commands | for [2]	Iterates declared CommandSpan rows or their WordSpan ranges. Neither loop scans source bytes for new boundaries.
 operation	rust/tcl-syntax/src/manifest_words.rs	<module> | derive expansion Debug , PartialEq , Eq [1]	The literal declaration result derives host debug and equality implementations. Grouping stays in the configured command reader.
+scope	rust/tcl-bigip/src/apl/tokens.rs#embedded_tcl_regions	-	Original APL byte extents at the embedded Tcl boundary, reviewed independently by the LSP area.
+source	rust/tcl-bigip/src/apl/tokens.rs#embedded_tcl_regions	-	APL public embedded_tcl_regions and apl_hands_complete_source_ranges_to_the_tcl_walker check selected bracket grammar; appliance syntax remains in bigip-name-checks.md.
+operation	rust/tcl-bigip/src/apl/tokens.rs#embedded_tcl_regions	embedded_tcl_regions | byte 0x0a [1]	Restarts outer APL line/comment/quote state at newline.
+operation	rust/tcl-bigip/src/apl/tokens.rs#embedded_tcl_regions	embedded_tcl_regions | byte 0x22 [1]	Toggles the outer APL string state, where an opening bracket is ordinary text.
+operation	rust/tcl-bigip/src/apl/tokens.rs#embedded_tcl_regions	embedded_tcl_regions | byte 0x23 [1]	Starts an APL comment only at a line start.
+operation	rust/tcl-bigip/src/apl/tokens.rs#embedded_tcl_regions	embedded_tcl_regions | byte 0x5b [1]	Only identifies an outer APL opening bracket; Tcl owns its matching end.
+operation	rust/tcl-bigip/src/apl/tokens.rs#embedded_tcl_regions	embedded_tcl_regions | byte 0x5c [1]	Skips the outer APL escape and its following byte.
+operation	rust/tcl-bigip/src/apl/tokens.rs#embedded_tcl_regions	embedded_tcl_regions | call tcl_lexer::LexerConfig::from_grammar(environment.grammar()) [1]	Uses the syntax from the registered iApp host environment.
+operation	rust/tcl-bigip/src/apl/tokens.rs#embedded_tcl_regions	embedded_tcl_regions | call tcl_lexer::command_substitution_end_bytes_in(bytes, i, config) [1]	The shared lexer matches a complete Tcl substitution on the original input and selected grammar.
+operation	rust/tcl-bigip/src/apl/tokens.rs#embedded_tcl_regions	embedded_tcl_regions | call tcl_registry::model::ingress::resolve_environment("f5-iapps") [1]	Selects f5-iapps for this APL callback. Device acceptance remains a separate proof.
+operation	rust/tcl-bigip/src/apl/tokens.rs#embedded_tcl_regions	embedded_tcl_regions | edge Vec::new [1]	Allocates the returned original byte spans.
+operation	rust/tcl-bigip/src/apl/tokens.rs#embedded_tcl_regions	embedded_tcl_regions | edge u32::try_from [1]	Checks original byte offsets fit the shared semantic-token coordinates.
+operation	rust/tcl-bigip/src/apl/tokens.rs#embedded_tcl_regions	embedded_tcl_regions | edge u32::try_from [2]	Checks original byte offsets fit the shared semantic-token coordinates.
+operation	rust/tcl-bigip/src/apl/tokens.rs#embedded_tcl_regions	embedded_tcl_regions | predicate c == byte 0x0a [1]	Restarts outer APL line/comment/quote state at newline.
+operation	rust/tcl-bigip/src/apl/tokens.rs#embedded_tcl_regions	embedded_tcl_regions | predicate c == byte 0x22 [1]	Toggles the outer APL string state, where an opening bracket is ordinary text.
+operation	rust/tcl-bigip/src/apl/tokens.rs#embedded_tcl_regions	embedded_tcl_regions | predicate c == byte 0x23 [1]	Starts an APL comment only at a line start.
+operation	rust/tcl-bigip/src/apl/tokens.rs#embedded_tcl_regions	embedded_tcl_regions | predicate c == byte 0x5b [1]	Only identifies an outer APL opening bracket; Tcl owns its matching end.
+operation	rust/tcl-bigip/src/apl/tokens.rs#embedded_tcl_regions	embedded_tcl_regions | predicate c == byte 0x5c [1]	Skips the outer APL escape and its following byte.
+operation	rust/tcl-bigip/src/apl/tokens.rs#embedded_tcl_regions	embedded_tcl_regions | while [1]	Walks only the outer APL envelope and skips to the shared Tcl closing boundary.

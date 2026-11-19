@@ -94,7 +94,7 @@ impl Reviewed {
         }
         for file in reviewed.files.keys() {
             ensure!(
-                reviewed.covers(file),
+                reviewed.covers(file.split('#').next().unwrap_or(file)),
                 "signed source is outside a declared scope: {file}"
             );
         }
@@ -102,45 +102,84 @@ impl Reviewed {
     }
 
     pub(super) fn covers(&self, file: &str) -> bool {
-        self.scopes
-            .iter()
-            .any(|scope| scope == file || scope.ends_with('/') && file.starts_with(scope))
+        self.scopes.iter().any(|scope| {
+            let path = scope.split('#').next().unwrap_or(scope);
+            path == file || path.ends_with('/') && file.starts_with(path)
+        })
+    }
+
+    fn entries<'a>(
+        &'a self,
+        file: &'a str,
+    ) -> impl Iterator<Item = (&'a str, &'a BTreeSet<String>)> {
+        self.files.iter().filter_map(move |(key, facts)| {
+            let (path, entry) = key.split_once('#').unwrap_or((key, ""));
+            (path == file).then_some((entry, facts))
+        })
     }
 
     pub(super) fn check_file(&self, file: &str, source: Option<&Source>, errors: &mut Vec<String>) {
         if !self.covers(file) {
             return;
         }
-        let Some(reviewed) = self.files.get(file) else {
+        if self.entries(file).next().is_none() {
             errors.push(format!(
                 "{file}: new unreviewed tracked source in signed parser scope"
             ));
             return;
-        };
+        }
         let Some(source) = source else {
             errors.push(format!(
                 "{file}: signed source has no checked Rust AST or foreign adapter differential"
             ));
             return;
         };
-        let observed = operations(source);
-        for fact in observed.difference(reviewed) {
-            errors.push(format!("{file}: unreviewed parser operation {fact}"));
+        let operations = operations(source);
+        for (entry, signed) in self.entries(file) {
+            if !entry.is_empty()
+                && !source
+                    .functions
+                    .values()
+                    .flatten()
+                    .any(|facts| facts.scope == entry)
+            {
+                errors.push(format!("{file}: missing signed function {entry}"));
+                continue;
+            }
+            let observed: BTreeSet<_> = operations
+                .iter()
+                .filter(|op| in_entry(op, entry))
+                .cloned()
+                .collect();
+            for fact in observed.difference(signed) {
+                errors.push(format!("{file}: unreviewed parser operation {fact}"));
+            }
+            for fact in signed.difference(&observed) {
+                errors.push(format!("{file}: obsolete parser disposition {fact}"));
+            }
         }
-        for fact in reviewed.difference(&observed) {
-            errors.push(format!("{file}: obsolete parser disposition {fact}"));
-        }
+    }
+
+    pub(super) fn reports(&self, file: &str, op: &str) -> bool {
+        self.entries(file).any(|(entry, _)| in_entry(op, entry))
     }
 
     pub(super) fn missing(&self, tracked: &BTreeSet<&str>, errors: &mut Vec<String>) {
         for file in self
             .files
             .keys()
-            .filter(|file| !tracked.contains(file.as_str()))
+            .filter(|file| !tracked.contains(file.split('#').next().unwrap_or(file)))
         {
             errors.push(format!("missing signed parser source {file}"));
         }
     }
+}
+
+fn in_entry(operation: &str, entry: &str) -> bool {
+    entry.is_empty()
+        || operation
+            .split_once(" | ")
+            .is_some_and(|(scope, _)| scope == entry)
 }
 
 fn relevant(facts: &Facts) -> bool {
@@ -224,6 +263,30 @@ mod tests {
             super::super::expansions::Inventory::default().add("fixture.rs", &syntax);
         parsed.visit_file(&syntax);
         parsed
+    }
+
+    #[test]
+    fn a_reviewed_entry_does_not_claim_its_host_file() {
+        let file = "src/adapter.rs";
+        let entry = "adapter";
+        let original = parse("fn adapter(s:S) { group_commands(tokens, s, config); }");
+        let mut index = format!(
+            "record\tpath\toperation\tevidence\nscope\t{file}#{entry}\t-\tcallback source extent\nsource\t{file}#{entry}\t-\tpublic callback differential\n"
+        );
+        for fact in operations(&original) {
+            index.push_str(&format!(
+                "operation\t{file}#{entry}\t{fact}\tselected Tcl delegate\n"
+            ));
+        }
+        let signed = Reviewed::parse(&index).unwrap();
+        let check = |code: &str| {
+            let mut errors = vec![];
+            signed.check_file(file, Some(&parse(code)), &mut errors);
+            errors
+        };
+        assert!(check("fn host(s:S) { for byte in s { if byte == b']' { break; } } } fn adapter(s:S) { group_commands(tokens, s, config); }").is_empty());
+        assert!(!check("fn adapter(s:S) { group_commands(tokens, s, other); }").is_empty());
+        assert!(!check("fn changed_name(s:S) { group_commands(tokens, s, config); }").is_empty());
     }
 
     #[test]
