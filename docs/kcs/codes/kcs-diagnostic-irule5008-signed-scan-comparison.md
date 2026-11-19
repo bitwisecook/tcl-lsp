@@ -26,7 +26,7 @@ store signed values:
 | `binary scan … c` | `-128..127` |
 | `binary scan … s` / `S` | `-32768..32767` |
 | `binary scan … i` / `I` | `-2147483648..2147483647` |
-| `scan … %d %i %o %x %u` | `-2147483648..2147483647` (`scan ffffffff %x v` stores `-1`) |
+| `scan … %d %i %o %x %u` | `-2147483648..2147483647` (`scan ffffffff %x v` stores `-1` on 8.4; 8.5, 8.6 and Jim store `4294967295`) |
 
 A byte `0x81` is stored as `-127`, so comparing it with `0x81` (129) is always
 false, `!= 0x81` always true, and `> 127` never holds. The check follows the
@@ -66,4 +66,5 @@ settings.
 
 - [KCS codes index](README.md)
 - [W154 — operator precedence groups differently from how it reads](kcs-diagnostic-w154-operator-precedence.md)
+- [Execution evidence: signed bytes, masking and precedence](../../../evidence/tcl/binary-scan-signed-byte-comparison.md)
 - [Diagnostics feature](../features/kcs-feature-diagnostics.md)

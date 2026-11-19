@@ -64,4 +64,5 @@ W154 in editor diagnostic settings.
 
 - [KCS codes index](README.md)
 - [IRULE5008 — signed scan value compared with an unsigned constant](kcs-diagnostic-irule5008-signed-scan-comparison.md)
+- [Execution evidence: `&` versus `==`](../../../evidence/tcl/binary-scan-signed-byte-comparison.md)
 - [Diagnostics feature](../features/kcs-feature-diagnostics.md)
