@@ -290,6 +290,24 @@ mod tests {
     }
 
     #[test]
+    fn an_existing_macro_definition_reports_a_new_scanner_body() {
+        let before = operations(&parse("macro_rules! action { () => { 42 } }"));
+        let after = operations(&parse(
+            "macro_rules! action { ($input:expr) => { for c in $input { if c == b']' { break; } } } }",
+        ));
+        assert!(
+            after
+                .difference(&before)
+                .any(|op| op.contains("macro token operation macro_rules: byte 0x5d"))
+        );
+        assert!(
+            after
+                .difference(&before)
+                .any(|op| op.contains("macro token operation macro_rules: for"))
+        );
+    }
+
+    #[test]
     fn signed_scope_rejects_new_readers_and_files_and_accepts_host_edits() {
         let original = parse("fn words(data: S) { group_commands(t, data, config); }");
         let file = "runtime/rust/src/example.rs";

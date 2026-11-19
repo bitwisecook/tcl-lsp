@@ -28,6 +28,7 @@ use syn::visit::{self, Visit};
 
 mod expansions;
 mod reviewed;
+mod source_routes;
 
 const CENSUS: &str = "docs/work/name-handling/validation-tools/parser_census.py";
 
@@ -567,6 +568,9 @@ pub fn run(report: bool) -> Result<ExitCode> {
     let inventory = census(&root, "--files")?;
     let signed = reviewed::Reviewed::parse(&std::fs::read_to_string(root.join(reviewed::INDEX))?)?;
     let mut errors = Vec::new();
+    let targets = census(&root, "--cargo-targets")?;
+    let mut shipping = source_routes::Sources::from_targets(&targets);
+    let mut fragments = BTreeSet::new();
     let mut expansions = expansions::Inventory::default();
     let mut seen = BTreeSet::new();
     let mut unreviewed = 0;
@@ -593,15 +597,11 @@ pub fn run(report: bool) -> Result<ExitCode> {
         let scoped = signed.covers(file)
             || ROUTES.iter().any(|r| r.file == file)
             || CONTROLS.iter().any(|(path, ..)| *path == file);
-        if !scoped
-            && (file.contains("/tests/") || crate::util::test_sources::is_test_module_file(file))
-        {
-            continue;
-        }
         let text = std::fs::read_to_string(root.join(file)).with_context(|| file.to_owned())?;
         let mut source = Source::default();
         match syn::parse_file(&text) {
             Ok(tree) => {
+                shipping.add(file, &tree);
                 source.expansion_operations = expansions.add(file, &tree);
                 source.visit_file(&tree);
                 ast_sources += 1;
@@ -620,6 +620,7 @@ pub fn run(report: bool) -> Result<ExitCode> {
                 if report {
                     println!("{file}\t{surface}\tRust fragment/Syn parse unavailable: {err}");
                 }
+                fragments.insert(file.to_owned());
                 continue;
             }
             Err(err) => return Err(anyhow::anyhow!("parse tracked Rust source {file}: {err}")),
@@ -687,7 +688,7 @@ pub fn run(report: bool) -> Result<ExitCode> {
         }
     }
     signed.missing(&seen, &mut errors);
-    let targets = census(&root, "--cargo-targets")?;
+    shipping.report(&seen, &fragments, report);
     expansions.report(&root, &seen, &targets, report);
     let mut manifests = BTreeSet::new();
     let mut target_count = 0;
