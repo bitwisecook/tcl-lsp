@@ -893,15 +893,18 @@ mod tests {
 
     #[test]
     fn architecture_manifest_keeps_literal_substitution_spelling() {
-        let manifest = parse_manifest(
-            r#"device "$host" -label {[name here]}; device [literal] -label escaped\ space"#,
-        )
-        .unwrap();
-        assert_eq!(manifest.devices[0].matcher, "$host");
-        assert_eq!(manifest.devices[0].label.as_deref(), Some("[name here]"));
-        assert_eq!(manifest.devices[1].matcher, "[literal]");
-        assert_eq!(manifest.devices[1].label.as_deref(), Some("escaped space"));
-        assert!(parse_manifest("device {*}$devices").is_err());
+        let devices = [
+            serde_json::json!({"name": "$host"}),
+            serde_json::json!({"name": "[literal]"}),
+        ];
+        let manifest =
+            r#"device "$host" -label {[name here]}; device [literal] -label escaped\ space"#;
+        let architecture = build_architecture(&devices, Some(manifest));
+        assert_eq!(architecture["devices"][0]["label"], "[name here]");
+        assert_eq!(architecture["devices"][1]["label"], "escaped space");
+        assert!(
+            build_architecture(&devices, Some("device {*}$devices"))["manifestError"].is_string()
+        );
     }
 
     #[test]
