@@ -897,36 +897,52 @@ mod tests {
         assert_eq!(before, seen.len(), "duplicated evidence: {:?}", f.notes);
     }
 
-    /// The body heuristics are part of an import, not a separate pass a caller
-    /// has to remember: one `import_package` and the option table is there,
-    /// with its evidence beside the signature's.
     #[test]
-    fn the_body_shape_heuristics_run_as_part_of_an_import() {
-        let import = import_package(
-            &file(
-                "proc render {args} {\n\
-                 \x20   foreach opt $args {\n\
-                 \x20       switch -- $opt {\n\
-                 \x20           -- { break }\n\
-                 \x20           -quiet { set quiet 1 }\n\
-                 \x20           -width { set w [lindex $args [incr i]] }\n\
-                 \x20       }\n\
-                 \x20   }\n\
-                 }\n",
-            ),
-            "tcl9.0",
+    fn only_proved_option_arity_reaches_an_imported_draft() {
+        let source = file(
+            r"
+            proc inert {args} {
+                foreach opt $args {
+                    switch -- $opt {
+                        -text {set result {lindex arbitrary}}
+                        -comment {set result yes; # incr x
+                        }
+                        -lookup {set result [lindex $args 1]}
+                    }
+                }
+                return $result
+            }
+            proc with_value {opt value} {switch -- $opt {-width {return $value}}}
+            proc flag {opt} {switch -- $opt {-quiet {return yes}}}
+            proc unrelated {opt value} {switch -- $opt {-x {return literal}}}
+            proc optional {opt {value x}} {switch -- $opt {-x {return $value}}}
+            proc rebound {opt value} {set opt -x; switch -- $opt {-x {return $value}}}
+        ",
         );
-        let render = find(&import, "render");
-        let options = render.draft["options"].as_array().expect("option rows");
-        let names: Vec<&str> = options.iter().filter_map(|o| o["name"].as_str()).collect();
-        assert_eq!(names, vec!["-quiet", "-width"], "{options:?}");
-        assert_eq!(options[0]["value"], Value::Null, "a flag takes no value");
-        assert_eq!(options[1]["value"]["role"], json!("Value"));
-        assert!(
-            render.notes.iter().any(|n| n.contains("`--`")),
-            "the `--` handling must be reported: {:?}",
-            render.notes
-        );
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let imported = import_package(&source, dialect);
+            let inert = find(&imported, "inert");
+            assert_eq!(inert.draft["options"], json!([]), "{dialect}");
+            for word in ["-text", "-comment", "-lookup"] {
+                assert!(
+                    inert.notes.iter().any(|n| n.contains(word)),
+                    "{dialect} {word}"
+                );
+            }
+            for name in ["unrelated", "optional", "rebound"] {
+                assert_eq!(
+                    find(&imported, name).draft["options"],
+                    json!([]),
+                    "{dialect} {name}"
+                );
+            }
+            let value = &find(&imported, "with_value").draft["options"][0];
+            assert_eq!(value["name"], json!("-width"), "{dialect}");
+            assert_eq!(value["value"]["arity"]["kind"], json!("One"), "{dialect}");
+            let flag = &find(&imported, "flag").draft["options"][0];
+            assert_eq!(flag["name"], json!("-quiet"), "{dialect}");
+            assert_eq!(flag["value"], Value::Null, "{dialect}");
+        }
     }
 
     #[test]

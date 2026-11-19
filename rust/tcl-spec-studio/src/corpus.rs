@@ -115,7 +115,7 @@ pub struct Callback {
 pub struct Shape {
     /// Options recovered from a `-*` dispatch.
     pub options: Vec<OptionShape>,
-    /// Whether the body recognises `--` as the end of options.
+    /// Whether a switch case or parameter comparison mentions `--`.
     pub option_terminator: bool,
     /// Mode words that select tails — subcommands.
     pub subcommands: Vec<String>,
@@ -135,6 +135,7 @@ impl Shape {
             && self.subcommands.is_empty()
             && self.arg_values.is_none()
             && self.callbacks.is_empty()
+            && self.evidence.is_empty()
     }
 
     /// Write these findings into `d`, appending each evidence line to `notes`.
@@ -244,6 +245,8 @@ struct Stmt {
     words: Vec<String>,
     scalar_reads: Vec<Option<String>>,
     conditions: Vec<usize>,
+    exact_switch_table: bool,
+    depth: usize,
 }
 
 impl Stmt {
@@ -310,10 +313,26 @@ fn statements(
                     .map(str::to_owned)
             })
             .collect();
+        // A dynamic subject can itself look like a switch option. An explicit
+        // terminator unambiguously preserves that position on Tcl 8.4 and Jim.
+        let exact_switch_table = head == "switch"
+            && args.len() >= 3
+            && args[args.len() - 3] == "--"
+            && tokens.arg_is_braced_literal(args.len() - 1)
+            && registry
+                .case_invocation(&head, &args, None)
+                .is_some_and(|(_, invocation)| {
+                    invocation.mode == tcl_registry::spec::CaseMatchMode::Exact
+                        && !invocation.nocase
+                        && invocation.subject_index == Some(args.len() - 2)
+                        && invocation.clause_list_index == Some(args.len() - 1)
+                });
         out.push(Stmt {
             words,
             scalar_reads,
             conditions,
+            exact_switch_table,
+            depth,
         });
     }
 }
@@ -347,11 +366,11 @@ fn arms(body: &str, config: LexerConfig) -> Vec<Arm> {
         .collect::<Vec<_>>();
     // A `-` script is Tcl's fall-through: the arm runs the *next* arm's body.
     for i in 0..out.len() {
-        if out[i].script.trim() == "-" {
+        if out[i].script == "-" {
             let next = out
                 .iter()
                 .skip(i + 1)
-                .find(|a| a.script.trim() != "-")
+                .find(|a| a.script != "-")
                 .map_or_default(|a| a.script.clone());
             out[i].script = next;
         }
@@ -385,15 +404,38 @@ fn is_option_word(word: &str) -> bool {
     chars.next() == Some('-') && chars.next().is_some_and(char::is_alphabetic)
 }
 
-/// Whether an arm's script consumes a word from the argument list.
-///
-/// The four shapes a hand-written option loop uses to step its cursor. This is
-/// the one judgement in the module, and it is reported as such: the evidence
-/// line says *why* the option was called a value option.
-fn consumes_a_value(script: &str) -> bool {
-    ["incr ", "lindex ", "lassign ", "lshift", "lpop", "lrange "]
-        .iter()
-        .any(|needle| script.contains(needle))
+/// The incoming argument binder proves absence/presence before a procedure runs.
+/// A named second parameter is attributed to this option only when the selected
+/// arm reads that parameter directly in its original, single return command.
+fn switch_option_value(
+    stmt: &Stmt,
+    arm: &Arm,
+    params: &[ParamDef],
+    only_top_level_command: bool,
+    registry: &CommandRegistry,
+    config: LexerConfig,
+) -> Option<bool> {
+    if !only_top_level_command || stmt.depth != 0 {
+        return None;
+    }
+    let selector = switched_variable(stmt)?;
+    let first = params.first()?;
+    if selector != first.name || first.name == "args" || first.has_default {
+        return None;
+    }
+    match params {
+        [_] => Some(false),
+        [_, value] if value.name != "args" && !value.has_default && value.name != first.name => {
+            let mut body = Vec::new();
+            statements(registry, config, &arm.script, 0, &mut body);
+            let [ret] = body.as_slice() else { return None };
+            (ret.head() == "return"
+                && ret.words.len() == 2
+                && ret.scalar_read(1) == Some(value.name.as_str()))
+            .then_some(true)
+        }
+        _ => None,
+    }
 }
 
 // The scan
@@ -431,7 +473,7 @@ pub(crate) fn scan_in(
     statements(registry, config, body, 0, &mut stmts);
 
     let mut shape = Shape::default();
-    options_from_dispatch(&stmts, params, profile, config, &mut shape);
+    options_from_dispatch(&stmts, params, registry, profile, config, &mut shape);
     values_from_dispatch(&stmts, params, config, &mut shape);
     callbacks(&stmts, params, &mut shape);
     shape
@@ -464,31 +506,31 @@ fn compared_option<'a>(
 fn options_from_dispatch(
     stmts: &[Stmt],
     params: &[ParamDef],
+    registry: &CommandRegistry,
     profile: &DialectProfile,
     config: LexerConfig,
     shape: &mut Shape,
 ) {
-    // Preserve first-seen order, and let a later site upgrade a flag to a
-    // value option rather than contradict it.
-    let mut found: Vec<OptionShape> = Vec::new();
-    let mut add = |name: String, takes_value: bool, evidence: String| {
-        if let Some(existing) = found.iter_mut().find(|o| o.name == name) {
-            if takes_value && !existing.takes_value {
-                existing.takes_value = true;
-                existing.evidence = evidence;
-            }
-            return;
+    let mut found = Vec::<OptionShape>::new();
+    let mut add = |word: &str, takes_value: Option<bool>, evidence: String| {
+        if !shape.evidence.contains(&evidence) {
+            shape.evidence.push(evidence.clone());
         }
-        found.push(OptionShape {
-            name,
-            takes_value,
-            evidence,
-        });
+        if let Some(takes_value) = takes_value
+            && !found.iter().any(|o| o.name == word)
+        {
+            found.push(OptionShape {
+                name: word.to_owned(),
+                takes_value,
+                evidence,
+            });
+        }
     };
 
+    let only_top_level_command = stmts.iter().filter(|stmt| stmt.depth == 0).count() == 1;
     let mut terminator = false;
     for stmt in stmts {
-        if stmt.head() == "switch" {
+        if stmt.exact_switch_table {
             let Some(last) = stmt.words.last() else {
                 continue;
             };
@@ -500,22 +542,26 @@ fn options_from_dispatch(
                 if !is_option_word(&arm.pattern) {
                     continue;
                 }
-                let takes_value = consumes_a_value(&arm.script);
-                add(
-                    arm.pattern.clone(),
-                    takes_value,
-                    if takes_value {
-                        format!(
-                            "`{}` is a `switch` arm whose body reads a following word — a value option",
-                            arm.pattern
-                        )
-                    } else {
-                        format!(
-                            "`{}` is a `switch` arm that reads no following word — a flag",
-                            arm.pattern
-                        )
-                    },
+                let takes_value = switch_option_value(
+                    stmt,
+                    &arm,
+                    params,
+                    only_top_level_command,
+                    registry,
+                    config,
                 );
+                let evidence = match takes_value {
+                    Some(true) => format!(
+                        "the `{}` switch arm returns the required following procedure parameter",
+                        arm.pattern
+                    ),
+                    Some(false) => format!(
+                        "the `{}` switch arm tests the procedure's only parameter",
+                        arm.pattern
+                    ),
+                    None => format!("the procedure contains a switch case for `{}`", arm.pattern),
+                };
+                add(&arm.pattern, takes_value, evidence);
             }
         }
         for &index in &stmt.conditions {
@@ -542,8 +588,8 @@ fn options_from_dispatch(
                                 terminator = true;
                             } else {
                                 add(
-                                    word.to_owned(),
-                                    false,
+                                    word,
+                                    matches!(params, [only] if only.name != "args" && !only.has_default).then_some(false),
                                     format!(
                                         "`{word}` is compared against a parameter in an `if` condition"
                                     ),
@@ -560,25 +606,10 @@ fn options_from_dispatch(
     if found.is_empty() && !terminator {
         return;
     }
-    if !found.is_empty() {
-        shape.evidence.push(format!(
-            "the body dispatches on {} option word(s): {}",
-            found.len(),
-            found
-                .iter()
-                .map(|o| o.name.as_str())
-                .collect::<Vec<_>>()
-                .join(", ")
-        ));
-        for option in &found {
-            shape.evidence.push(option.evidence.clone());
-        }
-    }
     if terminator {
-        shape.evidence.push(
-            "the body handles `--` as the end of options — check the spec's option terminator"
-                .to_owned(),
-        );
+        shape
+            .evidence
+            .push("the body tests `--`; check the procedure's handling of that case".to_owned());
     }
     shape.options = found;
     shape.option_terminator = terminator;
@@ -705,7 +736,7 @@ mod tests {
     }
 
     #[test]
-    fn an_option_loop_becomes_an_option_table() {
+    fn a_variadic_option_loop_supplies_candidate_spellings() {
         let body = r#"
             foreach opt $args {
                 switch -- $opt {
@@ -716,10 +747,8 @@ mod tests {
             }
         "#;
         let shape = scan(body, &[param("args")], "tcl9.0");
-        let names: Vec<&str> = shape.options.iter().map(|o| o.name.as_str()).collect();
-        assert_eq!(names, vec!["-loud", "-times"]);
-        assert!(!shape.options[0].takes_value, "{:?}", shape.options[0]);
-        assert!(shape.options[1].takes_value, "{:?}", shape.options[1]);
+        assert!(shape.options.is_empty(), "the loop proves no option arity");
+        assert!(shape.evidence.iter().any(|e| e.contains("-loud")));
         assert!(
             shape.evidence.iter().any(|e| e.contains("-times")),
             "{:?}",
@@ -739,15 +768,8 @@ mod tests {
         ";
         let shape = scan(body, &[param("args")], "tcl9.0");
         assert!(shape.option_terminator);
-        assert_eq!(
-            shape
-                .options
-                .iter()
-                .map(|o| o.name.as_str())
-                .collect::<Vec<_>>(),
-            vec!["-x"],
-            "`--` is the terminator, not an option"
-        );
+        assert!(shape.options.is_empty());
+        assert!(shape.evidence.iter().any(|e| e.contains("-x")));
     }
 
     #[test]
@@ -759,10 +781,10 @@ mod tests {
                 -n { set n [lindex $args 1] }
             }
         ";
-        let shape = scan(body, &[param("opt"), param("args")], "tcl9.0");
+        let shape = scan(body, &[param("opt")], "tcl9.0");
         let names: Vec<&str> = shape.options.iter().map(|o| o.name.as_str()).collect();
         assert_eq!(names, vec!["-q", "-quiet", "-n"]);
-        assert!(!shape.options[0].takes_value, "a fall-through flag");
+        assert!(shape.options.iter().all(|o| !o.takes_value));
     }
 
     #[test]
@@ -879,10 +901,9 @@ mod tests {
         let mut notes = Vec::new();
         shape.apply(&mut d, &mut notes);
         let options = d["options"].as_array().expect("option rows");
-        assert_eq!(options.len(), 2);
-        assert_eq!(options[0]["name"], json!("-loud"));
-        assert_eq!(options[0]["value"], Value::Null, "a flag takes no value");
-        assert_eq!(options[1]["value"]["role"], json!("Value"));
+        assert!(options.is_empty());
+        assert!(notes.iter().any(|e| e.contains("-loud")));
+        assert!(notes.iter().any(|e| e.contains("-times")));
         assert_eq!(d["command_prefixes"][0]["index"], json!(1));
         assert_eq!(d["command_prefixes"][0]["arity"]["kind"], json!("Exactly"));
         assert!(!notes.is_empty());
