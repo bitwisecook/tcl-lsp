@@ -45,8 +45,7 @@ use tcl_registry::{CommandRegistry, TclType};
 
 use crate::definition::LspRange;
 use crate::original_invocation::{
-    OriginalOperandSource as HintOperand, OriginalRegistryWords as OriginalHintWords,
-    source_registry_words,
+    OriginalRegistryWords as OriginalHintWords, source_registry_words,
 };
 
 /// Which inlay-hint family a hint belongs to.
