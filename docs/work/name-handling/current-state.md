@@ -64,6 +64,8 @@ Six workers cover the thirteen area handoffs in this coordinator chat. Progress 
 
 analyser-binding reproduced O101 on the normal 8.6 optimiser path. The two-call witness changes from `no/yes` to `no/no` when the optimiser folds `info exists x`. The explicit rebinding and autoload O103 controls remained unchanged on the tested 8.6 path. Keep O101 active and verify O103 against the original entry conditions before claiming a product fault.
 
+**Parser review assignments.** The verified wrong answers are in scope for the ongoing scrub. The broad crate extractions remain proposals. lsp-features owns a span-producing replacement-string reader with execution reviewing the shared `tcl-cmd-core::regex` change. diagnostics traced false I230 to advisory reachability after `db_eval` with a body role. Strict SCCP correctly keeps both arms; the bodyless `db_query` control can eliminate one. dataflow-optimiser accepted the solver fix. Tooling measured the `tcl-vm-wasm` native test target on `a6c66517c7`: two failed of four run. The failures are `byte_source_keeps_unicode_names_and_document_continuations` and `byte_source_preserves_distinct_opaque_and_replacement_names`. execution will compare entry and oracle before classifying them. The browser target has a separate measurement.
+
 ## Scoreboard, 18 November 2026, 11:55 UTC (at the pause)
 
 Failing tests by area on the restructured tree, from the successor sessions' baselines and first pushes.
