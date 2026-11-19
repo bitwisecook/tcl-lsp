@@ -199,7 +199,7 @@ const RATCHET: &[(&str, usize)] = &[
     ("rust/tcl-lsp-core/src/diagnostic_policy.rs", 1),
     ("rust/tcl-lsp-core/src/diagnostic_policy/truth_table.rs", 2),
     ("rust/tcl-lsp-core/src/document_symbols.rs", 1),
-    ("rust/tcl-lsp-core/src/hover.rs", 4),
+    ("rust/tcl-lsp-core/src/hover.rs", 2),
     ("rust/tcl-lsp-core/src/package_resolver.rs", 1),
     ("rust/tcl-lsp-core/src/refactor/inline_proc.rs", 2),
     ("rust/tcl-lsp-core/src/refactor/switch_to_dict.rs", 1),
