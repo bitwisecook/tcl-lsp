@@ -35,9 +35,8 @@
 //! - **Mode words that select tails**, which become subcommands: a dispatch on
 //!   the *first* parameter of a variadic proc is a subcommand table, not a
 //!   value set.
-//! - **Closed value sets**, from the same dispatch when it is *not* a
-//!   subcommand table and has no `default` arm — the accepted values are
-//!   exactly the arms.
+//! - **Suggested argument values** from literal patterns in a parameter dispatch.
+//!   An unlisted subject can complete normally.
 //! - **Callbacks with their observed appended arity**: a parameter invoked as
 //!   a command head, with the number of words the body appends to it.
 //!
@@ -82,12 +81,12 @@ pub struct OptionShape {
     pub evidence: String,
 }
 
-/// A parameter whose accepted values the body encloses.
+/// Literal alternatives observed in a dispatch on a parameter.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ClosedValues {
+pub struct DispatchValues {
     /// Parameter index, 0-based after the command name.
     pub index: usize,
-    /// The accepted words, in the order the dispatch lists them.
+    /// The words in the order the dispatch lists them.
     pub values: Vec<String>,
 }
 
@@ -118,8 +117,8 @@ pub struct Shape {
     pub option_terminator: bool,
     /// Mode words that select tails — subcommands.
     pub subcommands: Vec<String>,
-    /// A parameter whose value set the dispatch closes.
-    pub closed: Option<ClosedValues>,
+    /// Values observed in the body's dispatch on a parameter.
+    pub arg_values: Option<DispatchValues>,
     /// Callbacks and their appended arity.
     pub callbacks: Vec<Callback>,
     /// One line per conclusion, in the order they were reached.
@@ -132,7 +131,7 @@ impl Shape {
     pub fn is_empty(&self) -> bool {
         self.options.is_empty()
             && self.subcommands.is_empty()
-            && self.closed.is_none()
+            && self.arg_values.is_none()
             && self.callbacks.is_empty()
     }
 
@@ -164,12 +163,12 @@ impl Shape {
                 .collect();
             d.insert("subcommands".into(), Value::Array(rows));
         }
-        if let Some(closed) = &self.closed {
+        if let Some(observed) = &self.arg_values {
             d.insert(
                 "arg_values".into(),
                 json!([{
-                    "index": closed.index,
-                    "values": closed
+                    "index": observed.index,
+                    "values": observed
                         .values
                         .iter()
                         .map(|v| json!({
@@ -181,7 +180,6 @@ impl Shape {
                         .collect::<Vec<Value>>(),
                 }]),
             );
-            d.insert("closed_value_args".into(), json!([closed.index]));
         }
         if !self.callbacks.is_empty() {
             d.insert(
@@ -520,11 +518,11 @@ fn options_from_dispatch(stmts: &[Stmt], config: LexerConfig, shape: &mut Shape)
     shape.option_terminator = terminator;
 }
 
-/// Mode words and closed value sets from a dispatch on a parameter.
+/// Mode words and argument value suggestions from a dispatch on a parameter.
 ///
 /// The two are the same evidence read against the parameter list: a dispatch
 /// on the **first** parameter of a proc whose tail is variadic selects *tails*
-/// — that is a subcommand table. Anything else closes a value set.
+/// — that is a subcommand table. Other literal arms suggest argument values.
 fn values_from_dispatch(
     stmts: &[Stmt],
     params: &[ParamDef],
@@ -549,7 +547,6 @@ fn values_from_dispatch(
             continue;
         };
         let all = arms(last, config);
-        let has_default = all.iter().any(|a| a.pattern == "default");
         let literals: Vec<String> = all
             .iter()
             .map(|a| a.pattern.clone())
@@ -569,20 +566,12 @@ fn values_from_dispatch(
             shape.subcommands = literals;
             return;
         }
-        if has_default {
-            shape.evidence.push(format!(
-                "`switch ${variable}` has a `default` arm, so its {} listed value(s) are not a \
-                 closed set",
-                literals.len()
-            ));
-            return;
-        }
         shape.evidence.push(format!(
-            "`switch ${variable}` has no `default` arm, so argument {} accepts exactly {}",
+            "`switch ${variable}` has literal arms for argument {}: {}",
             index + 1,
             literals.join(", ")
         ));
-        shape.closed = Some(ClosedValues {
+        shape.arg_values = Some(DispatchValues {
             index,
             values: literals,
         });
@@ -722,7 +711,7 @@ mod tests {
         let shape = scan(body, &[param("mode"), param("args")], "tcl9.0");
         assert_eq!(shape.subcommands, vec!["add", "remove", "list"]);
         assert!(
-            shape.closed.is_none(),
+            shape.arg_values.is_none(),
             "a subcommand table is not a value set"
         );
         assert!(
@@ -733,38 +722,22 @@ mod tests {
     }
 
     #[test]
-    fn a_dispatch_without_a_default_closes_the_value_set() {
-        let body = r"
-            switch -- $how {
-                fast { set n 1 }
-                slow { set n 2 }
-            }
-        ";
-        let shape = scan(body, &[param("what"), param("how")], "tcl9.0");
-        let closed = shape.closed.expect("a closed set");
-        assert_eq!(closed.index, 1);
-        assert_eq!(closed.values, vec!["fast", "slow"]);
-    }
-
-    #[test]
-    fn a_default_arm_leaves_the_value_set_open() {
-        let body = r"
-            switch -- $how {
-                fast { set n 1 }
-                slow { set n 2 }
-                default { set n 3 }
-            }
-        ";
-        let shape = scan(body, &[param("what"), param("how")], "tcl9.0");
-        assert!(shape.closed.is_none());
-        assert!(
-            shape
-                .evidence
-                .iter()
-                .any(|e| e.contains("not a closed set")),
-            "{:?}",
-            shape.evidence
-        );
+    fn switch_patterns_suggest_values_without_closing_the_argument() {
+        // tclsh 8.4–9.1 and Jim: passing "other" to this proc completes normally
+        // both with the default arm and without it.
+        for default in ["", "default {set n 3}"] {
+            let body = format!(
+                "switch -- $how {{fast {{set n 1}} slow {{set n 2}} {default}}}; return $how"
+            );
+            let shape = scan(&body, &[param("what"), param("how")], "tcl9.0");
+            let mut draft = crate::draft::default_command_draft();
+            shape.apply(&mut draft, &mut Vec::new());
+            assert_eq!(draft["closed_value_args"], serde_json::json!([]));
+            let values = &draft["arg_values"][0];
+            assert_eq!(values["index"], 1);
+            assert_eq!(values["values"][0]["value"], "fast");
+            assert_eq!(values["values"][1]["value"], "slow");
+        }
     }
 
     #[test]
@@ -911,8 +884,8 @@ mod tests {
             let body = format!("switch -- \"${{{name}}}\" {{one {{}} two {{}}}}");
             let shape = scan(&body, &[param(name)], "tcl9.0");
             assert_eq!(
-                shape.closed,
-                Some(ClosedValues {
+                shape.arg_values,
+                Some(DispatchValues {
                     index: 0,
                     values: vec!["one".into(), "two".into()]
                 }),
@@ -936,7 +909,7 @@ mod tests {
                 &[param("cb")],
                 "tcl9.0",
             );
-            assert!(shape.closed.is_none(), "{word}");
+            assert!(shape.arg_values.is_none(), "{word}");
         }
         assert!(
             scan("$café payload", &[param("café")], "tcl9.0")

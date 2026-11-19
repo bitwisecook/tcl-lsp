@@ -485,7 +485,7 @@ fn synopsis(name: &str, params: &[ParamDef]) -> String {
 ///
 /// `body` retains the original procedure's static value and full grammar, so corpus shape
 /// heuristics ([`crate::corpus`]) can read what the *body* says about the
-/// interface — option tables, mode words, closed value sets, callback arity —
+/// interface — option tables, mode words, argument value suggestions, callback arity —
 /// which the parameter list alone cannot show. Its held Registry resolves script
 /// arguments; unavailable original body data contributes no corpus evidence.
 fn draft_for_proc(
