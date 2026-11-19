@@ -155,9 +155,9 @@ pub fn parse_conversion(fmt: &[char], i: &mut usize) -> Result<ScanConversion, S
 
 #[derive(Default)]
 struct ConversionOffsets {
-    width_start: usize,
-    size_start: usize,
-    verb_start: usize,
+    width: usize,
+    size: usize,
+    verb: usize,
 }
 
 /// Byte extents in a scan format *value*, before any mapping to a source word.
@@ -204,7 +204,7 @@ pub fn conversion_spans(value: &str, profile: &tcl_dialect::DialectProfile) -> V
         if spec.verb == '%' {
             continue;
         }
-        let size = offsets[parts.size_start]..offsets[parts.verb_start];
+        let size = offsets[parts.size]..offsets[parts.verb];
         let admitted = match &value[size.clone()] {
             "j" | "q" | "z" | "t" => version >= Some(TclVersion::V9_0),
             "ll" => {
@@ -230,10 +230,10 @@ pub fn conversion_spans(value: &str, profile: &tcl_dialect::DialectProfile) -> V
         }
         fields.push(ConversionSpan {
             percent: offsets[start]..offsets[start + 1],
-            assignment: offsets[start + 1]..offsets[parts.width_start],
-            width: offsets[parts.width_start]..offsets[parts.size_start],
+            assignment: offsets[start + 1]..offsets[parts.width],
+            width: offsets[parts.width]..offsets[parts.size],
             size,
-            conversion: offsets[parts.verb_start]..offsets[at],
+            conversion: offsets[parts.verb]..offsets[at],
             spec,
         });
     }
@@ -278,7 +278,7 @@ fn parse_conversion_with_offsets(
         }
     }
 
-    offsets.width_start = *i;
+    offsets.width = *i;
     // Width.
     let width = if peek(*i).is_ascii_digit() {
         let (val, end) = decimal(fmt, *i);
@@ -288,33 +288,9 @@ fn parse_conversion_with_offsets(
         None
     };
 
-    offsets.size_start = *i;
-    // Size modifier (`hh` is not accepted; a second `h` falls to the verb).
-    let size = match peek(*i) {
-        'z' | 't' | 'j' | 'q' => {
-            *i += 1;
-            Some(SizeModifier::Long)
-        }
-        'L' => {
-            *i += 1;
-            Some(SizeModifier::Big)
-        }
-        'l' => {
-            *i += 1;
-            if peek(*i) == 'l' {
-                *i += 1;
-                Some(SizeModifier::Big)
-            } else {
-                Some(SizeModifier::Long)
-            }
-        }
-        'h' => {
-            *i += 1;
-            Some(SizeModifier::Short)
-        }
-        _ => None,
-    };
-    offsets.verb_start = *i;
+    offsets.size = *i;
+    let size = parse_size(fmt, i);
+    offsets.verb = *i;
     let wide = !jim && size.is_some_and(SizeModifier::is_wide);
 
     let verb = peek(*i);
@@ -357,6 +333,34 @@ fn parse_conversion_with_offsets(
             Ok(conv(Some(charset)))
         }
         other => Err(ScanSpecError::BadConversion(other)),
+    }
+}
+
+fn parse_size(fmt: &[char], i: &mut usize) -> Option<SizeModifier> {
+    // Size modifier (`hh` is not accepted; a second `h` falls to the verb).
+    match fmt.get(*i).copied() {
+        Some('z' | 't' | 'j' | 'q') => {
+            *i += 1;
+            Some(SizeModifier::Long)
+        }
+        Some('L') => {
+            *i += 1;
+            Some(SizeModifier::Big)
+        }
+        Some('l') => {
+            *i += 1;
+            if fmt.get(*i) == Some(&'l') {
+                *i += 1;
+                Some(SizeModifier::Big)
+            } else {
+                Some(SizeModifier::Long)
+            }
+        }
+        Some('h') => {
+            *i += 1;
+            Some(SizeModifier::Short)
+        }
+        _ => None,
     }
 }
 
