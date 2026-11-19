@@ -52,13 +52,16 @@ pub fn scalar_source_reference(
 ) -> Option<String> {
     if !require_braces && super::is_bare_var_name(name) {
         let reference = format!("${name}");
-        if super::whole_scalar_variable_reference_name(&reference, config) == Some(name) {
+        if tcl_lexer::variable_names::whole_scalar_variable_reference_name(&reference, config)
+            == Some(name)
+        {
             return Some(reference);
         }
     }
     let reference = format!("${{{name}}}");
-    (super::whole_scalar_variable_reference_name(&reference, config) == Some(name))
-        .then_some(reference)
+    (tcl_lexer::variable_names::whole_scalar_variable_reference_name(&reference, config)
+        == Some(name))
+    .then_some(reference)
 }
 
 /// Propose one scalar component without absorbing any part of the complete
@@ -136,7 +139,7 @@ pub fn variable_source_reference_with_tail(
     let bytes = source.as_bytes();
     let original = tcl_lexer::word_parts::whole_var_ref(bytes, config).ok()??;
     let name_range = original.name_range_in(bytes)?;
-    let root = super::variable_reference_root_bytes(bytes, config).ok()??;
+    let root = tcl_lexer::variable_names::variable_reference_root_bytes(bytes, config).ok()??;
     let qualifier_len = root
         .len()
         .checked_sub(super::written_command_tail(root).len())?;
@@ -153,7 +156,8 @@ pub fn variable_source_reference_with_tail(
     let parsed = tcl_lexer::word_parts::whole_var_ref(proposal.as_bytes(), config).ok()??;
     let matches = parsed.name == proposed_name.as_bytes()
         && parsed.index == original.index
-        && super::variable_reference_root_bytes(proposal.as_bytes(), config).ok()??
+        && tcl_lexer::variable_names::variable_reference_root_bytes(proposal.as_bytes(), config)
+            .ok()??
             == proposed_root.as_bytes();
     matches.then_some(proposal)
 }
