@@ -358,7 +358,12 @@ impl Analyser {
         self.emit_w306_literal_expected(original.as_ref());
         // Default credential flags are lexical policy. Registry extensions
         // require the same original selected descriptor and effective operands.
-        self.emit_w310_hardcoded_credentials(original.as_ref(), args, arg_tokens);
+        self.emit_w310_hardcoded_credentials(
+            original.as_ref(),
+            args,
+            arg_tokens,
+            (!presubstituted_args).then_some(cmd_tok.span.start()),
+        );
         // W143: direct call into a private `::tcl::` implementation
         // namespace.  Deferred — the whole-file suppressions
         // are applied by `flush_w143_diagnostics`.

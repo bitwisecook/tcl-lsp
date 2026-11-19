@@ -848,16 +848,6 @@ fn w127_suggestion_fix(
     }]
 }
 
-/// True when `value` is a literal (not a `$var` / `[cmd]` substitution)
-/// — the W310 literal-value gate.
-fn is_literal_credential_value(value: &str, tok: &tcl_lexer::Token) -> bool {
-    !matches!(
-        tok.kind,
-        tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
-    ) && !value.starts_with('$')
-        && !value.contains('[')
-}
-
 /// The W102 finding for `cmd_name`'s template at `span`, naming the kinds
 /// `performed` still runs and the switches that would narrow them.
 fn w102_diagnostic(

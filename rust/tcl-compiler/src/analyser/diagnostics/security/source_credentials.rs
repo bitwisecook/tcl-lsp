@@ -71,26 +71,35 @@ Store secrets in environment variables or a vault, not in source code.",
 
 /// Command-independent written option spellings are lexical advice. They do
 /// not select a command descriptor, alias target or captured operand geometry.
-fn lexical_credential(args: &[String], tokens: &[tcl_lexer::Token]) -> Option<Diagnostic> {
-    for (index, option) in args.iter().enumerate() {
-        let lower = option.to_ascii_lowercase();
-        if !tcl_registry::spec::DEFAULT_CREDENTIAL_OPTION_NAMES.contains(&lower.as_str()) {
+fn lexical_credential(words: &[tcl_lexer::NativeWord]) -> Option<Diagnostic> {
+    for pair in words.windows(2) {
+        let [option, value] = pair else { continue };
+        if option.group().expand || value.group().expand {
             continue;
         }
-        let (Some(value), Some(token)) = (args.get(index + 1), tokens.get(index + 1)) else {
+        let Some(spelling) = tcl_syntax::word_rules::original_static_word_source_bytes(option)
+        else {
             continue;
         };
-        if super::is_literal_credential_value(value, token) {
-            return Some(Diagnostic::new(
-                DiagCode::W310,
-                token.span,
-                format!(
-                    "Hardcoded credential in {option} argument. Store secrets in \
-environment variables or a vault, not in source code."
-                ),
-                Severity::Warning,
-            ));
+        let Ok(spelling) = std::str::from_utf8(&spelling) else {
+            continue;
+        };
+        if !tcl_registry::spec::DEFAULT_CREDENTIAL_OPTION_NAMES
+            .iter()
+            .any(|name| spelling.eq_ignore_ascii_case(name))
+            || tcl_syntax::word_rules::original_static_word_source_bytes(value).is_none()
+        {
+            continue;
         }
+        return Some(Diagnostic::new(
+            DiagCode::W310,
+            value.span(),
+            format!(
+                "Hardcoded credential in {spelling} argument. Store secrets in \
+environment variables or a vault, not in source code."
+            ),
+            Severity::Warning,
+        ));
     }
     None
 }
@@ -103,11 +112,33 @@ impl Analyser {
         original: Option<&OriginalDiagnosticInvocation>,
         args: &[String],
         arg_tokens: &[tcl_lexer::Token],
+        written_offset: Option<u32>,
     ) {
         let selected = original
             .filter(|original| original.matches_analysis(&self.result, &self.source))
             .and_then(selected_credential);
-        if let Some(diagnostic) = selected.or_else(|| lexical_credential(args, arg_tokens)) {
+        let lexical = || {
+            let offset = written_offset?;
+            // A literal default option has a matching spelling or an escape
+            // that can decode to one. Only the original words decide the result.
+            if !args.iter().any(|arg| {
+                arg.contains('\\')
+                    || tcl_registry::spec::DEFAULT_CREDENTIAL_OPTION_NAMES
+                        .iter()
+                        .any(|name| arg.eq_ignore_ascii_case(name))
+            }) {
+                return None;
+            }
+            let tokens = self.retained_invocation_tokens(offset, arg_tokens)?;
+            let origin = self.head_identities.source_bindings_ref().source_origin()?;
+            let command = origin.original_lexical_command(
+                tokens.words(),
+                offset,
+                self.file_lexer_config(),
+            )?;
+            lexical_credential(command.native_words().get(1..)?)
+        };
+        if let Some(diagnostic) = selected.or_else(lexical) {
             self.result.diagnostics.push(diagnostic);
         }
     }
@@ -343,6 +374,7 @@ mod tests {
             Some(&original),
             segment.args(),
             segment.arg_tokens(),
+            None,
         );
         assert_eq!(
             findings(&analyser.result),
@@ -357,6 +389,8 @@ mod tests {
         let input = current_input();
         for source in [
             "mycmd -Password VALUE",
+            "mycmd -token {[produced]}",
+            "mycmd -token {$fixed}",
             "proc set args {}; set -secret VALUE",
         ] {
             let analyser = analyse(source, &input);
@@ -367,10 +401,16 @@ mod tests {
                 "lexical policy supplies no selected command proof"
             );
         }
-        assert_eq!(
-            findings(&analyse("mycmd -password $value", &input).result),
-            [] as [&crate::analyser::types::Diagnostic; 0]
-        );
+        for source in [
+            "mycmd -password $value",
+            "mycmd -token pre${secret}post",
+            "mycmd -token \"prefix$secret\"",
+        ] {
+            assert!(
+                findings(&analyse(source, &input).result).is_empty(),
+                "{source}"
+            );
+        }
         assert_eq!(
             findings(&analyse("mycmd -token [produce]", &input).result),
             [] as [&crate::analyser::types::Diagnostic; 0]
