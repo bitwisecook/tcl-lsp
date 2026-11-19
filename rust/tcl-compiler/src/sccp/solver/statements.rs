@@ -154,23 +154,12 @@ pub(in super::super) fn sccp_process_statements(
             stmt_ssa.statement,
             Statement::Barrier { .. } | Statement::UpFrame { .. }
         ) {
-            // A `return` that leaves the procedure writes nothing, and
-            // nothing of the frame runs after it: the values its own words
-            // read stay what they are.
-            if stmt_ssa.statement.is_opaque_script_body() {
-                changed |= clobber_at_unseen_call(
-                    values,
-                    (index, inputs.clobbers, true),
-                    (driver, existence.as_deref_mut()),
-                );
-            }
-            if !stmt_ssa.statement.is_return_barrier() {
-                changed |= widen_at_barrier(
-                    values,
-                    (index, stmt_ssa),
-                    (driver, existence.as_deref_mut()),
-                );
-            }
+            changed |= widen_at_barrier(
+                values,
+                (index, stmt_ssa),
+                inputs.clobbers,
+                (driver, existence.as_deref_mut()),
+            );
             continue;
         }
         if ssa.source_may_requires_unknown_at(block, index) {
@@ -290,9 +279,19 @@ pub(super) fn clobber_at_unseen_call(
 fn widen_at_barrier(
     values: &mut HashMap<ValueKey, LatticeValue>,
     (index, stmt_ssa): (usize, &SsaStatement),
-    (driver, existence): (&LatticeDriver<'_>, Option<&mut ExistenceAt<'_>>),
+    clobbers: Option<&crate::ssa::BlockValueClobbers>,
+    (driver, mut existence): (&LatticeDriver<'_>, Option<&mut ExistenceAt<'_>>),
 ) -> bool {
-    let mut changed = false;
+    let mut changed = stmt_ssa.statement.is_opaque_script_body()
+        && clobber_at_unseen_call(
+            values,
+            (index, clobbers, true),
+            (driver, existence.as_deref_mut()),
+        );
+    // A return leaves the frame before any later effects could run.
+    if stmt_ssa.statement.is_return_barrier() {
+        return changed;
+    }
     // Barriers widen all currently-tracked values — EXCEPT
     // version-0 (parameter) seeds, which hold the caller's
     // literal and are immutable across the barrier (a barrier

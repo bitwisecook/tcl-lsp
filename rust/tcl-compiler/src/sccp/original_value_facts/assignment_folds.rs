@@ -99,6 +99,45 @@ where
 
 // AssignValue folding
 
+/// Follow the original passthrough store's operand to its retained command
+/// substitution. No spelling fallback can prove that physical store or read.
+fn fold_stored_substitution<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+    tokens: &crate::ir::CommandTokens,
+    uses: &HashMap<Symbol, crate::ssa::Version, S1>,
+    values: &HashMap<ValueKey, LatticeValue, S2>,
+    ssa: SsaSourceView<'_>,
+    inputs: BuiltinFoldInputs<'_>,
+    policy: FoldPolicy,
+) -> Option<String> {
+    let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+        inputs.registry,
+        inputs.source_metadata_input?,
+    )?;
+    let invocation = crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+        inputs.registry,
+        Some(metadata),
+        tokens,
+    )?;
+    let (_, word) = invocation.stored_value_operand(
+        &tokens.source_binding.as_ref()?.variable_context,
+        inputs.registry,
+    )?;
+    let (_, site) = word.sole_command_substitution()?;
+    fold_original_substitution_value(
+        tokens,
+        site,
+        uses,
+        values,
+        ssa,
+        RetainedExpressionFoldInputs {
+            source_metadata_input: inputs.source_metadata_input,
+            registry: inputs.registry,
+            policy,
+            math: None,
+        },
+    )
+}
+
 /// Fold the RHS of an `AssignValue` statement to a lattice value.
 ///
 /// Covers three tiers:
@@ -139,50 +178,11 @@ pub(super) fn fold_assign_value<'a, S1: std::hash::BuildHasher, S2: std::hash::B
             });
     }
     if let Some(tokens) = ssa.source_tokens() {
-        let Some(inputs) = folds else {
-            return LatticeValue::Overdefined;
-        };
-        let Some(metadata) = inputs.source_metadata_input.and_then(|input| {
-            crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
-                inputs.registry,
-                input,
-            )
-        }) else {
-            return LatticeValue::Overdefined;
-        };
-        let Some(invocation) =
-            crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
-                inputs.registry,
-                Some(metadata),
-                tokens,
-            )
-        else {
-            return LatticeValue::Overdefined;
-        };
-        let Some((_, word)) = tokens.source_binding.as_ref().and_then(|binding| {
-            invocation.stored_value_operand(&binding.variable_context, inputs.registry)
-        }) else {
-            return LatticeValue::Overdefined;
-        };
-        let Some((_, site)) = word.sole_command_substitution() else {
-            return LatticeValue::Overdefined;
-        };
-        return fold_original_substitution_value(
-            tokens,
-            site,
-            uses,
-            values,
-            ssa,
-            RetainedExpressionFoldInputs {
-                source_metadata_input: inputs.source_metadata_input,
-                registry: inputs.registry,
-                policy,
-                math: None,
-            },
-        )
-        .map_or(LatticeValue::Overdefined, |value| {
-            LatticeValue::Const(parse_literal_value(&value))
-        });
+        return folds
+            .and_then(|inputs| fold_stored_substitution(tokens, uses, values, ssa, inputs, policy))
+            .map_or(LatticeValue::Overdefined, |value| {
+                LatticeValue::Const(parse_literal_value(&value))
+            });
     }
     // Legacy tokenless callers retain the unique-binding compatibility view.
     if let Some(resolved) = resolve_simple_var_ref(stripped, uses, values, ssa, reference_config) {
