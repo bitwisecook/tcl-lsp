@@ -21,7 +21,7 @@ use tcl_dialect::{DoubleFormat, DoubleStringPolicy, TclVersion};
 
 #[test]
 fn native_double_strings_match_all_six_engines_and_precision_states() {
-    let vectors = include_str!("../../tests/data/double_string_vectors.txt");
+    let vectors = include_str!("../../../tcl-syntax/tests/data/double_string_vectors.txt");
     let mut count = 0;
     for row in vectors
         .lines()

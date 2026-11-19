@@ -20,8 +20,11 @@
 
 use crate::number::{Number, Radix};
 
-pub(super) struct ParsedDouble {
+/// A complete native floating input conversion.
+pub struct ParsedDouble {
+    /// Converted value before getter-specific overflow handling.
     pub value: f64,
+    /// Whether the range conversion signals underflow or overflow.
     pub range_error: bool,
 }
 
@@ -43,7 +46,9 @@ fn digit(byte: u8) -> Option<u32> {
     (byte as char).to_digit(16)
 }
 
-pub(super) fn jim_unsigned_stage(input: &[u8]) -> super::NativeJimUnsignedStage {
+/// Select the prefix, sign and base of the native Jim unsigned conversion.
+#[must_use]
+pub fn jim_unsigned_stage(input: &[u8]) -> NativeJimUnsignedStage {
     let mut offset = input
         .iter()
         .position(|&byte| !whitespace(byte))
@@ -69,14 +74,14 @@ pub(super) fn jim_unsigned_stage(input: &[u8]) -> super::NativeJimUnsignedStage 
             .get(offset)
             .is_some_and(|&b| matches!(b, b'-' | b'+') || whitespace(b))
         {
-            return super::NativeJimUnsignedStage {
+            return NativeJimUnsignedStage {
                 offset,
                 base,
                 negate,
             };
         }
     }
-    super::NativeJimUnsignedStage {
+    NativeJimUnsignedStage {
         offset: 0,
         base: 10,
         negate: false,
@@ -84,7 +89,8 @@ pub(super) fn jim_unsigned_stage(input: &[u8]) -> super::NativeJimUnsignedStage 
 }
 
 /// Pinned Jim's strtoull stage: decimal for `GetDouble`, detected prefixes for Wide.
-pub(super) fn jim_unsigned_integer(input: &[u8], force_base: Option<u32>) -> Option<i64> {
+#[must_use]
+pub fn jim_unsigned_integer(input: &[u8], force_base: Option<u32>) -> Option<i64> {
     let mut input = trim(input);
     let negative = input.first() == Some(&b'-');
     if matches!(input.first(), Some(b'-' | b'+')) {
@@ -134,7 +140,8 @@ pub(super) fn jim_unsigned_integer(input: &[u8], force_base: Option<u32>) -> Opt
 /// Jim's `strtol` stage for an absolute frame suffix. Unlike Wide, this
 /// requires the end pointer to reach NUL without trailing whitespace and uses
 /// signed-long saturation before a manually stripped prefix sign.
-pub(super) fn jim_frame_long(input: &[u8]) -> Option<i64> {
+#[must_use]
+pub fn jim_frame_long(input: &[u8]) -> Option<i64> {
     if input.is_empty() || input.last().is_some_and(|byte| whitespace(*byte)) {
         return None;
     }
@@ -183,7 +190,8 @@ pub(super) fn jim_frame_long(input: &[u8]) -> Option<i64> {
     })
 }
 
-pub(super) fn parse_c_double(input: &[u8]) -> Option<ParsedDouble> {
+#[must_use]
+pub fn parse_c_double(input: &[u8]) -> Option<ParsedDouble> {
     let input = trim(input);
     let (negative, unsigned) = if matches!(input.first(), Some(b'-' | b'+')) {
         (input[0] == b'-', &input[1..])
@@ -519,7 +527,8 @@ fn hex_double(input: &[u8], negative: bool) -> Option<(f64, bool)> {
     ))
 }
 
-pub(super) fn number_double(number: &Number) -> f64 {
+#[must_use]
+pub fn number_double(number: &Number) -> f64 {
     match number {
         Number::Int(value) => integer_double(*value),
         Number::Double(value) => *value,
@@ -560,7 +569,8 @@ pub(super) fn number_double(number: &Number) -> f64 {
 }
 
 // Each limb is exactly representable. The sum performs one native IEEE round.
-pub(super) fn integer_double(value: i64) -> f64 {
+#[must_use]
+pub fn integer_double(value: i64) -> f64 {
     let magnitude = value.unsigned_abs();
     let high = u32::try_from(magnitude >> 32).expect("upper integer limb");
     let low = u32::try_from(magnitude & u64::from(u32::MAX)).expect("lower integer limb");
@@ -569,5 +579,69 @@ pub(super) fn integer_double(value: i64) -> f64 {
         -value_double
     } else {
         value_double
+    }
+}
+
+/// Selected first `strtoull` call of `JimNumberBase`/`jim_strtoull`. It supplies
+/// syntax geometry only; the actual host owns the conversion and errno.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NativeJimUnsignedStage {
+    /// Original `CString` byte offset after an admitted explicit prefix.
+    pub offset: usize,
+    /// Native radix for the reached C call.
+    pub base: u32,
+    /// Apply the separately stripped negative sign to the unsigned payload.
+    pub negate: bool,
+}
+
+/// Native Jim expression tree construction's numeric term result.
+/// This constructs a term rather than converting an existing operand cache.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum JimExpressionNumber {
+    /// Exact wrapped native integer constructor argument.
+    Integer(i64),
+    /// Native floating-point constructor argument, including infinities.
+    Double(f64),
+}
+
+/// Parse a complete pinned Jim 0.84 expression token for fresh term construction.
+/// Numeric cache conversion, errno-sensitive getters and diagnostic state are
+/// separate operations. NUL or incomplete spellings remain String terms.
+#[must_use]
+pub fn jim_expression_number(token: &[u8]) -> Option<JimExpressionNumber> {
+    jim_expression_number_for_syntax(token, tcl_dialect::NumberSyntax::Jim080)
+}
+
+/// Construct a complete fresh numeric term under the selected Jim numeral grammar.
+/// The scanner retains release-specific prefixes; a C grammar supplies no Jim term.
+#[must_use]
+pub fn jim_expression_number_for_syntax(
+    token: &[u8],
+    syntax: tcl_dialect::NumberSyntax,
+) -> Option<JimExpressionNumber> {
+    let scanned = tcl_dialect::scan_jim_expression_number(token, 0, syntax)?;
+    if scanned.end() != token.len() {
+        return None;
+    }
+    jim_expression_number_for_kind(token, scanned.jim_kind()?)
+}
+
+/// Construct a fresh term using the original Jim scanner's selected token kind.
+/// A failed complete conversion leaves the original counted String term.
+#[must_use]
+pub fn jim_expression_number_for_kind(
+    token: &[u8],
+    kind: tcl_dialect::JimExpressionNumberKind,
+) -> Option<JimExpressionNumber> {
+    if token.contains(&0) || token.iter().any(u8::is_ascii_whitespace) {
+        return None;
+    }
+    match kind {
+        tcl_dialect::JimExpressionNumberKind::Integer => {
+            jim_unsigned_integer(token, None).map(JimExpressionNumber::Integer)
+        }
+        tcl_dialect::JimExpressionNumberKind::Double => {
+            parse_c_double(token).map(|parsed| JimExpressionNumber::Double(parsed.value))
+        }
     }
 }

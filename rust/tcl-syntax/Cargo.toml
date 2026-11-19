@@ -46,12 +46,11 @@ description = "Shared Tcl parse-tree + byte-exact-semantics layer (lists, subst,
 # (`number_tower::BigIntOps`) — enabled by pure-Rust adopters (the compiler's
 # const-folder, the VM); the faithful runtime keeps its libtommath `mp_int`
 # backend and implements the trait itself.
-num-bigint = ["dep:num-bigint", "dep:num-integer", "dep:num-traits"]
+num-bigint = ["tcl-numeric/num-bigint", "dep:num-bigint"]
 
 [dependencies]
+tcl-numeric = { path = "../tcl-numeric" }
 num-bigint = { version = "0.5", optional = true }
-num-integer = { version = "0.1", optional = true }
-num-traits = { version = "0.2", optional = true }
 tcl-dialect = { path = "../tcl-dialect" }
 tcl-core-types = { path = "../tcl-core-types" }
 tcl-lexer = { path = "../tcl-lexer" }

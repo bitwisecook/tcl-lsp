@@ -26,7 +26,7 @@
 //! either way.
 //!
 //! The workspace therefore has exactly one numeral **value parser**,
-//! [`tcl_syntax::number`], parameterised by `NumberSyntax`, and one expression
+//! [`tcl_numeric::number`], parameterised by `NumberSyntax`, and one expression
 //! **lexeme-boundary scanner**, [`tcl_dialect::scan_expr_number`]. Everything
 //! else asks one of those owners. This lint exists because the value-parser
 //! rule was broken six separate times, each independently and each with the
@@ -60,7 +60,7 @@
 //! cannot reproduce the semantics; review and the mutation-sensitive tests
 //! remain the semantic backstop. The same check pins `scan_nan_payload`, because
 //! its whitespace and thirteen-digit ceiling must agree between lexing and
-//! `tcl_syntax::number`.
+//! `tcl_numeric::number`.
 //!
 //! # Known blind spot
 //!
@@ -90,7 +90,7 @@ use std::process::ExitCode;
 /// expression-boundary scanner, and this lint's own docs and fixtures.
 const SANCTIONED_FILES: &[&str] = &[
     "rust/tcl-dialect/src/expr_number.rs",
-    "rust/tcl-syntax/src/number.rs",
+    "rust/tcl-numeric/src/number.rs",
     "rust/xtask/src/number_drift.rs",
 ];
 
@@ -100,11 +100,11 @@ const EXPR_BOUNDARY_OWNER: &str = "rust/tcl-dialect/src/expr_number.rs";
 /// Higher layers that must call the boundary owner rather than scan again.
 const EXPR_BOUNDARY_CONSUMERS: &[&str] = &[
     "rust/tcl-lexer/src/expr_lexer.rs",
-    "rust/tcl-syntax/src/number.rs",
+    "rust/tcl-numeric/src/number.rs",
 ];
 
 /// The NaN payload sub-owner is shared by the lower scanner and value parser.
-const NAN_PAYLOAD_CONSUMER: &str = "rust/tcl-syntax/src/number.rs";
+const NAN_PAYLOAD_CONSUMER: &str = "rust/tcl-numeric/src/number.rs";
 
 /// Named regression rows that make the lower-owner wiring evidence semantic.
 /// The gate deliberately checks their presence rather than pretending a text
@@ -191,7 +191,7 @@ pub fn run(_check: bool) -> ExitCode {
     if hits == 0 {
         println!(
             "number-drift: OK (no hand-rolled Tcl radix-prefix recognition \
-             outside tcl_syntax::number; expr lexeme boundaries use \
+             outside tcl_numeric::number; expr lexeme boundaries use \
              tcl_dialect::scan_expr_number)"
         );
         return ExitCode::SUCCESS;
@@ -201,7 +201,7 @@ pub fn run(_check: bool) -> ExitCode {
          Tcl's numeral grammar is release-dependent (`0b`/`0o` are 8.5+, `0d` \
          and `_` are 9.0+, leading-zero octal ends at 9.0), so a hand-rolled \
          parser is silently wrong for some release. Route value parsing through \
-         `tcl_syntax::number` with the target's `NumberSyntax`, and expression \
+         `tcl_numeric::number` with the target's `NumberSyntax`, and expression \
          lexeme boundaries through `tcl_dialect::scan_expr_number` — or, if the \
          text is not Tcl script (a hex colour, a packet field, a hex-encoded \
          byte string), mark it `// number-drift-ok: <reason>`:\n{report}"

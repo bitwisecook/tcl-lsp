@@ -23,27 +23,27 @@ fn nonfinite_double_spelling_matches_every_native_engine() {
     let fixtures = [
         (
             DoubleStringPolicy::Tcl84Precision,
-            include_str!("../../testdata/native_nonfinite_double/8.4.20.tsv"),
+            include_str!("../../../tcl-syntax/testdata/native_nonfinite_double/8.4.20.tsv"),
         ),
         (
             DoubleStringPolicy::TclPrecision,
-            include_str!("../../testdata/native_nonfinite_double/8.5.19.tsv"),
+            include_str!("../../../tcl-syntax/testdata/native_nonfinite_double/8.5.19.tsv"),
         ),
         (
             DoubleStringPolicy::TclPrecision,
-            include_str!("../../testdata/native_nonfinite_double/8.6.18.tsv"),
+            include_str!("../../../tcl-syntax/testdata/native_nonfinite_double/8.6.18.tsv"),
         ),
         (
             DoubleStringPolicy::Shortest,
-            include_str!("../../testdata/native_nonfinite_double/9.0.4.tsv"),
+            include_str!("../../../tcl-syntax/testdata/native_nonfinite_double/9.0.4.tsv"),
         ),
         (
             DoubleStringPolicy::Shortest,
-            include_str!("../../testdata/native_nonfinite_double/9.1.0.tsv"),
+            include_str!("../../../tcl-syntax/testdata/native_nonfinite_double/9.1.0.tsv"),
         ),
         (
             DoubleStringPolicy::JimTwelve,
-            include_str!("../../testdata/native_nonfinite_double/jim.tsv"),
+            include_str!("../../../tcl-syntax/testdata/native_nonfinite_double/jim.tsv"),
         ),
     ];
     let bits = [
@@ -390,7 +390,7 @@ fn format_double_round_trips_to_double_not_int() {
 #[test]
 fn format_double_spells_every_power_of_two_as_tclsh_does() {
     let table: std::collections::HashMap<i32, &str> =
-        include_str!("../../tests/data/tcl_pow2_spellings.txt")
+        include_str!("../../../tcl-syntax/tests/data/tcl_pow2_spellings.txt")
             .lines()
             .filter(|line| !line.starts_with('#'))
             .map(|line| {

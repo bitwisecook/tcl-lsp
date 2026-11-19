@@ -4327,6 +4327,7 @@ dependencies = [
  "tcl-core-types",
  "tcl-dialect",
  "tcl-host-c-abi",
+ "tcl-numeric",
  "tcl-platform",
  "tcl-runtime-api",
  "tcl-syntax",
@@ -4689,6 +4690,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-numeric"
+version = "0.1.0"
+dependencies = [
+ "num-bigint 0.5.1",
+ "num-integer",
+ "num-traits",
+ "tcl-core-types",
+ "tcl-dialect",
+]
+
+[[package]]
 name = "tcl-pkg"
 version = "0.1.0"
 dependencies = [
@@ -4876,11 +4888,10 @@ dependencies = [
  "bitflags 2.13.2",
  "libm",
  "num-bigint 0.5.1",
- "num-integer",
- "num-traits",
  "tcl-core-types",
  "tcl-dialect",
  "tcl-lexer",
+ "tcl-numeric",
  "tcl-test-support",
 ]
 

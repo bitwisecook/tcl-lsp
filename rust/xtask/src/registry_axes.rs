@@ -215,7 +215,7 @@ const RATCHET: &[(&str, usize)] = &[
     ("rust/tcl-sslictcl/src/openssl_config.rs", 1),
     ("rust/tcl-sslictcl/src/testssl.rs", 1),
     ("rust/tcl-sslictcl/src/trust.rs", 1),
-    ("rust/tcl-syntax/src/boolean.rs", 3),
+    ("rust/tcl-numeric/src/boolean.rs", 3),
     ("rust/tcl-syntax/src/case_list.rs", 2),
     ("rust/tcl-syntax/src/event_handler.rs", 7),
     ("rust/tcl-syntax/src/expr/mathfunc.rs", 6),

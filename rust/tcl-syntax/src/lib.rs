@@ -58,7 +58,7 @@
 //! (namespace operations), and [`vector_ops`] (the shared row syntax).
 
 pub mod backslash;
-pub mod boolean;
+pub use tcl_numeric::boolean;
 pub mod case_list;
 pub mod event_handler;
 pub mod execution_conformance;
@@ -102,7 +102,7 @@ pub mod native_variable_name;
 pub mod native_variable_words;
 pub mod ns_op_conformance;
 pub mod number;
-pub mod number_tower;
+pub use tcl_numeric::number_tower;
 pub mod posix_shell;
 pub mod raw_string;
 pub mod release_expectations;

@@ -258,6 +258,7 @@ dependencies = [
  "sha2",
  "tcl-core-types",
  "tcl-dialect",
+ "tcl-numeric",
  "tcl-platform",
  "tcl-runtime-api",
  "tcl-syntax",
@@ -309,6 +310,14 @@ dependencies = [
  "tcl-core-types",
  "tcl-dialect",
  "thiserror",
+]
+
+[[package]]
+name = "tcl-numeric"
+version = "0.1.0"
+dependencies = [
+ "tcl-core-types",
+ "tcl-dialect",
 ]
 
 [[package]]
@@ -381,6 +390,7 @@ dependencies = [
  "tcl-core-types",
  "tcl-dialect",
  "tcl-lexer",
+ "tcl-numeric",
 ]
 
 [[package]]

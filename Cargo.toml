@@ -48,6 +48,7 @@ members = [
     "rust/tcl-dialect",
     "rust/tcl-test-support",
     "rust/tcl-lexer",
+    "rust/tcl-numeric",
     "rust/tcl-syntax",
     "rust/tcl-platform",
     "rust/tcl-userdirs",

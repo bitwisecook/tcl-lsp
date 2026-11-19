@@ -33,7 +33,11 @@ use crate::number::{self, Number, ParseFlags, Radix};
 
 pub mod carrier;
 mod errors;
-mod float;
+use tcl_numeric::native_scalar as float;
+pub use tcl_numeric::native_scalar::{
+    JimExpressionNumber, NativeJimUnsignedStage, jim_expression_number,
+    jim_expression_number_for_kind, jim_expression_number_for_syntax,
+};
 #[path = "scalar_getter/number.rs"]
 mod number_getter;
 pub use errors::{
@@ -194,58 +198,6 @@ impl NativeScalarGetterTarget {
     }
 }
 
-/// Native Jim expression tree construction's numeric term result.
-/// This constructs a term rather than converting an existing operand cache.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum JimExpressionNumber {
-    /// Exact wrapped native integer constructor argument.
-    Integer(i64),
-    /// Native floating-point constructor argument, including infinities.
-    Double(f64),
-}
-
-/// Parse a complete pinned Jim 0.84 expression token for fresh term construction.
-/// Numeric cache conversion, errno-sensitive getters and diagnostic state are
-/// separate operations. NUL or incomplete spellings remain String terms.
-#[must_use]
-pub fn jim_expression_number(token: &[u8]) -> Option<JimExpressionNumber> {
-    jim_expression_number_for_syntax(token, tcl_dialect::NumberSyntax::Jim080)
-}
-
-/// Construct a complete fresh numeric term under the selected Jim numeral grammar.
-/// The scanner retains release-specific prefixes; a C grammar supplies no Jim term.
-#[must_use]
-pub fn jim_expression_number_for_syntax(
-    token: &[u8],
-    syntax: tcl_dialect::NumberSyntax,
-) -> Option<JimExpressionNumber> {
-    let scanned = tcl_dialect::scan_jim_expression_number(token, 0, syntax)?;
-    if scanned.end() != token.len() {
-        return None;
-    }
-    jim_expression_number_for_kind(token, scanned.jim_kind()?)
-}
-
-/// Construct a fresh term using the original Jim scanner's selected token kind.
-/// A failed complete conversion leaves the original counted String term.
-#[must_use]
-pub fn jim_expression_number_for_kind(
-    token: &[u8],
-    kind: tcl_dialect::JimExpressionNumberKind,
-) -> Option<JimExpressionNumber> {
-    if token.contains(&0) || token.iter().any(u8::is_ascii_whitespace) {
-        return None;
-    }
-    match kind {
-        tcl_dialect::JimExpressionNumberKind::Integer => {
-            float::jim_unsigned_integer(token, None).map(JimExpressionNumber::Integer)
-        }
-        tcl_dialect::JimExpressionNumberKind::Double => {
-            float::parse_c_double(token).map(|parsed| JimExpressionNumber::Double(parsed.value))
-        }
-    }
-}
-
 /// Native guest failure after an independently selected getter was reached.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NativeScalarGetterFailure {
@@ -335,18 +287,6 @@ pub struct NativeScalarGetterProtocol {
 enum CachedConversionFrontier {
     Continue,
     Resolved(Option<NativeScalarGetterConversion>),
-}
-
-/// Selected first `strtoull` call of `JimNumberBase`/`jim_strtoull`. It supplies
-/// syntax geometry only; the actual host owns the conversion and errno.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct NativeJimUnsignedStage {
-    /// Original `CString` byte offset after an admitted explicit prefix.
-    pub offset: usize,
-    /// Native radix for the reached C call.
-    pub base: u32,
-    /// Apply the separately stripped negative sign to the unsigned payload.
-    pub negate: bool,
 }
 
 impl NativeScalarGetterProtocol {

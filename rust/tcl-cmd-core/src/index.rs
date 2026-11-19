@@ -69,7 +69,7 @@ pub fn resolve_jim_encoding(encoded: i32, len: usize) -> i64 {
         i64::from(encoded)
     }
 }
-use tcl_syntax::number::NumberSyntax;
+use tcl_numeric::number::NumberSyntax;
 
 /// One index word as a release reads it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -132,7 +132,7 @@ pub fn resolve_with(spec: &str, len: usize, numbers: NumberSyntax) -> Result<i64
 }
 
 /// [`resolve_with`] under the grammar this thread's interpreter installed
-/// (`tcl_syntax::number::runtime_syntax`). Runtime-only: a caller under a
+/// (`tcl_numeric::number::runtime_syntax`). Runtime-only: a caller under a
 /// stated profile — a registry folder, the compiler, a test running two
 /// releases in one process — names its grammar through [`resolve_with`] or
 /// [`resolve_opt_with`] instead, since the ambient is whatever the thread
@@ -141,7 +141,7 @@ pub fn resolve_with(spec: &str, len: usize, numbers: NumberSyntax) -> Result<i64
 /// # Errors
 /// As [`resolve_with`].
 pub fn resolve(spec: &str, len: usize) -> Result<i64, CmdError> {
-    resolve_with(spec, len, tcl_syntax::number::runtime_syntax())
+    resolve_with(spec, len, tcl_numeric::number::runtime_syntax())
 }
 
 /// Legacy C modern-index compatibility API; use [`resolve_opt_in`] for
@@ -153,7 +153,7 @@ pub fn resolve(spec: &str, len: usize) -> Result<i64, CmdError> {
 /// as [`resolve`] is.
 #[must_use]
 pub fn resolve_opt(spec: &str, len: usize) -> Option<i64> {
-    read_with(spec, len, tcl_syntax::number::runtime_syntax()).on_this_host()
+    read_with(spec, len, tcl_numeric::number::runtime_syntax()).on_this_host()
 }
 
 /// [`resolve_opt`] reading the index under an explicitly named numeral
@@ -259,7 +259,7 @@ pub fn resolve_opt_in(spec: &str, len: usize, syntax: tcl_dialect::IndexSyntax) 
     Some(if syntax.width == tcl_dialect::IndexIntegerWidth::Tcl64 {
         value
     } else {
-        i64::from(tcl_syntax::number::native_int32_low_bits(value))
+        i64::from(tcl_numeric::number::native_int32_low_bits(value))
     })
 }
 
@@ -267,7 +267,7 @@ fn narrow_tcl_integer(value: i64, syntax: tcl_dialect::IndexSyntax) -> Option<i6
     if syntax.width == tcl_dialect::IndexIntegerWidth::Tcl64 {
         Some(value)
     } else if (-i64::from(u32::MAX)..=i64::from(u32::MAX)).contains(&value) {
-        Some(i64::from(tcl_syntax::number::native_int32_low_bits(value)))
+        Some(i64::from(tcl_numeric::number::native_int32_low_bits(value)))
     } else {
         None
     }
@@ -293,7 +293,7 @@ pub fn finish_jim_index(value: i64, end_relative: bool, length: i64) -> Option<i
         if value > 0 {
             return Some(i64::from(i32::MAX));
         }
-        let encoded = tcl_syntax::number::native_int32_low_bits(value.wrapping_sub(1));
+        let encoded = tcl_numeric::number::native_int32_low_bits(value.wrapping_sub(1));
         Some(length.wrapping_add(i64::from(encoded)))
     } else if value < 0 {
         Some(-i64::from(i32::MAX))
@@ -385,7 +385,7 @@ pub(crate) fn wide_expression(
     syntax: tcl_dialect::IndexSyntax,
 ) -> Option<(&str, Option<u8>)> {
     let flags = index_int_flags(syntax.numbers);
-    let whole_integer = |text: &str| tcl_syntax::number::parse_whole_with(text, flags).is_some();
+    let whole_integer = |text: &str| tcl_numeric::number::parse_whole_with(text, flags).is_some();
     if let Some(rest) = spec.strip_prefix("end") {
         let connector = *rest.as_bytes().first()?;
         let operand = rest.get(1..)?;
@@ -401,7 +401,7 @@ pub(crate) fn wide_expression(
         return Some((spec, None));
     }
     let trimmed = spec.trim_start();
-    let first = tcl_syntax::number::parse(trimmed, flags)?;
+    let first = tcl_numeric::number::parse(trimmed, flags)?;
     let rest = trimmed.get(first.end..)?;
     let connector = *rest.as_bytes().first()?;
     let operand = rest.get(1..)?;
@@ -559,7 +559,7 @@ pub fn bad_index_for_ops<O: ValueOps>(
             let mut details = error.into_byte_details();
             let mut string_result = true;
             if let Some(version) = protocol.tcl_version() {
-                if tcl_syntax::number::native_index_octal_hint(spec.as_ref(), version) {
+                if tcl_numeric::number::native_index_octal_hint(spec.as_ref(), version) {
                     details
                         .message
                         .extend_from_slice(b" (looks like invalid octal number)");
@@ -611,7 +611,7 @@ pub fn bad_index_with(spec: &str, numbers: NumberSyntax) -> CmdError {
 pub fn bad_index_parts(spec: &[u8]) -> (Vec<u8>, Option<&'static [u8]>) {
     let details = bad_index_with(
         &String::from_utf8_lossy(spec),
-        tcl_syntax::number::runtime_syntax(),
+        tcl_numeric::number::runtime_syntax(),
     )
     .into_byte_details();
     let coded = matches!(details.error_code, crate::error::CmdErrorCodeUpdate::Set(_));
