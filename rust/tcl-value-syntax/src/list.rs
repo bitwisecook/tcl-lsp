@@ -57,7 +57,7 @@ use std::borrow::Cow;
 use std::ops::Range;
 
 use tcl_dialect::EscapeSyntax;
-use tcl_lexer::{backslash_subst, backslash_subst_in};
+use tcl_lexer::backslash_subst_in;
 
 /// Materialise native Tcl concatenation without parsing or re-quoting lists.
 /// Whitespace-only operands disappear; other operands are separated by one
@@ -495,20 +495,40 @@ pub fn split_list_with_syntax(
     syntax: tcl_dialect::ListParse,
     escapes: EscapeSyntax,
 ) -> Result<Vec<Cow<'_, str>>, ListError> {
-    let mut out = Vec::new();
-    let mut pos = 0;
-    while let Some(el) = find_element_with_syntax(s, pos, syntax)? {
-        let raw = &s[el.value.clone()];
-        out.push(if el.literal {
-            Cow::Borrowed(raw)
-        } else {
-            // backslash_subst returns Borrowed when there is nothing to do, but
-            // a non-literal element always contains a backslash, so this owns.
-            Cow::Owned(backslash_subst_in(raw, escapes).into_owned())
-        });
-        pos = el.next;
-    }
-    Ok(out)
+    decoded_elements(s, syntax, escapes).collect()
+}
+
+/// Decode complete elements under both configured grammars. A strict malformed
+/// tail ends tolerant reading after the valid prefix; Jim uses its own recovery.
+#[must_use]
+pub fn split_list_tolerant_with_syntax(
+    s: &str,
+    syntax: tcl_dialect::ListParse,
+    escapes: EscapeSyntax,
+) -> Vec<Cow<'_, str>> {
+    decoded_elements(s, syntax, escapes)
+        .map_while(Result::ok)
+        .collect()
+}
+
+fn decoded_elements(
+    s: &str,
+    syntax: tcl_dialect::ListParse,
+    escapes: EscapeSyntax,
+) -> impl Iterator<Item = Result<Cow<'_, str>, ListError>> {
+    let mut next = Some(0);
+    std::iter::from_fn(move || {
+        let selected = find_element_with_syntax(s, next.take()?, syntax).transpose()?;
+        Some(selected.map(|element| {
+            next = Some(element.next);
+            let raw = &s[element.value];
+            if element.literal {
+                Cow::Borrowed(raw)
+            } else {
+                backslash_subst_in(raw, escapes)
+            }
+        }))
+    })
 }
 
 /// Split `s` into its Tcl list elements **verbatim** — each element's raw
@@ -548,18 +568,7 @@ pub fn split_list_raw(s: &str) -> Result<Vec<&str>, ListError> {
 /// tclsh 8.6 / 9.0, which raise on each of them.
 #[must_use]
 pub fn split_list_jim(s: &str) -> Vec<Cow<'_, str>> {
-    let mut out = Vec::new();
-    let mut pos = 0;
-    while let Some(element) = find_element_jim(s, pos) {
-        let raw = &s[element.value];
-        out.push(if element.braced {
-            Cow::Borrowed(raw)
-        } else {
-            Cow::Owned(backslash_subst(raw).into_owned())
-        });
-        pos = element.next;
-    }
-    out
+    split_list_tolerant_with_syntax(s, tcl_dialect::ListParse::Lenient, EscapeSyntax::Jim)
 }
 
 /// Locate an element under the selected native list grammar. Values that need
@@ -773,18 +782,7 @@ pub fn split_native_list_elements(
 /// `in` estimates) that would rather see a partial list than nothing.
 #[must_use]
 pub fn split_list_lenient(s: &str) -> Vec<Cow<'_, str>> {
-    let mut out = Vec::new();
-    let mut pos = 0;
-    while let Ok(Some(el)) = find_element(s, pos) {
-        let raw = &s[el.value.clone()];
-        out.push(if el.literal {
-            Cow::Borrowed(raw)
-        } else {
-            Cow::Owned(backslash_subst(raw).into_owned())
-        });
-        pos = el.next;
-    }
-    out
+    split_list_tolerant_with_syntax(s, tcl_dialect::ListParse::Strict, EscapeSyntax::default())
 }
 
 /// [`split_list_raw`] that never fails, mirroring [`split_list_lenient`]'s

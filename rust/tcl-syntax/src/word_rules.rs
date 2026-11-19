@@ -16,32 +16,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The dialect's answer to "what does this *word* mean as a value" — the
-//! single owner of the two axes every layer needs and none should re-derive.
+//! A selected grammar determines how a word is read as a Tcl value.
+//! Its brace-continuation rule determines the bytes in a braced word.
+//! Its list grammar determines where individual elements end and how malformed
+//! text is handled. Its escape syntax determines the value of a backslash
+//! sequence inside a quoted or bare element.
 //!
-//! [`LexerGrammar`] states the axes; [`crate::list`] and [`crate::backslash`]
-//! hold the algorithms. This module is the join: one type carrying both axes,
-//! with the operations on it, so the lexer, the compiler, codegen, the runtime
-//! and the tooling all get the *same* answer for the same document.
-//!
-//! It exists because they did not. `brace_backslash_newline` reached only
-//! lowering's parameter/variable-list helpers while `Codegen::push_lit_verbatim`,
-//! the taint walker and the signature scanner each called the unconditional
-//! collapse; `list_parse` reached nothing at all while the VM's list
-//! conversions called the strict splitter. Three consumers, three answers to a
-//! question the dialect owns — the same shape
-//! [`tcl_registry::CommandSpec::return_type_for_call`] ends for per-call
-//! result types. A consumer
-//! that needs either axis takes a `WordValueRules` and asks it; it does not
-//! reach for [`crate::list::split_list`] or
-//! [`crate::backslash::collapse_brace_continuations_str`] directly and decide
-//! for itself.
-//!
-//! The axes travel together because the two questions are one question at
-//! every call site that splits a word-shaped list: the brace rule decides what
-//! bytes the word contains, and the list rule decides how those bytes divide.
-//! Answering one per dialect and the other per hardcoded default is precisely
-//! the bug this replaces.
+//! [`WordValueRules`] carries all three rules from the document configuration
+//! to the shared implementations in [`crate::list`] and [`crate::backslash`].
 
 mod compiled_word;
 pub use compiled_word::{CompiledWordSubstitution, compiled_word_substitution};
@@ -50,7 +32,7 @@ pub use source_list::{OriginalSourceListElement, original_static_word_list_eleme
 
 use crate::list::ListError;
 use std::borrow::Cow;
-use tcl_dialect::{BraceBackslashNewline, LexerGrammar, ListParse};
+use tcl_dialect::{BraceBackslashNewline, EscapeSyntax, LexerGrammar, ListParse};
 
 /// The word-value rules of one dialect.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -59,12 +41,12 @@ pub struct WordValueRules {
     pub brace: BraceBackslashNewline,
     /// Whether malformed list text raises or is split anyway.
     pub list: ListParse,
+    /// Escape decoder for quoted and bare list elements.
+    pub escapes: EscapeSyntax,
 }
 
 impl Default for WordValueRules {
-    /// Every build of the Tcl core: fold the continuation, raise on malformed
-    /// list text. A caller with no dialect in hand gets C Tcl, matching what
-    /// the unconditional call sites do regardless of dialect.
+    /// The default C Tcl release for callers without a selected grammar.
     fn default() -> Self {
         Self::TCL
     }
@@ -73,16 +55,18 @@ impl Default for WordValueRules {
 pub use tcl_lexer::word_parts::{whole_braced_word, whole_braced_word_bytes};
 
 impl WordValueRules {
-    /// Every build of the Tcl core, and the F5 fork.
+    /// Default C Tcl word-value rules for callers without a selected grammar.
     pub const TCL: Self = Self {
         brace: BraceBackslashNewline::Folds,
         list: ListParse::Strict,
+        escapes: EscapeSyntax::Tcl90,
     };
 
     /// `JimTcl`, every modelled release.
     pub const JIM: Self = Self {
         brace: BraceBackslashNewline::Literal,
         list: ListParse::Lenient,
+        escapes: EscapeSyntax::Jim,
     };
 
     /// The rules a compiled or pack-declared grammar states.
@@ -91,6 +75,7 @@ impl WordValueRules {
         Self {
             brace: grammar.brace_backslash_newline,
             list: grammar.list_parse,
+            escapes: grammar.escapes,
         }
     }
 
@@ -101,6 +86,7 @@ impl WordValueRules {
         Self {
             brace: config.brace_backslash_newline,
             list: config.list_parse,
+            escapes: config.escapes,
         }
     }
 
@@ -139,10 +125,7 @@ impl WordValueRules {
     /// so a caller that has already established the dialect is Jim may
     /// `expect` on it; one that has not must handle the error as before.
     pub fn split_list(self, text: &str) -> Result<Vec<Cow<'_, str>>, ListError> {
-        match self.list {
-            ListParse::Strict => crate::list::split_list(text),
-            ListParse::Lenient => Ok(crate::list::split_list_jim(text)),
-        }
+        crate::list::split_list_with_syntax(text, self.list, self.escapes)
     }
 
     /// Spell a Unicode list for a source edit and verify the selected grammar
@@ -166,10 +149,7 @@ impl WordValueRules {
     /// ([`crate::list::split_list_jim`]), so the same axis chooses.
     #[must_use]
     pub fn split_list_tolerant(self, text: &str) -> Vec<Cow<'_, str>> {
-        match self.list {
-            ListParse::Strict => crate::list::split_list_lenient(text),
-            ListParse::Lenient => crate::list::split_list_jim(text),
-        }
+        crate::list::split_list_tolerant_with_syntax(text, self.list, self.escapes)
     }
 
     /// The word-shaped-list helper: collapse the braced word, then split it,
@@ -204,9 +184,32 @@ mod tests {
         for &release in Family::Tcl.releases() {
             assert_eq!(
                 WordValueRules::from_grammar(&grammar(Family::Tcl, release)),
-                WordValueRules::TCL,
+                WordValueRules {
+                    escapes: grammar(Family::Tcl, release).escapes,
+                    ..WordValueRules::TCL
+                },
                 "{release}"
             );
+        }
+    }
+
+    #[test]
+    fn escaped_list_values_follow_the_selected_grammar_even_on_a_tolerant_prefix() {
+        for (name, hex, octal) in [
+            ("tcl8.4", "\u{1b}", "\0"),
+            ("tcl8.5", "\u{1b}", "\0"),
+            ("tcl8.6", "Ab", " 0"),
+            ("tcl9.0", "Ab", " 0"),
+            ("tcl9.1", "Ab", " 0"),
+            ("jim", "Ab", "\0"),
+        ] {
+            let rules = WordValueRules::of_dialect_name(Some(name));
+            assert_eq!(
+                rules.split_list(r"\x41b \400").unwrap(),
+                [hex, octal],
+                "{name}"
+            );
+            assert_eq!(rules.split_list_tolerant(r"\x41b {")[0], hex, "{name}");
         }
     }
 
@@ -237,13 +240,20 @@ mod tests {
     /// a layer should carry a resolved point rather than a profile handle.
     #[test]
     fn the_name_and_profile_constructors_agree_where_a_profile_exists() {
-        for (name, expected) in [
-            ("tcl8.6", WordValueRules::TCL),
-            ("tcl9.0", WordValueRules::TCL),
-            ("f5-irules", WordValueRules::TCL),
+        for name in [
+            "tcl8.4",
+            "tcl8.5",
+            "tcl8.6",
+            "tcl9.0",
+            "tcl9.1",
+            "f5-irules",
         ] {
             let profile = tcl_dialect::DialectProfile::find(name);
-            assert!(profile.is_some(), "{name} is a catalogue profile");
+            assert!(profile.is_some(), "{name}");
+            let expected = WordValueRules {
+                escapes: profile.unwrap().grammar.escapes,
+                ..WordValueRules::TCL
+            };
             assert_eq!(
                 WordValueRules::of_dialect_name(Some(name)),
                 expected,

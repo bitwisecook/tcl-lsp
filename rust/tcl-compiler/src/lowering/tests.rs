@@ -88,17 +88,11 @@ pub(super) fn assert_runtime_opaque_call(
 
 /// Every C-Tcl dialect folds a brace-word line continuation; the Jim
 /// answer is asserted in `jim_brace_continuation_binds_different_names`.
-const FOLD_RULES: WordValueRules = WordValueRules {
-    brace: tcl_dialect::BraceBackslashNewline::Folds,
-    list: tcl_dialect::ListParse::Strict,
-};
+const FOLD_RULES: WordValueRules = WordValueRules::TCL;
 
 /// `JimTcl`: the braced word keeps its bytes, and a malformed remainder is
 /// split rather than raised.
-const LITERAL_RULES: WordValueRules = WordValueRules {
-    brace: tcl_dialect::BraceBackslashNewline::Literal,
-    list: tcl_dialect::ListParse::Lenient,
-};
+const LITERAL_RULES: WordValueRules = WordValueRules::JIM;
 
 use super::*;
 
