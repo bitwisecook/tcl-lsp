@@ -37561,6 +37561,7 @@ if {[string first "World" $s] >= 0} {
         arg_role_layout_resolver -native string::match::arg_role_layout_resolver
         arg_role_resolver_roles Pattern
         const_fold -native string::match::const_fold
+        const_fold_versioned -native string::match::const_fold_versioned
         inline_codegen_hook -native StringMatch
         # TODO(spectcl): `completion` is set on the source spec. The DSL spells
         #   it `completion {CODE …}`, but a draft records only that the field

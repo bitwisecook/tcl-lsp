@@ -202,7 +202,7 @@ mod split_;
 mod string_;
 pub(crate) use string_::{
     fold_cat, fold_compare, fold_equal, fold_first, fold_index, fold_is, fold_last, fold_length,
-    fold_match, fold_range, fold_range_unanimous, fold_repeat, fold_replace, fold_reverse,
+    fold_match, fold_match_versioned, fold_range, fold_range_unanimous, fold_repeat, fold_replace, fold_reverse,
     fold_string_map, fold_tolower, fold_totitle, fold_toupper, fold_trim, fold_trimleft,
     fold_trimright,
 };

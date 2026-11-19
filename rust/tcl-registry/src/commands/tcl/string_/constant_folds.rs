@@ -173,18 +173,20 @@ pub(crate) fn fold_totitle(args: &[&str]) -> Option<String> {
     ))
 }
 
-/// Fold `string match` for literal arguments.  The glob implementation is
-/// shared with the runtime-facing command core, so this callback is command
-/// semantics in the registry rather than a consumer-side spelling check.
+/// A literal match with no selected release requires agreement on the
+/// character model and source encoding.
 pub(crate) fn fold_match(args: &[&str]) -> Option<String> {
-    let (nocase, pattern, text) = match args {
-        [pattern, text] => (false, *pattern, *text),
-        [option, pattern, text] if option.len() >= 2 && "-nocase".starts_with(*option) => {
-            (true, *pattern, *text)
-        }
-        _ => return None,
-    };
-    Some(i32::from(tcl_syntax::glob::string_case_match(pattern, text, nocase)).to_string())
+    fold_match_versioned(args, None)
+}
+
+pub(crate) fn fold_match_versioned(args: &[&str], version: Option<TclVersion>) -> Option<String> {
+    crate::value_transfer::evaluate_literal(
+        &crate::value_transfer::builtins::STRING_MATCH,
+        "string",
+        Some("match"),
+        args,
+        version,
+    )
 }
 
 /// `string index string charIndex`.  ASCII-restricted (byte index ==

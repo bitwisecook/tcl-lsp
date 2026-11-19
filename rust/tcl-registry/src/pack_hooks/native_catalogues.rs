@@ -215,6 +215,10 @@ pub const CONST_FOLD_VERSIONED_NATIVE: &[(&str, VersionedConstFoldFn)] = &[
         crate::commands::tcl::fold_is,
     ),
     (
+        "string::match::const_fold_versioned",
+        crate::commands::tcl::fold_match_versioned,
+    ),
+    (
         "string::range::const_fold_versioned",
         crate::commands::tcl::fold_range,
     ),
