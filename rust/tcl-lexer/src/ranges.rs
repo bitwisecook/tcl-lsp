@@ -720,10 +720,12 @@ pub(crate) fn command_substitution_end_bytes(bytes: &[u8], open_bracket: usize) 
     command_substitution_end_bytes_in(bytes, open_bracket, crate::LexerConfig::default())
 }
 
-/// A bracket boundary under the containing word's complete lexical grammar.
+/// One past the closing bracket in a script value, under its selected lexical configuration.
+/// Returns `None` for an invalid opener or an unclosed substitution.
 /// Braced variable names are inert name bytes, rather than script delimiters,
 /// and end where the grammar's `${...}` close rule ends them.
-pub(crate) fn command_substitution_end_bytes_in(
+#[must_use]
+pub fn command_substitution_end_bytes_in(
     bytes: &[u8],
     open_bracket: usize,
     config: crate::LexerConfig,
@@ -1725,6 +1727,31 @@ mod tests {
         assert_eq!(command_substitution_end(src, 0), Some(src.len()));
         assert_eq!(command_substitution_end(src, 1), None);
         assert_eq!(command_substitution_end("[unterminated", 0), None);
+    }
+
+    #[test]
+    fn selected_command_substitution_boundary_keeps_literal_closers_and_name_grammar() {
+        let tcl8 = crate::LexerConfig {
+            braced_var: BracedVarStyle::FirstClose,
+            ..crate::LexerConfig::default()
+        };
+        let tcl9 = crate::LexerConfig {
+            braced_var: BracedVarStyle::Tcl9Nesting,
+            ..tcl8
+        };
+        let literal = br#"[list {]} \] "]" [list inner]]"#;
+        for config in [tcl8, tcl9] {
+            assert_eq!(
+                command_substitution_end_bytes_in(literal, 0, config),
+                Some(literal.len())
+            );
+        }
+        let name = b"[puts ${x{]}]";
+        assert_eq!(
+            command_substitution_end_bytes_in(name, 0, tcl8),
+            Some(name.len())
+        );
+        assert_eq!(command_substitution_end_bytes_in(name, 0, tcl9), None);
     }
 
     #[test]

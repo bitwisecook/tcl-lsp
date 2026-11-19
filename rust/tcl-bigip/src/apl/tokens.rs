@@ -196,7 +196,9 @@ enum Pending {
 pub fn embedded_tcl_regions(source: &str) -> Vec<(u32, u32)> {
     let bytes = source.as_bytes();
     let mut spans = Vec::new();
-    let (mut i, mut depth, mut start) = (0usize, 0u32, 0usize);
+    let environment = tcl_registry::model::ingress::resolve_environment("f5-iapps");
+    let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
+    let mut i = 0;
     let (mut in_comment, mut in_string) = (false, false);
     let mut line_start = true;
 
@@ -233,21 +235,18 @@ pub fn embedded_tcl_regions(source: &str) -> Vec<(u32, u32)> {
             i += 1;
             continue;
         }
-        if !in_string {
-            if c == b'[' {
-                if depth == 0 {
-                    start = i + 1;
-                }
-                depth += 1;
-            } else if c == b']' && depth > 0 {
-                depth -= 1;
-                if depth == 0 && i > start {
-                    spans.push((
-                        u32::try_from(start).unwrap_or(0),
-                        u32::try_from(i).unwrap_or(0),
-                    ));
-                }
+        if !in_string && c == b'[' {
+            let Some(end) = tcl_lexer::command_substitution_end_bytes_in(bytes, i, config) else {
+                break;
+            };
+            let body = i + 1..end - 1;
+            if !body.is_empty()
+                && let (Ok(start), Ok(stop)) = (u32::try_from(body.start), u32::try_from(body.end))
+            {
+                spans.push((start, stop));
             }
+            i = end;
+            continue;
         }
         i += 1;
     }
@@ -773,6 +772,16 @@ mod tests {
             "the APL lexer must not tokenise embedded Tcl: {t:?}"
         );
         assert_no_overlap(src);
+    }
+
+    #[test]
+    fn apl_hands_complete_source_ranges_to_the_tcl_walker() {
+        let source = "é optional ( [list {]} yes] ) [list \\] [list nested]] [] [incomplete";
+        let bodies: Vec<_> = embedded_tcl_regions(source)
+            .into_iter()
+            .map(|(start, end)| &source[start as usize..end as usize])
+            .collect();
+        assert_eq!(bodies, ["list {]} yes", r"list \] [list nested]"]);
     }
 
     /// APL embeds Tcl *inline* (`optional ( [expr {$on}] ) {`).  Suppressing the
