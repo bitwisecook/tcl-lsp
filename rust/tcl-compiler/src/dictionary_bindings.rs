@@ -267,6 +267,14 @@ pub fn enter_dictionary_scope(
     registry: &CommandRegistry,
     source: u32,
 ) -> DictionaryScopeEntry {
+    // The Jim interpreter bypasses the whole epilogue when the body has no
+    // bytes. Without that fact a single physical activation cannot promise
+    // a definite write on a normally completed route.
+    if plan.writeback == tcl_registry::dictionary_scope::DictionaryWriteback::NormalOnly
+        && plan.empty_script.is_none()
+    {
+        return DictionaryScopeEntry::Unknown;
+    }
     let Some(name) = arguments.literal_at(plan.dictionary_argument) else {
         return DictionaryScopeEntry::Unknown;
     };
@@ -502,6 +510,11 @@ pub fn finish_dictionary_scope(
     if state.dynamic_bindings {
         return DictionaryScopeFinish::Unknown;
     }
+    if activation.plan.writeback == tcl_registry::dictionary_scope::DictionaryWriteback::NormalOnly
+        && updates.as_ref().is_some_and(Vec::is_empty)
+    {
+        return DictionaryScopeFinish::Skipped;
+    }
     let value = match (current.as_deref(), updates) {
         (Some(current), Some(updates))
             if activation.plan.dialect.native_dictionary_layout().is_some() =>
@@ -541,6 +554,12 @@ fn read_mapped_contents(
 ) -> Option<Vec<(String, Option<String>)>> {
     let mut updates = Vec::new();
     for (key, name) in activation.bindings.as_ref()? {
+        if !activation
+            .plan
+            .writes_mapped_name(&activation.dictionary_name, key)
+        {
+            continue;
+        }
         let read = resolve_literal_access(
             name,
             state,
@@ -727,7 +746,13 @@ fn writeback_effects(
     if state.contents_presence(effects.reads.first().unwrap()) != ContentsPresence::Undefined
         && let Some(bindings) = &activation.bindings
     {
-        for (_, name) in bindings {
+        for (key, name) in bindings {
+            if !activation
+                .plan
+                .writes_mapped_name(&activation.dictionary_name, key)
+            {
+                continue;
+            }
             effects.reads.push(resolve_literal_access(
                 name,
                 state,

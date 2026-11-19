@@ -93,6 +93,9 @@ pub struct DictionaryScopePlan {
     pub missing_key: DictionaryMissingKey,
     /// Actual body-completion paths reaching writeback.
     pub writeback: DictionaryWriteback,
+    /// Whether this Jim with has a known-empty script and bypasses its epilogue.
+    /// Unknown body bytes keep both Normal routes possible.
+    pub empty_script: Option<bool>,
     /// Native completion when a reached writeback fails.
     pub writeback_failure: DictionaryWritebackFailure,
     /// Jim update is a stock scripted procedure adding a return boundary.
@@ -256,6 +259,10 @@ impl DictionaryScopeSpec {
                 DictionaryMissingKey::Unset
             },
             writeback,
+            empty_script: arguments
+                .native_bytes_at(offset + count - 1)
+                .map(<[u8]>::is_empty)
+                .or_else(|| arguments.literal_at(offset + count - 1).map(str::is_empty)),
             writeback_failure: if jim && self == Self::With {
                 DictionaryWritebackFailure::NormalWithErrorResult
             } else {
@@ -277,6 +284,12 @@ impl DictionaryScopePlan {
         })
     }
 
+    /// Jim with leaves a same-named root alone when reflecting its member variables.
+    #[must_use]
+    pub fn writes_mapped_name(&self, dictionary_name: &str, key: &str) -> bool {
+        self.writeback != DictionaryWriteback::NormalOnly || key != dictionary_name
+    }
+
     /// Known completion paths reaching the epilogue. Unknown paths remain split.
     #[must_use]
     pub fn writeback_routes(
@@ -286,9 +299,8 @@ impl DictionaryScopePlan {
         match self.writeback {
             DictionaryWriteback::Captured(capture) => capture.route(route),
             DictionaryWriteback::NormalOnly => crate::catch_invocation::CatchCompletionRoutes {
-                captured: route.normal_possible(),
-                propagated: route
-                    .abrupt_possible()
+                captured: self.empty_script != Some(true) && route.normal_possible(),
+                propagated: (route.abrupt_possible() || self.empty_script != Some(false))
                     .then_some(route)
                     .into_iter()
                     .collect(),
