@@ -26,6 +26,7 @@
 
 use tcl_dialect::TclVersion;
 use tcl_platform::SystemEncoding;
+use tcl_syntax::native_string::NativeStringProtocol;
 
 use crate::CmdError;
 
@@ -429,8 +430,11 @@ impl ChannelConfig {
     /// # Errors
     /// A malformed Tcl list or unknown translation spelling.
     pub fn set_translation(&mut self, version: TclVersion, value: &str) -> Result<(), CmdError> {
-        let elements = tcl_syntax::list::split_list(value)
-            .map_err(|error| CmdError::new(error.message().to_owned()))?;
+        let elements = tcl_syntax::list::split_list_in(
+            value,
+            NativeStringProtocol::C(version).escape_syntax(),
+        )
+        .map_err(|error| CmdError::new(error.message().to_owned()))?;
         let (input, output) = match elements.as_slice() {
             [one] => (Some(one.as_ref()), Some(one.as_ref())),
             [input, output] => (
@@ -477,7 +481,9 @@ impl ChannelConfig {
 /// A malformed Tcl list, illegal simple spelling, unknown list flag, missing
 /// direction, or conflicting direction flags.
 pub fn resolve_open_access_mode(version: TclVersion, access: &str) -> Result<OpenAccess, CmdError> {
-    if let Some(simple) = resolve_simple_open_access(access) {
+    if let Some(simple) = resolve_simple_open_access(access)
+        && (version != TclVersion::V8_4 || simple.flags & OpenAccess::BINARY == 0)
+    {
         return Ok(simple);
     }
     if access
@@ -492,13 +498,15 @@ pub fn resolve_open_access_mode(version: TclVersion, access: &str) -> Result<Ope
         ));
     }
 
-    let flags = tcl_syntax::list::split_list(access).map_err(|error| {
-        if version >= TclVersion::V9_0 {
-            CmdError::with_error_code(error.full_message(access), "TCL OPENMODE INVALID")
-        } else {
-            CmdError::list(error, access)
-        }
-    })?;
+    let flags =
+        tcl_syntax::list::split_list_in(access, NativeStringProtocol::C(version).escape_syntax())
+            .map_err(|error| {
+            if version >= TclVersion::V9_0 {
+                CmdError::with_error_code(error.full_message(access), "TCL OPENMODE INVALID")
+            } else {
+                CmdError::list(error, access)
+            }
+        })?;
     let mut direction = None;
     let mut access_flags = 0;
     for flag in flags {
@@ -516,7 +524,7 @@ pub fn resolve_open_access_mode(version: TclVersion, access: &str) -> Result<Ope
             "WRONLY" => direction = Some(ChannelDirection::Output),
             "RDWR" => direction = Some(ChannelDirection::Bidirectional),
             "APPEND" => access_flags |= OpenAccess::APPEND,
-            "BINARY" => access_flags |= OpenAccess::BINARY,
+            "BINARY" if version != TclVersion::V8_4 => access_flags |= OpenAccess::BINARY,
             "CREAT" => access_flags |= OpenAccess::CREATE,
             "EXCL" => access_flags |= OpenAccess::EXCLUSIVE,
             "TRUNC" => access_flags |= OpenAccess::TRUNCATE,
@@ -524,6 +532,8 @@ pub fn resolve_open_access_mode(version: TclVersion, access: &str) -> Result<Ope
             _ => {
                 let choices = if version >= TclVersion::V9_0 {
                     "APPEND, BINARY, CREAT, EXCL, NOCTTY, NONBLOCK, RDONLY, RDWR, TRUNC, or WRONLY"
+                } else if version == TclVersion::V8_4 {
+                    "RDONLY, WRONLY, RDWR, APPEND, CREAT EXCL, NOCTTY, NONBLOCK, or TRUNC"
                 } else {
                     "RDONLY, WRONLY, RDWR, APPEND, BINARY, CREAT, EXCL, NOCTTY, NONBLOCK, or TRUNC"
                 };
