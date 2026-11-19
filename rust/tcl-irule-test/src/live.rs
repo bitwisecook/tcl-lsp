@@ -302,7 +302,7 @@ impl LiveSession {
         }
         let output = Rc::new(RefCell::new(Vec::new()));
         let host_profile =
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").analyser_profile();
         let mut vm = Vm::with_native_core(
             Box::new(Capture(Rc::clone(&output))),
             Rc::new(tcl_vm::host_native::NativeHost::new()),
@@ -315,9 +315,7 @@ impl LiveSession {
         // tmm_shim restricts the commands visible during event execution.
         let profile = DialectProfile::irules();
         vm.set_dialect_profile(profile);
-        assert!(vm.set_command_surface_profile(
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
-        ));
+        assert!(vm.set_command_surface_profile(host_profile));
         vm.set_compiler(Box::new(Svc::for_profile(profile)));
         // This simulator explicitly supplies a C9 host engine. Its F5 source
         // grammar and logical event policies remain separate from that physical
