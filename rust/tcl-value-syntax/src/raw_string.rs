@@ -537,7 +537,8 @@ impl RawString {
     ) -> Result<JimGlobStep, NativeStringAccessError> {
         let pattern_bytes = &pattern.0.bytes;
         while let Some(&head) = pattern_bytes.get(position.pattern) {
-            if head == b'*' {
+            let role = crate::glob::GlobRole::from_unit(u32::from(head));
+            if role == Some(crate::glob::GlobRole::AnySequence) {
                 while pattern_bytes.get(position.pattern) == Some(&b'*') {
                     position.pattern += 1;
                 }
@@ -550,7 +551,7 @@ impl RawString {
             let unit = self.jim084_character_at(position.subject, position.character)?;
             position.subject = unit.end;
             position.character += 1;
-            if head == b'[' {
+            if role == Some(crate::glob::GlobRole::CharacterClass) {
                 let Some(end) =
                     pattern.jim084_charset_end(position.pattern + 1, unit.codepoint, nocase)
                 else {
@@ -560,8 +561,8 @@ impl RawString {
                 if end == pattern_bytes.len() {
                     continue;
                 }
-            } else if head != b'?' {
-                if head == b'\\'
+            } else if role != Some(crate::glob::GlobRole::AnyCharacter) {
+                if role == Some(crate::glob::GlobRole::Escape)
                     && pattern_bytes
                         .get(position.pattern + 1)
                         .is_some_and(|byte| *byte != 0)
@@ -587,17 +588,28 @@ impl RawString {
         ))
     }
 
-    fn jim084_charset_end(&self, mut offset: usize, subject: u32, nocase: bool) -> Option<usize> {
+    fn jim084_charset_end(&self, offset: usize, subject: u32, nocase: bool) -> Option<usize> {
         let fold = |code| if nocase { jim084_upper(code) } else { code };
         let subject = fold(subject);
         let mut matched = false;
+        let end = self.jim084_visit_class(offset, |first, last| {
+            let (first, last) = (fold(first), fold(last));
+            matched |= (first.min(last)..=first.max(last)).contains(&subject);
+        })?;
+        matched.then_some(end)
+    }
+
+    fn jim084_visit_class(
+        &self,
+        mut offset: usize,
+        mut member: impl FnMut(u32, u32),
+    ) -> Option<usize> {
         while let Some(&head) = self.0.bytes.get(offset) {
             if head == b']' {
                 break;
             }
             let (first, width) = jim084_decode(&self.0.bytes[offset..])?;
             offset += width;
-            let first = fold(first);
             // Jim treats a backslash within the set as a literal component.
             if head != b'\\'
                 && self.0.bytes.get(offset) == Some(&b'-')
@@ -605,13 +617,53 @@ impl RawString {
             {
                 let (last, width) = jim084_decode(&self.0.bytes[offset + 1..])?;
                 offset += width + 1;
-                let last = fold(last);
-                matched |= (first.min(last)..=first.max(last)).contains(&subject);
+                member(first, last);
             } else {
-                matched |= first == subject;
+                member(first, first);
             }
         }
-        matched.then_some(offset)
+        Some(offset)
+    }
+
+    /// Geometry of complete pattern constructs, in original Jim object bytes.
+    #[must_use]
+    pub fn jim084_glob_components(&self) -> Option<Vec<crate::glob::GlobComponent>> {
+        use crate::glob::{GlobComponent, GlobRole};
+        let bytes = &self.0.bytes;
+        let mut parts = Vec::new();
+        let mut pos = 0;
+        while let Some(&head) = bytes.get(pos) {
+            let start = pos;
+            let Some(role) = GlobRole::from_unit(u32::from(head)) else {
+                pos += jim084_decode(&bytes[pos..])?.1;
+                continue;
+            };
+            pos += 1;
+            match role {
+                GlobRole::AnySequence => {
+                    while bytes.get(pos) == Some(&b'*') {
+                        pos += 1;
+                    }
+                }
+                GlobRole::AnyCharacter => {}
+                GlobRole::Escape if bytes.get(pos).is_some_and(|byte| *byte != 0) => {
+                    pos += jim084_decode(&bytes[pos..])?.1;
+                }
+                GlobRole::Escape => continue,
+                GlobRole::CharacterClass => {
+                    pos = self.jim084_visit_class(pos, |_, _| {})?;
+                    if bytes.get(pos) != Some(&b']') {
+                        return None;
+                    }
+                    pos += 1;
+                }
+            }
+            parts.push(GlobComponent {
+                range: start..pos,
+                role,
+            });
+        }
+        Some(parts)
     }
 
     /// Find the first native byte match at decoded character starts, beginning

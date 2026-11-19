@@ -638,6 +638,76 @@ fn decode_c_unit(
     unit
 }
 
+/// Source ranges in the exact C character-unit pattern supplied to an object matcher.
+/// A malformed or subject-dependent bracket expression has no single shape.
+#[must_use]
+pub fn c_unit_pattern_components(
+    units: &[u32],
+    version: TclVersion,
+) -> Option<Vec<crate::glob::GlobComponent>> {
+    c_components(GlobInput::Units(units, version))
+}
+
+/// Source ranges for an API that consumes the pattern as a native C string.
+#[must_use]
+pub fn c_string_pattern_components(
+    bytes: &[u8],
+    version: TclVersion,
+) -> Option<Vec<crate::glob::GlobComponent>> {
+    c_components(GlobInput::CString(
+        tcl_core_types::c_string_extent(bytes),
+        version,
+    ))
+}
+
+fn c_components(pattern: GlobInput<'_>) -> Option<Vec<crate::glob::GlobComponent>> {
+    use crate::glob::{GlobComponent, GlobRole};
+    let mut result = Vec::new();
+    let mut pos = 0;
+    while pos < pattern.len() {
+        let start = pos;
+        let Some(role) = GlobRole::from_unit(pattern.raw(pos)) else {
+            pos += pattern.unit(pos, false).width;
+            continue;
+        };
+        pos += 1;
+        match role {
+            GlobRole::AnySequence => {
+                while pos < pattern.len() && pattern.raw(pos) == u32::from(b'*') {
+                    pos += 1;
+                }
+            }
+            GlobRole::AnyCharacter => {}
+            GlobRole::Escape => {
+                if pos == pattern.len() {
+                    return None;
+                }
+                pos += pattern.unit(pos, false).width;
+            }
+            GlobRole::CharacterClass => {
+                // C skips directly to the next raw close after a matching member.
+                // A later range can consume that same close as its endpoint.
+                // A single span exists only if every successful branch agrees.
+                let (_, _, next) = class_member(pattern, pos)?;
+                let close = (next..pattern.len()).find(|&i| pattern.raw(i) == u32::from(b']'))?;
+                pos = next;
+                while pos < close {
+                    (_, _, pos) = class_member(pattern, pos)?;
+                }
+                if pos != close {
+                    return None;
+                }
+                pos += 1;
+            }
+        }
+        result.push(GlobComponent {
+            range: start..pos,
+            role,
+        });
+    }
+    Some(result)
+}
+
 fn c_match(pattern: GlobInput<'_>, subject: GlobInput<'_>, nocase: bool) -> bool {
     let mut pending = vec![(0, 0)];
     let mut visited = HashSet::new();
@@ -652,8 +722,9 @@ fn c_match(pattern: GlobInput<'_>, subject: GlobInput<'_>, nocase: bool) -> bool
                 }
                 break;
             }
-            let token = pattern.raw(pi);
-            if token == u32::from(b'*') {
+            use crate::glob::GlobRole;
+            let role = GlobRole::from_unit(pattern.raw(pi));
+            if role == Some(GlobRole::AnySequence) {
                 while pi < pattern.len() && pattern.raw(pi) == u32::from(b'*') {
                     pi += 1;
                 }
@@ -666,12 +737,12 @@ fn c_match(pattern: GlobInput<'_>, subject: GlobInput<'_>, nocase: bool) -> bool
             if si == subject.len() {
                 break;
             }
-            if token == u32::from(b'?') {
+            if role == Some(GlobRole::AnyCharacter) {
                 pi += 1;
                 si += subject.unit(si, false).width;
                 continue;
             }
-            if token == u32::from(b'[') {
+            if role == Some(GlobRole::CharacterClass) {
                 let Some((next_pattern, next_subject)) =
                     match_class(pattern, subject, pi + 1, si, nocase)
                 else {
@@ -681,7 +752,7 @@ fn c_match(pattern: GlobInput<'_>, subject: GlobInput<'_>, nocase: bool) -> bool
                 si = next_subject;
                 continue;
             }
-            if token == u32::from(b'\\') {
+            if role == Some(GlobRole::Escape) {
                 pi += 1;
                 if pi == pattern.len() {
                     break;
@@ -728,6 +799,25 @@ fn schedule_star(
     pending.extend(positions.into_iter().rev());
 }
 
+/// The same range endpoints the native match loop may consume, before case folding.
+fn class_member(pattern: GlobInput<'_>, mut pi: usize) -> Option<(u32, u32, usize)> {
+    if pi == pattern.len() || pattern.raw(pi) == u32::from(b']') {
+        return None;
+    }
+    let first = pattern.unit(pi, true);
+    pi += first.width;
+    if pi < pattern.len() && pattern.raw(pi) == u32::from(b'-') {
+        pi += 1;
+        if pi == pattern.len() {
+            return None;
+        }
+        let last = pattern.unit(pi, true);
+        Some((first.value, last.value, pi + last.width))
+    } else {
+        Some((first.value, first.value, pi))
+    }
+}
+
 fn match_class(
     pattern: GlobInput<'_>,
     subject: GlobInput<'_>,
@@ -739,24 +829,10 @@ fn match_class(
     let character = subject.fold(unit.value, nocase);
     let next_subject = si + unit.width;
     loop {
-        if pi == pattern.len() || pattern.raw(pi) == u32::from(b']') {
-            return None;
-        }
-        let first = pattern.unit(pi, true);
-        let start = pattern.fold(first.value, nocase);
-        pi += first.width;
-        let matched = if pi < pattern.len() && pattern.raw(pi) == u32::from(b'-') {
-            pi += 1;
-            if pi == pattern.len() {
-                return None;
-            }
-            let last = pattern.unit(pi, true);
-            let end = pattern.fold(last.value, nocase);
-            pi += last.width;
-            (start <= character && character <= end) || (end <= character && character <= start)
-        } else {
-            start == character
-        };
+        let (first, last, next) = class_member(pattern, pi)?;
+        let (first, last) = (pattern.fold(first, nocase), pattern.fold(last, nocase));
+        pi = next;
+        let matched = (first.min(last)..=first.max(last)).contains(&character);
         if matched {
             break;
         }
@@ -783,6 +859,55 @@ mod fixtures;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn glob_source_components_retain_only_a_common_native_extent() {
+        use crate::glob::GlobRole;
+        use crate::raw_string::RawString;
+        let text = r"é**?[z-a]\?";
+        let jim = RawString::from_bytes(text.as_bytes())
+            .jim084_glob_components()
+            .unwrap();
+        for version in TclVersion::ALL {
+            let c = c_string_pattern_components(text.as_bytes(), version).unwrap();
+            assert_eq!(c, jim);
+            assert_eq!(
+                c.iter()
+                    .map(|p| (&text[p.range.clone()], p.role))
+                    .collect::<Vec<_>>(),
+                [
+                    ("**", GlobRole::AnySequence),
+                    ("?", GlobRole::AnyCharacter),
+                    ("[z-a]", GlobRole::CharacterClass),
+                    (r"\?", GlobRole::Escape),
+                ]
+            );
+        }
+        let ambiguous = b"[ab-]x]q";
+        assert!(c_string_pattern_components(ambiguous, TclVersion::V9_1).is_none());
+        let jim = RawString::from_bytes(ambiguous.as_slice())
+            .jim084_glob_components()
+            .unwrap();
+        assert_eq!(jim[0].range, 0..7);
+        let trailing = b"a\\";
+        assert!(c_string_pattern_components(trailing, TclVersion::V9_1).is_none());
+        assert_eq!(
+            RawString::from_bytes(trailing.as_slice())
+                .jim084_glob_components()
+                .unwrap(),
+            []
+        );
+        let bytes = b"a\0?";
+        assert_eq!(
+            c_string_pattern_components(bytes, TclVersion::V9_1).unwrap(),
+            []
+        );
+        let units = bytes.map(u32::from);
+        assert_eq!(
+            c_unit_pattern_components(&units, TclVersion::V9_1).unwrap()[0].range,
+            2..3
+        );
+    }
 
     #[test]
     fn c_string_entry_points_preserve_native_switch_extents_and_opaque_units() {
