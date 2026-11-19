@@ -236,8 +236,9 @@ These go ahead of missing facts once the ledgers are in.
 | O129 rewrites `set x [split ""]` to `set x {{}}` and `puts [llength $x]` to `puts 1`; tclsh 8.4.20 to 9.1.0 print 0. #2418 back, through the optimiser's constant-fold engine. Witness `procedure_summaries::split_of_the_empty_string_is_the_empty_list` | dataflow-optimiser, first when resumed |
 | Strict local rename goes past a computed command head that may read the local by name: `proc m {w dir} { $w ${dir}view }` renames `dir` although `proc peek {args} {upvar 1 dir d; return $d}` then fails (tclsh 8.6.18, 9.0.4) | diagnostics (`analyser/types/variable_renames.rs`) |
 | I230 "condition is always true" for `if {$g == 5}` after a stubbed body-role call that sets `g` (`db_eval {select 1} {set g 6}`); tclsh prints `other`. Witness `unseen_code::a_stub_that_states_its_frame_effect_is_a_named_head` | diagnostics |
-
-**O129 follow-up under investigation, 19 November.** dataflow-optimiser is checking whether the literal folder can rewrite `lrepeat 0 x` on 8.5. C Tcl 8.4.20 lacks the command and 8.5.19 rejects a count of zero. C Tcl 8.6.18 through 9.1.0 and Jim 0.84-15-g2f8e155 return an empty list. A product wrong answer requires a reachable optimisation witness on the selected release.
+| `puts [lrepeat 0 x]` folds to `puts {}` on C Tcl 8.5, which raises. The same folder accepts `08` and reads `010` as ten on 8.5/8.6. Both releases reject `08` and read `010` as eight. Reproduced through the production optimiser on `079afe5230`. | dataflow-optimiser, open |
+| Direct `puts [list # a]` and `puts [split {#a} {}]` acquire braces around the leading hash on C Tcl 8.4.20. The earlier green `set` fixture covers a different call path. | dataflow-optimiser, open |
+| Jim `puts [dict merge {a 1 a 2} {}]` returns `a 2`. The rewrite preserves the original duplicate-key text. C Tcl 8.5–9.1 preserve that text. | dataflow-optimiser, open |
 
 <a id="waiting-on-the-owners-approval"></a>
 

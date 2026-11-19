@@ -54,6 +54,10 @@ Six workers cover the thirteen area handoffs in this coordinator chat. Progress 
 
 **Restart evidence.** All thirteen queues have been acknowledged. The five C Tcl releases above and latest Jim all returned zero for `llength [split ""]`. This establishes the oracle side of O129. The product fix and clean-head suite counts are pending. For the database, the server handoff records a completed 507-second `it_5` run on `a375d8656`; per-test timings are outstanding. The two compiler tests also fail in the full `command_binding::` group on one thread. Investigate order-dependent state.
 
+**Hourly check, 19 November at 11:52 UTC.** Tooling published the latest Jim pin in `a6c66517c7` after the all-oracle validator, fmt, clippy and 39 drift gates passed. On clean `079afe5230` with all oracle flags and latest Jim available, lsp-features measured `tcl-lsp-core` integration failures of 26/294 (`it_2`), 25/289 (`it_3`) and 47/322 (`it_4`), zero skipped. Those targets use C Tcl witnesses. The four-target run on the corrected pin, including the Jim-checking `it_5`, is tracked separately. diagnostics owns the shared compiler baseline, analyser-binding the registry baseline. The declared-frame merge and #2543 residue still lack new measurements. All six replacement workers acknowledged the parser audit.
+
+**Coordinator decision.** Use the selected command's existing evaluator and value grammar for a literal fold, including its error and string result. Retain the original command when equivalence cannot be proved. dataflow-optimiser owns the confirmed wrong rewrites in the scrub table. For O103, compare the bare unresolved name control to an actual rebinding handler. All six oracles return 99 for `proc answer {} {return 42}; proc f {} {set y [answer]}; proc unknown {name args} {rename ::answer ::saved; proc ::answer {} {return 99}}; future; puts [f]`. Product verification is pending.
+
 ## Scoreboard, 18 November 2026, 11:55 UTC (at the pause)
 
 Failing tests by area on the restructured tree, from the successor sessions' baselines and first pushes.
