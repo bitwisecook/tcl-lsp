@@ -257,6 +257,8 @@ On 19 November the owner approved every tooling edit listed below and the live-i
 | In the four crates no session owns (`tcl-lexer`, `tcl-syntax`, `tcl-dialect`, `tcl-core-types`; 2,008 run, all pass with every oracle required, no expectation contradicted): 16 merges into named survivors (five exact copies and eleven single-operator parser tests the `expr_parser_coverage` tables already state), one vacuous test (`word_parts::tests::oracle_sheet_is_recorded`), seven Jim tests that return silently without the oracle moved onto the shared locator, four weak-assertion groups rewritten to assert a value, nine crash guards given a value to assert (rows in `ledger/unowned-passing.tsv`; about 1,600 tests in small groups were not read) | irules-registry-tooling | Sampled and signed off by the coordinator; test-body edits |
 | `tcl-cli` `spec_test_presence_keeps_literal_colons_and_wildcards`: its Jim leg uses a `pkgIndex` layout Jim does not load, which showed once the Jim oracle was required; the fixture takes Jim's own package layout | irules-registry-tooling | A test that returns early for want of its oracle is not a pass |
 
+**O129 follow-up under investigation, 19 November.** dataflow-optimiser is checking whether the literal folder can rewrite `lrepeat 0 x` on 8.5. C Tcl 8.4.20 lacks the command and 8.5.19 rejects a count of zero. C Tcl 8.6.18 through 9.1.0 and Jim 0.84-15-g2f8e155 return an empty list. A product wrong answer requires a reachable optimisation witness on the selected release.
+
 ## Passing tests the oracle contradicts
 
 Found while triaging the failing ones; they pass today and hold the product to a wrong answer.
