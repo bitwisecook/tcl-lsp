@@ -65,6 +65,7 @@ pub mod execution_conformance;
 pub mod expr;
 pub mod formal_params;
 pub mod format;
+pub mod frame_level;
 pub mod glob;
 pub mod jim_script_layout;
 pub mod jim_script_objects;

@@ -72,7 +72,7 @@ pub use native_object::{
 };
 
 use tcl_dialect::{FrameLevelPresence, NumberSyntax, TclVersion};
-use tcl_syntax::number::ParseFlags;
+use tcl_syntax::frame_level::{LiteralLevel, leading_word_is_level, parse_supplied_level};
 
 /// Which stack frame an `upvar` / `uplevel` level word selects.
 ///
@@ -300,10 +300,10 @@ impl FrameLevel {
 
     /// [`Self::parse_for`] with the numeral grammar already chosen.
     fn parse_under(word: &str, numbers: NumberSyntax) -> Option<Self> {
-        match word.strip_prefix('#') {
-            Some(rest) => parse_level_value(rest, numbers).map(Self::Absolute),
-            None => parse_level_value(word, numbers).map(Self::Relative),
-        }
+        Some(match parse_supplied_level(word, numbers)? {
+            LiteralLevel::Absolute(n) => Self::Absolute(n),
+            LiteralLevel::Relative(n) => Self::Relative(n),
+        })
     }
 
     /// The answer when no release is named: unanimous across every grammar, or
@@ -346,113 +346,21 @@ impl FrameLevel {
             return true;
         }
         match version {
-            Some(version) => word_has_level_presence(
-                word,
+            Some(version) => leading_word_is_level(
+                word.as_bytes(),
                 version.uplevel_level_presence(),
                 version.number_syntax(),
-            ),
+            )
+            .unwrap_or(false),
             None => TclVersion::ALL.into_iter().all(|version| {
-                word_has_level_presence(
-                    word,
+                leading_word_is_level(
+                    word.as_bytes(),
                     version.uplevel_level_presence(),
                     version.number_syntax(),
                 )
+                .unwrap_or(false)
             }),
         }
-    }
-}
-
-fn word_has_level_presence(
-    word: &str,
-    presence: FrameLevelPresence,
-    numbers: NumberSyntax,
-) -> bool {
-    if word.starts_with('#') {
-        return true;
-    }
-    let leading_digit = word.as_bytes().first().is_some_and(u8::is_ascii_digit);
-    match presence {
-        FrameLevelPresence::DigitOrHash => leading_digit,
-        FrameLevelPresence::DigitOrNonNegativeInteger => {
-            leading_digit
-                || match parse_integer_word(word, numbers) {
-                    Some(tcl_syntax::number::Number::Int(value)) => {
-                        value >= 0 || i32::try_from(value).is_err()
-                    }
-                    Some(tcl_syntax::number::Number::Big { .. }) => true,
-                    _ => false,
-                }
-        }
-        FrameLevelPresence::IntegerOrHash => matches!(
-            parse_integer_word(word, numbers),
-            Some(tcl_syntax::number::Number::Int(_) | tcl_syntax::number::Number::Big { .. })
-        ),
-        FrameLevelPresence::ArgumentParity => false,
-    }
-}
-
-fn parse_integer_word(text: &str, numbers: NumberSyntax) -> Option<tcl_syntax::number::Number> {
-    tcl_syntax::number::parse_whole_with(
-        text,
-        ParseFlags {
-            integer_only: true,
-            ..ParseFlags::for_syntax(numbers)
-        },
-    )
-}
-
-/// The magnitude of a `Tcl_GetInt`-shaped level word, with its sign reported
-/// separately — the shared core of [`FrameLevel::parse`] and
-/// [`FrameLevel::word_could_be_level`].
-fn parse_level_magnitude(text: &str, numbers: NumberSyntax) -> Option<(bool, u32)> {
-    // A level word is read by `Tcl_GetIntFromObj`, so its grammar *is* the
-    // release's numeral grammar — the level word inherits every version
-    // difference. Pinned on tclsh 8.6.16 and 9.0.4 with a 16-frame stack (deep
-    // enough that an out-of-range level cannot be mistaken for a parse
-    // failure — both report `bad level`):
-    //
-    // | word  | 8.6            | 9.0            |
-    // |-------|----------------|----------------|
-    // | `1`   | 1              | 1              |
-    // | `007` | 7 (octal)      | 7 (decimal)    |
-    // | `010` | **8** (octal)  | **10**         |
-    // | `08`  | bad level      | **8**          |
-    // | `1_0` | bad level      | **10**         |
-    // | `0d1` | bad level      | **1**          |
-    // | `0x1` | 1              | 1              |
-    // | `0o1` | 1              | 1              |
-    //
-    // Going through the shared facility gets all eight rows for free; the
-    // hand-rolled prefix scan this replaced got four of them wrong.
-    //
-    // `no_whitespace` is deliberately *not* set: `Tcl_GetIntFromObj` tolerates
-    // surrounding space (`"  1  "` is level 1). It does not tolerate space
-    // *between* the sign and the digits (`upvar "+ 1" …` → `bad level "+ 1"`),
-    // which the facility already rejects — it reads a sign only immediately
-    // before the digits.
-    let flags = ParseFlags {
-        integer_only: true,
-        ..ParseFlags::for_syntax(numbers)
-    };
-    // A magnitude past a wide names no frame on any release, and a float or NaN
-    // is not an integer word at all.
-    let tcl_syntax::number::Number::Int(value) = tcl_syntax::number::parse_whole_with(text, flags)?
-    else {
-        return None;
-    };
-    // Report the sign separately: the *presence* question distinguishes `-1`
-    // (consumed then rejected by 9.0) from a word 8.6 dispatches as a command.
-    let negative = value < 0;
-    Some((negative, u32::try_from(value.unsigned_abs()).ok()?))
-}
-
-/// A level word's frame number, or `None` when it names no frame.  A negative
-/// value is `bad level` on every release, so `-0` is the only signed spelling
-/// that survives.
-fn parse_level_value(text: &str, numbers: NumberSyntax) -> Option<u32> {
-    match parse_level_magnitude(text, numbers)? {
-        (true, value) if value != 0 => None,
-        (_, value) => Some(value),
     }
 }
 
@@ -806,9 +714,7 @@ impl FrameEffectSpec {
                 return Some(usize::from(count % 2 == 1));
             }
             let word = arguments.literal_at(0)?;
-            Some(usize::from(word_has_level_presence(
-                word, presence, numbers,
-            )))
+            leading_word_is_level(word.as_bytes(), presence, numbers).map(usize::from)
         };
         if let Some(dialect) = arguments.dialect() {
             let presence = match self.level_word {
@@ -856,15 +762,7 @@ impl FrameEffectSpec {
             return Some(usize::from(count % 2 == 1));
         }
         let first = first?;
-        if first.contains(&0) {
-            return None;
-        }
-        if first.first() == Some(&b'#') {
-            return Some(1);
-        }
-        let selected = core::str::from_utf8(first)
-            .is_ok_and(|word| word_has_level_presence(word, presence, dialect.numbers));
-        Some(usize::from(selected))
+        leading_word_is_level(first, presence, dialect.numbers).map(usize::from)
     }
 
     /// How many leading words of `args` (the argument list *after* the
