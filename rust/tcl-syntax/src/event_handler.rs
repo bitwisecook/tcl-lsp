@@ -106,40 +106,29 @@ pub fn script_commands(source: &str, config: LexerConfig) -> Vec<ScriptCommand> 
     let Ok(tokens) = Lexer::with_config(source, config).tokenise_all() else {
         return Vec::new();
     };
-    command_words(&tokens)
+    tcl_lexer::group_commands(&tokens, source, config)
         .into_iter()
-        .map(|words| ScriptCommand { words })
+        .map(|command| ScriptCommand {
+            words: command
+                .words
+                .into_iter()
+                .map(|word| {
+                    // A written expansion is not a single literal event, option or body.
+                    // The shared fragment range excludes those preceding marker tokens.
+                    let mut range = word.tokens;
+                    if word.expand {
+                        let markers = tokens[..range.start]
+                            .iter()
+                            .rev()
+                            .take_while(|token| token.kind == TokenType::Expand)
+                            .count();
+                        range.start -= markers;
+                    }
+                    tokens[range].to_vec()
+                })
+                .collect(),
+        })
         .collect()
-}
-
-fn command_words(tokens: &[Token]) -> Vec<Vec<Vec<Token>>> {
-    let mut commands = Vec::new();
-    let mut command = Vec::new();
-    let mut word = Vec::new();
-    for &token in tokens {
-        match token.kind {
-            TokenType::Sep => finish_word(&mut command, &mut word),
-            TokenType::Eol | TokenType::Eof => {
-                finish_word(&mut command, &mut word);
-                if !command.is_empty() {
-                    commands.push(std::mem::take(&mut command));
-                }
-            }
-            TokenType::Comment => {}
-            _ => word.push(token),
-        }
-    }
-    finish_word(&mut command, &mut word);
-    if !command.is_empty() {
-        commands.push(command);
-    }
-    commands
-}
-
-fn finish_word(command: &mut Vec<Vec<Token>>, word: &mut Vec<Token>) {
-    if !word.is_empty() {
-        command.push(std::mem::take(word));
-    }
 }
 
 /// The single token of word `index`, when that word is one token.
@@ -226,10 +215,8 @@ fn parse_handler(
     if body.kind != TokenType::Str {
         return None;
     }
-    let body_whole = word_span_at(text, body.span);
-    if !closed_brace(text, body_whole) {
-        return None;
-    }
+    let close = tcl_lexer::word_closer_offset(sm, body)?;
+    let body_whole = Span::new(body.span.start(), close.checked_add(1)?);
     let first = *words.first()?.first()?;
     let command_start = word_span_at(text, first.span).start();
     let command_end = body_whole.end();
@@ -263,24 +250,13 @@ fn parse_handler(
         argument_single_tokens: words[1..].iter().map(|word| word.len() == 1).collect(),
         argument_closed_braced_tokens: words[1..]
             .iter()
-            .map(|word| closed_braced_argument_word(text, word))
+            .map(|word| closed_braced_argument_word(sm, word))
             .collect(),
     })
 }
 
-fn closed_braced_argument_word(source: &str, word: &[Token]) -> bool {
-    let [token] = word else {
-        return false;
-    };
-    token.kind == TokenType::Str && closed_brace(source, word_span_at(source, token.span))
-}
-
-fn closed_brace(source: &str, whole: Span) -> bool {
-    usize::try_from(whole.end())
-        .ok()
-        .and_then(|end| end.checked_sub(1))
-        .and_then(|close| source.as_bytes().get(close))
-        == Some(&b'}')
+fn closed_braced_argument_word(sm: &SourceMap<'_>, word: &[Token]) -> bool {
+    matches!(word, [token] if token.kind == TokenType::Str && tcl_lexer::word_closer_offset(sm, *token).is_some())
 }
 
 fn shift(span: Span, base: u32) -> Span {
@@ -398,6 +374,9 @@ mod tests {
         for source in [
             "when HTTP_REQUEST",
             "when HTTP_REQUEST set",
+            "when HTTP_REQUEST {if {1} {return}",
+            r"when HTTP_REQUEST {return \}",
+            "when HTTP_REQUEST {*}$body",
             "when HTTP_REQUEST {} trailing",
             "when HTTP_REQUEST priority {}",
             "when HTTP_REQUEST priority nope {}",
