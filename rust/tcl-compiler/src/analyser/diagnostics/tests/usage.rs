@@ -564,25 +564,17 @@ fn w100_skips_braced_and_safe_literals() {
     assert_eq!(w100_sev("expr {$a + $b}\n"), [] as [std::string::String; 0]);
     assert_eq!(w100_sev("expr 1+2\n"), [] as [std::string::String; 0]);
     assert_eq!(w100_sev("if 1 {puts hi}\n"), [] as [std::string::String; 0]);
+    for source in [
+        "if 0x10 {puts hi}\n",
+        "if -42 {puts hi}\n",
+        "if 1+ {puts hi}\n",
+    ] {
+        assert!(w100_sev(source).is_empty(), "{source}");
+    }
     assert_eq!(
         w100_sev("if {1} {puts hi}\n"),
         [] as [std::string::String; 0]
     );
-}
-
-#[test]
-fn is_safe_literal_expr_classifies() {
-    assert!(is_safe_literal("42"));
-    assert!(is_safe_literal("true"));
-    assert!(!is_safe_literal("$x"));
-    assert!(is_safe_literal_expr(
-        "1 + 2",
-        tcl_dialect::DialectProfile::find("tcl8.6").expect("tcl8.6 profile")
-    ));
-    assert!(!is_safe_literal_expr(
-        "$a + $b",
-        tcl_dialect::DialectProfile::find("tcl8.6").expect("tcl8.6 profile")
-    ));
 }
 
 fn w212_count(src: &str) -> usize {

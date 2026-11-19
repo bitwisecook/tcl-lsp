@@ -313,26 +313,27 @@ Use braces: {{ \u{2026} }}"
         let end = original.word(last)?;
         let span = tcl_lexer::Span::new(word.span().start(), end.span().end());
         let text = self.source.get(span.as_range()).map(str::to_owned)?;
-        let safe = if expressions.concatenates {
-            let context = self.original_expression_parser_context()?;
-            is_safe_literal_expr_in_context(text.trim(), &context)
-        } else {
-            is_safe_literal(text.trim())
-        };
-        if safe {
-            return None;
-        }
         let has_sub = (argument..=last).any(|index| {
-            original.word(index).is_some_and(|word| {
-                word.executable_parts().all_parts().any(|part| {
-                    matches!(
-                        part.part,
-                        tcl_lexer::ExecutablePart::Variable { .. }
-                            | tcl_lexer::ExecutablePart::Command { .. }
-                    )
-                })
-            })
+            original
+                .word(index)
+                .is_some_and(original_word_has_substitution)
         });
+        if !has_sub {
+            // Inspect the complete written expression. A failed source parse
+            // cannot establish that the proposed braced spelling is valid.
+            let expression = tcl_syntax::expr::substitution::OriginalSourceExpression::capture(
+                &text,
+                &self.original_expression_parser_context()?,
+                self.file_lexer_config(),
+            )?;
+            if expression.is_signed_or_unsigned_literal()
+                || expressions.concatenates
+                    && !expression.has_opaque_or_substitution_operands()
+                    && expression.function_calls().is_empty()
+            {
+                return None;
+            }
+        }
         let hex_conversion = argument == last && original_word_is_hex_conversion(word);
         let fix_inner = if hex_conversion {
             // A substituted hexadecimal suffix forms a number before expr
@@ -478,69 +479,4 @@ Use braces: {{ \u{2026} }}"
             .with_subject(subject),
         );
     }
-}
-
-/// True when `text` is a simple numeric or boolean literal that needs
-/// no bracing.
-pub(in super::super) fn is_safe_literal(text: &str) -> bool {
-    let t = text.trim();
-    if t.parse::<f64>().is_ok() {
-        return true;
-    }
-    matches!(
-        t.to_ascii_lowercase().as_str(),
-        "true" | "false" | "yes" | "no" | "on" | "off"
-    )
-}
-
-/// True when an expr string is substitution-free numeric / boolean /
-/// operator text (safe to leave unbraced).
-#[cfg(test)]
-pub(in super::super) fn is_safe_literal_expr(
-    text: &str,
-    profile: &'static tcl_dialect::DialectProfile,
-) -> bool {
-    is_safe_literal_expr_in_context(
-        text,
-        &tcl_syntax::expr::parser::ExprParseContext::for_profile(profile),
-    )
-}
-
-fn is_safe_literal_expr_in_context(
-    text: &str,
-    context: &tcl_syntax::expr::parser::ExprParseContext,
-) -> bool {
-    use tcl_lexer::ExprTokenType as T;
-    if is_safe_literal(text) {
-        return true;
-    }
-    if text.contains('$') || text.contains('[') {
-        return false;
-    }
-    let (tokens, unknown) = tcl_lexer::tokenise_expr_checked_with_expression_grammar(
-        text,
-        &context.lexer_grammar,
-        context.expr_grammar_base,
-        context.f5_word_grammar,
-    );
-    if unknown {
-        return false;
-    }
-    if tokens.is_empty() {
-        return false;
-    }
-    tokens.iter().all(|tok| {
-        matches!(
-            tok.kind,
-            T::Number
-                | T::Bool
-                | T::Operator
-                | T::ParenOpen
-                | T::ParenClose
-                | T::Whitespace
-                | T::TernaryQ
-                | T::TernaryC
-                | T::Comma
-        )
-    })
 }

@@ -135,6 +135,23 @@ impl OriginalSourceExpression {
     pub const fn lexer_config(&self) -> LexerConfig {
         self.config
     }
+    /// Whether the checked source consists of a numeric or Boolean literal,
+    /// optionally preceded by a unary sign. This classifies syntax only.
+    #[must_use]
+    pub fn is_signed_or_unsigned_literal(&self) -> bool {
+        match &self.tree {
+            ExprNode::Literal { .. } => true,
+            ExprNode::Unary {
+                op: super::ast::UnaryOp::Pos | super::ast::UnaryOp::Neg,
+                operand,
+                ..
+            } => {
+                matches!(operand.as_ref(), ExprNode::Literal { .. })
+            }
+            _ => false,
+        }
+    }
+
     /// Conservative opaque/string or substitution operands in the original tree.
     /// A string may contain inert bytes; this supplies no effect closure or read.
     #[must_use]

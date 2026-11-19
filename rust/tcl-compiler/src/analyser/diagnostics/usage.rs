@@ -53,10 +53,6 @@ use literal_contents::comment_regions_recursive;
 pub(super) use literal_contents::{
     is_benign_unicode, is_valid_subnet_mask, looks_like_subnet_mask, nearest_valid_mask,
 };
-#[cfg(test)]
-pub(super) use unbraced_words::is_safe_literal;
-#[cfg(test)]
-pub(super) use unbraced_words::is_safe_literal_expr;
 pub(in crate::analyser) use unbraced_words::original_word_has_substitution;
 
 impl Analyser {
