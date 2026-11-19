@@ -47,94 +47,137 @@ pub struct Property {
     pub value_end: Option<usize>,
 }
 
+/// Original byte extents for a top-level tmsh stanza.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BlockSpan {
+    /// Header words, including any trailing whitespace before the opening brace.
+    pub header: std::ops::Range<usize>,
+    /// Contents after the open brace, ending at the closing brace or EOF.
+    pub body: std::ops::Range<usize>,
+    /// Whether a closing brace was present in the source.
+    pub closed: bool,
+}
+
+impl BlockSpan {
+    /// Entire original extent, including the header and the available delimiters.
+    #[must_use]
+    pub fn range(&self) -> std::ops::Range<usize> {
+        self.header.start..self.body.end + usize::from(self.closed)
+    }
+}
+
+#[derive(Clone, Copy)]
+enum ShellToken {
+    Newline,
+    Text,
+    Open,
+    Close,
+}
+
+/// Only the outer tmsh shell owns these punctuation bytes. Tcl inside a
+/// rule is separately selected by the embedded iRule source reader.
+fn shell_tokens(source: &str) -> impl Iterator<Item = (usize, ShellToken)> + '_ {
+    let bytes = source.as_bytes();
+    let mut pos = 0;
+    let mut blank = true;
+    std::iter::from_fn(move || {
+        loop {
+            let start = pos;
+            let byte = *bytes.get(pos)?;
+            pos += 1;
+            let kind = match byte {
+                b' ' | b'\t' | b'\r' => continue,
+                b'#' if blank => {
+                    while bytes.get(pos).is_some_and(|&b| b != b'\n') {
+                        pos += 1;
+                    }
+                    continue;
+                }
+                b'\n' => ShellToken::Newline,
+                b'{' => ShellToken::Open,
+                b'}' => ShellToken::Close,
+                b'"' => {
+                    while let Some(&next) = bytes.get(pos) {
+                        pos += 1;
+                        if next == b'"' {
+                            break;
+                        }
+                        if next == b'\\' && pos < bytes.len() {
+                            pos += 1;
+                        }
+                    }
+                    ShellToken::Text
+                }
+                b'\\' => {
+                    blank = bytes.get(pos) == Some(&b'\n');
+                    pos += usize::from(pos < bytes.len());
+                    return Some((start, ShellToken::Text));
+                }
+                _ => ShellToken::Text,
+            };
+            blank = matches!(kind, ShellToken::Newline);
+            return Some((start, kind));
+        }
+    })
+}
+
+/// Top-level source extents. An unfinished stanza retains its complete UTF-8
+/// body to EOF and may be displayed while the user is typing.
+pub fn block_spans(source: &str) -> impl Iterator<Item = BlockSpan> + '_ {
+    let mut tokens = shell_tokens(source);
+    std::iter::from_fn(move || {
+        let mut header = None;
+        let open = loop {
+            let (offset, kind) = tokens.next()?;
+            match kind {
+                ShellToken::Open => break offset,
+                ShellToken::Newline => header = None,
+                _ => {
+                    header.get_or_insert(offset);
+                }
+            }
+        };
+        let mut depth = 1;
+        let close = tokens.find_map(|(offset, kind)| {
+            match kind {
+                ShellToken::Open => depth += 1,
+                ShellToken::Close => depth -= 1,
+                _ => {}
+            }
+            (depth == 0).then_some(offset)
+        });
+        Some(BlockSpan {
+            header: header.unwrap_or(open)..open,
+            body: open + 1..close.unwrap_or(source.len()),
+            closed: close.is_some(),
+        })
+    })
+}
+
+/// Matched opening and closing offsets at every nesting depth, in closing order.
+pub fn brace_regions(source: &str) -> impl Iterator<Item = (usize, usize)> + '_ {
+    let mut stack = Vec::new();
+    shell_tokens(source).filter_map(move |(pos, kind)| match kind {
+        ShellToken::Open => {
+            stack.push(pos);
+            None
+        }
+        ShellToken::Close => stack.pop().map(|open| (open, pos)),
+        _ => None,
+    })
+}
+
 /// Extract all top-level `keyword ... { ... }` blocks from `source`.
-/// Handles nested braces and respects quoted strings.
 #[must_use]
 pub fn extract_blocks(source: &str) -> Vec<Block> {
-    let bytes = source.as_bytes();
-    let length = bytes.len();
-    let mut blocks = Vec::new();
-    let mut pos = 0;
-
-    while pos < length {
-        while pos < length && matches!(bytes[pos], b' ' | b'\t' | b'\n' | b'\r') {
-            pos += 1;
-        }
-        if pos >= length {
-            break;
-        }
-        if bytes[pos] == b'#' {
-            while pos < length && bytes[pos] != b'\n' {
-                pos += 1;
-            }
-            continue;
-        }
-
-        let header_start = pos;
-        let mut hit_newline = false;
-        while pos < length && bytes[pos] != b'{' {
-            match bytes[pos] {
-                b'\n' => {
-                    pos += 1;
-                    hit_newline = true;
-                    break;
-                }
-                // tmsh permits braces inside a quoted object name; skip over
-                // quoted spans (and escapes) so the real opening brace is found.
-                b'\\' if pos + 1 < length => pos += 1,
-                b'"' => {
-                    pos += 1;
-                    while pos < length && bytes[pos] != b'"' {
-                        if bytes[pos] == b'\\' && pos + 1 < length {
-                            pos += 1;
-                        }
-                        pos += 1;
-                    }
-                }
-                _ => {}
-            }
-            pos += 1;
-        }
-        if hit_newline {
-            continue;
-        }
-        if pos >= length || bytes[pos] != b'{' {
-            break;
-        }
-
-        let header = source[header_start..pos].trim().to_owned();
-        let brace_start = pos;
-        pos += 1; // skip opening brace
-        let mut depth = 1;
-        let body_start = pos;
-        while pos < length && depth > 0 {
-            match bytes[pos] {
-                b'{' => depth += 1,
-                b'}' => depth -= 1,
-                b'\\' if pos + 1 < length => pos += 1,
-                b'"' => {
-                    pos += 1;
-                    while pos < length && bytes[pos] != b'"' {
-                        if bytes[pos] == b'\\' && pos + 1 < length {
-                            pos += 1;
-                        }
-                        pos += 1;
-                    }
-                }
-                _ => {}
-            }
-            pos += 1;
-        }
-        let body = source[body_start..pos.saturating_sub(1)].to_owned();
-        blocks.push(Block {
-            header,
-            body,
-            start_offset: brace_start,
-            end_offset: pos,
-        });
-    }
-
-    blocks
+    block_spans(source)
+        .map(|span| Block {
+            header: source[span.header.clone()].trim().to_owned(),
+            start_offset: span.header.end,
+            end_offset: span.range().end,
+            body: source[span.body].to_owned(),
+        })
+        .collect()
 }
 
 /// Scan a property value starting at `pos` (guaranteed not to be a newline).
@@ -572,6 +615,19 @@ pub fn tokenise_header(header: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unfinished_stanzas_retain_the_full_body_to_eof() {
+        for body in ["", "é", "\"unfinished", "a {x}"] {
+            let source = format!("ltm pool p {{{body}");
+            let span = block_spans(&source).next().unwrap();
+            assert!(!span.closed);
+            assert_eq!(&source[span.body], body);
+            let block = extract_blocks(&source).pop().unwrap();
+            assert_eq!(block.body, body);
+            assert_eq!(block.end_offset, source.len());
+        }
+    }
 
     #[test]
     fn extracts_nested_blocks() {

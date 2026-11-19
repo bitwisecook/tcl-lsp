@@ -40,7 +40,8 @@
 
 use std::collections::BTreeMap;
 
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashSet;
+use tcl_bigip::parser::{ObjectTypeIndex, block_spans, brace_regions, parse_generic_header};
 
 use tcl_lexer::LineIndex;
 use tcl_registry::bigip::{BigipPropertySpec, BigipRegistry, ValueKind};
@@ -90,188 +91,6 @@ pub fn is_bigip_conf_uri(uri: &str) -> bool {
     crate::profile_for_dialect("f5-bigip")
         .filenames
         .contains(&basename.to_ascii_lowercase().as_str())
-}
-
-/// A top-level config stanza: its header text and byte span.
-struct Block {
-    /// e.g. `"ltm virtual /Common/my_vs"`.
-    header: String,
-    /// Byte offset of the first header character.
-    start_offset: usize,
-    /// Byte offset one past the closing `}` (exclusive end).
-    end_offset: usize,
-}
-
-/// Extract all top-level `keyword ... { ... }` blocks from `source`.
-///
-/// Brace-balanced scan that respects quoted strings and backslash
-/// escapes. Only ASCII structural bytes (`{`, `}`, `"`, `\`,
-/// whitespace, `#`) are inspected, so every recorded offset lands on a
-/// UTF-8 char boundary.
-fn extract_blocks(source: &str) -> Vec<Block> {
-    let bytes = source.as_bytes();
-    let length = bytes.len();
-    let mut blocks = Vec::new();
-    let mut pos = 0;
-
-    while pos < length {
-        // Skip whitespace.
-        while pos < length && matches!(bytes[pos], b' ' | b'\t' | b'\n' | b'\r') {
-            pos += 1;
-        }
-        if pos >= length {
-            break;
-        }
-        // Skip a comment line.
-        if bytes[pos] == b'#' {
-            while pos < length && bytes[pos] != b'\n' {
-                pos += 1;
-            }
-            continue;
-        }
-
-        // Read the header up to the opening brace. A newline before any
-        // brace means this line is not a block header — skip it.
-        let header_start = pos;
-        let mut hit_newline = false;
-        while pos < length && bytes[pos] != b'{' {
-            if bytes[pos] == b'\n' {
-                pos += 1;
-                hit_newline = true;
-                break;
-            }
-            pos += 1;
-        }
-        if hit_newline {
-            continue;
-        }
-        if pos >= length || bytes[pos] != b'{' {
-            // Ran off the end without an opening brace.
-            break;
-        }
-
-        let header = source[header_start..pos].trim().to_owned();
-        pos += 1; // consume opening brace
-        let mut depth = 1;
-        while pos < length && depth > 0 {
-            match bytes[pos] {
-                b'{' => depth += 1,
-                b'}' => depth -= 1,
-                b'\\' if pos + 1 < length => pos += 1,
-                b'"' => {
-                    pos += 1;
-                    while pos < length && bytes[pos] != b'"' {
-                        if bytes[pos] == b'\\' && pos + 1 < length {
-                            pos += 1;
-                        }
-                        pos += 1;
-                    }
-                }
-                _ => {}
-            }
-            pos += 1;
-        }
-        blocks.push(Block {
-            header,
-            start_offset: header_start,
-            end_offset: pos,
-        });
-    }
-
-    blocks
-}
-
-/// Split `header` on whitespace, honouring `"..."` quoted spans and
-/// backslash escapes. BIG-IP allows
-/// quoted names with embedded spaces (`security bot-defense signature
-/// "/Common/Microsoft Access"`).
-fn tokenise_header(header: &str) -> Vec<String> {
-    let mut tokens = Vec::new();
-    let mut buf = String::new();
-    let mut in_quote = false;
-    let mut escape = false;
-    for ch in header.chars() {
-        if escape {
-            buf.push(ch);
-            escape = false;
-            continue;
-        }
-        match ch {
-            '\\' => escape = true,
-            '"' => in_quote = !in_quote,
-            c if c.is_whitespace() && !in_quote => {
-                if !buf.is_empty() {
-                    tokens.push(std::mem::take(&mut buf));
-                }
-            }
-            c => buf.push(c),
-        }
-    }
-    if !buf.is_empty() {
-        tokens.push(buf);
-    }
-    tokens
-}
-
-/// Parse a stanza header into `(module, object_type, identifier)`.
-///
-/// When the registry knows multi-word object types for the module
-/// (`sys diags ihealth`, `ltm message-routing diameter route`), the
-/// longest matching `(module, object-type)` prefix wins so the
-/// remaining tail is the identifier. Otherwise it falls back to the
-/// heuristic "everything between the module word and the last token is
-/// the object type". An empty identifier denotes a global singleton.
-fn parse_header(
-    header: &str,
-    object_types_by_module: &FxHashMap<&str, FxHashSet<&str>>,
-) -> Option<(String, String, String)> {
-    let parts = tokenise_header(header);
-    if parts.len() < 2 {
-        return None;
-    }
-    let module = parts[0].clone();
-    if parts.len() == 2 {
-        return Some((module, parts[1].clone(), String::new()));
-    }
-
-    // Longest-prefix match against the registry's known object types.
-    if let Some(known) = object_types_by_module.get(module.as_str()) {
-        for prefix_len in (2..parts.len()).rev() {
-            let candidate = parts[1..prefix_len].join(" ");
-            if known.contains(candidate.as_str()) {
-                let identifier = parts[prefix_len..].join(" ");
-                return Some((module, candidate, identifier));
-            }
-        }
-        // The whole tail is a known type with no identifier (singleton).
-        let whole = parts[1..].join(" ");
-        if known.contains(whole.as_str()) {
-            return Some((module, whole, String::new()));
-        }
-    }
-
-    // Heuristic fallback: last token is the identifier.
-    let object_type = parts[1..parts.len() - 1].join(" ");
-    if object_type.is_empty() {
-        let id = parts.get(2).cloned().unwrap_or_default();
-        return Some((module, parts[1].clone(), id));
-    }
-    let identifier = parts[parts.len() - 1].clone();
-    Some((module, object_type, identifier))
-}
-
-/// Build `module -> {object-type}` from the BIG-IP registry's header
-/// index, so `parse_header` can do longest-prefix object-type matching.
-fn object_types_by_module(
-    registry: &BigipRegistry,
-) -> FxHashMap<&'static str, FxHashSet<&'static str>> {
-    let mut map: FxHashMap<&'static str, FxHashSet<&'static str>> = FxHashMap::default();
-    for spec in registry.specs() {
-        for &(module, object_type) in spec.header_types {
-            map.entry(module).or_default().insert(object_type);
-        }
-    }
-    map
 }
 
 /// One grouped outline leaf: object name, its range, and the header's
@@ -344,14 +163,11 @@ fn collect_extracted_comment_folds(
     let tmsh_config = tcl_lexer::LexerConfig::for_file_dialect("f5-tmsh");
     crate::folding::collect_comment_folds(source, tmsh_config, seen, ranges);
     let bigip_registry = BigipRegistry::build();
-    let header_types = object_types_by_module(&bigip_registry);
-    for block in tcl_bigip::parser::helpers::extract_blocks(source) {
-        let body_start = block.start_offset.saturating_add(1);
-        let body_end = block.end_offset.saturating_sub(1);
-        let Some(body) = source.get(body_start..body_end) else {
-            continue;
-        };
-        let properties = parse_header(&block.header, &header_types)
+    let header_types = ObjectTypeIndex::build(&bigip_registry);
+    for block in block_spans(source) {
+        let body_start = block.body.start;
+        let body = &source[block.body.clone()];
+        let properties = parse_generic_header(&source[block.header.clone()], &header_types)
             .and_then(|(module, object_type, _)| {
                 bigip_registry
                     .get_by_header(&module, &object_type)
@@ -456,78 +272,6 @@ fn collect_tmsh_comment_folds(
     }
 }
 
-/// Every `{ … }` region in `source`, at any nesting depth, as
-/// `(open-brace offset, close-brace offset)` pairs.
-///
-/// Iterative (a brace stack, not recursion), so a pathologically nested
-/// config cannot overflow the native stack.  Quoted spans, backslash
-/// escapes and whole-line `#` comments are skipped so a brace inside one
-/// does not unbalance the scan — the same structural bytes
-/// [`extract_blocks`] respects, applied at every depth rather than only at
-/// the top level.  Unbalanced input degrades quietly: an unmatched `{` is
-/// dropped with the stack, an unmatched `}` is ignored.
-fn brace_regions(source: &str) -> Vec<(usize, usize)> {
-    let bytes = source.as_bytes();
-    let length = bytes.len();
-    let mut stack: Vec<usize> = Vec::new();
-    let mut regions: Vec<(usize, usize)> = Vec::new();
-    let mut pos = 0;
-    // Whether only whitespace has been seen so far on the current line —
-    // a `#` there opens a comment, a `#` anywhere else is ordinary text
-    // (BIG-IP descriptions and iRule string literals both contain them).
-    let mut line_blank_so_far = true;
-
-    while pos < length {
-        match bytes[pos] {
-            b'\n' => {
-                line_blank_so_far = true;
-                pos += 1;
-            }
-            b' ' | b'\t' | b'\r' => pos += 1,
-            b'#' if line_blank_so_far => {
-                while pos < length && bytes[pos] != b'\n' {
-                    pos += 1;
-                }
-            }
-            b'\\' => {
-                // A backslash-newline continues the logical line, but the
-                // *physical* next line still starts fresh for `#` purposes.
-                line_blank_so_far = bytes.get(pos + 1) == Some(&b'\n');
-                pos += 2;
-            }
-            b'"' => {
-                line_blank_so_far = false;
-                pos += 1;
-                while pos < length && bytes[pos] != b'"' {
-                    if bytes[pos] == b'\\' {
-                        pos += 1;
-                    }
-                    pos += 1;
-                }
-                pos += 1;
-            }
-            b'{' => {
-                line_blank_so_far = false;
-                stack.push(pos);
-                pos += 1;
-            }
-            b'}' => {
-                line_blank_so_far = false;
-                if let Some(open) = stack.pop() {
-                    regions.push((open, pos));
-                }
-                pos += 1;
-            }
-            _ => {
-                line_blank_so_far = false;
-                pos += 1;
-            }
-        }
-    }
-
-    regions
-}
-
 /// Build a `module → kind → object` outline for a BIG-IP config.
 ///
 /// A three-level tree
@@ -540,15 +284,17 @@ pub fn document_symbols(source: &str) -> Vec<DocumentSymbol> {
         return Vec::new();
     }
     let registry = BigipRegistry::build();
-    let otypes = object_types_by_module(&registry);
+    let otypes = ObjectTypeIndex::build(&registry);
     let line_index = LineIndex::new(source);
 
     // Group by module → object-type → [(name, range, start byte)].
     // `BTreeMap` keeps modules and kinds in stable sorted order.
     let mut grouped: BTreeMap<String, BTreeMap<String, Vec<Entry>>> = BTreeMap::new();
 
-    for block in extract_blocks(source) {
-        let Some((module, object_type, identifier)) = parse_header(&block.header, &otypes) else {
+    for block in block_spans(source) {
+        let Some((module, object_type, identifier)) =
+            parse_generic_header(&source[block.header.clone()], &otypes)
+        else {
             continue;
         };
         // A nameless global singleton (empty identifier) would make an
@@ -559,13 +305,13 @@ pub fn document_symbols(source: &str) -> Vec<DocumentSymbol> {
         } else {
             identifier
         };
-        let range = offsets_to_range(source, &line_index, block.start_offset, block.end_offset);
+        let range = offsets_to_range(source, &line_index, block.header.start, block.range().end);
         grouped
             .entry(module)
             .or_default()
             .entry(object_type)
             .or_default()
-            .push((name, range, block.start_offset));
+            .push((name, range, block.header.start));
     }
 
     let mut out = Vec::new();
@@ -623,7 +369,7 @@ pub(crate) struct Stanza {
 }
 
 /// Parse every top-level stanza of a BIG-IP config into [`Stanza`]s, in
-/// source order.  Shares the same `extract_blocks` / `parse_header`
+/// source order.  Shares the same `block_spans` / `parse_generic_header`
 /// machinery the outline ([`document_symbols`]) uses, so the
 /// code-action provider sees exactly the same object decomposition the
 /// outline does.  A non-BIG-IP / empty document yields an empty list.
@@ -632,14 +378,16 @@ pub(crate) fn parse_stanzas(source: &str) -> Vec<Stanza> {
         return Vec::new();
     }
     let registry = BigipRegistry::build();
-    let otypes = object_types_by_module(&registry);
+    let otypes = ObjectTypeIndex::build(&registry);
     let line_index = LineIndex::new(source);
     let mut out = Vec::new();
-    for block in extract_blocks(source) {
-        let Some((module, object_type, identifier)) = parse_header(&block.header, &otypes) else {
+    for block in block_spans(source).filter(|block| block.closed) {
+        let Some((module, object_type, identifier)) =
+            parse_generic_header(&source[block.header.clone()], &otypes)
+        else {
             continue;
         };
-        let range = offsets_to_range(source, &line_index, block.start_offset, block.end_offset);
+        let range = offsets_to_range(source, &line_index, block.header.start, block.range().end);
         out.push(Stanza {
             module,
             object_type,
@@ -805,14 +553,37 @@ ltm rule /Common/r {
     }
 
     #[test]
-    fn singleton_header_resolves_multi_word_object_type() {
-        let registry = BigipRegistry::build();
-        let otypes = object_types_by_module(&registry);
-        // `sys diags ihealth` is a multi-word object type with no name.
-        let parsed = parse_header("sys diags ihealth", &otypes).unwrap();
+    fn quoted_header_braces_keep_both_stanzas_and_their_source_ranges() {
+        let source = "  ltm pool \"/Common/𐐀{b\" { }\nltm pool /Common/second {\n  # ignored }\n}\nltm pool /Common/wip {é";
+        let symbols = document_symbols(source);
+        let leaves = &symbols[0].children[0].children;
+        assert_eq!(leaves.len(), 3);
+        assert_eq!(leaves[0].name, "/Common/𐐀{b");
+        assert_eq!(leaves[0].range.start_character, 2);
         assert_eq!(
-            parsed,
-            ("sys".into(), "diags ihealth".into(), String::new())
+            leaves[0].range.end_character,
+            u32::try_from(source.lines().next().unwrap().encode_utf16().count()).unwrap()
+        );
+        assert_eq!(leaves[1].name, "/Common/second");
+        assert_eq!(
+            (leaves[1].range.start_line, leaves[1].range.end_line),
+            (1, 3)
+        );
+        assert_eq!(leaves[2].name, "/Common/wip");
+        let range = |line| crate::definition::LspRange {
+            start_line: line,
+            end_line: line,
+            start_character: 0,
+            end_character: 0,
+        };
+        assert!(
+            crate::code_actions::bigip_code_actions(source, range(1), "file:///bigip.conf", None)
+                .iter()
+                .any(|a| a.title.contains("/Common/second"))
+        );
+        assert!(
+            crate::code_actions::bigip_code_actions(source, range(4), "file:///bigip.conf", None)
+                .is_empty()
         );
     }
 
