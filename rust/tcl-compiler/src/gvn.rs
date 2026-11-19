@@ -223,21 +223,9 @@ impl ScopedValueTable {
 
 // Canonicalisation helpers
 
-/// Rewrite `$var` / `${var}` references in `text` to their
-/// SSA-versioned canonical form `$var@N`.
-///
-/// Scans `text` left-to-right and rewrites each variable reference
-/// exactly once — avoiding the re-matching trap where a naive
-/// `.replace` on `${x}` produces `$x@3@3` because the emitted
-/// `$x@3` contains a second `$x` substring.
-///
-/// A variable reference begins at `$`:
-/// - `${name}` — braced form; `name` is everything up to the
-///   closing `}`.
-/// - `$name` — bare form; `name` matches the Tcl identifier
-///   grammar (`[A-Za-z0-9_:]+`).
-///
-/// Names that are not present in `uses` are left unchanged.
+/// Render the variable versions of a standalone substitution template for
+/// display. Production value equality uses the original grouped words, their
+/// lexical parts and separate SSA version fields.
 #[must_use]
 pub fn canonicalise_word<S: std::hash::BuildHasher>(
     text: &str,
@@ -246,70 +234,112 @@ pub fn canonicalise_word<S: std::hash::BuildHasher>(
     braced_var: tcl_dialect::BracedVarStyle,
 ) -> String {
     use std::fmt::Write as _;
+    use tcl_lexer::word_parts::{ExecutablePart, ExecutablePartArena, SubstFlags};
     if uses.is_empty() {
         return text.to_owned();
     }
-    let bytes = text.as_bytes();
-    let mut out = String::with_capacity(text.len());
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] != b'$' {
-            out.push(char::from(bytes[i]));
-            i += 1;
-            continue;
-        }
-        // At `$` — inspect the next char.
-        if i + 1 < bytes.len() && bytes[i + 1] == b'{' {
-            // `${name}` — the name starts just past the `${`, and its closer
-            // comes from the shared owner under this document's release rule.
-            // A name this misreads is not merely unversioned: the reference is
-            // then copied through verbatim, so two occurrences at *different*
-            // SSA versions produce the same key and GVN treats them as
-            // redundant — an unsound CSE, not a lost one.
-            let start = i + 2;
-            if let tcl_lexer::BracedVarEnd::Closed(j) =
-                tcl_lexer::braced_var_name_end(bytes, start, braced_var)
-            {
-                let name = &text[start..j];
-                if let Some(ver) = ssa.var_symbol(name).and_then(|s| uses.get(&s)) {
-                    let _ = write!(out, "${name}@{ver}");
-                } else {
-                    out.push_str(&text[i..=j]);
-                }
-                i = j + 1;
+    let Ok(end) = u32::try_from(text.len()) else {
+        return text.to_owned();
+    };
+    let mut config = tcl_lexer::LexerConfig::for_profile(None);
+    config.braced_var = braced_var;
+    let Ok(arena) = ExecutablePartArena::decompose(
+        tcl_lexer::SourceImage::native(text.as_bytes()),
+        tcl_lexer::Span::new(0, end),
+        SubstFlags::compiled_word(),
+        config,
+    ) else {
+        return text.to_owned();
+    };
+    let mut variables = Vec::new();
+    let mut pending = vec![arena.root()];
+    while let Some(list) = pending.pop() {
+        for component in arena.list(list) {
+            let ExecutablePart::Variable { name, index } = component.part else {
                 continue;
+            };
+            pending.extend(index);
+            let spelling = &text[name.as_range()];
+            if let Some(version) = ssa
+                .var_symbol(spelling)
+                .and_then(|symbol| uses.get(&symbol))
+            {
+                let end = if index.is_some() {
+                    name.end()
+                } else {
+                    component.span.end()
+                };
+                variables.push((
+                    component.span.start() as usize,
+                    end as usize,
+                    spelling,
+                    version,
+                ));
             }
-            // No closing brace — treat as a bare `$` and move on.
-            out.push('$');
-            i += 1;
-            continue;
         }
-        // Bare `$name` — scan identifier characters.
-        let start = i + 1;
-        let mut j = start;
-        while j < bytes.len() {
-            let b = bytes[j];
-            let is_ident = b.is_ascii_alphanumeric() || b == b'_' || b == b':';
-            if !is_ident {
-                break;
-            }
-            j += 1;
-        }
-        if j == start {
-            // Lone `$` with no name — pass through.
-            out.push('$');
-            i += 1;
-            continue;
-        }
-        let name = &text[start..j];
-        if let Some(ver) = ssa.var_symbol(name).and_then(|s| uses.get(&s)) {
-            let _ = write!(out, "${name}@{ver}");
-        } else {
-            out.push_str(&text[i..j]);
-        }
-        i = j;
     }
-    out
+    variables.sort_unstable_by_key(|&(start, ..)| start);
+    let mut output = String::with_capacity(text.len());
+    let mut cursor = 0;
+    for (start, end, name, version) in variables {
+        output.push_str(&text[cursor..start]);
+        let _ = write!(output, "${name}@{version}");
+        cursor = end;
+    }
+    output.push_str(&text[cursor..]);
+    output
+}
+
+/// Value equality for an original grouped invocation. An SSA display spelling
+/// can coincide with literal source bytes, so byte strings and version numbers
+/// occupy distinct fields. A nested evaluation requires its own effect proof.
+fn original_call_key(
+    command: &str,
+    statement: &SsaStatement,
+    ssa: &SsaFunction,
+    world: &[String],
+) -> Option<ExprKey> {
+    use tcl_lexer::word_parts::ExecutablePart;
+    let tokens = statement.statement.tokens()?;
+    let binding = tokens.source_binding.as_ref()?;
+    let config = binding.original_lexer_config_for_tokens(tokens)?;
+    let site = binding.invocation_site()?;
+    let original = site
+        .source
+        .original_lexical_command(tokens.words(), site.offset, config)?;
+    let words = original.native_words();
+    let mut key = vec![
+        "call".to_owned(),
+        command.to_owned(),
+        words.len().to_string(),
+    ];
+    for word in words {
+        if word.group().expand {
+            return None;
+        }
+        let arena = word.executable_parts();
+        let mut reads = Vec::new();
+        for component in arena.list(arena.root()) {
+            match component.part {
+                ExecutablePart::Text(_) => {}
+                ExecutablePart::Variable { name, index: None } => {
+                    let name =
+                        std::str::from_utf8(word.image().bytes().get(name.as_range())?).ok()?;
+                    let symbol = ssa.var_symbol(name)?;
+                    reads.push(statement.uses.get(&symbol)?);
+                }
+                ExecutablePart::Variable { index: Some(_), .. }
+                | ExecutablePart::Command { .. }
+                | ExecutablePart::Expression { .. }
+                | ExecutablePart::ParseError(_) => return None,
+            }
+        }
+        key.push(std::str::from_utf8(word.written_bytes()).ok()?.to_owned());
+        key.push(reads.len().to_string());
+        key.extend(reads.into_iter().map(u32::to_string));
+    }
+    key.extend_from_slice(world);
+    Some(key)
 }
 
 /// Build the canonical [`ExprKey`] for a pure-command invocation:
@@ -908,17 +938,19 @@ fn statement_occurrences_for_gvn(
             },
             GvnLegalitySource::Common(None) => None,
         };
-        if let Some((canonical_command, world_key)) = eligible {
-            let mut key = build_call_key(
+        let key = eligible.and_then(|(canonical_command, world_key)| match legality {
+            GvnLegalitySource::Legacy => Some(build_call_key(
                 canonical_command,
                 args,
                 &stmt_ssa.uses,
                 ssa,
                 tcl_dialect::BracedVarStyle::of_profile(dialect),
-            );
-            // Two occurrences may only match when the world state their
-            // dispatch and result depend on carries the same versions.
-            key.extend(world_key.iter().cloned());
+            )),
+            GvnLegalitySource::Common(_) => {
+                original_call_key(canonical_command, stmt_ssa, ssa, world_key)
+            }
+        });
+        if let Some(key) = key {
             out.push(ExprOccurrence {
                 key,
                 span: *span,
