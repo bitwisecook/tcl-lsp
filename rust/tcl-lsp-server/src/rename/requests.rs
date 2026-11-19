@@ -106,7 +106,9 @@ impl Backend {
         // rename behind prepare, so refusing here would make that branch
         // unreachable from the editor.  Accept with the call-site word's own
         // range when the workspace resolves it.
-        let Some(word_p) = core_rename::word_prepare_at(&doc.text, pos.line, pos.character) else {
+        let Some(word_p) =
+            core_rename::original_word_prepare_at(&doc.text, pos.line, pos.character, &analysis)
+        else {
             return Ok(None);
         };
         if !self

@@ -223,8 +223,8 @@ pub fn itcl_class_proc_target_at(
     analysis: &AnalysisResult,
 ) -> Option<(String, String)> {
     crate::original_context::CurrentSourceContext::capture(source, analysis)?;
-    let (word, _start, _end) = crate::hover::find_word_span_at_position(source, line, character)?;
     let cursor = CurrentSourcePosition::capture(source, analysis, line, character)?.offset();
+    let word = crate::source_structure::original_cursor_word_value(source, analysis, cursor)?;
     let namespace = namespace_context_at(
         &analysis.global_scope,
         cursor,

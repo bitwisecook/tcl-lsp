@@ -62,7 +62,6 @@ use tcl_lexer::{LineIndex, Utf16Col};
 #[cfg(test)]
 use tcl_registry::CommandRegistry;
 
-use crate::hover::find_word_span_at_position;
 #[cfg(test)]
 use crate::namespace_import::ExportVerdict;
 use crate::namespace_import::NamespaceExportOracle;
@@ -378,12 +377,12 @@ fn word_definition(
         analysis,
         resolution: view,
     } = ctx;
-    // 2. Bare word — proc, class, class-member, or alias.
-    let Some((word, _start, _end)) = find_word_span_at_position(source, line, character) else {
-        return Vec::new();
-    };
-    if let Some(result) =
-        list_built_self_method_definition(source, line_index, analysis, &word, decl_byte_offset)
+    // A computed head may have a positioned target without a static spelling.
+    let word =
+        crate::source_structure::original_cursor_word_value(source, analysis, decl_byte_offset);
+    if let Some(word) = word.as_deref()
+        && let Some(result) =
+            list_built_self_method_definition(source, line_index, analysis, word, decl_byte_offset)
     {
         return result;
     }
@@ -418,8 +417,9 @@ fn word_definition(
     // `next` / `nextto` inside a method body — jump to the super-method in
     // the MRO chain that the enclosing method overrides (`next`), or to the
     // named class's copy of it (`nextto Cls`).
-    if let Some(result) =
-        next_dispatch_definition(analysis, source, line_index, line, character, &word)
+    if let Some(word) = word.as_deref()
+        && let Some(result) =
+            next_dispatch_definition(analysis, source, line_index, line, character, word)
     {
         return result;
     }
@@ -448,6 +448,9 @@ fn word_definition(
     {
         return target;
     }
+    let Some(word) = word else {
+        return Vec::new();
+    };
     // Otherwise it is a CALL — resolve namespace-aware, following C Tcl's
     // command resolution (`Tcl_FindCommand`, `tclNamesp.c`): the caller's
     // namespace first, then the global namespace; an absolute `::`-prefixed

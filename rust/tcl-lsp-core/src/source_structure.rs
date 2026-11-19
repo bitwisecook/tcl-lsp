@@ -38,8 +38,9 @@ use command_bodies::declared_bodies;
 use command_bodies::logical_declared_bodies;
 pub(crate) use cursor_syntax::{
     OriginalVariableReferences, SourceVariableReference, original_complete_cursor_word,
-    original_method_site_at, original_variable_cursor_prefix, original_variable_reference_at,
-    original_variable_word_end, original_word_cursor_prefix, template_variable_reference_at,
+    original_cursor_word_value, original_method_site_at, original_variable_cursor_prefix,
+    original_variable_reference_at, original_variable_word_end, original_word_cursor_prefix,
+    template_variable_reference_at,
 };
 pub(crate) use definition_grammar::{DefinitionGrammarUnavailable, SourceDefinitionGrammar};
 pub(crate) use syntax_coverage::SourcePackagePresenceCensus;

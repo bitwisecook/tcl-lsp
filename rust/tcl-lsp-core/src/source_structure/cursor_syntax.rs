@@ -193,6 +193,16 @@ pub(crate) struct OriginalSourceCursorWord {
 }
 
 impl OriginalSourceCursorWord {
+    /// Prefer the written contents under the cursor. On a grouping delimiter,
+    /// use the containing word so the reported range still contains the cursor.
+    pub(crate) fn selection_span(&self, cursor: u32) -> tcl_lexer::Span {
+        self.word
+            .content_span()
+            .ok()
+            .filter(|span| span.start() <= cursor && cursor < span.end())
+            .unwrap_or_else(|| self.word.span())
+    }
+
     /// Static Unicode value of the whole original word, never a computed tail
     /// or source-coordinate inverse of that value.
     pub(crate) fn static_unicode_value(&self) -> Option<String> {
@@ -209,6 +219,15 @@ impl OriginalSourceCursorWord {
         )?)
         .ok()
     }
+}
+
+/// Read the configured original word. This decoded value is presentation only.
+pub(crate) fn original_cursor_word_value(
+    source: &str,
+    analysis: &AnalysisResult,
+    cursor: u32,
+) -> Option<String> {
+    original_complete_cursor_word(source, analysis, cursor)?.static_unicode_value()
 }
 
 /// Rejoin a partial lexical cursor to its actual complete original command

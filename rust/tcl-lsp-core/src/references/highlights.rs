@@ -22,7 +22,6 @@ use super::call_sites::{class_reference_spans, proc_reference_spans};
 use super::member_references::{find_class_member_references, method_references_for_declaration};
 use super::{RefCtx, span_to_range};
 use crate::definition::LspRange;
-use crate::hover::find_word_span_at_position;
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
@@ -277,7 +276,9 @@ fn lexical_document_highlights(
         return dedup_kinded(out);
     }
 
-    let Some((word, _start, _end)) = find_word_span_at_position(source, line, character) else {
+    let Some(word) =
+        crate::source_structure::original_cursor_word_value(source, analysis, byte_offset)
+    else {
         return Vec::new();
     };
 

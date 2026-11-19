@@ -351,8 +351,8 @@ pub(crate) fn select_navigation<'a>(
         }
         ControlFlow::Break(None) => ControlFlow::Break(None),
         ControlFlow::Continue(()) => {
-            let Some((word, _, _)) =
-                crate::hover::find_word_span_at_position(source, line, character)
+            let Some(word) =
+                crate::source_structure::original_cursor_word_value(source, analysis, offset)
             else {
                 return ControlFlow::Continue(());
             };

@@ -19,7 +19,6 @@
 //! Renaming class members: method targets and access, override families, safety hazards and the spans to rewrite.
 
 use super::{PendingRenameEdit, PrepareRename, TextEdit, finish_rename_edits, span_to_range};
-use crate::hover::find_word_span_at_position;
 use crate::references::{MemberSel, resolve_member_span};
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
@@ -56,8 +55,6 @@ pub(super) fn member_family_spans(
 
 pub(super) fn prepare_list_built_self_method_rename(
     source: &str,
-    _line: u32,
-    _word_range: (u32, u32),
     analysis: &AnalysisResult,
     word: &str,
     cursor_offset: u32,
@@ -455,8 +452,8 @@ pub fn method_target_with_access_in_workspace(
     use crate::workspace_index::MethodAccess;
     crate::original_context::CurrentSourceContext::capture(source, analysis)?;
     let line_index = LineIndex::new(source);
-    let (word, _s, _e) = find_word_span_at_position(source, line, character)?;
     let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
+    let word = crate::source_structure::original_cursor_word_value(source, analysis, cursor)?;
     // Only the retained single-field link form couples command and member edits.
     if let Some(linked) =
         tcl_compiler::analyser::types::original_source_linked_member_at(analysis, source, cursor)

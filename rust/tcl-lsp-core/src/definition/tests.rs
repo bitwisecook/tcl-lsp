@@ -48,6 +48,19 @@ fn logical_procedure_navigation_analysis(source: &str) -> AnalysisResult {
 }
 
 #[test]
+fn definition_uses_the_complete_original_command_name() {
+    for (name, call, cursor) in [(";", "{;}", 1), ("a b", "a\\ b", 2), ("𐐀;x", "{𐐀;x}", 3)] {
+        let source = format!("proc {{{name}}} {{}} {{return ok}}\n{call}\nputs {call}\n");
+        let analysis = Analyser::new().analyse(&source, "tcl8.6");
+        let ranges = definition(&source, 1, cursor, &analysis);
+        assert_eq!(ranges.len(), 1, "{source:?} {ranges:?}");
+        assert_eq!(ranges[0].start_line, 0);
+        assert!(definition(&source, 2, 5 + cursor, &analysis).is_empty());
+        assert!(definition(&source.replace("proc", "puts"), 1, cursor, &analysis).is_empty());
+    }
+}
+
+#[test]
 fn logical_definition_calls_retain_original_alias_move_and_redefinition_headers() {
     let source = "proc join {first second} {}\ninterp alias {} joined {} join captured\njoined value\nrename join archived\nproc join {new} {}\narchived alpha beta\njoin one\n";
     let mut analysis = logical_procedure_navigation_analysis(source);

@@ -44,7 +44,6 @@ use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::{LineIndex, Span};
 
 use crate::definition::{LspRange, byte_offset_at, utf16_len};
-use crate::hover::find_word_span_at_position;
 
 /// One link in the selection-range chain.
 ///
@@ -112,15 +111,6 @@ pub fn selection_range_for_dialect(
 
     let mut ranges: Vec<LspRange> = Vec::new();
 
-    if let Some((_, start, end)) = find_word_span_at_position(source, line, character) {
-        ranges.push(LspRange {
-            start_line: line,
-            start_character: start,
-            end_line: line,
-            end_character: end,
-        });
-    }
-
     let line_range = source.split('\n').nth(line as usize).map(|line_text| {
         let line_len = utf16_len(line_text);
         LspRange {
@@ -158,6 +148,15 @@ pub fn selection_range_for_dialect(
                 )
             })
     });
+    if let Some(word) = current_analysis.and_then(|analysis| {
+        crate::source_structure::original_complete_cursor_word(source, analysis, cursor_offset)
+    }) {
+        ranges.push(span_to_range(
+            source,
+            &line_index,
+            word.selection_span(cursor_offset),
+        ));
+    }
     let command_config = current_analysis
         .and_then(|analysis| analysis.body_lexer_config)
         .unwrap_or_else(|| tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar));

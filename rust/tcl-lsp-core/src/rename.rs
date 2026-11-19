@@ -134,6 +134,25 @@ pub fn word_prepare_at(source: &str, line: u32, character: u32) -> Option<Prepar
     })
 }
 
+/// Presentation range for a workspace call site, using the original configured
+/// word. The host separately resolves the symbol before presenting a rename.
+#[must_use]
+pub fn original_word_prepare_at(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+) -> Option<PrepareRename> {
+    let cursor =
+        crate::original_context::CurrentSourcePosition::capture(source, analysis, line, character)?
+            .offset();
+    let word = crate::source_structure::original_complete_cursor_word(source, analysis, cursor)?;
+    Some(PrepareRename {
+        range: span_to_range(source, &LineIndex::new(source), word.selection_span(cursor)),
+        placeholder: word.static_unicode_value()?,
+    })
+}
+
 /// Validate that the cursor sits on a renameable symbol and
 /// return the symbol's range + placeholder text.  Editors
 /// call this before `rename` to determine whether to show the
@@ -306,16 +325,11 @@ fn prepare_lexical_rename(
     // Proc?  Declaration-span hit, else the namespace-aware candidate
     // resolution — never a namespace-blind `p.name == word` first-hit scan
     // (which could seed the rename with an arbitrary same-named proc).
-    let (word, word_start, word_end) = find_word_span_at_position(source, line, character)?;
     let word_off = crate::definition::byte_offset_at(line_index, source, line, character);
-    if let Some(preparation) = prepare_list_built_self_method_rename(
-        source,
-        line,
-        (word_start, word_end),
-        analysis,
-        &word,
-        word_off,
-    ) {
+    let word = crate::source_structure::original_cursor_word_value(source, analysis, word_off)?;
+    if let Some(preparation) =
+        prepare_list_built_self_method_rename(source, analysis, &word, word_off)
+    {
         return Some(preparation);
     }
     if let Some(preparation) =
@@ -679,7 +693,9 @@ fn rename_lexical_tiers(
     }
     let def_byte = crate::definition::byte_offset_at(line_index, source, line, character);
 
-    let Some((word, _start, _end)) = find_word_span_at_position(source, line, character) else {
+    let Some(word) =
+        crate::source_structure::original_cursor_word_value(source, analysis, def_byte)
+    else {
         return Ok(Vec::new());
     };
 

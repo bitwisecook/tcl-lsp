@@ -66,7 +66,6 @@ use tcl_compiler::ir::MethodKind;
 use tcl_lexer::LineIndex;
 
 use crate::definition::LspRange;
-use crate::hover::find_word_span_at_position;
 
 mod member_metadata;
 
@@ -362,11 +361,13 @@ fn lexical_references(ctx: &RefCtx<'_>) -> Vec<LspRange> {
         return out;
     }
 
-    let Some((word, _start, _end)) = find_word_span_at_position(source, line, character) else {
+    let cursor_offset = crate::definition::byte_offset_at(line_index, source, line, character);
+    let Some(word) =
+        crate::source_structure::original_cursor_word_value(source, analysis, cursor_offset)
+    else {
         return Vec::new();
     };
 
-    let cursor_offset = crate::definition::byte_offset_at(line_index, source, line, character);
     if let Some(selected) =
         crate::receiver_identity::method_at_cursor(analysis, source, cursor_offset)
         && selected.method.name == word
@@ -684,7 +685,8 @@ fn variable_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
         dialect,
         resolution,
         byte_offset,
-        &find_word_span_at_position(source, line, character).map_or_default(|(w, _, _)| w),
+        &crate::source_structure::original_cursor_word_value(source, analysis, byte_offset)
+            .unwrap_or_default(),
     ) {
         // The cursor is on the bare call-site word itself.
         let name = source

@@ -520,18 +520,5 @@ pub fn command_head_and_namespace_at(
             tcl_syntax::naming::checked_namespace_path_key(&namespace)?,
         ));
     }
-    if !analysis.allows_retained_logical_declaration_advice()
-        || !analysis
-            .matches_original_source_image(&tcl_lexer::SourceImage::document(source), config)
-    {
-        return None;
-    }
-    let (word, _start, _end) = crate::hover::find_word_span_at_position(source, line, character)?;
-    let offset = CurrentSourcePosition::capture(source, analysis, line, character)?.offset();
-    let namespace = namespace_context_at(
-        &analysis.global_scope,
-        offset,
-        &analysis.namespace_overrides,
-    );
-    Some((word, namespace))
+    None
 }

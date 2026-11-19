@@ -44,7 +44,6 @@ use tcl_compiler::analyser::{AnalysisResult, ClassDef, MemberSide, MethodDef, Pr
 use tcl_lexer::LineIndex;
 
 use crate::definition::LspRange;
-use crate::hover::find_word_span_at_position;
 
 mod logical_source;
 pub(crate) use logical_source::declared_logical_source_items;
@@ -133,13 +132,16 @@ pub fn prepare_in_program(
         return Vec::new();
     }
     let line_index = LineIndex::new(source);
-    let Some((word, _start, _end)) = find_word_span_at_position(source, line, character) else {
+    let cursor_off = crate::definition::byte_offset_at(&line_index, source, line, character);
+    let Some(word) =
+        crate::source_structure::original_cursor_word_value(source, analysis, cursor_off)
+    else {
         return Vec::new();
     };
     // Declaration-span hit, else the namespace-aware candidate resolution
     // (mirrors `references::proc_references` / `rename::rename_proc`) —
     // never a namespace-blind `p.name == word` first-`HashMap`-hit scan.
-    let cursor_off = crate::definition::byte_offset_at(&line_index, source, line, character);
+
     if let Some(target) = LogicalCallTarget::at_declaration_offset(source, analysis, cursor_off) {
         return vec![match target.declaration() {
             LogicalCallDeclaration::Procedure {
