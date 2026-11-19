@@ -1,0 +1,14 @@
+
+running 10 tests
+test parser_ownership::expansions::tests::a_macro_reader_and_generated_adapter_stay_visible_without_expansion ... ok
+test parser_ownership::reviewed::tests::a_reviewed_entry_does_not_claim_its_host_file ... ok
+test parser_ownership::reviewed::tests::signed_scope_rejects_new_readers_and_files_and_accepts_host_edits ... ok
+test parser_ownership::reviewed::tests::an_existing_macro_definition_reports_a_new_scanner_body ... ok
+test parser_ownership::source_routes::tests::shipping_targets_include_test_named_modules_and_literal_inclusions ... ok
+test parser_ownership::tests::newly_named_byte_scanner_and_foreign_adapter_remain_reviewable ... ok
+test parser_ownership::tests::occurrence_inventory_distinguishes_impls_and_calls_within_one_body ... ok
+test parser_ownership::tests::fixed_pack_and_selected_expression_routes_reject_host_fallbacks ... ok
+test parser_ownership::tests::library_list_retirement_applies_to_runtime_and_feature_gated_standalones ... ok
+test parser_ownership::tests::borrowed_apl_extent_requires_selected_bracket_owner_and_public_control ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.00s

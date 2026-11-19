@@ -1,0 +1,13 @@
+case [list simple]
+capture 28..41 [list simple]
+case [list {]} yes]
+capture 28..42 [list {]} yes]
+case [list "x]y" value]
+capture 28..46 [list "x]y" value]
+case [list a\]b]
+capture 28..39 [list a\]b]
+case [list [list x] tail]
+capture 28..48 [list [list x] tail]
+case [list {]}
+case [list {𐐀]} tail]
+capture 28..47 [list {𐐀]} tail]

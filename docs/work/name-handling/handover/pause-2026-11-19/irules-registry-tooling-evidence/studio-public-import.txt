@@ -1,0 +1,6 @@
+tcl8.4 arity=true escape=true original=Some("\u{1b}") cross=[]
+tcl8.5 arity=true escape=true original=Some("\u{1b}") cross=[]
+tcl8.6 arity=true escape=true original=Some("Ab") cross=[]
+tcl9.0 arity=true escape=true original=Some("Ab") cross=[]
+tcl9.1 arity=true escape=true original=Some("Ab") cross=[]
+jim arity=true escape=true original=Some("Ab") cross=[]

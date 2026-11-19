@@ -1,0 +1,14 @@
+
+running 10 tests
+test identity_field_inc_dec_still_rejected ... ok
+test identity_field_write_routes_through_rename ... ok
+test list_append_materialises_block ... ok
+test list_edits_change_only_the_model_property_block ... ok
+test multi_statement_chain_sees_post_edit_source ... ok
+test noop_assignment_leaves_source_unchanged ... ok
+test pipe_assign_transforms_current_value ... ok
+test scalar_assign_rewrites_single_value_span ... ok
+test select_nothing_queues_no_edit ... ok
+test source_edits_use_utf8_property_spans_and_the_real_closing_brace ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
