@@ -1,0 +1,2 @@
+tcl8.6 ::f ProcedureId { scope: 1, ordinal: 1 } 46 Conditional exec=None diag=Some("::answer") tokens=["set", "y", "[answer]"]
+jimtcl ::f ProcedureId { scope: 4, ordinal: 1 } 46 Conditional exec=None diag=Some("::answer") tokens=["set", "y", "[answer]"]

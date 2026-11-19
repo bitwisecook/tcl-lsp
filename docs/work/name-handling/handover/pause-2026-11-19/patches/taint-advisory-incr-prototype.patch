@@ -1,0 +1,598 @@
+From fd4e4acd3401202d4779ba06b8f309dd1fe4539f Mon Sep 17 00:00:00 2001
+From: None None <openai@bragi0.com>
+Date: Thu, 19 Nov 2026 13:30:58 +0000
+Subject: [PATCH] Prototype conditional registry increments in a typed iRule
+ advice projection
+
+---
+ .../tests/it_3/release_optimiser_safety.rs    |   9 +
+ .../compiled_invocation/execution_proofs.rs   |  12 ++
+ .../src/compilation_unit/procedure_units.rs   |  25 ++-
+ rust/tcl-compiler/src/registry_invocation.rs  |  59 ++++++-
+ .../src/sccp/original_value_facts.rs          | 165 +++++++++++++-----
+ .../original_value_facts/block_transfer.rs    |   8 +-
+ .../tests/value_solver.rs                     |   3 +-
+ .../sccp/original_value_facts/value_solver.rs |  23 ++-
+ .../src/value_transfer/statements.rs          |  54 ++++++
+ 9 files changed, 292 insertions(+), 66 deletions(-)
+
+diff --git a/rust/tcl-codegen/tests/it_3/release_optimiser_safety.rs b/rust/tcl-codegen/tests/it_3/release_optimiser_safety.rs
+index 53cee3e980..f19abd5853 100644
+--- a/rust/tcl-codegen/tests/it_3/release_optimiser_safety.rs
++++ b/rust/tcl-codegen/tests/it_3/release_optimiser_safety.rs
+@@ -1238,3 +1238,12 @@ fn native_literal_commands_use_the_selected_readers_and_writers() {
+         }
+     }
+ }
++
++#[test]
++fn hosted_increment_advice_does_not_rewrite_the_rule_procedure() {
++    let source =
++        "proc p {} {set n 1; incr n; incr n 2; log local0. $n}\nwhen HTTP_REQUEST {call p}\n";
++    let (rewritten, applied) = optimise(source, "f5-irules");
++    assert_eq!(rewritten, source, "applied {applied:?}");
++    assert!(applied.is_empty());
++}
+diff --git a/rust/tcl-compiler/src/command_binding/compiled_invocation/execution_proofs.rs b/rust/tcl-compiler/src/command_binding/compiled_invocation/execution_proofs.rs
+index 202d3adb4e..8fe46632cc 100644
+--- a/rust/tcl-compiler/src/command_binding/compiled_invocation/execution_proofs.rs
++++ b/rust/tcl-compiler/src/command_binding/compiled_invocation/execution_proofs.rs
+@@ -358,6 +358,18 @@ impl SourceInvocationBinding {
+         self.closed_selected_execution_target()
+     }
+ 
++    /// The closed selected target of an invocation that is reached only
++    /// conditionally (a declaration preview: a rule procedure or handler body
++    /// whose entry is advice). For advice only: a caller must not let it
++    /// prove execution, feed the strict lattice or license a rewrite.
++    pub(crate) fn advisory_execution_target(&self) -> Option<&SourceCommandTarget> {
++        if self.runtime_reachability != super::super::SourceRuntimeReachability::Conditional {
++            return None;
++        }
++        self.closed_selected_execution_target()
++            .filter(|target| target.registry_backed)
++    }
++
+     pub(in super::super) fn closed_selected_execution_target(
+         &self,
+     ) -> Option<&SourceCommandTarget> {
+diff --git a/rust/tcl-compiler/src/compilation_unit/procedure_units.rs b/rust/tcl-compiler/src/compilation_unit/procedure_units.rs
+index bbde597043..9ea07e9733 100644
+--- a/rust/tcl-compiler/src/compilation_unit/procedure_units.rs
++++ b/rust/tcl-compiler/src/compilation_unit/procedure_units.rs
+@@ -191,11 +191,32 @@ fn retain_procedure_source_analysis(
+     context: &ProcedureBuildContext<'_>,
+     procedure: Option<&crate::ir::Procedure>,
+ ) -> FunctionUnit {
+-    unit.with_retained_semantic_analysis(
++    use crate::ir::ProcedureBodyKind;
++    use tcl_dialect::model::bigip_execution_context::BigIpExecutionContext;
++
++    let mut unit = unit.with_retained_semantic_analysis(
+         context.registry,
+         procedure.map(|procedure| &procedure.body),
+         crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
+-    )
++    );
++    if unit.has_original_semantic_value_owner()
++        && procedure.is_some_and(|p| {
++            p.declaration_site.is_some()
++                && matches!(
++                    p.body_kind,
++                    ProcedureBodyKind::Named | ProcedureBodyKind::Event
++                )
++        })
++        && unit.source_metadata_input().is_some_and(|input| {
++            BigIpExecutionContext::for_environment(
++                &input.borrowed_context_registry().context().environment.id,
++            ) == Some(BigIpExecutionContext::TmmIRule)
++        })
++    {
++        unit.semantic_value_projection = Arc::new(unit.semantic_value_projection.for_rule_body());
++        unit.retained_semantic_value_owner = Some(Arc::clone(&unit.semantic_value_projection));
++    }
++    unit
+ }
+ 
+ struct ProcedureBuildInfo<'a> {
+diff --git a/rust/tcl-compiler/src/registry_invocation.rs b/rust/tcl-compiler/src/registry_invocation.rs
+index 52d46ed10b..481ebe4868 100644
+--- a/rust/tcl-compiler/src/registry_invocation.rs
++++ b/rust/tcl-compiler/src/registry_invocation.rs
+@@ -679,14 +679,23 @@ pub fn resolved_tokens_invocation_with_metadata_context(
+     if tokens.synthetic.is_some() {
+         return None;
+     }
+-    let (resolution, authored_case_body_selection) =
++    let selected =
+         resolve_command_tokens_with_metadata_context_and_case(registry, context, tokens).ok()?;
+-    let RegistryInvocationResolution::Resolved(facts) = resolution else {
+-        return None;
+-    };
+     let effective = effective_command_words(tokens)?;
+-    let arguments = effective.argument_presentations(tokens.argv_texts.get(1..)?)?;
+-    let dialect = tokens
++    selected_statement_invocation(
++        tokens,
++        effective,
++        selected_dialect(registry, context, tokens),
++        selected,
++    )
++}
++
++fn selected_dialect(
++    registry: &CommandRegistry,
++    context: Option<InvocationMetadataContext<'_>>,
++    tokens: &CommandTokens,
++) -> Option<tcl_registry::InvocationDialect> {
++    tokens
+         .source_binding
+         .as_ref()
+         .and_then(|binding| binding.variable_context.invocation_dialect)
+@@ -699,11 +708,25 @@ pub fn resolved_tokens_invocation_with_metadata_context(
+             registry
+                 .profile()
+                 .map(tcl_registry::InvocationDialect::of_profile)
+-        });
++        })
++}
++
++fn selected_statement_invocation(
++    tokens: &CommandTokens,
++    effective: EffectiveCommandWords,
++    dialect: Option<tcl_registry::InvocationDialect>,
++    (resolution, authored_case_body_selection): (
++        RegistryInvocationResolution,
++        AuthoredSourceCaseBodySelection,
++    ),
++) -> Option<ResolvedStatementInvocation> {
++    let RegistryInvocationResolution::Resolved(facts) = resolution else {
++        return None;
++    };
+     Some(ResolvedStatementInvocation {
+         dialect,
+         facts,
+-        arguments,
++        arguments: effective.argument_presentations(tokens.argv_texts.get(1..)?)?,
+         evaluated_arguments: frozen_argument_values(tokens, &effective),
+         evaluated_words: frozen_argument_words(tokens, &effective),
+         effective,
+@@ -711,6 +734,26 @@ pub fn resolved_tokens_invocation_with_metadata_context(
+     })
+ }
+ 
++/// Conditional selected source target under the same retained metadata as
++/// an executed call. Only the rule-procedure diagnostic projection consumes it.
++pub(crate) fn advisory_tokens_invocation_with_metadata_context(
++    registry: &CommandRegistry,
++    context: Option<InvocationMetadataContext<'_>>,
++    tokens: &CommandTokens,
++) -> Option<ResolvedStatementInvocation> {
++    if tokens.synthetic.is_some() {
++        return None;
++    }
++    let binding = tokens.source_binding.as_ref()?;
++    let effective = effective_words_for_target(tokens, binding.advisory_execution_target()?)?;
++    let dialect = selected_dialect(registry, context, tokens);
++    let selected = word_resolution::resolve_effective_tokens_with_metadata_context_and_case(
++        registry, context, tokens, &effective, dialect,
++    )
++    .ok()?;
++    selected_statement_invocation(tokens, effective, dialect, selected)
++}
++
+ /// Compiler metadata of an admitted recipe; no normal effects are exposed.
+ #[derive(Debug)]
+ pub struct AdmittedNativeCompilerInvocation {
+diff --git a/rust/tcl-compiler/src/sccp/original_value_facts.rs b/rust/tcl-compiler/src/sccp/original_value_facts.rs
+index 2b5fb37ce3..456a55ab65 100644
+--- a/rust/tcl-compiler/src/sccp/original_value_facts.rs
++++ b/rust/tcl-compiler/src/sccp/original_value_facts.rs
+@@ -295,7 +295,7 @@ pub fn execution_value_facts(
+     ssa: &SsaFunction,
+     inputs: ValueFactInputs<'_>,
+ ) -> SccpResult {
+-    solve_value_facts(cfg, ssa, &inputs, SolverPurpose::ExecutionErasure).result
++    solve_value_facts::<Erasure>(cfg, ssa, &inputs)
+ }
+ 
+ /// Compute semantic values without donating obligation-bearing constants to
+@@ -307,11 +307,64 @@ pub fn semantic_value_facts(
+     ssa: &SsaFunction,
+     inputs: ValueFactInputs<'_>,
+ ) -> SemanticValueFacts {
+-    let solved = solve_value_facts(cfg, ssa, &inputs, SolverPurpose::SemanticAnalysis);
+-    SemanticValueFacts {
+-        result: solved.result,
+-        expressions: solved.expressions,
+-        loops: solved.loops,
++    solve_value_facts::<Diagnostic>(cfg, ssa, &inputs)
++}
++
++trait Resolution {
++    type Output;
++    const PURPOSE: SolverPurpose;
++    fn project(solved: SolvedValueFacts) -> Self::Output;
++    fn conditional_store(
++        _driver: &crate::value_transfer::LatticeDriver<'_>,
++        _statement: &crate::ssa::SsaStatement,
++        _ssa: &SsaFunction,
++        _values: &HashMap<ValueKey, LatticeValue>,
++    ) -> Option<super::DefValues> {
++        None
++    }
++}
++
++struct Erasure;
++struct Diagnostic;
++struct RuleAdvice;
++
++impl Resolution for Erasure {
++    type Output = SccpResult;
++    const PURPOSE: SolverPurpose = SolverPurpose::ExecutionErasure;
++
++    fn project(solved: SolvedValueFacts) -> Self::Output {
++        solved.result
++    }
++}
++
++impl Resolution for Diagnostic {
++    type Output = SemanticValueFacts;
++    const PURPOSE: SolverPurpose = SolverPurpose::SemanticAnalysis;
++
++    fn project(solved: SolvedValueFacts) -> Self::Output {
++        SemanticValueFacts {
++            result: solved.result,
++            expressions: solved.expressions,
++            loops: solved.loops,
++        }
++    }
++}
++
++impl Resolution for RuleAdvice {
++    type Output = SemanticValueFacts;
++    const PURPOSE: SolverPurpose = SolverPurpose::SemanticAnalysis;
++
++    fn project(solved: SolvedValueFacts) -> Self::Output {
++        Diagnostic::project(solved)
++    }
++
++    fn conditional_store(
++        driver: &crate::value_transfer::LatticeDriver<'_>,
++        statement: &crate::ssa::SsaStatement,
++        ssa: &SsaFunction,
++        values: &HashMap<ValueKey, LatticeValue>,
++    ) -> Option<super::DefValues> {
++        driver.rule_increment_advice(statement, ssa, values)
+     }
+ }
+ 
+@@ -361,7 +414,19 @@ impl<'a> DiagnosticValueFacts<'a> {
+ #[derive(Debug, Default)]
+ pub struct SemanticValueProjection {
+     inputs: Option<OwnedValueFactInputs>,
+-    cached: std::sync::OnceLock<SemanticValueFacts>,
++    cached: SemanticCache,
++}
++
++#[derive(Debug)]
++enum SemanticCache {
++    Original(std::sync::OnceLock<SemanticValueFacts>),
++    RuleAdvice(std::sync::OnceLock<SemanticValueFacts>),
++}
++
++impl Default for SemanticCache {
++    fn default() -> Self {
++        Self::Original(std::sync::OnceLock::new())
++    }
+ }
+ 
+ #[derive(Debug, Clone, PartialEq)]
+@@ -387,6 +452,7 @@ struct OwnedValueFactInputs {
+ impl PartialEq for SemanticValueProjection {
+     fn eq(&self, other: &Self) -> bool {
+         self.inputs == other.inputs
++            && std::mem::discriminant(&self.cached) == std::mem::discriminant(&other.cached)
+     }
+ }
+ 
+@@ -449,49 +515,59 @@ impl SemanticValueProjection {
+                 trust: folds.map_or(FoldTrust::ObservedBindings, |folds| folds.trust),
+                 proven_pure_parameters: folds.is_some_and(|folds| folds.proven_pure_parameters),
+             }),
+-            cached: std::sync::OnceLock::new(),
++            cached: SemanticCache::default(),
+         }
+     }
+ 
++    pub(crate) fn for_rule_body(&self) -> Self {
++        let mut result = self.uncached();
++        result.cached = SemanticCache::RuleAdvice(std::sync::OnceLock::new());
++        result
++    }
++
+     /// Compute at most once for the containing immutable CFG/SSA proof graph.
+     #[must_use]
+     pub fn get(&self, cfg: &CfgFunction, ssa: &SsaFunction) -> Option<&SemanticValueFacts> {
+         let input = self.inputs.as_ref()?;
+-        Some(self.cached.get_or_init(|| {
++        let inputs = || {
+             let registry = input.registry.registry();
+-            semantic_value_facts(
+-                cfg,
+-                ssa,
+-                ValueFactInputs {
+-                    param_constants: input.param_constants.as_ref(),
+-                    policy: input.policy,
+-                    extra_escaping: &input.extra_escaping,
+-                    trace: TraceInputs {
+-                        deferred_writes: &input.deferred_writes,
+-                        analysis_context: None,
+-                        existence: None,
+-                        source_metadata_input: input.source_metadata_input.as_ref(),
+-                        registry,
+-                        traced_variables: &input.traced_variables,
+-                        has_dynamic_variable_trace: input.has_dynamic_variable_trace,
+-                    },
+-                    folds: input
+-                        .mutations
+-                        .as_ref()
+-                        .zip(input.fold_registry.as_ref())
+-                        .map(|(mutations, fold_registry)| BuiltinFoldInputs {
+-                            source_metadata_input: input.fold_source_metadata_input.as_ref(),
+-                            registry: fold_registry.registry(),
+-                            mutations,
+-                            dialect: input.dialect,
+-                            defining_class: input.defining_class.as_deref(),
+-                            registry_engine: input.registry_engine,
+-                            trust: input.trust,
+-                            proven_pure_parameters: input.proven_pure_parameters,
+-                        }),
++            ValueFactInputs {
++                param_constants: input.param_constants.as_ref(),
++                policy: input.policy,
++                extra_escaping: &input.extra_escaping,
++                trace: TraceInputs {
++                    deferred_writes: &input.deferred_writes,
++                    analysis_context: None,
++                    existence: None,
++                    source_metadata_input: input.source_metadata_input.as_ref(),
++                    registry,
++                    traced_variables: &input.traced_variables,
++                    has_dynamic_variable_trace: input.has_dynamic_variable_trace,
+                 },
+-            )
+-        }))
++                folds: input
++                    .mutations
++                    .as_ref()
++                    .zip(input.fold_registry.as_ref())
++                    .map(|(mutations, fold_registry)| BuiltinFoldInputs {
++                        source_metadata_input: input.fold_source_metadata_input.as_ref(),
++                        registry: fold_registry.registry(),
++                        mutations,
++                        dialect: input.dialect,
++                        defining_class: input.defining_class.as_deref(),
++                        registry_engine: input.registry_engine,
++                        trust: input.trust,
++                        proven_pure_parameters: input.proven_pure_parameters,
++                    }),
++            }
++        };
++        Some(match &self.cached {
++            SemanticCache::Original(cache) => {
++                cache.get_or_init(|| semantic_value_facts(cfg, ssa, inputs()))
++            }
++            SemanticCache::RuleAdvice(cache) => {
++                cache.get_or_init(|| solve_value_facts::<RuleAdvice>(cfg, ssa, &inputs()))
++            }
++        })
+     }
+ 
+     /// Start a detached cache after proof relocation/restoration or rebasing.
+@@ -499,7 +575,12 @@ impl SemanticValueProjection {
+     pub fn uncached(&self) -> Self {
+         Self {
+             inputs: self.inputs.clone(),
+-            cached: std::sync::OnceLock::new(),
++            cached: match &self.cached {
++                SemanticCache::Original(_) => SemanticCache::default(),
++                SemanticCache::RuleAdvice(_) => {
++                    SemanticCache::RuleAdvice(std::sync::OnceLock::new())
++                }
++            },
+         }
+     }
+ }
+diff --git a/rust/tcl-compiler/src/sccp/original_value_facts/block_transfer.rs b/rust/tcl-compiler/src/sccp/original_value_facts/block_transfer.rs
+index 424d8fcf9c..f489146dbd 100644
+--- a/rust/tcl-compiler/src/sccp/original_value_facts/block_transfer.rs
++++ b/rust/tcl-compiler/src/sccp/original_value_facts/block_transfer.rs
+@@ -143,10 +143,11 @@ fn widen_unrepresented_statement(
+     changed
+ }
+ 
+-pub(super) fn sccp_process_statements(
++pub(super) fn sccp_process_statements<P: super::Resolution>(
+     values: &mut HashMap<ValueKey, LatticeValue>,
+     ssa_block: &crate::ssa::SsaBlock,
+     ssa: &SsaFunction,
++    driver: Option<&crate::value_transfer::LatticeDriver<'_>>,
+     inputs: StatementInputs<'_>,
+ ) -> bool {
+     let StatementInputs { store, clobbers } = inputs;
+@@ -213,8 +214,13 @@ pub(super) fn sccp_process_statements(
+             let environment = env_from_uses(&stmt_ssa.uses, values, lookup);
+             let _ = fold_math_expression(expr, &environment, policy, math);
+         }
++        let conditional_store =
++            driver.and_then(|driver| P::conditional_store(driver, stmt_ssa, ssa, values));
+         for (&var, ver) in &stmt_ssa.defs {
+             let evaluated = || {
++                if let Some(result) = &conditional_store {
++                    return result.of((var, *ver));
++                }
+                 evaluate_def_with_math(
+                     stmt_ssa,
+                     &*values,
+diff --git a/rust/tcl-compiler/src/sccp/original_value_facts/tests/value_solver.rs b/rust/tcl-compiler/src/sccp/original_value_facts/tests/value_solver.rs
+index 2f61242b9f..8760f86978 100644
+--- a/rust/tcl-compiler/src/sccp/original_value_facts/tests/value_solver.rs
++++ b/rust/tcl-compiler/src/sccp/original_value_facts/tests/value_solver.rs
+@@ -77,10 +77,11 @@ fn barrier_own_defs_become_overdefined() {
+     });
+     let mut values: HashMap<ValueKey, LatticeValue> = HashMap::new();
+     let escaping: HashSet<String> = HashSet::new();
+-    assert!(sccp_process_statements(
++    assert!(sccp_process_statements::<super::super::Erasure>(
+         &mut values,
+         &block,
+         &ssa,
++        None,
+         StatementInputs {
+             clobbers: None,
+             store: &StoreInputs {
+diff --git a/rust/tcl-compiler/src/sccp/original_value_facts/value_solver.rs b/rust/tcl-compiler/src/sccp/original_value_facts/value_solver.rs
+index 331f007ba0..da9adf28fa 100644
+--- a/rust/tcl-compiler/src/sccp/original_value_facts/value_solver.rs
++++ b/rust/tcl-compiler/src/sccp/original_value_facts/value_solver.rs
+@@ -58,12 +58,11 @@ fn seed_value_facts(
+     (values, grammar)
+ }
+ 
+-pub(super) fn solve_value_facts(
++pub(super) fn solve_value_facts<P: super::Resolution>(
+     cfg: &CfgFunction,
+     ssa: &SsaFunction,
+     inputs: &ValueFactInputs<'_>,
+-    purpose: SolverPurpose,
+-) -> SolvedValueFacts {
++) -> P::Output {
+     let ValueFactInputs {
+         param_constants,
+         policy,
+@@ -92,9 +91,9 @@ pub(super) fn solve_value_facts(
+     // runs has one, as the execution solver does with its hazards (#2375).
+     let mut opaque_native_accesses = false;
+     loop {
+-        let solved = solve_value_facts_once(
++        let solved = solve_value_facts_once::<P>(
+             (cfg, ssa),
+-            (inputs, purpose),
++            (inputs, P::PURPOSE),
+             (&preds, values.clone(), grammar),
+             &escaping,
+             opaque_native_accesses,
+@@ -103,13 +102,13 @@ pub(super) fn solve_value_facts(
+             || !ssa
+                 .has_opaque_native_accesses_in(&|id| solved.result.executable_blocks.contains(&id))
+         {
+-            return solved;
++            return P::project(solved);
+         }
+         opaque_native_accesses = true;
+     }
+ }
+ 
+-fn solve_value_facts_once(
++fn solve_value_facts_once<P: super::Resolution>(
+     (cfg, ssa): (&CfgFunction, &SsaFunction),
+     (inputs, purpose): (&ValueFactInputs<'_>, SolverPurpose),
+     (preds, mut values, grammar): (
+@@ -128,10 +127,9 @@ fn solve_value_facts_once(
+         ..
+     } = *inputs;
+     let required_math_invocations = MathDependencies::for_parameters(purpose, param_constants);
+-    let reference_config =
+-        crate::value_transfer::LatticeDriver::new(trace, folds, policy, escaping)
+-            .with_cfg_metadata(&cfg.metadata_context)
+-            .source_reference_lexer_config();
++    let driver = crate::value_transfer::LatticeDriver::new(trace, folds, policy, escaping)
++        .with_cfg_metadata(&cfg.metadata_context);
++    let reference_config = driver.source_reference_lexer_config();
+     let store_inputs = StoreInputs {
+         reference_config,
+         math_dependencies: Some(&required_math_invocations),
+@@ -178,10 +176,11 @@ fn solve_value_facts_once(
+                 }
+ 
+                 // Statements.
+-                changed |= sccp_process_statements(
++                changed |= sccp_process_statements::<P>(
+                     &mut values,
+                     ssa_block,
+                     ssa,
++                    Some(&driver),
+                     StatementInputs {
+                         store: &store_inputs,
+                         clobbers: ssa.value_clobbers.get(bn),
+diff --git a/rust/tcl-compiler/src/value_transfer/statements.rs b/rust/tcl-compiler/src/value_transfer/statements.rs
+index 680a2ddec1..0f7ebed406 100644
+--- a/rust/tcl-compiler/src/value_transfer/statements.rs
++++ b/rust/tcl-compiler/src/value_transfer/statements.rs
+@@ -109,6 +109,60 @@ impl LatticeDriver<'_> {
+         Some(answer)
+     }
+ 
++    /// The selected conditional iRule call delegates to the same registry store
++    /// evaluator as a typed increment. Its caller exposes only semantic advice.
++    pub(crate) fn rule_increment_advice(
++        &self,
++        statement: &SsaStatement,
++        ssa: &SsaFunction,
++        values: &HashMap<ValueKey, LatticeValue>,
++    ) -> Option<DefValues> {
++        let tokens = statement.statement.tokens()?;
++        let context = self.metadata_context?.context()?;
++        let invocation =
++            crate::registry_invocation::advisory_tokens_invocation_with_metadata_context(
++                self.registry,
++                Some(context),
++                tokens,
++            )?;
++        if invocation.facts.operation
++            != tcl_registry::SemanticOperationId::StructuredLowering(LoweringHookId::Incr)
++            || !invocation.facts.arg_roles_complete
++        {
++            return None;
++        }
++        let defs = named_defs(statement, ssa);
++        let [(name, _)] = defs.as_slice() else {
++            return None;
++        };
++        if invocation.argument_literal(0).as_deref() != Some(name.as_str()) {
++            return None;
++        }
++        // Only the literal amount (or its documented default) is in the prototype.
++        match invocation.arguments.len() {
++            1 => {}
++            2 => {
++                invocation.argument_literal(1)?;
++            }
++            _ => return None,
++        }
++        let realm = tokens.source_binding.as_ref()?.invocation_realm()?;
++        let cooked = self.operation_arguments(&invocation)?;
++        let written = (0..cooked.len())
++            .map(|index| invocation.effective.written_argument(index))
++            .collect();
++        invocation.with_metadata_schema(self.registry, context, realm, |schema| {
++            Some(self.evaluate_resolved_source_call(
++                &invocation.facts.canonical_command,
++                schema,
++                (&cooked, written, Some(tokens)),
++                &defs,
++                (&statement.uses, values, ssa),
++                false,
++            ))
++        })
++    }
++
+     /// The typed `Incr` statement: its node projects to the invocation view
+     /// of the command whose lowering it is (`incr name ?amount?`), and the
+     /// registry's derived cell update evaluates it. A braced amount is its
+
+base-commit: b1ee491dc825879cd8f638a396db97cf67a47bc3
+-- 
+2.52.0
+

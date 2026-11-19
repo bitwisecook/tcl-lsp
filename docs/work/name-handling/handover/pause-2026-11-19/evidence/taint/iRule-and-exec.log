@@ -1,0 +1,17 @@
+tcl8.4 eval: [("exec", "p", T100, 69, 71), ("exec", "p", T102, 69, 71), ("eval", "v", T100, 79, 81), ("exec", "p", T100, 27, 29), ("exec", "p", T102, 27, 29), ("eval", "v", T100, 37, 39)]
+tcl8.5 eval: [("exec", "p", T100, 69, 71), ("exec", "p", T102, 69, 71), ("eval", "v", T100, 79, 81), ("exec", "p", T100, 27, 29), ("exec", "p", T102, 27, 29), ("eval", "v", T100, 37, 39)]
+tcl8.6 eval: [("exec", "p", T100, 69, 71), ("exec", "p", T102, 69, 71), ("eval", "v", T100, 79, 81), ("exec", "p", T100, 27, 29), ("exec", "p", T102, 27, 29), ("eval", "v", T100, 37, 39)]
+tcl9.0 eval: [("eval", "v", T100, 79, 81), ("eval", "v", T100, 37, 39)]
+tcl9.1 eval: [("eval", "v", T100, 79, 81), ("eval", "v", T100, 37, 39)]
+jim eval: [("exec", "p", T100, 69, 71), ("exec", "p", T102, 69, 71), ("eval", "v", T100, 79, 81), ("exec", "p", T100, 27, 29), ("exec", "p", T102, 27, 29), ("eval", "v", T100, 37, 39)]
+f5-irules handler-safe: []
+handler-safe ::when::HTTP_REQUEST p#1 strict=Overdefined semantic=Some(Const(String("/safe")))
+f5-irules handler-unsafe: [("HTTP::uri", "p", Irule3101, 43, 45)]
+handler-unsafe ::when::HTTP_REQUEST p#1 strict=Overdefined semantic=Some(Const(String("unsafe")))
+f5-irules handler-dynamic: [("HTTP::uri", "p", Irule3101, 50, 52)]
+handler-dynamic ::when::HTTP_REQUEST p#1 strict=Overdefined semantic=Some(Overdefined)
+f5-irules handler-branch: [("HTTP::uri", "p", Irule3101, 91, 93)]
+handler-branch ::when::HTTP_REQUEST p#1 strict=Overdefined semantic=Some(ConstSet([String("/safe"), String("unsafe")]))
+handler-branch ::when::HTTP_REQUEST p#3 strict=Overdefined semantic=Some(Const(String("unsafe")))
+handler-branch ::when::HTTP_REQUEST p#2 strict=Overdefined semantic=Some(Const(String("/safe")))
+f5-irules top-safe: [("HTTP::uri", "p", Irule3101, 22, 24)]

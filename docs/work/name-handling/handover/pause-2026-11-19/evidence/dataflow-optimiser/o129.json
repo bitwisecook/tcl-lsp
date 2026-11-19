@@ -1,0 +1,86 @@
+[
+  {
+    "d": "tcl8.4",
+    "c": "set x [split \"\"]; puts [llength $x]",
+    "o": "0\n0 {}\n",
+    "r": "set x {}; puts 0",
+    "f": "0\n0 {}\n"
+  },
+  {
+    "d": "tcl8.4",
+    "c": "proc p {} {set x [split \"\"]; puts [llength $x]}\np",
+    "o": "0\n0 {}\n",
+    "r": "proc p {} {; puts 0}\np",
+    "f": "0\n0 {}\n"
+  },
+  {
+    "d": "tcl8.5",
+    "c": "set x [split \"\"]; puts [llength $x]",
+    "o": "0\n0 {}\n",
+    "r": "set x {}; puts 0",
+    "f": "0\n0 {}\n"
+  },
+  {
+    "d": "tcl8.5",
+    "c": "proc p {} {set x [split \"\"]; puts [llength $x]}\np",
+    "o": "0\n0 {}\n",
+    "r": "proc p {} {; puts 0}\np",
+    "f": "0\n0 {}\n"
+  },
+  {
+    "d": "tcl8.6",
+    "c": "set x [split \"\"]; puts [llength $x]",
+    "o": "0\n0 {}\n",
+    "r": "set x {}; puts 0",
+    "f": "0\n0 {}\n"
+  },
+  {
+    "d": "tcl8.6",
+    "c": "proc p {} {set x [split \"\"]; puts [llength $x]}\np",
+    "o": "0\n0 {}\n",
+    "r": "proc p {} {; puts 0}\np",
+    "f": "0\n0 {}\n"
+  },
+  {
+    "d": "tcl9.0",
+    "c": "set x [split \"\"]; puts [llength $x]",
+    "o": "0\n0 {}\n",
+    "r": "set x {}; puts 0",
+    "f": "0\n0 {}\n"
+  },
+  {
+    "d": "tcl9.0",
+    "c": "proc p {} {set x [split \"\"]; puts [llength $x]}\np",
+    "o": "0\n0 {}\n",
+    "r": "proc p {} {; puts 0}\np",
+    "f": "0\n0 {}\n"
+  },
+  {
+    "d": "tcl9.1",
+    "c": "set x [split \"\"]; puts [llength $x]",
+    "o": "0\n0 {}\n",
+    "r": "set x {}; puts 0",
+    "f": "0\n0 {}\n"
+  },
+  {
+    "d": "tcl9.1",
+    "c": "proc p {} {set x [split \"\"]; puts [llength $x]}\np",
+    "o": "0\n0 {}\n",
+    "r": "proc p {} {; puts 0}\np",
+    "f": "0\n0 {}\n"
+  },
+  {
+    "d": "jim",
+    "c": "set x [split \"\"]; puts [llength $x]",
+    "o": "0\n0 {}\n",
+    "r": "set x {}; puts [llength $x]",
+    "f": "0\n0 {}\n"
+  },
+  {
+    "d": "jim",
+    "c": "proc p {} {set x [split \"\"]; puts [llength $x]}\np",
+    "o": "0\n0 {}\n",
+    "r": "proc p {} {set x {}; puts [llength $x]}\np",
+    "f": "0\n0 {}\n"
+  }
+]

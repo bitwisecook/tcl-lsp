@@ -1,0 +1,22 @@
+# Taint handoff, 19 November 2026
+
+The solver owner approved a bounded prototype of advisory mode A on 19 November. The written ruling is in current-state.md. The owner pause stops implementation, testing and deployment of the prototype. The compiler continues to use the existing production strict solver.
+
+## Saved development candidate
+
+`patches/taint-advisory-incr-prototype.patch` contains worker commit `fd4e4acd3401202d4779ba06b8f309dd1fe4539f` on exact base `b1ee491dc825879cd8f638a396db97cf67a47bc3`. The patch already incorporates the relevant 18 November advisory work. Apply only once in an isolated work clone after taking the requested clean baseline; inspect changes to the solver since the exact base before resolving overlaps. The candidate has never been pushed.
+
+Erasure and RuleAdvice have distinct output types. Advice publishes only the SemanticValueFacts view; plain units keep their original lazy cache. Eligible F5 TMM rule procedures use a separate advice cache, guarded by retained declaration, selected conditional target, actual SSA destination and the existing increment transfer. Only an increment is prototyped. No downstream taint migration is authorized by these measurements. Diagnostics reviewed the source design. Positive/negative results and exact strict parity are still required before its independent approval.
+
+## Baseline, open validation and tools
+
+* Actual F5 hosted procedure and event inputs were verified. Public F5 strict values are Overdefined for both increments before the prototype, and advice is 1/Overdefined/Overdefined. The plain-Tcl control reaches 1/2/4. Target proof and output are in `evidence/taint/strict-baseline.log`. The F5 witness must actually select the iRule document entry and obtain final advisory value 4 while preserving the original strict values and zero rewrites.
+* Run the actual compiler it_2 increment test and the real F5 negative `tcl-codegen --test it_3 release_optimiser_safety::hosted_increment_advice_does_not_rewrite_the_rule_procedure`. Cover alias/rebound incr, unavailable or observed storage, the immediate bodyful/bodiless I230 control, and clones/invalidation. Verify zero additional plain-Tcl solves and that advice cannot feed any rewrite.
+* Compare byte-identical strict `sccp.values` over A/B using the same checkout path, dependencies, profile, oracle flags and corpus. `evidence/taint/{instrument.py,observe.rs,sample.rs,manifest.py,inputs.tsv.gz}` are unshipped test-harness drafts. Stage copies in a temporary checkout; inspect their workspace paths. The manifest has 2,460 entries including the five Tcl standard libraries, Tcllib, tests and samples. Run native environment ingress for iRule/BPF samples, extract real SCF script regions, and distinguish APL's extracted unversioned Tcl from device-specific F5 execution. Require raw strict bytes, corpus completeness, solve counts, timeout/error reporting and a reproducible first mismatch before approval. No A/B corpus run or post-prototype full witness result exists. Metadata checks do not establish parity. Ask the coordinator for the build slot first.
+* The strict-mode observations available under this filename are baseline facts, not instrumented A/B output. Preserve floats by their bit patterns, exact string bytes, integer/boolean kinds, all lattice variables and SSA versions. Use a compact deterministic representation to stay within the shared disk budget.
+
+## Integrated test scrub
+
+The execution warning-order fixture now checks exact code, operand range and order for every distinct rule in both procedures. Tcl 8/Jim keep T100 and T102 on exec as well as T100 on eval. Tcl 9 currently only reports eval; track the missing exec coverage separately. The IRULE3101 fixture now uses actual F5 event handlers. The safe static path produces no warning; unsafe, query-dynamic and mixed branches each warn at the real operand. See `evidence/taint/{iRule-and-exec,fixture-observations}.log`. Canonical commits `2cd87bb9ed`, `e1529967d6` and `2a999ef350` are integrated. Verify the two named test bodies against the final checkpoint and retain diagnostics' independent signoff as a separate requirement for advisory mode.
+
+The previous Tk W210 patch / probes and 34-row iRules census remain in the 18 November handoff. Read the newer Tk owner results first. Keep old census probes isolated. Any device-only question belongs in the shared BIG-IP ledger.
