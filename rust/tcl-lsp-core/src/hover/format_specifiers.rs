@@ -126,6 +126,7 @@ const SPRINTF_SPEC_DESC: &[(char, &str)] = &[
     ('c', "Character (by Unicode code point)"),
     ('%', "Literal percent sign"),
     ('b', "Unsigned binary integer"),
+    ('p', "Pointer value"),
 ];
 
 fn sprintf_spec_desc(letter: char) -> Option<&'static str> {
@@ -139,47 +140,23 @@ fn sprintf_spec_desc(letter: char) -> Option<&'static str> {
 /// the full specifier as written, e.g. `%05d` or `%-10s`.
 /// Scan for `printf`-style specifiers
 /// (`%[positional$]?[flags]*[width]?[.prec]?[type]`).
-pub(super) fn scan_sprintf_specifiers(text: &str) -> Vec<String> {
+pub(super) fn scan_sprintf_specifiers(
+    text: &str,
+    profile: &tcl_dialect::DialectProfile,
+) -> Vec<String> {
+    let bytes = text.as_bytes();
     let mut out = Vec::new();
-    let chars: Vec<char> = text.chars().collect();
-    let mut i = 0;
-    while i < chars.len() {
-        if chars[i] != '%' {
-            i += 1;
-            continue;
-        }
-        let start = i;
-        i += 1;
-        // Positional argument `<digit>+$`.
-        let digits_start = i;
-        while i < chars.len() && chars[i].is_ascii_digit() {
-            i += 1;
-        }
-        if i < chars.len() && chars[i] == '$' && i > digits_start {
-            i += 1;
-        } else {
-            // Roll back — those digits were flags / width.
-            i = digits_start;
-        }
-        // Flags: `-` / `+` / ` ` / `#` / `0`.
-        while i < chars.len() && matches!(chars[i], '-' | '+' | ' ' | '#' | '0') {
-            i += 1;
-        }
-        // Width.
-        while i < chars.len() && chars[i].is_ascii_digit() {
-            i += 1;
-        }
-        // Precision.
-        if i < chars.len() && chars[i] == '.' {
-            i += 1;
-            while i < chars.len() && chars[i].is_ascii_digit() {
-                i += 1;
-            }
-        }
-        // Type character.
-        if i < chars.len() && (chars[i].is_ascii_alphabetic() || chars[i] == '%') {
-            i += 1;
-            out.push(chars[start..i].iter().collect());
+    let mut at = 0;
+    while let Some(offset) = bytes[at..].iter().position(|&b| b == b'%') {
+        let start = at + offset;
+        at = start + 1;
+        let mut end = at;
+        if let Some(spec) = tcl_syntax::format::parse_spec(bytes, &mut end)
+            && tcl_syntax::format::is_verb(spec.verb)
+            && tcl_syntax::format::is_available(&spec, profile)
+        {
+            out.push(text[start..end].to_string());
+            at = end;
         }
     }
     out
@@ -187,9 +164,12 @@ pub(super) fn scan_sprintf_specifiers(text: &str) -> Vec<String> {
 
 /// Render a markdown table of sprintf-style specifiers in
 /// `text`.
-pub(super) fn sprintf_format_hover_text(text: &str) -> String {
+pub(super) fn sprintf_format_hover_text(
+    text: &str,
+    profile: &tcl_dialect::DialectProfile,
+) -> String {
     let mut parts: Vec<String> = vec!["**Format string** (sprintf-style)\n".to_string()];
-    let specs = scan_sprintf_specifiers(text);
+    let specs = scan_sprintf_specifiers(text, profile);
     if specs.is_empty() {
         parts.push("No specifiers found.".to_string());
     } else {
@@ -204,40 +184,37 @@ pub(super) fn sprintf_format_hover_text(text: &str) -> String {
     parts.join("\n")
 }
 
-/// `binary format` / `binary scan` specifier table.
-const BINARY_SPEC_DESC: &[(char, &str)] = &[
-    ('a', "Byte string, padded with nulls"),
-    ('A', "Byte string, padded with spaces"),
-    ('b', "Binary digits (low-to-high order)"),
-    ('B', "Binary digits (high-to-low order)"),
-    ('h', "Hexadecimal digits (low-to-high nibble)"),
-    ('H', "Hexadecimal digits (high-to-low nibble)"),
-    ('c', "8-bit signed integer"),
-    ('s', "16-bit signed integer (little-endian)"),
-    ('S', "16-bit signed integer (big-endian)"),
-    ('i', "32-bit signed integer (little-endian)"),
-    ('I', "32-bit signed integer (big-endian)"),
-    ('n', "32-bit integer (native byte order)"),
-    ('w', "64-bit signed integer (little-endian)"),
-    ('W', "64-bit signed integer (big-endian)"),
-    ('m', "64-bit integer (native byte order)"),
-    ('r', "32-bit float (little-endian)"),
-    ('R', "32-bit float (big-endian)"),
-    ('f', "32-bit float (native byte order)"),
-    ('d', "64-bit double (native byte order)"),
-    ('q', "64-bit double (little-endian)"),
-    ('Q', "64-bit double (big-endian)"),
-    ('x', "Null padding byte (format) / skip byte (scan)"),
-    ('X', "Move cursor back one byte"),
-    ('@', "Move cursor to absolute position"),
-    ('t', "Reserved (Tcl 8.5+)"),
-];
-
-fn binary_spec_desc(letter: char) -> Option<&'static str> {
-    BINARY_SPEC_DESC
-        .iter()
-        .find(|(c, _)| *c == letter)
-        .map(|(_, d)| *d)
+/// Describe the value conversions in a selected scan operand.
+pub(super) fn scan_format_hover_text(text: &str, profile: &tcl_dialect::DialectProfile) -> String {
+    let mut parts = vec!["**Scan format string**".to_owned()];
+    let conversions = tcl_syntax::scan::conversion_spans(text, profile);
+    if conversions.is_empty() {
+        parts.push("No conversions found.".to_owned());
+    } else {
+        parts.extend([
+            "| Conversion | Meaning |".to_owned(),
+            "|------------|---------|".to_owned(),
+        ]);
+        for conversion in conversions {
+            let verb = conversion.spec.verb;
+            let description = match verb {
+                '[' => "Characters from the bracket set",
+                'n' => "Number of characters consumed",
+                'i' => "Integer with inferred base",
+                'c' => "Character code",
+                's' => "Whitespace-delimited string",
+                'f' | 'e' | 'E' | 'g' | 'G' => "Floating-point number",
+                'x' | 'X' => "Hexadecimal integer",
+                'o' => "Octal integer",
+                'b' => "Binary integer",
+                'd' | 'u' => "Decimal integer",
+                _ => "Conversion",
+            };
+            let directive = &text[conversion.percent.start..conversion.conversion.end];
+            parts.push(format!("| `{directive}` | {description} |"));
+        }
+    }
+    parts.join("\n")
 }
 
 /// Compact type label for the detail table.
@@ -267,7 +244,7 @@ fn binary_short_type(letter: char) -> &'static str {
         'x' => "pad/skip",
         'X' => "back",
         '@' => "seek",
-        't' => "reserved",
+        't' => "int16 native",
         _ => "?",
     }
 }
@@ -276,7 +253,7 @@ fn binary_short_type(letter: char) -> &'static str {
 fn binary_unit_bytes(letter: char) -> Option<u32> {
     match letter {
         'c' => Some(1),
-        's' | 'S' => Some(2),
+        's' | 'S' | 't' => Some(2),
         'i' | 'I' | 'n' | 'r' | 'R' | 'f' => Some(4),
         'w' | 'W' | 'm' | 'd' | 'q' | 'Q' => Some(8),
         _ => None,
@@ -316,9 +293,9 @@ pub(super) struct BinaryField {
     /// Type character (e.g. `'i'`).
     letter: char,
     /// Numeric count (defaults to `1` when omitted).
-    count: u32,
-    /// `u` / `s` size-modifier (Tcl 8.5+), or empty string.
-    modifier: String,
+    count: Option<u32>,
+    /// Whether the unsigned suffix was selected.
+    unsigned: bool,
     /// `true` when the spec used `*` for the count.
     pub(super) star: bool,
     /// Per-unit byte size before seek/skip adjustment.
@@ -330,53 +307,27 @@ pub(super) struct BinaryField {
 /// Scan a `binary format` / `binary scan` spec string into
 /// structured fields.  Tcl grammar: `type [modifier] [count|*]`,
 /// repeated.
-pub(super) fn scan_binary_fields(text: &str) -> Vec<BinaryField> {
-    let mut out = Vec::new();
-    let chars: Vec<char> = text.chars().collect();
-    let mut i = 0;
-    while i < chars.len() {
-        if chars[i].is_whitespace() {
-            i += 1;
-            continue;
-        }
-        let letter = chars[i];
-        if binary_spec_desc(letter).is_none() {
-            i += 1;
-            continue;
-        }
-        let start = i;
-        i += 1;
-        let mut modifier = String::new();
-        if i < chars.len() && (chars[i] == 'u' || chars[i] == 's') {
-            modifier.push(chars[i]);
-            i += 1;
-        }
-        let mut star = false;
-        let mut count_str = String::new();
-        if i < chars.len() && chars[i] == '*' {
-            star = true;
-            i += 1;
-        } else {
-            while i < chars.len() && chars[i].is_ascii_digit() {
-                count_str.push(chars[i]);
-                i += 1;
+pub(super) fn scan_binary_fields(
+    text: &str,
+    profile: &tcl_dialect::DialectProfile,
+) -> Vec<BinaryField> {
+    tcl_cmd_core::binary::complete_specifiers(text.as_bytes(), profile)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|f| {
+            let letter = char::from(f.letter);
+            let count = u32::try_from(f.count.unwrap_or(1)).ok();
+            BinaryField {
+                full: text[f.letter_start..f.end].to_owned(),
+                letter,
+                count,
+                unsigned: f.modifier.is_some(),
+                star: f.star,
+                byte_size: count.and_then(|n| binary_field_bytes(letter, n, f.star)),
+                consumes_var: !binary_no_var(letter),
             }
-        }
-        let count: u32 = count_str.parse().unwrap_or(1);
-        let full: String = chars[start..i].iter().collect();
-        let byte_size = binary_field_bytes(letter, count, star);
-        let consumes_var = !binary_no_var(letter);
-        out.push(BinaryField {
-            full,
-            letter,
-            count,
-            modifier,
-            star,
-            byte_size,
-            consumes_var,
-        });
-    }
-    out
+        })
+        .collect()
 }
 
 /// Surrounding-command context the binary-hover renderer uses
@@ -398,8 +349,11 @@ pub(super) struct BinaryContext {
 /// the byte-ruler diagram when every field has a known byte
 /// size, no field uses `X` (move-back), and the total fits in
 /// 32 bytes.
-pub(super) fn binary_format_hover_text(ctx: &BinaryContext) -> String {
-    let fields = scan_binary_fields(&ctx.text);
+pub(super) fn binary_format_hover_text(
+    ctx: &BinaryContext,
+    profile: &tcl_dialect::DialectProfile,
+) -> String {
+    let fields = scan_binary_fields(&ctx.text, profile);
     if fields.is_empty() {
         return "**Binary format string**\n\nNo specifiers found.".to_string();
     }
@@ -423,20 +377,19 @@ pub(super) fn binary_format_hover_text(ctx: &BinaryContext) -> String {
     // current cursor).  A backward seek (target < cursor)
     // disables the diagram entirely.
     let mut effective_bytes: Vec<Option<u32>> = Vec::with_capacity(fields.len());
-    let mut cursor: u32 = 0;
+    let mut cursor: u64 = 0;
     let mut has_backward_seek = false;
     for field in &fields {
         if field.letter == '@' {
-            if field.star {
+            let Some(target) = field.count.filter(|_| !field.star).map(u64::from) else {
                 effective_bytes.push(None);
                 continue;
-            }
-            let target = field.count;
+            };
             if target < cursor {
                 effective_bytes.push(Some(0));
                 has_backward_seek = true;
             } else {
-                effective_bytes.push(Some(target - cursor));
+                effective_bytes.push(u32::try_from(target - cursor).ok());
             }
             cursor = target;
             continue;
@@ -444,16 +397,16 @@ pub(super) fn binary_format_hover_text(ctx: &BinaryContext) -> String {
         match field.byte_size {
             Some(bs) => {
                 effective_bytes.push(Some(bs));
-                cursor += bs;
+                cursor += u64::from(bs);
             }
             None => effective_bytes.push(None),
         }
     }
 
     let n_vars = fields.iter().filter(|f| f.consumes_var).count();
-    let total_known: u32 = effective_bytes
+    let total_known: u64 = effective_bytes
         .iter()
-        .filter_map(|bs| bs.filter(|n| *n > 0))
+        .filter_map(|bs| bs.map(u64::from))
         .sum();
     let has_unknown = effective_bytes.iter().any(Option::is_none);
     let plural = if n_vars == 1 { "" } else { "s" };
@@ -478,7 +431,7 @@ pub(super) fn binary_format_hover_text(ctx: &BinaryContext) -> String {
             &fields,
             &effective_bytes,
             &field_labels,
-            total_known,
+            u32::try_from(total_known).expect("diagram is limited to 32 bytes"),
         ));
         parts.push("```\n".to_string());
     }
@@ -493,11 +446,13 @@ pub(super) fn binary_format_hover_text(ctx: &BinaryContext) -> String {
             "—"
         };
         let mut typ = binary_short_type(field.letter).to_string();
-        if field.modifier == "u" {
+        if field.unsigned {
             typ = typ.replace("int", "uint");
         }
-        if field.count > 1 && binary_unit_bytes(field.letter).is_some() {
-            typ = format!("{typ} ×{}", field.count);
+        if let Some(count) = field.count.filter(|&n| n > 1)
+            && binary_unit_bytes(field.letter).is_some()
+        {
+            typ = format!("{typ} ×{count}");
         }
         let bs_str = if field.star {
             "…".to_string()

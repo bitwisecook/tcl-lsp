@@ -495,13 +495,46 @@ pub fn specifier_min_version(letter: u8) -> Option<tcl_dialect::TclVersion> {
         .then_some(tcl_dialect::TclVersion::V8_5)
 }
 
+/// Whether the selected binary command accepts this field letter.
+#[must_use]
+pub fn specifier_available(letter: u8, profile: &tcl_dialect::DialectProfile) -> bool {
+    is_specifier(letter)
+        && (specifier_min_version(letter).is_none() || signedness_available(profile))
+}
+
+/// Complete fields for a resolved format. A skipped invalid byte, unavailable
+/// letter or suffix prevents a consumer from reporting a whole-buffer layout.
+#[must_use]
+pub fn complete_specifiers(
+    fmt: &[u8],
+    profile: &tcl_dialect::DialectProfile,
+) -> Option<Vec<Specifier>> {
+    let jim = profile.runtime_core_family() == Some(tcl_dialect::model::Family::Jim);
+    let separators = |bytes: &[u8]| {
+        bytes
+            .iter()
+            .all(|&b| b == b' ' || (jim && (b.is_ascii_whitespace() || b == 11)))
+    };
+    let fields = specifiers(fmt, signedness_available(profile));
+    let mut end = 0;
+    for field in &fields {
+        if !separators(&fmt[end..field.letter_start]) || !specifier_available(field.letter, profile)
+        {
+            return None;
+        }
+        end = field.end;
+    }
+    separators(&fmt[end..]).then_some(fields)
+}
+
 /// Whether Tcl's unsigned suffix (`u`) is part of the resolved
 /// binary-field grammar.  Keep this decision with the binary owner so LSP
 /// surfaces cannot drift or re-derive a release comparison independently.
 #[must_use]
 pub fn signedness_available(profile: &tcl_dialect::DialectProfile) -> bool {
-    profile.runtime_base.is_some()
-        && surface_admits(SpecSurface::TCL85_PLUS, Some(&profile.surface_query()))
+    profile.runtime_core_family() == Some(tcl_dialect::model::Family::Jim)
+        || (profile.runtime_base.is_some()
+            && surface_admits(SpecSurface::TCL85_PLUS, Some(&profile.surface_query())))
 }
 
 /// Parse all recognised binary fields, retaining source positions for editor

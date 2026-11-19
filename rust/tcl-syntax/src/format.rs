@@ -382,6 +382,12 @@ use tcl_dialect::model::{SpecSurface, surface_admits};
 /// profile.  Unknown-release profiles abstain rather than guessing.
 #[must_use]
 pub fn is_available(spec: &Spec, profile: &tcl_dialect::DialectProfile) -> bool {
+    if profile.runtime_core_family() == Some(tcl_dialect::model::Family::Jim) {
+        return spec.verb != b'p'
+            && spec
+                .size
+                .is_none_or(|size| size.accepted_under(profile.grammar.numbers));
+    }
     let admits = |required: &'static [SpecSurface]| {
         required.is_empty()
             || (profile.runtime_base.is_some()

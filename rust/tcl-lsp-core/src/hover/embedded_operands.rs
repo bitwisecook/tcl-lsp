@@ -20,7 +20,8 @@
 
 use super::Hover;
 use super::format_specifiers::{
-    BinaryContext, binary_format_hover_text, clock_format_hover_text, sprintf_format_hover_text,
+    BinaryContext, binary_format_hover_text, clock_format_hover_text, scan_format_hover_text,
+    sprintf_format_hover_text,
 };
 use super::pattern_syntax::{
     glob_hover_text, regex_hover_text, regsub_hover_text, scan_regsub_backrefs,
@@ -199,14 +200,22 @@ fn original_pattern_format_hover_with_workspace(
         };
         let text = match format.kind {
             tcl_registry::patterns::FormatType::Sprintf if text.contains('%') => {
-                sprintf_format_hover_text(&text)
+                let profile = crate::profile_for_analysis(analysis);
+                if format.scan {
+                    scan_format_hover_text(&text, profile)
+                } else {
+                    sprintf_format_hover_text(&text, profile)
+                }
             }
             tcl_registry::patterns::FormatType::Clock if text.contains('%') => {
                 clock_format_hover_text(&text)
             }
-            tcl_registry::patterns::FormatType::Binary => {
-                original_binary_format_hover_text(&words, format.index, &text)?
-            }
+            tcl_registry::patterns::FormatType::Binary => original_binary_format_hover_text(
+                &words,
+                format.index,
+                &text,
+                crate::profile_for_analysis(analysis),
+            )?,
             tcl_registry::patterns::FormatType::Regsub
                 if !scan_regsub_backrefs(&text).is_empty() =>
             {
@@ -223,6 +232,7 @@ fn original_binary_format_hover_text(
     words: &crate::original_invocation::OriginalRegistryWords,
     index: usize,
     text: &str,
+    profile: &tcl_dialect::DialectProfile,
 ) -> Option<String> {
     let arguments = words
         .arguments
@@ -233,15 +243,18 @@ fn original_binary_format_hover_text(
                 .and_then(|bytes| std::str::from_utf8(bytes).ok())
         })
         .collect::<Vec<_>>();
-    Some(binary_format_hover_text(&BinaryContext {
-        text: text.to_owned(),
-        subcmd: arguments.first().copied().flatten()?.to_owned(),
-        args: arguments
-            .get(index.checked_add(1)?..)?
-            .iter()
-            .map(|argument| argument.unwrap_or_default().to_owned())
-            .collect(),
-    }))
+    Some(binary_format_hover_text(
+        &BinaryContext {
+            text: text.to_owned(),
+            subcmd: arguments.first().copied().flatten()?.to_owned(),
+            args: arguments
+                .get(index.checked_add(1)?..)?
+                .iter()
+                .map(|argument| argument.unwrap_or_default().to_owned())
+                .collect(),
+        },
+        profile,
+    ))
 }
 
 /// Known contents at a genuine original operand, retaining its source owner.

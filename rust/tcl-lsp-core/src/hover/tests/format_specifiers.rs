@@ -20,6 +20,10 @@
 
 use super::*;
 
+fn format_profile() -> &'static tcl_dialect::DialectProfile {
+    tcl_dialect::DialectProfile::find("tcl8.6").unwrap()
+}
+
 #[test]
 fn binary_field_bytes_saturates_instead_of_overflowing() {
     // `d600000000` ⇒ 8 × 600000000 overflows u32; report unknown size,
@@ -91,32 +95,52 @@ fn hover_fires_for_clock_format_specifier() {
 // sprintf format hover
 
 #[test]
+fn format_hover_uses_the_selected_complete_specifiers() {
+    for (dialect, int64, long_long) in [
+        ("tcl8.4", false, false),
+        ("tcl8.6", false, true),
+        ("tcl9.1", true, true),
+        ("jimtcl", false, true),
+    ] {
+        let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+        assert_eq!(scan_sprintf_specifiers("%*d %ld", profile), ["%*d", "%ld"]);
+        assert_eq!(!scan_sprintf_specifiers("%I64d", profile).is_empty(), int64);
+        assert_eq!(
+            !scan_sprintf_specifiers("%lld", profile).is_empty(),
+            long_long
+        );
+        let hover = binary_format_hover_text(&binary_ctx("cs"), profile);
+        assert!(hover.contains("2 fields, 3 bytes"), "{dialect}: {hover}");
+    }
+}
+
+#[test]
 fn scan_sprintf_specifiers_finds_basic_types() {
-    let s = scan_sprintf_specifiers("%d - %s : %x");
+    let s = scan_sprintf_specifiers("%d - %s : %x", format_profile());
     assert_eq!(s, vec!["%d", "%s", "%x"]);
 }
 
 #[test]
 fn scan_sprintf_specifiers_captures_width_and_precision() {
-    let s = scan_sprintf_specifiers("%05d %-10s %.3f");
+    let s = scan_sprintf_specifiers("%05d %-10s %.3f", format_profile());
     assert_eq!(s, vec!["%05d", "%-10s", "%.3f"]);
 }
 
 #[test]
 fn scan_sprintf_specifiers_captures_positional() {
-    let s = scan_sprintf_specifiers("%1$s %2$d");
+    let s = scan_sprintf_specifiers("%1$s %2$d", format_profile());
     assert_eq!(s, vec!["%1$s", "%2$d"]);
 }
 
 #[test]
 fn scan_sprintf_specifiers_handles_literal_percent() {
-    let s = scan_sprintf_specifiers("%% done");
+    let s = scan_sprintf_specifiers("%% done", format_profile());
     assert_eq!(s, vec!["%%"]);
 }
 
 #[test]
 fn sprintf_format_hover_renders_specifier_table() {
-    let text = sprintf_format_hover_text("%d - %s");
+    let text = sprintf_format_hover_text("%d - %s", format_profile());
     assert!(text.contains("**Format string** (sprintf-style)"), "{text}");
     assert!(text.contains("| `%d` | Signed decimal integer |"), "{text}");
     assert!(text.contains("| `%s` | String |"), "{text}");
@@ -124,7 +148,7 @@ fn sprintf_format_hover_renders_specifier_table() {
 
 #[test]
 fn sprintf_format_hover_handles_empty_format() {
-    let text = sprintf_format_hover_text("no specifiers here");
+    let text = sprintf_format_hover_text("no specifiers here", format_profile());
     assert!(text.contains("No specifiers found"), "{text}");
 }
 
@@ -153,7 +177,7 @@ fn binary_ctx(text: &str) -> BinaryContext {
 
 #[test]
 fn scan_binary_fields_finds_basic_types() {
-    let fields = scan_binary_fields("a4 H2 i");
+    let fields = scan_binary_fields("a4 H2 i", format_profile());
     let fulls: Vec<&str> = fields.iter().map(|f| f.full.as_str()).collect();
     assert_eq!(fulls, vec!["a4", "H2", "i"]);
     assert_eq!(fields[0].byte_size, Some(4));
@@ -163,7 +187,7 @@ fn scan_binary_fields_finds_basic_types() {
 
 #[test]
 fn scan_binary_fields_handles_star_count() {
-    let fields = scan_binary_fields("a* I*");
+    let fields = scan_binary_fields("a* I*", format_profile());
     assert!(fields[0].star);
     assert!(fields[1].star);
     assert_eq!(fields[0].byte_size, None);
@@ -172,7 +196,7 @@ fn scan_binary_fields_handles_star_count() {
 
 #[test]
 fn binary_format_hover_renders_summary_and_detail_table() {
-    let text = binary_format_hover_text(&binary_ctx("a4 i"));
+    let text = binary_format_hover_text(&binary_ctx("a4 i"), format_profile());
     assert!(text.contains("**binary format**"), "{text}");
     assert!(text.contains("2 fields"), "{text}");
     assert!(text.contains("8 bytes"), "{text}");
@@ -190,7 +214,7 @@ fn binary_format_hover_renders_summary_and_detail_table() {
 
 #[test]
 fn binary_format_hover_renders_byte_ruler_diagram() {
-    let text = binary_format_hover_text(&binary_ctx("c s i"));
+    let text = binary_format_hover_text(&binary_ctx("c s i"), format_profile());
     // Diagram fenced in a code block.
     assert!(text.contains("```"), "{text}");
     // Box-drawing characters for the field boundaries.
@@ -205,7 +229,7 @@ fn binary_format_hover_renders_byte_ruler_diagram() {
 fn binary_format_hover_omits_diagram_when_total_exceeds_32_bytes() {
     // `d` is 8 bytes; five of them = 40 bytes — over the
     // 32-byte diagram budget.
-    let text = binary_format_hover_text(&binary_ctx("d5"));
+    let text = binary_format_hover_text(&binary_ctx("d5"), format_profile());
     assert!(text.contains("**binary format**"), "{text}");
     assert!(!text.contains('┌'), "diagram should be skipped: {text}");
 }
@@ -213,7 +237,7 @@ fn binary_format_hover_omits_diagram_when_total_exceeds_32_bytes() {
 #[test]
 fn binary_format_hover_omits_diagram_when_size_unknown() {
     // `a*` has unknown byte count.
-    let text = binary_format_hover_text(&binary_ctx("a*"));
+    let text = binary_format_hover_text(&binary_ctx("a*"), format_profile());
     assert!(!text.contains('┌'), "{text}");
     // The Bytes column still renders `…` for star fields.
     assert!(
@@ -229,7 +253,7 @@ fn binary_format_hover_labels_fields_with_arg_names() {
         subcmd: "scan".to_string(),
         args: vec!["byte".to_string(), "word".to_string()],
     };
-    let text = binary_format_hover_text(&ctx);
+    let text = binary_format_hover_text(&ctx, format_profile());
     // Detail-table Variable column gets the real names.
     assert!(text.contains("| `c` | byte |"), "{text}");
     assert!(text.contains("| `i` | word |"), "{text}");
@@ -240,13 +264,13 @@ fn binary_format_hover_labels_fields_with_arg_names() {
 
 #[test]
 fn binary_format_hover_renders_uint_modifier() {
-    let text = binary_format_hover_text(&binary_ctx("iu"));
+    let text = binary_format_hover_text(&binary_ctx("iu"), format_profile());
     assert!(text.contains("uint32"), "{text}");
 }
 
 #[test]
 fn binary_format_hover_no_specifiers_returns_friendly_message() {
-    let text = binary_format_hover_text(&binary_ctx("ZZZ"));
+    let text = binary_format_hover_text(&binary_ctx("ZZZ"), format_profile());
     assert!(text.contains("No specifiers found"), "{text}");
 }
 
