@@ -23,8 +23,8 @@
 //! remains owned by [`crate::number_tower`].
 
 use super::{BinOp, UnaryOp};
-use crate::number_tower::BigIntOps;
 use tcl_dialect::NativeArithmetic;
+use tcl_numeric::number_tower::BigIntOps;
 
 /// Why a fixed-width operation cannot yield an integer value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -60,9 +60,9 @@ pub fn literal<B: BigIntOps>(policy: NativeArithmetic, value: &B) -> Result<i64,
 /// magnitude digits are converted once, with the native overflow policy.
 pub fn parsed_literal(
     policy: NativeArithmetic,
-    value: &crate::number::Number,
+    value: &tcl_numeric::number::Number,
 ) -> Result<i64, WideError> {
-    use crate::number::Number;
+    use tcl_numeric::number::Number;
     if policy == NativeArithmetic::TclBignum {
         return Err(WideError::Unsupported);
     }
@@ -193,7 +193,7 @@ pub fn unary(policy: NativeArithmetic, op: UnaryOp, value: i64) -> Result<i64, W
 /// containing those operands decline even in a lazily skipped branch.
 pub fn literal_expression(
     node: &super::ExprNode,
-    numbers: crate::number::NumberSyntax,
+    numbers: tcl_numeric::number::NumberSyntax,
     policy: NativeArithmetic,
 ) -> Result<i64, WideError> {
     if !integer_tree(node) {
@@ -242,7 +242,7 @@ fn integer_tree(node: &super::ExprNode) -> bool {
 }
 
 struct LiteralIntegerOps {
-    numbers: crate::number::NumberSyntax,
+    numbers: tcl_numeric::number::NumberSyntax,
     policy: NativeArithmetic,
 }
 
@@ -251,11 +251,11 @@ impl super::eval::ExprOps for LiteralIntegerOps {
     type Error = WideError;
 
     fn literal(&mut self, text: &str) -> Result<i64, WideError> {
-        let number = crate::number::parse_whole_with(
+        let number = tcl_numeric::number::parse_whole_with(
             text,
-            crate::number::ParseFlags {
+            tcl_numeric::number::ParseFlags {
                 integer_only: true,
-                ..crate::number::ParseFlags::for_syntax(self.numbers)
+                ..tcl_numeric::number::ParseFlags::for_syntax(self.numbers)
             },
         )
         .ok_or(WideError::Unsupported)?;
@@ -310,7 +310,7 @@ impl super::eval::ExprOps for LiteralIntegerOps {
     fn to_bool_for_purpose(
         &mut self,
         value: &i64,
-        _purpose: crate::native_boolean_truth::NativeBooleanTruthPurpose,
+        _purpose: crate::NativeBooleanTruthPurpose,
     ) -> Result<bool, WideError> {
         self.to_bool(value)
     }
@@ -334,7 +334,7 @@ impl super::eval::ExprOps for LiteralIntegerOps {
 #[cfg(test)]
 mod parsed_tests {
     use super::*;
-    use crate::number::{Number, Radix};
+    use tcl_numeric::number::{Number, Radix};
 
     #[test]
     fn parsed_unsigned_magnitudes_preserve_native_range_and_sign() {

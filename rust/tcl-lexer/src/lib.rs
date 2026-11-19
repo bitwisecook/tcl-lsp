@@ -78,6 +78,7 @@ mod span;
 mod structural_index;
 mod substitution;
 mod tokens;
+pub mod variable_names;
 pub mod word_parts;
 
 pub use expr_lexer::{

@@ -980,7 +980,7 @@ Two known asymmetries worth naming because they look like bugs and are not:
 |---|---|
 | Written-name canonicalisers, key helpers, candidate order, conformance vectors | `rust/tcl-syntax/src/naming.rs` |
 | MRO linearisation | `rust/tcl-syntax/src/mro.rs` |
-| Expr-function name/version table | `rust/tcl-syntax/src/expr/mathfunc.rs` |
+| Expr-function name/version table | `rust/tcl-expr/src/expr/mathfunc.rs` |
 | Scope tree, settlement, `command_resolution_namespace` | `rust/tcl-compiler/src/analyser/scope.rs` |
 | Declaration handlers, interp domains, links | `rust/tcl-compiler/src/analyser/handlers.rs` |
 | Invocation recording, reference roles, const dispatch | `rust/tcl-compiler/src/analyser/commands.rs` |

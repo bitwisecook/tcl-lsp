@@ -306,8 +306,10 @@ pub const ANALYSIS_TIER_ROOTS: &[&str] = &[
     "rust/tcl-irule-test/src",
     "rust/tcl-bigip/src",
     "rust/tcl-sslictcl/src",
-    "rust/tcl-numeric/src",
     "rust/tcl-syntax/src",
+    "rust/tcl-numeric/src",
+    "rust/tcl-value-syntax/src",
+    "rust/tcl-expr/src",
 ];
 
 /// `true` when `name` is registry noise that is real (has a `CommandSpec`)

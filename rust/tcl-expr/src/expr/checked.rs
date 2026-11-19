@@ -811,7 +811,8 @@ fn legacy_source_error(source: &[u8], reason: &str, jim: bool) -> Vec<u8> {
 }
 
 /// Complete source topology only, without Native diagnostics or preparation.
-pub(crate) fn parse_source_expression_checked(
+#[must_use]
+pub fn parse_source_expression_checked(
     source: &str,
     context: &ExprParseContext,
 ) -> Option<ExprNode> {
@@ -829,7 +830,8 @@ pub(crate) fn parse_source_expression_checked(
 
 /// Configured source topology uses the same checked parser and purpose, while
 /// retaining the caller's actual variable, quote and nested-script configuration.
-pub(crate) fn parse_source_expression_checked_with_config(
+#[must_use]
+pub fn parse_source_expression_checked_with_config(
     source: &str,
     context: &ExprParseContext,
     config: tcl_lexer::LexerConfig,
@@ -1123,8 +1125,10 @@ mod tests {
                 .collect()
         }
         let mut compared = 0;
-        for line in
-            include_str!("../../tests/data/native_nested_expression_syntax/native.tsv").lines()
+        for line in include_str!(
+            "../../../tcl-syntax/tests/data/native_nested_expression_syntax/native.tsv"
+        )
+        .lines()
         {
             let row: Vec<_> = line.split('\t').collect();
             if row[0] == "jim" {

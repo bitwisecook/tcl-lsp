@@ -202,7 +202,7 @@ impl OperandSide {
 }
 
 /// The wording release of the **ambient** runtime — the release the engine
-/// installed with [`crate::number::set_runtime_syntax`], which is the same
+/// installed with [`tcl_numeric::number::set_runtime_syntax`], which is the same
 /// ambient the numeric grammar already follows.
 ///
 /// `expr`'s operand errors are raised deep inside operator application
@@ -218,10 +218,10 @@ impl OperandSide {
 // evidence; folding them together would lose that.
 #[allow(clippy::match_same_arms)]
 pub fn ambient_release() -> TclVersion {
-    if let Some(release) = crate::number::runtime_release() {
+    if let Some(release) = tcl_numeric::number::runtime_release() {
         return release;
     }
-    match crate::number::runtime_syntax() {
+    match tcl_numeric::number::runtime_syntax() {
         tcl_dialect::NumberSyntax::Tcl90 => TclVersion::V9_0,
         tcl_dialect::NumberSyntax::Tcl85 => TclVersion::V8_6,
         tcl_dialect::NumberSyntax::Tcl84 => TclVersion::V8_4,
@@ -526,7 +526,7 @@ mod tests {
     #[test]
     fn every_numeral_grammar_names_its_wording_release() {
         use tcl_dialect::NumberSyntax;
-        let restore = crate::number::runtime_syntax();
+        let restore = tcl_numeric::number::runtime_syntax();
         for (syntax, expected) in [
             (NumberSyntax::Tcl84, TclVersion::V8_4),
             (NumberSyntax::Tcl85, TclVersion::V8_6),
@@ -534,13 +534,13 @@ mod tests {
             (NumberSyntax::Jim, TclVersion::V9_0),
             (NumberSyntax::Jim080, TclVersion::V9_0),
         ] {
-            crate::number::set_runtime_syntax(syntax);
+            tcl_numeric::number::set_runtime_syntax(syntax);
             assert_eq!(ambient_release(), expected, "{syntax:?}");
         }
         // `NumberSyntax::ALL` is the list a new grammar joins; this fails
         // the moment one lands without a row above.
         assert_eq!(NumberSyntax::ALL.len(), 5);
-        crate::number::set_runtime_syntax(restore);
+        tcl_numeric::number::set_runtime_syntax(restore);
     }
 
     /// Every row measured on tclsh 9.0.4 and tclsh 8.6.16 with

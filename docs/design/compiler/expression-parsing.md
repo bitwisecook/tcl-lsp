@@ -4,14 +4,14 @@ How `expr` bodies are parsed into AST trees, why braced expressions can be
 analysed statically while unbraced ones cannot, and where to add a new
 operator such as an iRules extension.
 
-The Pratt parser in `rust/tcl-syntax/src/expr/parser.rs` uses binding powers
+The Pratt parser in `rust/tcl-expr/src/expr/parser.rs` uses binding powers
 to handle operator precedence without recursive-descent ambiguity.  Braced
 expressions (`expr {…}`) are parsed into `ExprNode` AST trees; unbraced
 expressions fall back to `ExprNode::Raw` and cannot be statically analysed
 (diagnostic W100).
 
-Source: `rust/tcl-syntax/src/expr/parser.rs` (Pratt parser),
-`rust/tcl-syntax/src/expr/ast.rs` (AST), `rust/tcl-syntax/src/expr/operators.rs`
+Source: `rust/tcl-expr/src/expr/parser.rs` (Pratt parser),
+`rust/tcl-expr/src/ast.rs` (AST), `rust/tcl-syntax/src/expr/operators.rs`
 (the operator catalogue — each `BinOp`/`UnaryOp` spec carries its `surface`
 and grammar version), `rust/tcl-lexer/src/expr_lexer.rs` (the expression
 tokeniser; a word operator is an operator token only when the profile's
@@ -238,8 +238,8 @@ as plain Tcl.
 
 - To add a new operator, add its binding power entry to `binary_bp()`, map its
   text to the new `BinOp`/`UnaryOp` variant in `binop_from_text()` /
-  `unaryop_from_text()` (all in `rust/tcl-syntax/src/expr/parser.rs`), add the
-  variant in `rust/tcl-syntax/src/expr/ast.rs`, and give it a spec (surface,
+  `unaryop_from_text()` (all in `rust/tcl-expr/src/expr/parser.rs`), add the
+  variant in `rust/tcl-expr/src/ast.rs`, and give it a spec (surface,
   grammar version) in `rust/tcl-syntax/src/expr/operators.rs`. A word-like
   spelling is tokenised as an operator only where the profile's grammar admits
   it. Skipping any of these steps fails silently — the parser falls back to

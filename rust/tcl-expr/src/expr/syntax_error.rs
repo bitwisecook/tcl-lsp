@@ -88,13 +88,14 @@ impl NumberHint {
     /// the leading `0` — i.e. the digits, not the prefix letter, are what went
     /// wrong. `syntax` decides where the parse stops, so the hint follows the
     /// release (`0o8` earns one from 8.5, where `0o` exists at all).
-    fn for_word(word: &str, syntax: crate::number::NumberSyntax) -> Option<Self> {
+    fn for_word(word: &str, syntax: tcl_numeric::number::NumberSyntax) -> Option<Self> {
         let b = word.as_bytes();
         if b.first() != Some(&b'0') || b.len() < 2 {
             return None;
         }
-        let stop = crate::number::parse(word, crate::number::ParseFlags::for_syntax(syntax))
-            .map_or(0, |p| p.end);
+        let stop =
+            tcl_numeric::number::parse(word, tcl_numeric::number::ParseFlags::for_syntax(syntax))
+                .map_or(0, |p| p.end);
         let stopped_at_digit = b.get(stop).is_some_and(u8::is_ascii_digit);
         if !stopped_at_digit && stop != 1 {
             return None;
@@ -361,7 +362,7 @@ impl ExprSyntaxError {
         source: &[u8],
         raw: Vec<ExprToken<Text>>,
         lexical: Option<Self>,
-        numbers: crate::number::NumberSyntax,
+        numbers: tcl_numeric::number::NumberSyntax,
         expr_grammar_base: Option<TclVersion>,
     ) -> Self {
         let tokens: Vec<_> = raw
@@ -455,7 +456,7 @@ impl ExprSyntaxError {
     /// C's bareword error for a word that looks like a botched numeral: the
     /// same message and postscript, plus [`NumberHint`]'s parenthesised guess
     /// and `BADNUMBER` code where C adds them.
-    fn bad_numeral(at: usize, word: &str, syntax: crate::number::NumberSyntax) -> Self {
+    fn bad_numeral(at: usize, word: &str, syntax: tcl_numeric::number::NumberSyntax) -> Self {
         Self {
             number_hint: NumberHint::for_word(word, syntax),
             ..Self::naming(ExprSyntaxErrorKind::InvalidBareword, at, word)
@@ -625,7 +626,7 @@ struct Scan<'a, Text: super::ExprText = String> {
     open: Vec<Group>,
     /// The release's numeric grammar, so a `Number` token the lexer only
     /// delimited can be re-tested here the way C's `ParseLexeme` does.
-    numbers: crate::number::NumberSyntax,
+    numbers: tcl_numeric::number::NumberSyntax,
     /// The paired expression word-operator grammar for the shared numeral
     /// boundary check.
     expr_grammar_base: Option<TclVersion>,
@@ -635,7 +636,7 @@ impl<'a, Text: super::ExprText> Scan<'a, Text> {
     fn new(
         source: &'a [u8],
         tokens: &'a [ExprToken<Text>],
-        numbers: crate::number::NumberSyntax,
+        numbers: tcl_numeric::number::NumberSyntax,
         expr_grammar_base: Option<TclVersion>,
     ) -> Self {
         Self {
@@ -708,7 +709,7 @@ impl<'a, Text: super::ExprText> Scan<'a, Text> {
             // `Number`. C classifies exactly those as barewords, with a radix
             // hint where it can guess (`tclCompExpr.c:716-809`).
             ExprTokenType::Number
-                if !crate::number::is_expr_number(
+                if !tcl_numeric::number::is_expr_number(
                     token
                         .text
                         .try_text()
@@ -763,7 +764,7 @@ impl<'a, Text: super::ExprText> Scan<'a, Text> {
         at: usize,
     ) -> Option<ExprSyntaxError> {
         if self.token(self.pos).map(|t| t.kind) != Some(ExprTokenType::ParenOpen) {
-            if crate::boolean::parse_boolean_word(
+            if tcl_numeric::boolean::parse_boolean_word(
                 token
                     .text
                     .try_text()

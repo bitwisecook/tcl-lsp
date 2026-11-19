@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
-use crate::number_tower::BigIntOps;
+use tcl_numeric::number_tower::BigIntOps;
 
 /// Every built-in has a class of its own, and the classes are what the
 /// interpreters return (tclsh 8.4 to 9.1: `int(2.5)` is 2, `ceil(3.14)`

@@ -131,8 +131,8 @@ pub mod expression_rewrite;
 // consumed by both the compiler and the runtime port. Re-exported here so
 // `crate::expr_ast` / `crate::expr_parser` resolve for in-crate consumers and
 // the LSP bindings.
-pub use tcl_syntax::expr::ast as expr_ast;
-pub use tcl_syntax::expr::parser as expr_parser;
+pub use tcl_expr::ast as expr_ast;
+pub use tcl_expr::expr::parser as expr_parser;
 pub mod gvn;
 mod increment_rewrite;
 pub mod inline_uplevel;

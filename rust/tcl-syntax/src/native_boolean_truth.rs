@@ -28,51 +28,7 @@ use tcl_dialect::TclVersion;
 use crate::number::Number;
 use crate::scalar_getter::{NativeScalarCache, NativeScalarGetterKind, NativeScalarGetterProtocol};
 
-/// Actual reached conversion site, independent of mathematical value type.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[repr(i32)]
-pub enum NativeBooleanTruthPurpose {
-    /// The operand of a reached logical-not instruction.
-    LogicalNot = 0,
-    /// A reached expression conditional jump, including a ternary condition.
-    ConditionalJump = 1,
-    /// The short-circuit branch of a conjunction expression.
-    LogicalAnd = 2,
-    /// The short-circuit branch of a disjunction expression.
-    LogicalOr = 3,
-    /// Boolean extraction after the command's expression result producer.
-    CommandCondition = 4,
-    /// Boolean extraction after the public expression API's result producer.
-    ExpressionApiResult = 5,
-    /// C8.4's reached non-short-circuit logical-and instruction.
-    LogicalAndInstruction = 6,
-    /// C8.4's reached non-short-circuit logical-or instruction.
-    LogicalOrInstruction = 7,
-}
-
-impl NativeBooleanTruthPurpose {
-    /// Decode a counted ABI tag without selecting a default conversion.
-    #[must_use]
-    pub const fn from_abi(tag: i32) -> Option<Self> {
-        match tag {
-            0 => Some(Self::LogicalNot),
-            1 => Some(Self::ConditionalJump),
-            2 => Some(Self::LogicalAnd),
-            3 => Some(Self::LogicalOr),
-            4 => Some(Self::CommandCondition),
-            5 => Some(Self::ExpressionApiResult),
-            6 => Some(Self::LogicalAndInstruction),
-            7 => Some(Self::LogicalOrInstruction),
-            _ => None,
-        }
-    }
-
-    /// Whether the caller supplies an independently evaluated expression result.
-    #[must_use]
-    pub const fn requires_expression_result(self) -> bool {
-        matches!(self, Self::CommandCondition | Self::ExpressionApiResult)
-    }
-}
+pub use tcl_expr::NativeBooleanTruthPurpose;
 
 /// Interpreter result effect of a reached unsuccessful primitive getter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

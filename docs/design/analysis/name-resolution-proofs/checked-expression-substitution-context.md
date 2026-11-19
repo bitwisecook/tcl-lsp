@@ -30,7 +30,7 @@ This is a Rust implementation invariant; no native-language observation for this
 
 - [rust/tcl-syntax/src/expr/substitution.rs](../../../../rust/tcl-syntax/src/expr/substitution.rs), `checked_expression_substitutions`: Own checked original lexical substitution topology under the retained context.
 - [rust/tcl-lexer/src/word_parts.rs](../../../../rust/tcl-lexer/src/word_parts.rs), `index_range_in`: Project only an actual scanner-owned index into its supplied original byte image.
-- [rust/tcl-syntax/src/expr/checked.rs](../../../../rust/tcl-syntax/src/expr/checked.rs), `parse_source_expression_checked`: Reuse the same lexer/Pratt/operator/complete-consumption worker for original source topology without selecting Native syntax or producing a runtime/preparation/result carrier.
+- [rust/tcl-expr/src/expr/checked.rs](../../../../rust/tcl-expr/src/expr/checked.rs), `parse_source_expression_checked`: Reuse the same lexer/Pratt/operator/complete-consumption worker for original source topology without selecting Native syntax or producing a runtime/preparation/result carrier.
 - [rust/tcl-syntax/src/expr/substitution.rs](../../../../rust/tcl-syntax/src/expr/substitution.rs), `checked_source_expression_substitutions`: Expose only original source substitution extents under the retained grammar; Native checked syntax remains independently gated.
 - [rust/tcl-syntax/src/expr/substitution.rs](../../../../rust/tcl-syntax/src/expr/substitution.rs), `expr::substitution::tests::checked_substitutions_retain_overridden_variable_and_comment_grammar` (linked): Retain overridden Jim root/index and Tcl 9 comment grammar; reject mismatching baseline and malformed syntax.
 - [rust/tcl-syntax/src/expr/substitution.rs](../../../../rust/tcl-syntax/src/expr/substitution.rs), `expr::substitution::tests::checked_substitutions_keep_command_script_ownership_separate` (linked): Inventory index reads and outer command spans while excluding variables inside the returned scripts.
@@ -41,7 +41,7 @@ This is a Rust implementation invariant; no native-language observation for this
 
 ## Evidence
 
-- [rust/tcl-syntax/src/expr/checked.rs](../../../../rust/tcl-syntax/src/expr/checked.rs)
-- [rust/tcl-syntax/src/expr/parser.rs](../../../../rust/tcl-syntax/src/expr/parser.rs)
+- [rust/tcl-expr/src/expr/checked.rs](../../../../rust/tcl-expr/src/expr/checked.rs)
+- [rust/tcl-expr/src/expr/parser.rs](../../../../rust/tcl-expr/src/expr/parser.rs)
 - [rust/tcl-syntax/src/expr/substitution.rs](../../../../rust/tcl-syntax/src/expr/substitution.rs)
 - [rust/tcl-syntax/src/expr/mod.rs](../../../../rust/tcl-syntax/src/expr/mod.rs)

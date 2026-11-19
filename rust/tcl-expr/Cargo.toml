@@ -27,8 +27,19 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 
+[features]
+num-bigint = ["tcl-numeric/num-bigint", "dep:num-bigint"]
+
 [dependencies]
+tcl-core-types = { path = "../tcl-core-types" }
+tcl-numeric = { path = "../tcl-numeric" }
+libm = "0.2"
+num-bigint = { version = "0.5", optional = true }
+tcl-lexer = { path = "../tcl-lexer" }
 tcl-dialect = { path = "../tcl-dialect" }
+
+[dev-dependencies]
+tcl-test-support = { path = "../tcl-test-support" }
 
 [lints]
 workspace = true

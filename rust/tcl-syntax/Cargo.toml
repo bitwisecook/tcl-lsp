@@ -46,7 +46,7 @@ description = "Shared Tcl parse-tree + byte-exact-semantics layer (lists, subst,
 # (`number_tower::BigIntOps`) — enabled by pure-Rust adopters (the compiler's
 # const-folder, the VM); the faithful runtime keeps its libtommath `mp_int`
 # backend and implements the trait itself.
-num-bigint = ["tcl-numeric/num-bigint", "dep:num-bigint"]
+num-bigint = ["tcl-expr/num-bigint", "tcl-numeric/num-bigint", "dep:num-bigint"]
 
 [dependencies]
 tcl-numeric = { path = "../tcl-numeric" }
@@ -57,11 +57,6 @@ tcl-dialect = { path = "../tcl-dialect" }
 tcl-core-types = { path = "../tcl-core-types" }
 tcl-lexer = { path = "../tcl-lexer" }
 bitflags = "2"
-# Pure-Rust `no_std` libm port — the portable, wasm32-clean source for the
-# few TIP 745 (Tcl 9.1) C99 math functions Rust's `f64` std doesn't expose
-# (`erf`/`erfc`/`gamma`/`lgamma`/`ldexp`/`logb`/`nextafter`/`remainder`/
-# `dim`). Already a workspace precedent in `tcl-bigip-query`.
-libm = "0.2"
 
 [dev-dependencies]
 tcl-test-support = { path = "../tcl-test-support" }

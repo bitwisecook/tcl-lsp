@@ -500,7 +500,7 @@ fn leaf<Text: ExprText>(
     Ok(match token.kind {
         Kind::Variable => ExprNode::Var {
             name: Text::from_source_bytes(
-                crate::naming::variable_reference_root_bytes(text.bytes(), config)
+                tcl_lexer::variable_names::variable_reference_root_bytes(text.bytes(), config)
                     .map_err(|_| Failure::Unknown)?
                     .ok_or(Failure::Unknown)?,
             ),

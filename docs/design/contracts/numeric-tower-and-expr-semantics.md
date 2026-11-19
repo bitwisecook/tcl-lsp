@@ -102,7 +102,7 @@ A separate lexer/parser/evaluator with its own:
   the *command table* axis (does the command `::tcl::mathfunc::NAME` exist here
   — the table itself is TIP 232, so 8.5+, even for `abs`). Both live in
   `rust/tcl-registry/src/mathfunc.rs`, with
-  `rust/tcl-syntax/src/expr/mathfunc.rs` as the layer-1 fact table it reads;
+  `rust/tcl-expr/src/expr/mathfunc.rs` as the layer-1 fact table it reads;
   no consumer re-derives the `tcl::mathfunc` prefix or a version ceiling for
   itself.
 * **Literals:** `0x`/`0o`/`0b` radices, `_` digit separators (`1_000`),

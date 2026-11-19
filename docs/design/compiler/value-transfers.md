@@ -1766,7 +1766,7 @@ operands. There are three layers:
    which `ExpressionRoute::assemble` builds
    (`rust/tcl-registry/src/value_transfer/builtins.rs`).
 3. **The shared expression engine** — `tcl_syntax::expr::eval` with its
-   `ExprOps` (`var`, `command`, `call`) in `rust/tcl-syntax/src/expr/eval.rs`
+   `ExprOps` (`var`, `command`, `call`) in `rust/tcl-expr/src/expr/eval.rs`
    — evaluates lazily, using analysis services for proven variable values
    and supported nested calls.
 
@@ -1904,7 +1904,7 @@ admitted write may alias, when the nested depth or the request budget is
 exhausted, and when a nested query would need the lattice being computed
 (`Cycle`). What the state is not: the mutable analyser, the program's
 interpreter, or a store that outlives the evaluation. Tests:
-`short_circuit_logical` in `rust/tcl-syntax/src/expr/eval.rs` pins the
+`short_circuit_logical` in `rust/tcl-expr/src/expr/eval.rs` pins the
 walker's ordering; `command_substitution_evaluates_through_the_nested_service`
 in `tcl_expr_eval.rs` pins the service's answer for `[incr x] + 1` under each
 policy and the decline of a command that reads the wall clock under both;
@@ -3101,7 +3101,7 @@ unit-level lattice evaluates.
 - `rust/tcl-compiler/src/analyses.rs` — `LatticeValue`, `ConstValue`, `MAX_CONSTSET_SIZE`
 - `rust/tcl-compiler/src/command_binding.rs` — `ModuleCommandMutations`, `CommandTrustSnapshot`, binding validity
 - `rust/tcl-compiler/src/var_observability.rs`, `dynamic_names.rs` — the escaping and dynamic-name gates
-- `rust/tcl-compiler/src/tcl_expr_eval.rs`, `rust/tcl-syntax/src/expr/eval.rs` — `FoldOps`, `ExprServices`, `eval_with_config`, `ExprOps`
+- `rust/tcl-compiler/src/tcl_expr_eval.rs`, `rust/tcl-expr/src/expr/eval.rs` — `FoldOps`, `ExprServices`, `eval_with_config`, `ExprOps`
 - `rust/tcl-compiler/src/optimiser/helpers/expr_simplify.rs`, `optimiser/propagation.rs` — `instcombine_expr_typed`, `reassociate_node`, the partial-simplification owners
 - `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs` — `lower_switch`, `switch_subject_operand`, `lower_opaque_switch`, `lower_try`, `push_try_handler_exception_edges`
 - `rust/tcl-cmd-core/src/switch.rs`, `regex.rs` — `parse_options`, `select`, `RegexpResult::Count`
@@ -3141,7 +3141,7 @@ unit-level lattice evaluates.
 - `rust/tcl-compiler/src/sccp.rs` — `existence_fold_abstains_*`, `upframe_body_models_*`, `sccp_folds_post_loop_branch_via_static_summary`
 - `rust/tcl-compiler/src/static_loops.rs` — `summarise_*`: the bounded `for` simulation's answers over the enumeration
 - `rust/tcl-compiler/tests/it_2/value_transfer_witnesses.rs` — `the_iteration_cap_publishes_nothing`, `the_mirror_pairs_decline_as_correlated`, `a_loop_condition_reads_the_math_binding`, `the_argument_sensitive_rerun_runs_the_callees_loop`, `an_enumerated_loop_bounds_its_counter_after_it`
-- `rust/tcl-syntax/src/expr/eval.rs` — `short_circuit_logical`: the walker's ordering the evaluation state relies on
+- `rust/tcl-expr/src/expr/eval.rs` — `short_circuit_logical`: the walker's ordering the evaluation state relies on
 - `rust/tcl-compiler/src/tcl_expr_eval.rs` — `command_substitution_evaluates_through_the_nested_service`: a nested command's answer under each nested policy
 - `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs` — `try_finally_creates_finally_block`, `try_with_handler`: the faithful-exceptions shape
 - `rust/tcl-registry/src/substitution.rs` — `tp_*`, `fp_*`: the kinds oracle

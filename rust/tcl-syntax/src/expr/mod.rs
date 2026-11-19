@@ -24,18 +24,18 @@
 //! type) and live with each consumer.
 
 pub mod ast;
-pub mod errors;
-pub mod eval;
-pub mod jim_function_tree;
-pub mod mathfunc;
+pub use tcl_expr::expr::errors;
+pub use tcl_expr::expr::eval;
+pub use tcl_expr::expr::jim_function_tree;
+pub use tcl_expr::expr::mathfunc;
 pub mod native_objects;
 pub mod operators;
-pub mod parser;
-pub mod rand;
+pub use tcl_expr::expr::parser;
+pub use tcl_expr::expr::rand;
 pub mod substitution;
-pub mod syntax_84;
-pub mod syntax_error;
-pub mod wide;
+pub use tcl_expr::expr::syntax_84;
+pub use tcl_expr::expr::syntax_error;
+pub use tcl_expr::expr::wide;
 
 pub use ast::{
     BinOp, ExprNode, ExprOffset, ExprText, NativeExprNode, UnaryOp, fixed_string_body,

@@ -68,21 +68,12 @@ pub use import_wrapper_hint::{
     AuthoredImportAliasSpelling, AuthoredImportWrapperHint, authored_import_wrapper_hint,
 };
 
-mod array_elements;
 mod command_resolution;
 mod constructed_keys;
 mod qualification;
 mod variable_quoting;
-mod variable_references;
 mod written_names;
 
-pub use array_elements::{
-    array_variable_completion_prefix, element_var_name, element_var_name_braced,
-    element_var_name_braced_for_style, element_var_name_for_style, normalise_var_name_braced,
-    normalise_var_name_braced_for_style, split_array_name, split_array_name_braced,
-    split_array_name_braced_for_style, split_array_name_for_style, split_element_ref,
-    split_element_ref_bytes,
-};
 pub use command_resolution::{
     CommandLookupBase, bareword_resolution_candidates, command_lookup_bases,
     command_resolution_candidates, command_resolution_candidates_from_namespace_keys,
@@ -98,15 +89,22 @@ pub use qualification::{
     unroot_rooted_key, unroot_rooted_key_bytes, unrooted_member_key, without_leading_colons,
     without_surrounding_colons,
 };
-pub use variable_quoting::{
-    is_bare_var_name, is_brace_substitutable, is_braced_indirect_array_ref,
-    var_name_requires_quoting,
-};
-pub use variable_references::{
+pub use tcl_lexer::variable_names::{
     array_key_is_literal, is_static_variable_source_word, is_whole_variable_reference,
     normalise_var_name, normalise_var_name_for_style, split_braced_var_ref, var_reference,
     var_reference_for_style, variable_reference_root_bytes, whole_scalar_variable_reference_name,
     whole_variable_reference_literal_name,
+};
+pub use tcl_lexer::variable_names::{
+    array_variable_completion_prefix, element_var_name, element_var_name_braced,
+    element_var_name_braced_for_style, element_var_name_for_style, normalise_var_name_braced,
+    normalise_var_name_braced_for_style, split_array_name, split_array_name_braced,
+    split_array_name_braced_for_style, split_array_name_for_style, split_element_ref,
+    split_element_ref_bytes,
+};
+pub use variable_quoting::{
+    is_bare_var_name, is_brace_substitutable, is_braced_indirect_array_ref,
+    var_name_requires_quoting,
 };
 pub use written_names::{
     WrittenCommandParts, WrittenFragmentComponents, ends_with_separator, is_absolute,

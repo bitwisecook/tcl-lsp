@@ -405,7 +405,7 @@ impl Parser<'_> {
                             ));
                         }
                     }
-                } else if crate::boolean::parse_boolean_word(&name).is_some() {
+                } else if tcl_numeric::boolean::parse_boolean_word(&name).is_some() {
                     self.next = saved_next;
                     self.start = saved_start;
                     self.lexeme = saved_lexeme;
@@ -484,10 +484,10 @@ fn skip_white_space(src: &[u8], mut at: usize) -> usize {
 /// with its message and error code.
 fn check_number(text: &str) -> Result<(), (String, Option<&'static str>)> {
     use super::errors;
-    let flags = crate::number::ParseFlags::for_syntax(tcl_dialect::NumberSyntax::Tcl84);
+    let flags = tcl_numeric::number::ParseFlags::for_syntax(tcl_dialect::NumberSyntax::Tcl84);
     let coded = |message: &str, code: &'static str| Err((message.to_owned(), Some(code)));
-    match crate::number::parse_whole_with(text, flags) {
-        Some(crate::number::Number::Big { .. }) => {
+    match tcl_numeric::number::parse_whole_with(text, flags) {
+        Some(tcl_numeric::number::Number::Big { .. }) => {
             coded(errors::IOVERFLOW_MESSAGE, errors::IOVERFLOW_CODE)
         }
         None if errors::check_bad_octal(text, false) => Err((
@@ -496,8 +496,11 @@ fn check_number(text: &str) -> Result<(), (String, Option<&'static str>)> {
         )),
         // `strtod`'s `ERANGE`: an overflow, or a non-zero numeral that reads
         // as zero or a subnormal (`inf` reads without it).
-        Some(crate::number::Number::Double(value))
-            if crate::number::is_out_of_range_double(text, tcl_dialect::NumberSyntax::Tcl84) =>
+        Some(tcl_numeric::number::Number::Double(value))
+            if tcl_numeric::number::is_out_of_range_double(
+                text,
+                tcl_dialect::NumberSyntax::Tcl84,
+            ) =>
         {
             let (message, code) = errors::float_range_error(value);
             coded(message, code)

@@ -18,6 +18,10 @@
 
 //! Shared lexical types and operator grammar for Tcl expressions.
 
+pub mod ast;
+mod boolean_purpose;
+pub use boolean_purpose::NativeBooleanTruthPurpose;
+pub mod expr;
 mod operator;
 pub mod operators;
 pub use operator::{BinOp, ExprOffset, ExprText, UnaryOp};

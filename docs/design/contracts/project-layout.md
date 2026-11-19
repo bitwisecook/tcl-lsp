@@ -12,6 +12,7 @@ up to the binaries, and is enforced by cargo's own dependency graph.
 | Crate | Role |
 |-------|------|
 | `tcl-core-types`, `tcl-platform`, `tcl-dialect`, `tcl-version`, `tcl-userdirs` | Graph leaves — value types, platform helpers, the dialect vocabulary (`DialectSet`, `TclVersion`, `DialectProfile`), the version every binary reports, and the per-user cache / config / state directories.  Depend on nothing project-local. |
+| `tcl-expr` | Expression trees, operator grammar, dialect-selected syntax validation and expression evaluation callbacks. |
 | `tcl-value-syntax` | Counted list and dictionary values, native strings, serialization, and dialect-specific character units. |
 | `tcl-lexer`, `tcl-syntax` | Tcl lexer + lossless concrete syntax tree (red-green). |
 | `tcl-compiler` | Tcl pipeline — IR, lowering, CFG, SSA, passes, optimiser, compiler-internal analyses (taint, var-escape, interprocedural), and the stateless helpers the emitter and constant folding share (`codegen_helpers`). The `test-support` feature exposes test fixtures to `tcl-codegen`'s tests only. |

@@ -106,7 +106,7 @@ pub fn seed_and_draw(seed: &mut i64, w: i64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::{RAND_IM, next_draw, seed_and_draw, seed_from_wide};
-    use crate::number::format_double;
+    use tcl_numeric::number::format_double;
 
     /// The seed nudge: `0` and `IM` are the recurrence's fixed points and are
     /// masked away; every other value keeps its low 31 bits. (tclsh

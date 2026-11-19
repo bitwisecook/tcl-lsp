@@ -26,7 +26,7 @@ use super::array_elements::{split_array_name_for_style, split_element_ref_bytes}
 /// [`normalise_var_name`], the `(idx)` is preserved.
 ///
 /// ```
-/// use tcl_syntax::naming::var_reference;
+/// use tcl_lexer::variable_names::var_reference;
 /// assert_eq!(var_reference("$arr(idx)"), "arr(idx)");
 /// assert_eq!(var_reference("${v}"), "v");
 /// assert_eq!(var_reference("$x"), "x");
@@ -50,7 +50,7 @@ pub fn var_reference_for_style(name: &str, style: tcl_dialect::BracedVarStyle) -
 /// Two readings, in this order, and the order is the point:
 ///
 /// 1. The closer located by the shared owner
-///    [`tcl_lexer::braced_var_name_end`] under `style` — the free-text
+///    [`crate::braced_var_name_end`] under `style` — the free-text
 ///    reading, which is what a scanner walking raw source needs.
 /// 2. Failing that, a word that nonetheless *is* a whole `${…}` span:
 ///    it opens `${` and ends `}`, so some lexer already delimited it, and a
@@ -80,7 +80,7 @@ pub(super) fn braced_var_name(word: &str, style: tcl_dialect::BracedVarStyle) ->
 /// and the text following the closing brace.
 ///
 /// This is the one place `tcl-syntax` decodes the brace form. The closer is
-/// located by the shared owner [`tcl_lexer::braced_var_name_end`] under
+/// located by the shared owner [`crate::braced_var_name_end`] under
 /// `style`, never by a local scan: three independent private scans here
 /// (`normalise_var_name` stripping the **last** `}` — the 9.x answer, at
 /// every release — while `split_array_name` and `element_var_name_braced`
@@ -96,7 +96,7 @@ pub(super) fn braced_var_name(word: &str, style: tcl_dialect::BracedVarStyle) ->
 ///
 /// ```
 /// use tcl_dialect::BracedVarStyle;
-/// use tcl_syntax::naming::split_braced_var_ref;
+/// use tcl_lexer::variable_names::split_braced_var_ref;
 /// // 9.x tracks nesting and `\X` pairs …
 /// assert_eq!(
 ///     split_braced_var_ref("${a{b}c}", BracedVarStyle::Tcl9Nesting),
@@ -121,9 +121,9 @@ pub fn split_braced_var_ref(
     // `2` is the byte just past the `${`, i.e. where the name starts. The
     // returned offset always lands on an ASCII `}`, so both slices cut on a
     // UTF-8 character boundary.
-    match tcl_lexer::braced_var_name_end(word.as_bytes(), 2, style) {
-        tcl_lexer::BracedVarEnd::Closed(end) => Some((&word[2..end], &word[end + 1..])),
-        tcl_lexer::BracedVarEnd::Unterminated => None,
+    match crate::braced_var_name_end(word.as_bytes(), 2, style) {
+        crate::BracedVarEnd::Closed(end) => Some((&word[2..end], &word[end + 1..])),
+        crate::BracedVarEnd::Unterminated => None,
     }
 }
 
@@ -133,7 +133,7 @@ pub fn split_braced_var_ref(
 /// suffixes:
 ///
 /// ```
-/// use tcl_syntax::naming::normalise_var_name;
+/// use tcl_lexer::variable_names::normalise_var_name;
 /// assert_eq!(normalise_var_name("$foo"), "foo");
 /// assert_eq!(normalise_var_name("${bar}"), "bar");
 /// assert_eq!(normalise_var_name("$arr(idx)"), "arr");
@@ -157,7 +157,7 @@ pub fn normalise_var_name(name: &str) -> &str {
 ///
 /// ```
 /// use tcl_dialect::BracedVarStyle;
-/// use tcl_syntax::naming::normalise_var_name_for_style;
+/// use tcl_lexer::variable_names::normalise_var_name_for_style;
 /// assert_eq!(
 ///     normalise_var_name_for_style("${a{b}c}", BracedVarStyle::Tcl9Nesting),
 ///     "a{b}c",
@@ -180,7 +180,7 @@ pub fn normalise_var_name_for_style(name: &str, style: tcl_dialect::BracedVarSty
 /// than Tcl's accepted names and supplies no reference parsing or lookup proof.
 ///
 /// ```
-/// use tcl_syntax::naming::is_static_variable_source_word;
+/// use tcl_lexer::variable_names::is_static_variable_source_word;
 /// assert!(is_static_variable_source_word("ns::var"));
 /// assert!(!is_static_variable_source_word("1abc"));
 /// assert!(!is_static_variable_source_word("has space"));
@@ -200,9 +200,9 @@ pub fn is_static_variable_source_word(text: &str) -> bool {
 /// Whether the complete source fragment is one variable reference under its grammar.
 /// This shape supplies no selected cell, completed read or invocation authority.
 #[must_use]
-pub fn is_whole_variable_reference(source: &str, config: tcl_lexer::LexerConfig) -> bool {
+pub fn is_whole_variable_reference(source: &str, config: crate::LexerConfig) -> bool {
     matches!(
-        tcl_lexer::word_parts::whole_var_ref(source.as_bytes(), config),
+        crate::word_parts::whole_var_ref(source.as_bytes(), config),
         Ok(Some(_))
     )
 }
@@ -213,9 +213,9 @@ pub fn is_whole_variable_reference(source: &str, config: tcl_lexer::LexerConfig)
 #[must_use]
 pub fn whole_variable_reference_literal_name(
     source: &str,
-    config: tcl_lexer::LexerConfig,
+    config: crate::LexerConfig,
 ) -> Option<&str> {
-    let reference = tcl_lexer::word_parts::whole_var_ref(source.as_bytes(), config).ok()??;
+    let reference = crate::word_parts::whole_var_ref(source.as_bytes(), config).ok()??;
     reference.index.is_none().then_some(())?;
     core::str::from_utf8(reference.name).ok()
 }
@@ -226,7 +226,7 @@ pub fn whole_variable_reference_literal_name(
 #[must_use]
 pub fn whole_scalar_variable_reference_name(
     source: &str,
-    config: tcl_lexer::LexerConfig,
+    config: crate::LexerConfig,
 ) -> Option<&str> {
     let name = whole_variable_reference_literal_name(source, config)?;
     split_element_ref_bytes(name.as_bytes())
@@ -244,9 +244,9 @@ pub fn whole_scalar_variable_reference_name(
 /// This source projection supplies no native cell, input extent or read proof.
 pub fn variable_reference_root_bytes(
     source: &[u8],
-    config: tcl_lexer::LexerConfig,
+    config: crate::LexerConfig,
 ) -> Result<Option<&[u8]>, &'static str> {
-    let Some(reference) = tcl_lexer::word_parts::whole_var_ref(source, config)? else {
+    let Some(reference) = crate::word_parts::whole_var_ref(source, config)? else {
         return Ok(None);
     };
     let root = if reference.index.is_some() {

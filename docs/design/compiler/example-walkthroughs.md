@@ -14,7 +14,7 @@ produced at every stage, with field-level detail.
 
 | Term | Meaning |
 |------|---------|
-| **AST** | Abstract Syntax Tree — a tree representation of parsed source code structure. In this compiler, expression bodies (`expr {…}`) are parsed into `ExprNode` AST trees (`rust/tcl-syntax/src/expr/ast.rs`). |
+| **AST** | Abstract Syntax Tree — a tree representation of parsed source code structure. In this compiler, expression bodies (`expr {…}`) are parsed into `ExprNode` AST trees (`rust/tcl-expr/src/ast.rs`). |
 | **Basic block** | A straight-line sequence of IR statements with no branches except at the end.  Represented by `Block` (`rust/tcl-compiler/src/cfg.rs`), addressed by a `BlockId`. |
 | **CFG** | Control Flow Graph — a directed graph of basic blocks connected by jumps and branches.  Built by `build_cfg()` / `build_cfg_function()` (`rust/tcl-compiler/src/cfg_builder/mod.rs`) into the types in `rust/tcl-compiler/src/cfg.rs`. |
 | **Dominator / idom** | Block A *dominates* block B if every path from the entry to B passes through A.  The *immediate dominator* (`idom`) is the closest dominator.  Stored in `SsaFunction::idom` (`rust/tcl-compiler/src/ssa.rs`). |
@@ -314,13 +314,13 @@ pub struct Module {
   an alias resolves; `Statement::canonical_command_or_source()` falls back to
   the source-surface `command` when it is `None`.
 
-### Expression AST (`rust/tcl-syntax/src/expr/ast.rs`)
+### Expression AST (`rust/tcl-expr/src/ast.rs`)
 
 The expression forms are likewise variants of one `ExprNode` enum.  Offsets
 are `ExprOffset` (a `u32`) relative to the expression text, not the module:
 
 ```rust
-// rust/tcl-syntax/src/expr/ast.rs
+// rust/tcl-expr/src/ast.rs
 pub enum ExprNode {
     // 42, 3.14, true
     Literal { text: String, start: ExprOffset, end: ExprOffset },
@@ -3226,7 +3226,7 @@ ExprToken { kind: ExprTokenType::Number,   text: "2",  .. }
 ```
 
 **Pratt parsing** (`PrattParser`, driven by `parse_expr()` in
-`rust/tcl-syntax/src/expr/parser.rs`):
+`rust/tcl-expr/src/expr/parser.rs`):
 
 The parser uses binding powers to handle precedence:
 - `*` has binding power (22, 23) — higher than `+` at (20, 21).

@@ -287,7 +287,11 @@ dependencies = [
 name = "tcl-expr"
 version = "0.1.0"
 dependencies = [
+ "libm",
+ "tcl-core-types",
  "tcl-dialect",
+ "tcl-lexer",
+ "tcl-numeric",
 ]
 
 [[package]]
@@ -394,7 +398,6 @@ name = "tcl-syntax"
 version = "0.1.0"
 dependencies = [
  "bitflags",
- "libm",
  "tcl-core-types",
  "tcl-dialect",
  "tcl-expr",

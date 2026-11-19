@@ -56,7 +56,7 @@ pub const fn jim_fixed_function_names() -> &'static [&'static str] {
 
 /// A transient numeric value for math-function dispatch. Integer-preserving
 /// functions keep the arbitrary-precision `B` rung; floating-point functions
-/// widen through [`BigIntOps::to_f64`](crate::number_tower::BigIntOps::to_f64).
+/// widen through [`BigIntOps::to_f64`](tcl_numeric::number_tower::BigIntOps::to_f64).
 /// Each consumer converts its own value to and from this shared shape.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum NumValue<B> {
@@ -76,7 +76,7 @@ pub type Num = NumValue<NoBig>;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum NoBig {}
 
-impl super::super::number_tower::BigIntOps for NoBig {
+impl tcl_numeric::number_tower::BigIntOps for NoBig {
     const HAS_BIGNUM_RUNG: bool = false;
     fn from_i64(_: i64) -> Self {
         unreachable!("NoBig has no value; promote through `promote_i64`")
@@ -142,7 +142,7 @@ impl<B> NumValue<B> {
     #[must_use]
     pub fn as_f64(&self) -> f64
     where
-        B: super::super::number_tower::BigIntOps,
+        B: tcl_numeric::number_tower::BigIntOps,
     {
         match self {
             NumValue::Int(i) => *i as f64,
@@ -152,7 +152,7 @@ impl<B> NumValue<B> {
     }
     fn is_truthy(&self) -> bool
     where
-        B: super::super::number_tower::BigIntOps,
+        B: tcl_numeric::number_tower::BigIntOps,
     {
         match self {
             NumValue::Int(i) => *i != 0,
@@ -361,7 +361,7 @@ pub fn integer_conversion(name: &str, int_width: IntWidth) -> Option<IntegerConv
 ///
 /// # Errors
 /// See [`MathFuncError`] for the classes and their C message/`-errorcode`.
-pub fn try_dispatch_with_backend_int_width<B: super::super::number_tower::BigIntOps>(
+pub fn try_dispatch_with_backend_int_width<B: tcl_numeric::number_tower::BigIntOps>(
     name: &str,
     args: &[NumValue<B>],
     int_width: IntWidth,
@@ -406,10 +406,10 @@ pub fn try_dispatch_with_backend_int_width<B: super::super::number_tower::BigInt
 /// signed-wide/double pair its fixed operators consume. The caller preserves
 /// source-object representation timing and supplies the actual parsed value.
 #[must_use]
-pub fn jim_numeric_operand<B>(number: &crate::number::Number) -> Option<NumValue<B>> {
+pub fn jim_numeric_operand<B>(number: &tcl_numeric::number::Number) -> Option<NumValue<B>> {
     match number {
-        crate::number::Number::Double(value) => Some(NumValue::Float(*value)),
-        crate::number::Number::Nan { negative, payload } => {
+        tcl_numeric::number::Number::Double(value) => Some(NumValue::Float(*value)),
+        tcl_numeric::number::Number::Nan { negative, payload } => {
             let mut bits = f64::NAN.to_bits() | payload.unwrap_or(0);
             if *negative {
                 bits |= 1_u64 << 63;
@@ -429,7 +429,7 @@ pub fn jim_numeric_operand<B>(number: &crate::number::Number) -> Option<NumValue
 /// # Errors
 /// Returns the native numeric rejection, unavailable function, or explicit
 /// abstention when the backend/operand protocol has no proved representation.
-pub fn try_dispatch_with_backend_protocol<B: super::super::number_tower::BigIntOps>(
+pub fn try_dispatch_with_backend_protocol<B: tcl_numeric::number_tower::BigIntOps>(
     name: &str,
     args: &[NumValue<B>],
     int_width: IntWidth,
@@ -512,7 +512,7 @@ fn jim_math_float_to_wide(value: f64) -> i64 {
 /// As [`try_dispatch_with_backend_int_width`], and under 8.4
 /// [`MathFuncError::IntegerOverflow`], [`MathFuncError::FloatOverflow`],
 /// [`MathFuncError::FloatUnderflow`] or [`MathFuncError::Domain`].
-pub fn try_dispatch_for_release<B: super::super::number_tower::BigIntOps>(
+pub fn try_dispatch_for_release<B: tcl_numeric::number_tower::BigIntOps>(
     name: &str,
     args: &[NumValue<B>],
     release: tcl_dialect::TclVersion,
@@ -575,7 +575,7 @@ fn integer_conversion_overflows_84(name: &str, x: f64) -> bool {
 }
 
 /// Whether `v` is negative (`isqrt`'s own refusal, which C words specially).
-fn is_negative<B: super::super::number_tower::BigIntOps>(v: &NumValue<B>) -> bool {
+fn is_negative<B: tcl_numeric::number_tower::BigIntOps>(v: &NumValue<B>) -> bool {
     match v {
         NumValue::Int(i) => *i < 0,
         NumValue::Big(b) => b.is_negative(),
@@ -587,7 +587,7 @@ fn is_negative<B: super::super::number_tower::BigIntOps>(v: &NumValue<B>) -> boo
 /// carry" rather than "C would raise a domain error": an exact conversion
 /// (or `abs(i64::MIN)`) whose result needs a bignum rung the backend lacks,
 /// or `int()` under an unresolved release.
-fn abstains<B: super::super::number_tower::BigIntOps>(
+fn abstains<B: tcl_numeric::number_tower::BigIntOps>(
     name: &str,
     args: &[NumValue<B>],
     int_width: IntWidth,
@@ -642,7 +642,7 @@ pub fn dispatch_under(name: &str, args: &[Num], numbers: tcl_dialect::NumberSynt
 /// caller's arbitrary-precision integer backend, release-agnostic
 /// ([`IntWidth::Unresolved`]).
 #[must_use]
-pub fn dispatch_with_backend<B: super::super::number_tower::BigIntOps>(
+pub fn dispatch_with_backend<B: tcl_numeric::number_tower::BigIntOps>(
     name: &str,
     args: &[NumValue<B>],
 ) -> Option<NumValue<B>> {
@@ -652,7 +652,7 @@ pub fn dispatch_with_backend<B: super::super::number_tower::BigIntOps>(
 /// Dispatch with the caller's backend **and** its resolved release, so
 /// `int()` answers with that release's width.
 #[must_use]
-pub fn dispatch_with_backend_int_width<B: super::super::number_tower::BigIntOps>(
+pub fn dispatch_with_backend_int_width<B: tcl_numeric::number_tower::BigIntOps>(
     name: &str,
     args: &[NumValue<B>],
     int_width: IntWidth,
@@ -1171,7 +1171,7 @@ fn finite_trunc_to_i64(f: f64) -> Option<i64> {
 /// rung (C's `Tcl_InitBignumFromDouble`). `None` for a non-finite operand, or
 /// for a backend with no bignum rung — [`Num`], the const-folder's shape,
 /// which then abstains rather than folding a lossy answer.
-fn trunc_exact<B: super::super::number_tower::BigIntOps>(f: f64) -> Option<NumValue<B>> {
+fn trunc_exact<B: tcl_numeric::number_tower::BigIntOps>(f: f64) -> Option<NumValue<B>> {
     if let Some(i) = finite_trunc_to_i64(f) {
         return Some(NumValue::Int(i));
     }
@@ -1181,7 +1181,7 @@ fn trunc_exact<B: super::super::number_tower::BigIntOps>(f: f64) -> Option<NumVa
 /// C's `wide()` window: the low 64 bits of an integer, two's-complement
 /// folded (`wide(2**64 + 1)` is `1`). A value already on the wide rung is its
 /// own window.
-fn wide_window<B: super::super::number_tower::BigIntOps>(v: NumValue<B>) -> NumValue<B> {
+fn wide_window<B: tcl_numeric::number_tower::BigIntOps>(v: NumValue<B>) -> NumValue<B> {
     match v {
         NumValue::Big(b) => NumValue::Int(b.to_i64_wrapping()),
         other => other,
@@ -1200,7 +1200,7 @@ fn wide_window<B: super::super::number_tower::BigIntOps>(v: NumValue<B>) -> NumV
 /// `1.0` in binary64 and `4_503_599_627_370_497.0 + 0.5` ties to even, so that
 /// spelling answered `1` and `4_503_599_627_370_498` where tclsh 8.6.16/9.0.4
 /// answer `0` and `4503599627370497`.
-fn round_exact<B: super::super::number_tower::BigIntOps>(f: f64) -> Option<NumValue<B>> {
+fn round_exact<B: tcl_numeric::number_tower::BigIntOps>(f: f64) -> Option<NumValue<B>> {
     if !f.is_finite() {
         return None;
     }
@@ -1229,7 +1229,7 @@ fn has_nan<B>(vals: &[NumValue<B>]) -> bool {
         .any(|v| matches!(v, NumValue::Float(f) if f.is_nan()))
 }
 
-fn min_max<B: super::super::number_tower::BigIntOps>(
+fn min_max<B: tcl_numeric::number_tower::BigIntOps>(
     name: &str,
     vals: &[NumValue<B>],
 ) -> Option<NumValue<B>> {
@@ -1282,14 +1282,14 @@ fn min_max<B: super::super::number_tower::BigIntOps>(
     }
 }
 
-fn unary_float<B: super::super::number_tower::BigIntOps>(
+fn unary_float<B: tcl_numeric::number_tower::BigIntOps>(
     name: &str,
     vals: &[NumValue<B>],
 ) -> Option<NumValue<B>> {
     unary_float_selected(name, vals, false)
 }
 
-fn unary_float_selected<B: super::super::number_tower::BigIntOps>(
+fn unary_float_selected<B: tcl_numeric::number_tower::BigIntOps>(
     name: &str,
     vals: &[NumValue<B>],
     accepts_nan: bool,
@@ -1363,14 +1363,14 @@ fn logb_impl(x: f64) -> f64 {
     }
 }
 
-fn binary_float<B: super::super::number_tower::BigIntOps>(
+fn binary_float<B: tcl_numeric::number_tower::BigIntOps>(
     name: &str,
     vals: &[NumValue<B>],
 ) -> Option<NumValue<B>> {
     binary_float_selected(name, vals, false)
 }
 
-fn binary_float_selected<B: super::super::number_tower::BigIntOps>(
+fn binary_float_selected<B: tcl_numeric::number_tower::BigIntOps>(
     name: &str,
     vals: &[NumValue<B>],
     accepts_nan: bool,
@@ -1406,7 +1406,7 @@ fn binary_float_selected<B: super::super::number_tower::BigIntOps>(
 /// `ldexp` takes a genuine `int` exponent (Tcl's `ExprBinaryDIFunc` reads it
 /// with `Tcl_GetIntFromObj`, which rejects a double operand outright), so
 /// this doesn't fit the `binary_float` `fn(f64, f64) -> f64` shape.
-fn ldexp_fn<B: super::super::number_tower::BigIntOps>(vals: &[NumValue<B>]) -> Option<NumValue<B>> {
+fn ldexp_fn<B: tcl_numeric::number_tower::BigIntOps>(vals: &[NumValue<B>]) -> Option<NumValue<B>> {
     if vals.len() != 2 {
         return None;
     }
@@ -1430,7 +1430,7 @@ fn ldexp_fn<B: super::super::number_tower::BigIntOps>(vals: &[NumValue<B>]) -> O
 /// via the portable `libm` fused multiply-add so results stay identical
 /// across every backend (native, WASM, eBPF) regardless of hardware FMA
 /// support.
-fn fma_fn<B: super::super::number_tower::BigIntOps>(vals: &[NumValue<B>]) -> Option<NumValue<B>> {
+fn fma_fn<B: tcl_numeric::number_tower::BigIntOps>(vals: &[NumValue<B>]) -> Option<NumValue<B>> {
     if vals.len() != 3 {
         return None;
     }
@@ -1447,7 +1447,7 @@ fn fma_fn<B: super::super::number_tower::BigIntOps>(vals: &[NumValue<B>]) -> Opt
 
 /// `entier()`'s conversion — the exact, unbounded integer value of any
 /// numeric operand (TIP 237). `int()`/`wide()` are this plus a window.
-fn entier_of<B: super::super::number_tower::BigIntOps>(v: &NumValue<B>) -> Option<NumValue<B>> {
+fn entier_of<B: tcl_numeric::number_tower::BigIntOps>(v: &NumValue<B>) -> Option<NumValue<B>> {
     match v {
         NumValue::Int(i) => Some(NumValue::Int(*i)),
         NumValue::Big(b) => Some(NumValue::Big(b.clone())),
@@ -1455,7 +1455,7 @@ fn entier_of<B: super::super::number_tower::BigIntOps>(v: &NumValue<B>) -> Optio
     }
 }
 
-fn type_conv<B: super::super::number_tower::BigIntOps>(
+fn type_conv<B: tcl_numeric::number_tower::BigIntOps>(
     name: &str,
     vals: &[NumValue<B>],
     int_width: IntWidth,
@@ -1540,14 +1540,14 @@ fn type_conv<B: super::super::number_tower::BigIntOps>(
         // it isn't `Int`-only.
         "isqrt" => match v {
             NumValue::Int(i) if *i >= 0 => Some(NumValue::Int(exact_isqrt(*i))),
-            NumValue::Big(b) => super::super::number_tower::int_sqrt(b).map(NumValue::Big),
+            NumValue::Big(b) => tcl_numeric::number_tower::int_sqrt(b).map(NumValue::Big),
             // A float operand truncates first, exactly like an integer one,
             // so a beyond-wide magnitude keeps its exact root rather than
             // becoming a domain error (tclsh: `isqrt(1e300)` is a 151-digit
             // integer).
             NumValue::Float(f) if *f >= 0.0 => match trunc_exact::<B>(*f)? {
                 NumValue::Int(i) => Some(NumValue::Int(exact_isqrt(i))),
-                NumValue::Big(b) => super::super::number_tower::int_sqrt(&b).map(NumValue::Big),
+                NumValue::Big(b) => tcl_numeric::number_tower::int_sqrt(&b).map(NumValue::Big),
                 NumValue::Float(_) => None,
             },
             _ => None,

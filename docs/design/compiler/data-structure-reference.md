@@ -74,7 +74,7 @@ The containers around them:
 
 Every IR statement carries a `Span` for precise diagnostic mapping.
 
-### Expression AST (`rust/tcl-syntax/src/expr/ast.rs`, re-exported as `tcl_compiler::expr_ast`)
+### Expression AST (`rust/tcl-expr/src/ast.rs`, re-exported as `tcl_compiler::expr_ast`)
 
 | `ExprNode` variant | Example |
 |------|---------|

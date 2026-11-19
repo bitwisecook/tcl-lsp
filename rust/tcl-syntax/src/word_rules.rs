@@ -70,64 +70,7 @@ impl Default for WordValueRules {
     }
 }
 
-/// If `word` is a single balanced brace group spanning the whole word
-/// (`{` … its matching `}` at the final byte), return the inner slice.
-///
-/// The one owner of "is this word a braced literal", asked by both sides of
-/// the compile: the VM's `subst_word` strips such a word's braces and returns
-/// the content with *all* substitution suppressed, and codegen must decide the
-/// same question the same way — for a braced `expr` operand, and before it
-/// pushes any word the VM will read back.
-///
-/// The balance walk is the whole point, and the reason this is a function
-/// rather than a two-byte test each caller writes for itself. `{` first and
-/// `}` last is only the *necessary* condition: in `{}${z}` the leading brace
-/// matches at byte 1, so the word is not a braced literal and stripping it
-/// yields the unbalanced `}${z}`. Codegen's braced-`expr`-operand arm did
-/// exactly that, and `switch -- "{}$z" …` raised `missing close-brace for
-/// variable name` on a script both oracles run (its `expr` sibling ran a
-/// `[cmd]` inside what it had already decided was a literal).
-///
-/// Dialect-blind by construction: a backslash escapes the next byte on every
-/// ladder, and brace *balance* is not one of the axes [`WordValueRules`]
-/// carries — the continuation collapse that is stays on
-/// [`WordValueRules::collapse_braced_word`].
-#[must_use]
-pub fn whole_braced_word(word: &str) -> Option<&str> {
-    whole_braced_word_bytes(word.as_bytes()).and_then(|inner| core::str::from_utf8(inner).ok())
-}
-
-/// Content of a balanced whole-word brace group in original byte source.
-/// Delimiters and escapes are inspected without decoding opaque content.
-#[must_use]
-pub fn whole_braced_word_bytes(b: &[u8]) -> Option<&[u8]> {
-    let n = b.len();
-    if n < 2 || b[0] != b'{' || b[n - 1] != b'}' {
-        return None;
-    }
-    let mut depth = 0usize;
-    let mut i = 0usize;
-    while i < n {
-        match b[i] {
-            b'\\' => {
-                i += 2;
-                continue;
-            }
-            b'{' => depth += 1,
-            b'}' => {
-                depth -= 1;
-                // A premature return to depth 0 means the leading `{` does not
-                // match the trailing `}`, so this is not a whole-word literal.
-                if depth == 0 && i != n - 1 {
-                    return None;
-                }
-            }
-            _ => {}
-        }
-        i += 1;
-    }
-    if depth == 0 { Some(&b[1..n - 1]) } else { None }
-}
+pub use tcl_lexer::word_parts::{whole_braced_word, whole_braced_word_bytes};
 
 impl WordValueRules {
     /// Every build of the Tcl core, and the F5 fork.

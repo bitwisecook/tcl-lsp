@@ -36,7 +36,7 @@ use super::variable_references::{
 /// whose key is the two characters `$i`.
 ///
 /// ```
-/// use tcl_syntax::naming::element_var_name;
+/// use tcl_lexer::variable_names::element_var_name;
 /// assert_eq!(element_var_name("$arr(k)"), "arr(k)");
 /// assert_eq!(element_var_name("$arr(\\x41)"), "arr", "backslash keys substitute");
 /// assert_eq!(element_var_name("arr(k)"), "arr(k)");
@@ -78,7 +78,7 @@ pub fn element_var_name_for_style(name: &str, style: tcl_dialect::BracedVarStyle
 /// W210/W211/W220, rename, semantic highlighting — on the wrong variable.
 ///
 /// ```
-/// use tcl_syntax::naming::element_var_name_braced;
+/// use tcl_lexer::variable_names::element_var_name_braced;
 /// // A brace-quoted word: the content is the name, verbatim.
 /// assert_eq!(element_var_name_braced("$n", true), "$n");
 /// assert_eq!(element_var_name_braced("${n}", true), "${n}");
@@ -103,7 +103,7 @@ pub fn element_var_name_braced(name: &str, braced_literal: bool) -> &str {
 ///
 /// ```
 /// use tcl_dialect::BracedVarStyle;
-/// use tcl_syntax::naming::element_var_name_braced_for_style;
+/// use tcl_lexer::variable_names::element_var_name_braced_for_style;
 /// assert_eq!(
 ///     element_var_name_braced_for_style("${a{b}c}", false, BracedVarStyle::Tcl9Nesting),
 ///     "a{b}c",
@@ -146,7 +146,7 @@ pub fn element_var_name_braced_for_style(
 /// `$arr`.
 ///
 /// ```
-/// use tcl_syntax::naming::normalise_var_name_braced;
+/// use tcl_lexer::variable_names::normalise_var_name_braced;
 /// assert_eq!(normalise_var_name_braced("$n", true), "$n");
 /// assert_eq!(normalise_var_name_braced("${n}", true), "${n}");
 /// assert_eq!(normalise_var_name_braced("arr($i)", true), "arr");
@@ -180,7 +180,7 @@ pub fn normalise_var_name_braced_for_style(
 /// literal name — see [`element_var_name_braced`] for the oracle.
 ///
 /// ```
-/// use tcl_syntax::naming::split_array_name_braced;
+/// use tcl_lexer::variable_names::split_array_name_braced;
 /// assert_eq!(split_array_name_braced("arr($i)", true), ("arr", Some("$i")));
 /// assert_eq!(split_array_name_braced("$n", true), ("$n", None));
 /// assert_eq!(split_array_name_braced("$arr(k)", true), ("$arr", Some("k")));
@@ -230,7 +230,7 @@ pub fn split_array_name_braced_for_style(
 /// *named* `$foo(x)` splits as array `$foo`, element `x`.
 ///
 /// ```
-/// use tcl_syntax::naming::split_element_ref;
+/// use tcl_lexer::variable_names::split_element_ref;
 /// assert_eq!(split_element_ref("arr(foo)"), Some(("arr", "foo")));
 /// assert_eq!(split_element_ref("arr"), None);
 /// // Zero-length array name and zero-length element are both legal.
@@ -272,7 +272,7 @@ pub fn split_element_ref_bytes(name: &[u8]) -> Option<(&[u8], &[u8])> {
 /// `${arr(foo)}` *is* the array element `arr(foo)`.
 ///
 /// ```
-/// use tcl_syntax::naming::split_array_name;
+/// use tcl_lexer::variable_names::split_array_name;
 /// assert_eq!(split_array_name("arr"), ("arr", None));
 /// assert_eq!(split_array_name("arr(foo)"), ("arr", Some("foo")));
 /// assert_eq!(split_array_name("$arr(foo)"), ("arr", Some("foo")));
@@ -289,7 +289,7 @@ pub fn split_array_name(name: &str) -> (&str, Option<&str>) {
 ///
 /// ```
 /// use tcl_dialect::BracedVarStyle;
-/// use tcl_syntax::naming::split_array_name_for_style;
+/// use tcl_lexer::variable_names::split_array_name_for_style;
 /// // 9.x: the nested pair is inside the name, so this is the scalar `a{b}c`.
 /// assert_eq!(
 ///     split_array_name_for_style("${a{b}c}", BracedVarStyle::Tcl9Nesting),

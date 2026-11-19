@@ -34,7 +34,7 @@
 
 use core::cmp::Ordering;
 
-use crate::native_boolean_truth::NativeBooleanTruthPurpose;
+use crate::NativeBooleanTruthPurpose;
 
 use super::ast::{BinOp, ExprNode, ExprText, UnaryOp};
 
@@ -99,7 +99,7 @@ pub trait ExprOps {
     /// substitution syntax. Engines override this using their dialect scanner.
     /// Pure consumers may keep the normalized, index-preserving lookup seam.
     fn variable_reference(&mut self, reference: &str) -> Result<Self::Value, Self::Error> {
-        self.var(crate::naming::var_reference(reference))
+        self.var(tcl_lexer::variable_names::var_reference(reference))
     }
     /// Resolve a reached reference at its original parser offset. The default
     /// preserves the ordinary engine lookup; proof consumers retain this site.

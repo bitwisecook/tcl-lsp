@@ -47,7 +47,7 @@ use tcl_dialect::{DialectProfile, NumberSyntax, TclVersion};
 use tcl_lexer::{ExprToken, ExprTokenType};
 
 use crate::expr::ast::{BinOp, ExprNode, ExprText, UnaryOp};
-use crate::naming::variable_reference_root_bytes;
+use tcl_lexer::variable_names::variable_reference_root_bytes;
 
 /// Binding powers for binary operators: `(left_bp, right_bp)`.
 ///
@@ -375,7 +375,7 @@ impl<'a, Text: ExprText> PrattParser<'a, Text> {
         // what produces `invalid bareword "0o8"` instead of silently evaluating
         // the literal to its own text.
         if tok.kind == ExprTokenType::Number {
-            if !crate::number::is_expr_number(
+            if !tcl_numeric::number::is_expr_number(
                 tok.text.try_text().unwrap_or_default(),
                 self.numbers,
                 self.expr_grammar_base,
@@ -403,7 +403,8 @@ impl<'a, Text: ExprText> PrattParser<'a, Text> {
         // Boolean literal. The lexer retains `Bool` for full-word highlighting,
         // while prefixes arrive as identifier-shaped `Function` tokens.
         if matches!(tok.kind, ExprTokenType::Bool | ExprTokenType::Function)
-            && crate::boolean::parse_boolean_word(tok.text.try_text().unwrap_or_default()).is_some()
+            && tcl_numeric::boolean::parse_boolean_word(tok.text.try_text().unwrap_or_default())
+                .is_some()
         {
             let tok = self.advance();
             return Ok(ExprNode::Literal {
@@ -545,9 +546,7 @@ impl<'a, Text: ExprText> PrattParser<'a, Text> {
 #[path = "checked.rs"]
 mod checked;
 
-pub(super) use checked::{
-    parse_source_expression_checked, parse_source_expression_checked_with_config,
-};
+pub use checked::{parse_source_expression_checked, parse_source_expression_checked_with_config};
 
 pub use checked::{
     CheckedExprParse, ExprParseContext, ExprParseUnsupported, ExprSyntaxFailure,
@@ -564,8 +563,8 @@ pub use checked::{
 /// never crashes on malformed expressions.
 ///
 /// ```
-/// use tcl_syntax::expr::parser::parse_expr;
-/// use tcl_syntax::expr::ast::{ExprNode, BinOp};
+/// use tcl_expr::expr::parser::parse_expr;
+/// use tcl_expr::expr::ast::{ExprNode, BinOp};
 ///
 /// let node = parse_expr("$a + 1", None);
 /// assert!(matches!(node, ExprNode::Binary { op: BinOp::Add, .. }));
@@ -575,7 +574,7 @@ pub use checked::{
 /// assert!(matches!(raw, ExprNode::Raw { .. }));
 /// ```
 /// The numeric grammar to parse with: a named dialect's own, else the grammar
-/// the runtime was built for ([`crate::number::runtime_syntax`]).
+/// the runtime was built for ([`tcl_numeric::number::runtime_syntax`]).
 ///
 /// The fallback matters. An unnamed dialect resolves to the permissive 9.x
 /// profile, so without this a runtime built for 8.6 would *parse* `0o17` as a
@@ -588,7 +587,7 @@ pub(super) fn numbers_for(
     if profile.is_some() {
         NumberSyntax::of_profile(Some(resolved))
     } else {
-        crate::number::runtime_syntax()
+        tcl_numeric::number::runtime_syntax()
     }
 }
 
