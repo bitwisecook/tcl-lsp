@@ -23,6 +23,8 @@ pub mod driver;
 pub mod header;
 pub mod helpers;
 pub mod scalar;
+mod shell;
+pub use shell::{ShellToken, ShellTokenKind, shell_tokens};
 
 pub use driver::{BigipConfig, Placed, parse_bigip_conf};
 

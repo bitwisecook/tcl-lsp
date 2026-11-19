@@ -21,6 +21,8 @@
 //! Only ASCII structural bytes (`{`, `}`, `"`, `\`, whitespace, `#`) are
 //! inspected, so every recorded offset lands on a UTF-8 char boundary.
 
+use super::shell::{ShellTokenKind, header_words, shell_tokens};
+
 /// A parsed top-level config stanza.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Block {
@@ -66,61 +68,6 @@ impl BlockSpan {
     }
 }
 
-#[derive(Clone, Copy)]
-enum ShellToken {
-    Newline,
-    Text,
-    Open,
-    Close,
-}
-
-/// Only the outer tmsh shell owns these punctuation bytes. Tcl inside a
-/// rule is separately selected by the embedded iRule source reader.
-fn shell_tokens(source: &str) -> impl Iterator<Item = (usize, ShellToken)> + '_ {
-    let bytes = source.as_bytes();
-    let mut pos = 0;
-    let mut blank = true;
-    std::iter::from_fn(move || {
-        loop {
-            let start = pos;
-            let byte = *bytes.get(pos)?;
-            pos += 1;
-            let kind = match byte {
-                b' ' | b'\t' | b'\r' => continue,
-                b'#' if blank => {
-                    while bytes.get(pos).is_some_and(|&b| b != b'\n') {
-                        pos += 1;
-                    }
-                    continue;
-                }
-                b'\n' => ShellToken::Newline,
-                b'{' => ShellToken::Open,
-                b'}' => ShellToken::Close,
-                b'"' => {
-                    while let Some(&next) = bytes.get(pos) {
-                        pos += 1;
-                        if next == b'"' {
-                            break;
-                        }
-                        if next == b'\\' && pos < bytes.len() {
-                            pos += 1;
-                        }
-                    }
-                    ShellToken::Text
-                }
-                b'\\' => {
-                    blank = bytes.get(pos) == Some(&b'\n');
-                    pos += usize::from(pos < bytes.len());
-                    return Some((start, ShellToken::Text));
-                }
-                _ => ShellToken::Text,
-            };
-            blank = matches!(kind, ShellToken::Newline);
-            return Some((start, kind));
-        }
-    })
-}
-
 /// Top-level source extents. An unfinished stanza retains its complete UTF-8
 /// body to EOF and may be displayed while the user is typing.
 pub fn block_spans(source: &str) -> impl Iterator<Item = BlockSpan> + '_ {
@@ -128,20 +75,22 @@ pub fn block_spans(source: &str) -> impl Iterator<Item = BlockSpan> + '_ {
     std::iter::from_fn(move || {
         let mut header = None;
         let open = loop {
-            let (offset, kind) = tokens.next()?;
-            match kind {
-                ShellToken::Open => break offset,
-                ShellToken::Newline => header = None,
+            let token = tokens.next()?;
+            let offset = token.range.start;
+            match token.kind {
+                ShellTokenKind::Open => break offset,
+                ShellTokenKind::Newline => header = None,
                 _ => {
                     header.get_or_insert(offset);
                 }
             }
         };
         let mut depth = 1;
-        let close = tokens.find_map(|(offset, kind)| {
-            match kind {
-                ShellToken::Open => depth += 1,
-                ShellToken::Close => depth -= 1,
+        let close = tokens.find_map(|token| {
+            let offset = token.range.start;
+            match token.kind {
+                ShellTokenKind::Open => depth += 1,
+                ShellTokenKind::Close => depth -= 1,
                 _ => {}
             }
             (depth == 0).then_some(offset)
@@ -157,12 +106,12 @@ pub fn block_spans(source: &str) -> impl Iterator<Item = BlockSpan> + '_ {
 /// Matched opening and closing offsets at every nesting depth, in closing order.
 pub fn brace_regions(source: &str) -> impl Iterator<Item = (usize, usize)> + '_ {
     let mut stack = Vec::new();
-    shell_tokens(source).filter_map(move |(pos, kind)| match kind {
-        ShellToken::Open => {
-            stack.push(pos);
+    shell_tokens(source).filter_map(move |token| match token.kind {
+        ShellTokenKind::Open => {
+            stack.push(token.range.start);
             None
         }
-        ShellToken::Close => stack.pop().map(|open| (open, pos)),
+        ShellTokenKind::Close => stack.pop().map(|open| (open, token.range.start)),
         _ => None,
     })
 }
@@ -585,31 +534,12 @@ pub fn parse_keyed_block_entries_with_offsets(braced: &str) -> Vec<KeyedBlockEnt
 /// backslash escapes.
 #[must_use]
 pub fn tokenise_header(header: &str) -> Vec<String> {
-    let mut tokens = Vec::new();
-    let mut buf = String::new();
-    let mut in_quote = false;
-    let mut escape = false;
-    for ch in header.chars() {
-        if escape {
-            buf.push(ch);
-            escape = false;
-            continue;
-        }
-        match ch {
-            '\\' => escape = true,
-            '"' => in_quote = !in_quote,
-            c if c.is_whitespace() && !in_quote => {
-                if !buf.is_empty() {
-                    tokens.push(std::mem::take(&mut buf));
-                }
-            }
-            c => buf.push(c),
-        }
-    }
-    if !buf.is_empty() {
-        tokens.push(buf);
-    }
-    tokens
+    header_words(header)
+        .filter_map(|token| {
+            let value = token.word_value()?;
+            (!value.is_empty()).then(|| value.into_owned())
+        })
+        .collect()
 }
 
 #[cfg(test)]
