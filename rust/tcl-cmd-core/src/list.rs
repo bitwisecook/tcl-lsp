@@ -239,6 +239,7 @@ pub fn lreverse<O: ValueOps>(ops: &mut O, value: &O::Value) -> Result<O::Value, 
 }
 
 /// Return the selected command usage on an arity failure, before reading the count.
+#[must_use]
 pub fn lrepeat_usage_error(argc: usize, c_version: Option<TclVersion>) -> Option<&'static str> {
     if c_version == Some(TclVersion::V8_5) {
         (argc < 2).then_some("lrepeat positiveCount value ?value ...?")
