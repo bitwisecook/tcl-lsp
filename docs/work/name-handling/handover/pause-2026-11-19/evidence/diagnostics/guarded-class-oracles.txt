@@ -1,0 +1,54 @@
+TCL_LSP_TCLSH84 direct 0 no stock TclOO 
+TCL_LSP_TCLSH84 append 0 no stock TclOO 
+TCL_LSP_TCLSH84 uplevel 0 no stock TclOO 
+TCL_LSP_TCLSH84 local 0 no stock TclOO 
+TCL_LSP_TCLSH84 global 0 no stock TclOO 
+TCL_LSP_TCLSH84 qualified 0 no stock TclOO 
+TCL_LSP_TCLSH84 traced 0 no stock TclOO 
+TCL_LSP_TCLSH84 input0 0 no stock TclOO 
+TCL_LSP_TCLSH84 input1 0 no stock TclOO 
+TCL_LSP_TCLSH85 direct 0 no stock TclOO 
+TCL_LSP_TCLSH85 append 0 no stock TclOO 
+TCL_LSP_TCLSH85 uplevel 0 no stock TclOO 
+TCL_LSP_TCLSH85 local 0 no stock TclOO 
+TCL_LSP_TCLSH85 global 0 no stock TclOO 
+TCL_LSP_TCLSH85 qualified 0 no stock TclOO 
+TCL_LSP_TCLSH85 traced 0 no stock TclOO 
+TCL_LSP_TCLSH85 input0 0 no stock TclOO 
+TCL_LSP_TCLSH85 input1 0 no stock TclOO 
+TCL_LSP_TCLSH86 direct 0 1 
+TCL_LSP_TCLSH86 append 0 1 
+TCL_LSP_TCLSH86 uplevel 0 1 
+TCL_LSP_TCLSH86 local 0 1 
+TCL_LSP_TCLSH86 global 0 0 
+TCL_LSP_TCLSH86 qualified 0 0 
+TCL_LSP_TCLSH86 traced 0 0 
+TCL_LSP_TCLSH86 input0 0 1 
+TCL_LSP_TCLSH86 input1 0 0 
+TCL_LSP_TCLSH90 direct 0 1 
+TCL_LSP_TCLSH90 append 0 1 
+TCL_LSP_TCLSH90 uplevel 0 1 
+TCL_LSP_TCLSH90 local 0 1 
+TCL_LSP_TCLSH90 global 0 0 
+TCL_LSP_TCLSH90 qualified 0 0 
+TCL_LSP_TCLSH90 traced 0 0 
+TCL_LSP_TCLSH90 input0 0 1 
+TCL_LSP_TCLSH90 input1 0 0 
+TCL_LSP_TCLSH91 direct 0 1 
+TCL_LSP_TCLSH91 append 0 1 
+TCL_LSP_TCLSH91 uplevel 0 1 
+TCL_LSP_TCLSH91 local 0 1 
+TCL_LSP_TCLSH91 global 0 0 
+TCL_LSP_TCLSH91 qualified 0 0 
+TCL_LSP_TCLSH91 traced 0 0 
+TCL_LSP_TCLSH91 input0 0 1 
+TCL_LSP_TCLSH91 input1 0 0 
+TCL_LSP_JIMSH direct 0 no stock TclOO 
+TCL_LSP_JIMSH append 0 no stock TclOO 
+TCL_LSP_JIMSH uplevel 0 no stock TclOO 
+TCL_LSP_JIMSH local 0 no stock TclOO 
+TCL_LSP_JIMSH global 0 no stock TclOO 
+TCL_LSP_JIMSH qualified 0 no stock TclOO 
+TCL_LSP_JIMSH traced 0 no stock TclOO 
+TCL_LSP_JIMSH input0 0 no stock TclOO 
+TCL_LSP_JIMSH input1 0 no stock TclOO 

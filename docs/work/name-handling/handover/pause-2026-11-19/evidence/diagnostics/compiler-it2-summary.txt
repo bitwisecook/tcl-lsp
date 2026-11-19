@@ -1,0 +1,7 @@
+8d6ae9adde1a1556b34a01952bd785fe972f9e69
+        FAIL [   0.711s] (1/3) tcl-compiler::it_2 value_transfer_witnesses::try_and_errors::a_body_that_ends_in_an_error_may_have_failed_at_its_start
+        PASS [   2.343s] (2/3) tcl-compiler::it_2 value_transfer_witnesses::procedure_summaries::split_of_the_empty_string_is_the_empty_list
+        FAIL [   2.152s] (3/3) tcl-compiler::it_2 value_transfer_witnesses::unseen_code::a_stub_that_states_its_frame_effect_is_a_named_head
+     Summary [   2.865s] 3 tests run: 1 passed, 2 failed, 498 skipped
+        FAIL [   0.711s] (1/3) tcl-compiler::it_2 value_transfer_witnesses::try_and_errors::a_body_that_ends_in_an_error_may_have_failed_at_its_start
+        FAIL [   2.152s] (3/3) tcl-compiler::it_2 value_transfer_witnesses::unseen_code::a_stub_that_states_its_frame_effect_is_a_named_head

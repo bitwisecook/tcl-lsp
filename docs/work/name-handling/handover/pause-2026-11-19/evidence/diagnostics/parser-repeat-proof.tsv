@@ -1,0 +1,5 @@
+site	occurrence	call	evidence
+rust/tcl-compiler/src/analyser/diagnostics/dataflow/unused_bindings.rs::body_references_param	2	tcl_syntax::list::join_list	Formats a test invocation from ["proc", "__w214__", &parameters, body]; previous join serialized [param]. cfg(test) adapter for the 8.6 registry context.
+rust/tcl-syntax/src/formal_params.rs::formal_parameter_usage	2	join_list	Formats a required C formal from [&parameter.name]; previous join serialized optional decorated ?name?. Jim branches format their own usage and strip reference ampersands.
+rust/tcl-syntax/src/formal_params.rs::split_overlong_parameter_specifier	2	split_list	Splits the nested string from FormalParameterError::TooManyFields {specifier}; the first split read the outer source. Both reads migrated to actual WordValueRules in d373c6bb06. The repaired candidate is revalidated under ParameterGrammar.
+rust/tcl-syntax/src/naming.rs::conformance::vectors	2	split_list	Local CSV fixture closure for defs reads fields[2]; first call reads path from fields[1]. Comma-separated fixture schema with the hyphen sentinel, independent of Tcl list rules.

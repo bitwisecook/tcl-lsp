@@ -1,0 +1,149 @@
+From 500cf463a334f6ef4e70e3ccc94566c6ab365709 Mon Sep 17 00:00:00 2001
+From: None None <openai@bragi0.com>
+Date: Thu, 19 Nov 2026 14:13:30 +0000
+Subject: [PATCH] Stage the retained variable-script eval candidate and
+ measured TclOO controls
+
+---
+ .../original_delegated_script.rs              | 54 +++++++++++++++----
+ .../analyser/class_factories/walk_blockers.rs | 48 +++++++++++++++++
+ 2 files changed, 93 insertions(+), 9 deletions(-)
+
+diff --git a/rust/tcl-compiler/src/command_binding/original_delegated_script.rs b/rust/tcl-compiler/src/command_binding/original_delegated_script.rs
+index 089b5edae3..a9211f6e34 100644
+--- a/rust/tcl-compiler/src/command_binding/original_delegated_script.rs
++++ b/rust/tcl-compiler/src/command_binding/original_delegated_script.rs
+@@ -45,7 +45,8 @@ pub(super) struct OriginalDelegatedScript {
+ }
+ 
+ /// The script operand and its retained text, when the selected handler is
+-/// the stock script evaluator and its one script word is a braced literal.
++/// the stock script evaluator and its one script word is a braced literal or
++/// a variable read whose value the walk proved constant.
+ fn literal_script(
+     native: SourceNativeInvocation<'_>,
+     facts: &tcl_registry::InvocationFacts,
+@@ -86,14 +87,20 @@ fn literal_script(
+     {
+         return None;
+     }
+-    if !matches!(
+-        native.script_operands().written_word(argument_offset)?,
+-        crate::ir::WordExpr::BracedLiteral { .. }
+-    ) && !super::literal_word_script::is_exact_literal_word_script(
+-        native,
+-        argument_offset,
+-        context.config,
+-    ) {
++    // A script held in a variable runs as that literal script where the walk
++    // proved one constant value for the read (the strict lattice: no trace
++    // or unknown write reaches it), exactly as `eval {that script}` would.
++    let written = native.script_operands().written_word(argument_offset)?;
++    let proved_variable = matches!(written, crate::ir::WordExpr::Variable { .. })
++        && proved_variable_script(native, argument_offset, state, context);
++    if !matches!(written, crate::ir::WordExpr::BracedLiteral { .. })
++        && !proved_variable
++        && !super::literal_word_script::is_exact_literal_word_script(
++            native,
++            argument_offset,
++            context.config,
++        )
++    {
+         return None;
+     }
+     let body = super::retained_script_operand(
+@@ -106,6 +113,35 @@ fn literal_script(
+     Some((argument_offset, body))
+ }
+ 
++/// The read's own proof for a `$name` script word: the walk's produced value
++/// for that written word is current at this site (no write, trace or unknown
++/// mutation since its store changed its contents epoch) and is the argument
++/// value the evaluator receives.
++fn proved_variable_script(
++    native: SourceNativeInvocation<'_>,
++    argument_offset: usize,
++    state: &ModuleCommandBindings,
++    context: SourceExecutionContext<'_>,
++) -> bool {
++    let Some(crate::registry_invocation::InvocationWordOrigin::Written(written)) =
++        native.script_operands().written_origin(argument_offset)
++    else {
++        return false;
++    };
++    let Some(value) = context
++        .written_name_values
++        .and_then(|values| values.get(written))
++        .and_then(|value| value.as_deref())
++    else {
++        return false;
++    };
++    let arguments = native.invocation.arguments();
++    let argument = arguments
++        .native_bytes_at(argument_offset)
++        .or_else(|| arguments.literal_at(argument_offset).map(str::as_bytes));
++    value.is_current(&state.source_variables) && argument == Some(value.bytes())
++}
++
+ /// Whether the handler's own footprint is exactly its literal script's.
+ pub(super) fn has_delegated_literal_script(
+     native: SourceNativeInvocation<'_>,
+diff --git a/rust/tcl-compiler/tests/it_4/analyser/class_factories/walk_blockers.rs b/rust/tcl-compiler/tests/it_4/analyser/class_factories/walk_blockers.rs
+index e1fdaa5ec9..4623514935 100644
+--- a/rust/tcl-compiler/tests/it_4/analyser/class_factories/walk_blockers.rs
++++ b/rust/tcl-compiler/tests/it_4/analyser/class_factories/walk_blockers.rs
+@@ -463,3 +463,51 @@ fn deeply_nested_collection_loops_do_not_blow_the_static_walk_stack() {
+         "the literally-written metaclass must survive the deep walk"
+     );
+ }
++
++/// A guard the walk can decide: `M` is created as a class only where no
++/// command `::M` exists yet.
++const GUARDED_CLASS: &str =
++    "if {[info commands ::M] eq {}} {\n    oo::class create ::M { superclass ::oo::class }\n}\n";
++
++#[test]
++fn an_eval_of_a_proved_constant_script_is_not_a_blocker() {
++    // C Tcl 8.6.18, 9.0.4 and 9.1.0 create the class after each prefix,
++    // including the local-only procedure write. The standard 8.4/8.5 and
++    // Jim shells here have no ::oo::class. Tcllib clay uses this pattern
++    // for its `set has($flag) [eval $test]` feature probe (#1655).
++    for prefix in [
++        "set test {set x 1}\neval $test\n",
++        "set test {set x }\nappend test 1\neval $test\n",
++        "set test {set x 1}\nuplevel #0 $test\n",
++        "proc f {} {set test {proc M {} {}}}\nset test {set x 1}\nf\neval $test\n",
++    ] {
++        let src = format!("{prefix}{GUARDED_CLASS}");
++        let result = analysis(&src, "tcl9.0");
++        assert!(
++            result.all_classes.contains_key("::M"),
++            "{prefix}: got {:?}",
++            result.all_classes.keys().collect::<Vec<_>>()
++        );
++    }
++}
++
++#[test]
++fn an_eval_of_a_script_the_lattice_cannot_prove_stays_a_blocker() {
++    // FP guard — each prefix may run `proc M`, after which the guard skips the
++    // class. tclsh 8.6.18, 9.0.4 and 9.1.0: the read trace and the procedure
++    // call both leave `::M` a procedure, not a class.
++    for prefix in [
++        "set test {set x 1}\ntrace add variable test read {apply {{a b c} {uplevel 1 {set test {proc M {} {}}}}}}\neval $test\n",
++        "proc f {} {global test; set test {proc M {} {}}}\nset test {set x 1}\nf\neval $test\n",
++        "proc f {} {set ::test {proc M {} {}}}\nset test {set x 1}\nf\neval $test\n",
++        "set test {set x 1}\nif {[gets stdin line] > 0} {set test {proc M {} {}}}\neval $test\n",
++    ] {
++        let src = format!("{prefix}{GUARDED_CLASS}");
++        let result = analysis(&src, "tcl9.0");
++        assert!(
++            !result.all_classes.contains_key("::M"),
++            "{prefix}: got {:?}",
++            result.all_classes.keys().collect::<Vec<_>>()
++        );
++    }
++}
+-- 
+2.52.0
+

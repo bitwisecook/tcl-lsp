@@ -1,0 +1,36 @@
+TCL_LSP_TCLSH84 caller: 0 0 0 1 
+TCL_LSP_TCLSH85 caller: 0 0 0 1 
+TCL_LSP_TCLSH86 caller: 0 0 0 1 
+TCL_LSP_TCLSH90 caller: 0 0 0 1 
+TCL_LSP_TCLSH91 caller: 0 0 0 1 
+TCL_LSP_JIMSH caller: 0 0 0 1 
+TCL_LSP_TCLSH84 unstated: 0 0 0 1 
+TCL_LSP_TCLSH85 unstated: 0 0 0 1 
+TCL_LSP_TCLSH86 unstated: 0 0 0 1 
+TCL_LSP_TCLSH90 unstated: 0 0 0 1 
+TCL_LSP_TCLSH91 unstated: 0 0 0 1 
+TCL_LSP_JIMSH unstated: 0 0 0 1 
+TCL_LSP_TCLSH84 own: 0 0 0 0 
+TCL_LSP_TCLSH85 own: 0 0 0 0 
+TCL_LSP_TCLSH86 own: 0 0 0 0 
+TCL_LSP_TCLSH90 own: 0 0 0 0 
+TCL_LSP_TCLSH91 own: 0 0 0 0 
+TCL_LSP_JIMSH own: 0 0 0 0 
+TCL_LSP_TCLSH84 none: 0 0 0 0 
+TCL_LSP_TCLSH85 none: 0 0 0 0 
+TCL_LSP_TCLSH86 none: 0 0 0 0 
+TCL_LSP_TCLSH90 none: 0 0 0 0 
+TCL_LSP_TCLSH91 none: 0 0 0 0 
+TCL_LSP_JIMSH none: 0 0 0 0 
+TCL_LSP_TCLSH84 replace after posting: 0 0 0 1 
+TCL_LSP_TCLSH85 replace after posting: 0 0 0 1 
+TCL_LSP_TCLSH86 replace after posting: 0 0 0 1 
+TCL_LSP_TCLSH90 replace after posting: 0 0 0 1 
+TCL_LSP_TCLSH91 replace after posting: 0 0 0 1 
+TCL_LSP_JIMSH replace after posting: 0 0 0 1 
+TCL_LSP_TCLSH84 withdraw after posting: 0 0 0 0 
+TCL_LSP_TCLSH85 withdraw after posting: 0 0 0 0 
+TCL_LSP_TCLSH86 withdraw after posting: 0 0 0 0 
+TCL_LSP_TCLSH90 withdraw after posting: 0 0 0 0 
+TCL_LSP_TCLSH91 withdraw after posting: 0 0 0 0 
+TCL_LSP_JIMSH withdraw after posting: 0 0 0 0 

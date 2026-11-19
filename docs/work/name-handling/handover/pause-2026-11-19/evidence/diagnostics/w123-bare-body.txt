@@ -1,0 +1,36 @@
+tcl8.4 unbound '1\ninvalid command name "\xa0incr\xa0"\n'
+  public ["W123 Span { start: 7, end: 15 } Unresolved command 'incr' at this source point []"]
+tcl8.4 bound '0\nactual\n'
+  public []
+tcl8.4 comment '0\n\n'
+  public []
+tcl8.5 unbound '1\ninvalid command name "\xa0incr\xa0"\n'
+  public ["W123 Span { start: 7, end: 15 } Unresolved command 'incr' at this source point []"]
+tcl8.5 bound '0\nactual\n'
+  public []
+tcl8.5 comment '0\n\n'
+  public []
+tcl8.6 unbound '1\ninvalid command name "\xa0incr\xa0"\n'
+  public ["W123 Span { start: 7, end: 15 } Unresolved command 'incr' at this source point []"]
+tcl8.6 bound '0\nactual\n'
+  public []
+tcl8.6 comment '0\n\n'
+  public []
+tcl9.0 unbound '1\ninvalid command name "\xa0incr\xa0"\n'
+  public ["W123 Span { start: 7, end: 15 } Unresolved command 'incr' at this source point []"]
+tcl9.0 bound '0\nactual\n'
+  public []
+tcl9.0 comment '0\n\n'
+  public []
+tcl9.1 unbound '1\ninvalid command name "\xa0incr\xa0"\n'
+  public ["W123 Span { start: 7, end: 15 } Unresolved command 'incr' at this source point []"]
+tcl9.1 bound '0\nactual\n'
+  public []
+tcl9.1 comment '0\n\n'
+  public []
+jimtcl unbound '1\ninvalid command name "\xa0incr\xa0"\n'
+  public ["W123 Span { start: 7, end: 15 } Unresolved command 'incr' at this source point []"]
+jimtcl bound '0\nactual\n'
+  public []
+jimtcl comment '0\n\n'
+  public []

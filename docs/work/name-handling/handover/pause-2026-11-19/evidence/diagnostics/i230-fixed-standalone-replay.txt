@@ -1,0 +1,15 @@
+
+thread 'main' (246895) panicked at /tmp/bd-i230-complete-fixed.rs:158:13:
+assertion `left == right` failed: tcl8.4 -frame caller:
+# tcl-lsp: stubs-begin
+# tcl-lsp: stub db_bind {spec} -frame caller
+# tcl-lsp: stubs-end
+set done 0
+after 10 {db_bind {done}}
+after 50
+update
+if {$done} {puts 1} else {puts 0}
+
+  left: [false]
+ right: []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

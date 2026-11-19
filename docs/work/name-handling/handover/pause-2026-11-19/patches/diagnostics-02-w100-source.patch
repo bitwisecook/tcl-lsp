@@ -1,0 +1,233 @@
+From 2c9d060024bbd2423d3adcad82ba076119965116 Mon Sep 17 00:00:00 2001
+From: None None <openai@bragi0.com>
+Date: Thu, 19 Nov 2026 13:57:24 +0000
+Subject: [PATCH] Use the complete selected expression for W100 literal
+ decisions
+
+---
+ rust/tcl-compiler/src/analyser/diagnostics.rs |   4 +-
+ .../src/analyser/diagnostics/tests/usage.rs   |  22 ++--
+ .../src/analyser/diagnostics/usage.rs         |   4 -
+ .../diagnostics/usage/unbraced_words.rs       | 102 ++++--------------
+ rust/tcl-syntax/src/expr/substitution.rs      |  17 +++
+ 5 files changed, 45 insertions(+), 104 deletions(-)
+
+diff --git a/rust/tcl-compiler/src/analyser/diagnostics.rs b/rust/tcl-compiler/src/analyser/diagnostics.rs
+index b69f1dc73f..d7c0ba6992 100644
+--- a/rust/tcl-compiler/src/analyser/diagnostics.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics.rs
+@@ -108,8 +108,8 @@ pub(in crate::analyser::diagnostics) use helpers::find_dotted_quads;
+ pub(in crate::analyser::diagnostics) use security::has_redos_shape;
+ #[cfg(test)]
+ pub(in crate::analyser::diagnostics) use usage::{
+-    first_nested_expr, is_benign_unicode, is_safe_literal, is_safe_literal_expr,
+-    is_valid_subnet_mask, looks_like_subnet_mask, nearest_valid_mask,
++    first_nested_expr, is_benign_unicode, is_valid_subnet_mask, looks_like_subnet_mask,
++    nearest_valid_mask,
+ };
+ #[cfg(test)]
+ pub(in crate::analyser::diagnostics) use validity::contains_gated_word;
+diff --git a/rust/tcl-compiler/src/analyser/diagnostics/tests/usage.rs b/rust/tcl-compiler/src/analyser/diagnostics/tests/usage.rs
+index 10d2db5aca..4d96e25480 100644
+--- a/rust/tcl-compiler/src/analyser/diagnostics/tests/usage.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics/tests/usage.rs
+@@ -564,27 +564,19 @@ fn w100_skips_braced_and_safe_literals() {
+     assert_eq!(w100_sev("expr {$a + $b}\n"), [] as [std::string::String; 0]);
+     assert_eq!(w100_sev("expr 1+2\n"), [] as [std::string::String; 0]);
+     assert_eq!(w100_sev("if 1 {puts hi}\n"), [] as [std::string::String; 0]);
++    for source in [
++        "if 0x10 {puts hi}\n",
++        "if -42 {puts hi}\n",
++        "if 1+ {puts hi}\n",
++    ] {
++        assert!(w100_sev(source).is_empty(), "{source}");
++    }
+     assert_eq!(
+         w100_sev("if {1} {puts hi}\n"),
+         [] as [std::string::String; 0]
+     );
+ }
+ 
+-#[test]
+-fn is_safe_literal_expr_classifies() {
+-    assert!(is_safe_literal("42"));
+-    assert!(is_safe_literal("true"));
+-    assert!(!is_safe_literal("$x"));
+-    assert!(is_safe_literal_expr(
+-        "1 + 2",
+-        tcl_dialect::DialectProfile::find("tcl8.6").expect("tcl8.6 profile")
+-    ));
+-    assert!(!is_safe_literal_expr(
+-        "$a + $b",
+-        tcl_dialect::DialectProfile::find("tcl8.6").expect("tcl8.6 profile")
+-    ));
+-}
+-
+ fn w212_count(src: &str) -> usize {
+     let mut a = crate::analyser::Analyser::new();
+     a.analyse(src, "tcl8.6")
+diff --git a/rust/tcl-compiler/src/analyser/diagnostics/usage.rs b/rust/tcl-compiler/src/analyser/diagnostics/usage.rs
+index beb4625de2..8e277055dc 100644
+--- a/rust/tcl-compiler/src/analyser/diagnostics/usage.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics/usage.rs
+@@ -53,10 +53,6 @@ use literal_contents::comment_regions_recursive;
+ pub(super) use literal_contents::{
+     is_benign_unicode, is_valid_subnet_mask, looks_like_subnet_mask, nearest_valid_mask,
+ };
+-#[cfg(test)]
+-pub(super) use unbraced_words::is_safe_literal;
+-#[cfg(test)]
+-pub(super) use unbraced_words::is_safe_literal_expr;
+ pub(in crate::analyser) use unbraced_words::original_word_has_substitution;
+ 
+ impl Analyser {
+diff --git a/rust/tcl-compiler/src/analyser/diagnostics/usage/unbraced_words.rs b/rust/tcl-compiler/src/analyser/diagnostics/usage/unbraced_words.rs
+index c7ec888360..1c4c9186ef 100644
+--- a/rust/tcl-compiler/src/analyser/diagnostics/usage/unbraced_words.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics/usage/unbraced_words.rs
+@@ -313,26 +313,27 @@ Use braces: {{ \u{2026} }}"
+         let end = original.word(last)?;
+         let span = tcl_lexer::Span::new(word.span().start(), end.span().end());
+         let text = self.source.get(span.as_range()).map(str::to_owned)?;
+-        let safe = if expressions.concatenates {
+-            let context = self.original_expression_parser_context()?;
+-            is_safe_literal_expr_in_context(text.trim(), &context)
+-        } else {
+-            is_safe_literal(text.trim())
+-        };
+-        if safe {
+-            return None;
+-        }
+         let has_sub = (argument..=last).any(|index| {
+-            original.word(index).is_some_and(|word| {
+-                word.executable_parts().all_parts().any(|part| {
+-                    matches!(
+-                        part.part,
+-                        tcl_lexer::ExecutablePart::Variable { .. }
+-                            | tcl_lexer::ExecutablePart::Command { .. }
+-                    )
+-                })
+-            })
++            original
++                .word(index)
++                .is_some_and(original_word_has_substitution)
+         });
++        if !has_sub {
++            // Inspect the complete written expression. A failed source parse
++            // cannot establish that the proposed braced spelling is valid.
++            let expression = tcl_syntax::expr::substitution::OriginalSourceExpression::capture(
++                &text,
++                &self.original_expression_parser_context()?,
++                self.file_lexer_config(),
++            )?;
++            if expression.is_signed_or_unsigned_literal()
++                || expressions.concatenates
++                    && !expression.has_opaque_or_substitution_operands()
++                    && expression.function_calls().is_empty()
++            {
++                return None;
++            }
++        }
+         let hex_conversion = argument == last && original_word_is_hex_conversion(word);
+         let fix_inner = if hex_conversion {
+             // A substituted hexadecimal suffix forms a number before expr
+@@ -479,68 +480,3 @@ Use braces: {{ \u{2026} }}"
+         );
+     }
+ }
+-
+-/// True when `text` is a simple numeric or boolean literal that needs
+-/// no bracing.
+-pub(in super::super) fn is_safe_literal(text: &str) -> bool {
+-    let t = text.trim();
+-    if t.parse::<f64>().is_ok() {
+-        return true;
+-    }
+-    matches!(
+-        t.to_ascii_lowercase().as_str(),
+-        "true" | "false" | "yes" | "no" | "on" | "off"
+-    )
+-}
+-
+-/// True when an expr string is substitution-free numeric / boolean /
+-/// operator text (safe to leave unbraced).
+-#[cfg(test)]
+-pub(in super::super) fn is_safe_literal_expr(
+-    text: &str,
+-    profile: &'static tcl_dialect::DialectProfile,
+-) -> bool {
+-    is_safe_literal_expr_in_context(
+-        text,
+-        &tcl_syntax::expr::parser::ExprParseContext::for_profile(profile),
+-    )
+-}
+-
+-fn is_safe_literal_expr_in_context(
+-    text: &str,
+-    context: &tcl_syntax::expr::parser::ExprParseContext,
+-) -> bool {
+-    use tcl_lexer::ExprTokenType as T;
+-    if is_safe_literal(text) {
+-        return true;
+-    }
+-    if text.contains('$') || text.contains('[') {
+-        return false;
+-    }
+-    let (tokens, unknown) = tcl_lexer::tokenise_expr_checked_with_expression_grammar(
+-        text,
+-        &context.lexer_grammar,
+-        context.expr_grammar_base,
+-        context.f5_word_grammar,
+-    );
+-    if unknown {
+-        return false;
+-    }
+-    if tokens.is_empty() {
+-        return false;
+-    }
+-    tokens.iter().all(|tok| {
+-        matches!(
+-            tok.kind,
+-            T::Number
+-                | T::Bool
+-                | T::Operator
+-                | T::ParenOpen
+-                | T::ParenClose
+-                | T::Whitespace
+-                | T::TernaryQ
+-                | T::TernaryC
+-                | T::Comma
+-        )
+-    })
+-}
+diff --git a/rust/tcl-syntax/src/expr/substitution.rs b/rust/tcl-syntax/src/expr/substitution.rs
+index f3bef2d800..b456603dda 100644
+--- a/rust/tcl-syntax/src/expr/substitution.rs
++++ b/rust/tcl-syntax/src/expr/substitution.rs
+@@ -135,6 +135,23 @@ impl OriginalSourceExpression {
+     pub const fn lexer_config(&self) -> LexerConfig {
+         self.config
+     }
++    /// Whether the checked source consists of a numeric or Boolean literal,
++    /// optionally preceded by a unary sign. This classifies syntax only.
++    #[must_use]
++    pub fn is_signed_or_unsigned_literal(&self) -> bool {
++        match &self.tree {
++            ExprNode::Literal { .. } => true,
++            ExprNode::Unary {
++                op: super::ast::UnaryOp::Pos | super::ast::UnaryOp::Neg,
++                operand,
++                ..
++            } => {
++                matches!(operand.as_ref(), ExprNode::Literal { .. })
++            }
++            _ => false,
++        }
++    }
++
+     /// Conservative opaque/string or substitution operands in the original tree.
+     /// A string may contain inert bytes; this supplies no effect closure or read.
+     #[must_use]
+-- 
+2.52.0
+

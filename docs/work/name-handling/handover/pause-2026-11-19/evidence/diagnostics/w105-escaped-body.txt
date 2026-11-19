@@ -1,0 +1,24 @@
+original 'if {1} "set x \\$"\nputs $x\n'
+classes={}
+W105 Span { start: 7, end: 16 } [CodeFix { span: Span { start: 7, end: 16 }, new_text: "{set x \\$}", description: "Wrap code block in braces", safety: BehaviourHardening }]
+W105 Span { start: 7, end: 17 } [CodeFix { span: Span { start: 7, end: 17 }, new_text: "{set x $}", description: "Wrap code block in braces", safety: BehaviourHardening }]
+edit 7..16 'if {1} {set x \\$}"\nputs $x\n'
+edit 7..17 'if {1} {set x $}\nputs $x\n'
+TCL_LSP_TCLSH84 original 0 '$\n' []
+TCL_LSP_TCLSH84 edit 7..16 1 '' ['extra characters after close-brace']
+TCL_LSP_TCLSH84 edit 7..17 0 '$\n' []
+TCL_LSP_TCLSH85 original 0 '$\n' []
+TCL_LSP_TCLSH85 edit 7..16 1 '' ['extra characters after close-brace']
+TCL_LSP_TCLSH85 edit 7..17 0 '$\n' []
+TCL_LSP_TCLSH86 original 0 '$\n' []
+TCL_LSP_TCLSH86 edit 7..16 1 '' ['extra characters after close-brace']
+TCL_LSP_TCLSH86 edit 7..17 0 '$\n' []
+TCL_LSP_TCLSH90 original 0 '$\n' []
+TCL_LSP_TCLSH90 edit 7..16 1 '' ['extra characters after close-brace']
+TCL_LSP_TCLSH90 edit 7..17 0 '$\n' []
+TCL_LSP_TCLSH91 original 0 '$\n' []
+TCL_LSP_TCLSH91 edit 7..16 1 '' ['extra characters after close-brace']
+TCL_LSP_TCLSH91 edit 7..17 0 '$\n' []
+TCL_LSP_JIMSH original 0 '$\n' []
+TCL_LSP_JIMSH edit 7..16 1 '' ['/tmp/bd-w105-temp.tcl:1: Error: missing quote']
+TCL_LSP_JIMSH edit 7..17 0 '$\n' []
