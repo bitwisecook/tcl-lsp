@@ -244,39 +244,141 @@ impl CodegenCtx<'_> {
     }
 
     /// C appends a final `done` to every body, after a trailing `returnImm`
-    /// too. From 8.6 its optimizer drops the final `done` straight after a
-    /// `done` a tail `return` compiled to; 8.5 keeps both (tclsh
-    /// `disassemble proc p` for `return $x`: 8.5 `done done`, 8.6+ `done`).
+    /// too (tclsh `disassemble script {return $x}`: ... returnImm done). From
+    /// 8.6 its optimizer drops a final `done` no jump reaches straight after
+    /// a `done` ([`Self::optimise_like_c86`]); 8.5 keeps both.
     pub fn settle_final_done(&mut self) {
-        let Some(last) = self.instructions.last() else {
-            return;
-        };
-        if last.op == Op::RETURN_IMM {
+        if self
+            .instructions
+            .last()
+            .is_some_and(|last| last.op == Op::RETURN_IMM)
+        {
             self.emit(Op::DONE, vec![]);
-            return;
         }
-        let n = self.instructions.len();
-        let trims = self
+    }
+
+    /// The 8.6+ bytecode optimizer's rewrites that keep C's byte layout
+    /// (tclOptimize.c, run on every body from 8.6): `not` before a
+    /// conditional jump becomes `nop` with the jump inverted
+    /// (`ConvertZeroEffectToNOP`), and code after a `done` up to the next jump
+    /// target or command start becomes `nop`s, or is dropped at the end of
+    /// the body (`TrimUnreachable`). Run once jump and operand widths are final.
+    pub fn optimise_like_c86(&mut self) {
+        let optimises = self
             .invocation_dialect
             .or_else(|| self.native_hook_dialect())
             .and_then(|dialect| dialect.tcl_version)
             .is_some_and(|version| version >= tcl_dialect::TclVersion::V8_6);
-        if trims
-            && n >= 2
-            && self.instructions[n - 1].op == Op::DONE
-            && self.instructions[n - 2].op == Op::DONE
-            && self.instructions[n - 1]
-                .native_operation_selections
-                .is_empty()
-            && self.instructions[n - 1].native_compiler_selection.is_none()
-        {
-            self.instructions.pop();
+        if !optimises {
+            return;
+        }
+        let targets = self.c86_target_addresses();
+        for index in 0..self.instructions.len().saturating_sub(1) {
+            if self.instructions[index].op != Op::NOT || targets.contains(&(index + 1)) {
+                continue;
+            }
+            let inverted = match self.instructions[index + 1].op {
+                Op::JUMP_TRUE1 => Op::JUMP_FALSE1,
+                Op::JUMP_FALSE1 => Op::JUMP_TRUE1,
+                Op::JUMP_TRUE4 => Op::JUMP_FALSE4,
+                Op::JUMP_FALSE4 => Op::JUMP_TRUE4,
+                _ => continue,
+            };
+            self.instructions[index + 1].op = inverted;
+            let blanked = &mut self.instructions[index];
+            blanked.op = Op::NOP;
+            blanked.operands.clear();
+        }
+        // C locates the targets once, before trimming anything.
+        let mut targets = self.c86_target_addresses();
+        let mut index = 0;
+        while index < self.instructions.len() {
+            if self.instructions[index].op != Op::DONE {
+                index += 1;
+                continue;
+            }
+            let start = index + 1;
+            let mut end = start;
+            while end < self.instructions.len() && !targets.contains(&end) {
+                end += 1;
+            }
+            let replacement: Vec<Instruction> = if end == self.instructions.len() {
+                Vec::new()
+            } else {
+                let bytes: usize = self.instructions[start..end]
+                    .iter()
+                    .map(|instruction| usize::from(instruction.op.size()))
+                    .sum();
+                std::iter::repeat_with(|| Instruction::new(Op::NOP, vec![]))
+                    .take(bytes)
+                    .collect()
+            };
+            let (removed, added) = (end - start, replacement.len());
+            self.instructions.splice(start..end, replacement);
+            let shift = |position: usize| {
+                if position >= end {
+                    position + added - removed
+                } else {
+                    position
+                }
+            };
             for position in self.label_positions.values_mut() {
-                if *position >= n - 1 {
-                    *position = n - 2;
+                *position = shift(*position);
+            }
+            targets = targets.into_iter().map(shift).collect();
+            index = start + added;
+        }
+    }
+
+    /// C's `LocateTargetAddresses`: every jump, `startCommand` and catch
+    /// target, every loop range's break and continue target, and every
+    /// command's first instruction. Bookkeeping labels that no instruction
+    /// reaches are not targets.
+    fn c86_target_addresses(&self) -> std::collections::HashSet<usize> {
+        let mut names: std::collections::HashSet<&str> = std::collections::HashSet::new();
+        for instruction in &self.instructions {
+            for operand in &instruction.operands {
+                if let Operand::Label(label) = operand {
+                    names.insert(label.as_str());
                 }
             }
+            for label in [
+                &instruction.catch_target,
+                &instruction.catch_start,
+                &instruction.catch_end,
+            ]
+            .into_iter()
+            .flatten()
+            {
+                names.insert(label.as_str());
+            }
+            if let Some(table) = &instruction.jump_table {
+                names.extend(table.values().map(String::as_str));
+            }
         }
+        for region in &self.inline_loop_regions {
+            names.insert(region.break_target.as_str());
+            if let Some(target) = &region.continue_target {
+                names.insert(target.as_str());
+            }
+        }
+        let mut targets: std::collections::HashSet<usize> = self
+            .label_positions
+            .iter()
+            .filter(|(label, _)| names.contains(label.as_str()))
+            .map(|(_, position)| *position)
+            .collect();
+        let mut seen = std::collections::HashSet::new();
+        for (index, instruction) in self.instructions.iter().enumerate() {
+            if instruction.op == Op::START_CMD
+                || instruction
+                    .source_span
+                    .is_some_and(|span| seen.insert(span))
+            {
+                targets.insert(index);
+            }
+        }
+        targets
     }
 
     /// Remove `startCommand` markers whose continuation is the immediately

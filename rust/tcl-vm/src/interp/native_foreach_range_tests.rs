@@ -307,3 +307,36 @@ fn a_script_reaches_variables_through_the_releases_stack_forms() {
         }
     }
 }
+
+/// tclsh 8.6+ optimizes every body: `not` before a conditional jump becomes
+/// `nop` with the jump inverted, and code after a `done` up to the next jump
+/// target is padded with `nop`s.
+#[test]
+fn a_body_takes_the_optimizations_tclsh_applies_from_8_6() {
+    for source in [
+        "if {!$a} {set b 1}",
+        "if {$a} {return 1}; return 2",
+        "while {!$a} {set a 1}",
+        "if {$a} {return 1} else {return 2}",
+        "if {$a} {set b 1} else {set b 2}",
+        "if {$a} {set b 1} elseif {$b} {set b 2} else {set b 3}",
+    ] {
+        for release in [
+            tcl_dialect::TclVersion::V8_5,
+            tcl_dialect::TclVersion::V8_6,
+            tcl_dialect::TclVersion::V9_0,
+        ] {
+            let Some((body, _)) = oracle_of(
+                release,
+                &format!("proc p {{a}} {{{source}}}; puts [tcl::unsupported::disassemble proc p]"),
+            ) else {
+                continue;
+            };
+            assert_eq!(
+                compiled_with(release, "a", source).0,
+                body,
+                "{release:?} proc {source}"
+            );
+        }
+    }
+}

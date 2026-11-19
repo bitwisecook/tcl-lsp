@@ -342,10 +342,15 @@ impl CodegenCtx<'_> {
                 terminal = true;
             }
             tasks.push(source.script(clause.body, NativeCompiledBodyContext::Inherit));
-            tasks.push(Task::Operation(
-                Op::JUMP4,
-                vec![Operand::Label(end.clone())],
-            ));
+            // The final `else` body falls through to the end; C compiles no
+            // jump after it (tclsh 8.5 `if {$a} {set b 1} else {set b 2}`:
+            // ... storeScalar1 done).
+            if !terminal {
+                tasks.push(Task::Operation(
+                    Op::JUMP4,
+                    vec![Operand::Label(end.clone())],
+                ));
+            }
             tasks.push(Task::Label(next));
         }
         if !terminal {
