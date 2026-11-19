@@ -163,13 +163,18 @@ fn argument_identity(arg: &syn::Expr) -> Option<String> {
 #[derive(Default)]
 struct Facts {
     calls: BTreeMap<String, Vec<Vec<Option<String>>>>,
-    leads: BTreeSet<String>,
+    scope: String,
+    leads: Vec<String>,
     library_list: bool,
     whitespace: bool,
     bracket_open: bool,
     bracket_close: bool,
     increments: bool,
     decrements: bool,
+    delimiter: bool,
+    branching: bool,
+    iteration: bool,
+    host_readers: BTreeSet<String>,
 }
 
 impl<'ast> Visit<'ast> for Facts {
@@ -185,19 +190,48 @@ impl<'ast> Visit<'ast> for Facts {
                 || name.ends_with("LexerConfig::default")
                 || name.ends_with("DialectProfile::plain_tcl")
             {
-                self.leads.insert(name);
+                self.leads.push(name);
             }
         }
         visit::visit_expr_call(self, call);
     }
 
     fn visit_expr_method_call(&mut self, call: &'ast syn::ExprMethodCall) {
+        let method = call.method.to_string();
         if matches!(
-            call.method.to_string().as_str(),
+            method.as_str(),
             "split_whitespace" | "split_ascii_whitespace"
         ) {
             self.whitespace = true;
         }
+        if matches!(
+            method.as_str(),
+            "split"
+                | "split_once"
+                | "rsplit"
+                | "rsplit_once"
+                | "splitn"
+                | "rsplitn"
+                | "split_whitespace"
+                | "split_ascii_whitespace"
+                | "trim_matches"
+                | "parse"
+        ) {
+            self.host_readers.insert(method.clone());
+        }
+        self.iteration |= matches!(
+            method.as_str(),
+            "iter"
+                | "bytes"
+                | "chars"
+                | "char_indices"
+                | "enumerate"
+                | "position"
+                | "take_while"
+                | "skip_while"
+                | "split"
+                | "find"
+        );
         visit::visit_expr_method_call(self, call);
     }
 
@@ -206,10 +240,35 @@ impl<'ast> Visit<'ast> for Facts {
     }
 
     fn visit_lit_byte(&mut self, lit: &'ast syn::LitByte) {
+        self.delimiter |= lit.value().is_ascii_punctuation() || lit.value().is_ascii_whitespace();
         self.bracket_open |= lit.value() == b'[';
         self.bracket_close |= lit.value() == b']';
     }
 
+    fn visit_lit_char(&mut self, lit: &'ast syn::LitChar) {
+        self.delimiter |= lit.value().is_ascii_punctuation() || lit.value().is_ascii_whitespace();
+    }
+    fn visit_expr(&mut self, expr: &'ast syn::Expr) {
+        self.iteration |= matches!(
+            expr,
+            syn::Expr::ForLoop(_) | syn::Expr::While(_) | syn::Expr::Loop(_)
+        );
+        self.branching |= matches!(
+            expr,
+            syn::Expr::Binary(_) | syn::Expr::Match(_) | syn::Expr::If(_)
+        );
+        visit::visit_expr(self, expr);
+    }
+    fn visit_macro(&mut self, item: &'ast syn::Macro) {
+        if item.path.is_ident("matches") {
+            self.branching = true;
+            // Rust macro arguments are opaque to syn's expression visitor.
+            // Preserve the potential boundary for review even if it is not
+            // written as one of the known Tcl parser spellings.
+            self.delimiter = true;
+        }
+        visit::visit_macro(self, item);
+    }
     fn visit_bin_op(&mut self, op: &'ast syn::BinOp) {
         self.increments |= matches!(op, syn::BinOp::AddAssign(_));
         self.decrements |= matches!(op, syn::BinOp::SubAssign(_));
@@ -221,11 +280,29 @@ struct Source {
     functions: BTreeMap<String, Vec<Facts>>,
     tests: BTreeMap<String, Facts>,
     test_module: bool,
+    scopes: Vec<String>,
+    declarations: BTreeMap<String, usize>,
 }
 
 impl Source {
     fn record(&mut self, name: &syn::Ident, attrs: &[syn::Attribute], body: &syn::Block) {
-        let mut facts = Facts::default();
+        let scope = self
+            .scopes
+            .iter()
+            .map(String::as_str)
+            .chain(std::iter::once(name.to_string().as_str()))
+            .collect::<Vec<_>>()
+            .join("::");
+        let count = self.declarations.entry(scope.clone()).or_default();
+        *count += 1;
+        let mut facts = Facts {
+            scope: if *count == 1 {
+                scope
+            } else {
+                format!("{scope}[declaration {count}]")
+            },
+            ..Facts::default()
+        };
         facts.visit_block(body);
         if attrs.iter().any(|attr| attr.path().is_ident("test")) {
             if !attrs.iter().any(|attr| attr.path().is_ident("ignore")) {
@@ -249,11 +326,26 @@ impl<'ast> Visit<'ast> for Source {
                     .parse_args::<syn::Ident>()
                     .is_ok_and(|name| name == "test")
         });
+        self.scopes.push(item.ident.to_string());
         visit::visit_item_mod(self, item);
+        self.scopes.pop();
         self.test_module = old;
     }
     fn visit_item_fn(&mut self, item: &'ast syn::ItemFn) {
         self.record(&item.sig.ident, &item.attrs, &item.block);
+    }
+    fn visit_item_impl(&mut self, item: &'ast syn::ItemImpl) {
+        let target = match &*item.self_ty {
+            syn::Type::Path(p) => path_text(&p.path),
+            _ => "<type expression>".to_owned(),
+        };
+        let owner = match &item.trait_ {
+            Some((_, p, _)) => format!("<{target} as {}>", path_text(p)),
+            None => target,
+        };
+        self.scopes.push(owner);
+        visit::visit_item_impl(self, item);
+        self.scopes.pop();
     }
     fn visit_impl_item_fn(&mut self, item: &'ast syn::ImplItemFn) {
         self.record(&item.sig.ident, &item.attrs, &item.block);
@@ -373,12 +465,28 @@ fn census(root: &Path, mode: &str) -> Result<String> {
     Ok(String::from_utf8(out.stdout)?)
 }
 
+/// A tracked foreign source can implement a parser under any function or file
+/// name. Keep its boundary inspectable until an owner records its entry.
+fn foreign_review(surface: &str) -> &'static str {
+    match surface {
+        "generated" => "verify generator and source differential",
+        "vendored" => "verify external owner and integration",
+        "grammar-or-editor-rules" => "review host grammar and embedded boundaries",
+        "source" => "review foreign source entry and consumer",
+        "other-review" => "unclassified tracked input",
+        _ => "inspect declared surface and owning consumer",
+    }
+}
+
 pub fn run(report: bool) -> Result<ExitCode> {
     let root = crate::util::repo_root();
     let inventory = census(&root, "--files")?;
     let mut errors = Vec::new();
     let mut seen = BTreeSet::new();
     let mut unreviewed = 0;
+    let mut structural = 0;
+    let mut ast_sources = 0;
+    let mut foreign = BTreeMap::<&str, usize>::new();
     for line in inventory.lines().skip(1) {
         let mut fields = line.splitn(3, '\t');
         let (_component, surface, file) = (fields.next(), fields.next(), fields.next());
@@ -387,14 +495,9 @@ pub fn run(report: bool) -> Result<ExitCode> {
         };
         seen.insert(file);
         if !file.ends_with(".rs") {
+            *foreign.entry(surface).or_default() += 1;
             if report {
-                match surface {
-                    "other-review" => println!("{file}\t{surface}\tunclassified tracked input"),
-                    "grammar-or-editor-rules" => {
-                        println!("{file}\t{surface}\treview host and embedded boundaries")
-                    }
-                    _ => {}
-                }
+                println!("{file}\t{surface}\t{}", foreign_review(surface));
             }
             continue;
         }
@@ -406,28 +509,52 @@ pub fn run(report: bool) -> Result<ExitCode> {
             continue;
         }
         let text = std::fs::read_to_string(root.join(file)).with_context(|| file.to_owned())?;
-        if !scoped
-            && ![
-                "TCLLIBPATH",
-                "parse_expr",
-                "split_list",
-                "join_list",
-                "LexerConfig",
-                "DialectProfile",
-            ]
-            .iter()
-            .any(|term| text.contains(term))
-        {
-            continue;
-        }
         let mut source = Source::default();
-        source.visit_file(
-            &syn::parse_file(&text).with_context(|| format!("parse tracked source {file}"))?,
-        );
+        match syn::parse_file(&text) {
+            Ok(tree) => {
+                source.visit_file(&tree);
+                ast_sources += 1;
+            }
+            Err(err)
+                if !scoped
+                    && matches!(
+                        surface,
+                        "test-or-example"
+                            | "corpus-or-oracle"
+                            | "vendored"
+                            | "generated"
+                            | "other-review"
+                    ) =>
+            {
+                if report {
+                    println!("{file}\t{surface}\tRust fragment/Syn parse unavailable: {err}");
+                }
+                continue;
+            }
+            Err(err) => return Err(anyhow::anyhow!("parse tracked Rust source {file}: {err}")),
+        }
         errors.extend(source.drift(file));
         for (name, functions) in &source.functions {
             for facts in functions {
+                if facts.delimiter && (facts.iteration || facts.branching) {
+                    structural += 1;
+                    if report {
+                        println!(
+                            "{file}::{}\tdelimiter and control flow\treview structural reader",
+                            facts.scope
+                        );
+                    }
+                }
+                for method in &facts.host_readers {
+                    structural += 1;
+                    if report {
+                        println!("{file}::{}\t{method}\treview host operation", facts.scope);
+                    }
+                }
+                let mut occurrences = BTreeMap::new();
                 for lead in &facts.leads {
+                    let occurrence = occurrences.entry(lead).or_insert(0usize);
+                    *occurrence += 1;
                     if ROUTES.iter().any(|rule| {
                         rule.file == file && rule.function == name && rule.owner == lead
                     }) {
@@ -435,7 +562,10 @@ pub fn run(report: bool) -> Result<ExitCode> {
                     }
                     unreviewed += 1;
                     if report {
-                        println!("{file}::{name}\t{lead}\treview grammar selection");
+                        println!(
+                            "{file}::{} [call {occurrence}]\t{lead}\treview grammar selection",
+                            facts.scope
+                        );
                     }
                 }
             }
@@ -491,8 +621,11 @@ pub fn run(report: bool) -> Result<ExitCode> {
         print!("{targets}");
         print!("{}", census(&root, "--sites")?);
     }
+    for (surface, count) in &foreign {
+        println!("parser-ownership: {count} tracked {surface} boundaries");
+    }
     println!(
-        "parser-ownership: {} tracked paths, {target_count} Cargo targets, {unreviewed} Rust entry/default review leads. Run cargo xtask parser-ownership --report for sites, including host grammars.",
+        "parser-ownership: {} tracked paths, {target_count} Cargo targets, {ast_sources} AST-scanned Rust files, {structural} structural/host leads, {unreviewed} Rust entry/default review leads. Run cargo xtask parser-ownership --report for sites, including host grammars.",
         seen.len()
     );
     for error in &errors {
@@ -566,6 +699,31 @@ mod tests {
         ] {
             assert!(!source(&changed).drift(APL).is_empty(), "{changed}");
         }
+    }
+
+    #[test]
+    fn newly_named_byte_scanner_and_foreign_adapter_remain_reviewable() {
+        let parsed = source("fn field(image: &[u8]) { for &v in image { if v == b']' {break;} } }");
+        let facts = &parsed.functions["field"][0];
+        assert!(facts.delimiter && facts.iteration && facts.branching);
+        assert_ne!(foreign_review("source"), foreign_review("generated"));
+        assert_eq!(
+            foreign_review("source"),
+            "review foreign source entry and consumer"
+        );
+    }
+
+    #[test]
+    fn occurrence_inventory_distinguishes_impls_and_calls_within_one_body() {
+        let parsed = source(
+            "impl A { fn build() { parse_expr(a); parse_expr(b); } }
+                             mod nested { impl B { fn build() { parse_expr(c); } } }",
+        );
+        let entries = &parsed.functions["build"];
+        assert_eq!(entries[0].scope, "A::build");
+        assert_eq!(entries[0].leads, ["parse_expr", "parse_expr"]);
+        assert_eq!(entries[1].scope, "nested::B::build");
+        assert_eq!(entries[1].leads, ["parse_expr"]);
     }
 
     #[test]
