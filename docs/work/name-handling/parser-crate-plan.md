@@ -88,16 +88,16 @@ The [direct and default caller register](parser-callers.tsv) opens with 224 indi
 
 Run `cargo xtask parser-ownership --report` on the revision under review. On `e1caf3e94d` the wider pass inspected 6,227 Rust source trees, including the standalone runtime. It reported 5,557 functions for structural inspection, 919 uses of host parsing operations, and 616 foreign source entries. Each item is a review lead. Looping over data and parsing Tcl have different dispositions. For generated and bundled assets, trace the generator, source and embedding rule. A wrapper can be accepted only with its selected grammar and reachable caller established.
 
-The wider queue assigns 7,176 entries, including Rust structural and host operations, foreign source, generated files, grammar assets and vendored boundaries. Some entry types overlap within a file.
+The [site-by-site review](parser-review) preserves 7,176 leads from `e1caf3e94d`. Each row identifies the source and discovery operation. A single function can contain several operations. Reviewers record the owner they traced, source evidence and outstanding work. An entry with only a component name or a follow-up remains open. New code and generated inputs need a fresh inventory before sign-off.
 
-| Reviewer | Wider entries | Current evidence |
+| Review file | Leads | Evidence at this checkpoint |
 | --- | ---: | --- |
-| analyser-binding | 1,665 | Compiler, core types and dialect ownership. Formal and original-word discrepancies have public witnesses. |
-| dataflow-optimiser | 990 | Registry and compiler folding. The selected list/dictionary result writers require byte-for-byte checks through the optimiser. |
-| diagnostics | 602 | First pass covers all assigned entries. It explicitly leaves 34 open, including host number parsing, literal Tcl construction, scan and credential predicates. |
-| execution | 1,092 | Runtime, VM, codegen and engine adapters. Real runtime witnesses include malformed Thread lists, `try` error codes and glob filters. |
-| LSP features | 831 | First pass covers all assigned entries. It explicitly leaves 238 leads open and identifies 186 calls into existing owners. |
-| tooling | 1,996 | Editor/domain generators, scripts, packs and tooling. Record host grammar and the Tcl re-entry point. |
+| [analyser-binding](parser-review/analyser-binding.tsv) | 1,665 | Compiler, core types and dialect leads. Focused formal and original-word cases have public witnesses. The wider register awaits the individual dispositions. |
+| [dataflow-optimiser](parser-review/dataflow-optimiser.tsv) | 990 | First-pass classification retains 36 unresolved coordinates and 78 host/string grammar leads. The selected output writers need byte-for-byte checks through the public optimiser. |
+| [diagnostics](parser-review/diagnostics.tsv) | 602 | First pass flags 34 for follow-up, including host number parsing, literal Tcl construction, scan and credential predicates. |
+| [execution](parser-review/execution.tsv) | 1,092 | Subsystem or host-operation classifications for all entries. Outstanding semantic cases include Thread conversion, codegen formals and numeric reads, glob filters and malformed-list errors. |
+| [LSP features](parser-review/lsp-features.tsv) | 831 | First pass flags 238 for follow-up and traces 186 calls to existing owners. |
+| [tooling](parser-review/irules-registry-tooling.tsv) | 1,996 | 56 source or provenance dispositions. The other 1,940 entries name the next component or public entry to trace. |
 
 Gated scope records live in [the reviewed scope manifest](validation-tools/parser-reviewed-scopes.tsv). Current signed scopes cover the literal manifest reader and the APL embedded Tcl callback. The latter covers the hand-off to the selected Tcl lexer. The outer APL grammar and device questions retain their separate evidence requirements.
 
