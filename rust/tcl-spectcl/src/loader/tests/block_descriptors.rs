@@ -204,7 +204,7 @@ fn state_transition_blocks_preserve_complete_authored_rows() {
         "speclib probe 2.2 { command demo { state_transitions { \
              composition Replace; argument_shape Positional; resolver none; \
              widen -operands {Strided 0 2} -domains {VariableCells}; \
-             covers DeclaredWorldEffect -domains {VariableStore}; \
+             covers DeclaredWorldEffect -domains {VariableStore {LegacyExternal {Variable}}}; \
              commit MayCommitBeforeAbruptCompletion } } }",
     );
     assert!(pack.notices.is_empty(), "{:?}", pack.notices);
@@ -244,7 +244,12 @@ fn state_transition_blocks_preserve_complete_authored_rows() {
     );
     assert_eq!(
         descriptor.effect_coverage[0].domains,
-        [WorldStateDomain::VariableStore]
+        [
+            WorldStateDomain::VariableStore,
+            WorldStateDomain::LegacyExternal(
+                tcl_registry::side_effects::SideEffectTarget::Variable
+            ),
+        ]
     );
 }
 

@@ -343,10 +343,14 @@ fn coverage_row(stmt: &Stmt, log: &mut Log) -> Option<TransitionEffectCoverage> 
         match words[i].text.as_str() {
             "-domains" => {
                 let text = next_text(words, &mut i);
-                domains = list_words(&text)
-                    .iter()
-                    .map(|element| world_state_domain(element))
-                    .collect::<Option<Vec<_>>>()
+                domains = tcl_syntax::list::split_list(&text)
+                    .ok()
+                    .and_then(|elements| {
+                        elements
+                            .iter()
+                            .map(|element| world_state_domain(element))
+                            .collect::<Option<Vec<_>>>()
+                    })
                     .map(leak_slice);
                 if domains.is_none() {
                     log.say(
@@ -402,9 +406,10 @@ fn world_state_domain(text: &str) -> Option<WorldStateDomain> {
         WorldStateDomain::HostCapabilities,
         WorldStateDomain::VariableStore,
     ];
-    match text.split_whitespace().collect::<Vec<_>>().as_slice() {
+    let words = tcl_syntax::list::split_list(text).ok()?;
+    match words.as_slice() {
         [name] => by_name(DOMAINS, name),
-        ["LegacyExternal", target] => {
+        [kind, target] if kind == "LegacyExternal" => {
             by_name(SideEffectTarget::ALL, target).map(WorldStateDomain::LegacyExternal)
         }
         _ => None,
