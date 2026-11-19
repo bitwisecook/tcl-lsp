@@ -67,7 +67,7 @@
 | W151 | warning | Numeral changes meaning or validity across the project's declared version-target range — e.g. a leading-zero literal is octal under Tcl 8.x targets and decimal under 9.0. | ✓ |
 | W152 | warning | A registry-declared option relation is unmet — an option or argument the call supplied requires a companion option or argument it did not (`-command` without `-channel`), or the invocation supplies none of a required set. | ✓ |
 | W153 | warning | A valid `# tcl-lsp:` stub directive is outside a `stubs-begin` / `stubs-end` block and has no effect. | ✓ |
-| W154 | warning | Operator precedence groups an unparenthesised expression differently from how it reads — a comparison under `&`/`|`/`^` (`$x & 0xff == 1` is `$x & (0xff == 1)`), `+`/`-` under a shift, or `!` applied before a comparison. | ✓ |
+| W154 | warning | Unparenthesised operator mix with no shared reading convention groups differently from how it reads — a comparison, arithmetic or other bitwise operator under `&`/`|`/`^`, arithmetic under a shift, a comparison chain, `!` before a comparison or bitwise operator, `&&` inside `||`, arithmetic as a `?:` condition, or `-` as the base of `**`. | ✓ |
 | W200 | warning | Unsigned (`u`) suffix on a `binary format`/`binary scan` field requires a newer Tcl release. | ✓ |
 | W201 | warning | Manual path concatenation — use `file join` instead. | ✓ |
 | W202 | warning | `binary format`/`binary scan` field letter requires a newer Tcl release — `t`, `n`, `m`, `r`, `R`, `q` and `Q` arrive in Tcl 8.5. | ✓ |
@@ -112,6 +112,7 @@
 | I230 | hint | Constant branch condition — the alternate branch is provably unreachable. | ✓ |
 | I231 | hint | Constant switch arm condition — the arm is provably unreachable. | ✓ |
 | W123 | hint | Unresolved command — not found in registry, user procs, or `unknown` handler. | ✓ |
+| W155 | hint | Unparenthesised operand whose other grouping gives a different result (any non-associative mix, such as `$a - $b + $c`, `$a + $b * $c` or `$a == 1 && $b`) — off by default, for code that makes every grouping explicit. | ✗ |
 | W242 | hint | Loop termination cannot be proven — counter not provably modified by the loop body or step. | ✗ |
 | S100 | shimmer | Single shimmer outside a loop — object internal representation changed. | ✓ |
 | S101 | shimmer | Shimmer inside a loop body — per-iteration representation conversion cost. | ✓ |

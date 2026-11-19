@@ -629,7 +629,8 @@ diagnostic_codes! {
     W151 => "W151", diag(Warning, true, "Numeral changes meaning or validity across the project's declared version-target range — e.g. a leading-zero literal is octal under Tcl 8.x targets and decimal under 9.0.");
     W152 => "W152", diag(Warning, true, "A registry-declared option relation is unmet — an option or argument the call supplied requires a companion option or argument it did not (`-command` without `-channel`), or the invocation supplies none of a required set.");
     W153 => "W153", diag(Warning, true, "A valid `# tcl-lsp:` stub directive is outside a `stubs-begin` / `stubs-end` block and has no effect.");
-    W154 => "W154", diag(Warning, true, "Operator precedence groups an unparenthesised expression differently from how it reads — a comparison under `&`/`|`/`^` (`$x & 0xff == 1` is `$x & (0xff == 1)`), `+`/`-` under a shift, or `!` applied before a comparison.");
+    W154 => "W154", diag(Warning, true, "Unparenthesised operator mix with no shared reading convention groups differently from how it reads — a comparison, arithmetic or other bitwise operator under `&`/`|`/`^`, arithmetic under a shift, a comparison chain, `!` before a comparison or bitwise operator, `&&` inside `||`, arithmetic as a `?:` condition, or `-` as the base of `**`.");
+    W155 => "W155", diag(Hint, false, "Unparenthesised operand whose other grouping gives a different result (any non-associative mix, such as `$a - $b + $c`, `$a + $b * $c` or `$a == 1 && $b`) — off by default, for code that makes every grouping explicit.");
     W200 => "W200", diag(Warning, true, "Unsigned (`u`) suffix on a `binary format`/`binary scan` field requires a newer Tcl release.");
     W201 => "W201", diag(Warning, true, "Manual path concatenation — use `file join` instead.");
     W202 => "W202", diag(Warning, true, "`binary format`/`binary scan` field letter requires a newer Tcl release — `t`, `n`, `m`, `r`, `R`, `q` and `Q` arrive in Tcl 8.5.");

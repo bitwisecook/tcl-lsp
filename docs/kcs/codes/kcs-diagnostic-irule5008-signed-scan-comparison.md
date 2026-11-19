@@ -65,6 +65,6 @@ settings.
 ## Related
 
 - [KCS codes index](README.md)
-- [W154 — operator precedence groups differently from how it reads](kcs-diagnostic-w154-operator-precedence.md)
+- [W154 — operator mix groups differently from how it reads](kcs-diagnostic-w154-operator-precedence.md)
 - [Execution evidence: signed bytes, masking and precedence](../../../evidence/tcl/binary-scan-signed-byte-comparison.md)
 - [Diagnostics feature](../features/kcs-feature-diagnostics.md)

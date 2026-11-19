@@ -65,4 +65,4 @@ Hover an operator or parenthesis to see the parse as a tree.
 
 - [KCS feature index](README.md)
 - [Refactoring tools overview](kcs-feature-refactorings.md)
-- [W154 — operator precedence](../codes/kcs-diagnostic-w154-operator-precedence.md)
+- [W154 — operator mix groups differently from how it reads](../codes/kcs-diagnostic-w154-operator-precedence.md)

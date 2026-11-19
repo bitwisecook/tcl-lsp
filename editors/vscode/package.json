@@ -6017,7 +6017,7 @@
             "scope": "resource",
             "type": "boolean",
             "default": true,
-            "markdownDescription": "**W154:** Operator precedence groups an unparenthesised expression differently from how it reads — a comparison under `&`/`|`/`^` (`$x & 0xff == 1` is `$x & (0xff == 1)`), `+`/`-` under a shift, or `!` applied before a comparison.",
+            "markdownDescription": "**W154:** Unparenthesised operator mix with no shared reading convention groups differently from how it reads — a comparison, arithmetic or other bitwise operator under `&`/`|`/`^`, arithmetic under a shift, a comparison chain, `!` before a comparison or bitwise operator, `&&` inside `||`, arithmetic as a `?:` condition, or `-` as the base of `**`.",
             "order": 47
           },
           "tclLsp.diagnosticSeverity.W154": {
@@ -6038,7 +6038,7 @@
               "Report as information",
               "Report as a hint (faded)"
             ],
-            "markdownDescription": "Display severity for **W154:** Operator precedence groups an unparenthesised expression differently from how it reads — a comparison under `&`/`|`/`^` (`$x & 0xff == 1` is `$x & (0xff == 1)`), `+`/`-` under a shift, or `!` applied before a comparison.",
+            "markdownDescription": "Display severity for **W154:** Unparenthesised operator mix with no shared reading convention groups differently from how it reads — a comparison, arithmetic or other bitwise operator under `&`/`|`/`^`, arithmetic under a shift, a comparison chain, `!` before a comparison or bitwise operator, `&&` inside `||`, arithmetic as a `?:` condition, or `-` as the base of `**`.",
             "order": 47
           },
           "tclLsp.diagnostics.W200": {
@@ -7207,12 +7207,40 @@
             "markdownDescription": "Display severity for **W123:** Unresolved command — not found in registry, user procs, or `unknown` handler.",
             "order": 4
           },
+          "tclLsp.diagnostics.W155": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "**W155:** Unparenthesised operand whose other grouping gives a different result (any non-associative mix, such as `$a - $b + $c`, `$a + $b * $c` or `$a == 1 && $b`) — off by default, for code that makes every grouping explicit.",
+            "order": 5
+          },
+          "tclLsp.diagnosticSeverity.W155": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **W155:** Unparenthesised operand whose other grouping gives a different result (any non-associative mix, such as `$a - $b + $c`, `$a + $b * $c` or `$a == 1 && $b`) — off by default, for code that makes every grouping explicit.",
+            "order": 5
+          },
           "tclLsp.diagnostics.W242": {
             "scope": "resource",
             "type": "boolean",
             "default": false,
             "markdownDescription": "**W242:** Loop termination cannot be proven — counter not provably modified by the loop body or step.",
-            "order": 5
+            "order": 6
           },
           "tclLsp.diagnosticSeverity.W242": {
             "scope": "resource",
@@ -7233,7 +7261,7 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W242:** Loop termination cannot be proven — counter not provably modified by the loop body or step.",
-            "order": 5
+            "order": 6
           }
         }
       },

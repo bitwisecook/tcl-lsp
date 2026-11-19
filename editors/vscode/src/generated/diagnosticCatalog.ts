@@ -378,7 +378,7 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     code: "W154",
     section: "warning",
     description:
-      "Operator precedence groups an unparenthesised expression differently from how it reads — a comparison under `&`/`|`/`^` (`$x & 0xff == 1` is `$x & (0xff == 1)`), `+`/`-` under a shift, or `!` applied before a comparison.",
+      "Unparenthesised operator mix with no shared reading convention groups differently from how it reads — a comparison, arithmetic or other bitwise operator under `&`/`|`/`^`, arithmetic under a shift, a comparison chain, `!` before a comparison or bitwise operator, `&&` inside `||`, arithmetic as a `?:` condition, or `-` as the base of `**`.",
     defaultEnabled: true,
   },
   {
@@ -644,6 +644,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     section: "hint",
     description: "Unresolved command — not found in registry, user procs, or `unknown` handler.",
     defaultEnabled: true,
+  },
+  {
+    code: "W155",
+    section: "hint",
+    description:
+      "Unparenthesised operand whose other grouping gives a different result (any non-associative mix, such as `$a - $b + $c`, `$a + $b * $c` or `$a == 1 && $b`) — off by default, for code that makes every grouping explicit.",
+    defaultEnabled: false,
   },
   {
     code: "W242",

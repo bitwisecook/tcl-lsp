@@ -705,6 +705,7 @@ impl Analyser {
             .collect::<Option<Vec<_>>>();
         if let Some(values) = values {
             let expression = values.join(" ");
+            self.emit_joined_precedence_hazards(&expression, first_word.config(), span);
             self.emit_w110_string_eq_ne(
                 &expression,
                 span,

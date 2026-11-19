@@ -266,7 +266,7 @@ class TclLspSettingsPanel {
     private val diagW151 = JBCheckBox("W151: Numeral changes meaning or validity across the proje...")
     private val diagW152 = JBCheckBox("W152: A registry-declared option relation is unmet")
     private val diagW153 = JBCheckBox("W153: A valid # tcl-lsp: stub directive is outside a stubs...")
-    private val diagW154 = JBCheckBox("W154: Operator precedence groups an unparenthesised expres...")
+    private val diagW154 = JBCheckBox("W154: Unparenthesised operator mix with no shared reading ...")
     private val diagW200 = JBCheckBox("W200: Unsigned (u) suffix on a binary format/binary scan f...")
     private val diagW201 = JBCheckBox("W201: Manual path concatenation")
     private val diagW202 = JBCheckBox("W202: binary format/binary scan field letter requires a ne...")
@@ -314,6 +314,7 @@ class TclLspSettingsPanel {
     private val diagI230 = JBCheckBox("I230: Constant branch condition")
     private val diagI231 = JBCheckBox("I231: Constant switch arm condition")
     private val diagW123 = JBCheckBox("W123: Unresolved command")
+    private val diagW155 = JBCheckBox("W155: Unparenthesised operand whose other grouping gives a...")
     private val diagW242 = JBCheckBox("W242: Loop termination cannot be proven")
 
     // Diagnostics — Shimmer
@@ -625,7 +626,8 @@ class TclLspSettingsPanel {
         builder.addComponent(
             ReflowingGrid(
                 listOf(
-                    diagH300, diagH301, diagI230, diagI231, diagW123, diagW242,
+                    diagH300, diagH301, diagI230, diagI231, diagW123, diagW155,
+                    diagW242,
                 ),
             ),
         )
@@ -921,6 +923,7 @@ class TclLspSettingsPanel {
             diagI230.isSelected != s.diagnosticI230 ||
             diagI231.isSelected != s.diagnosticI231 ||
             diagW123.isSelected != s.diagnosticW123 ||
+            diagW155.isSelected != s.diagnosticW155 ||
             diagW242.isSelected != s.diagnosticW242 ||
             diagS100.isSelected != s.diagnosticS100 ||
             diagS101.isSelected != s.diagnosticS101 ||
@@ -1233,6 +1236,7 @@ class TclLspSettingsPanel {
         s.diagnosticI230 = diagI230.isSelected
         s.diagnosticI231 = diagI231.isSelected
         s.diagnosticW123 = diagW123.isSelected
+        s.diagnosticW155 = diagW155.isSelected
         s.diagnosticW242 = diagW242.isSelected
         s.diagnosticS100 = diagS100.isSelected
         s.diagnosticS101 = diagS101.isSelected
@@ -1592,6 +1596,7 @@ class TclLspSettingsPanel {
         diagI230.isSelected = s.diagnosticI230
         diagI231.isSelected = s.diagnosticI231
         diagW123.isSelected = s.diagnosticW123
+        diagW155.isSelected = s.diagnosticW155
         diagW242.isSelected = s.diagnosticW242
         diagS100.isSelected = s.diagnosticS100
         diagS101.isSelected = s.diagnosticS101

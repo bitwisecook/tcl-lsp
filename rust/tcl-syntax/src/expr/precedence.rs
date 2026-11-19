@@ -47,21 +47,40 @@ pub struct GroupingParen {
     pub needed: bool,
 }
 
-/// An unparenthesised grouping that commonly reads differently from how Tcl
-/// parses it.
+/// How strongly an unparenthesised grouping suggests a misreading.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum HazardTier {
+    /// No shared reading convention covers this mix, and it is a common
+    /// source of bugs: a comparison under `&`, a comparison chain, `!` before
+    /// a comparison, `&&` inside `||`, arithmetic as a ternary condition, …
+    Misreading,
+    /// Any other grouping that changes the result if regrouped, including
+    /// the conventional arithmetic hierarchy (`$a + $b * $c`), same-level
+    /// chains (`$a - $b + $c`) and comparisons under `&&`.
+    NonAssociative,
+}
+
+/// An unparenthesised operand whose other grouping gives a different result.
+/// Only a repeated associative operator (`+`, `*`, `&`, `|`, `^`, `&&`,
+/// `||` and the F5 `and`/`or`) is exempt.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrecedenceHazard {
-    /// The operator that takes the tighter-bound subexpression as an operand.
+    /// Whether the grouping is a likely misreading or merely non-associative.
+    pub tier: HazardTier,
+    /// The operator that takes the subexpression as an operand.
     pub outer: String,
-    /// The tighter-binding operator nested under it.
+    /// The operator of the unparenthesised operand.
     pub inner: String,
-    /// The outer operator's token.
+    /// The outer operator's token (`?` for a ternary).
     pub operator: Span,
-    /// The whole hazardous subexpression.
+    /// The whole subexpression the two groupings span.
     pub extent: Span,
+    /// Why the parse groups this way.
+    pub reason: String,
     /// The subexpression with the parse's grouping made explicit.
     pub as_parsed: String,
-    /// The grouping a reader most likely intended.
+    /// The other grouping, or for a comparison chain the conjunction a
+    /// reader most likely meant.
     pub likely_intended: String,
 }
 
@@ -262,11 +281,8 @@ impl OriginalSourceExpression {
         Some(parens)
     }
 
-    /// Unparenthesised groupings that are probably not what the author meant:
-    /// a comparison as an operand of `&`, `|` or `^` (`$x & 0xff == 1` is
-    /// `$x & (0xff == 1)`), `+`/`-` under a shift (`1 << $n - 1` is
-    /// `1 << ($n - 1)`), and a logical NOT as a comparison's left operand
-    /// (`!$x == 1` is `(!$x) == 1`).
+    /// Every unparenthesised operand whose other grouping would give a
+    /// different result, in source order of the outer operator.
     #[must_use]
     pub fn precedence_hazards(&self) -> Vec<PrecedenceHazard> {
         let Some(geometry) = Geometry::capture(self) else {
@@ -274,11 +290,9 @@ impl OriginalSourceExpression {
         };
         let mut hazards = Vec::new();
         for node in self.root().evaluation_nodes() {
-            if let Some(hazard) = hazard_at(&geometry, node) {
-                hazards.push(hazard);
-            }
+            hazards.extend(hazards_at(&geometry, node));
         }
-        hazards.sort_by_key(|hazard| hazard.operator.start());
+        hazards.sort_by_key(|hazard| (hazard.operator.start(), hazard.extent.start()));
         hazards
     }
 
@@ -430,115 +444,365 @@ fn joins(byte: u8) -> bool {
         || matches!(byte, b'_' | b'$' | b'.' | b'"' | b'{' | b'}' | b'[' | b']')
 }
 
-const fn is_comparison(op: BinOp) -> bool {
-    matches!(
-        op,
+/// Operator families for deciding whether a mix has a reading convention.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Family {
+    Arithmetic,
+    Shift,
+    Relational,
+    Equality,
+    Bitwise,
+    LogicalAnd,
+    LogicalOr,
+}
+
+const fn family(op: BinOp) -> Family {
+    match op {
+        BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Mod | BinOp::Pow => {
+            Family::Arithmetic
+        }
+        BinOp::LShift | BinOp::RShift => Family::Shift,
+        BinOp::Lt
+        | BinOp::Le
+        | BinOp::Gt
+        | BinOp::Ge
+        | BinOp::StrLt
+        | BinOp::StrLe
+        | BinOp::StrGt
+        | BinOp::StrGe => Family::Relational,
         BinOp::Eq
-            | BinOp::Ne
-            | BinOp::Lt
-            | BinOp::Le
-            | BinOp::Gt
-            | BinOp::Ge
-            | BinOp::StrEq
-            | BinOp::StrNe
-            | BinOp::StrLt
-            | BinOp::StrLe
-            | BinOp::StrGt
-            | BinOp::StrGe
-            | BinOp::In
-            | BinOp::Ni
-            | BinOp::Contains
-            | BinOp::StartsWith
-            | BinOp::EndsWith
-            | BinOp::StrEquals
-            | BinOp::Matches
-            | BinOp::MatchesGlob
-            | BinOp::MatchesRegex
+        | BinOp::Ne
+        | BinOp::StrEq
+        | BinOp::StrNe
+        | BinOp::In
+        | BinOp::Ni
+        | BinOp::Contains
+        | BinOp::StartsWith
+        | BinOp::EndsWith
+        | BinOp::StrEquals
+        | BinOp::Matches
+        | BinOp::MatchesGlob
+        | BinOp::MatchesRegex => Family::Equality,
+        BinOp::BitAnd | BinOp::BitXor | BinOp::BitOr => Family::Bitwise,
+        BinOp::And | BinOp::WordAnd => Family::LogicalAnd,
+        BinOp::Or | BinOp::WordOr => Family::LogicalOr,
+    }
+}
+
+const fn is_comparison(family: Family) -> bool {
+    matches!(family, Family::Relational | Family::Equality)
+}
+
+/// Whether `(a op b) op c` and `a op (b op c)` always agree.
+fn associative(outer: BinOp, inner: BinOp) -> bool {
+    let same = outer == inner
+        || (family(outer) == Family::LogicalAnd && family(inner) == Family::LogicalAnd)
+        || (family(outer) == Family::LogicalOr && family(inner) == Family::LogicalOr);
+    same && matches!(
+        outer,
+        BinOp::Add
+            | BinOp::Mul
+            | BinOp::BitAnd
+            | BinOp::BitOr
+            | BinOp::BitXor
+            | BinOp::And
+            | BinOp::WordAnd
+            | BinOp::Or
+            | BinOp::WordOr
     )
 }
 
-const fn suspicious_child(outer: BinOp, inner: BinOp) -> bool {
-    match outer {
-        BinOp::BitAnd | BinOp::BitOr | BinOp::BitXor => is_comparison(inner),
-        BinOp::LShift | BinOp::RShift => matches!(inner, BinOp::Add | BinOp::Sub),
+fn is_boolean_literal(node: &ExprNode) -> bool {
+    matches!(node, ExprNode::Literal { text, .. }
+        if matches!(text.trim(), "0" | "1") || crate::boolean::parse_boolean_word(text.trim()).is_some())
+}
+
+/// The tier of a binary operand nested unparenthesised under a binary
+/// operator. `other` is the outer operator's other operand.
+fn binary_tier(outer: BinOp, inner: BinOp, other: &ExprNode) -> HazardTier {
+    let (o, i) = (family(outer), family(inner));
+    let misreading = match o {
+        Family::Bitwise => i != Family::LogicalAnd && i != Family::LogicalOr,
+        Family::Shift => i == Family::Arithmetic,
+        Family::Relational | Family::Equality => {
+            is_comparison(i) && !(o == Family::Equality && is_boolean_literal(other))
+        }
+        Family::LogicalOr => i == Family::LogicalAnd,
+        _ => false,
+    };
+    if misreading {
+        HazardTier::Misreading
+    } else {
+        HazardTier::NonAssociative
+    }
+}
+
+fn is_not(node: &ExprNode) -> bool {
+    matches!(
+        node,
+        ExprNode::Unary {
+            op: UnaryOp::Not | UnaryOp::WordNot,
+            ..
+        }
+    )
+}
+
+fn unary_text(op: UnaryOp, operand: &str) -> String {
+    if op == UnaryOp::WordNot {
+        format!("{op} {operand}")
+    } else {
+        format!("{op}{operand}")
+    }
+}
+
+fn precedence_reason(outer: BinOp, inner: BinOp, inner_on_left: bool) -> String {
+    let (o, i) = (outer.precedence(), inner.precedence());
+    if is_comparison(family(outer)) && is_comparison(family(inner)) && o == i {
+        format!("comparisons do not chain: '{outer}' compares the result of '{inner}'")
+    } else if o == i {
+        let direction = if inner_on_left {
+            "left to right"
+        } else {
+            "right to left"
+        };
+        format!("'{inner}' and '{outer}' share a precedence level and group {direction}")
+    } else {
+        format!("'{inner}' binds tighter than '{outer}'")
+    }
+}
+
+struct HazardSite<'g, 'a> {
+    geometry: &'g Geometry<'a>,
+    operator: Span,
+    extent: Span,
+}
+
+impl HazardSite<'_, '_> {
+    fn text(&self, node: &ExprNode) -> Option<String> {
+        let extent = self.geometry.extent(node)?;
+        self.geometry.text(extent).map(str::to_owned)
+    }
+
+    fn wrapped(&self, node: &ExprNode) -> bool {
+        self.geometry.extent(node).is_none_or(|e| e.wrapped)
+    }
+
+    fn hazard(
+        &self,
+        tier: HazardTier,
+        outer: &str,
+        inner: &str,
+        reason: String,
+        as_parsed: String,
+        likely_intended: String,
+    ) -> PrecedenceHazard {
+        PrecedenceHazard {
+            tier,
+            outer: outer.to_owned(),
+            inner: inner.to_owned(),
+            operator: self.operator,
+            extent: self.extent,
+            reason,
+            as_parsed,
+            likely_intended,
+        }
+    }
+}
+
+fn hazards_at(geometry: &Geometry<'_>, node: &ExprNode) -> Vec<PrecedenceHazard> {
+    match node {
+        ExprNode::Binary { op, left, right } => binary_hazards(geometry, node, *op, left, right),
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => ternary_hazards(geometry, node, condition, true_branch, false_branch),
+        _ => None,
+    }
+    .unwrap_or_default()
+}
+
+fn binary_hazards(
+    geometry: &Geometry<'_>,
+    node: &ExprNode,
+    op: BinOp,
+    left: &ExprNode,
+    right: &ExprNode,
+) -> Option<Vec<PrecedenceHazard>> {
+    let site = HazardSite {
+        geometry,
+        operator: geometry.operator_span(left, right)?,
+        extent: geometry.span(geometry.extent(node)?),
+    };
+    let mut out = Vec::new();
+    if let ExprNode::Binary {
+        op: inner,
+        left: b,
+        right: c,
+    } = right
+        && !site.wrapped(right)
+        && !associative(op, *inner)
+    {
+        let (a, b, c) = (site.text(left)?, site.text(b)?, site.text(c)?);
+        let tier = binary_tier(op, *inner, left);
+        let chain = tier == HazardTier::Misreading
+            && is_comparison(family(op))
+            && is_comparison(family(*inner));
+        out.push(site.hazard(
+            tier,
+            op.as_str(),
+            inner.as_str(),
+            precedence_reason(op, *inner, false),
+            format!("{a} {op} ({b} {inner} {c})"),
+            if chain {
+                format!("{a} {op} {b} && {b} {inner} {c}")
+            } else {
+                format!("({a} {op} {b}) {inner} {c}")
+            },
+        ));
+    }
+    match left {
+        ExprNode::Binary {
+            op: inner,
+            left: a,
+            right: b,
+        } if !site.wrapped(left) && !associative(op, *inner) => {
+            let (a, b, c) = (site.text(a)?, site.text(b)?, site.text(right)?);
+            let tier = binary_tier(op, *inner, right);
+            let chain = tier == HazardTier::Misreading
+                && is_comparison(family(op))
+                && is_comparison(family(*inner));
+            out.push(site.hazard(
+                tier,
+                op.as_str(),
+                inner.as_str(),
+                precedence_reason(op, *inner, true),
+                format!("({a} {inner} {b}) {op} {c}"),
+                if chain {
+                    format!("{a} {inner} {b} && {b} {op} {c}")
+                } else {
+                    format!("{a} {inner} ({b} {op} {c})")
+                },
+            ));
+        }
+        ExprNode::Unary { op: unary, operand }
+            if !site.wrapped(left) && !unary_associative(*unary, op) =>
+        {
+            let (x, c) = (site.text(operand)?, site.text(right)?);
+            let family = family(op);
+            let misreading = (is_not(left)
+                && (family == Family::Bitwise || (is_comparison(family) && !is_not(right))))
+                || (matches!(unary, UnaryOp::Neg) && op == BinOp::Pow);
+            out.push(site.hazard(
+                if misreading {
+                    HazardTier::Misreading
+                } else {
+                    HazardTier::NonAssociative
+                },
+                op.as_str(),
+                unary.as_str(),
+                format!("unary '{unary}' binds tighter than '{op}'"),
+                format!("({}) {op} {c}", unary_text(*unary, &x)),
+                unary_text(*unary, &format!("({x} {op} {c})")),
+            ));
+        }
+        _ => {}
+    }
+    Some(out)
+}
+
+/// Whether a unary operator distributes over this binary operator, so that
+/// `(-a) op b` and `-(a op b)` always agree.
+fn unary_associative(unary: UnaryOp, op: BinOp) -> bool {
+    match unary {
+        UnaryOp::Pos => op != BinOp::Pow,
+        UnaryOp::Neg => op == BinOp::Mul,
         _ => false,
     }
 }
 
-fn hazard_at(geometry: &Geometry<'_>, node: &ExprNode) -> Option<PrecedenceHazard> {
-    let ExprNode::Binary { op, left, right } = node else {
-        return None;
+fn ternary_hazards(
+    geometry: &Geometry<'_>,
+    node: &ExprNode,
+    condition: &ExprNode,
+    true_branch: &ExprNode,
+    false_branch: &ExprNode,
+) -> Option<Vec<PrecedenceHazard>> {
+    let question = geometry.extent(condition)?.end + 1;
+    let token = &geometry.tokens[question];
+    let site = HazardSite {
+        geometry,
+        operator: Span::new(token.start, token.end + 1),
+        extent: geometry.span(geometry.extent(node)?),
     };
-    let operator = geometry.operator_span(left, right)?;
-    let whole = geometry.span(geometry.extent(node)?);
-    let text = |n: &ExprNode| geometry.extent(n).and_then(|e| geometry.text(e));
-    if let ExprNode::Binary {
-        op: inner,
-        left: inner_left,
-        right: inner_right,
-    } = right.as_ref()
-        && suspicious_child(*op, *inner)
-        && !geometry.extent(right)?.wrapped
-    {
-        let (a, b, c) = (text(left)?, text(inner_left)?, text(inner_right)?);
-        return Some(PrecedenceHazard {
-            outer: op.as_str().to_owned(),
-            inner: inner.as_str().to_owned(),
-            operator,
-            extent: whole,
-            as_parsed: format!("{a} {op} ({b} {inner} {c})"),
-            likely_intended: format!("({a} {op} {b}) {inner} {c}"),
-        });
-    }
-    if let ExprNode::Binary {
-        op: inner,
-        left: inner_left,
-        right: inner_right,
-    } = left.as_ref()
-        && suspicious_child(*op, *inner)
-        && !geometry.extent(left)?.wrapped
-    {
-        let (a, b, c) = (text(inner_left)?, text(inner_right)?, text(right)?);
-        return Some(PrecedenceHazard {
-            outer: op.as_str().to_owned(),
-            inner: inner.as_str().to_owned(),
-            operator,
-            extent: whole,
-            as_parsed: format!("({a} {inner} {b}) {op} {c}"),
-            likely_intended: format!("{a} {inner} ({b} {op} {c})"),
-        });
-    }
-    let is_not = |n: &ExprNode| {
-        matches!(
-            n,
-            ExprNode::Unary {
-                op: UnaryOp::Not | UnaryOp::WordNot,
-                ..
+    let (then, otherwise) = (site.text(true_branch)?, site.text(false_branch)?);
+    let mut out = Vec::new();
+    if !site.wrapped(condition) {
+        match condition {
+            ExprNode::Binary { op, left, right } => {
+                let (a, b) = (site.text(left)?, site.text(right)?);
+                let misreading = matches!(
+                    family(*op),
+                    Family::Arithmetic | Family::Shift | Family::Bitwise
+                );
+                out.push(site.hazard(
+                    if misreading {
+                        HazardTier::Misreading
+                    } else {
+                        HazardTier::NonAssociative
+                    },
+                    "?:",
+                    op.as_str(),
+                    format!("'{op}' binds tighter than '?:'"),
+                    format!("({a} {op} {b}) ? {then} : {otherwise}"),
+                    format!("{a} {op} ({b} ? {then} : {otherwise})"),
+                ));
             }
-        )
-    };
-    if is_comparison(*op)
-        && let ExprNode::Unary { op: not, operand } = left.as_ref()
-        && is_not(left)
-        && !is_not(right)
-        && !geometry.extent(left)?.wrapped
-        && !matches!(
-            operand.as_ref(),
-            ExprNode::Binary { .. } | ExprNode::Ternary { .. }
-        )
-    {
-        let (a, c) = (text(operand)?, text(right)?);
-        let space = if *not == UnaryOp::WordNot { " " } else { "" };
-        return Some(PrecedenceHazard {
-            outer: op.as_str().to_owned(),
-            inner: not.as_str().to_owned(),
-            operator,
-            extent: whole,
-            as_parsed: format!("({not}{space}{a}) {op} {c}"),
-            likely_intended: format!("{not}{space}({a} {op} {c})"),
-        });
+            ExprNode::Unary { op, operand } => {
+                let x = site.text(operand)?;
+                out.push(site.hazard(
+                    HazardTier::NonAssociative,
+                    "?:",
+                    op.as_str(),
+                    format!("unary '{op}' binds tighter than '?:'"),
+                    format!("({}) ? {then} : {otherwise}", unary_text(*op, &x)),
+                    unary_text(*op, &format!("({x} ? {then} : {otherwise})")),
+                ));
+            }
+            _ => {}
+        }
     }
-    None
+    if !site.wrapped(false_branch) {
+        let test = site.text(condition)?;
+        let split = match false_branch {
+            ExprNode::Binary { op, left, right } => Some((
+                op.as_str().to_owned(),
+                site.text(left)?,
+                format!("{op} {}", site.text(right)?),
+            )),
+            ExprNode::Ternary {
+                condition: inner,
+                true_branch: inner_then,
+                false_branch: inner_else,
+            } => Some((
+                "?:".to_owned(),
+                site.text(inner)?,
+                format!("? {} : {}", site.text(inner_then)?, site.text(inner_else)?),
+            )),
+            _ => None,
+        };
+        if let Some((inner, head, tail)) = split {
+            out.push(site.hazard(
+                HazardTier::NonAssociative,
+                "?:",
+                &inner,
+                "the else branch of '?:' extends to the end of the expression".to_owned(),
+                format!("{test} ? {then} : ({head} {tail})"),
+                format!("({test} ? {then} : {head}) {tail}"),
+            ));
+        }
+    }
+    Some(out)
 }
 
 fn render_grouped(geometry: &Geometry<'_>, node: &ExprNode, depth: u32) -> Option<String> {
