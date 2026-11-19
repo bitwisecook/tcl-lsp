@@ -568,7 +568,8 @@ impl NativeCompilationSpec {
             let Some(var_list) = words.arguments().literal_at(index) else {
                 return Selection::Generic;
             };
-            let Ok(names) = tcl_syntax::list::split_list(var_list) else {
+            let Ok(names) = crate::InvocationDialect::for_version(version).read_list(var_list)
+            else {
                 return Selection::Unknown;
             };
             if names.is_empty() {

@@ -388,7 +388,9 @@ impl IterationSemantics {
 fn var_list(input: &dyn AnalysisInputs, id: OperandId) -> Result<Vec<String>, DeclineReason> {
     let names = match input.operand(id, FactDomain::ExactValue) {
         FactView::Exact(value, _) => match String::from_utf8(value.bytes) {
-            Ok(text) => tcl_syntax::list::split_list(&text)
+            Ok(text) => input
+                .context()
+                .read_list(&text)
                 .map(|names| names.iter().map(ToString::to_string).collect::<Vec<_>>()),
             Err(_) => return Err(DeclineReason::NotText),
         },

@@ -175,9 +175,11 @@ impl CodegenCtx<'_> {
         if !self.compiles_locals() {
             return Some(0);
         }
-        for name in
-            tcl_registry::release_compilation::compiled_loop_variables(command, &compile_words)
-        {
+        for name in tcl_registry::release_compilation::compiled_loop_variables_for(
+            self.vm_release(),
+            command,
+            &compile_words,
+        ) {
             self.intern_compiled_local(&name);
         }
         if let Some(body) = words.last() {

@@ -147,7 +147,7 @@ fn discovery_file_open(arguments: InvocationArguments<'_>) -> StateTransitions {
             .dialect()
             .map_or_else(
                 || tcl_syntax::list::split_list(mode),
-                |dialect| dialect.word_values.split_list(mode),
+                |dialect| dialect.read_list(mode),
             )
             .is_ok_and(|flags| {
                 flags.iter().any(|flag| flag == "RDONLY")

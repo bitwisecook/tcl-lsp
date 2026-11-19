@@ -41,8 +41,8 @@ use super::route::EvalRoute;
 /// The distinct keys of the dictionary `text` spells, in first-occurrence
 /// order, or `None` when it is not a dictionary (an odd element count, or
 /// not a list).
-fn dict_keys(text: &str) -> Option<Vec<String>> {
-    let elements = tcl_syntax::list::split_list(text).ok()?;
+fn dict_keys(context: &super::AnalysisContext, text: &str) -> Option<Vec<String>> {
+    let elements = context.read_list(text).ok()?;
     if elements.len() % 2 != 0 {
         return None;
     }
@@ -58,10 +58,10 @@ fn dict_keys(text: &str) -> Option<Vec<String>> {
 /// The value the dictionary at `path` holds within `text`, the last value
 /// of a repeated key winning, or `None` when a step is not a dictionary or
 /// lacks its key — which the command raises on.
-fn dict_at(text: &str, path: &[String]) -> Option<String> {
+fn dict_at(context: &super::AnalysisContext, text: &str, path: &[String]) -> Option<String> {
     let mut current = text.to_owned();
     for key in path {
-        let elements = tcl_syntax::list::split_list(&current).ok()?;
+        let elements = context.read_list(&current).ok()?;
         if elements.len() % 2 != 0 {
             return None;
         }
@@ -157,7 +157,10 @@ impl CommandSemantics for DictWithSemantics {
             Ok(value) => value,
             Err(reason) => return PlanAnswer::Declined(reason),
         };
-        let Some(keys) = dict_at(&value, &path).as_deref().and_then(dict_keys) else {
+        let Some(keys) = dict_at(input.context(), &value, &path)
+            .as_deref()
+            .and_then(|text| dict_keys(input.context(), text))
+        else {
             return PlanAnswer::Declined(DeclineReason::WrongRepresentation);
         };
         body_plan(

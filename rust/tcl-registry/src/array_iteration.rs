@@ -79,7 +79,7 @@ pub fn select(arguments: crate::InvocationArguments<'_>, offset: usize) -> Array
     let Some(bindings) = arguments.literal_at(offset) else {
         return Selection::Unknown;
     };
-    let Ok(names) = tcl_syntax::list::split_list(bindings) else {
+    let Ok(names) = dialect.read_list(bindings) else {
         return Selection::Invalid;
     };
     let [key, value] = names.as_slice() else {

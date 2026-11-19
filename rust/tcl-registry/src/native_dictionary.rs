@@ -797,7 +797,7 @@ impl NativeDictionaryCommand {
         if variables.as_bytes().contains(&0) {
             return NativeCompilationSelection::Unknown;
         }
-        let Ok(names) = tcl_syntax::list::split_list(variables) else {
+        let Ok(names) = crate::InvocationDialect::for_version(version).read_list(variables) else {
             return self.local_fallback(from, version);
         };
         if names.len() != 2 || !names.iter().all(|name| local_scalar(name)) {

@@ -145,6 +145,19 @@ pub struct AnalysisContext {
 }
 
 impl AnalysisContext {
+    /// Decode a projected Unicode list value under the grammar retained at
+    /// analysis ingress. Native object conversion needs separate evidence.
+    pub fn read_list<'a>(
+        &self,
+        text: &'a str,
+    ) -> Result<Vec<std::borrow::Cow<'a, str>>, tcl_syntax::list::ListError> {
+        tcl_syntax::list::split_list_with_syntax(
+            text,
+            self.grammar.list_parse,
+            self.grammar.escapes,
+        )
+    }
+
     /// The surface query the context fixes — its target profile's — under
     /// which every derived query of an invocation resolved through
     /// [`crate::CommandRegistry::invocation`] answers. `None` for a context

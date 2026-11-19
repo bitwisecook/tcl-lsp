@@ -104,18 +104,17 @@ pub(crate) fn fold_is(args: &[&str], version: Option<TclVersion>) -> Option<Stri
         // (`a\ b`), so a `None` there is ambiguous.  Sound resolution:
         // a backslash-free string folds (`Some` → 1, `None` → 0); a
         // backslash-bearing one bails.
-        "list" => {
-            if s.contains('\\') {
-                return None;
-            }
-            crate::const_fold::split_list(s).is_some()
-        }
+        "list" => crate::InvocationDialect::for_version(version?)
+            .read_list(s)
+            .is_ok(),
         // Version-aware number classes (availability gated by
         // `class_available` above); each decides 1/0/bail for `version`.
         "integer" => return is_integer_class(s, version),
         "wideinteger" => return is_wide_class(s, version),
         "entier" => return is_entier_class(s, version),
-        "dict" => return is_dict_class(s),
+        "dict" => crate::InvocationDialect::for_version(version?)
+            .read_list(s)
+            .is_ok_and(|words| words.len().is_multiple_of(2)),
         "double" => return string_is_double(s, version),
         _ => return None, // unknown class
     };
@@ -362,21 +361,6 @@ fn is_entier_class(s: &str, version: Option<TclVersion>) -> Option<String> {
         IntForm::NotInteger => Some("0".to_owned()),
         IntForm::Decimal { .. } => Some("1".to_owned()),
     }
-}
-
-/// `string is dict` (9.0 only, gated by [`class_available`]): an even-length
-/// well-formed list.  A backslash bails (the same ambiguity as `list`).
-fn is_dict_class(s: &str) -> Option<String> {
-    if s.contains('\\') {
-        return None;
-    }
-    Some(
-        match crate::const_fold::split_list(s) {
-            Some(elems) if elems.len() % 2 == 0 => "1",
-            _ => "0", // odd length, or malformed → not a dict
-        }
-        .to_owned(),
-    )
 }
 
 /// `string is double` over the **dialect-invariant** subset.  `s` is the

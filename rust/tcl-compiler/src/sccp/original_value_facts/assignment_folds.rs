@@ -195,15 +195,22 @@ pub(super) fn fold_assign_value<'a, S1: std::hash::BuildHasher, S2: std::hash::B
         {
             return lv;
         }
-        // Registry const-fold fallback: the fold's `$var`
-        // words resolve at this statement's use versions, so a folded
-        // value re-enters the lattice and downstream statements see it —
-        // the multi-hop chain the hardcoded arms above cannot close.
-        // Checked AFTER them so single-hop results stay byte-identical.
-        if let Some(f) = folds.filter(|f| f.registry_engine) {
-            let trusts = |name: &str| f.mutations.trusts(name);
-            let lookup = |name: &str| lattice_const_text(name, uses, values, ssa, policy);
-            if let Some(folded) = (crate::const_subst::ConstSubstCtx {
+        // Literal lists and their selected native serialization use the same
+        // checked registry dispatch as the optional multi-hop engine.
+        if let Some(f) = folds {
+            let trusts = |name: &str| {
+                if name == "list" && matches!(f.trust, FoldTrust::ObservedBindings) {
+                    f.mutations.observed_binding_is_the_builtin(name)
+                } else {
+                    (f.registry_engine || name == "list") && f.mutations.trusts(name)
+                }
+            };
+            let lookup = |name: &str| {
+                f.registry_engine
+                    .then(|| lattice_const_text(name, uses, values, ssa, policy))
+                    .flatten()
+            };
+            let context = crate::const_subst::ConstSubstCtx {
                 registry: f.registry,
                 resolution_namespace: "::",
                 namespace_context: None,
@@ -214,8 +221,10 @@ pub(super) fn fold_assign_value<'a, S1: std::hash::BuildHasher, S2: std::hash::B
                 trusts: &trusts,
                 lookup_var: &lookup,
                 script_encoding: tcl_registry::value_transfer::ScriptEncoding::Auto,
-            })
-            .fold_cmd_subst(&stripped[1..stripped.len() - 1])
+            };
+            if let Some(dialect) = policy.invocation_dialect
+                && let Some(folded) =
+                    context.fold_cmd_subst_in(&stripped[1..stripped.len() - 1], dialect)
             {
                 return LatticeValue::Const(parse_literal_value(&folded));
             }
@@ -333,12 +342,7 @@ pub(super) fn try_fold_cmd_subst<'a, S1: std::hash::BuildHasher, S2: std::hash::
         })
     };
 
-    // `[list ...]` — reuse the codegen fold.
-    if trusted("list")
-        && let Some(folded) = crate::codegen_helpers::fold_list_cmd(value, policy.word_rules)
-    {
-        return Some(LatticeValue::Const(ConstValue::String(folded)));
-    }
+    // Registry dispatch below owns a literal list's native result spelling.
     // `[format "..." args…]` with literal args.
     // The document's escape grammar, from the same resolved profile the rest
     // of the policy's axes come from. A caller with no dialect keeps the 9.0

@@ -100,9 +100,11 @@ pub(super) fn array_compilation_grammar_for(
     }
     let arguments = words.arguments().slice_from(from);
     if command == NativeArrayCommand::Set {
-        let values = arguments
-            .literal_at(1)
-            .and_then(|value| tcl_syntax::list::split_list(value).ok());
+        let values = arguments.literal_at(1).and_then(|value| {
+            crate::InvocationDialect::for_version(version)
+                .read_list(value)
+                .ok()
+        });
         let empty = values.as_ref().is_some_and(Vec::is_empty);
         let odd = values
             .as_ref()

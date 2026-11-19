@@ -1292,8 +1292,10 @@ impl TrySemantics {
             }
         };
         // A malformed list is the command's error.
-        let names =
-            tcl_syntax::list::split_list(&text).map_err(|_| DeclineReason::WrongRepresentation)?;
+        let names = input
+            .context()
+            .read_list(&text)
+            .map_err(|_| DeclineReason::WrongRepresentation)?;
         Ok(names
             .iter()
             .take(2)

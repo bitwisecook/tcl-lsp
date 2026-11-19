@@ -931,6 +931,19 @@ impl InvocationDialect {
             }
         })
     }
+    /// Decode a Unicode list operand with the selected receiver's list and
+    /// escape rules. Native object-byte projection is a separate operation.
+    pub fn read_list(
+        self,
+        text: &str,
+    ) -> Result<Vec<std::borrow::Cow<'_, str>>, tcl_syntax::list::ListError> {
+        tcl_syntax::list::split_list_with_syntax(
+            text,
+            self.word_values.list,
+            self.lexer_grammar.escapes,
+        )
+    }
+
     /// Resolve the policies of a concrete C Tcl interpreter release.
     #[must_use]
     pub fn for_version(version: tcl_dialect::TclVersion) -> Self {

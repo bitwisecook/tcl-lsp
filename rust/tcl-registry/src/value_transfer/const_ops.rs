@@ -1297,8 +1297,12 @@ impl ValueOps for ConstOps<'_> {
     /// it reads no release axis; charged per element.
     fn list_len(&mut self, v: &ConstValue) -> Result<usize, ValueError> {
         let text = self.try_as_str(v)?;
-        let elements = tcl_syntax::list::split_list(&text)
-            .map_err(|e| ValueError::BadList(e.message().to_owned()))?;
+        let elements = tcl_syntax::list::split_list_with_syntax(
+            &text,
+            self.target.grammar.list_parse,
+            self.target.grammar.escapes,
+        )
+        .map_err(|e| ValueError::BadList(e.message().to_owned()))?;
         let _ = self.charge(u64::try_from(elements.len()).unwrap_or(u64::MAX));
         Ok(elements.len())
     }
@@ -1307,8 +1311,12 @@ impl ValueOps for ConstOps<'_> {
         self.require(Needs::LIST_RENDERING);
         let text = self.try_as_str(v)?;
         // Bare and quoted elements retain the request's actual escape grammar.
-        let elements = tcl_syntax::list::split_list_in(&text, self.target.grammar.escapes)
-            .map_err(|e| ValueError::BadList(e.message().to_owned()))?;
+        let elements = tcl_syntax::list::split_list_with_syntax(
+            &text,
+            self.target.grammar.list_parse,
+            self.target.grammar.escapes,
+        )
+        .map_err(|e| ValueError::BadList(e.message().to_owned()))?;
         let _ = self.charge(u64::try_from(elements.len()).unwrap_or(u64::MAX));
         Ok(elements
             .iter()

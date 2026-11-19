@@ -72,7 +72,16 @@ fn validate_modern_trace_operations(
     let Some(op_list) = arguments.literal_at(3) else {
         return LiteralArgumentValidation::Abstain(LiteralValidationDecline::NonLiteralArgument);
     };
-    let Ok(elements) = tcl_syntax::list::split_list(op_list) else {
+    let elements = arguments.dialect().map_or_else(
+        || crate::const_fold::split_list(op_list),
+        |dialect| {
+            dialect
+                .read_list(op_list)
+                .ok()
+                .map(|rows| rows.into_iter().map(std::borrow::Cow::into_owned).collect())
+        },
+    );
+    let Some(elements) = elements else {
         return LiteralArgumentValidation::Abstain(LiteralValidationDecline::MalformedLiteral);
     };
     let allowed = operations_for(kind);
@@ -911,7 +920,16 @@ fn trace_type_command_prefix(
         let Some(operation_list) = args.literal_at(2) else {
             return vec![(3, AppendedArity::Unknown)];
         };
-        let Ok(operations) = tcl_syntax::list::split_list(operation_list) else {
+        let operations = args.words().dialect().map_or_else(
+            || crate::const_fold::split_list(operation_list),
+            |dialect| {
+                dialect
+                    .read_list(operation_list)
+                    .ok()
+                    .map(|rows| rows.into_iter().map(std::borrow::Cow::into_owned).collect())
+            },
+        );
+        let Some(operations) = operations else {
             return vec![(3, AppendedArity::Unknown)];
         };
         let allowed = operations_for(kind);

@@ -484,7 +484,9 @@ impl Compile<'_> {
             let Some(text) = &variables.simple else {
                 return Ok(Outcome::OutLine);
             };
-            let Ok(names) = tcl_syntax::list::split_list(text) else {
+            let Ok(names) = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4)
+                .read_list(text)
+            else {
                 return Ok(Outcome::OutLine);
             };
             // 8.4's `TclIsLocalScalar` rejects `)` by character type, with

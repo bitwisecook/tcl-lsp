@@ -380,8 +380,8 @@ pub fn compiles_control(
         "if" => words.len() >= 2 && words.iter().all(|word| word.literal),
         "while" => words.len() == 2 && literal(0) && literal(1),
         "for" => words.len() == 4 && literal(1) && literal(2) && literal(3),
-        "foreach" => in_procedure && compiles_each_loop(words),
-        "lmap" => version >= TclVersion::V8_6 && in_procedure && compiles_each_loop(words),
+        "foreach" => in_procedure && compiles_each_loop(version, words),
+        "lmap" => version >= TclVersion::V8_6 && in_procedure && compiles_each_loop(version, words),
         "dict" => {
             let sub = words.first().filter(|word| word.literal)?;
             compiles_dict_each(version, sub.text, &words[1..], in_procedure)?
@@ -414,9 +414,11 @@ fn compiles_dict_each(
             && words.len() == 3
             && words[0].literal
             && words[2].literal
-            && tcl_syntax::list::split_list(words[0].text).is_ok_and(|names| {
-                names.len() == 2 && names.iter().all(|name| is_local_scalar(name))
-            }),
+            && crate::InvocationDialect::for_version(version)
+                .read_list(words[0].text)
+                .is_ok_and(|names| {
+                    names.len() == 2 && names.iter().all(|name| is_local_scalar(name))
+                }),
     )
 }
 
@@ -425,6 +427,25 @@ fn compiles_dict_each(
 /// `lmap`, the key and value names for `dict for` and `dict map`.
 #[must_use]
 pub fn compiled_loop_variables(command: &str, words: &[CompileWord<'_>]) -> Vec<String> {
+    compiled_loop_variables_with(None, command, words)
+}
+
+/// Decode local binding names under the same C release that selected the
+/// loop's compile procedure.
+#[must_use]
+pub fn compiled_loop_variables_for(
+    version: TclVersion,
+    command: &str,
+    words: &[CompileWord<'_>],
+) -> Vec<String> {
+    compiled_loop_variables_with(Some(version), command, words)
+}
+
+fn compiled_loop_variables_with(
+    version: Option<TclVersion>,
+    command: &str,
+    words: &[CompileWord<'_>],
+) -> Vec<String> {
     let command = tcl_syntax::naming::unroot_rooted_key(command).unwrap_or(command);
     let lists: Vec<&str> = match command {
         "foreach" | "lmap" => words
@@ -436,16 +457,30 @@ pub fn compiled_loop_variables(command: &str, words: &[CompileWord<'_>]) -> Vec<
     };
     lists
         .into_iter()
-        .filter_map(|list| tcl_syntax::list::split_list(list).ok())
+        .filter_map(|text| {
+            version.map_or_else(
+                || crate::const_fold::split_list(text),
+                |release| {
+                    crate::InvocationDialect::for_version(release)
+                        .read_list(text)
+                        .ok()
+                        .map(|names| {
+                            names
+                                .into_iter()
+                                .map(std::borrow::Cow::into_owned)
+                                .collect()
+                        })
+                },
+            )
+        })
         .flatten()
-        .map(|name| name.to_string())
         .collect()
 }
 
 /// `foreach` and `lmap` (`TclCompileForeachCmd`, 8.6's `CompileEachloopCmd`):
 /// variable lists and values in pairs, a literal body, and each variable list
 /// a literal list of local scalars.
-fn compiles_each_loop(words: &[CompileWord<'_>]) -> bool {
+fn compiles_each_loop(version: TclVersion, words: &[CompileWord<'_>]) -> bool {
     let Some((body, pairs)) = words.split_last() else {
         return false;
     };
@@ -454,9 +489,11 @@ fn compiles_each_loop(words: &[CompileWord<'_>]) -> bool {
         && body.literal
         && pairs.chunks(2).all(|pair| {
             pair[0].literal
-                && tcl_syntax::list::split_list(pair[0].text).is_ok_and(|names| {
-                    !names.is_empty() && names.iter().all(|name| is_local_scalar(name))
-                })
+                && crate::InvocationDialect::for_version(version)
+                    .read_list(pair[0].text)
+                    .is_ok_and(|names| {
+                        !names.is_empty() && names.iter().all(|name| is_local_scalar(name))
+                    })
         })
 }
 
