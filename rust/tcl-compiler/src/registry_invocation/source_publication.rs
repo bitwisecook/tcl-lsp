@@ -38,17 +38,32 @@ impl OriginalSourceCommandPublication {
     pub(super) fn capture(
         words: OriginalRegistryWords,
         context: &ContextRegistry,
-        site: Option<crate::command_binding::CommandAllocationSite>,
+        invocation_site: impl FnOnce() -> Option<crate::command_binding::CommandAllocationSite>,
     ) -> Option<Self> {
         // naming.source.original-command-name-publications
         // docs/design/analysis/name-resolution-proofs/original-command-name-publications.md
-        let naming = words.with_source_schema(context, |schema| {
-            schema.authored_source_command_publication()
+        let (naming, package) = words.with_source_schema(context, |schema| {
+            Some((
+                schema.authored_source_command_publication()?,
+                schema
+                    .authored_source_descriptors()
+                    .command
+                    .owning_package(),
+            ))
         })??;
         let operand = words.operands().get(naming.argument)?.as_ref()?;
         let original = operand.word()?.clone();
         let bytes = Arc::from(words.arguments().get(naming.argument)?.literal_bytes()?);
         let input = operand.input().cloned();
+        let site = if package.is_some()
+            && matches!(
+                naming.kind,
+                tcl_registry::AuthoredSourceCommandPublicationKind::Instance { .. }
+            ) {
+            invocation_site()
+        } else {
+            None
+        };
         Some(Self {
             words,
             site,

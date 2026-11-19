@@ -98,12 +98,14 @@ pub fn source_command_publication_at(
 ) -> Option<super::super::OriginalSourceCommandPublication> {
     let words = source_registry_words_at(source, analysis, offset)?;
     let context = analysis.resolved_input.as_ref()?.context_registry();
-    let site = analysis.retained_command_realm().and_then(|realm| {
-        realm
-            .invocation_at_source("", offset)
-            .invocation_site()
-            .cloned()
-    });
+    let site = || {
+        analysis.retained_command_realm().and_then(|realm| {
+            realm
+                .invocation_at_source("", offset)
+                .invocation_site()
+                .cloned()
+        })
+    };
     super::super::source_publication::OriginalSourceCommandPublication::capture(
         words, &context, site,
     )
