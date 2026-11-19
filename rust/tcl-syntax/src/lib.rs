@@ -72,6 +72,7 @@ pub mod jim_script_objects;
 pub use tcl_value_syntax::list;
 pub use tcl_value_syntax::list_result;
 pub mod logical_numeric_simulation;
+pub mod manifest_words;
 pub mod mro;
 pub mod naming;
 /// Native array-search handle conversion and failure presentation.

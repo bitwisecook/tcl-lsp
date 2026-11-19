@@ -32,8 +32,9 @@ use std::sync::LazyLock;
 
 use regex::Regex;
 use tcl_dialect::model::DependencyTier;
-use tcl_lexer::{Lexer, LexerConfig, Token, TokenType};
+use tcl_lexer::LexerConfig;
 use tcl_syntax::list::split_list_with_syntax;
+use tcl_syntax::manifest_words::{LiteralCommand, literal_commands};
 
 use crate::errors::TclPkgError;
 use crate::version::Version;
@@ -831,11 +832,6 @@ fn validate(ast: &ManifestAst, path: Option<&str>) -> Result<(), TclPkgError> {
 
 // Tcl script parsing (commands + words; no substitution)
 
-struct ParsedCommand {
-    words: Vec<String>,
-    span: Range<usize>,
-}
-
 fn manifest_lexer_config() -> LexerConfig {
     LexerConfig {
         strict_quoting: true,
@@ -851,89 +847,8 @@ fn manifest_lexer_config() -> LexerConfig {
 /// substitutions in quotes). This loader deliberately only decodes grouping /
 /// backslashes afterwards: it never evaluates a variable or command
 /// substitution.
-fn parse_script(src: &str) -> Result<Vec<ParsedCommand>, String> {
-    let tokens = Lexer::with_config(src, manifest_lexer_config())
-        .tokenise_all()
-        .map_err(|err| err.to_string())?;
-    let mut commands = Vec::new();
-    let mut words = Vec::new();
-    let mut word = Vec::new();
-    let mut command_start = None;
-
-    for token in tokens {
-        match token.kind {
-            TokenType::Comment => {}
-            TokenType::Expand => {
-                return Err(
-                    "manifest expansion prefix `{*}` is not permitted in safe mode".to_string(),
-                );
-            }
-            TokenType::Sep => {
-                finish_word(src, &mut word, token.span.start() as usize, &mut words)?;
-            }
-            TokenType::Eol | TokenType::Eof => {
-                finish_word(src, &mut word, token.span.start() as usize, &mut words)?;
-                if !words.is_empty() {
-                    let start = command_start
-                        .take()
-                        .ok_or("missing original command span")?;
-                    let span = start..token.span.start() as usize;
-                    src.get(span.clone())
-                        .ok_or("invalid original command span")?;
-                    commands.push(ParsedCommand {
-                        words: std::mem::take(&mut words),
-                        span,
-                    });
-                }
-            }
-            _ => {
-                command_start.get_or_insert(token.span.start() as usize);
-                word.push(token);
-            }
-        }
-    }
-    Ok(commands)
-}
-
-/// Finish one lexer-grouped word at a separator / command boundary.
-fn finish_word(
-    src: &str,
-    word: &mut Vec<Token>,
-    end: usize,
-    words: &mut Vec<String>,
-) -> Result<(), String> {
-    if word.is_empty() {
-        return Ok(());
-    }
-    let start = word[0].span.start() as usize;
-    let raw = src
-        .get(start..end)
-        .ok_or_else(|| "invalid lexer token span".to_string())?;
-    let value = if word.len() == 1 && word[0].kind == TokenType::Str {
-        raw.strip_prefix('{')
-            .and_then(|s| s.strip_suffix('}'))
-            .map_or_else(
-                || Err("missing close-brace".to_string()),
-                |s| Ok(s.to_owned()),
-            )?
-    } else if raw.starts_with('"') {
-        raw.strip_prefix('"')
-            .and_then(|s| s.strip_suffix('"'))
-            .map_or_else(
-                || Err("missing \"".to_string()),
-                |s| {
-                    Ok(
-                        tcl_syntax::backslash::decode_in(s, manifest_lexer_config().escapes)
-                            .into_owned(),
-                    )
-                },
-            )?
-    } else {
-        tcl_syntax::backslash::decode_in(raw, manifest_lexer_config().escapes).into_owned()
-    };
-    words.push(value);
-    word.clear();
-    Ok(())
+fn parse_script(src: &str) -> Result<Vec<LiteralCommand>, String> {
+    literal_commands(src, manifest_lexer_config())
 }
 
 #[cfg(test)]

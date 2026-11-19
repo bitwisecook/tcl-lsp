@@ -474,7 +474,7 @@ fn parse_manifest(text: &str) -> Result<Manifest, String> {
 /// literally — the manifest DSL never needs them. A tokeniser failure (an
 /// unbalanced brace / quote) is returned as `Err(message)`.
 fn tcl_commands(src: &str) -> Result<Vec<Vec<String>>, String> {
-    use tcl_lexer::{Lexer, LexerConfig, SourceMap, TokenType};
+    use tcl_lexer::LexerConfig;
 
     // Strict quoting so an unbalanced brace / quote is a hard error we can
     // report, rather than a silently truncated word.
@@ -484,46 +484,9 @@ fn tcl_commands(src: &str) -> Result<Vec<Vec<String>>, String> {
         // a fixed declarative vocabulary with no dialect axis.
         ..LexerConfig::default()
     };
-    let tokens = Lexer::with_source_map(SourceMap::new(src), config)
-        .tokenise_all()
-        .map_err(|e| format!("invalid Tcl manifest: {e}"))?;
-    let sm = SourceMap::new(src);
-    let mut commands: Vec<Vec<String>> = Vec::new();
-    let mut cmd: Vec<String> = Vec::new();
-    let mut word = String::new();
-    let mut in_word = false;
-    for tok in tokens {
-        match tok.kind {
-            TokenType::Sep => {
-                if in_word {
-                    cmd.push(std::mem::take(&mut word));
-                    in_word = false;
-                }
-            }
-            TokenType::Eol => {
-                if in_word {
-                    cmd.push(std::mem::take(&mut word));
-                    in_word = false;
-                }
-                if !cmd.is_empty() {
-                    commands.push(std::mem::take(&mut cmd));
-                }
-            }
-            TokenType::Comment | TokenType::Eof | TokenType::Expand => {}
-            // Esc / Str / Cmd / Var — a (fragment of a) word.
-            _ => {
-                word.push_str(sm.token_text(tok));
-                in_word = true;
-            }
-        }
-    }
-    if in_word {
-        cmd.push(word);
-    }
-    if !cmd.is_empty() {
-        commands.push(cmd);
-    }
-    Ok(commands)
+    tcl_syntax::manifest_words::literal_commands(src, config)
+        .map(|commands| commands.into_iter().map(|command| command.words).collect())
+        .map_err(|message| format!("invalid Tcl manifest: {message}"))
 }
 
 /// Auto-detect links by IP overlap: an upstream device targets an address that a
@@ -926,6 +889,19 @@ mod tests {
         assert_eq!(bare_ip("api.example.com"), None);
         assert_eq!(bare_ip("any"), None);
         assert_eq!(bare_ip(""), None);
+    }
+
+    #[test]
+    fn architecture_manifest_keeps_literal_substitution_spelling() {
+        let manifest = parse_manifest(
+            r#"device "$host" -label {[name here]}; device [literal] -label escaped\ space"#,
+        )
+        .unwrap();
+        assert_eq!(manifest.devices[0].matcher, "$host");
+        assert_eq!(manifest.devices[0].label.as_deref(), Some("[name here]"));
+        assert_eq!(manifest.devices[1].matcher, "[literal]");
+        assert_eq!(manifest.devices[1].label.as_deref(), Some("escaped space"));
+        assert!(parse_manifest("device {*}$devices").is_err());
     }
 
     #[test]
