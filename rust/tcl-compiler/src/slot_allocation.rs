@@ -345,17 +345,16 @@ fn scalar_live_out(
     live_out
 }
 
-/// SSA variables live immediately after each marker for a call to code the
-/// module cannot see ([`crate::ir::SyntheticMarker::UnseenCall`]), the names
-/// the marker gives fresh versions. Dead values still describe their earlier
-/// uses and must not lose those proofs.
-pub(crate) fn unseen_call_live_names(
+/// SSA variables live after an unseen call or a script operand that can run
+/// arbitrary caller commands. Refreshing their versions preserves reads of
+/// the earlier value before the invocation.
+pub(crate) fn unseen_code_live_names(
     cfg: &cfg::Function,
     ssa: &SsaFunction,
     registry: &CommandRegistry,
 ) -> HashMap<BlockId, HashMap<usize, HashSet<Symbol>>> {
     live_names_at_effects(cfg, ssa, registry, |_, _, stmt| {
-        crate::ssa::is_unseen_call_marker(&stmt.statement)
+        crate::ssa::is_unseen_call_marker(&stmt.statement) || stmt.statement.is_opaque_script_body()
     })
 }
 

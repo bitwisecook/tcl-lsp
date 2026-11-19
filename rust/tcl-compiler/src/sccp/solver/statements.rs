@@ -157,6 +157,13 @@ pub(in super::super) fn sccp_process_statements(
             // A `return` that leaves the procedure writes nothing, and
             // nothing of the frame runs after it: the values its own words
             // read stay what they are.
+            if stmt_ssa.statement.is_opaque_script_body() {
+                changed |= clobber_at_unseen_call(
+                    values,
+                    (index, inputs.clobbers, true),
+                    (driver, existence.as_deref_mut()),
+                );
+            }
             if !stmt_ssa.statement.is_return_barrier() {
                 changed |= widen_at_barrier(
                     values,

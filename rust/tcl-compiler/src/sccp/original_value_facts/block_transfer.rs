@@ -196,6 +196,9 @@ pub(super) fn sccp_process_statements(
             // against tclsh 8.6/9.0: `set n 5; uplevel #0 {set n 99};
             // puts [expr {$n + 1}]` prints `100`. The value before
             // `uplevel` cannot justify folding that later expression.
+            if stmt_ssa.statement.is_opaque_script_body() {
+                changed |= widen_registry_clobbers(values, clobbers, index, None);
+            }
             changed |=
                 widen_unrepresented_statement(values, stmt_ssa, ssa.point_contexts.is_some());
             continue;

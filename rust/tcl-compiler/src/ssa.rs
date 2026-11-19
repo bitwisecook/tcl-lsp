@@ -784,7 +784,7 @@ fn shared_barrier_live_names(
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
 ) -> HashMap<BlockId, HashMap<usize, HashSet<Symbol>>> {
-    let mut live = crate::slot_allocation::unseen_call_live_names(func, initial, registry);
+    let mut live = crate::slot_allocation::unseen_code_live_names(func, initial, registry);
     for (block, barriers) in
         crate::slot_allocation::unavailable_metadata_effect_live_names(func, initial, registry)
             .into_iter()

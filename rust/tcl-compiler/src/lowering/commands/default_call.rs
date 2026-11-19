@@ -319,7 +319,7 @@ fn body_barrier(
 ) -> Statement {
     Statement::Barrier {
         span: seg.span,
-        reason: "unsupported body command".into(),
+        reason: Statement::OPAQUE_SCRIPT_BODY.into(),
         command: seg.name().into(),
         canonical_command,
         args: seg.args().to_vec(),

@@ -905,6 +905,15 @@ impl Statement {
         }
     }
 
+    /// Lowering diagnosed a script operand that runs without a represented CFG.
+    pub(crate) const OPAQUE_SCRIPT_BODY: &'static str = "unsupported body command";
+
+    /// A selected command can run its script operand, regardless of whether
+    /// the command's own frame is declared independent of its caller.
+    pub(crate) fn is_opaque_script_body(&self) -> bool {
+        matches!(self, Self::Barrier { reason, .. } if reason == Self::OPAQUE_SCRIPT_BODY)
+    }
+
     /// Whether this is the barrier a `return` lowers to when it leaves the
     /// procedure or its completion is not known — `return` with options
     /// ([`crate::lowering::hooks::control::try_lower_return`]) or with an
