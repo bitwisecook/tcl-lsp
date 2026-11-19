@@ -379,21 +379,15 @@ impl TraceLedger {
             if known == base {
                 return true;
             }
-            let Some(rest) = known.strip_prefix(base) else {
+            let Some((array, key)) = tcl_syntax::naming::split_element_ref(known) else {
                 return false;
             };
-            if !rest.starts_with('(') {
-                return false;
-            }
-            match element {
-                ElementAccess::Scalar => false,
-                ElementAccess::Known(element) => {
-                    rest.strip_prefix('(')
-                        .and_then(|rest| rest.strip_suffix(')'))
-                        == Some(*element)
+            array == base
+                && match element {
+                    ElementAccess::Scalar => false,
+                    ElementAccess::Known(element) => key == *element,
+                    ElementAccess::Dynamic => true,
                 }
-                ElementAccess::Dynamic => true,
-            }
         })
     }
 
