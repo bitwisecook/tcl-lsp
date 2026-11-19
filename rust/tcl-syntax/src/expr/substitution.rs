@@ -1148,17 +1148,17 @@ fn original_command_regions(
     let mut regions = Vec::new();
     for term in terms {
         let whole = Span::new(term.source.start, term.source.end);
-        let content = Span::new(term.value.start, term.value.end);
+        let value_span = Span::new(term.value.start, term.value.end);
         let parts = match term.kind {
             tcl_lexer::ExprTermKind::Command => {
                 regions.push(OriginalExpressionCommandRegion {
                     substitution: whole,
-                    body: content,
+                    body: value_span,
                     whole_operand: true,
                 });
                 continue;
             }
-            tcl_lexer::ExprTermKind::EscapedString => content,
+            tcl_lexer::ExprTermKind::EscapedString => value_span,
             tcl_lexer::ExprTermKind::Variable | tcl_lexer::ExprTermKind::IndexedVariable => whole,
             _ => continue,
         };
