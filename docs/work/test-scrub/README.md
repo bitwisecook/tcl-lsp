@@ -216,7 +216,6 @@ These go ahead of missing facts once the ledgers are in.
 | O103 folds `[answer]` to 42 inside the uncalled `f` in `proc answer {} {return 42}; proc f {} {set y [answer]}; unknown_future_entry`, although the unknown command may rebind `answer` before `f` runs | dataflow-optimiser |
 | A stray `nop` before an invoked command in `foreach`/`while`/`if` bodies, where tclsh 8.6.18 and 9.0.4 compile no instruction; fixed in `2be09036` | execution, fixed |
 | `proc p {} {if {$a} {$c}}` lacks the conversion `nop` tclsh 8.6 emits before `jumpFalse1` | execution |
-| The 8.4 error trace for `expr {0b10 + 1}` says "while compiling" where tclsh 8.4.20 says "while executing" | execution |
 | An authored F5 source-word provider seals words with a native 8.4 string protocol inside a C9 host engine, so `concat` and list copy refuse them (25 `tcl-irule-test` tests) | execution |
 | Under tcl8.4 the optimiser rewrites `proc f {args} {return $args}; puts [f # a]` to `puts {{#} a}`; tclsh 8.4.20 prints `# a` for the original and `{#} a` for the rewrite (`args` was joined without the release's quoting at three sites); fixed in `ff48bc25`, held by `release_optimiser_safety` (69 of 69) | dataflow-optimiser, fixed |
 | A class is recorded from a statement after a proved error (`error boom; oo::class create ::Wrong {}`; also after a `proc` into a missing namespace); fixed in `c0daade7` | class-facts, fixed |
@@ -231,13 +230,14 @@ These go ahead of missing facts once the ledgers are in.
 | 8.4/8.5 top-level scripts reach a literal scalar through `storeStk`/`loadStk`/`incrStkImm` where tclsh uses the scalar stack forms; fixed c9a0e5b6 | execution |
 | An iRule `expr` reads numerals by the host engine's 9.0 rules (`expr {077}` gives 77, tclsh 8.4.20 63) because the framework's `::expr` override evaluated under the host catch; fixed f474416f | execution |
 | 8.5 top-level script: no `startCommand` before a compiled `return` after another command (`set y 1; return $x`) | execution, open |
-| 8.6+: an unreachable `jump` after a `done` stays a jump where tclsh's optimizer leaves `nop nop` (`if {$a} {return 1}; return 2`) | execution, open |
+| 8.6+: an unreachable `jump` after a `done` stays a jump where tclsh fills the jump width with no-ops (two on 8.6 and 9.0, five on 9.1) (`if {$a} {return 1}; return 2`) | execution, open |
 | 8.6+: `if {!$a}` compiles `not; jumpFalse` where tclsh gives `nop; jumpTrue` | execution, open |
-| 8.4: errorInfo for `expr {0b10 + 1}` reads `while compiling` where tclsh 8.4.20 reads `while executing` | execution, open |
+| 8.4 errorInfo for `expr {0b10 + 1}` depends on entry. C Tcl 8.4.20 says “while executing” for a script file, `source`, `eval $src` and `uplevel #0 $src`. It says “while compiling” for the literal inside `catch`. Compare the VM at the same entry and retain both controls. | execution, open |
 | O129 rewrites `set x [split ""]` to `set x {{}}` and `puts [llength $x]` to `puts 1`; tclsh 8.4.20 to 9.1.0 print 0. #2418 back, through the optimiser's constant-fold engine. Witness `procedure_summaries::split_of_the_empty_string_is_the_empty_list` | dataflow-optimiser, first when resumed |
 | Strict local rename goes past a computed command head that may read the local by name: `proc m {w dir} { $w ${dir}view }` renames `dir` although `proc peek {args} {upvar 1 dir d; return $d}` then fails (tclsh 8.6.18, 9.0.4) | diagnostics (`analyser/types/variable_renames.rs`) |
 | I230 "condition is always true" for `if {$g == 5}` after a stubbed body-role call that sets `g` (`db_eval {select 1} {set g 6}`); tclsh prints `other`. Witness `unseen_code::a_stub_that_states_its_frame_effect_is_a_named_head` | diagnostics |
-| Four bytecode mismatches found by execution's live-tclsh witnesses, queued: 8.5 top-level `startCommand` before a compiled `return`; 8.6+ an unreachable `jump` after `done` should be `nop nop`; 8.6+ `if {!$a}` compiles to `nop; jumpTrue`; the 8.4 `expr {0b10 + 1}` trace says "while compiling" | execution |
+
+**O129 follow-up under investigation, 19 November.** dataflow-optimiser is checking whether the literal folder can rewrite `lrepeat 0 x` on 8.5. C Tcl 8.4.20 lacks the command and 8.5.19 rejects a count of zero. C Tcl 8.6.18 through 9.1.0 and Jim 0.84-15-g2f8e155 return an empty list. A product wrong answer requires a reachable optimisation witness on the selected release.
 
 <a id="waiting-on-the-owners-approval"></a>
 
@@ -256,8 +256,6 @@ On 19 November the owner approved every tooling edit listed below and the live-i
 | Eight `tcl-diagram` fixtures repaired: dynamic words read unset variables (`$code`, `$options`, `$status`, `$pattern`, `$ready`, `$items`; tclsh 8.6.18 and 9.0.4: `can't read "code": no such variable`, the rest of the script is dead) or statements follow a certain exit, so the code under test is never reached (names in `ledger/irules-registry-tooling.tsv`) | irules-registry-tooling | The source is not what the test says it is |
 | In the four crates no session owns (`tcl-lexer`, `tcl-syntax`, `tcl-dialect`, `tcl-core-types`; 2,008 run, all pass with every oracle required, no expectation contradicted): 16 merges into named survivors (five exact copies and eleven single-operator parser tests the `expr_parser_coverage` tables already state), one vacuous test (`word_parts::tests::oracle_sheet_is_recorded`), seven Jim tests that return silently without the oracle moved onto the shared locator, four weak-assertion groups rewritten to assert a value, nine crash guards given a value to assert (rows in `ledger/unowned-passing.tsv`; about 1,600 tests in small groups were not read) | irules-registry-tooling | Sampled and signed off by the coordinator; test-body edits |
 | `tcl-cli` `spec_test_presence_keeps_literal_colons_and_wildcards`: its Jim leg uses a `pkgIndex` layout Jim does not load, which showed once the Jim oracle was required; the fixture takes Jim's own package layout | irules-registry-tooling | A test that returns early for want of its oracle is not a pass |
-
-**O129 follow-up under investigation, 19 November.** dataflow-optimiser is checking whether the literal folder can rewrite `lrepeat 0 x` on 8.5. C Tcl 8.4.20 lacks the command and 8.5.19 rejects a count of zero. C Tcl 8.6.18 through 9.1.0 and Jim 0.84-15-g2f8e155 return an empty list. A product wrong answer requires a reachable optimisation witness on the selected release.
 
 ## Passing tests the oracle contradicts
 
