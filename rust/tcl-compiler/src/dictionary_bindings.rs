@@ -552,7 +552,7 @@ fn read_mapped_contents(
     for (key, name) in activation.bindings.as_ref()? {
         if !activation
             .plan
-            .writes_mapped_name(activation.dictionary_name.as_bytes(), key.as_bytes())
+            .writes_mapped_key(activation.dictionary_name == *key)
         {
             continue;
         }
@@ -745,7 +745,7 @@ fn writeback_effects(
         for (key, name) in bindings {
             if !activation
                 .plan
-                .writes_mapped_name(activation.dictionary_name.as_bytes(), key.as_bytes())
+                .writes_mapped_key(activation.dictionary_name == *key)
             {
                 continue;
             }

@@ -286,8 +286,8 @@ impl DictionaryScopePlan {
 
     /// Jim with leaves a same-named root alone when reflecting its member variables.
     #[must_use]
-    pub fn writes_mapped_name(&self, dictionary_name: &[u8], key: &[u8]) -> bool {
-        self.writeback != DictionaryWriteback::NormalOnly || key != dictionary_name
+    pub fn writes_mapped_key(&self, equals_dictionary_name: bool) -> bool {
+        self.writeback != DictionaryWriteback::NormalOnly || !equals_dictionary_name
     }
 
     /// Whether original evaluated script bytes bypass both evaluation and writeback.
