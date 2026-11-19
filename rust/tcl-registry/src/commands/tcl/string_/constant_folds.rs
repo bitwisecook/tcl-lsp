@@ -86,12 +86,20 @@ const MAX_FOLD_OUTPUT_BYTES: usize = 1 << 20;
 
 /// `string repeat string count` — repeat (bounded by a 10000 count cap and a
 /// 1 MiB output cap).  No char transformation → sound for any input.
-/// A negative count fails the `usize` parse → bails.
+/// The target-independent fold requires all numeral grammars to agree.
 pub(crate) fn fold_repeat(args: &[&str]) -> Option<String> {
+    fold_repeat_versioned(args, None)
+}
+
+pub(crate) fn fold_repeat_versioned(args: &[&str], version: Option<TclVersion>) -> Option<String> {
     let [s, count] = args else {
         return None;
     };
-    let n: usize = count.trim().parse().ok()?;
+    use tcl_syntax::number::Numbers;
+    let numbers = version.map_or(Numbers::Unknown, |version| {
+        Numbers::Target(version.number_syntax())
+    });
+    let n = crate::const_fold::repetition_count(count, numbers)?;
     if n > 10_000 {
         return None;
     }

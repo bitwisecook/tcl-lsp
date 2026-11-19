@@ -1207,3 +1207,32 @@ p
         "8.4",
     );
 }
+
+/// Preserve both completion and result spelling across native list constructions.
+#[test]
+fn list_and_repeat_use_the_selected_readers_and_writers() {
+    let jim = if std::env::var_os("TCL_LSP_REQUIRE_JIM_ORACLE").is_some() {
+        Some(tcl_test_support::require_jimsh().expect("required current Jim oracle"))
+    } else {
+        tcl_test_support::locate_jimsh().expect("validated Jim oracle")
+    };
+    for source in [
+        "puts [list # a]",
+        "puts [lrepeat 0 x]",
+        "puts [lrepeat 010 x]",
+        "puts [lrepeat 08 x]",
+        "puts [string repeat x 010]",
+        "puts [string repeat x 08]",
+        "puts [lsort {😀 \u{e000}}]",
+    ] {
+        preserves(source, "8.4");
+        if let Some(jim) = &jim {
+            let (rewritten, _) = optimise(source, "jim");
+            assert_eq!(
+                observed(&jim.path, source),
+                observed(&jim.path, &rewritten),
+                "{source} -> {rewritten}"
+            );
+        }
+    }
+}

@@ -31234,6 +31234,7 @@ if {[string first "World" $s] >= 0} {
         pure
         arg 1 -type Int -shimmers
         const_fold -native string::repeat::const_fold
+        const_fold_versioned -native string::repeat::const_fold_versioned
         # TODO(spectcl): `completion` is set on the source spec. The DSL spells
         #   it `completion {CODE …}`, but a draft records only that the field
         #   is set, never the expression that set it.

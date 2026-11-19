@@ -24,9 +24,10 @@ mod constant_folds;
 mod is_classes;
 
 pub(crate) use constant_folds::{
-    fold_cat, fold_compare, fold_equal, fold_first, fold_index, fold_last, fold_length, fold_match, fold_match_versioned,
-    fold_range, fold_range_unanimous, fold_repeat, fold_replace, fold_reverse, fold_string_map,
-    fold_tolower, fold_totitle, fold_toupper, fold_trim, fold_trimleft, fold_trimright,
+    fold_cat, fold_compare, fold_equal, fold_first, fold_index, fold_last, fold_length, fold_match,
+    fold_match_versioned, fold_range, fold_range_unanimous, fold_repeat, fold_repeat_versioned,
+    fold_replace, fold_reverse, fold_string_map, fold_tolower, fold_totitle, fold_toupper,
+    fold_trim, fold_trimleft, fold_trimright,
 };
 use is_classes::IS_CLASSES;
 pub(crate) use is_classes::fold_is;
@@ -1015,6 +1016,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ),
         return_type: Some(TclType::String),
         const_fold: Some(fold_repeat),
+        const_fold_versioned: Some(fold_repeat_versioned),
         arg_types: &[(
             1,
             ArgTypeHint {

@@ -1484,6 +1484,19 @@ impl CommandSpec {
         args: &[&str],
         dialect: crate::InvocationDialect,
     ) -> Option<String> {
+        if self.const_fold.is_some() {
+            use crate::native_result::NativeResultContract;
+            match self.native_result {
+                Some(NativeResultContract::ListArguments { from: 0 }) => {
+                    return String::from_utf8(dialect.list_result_serialization()?.render(args))
+                        .ok();
+                }
+                Some(NativeResultContract::ListRepeat { count_at: 0 }) => {
+                    return crate::const_fold::fold_lrepeat_in(args, dialect);
+                }
+                _ => {}
+            }
+        }
         if let Some(contract @ crate::native_result::NativeResultContract::ListRange { .. }) =
             self.native_result
         {

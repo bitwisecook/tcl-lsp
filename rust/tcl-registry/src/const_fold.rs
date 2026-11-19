@@ -40,87 +40,23 @@
 //! numeral grammar's version differences. `clamp_range` is the post-resolution
 //! range clamp shared with the `string` subcommand folds.
 
-const fn is_list_ws(b: u8) -> bool {
-    matches!(b, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c)
-}
-
-/// Split a Tcl list string into its elements, or `None` when the input
-/// is not a well-formed simple list: unbalanced braces, an unterminated
-/// quote, trailing junk after a `}` / `"`, or a backslash anywhere
-/// (backslash decoding is out of scope — bail rather than fold a
-/// possibly-wrong element).  Brace / quote groups are unwrapped; bare
-/// words are taken verbatim.
+/// Common list elements for a literal with no target. Source escapes need the
+/// selected receiver. Strict Tcl errors and Jim's more permissive parse must
+/// agree before returning a value.
 pub(crate) fn split_list(s: &str) -> Option<Vec<String>> {
-    let bytes = s.as_bytes();
-    let n = bytes.len();
-    let mut out = Vec::new();
-    let mut i = 0;
-    while i < n {
-        while i < n && is_list_ws(bytes[i]) {
-            i += 1;
-        }
-        if i >= n {
-            break;
-        }
-        match bytes[i] {
-            b'{' => {
-                i += 1;
-                let start = i;
-                let mut level = 1u32;
-                while i < n {
-                    match bytes[i] {
-                        b'\\' => return None,
-                        b'{' => level += 1,
-                        b'}' => {
-                            level -= 1;
-                            if level == 0 {
-                                break;
-                            }
-                        }
-                        _ => {}
-                    }
-                    i += 1;
-                }
-                if level != 0 {
-                    return None; // unbalanced
-                }
-                out.push(s[start..i].to_owned());
-                i += 1; // skip closing `}`
-                if i < n && !is_list_ws(bytes[i]) {
-                    return None; // junk after `}`
-                }
-            }
-            b'"' => {
-                i += 1;
-                let start = i;
-                while i < n && bytes[i] != b'"' {
-                    if bytes[i] == b'\\' {
-                        return None;
-                    }
-                    i += 1;
-                }
-                if i >= n {
-                    return None; // unterminated quote
-                }
-                out.push(s[start..i].to_owned());
-                i += 1; // skip closing `"`
-                if i < n && !is_list_ws(bytes[i]) {
-                    return None; // junk after `"`
-                }
-            }
-            _ => {
-                let start = i;
-                while i < n && !is_list_ws(bytes[i]) {
-                    if matches!(bytes[i], b'\\' | b'{' | b'}' | b'"') {
-                        return None;
-                    }
-                    i += 1;
-                }
-                out.push(s[start..i].to_owned());
-            }
-        }
+    if s.contains('\\') {
+        return None;
     }
-    Some(out)
+    let parsed = tcl_syntax::list::split_list(s).ok()?;
+    if parsed != tcl_syntax::list::split_list_jim(s) {
+        return None;
+    }
+    Some(
+        parsed
+            .into_iter()
+            .map(std::borrow::Cow::into_owned)
+            .collect(),
+    )
 }
 
 // One element is quoted by the shared `Tcl_ScanElement`+`Tcl_ConvertElement`
@@ -356,11 +292,8 @@ pub(crate) fn fold_lreverse(args: &[&str]) -> Option<String> {
     Some(list_join(&elems))
 }
 
-/// `lsort ?-ascii? ?-increasing|-decreasing? ?-unique? list`. Every release
-/// compares `-ascii` bytes (8.x `strcmp`, 9.x `TclUtfCmp`), which agree on
-/// NUL-free strings; equal elements are identical, so stability and the kept
-/// duplicate do not change the bytes. Any other option declines, as does a
-/// leading `#`, whose quoting differs between 8.4 and later list objects.
+/// ASCII byte order agrees across the supported engines. Non-ASCII ordering
+/// depends on the native encoding (notably C Tcl 8.6's supplementary units).
 pub(crate) fn fold_lsort(args: &[&str]) -> Option<String> {
     let (list, options) = args.split_last()?;
     let mut decreasing = false;
@@ -375,7 +308,10 @@ pub(crate) fn fold_lsort(args: &[&str]) -> Option<String> {
         }
     }
     let mut elems = split_list(list)?;
-    if elems.iter().any(|elem| elem.contains('\0')) {
+    if elems
+        .iter()
+        .any(|elem| !elem.is_ascii() || elem.contains('\0'))
+    {
         return None;
     }
     elems.sort_unstable();
@@ -426,25 +362,59 @@ pub(crate) fn fold_split_versioned(
 /// can't blow up the fold.
 const MAX_FOLD_OUTPUT_BYTES: usize = 1 << 20;
 
-/// `lrepeat count ?element ...?`.
+/// Exact bounded count read under the receiver's numeral grammar.
+pub(crate) fn repetition_count(word: &str, numbers: tcl_syntax::number::Numbers) -> Option<usize> {
+    let tcl_syntax::number::Number::Int(value) = numbers.parse_whole(word)? else {
+        return None;
+    };
+    usize::try_from(value).ok()
+}
+
+/// `lrepeat count ?element ...?` on every release providing the command.
 pub(crate) fn fold_lrepeat(args: &[&str]) -> Option<String> {
-    if args.len() < 2 {
+    let repeated = repeated_elements(args, tcl_syntax::number::Numbers::Unknown, false)?;
+    let result = list_join(&repeated);
+    // C Tcl 8.5 and later quote a leading hash. Jim additionally makes its
+    // own brace/escape choice, so an unselected fold needs both spellings.
+    (tcl_syntax::list_result::NativeListResultSerialization::Jim084.render(&repeated)
+        == result.as_bytes())
+    .then_some(result)
+}
+
+fn repeated_elements<'a>(
+    args: &[&'a str],
+    numbers: tcl_syntax::number::Numbers,
+    accepts_empty: bool,
+) -> Option<Vec<&'a str>> {
+    let (word, elems) = args.split_first()?;
+    let count = repetition_count(word, numbers)?;
+    if count > 1000 || (!accepts_empty && (count == 0 || elems.is_empty())) {
         return None;
     }
-    let count: usize = args[0].trim().parse().ok()?;
-    if count > 1000 {
-        return None; // sanity cap
-    }
-    let elems = &args[1..];
-    let elem_bytes: usize = elems.iter().map(|e| e.len() + 1).sum();
-    if elem_bytes
-        .checked_mul(count)
-        .is_none_or(|bytes| bytes > MAX_FOLD_OUTPUT_BYTES)
-    {
+    let elem_bytes = elems.iter().try_fold(0usize, |sum, elem| {
+        sum.checked_add(elem.len().checked_add(1)?)
+    })?;
+    if elem_bytes.checked_mul(count)? > MAX_FOLD_OUTPUT_BYTES {
         return None;
     }
-    let repeated: Vec<&str> = (0..count).flat_map(|_| elems.iter().copied()).collect();
-    Some(list_join(&repeated))
+    Some(elems.repeat(count))
+}
+
+/// A selected native `lrepeat` uses its count grammar, arity and list writer.
+pub(crate) fn fold_lrepeat_in(args: &[&str], dialect: crate::InvocationDialect) -> Option<String> {
+    use tcl_syntax::native_string::NativeStringProtocol;
+    let protocol = dialect.native_string_protocol()?;
+    let accepts_empty = match protocol {
+        NativeStringProtocol::C(tcl_dialect::TclVersion::V8_4) => return None,
+        NativeStringProtocol::C(tcl_dialect::TclVersion::V8_5) => false,
+        NativeStringProtocol::C(_) | NativeStringProtocol::Jim084 => true,
+    };
+    let repeated = repeated_elements(
+        args,
+        tcl_syntax::number::Numbers::Target(dialect.numbers),
+        accepts_empty,
+    )?;
+    String::from_utf8(dialect.list_result_serialization()?.render(&repeated)).ok()
 }
 
 /// `lindex list ?index ...?` — returns the indexed element (raw; the
