@@ -166,6 +166,23 @@ pub enum ExprNode<Text = String> {
 }
 
 impl<Text> ExprNode<Text> {
+    /// Whether this node consists of a numeric or Boolean literal,
+    /// optionally preceded by a unary sign. This classifies syntax only.
+    #[must_use]
+    pub fn is_signed_or_unsigned_literal(&self) -> bool {
+        match self {
+            ExprNode::Literal { .. } => true,
+            ExprNode::Unary {
+                op: UnaryOp::Pos | UnaryOp::Neg,
+                operand,
+                ..
+            } => {
+                matches!(operand.as_ref(), ExprNode::Literal { .. })
+            }
+            _ => false,
+        }
+    }
+
     /// Scalar leaf results need numeric conversion independently of command spelling.
     /// Opaque fallback text remains conservative; checked Native syntax validates it separately.
     #[must_use]

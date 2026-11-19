@@ -277,7 +277,7 @@ impl Analyser {
                 &self.original_expression_parser_context()?,
                 self.file_lexer_config(),
             )?;
-            if expression.is_signed_or_unsigned_literal()
+            if expression.root().is_signed_or_unsigned_literal()
                 || expressions.concatenates
                     && !expression.has_opaque_or_substitution_operands()
                     && expression.function_calls().is_empty()
