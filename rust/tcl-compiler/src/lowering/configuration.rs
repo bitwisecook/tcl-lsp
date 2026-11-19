@@ -72,14 +72,12 @@ fn context_with_command_store(
 }
 
 impl<'r> Lowerer<'r> {
-    /// Create a new lowerer with the default (Tcl-8.5+) lexer config.
+    /// Create a lowerer under the supplied command registry's profile.
     #[must_use]
     pub fn new(registry: &'r CommandRegistry) -> Self {
-        // dialect-drift-ok: the test-only constructor — every production
-        // construction now goes through `Lowerer::with_config` with the
-        // unit's own config; the crate's (and downstream crates') test
-        // fixtures still spell the plain-Tcl default this way.
-        Self::with_config(registry, tcl_lexer::LexerConfig::default())
+        let profile = registry.profile();
+        Self::with_config(registry, tcl_lexer::LexerConfig::for_profile(profile))
+            .with_dialect(profile)
     }
 
     /// Create a lowerer with an explicit dialect [`tcl_lexer::LexerConfig`]

@@ -911,7 +911,13 @@ pub fn lower_to_ir_with(lowerer: Lowerer<'_>, source: &str) -> Module {
 /// [`lower_to_ir`].
 #[must_use]
 pub fn lower_to_ir_for_bytecode(source: &str, registry: &CommandRegistry) -> Module {
-    lower_to_ir_for_bytecode_with_dialect(source, registry, tcl_lexer::LexerConfig::default(), None)
+    let profile = registry.profile();
+    lower_to_ir_for_bytecode_with_dialect(
+        source,
+        registry,
+        tcl_lexer::LexerConfig::for_profile(profile),
+        profile,
+    )
 }
 
 /// Like [`lower_to_ir_for_bytecode`] but also naming the document's `dialect`
@@ -942,7 +948,13 @@ pub fn lower_to_ir_for_bytecode_with_dialect(
 /// [`tcl_runtime_api::CompileService::compile_traced`].
 #[must_use]
 pub fn lower_to_ir_traced(source: &str, registry: &CommandRegistry) -> Module {
-    lower_to_ir_traced_with_config(source, registry, tcl_lexer::LexerConfig::default())
+    let profile = registry.profile();
+    lower_to_ir_traced_with_dialect(
+        source,
+        registry,
+        tcl_lexer::LexerConfig::for_profile(profile),
+        profile,
+    )
 }
 
 /// Like [`lower_to_ir_traced`] but with an explicit dialect
