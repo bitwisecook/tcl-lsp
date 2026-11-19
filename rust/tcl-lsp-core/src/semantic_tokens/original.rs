@@ -1457,12 +1457,42 @@ pub(super) fn insert_format_overrides(
                     tcl_registry::FormatType::Sprintf => ArgOverride::SprintfFormat,
                     tcl_registry::FormatType::Clock => ArgOverride::ClockFormat,
                     tcl_registry::FormatType::Binary => ArgOverride::BinaryFormat,
-                    tcl_registry::FormatType::Regsub => ArgOverride::RegsubReplace,
+                    tcl_registry::FormatType::Regsub => {
+                        let Some(captures) = regsub_capture_spans(ctx, words, found.index) else {
+                            continue;
+                        };
+                        ArgOverride::RegsubReplace(captures)
+                    }
                 };
                 super::mark_literal_fragments(command, token.span, &kind, overrides);
             }
         }
     });
+}
+
+fn regsub_capture_spans(
+    ctx: ScriptCtx<'_>,
+    words: &crate::original_invocation::OriginalRegistryWords,
+    index: usize,
+) -> Option<Vec<(std::ops::Range<usize>, TokenKind)>> {
+    let input = ctx.analysis?.resolved_input.as_ref()?;
+    let operand = crate::format_template::FormatOperand::capture(words, input, index)?;
+    let template = crate::format_template::FormatTemplate::from_operand(ctx.full_source, &operand)?;
+    let mut captures = Vec::new();
+    for (span, part) in tcl_cmd_core::regex::replacement_parts(template.content.as_bytes()) {
+        if let tcl_cmd_core::regex::ReplacementPart::Capture(_) = part {
+            let kind = if span.len() == 1 {
+                TokenKind::Operator
+            } else {
+                TokenKind::Number
+            };
+            captures.push((
+                template.original_offset(span.start)?..template.original_offset(span.end)?,
+                kind,
+            ));
+        }
+    }
+    (!captures.is_empty()).then_some(captures)
 }
 
 /// Embedded patterns from the same retained schema and source-word geometry

@@ -34,6 +34,7 @@
 //!
 //! Method-call parameter hints inside class bodies are not provided.
 
+use crate::format_template::{FormatOperand, FormatTemplate};
 use crate::original_invocation::schema_format_arguments;
 use tcl_compiler::analyser::{AnalysisResult, Scope, ScopeKind};
 use tcl_compiler::compilation_unit::CompilationUnit;
@@ -556,11 +557,6 @@ fn walk_scope_type_hints(
 // `year`), `binary format`/`scan` (`i` → `i32le`), and the substitution
 // backreferences of `regsub` (`\1` → `grp1`).
 
-/// `regsub` substitution backreference (`\0`-`\9`, `\&`).
-/// Capture group 1 is the back-reference char.
-static REGSUB_RE: std::sync::LazyLock<regex::Regex> =
-    std::sync::LazyLock::new(|| regex::Regex::new(r"\\([0-9&])").expect("static regsub regex"));
-
 /// Short label for a `format`/`scan` conversion type.  `%` (literal
 /// percent) yields `None` so no hint is emitted for `%%`.
 fn sprintf_short(c: char) -> Option<&'static str> {
@@ -639,30 +635,11 @@ fn binary_short(c: char) -> Option<&'static str> {
     })
 }
 
-/// Short label for a `regsub` substitution backreference.
-fn regsub_short(c: char) -> Option<&'static str> {
-    Some(match c {
-        '&' | '0' => "match",
-        '1' => "grp1",
-        '2' => "grp2",
-        '3' => "grp3",
-        '4' => "grp4",
-        '5' => "grp5",
-        '6' => "grp6",
-        '7' => "grp7",
-        '8' => "grp8",
-        '9' => "grp9",
-        _ => return None,
-    })
-}
-
-/// Registry format operands retain effective ordinals. An alias prefix or list
-/// expansion never shifts a written template onto another argument's source.
 fn format_args(
     source: &str,
     analysis: &AnalysisResult,
     seg: &tcl_compiler::segmenter::SegmentedCommand,
-) -> Vec<(FormatHintOperand, tcl_registry::FormatType)> {
+) -> Vec<(FormatOperand, tcl_registry::FormatType)> {
     // naming.core.original-inlay-retained-context
     // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
     let Some(selected) = source_registry_words(source, analysis, seg) else {
@@ -681,144 +658,12 @@ fn format_args(
     formats
         .into_iter()
         .filter_map(|format| {
-            let operand = selected.operands.get(format.index)?.as_ref()?;
-            let actual = selected.arguments.get(format.index)?.literal_bytes()?;
-            let logical = if let Some(native) = operand.input.as_ref() {
-                (native.bytes() == actual).then_some(())?;
-                None
-            } else {
-                let crate::original_invocation::OriginalRegistrySource::SourceTransitions(advice) =
-                    &selected.source
-                else {
-                    return None;
-                };
-                (advice.logical_source_input() == Some(input)).then_some(())?;
-                let word = operand.word.as_ref()?;
-                (tcl_syntax::word_rules::original_static_word_ascii_presentation(word)?.as_slice()
-                    == actual)
-                    .then_some(())?;
-                Some(std::sync::Arc::clone(advice))
-            };
             Some((
-                FormatHintOperand {
-                    original: operand.clone(),
-                    logical,
-                },
+                FormatOperand::capture(&selected, input, format.index)?,
                 format.kind,
             ))
         })
         .collect()
-}
-
-struct FormatHintOperand {
-    original: HintOperand,
-    logical: Option<
-        std::sync::Arc<tcl_compiler::command_binding::OriginalSourceCommandTransitionAdvice>,
-    >,
-}
-
-enum FormatTemplateMapping {
-    Native {
-        channel: tcl_lexer::SourceChannel,
-        protocol: tcl_syntax::native_string::NativeStringProtocol,
-        escapes: Option<tcl_dialect::EscapeSyntax>,
-    },
-    Logical(Box<tcl_lexer::NativeWord>),
-}
-
-struct FormatTemplate<'a> {
-    content: std::borrow::Cow<'a, str>,
-    raw: &'a [u8],
-    span: tcl_lexer::Span,
-    mapping: FormatTemplateMapping,
-}
-
-impl<'a> FormatTemplate<'a> {
-    fn from_operand(source: &'a str, operand: &FormatHintOperand) -> Option<Self> {
-        let original = &operand.original;
-        let Some(input) = &original.input else {
-            let logical = operand.logical.as_ref()?.logical_source_input()?;
-            let word = original.word.as_ref()?;
-            if word.image() != &tcl_lexer::SourceImage::document(source)
-                || word.config() != logical.lexer_config()
-            {
-                return None;
-            }
-            let value = tcl_syntax::word_rules::original_static_word_ascii_presentation(word)?;
-            return Some(Self {
-                content: std::borrow::Cow::Owned(String::from_utf8(value).ok()?),
-                raw: source.as_bytes().get(word.span().as_range())?,
-                span: word.span(),
-                mapping: FormatTemplateMapping::Logical(Box::new(word.clone())),
-            });
-        };
-        let protocol = input.policy().string_protocol();
-        let (span, channel, escapes) = if let Some(key) = input.original_word_key() {
-            let word = key.original_word();
-            let escapes =
-                (word.group().kind != tcl_lexer::WordKind::Braced).then_some(word.config().escapes);
-            (word.content_span().ok()?, word.image().channel(), escapes)
-        } else {
-            // Readonly list children can have exact literal extents. Produced
-            // values without such an extent cannot supply a template coordinate.
-            input.original_static_list_container()?;
-            (original.span, tcl_lexer::SourceChannel::Document, None)
-        };
-        let raw = source.as_bytes().get(span.as_range())?;
-        if escapes.is_none()
-            && tcl_syntax::backslash::native_source_literal_bytes(raw, channel, protocol)
-                .ok()?
-                .as_ref()
-                != input.bytes()
-        {
-            return None;
-        }
-        Some(Self {
-            content: std::borrow::Cow::Owned(std::str::from_utf8(input.bytes()).ok()?.to_owned()),
-            raw,
-            span,
-            mapping: FormatTemplateMapping::Native {
-                channel,
-                protocol,
-                escapes,
-            },
-        })
-    }
-
-    fn original_offset(&self, offset: usize) -> Option<usize> {
-        let (channel, protocol, escapes) = match &self.mapping {
-            FormatTemplateMapping::Native {
-                channel,
-                protocol,
-                escapes,
-            } => (channel, protocol, escapes),
-            FormatTemplateMapping::Logical(word) => {
-                return usize::try_from(
-                    tcl_syntax::word_rules::original_static_word_ascii_source_offset(word, offset)?,
-                )
-                .ok();
-            }
-        };
-        let end = if let Some(escapes) = escapes {
-            tcl_syntax::backslash::native_source_string_extent(
-                self.raw,
-                *channel,
-                *escapes,
-                *protocol,
-                0..offset,
-            )?
-            .end
-        } else {
-            tcl_syntax::backslash::native_source_literal_extent(
-                self.raw,
-                *channel,
-                *protocol,
-                0..offset,
-            )?
-            .end
-        };
-        (self.span.start() as usize).checked_add(end)
-    }
 }
 
 /// Push a `Type`-kind specifier hint at the byte offset `abs_byte`
@@ -964,14 +809,12 @@ fn format_specifier_labels(
             }
         }
         tcl_registry::FormatType::Regsub => {
-            for capture in REGSUB_RE.captures_iter(content) {
-                let whole = capture.get(0).expect("group 0");
-                let ch = capture
-                    .get(1)
-                    .and_then(|group| group.as_str().chars().next())
-                    .unwrap_or(' ');
-                if let Some(label) = regsub_short(ch) {
-                    labels.push((whole.end(), label));
+            const LABELS: [&str; 10] = [
+                "match", "grp1", "grp2", "grp3", "grp4", "grp5", "grp6", "grp7", "grp8", "grp9",
+            ];
+            for (span, part) in tcl_cmd_core::regex::replacement_parts(content.as_bytes()) {
+                if let tcl_cmd_core::regex::ReplacementPart::Capture(group) = part {
+                    labels.push((span.end, LABELS[usize::from(group)]));
                 }
             }
         }

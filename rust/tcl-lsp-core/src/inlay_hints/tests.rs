@@ -844,10 +844,18 @@ fn short_specifier_pair_gets_a_hint_each() {
 
 #[test]
 fn regsub_subspec_backreference_hints() {
-    let labels = type_labels("regsub {(a)(b)} $s {\\1-\\2} out\n");
-    let names: Vec<&str> = labels.iter().map(|(_, l)| l.as_str()).collect();
-    assert!(names.contains(&"grp1"), "{labels:?}");
-    assert!(names.contains(&"grp2"), "{labels:?}");
+    // Compare replacement words passed to regsub, including escapes consumed by Tcl's outer word.
+    for (source, expected) in [
+        (
+            r"regsub {(a)(b)} ab {\1-&-\&-\\1-\2} out",
+            vec!["grp1", "match", "grp2"],
+        ),
+        (r#"regsub {(a)} a "\\1" out"#, vec!["grp1"]),
+    ] {
+        let labels = type_labels(source);
+        let names: Vec<_> = labels.iter().map(|(_, name)| name.as_str()).collect();
+        assert_eq!(names, expected, "{source}");
+    }
 }
 
 #[test]

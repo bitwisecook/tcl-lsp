@@ -546,6 +546,7 @@ mod original_pattern;
 mod regexp_command;
 mod regsub_command;
 mod regsub_original;
+mod replacement;
 
 pub use jim::regsub_jim_original;
 pub use original_pattern::{
@@ -562,6 +563,7 @@ pub use regsub_original::{
     OriginalRegsubPreparation, OriginalRegsubResult, regsub_command_original, regsub_eval_original,
     regsub_native_original, regsub_prepare_original,
 };
+pub use replacement::{ReplacementPart, replacement_parts};
 
 /// The bytes the calling thread's pattern cache retains now.
 #[must_use]

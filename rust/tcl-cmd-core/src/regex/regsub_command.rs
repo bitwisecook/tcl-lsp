@@ -647,46 +647,18 @@ fn apply_subspec(
     str_bytes: &[u8],
     byteoff: &[usize],
 ) {
-    let mut k = 0;
-    let mut run = 0; // start of the current verbatim run
-    while k < sub.len() {
-        let ch = sub[k];
-        let idx: usize;
-        if ch == b'&' {
-            idx = 0;
-        } else if ch == b'\\' {
-            match sub.get(k + 1) {
-                Some(&d) if d.is_ascii_digit() => idx = (d - b'0') as usize,
-                Some(&d) if d == b'\\' || d == b'&' => {
-                    // Literal `\` or `&`: flush the run, emit the bare char.
-                    out.extend_from_slice(&sub[run..k]);
-                    out.push(d);
-                    k += 2;
-                    run = k;
-                    continue;
-                }
-                _ => {
-                    // Backslash before any other char: keep both verbatim.
-                    k += 1;
-                    continue;
+    for (_, part) in super::replacement_parts(sub) {
+        match part {
+            super::ReplacementPart::Literal(units) => out.extend_from_slice(units),
+            super::ReplacementPart::Capture(group) => {
+                let index = usize::from(group);
+                if index <= nsubs
+                    && let Some(rm) = matches.get(index)
+                    && rm.so != NO_MATCH
+                {
+                    out.extend_from_slice(slice_match(str_bytes, byteoff, rm.so, rm.eo));
                 }
             }
-        } else {
-            k += 1;
-            continue;
         }
-        // Reached for `&` or `\N`: flush the verbatim run, then the group.
-        out.extend_from_slice(&sub[run..k]);
-        if idx <= nsubs
-            && let Some(rm) = matches.get(idx)
-            && rm.so != NO_MATCH
-        {
-            // Guard the engine-supplied offsets (see `slice_match`): a foreign ARE
-            // engine returning an out-of-range `[so, eo)` must not index-panic.
-            out.extend_from_slice(slice_match(str_bytes, byteoff, rm.so, rm.eo));
-        }
-        k += if ch == b'\\' { 2 } else { 1 };
-        run = k;
     }
-    out.extend_from_slice(&sub[run..]);
 }

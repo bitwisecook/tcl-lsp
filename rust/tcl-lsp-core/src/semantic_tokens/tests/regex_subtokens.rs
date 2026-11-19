@@ -404,10 +404,22 @@ fn classify_regex_component_maps_each_kind() {
 
 #[test]
 fn regsub_replacement_backref_subtokens() {
-    // `regsub {a} $s {\1-\&} out` → `\1` number, `\&` operator.
-    let ks = kinds("regsub {a} $s {\\1-\\&} out\n", tcl(), &reg());
-    assert!(ks.contains(&(TokenKind::Number as u32)), "{ks:?}");
-    assert!(ks.contains(&(TokenKind::Operator as u32)), "{ks:?}");
+    // Each Tcl oracle substitutes the first two references in {\1-&-\&-\\1}.
+    let ks = kinds(r"regsub {(a)} a {\1-&-\&-\\1} out", tcl(), &reg());
+    assert_eq!(
+        ks.iter()
+            .filter(|&&kind| kind == TokenKind::Number as u32)
+            .count(),
+        1,
+        "{ks:?}"
+    );
+    assert_eq!(
+        ks.iter()
+            .filter(|&&kind| kind == TokenKind::Operator as u32)
+            .count(),
+        1,
+        "{ks:?}"
+    );
 }
 
 #[test]

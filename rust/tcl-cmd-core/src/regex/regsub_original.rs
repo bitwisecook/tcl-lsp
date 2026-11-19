@@ -406,37 +406,22 @@ fn native_substitution_units(
     matches: &[RegMatch],
 ) -> Result<Vec<u32>, tcl_syntax::value::ValueError> {
     let mut output = Vec::new();
-    let mut cursor = 0;
-    while cursor < specification.len() {
-        let unit = specification[cursor];
-        let mut group = (unit == u32::from(b'&')).then_some(0);
-        if unit == u32::from(b'\\')
-            && let Some(&next) = specification.get(cursor + 1)
-        {
-            if (u32::from(b'0')..=u32::from(b'9')).contains(&next) {
-                group = Some((next - u32::from(b'0')) as usize);
-                cursor += 1;
-            } else if matches!(next, 38 | 92) {
-                output.push(next);
-                cursor += 2;
-                continue;
+    for (_, part) in super::replacement_parts(specification) {
+        match part {
+            super::ReplacementPart::Literal(units) => output.extend_from_slice(units),
+            super::ReplacementPart::Capture(group) => {
+                if let Some(span) = matches.get(usize::from(group))
+                    && span.so != NO_MATCH
+                {
+                    let range = subject.get(span.so..span.eo).ok_or(
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "native regsub submatch geometry",
+                        ),
+                    )?;
+                    output.extend_from_slice(range);
+                }
             }
         }
-        if let Some(group) = group {
-            if let Some(span) = matches.get(group)
-                && span.so != NO_MATCH
-            {
-                let range = subject.get(span.so..span.eo).ok_or(
-                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                        "native regsub submatch geometry",
-                    ),
-                )?;
-                output.extend_from_slice(range);
-            }
-        } else {
-            output.push(unit);
-        }
-        cursor += 1;
     }
     Ok(output)
 }

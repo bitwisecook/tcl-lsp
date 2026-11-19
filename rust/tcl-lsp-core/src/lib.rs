@@ -87,6 +87,7 @@ pub mod expr_context;
 pub mod file_ops;
 pub mod file_uri;
 pub mod folding;
+mod format_template;
 pub mod formatting;
 pub mod graphs;
 pub mod hover;

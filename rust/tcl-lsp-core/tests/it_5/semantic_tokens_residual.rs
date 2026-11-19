@@ -702,21 +702,16 @@ fn st_short_specifier_is_a_field_not_a_flag() {
 
 #[test]
 fn st_regsub_replacement_backref_and_whole_match() {
-    // `{\1-\&}` — `\1` is a capture backref (`number`), `\&` the whole match
-    // (`operator`), and the literal `-` between them a `string` run.
-    let toks = decode("regsub {(a)} $s {\\1-\\&} out\n", "tcl8.6");
-    assert!(
-        of_type(&toks, "number").iter().any(|t| t.length == 2),
-        "{toks:?}"
-    );
-    assert!(
-        of_type(&toks, "operator").iter().any(|t| t.length == 2),
-        "{toks:?}"
-    );
-    assert!(
-        !of_type(&toks, "string").is_empty(),
-        "the `-` run is a string; got {toks:?}"
-    );
+    // C Tcl 8.4–9.1 and Jim: regsub {(a)} a {\1-&-\&-\\1} yields a-a-&-\1.
+    let source = r"regsub {(a)} a {\1-&-\&-\\1} out";
+    let toks = decode(source, "tcl8.6");
+    let references = of_type(&toks, "number");
+    assert_eq!(references.len(), 1, "{toks:?}");
+    assert_eq!(references[0].length, 2);
+    let whole = of_type(&toks, "operator");
+    assert_eq!(whole.len(), 1, "{toks:?}");
+    assert_eq!(whole[0].length, 1);
+    assert!(!of_type(&toks, "string").is_empty(), "{toks:?}");
 }
 
 #[test]

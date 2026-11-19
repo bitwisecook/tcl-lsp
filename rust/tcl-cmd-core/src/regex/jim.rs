@@ -354,32 +354,17 @@ fn jim_substitution_bytes(
     offset: usize,
     matched: &[RegMatch],
 ) {
-    let mut cursor = 0;
-    while cursor < replacement.len() {
-        let byte = replacement[cursor];
-        cursor += 1;
-        let capture = if byte == b'&' {
-            Some(0)
-        } else if byte == b'\\' && replacement.get(cursor).is_some_and(u8::is_ascii_digit) {
-            let group = usize::from(replacement[cursor] - b'0');
-            cursor += 1;
-            Some(group)
-        } else {
-            None
-        };
-        if let Some(group) = capture {
-            if let Some(span) = matched.get(group).filter(|span| span.so != NO_MATCH) {
-                output.extend_from_slice(&subject[offset + span.so..offset + span.eo]);
+    for (_, part) in super::replacement_parts(replacement) {
+        match part {
+            super::ReplacementPart::Literal(units) => output.extend_from_slice(units),
+            super::ReplacementPart::Capture(group) => {
+                if let Some(span) = matched
+                    .get(usize::from(group))
+                    .filter(|span| span.so != NO_MATCH)
+                {
+                    output.extend_from_slice(&subject[offset + span.so..offset + span.eo]);
+                }
             }
-        } else if byte == b'\\'
-            && replacement
-                .get(cursor)
-                .is_some_and(|&byte| matches!(byte, b'&' | b'\\'))
-        {
-            output.push(replacement[cursor]);
-            cursor += 1;
-        } else {
-            output.push(byte);
         }
     }
 }

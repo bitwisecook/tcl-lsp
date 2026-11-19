@@ -24,49 +24,36 @@ use super::legend::TokenKind;
 use rustc_hash::FxHashMap;
 use tcl_lexer::{LineIndex, Token, TokenType};
 
-/// Sub-tokenise a `regsub` replacement spec: `\&` → `Operator`,
-/// `\0`-`\9` → `Number`, literal runs → `String`.  Returns `false` when
-/// there are no backreferences.  A direct backslash scan (no regex).
+/// Colour the captures proved to fall inside this fragment of the source word.
 pub(super) fn push_regsub_subtokens(
     line_index: &LineIndex,
     source: &str,
     tok: Token,
+    captures: &[(std::ops::Range<usize>, TokenKind)],
     entries: &mut Vec<Entry>,
 ) -> bool {
     let Some((cstart, inner)) = subspec_content(source, tok) else {
         return false;
     };
-    let bytes = inner.as_bytes();
     let pos = TokenPositionContext { source, line_index };
-    let mut emitted = false;
-    let mut run = 0usize;
-    let mut i = 0usize;
-    while i < bytes.len() {
-        let next = bytes.get(i + 1).copied();
-        if bytes[i] == b'\\' && next.is_some_and(|b| b.is_ascii_digit() || b == b'&') {
-            flush_run(pos, cstart, inner, run, i, TokenKind::String, entries);
-            // `\&` → operator (whole match); `\0`-`\9` → number (capture).
-            let kind = if next == Some(b'&') {
-                TokenKind::Operator
-            } else {
-                TokenKind::Number
-            };
-            push_subtoken(
-                source,
-                line_index,
-                cstart + i,
-                &inner[i..i + 2],
-                kind,
-                entries,
-            );
-            emitted = true;
-            i += 2;
-            run = i;
-        } else {
-            i += 1;
+    let mut run = 0;
+    for (span, kind) in captures {
+        if span.start < cstart || span.end > cstart + inner.len() {
+            continue;
         }
+        let start = span.start - cstart;
+        flush_run(pos, cstart, inner, run, start, TokenKind::String, entries);
+        push_subtoken(
+            source,
+            line_index,
+            span.start,
+            &source[span.clone()],
+            *kind,
+            entries,
+        );
+        run = span.end - cstart;
     }
-    if !emitted {
+    if run == 0 {
         return false;
     }
     flush_run(

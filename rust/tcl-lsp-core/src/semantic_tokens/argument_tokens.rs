@@ -96,8 +96,8 @@ pub(super) fn emit_arg_token(
                 push_binary_subtokens(line_index, full_source, *tok, ctx.dialect, entries);
             classify_and_push_if(!emitted, ctx, *tok, entries);
         }
-        Some(ArgOverride::RegsubReplace) => {
-            let emitted = push_regsub_subtokens(line_index, full_source, *tok, entries);
+        Some(ArgOverride::RegsubReplace(captures)) => {
+            let emitted = push_regsub_subtokens(line_index, full_source, *tok, captures, entries);
             classify_and_push_if(!emitted, ctx, *tok, entries);
         }
         Some(ArgOverride::LambdaLiteral) => {
