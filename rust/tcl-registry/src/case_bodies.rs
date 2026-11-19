@@ -198,7 +198,7 @@ impl CaseListSpec {
         // without `--`. Tcl 8.4 scans every dash-led word (tclsh 8.4.20:
         // `switch -exact $x {...}` with x=-glob raises `bad option`), and an
         // unpinned release cannot say which.
-        let reserves = query.is_some_and(|selected| {
+        let stops_before_subject = query.is_some_and(|selected| {
             matches!(
                 selected.core.nearest(),
                 Some((tcl_dialect::model::Family::Tcl, Some(_)))
@@ -208,7 +208,8 @@ impl CaseListSpec {
         });
         let known = effects.complete
             && effects.option_end <= index
-            && (effects.ended_by_marker || (reserves && index + reserved >= values.len()));
+            && (effects.ended_by_marker
+                || (stops_before_subject && index + reserved >= values.len()));
         !known
     }
 
