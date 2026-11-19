@@ -503,13 +503,13 @@ pub(crate) enum CommandRenameMember {
 /// when the member may name or run a command the rename cannot follow: a
 /// forward, filter, init script or unknown row, a command name, prefix or
 /// opaque script operand, a command substitution in any word, or a relation
-/// operand that is substituted or has a token whose tail is one of
+/// operand that is substituted or whose written command tail is one of
 /// `simple_names`.
 pub(crate) fn command_rename_member(
     syntax: &crate::source_structure::SourceSyntaxStructure,
-    source: &str,
     command: &tcl_compiler::segmenter::SegmentedCommand,
     simple_names: &[&[u8]],
+    policy: tcl_syntax::naming::NamePolicyProtocol,
 ) -> Result<Option<CommandRenameMember>, ()> {
     use tcl_registry::ArgRole;
     use tcl_registry::definer::{MemberEffect, RelationSlot};
@@ -560,26 +560,18 @@ pub(crate) fn command_rename_member(
         MemberEffect::Relation {
             slot: RelationSlot::Superclass | RelationSlot::Mixin,
         } => {
-            for word in words.iter().skip(1) {
-                for part in word.executable_parts().all_parts() {
-                    let text = match &part.part {
-                        tcl_lexer::ExecutablePart::Text(tcl_lexer::ExecutableText::Decoded(
-                            bytes,
-                        )) => bytes.as_ref(),
-                        tcl_lexer::ExecutablePart::Text(_) => {
-                            source.get(part.span.as_range()).ok_or(())?.as_bytes()
-                        }
-                        // A substituted operand may name any class.
-                        _ => return Err(()),
-                    };
-                    if census_tokens(text).any(|(_, token)| {
-                        let tail = std::str::from_utf8(token).map_or(token, |token| {
-                            tcl_syntax::naming::key_tail(token).as_bytes()
-                        });
-                        simple_names.contains(&tail)
-                    }) {
-                        return Err(());
-                    }
+            let captured = tcl_registry::native_compiler_words::NativeCompilerWords::capture(
+                words,
+                policy.string_protocol(),
+            )
+            .map_err(|_| ())?;
+            // Each superclass/mixin operand is one native class command name,
+            // even when it contains whitespace or script punctuation.
+            for index in 1..words.len() {
+                let value = captured.literal(index).ok_or(())?;
+                let tail = policy.recipe().command_tail_extent(value).ok_or(())?;
+                if simple_names.contains(&&value[tail]) {
+                    return Err(());
                 }
             }
             Ok(Some(CommandRenameMember::Inert))

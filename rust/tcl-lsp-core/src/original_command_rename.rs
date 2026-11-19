@@ -1575,9 +1575,9 @@ fn member_coverage(
     let simple = context.declaration.name().slot().simple.as_bytes();
     let member = crate::original_declaration::command_rename_member(
         syntax,
-        document.source,
         command,
         &[simple, context.tail],
+        context.declaration.name().policy(),
     )
     .map_err(|()| {
         coverage_trace(command_offset, "definition-member");
