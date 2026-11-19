@@ -18,13 +18,10 @@
 
 //! End-to-end tests for the VM's shared-nothing `thread` package.
 //!
-//! The reference tclsh 9.0.4 is a **non-threaded** build (no `Thread` package,
-//! `tcl_platform(threaded)` unset), so there is no oracle for this subsystem —
-//! unlike the rest of the VM. These tests instead pin the documented Tcl
-//! `Thread`-package semantics and are made **deterministic** by construction:
-//! synchronous `thread::send` blocks for its result, and cross-thread totals are
-//! read back only after every worker has been joined (`thread::release`), so
-//! there are no timing races.
+//! The extension-specific conversion and error-order controls were measured
+//! with Thread 2.8.13 on threaded C Tcl 8.6.18. The normal reference 9.0.4
+//! interpreter has no Thread package. The concurrency cases join their workers
+//! and observe the transferred results.
 
 use std::sync::{Arc, Mutex};
 
@@ -435,6 +432,31 @@ fn mutex_missing_handle_errors() {
 }
 
 // tpool::* — worker pools
+
+#[test]
+fn thread_commands_convert_original_job_lists_and_shared_counts() {
+    // Thread 2.8.13 uses Tcl_ListObjGetElements before pool lookup and
+    // Tcl_GetWideIntFromObj on each job. Unknown IDs retain their spelling.
+    let script = r#"
+        catch {tpool::wait absent [format %c 123]} malformed
+        set p [tpool::create -maxworkers 1]
+        catch {tpool::wait $p x} bad
+        set job [tpool::post $p {return 7}]
+        set id [format 0x%x $job]
+        set done [tpool::wait $p [list $id -2] pending]
+        tpool::release $p
+        catch {tsv::incr A k bad} increment
+        set blank [tsv::set A k]
+        tsv::set A k 1
+        list $malformed $bad [string equal $done $id] $pending $increment $blank [tsv::incr A k 0x10]
+    "#;
+    let (ok, got, _) = run(script);
+    assert!(ok, "{got}");
+    assert_eq!(
+        got,
+        r#"{unmatched open brace in list} {expected integer but got "x"} 1 -2 {expected integer but got "bad"} {} 17"#
+    );
+}
 
 #[test]
 fn tpool_posts_and_collects_results() {

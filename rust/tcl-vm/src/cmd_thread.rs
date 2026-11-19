@@ -34,10 +34,10 @@
 //! `thread::send` serialises a script to the target's channel and (unless
 //! `-async`) blocks for its result. `thread::wait` is the worker's message loop.
 //!
-//! No oracle: the reference tclsh 9.0.4 is a *non-threaded* build (no `Thread`
-//! package, `tcl_platform(threaded)` unset), so — unlike the rest of the VM —
-//! this subsystem is validated by deterministic Rust concurrency tests
-//! (`tests/cmd_thread_e2e.rs`), with semantics per the Tcl `Thread` package docs.
+//! The optional Thread extension supplies the execution oracle. Thread 2.8.13
+//! on threaded C Tcl 8.6.18 uses native list and wide-integer conversions on
+//! job IDs and shared cells. A stock interpreter without Thread cannot run
+//! those controls.
 
 use std::collections::{HashMap, VecDeque};
 use std::io::Write;
@@ -48,6 +48,7 @@ use std::time::Duration;
 
 use tcl_bytecode::ModuleAsm;
 use tcl_runtime_api::{CompileService, Completion};
+use tcl_syntax::value::ValueOps;
 
 use crate::error::TclError;
 use crate::interp::{Vm, err, ok};
@@ -1063,48 +1064,44 @@ fn cmd_tpool_wait(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         _ => {
             return crate::command::native_wrong_arguments_message(
                 vm,
-                "wrong # args: should be \"tpool::wait tpool joblist ?varName?\"",
+                "wrong # args: should be \"tpool::wait tpoolId jobIdList ?listVar\"",
             );
         }
     };
-    let pool = match pool_of(&shared, &pool_h.to_str()) {
-        Ok(p) => p,
-        Err(e) => return e,
+    let jobs = match vm.list_elements(joblist) {
+        Ok(jobs) => jobs,
+        Err(error) => return vm.cmd_error(error.into()),
     };
-    let ids: Vec<u64> = tcl_syntax::list::split_list_lenient(&joblist.to_str())
-        .iter()
-        .filter_map(|s| s.trim().parse::<u64>().ok())
-        .collect();
+    let pool = match pool_of(&shared, &pool_h.to_str()) {
+        Ok(pool) => pool,
+        Err(error) => return error,
+    };
+    let mut ids = Vec::with_capacity(jobs.len());
+    for job in &jobs {
+        match vm.as_int(job) {
+            Ok(id) => ids.push(id.cast_unsigned()),
+            Err(error) => return vm.cmd_error(error.into()),
+        }
+    }
     let mut inner = pool.queue.inner.lock().expect("pool inner");
     loop {
-        let done: Vec<u64> = ids
-            .iter()
-            .copied()
-            .filter(|id| inner.results.contains_key(id))
-            .collect();
-        if !done.is_empty() || ids.is_empty() {
-            let pending: Vec<u64> = ids
-                .iter()
-                .copied()
-                .filter(|id| !done.contains(id))
-                .collect();
-            drop(inner);
-            if let Some(var) = var {
-                let list = Value::list(
-                    pending
-                        .iter()
-                        .map(|i| Value::string(i.to_string()))
-                        .collect(),
-                );
-                if let Err(e) = vm.set_var(&var.to_str(), list) {
-                    return e;
-                }
+        let mut done = Vec::new();
+        let mut pending = Vec::new();
+        for (id, original) in ids.iter().zip(&jobs) {
+            if inner.results.contains_key(id) {
+                done.push(original.clone());
+            } else if var.is_some() {
+                pending.push(original.clone());
             }
-            return ok(Value::list(
-                done.into_iter()
-                    .map(|i| Value::string(i.to_string()))
-                    .collect(),
-            ));
+        }
+        if !done.is_empty() {
+            drop(inner);
+            if let Some(var) = var
+                && let Err(error) = vm.set_var(&var.to_str(), Value::list(pending))
+            {
+                return error;
+            }
+            return ok(Value::list(done));
         }
         inner = pool.queue.done.wait(inner).expect("pool wait");
     }
@@ -1340,41 +1337,45 @@ fn cmd_tsv_unset(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// `tsv::incr array key ?increment?` — atomically add to (and return) the
 /// element, defaulting a missing element to 0.
 fn cmd_tsv_incr(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let (arr, key, delta) = match args {
-        [arr, key] => (arr, key, 1_i64),
-        [arr, key, by] => match by.to_str().trim().parse::<i64>() {
-            Ok(n) => (arr, key, n),
-            Err(_) => {
-                return err(format!("expected integer but got \"{}\"", by.to_str()));
-            }
-        },
+    let (arr, key, by) = match args {
+        [arr, key, rest @ ..] => (arr, key, rest.first()),
         _ => {
             return crate::command::native_wrong_arguments_message(
                 vm,
-                "wrong # args: should be \"tsv::incr array key ?count?\"",
+                "wrong # args: should be \"tsv::incr array key ?args?\"",
             );
         }
     };
-    let outcome = with_tsv(vm, |t| {
-        let cell = t
-            .entry(arr.to_str().to_string())
-            .or_default()
-            .entry(key.to_str().to_string())
-            .or_insert_with(|| "0".to_string());
-        match cell.trim().parse::<i64>() {
-            Ok(cur) => {
-                let next = cur + delta;
-                *cell = next.to_string();
-                Ok(next)
-            }
-            Err(_) => Err(cell.clone()),
+    let shared = match shared(vm) {
+        Ok(shared) => shared,
+        Err(error) => return error,
+    };
+    // Thread creates even a missing cell before reading the increment. A
+    // failing conversion leaves its empty value visible to other interpreters.
+    let mut store = shared.tsv.lock().expect("tsv store");
+    let cells = store.entry(arr.to_str().to_string()).or_default();
+    let entry = cells.entry(key.to_str().to_string());
+    let is_new = matches!(entry, std::collections::hash_map::Entry::Vacant(_));
+    let cell = entry.or_default();
+    let delta = match by {
+        None => 1,
+        Some(by) => match vm.as_int(by) {
+            Ok(value) => value,
+            Err(error) => return vm.cmd_error(error.into()),
+        },
+    };
+    let current = if is_new {
+        0
+    } else {
+        let original = Value::string(cell.clone());
+        match vm.as_int(&original) {
+            Ok(value) => value,
+            Err(error) => return vm.cmd_error(error.into()),
         }
-    });
-    match outcome {
-        Ok(Ok(n)) => ok(Value::string(n.to_string())),
-        Ok(Err(bad)) => err(format!("expected integer but got \"{bad}\"")),
-        Err(e) => e,
-    }
+    };
+    let next = current.wrapping_add(delta);
+    *cell = next.to_string();
+    ok(vm.new_int(next))
 }
 
 /// `tsv::append array key value ?value ...?` — append to (and return) the
