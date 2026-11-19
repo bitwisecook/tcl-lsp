@@ -991,6 +991,13 @@ fn cmd_dict_with(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         };
         drop(leaf);
         drop(root);
+        if plan.skips_empty_body() {
+            match tcl_syntax::value::ValueOps::native_string_bytes(vm, body) {
+                Ok(text) if text.is_empty() => return ok(Value::empty()),
+                Ok(_) => {}
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
+            }
+        }
         let mut outcome = vm.eval_value_at_level(vm.current_level(), body);
         if let Some(refusal) = vm.refused_completion() {
             return refusal;
@@ -1006,17 +1013,57 @@ fn cmd_dict_with(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         // The saved body result owns a native reference while writeback invokes
         // commands that can replace the interpreter's current result.
         outcome.result = outcome.result.into_native_reference();
+        if plan.writeback == tcl_registry::dictionary_scope::DictionaryWriteback::NormalOnly {
+            // JimDictWith applies each surviving member independently using
+            // Jim_SetDictKeysVector(JIM_NORESULT). A failed member leaves its
+            // result and later members are still attempted.
+            if vm.read_variable_result_bytes(&name, None).is_err() {
+                return vm.refused_completion().unwrap_or(outcome);
+            }
+            let mut member_path = path.to_vec();
+            for (key, _) in mappings {
+                let equals_root =
+                    match tcl_cmd_core::string::jim_object_compare(vm, variable, &key, None, false)
+                    {
+                        Ok(order) => order.is_eq(),
+                        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+                    };
+                if !plan.writes_mapped_key(equals_root) {
+                    continue;
+                }
+                let mapped = match original_names.read(vm, &key) {
+                    Ok(mapped) => mapped,
+                    Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+                };
+                let value = vm.read_variable_result_bytes(&mapped, None).ok();
+                if let Some(refusal) = vm.refused_completion() {
+                    return refusal;
+                }
+                member_path.push(key);
+                if let Err(error) = dictionary_path_update_bytes(
+                    vm,
+                    &name,
+                    crate::interp::native_dictionary::DictionaryVariablePublication::CommandName,
+                    &member_path,
+                    value,
+                ) {
+                    if let Some(refusal) = vm.refused_completion() {
+                        return refusal;
+                    }
+                    outcome = dictionary_scope_writeback_failure(plan.writeback_failure, error);
+                }
+                member_path.pop();
+            }
+            return outcome;
+        }
         let objects = match VmDictionaryObjects::selected(vm) {
             Ok(objects) => objects.with_preparation(
                 tcl_cmd_core::native_dictionary::NativeDictionaryPreparation::ConvertBeforeCopy,
             ),
             Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         };
-        let publication = if objects.string_protocol().is_jim084() {
-            crate::interp::native_dictionary::DictionaryVariablePublication::CommandName
-        } else {
-            crate::interp::native_dictionary::DictionaryVariablePublication::RetainedLocalCell
-        };
+        let publication =
+            crate::interp::native_dictionary::DictionaryVariablePublication::RetainedLocalCell;
         let writeback =
             vm.dictionary_scope_writeback_bytes(&name, publication, &objects, |vm, root| {
                 tcl_cmd_core::native_dictionary::transform_existing_prepared_path(

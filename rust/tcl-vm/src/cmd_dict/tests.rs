@@ -364,3 +364,31 @@ fn moderately_nested_dict_set_and_unset_unaffected() {
         b"key \"z\" not known in dictionary"
     );
 }
+
+#[test]
+fn jim_dict_with_compares_original_key_units_and_skips_empty_body_writeback() {
+    let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
+    let mut vm = crate::native_fixture::interpreter_with_dictionary_library(profile);
+    vm.set_var("raw", Value::new_native_string_bytes(vec![0xff]))
+        .unwrap();
+    vm.set_var("utf", Value::new_native_string_bytes(vec![0xc3, 0xbf]))
+        .unwrap();
+    for (source, expected) in [
+        (
+            "set $raw [list $utf before]; dict with $raw [list set $utf after]; list [dict get [set $raw] $utf] [set $utf]",
+            "before after",
+        ),
+        (
+            "set d {k before k final}; set s [dict with d {}]; list $s $d $k",
+            "{} {k before k final} final",
+        ),
+        (
+            "set d {d scalar}; set s [dict with d {set d hello}]; list $s $d",
+            "hello hello",
+        ),
+    ] {
+        let result = vm.try_eval_source(source).unwrap();
+        assert_eq!(result.code, Code::Ok, "{source}: {result:?}");
+        assert_eq!(result.result.string_bytes().as_ref(), expected.as_bytes());
+    }
+}

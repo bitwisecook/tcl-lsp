@@ -552,23 +552,12 @@ fn jim_compare<O: ValueOps>(
             return Err(CmdError::wrong_args(usage));
         }
     }
-    let left = ops.as_bytes(&args[i]);
-    let right = ops.as_bytes(&args[i + 1]);
     if matches!(mode, CompareMode::Equal) && !nocase && length.is_none() {
+        let left = ops.native_string_bytes(&args[i])?;
+        let right = ops.native_string_bytes(&args[i + 1])?;
         return Ok(ops.new_bool(left == right));
     }
-    let mut left_count = ops.native_char_len(&args[i])?;
-    let mut right_count = ops.native_char_len(&args[i + 1])?;
-    if let Some(limit) = length {
-        left_count = left_count.min(limit);
-        right_count = right_count.min(limit);
-    }
-    let ordering = RawString::from_bytes(left).jim084_compare(
-        left_count,
-        &RawString::from_bytes(right),
-        right_count,
-        nocase,
-    )?;
+    let ordering = jim_object_compare(ops, &args[i], &args[i + 1], length, nocase)?;
     Ok(match mode {
         CompareMode::Equal => ops.new_bool(ordering.is_eq()),
         CompareMode::Compare => ops.new_int(match ordering {
@@ -577,6 +566,31 @@ fn jim_compare<O: ValueOps>(
             core::cmp::Ordering::Greater => 1,
         }),
     })
+}
+
+/// Jim's object comparison reads native string units and the retained count of
+/// each original object. The same comparison selects dictionary self keys.
+pub fn jim_object_compare<O: ValueOps>(
+    ops: &mut O,
+    left: &O::Value,
+    right: &O::Value,
+    length: Option<usize>,
+    nocase: bool,
+) -> Result<core::cmp::Ordering, CmdError> {
+    let left_bytes = ops.native_string_bytes(left)?;
+    let mut left_count = ops.native_char_len(left)?;
+    let right_bytes = ops.native_string_bytes(right)?;
+    let mut right_count = ops.native_char_len(right)?;
+    if let Some(limit) = length {
+        left_count = left_count.min(limit);
+        right_count = right_count.min(limit);
+    }
+    Ok(RawString::from_bytes(left_bytes).jim084_compare(
+        left_count,
+        &RawString::from_bytes(right_bytes),
+        right_count,
+        nocase,
+    )?)
 }
 
 /// Which case conversion [`case_convert`] performs.
