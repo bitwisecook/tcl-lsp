@@ -184,10 +184,15 @@ fn cmd_lreverse(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 fn cmd_lrepeat(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let Some((count, elems)) = args.split_first() else {
-        return err_wrong_args(vm, "lrepeat count ?value ...?");
-    };
-    adapt(vm, |vm| list_core::lrepeat(vm, count, elems))
+    let version = vm
+        .actual_native_string_protocol()
+        .and_then(|policy| policy.tcl_version());
+    if let Some(usage) = list_core::lrepeat_usage_error(args.len(), version) {
+        return err_wrong_args(vm, usage);
+    }
+    adapt(vm, |vm| {
+        list_core::lrepeat_for_release(vm, &args[0], &args[1..], version)
+    })
 }
 
 fn cmd_linsert(vm: &mut Vm, args: &[Value]) -> Completion<Value> {

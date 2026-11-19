@@ -357,10 +357,13 @@ fn lassign(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// hard-coded `"-1"`), and the result-capacity multiply is `saturating_mul`
 /// rather than an overflowing `count * values.len()`.
 fn lrepeat(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() < 2 {
-        return interp.wrong_args(b"lrepeat count ?value ...?");
+    let version = interp
+        .invocation_string_protocol()
+        .and_then(|policy| policy.tcl_version());
+    if let Some(usage) = list_core::lrepeat_usage_error(argv.len().saturating_sub(1), version) {
+        return interp.wrong_args(usage.as_bytes());
     }
-    let r = list_core::lrepeat(interp, &argv[1], &argv[2..]);
+    let r = list_core::lrepeat_for_release(interp, &argv[1], &argv[2..], version);
     adapt(interp, r)
 }
 

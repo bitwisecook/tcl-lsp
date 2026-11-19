@@ -93,6 +93,32 @@ fn overflows(scripts: &[&str]) {
 /// `int`), answer a new limit with the word they were given, and keep the
 /// typed read's code in every form.
 #[test]
+fn lrepeat_count_and_arity_follow_the_release() {
+    use tcl_dialect::TclVersion::{V8_5, V8_6, V9_0, V9_1};
+    for version in [V8_5, V8_6, V9_0, V9_1] {
+        let empty = "0 {} {}";
+        let (zero, bare) = if version == V8_5 {
+            (
+                "1 {must have a count of at least 1} NONE",
+                "1 {wrong # args: should be \"lrepeat positiveCount value ?value ...?\"} NONE",
+            )
+        } else {
+            (empty, empty)
+        };
+        assert_eq!(
+            caught_under("lrepeat 0 x", Some(version)),
+            zero,
+            "{version:?}"
+        );
+        assert_eq!(
+            caught_under("lrepeat 1", Some(version)),
+            bare,
+            "{version:?}"
+        );
+    }
+}
+
+#[test]
 fn recursion_limits_read_through_the_shared_integer_read() {
     overflows(&[
         "interp recursionlimit {} 99999999999999999999",

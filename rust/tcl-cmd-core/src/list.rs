@@ -238,29 +238,53 @@ pub fn lreverse<O: ValueOps>(ops: &mut O, value: &O::Value) -> Result<O::Value, 
     Ok(ops.new_list(elems))
 }
 
-/// `lrepeat count ?value ...?` — `count` copies of the value sequence.
+/// Return the selected command usage on an arity failure, before reading the count.
+pub fn lrepeat_usage_error(argc: usize, c_version: Option<TclVersion>) -> Option<&'static str> {
+    if c_version == Some(TclVersion::V8_5) {
+        (argc < 2).then_some("lrepeat positiveCount value ?value ...?")
+    } else {
+        (argc == 0).then_some("lrepeat count ?value ...?")
+    }
+}
+
+/// Repeat an already selected sequence using the portable wide-count convention.
 pub fn lrepeat<O: ValueOps>(
     ops: &mut O,
     count: &O::Value,
     values: &[O::Value],
 ) -> Result<O::Value, CmdError> {
-    let n = ops.as_int(count)?;
+    lrepeat_for_release(ops, count, values, None)
+}
+
+/// Repeat the original element handles under the selected C command's count rules.
+pub fn lrepeat_for_release<O: ValueOps>(
+    ops: &mut O,
+    count: &O::Value,
+    values: &[O::Value],
+    c_version: Option<TclVersion>,
+) -> Result<O::Value, CmdError> {
+    let n = match c_version {
+        Some(TclVersion::V8_5 | TclVersion::V8_6) => i64::from(ops.as_c_int(count)?),
+        _ => ops.as_int(count)?,
+    };
+    if c_version == Some(TclVersion::V8_5) && n < 1 {
+        return Err(CmdError::new("must have a count of at least 1"));
+    }
     if n < 0 {
         return Err(CmdError::with_error_code(
             format!("bad count \"{n}\": must be integer >= 0"),
             "TCL OPERATION LREPEAT NEGARG",
         ));
     }
+    if n == 0 || values.is_empty() {
+        return Ok(ops.new_list(Vec::new()));
+    }
     let n = usize::try_from(n).unwrap_or(0);
     value_size::charge(ops, |ops, cap| {
         let once = value_size::joined(ops, values, 1, cap);
-        if values.is_empty() {
-            0
-        } else {
-            (once.saturating_add(1))
-                .saturating_mul(n as u64)
-                .saturating_sub(1)
-        }
+        (once.saturating_add(1))
+            .saturating_mul(n as u64)
+            .saturating_sub(1)
     })?;
     let mut out = Vec::with_capacity(n.saturating_mul(values.len()));
     for _ in 0..n {
