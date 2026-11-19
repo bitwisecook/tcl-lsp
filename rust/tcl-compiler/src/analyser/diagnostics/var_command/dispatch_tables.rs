@@ -270,9 +270,23 @@ fn dispatch_table_head(
             return expanded.then_some(value);
         }
         crate::table_value_provenance::TableValueContributor::SingletonList(value) => {
-            return (expanded
-                || tcl_syntax::list::join_list([value.value.as_str()]) == value.value)
-                .then_some(value);
+            if expanded {
+                return Some(value);
+            }
+            let elements = [value.value.as_bytes()];
+            let bytes = if let Some(protocol) = binding
+                .variable_context
+                .invocation_dialect?
+                .native_string_protocol()
+            {
+                tcl_syntax::list_result::NativeListResultSerialization::for_string_protocol(
+                    protocol,
+                )
+                .render(&elements)
+            } else {
+                tcl_syntax::list_result::portable_list_result(&elements)?
+            };
+            return (bytes == value.value.as_bytes()).then_some(value);
         }
         crate::table_value_provenance::TableValueContributor::Prefix(value) => value,
     };

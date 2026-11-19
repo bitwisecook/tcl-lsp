@@ -63,25 +63,28 @@ pub(in crate::analyser) fn emit_invalid_formal_parameter_list_diagnostics(
             continue;
         };
         let span = super::super::super::utils::full_word_span(*token, &analyser.source);
-        let fixes = tcl_syntax::formal_params::split_overlong_parameter_specifier(params, &error)
-            .and_then(|repaired| {
-                let original = analyser.retained_value_word(*token)?;
-                (original.span() == span
-                    && tcl_syntax::word_rules::original_static_word_unicode_value(&original)?
-                        .as_slice()
-                        == params.as_bytes())
-                .then_some(())?;
-                let replacement = tcl_syntax::word_rules::lexical_unicode_source_word(
-                    &repaired,
-                    original.config(),
-                )?;
-                Some(vec![crate::analyser::types::CodeFix::review(
-                    span,
-                    replacement,
-                    "Split the grouped fields into separate parameters",
-                )])
-            })
-            .unwrap_or_default();
+        let fixes = tcl_syntax::formal_params::split_overlong_parameter_specifier_in(
+            params,
+            &error,
+            grammar,
+            analyser.word_rules(),
+        )
+        .and_then(|repaired| {
+            let original = analyser.retained_value_word(*token)?;
+            (original.span() == span
+                && tcl_syntax::word_rules::original_static_word_unicode_value(&original)?
+                    .as_slice()
+                    == params.as_bytes())
+            .then_some(())?;
+            let replacement =
+                tcl_syntax::word_rules::lexical_unicode_source_word(&repaired, original.config())?;
+            Some(vec![crate::analyser::types::CodeFix::review(
+                span,
+                replacement,
+                "Split the grouped fields into separate parameters",
+            )])
+        })
+        .unwrap_or_default();
         analyser.result.diagnostics.push(
             crate::analyser::types::Diagnostic::new(
                 DiagCode::E006,
@@ -169,28 +172,33 @@ pub(in crate::analyser) fn emit_invalid_lambda_parameter_list_diagnostics(
             continue;
         };
         let span = super::super::super::utils::full_word_span(*token, &analyser.source);
-        let fixes = tcl_syntax::formal_params::split_overlong_parameter_specifier(params, &error)
-            .and_then(|repaired| {
-                let original = analyser.retained_value_word(*token)?;
-                (original.span() == span
-                    && tcl_syntax::word_rules::original_static_word_unicode_value(&original)?
-                        .as_slice()
-                        == lambda.as_bytes())
-                .then_some(())?;
-                let mut repaired_fields = fields.clone();
-                repaired_fields[0] = repaired.into();
-                let repaired_lambda = tcl_syntax::list::join_list(repaired_fields);
-                let replacement = tcl_syntax::word_rules::lexical_unicode_source_word(
-                    &repaired_lambda,
-                    original.config(),
-                )?;
-                Some(vec![crate::analyser::types::CodeFix::review(
-                    span,
-                    replacement,
-                    "Split the grouped fields into separate parameters",
-                )])
-            })
-            .unwrap_or_default();
+        let fixes = tcl_syntax::formal_params::split_overlong_parameter_specifier_in(
+            params,
+            &error,
+            grammar,
+            analyser.word_rules(),
+        )
+        .and_then(|repaired| {
+            let original = analyser.retained_value_word(*token)?;
+            (original.span() == span
+                && tcl_syntax::word_rules::original_static_word_unicode_value(&original)?
+                    .as_slice()
+                    == lambda.as_bytes())
+            .then_some(())?;
+            let mut repaired_fields = fields.clone();
+            repaired_fields[0] = repaired.into();
+            let repaired_lambda = word_rules.checked_list_spelling(&repaired_fields)?;
+            let replacement = tcl_syntax::word_rules::lexical_unicode_source_word(
+                &repaired_lambda,
+                original.config(),
+            )?;
+            Some(vec![crate::analyser::types::CodeFix::review(
+                span,
+                replacement,
+                "Split the grouped fields into separate parameters",
+            )])
+        })
+        .unwrap_or_default();
         analyser.result.diagnostics.push(
             crate::analyser::types::Diagnostic::new(
                 DiagCode::E006,

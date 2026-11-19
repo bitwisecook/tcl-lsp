@@ -460,18 +460,36 @@ pub fn split_overlong_parameter_specifier(
     source: &str,
     error: &FormalParameterError,
 ) -> Option<String> {
+    split_overlong_parameter_specifier_in(
+        source,
+        error,
+        tcl_dialect::ParameterGrammar::Tcl,
+        crate::word_rules::WordValueRules::TCL,
+    )
+}
+
+/// Propose splitting precisely the reported overlong element. Both levels
+/// are parsed with the supplied word rules, and the complete proposal must
+/// declare valid formals for this engine.
+#[must_use]
+pub fn split_overlong_parameter_specifier_in(
+    source: &str,
+    error: &FormalParameterError,
+    grammar: tcl_dialect::ParameterGrammar,
+    rules: crate::word_rules::WordValueRules,
+) -> Option<String> {
     let FormalParameterError::TooManyFields { specifier } = error else {
         return None;
     };
-    let mut specs = split_list(source).ok()?;
+    let mut specs = rules.split_list(source).ok()?;
     let position = specs.iter().position(|candidate| candidate == specifier)?;
-    let fields = split_list(specifier).ok()?;
+    let fields = rules.split_list(specifier).ok()?;
     if fields.len() <= 2 {
         return None;
     }
     specs.splice(position..=position, fields);
-    let repaired = join_list(specs);
-    parse_formal_parameters(&repaired).ok()?;
+    let repaired = rules.checked_list_spelling(&specs)?;
+    parse_formal_parameters_in(&repaired, grammar).ok()?;
     Some(repaired)
 }
 
@@ -703,6 +721,27 @@ mod tests {
             )
             .is_none()
         );
+    }
+
+    #[test]
+    fn splitting_a_formal_group_keeps_the_selected_variadic_rules() {
+        use crate::word_rules::WordValueRules;
+        use tcl_dialect::ParameterGrammar;
+        let source = "args {a b args}";
+        for (grammar, rules, expected) in [
+            (
+                ParameterGrammar::Tcl,
+                WordValueRules::TCL,
+                Some("args a b args"),
+            ),
+            (ParameterGrammar::Jim, WordValueRules::JIM, None),
+        ] {
+            let error = parse_formal_parameters_in(source, grammar).unwrap_err();
+            assert_eq!(
+                split_overlong_parameter_specifier_in(source, &error, grammar, rules).as_deref(),
+                expected
+            );
+        }
     }
 
     #[test]

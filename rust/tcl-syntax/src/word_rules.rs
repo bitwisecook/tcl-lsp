@@ -145,6 +145,19 @@ impl WordValueRules {
         }
     }
 
+    /// Spell a Unicode list for a source edit and verify the selected grammar
+    /// decodes every element unchanged. This supplies no native result bytes.
+    #[must_use]
+    pub fn checked_list_spelling(self, elements: &[impl AsRef<str>]) -> Option<String> {
+        let spelling = crate::list::join_list(elements);
+        self.split_list(&spelling)
+            .ok()?
+            .iter()
+            .map(AsRef::as_ref)
+            .eq(elements.iter().map(AsRef::as_ref))
+            .then_some(spelling)
+    }
+
     /// The **tolerant** element split under this dialect's list grammar —
     /// the best-effort sibling of [`Self::split_list`] for a fold or a
     /// scan that must still yield the elements *before* a malformed tail
