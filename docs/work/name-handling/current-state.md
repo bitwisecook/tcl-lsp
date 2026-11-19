@@ -97,6 +97,10 @@ Apply the configured escape policy when a shared list reader receives selected w
 
 The hourly review confirmed O129's original programme now prints zero before and after the public optimiser on C Tcl 8.4–9.1 and Jim. Strict reachability on the eight I230 cases survived the SSA repair. The actual named tests and the broader caller inventory continue. The clean compiler measurement on `a6c66517c7` with every oracle required is 11,289 passed, 1,871 failed, and six skipped (13,166 listed). O101, the declared-frame collector, database timings, and #2543 remain open. Device-only checks remain in the [F5 ledger](bigip-name-checks.md).
 
+**Declared-frame collector review, 19 November.** The unverified experiment at `429ef5da` copies newly appended point indexes. The recorder can also add evidence to an existing index. Absence of a point from one walk does not identify its evaluation frame. Carry the frame and origin of the recorded evidence through the merge, including updates to existing points. Check two-call O101, an ordinary declared body and a remote-frame body before remeasuring the earlier regressions. Keep the switch experimental pending that comparison.
+
+**Editor grammar ownership, 19 November.** Zed compiles the APL tree-sitter grammar to C. Its outer grammar chooses the byte slice that reaches the injected Tcl grammar. Verify that boundary against the authoritative embedded-script reader on nested words, incomplete input and escaped delimiters. The downstream Tcl parser alone cannot recover bytes that the outer grammar omitted.
+
 ## Scoreboard, 18 November 2026, 11:55 UTC (at the pause)
 
 Failing tests by area on the restructured tree, from the successor sessions' baselines and first pushes.
