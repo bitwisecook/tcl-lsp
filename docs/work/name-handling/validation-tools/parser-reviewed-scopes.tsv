@@ -1,0 +1,17 @@
+record	path	operation	evidence
+scope	rust/tcl-syntax/src/manifest_words.rs	-	Literal package and architecture declarations consume configured Tcl word groups.
+source	rust/tcl-syntax/src/manifest_words.rs	-	rust/tcl-bigip-query/src/architecture.rs::architecture_manifest_keeps_literal_substitution_spelling and rust/tcl-pkg-model/src/manifest.rs::expansion_prefix_is_rejected_in_safe_manifest_words
+operation	rust/tcl-syntax/src/manifest_words.rs	literal_commands | call crate::backslash::decode_in(body, config.escapes) [1]	Decoded only in the bare/quoted literal manifest branches under config.escapes. Package load plus the architecture escaped-space control check the value.
+operation	rust/tcl-syntax/src/manifest_words.rs	literal_commands | call crate::backslash::decode_in(raw, config.escapes) [1]	Decoded only in the bare/quoted literal manifest branches under config.escapes. Package load plus the architecture escaped-space control check the value.
+operation	rust/tcl-syntax/src/manifest_words.rs	literal_commands | call group_commands(&tokens, source, config) [1]	Shared lexical owner receives the original tokens, original source and complete host configuration. Public package and architecture controls compare original command and word boundaries.
+operation	rust/tcl-syntax/src/manifest_words.rs	literal_commands | character '"' [1]	Removes one pair of delimiters after WordKind was selected by the shared grouper. The architecture and package cases cover braced and quoted values.
+operation	rust/tcl-syntax/src/manifest_words.rs	literal_commands | character '"' [2]	Removes one pair of delimiters after WordKind was selected by the shared grouper. The architecture and package cases cover braced and quoted values.
+operation	rust/tcl-syntax/src/manifest_words.rs	literal_commands | character '{' [1]	Removes one pair of delimiters after WordKind was selected by the shared grouper. The architecture and package cases cover braced and quoted values.
+operation	rust/tcl-syntax/src/manifest_words.rs	literal_commands | character '}' [1]	Removes one pair of delimiters after WordKind was selected by the shared grouper. The architecture and package cases cover braced and quoted values.
+operation	rust/tcl-syntax/src/manifest_words.rs	literal_commands | edge Err [1]	Container construction or explicit success/failure return within the checked declarative command reader.
+operation	rust/tcl-syntax/src/manifest_words.rs	literal_commands | call Lexer::with_config(source, config) [1]	The original text is tokenised under the same configuration passed to group_commands.
+operation	rust/tcl-syntax/src/manifest_words.rs	literal_commands | edge Ok [1]	Container construction or explicit success/failure return within the checked declarative command reader.
+operation	rust/tcl-syntax/src/manifest_words.rs	literal_commands | edge Vec::new [1]	Container construction or explicit success/failure return within the checked declarative command reader.
+operation	rust/tcl-syntax/src/manifest_words.rs	literal_commands | edge Vec::with_capacity [1]	Container construction or explicit success/failure return within the checked declarative command reader.
+operation	rust/tcl-syntax/src/manifest_words.rs	literal_commands | for [1]	Iterates declared CommandSpan rows or their WordSpan ranges. Neither loop scans source bytes for new boundaries.
+operation	rust/tcl-syntax/src/manifest_words.rs	literal_commands | for [2]	Iterates declared CommandSpan rows or their WordSpan ranges. Neither loop scans source bytes for new boundaries.

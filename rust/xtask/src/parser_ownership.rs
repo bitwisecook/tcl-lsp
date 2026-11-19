@@ -26,6 +26,8 @@ use std::process::{Command, ExitCode};
 use anyhow::{Context, Result, ensure};
 use syn::visit::{self, Visit};
 
+mod reviewed;
+
 const CENSUS: &str = "docs/work/name-handling/validation-tools/parser_census.py";
 
 /// Production function, exact owner path it calls, and any required argument
@@ -44,6 +46,12 @@ const STUDIO: &str = "rust/tcl-spec-studio/src/corpus.rs";
 const VENV: &str = "rust/tcl-pkg/src/venv.rs";
 
 const ROUTES: &[Route] = &[
+    Route {
+        file: "rust/tcl-syntax/src/manifest_words.rs",
+        function: "literal_commands",
+        owner: "group_commands",
+        selected: &[(0, "&tokens"), (1, "source"), (2, "config")],
+    },
     Route {
         file: PACK,
         function: "coverage_row",
@@ -104,6 +112,11 @@ const ROUTES: &[Route] = &[
 /// helper with its old name cannot replace it.
 const CONTROLS: &[(&str, &str, &str)] = &[
     (
+        "rust/tcl-bigip-query/src/architecture.rs",
+        "architecture_manifest_keeps_literal_substitution_spelling",
+        "build_architecture",
+    ),
+    (
         "rust/tcl-spectcl/src/loader/tests/block_descriptors.rs",
         "state_transition_blocks_preserve_complete_authored_rows",
         "evaluate_pack",
@@ -143,6 +156,8 @@ fn path_text(path: &syn::Path) -> String {
 fn argument_identity(arg: &syn::Expr) -> Option<String> {
     match arg {
         syn::Expr::Path(p) => Some(path_text(&p.path)),
+        syn::Expr::Reference(r) => argument_identity(&r.expr).map(|v| format!("&{v}")),
+        syn::Expr::Paren(p) => argument_identity(&p.expr),
         syn::Expr::Field(field) => {
             let syn::Expr::Path(root) = &*field.base else {
                 return None;
@@ -154,6 +169,9 @@ fn argument_identity(arg: &syn::Expr) -> Option<String> {
         }
         syn::Expr::Lit(lit) => match &lit.lit {
             syn::Lit::Str(s) => Some(format!("{:?}", s.value())),
+            syn::Lit::Byte(b) => Some(format!("byte {:#04x}", b.value())),
+            syn::Lit::Char(c) => Some(format!("character {:?}", c.value())),
+            syn::Lit::Int(n) => Some(n.to_string()),
             _ => None,
         },
         syn::Expr::Call(call) if call.args.len() == 1 => {
@@ -188,8 +206,10 @@ struct Facts {
     decrements: bool,
     delimiter: bool,
     branching: bool,
+    indexed_input: bool,
     iteration: bool,
     host_readers: BTreeSet<String>,
+    operations: Vec<String>,
 }
 
 impl<'ast> Visit<'ast> for Facts {
@@ -213,6 +233,11 @@ impl<'ast> Visit<'ast> for Facts {
 
     fn visit_expr_method_call(&mut self, call: &'ast syn::ExprMethodCall) {
         let method = call.method.to_string();
+        self.indexed_input |= matches!(
+            method.as_str(),
+            "bytes" | "as_bytes" | "chars" | "char_indices"
+        );
+
         if matches!(
             method.as_str(),
             "split_whitespace" | "split_ascii_whitespace"
@@ -233,6 +258,7 @@ impl<'ast> Visit<'ast> for Facts {
                 | "parse"
         ) {
             self.host_readers.insert(method.clone());
+            self.operations.push(format!("host {method}"));
         }
         self.iteration |= matches!(
             method.as_str(),
@@ -256,14 +282,27 @@ impl<'ast> Visit<'ast> for Facts {
 
     fn visit_lit_byte(&mut self, lit: &'ast syn::LitByte) {
         self.delimiter |= lit.value().is_ascii_punctuation() || lit.value().is_ascii_whitespace();
+        if lit.value().is_ascii_punctuation() || lit.value().is_ascii_whitespace() {
+            self.operations.push(format!("byte {:#04x}", lit.value()));
+        }
         self.bracket_open |= lit.value() == b'[';
         self.bracket_close |= lit.value() == b']';
     }
 
     fn visit_lit_char(&mut self, lit: &'ast syn::LitChar) {
         self.delimiter |= lit.value().is_ascii_punctuation() || lit.value().is_ascii_whitespace();
+        if lit.value().is_ascii_punctuation() || lit.value().is_ascii_whitespace() {
+            self.operations.push(format!("character {:?}", lit.value()));
+        }
     }
     fn visit_expr(&mut self, expr: &'ast syn::Expr) {
+        self.indexed_input |= matches!(expr, syn::Expr::Index(_));
+        match expr {
+            syn::Expr::ForLoop(_) => self.operations.push("for".into()),
+            syn::Expr::While(_) => self.operations.push("while".into()),
+            syn::Expr::Loop(_) => self.operations.push("loop".into()),
+            _ => {}
+        }
         self.iteration |= matches!(
             expr,
             syn::Expr::ForLoop(_) | syn::Expr::While(_) | syn::Expr::Loop(_)
@@ -284,6 +323,29 @@ impl<'ast> Visit<'ast> for Facts {
         }
         visit::visit_macro(self, item);
     }
+    fn visit_expr_binary(&mut self, item: &'ast syn::ExprBinary) {
+        let op = match item.op {
+            syn::BinOp::Eq(_) => Some("=="),
+            syn::BinOp::Ne(_) => Some("!="),
+            syn::BinOp::Lt(_) => Some("<"),
+            syn::BinOp::Le(_) => Some("<="),
+            syn::BinOp::Gt(_) => Some(">"),
+            syn::BinOp::Ge(_) => Some(">="),
+            _ => None,
+        };
+        if let Some(op) = op
+            && (matches!(&*item.left, syn::Expr::Lit(_))
+                || matches!(&*item.right, syn::Expr::Lit(_)))
+            && let (Some(left), Some(right)) = (
+                argument_identity(&item.left),
+                argument_identity(&item.right),
+            )
+        {
+            self.operations
+                .push(format!("predicate {left} {op} {right}"));
+        }
+        visit::visit_expr_binary(self, item);
+    }
     fn visit_bin_op(&mut self, op: &'ast syn::BinOp) {
         self.increments |= matches!(op, syn::BinOp::AddAssign(_));
         self.decrements |= matches!(op, syn::BinOp::SubAssign(_));
@@ -299,15 +361,20 @@ struct Source {
     declarations: BTreeMap<String, usize>,
 }
 
+impl Facts {
+    fn structural(&self) -> bool {
+        (self.delimiter && (self.iteration || self.branching))
+            || (self.indexed_input && self.iteration && self.branching)
+    }
+}
+
 impl Source {
     fn record(&mut self, name: &syn::Ident, attrs: &[syn::Attribute], body: &syn::Block) {
-        let scope = self
-            .scopes
-            .iter()
-            .map(String::as_str)
-            .chain(std::iter::once(name.to_string().as_str()))
-            .collect::<Vec<_>>()
-            .join("::");
+        let scope = if self.scopes.is_empty() {
+            name.to_string()
+        } else {
+            format!("{}::{name}", self.scopes.join("::"))
+        };
         let count = self.declarations.entry(scope.clone()).or_default();
         *count += 1;
         let mut facts = Facts {
@@ -496,6 +563,7 @@ fn foreign_review(surface: &str) -> &'static str {
 pub fn run(report: bool) -> Result<ExitCode> {
     let root = crate::util::repo_root();
     let inventory = census(&root, "--files")?;
+    let signed = reviewed::Reviewed::parse(&std::fs::read_to_string(root.join(reviewed::INDEX))?)?;
     let mut errors = Vec::new();
     let mut seen = BTreeSet::new();
     let mut unreviewed = 0;
@@ -511,12 +579,16 @@ pub fn run(report: bool) -> Result<ExitCode> {
         seen.insert(file);
         if !file.ends_with(".rs") {
             *foreign.entry(surface).or_default() += 1;
+            if surface != "documentation" {
+                signed.check_file(file, None, &mut errors);
+            }
             if report {
                 println!("{file}\t{surface}\t{}", foreign_review(surface));
             }
             continue;
         }
-        let scoped = ROUTES.iter().any(|r| r.file == file)
+        let scoped = signed.covers(file)
+            || ROUTES.iter().any(|r| r.file == file)
             || CONTROLS.iter().any(|(path, ..)| *path == file);
         if !scoped
             && (file.contains("/tests/") || crate::util::test_sources::is_test_module_file(file))
@@ -549,13 +621,19 @@ pub fn run(report: bool) -> Result<ExitCode> {
             Err(err) => return Err(anyhow::anyhow!("parse tracked Rust source {file}: {err}")),
         }
         errors.extend(source.drift(file));
+        signed.check_file(file, Some(&source), &mut errors);
+        if report && signed.covers(file) {
+            for op in reviewed::operations(&source) {
+                println!("{file}\t{op}\tsigned-scope operation");
+            }
+        }
         for (name, functions) in &source.functions {
             for facts in functions {
-                if facts.delimiter && (facts.iteration || facts.branching) {
+                if facts.structural() {
                     structural += 1;
                     if report {
                         println!(
-                            "{file}::{}\tdelimiter and control flow\treview structural reader",
+                            "{file}::{}\tinput traversal or delimiter control flow\treview structural reader",
                             facts.scope
                         );
                     }
@@ -601,6 +679,7 @@ pub fn run(report: bool) -> Result<ExitCode> {
             errors.push(format!("missing tracked parser surface {path}"));
         }
     }
+    signed.missing(&seen, &mut errors);
     let targets = census(&root, "--cargo-targets")?;
     let mut manifests = BTreeSet::new();
     let mut target_count = 0;
