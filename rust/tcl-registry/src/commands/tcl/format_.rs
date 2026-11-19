@@ -62,7 +62,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 ///   ignores them on strings), and width/precision over a non-ASCII value
 ///   bails (the character count diverges 8.x UTF-16 units ↔ 9.0 codepoints).
 /// * the float conversions parse a double over the same subset as `string is
-///   double` ([`parse_float_arg`]) and build on Rust's float formatter, with
+///   double` (the selected native double getter) and build on Rust's float formatter, with
 ///   `%e`/`%g`'s exponent / shortest-form rendering reshaped to C's by
 ///   [`fmt_sci`] / [`fmt_general`]; a non-finite value and the `#` form bail.
 ///   See [`Conversion::render_float`].
@@ -190,11 +190,11 @@ impl Conversion {
             b'X' => self.render_radix(value, Radix::HexUpper, version),
             b'o' => self.render_radix(value, Radix::Octal, version),
             b'c' => self.render_char(value),
-            b'f' => self.render_float(value, FloatKind::Fixed, false),
-            b'e' => self.render_float(value, FloatKind::Scientific, false),
-            b'E' => self.render_float(value, FloatKind::Scientific, true),
-            b'g' => self.render_float(value, FloatKind::General, false),
-            b'G' => self.render_float(value, FloatKind::General, true),
+            b'f' => self.render_float(value, FloatKind::Fixed, false, version),
+            b'e' => self.render_float(value, FloatKind::Scientific, false, version),
+            b'E' => self.render_float(value, FloatKind::Scientific, true, version),
+            b'g' => self.render_float(value, FloatKind::General, false, version),
+            b'G' => self.render_float(value, FloatKind::General, true, version),
             b'u' => self.render_unsigned(value, version),
             b'b' => self.render_radix(value, Radix::Binary, version),
             b's' => self.render_str(value),
@@ -268,11 +268,17 @@ impl Conversion {
     /// even with a precision.  A non-finite value (`Inf`/`NaN` — spelling is
     /// version-edgy) and the `#` alternate form (it suppresses `%g`'s
     /// trailing-zero stripping) both bail.
-    fn render_float(&self, value: &str, kind: FloatKind, upper: bool) -> Option<String> {
+    fn render_float(
+        &self,
+        value: &str,
+        kind: FloatKind,
+        upper: bool,
+        version: Option<TclVersion>,
+    ) -> Option<String> {
         if self.flags.contains(FmtFlags::HASH) {
             return None;
         }
-        let v = parse_float_arg(value)?;
+        let v = crate::value_transfer::const_ops::literal_double(value, version)?;
         if !v.is_finite() {
             return None;
         }
@@ -533,20 +539,6 @@ fn parse_int_i128(value: &str, octal_leading_zero: bool) -> Option<i128> {
         body.parse::<i128>().ok()?
     };
     Some(if neg { -mag } else { mag })
-}
-
-/// Parse a `%f` argument as a double.  ASCII-gated (so the `.trim()`
-/// whitespace set matches Tcl's `Tcl_GetDouble`), then `f64::from_str` —
-/// which agrees with Tcl's parse on the decimal / scientific forms (verified
-/// in `string is double`).  The version-divergent / Rust-rejected forms
-/// (a `0x`/`0o`/`0b` prefix, a `_` separator, a `nan(payload)`) all fail
-/// `from_str` and bail here; the caller additionally bails on a non-finite
-/// result.
-fn parse_float_arg(value: &str) -> Option<f64> {
-    if !value.is_ascii() {
-        return None;
-    }
-    value.trim().parse::<f64>().ok()
 }
 
 /// `%e` / `%E` magnitude: Rust's `{:.prec$e}`, with the exponent reshaped to

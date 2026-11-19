@@ -452,6 +452,36 @@ impl TargetSemantics {
     }
 }
 
+/// Fresh literal's native floating-point input for a selected release.
+/// Tcl 8.4 reads the spelling with strtod; 8.5 and 8.6 classify integer
+/// spellings first. An unknown receiver needs an identical result in Jim and
+/// every C Tcl release, including the sign of zero.
+pub(crate) fn literal_double(text: &str, version: Option<TclVersion>) -> Option<f64> {
+    use tcl_dialect::model::{DialectPoint, Release};
+    use tcl_syntax::scalar_getter::{
+        NativeScalarGetterKind, NativeScalarGetterProtocol, NativeScalarGetterValue,
+    };
+    let under = |point| {
+        let protocol = NativeScalarGetterProtocol::for_point(point)?;
+        let value = protocol.fresh_conversion(NativeScalarGetterKind::Double, text.as_bytes())?;
+        match value.outcome().ok()? {
+            NativeScalarGetterValue::Double(value) if value.is_finite() => Some(value),
+            _ => None,
+        }
+    };
+    if let Some(version) = version {
+        return under(DialectPoint::for_tcl_version(version));
+    }
+    let common = under(DialectPoint::canonical(Release::JIM_0_84))?;
+    TclVersion::ALL
+        .into_iter()
+        .all(|release| {
+            under(DialectPoint::for_tcl_version(release)).map(f64::to_bits)
+                == Some(common.to_bits())
+        })
+        .then_some(common)
+}
+
 /// Join `elements` into one canonical list, the first element's leading
 /// `#` brace-quoted when `quote_hash` says the target does.
 fn render_list_bytes<'e>(elements: impl Iterator<Item = &'e [u8]>, quote_hash: bool) -> Vec<u8> {
@@ -1205,19 +1235,16 @@ impl ValueOps for ConstOps<'_> {
         })
     }
 
-    /// An integer reads as the double nearest it: its decimal spelling
-    /// parsed as a double is correctly rounded, the value a precision-losing
-    /// cast gives.
     fn as_double(&mut self, v: &ConstValue) -> Result<f64, ValueError> {
+        self.require(Needs::NUMERAL_GRAMMAR);
         let text = self.try_as_str(v)?;
-        match self.parse_number(&text, false) {
-            Some(Number::Double(f)) => Ok(f),
-            Some(Number::Int(i)) => i
-                .to_string()
-                .parse::<f64>()
-                .map_err(|_| ValueError::NotDouble(text.to_string())),
-            _ => Err(ValueError::NotDouble(text.to_string())),
-        }
+        // If the ingress selected a different numeral grammar, the release's
+        // fresh object getter alone does not establish this conversion.
+        let release = self
+            .target
+            .release
+            .filter(|release| self.target.numerals == Some(release.number_syntax()));
+        literal_double(&text, release).ok_or_else(|| ValueError::NotDouble(text.to_string()))
     }
 
     /// The numeric booleans only: the boolean words (`yes`, `off`, …) and
