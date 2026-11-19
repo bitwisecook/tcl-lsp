@@ -1012,9 +1012,35 @@ The following axes require independent measurements:
 | Restricted-role tmsh | Record role, command visibility and relevant policy settings; the current surface has no role annotation |
 | APL presentation and its Tcl callbacks | Exercise each context independently through a non-interactive renderer; neither inherits iApp implementation facts |
 | `tmsh::modify cli version active` scope | Distinguish script, process, session and system state; `scope_is_measured` remains false |
-| `matches` semantics and precedence | The measured equal-string case is true and `"abcd" matches "bc"` is false. Both equality and glob interpretations fit those results. A wildcard-bearing operand distinguishes them; a mixed-operator expression distinguishes binding power. The current authored evaluator uses equality, and native constant folding declines this operator. These are separate from its measured grammatical presence |
+| `matches` semantics and precedence | The measured equal-string case is true and `"abcd" matches "bc"` is false. Both equality and glob interpretations fit those results. A wildcard-bearing operand distinguishes them. A mixed-operator expression distinguishes binding power, and the same question is open for every F5 word operator (`contains`, `starts_with`, `ends_with`, `equals`, `matches_glob`, `matches_regex`, `and`, `or`, `not`): W154/W155 group them at the registry precedence (`==` level, `&&`/`||` level, unary), which is unmeasured. Discriminating controls: `1 & 3 contains 3`, `"ab" contains "a" == 0`, `not 0 == 1`, `1 or 0 and 0`, each against its two explicit groupings The current authored evaluator uses equality, and native constant folding declines this operator. These are separate from its measured grammatical presence |
 | Surface, event and traffic provenance | Repeat non-E4-conforming cells with the complete probe-and-cleanup contract; retain each suite's own provenance rather than promoting another suite's conformance |
 | `RULE_INIT` runtime command validity | For each of the six compile-accepted flow commands, execute the original command and capture its completion and required connection state; load acceptance alone cannot settle the runtime question |
+
+### Signed integers reaching F5 commands
+
+W156 reports a value `binary scan` or `scan` stored as a signed integer and
+then compared with a constant outside its range. In stock Tcl the same signed
+value also goes wrong in hex or unsigned `format`, a dotted-quad `format`,
+`<<`/`|` and `*`/`+` byte composition, and list or string indices and lengths
+([execution evidence](../../../evidence/tcl/signed-scan-downstream-consumers.md));
+only a `binary format` round trip survives. Whether F5 commands that take a
+length, offset, address or key misbehave the same way is unmeasured, and the
+registry has no argument domain that would let a check report them. Each row
+needs a `RULE_INIT` or traffic probe that logs the result for a signed value
+(`-127`, `-32768`), its unsigned twin (`129`, `32768`) and the masked form:
+
+| Question | Probe and control |
+| --- | --- |
+| Does TMM's `binary scan` match stock 8.4? | `binary scan \x81\x00\x80 cS b s` should give `-127 -32768`; `binary scan \x81 cu b` should be rejected at load. Also `scan ffffffff %x v` (stock 8.4: `-1`) and `scan ffffffff %lx v` |
+| What width does TMM's `format` use for a negative value? | `format %02x -127` (stock 8.4: `ffffffffffffff81`, 9.x: `ffffff81`), `format %u -127`, `format %c -127` |
+| What do length and offset arguments do with a negative value? | `TCP::collect -1`, `TCP::release -1`, `TCP::payload -1 4`, `TCP::payload 0 -1`, `TCP::payload replace -1 1 x`, and the `UDP::payload`, `HTTP::collect`, `HTTP::payload`, `SSL::collect`, `SSL::payload` equivalents: load-time rejection, runtime error, or a silent default (0, all, or connection reset)? |
+| Does `IP::addr` accept a dotted quad built from signed octets? | `IP::addr 192.-64.-1.1 equals 192.192.255.1` and `IP::addr 192.-64.-1.1 mask 255.255.255.0`: error, rejection, or a silent mismatch |
+| Do integer data groups match a signed key? | An integer-type data group holding `129`: `class match -127 equals dg`, `class match 129 equals dg`, `class lookup -127 dg` |
+| Do counters and ports accept a negative value? | `table incr k -32768` after `table set k 0`; `node 10.0.0.1 -1` and `pool p member 10.0.0.1 -1` in a traffic probe, logging completion and the selected port |
+
+A measured row would give the affected argument a registry domain (a
+non-negative or unsigned integer), which W156 could then check against the
+scanned value's signed range.
 
 The remaining resolution-specific identity, callable replacement and deletion
 boundaries have exact probes in

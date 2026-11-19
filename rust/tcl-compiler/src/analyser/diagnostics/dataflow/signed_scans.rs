@@ -16,11 +16,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! IRULE5008: a value `binary scan` or `scan` stores as a signed integer, compared with a constant outside the signed range.
+//! W156: a value `binary scan` or `scan` stores as a signed integer, compared with a constant outside the signed range.
 //!
-//! iRules run Tcl 8.4, which has neither the `u` suffix on `binary scan`
-//! fields nor an unsigned `scan` conversion: `binary scan \x81 c b` stores
-//! `-127`, and `scan ffffffff %x v` stores `-1`. A byte compared with `0x81`
+//! Every release stores `binary scan` integer fields signed unless they carry
+//! the `u` suffix, which Tcl 8.4 (and so iRules) lacks: `binary scan \x81 c b`
+//! stores `-127`. Tcl 8.4, 9.0 and 9.1 also truncate `scan` integer
+//! conversions without an `l` size to signed 32 bits (`scan ffffffff %x v`
+//! stores `-1`); 8.5, 8.6 and Jim do not. A byte compared with `0x81`
 //! therefore never matches. The check follows the scanned SSA version
 //! (through phis whose every input is the same kind of scan) to an `==`,
 //! `!=`, `<`, `<=`, `>`, `>=`, `eq` or `ne` against an integer literal.
@@ -43,6 +45,9 @@ struct SignedOrigin {
     bits: u32,
     field: String,
     command: &'static str,
+    /// The same field read unsigned or at full width, where the dialect has
+    /// a spelling for it (`cu`, `%lx`).
+    unsigned_field: Option<String>,
 }
 
 impl SignedOrigin {
@@ -61,18 +66,16 @@ struct Comparison<'a> {
 }
 
 impl Analyser {
-    /// IRULE5008 over one function body.
+    /// W156 over one function body.
     pub(in super::super) fn emit_signed_scan_comparisons(
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
     ) {
-        if !self.profile.is_irules() {
-            return;
-        }
         let context = self.analysis_context();
         let registry = context.commands();
         let signed = signed_scan_values(fu, registry, self.profile);
-        if signed.is_empty() {
+        let unresolved = unresolved_scans(fu, registry, self.profile);
+        if signed.is_empty() && unresolved.is_empty() {
             return;
         }
         let numbers = crate::intervals::numbers_for_dialect(Some(self.profile));
@@ -80,16 +83,20 @@ impl Analyser {
         let mut check = |expr: &ExprNode,
                          view: SsaSourceView<'_>,
                          exit: Option<&ExitVersions>,
-                         base: Option<u32>,
+                         (block, index, base): (crate::cfg::BlockId, usize, Option<u32>),
                          fallback| {
             for comparison in comparisons(expr, numbers) {
-                let Some(read) = view.read_expression_variable(comparison.variable, base) else {
-                    continue;
-                };
-                let version = read
-                    .version
-                    .or_else(|| exit.and_then(|exit| exit.get(&read.symbol).copied()));
-                let Some(origin) = version.and_then(|v| signed.get(&(read.symbol, v))) else {
+                let resolved = view
+                    .read_expression_variable(comparison.variable, base)
+                    .and_then(|read| {
+                        let version = read
+                            .version
+                            .or_else(|| exit.and_then(|exit| exit.get(&read.symbol).copied()))?;
+                        signed.get(&(read.symbol, version))
+                    });
+                let Some(origin) = resolved.or_else(|| {
+                    straight_line_scan(fu, &unresolved, comparison.variable, block, index)
+                }) else {
                     continue;
                 };
                 let Some(message) = message(&comparison, origin) else {
@@ -111,7 +118,7 @@ impl Analyser {
             self.result
                 .diagnostics
                 .push(crate::analyser::types::Diagnostic::new(
-                    DiagCode::Irule5008,
+                    DiagCode::W156,
                     span,
                     message,
                     Severity::Warning,
@@ -134,7 +141,7 @@ fn for_each_expression(
         &ExprNode,
         SsaSourceView<'_>,
         Option<&ExitVersions>,
-        Option<u32>,
+        (crate::cfg::BlockId, usize, Option<u32>),
         tcl_lexer::Span,
     ),
 ) {
@@ -159,7 +166,7 @@ fn for_each_expression(
                     expr_base,
                     span,
                     ..
-                } => visit(expr, view, None, *expr_base, *span),
+                } => visit(expr, view, None, (block, index, *expr_base), *span),
                 _ => {
                     for evaluation in crate::word_subst::entered_expression_evaluations(
                         view.source_tokens(),
@@ -170,7 +177,7 @@ fn for_each_expression(
                             evaluation.expression(),
                             view,
                             None,
-                            Some(evaluation.expression_base()),
+                            (block, index, Some(evaluation.expression_base())),
                             evaluation.span(),
                         );
                     }
@@ -192,7 +199,7 @@ fn for_each_expression(
                 condition,
                 SsaSourceView::at_terminator(&fu.ssa, block),
                 Some(&data.exit_versions),
-                *condition_base,
+                (block, data.statements.len(), *condition_base),
                 *span,
             );
         }
@@ -206,8 +213,8 @@ fn signed_scan_values(
     profile: &tcl_dialect::DialectProfile,
 ) -> HashMap<ValueKey, SignedOrigin> {
     let mut signed = HashMap::new();
-    for data in fu.ssa.blocks.values() {
-        for statement in &data.statements {
+    for (&block, data) in &fu.ssa.blocks {
+        for (index, statement) in data.statements.iter().enumerate() {
             let Statement::Call {
                 command,
                 canonical_command,
@@ -219,19 +226,131 @@ fn signed_scan_values(
             };
             let name = canonical_command.as_deref().unwrap_or(command);
             let words: Vec<&str> = args.iter().map(String::as_str).collect();
-            for (variable, origin) in scanned_fields(registry, name, &words, profile) {
+            let fields = scanned_fields(registry, name, &words, profile);
+            if fields.is_empty() {
+                continue;
+            }
+            let clobbered = beside_marker(fu, block, &data.statements, index);
+            for (variable, origin) in fields {
+                let named = |symbol: &crate::ssa::Symbol| fu.ssa.var_name(*symbol) == variable;
                 let mut defined = statement
                     .defs
                     .iter()
-                    .filter(|&(&symbol, _)| fu.ssa.var_name(symbol) == variable);
-                if let (Some((&symbol, &version)), None) = (defined.next(), defined.next()) {
-                    signed.insert((symbol, version), origin);
+                    .filter(|(symbol, _)| named(symbol))
+                    .map(|(&symbol, &version)| (symbol, version))
+                    .chain(
+                        clobbered
+                            .into_iter()
+                            .flatten()
+                            .filter(|(symbol, _)| named(symbol))
+                            .map(|(&symbol, &(_, fresh))| (symbol, fresh)),
+                    );
+                if let (Some(key), None) = (defined.next(), defined.next()) {
+                    signed.insert(key, origin);
                 }
             }
         }
     }
     extend_through_phis(fu, &mut signed);
     signed
+}
+
+/// Scans whose outputs the SSA leaves unnamed, by block: in a procedure
+/// body a head the module cannot prove (it may have been renamed before the
+/// procedure runs) is an unseen call, after which the frame's names have no
+/// version. `(statement index, variable, origin)`.
+type UnresolvedScans = HashMap<crate::cfg::BlockId, Vec<(usize, String, SignedOrigin)>>;
+
+fn unresolved_scans(
+    fu: &crate::compilation_unit::FunctionUnit,
+    registry: &tcl_registry::CommandRegistry,
+    profile: &tcl_dialect::DialectProfile,
+) -> UnresolvedScans {
+    let mut out: UnresolvedScans = HashMap::new();
+    for (&block, data) in &fu.ssa.blocks {
+        for (index, statement) in data.statements.iter().enumerate() {
+            let Statement::Call {
+                command,
+                canonical_command,
+                args,
+                ..
+            } = &statement.statement
+            else {
+                continue;
+            };
+            if !statement.defs.is_empty() {
+                continue;
+            }
+            let name = canonical_command.as_deref().unwrap_or(command);
+            let words: Vec<&str> = args.iter().map(String::as_str).collect();
+            for (variable, origin) in scanned_fields(registry, name, &words, profile) {
+                out.entry(block)
+                    .or_default()
+                    .push((index, variable, origin));
+            }
+        }
+    }
+    out
+}
+
+/// A scan earlier in the same block that wrote the plain variable `read`
+/// names, with nothing between that could write it again: no statement that
+/// defines or names it, and no unseen call other than the scan's own marker.
+/// The read must be a plain local name; a qualified or array name abstains.
+fn straight_line_scan<'a>(
+    fu: &crate::compilation_unit::FunctionUnit,
+    unresolved: &'a UnresolvedScans,
+    read: &ExprNode,
+    block: crate::cfg::BlockId,
+    index: usize,
+) -> Option<&'a SignedOrigin> {
+    let ExprNode::Var { text, name, .. } = read else {
+        return None;
+    };
+    if text.as_str() != format!("${name}") || name.contains("::") {
+        return None;
+    }
+    let statements = &fu.ssa.blocks.get(&block)?.statements;
+    let (scan, _, origin) = unresolved
+        .get(&block)?
+        .iter()
+        .filter(|(at, variable, _)| *at < index && variable == name)
+        .max_by_key(|(at, ..)| *at)?;
+    let mut between = statements.iter().take(index).skip(scan + 1).peekable();
+    while between.peek().is_some_and(|s| {
+        matches!(s.statement, Statement::Barrier { .. })
+            || crate::ssa::is_unseen_call_marker(&s.statement)
+    }) {
+        between.next();
+    }
+    let writes = |s: &crate::ssa::SsaStatement| {
+        crate::ssa::is_unseen_call_marker(&s.statement)
+            || s.defs.keys().any(|symbol| fu.ssa.var_name(*symbol) == name)
+            || matches!(&s.statement, Statement::Call { args, .. }
+                if args.iter().any(|arg| arg == name))
+    };
+    (!between.any(writes)).then_some(origin)
+}
+
+/// The fresh versions an unseen-call marker beside the call at `index`
+/// leaves. Where the module cannot prove the head still names the shipped
+/// command (a procedure body can run after a rename), the call's writes land
+/// there instead of as defs; the check reads them as the scan's output, the
+/// same name-binding assumption every registry-driven check makes.
+fn beside_marker<'a>(
+    fu: &'a crate::compilation_unit::FunctionUnit,
+    block: crate::cfg::BlockId,
+    statements: &[crate::ssa::SsaStatement],
+    index: usize,
+) -> Option<&'a HashMap<crate::ssa::Symbol, (crate::ssa::Version, crate::ssa::Version)>> {
+    let marker = statements
+        .iter()
+        .enumerate()
+        .skip(index + 1)
+        .find(|(_, s)| !matches!(s.statement, Statement::Barrier { .. }))
+        .filter(|(_, s)| crate::ssa::is_unseen_call_marker(&s.statement))?
+        .0;
+    fu.ssa.value_clobbers.get(&block)?.get(&marker)
 }
 
 /// A phi whose every input is the same signed scan holds that scan's value.
@@ -295,14 +414,18 @@ fn scanned_fields(
     if !format.scan {
         return Vec::new();
     }
-    let widths: Vec<Option<(u32, String)>> = match format.kind {
+    let widths: Vec<Option<(u32, String, Option<String>)>> = match format.kind {
         tcl_registry::patterns::FormatType::Binary => {
-            tcl_cmd_core::binary::specifiers(template.as_bytes(), true)
+            let unsigned = tcl_cmd_core::binary::signedness_available(profile);
+            tcl_cmd_core::binary::specifiers(template.as_bytes(), unsigned)
                 .iter()
                 .filter(|field| tcl_cmd_core::binary::scan_field_assigns(field.letter))
                 .map(|field| {
-                    tcl_cmd_core::binary::signed_scan_width(field)
-                        .map(|bits| (bits, template[field.letter_start..field.end].to_owned()))
+                    tcl_cmd_core::binary::signed_scan_width(field).map(|bits| {
+                        let written = template[field.letter_start..field.end].to_owned();
+                        let suffixed = unsigned.then(|| format!("{written}u"));
+                        (bits, written, suffixed)
+                    })
                 })
                 .collect()
         }
@@ -315,11 +438,14 @@ fn scanned_fields(
                 .iter()
                 .filter(|field| field.spec.assigns())
                 .map(|field| {
-                    field.spec.truncates_to_int32_c84().then(|| {
-                        (
-                            32,
-                            template[field.percent.start..field.conversion.end].to_owned(),
-                        )
+                    field.spec.truncates_to_int32(profile).then(|| {
+                        let written = &template[field.percent.start..field.conversion.end];
+                        let wide = format!(
+                            "{}l{}",
+                            &template[field.percent.start..field.size.start],
+                            &template[field.conversion.clone()]
+                        );
+                        (32, written.to_owned(), Some(wide))
                     })
                 })
                 .collect()
@@ -334,7 +460,7 @@ fn scanned_fields(
         .into_iter()
         .zip(variables)
         .filter_map(|(width, variable)| {
-            let (bits, field) = width?;
+            let (bits, field, unsigned_field) = width?;
             let plain = !variable.contains(['$', '[', '(', '\\', '{', '"']);
             plain.then(|| {
                 (
@@ -343,6 +469,7 @@ fn scanned_fields(
                         bits,
                         field,
                         command,
+                        unsigned_field,
                     },
                 )
             })
@@ -435,17 +562,25 @@ fn message(comparison: &Comparison<'_>, origin: &SignedOrigin) -> Option<String>
         comparison.literal_text,
         if always { "true" } else { "false" },
     );
+    if let Some(unsigned) = &origin.unsigned_field {
+        let how = if origin.command == "scan" {
+            "at full width"
+        } else {
+            "unsigned"
+        };
+        let _ = write!(text, "Read it {how} with `{unsigned}`, mask it as ");
+    } else {
+        text.push_str("Mask it as ");
+    }
+    let _ = write!(
+        text,
+        "`({var} & {mask}) {} {}`",
+        op.as_str(),
+        comparison.literal_text
+    );
     let _ = match signed_equivalent {
-        Some(signed) => write!(
-            text,
-            "Mask it to unsigned, `({var} & {mask}) {} {}`, or compare with the signed value {signed}.",
-            op.as_str(),
-            comparison.literal_text
-        ),
-        None => write!(
-            text,
-            "Mask it to unsigned with `({var} & {mask})` before comparing."
-        ),
+        Some(signed) => write!(text, ", or compare with the signed value {signed}."),
+        None => write!(text, "."),
     };
     Some(text)
 }

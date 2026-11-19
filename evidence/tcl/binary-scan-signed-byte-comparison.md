@@ -2,7 +2,7 @@
 
 ## Question
 
-After `binary scan \x81 c type`, does `type` hold `-127`; does `($type & 0xff) == 0x81` hold; does `$type == -127` hold; does `$type == 0x81` fail; and does the unparenthesised `$type & 0xff == 0x81` evaluate as `$type & (0xff == 0x81)` rather than `($type & 0xff) == 0x81`? Secondary rows record the signed `s` and `I` fields, whether the `cu` unsigned suffix is accepted, and what `scan ffffffff %x` stores. This backs the fix text of IRULE5008 (a signed scan value compared with an unsigned constant) and W154 (precedence grouping); it does not measure the analyser, compiler or VM.
+After `binary scan \x81 c type`, does `type` hold `-127`; does `($type & 0xff) == 0x81` hold; does `$type == -127` hold; does `$type == 0x81` fail; and does the unparenthesised `$type & 0xff == 0x81` evaluate as `$type & (0xff == 0x81)` rather than `($type & 0xff) == 0x81`? Secondary rows record the signed `s` and `I` fields, whether the `cu` unsigned suffix is accepted, and what `scan ffffffff %x` stores. This backs the fix text of W156 (a signed scan value compared with an unsigned constant) and W154 (precedence grouping); it does not measure the analyser, compiler or VM.
 
 ## Assumptions
 

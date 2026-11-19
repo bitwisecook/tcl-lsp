@@ -77,7 +77,7 @@ W154 in editor diagnostic settings.
 
 - [KCS codes index](README.md)
 - [W155 — non-associative grouping](kcs-diagnostic-w155-non-associative-grouping.md)
-- [IRULE5008 — signed scan value compared with an unsigned constant](kcs-diagnostic-irule5008-signed-scan-comparison.md)
+- [W156 — signed scan value compared with an unsigned constant](kcs-diagnostic-w156-signed-scan-comparison.md)
 - [Execution evidence: operator groupings](../../../evidence/tcl/expr-precedence-groupings.md)
 - [Execution evidence: `&` versus `==`](../../../evidence/tcl/binary-scan-signed-byte-comparison.md)
 - [Diagnostics feature](../features/kcs-feature-diagnostics.md)

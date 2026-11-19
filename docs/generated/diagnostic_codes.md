@@ -68,6 +68,7 @@
 | W152 | warning | A registry-declared option relation is unmet — an option or argument the call supplied requires a companion option or argument it did not (`-command` without `-channel`), or the invocation supplies none of a required set. | ✓ |
 | W153 | warning | A valid `# tcl-lsp:` stub directive is outside a `stubs-begin` / `stubs-end` block and has no effect. | ✓ |
 | W154 | warning | Unparenthesised operator mix with no shared reading convention groups differently from how it reads — a comparison, arithmetic or other bitwise operator under `&`/`|`/`^`, arithmetic under a shift, a comparison chain, `!` before a comparison or bitwise operator, `&&` inside `||`, arithmetic as a `?:` condition, or `-` as the base of `**`. | ✓ |
+| W156 | warning | Value `binary scan` or `scan` stores as a signed integer compared with a constant outside the signed range — the comparison always has the same outcome; read it unsigned (a `u` field suffix, an `l` scan size), mask it (`$v & 0xff`) or compare with the signed value. | ✓ |
 | W200 | warning | Unsigned (`u`) suffix on a `binary format`/`binary scan` field requires a newer Tcl release. | ✓ |
 | W201 | warning | Manual path concatenation — use `file join` instead. | ✓ |
 | W202 | warning | `binary format`/`binary scan` field letter requires a newer Tcl release — `t`, `n`, `m`, `r`, `R`, `q` and `Q` arrive in Tcl 8.5. | ✓ |
@@ -151,7 +152,6 @@
 | IRULE5005 | irules | Direct proc invocation without `call` — use `call proc_name`. | ✓ |
 | IRULE5006 | irules | Top-level-only command used inside a nested body. | ✓ |
 | IRULE5007 | irules | Executable command used on iRules' declaration-only top level. | ✓ |
-| IRULE5008 | irules | Value read as a signed integer by `binary scan` or `scan` compared with a constant outside the signed range — the comparison can never hold; mask it to unsigned (`$v & 0xff`) or compare with the signed value. | ✓ |
 | IRULE6001 | irules | `global`/`::`-qualified variable forces CMP compatibility mode, pinning the virtual server to one TMM — use `static::`. | ✓ |
 | IRULE3001 | irules_security | Tainted data in HTTP response body. | ✓ |
 | IRULE3002 | irules_security | Tainted data in HTTP header or cookie value. | ✓ |

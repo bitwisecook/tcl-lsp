@@ -111,15 +111,28 @@ impl ScanConversion {
         !self.suppress && self.verb != '%'
     }
 
-    /// Whether Tcl 8.4 truncates this conversion's value to a signed 32-bit
-    /// integer: `%d %i %o %x %X %u` without a `l`/`ll` size modifier.
-    /// `scan ffffffff %x v` stores `-1` on tclsh 8.4.20, and
-    /// `scan 4294967295 %u v` stores `-1` too.
+    /// Whether `profile`'s release stores this conversion's value truncated to
+    /// a signed 32-bit integer: `%d %i %o %x %X` without an `l`/`ll` size on
+    /// Tcl 8.4 and 9.0+, plus `%u` on 8.4. Tcl 8.5, 8.6 and Jim store the full
+    /// value. Measured on tclsh 8.4.20-9.1.0 and Jim 0.84
+    /// (`evidence/tcl/scan-integer-signedness.md`): `scan ffffffff %x v`
+    /// stores `-1` on 8.4, 9.0 and 9.1 and `4294967295` elsewhere.
     #[must_use]
-    pub fn truncates_to_int32_c84(&self) -> bool {
-        self.assigns()
-            && matches!(self.verb, 'd' | 'i' | 'o' | 'x' | 'X' | 'u')
-            && self.size.is_none_or(|size| !size.is_wide())
+    pub fn truncates_to_int32(&self, profile: &tcl_dialect::DialectProfile) -> bool {
+        use tcl_dialect::{TclVersion, model::Family};
+        if !self.assigns()
+            || self.size.is_some_and(SizeModifier::is_wide)
+            || profile.runtime_core_family() == Some(Family::Jim)
+        {
+            return false;
+        }
+        match profile.runtime_version() {
+            Some(TclVersion::V8_4) => matches!(self.verb, 'd' | 'i' | 'o' | 'x' | 'X' | 'u'),
+            Some(version) if version >= TclVersion::V9_0 => {
+                matches!(self.verb, 'd' | 'i' | 'o' | 'x' | 'X')
+            }
+            _ => false,
+        }
     }
 }
 

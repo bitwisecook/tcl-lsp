@@ -505,7 +505,6 @@ diagnostic_codes! {
     Irule5005 => "IRULE5005", diag(Irules, true, "Direct proc invocation without `call` — use `call proc_name`.");
     Irule5006 => "IRULE5006", diag(Irules, true, "Top-level-only command used inside a nested body.");
     Irule5007 => "IRULE5007", diag(Irules, true, "Executable command used on iRules' declaration-only top level.");
-    Irule5008 => "IRULE5008", diag(Irules, true, "Value read as a signed integer by `binary scan` or `scan` compared with a constant outside the signed range — the comparison can never hold; mask it to unsigned (`$v & 0xff`) or compare with the signed value.");
     Irule6001 => "IRULE6001", diag_internal(Irules, true, "`global`/`::`-qualified variable forces CMP compatibility mode, pinning the virtual server to one TMM — use `static::`.");
     O100 => "O100", opt(ConstantFolding, "Propagate constant variables into expressions and command arguments.");
     O101 => "O101", opt(ConstantFolding, "Fold constant integer expressions.");
@@ -631,6 +630,7 @@ diagnostic_codes! {
     W153 => "W153", diag(Warning, true, "A valid `# tcl-lsp:` stub directive is outside a `stubs-begin` / `stubs-end` block and has no effect.");
     W154 => "W154", diag(Warning, true, "Unparenthesised operator mix with no shared reading convention groups differently from how it reads — a comparison, arithmetic or other bitwise operator under `&`/`|`/`^`, arithmetic under a shift, a comparison chain, `!` before a comparison or bitwise operator, `&&` inside `||`, arithmetic as a `?:` condition, or `-` as the base of `**`.");
     W155 => "W155", diag(Hint, false, "Unparenthesised operand whose other grouping gives a different result (any non-associative mix, such as `$a - $b + $c`, `$a + $b * $c` or `$a == 1 && $b`) — off by default, for code that makes every grouping explicit.");
+    W156 => "W156", diag(Warning, true, "Value `binary scan` or `scan` stores as a signed integer compared with a constant outside the signed range — the comparison always has the same outcome; read it unsigned (a `u` field suffix, an `l` scan size), mask it (`$v & 0xff`) or compare with the signed value.");
     W200 => "W200", diag(Warning, true, "Unsigned (`u`) suffix on a `binary format`/`binary scan` field requires a newer Tcl release.");
     W201 => "W201", diag(Warning, true, "Manual path concatenation — use `file join` instead.");
     W202 => "W202", diag(Warning, true, "`binary format`/`binary scan` field letter requires a newer Tcl release — `t`, `n`, `m`, `r`, `R`, `q` and `Q` arrive in Tcl 8.5.");

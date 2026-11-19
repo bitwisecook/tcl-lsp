@@ -382,6 +382,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W156",
+    section: "warning",
+    description:
+      "Value `binary scan` or `scan` stores as a signed integer compared with a constant outside the signed range — the comparison always has the same outcome; read it unsigned (a `u` field suffix, an `l` scan size), mask it (`$v & 0xff`) or compare with the signed value.",
+    defaultEnabled: true,
+  },
+  {
     code: "W200",
     section: "warning",
     description:
@@ -850,13 +857,6 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     code: "IRULE5007",
     section: "irules",
     description: "Executable command used on iRules' declaration-only top level.",
-    defaultEnabled: true,
-  },
-  {
-    code: "IRULE5008",
-    section: "irules",
-    description:
-      "Value read as a signed integer by `binary scan` or `scan` compared with a constant outside the signed range — the comparison can never hold; mask it to unsigned (`$v & 0xff`) or compare with the signed value.",
     defaultEnabled: true,
   },
   {

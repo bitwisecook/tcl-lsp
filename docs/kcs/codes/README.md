@@ -93,6 +93,7 @@ This index lists every per-code KCS page.
 - [W153 — stub directive outside a block](kcs-diagnostic-w153-stub-outside-block.md)
 - [W154 — operator mix groups differently from how it reads](kcs-diagnostic-w154-operator-precedence.md)
 - [W155 — non-associative grouping (off by default)](kcs-diagnostic-w155-non-associative-grouping.md)
+- [W156 — signed scan value compared with an unsigned constant](kcs-diagnostic-w156-signed-scan-comparison.md)
 - [W200 — binary format modifier needs a newer Tcl](kcs-diagnostic-w200-binary-format-modifier-needs-newer-tcl.md)
 - [W201 — manual path concatenation](kcs-diagnostic-w201-manual-path-concatenation.md)
 - [W202 — binary field letter needs a newer Tcl](kcs-diagnostic-w202-binary-field-letter-needs-newer-tcl.md)
@@ -219,7 +220,6 @@ This index lists every per-code KCS page.
 - [IRULE5005 — direct proc without call](kcs-diagnostic-irule5005-direct-proc-without-call.md)
 - [IRULE5006 — top-level in nested body](kcs-diagnostic-irule5006-top-level-in-nested-body.md)
 - [IRULE5007 — event command outside when](kcs-diagnostic-irule5007-event-command-outside-when.md)
-- [IRULE5008 — signed scan value compared with an unsigned constant](kcs-diagnostic-irule5008-signed-scan-comparison.md)
 
 ## iRule CMP and TMM affinity (IRULE6xxx)
 
