@@ -653,31 +653,45 @@ mod tests {
         let mut analysis = Analyser::new().analyse(source, "tcl8.6");
         assert!(analysis.original_completed_command_world().is_none());
         analysis.all_classes.clear();
-        let mut selected = Vec::new();
-        for invocation in &analysis.command_invocations {
-            let Some(input) = invocation.original_name_input.as_ref() else {
-                continue;
-            };
-            if !matches!(input.bytes(), b"C" | b"M" | b"A") {
-                continue;
-            }
+        // The reference to the old slot in the rename operand still navigates
+        // to its declaration. It is not a constructor invocation.
+        let rename_operand = u32::try_from(source.find("C M").unwrap()).unwrap();
+        let locations = crate::definition::definition(source, 0, rename_operand, &analysis);
+        assert_eq!(locations.len(), 1);
+        assert_eq!(
+            locations[0].start_character,
+            u32::try_from(source.find("C {}").unwrap()).unwrap()
+        );
+
+        for (call, expected) in [
+            ("C create a", true),
+            ("C create b", false),
+            ("M create c", true),
+            ("A d", true),
+            ("M create e", false),
+            ("A f", false),
+        ] {
+            let offset = u32::try_from(source.find(call).unwrap()).unwrap();
+            let invocation = analysis
+                .command_invocations
+                .iter()
+                .find(|invocation| invocation.range.start() == offset)
+                .expect(call);
             let receipt =
                 tcl_compiler::registry_invocation::source_structure::source_constructor_call_at(
-                    source,
-                    &analysis,
-                    invocation.range.start(),
+                    source, &analysis, offset,
                 );
+            assert_eq!(receipt.is_some(), expected, "{call}");
             let found = class_for_invocation(&analysis, source, invocation);
             assert_eq!(
                 matches!(found, ControlFlow::Break(Some(_))),
-                receipt.is_some()
+                expected,
+                "{call}"
             );
             if let ControlFlow::Break(Some(class)) = found {
                 assert_eq!(class.name_input().bytes(), b"C");
             }
-            selected.push(receipt.is_some());
         }
-        assert_eq!(selected, [true, false, true, true, false, false]);
     }
 
     #[test]
