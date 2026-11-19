@@ -1454,14 +1454,20 @@ pub(super) fn insert_format_overrides(
         {
             if let Some(token) = original_argument_token(command, words, found.index) {
                 let kind = match found.kind {
+                    tcl_registry::FormatType::Sprintf if found.scan => {
+                        let Some(parts) = template_subtoken_spans(ctx, words, found) else {
+                            continue;
+                        };
+                        ArgOverride::TemplateParts(parts)
+                    }
                     tcl_registry::FormatType::Sprintf => ArgOverride::SprintfFormat,
                     tcl_registry::FormatType::Clock => ArgOverride::ClockFormat,
                     tcl_registry::FormatType::Binary => ArgOverride::BinaryFormat,
                     tcl_registry::FormatType::Regsub => {
-                        let Some(captures) = regsub_capture_spans(ctx, words, found.index) else {
+                        let Some(captures) = template_subtoken_spans(ctx, words, found) else {
                             continue;
                         };
-                        ArgOverride::RegsubReplace(captures)
+                        ArgOverride::TemplateParts(captures)
                     }
                 };
                 super::mark_literal_fragments(command, token.span, &kind, overrides);
@@ -1470,29 +1476,56 @@ pub(super) fn insert_format_overrides(
     });
 }
 
-fn regsub_capture_spans(
+fn template_subtoken_spans(
     ctx: ScriptCtx<'_>,
     words: &crate::original_invocation::OriginalRegistryWords,
-    index: usize,
+    format: tcl_registry::FormatStringArg,
 ) -> Option<Vec<(std::ops::Range<usize>, TokenKind)>> {
     let input = ctx.analysis?.resolved_input.as_ref()?;
-    let operand = crate::format_template::FormatOperand::capture(words, input, index)?;
+    let operand = crate::format_template::FormatOperand::capture(words, input, format.index)?;
     let template = crate::format_template::FormatTemplate::from_operand(ctx.full_source, &operand)?;
-    let mut captures = Vec::new();
-    for (span, part) in tcl_cmd_core::regex::replacement_parts(template.content.as_bytes()) {
-        if let tcl_cmd_core::regex::ReplacementPart::Capture(_) = part {
-            let kind = if span.len() == 1 {
-                TokenKind::Operator
-            } else {
-                TokenKind::Number
-            };
-            captures.push((
+    let mut parts = Vec::new();
+    let mut push = |span: std::ops::Range<usize>, kind| {
+        if !span.is_empty() {
+            parts.push((
                 template.original_offset(span.start)?..template.original_offset(span.end)?,
                 kind,
             ));
         }
+        Some(())
+    };
+    match format.kind {
+        tcl_registry::FormatType::Sprintf if format.scan => {
+            for field in tcl_syntax::scan::conversion_spans(&template.content, ctx.dialect) {
+                push(field.percent, TokenKind::FormatPercent)?;
+                if field.spec.xpg_index.is_some() {
+                    let dollar = field.assignment.end - 1;
+                    push(field.assignment.start..dollar, TokenKind::FormatWidth)?;
+                    push(dollar..field.assignment.end, TokenKind::FormatPercent)?;
+                } else {
+                    push(field.assignment, TokenKind::FormatFlag)?;
+                }
+                push(field.width, TokenKind::FormatWidth)?;
+                push(field.size, TokenKind::FormatFlag)?;
+                push(field.conversion, TokenKind::FormatSpec)?;
+            }
+        }
+        tcl_registry::FormatType::Regsub => {
+            for (span, part) in tcl_cmd_core::regex::replacement_parts(template.content.as_bytes())
+            {
+                if let tcl_cmd_core::regex::ReplacementPart::Capture(_) = part {
+                    let kind = if span.len() == 1 {
+                        TokenKind::Operator
+                    } else {
+                        TokenKind::Number
+                    };
+                    push(span, kind)?;
+                }
+            }
+        }
+        _ => return None,
     }
-    (!captures.is_empty()).then_some(captures)
+    (!parts.is_empty()).then_some(parts)
 }
 
 /// Embedded patterns from the same retained schema and source-word geometry

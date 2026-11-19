@@ -44,8 +44,8 @@ pub(super) enum ArgOverride {
     /// (`a3` / `Su` / `c*` / …); falls back to the default classification
     /// when no specifier is recognised.
     BinaryFormat,
-    /// Whole-match and numbered-capture references mapped to the original source word.
-    RegsubReplace(Vec<(std::ops::Range<usize>, TokenKind)>),
+    /// Embedded-language token roles mapped back to original source bytes.
+    TemplateParts(Vec<(std::ops::Range<usize>, TokenKind)>),
     /// Recurse into a braced command-body argument (`ArgRole::Body`),
     /// re-segmenting its inner script so nested commands / vars / strings
     /// are tokenised rather than emitted as one opaque `string`.

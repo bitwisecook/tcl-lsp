@@ -107,9 +107,15 @@ fn sprintf_flags_and_width_subtokens() {
 #[test]
 fn scan_format_arg_subtokenised() {
     // `scan`'s format string is arg 2.
-    let ks = kinds("scan $s {%d} a\n", tcl(), &reg());
+    let ks = kinds("scan $s {%n%[a-z]} a b\n", tcl(), &reg());
     assert!(ks.contains(&(TokenKind::FormatPercent as u32)), "{ks:?}");
     assert!(ks.contains(&(TokenKind::FormatSpec as u32)), "{ks:?}");
+}
+
+#[test]
+fn invalid_scan_conversion_has_no_format_tokens() {
+    let ks = kinds("scan 1 {%#d} a\n", tcl(), &reg());
+    assert!(!ks.contains(&(TokenKind::FormatSpec as u32)), "{ks:?}");
 }
 
 #[test]

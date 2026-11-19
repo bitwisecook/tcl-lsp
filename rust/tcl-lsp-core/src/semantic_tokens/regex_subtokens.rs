@@ -24,12 +24,12 @@ use super::legend::TokenKind;
 use rustc_hash::FxHashMap;
 use tcl_lexer::{LineIndex, Token, TokenType};
 
-/// Colour the captures proved to fall inside this fragment of the source word.
-pub(super) fn push_regsub_subtokens(
+/// Colour only the template roles wholly mapped to this original source fragment.
+pub(super) fn push_template_subtokens(
     line_index: &LineIndex,
     source: &str,
     tok: Token,
-    captures: &[(std::ops::Range<usize>, TokenKind)],
+    parts: &[(std::ops::Range<usize>, TokenKind)],
     entries: &mut Vec<Entry>,
 ) -> bool {
     let Some((cstart, inner)) = subspec_content(source, tok) else {
@@ -37,7 +37,7 @@ pub(super) fn push_regsub_subtokens(
     };
     let pos = TokenPositionContext { source, line_index };
     let mut run = 0;
-    for (span, kind) in captures {
+    for (span, kind) in parts {
         if span.start < cstart || span.end > cstart + inner.len() {
             continue;
         }

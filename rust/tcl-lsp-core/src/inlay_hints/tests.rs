@@ -774,6 +774,16 @@ fn format_sprintf_specifier_hints() {
 }
 
 #[test]
+fn scan_hints_follow_the_scan_direction() {
+    assert!(type_labels("scan 1 {%#d}").is_empty());
+    let source = "scan ab {%n%[a-z]}";
+    assert_eq!(
+        type_labels(source),
+        [(11, "count".to_owned()), (17, "chars".to_owned())]
+    );
+}
+
+#[test]
 fn format_literal_percent_not_hinted() {
     // `%%` is a literal percent — no specifier hint.
     let labels = type_labels("format \"100%%\"\n");

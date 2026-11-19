@@ -638,7 +638,7 @@ fn format_args(
     source: &str,
     analysis: &AnalysisResult,
     seg: &tcl_compiler::segmenter::SegmentedCommand,
-) -> Vec<(FormatOperand, tcl_registry::FormatType)> {
+) -> Vec<(FormatOperand, tcl_registry::FormatStringArg)> {
     // naming.core.original-inlay-retained-context
     // docs/design/analysis/name-resolution-proofs/original-inlay-retained-context.md
     let Some(selected) = source_registry_words(source, analysis, seg) else {
@@ -659,7 +659,7 @@ fn format_args(
         .filter_map(|format| {
             Some((
                 FormatOperand::capture(&selected, input, format.index)?,
-                format.kind,
+                format,
             ))
         })
         .collect()
@@ -723,7 +723,7 @@ fn collect_format_string_hints(
     };
     let segments = structure.commands;
     for seg in &segments {
-        for (operand, kind) in format_args(source, analysis, seg) {
+        for (operand, format) in format_args(source, analysis, seg) {
             let Some(template) = FormatTemplate::from_operand(source, &operand) else {
                 let Some(word) = operand.original.word.as_ref() else {
                     continue;
@@ -733,7 +733,7 @@ fn collect_format_string_hints(
                 else {
                     continue;
                 };
-                for (_, label) in format_specifier_labels(&computed_contents, kind, profile) {
+                for (_, label) in format_specifier_labels(&computed_contents, format, profile) {
                     // Computed contents have no per-character source mapping.
                     push_format_hint(
                         label,
@@ -746,7 +746,7 @@ fn collect_format_string_hints(
                 }
                 continue;
             };
-            for (offset, label) in format_specifier_labels(&template.content, kind, profile) {
+            for (offset, label) in format_specifier_labels(&template.content, format, profile) {
                 if let Some(original) = template.original_offset(offset) {
                     push_format_hint(label, original, range, source, line_index, out);
                 }
@@ -757,11 +757,23 @@ fn collect_format_string_hints(
 
 fn format_specifier_labels(
     content: &str,
-    kind: tcl_registry::FormatType,
+    format: tcl_registry::FormatStringArg,
     profile: &tcl_dialect::DialectProfile,
 ) -> Vec<(usize, &'static str)> {
     let mut labels = Vec::new();
-    match kind {
+    match format.kind {
+        tcl_registry::FormatType::Sprintf if format.scan => {
+            for field in tcl_syntax::scan::conversion_spans(content, profile) {
+                let label = match field.spec.verb {
+                    'n' => Some("count"),
+                    '[' => Some("chars"),
+                    verb => sprintf_short(verb),
+                };
+                if let Some(label) = label {
+                    labels.push((field.conversion.end, label));
+                }
+            }
+        }
         tcl_registry::FormatType::Sprintf => {
             let bytes = content.as_bytes();
             let mut i = 0;

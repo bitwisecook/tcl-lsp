@@ -25,7 +25,7 @@ use super::format_subtokens::{
     push_binary_subtokens, push_clock_subtokens, push_escape_subtokens, push_sprintf_subtokens,
 };
 use super::legend::{MOD_DECLARATION, MOD_DEFAULT_LIBRARY, MOD_DEFINITION, TokenKind};
-use super::regex_subtokens::{push_regex_subtokens, push_regsub_subtokens};
+use super::regex_subtokens::{push_regex_subtokens, push_template_subtokens};
 use super::script_walk::{
     ScriptCtx, collect_case_list, collect_lambda_literal, collect_loop_var_list,
     collect_param_list, collect_script,
@@ -96,8 +96,8 @@ pub(super) fn emit_arg_token(
                 push_binary_subtokens(line_index, full_source, *tok, ctx.dialect, entries);
             classify_and_push_if(!emitted, ctx, *tok, entries);
         }
-        Some(ArgOverride::RegsubReplace(captures)) => {
-            let emitted = push_regsub_subtokens(line_index, full_source, *tok, captures, entries);
+        Some(ArgOverride::TemplateParts(captures)) => {
+            let emitted = push_template_subtokens(line_index, full_source, *tok, captures, entries);
             classify_and_push_if(!emitted, ctx, *tok, entries);
         }
         Some(ArgOverride::LambdaLiteral) => {
