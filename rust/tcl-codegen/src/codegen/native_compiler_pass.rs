@@ -174,6 +174,9 @@ pub(super) fn place_command_starts(ctx: &mut CodegenCtx<'_>) {
         omit_release_markers(ctx);
         return;
     }
+    if !ctx.compact_compiler_pass {
+        place_original_operation_starts(ctx);
+    }
     let mut index = 0;
     while index < ctx.instructions.len() {
         let instruction = &ctx.instructions[index];
@@ -244,6 +247,65 @@ pub(super) fn place_command_starts(ctx: &mut CodegenCtx<'_>) {
         if !covered {
             give_marker(marker, &mut ctx.instructions[index]);
         }
+    }
+}
+
+/// An original operation can be emitted straight onto its first operand
+/// instead of opening a separate selection node. The same private compiler
+/// receipt that admits it supplies the source and the bytecode continuation.
+fn place_original_operation_starts(ctx: &mut CodegenCtx<'_>) {
+    let mut starts = Vec::new();
+    for (index, pair) in ctx.instructions.array_windows::<2>().enumerate() {
+        let [previous, instruction] = pair;
+        if instruction.op == Op::START_CMD
+            || instruction.native_compiler_selection.is_some()
+            || previous.op == Op::START_CMD
+            || (previous.op == Op::NOP && previous.native_compiler_selection.is_some())
+        {
+            continue;
+        }
+        if let Some(site) = instruction
+            .native_operation_selections
+            .iter()
+            .position(|site| {
+                site.compiler_prerequisite.is_some()
+                    && site.guard == tcl_runtime_api::CommandBindingGuard::BeforeArguments
+                    && site.source == instruction.source_cmd_text
+                    && Some(site.span) == instruction.source_span
+            })
+        {
+            starts.push((index + 1, site));
+        }
+    }
+    if starts.is_empty() {
+        return;
+    }
+    // A branch or range beginning at the original entry begins at its marker.
+    for position in ctx.label_positions.values_mut() {
+        *position += starts.partition_point(|&(index, _)| index < *position);
+    }
+    let old = std::mem::take(&mut ctx.instructions);
+    ctx.instructions.reserve_exact(old.len() + starts.len());
+    let mut starts = starts.into_iter().peekable();
+    for (index, mut instruction) in old.into_iter().enumerate() {
+        if let Some((_, site)) = starts.next_if(|&(at, _)| at == index) {
+            let site = &instruction.native_operation_selections[site];
+            let mut marker = tcl_bytecode::Instruction::new(
+                Op::START_CMD,
+                vec![Operand::Label(site.end.clone()), Operand::Imm(1)],
+            );
+            marker.source_line = instruction.source_line;
+            marker.source_span = Some(site.span);
+            marker.source_cmd_text = site.source.clone();
+            marker.source_command_namespace = site.namespace.clone();
+            marker.source_command_namespace_context = site.namespace_context.clone();
+            marker.source_command_boundary = tcl_bytecode::SourceCommandBoundary::Start;
+            marker.native_operation_selections =
+                std::mem::take(&mut instruction.native_operation_selections);
+            marker.no_fold = true;
+            ctx.instructions.push(marker);
+        }
+        ctx.instructions.push(instruction);
     }
 }
 

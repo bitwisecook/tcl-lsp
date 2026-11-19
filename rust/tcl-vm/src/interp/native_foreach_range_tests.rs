@@ -57,7 +57,14 @@ fn compiled_with(
     let instructions = asm
         .instructions
         .iter()
-        .map(|instruction| format!("{}:{}", instruction.offset, instruction.op.mnemonic()))
+        .map(|instruction| {
+            let name = if release.emits_wide_instructions_only() {
+                instruction.op.wide_mnemonic()
+            } else {
+                instruction.op.mnemonic()
+            };
+            format!("{}:{name}", instruction.offset)
+        })
         .collect();
     let invoke = asm.instructions.iter().position(|instruction| {
         matches!(
@@ -251,20 +258,16 @@ fn a_body_ends_with_the_done_tclsh_appends() {
                 body,
                 "{release:?} proc {source}"
             );
-            // 8.5 scripts also mark a compiled `return` with startCommand, a
-            // separate cause.
-            if release >= tcl_dialect::TclVersion::V8_6 {
-                let (script, _) = oracle_of(
-                    release,
-                    &format!("puts [tcl::unsupported::disassemble script {{{source}}}]"),
-                )
-                .expect("the same oracle");
-                assert_eq!(
-                    script_compiled(release, source),
-                    script,
-                    "{release:?} script {source}"
-                );
-            }
+            let (script, _) = oracle_of(
+                release,
+                &format!("puts [tcl::unsupported::disassemble script {{{source}}}]"),
+            )
+            .expect("the same oracle");
+            assert_eq!(
+                script_compiled(release, source),
+                script,
+                "{release:?} script {source}"
+            );
         }
     }
 }
@@ -325,6 +328,7 @@ fn a_body_takes_the_optimizations_tclsh_applies_from_8_6() {
             tcl_dialect::TclVersion::V8_5,
             tcl_dialect::TclVersion::V8_6,
             tcl_dialect::TclVersion::V9_0,
+            tcl_dialect::TclVersion::V9_1,
         ] {
             let Some((body, _)) = oracle_of(
                 release,
