@@ -654,7 +654,9 @@ pub fn close_quote_offset(source: impl AsRef<[u8]>, open_quote: usize) -> Option
     close_quote_offset_in(source, open_quote, crate::LexerConfig::default())
 }
 
-pub(crate) fn close_quote_offset_in(
+/// Closing delimiter of an original quoted word under the selected nested grammar.
+#[must_use]
+pub fn close_quote_offset_in(
     source: impl AsRef<[u8]>,
     open_quote: usize,
     config: crate::LexerConfig,

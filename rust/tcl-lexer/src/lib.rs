@@ -117,9 +117,10 @@ pub use parse_cut::{
 pub use parse_issue::ParseIssueKind;
 pub use ranges::{
     ArrayIndexEnd, ArrayIndexScan, BracedVarEnd, INVALID_CHARACTER_IN_ARRAY_INDEX,
-    MISSING_CLOSE_BRACE_FOR_VAR, braced_var_name_end, close_quote_offset, command_substitution_end,
-    command_substitution_end_bytes_in, scan_array_index, scan_array_index_in, word_append_offset,
-    word_closer_offset, word_closer_offset_at, word_end_position, word_span, word_span_at,
+    MISSING_CLOSE_BRACE_FOR_VAR, braced_var_name_end, close_quote_offset, close_quote_offset_in,
+    command_substitution_end, command_substitution_end_bytes_in, scan_array_index,
+    scan_array_index_in, word_append_offset, word_closer_offset, word_closer_offset_at,
+    word_end_position, word_span, word_span_at,
 };
 pub use script::{CommandSpan, WordKind, WordSpan, group_commands, group_commands_bytes};
 pub use script_completeness::{ScriptCompletenessUnavailable, script_image_is_complete};
