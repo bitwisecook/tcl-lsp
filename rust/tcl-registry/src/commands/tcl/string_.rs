@@ -31,7 +31,7 @@ pub(crate) use constant_folds::{
     fold_trimleft, fold_trimleft_versioned, fold_trimright, fold_trimright_versioned,
 };
 use is_classes::IS_CLASSES;
-pub(crate) use is_classes::fold_is;
+pub(crate) use is_classes::{fold_is, fold_is_jim};
 pub use is_classes::{string_is_member_type, string_is_member_type_for_dialect};
 
 /// `string match ?-nocase? pattern string` — the declared option prefix shifts

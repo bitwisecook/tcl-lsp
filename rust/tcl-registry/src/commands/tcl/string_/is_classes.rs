@@ -20,105 +20,134 @@
 
 use super::{ArgValue, TclType, TclVersion};
 use tcl_syntax::number;
-use tcl_syntax::number::{Number, NumberSyntax, Numbers};
+use tcl_syntax::number::{Number, NumberSyntax};
+use tcl_syntax::scalar_getter::{NativeScalarGetterKind, NativeScalarGetterProtocol};
 
-/// `string is class ?-strict? ?-failindex var? string`.
-/// Constant-folds the **Tcl-faithful** classes
-/// the optimiser can decide soundly.
-///
-/// Deliberately follows Tcl's classification, not a naive
-/// letter-case predicate whose semantics diverge: e.g. a check that
-/// passes `"abc1"` as "lower" disagrees with `string is lower abc1`,
-/// which is `0` (Tcl requires *every* char to be a lowercase letter;
-/// a digit fails).  The ASCII character
-/// classes here apply the predicate to every char and **bail on
-/// non-ASCII input** (Unicode class membership isn't modelled — a
-/// missed fold, never a wrong one).  `ascii` is the membership test
-/// itself, so it is defined for any input.  `boolean` / `true` /
-/// `false` use the exact `Tcl_GetBoolean` keyword + unique-prefix set
-/// (so `t` / `ye` / `of` resolve, `o` — ambiguous between on/off —
-/// does not).  `list` folds (a backslash-free string's well-formedness is
-/// unambiguous).  `integer` and `double` fold over their dialect-invariant
-/// subsets (see [`string_is_integer`] / [`string_is_double`]); `entier` /
-/// `wideinteger` / `dict` stay deferred — they *raise* in old dialects
-/// (8.4 / 8.4 + 8.5 / pre-9.0 respectively), so no dialect-agnostic fold can
-/// be sound (it would turn an error into a value).
+/// Literal `string is` without a variable-writing option. An unidentified
+/// receiver requires identical outcomes in the supported C cores and Jim.
 pub(crate) fn fold_is(args: &[&str], version: Option<TclVersion>) -> Option<String> {
-    if args.len() < 2 {
-        return None;
-    }
-    let class = args[0];
-    // Tcl grammar: `string is class ?-strict? ?-failindex var? str` — the
-    // **last** argument is always the value under test; the args between the
-    // class and it are options.  Verified against tclsh 8.4 → 9.0:
-    // `string is integer -7` reads `-7` as the *value* (→ 1), and a lone
-    // `string is integer -strict` reads `-strict` as the value (→ 0), not an
-    // option.  Taking the last arg as the value (rather than treating every
-    // `-`-leading arg as an option, as a naive scan would) lets a negative
-    // value fold and matches real Tcl.
-    let s = *args.last()?;
-    let mut strict = false;
-    for opt in &args[1..args.len() - 1] {
-        match *opt {
-            "-strict" => strict = true,
-            // `-failindex var` writes a variable (never folded); an unknown
-            // option is ambiguous — bail in both cases.
-            _ => return None,
-        }
-    }
-
-    // A class that *raises* in this dialect can't fold to any value — not even
-    // the empty-string shortcut below (`string is dict ""` raises before 9.0).
-    if !class_available(class, version) {
-        return None;
-    }
-
-    // The empty string is a member of every available class in non-strict mode
-    // and a member of none in strict mode.
-    if s.is_empty() {
-        return Some(if strict { "0" } else { "1" }.to_owned());
-    }
-
-    let member = match class {
-        "alpha" => ascii_all(s, |c| c.is_ascii_alphabetic())?,
-        "alnum" => ascii_all(s, |c| c.is_ascii_alphanumeric())?,
-        "digit" => ascii_all(s, |c| c.is_ascii_digit())?,
-        "lower" => ascii_all(s, |c| c.is_ascii_lowercase())?,
-        "upper" => ascii_all(s, |c| c.is_ascii_uppercase())?,
-        "xdigit" => ascii_all(s, |c| c.is_ascii_hexdigit())?,
-        "space" => ascii_all(s, is_tcl_space)?,
-        "control" => ascii_all(s, |c| c.is_ascii_control())?,
-        "graph" => ascii_all(s, |c| c.is_ascii_graphic())?,
-        "print" => ascii_all(s, |c| c.is_ascii_graphic() || c == ' ')?,
-        "punct" => ascii_all(s, |c| c.is_ascii_punctuation())?,
-        "wordchar" => ascii_all(s, |c| c.is_ascii_alphanumeric() || c == '_')?,
-        // `ascii` is the test itself — defined for any input.
-        "ascii" => s.is_ascii(),
-        "boolean" => tcl_bool(s).is_some(),
-        "true" => tcl_bool(s) == Some(true),
-        "false" => tcl_bool(s) == Some(false),
-        // `list`: well-formed Tcl list.  `split_list` returns `Some`
-        // only for a valid (backslash-free) list and `None` for a
-        // malformed one — but it conservatively rejects *any* backslash,
-        // and a backslash-bearing string can still be a valid list
-        // (`a\ b`), so a `None` there is ambiguous.  Sound resolution:
-        // a backslash-free string folds (`Some` → 1, `None` → 0); a
-        // backslash-bearing one bails.
-        "list" => crate::InvocationDialect::for_version(version?)
-            .read_list(s)
-            .is_ok(),
-        // Version-aware number classes (availability gated by
-        // `class_available` above); each decides 1/0/bail for `version`.
-        "integer" => return is_integer_class(s, version),
-        "wideinteger" => return is_wide_class(s, version),
-        "entier" => return is_entier_class(s, version),
-        "dict" => crate::InvocationDialect::for_version(version?)
-            .read_list(s)
-            .is_ok_and(|words| words.len().is_multiple_of(2)),
-        "double" => return string_is_double(s, version),
-        _ => return None, // unknown class
+    let answer = if let Some(version) = version {
+        fold_is_c(args, version)?
+    } else {
+        let jim = fold_is_jim(args)?;
+        TclVersion::ALL
+            .into_iter()
+            .all(|release| fold_is_c(args, release) == Some(jim))
+            .then_some(jim)?
     };
-    Some(if member { "1" } else { "0" }.to_owned())
+    Some(u8::from(answer).to_string())
+}
+
+/// The ordinary Jim class command has its own table, an exact `-strict`
+/// option, byte-oriented character classes and fresh-object getters.
+pub(crate) fn fold_is_jim(args: &[&str]) -> Option<bool> {
+    use tcl_dialect::model::{DialectPoint, Release};
+
+    let (class, strict, value) = match args {
+        [class, value] => (*class, false, *value),
+        [class, "-strict", value] => (*class, true, *value),
+        _ => return None,
+    };
+    if !value.is_ascii() || value.contains('\0') {
+        return None;
+    }
+    let protocol =
+        NativeScalarGetterProtocol::for_point(DialectPoint::canonical(Release::JIM_0_84))?;
+    match class {
+        "boolean" | "integer" => {
+            if value.is_empty() {
+                return Some(!strict);
+            }
+            let kind = if class == "boolean" {
+                NativeScalarGetterKind::Boolean
+            } else {
+                NativeScalarGetterKind::Wide
+            };
+            Some(
+                protocol
+                    .fresh_conversion(kind, value.as_bytes())?
+                    .outcome()
+                    .is_ok(),
+            )
+        }
+        "double" => {
+            if value.is_empty() {
+                return Some(!strict);
+            }
+            legacy_double_class(value, protocol, NumberSyntax::Jim)
+        }
+        // On this ASCII subset Jim's ctype classes and the C class core agree.
+        "alpha" | "alnum" | "ascii" | "digit" | "lower" | "upper" | "space" | "xdigit"
+        | "control" | "print" | "graph" | "punct" => {
+            Some(tcl_cmd_core::string_is::class_check(class, value, strict, NumberSyntax::Jim).0)
+        }
+        _ => None,
+    }
+}
+
+fn fold_is_c(args: &[&str], version: TclVersion) -> Option<bool> {
+    use tcl_cmd_core::string_is::{class_check_in_release, resolve_class};
+
+    // A fail-index target is observed on failure. Other option shapes need
+    // the full completion and store transfer before they can be folded.
+    let (class, strict, value) = match args {
+        [class, value] => (*class, false, *value),
+        [class, "-strict", value] => (*class, true, *value),
+        _ => return None,
+    };
+    let class = resolve_class(class, version).ok()?;
+    match class {
+        "list" | "dict" => {
+            let words = crate::InvocationDialect::for_version(version).read_list(value);
+            Some(words.is_ok_and(|words| class == "list" || words.len().is_multiple_of(2)))
+        }
+        "ascii" => Some(value.is_ascii() && (!value.is_empty() || !strict)),
+        _ if !value.is_ascii() || value.contains('\0') => None,
+        "double" if version == TclVersion::V8_4 && !value.is_empty() => legacy_double_class(
+            value,
+            tcl_syntax::scalar_getter::NativeScalarGetterProtocol::for_tcl_version(version),
+            version.number_syntax(),
+        ),
+        "wideinteger" if !value.is_empty() => Some(
+            NativeScalarGetterProtocol::for_tcl_version(version)
+                .fresh_conversion(NativeScalarGetterKind::Wide, value.as_bytes())?
+                .outcome()
+                .is_ok(),
+        ),
+        _ => Some(class_check_in_release(class, value, strict, version).0),
+    }
+}
+
+fn legacy_double_class(
+    value: &str,
+    protocol: tcl_syntax::scalar_getter::NativeScalarGetterProtocol,
+    numbers: NumberSyntax,
+) -> Option<bool> {
+    use tcl_syntax::number::{ParseFlags, parse_whole_with};
+    use tcl_syntax::scalar_getter::NativeScalarGetterFailure;
+
+    // These receivers separately inspect the native integer width before or
+    // alongside strtod. A bignum or an unproved range boundary stays source.
+    if matches!(
+        parse_whole_with(
+            value,
+            ParseFlags {
+                integer_only: true,
+                ..ParseFlags::for_syntax(numbers)
+            }
+        ),
+        Some(Number::Big { .. })
+    ) {
+        return None;
+    }
+    if number::is_out_of_range_double(value, numbers) {
+        return Some(false);
+    }
+    let conversion = protocol.fresh_conversion(NativeScalarGetterKind::Double, value.as_bytes())?;
+    Some(matches!(
+        conversion.outcome(),
+        Ok(_) | Err(NativeScalarGetterFailure::FloatingPointNaN)
+    ))
 }
 
 /// The type every value a `string is` test accepts holds once it has: what
@@ -198,243 +227,6 @@ fn class_available(class: &str, version: Option<TclVersion>) -> bool {
         },
         None => true,
     }
-}
-
-/// The magnitude bounds the `string is` integer classes use across releases.
-const U32_MAX: u128 = 4_294_967_295;
-
-const I64_MAX: u128 = 9_223_372_036_854_775_807;
-
-const U64_MAX: u128 = 18_446_744_073_709_551_615;
-
-/// Classification of a `string is <intclass>` value as a plain decimal.
-enum IntForm {
-    /// Definitely not an integer in any form (→ `"0"` for an available class).
-    NotInteger,
-    /// A leading-zero / `0x` / `0o` / `0b` / non-ASCII form whose validity or
-    /// magnitude is version-dependent — bail.
-    Ambiguous,
-    /// A plain decimal: `mag` is its absolute value, or `None` when it exceeds
-    /// `u128` (astronomically large).
-    Decimal { neg: bool, mag: Option<u128> },
-}
-
-/// Classify `s` as a plain decimal integer.  Restricting to plain decimals
-/// (no leading zero, no `0x`/`0o`/`0b`) makes the *form* validity
-/// version-independent — only the magnitude cap varies — so the per-class
-/// handlers compare `mag` against their version's bound.
-fn classify_int_form(s: &str) -> IntForm {
-    if !s.is_ascii() {
-        return IntForm::Ambiguous;
-    }
-    let t = s.trim();
-    if t.is_empty() {
-        return IntForm::NotInteger; // whitespace-only
-    }
-    let (neg, body) = if let Some(rest) = t.strip_prefix('-') {
-        (true, rest)
-    } else {
-        (false, t.strip_prefix('+').unwrap_or(t))
-    };
-    let b = body.as_bytes();
-    if b.is_empty() {
-        return IntForm::NotInteger; // a lone sign
-    }
-    if b.contains(&b'_') {
-        return IntForm::Ambiguous; // Tcl 9 digit separators
-    }
-    if b[0] == b'0'
-        && b.len() >= 2
-        && matches!(b[1], b'x' | b'X' | b'o' | b'O' | b'b' | b'B' | b'd' | b'D')
-    {
-        return IntForm::Ambiguous; // Tcl 9 radix prefixes / Tcl 8.x divergence
-    }
-    if !b.iter().all(u8::is_ascii_digit) {
-        return IntForm::NotInteger; // a non-digit with no recognised prefix
-    }
-    if b.len() > 1 && b[0] == b'0' {
-        return IntForm::Ambiguous; // leading zero → octal interpretation in 8.x
-    }
-    IntForm::Decimal {
-        neg,
-        mag: body.parse::<u128>().ok(),
-    }
-}
-
-fn tcl9_integer_number(s: &str) -> Option<Number> {
-    if !s.is_ascii() {
-        return None;
-    }
-    Numbers::Target(NumberSyntax::Tcl90).parse_whole(s)
-}
-
-/// `string is integer`: known Tcl 9 uses the shared Tcl 9 number parser;
-/// older/unknown dialects stay on the conservative plain-decimal subset.
-/// A plain decimal of magnitude ≤ `2³²-1` is valid in every release
-/// (→ `1`); larger or Tcl-9-only forms bail unless the dialect is known.
-fn is_integer_class(s: &str, version: Option<TclVersion>) -> Option<String> {
-    if version >= Some(TclVersion::V9_0) {
-        return Some(
-            if matches!(
-                tcl9_integer_number(s),
-                Some(Number::Int(_) | Number::Big { .. })
-            ) {
-                "1"
-            } else {
-                "0"
-            }
-            .to_owned(),
-        );
-    }
-    match classify_int_form(s) {
-        IntForm::Ambiguous => None,
-        IntForm::NotInteger => Some("0".to_owned()),
-        IntForm::Decimal { mag, .. } => {
-            let within_32 = mag.is_some_and(|m| m <= U32_MAX);
-            match version {
-                Some(TclVersion::V9_0 | TclVersion::V9_1) => Some("1".to_owned()),
-                Some(_) => Some(if within_32 { "1" } else { "0" }.to_owned()),
-                None => within_32.then(|| "1".to_owned()),
-            }
-        }
-    }
-}
-
-/// `string is wideinteger` (available 8.5+, gated by [`class_available`]):
-/// known Tcl 9 uses the shared Tcl 9 number parser and the signed-64-bit
-/// bound. 8.5/8.6 accept the unsigned-64-bit range; negative values bail
-/// there because that signed/unsigned boundary differs by dialect.
-fn is_wide_class(s: &str, version: Option<TclVersion>) -> Option<String> {
-    if version >= Some(TclVersion::V9_0) {
-        return Some(
-            if matches!(tcl9_integer_number(s), Some(Number::Int(_))) {
-                "1"
-            } else {
-                "0"
-            }
-            .to_owned(),
-        );
-    }
-    match classify_int_form(s) {
-        IntForm::Ambiguous => None,
-        IntForm::NotInteger => Some("0".to_owned()),
-        IntForm::Decimal { neg, mag } => {
-            if neg {
-                return None;
-            }
-            let cap = if version >= Some(TclVersion::V9_0) {
-                I64_MAX
-            } else {
-                U64_MAX
-            };
-            Some(
-                if mag.is_some_and(|m| m <= cap) {
-                    "1"
-                } else {
-                    "0"
-                }
-                .to_owned(),
-            )
-        }
-    }
-}
-
-/// `string is entier` (available 8.6+, gated by [`class_available`]):
-/// known Tcl 9 uses the shared Tcl 9 number parser. Older known dialects
-/// accept the conservative plain-decimal subset at arbitrary precision.
-fn is_entier_class(s: &str, version: Option<TclVersion>) -> Option<String> {
-    if version >= Some(TclVersion::V9_0) {
-        return Some(
-            if matches!(
-                tcl9_integer_number(s),
-                Some(Number::Int(_) | Number::Big { .. })
-            ) {
-                "1"
-            } else {
-                "0"
-            }
-            .to_owned(),
-        );
-    }
-    match classify_int_form(s) {
-        IntForm::Ambiguous => None,
-        IntForm::NotInteger => Some("0".to_owned()),
-        IntForm::Decimal { .. } => Some("1".to_owned()),
-    }
-}
-
-/// `string is double` over the **dialect-invariant** subset.  `s` is the
-/// non-empty value under test (the empty string is handled by [`fold_is`]).
-///
-/// `string is double` is remarkably consistent across Tcl 8.4 → 9.0, and on
-/// the decimal / scientific / `Inf` / `NaN` forms Rust's `f64::from_str`
-/// (after trimming) agrees with it **exactly** — verified over a broad matrix
-/// against `tclsh8.4`/`8.5`/`8.6`/`9.0` during development, e.g. `5.e3`, `.5`,
-/// `1.`, `+.5`, `1E-10`, `inf`, `nan` → `1`; `1e`, `e5`, `.`, `1.2.3` → `0`.
-/// The few forms where they part ways are version-divergent anyway, so they
-/// **bail**:
-///
-/// * a `_` digit separator — accepted only by Tcl 9 (`1_000` → `0` on 8.x,
-///   `1` on 9.0), rejected by Rust;
-/// * a `0x` / `0o` / `0b` prefix — `0x…` is a valid double in every version
-///   but Rust's parser rejects it, `0o…` / `0b…` raise in 8.4, and a
-///   hex-float (`0x1.8p3`) flips 8.4 (`1`) ↔ 8.5+ (`0`);
-/// * a `(` — the `nan(payload)` form, which Tcl accepts but Rust rejects;
-/// * a non-ASCII value (so the `.trim()` whitespace set matches Tcl's).
-///
-/// A decimal spelling outside the double range (`1e400`, `1e-400`, a
-/// subnormal) is a release question the number owner answers
-/// ([`NumberSyntax::string_is_double_rejects_range_error`]): `0` on 8.4, `1`
-/// from 8.5, and a bail when `version` names no core release (Jim refuses it
-/// too, but has no `TclVersion`).
-fn string_is_double(s: &str, version: Option<TclVersion>) -> Option<String> {
-    if !s.is_ascii() {
-        return None;
-    }
-    let t = s.trim();
-    if t.contains('_') || t.contains('(') {
-        return None;
-    }
-    let body = t.strip_prefix(['+', '-']).unwrap_or(t);
-    let b = body.as_bytes();
-    if b.len() >= 2 && b[0] == b'0' && matches!(b[1], b'x' | b'X' | b'o' | b'O' | b'b' | b'B') {
-        return None;
-    }
-    // For every remaining ASCII form, Rust's `f64` parser and Tcl's
-    // `string is double` agree across 8.4 → 9.0 — except a spelling outside
-    // the double range, which 8.4 and Jim refuse and 8.5 onward accept.
-    if t.parse::<f64>().is_err() {
-        return Some("0".to_owned());
-    }
-    if !number::is_out_of_range_double(t, NumberSyntax::Tcl90) {
-        return Some("1".to_owned());
-    }
-    let numbers = version.map_or(Numbers::Unknown, |v| Numbers::Target(v.number_syntax()));
-    let rejected = numbers.resolve(NumberSyntax::string_is_double_rejects_range_error)?;
-    Some(if rejected { "0" } else { "1" }.to_owned())
-}
-
-/// Apply an ASCII char predicate to every char of `s`, bailing (`None`)
-/// on any non-ASCII char — Unicode class membership isn't modelled here.
-fn ascii_all(s: &str, pred: impl Fn(char) -> bool) -> Option<bool> {
-    if !s.is_ascii() {
-        return None;
-    }
-    Some(s.chars().all(pred))
-}
-
-/// Tcl's whitespace set for `string is space` (`Tcl_UniCharIsSpace` on
-/// ASCII): space, tab, newline, CR, vertical tab, form feed.  (Rust's
-/// `char::is_ascii_whitespace` omits the vertical tab.)
-fn is_tcl_space(c: char) -> bool {
-    matches!(c, ' ' | '\t' | '\n' | '\r' | '\u{0b}' | '\u{0c}')
-}
-
-/// `Tcl_GetBoolean`: the canonical strict acceptor — `0` / `1` plus the
-/// case-insensitive *unique* prefixes of the six boolean words. One home:
-/// [`tcl_syntax::boolean::parse_boolean_strict`] (oracle-table-pinned).
-fn tcl_bool(s: &str) -> Option<bool> {
-    tcl_syntax::boolean::parse_boolean_strict(s)
 }
 
 /// Character classes accepted by `string is <class>`.

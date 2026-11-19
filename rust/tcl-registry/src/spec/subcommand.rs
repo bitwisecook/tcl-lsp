@@ -718,6 +718,19 @@ impl SubCommand {
         use crate::native_compilation::NativeCompilationGrammar;
         use crate::native_dictionary::NativeDictionaryCommand;
 
+        if self.semantic_operation
+            == Some(crate::SemanticOperationId::Intrinsic(
+                crate::IntrinsicId::StringIs,
+            ))
+            && dialect.family() == Some(tcl_dialect::model::Family::Jim)
+        {
+            if dialect.execution_point()?.release() != tcl_dialect::model::Release::JIM_0_84 {
+                return None;
+            }
+            self.const_fold_versioned?;
+            return crate::commands::tcl::fold_is_jim(args)
+                .map(|value| u8::from(value).to_string());
+        }
         if let Some(NativeCompilationGrammar::Dictionary {
             command: member @ (NativeDictionaryCommand::Keys | NativeDictionaryCommand::Values),
             ..

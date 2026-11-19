@@ -160,13 +160,11 @@ fn string_is_folds_tcl_faithful_classes() {
     assert_eq!(is(&["true", "no"]).as_deref(), Some("0"));
     assert_eq!(is(&["false", "off"]).as_deref(), Some("1"));
 
-    // `list`: a well-formed list folds; a malformed one is `0`; a
-    // backslash-bearing string bails (split_list rejects backslash,
-    // but it can still be a valid list).
+    // The selected list reader validates both escaped and braced elements.
     assert_eq!(is(&["list", "a b c"]).as_deref(), Some("1"));
     assert_eq!(is(&["list", "{a b} c"]).as_deref(), Some("1"));
     assert_eq!(is(&["list", "a {b"]).as_deref(), Some("0"), "unbalanced");
-    assert_eq!(is(&["list", "a\\ b"]), None, "backslash bails");
+    assert_eq!(is(&["list", "a\\ b"]).as_deref(), Some("1"));
 
     // Empty string: non-strict member of every class, strict member
     // of none.
@@ -189,8 +187,53 @@ fn string_is_folds_tcl_faithful_classes() {
 }
 
 #[test]
-fn string_is_double_folds_dialect_invariant_subset() {
-    // `double` is version-invariant today; pin under 9.0.
+fn literal_string_options_and_classes_follow_the_receivers() {
+    let reg = CommandRegistry::build_default();
+    let string = reg.get("string").unwrap();
+    let (compare, equal, classify) = (
+        string.subcommand("compare").unwrap(),
+        string.subcommand("equal").unwrap(),
+        string.subcommand("is").unwrap(),
+    );
+    for (profile, octal_equal, double_08, boolean_t) in [
+        ("tcl8.4", Some("1"), "1", "1"),
+        ("tcl8.5", Some("1"), "0", "1"),
+        ("tcl8.6", Some("1"), "0", "1"),
+        ("tcl9.0", Some("0"), "1", "1"),
+        ("tcl9.1", Some("0"), "1", "1"),
+        ("jimtcl", None, "1", "0"),
+    ] {
+        let dialect =
+            crate::InvocationDialect::of_profile(crate::native_test_provider::profile(profile));
+        assert_eq!(compare.run_const_fold_in(&["--", "a", "b"], dialect), None);
+        assert_eq!(equal.run_const_fold_in(&["--", "a", "a"], dialect), None);
+        assert_eq!(
+            equal
+                .run_const_fold_in(&["-length", "010", "abcdefghX", "abcdefghY"], dialect)
+                .as_deref(),
+            octal_equal,
+            "{profile}"
+        );
+        assert_eq!(
+            classify
+                .run_const_fold_in(&["double", "08"], dialect)
+                .as_deref(),
+            Some(double_08),
+            "{profile}"
+        );
+        assert_eq!(
+            classify
+                .run_const_fold_in(&["boolean", "t"], dialect)
+                .as_deref(),
+            Some(boolean_t),
+            "{profile}"
+        );
+    }
+}
+
+#[test]
+fn string_is_double_uses_the_selected_number_grammar() {
+    // The selected C 9 grammar accepts both explicit radix and decimal forms.
     let is_dbl = |v: &str| fold_is(&["double", v], Some(TclVersion::V9_0));
 
     // Decimal / scientific / Inf / NaN forms fold to "1" — Rust's f64
@@ -205,16 +248,15 @@ fn string_is_double_folds_dialect_invariant_subset() {
     for v in ["abc", "1e", "e5", "1.5e", ".", "1.2.3", "1d0", "1f", " "] {
         assert_eq!(is_dbl(v).as_deref(), Some("0"), "{v:?} is not a double");
     }
-    // Version-divergent / Rust-mismatching forms bail.
-    assert_eq!(is_dbl("1_000"), None, "Tcl 9 digit separator");
-    assert_eq!(is_dbl("0x1f"), None, "hex valid in Tcl, rejected by Rust");
-    assert_eq!(is_dbl("0o17"), None, "0o raises in 8.4");
-    assert_eq!(is_dbl("0x1.8p3"), None, "hex-float flips 8.4 ↔ 8.5+");
-    assert_eq!(
-        is_dbl("nan(0)"),
-        None,
-        "nan payload: Tcl accepts, Rust rejects"
-    );
+    for (literal, expected) in [
+        ("1_000", "1"),
+        ("0x1f", "1"),
+        ("0o17", "1"),
+        ("0x1.8p3", "0"),
+        ("nan(0)", "1"),
+    ] {
+        assert_eq!(is_dbl(literal).as_deref(), Some(expected), "{literal}");
+    }
     assert_eq!(is_dbl("caf\u{e9}"), None, "non-ASCII bails");
 }
 
@@ -310,9 +352,13 @@ fn string_is_integer_folds_dialect_invariant_subset() {
         "past the 32-bit cap (8.x reject)"
     );
     assert_eq!(is_int("9999999999999999999999"), None, "huge → diverges");
-    assert_eq!(is_int("010"), None, "leading zero: octal in 8.x");
+    assert_eq!(
+        is_int("010").as_deref(),
+        Some("1"),
+        "integer in every release"
+    );
     assert_eq!(is_int("08"), None, "leading zero, invalid octal in 8.x");
-    assert_eq!(is_int("0x1f"), None, "hex needs digit validation");
+    assert_eq!(is_int("0x1f").as_deref(), Some("1"));
     assert_eq!(is_int("0o17"), None, "0o raises in 8.4");
     assert_eq!(is_int("0b101"), None, "0b raises in 8.4");
     assert_eq!(is_int("caf\u{e9}"), None, "non-ASCII bails");
@@ -660,11 +706,17 @@ fn string_index_comparison_folds_match_tcl() {
     assert_eq!(f("compare")(&["abc", "abd"]).as_deref(), Some("-1"));
     assert_eq!(f("compare")(&["abd", "abc"]).as_deref(), Some("1"));
     assert_eq!(
-        f("compare")(&["-nocase", "ABC", "abc"]).as_deref(),
+        spec.subcommand("compare")
+            .unwrap()
+            .run_const_fold(&["-nocase", "ABC", "abc"], Some(TclVersion::V8_6))
+            .as_deref(),
         Some("0")
     );
     assert_eq!(
-        f("compare")(&["-length", "2", "abX", "abY"]).as_deref(),
+        spec.subcommand("compare")
+            .unwrap()
+            .run_const_fold(&["-length", "2", "abX", "abY"], Some(TclVersion::V8_6))
+            .as_deref(),
         Some("0")
     );
     assert_eq!(f("equal")(&["abc", "abc"]).as_deref(), Some("1"));
