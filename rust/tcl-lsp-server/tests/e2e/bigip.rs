@@ -297,6 +297,30 @@ fn extract_linked_objects_walks_from_the_object_at_the_cursor() {
 }
 
 #[test]
+fn linked_object_at_eof_uses_the_original_header_and_exclusive_utf16_end() {
+    let mut lsp = Lsp::bigip();
+    let uri = bigip_uri();
+    let first = "ltm pool /Common/first {} ";
+    let last = "ltm pool /Common/last { description \"😀\" }";
+    let source = format!("{first}{last}");
+    lsp.open_document(&uri, &source);
+    lsp.await_diagnostics_version(&uri, Some(1), Duration::from_secs(30));
+    let result = lsp.execute_command(
+        "tcl-lsp.extractLinkedObjects",
+        serde_json::json!([uri, first.len(), 0, 1]),
+    );
+    let node = &result["nodes"][0];
+    assert_eq!(node["identifier"], "/Common/last");
+    assert_eq!(
+        node["range"],
+        serde_json::json!({
+            "start": {"line": 0, "character": first.encode_utf16().count()},
+            "end": {"line": 0, "character": source.encode_utf16().count()}
+        })
+    );
+}
+
+#[test]
 fn extract_linked_objects_stops_at_the_requested_depth() {
     let mut lsp = Lsp::bigip();
     let uri = bigip_uri();

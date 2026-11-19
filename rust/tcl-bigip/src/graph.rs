@@ -36,7 +36,7 @@ use crate::error::BigipError;
 use crate::model::ModelObject;
 use crate::parser::driver::{BigipConfig, Placed};
 use crate::parser::header::{ObjectTypeIndex, parse_generic_header};
-use crate::parser::helpers::extract_blocks;
+use crate::parser::helpers::block_spans;
 use crate::range::Range;
 
 /// One BIG-IP object stanza as a graph node (exposed publicly as
@@ -59,7 +59,7 @@ pub struct ObjectNode {
     pub header: String,
     /// Stanza body (between the outermost braces).
     pub body: String,
-    /// Byte offset of the start of the header line.
+    /// Byte offset of the first word in the stanza header.
     pub header_start_offset: usize,
     /// Byte offset of the opening `{`.
     pub start_offset: usize,
@@ -116,20 +116,19 @@ impl Default for GraphContext {
 pub fn build_objects_for_source(uri: &str, source: &str, ctx: &GraphContext) -> Vec<ObjectNode> {
     let line_index = LineIndex::new(source);
     let reg = default_registry();
-    let bytes = source.as_bytes();
     let mut result = Vec::new();
-    for block in extract_blocks(source) {
-        let Some((module, object_type, identifier)) =
-            parse_generic_header(&block.header, &ctx.index)
+    for block in block_spans(source) {
+        let header = source[block.header.clone()].trim();
+        let Some((module, object_type, identifier)) = parse_generic_header(header, &ctx.index)
         else {
             continue;
         };
-        // Walk back to the start of the header line.
-        let mut header_start = block.start_offset;
-        while header_start > 0 && bytes[header_start - 1] != b'\n' {
-            header_start -= 1;
-        }
-        let range = Range::from_offsets(source, &line_index, block.start_offset, block.end_offset);
+        let header_start = block.header.start;
+        let start_offset = block.header.end;
+        let end_offset = block.range().end;
+        // Model range keys have their own serialized convention;
+        // source consumers use the original half-open stanza byte offsets.
+        let range = Range::from_offsets(source, &line_index, start_offset, end_offset);
         let node_id = format!(
             "{uri}:{}:{}:{module}:{object_type}:{identifier}",
             range.start.line, range.start.character
@@ -142,11 +141,11 @@ pub fn build_objects_for_source(uri: &str, source: &str, ctx: &GraphContext) -> 
             object_type,
             identifier,
             kind,
-            header: block.header,
-            body: block.body,
+            header: header.to_owned(),
+            body: source[block.body].to_owned(),
             header_start_offset: header_start,
-            start_offset: block.start_offset,
-            end_offset: block.end_offset,
+            start_offset,
+            end_offset,
             range,
         });
     }

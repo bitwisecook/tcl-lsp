@@ -150,8 +150,15 @@ impl Backend {
     /// `sourceOrigin` is always null: the clients read the field, but the
     /// graph does not track how a stanza reached the file, and inventing a
     /// value would be worse than saying nothing.
-    fn linked_object_node(node: &tcl_bigip::graph::ObjectNode, depth: u64) -> serde_json::Value {
-        serde_json::json!({
+    fn linked_object_node(
+        node: &tcl_bigip::graph::ObjectNode,
+        depth: u64,
+        source: &str,
+        index: &tcl_lexer::LineIndex,
+    ) -> Option<serde_json::Value> {
+        let start = index.position_at_utf16(u32::try_from(node.header_start_offset).ok()?, source);
+        let end = index.position_at_utf16(u32::try_from(node.end_offset).ok()?, source);
+        Some(serde_json::json!({
             "id": node.node_id,
             "uri": node.uri,
             "module": node.module,
@@ -162,10 +169,10 @@ impl Backend {
             "depth": depth,
             "sourceOrigin": serde_json::Value::Null,
             "range": {
-                "start": { "line": node.range.start.line, "character": node.range.start.character },
-                "end": { "line": node.range.end.line, "character": node.range.end.character },
+                "start": { "line": start.line, "character": start.character.get() },
+                "end": { "line": end.line, "character": end.character.get() },
             },
-        })
+        }))
     }
 
     /// Breadth-first from every root, out to `max_depth` hops and at most
@@ -271,14 +278,28 @@ impl Backend {
         let (order, depth_of) =
             Self::walk_linked_objects(&root_ids, &outgoing, &by_id, max_depth, max_nodes);
 
-        let node_values: Vec<serde_json::Value> = order
+        let source_indices: HashMap<_, _> = sources
             .iter()
-            .filter_map(|id| {
-                by_id
-                    .get(id)
-                    .map(|n| Self::linked_object_node(n, depth_of.get(id).copied().unwrap_or(0)))
+            .map(|(uri, text)| {
+                (
+                    uri.as_str(),
+                    (text.as_str(), tcl_lexer::LineIndex::new_lsp(text)),
+                )
             })
             .collect();
+        let node_values: Vec<serde_json::Value> = order
+            .iter()
+            .map(|id| {
+                let node = by_id.get(id)?;
+                let (source, index) = source_indices.get(node.uri.as_str())?;
+                Self::linked_object_node(
+                    node,
+                    depth_of.get(id).copied().unwrap_or(0),
+                    source,
+                    index,
+                )
+            })
+            .collect::<Option<_>>()?;
 
         // Only edges whose both ends survived the walk, so the client never
         // draws an arrow to a node it was not given.
