@@ -103,6 +103,21 @@ fn analyse_emits_w105_for_quoted_interpolated_body() {
 // -- W110 string-compare-in-expr emitter
 
 #[test]
+fn expression_hints_require_the_complete_original_expression() {
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+        for (space, comparison) in [(" ", true), ("\u{a0}", false)] {
+            let source = format!("expr {{{space}\"abc\" == \"def\"}}");
+            let result = Analyser::new().analyse(&source, dialect);
+            assert_eq!(
+                result.diagnostics.iter().any(|d| d.code == DiagCode::W110),
+                comparison,
+                "{dialect}: {source}"
+            );
+        }
+    }
+}
+
+#[test]
 fn analyse_emits_w110_for_string_eq_in_if_condition() {
     let mut a = Analyser::new();
     let r = a.analyse("if {$x == \"foo\"} {puts yes}\n", "tcl");

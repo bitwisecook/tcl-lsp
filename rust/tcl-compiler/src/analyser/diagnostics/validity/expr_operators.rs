@@ -73,14 +73,14 @@ impl Analyser {
         // Operator assistance recognises the full shipped vocabulary while
         // preserving this document's lexical rules. Availability remains the
         // actual profile's gate above; this tree carries no native proof.
-        let trimmed = expr_text.trim();
         let assistance = gated_operator_assistance_context(original);
-        let parsed = tcl_syntax::expr::parser::parse_expr_with_syntax_context(trimmed, &assistance);
+        let parsed =
+            tcl_syntax::expr::parser::parse_expr_with_syntax_context(expr_text, &assistance);
         if matches!(parsed, ExprNode::Raw { .. }) {
             return;
         }
 
-        // Re-tokenise the same (trimmed) text at the flat lexical
+        // Re-tokenise the same expression at the flat lexical
         // level: every gated-keyword `Operator` token here
         // corresponds 1:1 to a `Binary` node the parse above just
         // confirmed is real (a successful parse consumes the whole
@@ -92,7 +92,7 @@ impl Analyser {
         // (which recursive/optimiser/codegen consumers across the
         // compiler pattern-match on by name, not span).
         let (tokens, _) = tcl_lexer::tokenise_expr_checked_with_expression_grammar(
-            trimmed,
+            expr_text,
             &assistance.lexer_grammar,
             assistance.expr_grammar_base,
             assistance.f5_word_grammar,
@@ -122,7 +122,7 @@ impl Analyser {
                 {
                     self.gated_operator_source_proposal(
                         content_span,
-                        trimmed,
+                        expr_text,
                         &assistance,
                         &parsed,
                         (op.as_str(), left, right),
@@ -131,25 +131,18 @@ impl Analyser {
                 _ => None,
             });
 
-        // Leading whitespace `expr_text.trim()` stripped, needed to
-        // translate a `trimmed`-local offset back to an
-        // `expr_text`-local (and then absolute source) offset.
-        let trim_base = u32::try_from(expr_text.len() - expr_text.trim_start().len()).unwrap_or(0);
-
         for (tok, op_name) in gated {
             let op_span = tcl_lexer::Span::new(
-                content_span.start() + trim_base + tok.start,
+                content_span.start() + tok.start,
                 // `ExprToken::end` is inclusive; `Span` is exclusive.
-                content_span.start() + trim_base + tok.end + 1,
+                content_span.start() + tok.end + 1,
             );
             let mut fixes = Vec::new();
             if let Some(new_text) = fix_text.clone() {
                 fixes.push(super::super::types::CodeFix {
                     span: tcl_lexer::Span::new(
-                        content_span.start() + trim_base,
-                        content_span.start()
-                            + trim_base
-                            + u32::try_from(trimmed.len()).unwrap_or(0),
+                        content_span.start(),
+                        content_span.start() + u32::try_from(expr_text.len()).unwrap_or(0),
                     ),
                     new_text,
                     description: format!(
@@ -177,7 +170,7 @@ impl Analyser {
     fn gated_operator_source_proposal(
         &self,
         content_span: tcl_lexer::Span,
-        trimmed: &str,
+        expr_text: &str,
         assistance: &tcl_syntax::expr::parser::ExprParseContext,
         parsed: &ExprNode,
         (op, left, right): (&str, &ExprNode, &ExprNode),
@@ -213,7 +206,7 @@ impl Analyser {
             return None;
         }
         let source = tcl_syntax::expr::substitution::OriginalSourceExpression::capture(
-            trimmed, assistance, config,
+            expr_text, assistance, config,
         )?;
         if !source.matches_tree(parsed) {
             return None;

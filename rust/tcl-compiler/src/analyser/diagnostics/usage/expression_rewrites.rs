@@ -246,12 +246,11 @@ impl Analyser {
         if !expr_text.contains("==") && !expr_text.contains("!=") {
             return;
         }
-        let trimmed = expr_text.trim();
         let Some(parser_context) = self.original_expression_parser_context() else {
             return;
         };
         let parsed =
-            tcl_syntax::expr::parser::parse_expr_with_syntax_context(trimmed, &parser_context);
+            tcl_syntax::expr::parser::parse_expr_with_syntax_context(expr_text, &parser_context);
         // ``ExprNode::Raw`` means the expression was unparseable.
         if matches!(parsed, ExprNode::Raw { .. }) {
             return;
@@ -281,7 +280,7 @@ impl Analyser {
         let config = word.config();
         let Some(original_expression) =
             tcl_syntax::expr::substitution::OriginalSourceExpression::capture(
-                trimmed,
+                expr_text,
                 &parser_context,
                 config,
             )
@@ -301,18 +300,14 @@ impl Analyser {
             BinOp::Ne => ("!=", "ne"),
             _ => unreachable!("find_string_eq_ne_ops only returns Eq/Ne"),
         };
-        // Anchor the diagnostic on the matched operator when its offset in
-        // the parsed text maps back to verbatim source bytes; the argument
-        // span is the fallback.  Offsets are relative to the *trimmed*
-        // text, so shift by the leading whitespace the trim removed.
-        let trim_off = expr_text.len() - expr_text.trim_start().len();
+        // Parser positions are relative to the verbatim braced contents.
         let span = first_off
-            .and_then(|off| self.w110_operator_span(anchor, trim_off + off as usize, op_text))
+            .and_then(|off| self.w110_operator_span(anchor, off as usize, op_text))
             .unwrap_or(diag_span);
         // The fix rewrites exactly the proven operators, in place, and only
         // when every one of them maps back to its source bytes.
         let mut fixes = Vec::new();
-        if let Some(fix) = self.w110_operator_fix(anchor, trim_off, &matched_ops, replacement) {
+        if let Some(fix) = self.w110_operator_fix(anchor, &matched_ops, replacement) {
             fixes.push(fix);
         }
         let message = format!(
@@ -333,7 +328,6 @@ numeric/string coercion."
     fn w110_operator_fix(
         &self,
         anchor: &W110Anchor<'_>,
-        trim_off: usize,
         ops: &[(BinOp, Option<u32>)],
         replacement: &str,
     ) -> Option<super::super::types::CodeFix> {
@@ -344,7 +338,7 @@ numeric/string coercion."
                 BinOp::Ne => ("!=", "ne"),
                 _ => return None,
             };
-            let span = self.w110_operator_span(anchor, trim_off + (*off)? as usize, from)?;
+            let span = self.w110_operator_span(anchor, (*off)? as usize, from)?;
             spans.push((span.start() as usize, span.end() as usize, to));
         }
         spans.sort_unstable();
