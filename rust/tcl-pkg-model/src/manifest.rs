@@ -33,7 +33,7 @@ use std::sync::LazyLock;
 use regex::Regex;
 use tcl_dialect::model::DependencyTier;
 use tcl_lexer::{Lexer, LexerConfig, Token, TokenType};
-use tcl_syntax::list::split_list;
+use tcl_syntax::list::split_list_with_syntax;
 
 use crate::errors::TclPkgError;
 use crate::version::Version;
@@ -683,7 +683,9 @@ fn dispatch(ast: &mut ManifestAst, name: &str, args: &[String]) -> Result<(), St
 /// words, never evaluated.
 fn parse_spec(args: &[String]) -> Result<SpecDirective, String> {
     require_arity("spec", args, 1, 1)?;
-    let words = split_list(&args[0]).map_err(|e| format!("spec: {}", e.message()))?;
+    let config = manifest_lexer_config();
+    let words = split_list_with_syntax(&args[0], config.list_parse, config.escapes)
+        .map_err(|e| format!("spec: {}", e.message()))?;
     if words.len() % 2 != 0 {
         return Err("spec: expected key and value pairs: `packs {FILE …}` and `tier NAME`".into());
     }
@@ -715,7 +717,9 @@ fn parse_spec(args: &[String]) -> Result<SpecDirective, String> {
 /// The files of a `packs` value: each a relative `.tclspec` path that stays
 /// inside the package directory.
 fn parse_spec_packs(value: &str) -> Result<Vec<String>, String> {
-    let files = split_list(value).map_err(|e| format!("spec: packs: {}", e.message()))?;
+    let config = manifest_lexer_config();
+    let files = split_list_with_syntax(value, config.list_parse, config.escapes)
+        .map_err(|e| format!("spec: packs: {}", e.message()))?;
     let mut packs: Vec<String> = Vec::with_capacity(files.len());
     for file in files {
         let file = file.as_ref();

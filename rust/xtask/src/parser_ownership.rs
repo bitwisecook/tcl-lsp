@@ -47,14 +47,20 @@ const ROUTES: &[Route] = &[
     Route {
         file: PACK,
         function: "coverage_row",
-        owner: "tcl_syntax::list::split_list",
+        owner: "crate::loader::value_parsers::strict_pack_list",
         selected: &[],
     },
     Route {
         file: PACK,
         function: "world_state_domain",
-        owner: "tcl_syntax::list::split_list",
+        owner: "crate::loader::value_parsers::strict_pack_list",
         selected: &[],
+    },
+    Route {
+        file: "rust/tcl-spectcl/src/loader/value_parsers.rs",
+        function: "strict_pack_list",
+        owner: "tcl_syntax::list::split_list_with_syntax",
+        selected: &[(1, "config.list_parse"), (2, "config.escapes")],
     },
     Route {
         file: APL,
@@ -137,6 +143,15 @@ fn path_text(path: &syn::Path) -> String {
 fn argument_identity(arg: &syn::Expr) -> Option<String> {
     match arg {
         syn::Expr::Path(p) => Some(path_text(&p.path)),
+        syn::Expr::Field(field) => {
+            let syn::Expr::Path(root) = &*field.base else {
+                return None;
+            };
+            let syn::Member::Named(member) = &field.member else {
+                return None;
+            };
+            Some(format!("{}.{member}", path_text(&root.path)))
+        }
         syn::Expr::Lit(lit) => match &lit.lit {
             syn::Lit::Str(s) => Some(format!("{:?}", s.value())),
             _ => None,
@@ -728,10 +743,10 @@ mod tests {
 
     #[test]
     fn fixed_pack_and_selected_expression_routes_reject_host_fallbacks() {
-        let pack = "fn coverage_row(s: &str) {tcl_syntax::list::split_list(s);}
-                    fn world_state_domain(s: &str) {tcl_syntax::list::split_list(s);}";
+        let pack = "fn coverage_row(s: &str) {crate::loader::value_parsers::strict_pack_list(s);}
+                    fn world_state_domain(s: &str) {crate::loader::value_parsers::strict_pack_list(s);}";
         assert!(source(pack).drift(PACK).is_empty());
-        let renamed = pack.replace("split_list(s);", "split_list(s); fragment(s);")
+        let renamed = pack.replace("strict_pack_list(s);", "strict_pack_list(s); fragment(s);")
             + "fn fragment(s: &str) {s.split_whitespace();}";
         assert!(
             source(&renamed)

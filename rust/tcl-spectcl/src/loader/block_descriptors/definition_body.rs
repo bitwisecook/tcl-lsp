@@ -268,7 +268,7 @@ fn construction_source_hint(
                 return None;
             }
         };
-        let Ok(items) = tcl_syntax::list::split_list(&value.text) else {
+        let Ok(items) = crate::loader::value_parsers::strict_pack_list(&value.text) else {
             log.say(
                 stmt.line,
                 "bare_word_construction: hint requires a complete literal list",

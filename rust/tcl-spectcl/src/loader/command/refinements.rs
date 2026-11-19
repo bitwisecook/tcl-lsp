@@ -127,14 +127,14 @@ pub(in super::super) fn variable_receivers_value(
     if value == "inherit" {
         return None;
     }
-    let Ok(positions) = tcl_syntax::list::split_list(value) else {
+    let Ok(positions) = crate::loader::value_parsers::strict_pack_list(value) else {
         log.say_classified(line, VocabularyClass::Semantic,
             "variable_receivers requires a complete Tcl list; invalid naming metadata is excluded from strong analysis");
         return Some(&[]);
     };
     let mut receivers = Vec::new();
     for word in positions {
-        let Ok(fields) = tcl_syntax::list::split_list(&word) else {
+        let Ok(fields) = crate::loader::value_parsers::strict_pack_list(&word) else {
             log.say_classified(line, VocabularyClass::Semantic,
                 "variable_receivers requires complete receiver fields; invalid naming metadata is excluded from strong analysis");
             return Some(&[]);

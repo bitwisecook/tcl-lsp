@@ -57,6 +57,16 @@ pub(super) fn next_text(words: &[Word], i: &mut usize) -> String {
     words.get(*i).map_or_default(|w| w.text.clone())
 }
 
+/// A descriptor whose invalid list must withdraw its metadata uses the
+/// fixed pack input grammar. Lenient presentation readers have a separate API.
+pub(super) fn strict_pack_list(
+    text: &str,
+) -> Result<Vec<std::borrow::Cow<'_, str>>, tcl_syntax::list::ListError> {
+    let config =
+        super::pack_source_lexer_config(tcl_lexer::SourceSegmentationPurpose::NestedScript);
+    tcl_syntax::list::split_list_with_syntax(text, config.list_parse, config.escapes)
+}
+
 /// The Tcl list elements of a word, braces stripped, tolerating a malformed
 /// list rather than refusing the whole declaration.
 pub(crate) fn list_words(text: &str) -> Vec<String> {

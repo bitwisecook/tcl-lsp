@@ -40,7 +40,7 @@ use tcl_core_types::DiagCode;
 use tcl_lexer::{
     LexerConfig, LineIndex, SourceImage, SourceMap, Span, TokenType, script_image_is_complete,
 };
-use tcl_syntax::list::split_list;
+use tcl_syntax::list::split_list_with_syntax;
 
 use crate::estimate::{EstimateSeverity, Grade};
 use crate::model::{
@@ -337,7 +337,8 @@ impl Document {
     /// would split on `;` and newlines, which are not list separators.
     fn literal_list(word: &Word, sink: &mut Sink) -> Option<Vec<String>> {
         if word.braced {
-            return match split_list(&word.text) {
+            let config = file_config();
+            return match split_list_with_syntax(&word.text, config.list_parse, config.escapes) {
                 Ok(items) => Some(items.into_iter().map(Cow::into_owned).collect()),
                 Err(error) => {
                     sink.error(

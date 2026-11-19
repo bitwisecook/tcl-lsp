@@ -343,7 +343,7 @@ fn coverage_row(stmt: &Stmt, log: &mut Log) -> Option<TransitionEffectCoverage> 
         match words[i].text.as_str() {
             "-domains" => {
                 let text = next_text(words, &mut i);
-                domains = tcl_syntax::list::split_list(&text)
+                domains = crate::loader::value_parsers::strict_pack_list(&text)
                     .ok()
                     .and_then(|elements| {
                         elements
@@ -406,7 +406,7 @@ fn world_state_domain(text: &str) -> Option<WorldStateDomain> {
         WorldStateDomain::HostCapabilities,
         WorldStateDomain::VariableStore,
     ];
-    let words = tcl_syntax::list::split_list(text).ok()?;
+    let words = crate::loader::value_parsers::strict_pack_list(text).ok()?;
     match words.as_slice() {
         [name] => by_name(DOMAINS, name),
         [kind, target] if kind == "LegacyExternal" => {
