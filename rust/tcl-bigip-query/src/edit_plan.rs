@@ -630,17 +630,23 @@ fn materialise_compound_block<'a>(
     }
 
     let stanza_start = stanza_slot.start;
-    let stanza_end = stanza_slot.end;
-    let Some(rel_close) = source[stanza_start..stanza_end].rfind('}') else {
+    let Some(stanza) = source.get(stanza_start..stanza_slot.end) else {
         return Ok(None);
     };
-    let closing_brace = stanza_start + rel_close;
+    let mut blocks = tcl_bigip::parser::block_spans(stanza);
+    let Some(outer) = blocks.next() else {
+        return Ok(None);
+    };
+    if !outer.closed || blocks.next().is_some() {
+        return Ok(None);
+    }
+    let closing_brace = stanza_start + outer.body.end;
 
     // Sniff indent from the line immediately before the closing brace.
     let line_before_close_start = source[stanza_start..closing_brace]
         .rfind('\n')
         .map_or(stanza_start, |i| stanza_start + i + 1);
-    let indent = if line_before_close_start > 0 {
+    let indent = if line_before_close_start > stanza_start {
         let prev_line_end = line_before_close_start - 1;
         let prev_line_start = source[stanza_start..prev_line_end]
             .rfind('\n')
@@ -664,114 +670,33 @@ fn materialise_compound_block<'a>(
     let items_text = items.join(" ");
 
     // Existing `<field> { ... }` block to overwrite?
-    let body_text = &source[stanza_start..stanza_end];
-    if let Some((start_in_body, end_in_body)) = find_top_level_block(body_text, &op.field_name) {
-        let abs_start = stanza_start + start_in_body;
-        let abs_end = stanza_start + end_in_body;
-        let new_text = format!("{} {{ {items_text} }}", op.field_name);
-        return Ok(Some((abs_start, abs_end, new_text, op)));
+    let body = &stanza[outer.body.clone()];
+    if let Some((_, property)) = tcl_bigip::parser::parse_properties_with_spans(body)
+        .into_iter()
+        .find(|(name, _)| name == &op.field_name)
+    {
+        let (Some(start), Some(end)) = (property.value_start, property.value_end) else {
+            return Ok(None);
+        };
+        // The model selects the last property of a given name. A completed
+        // shell block must identify the same value before we edit that range.
+        let complete = tcl_bigip::parser::block_spans(body)
+            .any(|block| block.closed && block.header.end == start && block.range().end == end);
+        if !complete {
+            return Ok(None);
+        }
+        let base = stanza_start + outer.body.start;
+        return Ok(Some((
+            base + start,
+            base + end,
+            format!("{{ {items_text} }}"),
+            op,
+        )));
     }
 
     // No existing block — insert before the closing brace.
     let block = format!("{indent}{} {{ {items_text} }}\n", op.field_name);
     Ok(Some((closing_brace, closing_brace, block, op)))
-}
-
-/// Locate `<name> { ... }` at the top level of *body*. Returns the byte span
-/// covering `<name> { ... }` exactly.
-fn find_top_level_block(body: &str, name: &str) -> Option<(usize, usize)> {
-    let bytes = body.as_bytes();
-    let n = bytes.len();
-    let name_bytes = name.as_bytes();
-    let first = *name_bytes.first()?;
-    let mut depth = 0i32;
-    let mut i = 0usize;
-    while i < n {
-        let ch = bytes[i];
-        if ch == b'{' {
-            depth += 1;
-            i += 1;
-            continue;
-        }
-        if ch == b'}' {
-            depth -= 1;
-            i += 1;
-            continue;
-        }
-        if ch == b'"' {
-            i += 1;
-            while i < n && bytes[i] != b'"' {
-                if bytes[i] == b'\\' && i + 1 < n {
-                    i += 2;
-                    continue;
-                }
-                i += 1;
-            }
-            i += 1;
-            continue;
-        }
-        if depth == 1 && ch == first {
-            // Match `\b<name>\s*{` at position i.
-            if let Some(end) = match_name_open_brace(body, i, name) {
-                // Walk to the matching closing brace.
-                let mut inner_depth = 1i32;
-                let mut j = end;
-                while j < n && inner_depth > 0 {
-                    match bytes[j] {
-                        b'{' => inner_depth += 1,
-                        b'}' => inner_depth -= 1,
-                        b'"' => {
-                            j += 1;
-                            while j < n && bytes[j] != b'"' {
-                                if bytes[j] == b'\\' && j + 1 < n {
-                                    j += 2;
-                                    continue;
-                                }
-                                j += 1;
-                            }
-                        }
-                        _ => {}
-                    }
-                    j += 1;
-                }
-                if inner_depth == 0 {
-                    return Some((i, j));
-                }
-                return None;
-            }
-        }
-        i += 1;
-    }
-    None
-}
-
-/// Match `\b<name>\s*{` starting at byte *pos* in *body*; return the offset
-/// just past the opening brace, or `None`. The `\b` word boundary requires
-/// the preceding byte not to be a word character.
-fn match_name_open_brace(body: &str, pos: usize, name: &str) -> Option<usize> {
-    let bytes = body.as_bytes();
-    // `\b` boundary: previous char must not be a word char.
-    if pos > 0 {
-        let prev = bytes[pos - 1];
-        if prev.is_ascii_alphanumeric() || prev == b'_' {
-            return None;
-        }
-    }
-    let name_bytes = name.as_bytes();
-    if pos + name_bytes.len() > bytes.len() {
-        return None;
-    }
-    if &bytes[pos..pos + name_bytes.len()] != name_bytes {
-        return None;
-    }
-    let mut j = pos + name_bytes.len();
-    while j < bytes.len() && bytes[j].is_ascii_whitespace() {
-        j += 1;
-    }
-    if j < bytes.len() && bytes[j] == b'{' {
-        return Some(j + 1);
-    }
-    None
 }
 
 #[cfg(test)]

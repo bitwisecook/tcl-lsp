@@ -104,6 +104,25 @@ fn list_append_materialises_block() {
 }
 
 #[test]
+fn list_edits_change_only_the_model_property_block() {
+    let input = "ltm virtual /Common/v {\n    # rules { comment }\n    former-rules {\n        /Common/old\n    }\n    rules {\n        /Common/r1\n    }\n}\n";
+    let result = run_query(
+        r#".ltm.virtual[] | .rules += "/Common/r2""#,
+        &[("file:///test.conf".into(), input.into())],
+        &opts(),
+    )
+    .expect("run");
+    let (_, applied) = &result.edits_per_file[0];
+    assert_eq!(
+        applied.new_source,
+        input.replace(
+            "rules {\n        /Common/r1\n    }",
+            "rules { /Common/r1 /Common/r2 }"
+        )
+    );
+}
+
+#[test]
 fn noop_assignment_leaves_source_unchanged() {
     // Assigning the existing value queues an edit but the spliced text is
     // identical — `has_mutation` is still true, `new_source == original`.
