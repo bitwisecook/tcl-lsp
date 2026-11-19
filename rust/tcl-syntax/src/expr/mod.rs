@@ -31,6 +31,7 @@ pub use tcl_expr::expr::mathfunc;
 pub mod native_objects;
 pub mod operators;
 pub use tcl_expr::expr::parser;
+pub mod precedence;
 pub use tcl_expr::expr::rand;
 pub mod substitution;
 pub use tcl_expr::expr::syntax_84;

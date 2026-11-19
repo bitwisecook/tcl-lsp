@@ -125,6 +125,11 @@ impl OriginalSourceExpression {
     pub const fn context(&self) -> &ExprParseContext {
         &self.context
     }
+    /// Lexer configuration the source was recognised under.
+    #[must_use]
+    pub const fn config(&self) -> LexerConfig {
+        self.config
+    }
     /// Checked function identifiers in immutable tree order, including nested calls.
     #[must_use]
     pub fn function_calls(&self) -> Vec<(&str, super::ExprOffset, usize)> {

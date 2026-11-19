@@ -969,40 +969,84 @@ fn collect_raw_vars_with(
 
 // Rendering
 
-/// Return `true` when a unary operator's operand needs wrapping in parens.
-fn needs_parens_for_unary(operand: &ExprNode) -> bool {
-    matches!(operand, ExprNode::Binary { .. } | ExprNode::Ternary { .. })
+/// Where a child sits under its parent, for deciding whether the child must be
+/// parenthesised to keep the parent's parse.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ChildSlot {
+    /// Left operand of a binary operator.
+    BinaryLeft(BinOp),
+    /// Right operand of a binary operator.
+    BinaryRight(BinOp),
+    /// Operand of a unary operator.
+    Unary,
+    /// Condition of a ternary.
+    TernaryCondition,
+    /// Either branch of a ternary.
+    TernaryBranch,
+    /// Argument of a math-function call.
+    CallArgument,
 }
 
-/// Return `true` when a binary child needs parentheses to preserve semantics.
-fn needs_parens_for_binary_child(parent_op: BinOp, child: &ExprNode, is_right: bool) -> bool {
-    // A ternary (`?:`) has lower precedence than every binary operator, so as a
-    // child of a binary op it ALWAYS needs parentheses — on either side.
-    // `($a ? 1 : 2) + 3` must not render as `$a ? 1 : 2 + 3` (re-parses as
-    // `$a ? 1 : (2 + 3)`); `1 + ($a ? 2 : 3)` must not render as
-    // `1 + $a ? 2 : 3` (re-parses as `(1 + $a) ? 2 : 3`).
-    if matches!(child, ExprNode::Ternary { .. }) {
-        return true;
-    }
-    let ExprNode::Binary { op: child_op, .. } = child else {
-        return false;
-    };
-
-    let parent_prec = parent_op.precedence();
-    let child_prec = child_op.precedence();
-
-    if child_prec < parent_prec {
-        return true;
-    }
-    if child_prec == parent_prec {
-        if parent_op.is_right_assoc() {
-            // Right-associative: parenthesise the left child, not the right.
-            return !is_right;
+impl ChildSlot {
+    /// Whether `child` in this slot needs parentheses to re-parse as the same
+    /// tree. A ternary binds looser than every binary operator, so it needs
+    /// them under any operator; a binary child needs them when it binds looser
+    /// than its parent, or equally on the side its associativity does not
+    /// group.
+    #[must_use]
+    pub fn needs_parens(self, child: &ExprNode) -> bool {
+        match self {
+            Self::BinaryLeft(parent) | Self::BinaryRight(parent) => {
+                if matches!(child, ExprNode::Ternary { .. }) {
+                    return true;
+                }
+                let ExprNode::Binary { op, .. } = child else {
+                    return false;
+                };
+                let (parent_prec, child_prec) = (parent.precedence(), op.precedence());
+                child_prec < parent_prec
+                    || (child_prec == parent_prec
+                        && parent.is_right_assoc() == matches!(self, Self::BinaryLeft(_)))
+            }
+            Self::Unary => matches!(child, ExprNode::Binary { .. } | ExprNode::Ternary { .. }),
+            Self::TernaryCondition => matches!(child, ExprNode::Ternary { .. }),
+            Self::TernaryBranch | Self::CallArgument => false,
         }
-        // Left-associative (default): parenthesise the right child.
-        return is_right;
     }
-    false
+}
+
+impl ExprNode {
+    /// Direct children with the slot each occupies, in source order.
+    #[must_use]
+    pub fn slotted_children(&self) -> Vec<(ChildSlot, &Self)> {
+        match self {
+            Self::Binary { op, left, right } => vec![
+                (ChildSlot::BinaryLeft(*op), left.as_ref()),
+                (ChildSlot::BinaryRight(*op), right.as_ref()),
+            ],
+            Self::Unary { operand, .. } => vec![(ChildSlot::Unary, operand.as_ref())],
+            Self::Ternary {
+                condition,
+                true_branch,
+                false_branch,
+            } => vec![
+                (ChildSlot::TernaryCondition, condition.as_ref()),
+                (ChildSlot::TernaryBranch, true_branch.as_ref()),
+                (ChildSlot::TernaryBranch, false_branch.as_ref()),
+            ],
+            Self::Call { args, .. } => args.iter().map(|a| (ChildSlot::CallArgument, a)).collect(),
+            _ => Vec::new(),
+        }
+    }
+}
+
+fn render_child(slot: ChildSlot, child: &ExprNode) -> String {
+    let text = render_expr(child);
+    if slot.needs_parens(child) {
+        format!("({text})")
+    } else {
+        text
+    }
 }
 
 /// Round-trip an [`ExprNode`] back to source text.
@@ -1033,23 +1077,14 @@ pub fn render_expr(node: &ExprNode) -> String {
         ExprNode::Binary {
             op, left, right, ..
         } => {
-            let mut left_text = render_expr(left);
-            let mut right_text = render_expr(right);
-            if needs_parens_for_binary_child(*op, left, false) {
-                left_text = format!("({left_text})");
-            }
-            if needs_parens_for_binary_child(*op, right, true) {
-                right_text = format!("({right_text})");
-            }
+            let left_text = render_child(ChildSlot::BinaryLeft(*op), left);
+            let right_text = render_child(ChildSlot::BinaryRight(*op), right);
             format!("{left_text} {op} {right_text}")
         }
 
         ExprNode::Unary { op, operand } => {
             let prefix = op.as_str();
-            let mut inner = render_expr(operand);
-            if needs_parens_for_unary(operand) {
-                inner = format!("({inner})");
-            }
+            let inner = render_child(ChildSlot::Unary, operand);
             // Word operators like `not` need a space before the operand.
             if prefix
                 .as_bytes()
@@ -1069,7 +1104,7 @@ pub fn render_expr(node: &ExprNode) -> String {
         } => {
             format!(
                 "{} ? {} : {}",
-                render_expr(condition),
+                render_child(ChildSlot::TernaryCondition, condition),
                 render_expr(true_branch),
                 render_expr(false_branch)
             )
