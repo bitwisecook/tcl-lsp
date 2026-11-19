@@ -426,7 +426,12 @@ fn apply_entry_bindings(
     Some(effects)
 }
 
-fn update_pair(dictionary: &mut Pairs, key: &str, value: Option<String>) {
+fn update_pair(
+    dictionary: &mut Pairs,
+    key: &str,
+    value: Option<String>,
+    layout: tcl_syntax::value::NativeDictionaryLayout,
+) {
     if let Some(index) = dictionary
         .iter()
         .position(|(candidate, _)| candidate == key)
@@ -434,7 +439,7 @@ fn update_pair(dictionary: &mut Pairs, key: &str, value: Option<String>) {
         if let Some(value) = value {
             dictionary[index].1 = value;
         } else {
-            dictionary.remove(index);
+            layout.remove_member(dictionary, index);
         }
     } else if let Some(value) = value {
         dictionary.push((key.to_owned(), value));
@@ -447,6 +452,7 @@ fn write_path(
     updates: &[(String, Option<String>)],
     dialect: tcl_registry::InvocationDialect,
 ) -> Option<String> {
+    let layout = dialect.native_dictionary_layout()?;
     let mut dictionary = parse_dictionary(value, dialect)?;
     if let Some((key, rest)) = path.split_first() {
         let index = dictionary
@@ -455,12 +461,10 @@ fn write_path(
         dictionary[index].1 = write_path(&dictionary[index].1, rest, updates, dialect)?;
     } else {
         for (key, value) in updates {
-            update_pair(&mut dictionary, key, value.clone());
+            update_pair(&mut dictionary, key, value.clone(), layout);
         }
     }
-    Some(tcl_syntax::list::join_list(
-        dictionary.into_iter().flat_map(|(key, value)| [key, value]),
-    ))
+    String::from_utf8(layout.render(&dictionary)).ok()
 }
 
 /// Run a reached epilogue against live bindings and live dictionary contents.
@@ -499,7 +503,9 @@ pub fn finish_dictionary_scope(
         return DictionaryScopeFinish::Unknown;
     }
     let value = match (current.as_deref(), updates) {
-        (Some(current), Some(updates)) => {
+        (Some(current), Some(updates))
+            if activation.plan.dialect.native_dictionary_layout().is_some() =>
+        {
             match write_path(current, &activation.path, &updates, activation.plan.dialect) {
                 Some(value) => Some(value),
                 None => return DictionaryScopeFinish::Invalid,

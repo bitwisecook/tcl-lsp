@@ -123,6 +123,14 @@ pub struct NativeDictionaryRootProtocol {
 }
 
 impl crate::InvocationDialect {
+    /// Native dictionary insertion order, removal order and result spelling.
+    #[must_use]
+    pub fn native_dictionary_layout(self) -> Option<tcl_syntax::value::NativeDictionaryLayout> {
+        tcl_syntax::value::NativeDictionaryLayout::for_string_protocol(
+            self.native_string_protocol()?,
+        )
+    }
+
     /// Select only the actual Jim worker. C and unknown invocations abstain.
     #[must_use]
     pub fn native_dictionary_root_protocol(

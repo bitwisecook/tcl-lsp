@@ -319,7 +319,9 @@ impl ValueError {
     }
 }
 
-pub use tcl_value_syntax::dictionary::{canonical_dict_slots, dictionary_parse_message};
+pub use tcl_value_syntax::dictionary::{
+    NativeDictionaryLayout, canonical_dict_slots, dictionary_parse_message,
+};
 
 fn quoted_byte_error(prefix: &[u8], bytes: &[u8]) -> Vec<u8> {
     let mut message = prefix.to_vec();
