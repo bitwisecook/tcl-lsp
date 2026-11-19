@@ -1,3 +1,4 @@
+# source with non-ASCII positions é𐐀
 ltm rule /Common/hash {
     when HTTP_REQUEST { set tag {tag#old} }
 }

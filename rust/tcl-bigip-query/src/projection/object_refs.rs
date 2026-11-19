@@ -39,8 +39,33 @@ pub(super) fn build_object_ref(
     }
 
     let fields = project_fields(kind, obj, root);
-    let stanza_slot = stanza_slot_for(obj, root);
-    let field_slots = collect_field_slots(obj, &fields, root);
+    let span = model_range(obj)
+        .and_then(|range| {
+            root.stanza_sources
+                .get_or_init(|| tcl_bigip::range::StanzaSourceIndex::new(&root.source))
+                .at(range.start)
+        })
+        .filter(|span| span.closed);
+    let stanza_slot = span.map(|span| {
+        let mut extent = span.range();
+        let preceding = &root.source[..extent.start];
+        let line = preceding.rfind('\n').map_or(0, |offset| offset + 1);
+        if preceding[line..]
+            .bytes()
+            .all(|byte| matches!(byte, b' ' | b'\t'))
+        {
+            extent.start = line;
+        }
+        FieldSlot {
+            source_uri: root.uri.clone(),
+            start: extent.start,
+            end: extent.end,
+            raw_text: root.source[extent].to_owned(),
+        }
+    });
+    let field_slots = span.map_or_else(IndexMap::new, |span| {
+        collect_field_slots(span, &fields, root)
+    });
 
     let object_ref = Rc::new(ObjectRef {
         kind: kind.to_owned(),
@@ -54,31 +79,6 @@ pub(super) fn build_object_ref(
         .borrow_mut()
         .insert(cache_key, Rc::clone(&object_ref));
     Value::ObjectRef(object_ref)
-}
-
-/// Build the whole-stanza slot from the object's range, extending back to
-/// the header's line start.
-fn stanza_slot_for(obj: &ModelObject, root: &Rc<Root>) -> Option<FieldSlot> {
-    let rng = model_range(obj)?;
-    let start = rng.start.offset as usize;
-    let end = rng.end.offset as usize;
-    let header_start = scan_back_to_line_start(&root.source, start);
-    let raw_text = root.source.get(header_start..end)?.to_owned();
-    Some(FieldSlot {
-        source_uri: root.uri.clone(),
-        start: header_start,
-        end,
-        raw_text,
-    })
-}
-
-fn scan_back_to_line_start(source: &str, offset: usize) -> usize {
-    let bytes = source.as_bytes();
-    let mut i = offset.min(bytes.len());
-    while i > 0 && bytes[i - 1] != b'\n' {
-        i -= 1;
-    }
-    i
 }
 
 fn model_range(obj: &ModelObject) -> Option<tcl_bigip::range::Range> {
@@ -152,137 +152,43 @@ fn model_range(obj: &ModelObject) -> Option<tcl_bigip::range::Range> {
 /// known projected field. Compound list / sub-block values and identity
 /// fields (whose location is the header) are simply absent.
 fn collect_field_slots(
-    obj: &ModelObject,
+    span: &tcl_bigip::parser::BlockSpan,
     fields: &IndexMap<String, Value>,
-    root: &Rc<Root>,
+    root: &Root,
 ) -> IndexMap<String, FieldSlot> {
-    let Some(rng) = model_range(obj) else {
-        return IndexMap::new();
-    };
-    let body_start = rng.start.offset as usize;
-    let body_end = rng.end.offset as usize;
-    let Some(body_text) = root.source.get(body_start..body_end) else {
-        return IndexMap::new();
-    };
-    let mut slots: IndexMap<String, FieldSlot> = IndexMap::new();
-    for (key, value_start, value_end, value_text) in iter_top_level_scalar_slots(body_text) {
-        if !fields.contains_key(&key) {
-            continue;
-        }
-        slots.insert(
-            key,
-            FieldSlot {
-                source_uri: root.uri.clone(),
-                start: body_start + value_start,
-                end: body_start + value_end,
-                raw_text: value_text,
-            },
-        );
-    }
-    slots
-}
-
-/// Yield `(key, value_start, value_end, value_text)` for scalar lines at the
-/// stanza's top brace-depth.
-fn iter_top_level_scalar_slots(body: &str) -> Vec<(String, usize, usize, String)> {
-    let target_depth = i32::from(body.trim_start().starts_with('{'));
-    let mut depth = 0i32;
-    let mut line_start = 0usize;
-    let mut out = Vec::new();
-    for line in split_keep_ends(body) {
-        let line_end = line_start + line.len();
-        let stripped = line.trim();
-        if !stripped.is_empty()
-            && !stripped.starts_with('#')
-            && depth == target_depth
-            && let Some(parsed) = parse_scalar_slot_line(line, line_start)
-        {
-            out.push(parsed);
-        }
-        depth = brace_depth_after_line(line, depth);
-        line_start = line_end;
-    }
-    out
-}
-
-/// Split *body* into lines keeping the trailing `\n` — splits on the
-/// `\n`-only line endings SCF uses, keeping the newline on each line.
-fn split_keep_ends(body: &str) -> Vec<&str> {
-    let mut out = Vec::new();
-    let mut start = 0usize;
-    let bytes = body.as_bytes();
-    for (i, &b) in bytes.iter().enumerate() {
-        if b == b'\n' {
-            out.push(&body[start..=i]);
-            start = i + 1;
-        }
-    }
-    if start < body.len() {
-        out.push(&body[start..]);
-    }
-    out
-}
-
-/// Parse one top-level scalar property line.
-fn parse_scalar_slot_line(line: &str, line_start: usize) -> Option<(String, usize, usize, String)> {
-    let content = line.strip_suffix('\n').unwrap_or(line);
-    let bytes = content.as_bytes();
-    let mut pos = 0usize;
-    while pos < bytes.len() && (bytes[pos] == b' ' || bytes[pos] == b'\t') {
-        pos += 1;
-    }
-    if pos >= bytes.len() || matches!(bytes[pos], b'{' | b'}' | b'#') {
-        return None;
-    }
-    let key_start = pos;
-    while pos < bytes.len() && !matches!(bytes[pos], b' ' | b'\t' | b'{' | b'}') {
-        pos += 1;
-    }
-    let key = &content[key_start..pos];
-    if key.is_empty() {
-        return None;
-    }
-    while pos < bytes.len() && (bytes[pos] == b' ' || bytes[pos] == b'\t') {
-        pos += 1;
-    }
-    if pos >= bytes.len() {
-        return None;
-    }
-    let value = content[pos..].trim_end_matches([' ', '\t']);
-    if value.is_empty() || value.contains('{') || value.contains('}') {
-        return None;
-    }
-    let value_start = line_start + pos;
-    let value_end = value_start + value.len();
-    Some((key.to_owned(), value_start, value_end, value.to_owned()))
-}
-
-/// Update brace depth for one line, ignoring quoted strings.
-fn brace_depth_after_line(line: &str, depth: i32) -> i32 {
-    let mut depth = depth;
-    let mut in_quote = false;
-    let mut escaped = false;
-    for ch in line.chars() {
-        if escaped {
-            escaped = false;
-            continue;
-        }
-        if ch == '\\' && in_quote {
-            escaped = true;
-            continue;
-        }
-        if ch == '"' {
-            in_quote = !in_quote;
-            continue;
-        }
-        if in_quote {
-            continue;
-        }
-        if ch == '{' {
-            depth += 1;
-        } else if ch == '}' {
-            depth = (depth - 1).max(0);
-        }
-    }
-    depth
+    let body = &root.source[span.body.clone()];
+    let tokens: Vec<_> = tcl_bigip::parser::shell_tokens(body).collect();
+    tcl_bigip::parser::parse_properties_with_spans(body)
+        .into_iter()
+        .filter_map(|(name, property)| {
+            let start = property.value_start?;
+            let end = property.value_end?;
+            if !fields.contains_key(&name) || body[start..end].contains('\n') {
+                return None;
+            }
+            let from = tokens.partition_point(|token| token.range.end <= start);
+            let to = tokens.partition_point(|token| token.range.start < end);
+            let value = tokens.get(from..to)?;
+            if value
+                .iter()
+                .any(|t| !t.complete || t.kind != tcl_bigip::parser::ShellTokenKind::Word)
+            {
+                return None;
+            }
+            let first = value.first()?.range.start;
+            let last = value.last()?.range.end;
+            if first != start || last > end {
+                return None;
+            }
+            Some((
+                name,
+                FieldSlot {
+                    source_uri: root.uri.clone(),
+                    start: span.body.start + first,
+                    end: span.body.start + last,
+                    raw_text: body[first..last].to_owned(),
+                },
+            ))
+        })
+        .collect()
 }

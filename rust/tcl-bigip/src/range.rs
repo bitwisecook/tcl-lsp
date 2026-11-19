@@ -20,7 +20,7 @@
 //!
 //! A [`Position`] is `(line, character, offset)` where `character` is a
 //! 0-based UTF-16 code-unit column (LSP convention) and `offset` is the
-//! byte offset into the source. [`Range`] pairs an inclusive start/end.
+//! Unicode scalar index in the canonical model. [`Range`] pairs an inclusive start/end.
 
 use tcl_lexer::LineIndex;
 
@@ -31,7 +31,7 @@ pub struct Position {
     pub line: u32,
     /// 0-based column in UTF-16 code units (LSP spec).
     pub character: u32,
-    /// Byte offset into the source string.
+    /// Unicode scalar index in the canonical model.
     pub offset: u32,
 }
 
@@ -98,6 +98,35 @@ fn position_at(source: &str, line_index: &LineIndex, offset: usize) -> Position 
         line: sp.line,
         character: sp.character.get(),
         offset: u32::try_from(codepoint_offset).unwrap_or(u32::MAX),
+    }
+}
+
+/// Look up original SCF byte extents by a model object's opening location.
+/// The model's serialised scalar offset and inclusive range endpoint cannot
+/// be used as UTF-8 byte indexes. Build once for an original config image.
+#[derive(Debug, Default)]
+pub struct StanzaSourceIndex {
+    by_open: std::collections::BTreeMap<(u32, u32), crate::parser::BlockSpan>,
+}
+
+impl StanzaSourceIndex {
+    #[must_use]
+    pub fn new(source: &str) -> Self {
+        let lines = LineIndex::new(source);
+        let by_open = crate::parser::block_spans(source)
+            .filter_map(|span| {
+                let open = u32::try_from(span.header.end).ok()?;
+                let position = lines.position_at_utf16(open, source);
+                Some(((position.line, position.character.get()), span))
+            })
+            .collect();
+        Self { by_open }
+    }
+
+    /// The original header, inner body, and observed closing delimiter.
+    #[must_use]
+    pub fn at(&self, opening: Position) -> Option<&crate::parser::BlockSpan> {
+        self.by_open.get(&(opening.line, opening.character))
     }
 }
 

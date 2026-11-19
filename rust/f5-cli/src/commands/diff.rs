@@ -100,9 +100,7 @@ type Inventories = BTreeMap<String, BTreeMap<String, DiffObject>>;
 /// display string. Match its original opening offset to the SCF shell span.
 fn kind_inventories(cfg: &BigipConfig, source: &str) -> Inventories {
     let mut inv = Inventories::new();
-    let shells: BTreeMap<_, _> = tcl_bigip::parser::block_spans(source)
-        .map(|span| (span.header.end, span.closed))
-        .collect();
+    let shells = tcl_bigip::range::StanzaSourceIndex::new(source);
     let rule_bodies: BTreeMap<_, _> = cfg
         .generic_objects
         .iter()
@@ -110,11 +108,8 @@ fn kind_inventories(cfg: &BigipConfig, source: &str) -> Inventories {
             if object.module != "ltm" || object.object_type != "rule" {
                 return None;
             }
-            let open = object.range?.start.offset as usize;
-            Some((
-                object.identifier.as_str(),
-                (&object.body, *shells.get(&open)?),
-            ))
+            let shell = shells.at(object.range?.start)?;
+            Some((object.identifier.as_str(), (&object.body, shell.closed)))
         })
         .collect();
     // All typed kinds are always present (possibly empty).

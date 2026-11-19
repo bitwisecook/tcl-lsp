@@ -123,6 +123,43 @@ fn list_edits_change_only_the_model_property_block() {
 }
 
 #[test]
+fn source_edits_use_utf8_property_spans_and_the_real_closing_brace() {
+    let input = "# é𐐀\nltm virtual /Common/v {\n    # { is comment text\n    destination /Common/10.0.0.1:443  \n    rules {\n        /Common/r1\n    }\n}";
+    for (query, from, to) in [
+        (
+            r#".ltm.virtual[] | .destination = "/Common/10.0.0.1:80""#,
+            "10.0.0.1:443",
+            "10.0.0.1:80",
+        ),
+        (
+            r#".ltm.virtual[] | .rules += "/Common/r2""#,
+            "{\n        /Common/r1\n    }",
+            "{ /Common/r1 /Common/r2 }",
+        ),
+    ] {
+        let result = run_query(
+            query,
+            &[("file:///test.conf".into(), input.into())],
+            &opts(),
+        )
+        .expect("edit intact document");
+        assert_eq!(
+            result.edits_per_file[0].1.new_source,
+            input.replace(from, to)
+        );
+        let incomplete = input.strip_suffix('}').unwrap();
+        assert!(
+            run_query(
+                query,
+                &[("file:///test.conf".into(), incomplete.into())],
+                &opts()
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
 fn noop_assignment_leaves_source_unchanged() {
     // Assigning the existing value queues an edit but the spliced text is
     // identical — `has_mutation` is still true, `new_source == original`.

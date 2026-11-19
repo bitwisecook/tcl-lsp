@@ -187,7 +187,7 @@ fn diff_preserves_literal_and_incomplete_irule_source() {
         .as_array()
         .unwrap()
         .iter()
-        .map(|item| item["full_path"].as_str().unwrap())
+        .map(|item| item["fullPath"].as_str().unwrap())
         .collect();
     assert_eq!(
         names,

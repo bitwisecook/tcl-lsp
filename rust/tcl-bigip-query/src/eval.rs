@@ -63,6 +63,8 @@ pub struct Root {
     pub json_value: Option<Value>,
     /// The parsed BIG-IP configuration (empty for JSON roots).
     pub config: BigipConfig,
+    /// Original byte extents for SCF edits, built only if an object is projected.
+    pub(crate) stanza_sources: std::cell::OnceCell<tcl_bigip::range::StanzaSourceIndex>,
     /// Lazily built `(kind, full-path) -> ObjectRef` cache. Port of
     /// `Root._object_cache`; the compound key disambiguates objects that
     /// share a full-path across kinds.
@@ -152,6 +154,7 @@ impl Root {
             source: String::new(),
             json_value: Some(value),
             config: BigipConfig::default(),
+            stanza_sources: std::cell::OnceCell::new(),
             object_cache: RefCell::new(HashMap::new()),
             object_graph: RefCell::new(None),
             merged_view: RefCell::new(None),
@@ -171,6 +174,7 @@ impl Root {
             source: source.into(),
             json_value: None,
             config,
+            stanza_sources: std::cell::OnceCell::new(),
             object_cache: RefCell::new(HashMap::new()),
             object_graph: RefCell::new(None),
             merged_view: RefCell::new(None),
