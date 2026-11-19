@@ -198,22 +198,11 @@ impl OriginalSourcePathExpression {
                             .iter()
                             .map(|&argument| values.get(argument)?.clone())
                             .collect::<Option<Vec<String>>>()?;
-                        let result = match operation {
-                            SourcePathOperation::Join => portable_path_value(
-                                &tcl_registry::value_transfer::path::FILE_JOIN,
-                                &arguments,
-                            )
-                            .unwrap_or_else(|| super::path_join(&arguments)),
-                            SourcePathOperation::Dirname => portable_path_value(
-                                &tcl_registry::value_transfer::path::FILE_DIRNAME,
-                                &arguments,
-                            )
-                            .unwrap_or_else(|| super::path_dirname(&arguments[0])),
-                            SourcePathOperation::Normalize => {
-                                super::eval_file_normalize(arguments.first()?)?
-                            }
-                            SourcePathOperation::ScriptPath => info_script.clone()?,
-                        };
+                        let result = evaluate_path_operation(
+                            *operation,
+                            &arguments,
+                            info_script.as_deref(),
+                        )?;
                         value.push_str(&result);
                     }
                 }
@@ -222,6 +211,26 @@ impl OriginalSourcePathExpression {
         }
         values.into_iter().next()?
     }
+}
+
+pub(super) fn evaluate_path_operation(
+    operation: SourcePathOperation,
+    arguments: &[String],
+    info_script: Option<&str>,
+) -> Option<String> {
+    Some(match operation {
+        SourcePathOperation::Join => {
+            portable_path_value(&tcl_registry::value_transfer::path::FILE_JOIN, arguments)
+                .unwrap_or_else(|| super::path_join(arguments))
+        }
+        SourcePathOperation::Dirname => {
+            let [name] = arguments else { return None };
+            portable_path_value(&tcl_registry::value_transfer::path::FILE_DIRNAME, arguments)
+                .unwrap_or_else(|| super::path_dirname(name))
+        }
+        SourcePathOperation::Normalize => super::eval_file_normalize(arguments.first()?)?,
+        SourcePathOperation::ScriptPath => info_script?.to_owned(),
+    })
 }
 
 // The selected SourcePathOperation owns this algebra. No command spelling is resolved here.

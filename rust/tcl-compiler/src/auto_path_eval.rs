@@ -575,19 +575,38 @@ fn path_word(
             .iter()
             .map(|arg| path_word(&child, arg, info_script, resolve_var, registry))
             .collect::<Option<Vec<_>>>()?;
-        return match (name.as_slice(), args.as_slice()) {
-            (b"info", [sub]) if sub == "script" => info_script.map(str::to_owned),
-            (b"file", [sub, names @ ..]) if !names.is_empty() => {
-                file_route(sub, names, registry).or_else(|| match (sub.as_str(), names) {
-                    // Host path algebra for platform-relative names outside the portable route.
-                    ("dirname", [name]) => Some(path_dirname(name)),
-                    ("normalize", [name]) => eval_file_normalize(name),
-                    ("join", names) => Some(path_join(names)),
-                    _ => None,
-                })
-            }
-            _ => None,
+        let head = std::str::from_utf8(&name).ok()?;
+        let values = args.iter().map(String::as_str).collect::<Vec<_>>();
+        let schema =
+            tcl_registry::model::resolve_invocation_in_context(registry, None, head, &values)?;
+        if let Some(selected) = schema.authored_source_path_operation() {
+            return source_expression::evaluate_path_operation(
+                selected.operation,
+                args.get(selected.arguments)?,
+                info_script,
+            );
+        }
+        // These file-name operations have a portable value route but require
+        // no filesystem/host fallback. Only the selected path recipes qualify.
+        use tcl_registry::value_transfer::{EvalRoute, NativeEvalId};
+        let semantics = schema.semantics.value.semantics()?;
+        let EvalRoute::Direct {
+            id:
+                NativeEvalId::PathTail
+                | NativeEvalId::PathExtension
+                | NativeEvalId::PathRootname
+                | NativeEvalId::PathSplit,
+        } = semantics.route()
+        else {
+            return None;
         };
+        return tcl_registry::value_transfer::evaluate_literal(
+            semantics,
+            schema.canonical_command,
+            Some(schema.subcommand.resolved()?.canonical_name),
+            values.get(schema.semantics.argument_offset..)?,
+            registry.runtime_version(),
+        );
     }
     let value = tcl_syntax::word_rules::original_word_unicode_value_with_variables(
         word,
@@ -602,29 +621,6 @@ fn path_word(
         return None;
     }
     Some(to_tcl_slash_form(std::str::from_utf8(&value).ok()?))
-}
-
-/// `file SUB names…` on the path route the call resolves to in the document's
-/// dialect, as every analysis resolves it, which answers only names
-/// every platform and release reads alike: the value the lattice gives
-/// the same call.
-fn file_route(
-    sub: &str,
-    names: &[String],
-    registry: &tcl_registry::CommandRegistry,
-) -> Option<String> {
-    let mut words: Vec<&str> = vec![sub];
-    words.extend(names.iter().map(String::as_str));
-    let schema =
-        tcl_registry::model::resolve_invocation_in_context(registry, None, "file", &words)?;
-    let subcommand = schema.subcommand.resolved()?;
-    tcl_registry::value_transfer::evaluate_literal(
-        schema.semantics.value.semantics()?,
-        schema.canonical_command,
-        Some(subcommand.canonical_name),
-        &words[1..],
-        registry.runtime_version(),
-    )
 }
 
 /// `file normalize` in slash form, or `None` when the argument is not already
