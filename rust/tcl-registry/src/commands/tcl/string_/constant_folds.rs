@@ -18,9 +18,9 @@
 
 //! Compile-time folds of the pure `string` subcommands.
 
-use tcl_syntax::number::Numbers;
 use super::TclVersion;
 use crate::const_fold::{NativeIndexSelection, parse_element_index, parse_index, parse_range};
+use tcl_syntax::number::Numbers;
 
 /// Compile-time folds for pure `string`
 /// subcommands, consumed by the optimiser's O129 general-builtin
