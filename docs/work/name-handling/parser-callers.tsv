@@ -1,209 +1,236 @@
-site	call	reviewer	status	evidence
-runtime/rust/src/cmd_dict.rs::filter	crate::parse::split_list	execution	open	pending
-runtime/rust/src/cmd_dict.rs::for_	parse::split_list	execution	open	pending
-runtime/rust/src/cmd_dict.rs::map	parse::split_list	execution	open	pending
-runtime/rust/src/cmd_error.rs::bind_handler_vars	crate::parse::split_list	execution	open	pending
-runtime/rust/src/cmd_error.rs::errorcode_prefix_match	crate::parse::split_list	execution	open	pending
-runtime/rust/src/cmd_error.rs::throw_cmd	crate::parse::split_list	execution	open	pending
-runtime/rust/src/cmd_error.rs::try_cmd	crate::parse::split_list	execution	open	pending
-runtime/rust/src/cmd_error.rs::try_compiles_script_word	crate::parse::split_list	execution	open	pending
-runtime/rust/src/cmd_fs.rs::glob_cmd	crate::parse::split_list	execution	open	pending
-runtime/rust/src/cmd_info.rs::bad_level	tcl_syntax::list::join_list	execution	open	pending
-runtime/rust/src/cmd_string.rs::split_list_or_error	crate::parse::split_list	execution	open	pending
-runtime/rust/src/cmd_string.rs::str_map	crate::parse::split_list	execution	open	pending
-runtime/rust/src/compiled_locals.rs::loop_variables	parse::split_list	execution	open	pending
-runtime/rust/src/compiled_locals.rs::try_command	parse::split_list	execution	open	pending
-runtime/rust/src/dict.rs::scan_dict_pairs	crate::parse::split_list	execution	open	pending
-runtime/rust/src/interp/errors/error_info.rs::process_return_error	crate::parse::split_list	execution	open	pending
-runtime/rust/src/list.rs::ensure_list	parse::split_list	execution	open	pending
-runtime/rust/src/parse.rs::parse_script	tcl_lexer::LexerConfig::default	execution	open	pending
-rust/bpf-tcl-ir/src/lower.rs::parse_expr	parse_expr	execution	open	pending
-rust/tcl-bigip-query/src/architecture.rs::tcl_commands	LexerConfig::default	irules_registry_tooling	open	pending
-rust/tcl-cmd-core/src/binary.rs::int_value_error	split_list	execution	open	pending
-rust/tcl-cmd-core/src/binary.rs::scan	tcl_syntax::list::join_list	execution	open	pending
-rust/tcl-cmd-core/src/binary.rs::scan_field_result	join_list	execution	open	pending
-rust/tcl-cmd-core/src/binary.rs::split_field	split_list	execution	open	pending
-rust/tcl-cmd-core/src/channel.rs::resolve_open_access_mode	tcl_syntax::list::split_list	execution	open	pending
-rust/tcl-cmd-core/src/channel.rs::resolve_profile	tcl_syntax::list::join_list	execution	open	pending
-rust/tcl-cmd-core/src/channel.rs::resolve_system_encoding	tcl_syntax::list::join_list	execution	open	pending
-rust/tcl-cmd-core/src/channel.rs::set_encoding	tcl_syntax::list::join_list	execution	open	pending
-rust/tcl-cmd-core/src/channel.rs::set_translation	tcl_syntax::list::split_list	execution	open	pending
-rust/tcl-cmd-core/src/channel.rs::translation_value	tcl_syntax::list::join_list	execution	open	pending
-rust/tcl-cmd-core/src/clock.rs::bad_option	tcl_syntax::list::join_list	execution	open	pending
-rust/tcl-cmd-core/src/clock.rs::invalid_input	tcl_syntax::list::join_list	execution	open	pending
-rust/tcl-cmd-core/src/clock.rs::unit_under	tcl_syntax::list::join_list	execution	open	pending
-rust/tcl-cmd-core/src/dict.rs::key_not_known	tcl_syntax::list::join_list	execution	open	pending
-rust/tcl-cmd-core/src/encoding.rs::resolve_encoding	tcl_syntax::list::join_list	execution	open	pending
-rust/tcl-cmd-core/src/frame.rs::bad_level	tcl_syntax::list::join_list	execution	open	pending
-rust/tcl-cmd-core/src/info.rs::level	tcl_syntax::list::join_list	execution	open	pending
-rust/tcl-cmd-core/src/list.rs::lindex_result	tcl_syntax::list::split_list	execution	open	pending
-rust/tcl-cmd-core/src/list.rs::lset	tcl_syntax::list::split_list	execution	open	pending
-rust/tcl-cmd-core/src/lsearch.rs::split_index	split_list	execution	open	pending
-rust/tcl-cmd-core/src/lsort.rs::split_index	split_list	execution	open	pending
-rust/tcl-cmd-core/src/native_list_index.rs::convert_spelling	tcl_syntax::list::split_list	execution	open	pending
-rust/tcl-cmd-core/src/regex.rs::compile_error	tcl_syntax::list::join_list	execution	open	pending
-rust/tcl-cmd-core/src/regex/regsub_command.rs::command_prefix	tcl_syntax::list::split_list	execution	open	pending
-rust/tcl-cmd-core/src/string.rs::select_subcommand	tcl_syntax::list::join_list	execution	open	pending
-rust/tcl-cmd-core/src/trace.rs::parse_ops	tcl_syntax::list::split_list	execution	open	pending
-rust/tcl-codegen/src/codegen/cmd_subst.rs::has_command_separator	tcl_lexer::LexerConfig::default	execution	open	pending
-rust/tcl-codegen/src/codegen/cmd_subst.rs::is_pure_cmd_subst	tcl_lexer::LexerConfig::default	execution	open	pending
-rust/tcl-codegen/src/codegen/cmd_subst.rs::parse_cmd_parts	tcl_lexer::LexerConfig::default	execution	open	pending
-rust/tcl-codegen/src/codegen/cmd_subst.rs::parse_cmd_parts_expand	tcl_lexer::LexerConfig::default	execution	open	pending
-rust/tcl-codegen/src/compile_service.rs::new	LexerConfig::default	execution	open	pending
-rust/tcl-codegen/src/compile_service.rs::profile_less_engine	DialectProfile::plain_tcl	execution	open	pending
-rust/tcl-compiler/examples/mro_delta.rs::build_worksheet	tcl_lexer::LexerConfig::default	analyser_binding	open	pending
-rust/tcl-compiler/examples/mro_eval.rs::run_pass_b	tcl_lexer::LexerConfig::default	analyser_binding	open	pending
-rust/tcl-compiler/examples/mro_interproc.rs::analyse_file	tcl_lexer::LexerConfig::default	analyser_binding	open	pending
-rust/tcl-compiler/examples/mro_interproc.rs::receiver_taxonomy	tcl_lexer::LexerConfig::default	analyser_binding	open	pending
-rust/tcl-compiler/src/analyser/diagnostics/dataflow/unused_bindings.rs::body_references_param	tcl_dialect::DialectProfile::plain_tcl	diagnostics	open	pending
-rust/tcl-compiler/src/analyser/diagnostics/dataflow/unused_bindings.rs::body_references_param	tcl_syntax::list::join_list	diagnostics	open	pending
-rust/tcl-compiler/src/analyser/diagnostics/validity/malformed_structure.rs::emit_invalid_lambda_parameter_list_diagnostics	tcl_syntax::list::join_list	diagnostics	open	pending
-rust/tcl-compiler/src/analyser/diagnostics/var_command/dispatch_tables.rs::dispatch_table_head	tcl_syntax::list::join_list	diagnostics	open	pending
-rust/tcl-compiler/src/analyser/state/configuration.rs::with_disabled_diagnostics	tcl_dialect::DialectProfile::plain_tcl	analyser_binding	open	pending
-rust/tcl-compiler/src/analyser/utils/stub_directives.rs::scan_source_for_stubs	tcl_lexer::LexerConfig::default	analyser_binding	open	pending
-rust/tcl-compiler/src/body_analysis_capsule/readonly_authored_coverage.rs::matches_installed_row	tcl_syntax::list::join_list	analyser_binding	open	pending
-rust/tcl-compiler/src/cfg_builder/command_classes.rs::from_registry	tcl_lexer::LexerConfig::default	analyser_binding	open	pending
-rust/tcl-compiler/src/cfg_builder/mod.rs::new_with_upvars_and_classes	tcl_lexer::LexerConfig::default	analyser_binding	open	pending
-rust/tcl-compiler/src/codegen_helpers.rs::fold_cmd_args	tcl_syntax::list::join_list	analyser_binding	open	pending
-rust/tcl-compiler/src/codegen_helpers.rs::fold_dict_create_cmd	tcl_syntax::list::join_list	analyser_binding	open	pending
-rust/tcl-compiler/src/command_binding/logical_definition.rs::static_formals	tcl_syntax::list::split_list	analyser_binding	open	pending
-rust/tcl-compiler/src/command_binding/native_result.rs::selected_result	tcl_syntax::list::join_list	analyser_binding	open	pending
-rust/tcl-compiler/src/command_binding/retained_source.rs::inherited_empty_installed_report_custody	tcl_syntax::list::join_list	analyser_binding	open	pending
-rust/tcl-compiler/src/command_binding/retained_source.rs::matches_inherited_point_report_body	tcl_syntax::list::join_list	analyser_binding	open	pending
-rust/tcl-compiler/src/compilation_unit/build_entry.rs::build_standalone_for	tcl_lexer::LexerConfig::default	analyser_binding	open	pending
-rust/tcl-compiler/src/compilation_unit/build_entry.rs::from_branch_folding_fixture	tcl_lexer::LexerConfig::default	analyser_binding	open	pending
-rust/tcl-compiler/src/compilation_unit/function_build.rs::trivial_guarded	tcl_lexer::LexerConfig::default	analyser_binding	open	pending
-rust/tcl-compiler/src/const_subst.rs::folded_literal_reads_apart	tcl_syntax::list::split_list	dataflow_optimiser	open	pending
-rust/tcl-compiler/src/dictionary_bindings.rs::write_path	tcl_syntax::list::join_list	analyser_binding	open	pending
-rust/tcl-compiler/src/dynamic_names.rs::dynamic_variable_word_can_spell	LexerConfig::default	analyser_binding	open	pending
-rust/tcl-compiler/src/ir.rs::native_call_for_test	tcl_lexer::LexerConfig::default	analyser_binding	open	pending
-rust/tcl-compiler/src/ir_helpers/evaluated_substitutions.rs::substitution_expression	crate::expr_parser::parse_expr	analyser_binding	open	pending
-rust/tcl-compiler/src/lowering/configuration.rs::new	tcl_lexer::LexerConfig::default	analyser_binding	open	pending
-rust/tcl-compiler/src/lowering/installed_bodies.rs::canonical_parameter_list	tcl_syntax::list::join_list	analyser_binding	open	pending
-rust/tcl-compiler/src/lowering/installed_bodies.rs::retain_installed_body	tcl_syntax::list::join_list	analyser_binding	open	pending
-rust/tcl-compiler/src/lowering/installed_bodies.rs::retain_installed_procedure_body_units	tcl_syntax::list::join_list	analyser_binding	open	pending
-rust/tcl-compiler/src/lowering/mod.rs::first_fatal_parse_error	tcl_lexer::LexerConfig::default	analyser_binding	open	pending
-rust/tcl-compiler/src/lowering/mod.rs::lower_to_ir_for_bytecode	tcl_lexer::LexerConfig::default	analyser_binding	open	pending
-rust/tcl-compiler/src/lowering/mod.rs::lower_to_ir_traced	tcl_lexer::LexerConfig::default	analyser_binding	open	pending
-rust/tcl-compiler/src/lowering_hooks.rs::extract_single_expr_arg	LexerConfig::default	analyser_binding	open	pending
-rust/tcl-compiler/src/optimiser/closed_consumer.rs::output	crate::expr_parser::parse_expr	dataflow_optimiser	open	pending
-rust/tcl-compiler/src/optimiser/closed_consumer.rs::source_preparation_domain	crate::expr_parser::parse_expr	dataflow_optimiser	open	pending
-rust/tcl-compiler/src/optimiser/closed_consumer/application.rs::argument_text	crate::expr_parser::parse_expr	dataflow_optimiser	open	pending
-rust/tcl-compiler/src/optimiser/helpers/expr_simplify/constant_folding.rs::substitute_expr_constants	tcl_dialect::DialectProfile::plain_tcl	dataflow_optimiser	open	pending
-rust/tcl-compiler/src/optimiser/helpers/expr_simplify/constant_folding.rs::try_fold_expr_with_constants	tcl_dialect::DialectProfile::plain_tcl	dataflow_optimiser	open	pending
-rust/tcl-compiler/src/optimiser/manager.rs::optimise_with_dialect	tcl_dialect::DialectProfile::plain_tcl	dataflow_optimiser	open	pending
-rust/tcl-compiler/src/parsing/spectcl_source.rs::pack_source_lexer_config	LexerConfig::default	analyser_binding	open	pending
-rust/tcl-compiler/src/registry_invocation/native_compilation.rs::native_simple_text_component	tcl_lexer::LexerConfig::default	analyser_binding	open	pending
-rust/tcl-compiler/src/registry_invocation/source_structure/package_target_survey.rs::capture	tcl_dialect::DialectProfile::plain_tcl	analyser_binding	open	pending
-rust/tcl-compiler/src/segmenter.rs::segment_commands_with_offset	LexerConfig::default	analyser_binding	open	pending
-rust/tcl-compiler/src/segmenter.rs::segment_commands_with_recovery	LexerConfig::default	analyser_binding	open	pending
-rust/tcl-compiler/src/static_loops.rs::loop_words	tcl_syntax::list::join_list	analyser_binding	open	pending
-rust/tcl-compiler/src/taint.rs::arg_var_names	tcl_lexer::LexerConfig::default	diagnostics	open	pending
-rust/tcl-compiler/src/tcl_expr_eval/native_constant.rs::constant_operand_failure	tcl_syntax::list::split_list	dataflow_optimiser	open	pending
-rust/tcl-compiler/src/uri_split.rs::walk_expr	parse_expr	analyser_binding	open	pending
-rust/tcl-compiler/src/value_transfer/queries.rs::prior_store	tcl_syntax::list::join_list	dataflow_optimiser	open	pending
-rust/tcl-compiler/src/var_refs.rs::new	LexerConfig::default	analyser_binding	open	pending
-rust/tcl-compiler/src/var_refs.rs::with_cache_size	LexerConfig::default	analyser_binding	open	pending
-rust/tcl-cshim/src/load.rs::parse	tcl_syntax::list::join_list	execution	open	pending
-rust/tcl-engine-wasm/src/session.rs::define_unit	tcl_syntax::list::join_list	execution	open	pending
-rust/tcl-engine-wasm/src/session.rs::restrict	tcl_syntax::list::join_list	execution	open	pending
-rust/tcl-irule-test/src/live.rs::fire_sequence	join_list	irules_registry_tooling	open	pending
-rust/tcl-irule-test/src/topology.rs::datagroup_records_tcl	join_list	irules_registry_tooling	open	pending
-rust/tcl-irule-test/src/topology.rs::generate_tcl_setup	join_list	irules_registry_tooling	open	pending
-rust/tcl-lexer/src/expr_lexer.rs::from_grammar	crate::LexerConfig::default	diagnostics	open	pending
-rust/tcl-lexer/src/expr_lexer.rs::tokenise_expr_checked	tcl_dialect::DialectProfile::plain_tcl	diagnostics	open	pending
-rust/tcl-lexer/src/highlight.rs::highlight_ranges	LexerConfig::default	diagnostics	open	pending
-rust/tcl-lexer/src/highlight.rs::highlight_tcl	LexerConfig::default	diagnostics	open	pending
-rust/tcl-lexer/src/lexer.rs::new	LexerConfig::default	diagnostics	open	pending
-rust/tcl-lexer/src/ranges.rs::close_quote_offset	crate::LexerConfig::default	diagnostics	open	pending
-rust/tcl-lexer/src/ranges.rs::command_substitution_end_bytes	crate::LexerConfig::default	diagnostics	open	pending
-rust/tcl-lexer/src/ranges.rs::scan_array_index	crate::LexerConfig::default	diagnostics	open	pending
-rust/tcl-lexer/src/structural_index.rs::BracketIndex::build	crate::LexerConfig::default	diagnostics	open	pending
-rust/tcl-lexer/src/structural_index.rs::BraceIndex::build	crate::LexerConfig::default	diagnostics	open	pending
-rust/tcl-lexer/src/word_parts.rs::quoted_word_close_with_issue	LexerConfig::default	diagnostics	open	pending
-rust/tcl-lsp-core/src/completion.rs::variable_trigger	tcl_lexer::LexerConfig::default	lsp_features	open	pending
-rust/tcl-lsp-core/src/hover.rs::find_var_at_position	tcl_lexer::LexerConfig::default	lsp_features	open	pending
-rust/tcl-lsp-core/src/minify/command_rendering.rs::can_strip_quotes	LexerConfig::default	lsp_features	open	pending
-rust/tcl-lsp-core/src/minify/static_folding.rs::parse_var_ref	LexerConfig::default	lsp_features	open	pending
-rust/tcl-lsp-core/src/package_resolver.rs::collect_source_targets	tcl_lexer::LexerConfig::default	lsp_features	open	pending
-rust/tcl-lsp-core/src/package_resolver.rs::package_requires_in	tcl_dialect::DialectProfile::plain_tcl	lsp_features	open	pending
-rust/tcl-lsp-core/src/package_resolver.rs::package_requires_in	tcl_lexer::LexerConfig::default	lsp_features	open	pending
-rust/tcl-lsp-core/src/package_resolver.rs::parse_pkg_index	tcl_lexer::LexerConfig::default	lsp_features	open	pending
-rust/tcl-lsp-core/src/package_resolver.rs::parse_tcl_index	tcl_lexer::LexerConfig::default	lsp_features	open	pending
-rust/tcl-lsp-core/src/package_resolver/original_names/index_loader.rs::with_schema	tcl_dialect::DialectProfile::plain_tcl	lsp_features	open	pending
-rust/tcl-lsp-core/src/package_resolver/reachability.rs::scan	LexerConfig::default	lsp_features	open	pending
-rust/tcl-lsp-core/src/package_resolver/registration.rs::select_in_plan	tcl_dialect::DialectProfile::plain_tcl	lsp_features	open	pending
-rust/tcl-lsp-core/src/refactor/extract_proc.rs::render_call	LexerConfig::default	lsp_features	open	pending
-rust/tcl-lsp-core/src/refactor/extract_proc.rs::render_definition	tcl_syntax::list::join_list	lsp_features	open	pending
-rust/tcl-lsp-core/src/refactor/extract_proc.rs::variable_references	LexerConfig::default	lsp_features	open	pending
-rust/tcl-lsp-core/src/refactor/extract_proc.rs::word	tcl_syntax::list::join_list	lsp_features	open	pending
-rust/tcl-lsp-core/src/refactor/inline_proc.rs::variable_references	LexerConfig::default	lsp_features	open	pending
-rust/tcl-lsp-core/src/refactor/mod.rs::test_logical_analysis	tcl_dialect::DialectProfile::plain_tcl	lsp_features	open	pending
-rust/tcl-pkg-model/src/manifest.rs::manifest_lexer_config	LexerConfig::default	irules_registry_tooling	open	pending
-rust/tcl-pkg-model/src/manifest.rs::parse_spec	split_list	irules_registry_tooling	open	pending
-rust/tcl-pkg-model/src/manifest.rs::parse_spec_packs	split_list	irules_registry_tooling	open	pending
-rust/tcl-registry/src/array_iteration.rs::select	tcl_syntax::list::split_list	dataflow_optimiser	open	pending
-rust/tcl-registry/src/commands/tcl/open_.rs::discovery_file_open	tcl_syntax::list::split_list	dataflow_optimiser	open	pending
-rust/tcl-registry/src/commands/tcl/string_/constant_folds.rs::fold_string_map_impl	crate::const_fold::split_list	dataflow_optimiser	open	pending
-rust/tcl-registry/src/commands/tcl/string_/is_classes.rs::fold_is	crate::const_fold::split_list	dataflow_optimiser	open	pending
-rust/tcl-registry/src/commands/tcl/string_/is_classes.rs::is_dict_class	crate::const_fold::split_list	dataflow_optimiser	open	pending
-rust/tcl-registry/src/commands/tcl/trace.rs::trace_type_command_prefix	tcl_syntax::list::split_list	dataflow_optimiser	open	pending
-rust/tcl-registry/src/commands/tcl/trace.rs::validate_modern_trace_operations	tcl_syntax::list::join_list	dataflow_optimiser	open	pending
-rust/tcl-registry/src/commands/tcl/trace.rs::validate_modern_trace_operations	tcl_syntax::list::split_list	dataflow_optimiser	open	pending
-rust/tcl-registry/src/compile_84.rs::compile_foreach	tcl_syntax::list::split_list	dataflow_optimiser	open	pending
-rust/tcl-registry/src/const_fold.rs::fold_join	split_list	dataflow_optimiser	open	pending
-rust/tcl-registry/src/const_fold.rs::fold_lindex	split_list	dataflow_optimiser	open	pending
-rust/tcl-registry/src/const_fold.rs::fold_llength	split_list	dataflow_optimiser	open	pending
-rust/tcl-registry/src/const_fold.rs::fold_lrange	split_list	dataflow_optimiser	open	pending
-rust/tcl-registry/src/const_fold.rs::fold_lreverse	split_list	dataflow_optimiser	open	pending
-rust/tcl-registry/src/const_fold.rs::fold_lsort	split_list	dataflow_optimiser	open	pending
-rust/tcl-registry/src/const_fold.rs::list_join	tcl_syntax::list::join_list	dataflow_optimiser	open	pending
-rust/tcl-registry/src/const_fold.rs::parse_dict	split_list	dataflow_optimiser	open	pending
-rust/tcl-registry/src/const_fold.rs::split_list	tcl_syntax::list::split_list	dataflow_optimiser	open	pending
-rust/tcl-registry/src/model/assembly.rs::store_profile	DialectProfile::plain_tcl	dataflow_optimiser	open	pending
-rust/tcl-registry/src/model/assembly.rs::store_profiles	DialectProfile::plain_tcl	dataflow_optimiser	open	pending
-rust/tcl-registry/src/model/ingress.rs::analyser_profile	DialectProfile::plain_tcl	dataflow_optimiser	open	pending
-rust/tcl-registry/src/native_compilation/grammar_selection.rs::select_foreach	tcl_syntax::list::split_list	dataflow_optimiser	open	pending
-rust/tcl-registry/src/native_compilation/variable_and_list_grammars.rs::array_compilation_grammar_for	tcl_syntax::list::split_list	dataflow_optimiser	open	pending
-rust/tcl-registry/src/native_dictionary.rs::select_iteration	tcl_syntax::list::split_list	dataflow_optimiser	open	pending
-rust/tcl-registry/src/registry/control_arms.rs::parse_try_control_invocation_with_lists	tcl_syntax::list::split_list	dataflow_optimiser	open	pending
-rust/tcl-registry/src/release_compilation.rs::compiled_loop_variables	tcl_syntax::list::split_list	dataflow_optimiser	open	pending
-rust/tcl-registry/src/release_compilation.rs::compiles_dict_each	tcl_syntax::list::split_list	dataflow_optimiser	open	pending
-rust/tcl-registry/src/release_compilation.rs::compiles_each_loop	tcl_syntax::list::split_list	dataflow_optimiser	open	pending
-rust/tcl-registry/src/spec/case_list.rs::valid_clause_list	tcl_syntax::list::split_list	dataflow_optimiser	open	pending
-rust/tcl-registry/src/special_vars.rs::surface_query_for_profile	tcl_dialect::DialectProfile::plain_tcl	dataflow_optimiser	open	pending
-rust/tcl-registry/src/value_transfer/body.rs::dict_at	tcl_syntax::list::split_list	dataflow_optimiser	open	pending
-rust/tcl-registry/src/value_transfer/body.rs::dict_keys	tcl_syntax::list::split_list	dataflow_optimiser	open	pending
-rust/tcl-registry/src/value_transfer/builtins.rs::field_decline	tcl_syntax::list::split_list	dataflow_optimiser	open	pending
-rust/tcl-registry/src/value_transfer/completion.rs::binders	tcl_syntax::list::split_list	dataflow_optimiser	open	pending
-rust/tcl-registry/src/value_transfer/const_ops.rs::list_len	tcl_syntax::list::split_list	dataflow_optimiser	open	pending
-rust/tcl-registry/src/value_transfer/iteration.rs::var_list	tcl_syntax::list::split_list	dataflow_optimiser	open	pending
-rust/tcl-registry/src/value_transfer/reference_body.rs::new	LexerConfig::default	dataflow_optimiser	open	pending
-rust/tcl-registry/src/value_transfer/reference_body.rs::switch_words	split_list	dataflow_optimiser	open	pending
-rust/tcl-spec-studio/src/render_spectcl/rust_expressions.rs::relation_term_word	tcl_syntax::list::join_list	irules_registry_tooling	open	pending
-rust/tcl-spectcl/src/loader/block_descriptors/definition_body.rs::construction_source_hint	tcl_syntax::list::split_list	irules_registry_tooling	open	pending
-rust/tcl-spectcl/src/loader/command/refinements.rs::variable_receivers_value	tcl_syntax::list::split_list	irules_registry_tooling	open	pending
-rust/tcl-spectcl/src/upgrade.rs::pack_level_rows	LexerConfig::default	irules_registry_tooling	open	pending
-rust/tcl-spectcl/src/upgrade.rs::rows_in	LexerConfig::default	irules_registry_tooling	open	pending
-rust/tcl-spectcl/src/upgrade.rs::scan	LexerConfig::default	irules_registry_tooling	open	pending
-rust/tcl-sslictcl/src/dsl.rs::literal_list	split_list	irules_registry_tooling	open	pending
-rust/tcl-syntax/src/expr/parser.rs::parse_expr_cached_for_profile	DialectProfile::plain_tcl	diagnostics	open	pending
-rust/tcl-syntax/src/expr/parser.rs::parse_expr_for_profile	DialectProfile::plain_tcl	diagnostics	open	pending
-rust/tcl-syntax/src/expr/parser.rs::parse_expr_for_profile_with_lexer_config	DialectProfile::plain_tcl	diagnostics	open	pending
-rust/tcl-syntax/src/expr/syntax_error.rs::diagnose_for_profile	DialectProfile::plain_tcl	diagnostics	open	pending
-rust/tcl-syntax/src/formal_params.rs::formal_parameter_usage	join_list	diagnostics	open	pending
-rust/tcl-syntax/src/formal_params.rs::parse_formal_parameters_in	split_list	diagnostics	open	pending
-rust/tcl-syntax/src/formal_params.rs::split_overlong_parameter_specifier	join_list	diagnostics	open	pending
-rust/tcl-syntax/src/formal_params.rs::split_overlong_parameter_specifier	split_list	diagnostics	open	pending
-rust/tcl-syntax/src/naming.rs::vectors	split_list	diagnostics	open	pending
-rust/tcl-syntax/src/word_rules.rs::split_list	crate::list::split_list	diagnostics	open	pending
-rust/tcl-value-syntax/src/list.rs::describe_bad_value	split_list	diagnostics	open	pending
-rust/tcl-value-syntax/src/list.rs::normalise_spacing	join_list	diagnostics	open	pending
-rust/tcl-value-syntax/src/list.rs::normalise_spacing	split_list	diagnostics	open	pending
-rust/tcl-vm-wasm/src/lib.rs::run	tcl_dialect::DialectProfile::plain_tcl	execution	open	pending
-rust/tcl-vm/src/cmd_binary.rs::decode_args	tcl_syntax::list::join_list	execution	open	pending
-rust/tcl-vm/src/cmd_coro.rs::run_injections	tcl_syntax::list::join_list	execution	open	pending
-rust/tcl-vm/src/cmd_thread.rs::cmd_tsv_lappend	tcl_syntax::list::join_list	execution	open	pending
-rust/tcl-vm/src/expr/arithmetic.rs::is_list_operand	tcl_syntax::list::split_list	execution	open	pending
-rust/tcl-vm/src/interp/interpreters.rs::resolve_interp_path	tcl_syntax::list::split_list	execution	open	pending
-rust/tcl-vm/src/test_support.rs::native_vm_with_output	tcl_dialect::DialectProfile::plain_tcl	execution	open	pending
+site	occurrence	call	reviewer	status	classification	owner_or_proof	verification
+runtime/rust/src/cmd_dict.rs::filter	1	crate::parse::split_list	execution	traced	selected byte reader	dict filter script varList reads original object bytes through runtime parse::split_list; selected at script_loop ingress	Source trace. Strict vs Jim list shape uses TLS; native escape-unit vs lexical decoder still needs native-value control
+runtime/rust/src/cmd_dict.rs::for_	1	parse::split_list	execution	traced	selected byte reader	dict for varList enters same selected TLS byte decoder	Source trace; verify exact object conversion errors and escaped native units
+runtime/rust/src/cmd_dict.rs::map	1	parse::split_list	execution	traced	selected byte reader	dict map varList reads selected bytes, count must be two	Source trace; dict map availability separate from variable-list grammar
+runtime/rust/src/cmd_error.rs::bind_handler_vars	1	crate::parse::split_list	execution	traced	selected byte reader	try handler bind reads its variable list with selected TLS policy	Source trace; preserve actual argument-list conversion before bindings
+runtime/rust/src/cmd_error.rs::errorcode_prefix_match	1	crate::parse::split_list	execution	traced	selected byte reader	try trap compares error-code prefix against caught errorCode; both lists use selected TLS policy	Source trace; exercise malformed prefix and byte keys independently
+runtime/rust/src/cmd_error.rs::errorcode_prefix_match	2	crate::parse::split_list	execution	open	selected byte reader	try trap compares error-code prefix against caught errorCode; both lists use selected TLS policy	Check this repeated occurrence separately. Source trace; exercise malformed prefix and byte keys independently
+runtime/rust/src/cmd_error.rs::throw_cmd	1	crate::parse::split_list	execution	traced	selected byte reader	throw tests whether type list is empty under actual ingress	Source trace; release-specific throw availability checked at dispatch
+runtime/rust/src/cmd_error.rs::try_cmd	1	crate::parse::split_list	execution	traced	selected byte reader	try validates trap patterns and on/trap variable lists before body	Source trace; do not replace guest syntax failure with a successful empty list
+runtime/rust/src/cmd_error.rs::try_compiles_script_word	1	crate::parse::split_list	execution	traced	compiler admission	try compiler preflight checks local scalar names, arity and trap nonemptiness; selected runtime byte reader	Source trace; preserve declined inline cases separately from runtime completion
+runtime/rust/src/cmd_error.rs::try_compiles_script_word	2	crate::parse::split_list	execution	open	compiler admission	try compiler preflight checks local scalar names, arity and trap nonemptiness; selected runtime byte reader	Check this repeated occurrence separately. Source trace; preserve declined inline cases separately from runtime completion
+runtime/rust/src/cmd_fs.rs::glob_cmd	1	crate::parse::split_list	execution	traced	wrong answer candidate	glob -types currently turns malformed list into no filters, drops unknown type words	Five C oracles reject unmatched open brace and bogus; latest Jim rejects -types option. Runtime source confirmed, product replay outstanding
+runtime/rust/src/cmd_info.rs::bad_level	1	tcl_syntax::list::join_list	execution	traced	lossy diagnostic	info level error joins fixed TCL LOOKUP LEVEL prefix with lossy UTF-8 projection; native name bytes belong to list_result renderer	Source trace; fixture requires non-Unicode original spec and typed errorCode
+runtime/rust/src/cmd_string.rs::split_list_or_error	1	crate::parse::split_list	execution	traced	selected byte reader	string command table/mapping helpers obtain words through selected TLS bytes with complete list_error_message	Source trace. Check grammar and error attributes on typed original list
+runtime/rust/src/cmd_string.rs::str_map	1	crate::parse::split_list	execution	traced	selected byte reader	string map fallback decodes mapping pairs using selected TLS then matches keys	Source trace; compare physical NativeStringProtocol on opaque/original list and preserve error details
+runtime/rust/src/compiled_locals.rs::Scan::loop_variables	1	parse::split_list	execution	traced	compiler admission	compiled-local collector's foreach/lmap variable list uses selected byte grammar and validates arity	Source trace; collector gate conditional on selected native compiler; not proof every unknown scope is closed
+runtime/rust/src/compiled_locals.rs::Scan::try_command	1	parse::split_list	execution	traced	compiler admission	collector handles try trap and on handlers under selected TLS grammar; list controls winning/declining local discovery	Source trace, requires comparison against allocated native proc slots
+runtime/rust/src/dict.rs::scan_dict_pairs	1	crate::parse::split_list	execution	traced	selected byte reader	generic dictionary conversion uses selected list decoder, explicit missing-value check and retained parse bytes	8512a9562d moves actual list/dict owners. Native typed cached object conversion is distinct
+runtime/rust/src/interp/errors/error_info.rs::Interp::process_return_error	1	crate::parse::split_list	execution	traced	selected byte reader	return-options -errorstack validates even pairs after selected-runtime parsing; only releases with error stack reach it	Source trace; authority is physical return-options installer
+runtime/rust/src/list.rs::ensure_list	1	parse::split_list	execution	traced	selected byte reader	fallback ensure_list uses selected lexer policy on stored bytes. Physical list conversion has split_native_list_elements for selected string protocol	Source trace; first extraction passes old/new unit matrix; legacy escape-materialization parity remains open
+runtime/rust/src/parse.rs::parse_script	1	tcl_lexer::LexerConfig::default	execution	traced	compatibility facade	runtime's parse_script uses default only for standalone tests; product uses parse_script_with_config/eval ingress	All in-tree unqualified callers found inside parse.rs test sections
+rust/bpf-tcl-ir/src/lower.rs::Lowerer::parse_expr	1	parse_expr	execution	traced	selected grammar	BPF Lowerer::parse_expr passes self.expr_dialect populated from registry.profile().name	Source trace; profile-less build remains explicitly optional, not authority for selected source
+rust/tcl-bigip-query/src/architecture.rs::tcl_commands	1	LexerConfig::default	irules_registry_tooling	open	pending	pending	pending
+rust/tcl-cmd-core/src/binary.rs::int_value_error	1	split_list	execution	traced	lossy fallback	binary format bytes adapter constructs an integer diagnostic by parsing UTF-8-lossy text; original formatting adapters bypass it; registry constant folding can reach it	Needs dialect-specific folding and opaque error controls; refer numeric owner for failures
+rust/tcl-cmd-core/src/binary.rs::scan	1	tcl_syntax::list::join_list	execution	traced	numeric result writer	binary scan legacy/registry fallback renders a vector of formatted doubles as a list; numeric spellings contain no Tcl quoting characters	Source trace; numeric spelling precision/dialect separate
+rust/tcl-cmd-core/src/binary.rs::scan_field_result	1	join_list	execution	traced	numeric result writer	binary scan_field_result uses local byte space-join for integer/decimal fields already emitted as numbers	Source trace: no arbitrary list element enters helper; numeric-only precondition
+rust/tcl-cmd-core/src/binary.rs::split_field	1	split_list	execution	traced	wrong fallback input	legacy binary format/size-bound/registry folding split_field rejects non-UTF-8 before selected list parsing	Source trace; physical original callers use format_values_using; typed memory bytes must not be repaired
+rust/tcl-cmd-core/src/channel.rs::resolve_open_access_mode	1	tcl_syntax::list::split_list	execution	traced	C release input	open access-mode resolver unconditionally decodes Unicode list as default escapes even though caller supplies C version	Source trace; use split_list_in with physical version for C, retain message/error-code differences
+rust/tcl-cmd-core/src/channel.rs::resolve_profile	1	tcl_syntax::list::join_list	execution	traced	C error list	channel encoding profile error writes TCL ENCODING PROFILE and a Unicode word at index 3, no first-hash policy difference on C	Source trace; opaque input requires separate argument/byte adapter
+rust/tcl-cmd-core/src/channel.rs::resolve_system_encoding	1	tcl_syntax::list::join_list	execution	traced	C error list	host system-encoding resolution writes TCL LOOKUP ENCODING prefix plus non-first word	Source trace; native original encoding resolution distinct from this public text API
+rust/tcl-cmd-core/src/channel.rs::ChannelConfig::set_encoding	1	tcl_syntax::list::join_list	execution	traced	C error list	channel option -encoding writes fixed TCL prefix plus the requested Unicode encoding	Source trace; no Tcl command is parsed here
+rust/tcl-cmd-core/src/channel.rs::ChannelConfig::set_translation	1	tcl_syntax::list::split_list	execution	traced	C release input	fconfigure -translation splits one/two mode words but uses C9 default escapes for all versions	Source trace; use declared TclVersion even when all known mode names are ASCII
+rust/tcl-cmd-core/src/channel.rs::ChannelConfig::translation_value	1	tcl_syntax::list::join_list	execution	traced	invariant result writer	bidirectional channel translation strings from ASCII enum are emitted as a two-element list	Source trace; no quoting/control bytes possible
+rust/tcl-cmd-core/src/clock.rs::bad_option	1	tcl_syntax::list::join_list	execution	traced	C error list	clock option parser writes CLOCK badOption plus original non-first Unicode word	Source trace; check byte-facing adapters separately
+rust/tcl-cmd-core/src/clock.rs::invalid_input	1	tcl_syntax::list::join_list	execution	traced	invariant result writer	clock scan invalid-input field supplied by date/time parser, fixed CLOCK invInpStr prefix	Source trace; a serializer, not input Tcl parsing
+rust/tcl-cmd-core/src/clock.rs::unit_under	1	tcl_syntax::list::join_list	execution	traced	C error list	clock add/unit parser writes CLOCK badUnit with word at non-first index	Source trace; no first-element hash change among C for supplied words
+rust/tcl-cmd-core/src/dict.rs::key_not_known	1	tcl_syntax::list::join_list	execution	traced	C error list	dictionary key_not_known text helper emits TCL LOOKUP DICT plus missing key, Unicode-only signature	Native boxed dictionary errors use other byte owner where available; opaque key normal-entry exercise pending
+rust/tcl-cmd-core/src/encoding.rs::resolve_encoding	1	tcl_syntax::list::join_list	execution	traced	C error list	resolve_encoding text helper emits fixed TCL LOOKUP ENCODING prefix and non-first Unicode name	Source trace; native name catalogue separate
+rust/tcl-cmd-core/src/frame.rs::bad_level	1	tcl_syntax::list::join_list	execution	traced	C error list	frame bad_level builds TCL LOOKUP LEVEL from Unicode spec at non-first position	Source trace; diagnostics implementing level syntax; preserve selected spelling and retained bytes
+rust/tcl-cmd-core/src/info.rs::level	1	tcl_syntax::list::join_list	execution	traced	C error list	info level borrows checked Unicode for unavailable index and renders TCL LOOKUP STACK_LEVEL	Source trace; old C errorcode suppression and original-byte error adapters must be checked separately
+rust/tcl-cmd-core/src/list.rs::lindex_result	1	tcl_syntax::list::split_list	execution	traced	portable fallback	lindex_result first dispatches native C original path or Jim safe-expression indices, remaining neutral single-spec reader uses Unicode split_list	Source trace; malformed single index falls back to index diagnostic
+rust/tcl-cmd-core/src/list.rs::lset	1	tcl_syntax::list::split_list	execution	traced	portable fallback	lset selected C/Jim handlers precede neutral fallback splitting an already checked Unicode-only index	Source trace; do not replace C array/index valuation with list assumption in other families
+rust/tcl-cmd-core/src/lsearch.rs::split_index	1	split_list	execution	traced	portable fallback	lsearch -index original C/Jim path precedes neutral split_index text; secondary fallback option-parser uses same helper	Source trace; byte-preserving physical path and nested representation remain separate
+rust/tcl-cmd-core/src/lsort.rs::split_index	1	split_list	execution	traced	portable fallback	lsort -index prepared C/Jim path precedes neutral split_index which rejects opaque bytes	Source trace; exercise unissued profile separately
+rust/tcl-cmd-core/src/native_list_index.rs::convert_spelling	1	tcl_syntax::list::split_list	execution	traced	C release input	native index convert_spelling uses default list parsing only in C9+ multiword detection before invoking actual original list getter	Source trace; C9 default syntax matches here, original object/diagnostic order retained
+rust/tcl-cmd-core/src/regex.rs::compile_error	1	tcl_syntax::list::join_list	execution	traced	invariant result writer	shared regexp compile error selects only a fixed REG_ERROR_NAMES table detail before writing REGEXP name text	Source trace; no untrusted list input in the table match
+rust/tcl-cmd-core/src/regex/regsub_command.rs::command_prefix	1	tcl_syntax::list::split_list	execution	traced	lossy fallback	regsub -command legacy command_prefix first requires UTF-8 then default list syntax; original regex command has separate native object path	Source trace; distinguish Tcl9.1 option grammar, check opaque command prefixes through normal entry
+rust/tcl-cmd-core/src/string.rs::select_subcommand	1	tcl_syntax::list::join_list	execution	traced	lossy diagnostic	string select_subcommand error converts original bytes with from_utf8_lossy before constructing error-code list	Source trace; Tcl NUL and invalid byte diagnostic need counted caller control
+rust/tcl-cmd-core/src/trace.rs::parse_ops	1	tcl_syntax::list::split_list	execution	traced	portable fallback	core trace::parse_ops validates Unicode spellings; actual VM and runtime use parse_ops_original, with fixed empty fallback	Source trace through both command dispatchers; empty list shape invariant
+rust/tcl-codegen/src/codegen/cmd_subst.rs::has_command_separator	1	tcl_lexer::LexerConfig::default	execution	traced	compatibility facade	has_command_separator wrapper selects default only in standalone/tests; emitter uses _with_config	In-tree use search limited to definition and test modules
+rust/tcl-codegen/src/codegen/cmd_subst.rs::is_pure_cmd_subst	1	tcl_lexer::LexerConfig::default	execution	traced	compatibility facade	is_pure_cmd_subst standalone wrapper delegates with default; production emitter passes config	In-tree use search limited to definition and tests
+rust/tcl-codegen/src/codegen/cmd_subst.rs::parse_cmd_parts	1	tcl_lexer::LexerConfig::default	execution	traced	compatibility facade	parse_cmd_parts no-profile wrapper has test and residual test consumers; emitter uses checked configured version	In-tree source search; default must not reach selected compile service
+rust/tcl-codegen/src/codegen/cmd_subst.rs::parse_cmd_parts_expand	1	tcl_lexer::LexerConfig::default	execution	traced	compatibility facade	parse_cmd_parts_expand no-profile wrapper has test consumers; production uses _with_config	In-tree source search
+rust/tcl-codegen/src/compile_service.rs::BytecodeCompileService::new	1	LexerConfig::default	execution	traced	explicit default	BytecodeCompileService::new owns explicitly unspecified fallback registry; for_profile is the selected execution/codegen entry	Misuse identified in public WASM adapter; facade itself is documented
+rust/tcl-codegen/src/compile_service.rs::profile_less_engine	1	DialectProfile::plain_tcl	execution	traced	explicit default	profile_less_engine obtains the advertised default physical C release from plain_tcl; with-profile services use their own requested profile	Source trace; retaining fallback surface does not prove a selected source command
+rust/tcl-compiler/examples/mro_delta.rs::build_worksheet	1	tcl_lexer::LexerConfig::default	analyser_binding	traced	fixed	Exact compilation-unit IR lexer configuration for class_values/analyse_dispatch	257fc684be; traced all four corpus paths
+rust/tcl-compiler/examples/mro_eval.rs::run_pass_b	1	tcl_lexer::LexerConfig::default	analyser_binding	traced	fixed	Exact compilation-unit IR lexer configuration for class_values/analyse_dispatch	257fc684be; traced all four corpus paths
+rust/tcl-compiler/examples/mro_interproc.rs::analyse_file	1	tcl_lexer::LexerConfig::default	analyser_binding	traced	fixed	Exact compilation-unit IR lexer configuration for class_values/analyse_dispatch	257fc684be; traced all four corpus paths
+rust/tcl-compiler/examples/mro_interproc.rs::receiver_taxonomy	1	tcl_lexer::LexerConfig::default	analyser_binding	traced	fixed	Exact compilation-unit IR lexer configuration for class_values/analyse_dispatch	257fc684be; traced all four corpus paths
+rust/tcl-compiler/src/analyser/diagnostics/dataflow/unused_bindings.rs::body_references_param	1	tcl_dialect::DialectProfile::plain_tcl	diagnostics	traced	fixture only	body_references_param is cfg(test); production consumes original formals and source	source guard
+rust/tcl-compiler/src/analyser/diagnostics/dataflow/unused_bindings.rs::body_references_param	1	tcl_syntax::list::join_list	diagnostics	traced	fixture only	list serialization builds test invocation only	source guard
+rust/tcl-compiler/src/analyser/diagnostics/dataflow/unused_bindings.rs::body_references_param	2	tcl_syntax::list::join_list	diagnostics	open	fixture only	list serialization builds test invocation only	Check this repeated occurrence separately. source guard
+rust/tcl-compiler/src/analyser/diagnostics/validity/malformed_structure.rs::emit_invalid_lambda_parameter_list_diagnostics	1	tcl_syntax::list::join_list	diagnostics	traced	repair pending	invalid lambda fix uses default serializer and default nested parameter-list repair; select ParameterGrammar and verify reparsed proposal in selected rules	malformed_structure.rs also calls it for named proc
+rust/tcl-compiler/src/analyser/diagnostics/var_command/dispatch_tables.rs::dispatch_table_head	1	tcl_syntax::list::join_list	diagnostics	traced	repair pending	singleton dispatch list tests unchanged spelling with generic join; select NativeListResultSerialization from invocation native string protocol	initial hash has a release-specific list representation
+rust/tcl-compiler/src/analyser/state/configuration.rs::Analyser::with_disabled_diagnostics	1	tcl_dialect::DialectProfile::plain_tcl	analyser_binding	traced	default constructor	walk_environment sets resolved input.profile or environment.analyser_profile	walk_environment.rs:311,319
+rust/tcl-compiler/src/analyser/utils/stub_directives.rs::scan_source_for_stubs	1	tcl_lexer::LexerConfig::default	analyser_binding	traced	separate sidecar grammar	Document scan enters scan_source_for_stubs_with_outside with selected config; standalone scanner handles generated comment-only sidecar	stub_directives.rs:113-121,256-275
+rust/tcl-compiler/src/body_analysis_capsule/readonly_authored_coverage.rs::matches_installed_row	1	tcl_syntax::list::join_list	analyser_binding	traced	internal serialization	Joined formal names and defaults are compared as an internal custody key in retained_source and readonly_authored_coverage; source decoding has its own WordValueRules	paired producer lowering/installed_bodies and consumer comparisons, no returned Tcl bytes
+rust/tcl-compiler/src/body_analysis_capsule/readonly_authored_coverage.rs::matches_installed_row	2	tcl_syntax::list::join_list	analyser_binding	open	internal serialization	Joined formal names and defaults are compared as an internal custody key in retained_source and readonly_authored_coverage; source decoding has its own WordValueRules	Check this repeated occurrence separately. paired producer lowering/installed_bodies and consumer comparisons, no returned Tcl bytes
+rust/tcl-compiler/src/cfg_builder/command_classes.rs::CfgCommandClasses::from_registry	1	tcl_lexer::LexerConfig::default	analyser_binding	traced	test only	from_registry default applies to cfg(test) metadata field	command_classes.rs:43-53
+rust/tcl-compiler/src/cfg_builder/mod.rs::CfgBuilder::new_with_upvars_and_classes	1	tcl_lexer::LexerConfig::default	analyser_binding	traced	constructor sentinel	build_analysis_body, build_analysis_body_for_input and configured function construction pass .with_lexer_config(config) before execution	cfg_builder/function_entry_points.rs:121,146,312
+rust/tcl-compiler/src/codegen_helpers.rs::fold_cmd_args	1	tcl_syntax::list::join_list	analyser_binding	traced	confirmed wrong serializer; assigned	SCCP original assignment folding can choose generic list rendering from WordValueRules alone; dataflow_optimiser owns	Tcl 8.4 list #foo => #foo; Tcl 8.5+ and Jim => {#foo}; separate native result fixed in 966d9aedfb
+rust/tcl-compiler/src/codegen_helpers.rs::fold_dict_create_cmd	1	tcl_syntax::list::join_list	analyser_binding	traced	unused public helper	Generic dict create folding includes a generic list spelling; no production references found	rg fold_dict_create_cmd workspace; helper itself reviewed; public API remains
+rust/tcl-compiler/src/command_binding/logical_definition.rs::static_formals	1	tcl_syntax::list::split_list	analyser_binding	traced	conservative consensus	Checks selected vs strict list elements at both outer and inner levels before it admits strict parse_formal_parameters; differing representations decline	logical_definition.rs:407+ matching_list_elements and static_formals
+rust/tcl-compiler/src/command_binding/native_result.rs::selected_result	1	tcl_syntax::list::join_list	analyser_binding	traced	fixed	NativeResultSelection ListArguments and ListRepeat select exact native serializer through InvocationDialect	966d9aedfb; six-oracle first-hash transcript
+rust/tcl-compiler/src/command_binding/native_result.rs::selected_result	2	tcl_syntax::list::join_list	analyser_binding	open	fixed	NativeResultSelection ListArguments and ListRepeat select exact native serializer through InvocationDialect	Check this repeated occurrence separately. 966d9aedfb; six-oracle first-hash transcript
+rust/tcl-compiler/src/command_binding/retained_source.rs::RetainedSourceModuleBindings::inherited_empty_installed_report_custody	1	tcl_syntax::list::join_list	analyser_binding	traced	internal serialization	Joined formal names and defaults are compared as an internal custody key in retained_source and readonly_authored_coverage; source decoding has its own WordValueRules	paired producer lowering/installed_bodies and consumer comparisons, no returned Tcl bytes
+rust/tcl-compiler/src/command_binding/retained_source.rs::RetainedSourceModuleBindings::inherited_empty_installed_report_custody	2	tcl_syntax::list::join_list	analyser_binding	open	internal serialization	Joined formal names and defaults are compared as an internal custody key in retained_source and readonly_authored_coverage; source decoding has its own WordValueRules	Check this repeated occurrence separately. paired producer lowering/installed_bodies and consumer comparisons, no returned Tcl bytes
+rust/tcl-compiler/src/command_binding/retained_source.rs::RetainedSourceModuleBindings::matches_inherited_point_report_body	1	tcl_syntax::list::join_list	analyser_binding	traced	internal serialization	Joined formal names and defaults are compared as an internal custody key in retained_source and readonly_authored_coverage; source decoding has its own WordValueRules	paired producer lowering/installed_bodies and consumer comparisons, no returned Tcl bytes
+rust/tcl-compiler/src/command_binding/retained_source.rs::RetainedSourceModuleBindings::matches_inherited_point_report_body	2	tcl_syntax::list::join_list	analyser_binding	open	internal serialization	Joined formal names and defaults are compared as an internal custody key in retained_source and readonly_authored_coverage; source decoding has its own WordValueRules	Check this repeated occurrence separately. paired producer lowering/installed_bodies and consumer comparisons, no returned Tcl bytes
+rust/tcl-compiler/src/compilation_unit/build_entry.rs::CompilationUnit::build_standalone_for	1	tcl_lexer::LexerConfig::default	analyser_binding	traced	standalone API	build_standalone_for explicitly documented profileless path; source uses build_for_dialect	build_entry.rs:132-151
+rust/tcl-compiler/src/compilation_unit/build_entry.rs::CompilationUnit::from_branch_folding_fixture	1	tcl_lexer::LexerConfig::default	analyser_binding	traced	test only	Explicit cfg(test) or test-support fixture	cfg guarding function at definition
+rust/tcl-compiler/src/compilation_unit/function_build.rs::FunctionUnit::trivial_guarded	1	tcl_lexer::LexerConfig::default	analyser_binding	traced	inactive sentinel	Complexity-guarded FunctionUnit carries empty facts; guarded passes skip the unit	function_build.rs::trivial_guarded
+rust/tcl-compiler/src/const_subst.rs::folded_literal_reads_apart	1	tcl_syntax::list::split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-compiler/src/dictionary_bindings.rs::write_path	1	tcl_syntax::list::join_list	analyser_binding	traced	open exact representation	write_path parses dictionary with supplied dialect but serializes with generic join_list; compare dictionary object spelling on Jim and Tcl and check representation consumed	dictionary_bindings.rs::write_path; nested write path under review
+rust/tcl-compiler/src/dynamic_names.rs::dynamic_variable_word_can_spell	1	LexerConfig::default	analyser_binding	traced	standalone API	Only tests call this standalone braced-variable-style adapter; actual edit consumers call source_name_pattern_can_spell with complete config	rg dynamic_variable_word_can_spell and dynamic_names.rs:265-355
+rust/tcl-compiler/src/ir.rs::native_call_for_test	1	tcl_lexer::LexerConfig::default	analyser_binding	traced	test only	Explicit cfg(test) or test-support fixture	cfg guarding function at definition
+rust/tcl-compiler/src/ir_helpers/evaluated_substitutions.rs::substitution_expression	1	crate::expr_parser::parse_expr	analyser_binding	traced	selected/compatibility fallback	Supplied metadata routes to source_substitution_dialect then expression_parse_context and context.config.grammar_over; legacy no-metadata path uses registry profile by name	evaluated_substitutions.rs:387-407; fallback fidelity still to verify for unit-specific inputs
+rust/tcl-compiler/src/lowering/configuration.rs::Lowerer::new	1	tcl_lexer::LexerConfig::default	analyser_binding	traced	constructor under review	Lowerer::new accepts registry without document config; configured product path uses Lowerer::with_config	lowering/configuration.rs constructor; inspect registry-profile defaults along public wrappers
+rust/tcl-compiler/src/lowering/installed_bodies.rs::canonical_parameter_list	1	tcl_syntax::list::join_list	analyser_binding	traced	internal serialization	Joined formal names and defaults are compared as an internal custody key in retained_source and readonly_authored_coverage; source decoding has its own WordValueRules	paired producer lowering/installed_bodies and consumer comparisons, no returned Tcl bytes
+rust/tcl-compiler/src/lowering/installed_bodies.rs::canonical_parameter_list	2	tcl_syntax::list::join_list	analyser_binding	open	internal serialization	Joined formal names and defaults are compared as an internal custody key in retained_source and readonly_authored_coverage; source decoding has its own WordValueRules	Check this repeated occurrence separately. paired producer lowering/installed_bodies and consumer comparisons, no returned Tcl bytes
+rust/tcl-compiler/src/lowering/installed_bodies.rs::Lowerer::retain_installed_body	1	tcl_syntax::list::join_list	analyser_binding	traced	internal serialization	Joined formal names and defaults are compared as an internal custody key in retained_source and readonly_authored_coverage; source decoding has its own WordValueRules	paired producer lowering/installed_bodies and consumer comparisons, no returned Tcl bytes
+rust/tcl-compiler/src/lowering/installed_bodies.rs::Lowerer::retain_installed_body	2	tcl_syntax::list::join_list	analyser_binding	open	internal serialization	Joined formal names and defaults are compared as an internal custody key in retained_source and readonly_authored_coverage; source decoding has its own WordValueRules	Check this repeated occurrence separately. paired producer lowering/installed_bodies and consumer comparisons, no returned Tcl bytes
+rust/tcl-compiler/src/lowering/installed_bodies.rs::Lowerer::retain_installed_procedure_body_units	1	tcl_syntax::list::join_list	analyser_binding	traced	internal serialization	Joined formal names and defaults are compared as an internal custody key in retained_source and readonly_authored_coverage; source decoding has its own WordValueRules	paired producer lowering/installed_bodies and consumer comparisons, no returned Tcl bytes
+rust/tcl-compiler/src/lowering/installed_bodies.rs::Lowerer::retain_installed_procedure_body_units	2	tcl_syntax::list::join_list	analyser_binding	open	internal serialization	Joined formal names and defaults are compared as an internal custody key in retained_source and readonly_authored_coverage; source decoding has its own WordValueRules	Check this repeated occurrence separately. paired producer lowering/installed_bodies and consumer comparisons, no returned Tcl bytes
+rust/tcl-compiler/src/lowering/mod.rs::first_fatal_parse_error	1	tcl_lexer::LexerConfig::default	analyser_binding	traced	standalone API	Profileless diagnostic helper has only VM tests in workspace; production bytecode compile service uses configured sibling	rg first_fatal_parse_error rust
+rust/tcl-compiler/src/lowering/mod.rs::lower_to_ir_for_bytecode	1	tcl_lexer::LexerConfig::default	analyser_binding	traced	open registry profile lost	Public bytecode/traced wrapper accepts a registry but forces default config, while configured sibling supports document grammar	lowering/mod.rs:913,944; only bytecode wrapper test callers found
+rust/tcl-compiler/src/lowering/mod.rs::lower_to_ir_traced	1	tcl_lexer::LexerConfig::default	analyser_binding	traced	open registry profile lost	Public bytecode/traced wrapper accepts a registry but forces default config, while configured sibling supports document grammar	lowering/mod.rs:913,944; only bytecode wrapper test callers found
+rust/tcl-compiler/src/lowering_hooks.rs::extract_single_expr_arg	1	LexerConfig::default	analyser_binding	traced	test only	Explicit cfg(test) or test-support fixture	cfg guarding function at definition
+rust/tcl-compiler/src/optimiser/closed_consumer.rs::PlanBuilder::output	1	crate::expr_parser::parse_expr	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-compiler/src/optimiser/closed_consumer.rs::source_preparation_domain	1	crate::expr_parser::parse_expr	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-compiler/src/optimiser/closed_consumer/application.rs::argument_text	1	crate::expr_parser::parse_expr	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-compiler/src/optimiser/helpers/expr_simplify/constant_folding.rs::substitute_expr_constants	1	tcl_dialect::DialectProfile::plain_tcl	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-compiler/src/optimiser/helpers/expr_simplify/constant_folding.rs::try_fold_expr_with_constants	1	tcl_dialect::DialectProfile::plain_tcl	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-compiler/src/optimiser/manager.rs::optimise_with_dialect	1	tcl_dialect::DialectProfile::plain_tcl	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-compiler/src/parsing/spectcl_source.rs::pack_source_lexer_config	1	LexerConfig::default	analyser_binding	traced	fixed DSL grammar	SpecTcl pack source grammar is authored independently of target profile, with explicitly supplied segmentation purpose	parsing/spectcl_source.rs:41-52
+rust/tcl-compiler/src/registry_invocation/native_compilation.rs::native_simple_text_component	1	tcl_lexer::LexerConfig::default	analyser_binding	traced	open source token custody	WordExpr::Template(Text) already decomposed by doc grammar, but native_simple_text_component decomposes raw text again to distinguish Original vs decoded; test if original/decoded can be retained at ingress	native_compilation.rs:280-326; no affirmative proof if text was materialised
+rust/tcl-compiler/src/registry_invocation/source_structure/package_target_survey.rs::OriginalPackageIndexSourceSurvey::capture	1	tcl_dialect::DialectProfile::plain_tcl	analyser_binding	traced	explicit fixed hypothetical model	OriginalPackageIndexSourceSurvey captures plain Tcl as the source advertisement model and preserves caller-supplied whole-file config and registry; controls do not assert runtime dispatch	package_target_survey.rs module contract and capture
+rust/tcl-compiler/src/segmenter.rs::segment_commands_with_offset	1	LexerConfig::default	analyser_binding	traced	standalone API	Config-free segmented-source adapters; configured document/recovery code has selected siblings. Check transitive callers of segment_commands separately	segmenter.rs:373-376,906-915; recovery.rs unconfigured calls are test-only
+rust/tcl-compiler/src/segmenter.rs::segment_commands_with_recovery	1	LexerConfig::default	analyser_binding	traced	standalone API	Config-free segmented-source adapters; configured document/recovery code has selected siblings. Check transitive callers of segment_commands separately	segmenter.rs:373-376,906-915; recovery.rs unconfigured calls are test-only
+rust/tcl-compiler/src/static_loops.rs::loop_words	1	tcl_syntax::list::join_list	analyser_binding	traced	structural encoding	loop_words reconstructs a Foreach iterator variable list from already-decoded IR var names as a braced operand of the hook; count and positions select argument roles	static_loops.rs::loop_words plus loop shape query
+rust/tcl-compiler/src/taint.rs::arg_var_names	1	tcl_lexer::LexerConfig::default	diagnostics	traced	fixture only	arg_var_names is cfg(test); analyser taint production uses selected argument positions and retained word values	source guard
+rust/tcl-compiler/src/tcl_expr_eval/native_constant.rs::FoldOps::constant_operand_failure	1	tcl_syntax::list::split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-compiler/src/uri_split.rs::walk_expr	1	parse_expr	analyser_binding	traced	explicit standalone model	Resolved metadata routes to actual expression_parse_context plus lexer grammar. Only an explicitly standalone CFG may take f5-irules fallback; other missing metadata declines	uri_split.rs:1018-1029
+rust/tcl-compiler/src/value_transfer/queries.rs::<StructureInputs as AnalysisInputs>::prior_store	1	tcl_syntax::list::join_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-compiler/src/var_refs.rs::VarReferenceScanner::new	1	LexerConfig::default	analyser_binding	traced	standalone API	VarReferenceScanner standalone convenience; configured scans use with_config/for_registry when grammar is supplied	var_refs.rs:232-260; check transitive callers separately
+rust/tcl-compiler/src/var_refs.rs::VarReferenceScanner::with_cache_size	1	LexerConfig::default	analyser_binding	traced	standalone API	VarReferenceScanner standalone convenience; configured scans use with_config/for_registry when grammar is supplied	var_refs.rs:232-260; check transitive callers separately
+rust/tcl-cshim/src/load.rs::Request::parse	1	tcl_syntax::list::join_list	execution	traced	C error list	C extension load option parse constructs TCL LOOKUP INDEX option spelling after argument admission	Source trace; caller C command accepts textual arguments, writer has fixed prefix
+rust/tcl-engine-wasm/src/session.rs::Session::define_unit	1	tcl_syntax::list::join_list	execution	traced	host representation	engine-wasm define_unit serializes host Vec<String> as a formal-list value to define unit; both native objects/wasm reads need match	No list parser here. Explicit input type is Unicode; first # quoted value round trip preserved
+rust/tcl-engine-wasm/src/session.rs::Session::restrict	1	tcl_syntax::list::join_list	execution	traced	host representation	engine-wasm restrict serializes caller's allowed names into a list for sandbox installation	No parser here. Preserve exact member identity, do not treat input strings as source code
+rust/tcl-irule-test/src/live.rs::LiveSession::fire_sequence	1	join_list	irules_registry_tooling	open	pending	pending	pending
+rust/tcl-irule-test/src/topology.rs::datagroup_records_tcl	1	join_list	irules_registry_tooling	open	pending	pending	pending
+rust/tcl-irule-test/src/topology.rs::Topology::generate_tcl_setup	1	join_list	irules_registry_tooling	open	pending	pending	pending
+rust/tcl-lexer/src/expr_lexer.rs::Inner::from_grammar	1	crate::LexerConfig::default	diagnostics	traced	selected grammar	default parser knobs followed by with_grammar override every semantic lexer axis; use LexerConfig::from_grammar directly	lexer/config.rs:179,234
+rust/tcl-lexer/src/expr_lexer.rs::tokenise_expr_checked	1	tcl_dialect::DialectProfile::plain_tcl	diagnostics	traced	explicit compatibility	known dialect calls profile selection; no dialect asks for documented plain expression compatibility policy	tokenise_expr_checked source
+rust/tcl-lexer/src/highlight.rs::highlight_ranges	1	LexerConfig::default	diagnostics	traced	explicit compatibility	default highlighting façade has a typed highlight_ranges_with_config sibling	bigip-report-gen Python selects f5-irules for actual ingress
+rust/tcl-lexer/src/highlight.rs::highlight_tcl	1	LexerConfig::default	diagnostics	traced	explicit compatibility	default highlighting façade has a typed highlight_tcl_with_config sibling	bigip-report-gen Python selects f5-irules for actual ingress
+rust/tcl-lexer/src/lexer.rs::Lexer::new	1	LexerConfig::default	diagnostics	traced	explicit compatibility	Lexer::new is unconfigured convenience; selected contexts use Lexer::with_config	selected lexical grammar carried in config construction
+rust/tcl-lexer/src/ranges.rs::close_quote_offset	1	crate::LexerConfig::default	diagnostics	traced	migrated public API	close_quote_offset_in selected variant published locally d905606d1e; four consumers routed	semantic tokens/minify, compiler optimizer and codegen use nested quoting policies
+rust/tcl-lexer/src/ranges.rs::command_substitution_end_bytes	1	crate::LexerConfig::default	diagnostics	traced	repair in progress	command_substitution_end_bytes wraps selected lower command_substitution_end_bytes_in; expression substitution scan drops actual context at two sites	substitution.rs:442,504
+rust/tcl-lexer/src/ranges.rs::scan_array_index	1	crate::LexerConfig::default	diagnostics	traced	explicit compatibility	scan_array_index takes explicit index/braced axes; scan_array_index_in accepts entire grammar including nested script	configured nested grammar at ranges.rs:162
+rust/tcl-lexer/src/structural_index.rs::BracketIndex::build	1	crate::LexerConfig::default	diagnostics	traced	explicit compatibility	BraceIndex::build legacy wrapper; selected caller uses build_with_config	structural_index.rs:621
+rust/tcl-lexer/src/structural_index.rs::BraceIndex::build	1	crate::LexerConfig::default	diagnostics	traced	explicit compatibility	BraceIndex::build legacy wrapper; selected caller uses build_with_config	structural_index.rs:621
+rust/tcl-lexer/src/word_parts.rs::quoted_word_close_with_issue	1	LexerConfig::default	diagnostics	traced	repair in progress	unconfigured quote-boundary wrapper is public convenience; fixed 8.4 expression scanner has a preexisting tcl84_config helper to pass	syntax_84.rs:591
+rust/tcl-lsp-core/src/completion.rs::variable_trigger	1	tcl_lexer::LexerConfig::default	lsp_features	traced	fixture	variable_trigger is cfg(test); production selects original_variable_cursor_prefix from the source and analysis	completion.rs:677, source_structure/cursor_syntax.rs:117; trigger tcl_lexer::LexerConfig::default
+rust/tcl-lsp-core/src/hover.rs::find_var_at_position	1	tcl_lexer::LexerConfig::default	lsp_features	traced	standalone advisory API	find_var_at_position explicitly forwards to the configuration-taking variant. No normal analysis-backed caller; those select the original source variable and frame	hover.rs:1035; rg consumers inspected; trigger tcl_lexer::LexerConfig::default
+rust/tcl-lsp-core/src/minify/command_rendering.rs::can_strip_quotes	1	LexerConfig::default	lsp_features	traced	fixture	can_strip_quotes is cfg(test); production quote removal validates the complete original word/configuration	minify/command_rendering.rs:335; trigger LexerConfig::default
+rust/tcl-lsp-core/src/minify/static_folding.rs::parse_var_ref	1	LexerConfig::default	lsp_features	traced	fixture	parse_var_ref is cfg(test); production source folds preserve retained source configuration	minify/static_folding.rs:497; trigger LexerConfig::default
+rust/tcl-lsp-core/src/package_resolver.rs::collect_source_targets	1	tcl_lexer::LexerConfig::default	lsp_features	traced	standalone package candidate survey	collect_source_targets is private to the standalone parse_pkg_index advertisement path. IndexLoader::standalone cannot supply actual loading or selected package identity	package_resolver.rs:313,411; original_names/index_loader.rs:214; trigger tcl_lexer::LexerConfig::default
+rust/tcl-lsp-core/src/package_resolver.rs::package_requires_in	1	tcl_lexer::LexerConfig::default	lsp_features	traced	standalone package candidate survey	The default configuration produces candidate package requires only. A shared workspace index may serve incompatible dialects, so a discovered candidate alone cannot prove package availability	package_resolver.rs:570,1147; original_names.rs:435; trigger tcl_lexer::LexerConfig::default
+rust/tcl-lsp-core/src/package_resolver.rs::package_requires_in	1	tcl_dialect::DialectProfile::plain_tcl	lsp_features	traced	standalone package candidate survey	package_requires_in surveys disk files without a caller dialect. The nominal profile is used for schema selection. Original package advice instead consumes retained requirements and context	package_resolver.rs:568,1147; original_names.rs:261,435; trigger tcl_dialect::DialectProfile::plain_tcl
+rust/tcl-lsp-core/src/package_resolver.rs::parse_pkg_index	1	tcl_lexer::LexerConfig::default	lsp_features	traced	standalone package candidate survey	PackageResolver::scan_path_in stores authored advertisements from parse_pkg_index. Native/conditional provider selection has its own retained parser and source inventories	package_resolver.rs:379,923; original_names.rs:201,233; trigger tcl_lexer::LexerConfig::default
+rust/tcl-lsp-core/src/package_resolver.rs::parse_pkg_index	2	tcl_lexer::LexerConfig::default	lsp_features	open	standalone package candidate survey	PackageResolver::scan_path_in stores authored advertisements from parse_pkg_index. Native/conditional provider selection has its own retained parser and source inventories	Check this repeated occurrence separately. package_resolver.rs:379,923; original_names.rs:201,233; trigger tcl_lexer::LexerConfig::default
+rust/tcl-lsp-core/src/package_resolver.rs::parse_tcl_index	1	tcl_lexer::LexerConfig::default	lsp_features	traced	standalone package candidate survey	parse_tcl_index supplies auto-index candidates for the disk survey. resolve_original_auto_command and resolve_conditional_native_autoload_source require separately retained original registrations	package_resolver.rs:465,941; original_names.rs:535,569,592; trigger tcl_lexer::LexerConfig::default
+rust/tcl-lsp-core/src/package_resolver.rs::parse_tcl_index	2	tcl_lexer::LexerConfig::default	lsp_features	open	standalone package candidate survey	parse_tcl_index supplies auto-index candidates for the disk survey. resolve_original_auto_command and resolve_conditional_native_autoload_source require separately retained original registrations	Check this repeated occurrence separately. package_resolver.rs:465,941; original_names.rs:535,569,592; trigger tcl_lexer::LexerConfig::default
+rust/tcl-lsp-core/src/package_resolver/original_names/index_loader.rs::IndexLoader::with_schema	1	tcl_dialect::DialectProfile::plain_tcl	lsp_features	traced	selected or standalone	IndexLoader::with_schema matches LoaderInput. Original/OriginalSource retain original unit_profile and registry; only Standalone requests plain_tcl. Decoded loader values remain conditional	package_resolver/original_names/index_loader.rs:621,673; trigger tcl_dialect::DialectProfile::plain_tcl
+rust/tcl-lsp-core/src/package_resolver/reachability.rs::scan	1	LexerConfig::default	lsp_features	traced	standalone advisory API	reachability::scan forwards to scan_with_config. No production caller of scan was found; actual manifests use scan_selected_registrations or scan_with_analysis	package_resolver/reachability.rs:336; original_names.rs:890; trigger LexerConfig::default
+rust/tcl-lsp-core/src/package_resolver/registration.rs::select_in_plan	1	tcl_dialect::DialectProfile::plain_tcl	lsp_features	traced	fixture	select_in_plan is cfg(test). Normal original or loaded registrations consume the resolved registry/dialect for their own source	package_resolver/registration.rs:95,162; trigger tcl_dialect::DialectProfile::plain_tcl
+rust/tcl-lsp-core/src/refactor/extract_proc.rs::render_call	1	LexerConfig::default	lsp_features	traced	fixture	render_call is cfg(test). The normal extractor calls render_call_for_config with the selected original lexer	refactor/extract_proc.rs:543,1189,1206; trigger LexerConfig::default
+rust/tcl-lsp-core/src/refactor/extract_proc.rs::render_definition	1	tcl_syntax::list::join_list	lsp_features	traced	needs correction	Selected generated procedure must model two list levels, parameter-name vs spec, and validate displayed source under actual grammar. Existing render_definition only serializes once	refactor/extract_proc.rs:1176; tcl-syntax/src/formal_params.rs:20; oracle witness below; trigger tcl_syntax::list::join_list
+rust/tcl-lsp-core/src/refactor/extract_proc.rs::variable_references	1	LexerConfig::default	lsp_features	traced	fixture	variable_references is cfg(test); it delegates its chosen brace style to syntax_variable_references. The original extractor has a separate retained source/reference inventory	refactor/extract_proc.rs:1314; trigger LexerConfig::default
+rust/tcl-lsp-core/src/refactor/extract_proc.rs::word	1	tcl_syntax::list::join_list	lsp_features	traced	needs correction	An upvar target/call operand is a Tcl script word. Current word() reuses list serialization without checking the resulting original source word. Use lexical_unicode_source_word(value,config)	refactor/extract_proc.rs:1181; tcl-syntax/src/word_rules.rs:986; trigger tcl_syntax::list::join_list
+rust/tcl-lsp-core/src/refactor/inline_proc.rs::variable_references	1	LexerConfig::default	lsp_features	traced	fixture	variable_references is cfg(test). Inline-proc entry uses selected original geometry for references and edits	refactor/inline_proc.rs:896; trigger LexerConfig::default
+rust/tcl-lsp-core/src/refactor/mod.rs::test_logical_analysis	1	tcl_dialect::DialectProfile::plain_tcl	lsp_features	traced	fixture	test_logical_analysis deliberately creates the logical profile to test its own contract	refactor/mod.rs:1661; trigger tcl_dialect::DialectProfile::plain_tcl
+rust/tcl-pkg-model/src/manifest.rs::manifest_lexer_config	1	LexerConfig::default	irules_registry_tooling	open	pending	pending	pending
+rust/tcl-pkg-model/src/manifest.rs::parse_spec	1	split_list	irules_registry_tooling	open	pending	pending	pending
+rust/tcl-pkg-model/src/manifest.rs::parse_spec_packs	1	split_list	irules_registry_tooling	open	pending	pending	pending
+rust/tcl-registry/src/array_iteration.rs::select	1	tcl_syntax::list::split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/commands/tcl/open_.rs::discovery_file_open	1	tcl_syntax::list::split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/commands/tcl/string_/constant_folds.rs::fold_string_map_impl	1	crate::const_fold::split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/commands/tcl/string_/is_classes.rs::fold_is	1	crate::const_fold::split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/commands/tcl/string_/is_classes.rs::is_dict_class	1	crate::const_fold::split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/commands/tcl/trace.rs::trace_type_command_prefix	1	tcl_syntax::list::split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/commands/tcl/trace.rs::validate_modern_trace_operations	1	tcl_syntax::list::split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/commands/tcl/trace.rs::validate_modern_trace_operations	1	tcl_syntax::list::join_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/compile_84.rs::Compile::compile_foreach	1	tcl_syntax::list::split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/const_fold.rs::fold_join	1	split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/const_fold.rs::fold_lindex	1	split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/const_fold.rs::fold_llength	1	split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/const_fold.rs::fold_lrange	1	split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/const_fold.rs::fold_lreverse	1	split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/const_fold.rs::fold_lsort	1	split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/const_fold.rs::list_join	1	tcl_syntax::list::join_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/const_fold.rs::parse_dict	1	split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/const_fold.rs::split_list	1	tcl_syntax::list::split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/model/assembly.rs::store_profile	1	DialectProfile::plain_tcl	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/model/assembly.rs::store_profiles	1	DialectProfile::plain_tcl	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/model/ingress.rs::DocumentEnvironment::analyser_profile	1	DialectProfile::plain_tcl	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/native_compilation/grammar_selection.rs::NativeCompilationSpec::select_foreach	1	tcl_syntax::list::split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/native_compilation/variable_and_list_grammars.rs::array_compilation_grammar_for	1	tcl_syntax::list::split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/native_dictionary.rs::NativeDictionaryCommand::select_iteration	1	tcl_syntax::list::split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/registry/control_arms.rs::parse_try_control_invocation_with_lists	1	tcl_syntax::list::split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/release_compilation.rs::compiled_loop_variables	1	tcl_syntax::list::split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/release_compilation.rs::compiles_dict_each	1	tcl_syntax::list::split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/release_compilation.rs::compiles_each_loop	1	tcl_syntax::list::split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/spec/case_list.rs::CaseListSpec::valid_clause_list	1	tcl_syntax::list::split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/special_vars.rs::surface_query_for_profile	1	tcl_dialect::DialectProfile::plain_tcl	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/value_transfer/body.rs::dict_at	1	tcl_syntax::list::split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/value_transfer/body.rs::dict_keys	1	tcl_syntax::list::split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/value_transfer/builtins.rs::BinaryFormatSemantics::field_decline	1	tcl_syntax::list::split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/value_transfer/completion.rs::TrySemantics::binders	1	tcl_syntax::list::split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/value_transfer/const_ops.rs::<ConstOps as ValueOps>::list_len	1	tcl_syntax::list::split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/value_transfer/iteration.rs::var_list	1	tcl_syntax::list::split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/value_transfer/reference_body.rs::Lexed::new	1	LexerConfig::default	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-registry/src/value_transfer/reference_body.rs::switch_words	1	split_list	dataflow_optimiser	open	pending	pending	pending
+rust/tcl-spec-studio/src/render_spectcl/rust_expressions.rs::relation_term_word	1	tcl_syntax::list::join_list	irules_registry_tooling	open	pending	pending	pending
+rust/tcl-spectcl/src/loader/block_descriptors/definition_body.rs::construction_source_hint	1	tcl_syntax::list::split_list	irules_registry_tooling	open	pending	pending	pending
+rust/tcl-spectcl/src/loader/command/refinements.rs::variable_receivers_value	1	tcl_syntax::list::split_list	irules_registry_tooling	open	pending	pending	pending
+rust/tcl-spectcl/src/loader/command/refinements.rs::variable_receivers_value	2	tcl_syntax::list::split_list	irules_registry_tooling	open	pending	pending	pending
+rust/tcl-spectcl/src/upgrade.rs::pack_level_rows	1	LexerConfig::default	irules_registry_tooling	open	pending	pending	pending
+rust/tcl-spectcl/src/upgrade.rs::rows_in	1	LexerConfig::default	irules_registry_tooling	open	pending	pending	pending
+rust/tcl-spectcl/src/upgrade.rs::scan	1	LexerConfig::default	irules_registry_tooling	open	pending	pending	pending
+rust/tcl-sslictcl/src/dsl.rs::Document::literal_list	1	split_list	irules_registry_tooling	open	pending	pending	pending
+rust/tcl-syntax/src/expr/parser.rs::parse_expr_cached_for_profile	1	DialectProfile::plain_tcl	diagnostics	traced	explicit compatibility	optional profile entry chooses supplied profile or documented plain default; cache includes selected profile	expr/parser.rs symbol body and typed context API
+rust/tcl-syntax/src/expr/parser.rs::parse_expr_for_profile	1	DialectProfile::plain_tcl	diagnostics	traced	explicit compatibility	optional-profile convenience entry; actual runtime work uses selected ExprParseContext	expr/parser.rs symbol body
+rust/tcl-syntax/src/expr/parser.rs::parse_expr_for_profile_with_lexer_config	1	DialectProfile::plain_tcl	diagnostics	traced	explicit compatibility	optional-profile entry retains independent selected LexerConfig; Some(profile) sets native grammar	expr/parser.rs symbol body
+rust/tcl-syntax/src/expr/syntax_error.rs::ExprSyntaxError::diagnose_for_profile	1	DialectProfile::plain_tcl	diagnostics	traced	explicit compatibility	optional profile chooses native syntax-error recipe; plain fallback applies only for omitted profile	syntax_error.rs symbol body
+rust/tcl-syntax/src/formal_params.rs::formal_parameter_usage	1	join_list	diagnostics	traced	selected policy	C usage formatting uses Tcl list helper for optional formals; distinct Jim usage handling; in-tree callers currently tests	formal_parameter_usage call search
+rust/tcl-syntax/src/formal_params.rs::formal_parameter_usage	2	join_list	diagnostics	open	selected policy	C usage formatting uses Tcl list helper for optional formals; distinct Jim usage handling; in-tree callers currently tests	Check this repeated occurrence separately. formal_parameter_usage call search
+rust/tcl-syntax/src/formal_params.rs::parse_formal_parameters_in	1	split_list	diagnostics	traced	selected policy	ParameterGrammar dispatches strict C vs lenient Jim for both outer and nested formal lists	parse_formal_parameters_in body
+rust/tcl-syntax/src/formal_params.rs::split_overlong_parameter_specifier	1	split_list	diagnostics	traced	repair pending	split_overlong_parameter_specifier initially splits with C strict list grammar	malformed_structure named and lambda repair consumers
+rust/tcl-syntax/src/formal_params.rs::split_overlong_parameter_specifier	2	split_list	diagnostics	open	repair pending	split_overlong_parameter_specifier initially splits with C strict list grammar	Check this repeated occurrence separately. malformed_structure named and lambda repair consumers
+rust/tcl-syntax/src/formal_params.rs::split_overlong_parameter_specifier	1	join_list	diagnostics	traced	repair pending	split_overlong_parameter_specifier serializes the repaired word and tests reparse only under C	malformed_structure named and lambda repair consumers
+rust/tcl-syntax/src/naming.rs::conformance::vectors	1	split_list	diagnostics	traced	fixture only	local vectors parser named split_list reads comma-separated fixture schema	naming.rs::vectors
+rust/tcl-syntax/src/naming.rs::conformance::vectors	2	split_list	diagnostics	open	fixture only	local vectors parser named split_list reads comma-separated fixture schema	Check this repeated occurrence separately. naming.rs::vectors
+rust/tcl-syntax/src/word_rules.rs::WordValueRules::split_list	1	crate::list::split_list	diagnostics	traced	selected policy	WordValueRules::split_list selects list parser using retained native word configuration incl Jim lenient mode	word_rules.rs function body
+rust/tcl-value-syntax/src/list.rs::describe_bad_value	1	split_list	diagnostics	traced	selected error recipe under review	generic helper describes C Tcl errors; selected byte API describe_bad_value_bytes_in exists; VM numeric conversion and lseq callers must justify selected recipe	lseq.rs:170 and numeric_conversion.rs:152,456,533 routed
+rust/tcl-value-syntax/src/list.rs::normalise_spacing	1	join_list	diagnostics	traced	explicit utility	normalise_spacing canonicalizes a conventional Tcl list; no in-tree production caller	whole-workspace rg
+rust/tcl-value-syntax/src/list.rs::normalise_spacing	1	split_list	diagnostics	traced	explicit utility	normalise_spacing parses conventional strict Tcl before canonicalization	whole-workspace rg
+rust/tcl-vm-wasm/src/lib.rs::run	1	tcl_dialect::DialectProfile::plain_tcl	execution	traced	wrong answer	wasm C9.0 facade selects fallback plain_tcl and tags original ABI bytes Document; source channel and compiler admission differ	Native tests red. C9.0.4 Document CRLF succeeds, counted EvalEx raises. Counted opaque strings stay distinct; file decoding fails on FF. Browser TextEncoder cannot emit FF
+rust/tcl-vm/src/cmd_binary.rs::decode_args	1	tcl_syntax::list::join_list	execution	traced	lossy diagnostic	VM binary decode unknown option calls std::str::from_utf8().expect before errorcode construction; guest input is counted	Source trace; opaque bytes must not abort host; pending isolated normal-entry witness
+rust/tcl-vm/src/cmd_coro.rs::run_injections	1	tcl_syntax::list::join_list	execution	traced	representation	coroutine injection formats errorInfo command by rendering Value::to_str words with default list writer	Source trace; compare native execution-error frame content including leading hash and invalid original bytes
+rust/tcl-vm/src/cmd_thread.rs::cmd_tsv_lappend	1	tcl_syntax::list::join_list	execution	traced	wrong answer	Thread tsv::lappend appends a separate printed list to an unparsed string	Normal VM C8.6 vs Thread 2.8.13: unmatched brace accepted and overwritten, and appending #foo to a gives a {#foo} vs a #foo
+rust/tcl-vm/src/expr/arithmetic.rs::is_list_operand	1	tcl_syntax::list::split_list	execution	traced	C release input	expr operand diagnostic checks default split_list to identify multiword list; C9-only description tied to selected numeric operand and original bytes	Source trace; native scalar_getter/list::describe_bad_value_bytes_in is the byte-safe owner, compare typed states
+rust/tcl-vm/src/interp/interpreters.rs::Vm::resolve_interp_path	1	tcl_syntax::list::split_list	execution	traced	C release input	interp path parser uses UTF-8 and strict default list escapes before resolving child names; actual interpreter command provides original list input	Source trace; validate malformed path error and C8/Jim escape differences
+rust/tcl-vm/src/test_support.rs::native_vm_with_output	1	tcl_dialect::DialectProfile::plain_tcl	execution	traced	test fixture	native_vm_with_output installs a real default C host then a permissive logical grammar for convenience	Test support only, never adequate as a selected-dialect oracle. New public probes used pinned native constructors
+rust/tcl-compiler/src/analyser/diagnostics/validity/malformed_structure.rs::emit_invalid_proc_parameter_list_diagnostics	review	manual trace	diagnostics	traced	repair pending	shared formal split needs selected rules for both edit sites	caller at 66
+rust/tcl-compiler/src/signature_scan/params.rs::Lexer::new	review	manual trace	diagnostics	traced	fixture only	cfg(test) module	params.rs:532
+rust/tcl-lsp-core/src/bigip.rs::document_symbols	review	manual trace	lsp_features	traced	corrected production query	Original shell geometry and complete source header come from tcl-bigip	1038bc699a
+rust/tcl-lsp-core/src/code_actions/expression_rewrites.rs::invert_comparison	review	manual trace	lsp_features	traced	corrected production query	Selected original expression subtree, proven original operator span	c19c4f7f3b
+rust/tcl-lsp-core/src/executable_regions.rs::quoted_literal_body_region	review	manual trace	lsp_features	traced	corrected production query	Pass the ExecutableWalker source config to close_quote_offset_in	ad31ad9a84
+rust/tcl-lsp-core/src/minify/static_folding.rs::collect_folds_for_scope	review	manual trace	lsp_features	traced	corrected fixture	cfg(test), FoldContext supplies config to the selected quote matcher	ad31ad9a84
+rust/tcl-lsp-core/src/minify/static_folding.rs::try_fold_region	review	manual trace	lsp_features	traced	corrected fixture	cfg(test), FoldContext supplies config to the selected quote matcher	ad31ad9a84
+rust/tcl-syntax/src/expr/substitution.rs::scan_expression	review	manual trace	diagnostics	traced	repair in progress	script boundary helper must accept expression parse context grammar	command_substitution_end call at 442
+rust/tcl-syntax/src/expr/substitution.rs::scan_quoted_operand	review	manual trace	diagnostics	traced	repair in progress	quoted operand calls same default boundary helper	command_substitution_end call at 504
+rust/tcl-syntax/src/expr/syntax_84.rs::parse_quoted	review	manual trace	diagnostics	traced	repair in progress	fixed C8.4 parser can pass tcl84_config into quoted_word_close_in	quoted_word_close call at 591
+rust/tcl-syntax/src/value.rs::describe_bad_value callers	review	manual trace	diagnostics	traced	selected error recipe under review	shared VM error owner should distinguish native release and bytes	calls at 248,254,259
