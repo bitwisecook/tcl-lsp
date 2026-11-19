@@ -66,6 +66,19 @@ impl ResolveContext {
             })
     }
 
+    /// Validate the value of an already-resolved dictionary root in its own dialect.
+    pub(super) fn original_dictionary_root_valid(
+        &self,
+        root: &Place,
+        registry: &CommandRegistry,
+    ) -> Option<bool> {
+        let dialect = self.invocation_dialect?;
+        if let Some(read) = self.original_name_read_result(root, registry) {
+            return dialect.dictionary_variable_root_valid(read.value().bytes());
+        }
+        dialect.dictionary_variable_root_valid(self.literal_contents_at(root, registry)?.as_bytes())
+    }
+
     fn original_write_is_normal(&self, receiver: &Place, registry: &CommandRegistry) -> bool {
         use tcl_dialect::VariableContainerModel;
         if self.binding_identity != super::BindingIdentity::Bound
@@ -120,21 +133,7 @@ impl ResolveContext {
                 }
                 VariableContainerModel::DictionaryValue => {
                     if root_presence == ContentsPresence::Defined {
-                        let valid = self
-                            .original_name_read_result(&root, registry)
-                            .map(|read| {
-                                self.invocation_dialect
-                                    .unwrap()
-                                    .dictionary_variable_root_valid(read.value().bytes())
-                            })
-                            .or_else(|| {
-                                self.literal_contents_at(&root, registry).map(|bytes| {
-                                    self.invocation_dialect
-                                        .unwrap()
-                                        .dictionary_variable_root_valid(bytes.as_bytes())
-                                })
-                            });
-                        if valid != Some(Some(true)) {
+                        if self.original_dictionary_root_valid(&root, registry) != Some(true) {
                             return false;
                         }
                     } else if root_presence != ContentsPresence::Undefined {

@@ -535,7 +535,7 @@ fn bind_called_body_parameters(
             .skips_empty_body_activation()
             && body.source.is_empty()
         {
-            return Some(true);
+            return Some(topology.bindings(actual.len()).is_ok());
         }
         return topology.bind(called, actual, context.registry);
     }

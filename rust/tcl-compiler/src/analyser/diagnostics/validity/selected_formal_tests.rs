@@ -90,19 +90,23 @@ proc target {{a b c}} {}";
 
 #[test]
 fn a_jim_scalar_formal_beside_its_own_element_formal_raises_at_the_call() {
-    // jimsh 0.84 accepts `proc h {p p(key)} {...}`, but `h 1 2` raises
-    // `can't set "p(key)": variable isn't array` (p is bound as a scalar
-    // first), so a read after the call is unreached. With a plain formal list
-    // the call returns and the later read of an unset name warns.
-    let raising = "proc h {p p(key)} {return $p}\nh 1 2\nputs $never\n";
-    let returning = "proc h {p} {return $p}\nh 1\nputs $never\n";
-    let w210 = |source: &str| {
-        Analyser::new()
-            .analyse(source, "jimtcl")
+    // Jim binds the scalar first. Its exact value determines whether the
+    // indexed setter can treat it as a dictionary. An empty body skips formal
+    // installation after checking the argument count.
+    for (body, actual, reaches_read) in [
+        ("return $p", "1 2", false),
+        ("return $p", "{} 2", true),
+        ("return $p", "{a b} 2", true),
+        ("", "1 2", true),
+        (" ", "1 2", false),
+        ("", "", false),
+    ] {
+        let source = format!("proc h {{p p(key)}} {{{body}}}\nh {actual}\nputs $never\n");
+        let result = Analyser::new().analyse(&source, "jimtcl");
+        let warns = result
             .diagnostics
             .iter()
-            .any(|d| d.code == DiagCode::W210 && d.message.contains("'never'"))
-    };
-    assert!(!w210(raising), "the read after a raising call is unreached");
-    assert!(w210(returning), "the read after a returning call warns");
+            .any(|d| d.code == DiagCode::W210 && d.message.contains("'never'"));
+        assert_eq!(warns, reaches_read, "{source}");
+    }
 }

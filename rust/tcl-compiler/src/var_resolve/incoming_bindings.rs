@@ -135,6 +135,13 @@ impl ResolveContext {
         if self.store_would_error(&target) {
             return Some(false);
         }
+        if protocol.is_jim084() && target.index.is_some() {
+            let mut root = target.base();
+            root.kind = PlaceKind::Scalar;
+            if self.original_dictionary_root_valid(&root, registry) == Some(false) {
+                return Some(false);
+            }
+        }
         // Installing a formal is not a subsequent source store and therefore
         // does not receive WrittenAt provenance or a fabricated source offset.
         target.observed = false;
