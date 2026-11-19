@@ -1,0 +1,8 @@
+tcl8.5 script 0:push1 2:push1 4:storeScalarStk 5:pop 6:startCommand 15:push1 17:loadScalarStk 18:push1 20:returnImm 29:done
+tcl8.5 proc 0:loadScalar1 2:not 3:jumpFalse1 5:startCommand 14:push1 16:done 17:jump1 19:push1 21:pop 22:startCommand 31:push1 33:done 34:done
+tcl8.6 script 0:push1 2:push1 4:storeStk 5:pop 6:push1 8:loadStk 9:push1 11:returnImm 20:done
+tcl8.6 proc 0:loadScalar1 2:nop 3:jumpTrue1 5:push1 7:done 8:nop 9:nop 10:push1 12:pop 13:push1 15:done
+tcl9.0 script 0:push1 2:push1 4:storeStk 5:pop 6:push1 8:loadStk 9:push1 11:returnImm 20:done
+tcl9.0 proc 0:loadScalar1 2:nop 3:jumpTrue1 5:push1 7:done 8:nop 9:nop 10:push1 12:pop 13:push1 15:done
+tcl9.1 script 0:push 5:push 10:storeStk 11:pop 12:push 17:loadStk 18:push 23:returnImm 32:done
+tcl9.1 proc 0:loadScalar 5:nop 6:jumpTrue 11:push 16:done 17:nop 18:nop 19:nop 20:nop 21:nop 22:push 27:pop 28:push 33:done

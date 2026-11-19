@@ -1,0 +1,22 @@
+a6c66517c71145252533d5e35a2c5db200803ecd
+## work...origin/work
+rustc 1.100.0 (0ef1bc386 2026-11-09)
+cargo-nextest 0.9.148 (cd1d6d546 2026-10-07)
+CARGO_BUILD_JOBS=1
+CARGO_PROFILE_TEST_DEBUG=0
+CARGO_PROFILE_TEST_OPT_LEVEL=1
+CARGO_TARGET_DIR=/workspace/bd-build/lsp
+TCL_LSP_JIMSH=/workspace/tcl-lsp/tmp/jimtcl-latest/jimsh
+TCL_LSP_REQUIRE_ALL_TCL_ORACLES=1
+TCL_LSP_REQUIRE_JIM_ORACLE=1
+TCL_LSP_REQUIRE_TCLSH=1
+TCL_LSP_TCLSH84=/workspace/tcl-lsp/tmp/oracle-bin/tclsh8.4
+TCL_LSP_TCLSH85=/workspace/tcl-lsp/tmp/oracle-bin/tclsh8.5
+TCL_LSP_TCLSH86=/workspace/tcl-lsp/tmp/oracle-bin/tclsh8.6
+TCL_LSP_TCLSH90=/workspace/tcl-lsp/tmp/oracle-bin/tclsh9.0
+TCL_LSP_TCLSH91=/workspace/tcl-lsp/tmp/oracle-bin/tclsh9.1
+TCL_LSP_TCL_ROOT84=/workspace/tcl-lsp/tmp/tcl8.4.20
+TCL_LSP_TCL_ROOT85=/workspace/tcl-lsp/tmp/tcl8.5.19
+TCL_LSP_TCL_ROOT86=/workspace/tcl-lsp/tmp/tcl8.6.18
+TCL_LSP_TCL_ROOT90=/workspace/tcl-lsp/tmp/tcl9.0.4
+TCL_LSP_TCL_ROOT91=/workspace/tcl-lsp/tmp/tcl9.1.0

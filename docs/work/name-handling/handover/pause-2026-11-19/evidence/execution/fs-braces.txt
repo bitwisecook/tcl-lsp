@@ -1,0 +1,120 @@
+tclsh8.4
+{${lb}alpha,beta${rb}} 0 {}
+{${lb}alpha,alpha${rb}} 0 {}
+{{alpha,beta}} 0 {alpha beta}
+{{alpha,alpha}} 0 {alpha alpha}
+{{}} 0 .
+{{alpha,}} 0 {. alpha}
+{{dir/inner,beta}} 0 {beta dir/inner}
+nope/\{ 0 {}
+nope*/\{ 0 {}
+dir/\{ 0 {}
+d*/\{ 0 {}
+\{ 0 {}
+\} 0 {}
+a 0 {}
+{a\lp*} 0 alpha
+{\.dot} 0 .dot
+{\.*} 0 {. .. .dot}
+{dir\/inner} 0 dir/inner
+* 0 {alpha beta dir}
+tclsh8.5
+{${lb}alpha,beta${rb}} 0 {}
+{${lb}alpha,alpha${rb}} 0 {}
+{{alpha,beta}} 0 {alpha beta}
+{{alpha,alpha}} 0 {alpha alpha}
+{{}} 0 .
+{{alpha,}} 0 {. alpha}
+{{dir/inner,beta}} 0 {beta dir/inner}
+nope/\{ 1 {unmatched open-brace in file name} NONE
+nope*/\{ 0 {}
+dir/\{ 1 {unmatched open-brace in file name} NONE
+d*/\{ 1 {unmatched open-brace in file name} NONE
+\{ 1 {unmatched open-brace in file name} NONE
+\} 1 {unmatched close-brace in file name} NONE
+a 0 {}
+{a\lp*} 0 alpha
+{\.dot} 0 .dot
+{\.*} 0 {. .. .dot}
+{dir\/inner} 0 dir/inner
+* 0 {alpha beta dir}
+tclsh8.6
+{${lb}alpha,beta${rb}} 0 {}
+{${lb}alpha,alpha${rb}} 0 {}
+{{alpha,beta}} 0 {alpha beta}
+{{alpha,alpha}} 0 {alpha alpha}
+{{}} 0 .
+{{alpha,}} 0 {. alpha}
+{{dir/inner,beta}} 0 {beta dir/inner}
+nope/\{ 1 {unmatched open-brace in file name} {TCL OPERATION GLOB BALANCE}
+nope*/\{ 0 {}
+dir/\{ 1 {unmatched open-brace in file name} {TCL OPERATION GLOB BALANCE}
+d*/\{ 1 {unmatched open-brace in file name} {TCL OPERATION GLOB BALANCE}
+\{ 1 {unmatched open-brace in file name} {TCL OPERATION GLOB BALANCE}
+\} 1 {unmatched close-brace in file name} {TCL OPERATION GLOB BALANCE}
+a 0 {}
+{a\lp*} 0 alpha
+{\.dot} 0 .dot
+{\.*} 0 {. .. .dot}
+{dir\/inner} 0 dir/inner
+* 0 {alpha beta dir}
+tclsh9.0
+{${lb}alpha,beta${rb}} 0 {}
+{${lb}alpha,alpha${rb}} 0 {}
+{{alpha,beta}} 0 {alpha beta}
+{{alpha,alpha}} 0 {alpha alpha}
+{{}} 0 .
+{{alpha,}} 0 {. alpha}
+{{dir/inner,beta}} 0 {beta dir/inner}
+nope/\{ 1 {unmatched open-brace in file name} {TCL OPERATION GLOB BALANCE}
+nope*/\{ 0 {}
+dir/\{ 1 {unmatched open-brace in file name} {TCL OPERATION GLOB BALANCE}
+d*/\{ 1 {unmatched open-brace in file name} {TCL OPERATION GLOB BALANCE}
+\{ 1 {unmatched open-brace in file name} {TCL OPERATION GLOB BALANCE}
+\} 1 {unmatched close-brace in file name} {TCL OPERATION GLOB BALANCE}
+a 0 {}
+{a\lp*} 0 alpha
+{\.dot} 0 .dot
+{\.*} 0 {. .. .dot}
+{dir\/inner} 0 dir/inner
+* 0 {alpha beta dir}
+tclsh9.1
+{${lb}alpha,beta${rb}} 0 {}
+{${lb}alpha,alpha${rb}} 0 {}
+{{alpha,beta}} 0 {alpha beta}
+{{alpha,alpha}} 0 {alpha alpha}
+{{}} 0 .
+{{alpha,}} 0 {. alpha}
+{{dir/inner,beta}} 0 {beta dir/inner}
+nope/\{ 1 {unmatched open-brace in file name} {TCL OPERATION GLOB BALANCE}
+nope*/\{ 0 {}
+dir/\{ 1 {unmatched open-brace in file name} {TCL OPERATION GLOB BALANCE}
+d*/\{ 1 {unmatched open-brace in file name} {TCL OPERATION GLOB BALANCE}
+\{ 1 {unmatched open-brace in file name} {TCL OPERATION GLOB BALANCE}
+\} 1 {unmatched close-brace in file name} {TCL OPERATION GLOB BALANCE}
+a 0 {}
+{a\lp*} 0 alpha
+{\.dot} 0 .dot
+{\.*} 0 {. .. .dot}
+{dir\/inner} 0 dir/inner
+* 0 {alpha beta dir}
+/workspace/tcl-lsp/tmp/jimtcl-latest/jimsh
+{${lb}alpha,beta${rb}} 0 {}
+{${lb}alpha,alpha${rb}} 0 {}
+{{alpha,beta}} 0 {alpha beta}
+{{alpha,alpha}} 0 {alpha alpha}
+{{}} 0 {}
+{{alpha,}} 0 {{} alpha}
+{{dir/inner,beta}} 0 {beta dir/inner}
+nope/\{ 0 {}
+nope*/\{ 0 {}
+dir/\{ 0 {}
+d*/\{ 0 {}
+\{ 0 {}
+\} 1 {unmatched close brace in glob pattern} NONE
+a 0 {}
+{a\lp*} 0 alpha
+{\.dot} 0 {}
+{\.*} 0 {}
+{dir\/inner} 0 {}
+* 0 {alpha beta dir}

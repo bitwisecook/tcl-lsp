@@ -1,0 +1,768 @@
+From 79d4303a3325f8e86b9512f065a9ec053f1c4501 Mon Sep 17 00:00:00 2001
+From: None None <openai@bragi0.com>
+Date: Thu, 19 Nov 2026 14:19:26 +0000
+Subject: [PATCH] Preserve pending Jim filesystem pattern and engine
+ integration for pause
+
+---
+ runtime/rust/src/cmd_fs.rs                    | 132 +-------
+ rust/tcl-cmd-core/src/filesystem_glob.rs      |  33 +-
+ .../src/filesystem_glob/jim_pattern.rs        | 303 ++++++++++++++++++
+ .../src/filesystem_glob/unix_pattern.rs       |   2 +-
+ rust/tcl-host-native/src/lib.rs               |   5 +
+ rust/tcl-platform/src/lib.rs                  |   4 +
+ rust/tcl-vm/src/cmd_file.rs                   | 154 ++-------
+ 7 files changed, 369 insertions(+), 264 deletions(-)
+ create mode 100644 rust/tcl-cmd-core/src/filesystem_glob/jim_pattern.rs
+
+diff --git a/runtime/rust/src/cmd_fs.rs b/runtime/rust/src/cmd_fs.rs
+index fbc37be7c0a3f865019b46379279507d6c70b84d..4fba0a894b0d7092c25d0703907a4964638b6c1f 100644
+--- a/runtime/rust/src/cmd_fs.rs
++++ b/runtime/rust/src/cmd_fs.rs
+@@ -35,7 +35,7 @@ use std::borrow::Cow;
+ use tcl_cmd_core::error::CmdError;
+ use tcl_cmd_core::path::{self, PathReading};
+ use tcl_dialect::model::{surface_admits, SurfaceQuery};
+-use tcl_platform::{Filesystem, HostError};
++use tcl_platform::HostError;
+ 
+ use crate::interp::{new_string, obj_bytes, Code, Interp};
+ use crate::obj::TclObj;
+@@ -1202,131 +1202,21 @@ fn glob_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+         pats
+     };
+ 
+-    let base = directory.clone();
+-    let mut hits: Vec<Vec<u8>> = Vec::new();
+-    // The host filesystem drives directory listing + the `-types` stats. An
+-    // independent `Rc` handle (`host`) keeps the borrow off `interp`, which the
+-    // result/error tail still needs mutably.
+     let host = interp.host();
+-    let fs = host.filesystem();
+-    if let (false, Some(fs)) = (jim, fs) {
+-        hits = match options.c_unix_matches(fs, base.as_deref(), &patterns, version) {
+-            Ok(hits) => hits,
+-            Err(error) => return interp.report_cmd_error(error),
+-        };
+-    } else {
+-        for pat in &patterns {
+-            glob_one(
+-                fs,
+-                base.as_deref(),
+-                pat,
+-                options.tails,
+-                &options.types,
+-                &mut hits,
+-            );
+-        }
+-        hits.sort();
+-        hits.dedup();
+-        if hits.is_empty() {
+-            if let Some(error) = options.no_match(&patterns, version, jim) {
+-                return interp.report_cmd_error(error);
+-            }
+-        }
+-    }
++    let hits = match options.unix_matches(
++        host.filesystem(),
++        directory.as_deref(),
++        &patterns,
++        version,
++        jim,
++    ) {
++        Ok(hits) => hits,
++        Err(error) => return interp.report_cmd_error(error),
++    };
+     let objs: Vec<*mut TclObj> = hits.iter().map(|h| new_string(h)).collect();
+     interp.set_result(interp.new_list_object(&objs));
+     Code::Ok
+ }
+ 
+-/// Match one glob pattern against the filesystem, pushing results (full paths,
+-/// or just the tail when `tails`) onto `hits`. `fs` is the host filesystem
+-/// (`None` ⇒ no VFS ⇒ no matches).
+-fn glob_one(
+-    fs: Option<&dyn Filesystem>,
+-    directory: Option<&[u8]>,
+-    pattern: &[u8],
+-    tails: bool,
+-    types: &tcl_cmd_core::filesystem_glob::GlobTypes,
+-    hits: &mut Vec<Vec<u8>>,
+-) {
+-    // Starting directory + whether results are absolute.
+-    let (start, abs_prefix): (Vec<u8>, Vec<u8>) = if pattern.starts_with(b"/") {
+-        (b"/".to_vec(), b"/".to_vec())
+-    } else if let Some(d) = directory {
+-        (d.to_vec(), if tails { Vec::new() } else { d.to_vec() })
+-    } else {
+-        (b".".to_vec(), Vec::new())
+-    };
+-    let segs: Vec<&[u8]> = pattern
+-        .split(|&c| c == b'/')
+-        .filter(|s| !s.is_empty())
+-        .collect();
+-    walk(fs, &start, &abs_prefix, &segs, 0, types, hits);
+-}
+-
+-/// Recursively match path segments `segs[idx..]` under `dir`, accumulating the
+-/// display path (`prefix`).
+-fn walk(
+-    fs: Option<&dyn Filesystem>,
+-    dir: &[u8],
+-    prefix: &[u8],
+-    segs: &[&[u8]],
+-    idx: usize,
+-    types: &tcl_cmd_core::filesystem_glob::GlobTypes,
+-    hits: &mut Vec<Vec<u8>>,
+-) {
+-    if idx >= segs.len() {
+-        if !prefix.is_empty() {
+-            hits.push(prefix.to_vec());
+-        }
+-        return;
+-    }
+-    let seg = segs[idx];
+-    let last = idx + 1 == segs.len();
+-    let Some(names) = fs.and_then(|fs| fs.read_dir(as_str(dir)).ok()) else {
+-        return;
+-    };
+-    for name in names {
+-        let name_b = name.as_bytes();
+-        if !glob_seg_match(seg, name_b) {
+-            continue;
+-        }
+-        let mut child_prefix = prefix.to_vec();
+-        if !child_prefix.is_empty() && child_prefix.last() != Some(&b'/') {
+-            child_prefix.push(b'/');
+-        }
+-        child_prefix.extend_from_slice(name_b);
+-        // Full path of the entry (for the `-types` stat and for recursion).
+-        let mut child_path = dir.to_vec();
+-        if child_path.last() != Some(&b'/') {
+-            child_path.push(b'/');
+-        }
+-        child_path.extend_from_slice(name_b);
+-        if last {
+-            // Apply file-kind and permission filters.
+-            if !fs.is_some_and(|fs| types.matches(fs, as_str(&child_path))) {
+-                continue;
+-            }
+-            hits.push(child_prefix);
+-        } else {
+-            walk(fs, &child_path, &child_prefix, segs, idx + 1, types, hits);
+-        }
+-    }
+-}
+-
+-/// Whether a single path segment matches a glob segment. A literal segment (no
+-/// glob metacharacters) matches by equality; otherwise by `string match`.
+-fn glob_seg_match(pat: &[u8], name: &[u8]) -> bool {
+-    if pat.iter().any(|&c| matches!(c, b'*' | b'?' | b'[' | b'\\')) {
+-        // Hidden files (leading `.`) only match an explicit leading `.` (Unix).
+-        if name.starts_with(b".") && !pat.starts_with(b".") {
+-            return false;
+-        }
+-        tcl_syntax::glob::string_match(as_str(pat), as_str(name))
+-    } else {
+-        pat == name
+-    }
+-}
+-
+ #[cfg(test)]
+ mod tests;
+diff --git a/rust/tcl-cmd-core/src/filesystem_glob.rs b/rust/tcl-cmd-core/src/filesystem_glob.rs
+index 6a3170d9a8f50eb09d89cae4473d36a82e6e9356..2754e1ff1311ee9b8fdf1a5aaeb28612ddcf8ea4 100644
+--- a/rust/tcl-cmd-core/src/filesystem_glob.rs
++++ b/rust/tcl-cmd-core/src/filesystem_glob.rs
+@@ -18,8 +18,10 @@
+ 
+ //! Filesystem `glob` filters applied after the original switch scan.
+ 
++mod jim_pattern;
+ mod unix_pattern;
+ 
++pub use jim_pattern::{JimGlobToken, jim_glob_tokens};
+ pub use unix_pattern::{CGlobHead, GlobBraceError, c_glob_head};
+ 
+ use crate::CmdError;
+@@ -221,27 +223,34 @@ impl GlobOptions {
+         Ok(result)
+     }
+ 
+-    /// Traverse Unix filesystem patterns one at a time, in the caller's
+-    /// order, retaining repeated explicit patterns and brace alternatives.
+-    pub fn c_unix_matches(
++    /// Traverse Unix filesystem patterns with the selected implementation.
++    /// C expands a brace group when it reaches that section. The Jim library
++    /// expands an entire pattern before it asks its filesystem about any path.
++    pub fn unix_matches(
+         &self,
+-        fs: &dyn Filesystem,
++        fs: Option<&dyn Filesystem>,
+         directory: Option<&[u8]>,
+         patterns: &[Vec<u8>],
+         version: TclVersion,
++        jim: bool,
+     ) -> Result<Vec<Vec<u8>>, CmdError> {
+-        let mut matches = Vec::new();
+-        for pattern in patterns {
+-            matches.extend(unix_pattern::c_matches(
+-                fs, self, directory, pattern, version,
+-            )?);
++        let mut hits = Vec::new();
++        if let Some(fs) = fs {
++            for pattern in patterns {
++                let found = if jim {
++                    jim_pattern::matches(fs, directory.unwrap_or_default(), pattern, self.tails)?
++                } else {
++                    unix_pattern::c_matches(fs, self, directory, pattern, version)?
++                };
++                hits.extend(found);
++            }
+         }
+-        if matches.is_empty()
+-            && let Some(error) = self.no_match(patterns, version, false)
++        if hits.is_empty()
++            && let Some(error) = self.no_match(patterns, version, jim)
+         {
+             return Err(error);
+         }
+-        Ok(matches)
++        Ok(hits)
+     }
+ 
+     /// Applied only after traversal produced no matches. Joined patterns
+diff --git a/rust/tcl-cmd-core/src/filesystem_glob/jim_pattern.rs b/rust/tcl-cmd-core/src/filesystem_glob/jim_pattern.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..bd6b6e1a83ed04878b4e023241b75fd0e13807d0
+--- /dev/null
++++ b/rust/tcl-cmd-core/src/filesystem_glob/jim_pattern.rs
+@@ -0,0 +1,303 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
++//
++// This program is free software: you can redistribute it and/or modify
++// it under the terms of the GNU Affero General Public License as published by
++// the Free Software Foundation, either version 3 of the License, or
++// (at your option) any later version.
++//
++// This program is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++// GNU Affero General Public License for more details.
++//
++// You should have received a copy of the GNU Affero General Public License
++// along with this program.  If not, see <https://www.gnu.org/licenses/>.
++//
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++//! Unix filesystem grammar of the installed Jim glob library.
++use std::ops::Range;
++
++use super::{GlobBraceError, unix_pattern::host_path};
++use crate::CmdError;
++use tcl_core_types::c_string_extent;
++use tcl_platform::Filesystem;
++use tcl_syntax::raw_string::RawString;
++
++/// Filesystem-layer syntax offsets. Remaining component syntax uses the
++/// original Jim object matcher.
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++pub enum JimGlobToken {
++    OpenBrace,
++    CloseBrace,
++    Comma,
++    Slash,
++    Escape,
++}
++
++/// Read exactly the library's quote-map pairs. Other backslashes are left
++/// for the component matcher. Control code collisions are retained as in
++/// the original Jim `string map` calls.
++fn quote(pattern: &[u8], mut token: impl FnMut(JimGlobToken, Range<usize>)) -> Vec<(u8, usize)> {
++    let mut encoded = Vec::with_capacity(pattern.len());
++    let mut i = 0;
++    while i < pattern.len() {
++        let mut byte = pattern[i];
++        let start = i;
++        if byte == b'\\'
++            && let Some(&next) = pattern.get(i + 1)
++        {
++            let escaped = match next {
++                b'\\' => Some(1),
++                b'{' => Some(2),
++                b'}' => Some(3),
++                b',' => Some(4),
++                _ => None,
++            };
++            if let Some(escaped) = escaped {
++                byte = escaped;
++                i += 1;
++                token(JimGlobToken::Escape, start..i + 1);
++            }
++        }
++        encoded.push((byte, start));
++        i += 1;
++    }
++    encoded
++}
++
++/// Parse original source once, with a separate consumer for semantic brace
++/// boundaries. A lone open brace is literal when there is no close brace
++/// ahead; a close brace at top level raises.
++fn scan(
++    encoded: &[(u8, usize)],
++    mut visit: impl FnMut(Option<JimGlobToken>, u8, usize),
++) -> Result<(), GlobBraceError> {
++    let last_close = encoded.iter().rposition(|(byte, _)| *byte == b'}');
++    let mut opens = Vec::new();
++    for (index, &(byte, offset)) in encoded.iter().enumerate() {
++        let token = match byte {
++            b'{' if last_close.is_some_and(|close| index < close) => {
++                opens.push(offset);
++                Some(JimGlobToken::OpenBrace)
++            }
++            b'}' => {
++                if opens.pop().is_none() {
++                    return Err(GlobBraceError {
++                        offset,
++                        opening: false,
++                    });
++                }
++                Some(JimGlobToken::CloseBrace)
++            }
++            b',' if !opens.is_empty() => Some(JimGlobToken::Comma),
++            b'/' => Some(JimGlobToken::Slash),
++            _ => None,
++        };
++        visit(token, byte, offset);
++    }
++    if let Some(offset) = opens.pop() {
++        return Err(GlobBraceError {
++            offset,
++            opening: true,
++        });
++    }
++    Ok(())
++}
++
++/// The complete view does no filesystem I/O and does not expand the alternatives.
++pub fn jim_glob_tokens(
++    pattern: &[u8],
++) -> Result<Vec<(JimGlobToken, Range<usize>)>, GlobBraceError> {
++    let mut tokens = Vec::new();
++    let encoded = quote(pattern, |kind, span| tokens.push((kind, span)));
++    scan(&encoded, |kind, _, i| {
++        if let Some(kind) = kind {
++            tokens.push((kind, i..i + 1));
++        }
++    })?;
++    tokens.sort_unstable_by_key(|(_, range)| range.start);
++    Ok(tokens)
++}
++
++fn expand(pattern: &[u8]) -> Result<Vec<Vec<u8>>, CmdError> {
++    let encoded = quote(pattern, |_, _| {});
++    let mut prefix = vec![Vec::new()];
++    let mut parents = Vec::new();
++    scan(&encoded, |token, byte, _| match token {
++        Some(JimGlobToken::OpenBrace) => {
++            parents.push(std::mem::replace(&mut prefix, vec![Vec::new()]));
++        }
++        Some(JimGlobToken::CloseBrace) => {
++            let outer = parents.pop().expect("matched Jim glob brace");
++            let inner = std::mem::take(&mut prefix);
++            for word in inner.into_iter().filter(|word| !word.is_empty()) {
++                for alternative in word.split(|b| *b == b',') {
++                    for old in &outer {
++                        let mut next = old.clone();
++                        next.extend_from_slice(alternative);
++                        prefix.push(next);
++                    }
++                }
++            }
++        }
++        _ => {
++            for old in &mut prefix {
++                old.push(byte);
++            }
++        }
++    })
++    .map_err(|error| {
++        CmdError::new(if error.opening {
++            "unmatched open brace in glob pattern"
++        } else {
++            "unmatched close brace in glob pattern"
++        })
++    })?;
++    Ok(prefix
++        .into_iter()
++        .map(|word| {
++            let mut original = Vec::new();
++            for b in word {
++                match b {
++                    1 => original.extend_from_slice(b"\\\\"),
++                    2 => original.push(b'{'),
++                    3 => original.push(b'}'),
++                    4 => original.push(b','),
++                    _ => original.push(b),
++                }
++            }
++            original
++        })
++        .collect())
++}
++
++pub(super) fn matches(
++    fs: &dyn Filesystem,
++    base: &[u8],
++    pattern: &[u8],
++    tails: bool,
++) -> Result<Vec<Vec<u8>>, CmdError> {
++    let mut hits = Vec::new();
++    for expanded in expand(pattern)? {
++        let mut path = expanded.as_slice();
++        let mut components = Vec::new();
++        loop {
++            let (parent, tail) = dirname_tail(path);
++            if path == parent || path.is_empty() {
++                break;
++            }
++            components.push(tail);
++            path = if path == tail { b"" } else { parent };
++        }
++        let mut paths = vec![(
++            join(base, dirname_tail(path).0, fs.native_path_limit())?,
++            path.to_vec(),
++        )];
++        for component in components.into_iter().rev() {
++            let mut next = Vec::new();
++            for (real, shown) in paths {
++                if !fs.metadata(host_path(&real)?).is_ok_and(|m| m.is_dir) {
++                    continue;
++                }
++                let joined = join(&real, component, fs.native_path_limit())?;
++                let names = if fs.exists(host_path(&joined)?) {
++                    vec![component.to_vec()]
++                } else {
++                    component_matches(fs, &real, component)?
++                };
++                for name in names {
++                    let mut display = shown.clone();
++                    if !display.is_empty() && !display.ends_with(b"/") {
++                        display.push(b'/');
++                    }
++                    display.extend_from_slice(&name);
++                    next.push((join(&real, &name, fs.native_path_limit())?, display));
++                }
++            }
++            paths = next;
++        }
++        for (_, shown) in paths {
++            hits.push(if tails {
++                shown
++            } else {
++                join(base, &shown, fs.native_path_limit())?
++            });
++        }
++    }
++    Ok(hits)
++}
++
++fn component_matches(
++    fs: &dyn Filesystem,
++    real: &[u8],
++    component: &[u8],
++) -> Result<Vec<Vec<u8>>, CmdError> {
++    let mut names = fs
++        .read_dir(host_path(real)?)
++        .map_err(|error| CmdError::new(error.reason()))?;
++    names.extend([".".to_owned(), "..".to_owned()]);
++    let pattern = RawString::from_bytes(component);
++    let mut hits = Vec::new();
++    for name in names {
++        let name = name.into_bytes();
++        if name.starts_with(b".") && !component.starts_with(b".") {
++            continue;
++        }
++        if RawString::from_bytes(name.as_slice()).jim084_matches(&pattern, false)? {
++            hits.push(name);
++        }
++    }
++    Ok(hits)
++}
++
++/// The Unix Jim `file dirname` and `file tail` share this original trailing
++/// slash removal and C-string separator search.
++fn dirname_tail(mut path: &[u8]) -> (&[u8], &[u8]) {
++    while path.len() > 1 && path.ends_with(b"/") {
++        path = &path[..path.len() - 1];
++    }
++    let extent = c_string_extent(path);
++    let Some(at) = extent.iter().rposition(|b| *b == b'/') else {
++        return (b".", path);
++    };
++    let tail = &extent[at + 1..];
++    let mut parent = if tail.is_empty() {
++        path
++    } else if at == 0 {
++        b"/"
++    } else {
++        &path[..at]
++    };
++    while parent.len() > 1 && parent.ends_with(b"/") {
++        parent = &parent[..parent.len() - 1];
++    }
++    (parent, tail)
++}
++
++/// The installed Linux Jim `file join` drops one leading `./` and one
++/// trailing slash per argument; internal separators remain ordinary bytes.
++fn join(base: &[u8], name: &[u8], limit: Option<usize>) -> Result<Vec<u8>, CmdError> {
++    let mut result = Vec::new();
++    for mut part in [base, name] {
++        if part.starts_with(b"/") {
++            result.clear();
++        } else if let Some(rest) = part.strip_prefix(b"./") {
++            part = rest;
++        } else if c_string_extent(part) == b"." && !result.is_empty() {
++            continue;
++        }
++        if !result.is_empty() && !result.ends_with(b"/") {
++            result.push(b'/');
++        }
++        if !part.is_empty() && limit.is_some_and(|limit| result.len() + part.len() >= limit) {
++            return Err(CmdError::new("Path too long"));
++        }
++        result.extend_from_slice(part);
++        if result.len() > 1 && result.ends_with(b"/") {
++            result.pop();
++        }
++    }
++    Ok(result)
++}
+diff --git a/rust/tcl-cmd-core/src/filesystem_glob/unix_pattern.rs b/rust/tcl-cmd-core/src/filesystem_glob/unix_pattern.rs
+index 79927118a7e0151c0c59956ee11f52ffa40cdede..d751aec2cf93f0de7fb52008599fa7f408f26e4d 100644
+--- a/rust/tcl-cmd-core/src/filesystem_glob/unix_pattern.rs
++++ b/rust/tcl-cmd-core/src/filesystem_glob/unix_pattern.rs
+@@ -292,7 +292,7 @@ fn leading_separators(rest: &[u8]) -> usize {
+     begin
+ }
+ 
+-fn host_path(path: &[u8]) -> Result<&str, CmdError> {
++pub(super) fn host_path(path: &[u8]) -> Result<&str, CmdError> {
+     if path.is_empty() {
+         return Ok(".");
+     }
+diff --git a/rust/tcl-host-native/src/lib.rs b/rust/tcl-host-native/src/lib.rs
+index e335b81db6b835310b7aa53d08343dccaa3848c8..efa1edba343a58c1199c9c8506e9f8e3a4b153a8 100644
+--- a/rust/tcl-host-native/src/lib.rs
++++ b/rust/tcl-host-native/src/lib.rs
+@@ -408,6 +408,11 @@ impl Filesystem for NativeFs {
+         native_access(path, flags).is_ok()
+     }
+ 
++    #[cfg(unix)]
++    fn native_path_limit(&self) -> Option<usize> {
++        usize::try_from(nix::libc::PATH_MAX).ok()
++    }
++
+     fn metadata(&self, path: &str) -> Result<Metadata, HostError> {
+         let m = std::fs::metadata(path).map_err(|e| map_io(&e))?;
+         Ok(meta_from(&m))
+diff --git a/rust/tcl-platform/src/lib.rs b/rust/tcl-platform/src/lib.rs
+index 947f7e6c0fc4f2762a1a79255b22443fce0d3d51..5d933e7fab78e6ffb91492c52b778eb6a53df0a6 100644
+--- a/rust/tcl-platform/src/lib.rs
++++ b/rust/tcl-platform/src/lib.rs
+@@ -278,6 +278,10 @@ pub trait Filesystem {
+             FileAccess::Execute => entry.executable,
+         })
+     }
++    /// Compile-time maximum pathname storage of the original host, where known.
++    fn native_path_limit(&self) -> Option<usize> {
++        None
++    }
+     /// Metadata for `path`, following symlinks (so a link reports its target's
+     /// kind). Backs `file stat`/`size`/`isdirectory`/`isfile`.
+     fn metadata(&self, path: &str) -> Result<Metadata, HostError>;
+diff --git a/rust/tcl-vm/src/cmd_file.rs b/rust/tcl-vm/src/cmd_file.rs
+index 0bfd1bdf5d69cbf56be2d280d08fe22571c166b2..22bdb41bc620752fc30ca2a7bae38252a408d748 100644
+--- a/rust/tcl-vm/src/cmd_file.rs
++++ b/rust/tcl-vm/src/cmd_file.rs
+@@ -491,12 +491,6 @@ fn file_mtime(fs: Option<&dyn Filesystem>, path: &str) -> Completion<Value> {
+     }
+ }
+ 
+-/// A directory and one of its entries joined on the shared path core, the
+-/// entry read as the literal name it is (a `~` in it names no home).
+-fn file_join(base: &str, name: &str) -> String {
+-    String::from_utf8(path::join(&[base, name], PathReading::Tcl9)).unwrap_or_default()
+-}
+-
+ /// `glob ?-nocomplain? ?-directory dir? ?-tails? ?-types list? ?-join? ?--?
+ /// pattern ...` — minimal matching against the directory's entries.
+ fn cmd_glob(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+@@ -506,136 +500,36 @@ fn cmd_glob(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+         Ok(options) => options,
+         Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+     };
+-    let dir = options
+-        .base
+-        .map(|base| args[base.index()].to_str().to_string());
+-    let patterns = &args[options.patterns_start..];
+-    if !jim {
+-        let mut words = Vec::with_capacity(patterns.len());
+-        for pattern in patterns {
+-            let bytes = match vm.native_name_operand_bytes_checked(pattern) {
+-                Ok(bytes) => bytes,
+-                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+-            };
+-            words.push(bytes.to_vec());
+-        }
+-        if options.join {
+-            words = vec![path::join(&words, PathReading::of_release(version))];
+-        }
+-        let directory = if let Some(base) = options.base {
+-            match vm.native_name_operand_bytes_checked(&args[base.index()]) {
+-                Ok(bytes) => Some(bytes),
+-                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+-            }
+-        } else {
+-            None
++    let mut words = Vec::new();
++    for pattern in &args[options.patterns_start..] {
++        let bytes = match vm.native_name_operand_bytes_checked(pattern) {
++            Ok(bytes) => bytes,
++            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+         };
+-        if let Some(filesystem) = vm.host().filesystem() {
+-            return match options.c_unix_matches(filesystem, directory.as_deref(), &words, version) {
+-                Ok(hits) => ok(Value::list(
+-                    hits.into_iter().map(Value::from_string_bytes).collect(),
+-                )),
+-                Err(error) => crate::command::completion_from_cmd_error(vm, error),
+-            };
+-        }
++        words.push(bytes.to_vec());
+     }
+-    let base = dir.clone().unwrap_or_else(|| ".".to_string());
+-    let mut results: Vec<String> = Vec::new();
+-    let Some(filesystem) = vm.host().filesystem() else {
+-        return ok(Value::list(Vec::new()));
+-    };
+     if options.join {
+-        glob_join(filesystem, &base, patterns, &mut results);
+-    } else if let Ok(entries) = filesystem.read_dir(&base) {
+-        for name in entries {
+-            let matches = patterns
+-                .iter()
+-                .any(|p| tcl_syntax::glob::string_match(&p.to_str(), &name));
+-            if matches {
+-                let full = if dir.is_some() {
+-                    file_join(&base, &name)
+-                } else {
+-                    name
+-                };
+-                results.push(full);
+-            }
+-        }
+-    }
+-    let value = finish_glob_results(
+-        filesystem,
+-        &base,
+-        dir.is_some(),
+-        &options.types,
+-        options.tails,
+-        results,
+-    );
+-    if value.is_empty() {
+-        let mut words: Vec<_> = patterns
+-            .iter()
+-            .map(|p| p.to_str().as_bytes().to_vec())
+-            .collect();
+-        if options.join {
+-            words = vec![path::join(&words, PathReading::of_release(version))];
+-        }
+-        if let Some(error) = options.no_match(&words, version, jim) {
+-            return crate::command::completion_from_cmd_error(vm, error);
+-        }
++        words = vec![path::join(&words, PathReading::of_release(version))];
+     }
+-    ok(Value::list(value.into_iter().map(Value::string).collect()))
+-}
+-
+-fn finish_glob_results(
+-    filesystem: &dyn Filesystem,
+-    base: &str,
+-    qualified: bool,
+-    types: &tcl_cmd_core::filesystem_glob::GlobTypes,
+-    tails: bool,
+-    mut results: Vec<String>,
+-) -> Vec<String> {
+-    // `-types` filters on the entry's real path; `-tails` then reports each hit
+-    // relative to the `-directory`/`-path` root, as C does.
+-    let prefix = format!("{}/", base.trim_end_matches('/'));
+-    results.retain(|r| {
+-        let probe = if qualified {
+-            r.clone()
+-        } else {
+-            file_join(base, r)
+-        };
+-        types.matches(filesystem, &probe)
+-    });
+-    if tails {
+-        for r in &mut results {
+-            if let Some(rest) = r.strip_prefix(&prefix) {
+-                *r = rest.to_owned();
+-            }
++    let directory = if let Some(base) = options.base {
++        match vm.native_name_operand_bytes_checked(&args[base.index()]) {
++            Ok(bytes) => Some(bytes),
++            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+         }
+-    }
+-    results.sort();
+-    results
+-}
+-
+-fn glob_join(
+-    filesystem: &dyn Filesystem,
+-    directory: &str,
+-    patterns: &[Value],
+-    results: &mut Vec<String>,
+-) {
+-    let Some((pattern, remaining)) = patterns.split_first() else {
+-        results.push(directory.to_owned());
+-        return;
+-    };
+-    let Ok(entries) = filesystem.read_dir(directory) else {
+-        return;
++    } else {
++        None
+     };
+-    for entry in entries {
+-        if tcl_syntax::glob::string_match(&pattern.to_str(), &entry) {
+-            let path = file_join(directory, &entry);
+-            if remaining.is_empty() {
+-                results.push(path);
+-            } else {
+-                glob_join(filesystem, &path, remaining, results);
+-            }
+-        }
++    match options.unix_matches(
++        vm.host().filesystem(),
++        directory.as_deref(),
++        &words,
++        version,
++        jim,
++    ) {
++        Ok(hits) => ok(Value::list(
++            hits.into_iter().map(Value::from_string_bytes).collect(),
++        )),
++        Err(error) => crate::command::completion_from_cmd_error(vm, error),
+     }
+ }
+ 
+-- 
+2.52.0
+

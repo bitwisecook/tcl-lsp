@@ -1,0 +1,12 @@
+b1ee491dc825879cd8f638a396db97cf67a47bc3
+## work...origin/work
+tcl-codegen src identical to clean a6 baseline; clean before captures used a6 dependencies; patched probe links the coherent built 8d6ae9adde dependency set using cargo fingerprints
+TCL_LSP_JIMSH=/workspace/tcl-lsp/tmp/jimtcl-latest/jimsh
+TCL_LSP_REQUIRE_ALL_TCL_ORACLES=1
+TCL_LSP_REQUIRE_JIM_ORACLE=1
+TCL_LSP_REQUIRE_TCLSH=1
+TCL_LSP_TCLSH84=/workspace/tcl-lsp/tmp/oracle-bin/tclsh8.4
+TCL_LSP_TCLSH85=/workspace/tcl-lsp/tmp/oracle-bin/tclsh8.5
+TCL_LSP_TCLSH86=/workspace/tcl-lsp/tmp/oracle-bin/tclsh8.6
+TCL_LSP_TCLSH90=/workspace/tcl-lsp/tmp/oracle-bin/tclsh9.0
+TCL_LSP_TCLSH91=/workspace/tcl-lsp/tmp/oracle-bin/tclsh9.1

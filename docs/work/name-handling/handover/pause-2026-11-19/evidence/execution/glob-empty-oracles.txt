@@ -1,0 +1,12 @@
+tclsh8.4
+1 1 .
+tclsh8.5
+1 1 .
+tclsh8.6
+1 1 .
+tclsh9.0
+1 1 .
+tclsh9.1
+1 1 .
+/workspace/tcl-lsp/tmp/jimtcl-latest/jimsh
+1 0 {}

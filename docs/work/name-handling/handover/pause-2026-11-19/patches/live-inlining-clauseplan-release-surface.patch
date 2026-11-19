@@ -1,0 +1,138 @@
+From 660b435dffd2b284b45fef24c149b8d6269a7afa Mon Sep 17 00:00:00 2001
+From: None None <openai@bragi0.com>
+Date: Thu, 19 Nov 2026 13:55:58 +0000
+Subject: [PATCH] Read pack clause plans under their admitted compiler realm
+
+---
+ .../src/lowering/tests/structured_hooks.rs    | 47 +++++++++++++++++++
+ rust/tcl-compiler/src/registry_invocation.rs  |  2 +
+ .../registry_invocation/native_compilation.rs | 22 +++++----
+ 3 files changed, 61 insertions(+), 10 deletions(-)
+
+diff --git a/rust/tcl-compiler/src/lowering/tests/structured_hooks.rs b/rust/tcl-compiler/src/lowering/tests/structured_hooks.rs
+index 8f25df0cd772536ab421d3cbf8713123da505e3f..5627eb7fc4ec52de5689f46fc9a9862eef9fba60 100644
+--- a/rust/tcl-compiler/src/lowering/tests/structured_hooks.rs
++++ b/rust/tcl-compiler/src/lowering/tests/structured_hooks.rs
+@@ -526,3 +526,50 @@ fn registry_dispatch_foreach_line_wrong_arity_falls_through_to_default() {
+         other => panic!("expected Call via lower_default, got {other:?}"),
+     }
+ }
++
++/// The body a pack's reference body lowers to under a caller's live entry of
++/// `release`: what [`crate::command_binding::StructuredControlReading::ReferenceBody`]
++/// reads as structured control there.
++fn reference_body_under_live_entry(release: &str, body: &str) -> Vec<Statement> {
++    let profile = tcl_dialect::DialectProfile::find(release).unwrap();
++    let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
++    let captured = crate::environment_ingress::captured_native_entry(profile);
++    let mut options = crate::command_binding::native_entry_options(captured.as_entry());
++    options.structured_control = crate::command_binding::StructuredControlReading::ReferenceBody;
++    crate::lowering::lower_procedure_target_module_for_bytecode_with_options(
++        tcl_runtime_api::ProcedureCompileTarget {
++            source: body,
++            parameters: &["x".to_owned()],
++            namespace: "",
++        },
++        registry,
++        tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
++        Some(profile),
++        false,
++        Some(options),
++    )
++    .top_level
++    .statements
++}
++
++/// A reference body under a live entry reads a structured-control command
++/// with the grammar of the release the entry admitted it for: `if` is
++/// structured control under 9.0, and `try`, which 8.5 does not have (tclsh
++/// 8.5.19: `invalid command name "try"`), stays a call under 8.5 rather than
++/// borrowing another release's clause grammar.
++#[test]
++fn a_reference_body_reads_structured_control_with_its_release_grammar() {
++    let statements =
++        reference_body_under_live_entry("tcl9.0", "if {$x < 0} {set r neg} else {set r pos}");
++    assert!(
++        matches!(statements.as_slice(), [Statement::If { .. }]),
++        "{statements:?}"
++    );
++    let statements = reference_body_under_live_entry("tcl8.5", "try {set r $x} on error {} {}");
++    assert!(
++        !statements
++            .iter()
++            .any(|statement| matches!(statement, Statement::Try { .. })),
++        "{statements:?}"
++    );
++}
+diff --git a/rust/tcl-compiler/src/registry_invocation.rs b/rust/tcl-compiler/src/registry_invocation.rs
+index 52d46ed10bab145987a8fd787868f15003b3bb8a..ce8067421daab043bcc9ad26bea2403ab18f6636 100644
+--- a/rust/tcl-compiler/src/registry_invocation.rs
++++ b/rust/tcl-compiler/src/registry_invocation.rs
+@@ -716,6 +716,8 @@ pub fn resolved_tokens_invocation_with_metadata_context(
+ pub struct AdmittedNativeCompilerInvocation {
+     invocation: ResolvedStatementInvocation,
+     compiler_dialect: tcl_registry::InvocationDialect,
++    /// The availability phase the invocation was admitted in.
++    compiler_realm: tcl_dialect::model::InvocationRealm,
+     hooks: tcl_registry::registry::NativeCompilerHooks,
+     target: crate::command_binding::SourceCommandTarget,
+     selection: tcl_registry::native_compilation::NativeCompilationSelection,
+diff --git a/rust/tcl-compiler/src/registry_invocation/native_compilation.rs b/rust/tcl-compiler/src/registry_invocation/native_compilation.rs
+index 9dbc8ba244b2772b7933805d28a336c59c550412..000bb5d684fe05df02f37cb641cae6a0d09096ca 100644
+--- a/rust/tcl-compiler/src/registry_invocation/native_compilation.rs
++++ b/rust/tcl-compiler/src/registry_invocation/native_compilation.rs
+@@ -138,7 +138,9 @@ impl AdmittedNativeCompilerInvocation {
+     }
+     /// The clause walk of the admitted invocation's own words, as the release's
+     /// command it was admitted for reads them: the proof that the head is that
+-    /// command is the admission, so no logical source input is needed.
++    /// command is the admission, so no logical source input is needed. The
++    /// grammar is the admitted release's own surface, in the realm it was
++    /// admitted in; an admission naming no runtime core declines.
+     #[must_use]
+     pub fn clause_walk(
+         &self,
+@@ -149,9 +151,13 @@ impl AdmittedNativeCompilerInvocation {
+             tcl_registry::clause_grammar::ClauseAbstention,
+         >,
+     > {
++        let surface = self
++            .compiler_dialect
++            .authoring_query()?
++            .with_realm(self.compiler_realm);
+         self.with_argument_words(|words| {
+             registry
+-                .resolve_structured_invocation(words, None)
++                .resolve_structured_invocation(words, Some(surface))
+                 .resolved()?
+                 .clause_walk()
+         })
+@@ -221,14 +227,9 @@ pub fn admitted_native_compiler_invocation(
+         .iter()
+         .map(EffectiveInvocationWord::as_registry_word)
+         .collect::<Vec<_>>();
+-    let RegistryInvocationResolution::Resolved(facts) = resolve_registry_words_in_realm(
+-        registry,
+-        context,
+-        &words,
+-        Some(dialect),
+-        binding.compiler_invocation_realm()?,
+-    )
+-    .ok()?
++    let realm = binding.compiler_invocation_realm()?;
++    let RegistryInvocationResolution::Resolved(facts) =
++        resolve_registry_words_in_realm(registry, context, &words, Some(dialect), realm).ok()?
+     else {
+         return None;
+     };
+@@ -240,6 +241,7 @@ pub fn admitted_native_compiler_invocation(
+         .unwrap_or(&[]);
+     Some(AdmittedNativeCompilerInvocation {
+         compiler_dialect: dialect,
++        compiler_realm: realm,
+         invocation: ResolvedStatementInvocation {
+             dialect: Some(word_dialect),
+             arguments: effective.argument_presentations(tokens.argv_texts.get(1..)?)?,
+-- 
+2.52.0
+

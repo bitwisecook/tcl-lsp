@@ -1,0 +1,96 @@
+tclsh8.4
+{-tails -path al *} 0 alpha
+{-path al *} 0 alpha
+{-tails -dir . .} 0 .
+{-dir . alpha} 0 ./alpha
+{-dir . /alpha} 0 ./alpha
+{-path ./al *} 0 ./alpha
+{-path /tmp/bd-fs-check/al *} 0 /tmp/bd-fs-check/alpha
+{-tails -path /tmp/bd-fs-check/al *} 0 alpha
+{-nocomplain -- ./alpha} 0 ./alpha
+{-nocomplain -- dir//inner} 0 dir//inner
+{-nocomplain -- alpha/} 0 alpha/
+{-nocomplain -- dir/} 0 dir/
+{-types hidden -- .} 0 .
+{-types hidden -- alpha} 0 alpha
+{-dir /tmp/bd-fs-check -- {}} 0 /tmp/bd-fs-check/
+tclsh8.5
+{-tails -path al *} 0 alpha
+{-path al *} 0 alpha
+{-tails -dir . .} 0 .
+{-dir . alpha} 0 ./alpha
+{-dir . /alpha} 0 ./alpha
+{-path ./al *} 0 ./alpha
+{-path /tmp/bd-fs-check/al *} 0 /tmp/bd-fs-check/alpha
+{-tails -path /tmp/bd-fs-check/al *} 0 alpha
+{-nocomplain -- ./alpha} 0 ./alpha
+{-nocomplain -- dir//inner} 0 dir/inner
+{-nocomplain -- alpha/} 0 alpha/
+{-nocomplain -- dir/} 0 dir/
+{-types hidden -- .} 0 .
+{-types hidden -- alpha} 1 {no files matched glob pattern "alpha"}
+{-dir /tmp/bd-fs-check -- {}} 0 /tmp/bd-fs-check
+tclsh8.6
+{-tails -path al *} 0 alpha
+{-path al *} 0 alpha
+{-tails -dir . .} 0 .
+{-dir . alpha} 0 ./alpha
+{-dir . /alpha} 0 ./alpha
+{-path ./al *} 0 ./alpha
+{-path /tmp/bd-fs-check/al *} 0 /tmp/bd-fs-check/alpha
+{-tails -path /tmp/bd-fs-check/al *} 0 alpha
+{-nocomplain -- ./alpha} 0 ./alpha
+{-nocomplain -- dir//inner} 0 dir/inner
+{-nocomplain -- alpha/} 0 alpha/
+{-nocomplain -- dir/} 0 dir/
+{-types hidden -- .} 0 .
+{-types hidden -- alpha} 1 {no files matched glob pattern "alpha"}
+{-dir /tmp/bd-fs-check -- {}} 0 /tmp/bd-fs-check
+tclsh9.0
+{-tails -path al *} 0 alpha
+{-path al *} 0 alpha
+{-tails -dir . .} 0 .
+{-dir . alpha} 0 ./alpha
+{-dir . /alpha} 0 ./alpha
+{-path ./al *} 0 ./alpha
+{-path /tmp/bd-fs-check/al *} 0 /tmp/bd-fs-check/alpha
+{-tails -path /tmp/bd-fs-check/al *} 0 alpha
+{-nocomplain -- ./alpha} 0 ./alpha
+{-nocomplain -- dir//inner} 0 dir/inner
+{-nocomplain -- alpha/} 0 alpha/
+{-nocomplain -- dir/} 0 dir/
+{-types hidden -- .} 0 .
+{-types hidden -- alpha} 0 {}
+{-dir /tmp/bd-fs-check -- {}} 0 /tmp/bd-fs-check
+tclsh9.1
+{-tails -path al *} 0 alpha
+{-path al *} 0 alpha
+{-tails -dir . .} 0 .
+{-dir . alpha} 0 ./alpha
+{-dir . /alpha} 0 ./alpha
+{-path ./al *} 0 ./alpha
+{-path /tmp/bd-fs-check/al *} 0 /tmp/bd-fs-check/alpha
+{-tails -path /tmp/bd-fs-check/al *} 0 alpha
+{-nocomplain -- ./alpha} 0 ./alpha
+{-nocomplain -- dir//inner} 0 dir/inner
+{-nocomplain -- alpha/} 0 alpha/
+{-nocomplain -- dir/} 0 dir/
+{-types hidden -- .} 0 .
+{-types hidden -- alpha} 0 {}
+{-dir /tmp/bd-fs-check -- {}} 0 /tmp/bd-fs-check
+/workspace/tcl-lsp/tmp/jimtcl-latest/jimsh
+{-tails -path al *} 1 {bad option "-path": must be -directory, -nocomplain, -tails, or --}
+{-path al *} 1 {bad option "-path": must be -directory, -nocomplain, -tails, or --}
+{-tails -dir . .} 0 .
+{-dir . alpha} 0 ./alpha
+{-dir . /alpha} 1 {no files matched glob pattern "/alpha"}
+{-path ./al *} 1 {bad option "-path": must be -directory, -nocomplain, -tails, or --}
+{-path /tmp/bd-fs-check/al *} 1 {bad option "-path": must be -directory, -nocomplain, -tails, or --}
+{-tails -path /tmp/bd-fs-check/al *} 1 {bad option "-path": must be -directory, -nocomplain, -tails, or --}
+{-nocomplain -- ./alpha} 0 alpha
+{-nocomplain -- dir//inner} 0 dir/inner
+{-nocomplain -- alpha/} 0 alpha
+{-nocomplain -- dir/} 0 dir
+{-types hidden -- .} 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --}
+{-types hidden -- alpha} 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --}
+{-dir /tmp/bd-fs-check -- {}} 0 /tmp/bd-fs-check

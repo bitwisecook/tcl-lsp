@@ -1,0 +1,585 @@
+[
+ [
+  "proc caller {x y} {veach [list $x $y]}",
+  [
+   "caller 166333 2175",
+   "caller 119696 119696"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vdef $x}",
+  [
+   "caller 124612 153594",
+   "caller 0 69934"
+  ],
+  1
+ ],
+ [
+  "proc caller {x y} {vformat $x}",
+  [
+   "caller 245898 192977",
+   "caller 0 -239156"
+  ],
+  1
+ ],
+ [
+  "proc caller {x y} {vapply llength $x}",
+  [
+   "caller 46588 113247",
+   "caller -17411 -17411"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vdouble [incr x]}",
+  [
+   "caller 201859 -221083",
+   "caller 0 -105918"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vdouble $x}",
+  [
+   "caller -223627 105485",
+   "caller 0 99156"
+  ],
+  1
+ ],
+ [
+  "proc caller {x y} {vdouble [incr x]}",
+  [
+   "caller 129837 -101628",
+   "caller -235608 -235608"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vformat $x}",
+  [
+   "caller 5090 15940",
+   "caller 0 -76794"
+  ],
+  1
+ ],
+ [
+  "proc caller {x y} {vdef $x}",
+  [
+   "caller 174926 44317",
+   "caller 0 39279"
+  ],
+  1
+ ],
+ [
+  "proc caller {x y} {vdef $x}",
+  [
+   "caller -219301 -246787",
+   "caller -128521 -128521"
+  ],
+  1
+ ],
+ [
+  "proc caller {x y} {vdouble $x}",
+  [
+   "caller 689 -217859",
+   "caller 0 237350"
+  ],
+  1
+ ],
+ [
+  "proc caller {x y} {vif $x}",
+  [
+   "caller -84281 -46839",
+   "caller 0 -248372"
+  ],
+  1
+ ],
+ [
+  "proc caller {x y} {vdef $x}",
+  [
+   "caller -176862 30525",
+   "caller -85380 -85380"
+  ],
+  1
+ ],
+ [
+  "proc caller {x y} {vformat $x}",
+  [
+   "caller -141552 51151",
+   "caller 0 196808"
+  ],
+  1
+ ],
+ [
+  "proc caller {x y} {vfor 3}",
+  [
+   "caller -203792 -25361",
+   "caller 0 164410"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {veach [list $x $y]}",
+  [
+   "caller 194947 69727",
+   "caller -132939 -132939"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vdouble [incr x]}",
+  [
+   "caller -91488 -227349",
+   "caller 0 131550"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vapply llength $x}",
+  [
+   "caller 146958 201610",
+   "caller 0 -133558"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vifarm $x}",
+  [
+   "caller -237639 -205056",
+   "caller 228028 228028",
+   "caller notAnInteger 1"
+  ],
+  1
+ ],
+ [
+  "proc caller {x y} {vwhile 2}",
+  [
+   "caller -4267 -157311",
+   "caller 0 -33526"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vdouble [incr x]}",
+  [
+   "caller -222660 4806",
+   "caller 0 187274"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vformat $x}",
+  [
+   "caller 203180 127516",
+   "caller 94730 94730",
+   "caller notAnInteger 1"
+  ],
+  1
+ ],
+ [
+  "proc caller {x y} {vdouble [incr x]}",
+  [
+   "caller -211406 57835",
+   "caller 0 -121944"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vfor 3}",
+  [
+   "caller 189450 -155681",
+   "caller 0 103349"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vwhile 2}",
+  [
+   "caller -6050 -35047",
+   "caller -132568 -132568"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vfor 3}",
+  [
+   "caller 10192 -166040",
+   "caller 0 161638"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vfor 3}",
+  [
+   "caller -243110 -71706",
+   "caller 0 -216105"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vfor 3}",
+  [
+   "caller -183023 112412",
+   "caller 31841 31841"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vif $x}",
+  [
+   "caller -168464 -96256",
+   "caller 0 73834"
+  ],
+  1
+ ],
+ [
+  "proc caller {x y} {veach [list $x $y]}",
+  [
+   "caller 22006 62950",
+   "caller 0 -27372"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vformat $x}",
+  [
+   "caller 210369 6306",
+   "caller -34785 -34785",
+   "caller notAnInteger 1"
+  ],
+  1
+ ],
+ [
+  "proc caller {x y} {vfor 3}",
+  [
+   "caller -15073 936",
+   "caller 0 152877"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vapply llength $x}",
+  [
+   "caller -87544 49326",
+   "caller 0 68211"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {veach [list $x $y]}",
+  [
+   "caller -83860 -36307",
+   "caller 76850 76850"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vwhile 2}",
+  [
+   "caller -131001 147099",
+   "caller 0 -129923"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {veach [list $x $y]}",
+  [
+   "caller -76769 52293",
+   "caller 0 68583"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vfor 3}",
+  [
+   "caller -85858 -219355",
+   "caller -228308 -228308"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vdouble [incr x]}",
+  [
+   "caller -87417 -101131",
+   "caller 0 -98472"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vif $x}",
+  [
+   "caller 156887 64242",
+   "caller 0 167579"
+  ],
+  1
+ ],
+ [
+  "proc caller {x y} {veach [list $x $y]}",
+  [
+   "caller 109918 -218784",
+   "caller -154090 -154090"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vifarm $x}",
+  [
+   "caller -12458 213277",
+   "caller 0 -166807"
+  ],
+  1
+ ],
+ [
+  "proc caller {x y} {veach [list $x $y]}",
+  [
+   "caller 167862 180259",
+   "caller 0 -49963"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {veach [list $x $y]}",
+  [
+   "caller -235516 -177600",
+   "caller 245696 245696"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vwhile 2}",
+  [
+   "caller -864 240005",
+   "caller 0 -70799"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vifarm $x}",
+  [
+   "caller 215398 -248465",
+   "caller 0 -125415"
+  ],
+  1
+ ],
+ [
+  "proc caller {x y} {vdouble [incr x]}",
+  [
+   "caller -212549 -10723",
+   "caller -214450 -214450"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vdouble $x}",
+  [
+   "caller 7237 43887",
+   "caller 0 106084"
+  ],
+  1
+ ],
+ [
+  "proc caller {x y} {vdouble [incr x]}",
+  [
+   "caller -51255 -43905",
+   "caller 0 23407"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vfor 3}",
+  [
+   "caller -80407 -187979",
+   "caller -137878 -137878"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vdouble $x}",
+  [
+   "caller 195869 -221369",
+   "caller 0 -195321"
+  ],
+  1
+ ],
+ [
+  "proc caller {x y} {vfor 3}",
+  [
+   "caller -198390 129940",
+   "caller 0 -82669"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vif $x}",
+  [
+   "caller -50094 78657",
+   "caller 25405 25405",
+   "caller notAnInteger 1"
+  ],
+  1
+ ],
+ [
+  "proc caller {x y} {vfor 3}",
+  [
+   "caller 114139 108492",
+   "caller 0 -236325"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vdef $x}",
+  [
+   "caller 72671 76935",
+   "caller 0 52525"
+  ],
+  1
+ ],
+ [
+  "proc caller {x y} {vif $x}",
+  [
+   "caller 94146 112669",
+   "caller 221618 221618",
+   "caller notAnInteger 1"
+  ],
+  1
+ ],
+ [
+  "proc caller {x y} {vdef $x}",
+  [
+   "caller 204565 -23065",
+   "caller 0 82905"
+  ],
+  1
+ ],
+ [
+  "proc caller {x y} {vif $x}",
+  [
+   "caller -223687 181390",
+   "caller 0 4405"
+  ],
+  1
+ ],
+ [
+  "proc caller {x y} {vif $x}",
+  [
+   "caller -90862 -229921",
+   "caller 48361 48361",
+   "caller notAnInteger 1"
+  ],
+  1
+ ],
+ [
+  "proc caller {x y} {vformat $x}",
+  [
+   "caller 86001 1766",
+   "caller 0 -61114"
+  ],
+  1
+ ],
+ [
+  "proc caller {x y} {vapply llength $x}",
+  [
+   "caller 149664 -228900",
+   "caller 0 94428"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vwhile 2}",
+  [
+   "caller 153398 -71233",
+   "caller -45894 -45894"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vdef $x}",
+  [
+   "caller 201691 11340",
+   "caller 0 -179464"
+  ],
+  1
+ ],
+ [
+  "proc caller {x y} {vdouble [incr x]}",
+  [
+   "caller -122349 13049",
+   "caller 0 -16440"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vfor 3}",
+  [
+   "caller 159274 -48752",
+   "caller -144116 -144116"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vformat $x}",
+  [
+   "caller -219485 207398",
+   "caller 0 -127617"
+  ],
+  1
+ ],
+ [
+  "proc caller {x y} {vdouble [incr x]}",
+  [
+   "caller -166076 43185",
+   "caller 0 -101998"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vdef $x}",
+  [
+   "caller 57275 157926",
+   "caller 211919 211919"
+  ],
+  1
+ ],
+ [
+  "proc caller {x y} {vdef $x}",
+  [
+   "caller 129332 105285",
+   "caller 0 80152"
+  ],
+  1
+ ],
+ [
+  "proc caller {x y} {vfor 3}",
+  [
+   "caller 8009 134679",
+   "caller 0 -142768"
+  ],
+  0
+ ],
+ [
+  "proc caller {x y} {vformat $x}",
+  [
+   "caller 73995 -122534",
+   "caller -83061 -83061",
+   "caller notAnInteger 1"
+  ],
+  1
+ ],
+ [
+  "proc caller {x y} {vifarm $x}",
+  [
+   "caller -52366 -169634",
+   "caller 0 36688"
+  ],
+  1
+ ],
+ [
+  "proc caller {x y} {vif $x}",
+  [
+   "caller 149626 8011",
+   "caller 0 79513"
+  ],
+  1
+ ]
+]

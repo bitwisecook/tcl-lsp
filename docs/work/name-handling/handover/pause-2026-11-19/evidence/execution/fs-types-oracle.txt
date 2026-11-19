@@ -1,0 +1,72 @@
+tclsh8.4
+bogus 1 {bad argument to "-types": bogus} NONE
+rw 1 {bad argument to "-types": rw} NONE
+{\{} 1 bad\ argument\ to\ \"-types\":\ \{ NONE
+\{ 1 {unmatched open brace in list} NONE
+{{}} 1 {bad argument to "-types": } NONE
+{1234 5678} 1 {only one MacOS type or creator argument to "-types" allowed} NONE
+{hidden readonly} 0 {}
+{{macintosh type 1} {macintosh creator 2}} 0 /dev/null
+{-nocomplain -types} 1 {missing argument to "-types"} NONE
+{-nocomplain -types bogus -types c /dev/null} 0 /dev/null
+{-types bogus} 1 {wrong # args: should be "glob ?switches? name ?name ...?"} NONE
+tclsh8.5
+bogus 1 {bad argument to "-types": bogus} NONE
+rw 1 {bad argument to "-types": rw} NONE
+{\{} 1 bad\ argument\ to\ \"-types\":\ \{ NONE
+\{ 1 {unmatched open brace in list} NONE
+{{}} 1 {bad argument to "-types": } NONE
+{1234 5678} 1 {only one MacOS type or creator argument to "-types" allowed} NONE
+{hidden readonly} 0 {}
+{{macintosh type 1} {macintosh creator 2}} 0 /dev/null
+{-nocomplain -types} 1 {missing argument to "-types"} NONE
+{-nocomplain -types bogus -types c /dev/null} 0 /dev/null
+{-types bogus} 1 {wrong # args: should be "glob ?switches? name ?name ...?"} NONE
+tclsh8.6
+bogus 1 {bad argument to "-types": bogus} {TCL ARGUMENT BAD}
+rw 1 {bad argument to "-types": rw} {TCL ARGUMENT BAD}
+{\{} 1 bad\ argument\ to\ \"-types\":\ \{ {TCL ARGUMENT BAD}
+\{ 1 {unmatched open brace in list} {TCL VALUE LIST BRACE}
+{{}} 1 {bad argument to "-types": } {TCL ARGUMENT BAD}
+{1234 5678} 1 {only one MacOS type or creator argument to "-types" allowed} {TCL ARGUMENT BAD}
+{hidden readonly} 0 {}
+{{macintosh type 1} {macintosh creator 2}} 0 /dev/null
+{-nocomplain -types} 1 {missing argument to "-types"} {TCL ARGUMENT MISSING}
+{-nocomplain -types bogus -types c /dev/null} 0 /dev/null
+{-types bogus} 1 {bad argument to "-types": bogus} {TCL ARGUMENT BAD}
+tclsh9.0
+bogus 1 {bad argument to "-types": bogus} {TCL ARGUMENT BAD}
+rw 1 {bad argument to "-types": rw} {TCL ARGUMENT BAD}
+{\{} 1 bad\ argument\ to\ \"-types\":\ \{ {TCL ARGUMENT BAD}
+\{ 1 {unmatched open brace in list} {TCL VALUE LIST BRACE}
+{{}} 1 {bad argument to "-types": } {TCL ARGUMENT BAD}
+{1234 5678} 1 {only one MacOS type or creator argument to "-types" allowed} {TCL ARGUMENT BAD}
+{hidden readonly} 0 {}
+{{macintosh type 1} {macintosh creator 2}} 0 /dev/null
+{-nocomplain -types} 1 {missing argument to "-types"} {TCL ARGUMENT MISSING}
+{-nocomplain -types bogus -types c /dev/null} 0 /dev/null
+{-types bogus} 1 {bad argument to "-types": bogus} {TCL ARGUMENT BAD}
+tclsh9.1
+bogus 1 {bad argument to "-types": bogus} {TCL ARGUMENT BAD}
+rw 1 {bad argument to "-types": rw} {TCL ARGUMENT BAD}
+{\{} 1 bad\ argument\ to\ \"-types\":\ \{ {TCL ARGUMENT BAD}
+\{ 1 {unmatched open brace in list} {TCL VALUE LIST BRACE}
+{{}} 1 {bad argument to "-types": } {TCL ARGUMENT BAD}
+{1234 5678} 1 {only one MacOS type or creator argument to "-types" allowed} {TCL ARGUMENT BAD}
+{hidden readonly} 0 {}
+{{macintosh type 1} {macintosh creator 2}} 0 /dev/null
+{-nocomplain -types} 1 {missing argument to "-types"} {TCL ARGUMENT MISSING}
+{-nocomplain -types bogus -types c /dev/null} 0 /dev/null
+{-types bogus} 1 {bad argument to "-types": bogus} {TCL ARGUMENT BAD}
+/workspace/tcl-lsp/tmp/jimtcl-latest/jimsh
+bogus 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE
+rw 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE
+{\{} 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE
+\{ 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE
+{{}} 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE
+{1234 5678} 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE
+{hidden readonly} 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE
+{{macintosh type 1} {macintosh creator 2}} 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE
+{-nocomplain -types} 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE
+{-nocomplain -types bogus -types c /dev/null} 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE
+{-types bogus} 1 {bad option "-types": must be -directory, -nocomplain, -tails, or --} NONE

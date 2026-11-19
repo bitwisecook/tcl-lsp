@@ -1,0 +1,1 @@
+host Cargo.lock files resolve their manifests

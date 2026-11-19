@@ -1,0 +1,45 @@
+script
+ByteCode 0x0x55daeea66170, refCt 1, epoch 3, interp 0x0x55daeea41d90 (epoch 3)
+  Source "set y 1; return $x"
+  Cmds 2, src 18, inst 30, litObjs 4, aux 0, stkDepth 2, code/src 0.00
+  Commands 2:
+      1: pc 0-5, src 0-6   	   2: pc 6-28, src 9-17
+  Command 1: "set y 1"
+    (0) push1 0 	# "y"
+    (2) push1 1 	# "1"
+    (4) storeScalarStk 
+    (5) pop 
+  Command 2: "return $x"
+    (6) startCommand +23 1 	# next cmd at pc 29
+    (15) push1 2 	# "x"
+    (17) loadScalarStk 
+    (18) push1 3 	# ""
+    (20) returnImm +0 1 
+    (29) done 
+
+proc
+ByteCode 0x0x55daeea65870, refCt 1, epoch 3, interp 0x0x55daeea41d90 (epoch 3)
+  Source "if {!$a} {return 1}; return 2"
+  Cmds 3, src 29, inst 35, litObjs 3, aux 0, stkDepth 1, code/src 0.00
+  Proc 0x0x55daeea65830, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "a"
+  Commands 3:
+      1: pc 0-21, src 0-18   	   2: pc 5-16, src 10-17
+      3: pc 22-33, src 21-28
+  Command 1: "if {!$a} {return 1}"
+    (0) loadScalar1 %v0 	# var "a"
+    (2) not 
+    (3) jumpFalse1 +16 	# pc 19
+  Command 2: "return 1"
+    (5) startCommand +12 1 	# next cmd at pc 17
+    (14) push1 0 	# "1"
+    (16) done 
+    (17) jump1 +4 	# pc 21
+    (19) push1 1 	# ""
+    (21) pop 
+  Command 3: "return 2"
+    (22) startCommand +12 1 	# next cmd at pc 34
+    (31) push1 2 	# "2"
+    (33) done 
+    (34) done 
+

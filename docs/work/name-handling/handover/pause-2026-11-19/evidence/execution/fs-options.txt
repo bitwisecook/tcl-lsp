@@ -1,0 +1,65 @@
+-dir 1 {missing argument to "-directory"} NONE
+-dog 1 {bad option "-dog": must be -directory, -join, -nocomplain, -path, -tails, -types, or --} NONE
+-path 1 {missing argument to "-path"} NONE
+-tails 1 {wrong # args: should be "glob ?switches? name ?name ...?"} NONE
+{-tails a} 1 {"-tails" must be used with either "-directory" or "-path"} NONE
+{-dir a -d} 1 {missing argument to "-directory"} NONE
+{-dir a -d b xx} 1 {"-directory" cannot be used with "-path"} NONE
+{-dir a -path p xx} 1 {"-path" cannot be used with "-directory"} NONE
+{-path a -d b xx} 1 {"-directory" cannot be used with "-path"} NONE
+{-path a -path b xx} 1 {"-path" cannot be used with "-directory"} NONE
+{-types {}} 1 {wrong # args: should be "glob ?switches? name ?name ...?"} NONE
+{} 1 {wrong # args: should be "glob ?switches? name ?name ...?"} NONE
+{-d a -d b -n *} 1 {"-directory" cannot be used with "-path"} NONE
+-dir 1 {missing argument to "-directory"} NONE
+-dog 1 {bad option "-dog": must be -directory, -join, -nocomplain, -path, -tails, -types, or --} {TCL LOOKUP INDEX option -dog}
+-path 1 {missing argument to "-path"} NONE
+-tails 1 {wrong # args: should be "glob ?switches? name ?name ...?"} NONE
+{-tails a} 1 {"-tails" must be used with either "-directory" or "-path"} NONE
+{-dir a -d} 1 {missing argument to "-directory"} NONE
+{-dir a -d b xx} 1 {"-directory" cannot be used with "-path"} NONE
+{-dir a -path p xx} 1 {"-path" cannot be used with "-directory"} NONE
+{-path a -d b xx} 1 {"-directory" cannot be used with "-path"} NONE
+{-path a -path b xx} 1 {"-path" cannot be used with "-directory"} NONE
+{-types {}} 1 {wrong # args: should be "glob ?switches? name ?name ...?"} NONE
+{} 1 {wrong # args: should be "glob ?switches? name ?name ...?"} NONE
+{-d a -d b -n *} 1 {"-directory" cannot be used with "-path"} NONE
+-dir 1 {missing argument to "-directory"} {TCL ARGUMENT MISSING}
+-dog 1 {bad option "-dog": must be -directory, -join, -nocomplain, -path, -tails, -types, or --} {TCL LOOKUP INDEX option -dog}
+-path 1 {missing argument to "-path"} {TCL ARGUMENT MISSING}
+-tails 1 {"-tails" must be used with either "-directory" or "-path"} {TCL OPERATION GLOB BADOPTIONCOMBINATION}
+{-tails a} 1 {"-tails" must be used with either "-directory" or "-path"} {TCL OPERATION GLOB BADOPTIONCOMBINATION}
+{-dir a -d} 1 {missing argument to "-directory"} {TCL ARGUMENT MISSING}
+{-dir a -d b xx} 1 {"-directory" may only be used once} {TCL OPERATION GLOB BADOPTIONCOMBINATION}
+{-dir a -path p xx} 1 {"-path" cannot be used with "-dictionary"} {TCL OPERATION GLOB BADOPTIONCOMBINATION}
+{-path a -d b xx} 1 {"-directory" cannot be used with "-path"} {TCL OPERATION GLOB BADOPTIONCOMBINATION}
+{-path a -path b xx} 1 {"-path" may only be used once} {TCL OPERATION GLOB BADOPTIONCOMBINATION}
+{-types {}} 1 {no files matched glob patterns ""} {TCL OPERATION GLOB NOMATCH}
+{} 1 {no files matched glob patterns ""} {TCL OPERATION GLOB NOMATCH}
+{-d a -d b -n *} 1 {"-directory" may only be used once} {TCL OPERATION GLOB BADOPTIONCOMBINATION}
+-dir 1 {missing argument to "-directory"} {TCL ARGUMENT MISSING}
+-dog 1 {bad option "-dog": must be -directory, -join, -nocomplain, -path, -tails, -types, or --} {TCL LOOKUP INDEX option -dog}
+-path 1 {missing argument to "-path"} {TCL ARGUMENT MISSING}
+-tails 1 {"-tails" must be used with either "-directory" or "-path"} {TCL OPERATION GLOB BADOPTIONCOMBINATION}
+{-tails a} 1 {"-tails" must be used with either "-directory" or "-path"} {TCL OPERATION GLOB BADOPTIONCOMBINATION}
+{-dir a -d} 1 {missing argument to "-directory"} {TCL ARGUMENT MISSING}
+{-dir a -d b xx} 1 {"-directory" may only be used once} {TCL OPERATION GLOB BADOPTIONCOMBINATION}
+{-dir a -path p xx} 1 {"-path" cannot be used with "-dictionary"} {TCL OPERATION GLOB BADOPTIONCOMBINATION}
+{-path a -d b xx} 1 {"-directory" cannot be used with "-path"} {TCL OPERATION GLOB BADOPTIONCOMBINATION}
+{-path a -path b xx} 1 {"-path" may only be used once} {TCL OPERATION GLOB BADOPTIONCOMBINATION}
+{-types {}} 0 {} {}
+{} 0 {} {}
+{-d a -d b -n *} 1 {"-directory" may only be used once} {TCL OPERATION GLOB BADOPTIONCOMBINATION}
+-dir 1 {missing argument to "-directory"} {TCL ARGUMENT MISSING}
+-dog 1 {bad option "-dog": must be -directory, -join, -nocomplain, -path, -tails, -types, or --} {TCL LOOKUP INDEX option -dog}
+-path 1 {missing argument to "-path"} {TCL ARGUMENT MISSING}
+-tails 1 {"-tails" must be used with either "-directory" or "-path"} {TCL OPERATION GLOB BADOPTIONCOMBINATION}
+{-tails a} 1 {"-tails" must be used with either "-directory" or "-path"} {TCL OPERATION GLOB BADOPTIONCOMBINATION}
+{-dir a -d} 1 {missing argument to "-directory"} {TCL ARGUMENT MISSING}
+{-dir a -d b xx} 1 {"-directory" may only be used once} {TCL OPERATION GLOB BADOPTIONCOMBINATION}
+{-dir a -path p xx} 1 {"-path" cannot be used with "-dictionary"} {TCL OPERATION GLOB BADOPTIONCOMBINATION}
+{-path a -d b xx} 1 {"-directory" cannot be used with "-path"} {TCL OPERATION GLOB BADOPTIONCOMBINATION}
+{-path a -path b xx} 1 {"-path" may only be used once} {TCL OPERATION GLOB BADOPTIONCOMBINATION}
+{-types {}} 0 {} {}
+{} 0 {} {}
+{-d a -d b -n *} 1 {"-directory" may only be used once} {TCL OPERATION GLOB BADOPTIONCOMBINATION}

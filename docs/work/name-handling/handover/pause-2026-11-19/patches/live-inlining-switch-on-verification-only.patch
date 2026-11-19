@@ -1,0 +1,11 @@
+--- a/rust/tcl-codegen/src/compile_service.rs
++++ b/rust/tcl-codegen/src/compile_service.rs
+@@ -102,7 +102,7 @@
+ /// bodies. Off until an error raised inside a spliced body presents as the
+ /// called procedure's does (its `errorInfo` frame lines and errorstack entry,
+ /// from the definition's own text); the splice itself is admitted and correct.
+-pub const LIVE_REFERENCE_INLINING: bool = false;
++pub const LIVE_REFERENCE_INLINING: bool = true;
+ 
+ fn validate_native_function(function: &tcl_bytecode::FunctionAsm) -> Result<(), CompileError> {
+     function

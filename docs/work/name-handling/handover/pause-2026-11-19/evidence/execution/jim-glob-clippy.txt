@@ -1,0 +1,5 @@
+    Checking tcl-platform v0.1.0 (/workspace/bd-execution-workers/bd-execution-fix/rust/tcl-platform)
+    Checking tcl-host-c-abi v0.1.0 (/workspace/bd-execution-workers/bd-execution-fix/rust/tcl-host-c-abi)
+    Checking tcl-cmd-core v0.1.0 (/workspace/bd-execution-workers/bd-execution-fix/rust/tcl-cmd-core)
+    Checking tcl-host-native v0.1.0 (/workspace/bd-execution-workers/bd-execution-fix/rust/tcl-host-native)
+    Finished `dev` profile [unoptimized] target(s) in 4.18s

@@ -1,0 +1,43 @@
+script
+ByteCode 0x0x555fe44f88b0, refCt 1, epoch 17, interp 0x0x555fe44d0130 (epoch 17)
+  Source "set y 1; return $x"
+  Cmds 2, src 18, inst 21, litObjs 4, aux 0, stkDepth 2, code/src 0.00
+  Commands 2:
+      1: pc 0-5, src 0-6        2: pc 6-19, src 9-17
+  Command 1: "set y 1..."
+    (0) push1 0 	# "y"
+    (2) push1 1 	# "1"
+    (4) storeStk 
+    (5) pop 
+  Command 2: "return $x"
+    (6) push1 2 	# "x"
+    (8) loadStk 
+    (9) push1 3 	# ""
+    (11) returnImm +0 1 
+    (20) done 
+
+proc
+ByteCode 0x0x555fe44f89b0, refCt 1, epoch 17, interp 0x0x555fe44d0130 (epoch 17)
+  Source "if {!$a} {return 1}; return 2"
+  File "/tmp/bd-bytecode-witness.tcl" Line 1
+  Cmds 3, src 29, inst 16, litObjs 3, aux 0, stkDepth 1, code/src 0.00
+  Proc 0x0x555fe4528d70, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "a"
+  Commands 3:
+      1: pc 0-12, src 0-18        2: pc 5-7, src 10-17
+      3: pc 13-15, src 21-28
+  Command 1: "if {!$a} {return 1}..."
+    (0) loadScalar1 %v0 	# var "a"
+    (2) nop 
+    (3) jumpTrue1 +7 	# pc 10
+  Command 2: "return 1..."
+    (5) push1 0 	# "1"
+    (7) done 
+    (8) nop 
+    (9) nop 
+    (10) push1 1 	# ""
+    (12) pop 
+  Command 3: "return 2"
+    (13) push1 2 	# "2"
+    (15) done 
+

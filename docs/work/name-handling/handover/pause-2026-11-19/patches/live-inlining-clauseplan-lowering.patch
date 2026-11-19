@@ -1,0 +1,290 @@
+From 9ba7e59b91e0804f86d8bb4b3cac2ebf8d3bfee4 Mon Sep 17 00:00:00 2001
+From: None None <openai@bragi0.com>
+Date: Thu, 19 Nov 2026 13:55:58 +0000
+Subject: [PATCH] Lower admitted structured control in pack reference bodies
+
+---
+ .../src/codegen/emitter/generate.rs           |  3 ++-
+ rust/tcl-codegen/src/inlining/live.rs         | 12 +++++++++--
+ rust/tcl-compiler/src/command_binding.rs      |  3 ++-
+ .../src/command_binding/site_queries.rs       |  1 +
+ .../command_binding/source_analysis_entry.rs  | 17 ++++++++++++++++
+ .../src/lowering/commands/structured_hooks.rs |  2 ++
+ .../src/lowering/configuration.rs             |  2 ++
+ rust/tcl-compiler/src/lowering/mod.rs         |  2 ++
+ .../src/lowering/script_bodies.rs             |  1 +
+ rust/tcl-compiler/src/lowering/structured.rs  | 16 ++++++++++++++-
+ .../registry_invocation/native_compilation.rs | 20 +++++++++++++++++++
+ .../it_5/codegen_stamps/live_differential.rs  | 10 ++++++----
+ 12 files changed, 80 insertions(+), 9 deletions(-)
+
+diff --git a/rust/tcl-codegen/src/codegen/emitter/generate.rs b/rust/tcl-codegen/src/codegen/emitter/generate.rs
+index 657f3404857cefc1178f9306ffa389c054a2a1ad..4058dd921c06cdee10976f4185451e3fd611dc78 100644
+--- a/rust/tcl-codegen/src/codegen/emitter/generate.rs
++++ b/rust/tcl-codegen/src/codegen/emitter/generate.rs
+@@ -589,7 +589,6 @@ fn emit_block_statements(
+         }
+         ctx.emit_stmt_with_start_cmd(stmt, None, None);
+     }
+-    ctx.close_splice();
+ }
+ 
+ /// Emit the owning command boundary for a structured block that CFG lowering
+@@ -982,6 +981,8 @@ fn open_branch_command(
+ 
+ /// Emit the trailing `DONE` / proc-exit machinery after all blocks.
+ fn emit_function_tail(ctx: &mut CodegenCtx, cfg: &CfgFunction) {
++    // A splice whose body ends the function closes before its exit.
++    ctx.close_splice();
+     // Empty proc body: push "" as the implicit return value.
+     if ctx.is_proc && ctx.instructions.is_empty() {
+         ctx.push_lit("");
+diff --git a/rust/tcl-codegen/src/inlining/live.rs b/rust/tcl-codegen/src/inlining/live.rs
+index 861899e04b6f854f0dbe77354315850b5c807dd4..8a528b0c9e304448250f01c13c521db5161a58d4 100644
+--- a/rust/tcl-codegen/src/inlining/live.rs
++++ b/rust/tcl-codegen/src/inlining/live.rs
+@@ -69,6 +69,8 @@ impl Lowering<'_> {
+         // The definition's own formals, not the caller's.
+         let mut options = self.options;
+         options.incoming_formals = &[];
++        options.structured_control =
++            tcl_compiler::command_binding::StructuredControlReading::ReferenceBody;
+         tcl_compiler::lowering::lower_procedure_target_module_for_bytecode_with_options(
+             tcl_runtime_api::ProcedureCompileTarget {
+                 source: body,
+@@ -167,8 +169,14 @@ impl LiveBodies<'_> {
+         // through its binding site.
+         tcl_compiler::ir::for_each_script_mut(&mut lowered, &mut |script| {
+             for statement in &mut script.statements {
+-                if let Statement::Return { expr_base, .. } = statement {
+-                    *expr_base = None;
++                match statement {
++                    Statement::Return { expr_base, .. } => *expr_base = None,
++                    Statement::If { clauses, .. } => {
++                        for clause in clauses {
++                            clause.condition_base = None;
++                        }
++                    }
++                    _ => {}
+                 }
+             }
+         });
+diff --git a/rust/tcl-compiler/src/command_binding.rs b/rust/tcl-compiler/src/command_binding.rs
+index e11e418bf3184b421153e17c62cf6df3588ef268..019780db33498238f3f0f83edf4f63d63f13ee25 100644
+--- a/rust/tcl-compiler/src/command_binding.rs
++++ b/rust/tcl-compiler/src/command_binding.rs
+@@ -373,7 +373,8 @@ pub use conditional_source::{
+ };
+ mod source_argument_syntax;
+ pub use source_analysis_entry::{
+-    SourceAnalysisEntry, SourceAnalysisOptions, native_entry_config, native_entry_options,
++    SourceAnalysisEntry, SourceAnalysisOptions, StructuredControlReading, native_entry_config,
++    native_entry_options,
+ };
+ pub(crate) use source_analysis_entry::{SourceDeclaredCommandContracts, source_input_dialect};
+ pub use source_point_entry::{
+diff --git a/rust/tcl-compiler/src/command_binding/site_queries.rs b/rust/tcl-compiler/src/command_binding/site_queries.rs
+index 4f05a44b2e28e6a881f05b3de65764f380087514..82707d8aa9e590c65821d9dab0e77cae0776dcd2 100644
+--- a/rust/tcl-compiler/src/command_binding/site_queries.rs
++++ b/rust/tcl-compiler/src/command_binding/site_queries.rs
+@@ -211,6 +211,7 @@ impl SourceCommandBindings {
+             vendor_source_input: self.final_state.baseline.vendor_source_input.as_ref(),
+             compiled_variable_provider: self.final_state.baseline.compiled_variable_provider,
+             expression_parser: self.final_state.baseline.expression_parser,
++            structured_control: super::StructuredControlReading::Call,
+         };
+         let fallback = crate::var_resolve::VariableExecutionFrame::Namespace(namespace.to_owned());
+         let frame = self
+diff --git a/rust/tcl-compiler/src/command_binding/source_analysis_entry.rs b/rust/tcl-compiler/src/command_binding/source_analysis_entry.rs
+index ae2311e7e4c8886518acf0444f8f25a728177078..a84b11d493d680a8898ca8529ea51d8256766d2e 100644
+--- a/rust/tcl-compiler/src/command_binding/source_analysis_entry.rs
++++ b/rust/tcl-compiler/src/command_binding/source_analysis_entry.rs
+@@ -154,6 +154,22 @@ pub struct SourceAnalysisOptions<'a> {
+     pub expression_parser: Option<tcl_registry::invocation_words::LogicalExpressionParseProvider>,
+     /// Native script evaluation protocol and compiler frame supplied by the entry owner.
+     pub native_compilation: tcl_registry::native_compilation::NativeCompilationContext,
++    /// How a structured-control command is read under a live entry.
++    pub structured_control: StructuredControlReading,
++}
++
++/// How a structured-control command (`if` and its kin) is read when the
++/// source is lowered under a live native entry.
++#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
++pub enum StructuredControlReading {
++    /// Kept as a call: the selected compiler owns the command's emission.
++    #[default]
++    Call,
++    /// The source is a pack's reference body lowered under a caller's live
++    /// entry: a command whose head the entry proves to be the release's
++    /// builtin is read as structured control, as tclsh 8.5 to 9.1 compile it,
++    /// so the body can align with its fresh reading.
++    ReferenceBody,
+ }
+ 
+ pub(super) fn native_compilation_dialect(
+@@ -613,6 +629,7 @@ impl SourceAnalysisEntry {
+             compiled_variable_provider: self.compiled_variable_provider,
+             expression_parser: self.expression_parser,
+             native_compilation: self.native_compilation,
++            structured_control: StructuredControlReading::Call,
+         }
+     }
+ }
+diff --git a/rust/tcl-compiler/src/lowering/commands/structured_hooks.rs b/rust/tcl-compiler/src/lowering/commands/structured_hooks.rs
+index 92d400ccedc839eb7cfb2898e1a77800e00ca717..c8b1b26238fafa343de8b0972125aa6acaee96ef 100644
+--- a/rust/tcl-compiler/src/lowering/commands/structured_hooks.rs
++++ b/rust/tcl-compiler/src/lowering/commands/structured_hooks.rs
+@@ -166,6 +166,8 @@ impl Lowerer<'_> {
+         let tokens = self.cmd_tokens_boxed(seg);
+         if self.target.is_bytecode()
+             && self.native_entry.is_some()
++            && self.structured_control
++                != crate::command_binding::StructuredControlReading::ReferenceBody
+             && tokens
+                 .source_binding
+                 .as_ref()
+diff --git a/rust/tcl-compiler/src/lowering/configuration.rs b/rust/tcl-compiler/src/lowering/configuration.rs
+index 0f45599893c9ba6282a1a538b42bbe2c9e7c33c1..1b8e373a29adfd6f9712e045fed38df5d973e8d9 100644
+--- a/rust/tcl-compiler/src/lowering/configuration.rs
++++ b/rust/tcl-compiler/src/lowering/configuration.rs
+@@ -95,6 +95,7 @@ impl<'r> Lowerer<'r> {
+             trusted_package_loaders: Vec::new(),
+             trusted_source_modules: Vec::new(),
+             unknown_entry: false,
++            structured_control: crate::command_binding::StructuredControlReading::Call,
+             host_command_table: HostCommandTable::Catalogue,
+             source_entry_origin: SourceEntryOrigin::Authoring,
+             supplied_source: None,
+@@ -445,6 +446,7 @@ impl<'r> Lowerer<'r> {
+         self.trusted_package_loaders = options.trusted_package_loaders.to_vec();
+         self.trusted_source_modules = options.trusted_source_modules.to_vec();
+         self.unknown_entry = options.unknown_entry;
++        self.structured_control = options.structured_control;
+         self.host_command_table = HostCommandTable::of(options.host_extensible_command_table);
+         self.source_entry_origin = SourceEntryOrigin::Driver;
+         self.config = options.native_lexer_config(self.config);
+diff --git a/rust/tcl-compiler/src/lowering/mod.rs b/rust/tcl-compiler/src/lowering/mod.rs
+index f8b3d6d3a8b0042e49e5823e371bd9f880638bd9..e352d77b12421604bf1d7065aaf2214ff3f8e664 100644
+--- a/rust/tcl-compiler/src/lowering/mod.rs
++++ b/rust/tcl-compiler/src/lowering/mod.rs
+@@ -381,6 +381,8 @@ pub struct Lowerer<'r> {
+     trusted_source_modules: Vec<crate::command_binding::TrustedSourceModuleLoader>,
+     /// Whether prior interpreter history prevents a fresh entry proof.
+     unknown_entry: bool,
++    /// See [`crate::command_binding::SourceAnalysisOptions::structured_control`].
++    structured_control: crate::command_binding::StructuredControlReading,
+     /// The host may register commands outside the catalogue.
+     host_command_table: HostCommandTable,
+     /// An explicit entry contract replaces the default authoring assumption.
+diff --git a/rust/tcl-compiler/src/lowering/script_bodies.rs b/rust/tcl-compiler/src/lowering/script_bodies.rs
+index 153630fc5eee4cf9081ce0e4fc13cd3dcaa13977..08bc7cadf1ad04b9de43c7a92e9142742c1f936c 100644
+--- a/rust/tcl-compiler/src/lowering/script_bodies.rs
++++ b/rust/tcl-compiler/src/lowering/script_bodies.rs
+@@ -224,6 +224,7 @@ impl Lowerer<'_> {
+                 } else {
+                     &[]
+                 },
++                structured_control: self.structured_control,
+                 native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
+                     frame: if self.module.top_level_kind == crate::ir::TopLevelKind::ProcedureBody {
+                         tcl_registry::native_compilation::NativeCompilationFrame::ProcedureCode
+diff --git a/rust/tcl-compiler/src/lowering/structured.rs b/rust/tcl-compiler/src/lowering/structured.rs
+index cb387f6a5f41a33c1158cfa210e03bcc57523e61..87fc130765b154138b276fc2f5c42fe38c3f8e3d 100644
+--- a/rust/tcl-compiler/src/lowering/structured.rs
++++ b/rust/tcl-compiler/src/lowering/structured.rs
+@@ -403,7 +403,21 @@ impl Lowerer<'_> {
+     ) -> Option<Result<ClausePlan, ClauseAbstention>> {
+         let tokens = self.cmd_tokens(seg);
+         let context = self.invocation_metadata_context();
+-        let invocation = self.logical_structured_invocation(&tokens)?;
++        let Some(invocation) = self.logical_structured_invocation(&tokens) else {
++            // A reference body under a caller's live entry: the entry admitted
++            // the release's command, and its own words give the clause walk.
++            if self.structured_control
++                != crate::command_binding::StructuredControlReading::ReferenceBody
++            {
++                return None;
++            }
++            return crate::registry_invocation::admitted_native_compiler_invocation(
++                self.registry,
++                None,
++                &tokens,
++            )?
++            .clause_walk(self.registry);
++        };
+         let realm = tokens
+             .source_binding
+             .as_ref()
+diff --git a/rust/tcl-compiler/src/registry_invocation/native_compilation.rs b/rust/tcl-compiler/src/registry_invocation/native_compilation.rs
+index c615c3d41b21e1d5b70079de2f58af2ac7830c85..9dbc8ba244b2772b7933805d28a336c59c550412 100644
+--- a/rust/tcl-compiler/src/registry_invocation/native_compilation.rs
++++ b/rust/tcl-compiler/src/registry_invocation/native_compilation.rs
+@@ -136,6 +136,26 @@ impl AdmittedNativeCompilerInvocation {
+                 .with_dialect(self.compiler_dialect),
+         )
+     }
++    /// The clause walk of the admitted invocation's own words, as the release's
++    /// command it was admitted for reads them: the proof that the head is that
++    /// command is the admission, so no logical source input is needed.
++    #[must_use]
++    pub fn clause_walk(
++        &self,
++        registry: &CommandRegistry,
++    ) -> Option<
++        Result<
++            tcl_registry::clause_grammar::ClausePlan,
++            tcl_registry::clause_grammar::ClauseAbstention,
++        >,
++    > {
++        self.with_argument_words(|words| {
++            registry
++                .resolve_structured_invocation(words, None)
++                .resolved()?
++                .clause_walk()
++        })
++    }
+     /// Exact compiler environment of an original selected body operand.
+     #[must_use]
+     pub fn body_context(
+diff --git a/rust/tcl-spectcl/tests/it_5/codegen_stamps/live_differential.rs b/rust/tcl-spectcl/tests/it_5/codegen_stamps/live_differential.rs
+index a2d9b75c11482dc965e6e9c5382540d06d27ce4e..3e10eae5e7c2ad9806b3a7d4dfef142b23a1c254 100644
+--- a/rust/tcl-spectcl/tests/it_5/codegen_stamps/live_differential.rs
++++ b/rust/tcl-spectcl/tests/it_5/codegen_stamps/live_differential.rs
+@@ -251,12 +251,12 @@ const CASES: &[(&str, &[&str], usize)] = &[
+     (
+         "proc caller {n} {vif $n}",
+         &["caller -1", "caller 2", "caller abc"],
+-        0,
++        1,
+     ),
+     (
+         "proc caller {n} {vifarm $n}",
+         &["caller 1.5", "caller -1"],
+-        0,
++        1,
+     ),
+     ("proc caller {n} {vwhile $n}", &["caller 3"], 0),
+     ("proc caller {n} {vfor $n}", &["caller 4"], 0),
+@@ -267,7 +267,7 @@ const CASES: &[(&str, &[&str], usize)] = &[
+             "set a [caller 5]; rename if __if; proc if {args} {return renamed}; \
+            set b [caller 5]; rename if {}; rename __if if; list $a $b",
+         ],
+-        0,
++        1,
+     ),
+     // The call's own argument count is wrong.
+     ("proc caller {n} {vdouble $n $n}", &["caller 1"], 0),
+@@ -394,7 +394,9 @@ fn each_shape_spliced_by_the_live_compile_answers_as_tclsh_does() {
+                 // A plain recompile says a splice was refused; where nothing
+                 // is spliced the VM's own recompiles are not this test's, nor
+                 // are those a step trace makes of every command it steps.
+-                if want.spliced == 0 || call.contains("step") {
++                // A command a splice bound and the script then renamed refuses
++                // the splice and recompiles the caller plain, as it should.
++                if want.spliced == 0 || call.contains("step") || call.contains("rename if") {
+                     got.plain = 0;
+                 }
+                 if got != want {
+-- 
+2.52.0
+
