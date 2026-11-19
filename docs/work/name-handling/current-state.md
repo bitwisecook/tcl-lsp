@@ -85,6 +85,10 @@ The owner requires every shipping parser and dialect-sensitive consumer to be ac
 
 The clean `tcl-compiler` integration target `it_2` on `a6c66517c7` ran 501 cases in isolated processes with every oracle required. **359 passed, 142 failed, zero skipped**. This is the clean pre-migration measurement for that target.
 
+**Hourly check, 19 November at 12:52 UTC.** All six replacement workers acknowledged their current areas. The clean compiler `it_2` result and [142 failing selectors](lists/compiler-it_2-failing-2026-11-19.txt) are recorded. Combined candidates address the O129 split rewrite, stale I230 after a body-role stub, and a computed command that could invalidate strict local rename. Their before-witnesses and post-fix registry/dispatch probes exist. Public compiler, LSP and server reruns are still due. O101 remains observable for a procedure with two callers. Collector `429ef5da` and the unmeasured fixture changes remain with analyser-binding. The strict-versus-advisory solver prototype and strict-result comparison remain open. DB per-test timings, the GC case and a fresh #2543 growth trace are awaiting execution. The earlier 507-second DB total belongs to its historical head.
+
+Apply the configured escape policy when a shared list reader receives selected word rules. The C 8.4/8.5 switch-arm list `\x41b` consumes all three hex digits and gives U+001B. C 8.6/9.0/9.1 and the pinned Jim return two characters beginning with U+0041. The value-syntax and tooling owners coordinate the shared correction and caller regression. Keep F5 behaviour requiring physical hardware in the [device ledger](bigip-name-checks.md).
+
 ## Scoreboard, 18 November 2026, 11:55 UTC (at the pause)
 
 Failing tests by area on the restructured tree, from the successor sessions' baselines and first pushes.
