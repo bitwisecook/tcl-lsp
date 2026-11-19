@@ -9104,6 +9104,7 @@ dict with d {
         #   only that the field is set, never the expression that set it.
         pure
         const_fold -native dict::merge::const_fold
+        const_fold_versioned -native dict::merge::const_fold_versioned
         # TODO(spectcl): `dispatch_dependencies` is set on the source spec. —
         #   a pack may not author this field.
         # TODO(spectcl): `result_stability` is set on the source spec. The DSL
@@ -37882,6 +37883,7 @@ if {[string first "World" $s] >= 0} {
         byte_array_effect Coerces
         pure
         const_fold -native string::trim::const_fold
+        const_fold_versioned -native string::trim::const_fold_versioned
         inline_codegen_hook -native StringTrim -introduced 8.6
         # TODO(spectcl): `completion` is set on the source spec. The DSL spells
         #   it `completion {CODE …}`, but a draft records only that the field
@@ -37920,6 +37922,7 @@ if {[string first "World" $s] >= 0} {
         byte_array_effect Coerces
         pure
         const_fold -native string::trimleft::const_fold
+        const_fold_versioned -native string::trimleft::const_fold_versioned
         inline_codegen_hook -native StringTrimLeft -introduced 8.6
         # TODO(spectcl): `completion` is set on the source spec. The DSL spells
         #   it `completion {CODE …}`, but a draft records only that the field
@@ -37958,6 +37961,7 @@ if {[string first "World" $s] >= 0} {
         byte_array_effect Coerces
         pure
         const_fold -native string::trimright::const_fold
+        const_fold_versioned -native string::trimright::const_fold_versioned
         inline_codegen_hook -native StringTrimRight -introduced 8.6
         # TODO(spectcl): `completion` is set on the source spec. The DSL spells
         #   it `completion {CODE …}`, but a draft records only that the field

@@ -112,53 +112,79 @@ pub(crate) fn fold_repeat_versioned(args: &[&str], version: Option<TclVersion>) 
     Some(s.repeat(n))
 }
 
-/// The Tcl default trim set (`string trim` with no explicit `chars`):
-/// space, tab, newline, CR, vertical tab, form feed. This matches the Tcl
-/// 8.4/8.5 documented default verbatim ("spaces, tabs, newlines, and
-/// carriage returns", plus the long-standing \v/\f inclusion the doc text
-/// itself never spelled out). From Tcl 8.6 the documented default widens
-/// to "any character for which `string is space` returns 1, and \0"
-/// (NUL) — a strict superset of this set for ASCII input.
-///
-/// This fold is registered dialect-invariantly (`const_fold`, not
-/// `const_fold_versioned`). A default-set trim containing NUL therefore
-/// abstains: Tcl 8.4/8.5 preserve NUL while Tcl 8.6+/9.x trim it, so no one
-/// invariant answer is sound. An explicit `chars` word remains exact because
-/// it replaces the release-dependent default set.
-pub(super) const TRIM_WS: &[char] = &[' ', '\t', '\n', '\r', '\u{0b}', '\u{0c}'];
-
-/// `string trim` / `trimleft` / `trimright`.  ASCII-restricted so the
-/// default whitespace set and the explicit chars set match Tcl exactly.
-fn fold_trim_impl(args: &[&str], left: bool, right: bool) -> Option<String> {
-    let (s, chars): (&str, Vec<char>) = match args {
-        [s] if s.contains('\0') => return None,
-        [s] => (s, TRIM_WS.to_vec()),
-        [s, chars] => (s, chars.chars().collect()),
+/// Fold ASCII bytes with the native trim range and release-specific default
+/// set. Jim uses the four-byte default for these inputs. NUL requires the
+/// native object's encoding.
+fn fold_trim_impl(
+    args: &[&str],
+    left: bool,
+    right: bool,
+    version: Option<TclVersion>,
+) -> Option<String> {
+    let (value, chars) = match args {
+        [value] => (*value, None),
+        [value, chars] => (*value, Some(chars.as_bytes())),
         _ => return None,
     };
-    if !s.is_ascii() || !chars.iter().all(char::is_ascii) {
+    if !value.is_ascii()
+        || value.contains('\0')
+        || chars.is_some_and(|set| !set.is_ascii() || set.contains(&0))
+    {
         return None;
     }
-    let pred = |c: char| chars.contains(&c);
-    let out = match (left, right) {
-        (true, true) => s.trim_matches(pred),
-        (true, false) => s.trim_start_matches(pred),
-        (false, true) => s.trim_end_matches(pred),
-        (false, false) => s,
+    let trim = |release| {
+        use tcl_syntax::native_string_trim::{default_trim_set, trim_range};
+        trim_range(
+            value.as_bytes(),
+            chars.unwrap_or_else(|| default_trim_set(release)),
+            release,
+            left,
+            right,
+        )
     };
-    Some(out.to_owned())
+    let range = if let Some(version) = version {
+        trim(version)?
+    } else {
+        let range = trim(TclVersion::V8_4)?;
+        if TclVersion::ALL
+            .into_iter()
+            .any(|release| trim(release).as_ref() != Some(&range))
+        {
+            return None;
+        }
+        range
+    };
+    Some(value[range].to_owned())
 }
 
 pub(crate) fn fold_trim(args: &[&str]) -> Option<String> {
-    fold_trim_impl(args, true, true)
+    fold_trim_versioned(args, None)
+}
+
+pub(crate) fn fold_trim_versioned(args: &[&str], version: Option<TclVersion>) -> Option<String> {
+    fold_trim_impl(args, true, true, version)
 }
 
 pub(crate) fn fold_trimleft(args: &[&str]) -> Option<String> {
-    fold_trim_impl(args, true, false)
+    fold_trimleft_versioned(args, None)
+}
+
+pub(crate) fn fold_trimleft_versioned(
+    args: &[&str],
+    version: Option<TclVersion>,
+) -> Option<String> {
+    fold_trim_impl(args, true, false, version)
 }
 
 pub(crate) fn fold_trimright(args: &[&str]) -> Option<String> {
-    fold_trim_impl(args, false, true)
+    fold_trimright_versioned(args, None)
+}
+
+pub(crate) fn fold_trimright_versioned(
+    args: &[&str],
+    version: Option<TclVersion>,
+) -> Option<String> {
+    fold_trim_impl(args, false, true, version)
 }
 
 /// `string totitle string` — the no-index form only (first char upper,

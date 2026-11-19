@@ -491,6 +491,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             crate::native_dictionary::NativeDictionaryCommand::Merge.spec(true),
         ),
         const_fold: Some(crate::const_fold::fold_dict_merge),
+        const_fold_versioned: Some(crate::const_fold::fold_dict_merge_versioned),
         arity: Arity::any(),
         detail: "Merge one or more dictionaries.",
         synopsis: "dict merge ?dictionaryValue ...?",

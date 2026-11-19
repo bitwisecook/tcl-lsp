@@ -610,18 +610,36 @@ pub(crate) fn fold_dict_merge(args: &[&str]) -> Option<String> {
         // duplicates and all.
         return Some((*first).to_owned());
     }
-    let mut order: Vec<String> = Vec::new();
-    let mut pos: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
-    for (k, v) in base.into_iter().chain(later.into_iter().flatten()) {
-        if let Some(&p) = pos.get(&k) {
-            order[p + 1] = v;
-        } else {
-            pos.insert(k.clone(), order.len());
-            order.push(k);
-            order.push(v);
-        }
-    }
+    let pairs: Vec<_> = base
+        .into_iter()
+        .chain(later.into_iter().flatten())
+        .collect();
+    let order: Vec<_> =
+        tcl_syntax::value::canonical_dict_slots(pairs.iter().map(|(key, _)| key.as_str()))
+            .into_iter()
+            .flat_map(|(key, value)| [pairs[key].0.as_str(), pairs[value].1.as_str()])
+            .collect();
     Some(list_join(&order))
+}
+
+/// A selected C Tcl may retain the original base spelling when it performs
+/// no insertion. Without a C release, require that Jim's canonical
+/// dictionary spelling agrees too.
+pub(crate) fn fold_dict_merge_versioned(
+    args: &[&str],
+    version: Option<tcl_dialect::TclVersion>,
+) -> Option<String> {
+    let result = fold_dict_merge(args)?;
+    if version.is_some() {
+        return Some(result);
+    }
+    let pairs = parse_dict(&result)?;
+    let words: Vec<_> = pairs
+        .iter()
+        .flat_map(|(key, value)| [key.as_bytes(), value.as_bytes()])
+        .collect();
+    let jim = tcl_syntax::list_result::NativeListResultSerialization::Jim084.render(&words);
+    (result.as_bytes() == jim).then_some(result)
 }
 
 #[cfg(test)]

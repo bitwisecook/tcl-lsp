@@ -27,7 +27,8 @@ pub(crate) use constant_folds::{
     fold_cat, fold_compare, fold_equal, fold_first, fold_index, fold_last, fold_length, fold_match,
     fold_match_versioned, fold_range, fold_range_unanimous, fold_repeat, fold_repeat_versioned,
     fold_replace, fold_reverse, fold_string_map, fold_tolower, fold_totitle, fold_toupper,
-    fold_trim, fold_trimleft, fold_trimright,
+    fold_trim, fold_trim_versioned, fold_trimleft, fold_trimleft_versioned, fold_trimright,
+    fold_trimright_versioned,
 };
 use is_classes::IS_CLASSES;
 pub(crate) use is_classes::fold_is;
@@ -1416,6 +1417,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         }],
         return_type: Some(TclType::String),
         const_fold: Some(fold_trim),
+        const_fold_versioned: Some(fold_trim_versioned),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
@@ -1464,6 +1466,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         }],
         return_type: Some(TclType::String),
         const_fold: Some(fold_trimleft),
+        const_fold_versioned: Some(fold_trimleft_versioned),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
@@ -1512,6 +1515,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         }],
         return_type: Some(TclType::String),
         const_fold: Some(fold_trimright),
+        const_fold_versioned: Some(fold_trimright_versioned),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
@@ -1676,8 +1680,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 /// tabs, newlines, and carriage returns"; from 8.6 the manpage instead
 /// defines it as "any character for which `string is space` returns 1,
 /// and \0" — i.e. it additionally strips NUL, plus whatever `string is
-/// space`'s own (also-growing) Unicode class covers. `TRIM_WS` below
-/// still only encodes the narrower 8.4/8.5 set (see its own doc comment).
+/// space`'s own (also-growing) Unicode class covers.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "string",

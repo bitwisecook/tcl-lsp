@@ -207,6 +207,22 @@ pub const CONST_FOLD_NATIVE: &[(&str, ConstFoldFn)] = &[
 /// constant folders.
 pub const CONST_FOLD_VERSIONED_NATIVE: &[(&str, VersionedConstFoldFn)] = &[
     (
+        "dict::merge::const_fold_versioned",
+        crate::const_fold::fold_dict_merge_versioned,
+    ),
+    (
+        "string::trimright::const_fold_versioned",
+        crate::commands::tcl::fold_trimright_versioned,
+    ),
+    (
+        "string::trimleft::const_fold_versioned",
+        crate::commands::tcl::fold_trimleft_versioned,
+    ),
+    (
+        "string::trim::const_fold_versioned",
+        crate::commands::tcl::fold_trim_versioned,
+    ),
+    (
         "string::repeat::const_fold_versioned",
         crate::commands::tcl::fold_repeat_versioned,
     ),

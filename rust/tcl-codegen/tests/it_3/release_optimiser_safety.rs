@@ -1226,6 +1226,11 @@ fn native_literal_commands_use_the_selected_readers_and_writers() {
         "puts [lsort {😀 \u{e000}}]",
         "puts [format %f 010]",
         "puts [format %f 08]",
+        "puts [dict merge {a 1 a 2} {}]",
+        "puts [dict merge {  a 1  } {}]",
+        "puts [string trim {\u{b}a\u{b}}]",
+        "puts [string trimleft {\u{b}a\u{b}}]",
+        "puts [string trimright {\u{b}a\u{b}}]",
     ] {
         preserves(source, "8.4");
         if let Some(jim) = &jim {
