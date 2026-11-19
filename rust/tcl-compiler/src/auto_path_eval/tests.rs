@@ -1153,3 +1153,35 @@ fn a_computed_set_right_hand_side_is_not_list_split() {
         [] as [std::string::String; 0]
     );
 }
+
+#[test]
+fn path_expressions_use_one_complete_command_and_original_scalar_names() {
+    let vars = |name: &str| match name {
+        "a" => Some("A".to_owned()),
+        "a:b" => Some("WRONG".to_owned()),
+        "a{b" => Some("FIRST".to_owned()),
+        "a{b}c" => Some("NESTED".to_owned()),
+        _ => None,
+    };
+    for (profile, nested) in [("tcl8.6", "FIRSTc}"), ("tcl9.1", "NESTED")] {
+        let read = |source| {
+            evaluate_auto_path_expr_with_resolver(
+                source,
+                None,
+                &vars,
+                tcl_dialect::DialectProfile::find(profile),
+            )
+        };
+        assert_eq!(read("[file join /tmp $a:b]").as_deref(), Some("/tmp/A:b"));
+        assert_eq!(
+            read("[file join /tmp ${a:b}]").as_deref(),
+            Some("/tmp/WRONG")
+        );
+        assert_eq!(read("${a{b}c}").as_deref(), Some(nested));
+        assert_eq!(read("[file join foo\nbar]"), None);
+        assert_eq!(read("[file join foo; bar]"), None);
+        assert_eq!(read("[file join {a } { b }]").as_deref(), Some("a / b "));
+        assert_eq!(read("$a(index)"), None);
+        assert_eq!(read("${a{b"), None);
+    }
+}

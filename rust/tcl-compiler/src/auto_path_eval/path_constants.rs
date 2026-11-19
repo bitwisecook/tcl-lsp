@@ -942,15 +942,18 @@ pub fn fold_constant_assignments_with_imports<I: PathConstantImports + ?Sized>(
             }
             PathConstantValue::Raw { text, literal } => {
                 if !literal && super::carries_substitution(text) {
-                    super::evaluate_auto_path_expr_with_resolver_and_braced_vars(
+                    super::evaluate_path_source(
                         text,
                         info_script,
                         &|name| out.lookup_at(name, write.at),
-                        assignments
-                            .source_config
-                            .map_or_else(tcl_dialect::BracedVarStyle::default, |config| {
-                                config.braced_var
-                            }),
+                        assignments.source_config.unwrap_or_else(|| {
+                            tcl_lexer::LexerConfig::for_profile(
+                                assignments
+                                    .source_input
+                                    .as_ref()
+                                    .map(crate::analyser::ResolvedAnalysisInput::unit_profile),
+                            )
+                        }),
                         assignments
                             .source_input
                             .as_ref()

@@ -97,31 +97,6 @@ use crate::analyser::types::{AutoPathEntry, AutoPathForm};
 use crate::segmenter::segment_commands_with_offset_and_config;
 use std::collections::HashMap;
 
-/// A parsed word: a literal, a substitutable word, or a command
-/// substitution `[name arg …]`.
-enum Node {
-    /// A word taken verbatim — a braced group (Tcl performs no substitution
-    /// inside braces), or any word with no `$` in it.
-    Lit(String),
-    /// A bare or double-quoted word containing `$` — Tcl *would* substitute
-    /// here, so [`eval`] folds it through the caller's variable resolver
-    /// ([`crate::text::fold_interpolation_single`]), never textually: a
-    /// resolved value containing spaces or brackets is still exactly one
-    /// word, where splicing it into the raw text and re-parsing would split
-    /// it (`$d` = `my dir` inside `[file join $d x]` is `my dir/x`, not
-    /// `my/dir/x`).
-    Subst(String),
-    Cmd(String, Vec<Node>),
-}
-
-/// One lexical token: a structural bracket, or a word that remembers whether
-/// its spelling suppresses substitution (braced) or permits it (bare/quoted).
-enum Tok {
-    Open,
-    Close,
-    Word { text: String, verbatim: bool },
-}
-
 /// Every directory one recorded [`AutoPathEntry`] adds to `auto_path`.
 ///
 /// This is the supported way to read the fact, because the two mutation forms
@@ -207,7 +182,6 @@ fn commands_of(
 /// A rootless value stays rootless — see the module docs' "A relative result
 /// stays relative".
 fn fold_path_value(value: &str) -> Option<String> {
-    let value = value.trim();
     if value.is_empty() {
         return None;
     }
@@ -328,15 +302,36 @@ pub fn evaluate_auto_path_expr_with_resolver_and_braced_vars(
     braced_vars: tcl_dialect::BracedVarStyle,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Option<String> {
-    let raw = raw.trim();
-    if raw.is_empty() {
+    let config = tcl_lexer::LexerConfig {
+        braced_var: braced_vars,
+        ..tcl_lexer::LexerConfig::for_profile(dialect)
+    };
+    evaluate_path_source(raw, info_script, resolve_var, config, dialect)
+}
+
+fn evaluate_path_source(
+    raw: &str,
+    info_script: Option<&str>,
+    resolve_var: &dyn Fn(&str) -> Option<String>,
+    config: tcl_lexer::LexerConfig,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+) -> Option<String> {
+    let image = tcl_lexer::SourceImage::document(raw);
+    let span = tcl_lexer::Span::new(0, u32::try_from(raw.len()).ok()?);
+    let plan = tcl_lexer::native_script_words_in_with_purpose(
+        image,
+        span,
+        config,
+        tcl_lexer::SourceSegmentationPurpose::NestedScript,
+    )
+    .ok()?;
+    let [word] = single_command(&plan)? else {
         return None;
-    }
-    let tokens = tokenise(raw)?;
-    let (node, rest) = parse(&tokens, 0);
-    let node = node?;
-    if rest != tokens.len() {
-        return None;
+    };
+    // Preserve the standalone API's native-path input once its full extent
+    // is known to be a single word. Computed words follow source grammar.
+    if word.bytes() == raw.as_bytes() && is_windows_shaped(raw) && !carries_substitution(raw) {
+        return fold_path_value(raw);
     }
     // `info script` reports the path as Tcl sees it, which is slash form on
     // every host, so the native path is converted before it enters the fold.
@@ -346,13 +341,7 @@ pub fn evaluate_auto_path_expr_with_resolver_and_braced_vars(
         .map(to_tcl_slash_form)
         .filter(|p| !is_drive_relative(p));
     let registry = commands_of(dialect);
-    let result = eval(
-        &node,
-        info_script.as_deref(),
-        resolve_var,
-        braced_vars,
-        registry,
-    )?;
+    let result = path_word(&plan, word, info_script.as_deref(), resolve_var, registry)?;
     // Expand `~` and normalise (collapsing `..`) so the parent-dir idiom
     // resolves to a real directory.  A rootless result is left for the
     // caller to anchor.
@@ -554,192 +543,65 @@ fn root_len(p: &str) -> Option<usize> {
     p.starts_with('/').then_some(1)
 }
 
-/// Split `text` into bracket / word tokens.  Brace groups are kept as a
-/// single **verbatim** word (Tcl performs no substitution inside braces, and
-/// brackets inside braces are literal); bare and double-quoted words are
-/// substitutable.  An unterminated brace / quote aborts with `None`.
-fn tokenise(text: &str) -> Option<Vec<Tok>> {
-    let b: Vec<char> = text.chars().collect();
-    let n = b.len();
-    let mut tokens: Vec<Tok> = Vec::new();
-    let mut i = 0;
-    while i < n {
-        let ch = b[i];
-        if ch.is_whitespace() {
-            i += 1;
-            continue;
-        }
-        if ch == '[' || ch == ']' {
-            tokens.push(if ch == '[' { Tok::Open } else { Tok::Close });
-            i += 1;
-            continue;
-        }
-        if ch == '{' {
-            let mut depth = 1;
-            let mut j = i + 1;
-            while j < n && depth > 0 {
-                if b[j] == '{' {
-                    depth += 1;
-                } else if b[j] == '}' {
-                    depth -= 1;
-                }
-                j += 1;
-            }
-            if depth != 0 {
-                return None;
-            }
-            tokens.push(Tok::Word {
-                text: b[i + 1..j - 1].iter().collect(),
-                verbatim: true,
-            });
-            i = j;
-            continue;
-        }
-        if ch == '"' {
-            let mut j = i + 1;
-            while j < n && b[j] != '"' {
-                if b[j] == '\\' && j + 1 < n {
-                    j += 2;
-                    continue;
-                }
-                j += 1;
-            }
-            if j >= n {
-                return None;
-            }
-            tokens.push(Tok::Word {
-                text: b[i + 1..j].iter().collect(),
-                verbatim: false,
-            });
-            i = j + 1;
-            continue;
-        }
-        let mut j = i;
-        while j < n && !b[j].is_whitespace() && b[j] != '[' && b[j] != ']' {
-            j += 1;
-        }
-        tokens.push(Tok::Word {
-            text: b[i..j].iter().collect(),
-            verbatim: false,
-        });
-        i = j;
-    }
-    Some(tokens)
-}
-
-/// Parse a single word starting at `pos`; returns `(node, next_pos)`.
-///
-/// A substitutable word containing `$` parses as [`Node::Subst`]; everything
-/// else word-shaped is [`Node::Lit`].  A braced word is always `Lit`, even
-/// when it spells `$` or `[` — braces suppress substitution in Tcl, so
-/// `{$d}` names a file literally called `$d` and `{[}` is a literal `[` —
-/// a bare-string token would mis-read that as an open bracket.
-fn parse(tokens: &[Tok], mut pos: usize) -> (Option<Node>, usize) {
-    let Some(tok) = tokens.get(pos) else {
-        return (None, pos);
+/// Only one complete command can supply a supported path operation.
+fn single_command(plan: &tcl_lexer::NativeScriptWordsPlan) -> Option<&[tcl_lexer::NativeWord]> {
+    let [command] = plan.commands.as_slice() else {
+        return None;
     };
-    match tok {
-        Tok::Open => {
-            pos += 1;
-            let Some(Tok::Word { text: name, .. }) = tokens.get(pos) else {
-                return (None, pos);
-            };
-            let name = name.clone();
-            pos += 1;
-            let mut args: Vec<Node> = Vec::new();
-            while pos < tokens.len() && !matches!(tokens[pos], Tok::Close) {
-                let (node, next) = parse(tokens, pos);
-                pos = next;
-                match node {
-                    Some(n) => args.push(n),
-                    None => return (None, pos),
-                }
-            }
-            if pos >= tokens.len() {
-                return (None, pos);
-            }
-            pos += 1; // consume `]`
-            (Some(Node::Cmd(name, args)), pos)
-        }
-        Tok::Close => (None, pos),
-        Tok::Word { text, verbatim } => {
-            let node = if !verbatim && text.contains('$') {
-                Node::Subst(text.clone())
-            } else {
-                Node::Lit(text.clone())
-            };
-            (Some(node), pos + 1)
-        }
-    }
+    plan.fatal_tail
+        .is_none()
+        .then_some(command.words.as_slice())
 }
 
-/// Evaluate a parsed node to a path string (pre-normalisation), answering
-/// variable references through `resolve_var`.
-fn eval(
-    node: &Node,
+fn path_word(
+    plan: &tcl_lexer::NativeScriptWordsPlan,
+    word: &tcl_lexer::NativeWord,
     info_script: Option<&str>,
     resolve_var: &dyn Fn(&str) -> Option<String>,
-    braced_vars: tcl_dialect::BracedVarStyle,
     registry: &tcl_registry::CommandRegistry,
 ) -> Option<String> {
-    match node {
-        Node::Lit(value) => {
-            // A verbatim word carrying `$` would name a file with a literal
-            // dollar in it — legal, vanishingly rare, and impossible to
-            // distinguish from an authoring mistake, so abstain.
-            if value.contains('$') {
-                None
-            } else {
-                // A literal may be written natively (`C:\repo\lib`); the fold
-                // works in slash form, so convert here too.
-                Some(to_tcl_slash_form(value))
-            }
-        }
-        // Resolution happens on the parsed word, via the interpolation
-        // folder's own segment grammar (which also rejects array-indexed
-        // names and stray `[`) — never by splicing text and re-lexing.
-        // Variable delimiters are selected by the caller. Standalone callers
-        // choose their explicit default abstraction; retained source callers
-        // keep the actual source grammar.
-        Node::Subst(word) => {
-            crate::text::fold_interpolation_single(word, braced_vars, |name| resolve_var(name))
-                .map(|v| to_tcl_slash_form(&v))
-        }
-        Node::Cmd(name, args) => {
-            if name == "info" && args.len() == 1 {
-                return match eval(&args[0], info_script, resolve_var, braced_vars, registry)
-                    .as_deref()
-                {
-                    Some("script") => info_script.map(str::to_owned),
-                    _ => None,
-                };
-            }
-            if name == "file" && args.len() >= 2 {
-                let sub = eval(&args[0], info_script, resolve_var, braced_vars, registry)?;
-                let names = args[1..]
-                    .iter()
-                    .map(|node| eval(node, info_script, resolve_var, braced_vars, registry))
-                    .collect::<Option<Vec<_>>>()?;
-                if let Some(value) = file_route(&sub, &names, registry) {
-                    return Some(value);
-                }
-                // value-transfer-ok: irreducible — host path algebra when the
-                // portable route declines platform-relative names.
-                if sub == "dirname" && names.len() == 1 {
-                    return Some(path_dirname(&names[0]));
-                }
-                // value-transfer-ok: irreducible — as above, for normalize.
-                if sub == "normalize" && names.len() == 1 {
-                    return eval_file_normalize(&names[0]);
-                }
-                // value-transfer-ok: irreducible — as above, for join.
-                if sub == "join" {
-                    return Some(path_join(&names));
-                }
-            }
-            None
-        }
+    use tcl_lexer::ExecutablePart;
+    let arena = word.executable_parts();
+    if word.group().expand {
+        return None;
     }
+    if let [component] = arena.list(arena.root())
+        && let ExecutablePart::Command { body } = component.part
+    {
+        let child = plan.reborrow_command_substitution_plan(word, body).ok()?;
+        let (head, args) = single_command(&child)?.split_first()?;
+        let name = tcl_syntax::word_rules::original_static_word_unicode_value(head)?;
+        let args = args
+            .iter()
+            .map(|arg| path_word(&child, arg, info_script, resolve_var, registry))
+            .collect::<Option<Vec<_>>>()?;
+        return match (name.as_slice(), args.as_slice()) {
+            (b"info", [sub]) if sub == "script" => info_script.map(str::to_owned),
+            (b"file", [sub, names @ ..]) if !names.is_empty() => {
+                file_route(sub, names, registry).or_else(|| match (sub.as_str(), names) {
+                    // Host path algebra for platform-relative names outside the portable route.
+                    ("dirname", [name]) => Some(path_dirname(name)),
+                    ("normalize", [name]) => eval_file_normalize(name),
+                    ("join", names) => Some(path_join(names)),
+                    _ => None,
+                })
+            }
+            _ => None,
+        };
+    }
+    let value = tcl_syntax::word_rules::original_word_unicode_value_with_variables(
+        word,
+        |arena, component| {
+            let ExecutablePart::Variable { name, index: None } = component.part else {
+                return None;
+            };
+            resolve_var(std::str::from_utf8(arena.bytes(name)?).ok()?).map(String::into_bytes)
+        },
+    )?;
+    if word.group().kind == tcl_lexer::WordKind::Braced && value.contains(&b'$') {
+        return None;
+    }
+    Some(to_tcl_slash_form(std::str::from_utf8(&value).ok()?))
 }
 
 /// `file SUB names…` on the path route the call resolves to in the document's
