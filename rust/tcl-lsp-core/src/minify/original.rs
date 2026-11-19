@@ -846,6 +846,39 @@ fn append_script_gap_edits(
     });
 }
 
+/// Edits dropping the parentheses precedence makes redundant in one braced
+/// expression, kept only when the expression emitted with them and its
+/// whitespace `gaps` parses to the same tree under the document's grammar.
+fn redundant_paren_edits(
+    source: &str,
+    inner: Span,
+    gaps: &[SourceGapEdit],
+    env: super::MinifyEnv<'_>,
+) -> Vec<SourceGapEdit> {
+    let Some(text) = source.get(inner.as_range()) else {
+        return Vec::new();
+    };
+    let Some(expression) = super::expressions::original_expression(text, env) else {
+        return Vec::new();
+    };
+    let Some(parens) = expression.redundant_paren_edits() else {
+        return Vec::new();
+    };
+    let parens: Vec<SourceGapEdit> = parens
+        .into_iter()
+        .map(|(offset, replacement)| SourceGapEdit {
+            span: Span::new(inner.start() + offset, inner.start() + offset + 1),
+            replacement: replacement.to_owned(),
+        })
+        .collect();
+    let mut combined: Vec<SourceGapEdit> = gaps.iter().chain(&parens).cloned().collect();
+    combined.sort_by_key(|edit| (edit.span.start(), edit.span.end()));
+    match source_gap_output(source, inner, &combined) {
+        Ok(emitted) if expression.same_parse_as(&emitted) => parens,
+        _ => Vec::new(),
+    }
+}
+
 fn append_command_expression_gaps(
     command: &tcl_compiler::segmenter::SegmentedCommand,
     inventory: Option<
@@ -912,10 +945,16 @@ fn append_command_expression_gaps(
             {
                 return Err(MinifyRefusal::SourceCorrespondenceChanged);
             }
-            edits.extend(proof.removed_gaps().iter().map(|&span| SourceGapEdit {
-                span,
-                replacement: String::new(),
-            }));
+            let gaps: Vec<SourceGapEdit> = proof
+                .removed_gaps()
+                .iter()
+                .map(|&span| SourceGapEdit {
+                    span,
+                    replacement: String::new(),
+                })
+                .collect();
+            edits.extend(redundant_paren_edits(source, inner_span, &gaps, env));
+            edits.extend(gaps);
             native_arguments.push(argument);
             expressions.push(proof);
         }

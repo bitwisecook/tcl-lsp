@@ -276,38 +276,84 @@ impl OriginalSourceExpression {
         hazards
     }
 
-    /// The source with every parenthesis pair the parse does not need
-    /// removed. `None` when there is none, or when the result would not
-    /// re-parse to the same tree.
+    /// Edits removing every parenthesis the parse does not need: each is a
+    /// byte offset of a `(` or `)` and its replacement, a space where the
+    /// nearest non-blank neighbours would otherwise fuse into one token, else
+    /// nothing. The choice ignores surrounding whitespace, so the edits stay
+    /// valid when that whitespace is compacted too. `None` when there is
+    /// nothing to remove or the result would not re-parse to the same tree.
     #[must_use]
-    pub fn without_redundant_parens(&self) -> Option<String> {
+    pub fn redundant_paren_edits(&self) -> Option<Vec<(u32, &'static str)>> {
         let geometry = Geometry::capture(self)?;
-        let mut removals: Vec<u32> = geometry
+        let mut offsets: Vec<u32> = geometry
             .parens
             .iter()
             .filter(|paren| !paren.needed)
             .flat_map(|paren| [paren.open, paren.close])
             .collect();
-        if removals.is_empty() {
+        if offsets.is_empty() {
             return None;
         }
-        removals.sort_unstable();
+        offsets.sort_unstable();
         let bytes = self.source().as_bytes();
+        let removed = |i: usize| offsets.binary_search(&u32::try_from(i).unwrap_or(u32::MAX)).is_ok();
+        let neighbour = |from: usize, forward: bool| {
+            let mut i = from;
+            loop {
+                i = if forward { i.checked_add(1)? } else { i.checked_sub(1)? };
+                let byte = *bytes.get(i)?;
+                if !byte.is_ascii_whitespace() && !removed(i) {
+                    return Some(byte);
+                }
+            }
+        };
+        let edits: Vec<(u32, &'static str)> = offsets
+            .iter()
+            .map(|&offset| {
+                let at = offset as usize;
+                let fuse = neighbour(at, false).is_some_and(joins)
+                    && neighbour(at, true).is_some_and(joins);
+                (offset, if fuse { " " } else { "" })
+            })
+            .collect();
         let mut out = String::with_capacity(bytes.len());
         let mut at = 0usize;
-        for offset in removals {
-            let offset = offset as usize;
-            out.push_str(self.source().get(at..offset)?);
-            let before = out.as_bytes().last().copied();
-            let after = bytes.get(offset + 1).copied();
-            if before.is_some_and(joins) && after.is_some_and(joins) {
-                out.push(' ');
+        for &(offset, replacement) in &edits {
+            out.push_str(self.source().get(at..offset as usize)?);
+            out.push_str(replacement);
+            at = offset as usize + 1;
+        }
+        out.push_str(self.source().get(at..)?);
+        self.same_parse(&out).then_some(edits)
+    }
+
+    /// The source with every parenthesis pair the parse does not need
+    /// removed, trimmed. `None` when there is none, or when the result would
+    /// not re-parse to the same tree.
+    #[must_use]
+    pub fn without_redundant_parens(&self) -> Option<String> {
+        let edits = self.redundant_paren_edits()?;
+        let mut out = String::with_capacity(self.source().len());
+        let mut at = 0usize;
+        for (offset, replacement) in edits {
+            out.push_str(self.source().get(at..offset as usize)?);
+            let spaced = out.ends_with(|c: char| c.is_ascii_whitespace())
+                || self.source()[offset as usize + 1..].starts_with(|c: char| c.is_ascii_whitespace());
+            if !spaced {
+                out.push_str(replacement);
             }
-            at = offset + 1;
+            at = offset as usize + 1;
         }
         out.push_str(self.source().get(at..)?);
         let trimmed = out.trim();
         self.same_parse(trimmed).then(|| trimmed.to_owned())
+    }
+
+    /// Whether `candidate` parses, under this expression's grammar, to the
+    /// same tree.
+    #[must_use]
+    pub fn same_parse_as(&self, candidate: &str) -> bool {
+        self.same_parse(candidate)
     }
 
     /// The expression with every operator's operands explicitly grouped.
@@ -327,7 +373,32 @@ impl OriginalSourceExpression {
     pub fn precedence_tree(&self) -> Option<String> {
         let geometry = Geometry::capture(self)?;
         let mut out = String::new();
-        draw(&geometry, self.root(), "", None, &mut out, 0)?;
+        draw(&geometry, self.root(), "", None, None, &mut out, 0)?;
+        Some(out)
+    }
+
+    /// [`Self::precedence_tree`] for a cursor at byte `offset`, marking the
+    /// node whose operator or grouping parenthesis is there. `None` unless
+    /// `offset` is on an operator, `?`, `:` or parenthesis token.
+    #[must_use]
+    pub fn precedence_tree_at(&self, offset: u32) -> Option<String> {
+        let geometry = Geometry::capture(self)?;
+        let token = geometry
+            .tokens
+            .iter()
+            .position(|t| t.start <= offset && offset <= t.end)?;
+        if !matches!(
+            geometry.tokens[token].kind,
+            ExprTokenType::Operator
+                | ExprTokenType::ParenOpen
+                | ExprTokenType::ParenClose
+                | ExprTokenType::TernaryQ
+                | ExprTokenType::TernaryC
+        ) {
+            return None;
+        }
+        let mut out = String::new();
+        draw(&geometry, self.root(), "", None, Some(token), &mut out, 0)?;
         Some(out)
     }
 
@@ -340,7 +411,7 @@ impl OriginalSourceExpression {
 /// Bytes that would fuse with a neighbour if the parenthesis between them
 /// were deleted outright.
 fn joins(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'$' | b'.' | b'"' | b'{' | b'}' | b']')
+    byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'$' | b'.' | b'"' | b'{' | b'}' | b'[' | b']')
 }
 
 const fn is_comparison(op: BinOp) -> bool {
@@ -509,11 +580,39 @@ fn render_grouped(geometry: &Geometry<'_>, node: &ExprNode, depth: u32) -> Optio
     })
 }
 
+/// Whether the token at `focus` belongs to `node` itself: its operator, its
+/// ternary punctuation or a parenthesis wrapping it.
+fn owns_token(geometry: &Geometry<'_>, node: &ExprNode, focus: usize) -> bool {
+    let Some(extent) = geometry.extent(node) else {
+        return false;
+    };
+    let own = match node {
+        ExprNode::Binary { left, right, .. } => {
+            geometry.extent(left).is_some_and(|l| l.end + 1 == focus)
+                && geometry.extent(right).is_some_and(|r| r.start == focus + 1)
+        }
+        ExprNode::Unary { operand, .. } => {
+            geometry.extent(operand).is_some_and(|o| o.start == focus + 1)
+        }
+        ExprNode::Ternary {
+            true_branch,
+            false_branch,
+            ..
+        } => {
+            geometry.extent(true_branch).is_some_and(|t| t.start == focus + 1)
+                || geometry.extent(false_branch).is_some_and(|f| f.start == focus + 1)
+        }
+        _ => false,
+    };
+    own || (extent.wrapped && (focus == extent.start || focus == extent.end))
+}
+
 fn draw(
     geometry: &Geometry<'_>,
     node: &ExprNode,
     prefix: &str,
     last: Option<bool>,
+    focus: Option<usize>,
     out: &mut String,
     depth: u32,
 ) -> Option<()> {
@@ -535,11 +634,22 @@ fn draw(
     out.push_str(prefix);
     out.push_str(connector);
     out.push_str(&label);
+    if focus.is_some_and(|focus| owns_token(geometry, node, focus)) {
+        out.push_str("  ◀");
+    }
     out.push('\n');
     let children = node.slotted_children();
     let count = children.len();
     for (index, (_, child)) in children.into_iter().enumerate() {
-        draw(geometry, child, &child_prefix, Some(index + 1 == count), out, depth + 1)?;
+        draw(
+            geometry,
+            child,
+            &child_prefix,
+            Some(index + 1 == count),
+            focus,
+            out,
+            depth + 1,
+        )?;
     }
     Some(())
 }

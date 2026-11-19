@@ -165,3 +165,17 @@ fn render_keeps_a_ternary_condition_grouped() {
     let rendered = render_expr(tree.root());
     assert_eq!(rendered, "($a ? 1 : 0) ? 2 : 3");
 }
+
+#[test]
+fn focused_tree_marks_the_hovered_operator_or_paren() {
+    let expression = tcl("($a + 1) * -$b");
+    assert_eq!(
+        expression.precedence_tree_at(9).unwrap(),
+        "*  (precedence 10)  ◀\n├─ +  (precedence 9)\n│  ├─ $a\n│  └─ 1\n└─ -  (unary)\n   └─ $b\n"
+    );
+    assert!(expression.precedence_tree_at(0).unwrap().contains("+  (precedence 9)  ◀"));
+    assert!(expression.precedence_tree_at(11).unwrap().contains("-  (unary)  ◀"));
+    assert_eq!(expression.precedence_tree_at(1), None);
+    let ternary = tcl("$a ? 1 : 2");
+    assert!(ternary.precedence_tree_at(3).unwrap().starts_with("?:  (ternary)  ◀"));
+}

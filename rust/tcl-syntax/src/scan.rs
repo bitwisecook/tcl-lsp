@@ -104,6 +104,25 @@ pub struct ScanConversion {
     pub charset: Option<CharSet>,
 }
 
+impl ScanConversion {
+    /// Whether this conversion stores a value in a variable.
+    #[must_use]
+    pub const fn assigns(&self) -> bool {
+        !self.suppress && self.verb != '%'
+    }
+
+    /// Whether Tcl 8.4 truncates this conversion's value to a signed 32-bit
+    /// integer: `%d %i %o %x %X %u` without a `l`/`ll` size modifier.
+    /// `scan ffffffff %x v` stores `-1` on tclsh 8.4.20, and
+    /// `scan 4294967295 %u v` stores `-1` too.
+    #[must_use]
+    pub fn truncates_to_int32_c84(&self) -> bool {
+        self.assigns()
+            && matches!(self.verb, 'd' | 'i' | 'o' | 'x' | 'X' | 'u')
+            && self.size.is_none_or(|size| !size.is_wide())
+    }
+}
+
 /// Why a single scan conversion specifier is invalid.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ScanSpecError {

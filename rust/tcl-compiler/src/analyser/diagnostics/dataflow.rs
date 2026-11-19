@@ -36,6 +36,7 @@ mod irules_cells;
 mod no_match_outputs;
 mod read_before_set;
 mod return_reads;
+mod signed_scans;
 mod unused_bindings;
 mod value_domains;
 

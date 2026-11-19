@@ -139,17 +139,36 @@ pub(super) fn expression_token_signature(
     )
 }
 
-/// Compress and shrink an `expr` body: strip whitespace, then try
+/// Compress and shrink an `expr` body: drop redundant parentheses, strip
+/// whitespace, then try
 /// AST transforms (De Morgan / comparison inversion / double
 /// negation) and keep whichever is shorter.
 pub(super) fn compress_expr(text: &str, env: MinifyEnv<'_>, depth: u32) -> String {
-    let compressed = strip_expr_whitespace(text, env, depth);
+    let compressed = strip_expr_whitespace(&drop_redundant_parens(text, env), env, depth);
     let shrunk = shrink_expr_ast(&compressed, env, depth);
     if shrunk.len() < compressed.len() {
         shrunk
     } else {
         compressed
     }
+}
+
+/// The expression without the parentheses precedence makes redundant, parsed
+/// and re-verified under the document's own expression grammar.
+fn drop_redundant_parens(text: &str, env: MinifyEnv<'_>) -> String {
+    original_expression(text, env)
+        .and_then(|expression| expression.without_redundant_parens())
+        .unwrap_or_else(|| text.to_owned())
+}
+
+/// `text` as an original expression under the document's own grammar.
+pub(super) fn original_expression(
+    text: &str,
+    env: MinifyEnv<'_>,
+) -> Option<tcl_syntax::expr::OriginalSourceExpression> {
+    let mut syntax = tcl_syntax::expr::parser::ExprParseContext::for_profile(env.dialect);
+    syntax.lexer_grammar = env.config.grammar_over(syntax.lexer_grammar);
+    tcl_syntax::expr::OriginalSourceExpression::capture(text, &syntax, env.config)
 }
 
 /// AST-based expression shrinking.

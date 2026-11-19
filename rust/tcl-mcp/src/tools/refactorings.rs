@@ -243,6 +243,14 @@ pub(super) fn refactor(args: &Value) -> Value {
         tcl_lsp_core::refactor::brace_expr(source, start_off, &analysis),
     );
     push(
+        "parenthesise_expression",
+        tcl_lsp_core::refactor::parenthesise_expression(source, start_off, &analysis),
+    );
+    push(
+        "remove_redundant_parens",
+        tcl_lsp_core::refactor::remove_redundant_parens(source, start_off, &analysis),
+    );
+    push(
         "extract_datagroup",
         datagroup_advice(source, start_off, "", &analysis, &line_index),
     );

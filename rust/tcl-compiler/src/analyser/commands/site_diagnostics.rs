@@ -674,6 +674,7 @@ impl Analyser {
             }
             self.emit_expr_function_dialect_diagnostics(*token);
             self.emit_w114_original_nested_expr(&original, argument);
+            self.emit_w154_precedence_hazards(word);
         }
     }
 

@@ -52,6 +52,7 @@
 
 mod brace_expr;
 mod datagroup;
+mod expression_parens;
 pub mod equality_source;
 mod extract_proc;
 mod extract_variable;
@@ -63,6 +64,7 @@ mod source_rewrite;
 mod switch_to_dict;
 
 pub use brace_expr::brace_expr;
+pub use expression_parens::{parenthesise_expression, remove_redundant_parens};
 pub use datagroup::{
     DataGroupDefinition, OriginalExactCaseSource, OriginalExactSwitchSource,
     OriginalScalarVariableSubject, ScalarVariableSourceSyntax, data_group_tcl,

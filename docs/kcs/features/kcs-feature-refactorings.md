@@ -37,6 +37,7 @@ Individual tools for programmatic use:
 | `if_to_switch` | Convert if/elseif chain to switch |
 | `switch_to_dict` | Convert switch to dict lookup |
 | `brace_expr` | Brace unbraced expr arguments |
+| `parenthesise_expression` / `remove_redundant_parens` | Regroup a braced expression by precedence (listed by `refactor`) |
 | `extract_datagroup` | Static data-group extraction with tmsh definition |
 | `suggest_datagroup_extractions` | AI-enhanced: scan for all data-group candidates with confidence scores |
 | `refactor` | List all available refactorings at a position |

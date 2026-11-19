@@ -74,6 +74,7 @@ combine them when more than one form helps:
   - [kcs-feature-refactor-if-to-switch.md](kcs-feature-refactor-if-to-switch.md)
   - [kcs-feature-refactor-switch-to-dict.md](kcs-feature-refactor-switch-to-dict.md)
   - [kcs-feature-refactor-brace-expr.md](kcs-feature-refactor-brace-expr.md)
+  - [kcs-feature-refactor-expression-parens.md](kcs-feature-refactor-expression-parens.md)
   - [kcs-feature-refactor-extract-datagroup.md](kcs-feature-refactor-extract-datagroup.md)
 - [kcs-feature-rename.md](kcs-feature-rename.md)
 - [kcs-feature-signature-help.md](kcs-feature-signature-help.md)

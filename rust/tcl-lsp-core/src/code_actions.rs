@@ -1094,6 +1094,15 @@ fn refactor_engine_actions(
     if let Some(r) = refactor::switch_to_dict(source, cursor, analysis, line_index) {
         out.push(refactoring_to_action(&r, source, line_index));
     }
+    for r in [
+        refactor::parenthesise_expression(source, cursor, analysis),
+        refactor::remove_redundant_parens(source, cursor, analysis),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        out.push(refactoring_to_action(&r, source, line_index));
+    }
     if analysis.allows_retained_logical_declaration_advice()
         && let Some(r) =
             refactor::extract_to_datagroup_with_analysis(source, cursor, "", analysis, line_index)

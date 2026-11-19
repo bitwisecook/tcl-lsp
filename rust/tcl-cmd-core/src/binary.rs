@@ -495,6 +495,31 @@ pub fn specifier_min_version(letter: u8) -> Option<tcl_dialect::TclVersion> {
         .then_some(tcl_dialect::TclVersion::V8_5)
 }
 
+/// Whether a `binary scan` field stores a value in the next variable; the
+/// positioning fields `x`, `X` and `@` consume none.
+#[must_use]
+pub fn scan_field_assigns(letter: u8) -> bool {
+    is_specifier(letter) && !matches!(letter, b'x' | b'X' | b'@')
+}
+
+/// Width in bits of the single signed integer a `binary scan` field stores,
+/// or `None` when the field stores a list (any count), an unsigned value
+/// (`u`), or a non-integer. `c` is `-128..127`, never `0..255`, on every
+/// release (tclsh 8.4.20 to 9.0.4); 64-bit fields are left out because no
+/// integer literal lies outside their range.
+#[must_use]
+pub fn signed_scan_width(field: &Specifier) -> Option<u32> {
+    if field.modifier.is_some() || field.count.is_some() || field.star {
+        return None;
+    }
+    match field.letter {
+        b'c' => Some(8),
+        b's' | b'S' | b't' => Some(16),
+        b'i' | b'I' | b'n' => Some(32),
+        _ => None,
+    }
+}
+
 /// Whether the selected binary command accepts this field letter.
 #[must_use]
 pub fn specifier_available(letter: u8, profile: &tcl_dialect::DialectProfile) -> bool {

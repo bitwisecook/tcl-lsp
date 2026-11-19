@@ -57,6 +57,7 @@ mod builtin_commands;
 mod class_members;
 mod classes;
 mod embedded_operands;
+mod expression_precedence;
 mod format_specifiers;
 mod pattern_syntax;
 mod procedures;
@@ -740,6 +741,12 @@ fn hover_impl(
         // An unavailable Logical receipt cannot borrow an ordinary head or the
         // analyser's resolved display. Native selection above remains terminal.
         return math_function_hover(source, analysis, cursor_offset);
+    }
+
+    if let Some(hover) =
+        expression_precedence::expression_precedence_hover(source, analysis, cursor_offset)
+    {
+        return Some(hover);
     }
 
     // A word inside an enclosing proc/method's own *literal* parameter list is

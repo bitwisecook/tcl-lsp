@@ -39,6 +39,7 @@ use crate::expr_ast::ExprNode;
 
 mod expression_rewrites;
 mod literal_contents;
+mod precedence_hazards;
 mod unbraced_words;
 mod variable_arguments;
 

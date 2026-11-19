@@ -1242,6 +1242,7 @@ impl Analyser {
         self.resolve_loop_terminations(function_unit);
         self.emit_invalid_ip_diagnostics(function_unit);
         self.emit_w233_divide_by_zero(function_unit);
+        self.emit_signed_scan_comparisons(function_unit);
         self.emit_interval_bounds_diagnostics(function_unit);
         if let Some(ir_proc) = ir_proc {
             self.emit_unused_param_diagnostics(

@@ -232,7 +232,7 @@ fn intersect(a: Interval, b: Interval) -> Interval {
 /// The integer value of an `ExprNode::Literal` (incl. bool keyword) under the
 /// target release's numeral grammar, else `None`.
 #[must_use]
-fn literal_int(node: &ExprNode, numbers: NumberSyntax) -> Option<i64> {
+pub(crate) fn literal_int(node: &ExprNode, numbers: NumberSyntax) -> Option<i64> {
     let ExprNode::Literal { text, .. } = node else {
         return None;
     };

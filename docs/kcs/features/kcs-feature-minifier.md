@@ -33,7 +33,7 @@ changes and optimiser counts have separate result fields.
 
 | Mode | Tcl/Jim source with a retained native naming recipe | Explicit lexical authoring simulation |
 |---|---|---|
-| Basic | Removes comments and compacts separators in selected scripts and braced expressions; preserves expression tokens and literal data | Applies the supported recursive body and expression formatting passes |
+| Basic | Removes comments and compacts separators in selected scripts and braced expressions; drops parentheses that operator precedence makes redundant (checked by re-parsing); preserves literal data | Applies the supported recursive body and expression formatting passes |
 | Compact | Basic compaction plus supported closed local scalar compaction; isolated procedure/global renaming is refused | Naming passes are refused; supported syntax compaction still runs |
 | Aggressive | Includes supported local scalar compaction; other name changes, inserted aliases, semantic rewrites, and keyword shortening report their independent missing checks | Naming and semantic passes are refused; supported syntax compaction still runs |
 

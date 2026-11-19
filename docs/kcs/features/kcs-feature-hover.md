@@ -69,6 +69,29 @@ if {li({0 1 0}, 1)} { … }
 A function your chosen Tcl version does not have shows nothing — `isnan(…)` is
 Tcl 9.0 and later, `gamma(…)` is Tcl 9.1 and later.
 
+### Expression precedence
+
+Hovering an operator, `?`/`:` or a grouping parenthesis inside a braced
+expression shows how Tcl parses it: the fully parenthesised form and a tree of
+operators, with the hovered one marked.
+
+```tcl
+if {$c & 0xff == 0x81} { … }
+#      ^ hover here
+```
+
+```text
+&  (precedence 5)  ◀
+├─ $c
+└─ ==  (precedence 6)
+   ├─ 0xff
+   └─ 0x81
+```
+
+Higher precedence binds tighter. The dialect's own operators take part, so the
+iRules word operators (`contains`, `starts_with`, `and`, …) appear at their
+real precedence.
+
 ### Positions that are not references
 
 Hover stays silent where the text under the cursor is not a reference at all,
