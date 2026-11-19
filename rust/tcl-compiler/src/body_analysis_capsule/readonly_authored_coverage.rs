@@ -268,11 +268,7 @@ fn matches_installed_row(procedure: &Procedure, installed: &SourceInstalledProce
     else {
         return false;
     };
-    let parameters = tcl_syntax::list::join_list(installed.parameters.iter().map(|parameter| {
-        tcl_syntax::list::join_list(
-            std::iter::once(parameter.name.as_str()).chain(parameter.default.as_deref()),
-        )
-    }));
+    let parameters = tcl_syntax::formal_params::canonical_formal_list(&installed.parameters);
     procedure.body_kind == ProcedureBodyKind::Installed
         && procedure.publication.is_none()
         && procedure.declaration_site.as_ref() == Some(&installed.allocation.site)

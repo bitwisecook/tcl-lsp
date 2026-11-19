@@ -122,6 +122,16 @@ pub struct FormalParameter {
     pub default: Option<String>,
 }
 
+/// Stable internal representation of decoded formal names and defaults.
+/// Each field list forms one element of the outer parameter list. This is a
+/// structural key for comparing declarations, independent of object display.
+#[must_use]
+pub fn canonical_formal_list(parameters: &[FormalParameter]) -> String {
+    join_list(parameters.iter().map(|parameter| {
+        join_list(std::iter::once(parameter.name.as_str()).chain(parameter.default.as_deref()))
+    }))
+}
+
 /// Where a malformed Tcl list was encountered.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ParameterListLevel {

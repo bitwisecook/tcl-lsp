@@ -596,12 +596,7 @@ impl RetainedSourceModuleBindings {
                     .map(|parameter| parameter.name.as_str())
                     .eq(body.params.iter().map(String::as_str))
                 && body.params_raw
-                    == tcl_syntax::list::join_list(card.parameters.iter().map(|parameter| {
-                        tcl_syntax::list::join_list(
-                            std::iter::once(parameter.name.as_str())
-                                .chain(parameter.default.as_deref()),
-                        )
-                    }))
+                    == tcl_syntax::formal_params::canonical_formal_list(&card.parameters)
         });
         matching.next().is_some() && matching.next().is_none()
     }
@@ -669,12 +664,7 @@ impl RetainedSourceModuleBindings {
                     .map(|parameter| parameter.name.as_str())
                     .eq(body.params.iter().map(String::as_str))
                 && body.params_raw
-                    == tcl_syntax::list::join_list(card.parameters.iter().map(|parameter| {
-                        tcl_syntax::list::join_list(
-                            std::iter::once(parameter.name.as_str())
-                                .chain(parameter.default.as_deref()),
-                        )
-                    }))
+                    == tcl_syntax::formal_params::canonical_formal_list(&card.parameters)
         });
         (matching.next().is_some() && matching.next().is_none())
             .then_some(InheritedEmptyInstalledReportCustody { _body: body })

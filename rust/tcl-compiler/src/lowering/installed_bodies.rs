@@ -81,12 +81,7 @@ impl Lowerer<'_> {
                 installed.namespace_key.clone(),
             );
             let parameters =
-                tcl_syntax::list::join_list(installed.parameters.iter().map(|parameter| {
-                    tcl_syntax::list::join_list(
-                        std::iter::once(parameter.name.as_str())
-                            .chain(parameter.default.as_deref()),
-                    )
-                }));
+                tcl_syntax::formal_params::canonical_formal_list(&installed.parameters);
             let already_named = installed.allocation.incarnation
                 == crate::command_binding::AllocationIncarnation::First
                 && installed.allocation.site.source == installed.source.origin
@@ -319,12 +314,7 @@ impl Lowerer<'_> {
                     &installed.namespace_key,
                 )
             });
-        let params_raw =
-            tcl_syntax::list::join_list(installed.parameters.iter().map(|parameter| {
-                tcl_syntax::list::join_list(
-                    std::iter::once(parameter.name.as_str()).chain(parameter.default.as_deref()),
-                )
-            }));
+        let params_raw = tcl_syntax::formal_params::canonical_formal_list(&installed.parameters);
         let label = if original_declaration {
             format!("::original-declaration-body#{}", self.body_unit_count)
         } else {
