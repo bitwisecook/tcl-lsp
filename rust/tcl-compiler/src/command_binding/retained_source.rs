@@ -596,7 +596,7 @@ impl RetainedSourceModuleBindings {
                     .map(|parameter| parameter.name.as_str())
                     .eq(body.params.iter().map(String::as_str))
                 && body.params_raw
-                    == tcl_syntax::formal_params::canonical_formal_list(&card.parameters)
+                    == tcl_syntax::formal_params::canonical_formal_list(card.parameters)
         });
         matching.next().is_some() && matching.next().is_none()
     }

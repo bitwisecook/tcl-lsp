@@ -561,6 +561,7 @@ fn path_word(
     registry: &tcl_registry::CommandRegistry,
 ) -> Option<String> {
     use tcl_lexer::ExecutablePart;
+    use tcl_registry::value_transfer::{EvalRoute, NativeEvalId};
     let arena = word.executable_parts();
     if word.group().expand {
         return None;
@@ -588,7 +589,6 @@ fn path_word(
         }
         // These file-name operations have a portable value route but require
         // no filesystem/host fallback. Only the selected path recipes qualify.
-        use tcl_registry::value_transfer::{EvalRoute, NativeEvalId};
         let semantics = schema.semantics.value.semantics()?;
         let EvalRoute::Direct {
             id:

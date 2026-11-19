@@ -910,6 +910,29 @@ fn created_representation(
         })
 }
 
+fn selected_list_result(
+    arguments: tcl_registry::InvocationArguments<'_>,
+    from: usize,
+    len: usize,
+    repetitions: Option<usize>,
+) -> Option<String> {
+    const MAX_REPEATED_ELEMENTS: usize = 1000;
+    if let Some(count) = repetitions
+        && count.checked_mul(len)? > MAX_REPEATED_ELEMENTS
+    {
+        return None;
+    }
+    let values = (from..from.checked_add(len)?)
+        .map(|index| arguments.literal_at(index))
+        .collect::<Option<Vec<_>>>()?;
+    let serialization = arguments.dialect()?.list_result_serialization()?;
+    let bytes = match repetitions {
+        None | Some(1) => serialization.render(&values),
+        Some(count) => serialization.render(&values.repeat(count)),
+    };
+    String::from_utf8(bytes).ok()
+}
+
 fn selected_result(
     selection: NativeResultSelection,
     arguments: tcl_registry::InvocationArguments<'_>,
@@ -925,16 +948,7 @@ fn selected_result(
         }
         NativeResultSelection::EmptyString => String::new(),
         NativeResultSelection::ListArguments { from, len } => {
-            let values = (from..from.checked_add(len)?)
-                .map(|index| arguments.literal_at(index))
-                .collect::<Option<Vec<_>>>()?;
-            String::from_utf8(
-                arguments
-                    .dialect()?
-                    .list_result_serialization()?
-                    .render(&values),
-            )
-            .ok()?
+            selected_list_result(arguments, from, len, None)?
         }
         NativeResultSelection::DictionaryArguments { .. }
         | NativeResultSelection::DictionaryValue { .. } => {
@@ -995,24 +1009,7 @@ fn selected_result(
             repetitions,
             from,
             len,
-        } => {
-            // Retained bytes let a later literal conversion prove itself
-            // disjoint from this fresh object, as a range result's do.
-            const MAX_REPEATED_ELEMENTS: usize = 1000;
-            if repetitions.checked_mul(len)? > MAX_REPEATED_ELEMENTS {
-                return None;
-            }
-            let values = (from..from.checked_add(len)?)
-                .map(|index| arguments.literal_at(index))
-                .collect::<Option<Vec<_>>>()?;
-            String::from_utf8(
-                arguments
-                    .dialect()?
-                    .list_result_serialization()?
-                    .render(&values.repeat(repetitions)),
-            )
-            .ok()?
-        }
+        } => selected_list_result(arguments, from, len, Some(repetitions))?,
         NativeResultSelection::ListSort { .. } => selection.sorted_literal_result(arguments)?,
         NativeResultSelection::ListRange { .. }
         | NativeResultSelection::StockResult
