@@ -19,7 +19,7 @@
 //! `world_effects` and `state_transitions`: resolvers, widening, coverage and the derivation from a frame effect.
 
 use super::super::statement_reader::Stmt;
-use super::super::value_parsers::{by_name, enum_by_name, list_words, next_text};
+use super::super::value_parsers::{by_name, enum_by_name, next_text};
 use super::super::vocabulary_class::VocabularyClass;
 use super::super::{
     HookDecl, HookOwner, HookSource, Log, PackTables, abstain_state_transitions, leak_slice,
@@ -311,9 +311,12 @@ fn widening_row(stmt: &Stmt, log: &mut Log) -> Option<StateTransitionWideningRul
 }
 
 fn operand_layout(text: &str, line: u32, log: &mut Log) -> Option<StateTransitionOperandLayout> {
-    let words = list_words(text);
+    let Ok(words) = crate::loader::value_parsers::strict_pack_list(text) else {
+        log.say(line, format!("unreadable operand layout `{text}` dropped"));
+        return None;
+    };
     let numbers: Option<Vec<u8>> = words.iter().skip(1).map(|word| word.parse().ok()).collect();
-    let layout = match (words.first().map(String::as_str), numbers.as_deref()) {
+    let layout = match (words.first().map(AsRef::as_ref), numbers.as_deref()) {
         (Some("EveryArgument"), Some([])) => Some(StateTransitionOperandLayout::EveryArgument),
         (Some("Indices"), Some(indices)) if !indices.is_empty() => Some(
             StateTransitionOperandLayout::Indices(leak_slice(indices.to_vec())),
@@ -374,17 +377,14 @@ fn coverage_row(stmt: &Stmt, log: &mut Log) -> Option<TransitionEffectCoverage> 
 }
 
 fn write_source(text: &str) -> Option<WorldEffectWriteSource> {
-    let words = list_words(text);
-    match words
-        .iter()
-        .map(String::as_str)
-        .collect::<Vec<_>>()
-        .as_slice()
-    {
-        ["LegacyCommandTable"] => Some(WorldEffectWriteSource::LegacyCommandTable),
-        ["LegacyFrame"] => Some(WorldEffectWriteSource::LegacyFrame),
-        ["DeclaredWorldEffect"] => Some(WorldEffectWriteSource::DeclaredWorldEffect),
-        ["LegacySideEffect", target] => {
+    let words = crate::loader::value_parsers::strict_pack_list(text).ok()?;
+    match words.as_slice() {
+        [name] if name == "LegacyCommandTable" => Some(WorldEffectWriteSource::LegacyCommandTable),
+        [name] if name == "LegacyFrame" => Some(WorldEffectWriteSource::LegacyFrame),
+        [name] if name == "DeclaredWorldEffect" => {
+            Some(WorldEffectWriteSource::DeclaredWorldEffect)
+        }
+        [kind, target] if kind == "LegacySideEffect" => {
             by_name(SideEffectTarget::ALL, target).map(WorldEffectWriteSource::LegacySideEffect)
         }
         _ => None,
@@ -426,8 +426,14 @@ fn named_list<T: Copy + fmt::Debug>(
     line: u32,
     log: &mut Log,
 ) -> Option<&'static [T]> {
-    let names = list_words(text);
-    let read: Option<Vec<T>> = names.iter().map(|name| by_name(all, name)).collect();
+    let read = crate::loader::value_parsers::strict_pack_list(text)
+        .ok()
+        .and_then(|names| {
+            names
+                .iter()
+                .map(|name| by_name(all, name))
+                .collect::<Option<Vec<_>>>()
+        });
     match read {
         Some(read) if !read.is_empty() => Some(leak_slice(read)),
         _ => {

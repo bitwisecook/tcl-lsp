@@ -253,6 +253,47 @@ fn state_transition_blocks_preserve_complete_authored_rows() {
     );
 }
 
+/// A prefix from a damaged list cannot authorise a strong effect descriptor.
+/// The source pack is read under its fixed file grammar even when it describes
+/// a different execution dialect.
+#[test]
+fn malformed_list_tails_withdraw_the_whole_world_state_declaration() {
+    for (row, valid) in [
+        (
+            r#"widen -operands {EveryArgument "unfinished} -domains {VariableCells}"#,
+            "widen -operands EveryArgument -domains {VariableCells}",
+        ),
+        (
+            r#"widen -operands EveryArgument -domains {VariableCells "unfinished}"#,
+            "widen -operands EveryArgument -domains {VariableCells}",
+        ),
+        (
+            r#"covers {DeclaredWorldEffect "unfinished} -domains {VariableStore}"#,
+            "covers DeclaredWorldEffect -domains {VariableStore}",
+        ),
+    ] {
+        let load = |row| {
+            evaluate_pack(&format!(
+                "speclib probe 2.2 {{ command demo {{ state_transitions {{ composition Replace; argument_shape Positional; resolver none; {row} }} }} }}"
+            ))
+        };
+        let damaged = load(row);
+        assert!(
+            damaged.command("demo").is_none(),
+            "{row}: {:?}",
+            damaged.notices
+        );
+        assert!(!damaged.notices.is_empty(), "{row}");
+        let control = load(valid);
+        assert!(
+            control.command("demo").is_some(),
+            "{valid}: {:?}",
+            control.notices
+        );
+        assert!(control.notices.is_empty(), "{valid}: {:?}", control.notices);
+    }
+}
+
 // The original row-reading regression also covers malformed input. Invalid
 // rows now withdraw the complete descriptor instead of exposing a partial
 // EMPTY descriptor; the valid composition control remains independent.
