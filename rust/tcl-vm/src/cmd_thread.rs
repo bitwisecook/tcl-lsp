@@ -93,6 +93,8 @@ struct Worker {
     join: Option<std::thread::JoinHandle<()>>,
 }
 
+type SharedVariables = HashMap<String, HashMap<String, Vec<u8>>>;
+
 /// The `Send + Sync` state shared across every interpreter thread — the entire
 /// cross-thread surface. Everything else (the `Vm`, its `Value`s) stays
 /// thread-local.
@@ -113,7 +115,7 @@ struct Shared {
     /// Live workers by thread id.
     workers: Mutex<HashMap<u64, Worker>>,
     /// The `tsv` store: array name → key → serialised value.
-    tsv: Mutex<HashMap<String, HashMap<String, String>>>,
+    tsv: Mutex<SharedVariables>,
     /// `thread::mutex` handles.
     mutexes: Mutex<HashMap<String, Arc<TclMutex>>>,
     /// `thread::cond` handles.
@@ -1207,10 +1209,7 @@ fn no_such(kind: &str, handle: &str) -> String {
 // tsv::* — thread shared variables
 
 /// Run `f` against the shared `tsv` store, returning its result.
-fn with_tsv<T>(
-    vm: &Vm,
-    f: impl FnOnce(&mut HashMap<String, HashMap<String, String>>) -> T,
-) -> Result<T, Completion<Value>> {
+fn with_tsv<T>(vm: &Vm, f: impl FnOnce(&mut SharedVariables) -> T) -> Result<T, Completion<Value>> {
     let shared = shared(vm)?;
     let mut tsv = shared.tsv.lock().expect("tsv lock");
     Ok(f(&mut tsv))
@@ -1225,7 +1224,7 @@ fn cmd_tsv_set(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 .and_then(|m| m.get(&*key.to_str()))
                 .cloned()
         }) {
-            Ok(Some(v)) => ok(Value::string(v)),
+            Ok(Some(v)) => ok(Value::new_native_string_bytes(v)),
             Ok(None) => err(format!(
                 "key \"{}\" does not exist in shared variable \"{}\"",
                 key.to_str(),
@@ -1234,13 +1233,16 @@ fn cmd_tsv_set(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             Err(e) => e,
         },
         [arr, key, value] => {
-            let v = value.to_str().to_string();
+            let v = match vm.native_string_bytes(value) {
+                Ok(v) => v.to_vec(),
+                Err(error) => return vm.cmd_error(error.into()),
+            };
             match with_tsv(vm, |t| {
                 t.entry(arr.to_str().to_string())
                     .or_default()
-                    .insert(key.to_str().to_string(), v.clone());
+                    .insert(key.to_str().to_string(), v);
             }) {
-                Ok(()) => ok(Value::string(v)),
+                Ok(()) => ok(value.clone()),
                 Err(e) => e,
             }
         }
@@ -1273,14 +1275,14 @@ fn cmd_tsv_get(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Err(e) => return e,
     };
     match (var, got) {
-        (None, Some(v)) => ok(Value::string(v)),
+        (None, Some(v)) => ok(Value::new_native_string_bytes(v)),
         (None, None) => err(format!(
             "key \"{}\" does not exist in shared variable \"{}\"",
             key.to_str(),
             arr.to_str()
         )),
         (Some(var), Some(v)) => {
-            if let Err(e) = vm.set_var(&var.to_str(), Value::string(v)) {
+            if let Err(e) = vm.set_var(&var.to_str(), Value::new_native_string_bytes(v)) {
                 return e;
             }
             ok(Value::string("1"))
@@ -1367,81 +1369,80 @@ fn cmd_tsv_incr(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let current = if is_new {
         0
     } else {
-        let original = Value::string(cell.clone());
+        let original = Value::new_native_string_bytes(cell.clone());
         match vm.as_int(&original) {
             Ok(value) => value,
             Err(error) => return vm.cmd_error(error.into()),
         }
     };
     let next = current.wrapping_add(delta);
-    *cell = next.to_string();
+    *cell = next.to_string().into_bytes();
     ok(vm.new_int(next))
 }
 
 /// `tsv::append array key value ?value ...?` — append to (and return) the
 /// element as a plain string.
 fn cmd_tsv_append(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let [arr, key, values @ ..] = args else {
-        return crate::command::native_wrong_arguments_message(
-            vm,
-            "wrong # args: should be \"tsv::append array key value ?value ...?\"",
-        );
-    };
-    if values.is_empty() {
-        return crate::command::native_wrong_arguments_message(
-            vm,
-            "wrong # args: should be \"tsv::append array key value ?value ...?\"",
-        );
-    }
-    let suffix: String = values.iter().map(|v| v.to_str().to_string()).collect();
-    let out = with_tsv(vm, |t| {
-        let cell = t
-            .entry(arr.to_str().to_string())
-            .or_default()
-            .entry(key.to_str().to_string())
-            .or_default();
-        cell.push_str(&suffix);
-        cell.clone()
-    });
-    match out {
-        Ok(v) => ok(Value::string(v)),
-        Err(e) => e,
-    }
+    tsv_append(vm, args, false)
 }
 
 /// `tsv::lappend array key value ?value ...?` — list-append to (and return) the
 /// element.
 fn cmd_tsv_lappend(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    tsv_append(vm, args, true)
+}
+
+fn tsv_append(vm: &mut Vm, args: &[Value], as_list: bool) -> Completion<Value> {
+    let usage = if as_list {
+        "tsv::lappend"
+    } else {
+        "tsv::append"
+    };
     let [arr, key, values @ ..] = args else {
         return crate::command::native_wrong_arguments_message(
             vm,
-            "wrong # args: should be \"tsv::lappend array key value ?value ...?\"",
+            format!(r#"wrong # args: should be "{usage} array key ?args?""#),
         );
     };
+    let shared = match shared(vm) {
+        Ok(shared) => shared,
+        Err(error) => return error,
+    };
+    let mut store = shared.tsv.lock().expect("tsv store");
+    let cell = store
+        .entry(arr.to_str().to_string())
+        .or_default()
+        .entry(key.to_str().to_string())
+        .or_default();
     if values.is_empty() {
-        return crate::command::native_wrong_arguments_message(
-            vm,
-            "wrong # args: should be \"tsv::lappend array key value ?value ...?\"",
-        );
+        let actual = vm.new_list(vec![Value::string(usage), arr.clone(), key.clone()]);
+        let mut usage = actual.string_bytes().to_vec();
+        usage.extend_from_slice(b" value ?value ...?");
+        return crate::command::native_wrong_args_bytes(vm, &usage);
     }
-    let added = tcl_syntax::list::join_list(values.iter().map(Value::to_str));
-    let out = with_tsv(vm, |t| {
-        let cell = t
-            .entry(arr.to_str().to_string())
-            .or_default()
-            .entry(key.to_str().to_string())
-            .or_default();
-        if cell.is_empty() {
-            cell.clone_from(&added);
-        } else {
-            cell.push(' ');
-            cell.push_str(&added);
+    if as_list {
+        let original = Value::new_native_string_bytes(cell.clone());
+        let mut items = match vm.list_elements(&original) {
+            Ok(items) => items,
+            Err(error) => return vm.cmd_error(error.into()),
+        };
+        items.extend_from_slice(values);
+        let result = vm.new_list(items);
+        match vm.native_string_bytes(&result) {
+            Ok(bytes) => *cell = bytes.to_vec(),
+            Err(error) => return vm.cmd_error(error.into()),
         }
-        cell.clone()
-    });
-    match out {
-        Ok(v) => ok(Value::string(v)),
-        Err(e) => e,
+        ok(result)
+    } else {
+        let mut bytes = cell.clone();
+        for value in values {
+            match vm.native_string_bytes(value) {
+                Ok(suffix) => bytes.extend_from_slice(&suffix),
+                Err(error) => return vm.cmd_error(error.into()),
+            }
+        }
+        cell.clone_from(&bytes);
+        ok(Value::new_native_string_bytes(bytes))
     }
 }
 

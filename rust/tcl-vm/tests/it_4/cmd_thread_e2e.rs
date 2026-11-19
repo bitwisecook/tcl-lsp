@@ -266,6 +266,18 @@ fn tsv_element_operations() {
         ),
         "8 foobar {1 2 3} {l s x} 1 0"
     );
+    assert_eq!(
+        result(
+            r#"
+            tsv::set T k [format %c 123]
+            set rc [catch {tsv::lappend T k x} msg]
+            set preserved [string equal [tsv::get T k] [format %c 123]]
+            tsv::set T k a
+            list $rc $msg $preserved [tsv::lappend T k #foo]
+        "#
+        ),
+        "1 {unmatched open brace in list} 1 {a #foo}"
+    );
 }
 
 #[test]
