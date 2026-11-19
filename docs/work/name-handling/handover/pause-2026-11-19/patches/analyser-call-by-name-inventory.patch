@@ -1,0 +1,418 @@
+From c631bbab7e89b84d7a209b4390e656ce79255453 Mon Sep 17 00:00:00 2001
+From: None None <openai@bragi0.com>
+Date: Thu, 19 Nov 2026 13:38:12 +0000
+Subject: [PATCH] Read caller-name arguments from grouped words and retain
+ incomplete store inventories
+
+---
+ .../tests/it_3/inlining_interproc_residual.rs |  22 +-
+ rust/tcl-compiler/src/interprocedural.rs      |   2 +-
+ .../src/interprocedural/call_by_name.rs       | 263 ++++++++++++------
+ .../tcl-compiler/src/optimiser/elimination.rs |   6 +-
+ 4 files changed, 198 insertions(+), 95 deletions(-)
+
+diff --git a/rust/tcl-codegen/tests/it_3/inlining_interproc_residual.rs b/rust/tcl-codegen/tests/it_3/inlining_interproc_residual.rs
+index 9c7d082eaf..5de656fcc3 100644
+--- a/rust/tcl-codegen/tests/it_3/inlining_interproc_residual.rs
++++ b/rust/tcl-codegen/tests/it_3/inlining_interproc_residual.rs
+@@ -797,7 +797,7 @@ fn inline_module_with_no_procs_at_all_is_unchanged() {
+ // relevant to why a fact holds (e.g. an upvar write-back), it is cited.
+ 
+ // The call-by-name machinery — build_proc_index_from_summaries +
+-// collect_call_by_name_reads (+ add_call_by_name + scan_value_cmd_subst).
++// collect_call_by_name_reads (including nested argument evaluation).
+ // No other test drives these directly. The behaviour: a literal variable NAME
+ // passed to a callee parameter that the callee consumes via `upvar` must be
+ // collected (so the optimiser does not flag it dead).
+@@ -848,16 +848,17 @@ fn call_by_name_direct_call_collects_var_name() {
+ 
+ #[test]
+ fn call_by_name_value_command_subst_collects() {
+-    // The whole-value `[cmd …]` shape: `set out [peek data]` where `peek`
+-    // reads its first param via `upvar` (VarRead). `data` is the call-by-name
+-    // arg and is collected by `scan_value_cmd_subst`.
+     let reads = call_by_name_reads(
+-        "proc peek {n} { upvar 1 $n x\nreturn $x }\nproc caller {} { set data 7\nset out [peek data] }\n",
++        "proc peek {n} {upvar 1 $n x; return $x}\nproc caller {} {set {left right} 7; set {$sigil} 8; set out [list [peek {left right}] [peek {$sigil}]]}\n",
+         "::caller",
+     );
+     assert!(
+-        reads.contains("data"),
+-        "a name in a whole-value `[peek data]` substitution is collected, got {reads:?}"
++        reads.contains("left right") && reads.contains("$sigil"),
++        "{reads:?}"
++    );
++    assert!(
++        !reads.contains("left") && !reads.contains("right"),
++        "{reads:?}"
+     );
+ }
+ 
+@@ -883,8 +884,7 @@ fn call_by_name_resolves_bare_call_to_namespaced_proc() {
+ #[test]
+ fn call_by_name_omitted_parameter_collects_its_default() {
+     // A call that omits a by-name parameter binds its default, which names the
+-    // caller variable the callee reaches through `upvar` as a word would; a
+-    // default that is no literal name (`a(1)`) is not collected.
++    // caller variable the callee reaches through `upvar`, including an element.
+     // tclsh (8.4 to 9.1): `proc bumpd {{name n}} { upvar 1 $name v; incr v };
+     // proc caller {} { set n 1; bumpd; return $n }; puts [caller]` → 2 — the
+     // store to `n` is read through the alias, so it is live.
+@@ -899,8 +899,8 @@ fn call_by_name_omitted_parameter_collects_its_default() {
+         "the default an omitted upvar param binds is collected, got {reads:?}"
+     );
+     assert!(
+-        !reads.contains("a(1)") && !reads.contains("a"),
+-        "a default that is no literal name is not collected, got {reads:?}"
++        reads.contains("a(1)"),
++        "the default names an actual array element, got {reads:?}"
+     );
+ }
+ 
+diff --git a/rust/tcl-compiler/src/interprocedural.rs b/rust/tcl-compiler/src/interprocedural.rs
+index 8f62478aae..8e14a01cf9 100644
+--- a/rust/tcl-compiler/src/interprocedural.rs
++++ b/rust/tcl-compiler/src/interprocedural.rs
+@@ -58,7 +58,7 @@ mod return_summaries;
+ mod substitution_calls;
+ mod summary_fixpoints;
+ 
+-pub(crate) use call_by_name::collect_positioned_call_by_name_reads;
++pub(crate) use call_by_name::{bounded_call_by_name_reads, collect_positioned_call_by_name_reads};
+ pub use call_by_name::{
+     build_proc_index_from_summaries, collect_call_by_name_reads,
+     collect_executable_opaque_callee_name_args, collect_opaque_callee_name_args,
+diff --git a/rust/tcl-compiler/src/interprocedural/call_by_name.rs b/rust/tcl-compiler/src/interprocedural/call_by_name.rs
+index d643348c14..e68f3e49d1 100644
+--- a/rust/tcl-compiler/src/interprocedural/call_by_name.rs
++++ b/rust/tcl-compiler/src/interprocedural/call_by_name.rs
+@@ -94,110 +94,197 @@ pub(crate) fn collect_positioned_call_by_name_reads(
+ /// Record any literal-name argument landing on a callee param that
+ /// carries `VarRead` / `VarWrite` (a call-by-name read/write), and the
+ /// default such a param binds where the call omits it.
+-fn add_call_by_name(cmd: &str, args: &[String], index: &ProcIndex, out: &mut HashSet<String>) {
+-    let candidates = (!cmd.is_empty() && !cmd.contains(['$', '[']))
+-        .then(|| index.get(cmd))
+-        .flatten();
+-    let Some(candidates) = candidates.filter(|candidates| !candidates.is_empty()) else {
+-        // A missing key supplies no effect-free callee. These literal passed
+-        // names may be observed; opaque hidden reads remain the CFG owner's
+-        // separate barrier, not an absence conclusion from this projection.
+-        out.extend(args.iter().filter(|arg| is_literal_var_name(arg)).cloned());
+-        return;
++fn add_call_by_name(
++    words: &[Option<String>],
++    expanded: bool,
++    index: &ProcIndex,
++    out: &mut HashSet<String>,
++) -> bool {
++    let Some((head, args)) = words.split_first() else {
++        return false;
++    };
++    let candidates = head.as_ref().and_then(|name| index.get(name));
++    let Some(candidates) = candidates.filter(|items| !items.is_empty()) else {
++        out.extend(args.iter().flatten().cloned());
++        return true;
+     };
++    // Expansion can shift every following actual argument and make a default
++    // reachable. This inventory supplies only protective possible reads.
++    if expanded {
++        out.extend(args.iter().flatten().cloned());
++    }
++    let mut bounded = !expanded;
+     for candidate in candidates {
+         for (i, pname) in candidate.params.iter().enumerate() {
+-            let is_var = candidate.param_traits.get(pname).is_some_and(|traits| {
++            if !candidate.param_traits.get(pname).is_some_and(|traits| {
+                 traits.contains(&ProcArgTrait::VarRead) || traits.contains(&ProcArgTrait::VarWrite)
+-            });
+-            let Some(arg) = args.get(i).or_else(|| candidate.param_defaults.get(pname)) else {
+-                break;
+-            };
+-            if is_var && is_literal_var_name(arg) {
+-                out.insert(arg.clone());
++            }) {
++                continue;
++            }
++            match args.get(i) {
++                Some(Some(arg)) => {
++                    out.insert(arg.clone());
++                }
++                Some(None) => bounded = false,
++                None => {}
++            }
++            if (expanded || i >= args.len())
++                && let Some(default) = candidate.param_defaults.get(pname)
++            {
++                out.insert(default.clone());
+             }
+         }
+     }
++    bounded
+ }
+ 
+-/// Scan a whole-value `[cmd …]` command substitution (the dominant
+-/// tcllib call-by-name shape, `set len [asnPeekTag data tag type
+-/// dummy]`).  A simple whitespace split suffices — the call-by-name
+-/// args are literal names, and [`add_call_by_name`] rejects anything
+-/// that isn't.
+-fn scan_value_cmd_subst(text: &str, index: &ProcIndex, out: &mut HashSet<String>) {
+-    let Some(inner) = text
+-        .trim()
+-        .strip_prefix('[')
+-        .and_then(|s| s.strip_suffix(']'))
+-    else {
+-        return;
+-    };
+-    let mut words = inner.split_whitespace();
+-    if let Some(cmd) = words.next() {
+-        let args: Vec<String> = words.map(str::to_owned).collect();
+-        add_call_by_name(cmd, &args, index, out);
++fn literal_word_values(
++    tokens: &crate::ir::CommandTokens,
++    config: tcl_lexer::LexerConfig,
++) -> Vec<Option<String>> {
++    use crate::ir::WordExpr;
++    if let Some(binding) = tokens.source_binding.as_ref()
++        && let Some(site) = binding.invocation_site()
++        && let Some(original_config) = binding.original_lexer_config_for_tokens(tokens)
++        && let Some(original) =
++            site.source
++                .original_lexical_command(tokens.words(), site.offset, original_config)
++        && original
++            .native_words()
++            .first()
++            .is_some_and(|word| word.image().channel() == tcl_lexer::SourceChannel::Document)
++    {
++        return original
++            .native_words()
++            .iter()
++            .map(|word| {
++                tcl_syntax::word_rules::original_static_word_unicode_value(word)
++                    .and_then(|bytes| String::from_utf8(bytes).ok())
++            })
++            .collect();
+     }
++    // Standalone CFGs retain the lexical grouping even without a reached
++    // invocation. This protective projection needs no native dispatch fact.
++    tokens
++        .words()
++        .iter()
++        .map(|word| match word {
++            WordExpr::Literal { text, .. } | WordExpr::BracedLiteral { text, .. } => {
++                tcl_syntax::word_rules::standalone_static_word_fragment_value(
++                    text,
++                    matches!(word, WordExpr::BracedLiteral { .. }),
++                    config,
++                )
++            }
++            _ => None,
++        })
++        .collect()
+ }
+ 
+-/// Caller-local variable names passed *by name* to a user proc that
+-/// consumes them via `upvar` (call-by-name) — these must NOT be flagged
+-/// dead / unused (W211 / W220 / O109 / O126).
+-///
+-/// Scans direct `Call` / `Barrier` statements plus a `[cmd …]`
+-/// substitution that is the whole value of an `AssignValue` /
+-/// `AssignExpr` / `Return`.
++/// Caller-local names passed by name, including original nested substitutions.
++/// This possible-read inventory can retain a store, but does not prove a read.
+ #[must_use]
+ pub fn collect_call_by_name_reads(
+     cfg: &crate::cfg::Function,
+     index: &ProcIndex,
+ ) -> HashSet<String> {
++    call_by_name_inventory(cfg, index).0
++}
++
++/// An incomplete or dynamic by-name read cannot justify removing any caller store.
++pub(crate) fn bounded_call_by_name_reads(
++    cfg: &crate::cfg::Function,
++    index: &ProcIndex,
++) -> Option<HashSet<String>> {
++    let (reads, bounded) = call_by_name_inventory(cfg, index);
++    bounded.then_some(reads)
++}
++
++fn call_by_name_inventory(
++    cfg: &crate::cfg::Function,
++    index: &ProcIndex,
++) -> (HashSet<String>, bool) {
+     use crate::ir::Statement;
+     let mut out = HashSet::new();
++    let mut bounded = true;
+     if index.is_empty() {
+-        return out;
++        return (out, bounded);
+     }
+-    for block in cfg.blocks.values() {
+-        for stmt in &block.statements {
+-            if !stmt.is_executable_invocation() {
+-                continue;
++    let fallback = cfg.metadata_context.source_analysis_input().map_or_else(
++        || tcl_lexer::LexerConfig::for_profile(None),
++        crate::analyser::ResolvedAnalysisInput::lexer_config,
++    );
++    for stmt in cfg.blocks.values().flat_map(|block| &block.statements) {
++        if !stmt.is_executable_invocation() {
++            continue;
++        }
++        let Some(tokens) = stmt.tokens() else {
++            // A lowered call with no source grouping can still protect names
++            // materialized by the IR, without classifying those names as syntax.
++            if let Statement::Call { args, .. } | Statement::Barrier { args, .. } = stmt {
++                out.extend(args.iter().cloned());
++                bounded = false;
+             }
+-            match stmt {
+-                Statement::Call { command, args, .. }
+-                | Statement::Barrier { command, args, .. } => {
+-                    add_call_by_name(command, args, index, &mut out);
+-                }
+-                Statement::AssignValue { value, .. } => {
+-                    scan_value_cmd_subst(value, index, &mut out);
+-                }
+-                Statement::Return { value: Some(v), .. } => {
+-                    scan_value_cmd_subst(v, index, &mut out);
+-                }
+-                Statement::AssignExpr {
+-                    expr: crate::expr_ast::ExprNode::Command { text, .. },
+-                    ..
+-                } => {
+-                    scan_value_cmd_subst(text, index, &mut out);
++            continue;
++        };
++        let config = tokens.native_lexer_config(fallback);
++        let mut inventory = |call: &crate::ir::CommandTokens| {
++            let values = literal_word_values(call, config);
++            bounded &= add_call_by_name(
++                &values,
++                call.words()
++                    .iter()
++                    .any(|w| matches!(w, crate::ir::WordExpr::Expand { .. })),
++                index,
++                &mut out,
++            );
++        };
++        if matches!(stmt, Statement::Call { .. } | Statement::Barrier { .. }) {
++            inventory(tokens);
++        }
++        let children = crate::word_subst::checked_lifted_calls(tokens, config);
++        if let Some(calls) = &children {
++            for call in calls {
++                if let Some(child) = &call.tokens {
++                    inventory(child);
+                 }
+-                _ => {}
+             }
+         }
++        bounded &= children.is_some_and(|calls| calls.iter().all(|call| call.tokens.is_some()));
++        // A braced expression can introduce a command without command-level
++        // substitution. The expression AST already selected the whole operand.
++        if let Statement::AssignExpr {
++            expr: crate::expr_ast::ExprNode::Command { text, .. },
++            ..
++        } = stmt
++        {
++            let Some(words) = crate::word_subst::single_command_source_parts(
++                text,
++                config,
++                crate::word_subst::SingleCommandSourcePurpose::CommandSubstitution,
++            ) else {
++                bounded = false;
++                continue;
++            };
++            let expanded = words.iter().any(|part| part.expand);
++            let values = words
++                .iter()
++                .map(|part| {
++                    (!part.expand)
++                        .then(|| {
++                            tcl_syntax::word_rules::standalone_static_word_fragment_value(
++                                &part.text,
++                                part.braced,
++                                config,
++                            )
++                        })
++                        .flatten()
++                })
++                .collect::<Vec<_>>();
++            bounded &= add_call_by_name(&values, expanded, index, &mut out);
++        }
+     }
+-    out
+-}
+-
+-/// Whether `word` is a plain, literal variable *name* — the only argument
+-/// shape whose call-by-name meaning is knowable.
+-///
+-/// The same test [`add_call_by_name`] applies to a resolvable callee's
+-/// name-role argument, factored out so the opaque-callee scan below cannot
+-/// drift from it.
+-fn is_literal_var_name(word: &str) -> bool {
+-    !word.is_empty()
+-        && !word.contains(['$', '['])
+-        && word
+-            .chars()
+-            .all(|c| c.is_alphanumeric() || c == '_' || c == ':')
++    (out, bounded)
+ }
+ 
+ /// Caller-frame names a call to an **opaque callee** — a command this
+@@ -295,9 +382,8 @@ pub fn collect_executable_opaque_callee_name_args(
+             else {
+                 continue;
+             };
+-            // A dynamic head (`$cmd …`) is handled by the dynamic-name
+-            // barrier, not here; an empty head is not a call.
+-            if command.is_empty() || command.contains(['$', '[']) {
++            // A synthetic empty command carries no original callee.
++            if command.is_empty() {
+                 continue;
+             }
+             let marked_unseen = block.statements[index + 1..]
+@@ -307,7 +393,20 @@ pub fn collect_executable_opaque_callee_name_args(
+             if resolvable(stmt) && !marked_unseen {
+                 continue;
+             }
+-            out.extend(args.iter().filter(|a| is_literal_var_name(a)).cloned());
++            if let Some(tokens) = stmt.tokens() {
++                let config = cfg.metadata_context.source_analysis_input().map_or_else(
++                    || tcl_lexer::LexerConfig::for_profile(None),
++                    crate::analyser::ResolvedAnalysisInput::lexer_config,
++                );
++                out.extend(
++                    literal_word_values(tokens, tokens.native_lexer_config(config))
++                        .into_iter()
++                        .skip(1)
++                        .flatten(),
++                );
++            } else {
++                out.extend(args.iter().cloned());
++            }
+         }
+     }
+     out
+diff --git a/rust/tcl-compiler/src/optimiser/elimination.rs b/rust/tcl-compiler/src/optimiser/elimination.rs
+index a167be08d9..83030c84e3 100644
+--- a/rust/tcl-compiler/src/optimiser/elimination.rs
++++ b/rust/tcl-compiler/src/optimiser/elimination.rs
+@@ -1019,7 +1019,11 @@ fn emit_dead_stores_and_unused(
+     };
+     let raise_proof =
+         RaiseProof::new(ctx, fu, execution_namespace, is_top_level).with_source_unit(unit);
+-    let call_by_name = crate::interprocedural::collect_call_by_name_reads(&fu.cfg, proc_index);
++    let Some(call_by_name) =
++        crate::interprocedural::bounded_call_by_name_reads(&fu.cfg, proc_index)
++    else {
++        return HashSet::new();
++    };
+     // The `def_use` builder does not scan Return-value reads or
+     // embedded string-interpolation reads; do a supplementary
+     // textual pass over the CFG to collect every var name that
+-- 
+2.52.0
+

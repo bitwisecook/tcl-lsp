@@ -1,0 +1,202 @@
+From 261b6cb0a791462b1d75ff580aea775f1938fd2e Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 18 Nov 2026 11:25:13 +0000
+Subject: [PATCH] walk: an expression operator that may raise has an error
+ completion
+
+The walk read every expression operator as unable to fail: only a
+variable read or an explicit `error` gave an error route, so
+`try {expr {1/$d}} on error {...}` never entered its handler. An
+arithmetic, bitwise, logical or list operator now adds an error
+alternative from the state its operands left, unless its operands are
+constants that evaluate; a comparison never raises; `&&`, `||` and
+`?:` raise on an operand whose truth is not proved.
+
+tclsh 8.6.18 / 9.0.4 / 9.1.0 with d = x: `/`, unary `-` and `&&` raise
+into the handler (`info exists cv` is 1), `==` does not (0). 8.4.20:
+`expr {$x + 1}` with x = abc raises, `expr {$x == 1}` gives 0.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_017u5g3HAPLcJWWX93pMpk32
+---
+ .../source_walk/expression_walk.rs            | 108 +++++++++++++++++-
+ .../tcl-compiler/tests/it_2/var_escape_cfg.rs |  19 +++
+ 2 files changed, 122 insertions(+), 5 deletions(-)
+
+diff --git a/rust/tcl-compiler/src/command_binding/source_walk/expression_walk.rs b/rust/tcl-compiler/src/command_binding/source_walk/expression_walk.rs
+index d189a8fa8e..b93faa8fc4 100644
+--- a/rust/tcl-compiler/src/command_binding/source_walk/expression_walk.rs
++++ b/rust/tcl-compiler/src/command_binding/source_walk/expression_walk.rs
+@@ -221,7 +221,13 @@ impl SourceCommandBindings {
+             ExprNode::Binary { op, left, right } => {
+                 self.walk_binary_expression(*op, left, right, base, state, nested)
+             }
+-            ExprNode::Unary { operand, .. } => self.walk_expression(operand, base, state, nested),
++            ExprNode::Unary { operand, .. } => {
++                let mut outcomes = self.walk_expression(operand, base, state, nested);
++                if operation_may_raise(expression) {
++                    raise_from_normal(&mut outcomes, context.registry);
++                }
++                outcomes
++            }
+             ExprNode::Var { text, start, .. } => {
+                 self.walk_expression_variable(expression, text, *start, base, state, nested)
+             }
+@@ -375,16 +381,31 @@ impl SourceCommandBindings {
+         let mut outcomes = self.walk_expression(left, base, state, context);
+         if let Some(continuing) = outcomes.normal.take() {
+             *state = *continuing;
++            let truth = source_completed_expression_truth(left, outcomes.normal_value.as_deref())
++                .or_else(|| source_expression_truth(left, state, context.registry));
++            // A left operand that is not a proved boolean may fail its coercion.
++            if short.is_some() && truth.is_none() {
++                raise_from(&mut outcomes, state, context.registry);
++            }
+             if let Some(coercion) = condition_coercion {
+                 coercion.apply(state);
+             }
+-            let truth = source_completed_expression_truth(left, outcomes.normal_value.as_deref())
+-                .or_else(|| source_expression_truth(left, state, context.registry));
+             if short.is_some() && truth == short {
+                 outcomes.join(&SourceOutcomes::normal(state));
+             } else {
+                 let incoming = state.clone();
+-                outcomes.join(&self.walk_expression(right, base, state, context));
++                let mut evaluated = self.walk_expression(right, base, state, context);
++                if short.is_some() {
++                    let right_truth =
++                        source_completed_expression_truth(right, evaluated.normal_value.as_deref())
++                            .or_else(|| source_expression_truth(right, state, context.registry));
++                    if right_truth.is_none() {
++                        raise_from_normal(&mut evaluated, context.registry);
++                    }
++                } else if operation_may_raise_binary(op, left, right) {
++                    raise_from_normal(&mut evaluated, context.registry);
++                }
++                outcomes.join(&evaluated);
+                 if short.is_some() && truth.is_none() {
+                     outcomes.join(&SourceOutcomes::normal(&incoming));
+                 }
+@@ -411,7 +432,13 @@ impl SourceCommandBindings {
+             if let Some(coercion) = condition_coercion {
+                 coercion.apply(state);
+             }
+-            match source_expression_truth(condition, state, context.registry) {
++            let truth =
++                source_completed_expression_truth(condition, outcomes.normal_value.as_deref())
++                    .or_else(|| source_expression_truth(condition, state, context.registry));
++            if truth.is_none() {
++                raise_from(&mut outcomes, state, context.registry);
++            }
++            match truth {
+                 Some(true) => {
+                     outcomes.join(&self.walk_expression(true_branch, base, state, context));
+                 }
+@@ -833,3 +860,74 @@ pub(in super::super) fn source_effective_words(
+         })
+         .collect()
+ }
++
++/// Whether an operator can raise once its operands are evaluated. Comparisons
++/// never do; arithmetic, bitwise, logical and list operators raise on an
++/// operand they cannot read (tclsh 8.4.20 to 9.1.0: `expr {$x + 1}` with
++/// `x` = `abc` raises, `expr {$x == 1}` gives 0). An operation over constants
++/// raises only if its evaluation does.
++fn operation_may_raise_binary(
++    op: crate::expr_ast::BinOp,
++    left: &crate::expr_ast::ExprNode,
++    right: &crate::expr_ast::ExprNode,
++) -> bool {
++    use crate::expr_ast::BinOp;
++    !matches!(
++        op,
++        BinOp::Eq
++            | BinOp::Ne
++            | BinOp::Lt
++            | BinOp::Le
++            | BinOp::Gt
++            | BinOp::Ge
++            | BinOp::StrEq
++            | BinOp::StrNe
++            | BinOp::StrLt
++            | BinOp::StrLe
++            | BinOp::StrGt
++            | BinOp::StrGe
++            | BinOp::Contains
++            | BinOp::StartsWith
++            | BinOp::EndsWith
++            | BinOp::StrEquals
++            | BinOp::MatchesGlob
++    ) && !(left.is_constant()
++        && right.is_constant()
++        && crate::tcl_expr_eval::eval_tcl_expr(
++            &crate::expr_ast::ExprNode::Binary {
++                op,
++                left: Box::new(left.clone()),
++                right: Box::new(right.clone()),
++            },
++            &crate::tcl_expr_eval::Env::default(),
++        )
++        .is_some())
++}
++
++fn operation_may_raise(expression: &crate::expr_ast::ExprNode) -> bool {
++    !(expression.is_constant()
++        && crate::tcl_expr_eval::eval_tcl_expr(expression, &crate::tcl_expr_eval::Env::default())
++            .is_some())
++}
++
++/// Add the operator's error completion from the state its operands left.
++fn raise_from(
++    outcomes: &mut SourceOutcomes,
++    state: &ModuleCommandBindings,
++    registry: &CommandRegistry,
++) {
++    let mut raised = super::boxed_source_branch(state);
++    super::super::compiled_preflight::materialise_error_storage(&mut raised, registry);
++    outcomes.join(&SourceOutcomes::invocation(
++        &raised,
++        tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
++            tcl_registry::completion::CompletionCode::Error,
++        ),
++    ));
++}
++
++fn raise_from_normal(outcomes: &mut SourceOutcomes, registry: &CommandRegistry) {
++    if let Some(normal) = outcomes.normal.clone() {
++        raise_from(outcomes, &normal, registry);
++    }
++}
+diff --git a/rust/tcl-compiler/tests/it_2/var_escape_cfg.rs b/rust/tcl-compiler/tests/it_2/var_escape_cfg.rs
+index 9f7042dd1d..86b8fd2e5e 100644
+--- a/rust/tcl-compiler/tests/it_2/var_escape_cfg.rs
++++ b/rust/tcl-compiler/tests/it_2/var_escape_cfg.rs
+@@ -860,6 +860,25 @@ fn ir_upvar_in_try_handler_escapes() {
+     assert!(p.upvar_source_names.contains("cv"));
+ }
+ 
++/// tclsh 8.6.18, 9.0.4, 9.1.0: `p 0` raises `divide by zero` inside the `try`
++/// body, so the handler links `cv` in the caller (`info exists cv` is 1).
++/// An operator that may raise reaches the handler: `/`, a unary `-` and a
++/// non-boolean `&&` operand, but not a comparison, which never raises.
++#[test]
++fn an_operator_that_may_raise_reaches_the_try_handler() {
++    for body in ["expr {1/$d}", "expr {-$d}", "expr {$d && 1}"] {
++        let s = escape_ir(&format!(
++            "proc ::p {{d}} {{ try {{ {body} }} on error {{e}} {{ upvar 1 cv v\n set v 1 }} }}"
++        ));
++        let p = summary(&s, "::p");
++        assert!(p.upvar_source_names.contains("cv"), "{body}: {p:?}");
++    }
++    let s = escape_ir(
++        "proc ::p {d} { try { expr {$d == 1} } on error {e} { upvar 1 cv v\n set v 1 } }",
++    );
++    assert!(!summary(&s, "::p").upvar_source_names.contains("cv"));
++}
++
+ // PART 12 — low-level CfgEscapeResult + cfg_result_to_summary surface
+ //
+ // Drive `analyse_cfg_function` directly and inspect the raw
+-- 
+2.52.0
+

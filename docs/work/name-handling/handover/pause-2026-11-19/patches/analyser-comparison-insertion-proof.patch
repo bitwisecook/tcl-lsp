@@ -1,0 +1,380 @@
+From 0b3386b24ca3608932dc14d33a8313574d9517fb Mon Sep 17 00:00:00 2001
+From: None None <openai@bragi0.com>
+Date: Thu, 19 Nov 2026 14:00:19 +0000
+Subject: [PATCH] Select proposed comparison rewrite commands from the reached
+ invocation and current handlers
+
+---
+ rust/tcl-compiler/src/command_binding.rs      |   4 +-
+ .../src/command_binding/insertion_template.rs | 312 +++++++++++++++---
+ 2 files changed, 273 insertions(+), 43 deletions(-)
+
+diff --git a/rust/tcl-compiler/src/command_binding.rs b/rust/tcl-compiler/src/command_binding.rs
+index e11e418bf3..d26c42b542 100644
+--- a/rust/tcl-compiler/src/command_binding.rs
++++ b/rust/tcl-compiler/src/command_binding.rs
+@@ -102,7 +102,9 @@ pub(crate) mod original_namespace_deletion;
+ pub(crate) mod original_namespace_ensure;
+ mod original_namespace_path;
+ mod own_object_configuration;
+-pub use insertion_template::OriginalScalarAssignmentCommand;
++pub use insertion_template::{
++    ComparisonRewriteCommand, OriginalComparisonRewriteCommand, OriginalScalarAssignmentCommand,
++};
+ mod original_class_configuration;
+ pub use original_class_configuration::OriginalSourceClassConfigurationTarget;
+ pub use original_class_configuration::OriginalSourceObjectConfigurationTarget;
+diff --git a/rust/tcl-compiler/src/command_binding/insertion_template.rs b/rust/tcl-compiler/src/command_binding/insertion_template.rs
+index c9b5848de4..7f7cd91854 100644
+--- a/rust/tcl-compiler/src/command_binding/insertion_template.rs
++++ b/rust/tcl-compiler/src/command_binding/insertion_template.rs
+@@ -130,6 +130,63 @@ impl SourceLookupSnapshot {
+         config: LexerConfig,
+         registry: &CommandRegistry,
+     ) -> Option<OriginalScalarAssignmentCommand> {
++        let (dialect, policy) = self.insertion_policy(site, namespace, config, registry)?;
++        // These are explicitly authored Registry descriptors. No dynamic value
++        // is fabricated for the two proposed operands; this selects layout only.
++        let operation =
++            SemanticOperationId::StructuredLowering(tcl_registry::hooks::LoweringHookId::Set);
++        let mut descriptors = registry
++            .command_names_for_semantic_operation(operation)
++            .filter_map(|name| registry.get_for_surface(name, dialect.authoring_query()))
++            .filter(|spec| spec.lowering_hook == Some(tcl_registry::hooks::LoweringHookId::Set));
++        let expected = descriptors.next()?;
++        if descriptors.next().is_some() {
++            return None;
++        }
++        let proposed = [InvocationWord::Dynamic, InvocationWord::Dynamic];
++        let resolution = registry.resolve_structured_invocation(
++            InvocationWords::structured(InvocationWord::Literal(expected.name), &proposed)
++                .with_dialect(dialect),
++            dialect.authoring_query(),
++        );
++        let facts = resolution.resolved()?.facts();
++        if facts.operation != operation
++            || facts.native_result
++                != Some(
++                    tcl_registry::native_result::NativeResultContract::VariableValue {
++                        variable_at: 0,
++                        phase: tcl_registry::native_result::VariableResultPhase::AfterWrite,
++                    },
++                )
++        {
++            return None;
++        }
++        let (source_word, slot, identity) = self.insertion_head(
++            site,
++            namespace,
++            config,
++            registry,
++            expected,
++            expected.name,
++            policy,
++        )?;
++        Some(OriginalScalarAssignmentCommand {
++            source_word,
++            slot,
++            site: site.clone(),
++            config,
++            policy,
++            identity,
++            snapshot: Arc::clone(self),
++        })
++    }
++    fn insertion_policy(
++        &self,
++        site: &CommandAllocationSite,
++        namespace: &SourceNamespaceKey,
++        config: LexerConfig,
++        registry: &CommandRegistry,
++    ) -> Option<(tcl_registry::InvocationDialect, NamePolicyProtocol)> {
+         let state = &self.state;
+         if state.current_source_origin.as_ref() != Some(&site.source)
+             || state.has_opaque_domain()
+@@ -161,37 +218,22 @@ impl SourceLookupSnapshot {
+         }
+         state.original_namespace_geometry(namespace, policy)?;
+ 
+-        // These are explicitly authored Registry descriptors. No dynamic value
+-        // is fabricated for the two proposed operands; this selects layout only.
+-        let operation =
+-            SemanticOperationId::StructuredLowering(tcl_registry::hooks::LoweringHookId::Set);
+-        let mut descriptors = registry
+-            .command_names_for_semantic_operation(operation)
+-            .filter_map(|name| registry.get_for_surface(name, dialect.authoring_query()))
+-            .filter(|spec| spec.lowering_hook == Some(tcl_registry::hooks::LoweringHookId::Set));
+-        let expected = descriptors.next()?;
+-        if descriptors.next().is_some() {
+-            return None;
+-        }
+-        let proposed = [InvocationWord::Dynamic, InvocationWord::Dynamic];
+-        let resolution = registry.resolve_structured_invocation(
+-            InvocationWords::structured(InvocationWord::Literal(expected.name), &proposed)
+-                .with_dialect(dialect),
+-            dialect.authoring_query(),
+-        );
+-        let facts = resolution.resolved()?.facts();
+-        if facts.operation != operation
+-            || facts.native_result
+-                != Some(
+-                    tcl_registry::native_result::NativeResultContract::VariableValue {
+-                        variable_at: 0,
+-                        phase: tcl_registry::native_result::VariableResultPhase::AfterWrite,
+-                    },
+-                )
+-        {
+-            return None;
+-        }
+-        let target = state.original_registry_metadata_target(namespace, expected.name, policy)?;
++        Some((dialect, policy))
++    }
++
++    fn insertion_head(
++        &self,
++        site: &CommandAllocationSite,
++        namespace: &SourceNamespaceKey,
++        config: LexerConfig,
++        registry: &CommandRegistry,
++        expected: &tcl_registry::CommandSpec,
++        head: &str,
++        policy: NamePolicyProtocol,
++    ) -> Option<(String, ByteCommandSlot, CommandIdentity)> {
++        let state = &self.state;
++        let dialect = state.baseline.dialect?;
++        let target = state.original_registry_metadata_target(namespace, head, policy)?;
+         if target.kind != BindingKind::Builtin
+             || target.implementation_generation != 0
+             || target.implementation_allocation.is_some()
+@@ -205,24 +247,16 @@ impl SourceLookupSnapshot {
+         }
+         let identity = target.token?;
+ 
+-        let slot = self.original_scalar_assignment_slot(namespace, expected.name, policy)?;
++        let slot = self.insertion_slot(namespace, head, policy)?;
+         let source_word = tcl_syntax::naming::native_command_source_word(
+             policy.recipe(),
+             &slot,
+             site.source.source_image().channel(),
+             config,
+         )?;
+-        Some(OriginalScalarAssignmentCommand {
+-            source_word,
+-            slot,
+-            site: site.clone(),
+-            config,
+-            policy,
+-            identity,
+-            snapshot: Arc::clone(self),
+-        })
++        Some((source_word, slot, identity))
+     }
+-    fn original_scalar_assignment_slot(
++    fn insertion_slot(
+         &self,
+         namespace: &SourceNamespaceKey,
+         name: &str,
+@@ -270,6 +304,200 @@ impl SourceLookupSnapshot {
+     }
+ }
+ 
++/// The literal and computed words that a comparison rewrite proposes to insert.
++#[derive(Debug, Clone, Copy)]
++pub enum ComparisonRewriteCommand<'a> {
++    /// Rooted switch with an explicit option terminator and one literal case table.
++    ExactSwitch { table: &'a str },
++    /// Rooted dictionary lookup after the caller proves its key domain.
++    DictionaryGet { dictionary: &'a str },
++    /// Rooted dictionary lookup with an explicit literal fallback.
++    DictionaryGetWithDefault {
++        dictionary: &'a str,
++        fallback: &'a str,
++    },
++    /// Return the single computed value.
++    ReturnValue,
++    /// Store the computed value under the supplied literal variable name.
++    SetValue { name: &'a str },
++}
++
++/// The authored rooted head at the original reached site. The caller separately
++/// proves word evaluation, variable cells, branch results and insertion position.
++#[derive(Debug, Clone)]
++pub struct OriginalComparisonRewriteCommand {
++    source_word: String,
++}
++impl OriginalComparisonRewriteCommand {
++    #[must_use]
++    pub fn source_word(&self) -> &str {
++        &self.source_word
++    }
++}
++
++impl SourceInvocationBinding {
++    /// Select the proposed exact argv against the original point's present,
++    /// unobserved implementation and the selected grammar and realm.
++    #[must_use]
++    pub fn original_comparison_rewrite_command(
++        &self,
++        tokens: &crate::ir::CommandTokens,
++        registry: &CommandRegistry,
++        proposed: ComparisonRewriteCommand<'_>,
++    ) -> Option<OriginalComparisonRewriteCommand> {
++        if tokens.source_binding.as_ref() != Some(self)
++            || self.runtime_reachability() != super::SourceRuntimeReachability::Reached
++            || self.entered_execution_observer.observed()
++        {
++            return None;
++        }
++        let config = self.original_lexer_config_for_tokens(tokens)?;
++        self.lookup_state.as_ref()?.comparison_rewrite_at(
++            self.invocation_site()?,
++            &self.lookup_namespace_key,
++            config,
++            registry,
++            proposed,
++        )
++    }
++}
++
++impl SourceLookupSnapshot {
++    fn comparison_rewrite_at(
++        &self,
++        site: &CommandAllocationSite,
++        namespace: &SourceNamespaceKey,
++        config: LexerConfig,
++        registry: &CommandRegistry,
++        proposed: ComparisonRewriteCommand<'_>,
++    ) -> Option<OriginalComparisonRewriteCommand> {
++        use ComparisonRewriteCommand::{
++            DictionaryGet, DictionaryGetWithDefault, ExactSwitch, ReturnValue, SetValue,
++        };
++        use InvocationWord::{Dynamic, Literal};
++        use tcl_registry::{hooks::LoweringHookId, native_dictionary::NativeDictionaryCommand};
++        let (dialect, policy) = self.insertion_policy(site, namespace, config, registry)?;
++        let state = &self.state;
++        let (head, arguments) = match proposed {
++            ExactSwitch { table } => (
++                "::switch",
++                vec![Literal("-exact"), Literal("--"), Dynamic, Literal(table)],
++            ),
++            DictionaryGet { dictionary } => {
++                ("::dict", vec![Literal("get"), Literal(dictionary), Dynamic])
++            }
++            DictionaryGetWithDefault {
++                dictionary,
++                fallback,
++            } => (
++                "::dict",
++                vec![
++                    Literal("getwithdefault"),
++                    Literal(dictionary),
++                    Dynamic,
++                    Literal(fallback),
++                ],
++            ),
++            ReturnValue => ("::return", vec![Dynamic]),
++            SetValue { name } => ("::set", vec![Literal(name), Dynamic]),
++        };
++        let context = state
++            .baseline
++            .metadata_context
++            .metadata_context(registry)?
++            .context()?;
++        let resolution =
++            tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
++                registry,
++                Some(context.context()),
++                InvocationWords::structured(Literal(head), &arguments).with_dialect(dialect),
++                self.realm,
++            );
++        let selected = resolution.resolved()?;
++        let descriptor = selected.authored_source_descriptors().command;
++        let (source_word, _, _) =
++            self.insertion_head(site, namespace, config, registry, descriptor, head, policy)?;
++        let facts = selected.facts();
++        let count = facts.arity_argument_count?;
++        if !facts.arity.accepts(count) {
++            return None;
++        }
++        match proposed {
++            ExactSwitch { table } => {
++                let case = selected.authored_source_case_invocation()?.1;
++                let fields = tcl_syntax::word_rules::WordValueRules::from_config(&config)
++                    .split_list(table)
++                    .ok()?;
++                if facts.operation
++                    != SemanticOperationId::StructuredLowering(LoweringHookId::Switch)
++                    || case.mode != tcl_registry::spec::CaseMatchMode::Exact
++                    || case.subject_index != Some(2)
++                    || case.clause_list_index != Some(3)
++                    || fields.len() < 4
++                    || !fields.len().is_multiple_of(2)
++                {
++                    return None;
++                }
++            }
++            DictionaryGet { .. } | DictionaryGetWithDefault { .. } => {
++                let command = if matches!(proposed, DictionaryGet { .. }) {
++                    NativeDictionaryCommand::Get
++                } else {
++                    NativeDictionaryCommand::GetWithDefault
++                };
++                let lookup = command.lookup();
++                let selected_member = selected.authored_source_descriptors().subcommand?;
++                if selected_member.name != lookup.member {
++                    return None;
++                }
++                match dialect.family()? {
++                    tcl_dialect::model::Family::Tcl => {
++                        let public_binding = super::source_binding(state, head, namespace);
++                        let public = public_binding.proved_target()?;
++                        if !state.original_ensemble_mapping_holds(public, &lookup) {
++                            return None;
++                        }
++                        let worker = state.original_registry_metadata_target(
++                            namespace,
++                            lookup.slot,
++                            policy,
++                        )?;
++                        if worker.kind != BindingKind::Builtin
++                            || worker.implementation_generation != 0
++                            || worker.implementation_allocation.is_some()
++                            || worker.token.is_none()
++                            || !tcl_registry::command_descriptor_labels_match(
++                                &worker.command,
++                                lookup.slot,
++                            )
++                            || state.source_execution_observed(worker.token.as_ref())
++                            || state.runtime_execution_observed(worker.token.as_ref())
++                        {
++                            return None;
++                        }
++                    }
++                    tcl_dialect::model::Family::Jim => {}
++                    _ => return None,
++                }
++            }
++            ReturnValue
++                if facts.operation
++                    != SemanticOperationId::StructuredLowering(LoweringHookId::Return) =>
++            {
++                return None;
++            }
++            SetValue { .. }
++                if facts.operation
++                    != SemanticOperationId::StructuredLowering(LoweringHookId::Set) =>
++            {
++                return None;
++            }
++            _ => {}
++        }
++        Some(OriginalComparisonRewriteCommand { source_word })
++    }
++}
++
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+-- 
+2.52.0
+

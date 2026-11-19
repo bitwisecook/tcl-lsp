@@ -1,0 +1,220 @@
+From 60258f6c4181a01be4efc87c6a421b0a8c7d463f Mon Sep 17 00:00:00 2001
+From: None None <openai@bragi0.com>
+Date: Thu, 19 Nov 2026 13:05:40 +0000
+Subject: [PATCH] Require a declared-frame value before rewriting a procedure
+ existence condition
+
+---
+ rust/tcl-compiler/src/existence_query.rs      | 38 ++++++++++
+ .../tcl-compiler/src/math_function_binding.rs |  5 ++
+ .../src/optimiser/branch_folding.rs           | 74 +++++++++++++++++++
+ .../existence_branches.rs                     | 29 +-------
+ 4 files changed, 118 insertions(+), 28 deletions(-)
+
+diff --git a/rust/tcl-compiler/src/existence_query.rs b/rust/tcl-compiler/src/existence_query.rs
+index d2fb0f21f0..a98a8f2d94 100644
+--- a/rust/tcl-compiler/src/existence_query.rs
++++ b/rust/tcl-compiler/src/existence_query.rs
+@@ -45,6 +45,44 @@ pub(crate) struct ExistenceQuery {
+     pub(crate) kind: ExistenceKind,
+ }
+ 
++impl ExistenceQuery {
++    /// Answer only from the selected invocation's physical variable context.
++    pub(crate) fn value_in(
++        &self,
++        context: &crate::var_resolve::ResolveContext,
++        params: &[String],
++        registry: &tcl_registry::CommandRegistry,
++    ) -> Option<bool> {
++        let place = crate::var_resolve::resolve_literal_place(&self.var, context, false, registry);
++        let exists = match context.contents_presence(&place) {
++            crate::var_resolve::ContentsPresence::Undefined => false,
++            crate::var_resolve::ContentsPresence::Defined => match self.kind {
++                crate::existence_query::ExistenceKind::AnyVariable => true,
++                crate::existence_query::ExistenceKind::Array => {
++                    // Literal scalar contents and untouched own formal cells
++                    // prove scalar storage. Other defined cells may be arrays.
++                    let formal = params.contains(&self.var)
++                        && context.contents_origin(&place)
++                            == crate::var_resolve::ContentsOrigin::Incoming
++                        && place.cell.as_ref().is_some_and(|cell| {
++                            matches!(
++                                &cell.owner, crate::place::CellOwner::Activation(owner)
++                                    if context.activation.as_ref() == Some(owner)
++                            )
++                        });
++                    if !formal && context.literal_contents_at(&place, registry).is_none() {
++                        return None;
++                    }
++                    false
++                }
++            },
++            crate::var_resolve::ContentsPresence::Unknown
++            | crate::var_resolve::ContentsPresence::DefinedOrUndefined => return None,
++        };
++        Some(exists ^ self.negated)
++    }
++}
++
+ /// An existence consumer's actual CFG availability and original source site.
+ /// Only explicitly standalone CFGs permit recognition from detached text.
+ #[derive(Clone, Copy)]
+diff --git a/rust/tcl-compiler/src/math_function_binding.rs b/rust/tcl-compiler/src/math_function_binding.rs
+index b1e37d1d74..c9f098b96a 100644
+--- a/rust/tcl-compiler/src/math_function_binding.rs
++++ b/rust/tcl-compiler/src/math_function_binding.rs
+@@ -377,6 +377,11 @@ impl<'a> ExpressionMathBindings<'a> {
+         })
+     }
+ 
++    /// The original host of this expression and its local AST offset origin.
++    pub(crate) fn original_expression_host(self) -> Option<(&'a crate::ir::CommandTokens, u32)> {
++        Some((self.tokens?, self.base?))
++    }
++
+     /// Select a retained typed expression statement without reparsing rendered
+     /// text. Conflicting source occurrences or mappings remain unproved.
+     #[must_use]
+diff --git a/rust/tcl-compiler/src/optimiser/branch_folding.rs b/rust/tcl-compiler/src/optimiser/branch_folding.rs
+index 2575481bb6..38f23591b4 100644
+--- a/rust/tcl-compiler/src/optimiser/branch_folding.rs
++++ b/rust/tcl-compiler/src/optimiser/branch_folding.rs
+@@ -475,6 +475,68 @@ fn is_switch_dispatch_cond(cond: &ExprNode) -> bool {
+     )
+ }
+ 
++/// A fact about an invoked activation is sufficient for that run's successors.
++/// An edit to a declared procedure is valid for its other activations as well.
++fn declared_existence_matches(
++    ctx: &PassContext<'_>,
++    fu: &FunctionUnit,
++    block: crate::cfg::BlockId,
++    condition: &ExprNode,
++    base: Option<u32>,
++    condition_span: tcl_lexer::Span,
++    expected: bool,
++) -> bool {
++    let (Some(module), Some(registry), Some(id)) = (ctx.ir_module, ctx.registry, fu.body_id) else {
++        return true;
++    };
++    let Some(procedure) = module.procedures.get(&id) else {
++        return true;
++    };
++    let parent = fu
++        .ssa
++        .point_contexts
++        .as_ref()
++        .and_then(|points| points.source_tokens_at(block, usize::MAX));
++    let reading = crate::existence_query::QueryReading::for_cfg(
++        &fu.cfg,
++        registry,
++        fu.source_config,
++        parent,
++        base,
++    );
++    let Some(reached) = reading.in_expr(condition) else {
++        return true;
++    };
++    let in_declared_frame = || {
++        let input = module.source_metadata_input.as_ref()?;
++        let frame = crate::command_binding::SourceOriginalVariableFrame::from_authored_procedure(
++            procedure, input,
++        )?;
++        let host = crate::math_function_binding::ExpressionMathBindings::for_module_statement(
++            module,
++            condition_span,
++        )?;
++        let (tokens, base) = host.original_expression_host()?;
++        if &tokens.source_binding.as_ref()?.variable_frame != frame.frame() {
++            return None;
++        }
++        let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
++            registry, input,
++        )?;
++        let (query, context) = crate::existence_query::in_expr_at_with_metadata_context(
++            condition,
++            base,
++            tokens,
++            registry,
++            fu.source_config,
++            Some(metadata),
++        )?;
++        (query == reached).then_some(())?;
++        query.value_in(&context, &procedure.params, registry)
++    };
++    in_declared_frame() == Some(expected)
++}
++
+ fn fold_constant_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
+     // No trace/alias filtering needed: `fu.sccp.constant_branches` is
+     // derived entirely from `sccp()`'s own lattice `values`, and `sccp()`
+@@ -495,6 +557,7 @@ fn fold_constant_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
+         };
+         let Some(Terminator::Branch {
+             condition,
++            condition_base,
+             span: Some(span),
+             ..
+         }) = &block.terminator
+@@ -518,6 +581,17 @@ fn fold_constant_branches(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
+         };
+         debug_assert_eq!(edit_span, *span);
+         let span = fu.abs_span(edit_span);
++        if !declared_existence_matches(
++            ctx,
++            fu,
++            block_id,
++            condition,
++            *condition_base,
++            span,
++            cb.value,
++        ) {
++            continue;
++        }
+         // The condition span is the lexer's own word span, so a braced
+         // condition stops one byte short of its closing `}` (`while {1 < 2}`
+         // slices as `{1 < 2`), and the brace unwrap below would then strip an
+diff --git a/rust/tcl-compiler/src/sccp/original_value_facts/existence_branches.rs b/rust/tcl-compiler/src/sccp/original_value_facts/existence_branches.rs
+index e69cba6025..8ce2301872 100644
+--- a/rust/tcl-compiler/src/sccp/original_value_facts/existence_branches.rs
++++ b/rust/tcl-compiler/src/sccp/original_value_facts/existence_branches.rs
+@@ -445,34 +445,7 @@ pub fn existence_constant_branches_with_ssa_with_metadata_context(
+                 config,
+                 Some(context),
+             )?;
+-            let place =
+-                crate::var_resolve::resolve_literal_place(&query.var, &context, false, registry);
+-            let exists = match context.contents_presence(&place) {
+-                crate::var_resolve::ContentsPresence::Undefined => false,
+-                crate::var_resolve::ContentsPresence::Defined => match query.kind {
+-                    crate::existence_query::ExistenceKind::AnyVariable => true,
+-                    crate::existence_query::ExistenceKind::Array => {
+-                        // Literal scalar contents and untouched own formal cells
+-                        // prove scalar storage. Other defined cells may be arrays.
+-                        let formal = frame.params.contains(&query.var)
+-                            && context.contents_origin(&place)
+-                                == crate::var_resolve::ContentsOrigin::Incoming
+-                            && place.cell.as_ref().is_some_and(|cell| {
+-                                matches!(
+-                                    &cell.owner, crate::place::CellOwner::Activation(owner)
+-                                        if context.activation.as_ref() == Some(owner)
+-                                )
+-                            });
+-                        if !formal && context.literal_contents_at(&place, registry).is_none() {
+-                            return None;
+-                        }
+-                        false
+-                    }
+-                },
+-                crate::var_resolve::ContentsPresence::Unknown
+-                | crate::var_resolve::ContentsPresence::DefinedOrUndefined => return None,
+-            };
+-            let value = exists ^ query.negated;
++            let value = query.value_in(&context, frame.params, registry)?;
+             let (taken, not_taken) = if value {
+                 (*true_target, *false_target)
+             } else {
+-- 
+2.52.0
+

@@ -1,0 +1,402 @@
+From 285257233f4f34948a9da880645607cf3e3f6594 Mon Sep 17 00:00:00 2001
+From: None None <openai@bragi0.com>
+Date: Thu, 19 Nov 2026 13:49:31 +0000
+Subject: [PATCH] =?UTF-8?q?Keep=20a=20declared=20walk=E2=80=99s=20origin?=
+ =?UTF-8?q?=20and=20owning=20frame=20on=20command=20and=20variable=20obser?=
+ =?UTF-8?q?vations?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ rust/tcl-compiler/src/command_binding.rs      |  5 ++
+ .../src/command_binding/binding_projection.rs |  3 +-
+ .../command_binding/declared_frame_view.rs    | 59 +++++++++++++++++--
+ .../src/command_binding/deferred_entries.rs   | 25 +++++++-
+ .../src/command_binding/origin_inventory.rs   |  3 +-
+ .../src/command_binding/source_walk.rs        |  1 +
+ .../source_walk/command_walk.rs               |  5 +-
+ .../source_walk/lifecycle_walk.rs             |  1 +
+ .../src/command_binding/tests/source_walk.rs  | 45 ++++++++++++++
+ .../src/command_binding/variable_access.rs    | 11 +++-
+ 10 files changed, 146 insertions(+), 12 deletions(-)
+
+diff --git a/rust/tcl-compiler/src/command_binding.rs b/rust/tcl-compiler/src/command_binding.rs
+index e11e418bf3..07233c0e00 100644
+--- a/rust/tcl-compiler/src/command_binding.rs
++++ b/rust/tcl-compiler/src/command_binding.rs
+@@ -922,6 +922,7 @@ struct PointBindingMemo(OnceLock<SourceInvocationBinding>);
+ 
+ #[derive(Debug, Clone)]
+ struct SourceBindingPoint {
++    declared_owner: Option<Arc<declared_frame_view::DeclaredWalkOwner>>,
+     declaration_preview: bool,
+     walk_entry: PointWalkEntry,
+     original_arguments_complete_normally: bool,
+@@ -1011,6 +1012,7 @@ struct SourceLifecycleCoverage {
+ /// own observer callback has not. Missing records do not license another point.
+ #[derive(Debug, Clone)]
+ pub struct SourceVariableAccess {
++    declared_owner: Option<Arc<declared_frame_view::DeclaredWalkOwner>>,
+     /// Exact source reference, including its variable wrapper and index.
+     pub source: crate::ir::SourceSite,
+     /// Actual evaluation that reached this read; lexical containment alone is insufficient.
+@@ -1185,6 +1187,9 @@ pub struct SourceCommandBindings {
+     /// This interpretation with every called procedure's body also walked
+     /// in its own declared frame, where a [`Self::declared_frame_view`] reads.
+     declared_frame_walk: Option<Arc<SourceCommandBindings>>,
++    active_declared_owner: Option<Arc<declared_frame_view::DeclaredWalkOwner>>,
++    collected_declared_owners:
++        SharedSourceInventory<Vec<Arc<declared_frame_view::DeclaredWalkOwner>>>,
+     final_state: Arc<ModuleCommandBindings>,
+     /// Closed normal root world, independently of the partial fallback state.
+     /// This source-model fact grants no physical interpreter execution.
+diff --git a/rust/tcl-compiler/src/command_binding/binding_projection.rs b/rust/tcl-compiler/src/command_binding/binding_projection.rs
+index 581d475e9b..2c2f0c8388 100644
+--- a/rust/tcl-compiler/src/command_binding/binding_projection.rs
++++ b/rust/tcl-compiler/src/command_binding/binding_projection.rs
+@@ -60,7 +60,8 @@ impl PointWalkEntry {
+ // Derived lookup caches do not change the retained source interpretation.
+ impl PartialEq for SourceBindingPoint {
+     fn eq(&self, other: &Self) -> bool {
+-        self.declaration_preview == other.declaration_preview
++        self.declared_owner == other.declared_owner
++            && self.declaration_preview == other.declaration_preview
+             && self.original_arguments_complete_normally
+                 == other.original_arguments_complete_normally
+             && self.observer_execution == other.observer_execution
+diff --git a/rust/tcl-compiler/src/command_binding/declared_frame_view.rs b/rust/tcl-compiler/src/command_binding/declared_frame_view.rs
+index 4d7d8b2427..fe98f0c9e4 100644
+--- a/rust/tcl-compiler/src/command_binding/declared_frame_view.rs
++++ b/rust/tcl-compiler/src/command_binding/declared_frame_view.rs
+@@ -23,9 +23,19 @@ use super::{SourceBindingPoint, SourceCommandBindings, SourceVariableAccess};
+ use crate::var_resolve::{ResolveContext, VariableExecutionFrame};
+ use std::sync::Arc;
+ 
++/// A declaration the separate collector actually walked. The executed frame of
++/// an inner command can differ from this owning declaration (e.g. uplevel #0).
++#[derive(Debug, Clone, PartialEq, Eq, Hash)]
++pub(super) struct DeclaredWalkOwner {
++    pub(super) origin: Arc<super::SourceOriginId>,
++    pub(super) body: tcl_lexer::Span,
++    pub(super) frame: VariableExecutionFrame,
++}
++
+ /// The frame a declared-body view keeps inside the body it covers.
+ #[derive(Debug, Clone, PartialEq, Eq)]
+ pub(super) struct DeclaredFrameView {
++    owner: Option<DeclaredWalkOwner>,
+     frame: VariableExecutionFrame,
+     activation: String,
+     body: tcl_lexer::Span,
+@@ -39,7 +49,10 @@ impl DeclaredFrameView {
+ 
+     /// Whether `point` was recorded in the covered body's declared frame.
+     pub(super) fn admits(&self, point: &SourceBindingPoint) -> bool {
+-        point.state.variable_frame == self.frame
++        match &self.owner {
++            Some(owner) => point.declared_owner.as_deref() == Some(owner),
++            None => point.declared_owner.is_none() && point.state.variable_frame == self.frame,
++        }
+     }
+ 
+     /// Whether a variable read resolved under `context` ran in the covered
+@@ -62,6 +75,9 @@ impl SourceVariableAccess {
+     /// This read as the declared frame of `view` alone reached it; `None`
+     /// where only a caller's activation did.
+     fn in_declared_frame(&self, view: &DeclaredFrameView) -> Option<Self> {
++        if let Some(owner) = &view.owner {
++            return (self.declared_owner.as_deref() == Some(owner)).then(|| self.clone());
++        }
+         let contexts = self
+             .context_alternatives
+             .iter()
+@@ -90,6 +106,20 @@ impl SourceVariableAccess {
+ }
+ 
+ impl SourceCommandBindings {
++    pub(super) fn declared_record_owner(
++        &self,
++        origin: Option<&Arc<super::SourceOriginId>>,
++        offset: u32,
++    ) -> Option<Arc<DeclaredWalkOwner>> {
++        let owner = self.active_declared_owner.as_ref()?;
++        // An actual nested procedure call has its own activation. Its rows
++        // cannot describe every invocation of the outer declaration.
++        (self.active_calls.len() == 1
++            && origin == Some(&owner.origin)
++            && (owner.body.start()..owner.body.end()).contains(&offset))
++        .then(|| Arc::clone(owner))
++    }
++
+     /// This interpretation as one procedure body's own declared frame sees
+     /// it: inside `body`, a command is bound only by the points the walk
+     /// recorded in `frame`, never by the activation of a caller that entered
+@@ -102,12 +132,31 @@ impl SourceCommandBindings {
+         frame: &VariableExecutionFrame,
+         body: tcl_lexer::Span,
+     ) -> Option<Self> {
+-        if let Some(walk) = self.declared_frame_walk.as_deref()
+-            && let Some(view) = walk.declared_frame_view(frame, body)
+-        {
+-            return Some(view);
++        if let Some(walk) = self.declared_frame_walk.as_deref() {
++            let owner = DeclaredWalkOwner {
++                origin: Arc::clone(self.root_origin.as_ref()?),
++                frame: frame.clone(),
++                body,
++            };
++            if walk
++                .collected_declared_owners
++                .iter()
++                .any(|entry| **entry == owner)
++            {
++                return walk.select_declared_frame(frame, body, Some(owner));
++            }
+         }
++        self.select_declared_frame(frame, body, None)
++    }
++
++    fn select_declared_frame(
++        &self,
++        frame: &VariableExecutionFrame,
++        body: tcl_lexer::Span,
++        owner: Option<DeclaredWalkOwner>,
++    ) -> Option<Self> {
+         let view = DeclaredFrameView {
++            owner,
+             frame: frame.clone(),
+             activation: activation(frame)?.to_owned(),
+             body,
+diff --git a/rust/tcl-compiler/src/command_binding/deferred_entries.rs b/rust/tcl-compiler/src/command_binding/deferred_entries.rs
+index 16f279be8b..fdeaaf927c 100644
+--- a/rust/tcl-compiler/src/command_binding/deferred_entries.rs
++++ b/rust/tcl-compiler/src/command_binding/deferred_entries.rs
+@@ -291,7 +291,7 @@ impl SourceCommandBindings {
+         // view of the bindings reads them.
+         for (root, entry) in &entries {
+             let after_load = declared.uncalled_body_after_load(root, entry);
+-            declared.walk_deferred_entry_with(root, entry, config, registry, after_load);
++            declared.walk_deferred_entry_with(root, entry, config, registry, after_load, true);
+         }
+         self.declared_frame_walk = Some(Arc::new(declared));
+     }
+@@ -397,7 +397,7 @@ impl SourceCommandBindings {
+         config: tcl_lexer::LexerConfig,
+         registry: &CommandRegistry,
+     ) {
+-        self.walk_deferred_entry_with(root, incoming, config, registry, false);
++        self.walk_deferred_entry_with(root, incoming, config, registry, false, false);
+     }
+ 
+     fn walk_deferred_entry_with(
+@@ -407,6 +407,7 @@ impl SourceCommandBindings {
+         config: tcl_lexer::LexerConfig,
+         registry: &CommandRegistry,
+         after_load: bool,
++        collect_declared: bool,
+     ) {
+         #[cfg(any(test, debug_assertions))]
+         let _timing = root_owner_work::Timing::at(root_owner_work::Query::DeferredEntry);
+@@ -432,6 +433,25 @@ impl SourceCommandBindings {
+         // rather than re-enter this body once before noticing the cycle.
+         // Preview ownership does not mark a document call as reached.
+         let implementation = root.implementation_id();
++        let old_owner = self.active_declared_owner.clone();
++        if collect_declared {
++            self.active_declared_owner = root.source_origin.as_ref().and_then(|origin| {
++                let end = root
++                    .offset
++                    .checked_add(u32::try_from(root.source.len()).ok()?)?;
++                Some(Arc::new(super::declared_frame_view::DeclaredWalkOwner {
++                    origin: Arc::clone(origin),
++                    body: tcl_lexer::Span::new(root.offset, end),
++                    frame: frame.clone(),
++                }))
++            });
++        }
++        if collect_declared
++            && let Some(owner) = &self.active_declared_owner
++            && !self.collected_declared_owners.contains(owner)
++        {
++            self.collected_declared_owners.push(Arc::clone(owner));
++        }
+         let activated = self.active_calls.insert(implementation.clone());
+         let preview = usize::from(!after_load);
+         self.declaration_preview_depth += preview;
+@@ -474,6 +494,7 @@ impl SourceCommandBindings {
+                 expression_source: None,
+             },
+         );
++        self.active_declared_owner = old_owner;
+         self.declaration_preview_depth -= preview;
+         if activated {
+             self.active_calls.remove(&implementation);
+diff --git a/rust/tcl-compiler/src/command_binding/origin_inventory.rs b/rust/tcl-compiler/src/command_binding/origin_inventory.rs
+index 5e152e9c1d..ebe2b158a8 100644
+--- a/rust/tcl-compiler/src/command_binding/origin_inventory.rs
++++ b/rust/tcl-compiler/src/command_binding/origin_inventory.rs
+@@ -1152,7 +1152,8 @@ impl SourceCommandBindings {
+         };
+         let points = self.origin_points.entry(Arc::clone(origin)).or_default();
+         if let Some(previous) = points.iter_mut().find(|previous| {
+-            previous.dispatch == point.dispatch
++            previous.declared_owner == point.declared_owner
++                && previous.dispatch == point.dispatch
+                 && previous.declaration_preview == point.declaration_preview
+                 && previous.offset == point.offset
+                 && previous.namespace == point.namespace
+diff --git a/rust/tcl-compiler/src/command_binding/source_walk.rs b/rust/tcl-compiler/src/command_binding/source_walk.rs
+index 2bc95a1e03..5868967fea 100644
+--- a/rust/tcl-compiler/src/command_binding/source_walk.rs
++++ b/rust/tcl-compiler/src/command_binding/source_walk.rs
+@@ -525,6 +525,7 @@ impl SourceCommandBindings {
+         }
+         self.invalidate_unpositioned_projections();
+         self.points.push(SourceBindingPoint {
++            declared_owner: None,
+             declaration_preview: self.declaration_preview_depth != 0,
+             walk_entry: PointWalkEntry::at_depth(self.unreached_walk_depth),
+             original_arguments_complete_normally: false,
+diff --git a/rust/tcl-compiler/src/command_binding/source_walk/command_walk.rs b/rust/tcl-compiler/src/command_binding/source_walk/command_walk.rs
+index ac809413a0..7c4533858c 100644
+--- a/rust/tcl-compiler/src/command_binding/source_walk/command_walk.rs
++++ b/rust/tcl-compiler/src/command_binding/source_walk/command_walk.rs
+@@ -438,6 +438,8 @@ impl SourceCommandBindings {
+             .first()
+             .and_then(|word| word.as_registry_word().literal());
+         let point = SourceBindingPoint {
++            declared_owner: self
++                .declared_record_owner(state.current_source_origin.as_ref(), segment.span.start()),
+             declaration_preview: self.declaration_preview_depth != 0,
+             walk_entry: PointWalkEntry::at_depth(self.unreached_walk_depth),
+             original_arguments_complete_normally: arguments_complete_normally,
+@@ -629,7 +631,8 @@ impl SourceCommandBindings {
+         }
+         let indices = self.dispatch_points.entry(point.offset).or_default();
+         if let Some(index) = indices.iter().find(|index| {
+-            self.points[**index].namespace_key == point.namespace_key
++            self.points[**index].declared_owner == point.declared_owner
++                && self.points[**index].namespace_key == point.namespace_key
+                 && self.points[**index].declaration_preview == point.declaration_preview
+                 && self.points[**index].realm == point.realm
+                 && self.points[**index].state.variable_frame == point.state.variable_frame
+diff --git a/rust/tcl-compiler/src/command_binding/source_walk/lifecycle_walk.rs b/rust/tcl-compiler/src/command_binding/source_walk/lifecycle_walk.rs
+index 8240aae869..f9d976cb21 100644
+--- a/rust/tcl-compiler/src/command_binding/source_walk/lifecycle_walk.rs
++++ b/rust/tcl-compiler/src/command_binding/source_walk/lifecycle_walk.rs
+@@ -78,6 +78,7 @@ impl SourceCommandBindings {
+                 site,
+                 phase,
+                 point: SourceBindingPoint {
++                    declared_owner: None,
+                     declaration_preview: self.declaration_preview_depth != 0,
+                     walk_entry: PointWalkEntry::at_depth(self.unreached_walk_depth),
+                     original_arguments_complete_normally: false,
+diff --git a/rust/tcl-compiler/src/command_binding/tests/source_walk.rs b/rust/tcl-compiler/src/command_binding/tests/source_walk.rs
+index 95033fab8a..1235078cf6 100644
+--- a/rust/tcl-compiler/src/command_binding/tests/source_walk.rs
++++ b/rust/tcl-compiler/src/command_binding/tests/source_walk.rs
+@@ -755,3 +755,48 @@ fn source_repeated_body_joins_future_rebindings_before_specialisation() {
+     );
+     assert!(binding.proved_target().is_none());
+ }
++
++#[test]
++fn a_declared_body_keeps_its_own_local_and_remote_frame_evidence() {
++    // The same program returns "first second shared" under each C Tcl and Jim.
++    let source = "set globalValue shared\nproc check {arg} {set local $arg; uplevel #0 {set globalSeen $globalValue}; return $local}\nset first [check first]\nset second [check second]";
++    let bindings = allocation_source(source);
++    let offset = |fragment: &str| u32::try_from(source.find(fragment).unwrap()).unwrap();
++    let local = offset("set local");
++    let remote = offset("set globalSeen");
++    let collected = bindings.declared_frame_walk.as_ref().unwrap();
++    let root = collected
++        .collected_declared_owners
++        .iter()
++        .find(|entry| entry.body.start() <= local && local < entry.body.end())
++        .unwrap();
++    let view = bindings
++        .declared_frame_view(&root.frame, root.body)
++        .unwrap();
++    let local_points = view.dispatch_points_at(local).collect::<Vec<_>>();
++    assert!(!local_points.is_empty());
++    assert!(
++        local_points
++            .iter()
++            .all(|point| point.state.variable_frame == root.frame)
++    );
++    let remote_points = view.dispatch_points_at(remote).collect::<Vec<_>>();
++    assert!(!remote_points.is_empty());
++    assert!(
++        remote_points
++            .iter()
++            .all(|point| point.state.source_variables.global_frame())
++    );
++    assert!(
++        local_points
++            .iter()
++            .chain(&remote_points)
++            .all(|point| point.declared_owner.as_deref() == Some(root))
++    );
++    // Actual callers remain in the ordinary interpretation.
++    assert!(
++        bindings
++            .dispatch_points_at(local)
++            .all(|point| point.declared_owner.is_none())
++    );
++}
+diff --git a/rust/tcl-compiler/src/command_binding/variable_access.rs b/rust/tcl-compiler/src/command_binding/variable_access.rs
+index 6f4cf5ce18..8e9c576519 100644
+--- a/rust/tcl-compiler/src/command_binding/variable_access.rs
++++ b/rust/tcl-compiler/src/command_binding/variable_access.rs
+@@ -324,7 +324,8 @@ impl SourceVariableAccess {
+ 
+ impl PartialEq for SourceVariableAccess {
+     fn eq(&self, other: &Self) -> bool {
+-        self.source == other.source
++        self.declared_owner == other.declared_owner
++            && self.source == other.source
+             && self.owner == other.owner
+             && self.original_spelling == other.original_spelling
+             && self.context_fingerprint == other.context_fingerprint
+@@ -339,6 +340,7 @@ impl Eq for SourceVariableAccess {}
+ 
+ impl Hash for SourceVariableAccess {
+     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
++        self.declared_owner.hash(state);
+         self.source.hash(state);
+         self.owner.hash(state);
+         self.original_spelling.hash(state);
+@@ -436,7 +438,9 @@ impl SourceCommandBindings {
+         let owner = owner
+             .cloned()
+             .unwrap_or(SourceVariableEvaluationOwner::Unspecified);
++        let declared_owner = self.declared_record_owner(Some(origin), source.span.start());
+         let reached_read = SourceVariableAccess {
++            declared_owner: declared_owner.clone(),
+             source: source.clone(),
+             owner: owner.clone(),
+             original_spelling: original_spelling.to_owned(),
+@@ -460,7 +464,9 @@ impl SourceCommandBindings {
+         };
+         let accesses = inventory.entry(source.span.start()).or_default();
+         if let Some(access) = accesses.iter_mut().find(|access| {
+-            access.source == *source && access.original_spelling == original_spelling
++            access.declared_owner == declared_owner
++                && access.source == *source
++                && access.original_spelling == original_spelling
+         }) {
+             access.owner.join(owner);
+             access.retain_selected_place(context, selected_place);
+@@ -477,6 +483,7 @@ impl SourceCommandBindings {
+             }
+         } else {
+             accesses.push(SourceVariableAccess {
++                declared_owner,
+                 source: source.clone(),
+                 owner,
+                 original_spelling: original_spelling.to_owned(),
+-- 
+2.52.0
+

@@ -1,0 +1,338 @@
+[
+  {
+    "d": "tcl8.4",
+    "c": "puts [format %d 010]",
+    "o": "8\n0 {}\n",
+    "r": "puts 8",
+    "f": "8\n0 {}\n"
+  },
+  {
+    "d": "tcl8.4",
+    "c": "set x [format %d 010]; puts $x",
+    "o": "8\n0 {}\n",
+    "r": "set x 8; puts 8",
+    "f": "8\n0 {}\n"
+  },
+  {
+    "d": "tcl8.4",
+    "c": "proc f {} {set x [format %d 010]; return $x}; puts [f]",
+    "o": "8\n0 {}\n",
+    "r": "proc f {} {; return 8}; puts 8",
+    "f": "8\n0 {}\n"
+  },
+  {
+    "d": "tcl8.4",
+    "c": "proc f {} {set x [format %d 010]; return [expr {$x+1}]}; puts [f]",
+    "o": "9\n0 {}\n",
+    "r": "proc f {} {set x 8; return [expr {$x+1}]}; puts 9",
+    "f": "9\n0 {}\n"
+  },
+  {
+    "d": "tcl8.4",
+    "c": "puts [format %d 08]",
+    "o": "1 {expected integer but got \"08\" (looks like invalid octal number)}\n",
+    "r": "puts [format %d 08]",
+    "f": "1 {expected integer but got \"08\" (looks like invalid octal number)}\n"
+  },
+  {
+    "d": "tcl8.4",
+    "c": "set x [format %d 08]; puts $x",
+    "o": "1 {expected integer but got \"08\" (looks like invalid octal number)}\n",
+    "r": "set x [format %d 08]; puts $x",
+    "f": "1 {expected integer but got \"08\" (looks like invalid octal number)}\n"
+  },
+  {
+    "d": "tcl8.4",
+    "c": "proc f {} {set x [format %d 08]; return $x}; puts [f]",
+    "o": "1 {expected integer but got \"08\" (looks like invalid octal number)}\n",
+    "r": "proc f {} {set x [format %d 08]; return $x}; puts [f]",
+    "f": "1 {expected integer but got \"08\" (looks like invalid octal number)}\n"
+  },
+  {
+    "d": "tcl8.4",
+    "c": "proc f {} {set x [format %d 08]; return [expr {$x+1}]}; puts [f]",
+    "o": "1 {expected integer but got \"08\" (looks like invalid octal number)}\n",
+    "r": "proc f {} {set x [format %d 08]; return [expr {$x+1}]}; puts [f]",
+    "f": "1 {expected integer but got \"08\" (looks like invalid octal number)}\n"
+  },
+  {
+    "d": "tcl8.5",
+    "c": "puts [format %d 010]",
+    "o": "8\n0 {}\n",
+    "r": "puts 8",
+    "f": "8\n0 {}\n"
+  },
+  {
+    "d": "tcl8.5",
+    "c": "set x [format %d 010]; puts $x",
+    "o": "8\n0 {}\n",
+    "r": "set x 8; puts 8",
+    "f": "8\n0 {}\n"
+  },
+  {
+    "d": "tcl8.5",
+    "c": "proc f {} {set x [format %d 010]; return $x}; puts [f]",
+    "o": "8\n0 {}\n",
+    "r": "proc f {} {; return 8}; puts 8",
+    "f": "8\n0 {}\n"
+  },
+  {
+    "d": "tcl8.5",
+    "c": "proc f {} {set x [format %d 010]; return [expr {$x+1}]}; puts [f]",
+    "o": "9\n0 {}\n",
+    "r": "proc f {} {; return 9}; puts 9",
+    "f": "9\n0 {}\n"
+  },
+  {
+    "d": "tcl8.5",
+    "c": "puts [format %d 08]",
+    "o": "1 {expected integer but got \"08\"}\n",
+    "r": "puts [format %d 08]",
+    "f": "1 {expected integer but got \"08\"}\n"
+  },
+  {
+    "d": "tcl8.5",
+    "c": "set x [format %d 08]; puts $x",
+    "o": "1 {expected integer but got \"08\"}\n",
+    "r": "set x [format %d 08]; puts $x",
+    "f": "1 {expected integer but got \"08\"}\n"
+  },
+  {
+    "d": "tcl8.5",
+    "c": "proc f {} {set x [format %d 08]; return $x}; puts [f]",
+    "o": "1 {expected integer but got \"08\"}\n",
+    "r": "proc f {} {set x [format %d 08]; return $x}; puts [f]",
+    "f": "1 {expected integer but got \"08\"}\n"
+  },
+  {
+    "d": "tcl8.5",
+    "c": "proc f {} {set x [format %d 08]; return [expr {$x+1}]}; puts [f]",
+    "o": "1 {expected integer but got \"08\"}\n",
+    "r": "proc f {} {set x [format %d 08]; return [expr {$x+1}]}; puts [f]",
+    "f": "1 {expected integer but got \"08\"}\n"
+  },
+  {
+    "d": "tcl8.6",
+    "c": "puts [format %d 010]",
+    "o": "8\n0 {}\n",
+    "r": "puts 8",
+    "f": "8\n0 {}\n"
+  },
+  {
+    "d": "tcl8.6",
+    "c": "set x [format %d 010]; puts $x",
+    "o": "8\n0 {}\n",
+    "r": "set x 8; puts 8",
+    "f": "8\n0 {}\n"
+  },
+  {
+    "d": "tcl8.6",
+    "c": "proc f {} {set x [format %d 010]; return $x}; puts [f]",
+    "o": "8\n0 {}\n",
+    "r": "proc f {} {; return 8}; puts 8",
+    "f": "8\n0 {}\n"
+  },
+  {
+    "d": "tcl8.6",
+    "c": "proc f {} {set x [format %d 010]; return [expr {$x+1}]}; puts [f]",
+    "o": "9\n0 {}\n",
+    "r": "proc f {} {; return 9}; puts 9",
+    "f": "9\n0 {}\n"
+  },
+  {
+    "d": "tcl8.6",
+    "c": "puts [format %d 08]",
+    "o": "1 {expected integer but got \"08\"}\n",
+    "r": "puts [format %d 08]",
+    "f": "1 {expected integer but got \"08\"}\n"
+  },
+  {
+    "d": "tcl8.6",
+    "c": "set x [format %d 08]; puts $x",
+    "o": "1 {expected integer but got \"08\"}\n",
+    "r": "set x [format %d 08]; puts $x",
+    "f": "1 {expected integer but got \"08\"}\n"
+  },
+  {
+    "d": "tcl8.6",
+    "c": "proc f {} {set x [format %d 08]; return $x}; puts [f]",
+    "o": "1 {expected integer but got \"08\"}\n",
+    "r": "proc f {} {set x [format %d 08]; return $x}; puts [f]",
+    "f": "1 {expected integer but got \"08\"}\n"
+  },
+  {
+    "d": "tcl8.6",
+    "c": "proc f {} {set x [format %d 08]; return [expr {$x+1}]}; puts [f]",
+    "o": "1 {expected integer but got \"08\"}\n",
+    "r": "proc f {} {set x [format %d 08]; return [expr {$x+1}]}; puts [f]",
+    "f": "1 {expected integer but got \"08\"}\n"
+  },
+  {
+    "d": "tcl9.0",
+    "c": "puts [format %d 010]",
+    "o": "10\n0 {}\n",
+    "r": "puts 10",
+    "f": "10\n0 {}\n"
+  },
+  {
+    "d": "tcl9.0",
+    "c": "set x [format %d 010]; puts $x",
+    "o": "10\n0 {}\n",
+    "r": "set x 10; puts 10",
+    "f": "10\n0 {}\n"
+  },
+  {
+    "d": "tcl9.0",
+    "c": "proc f {} {set x [format %d 010]; return $x}; puts [f]",
+    "o": "10\n0 {}\n",
+    "r": "proc f {} {; return 10}; puts 10",
+    "f": "10\n0 {}\n"
+  },
+  {
+    "d": "tcl9.0",
+    "c": "proc f {} {set x [format %d 010]; return [expr {$x+1}]}; puts [f]",
+    "o": "11\n0 {}\n",
+    "r": "proc f {} {; return 11}; puts 11",
+    "f": "11\n0 {}\n"
+  },
+  {
+    "d": "tcl9.0",
+    "c": "puts [format %d 08]",
+    "o": "8\n0 {}\n",
+    "r": "puts 8",
+    "f": "8\n0 {}\n"
+  },
+  {
+    "d": "tcl9.0",
+    "c": "set x [format %d 08]; puts $x",
+    "o": "8\n0 {}\n",
+    "r": "set x 8; puts 8",
+    "f": "8\n0 {}\n"
+  },
+  {
+    "d": "tcl9.0",
+    "c": "proc f {} {set x [format %d 08]; return $x}; puts [f]",
+    "o": "8\n0 {}\n",
+    "r": "proc f {} {; return 8}; puts 8",
+    "f": "8\n0 {}\n"
+  },
+  {
+    "d": "tcl9.0",
+    "c": "proc f {} {set x [format %d 08]; return [expr {$x+1}]}; puts [f]",
+    "o": "9\n0 {}\n",
+    "r": "proc f {} {; return 9}; puts 9",
+    "f": "9\n0 {}\n"
+  },
+  {
+    "d": "tcl9.1",
+    "c": "puts [format %d 010]",
+    "o": "10\n0 {}\n",
+    "r": "puts 10",
+    "f": "10\n0 {}\n"
+  },
+  {
+    "d": "tcl9.1",
+    "c": "set x [format %d 010]; puts $x",
+    "o": "10\n0 {}\n",
+    "r": "set x 10; puts 10",
+    "f": "10\n0 {}\n"
+  },
+  {
+    "d": "tcl9.1",
+    "c": "proc f {} {set x [format %d 010]; return $x}; puts [f]",
+    "o": "10\n0 {}\n",
+    "r": "proc f {} {; return 10}; puts 10",
+    "f": "10\n0 {}\n"
+  },
+  {
+    "d": "tcl9.1",
+    "c": "proc f {} {set x [format %d 010]; return [expr {$x+1}]}; puts [f]",
+    "o": "11\n0 {}\n",
+    "r": "proc f {} {; return 11}; puts 11",
+    "f": "11\n0 {}\n"
+  },
+  {
+    "d": "tcl9.1",
+    "c": "puts [format %d 08]",
+    "o": "8\n0 {}\n",
+    "r": "puts 8",
+    "f": "8\n0 {}\n"
+  },
+  {
+    "d": "tcl9.1",
+    "c": "set x [format %d 08]; puts $x",
+    "o": "8\n0 {}\n",
+    "r": "set x 8; puts 8",
+    "f": "8\n0 {}\n"
+  },
+  {
+    "d": "tcl9.1",
+    "c": "proc f {} {set x [format %d 08]; return $x}; puts [f]",
+    "o": "8\n0 {}\n",
+    "r": "proc f {} {; return 8}; puts 8",
+    "f": "8\n0 {}\n"
+  },
+  {
+    "d": "tcl9.1",
+    "c": "proc f {} {set x [format %d 08]; return [expr {$x+1}]}; puts [f]",
+    "o": "9\n0 {}\n",
+    "r": "proc f {} {; return 9}; puts 9",
+    "f": "9\n0 {}\n"
+  },
+  {
+    "d": "jim",
+    "c": "puts [format %d 010]",
+    "o": "10\n0 {}\n",
+    "r": "puts [format %d 010]",
+    "f": "10\n0 {}\n"
+  },
+  {
+    "d": "jim",
+    "c": "set x [format %d 010]; puts $x",
+    "o": "10\n0 {}\n",
+    "r": "set x [format %d 010]; puts $x",
+    "f": "10\n0 {}\n"
+  },
+  {
+    "d": "jim",
+    "c": "proc f {} {set x [format %d 010]; return $x}; puts [f]",
+    "o": "10\n0 {}\n",
+    "r": "proc f {} {set x [format %d 010]; return $x}; puts [f]",
+    "f": "10\n0 {}\n"
+  },
+  {
+    "d": "jim",
+    "c": "proc f {} {set x [format %d 010]; return [expr {$x+1}]}; puts [f]",
+    "o": "11\n0 {}\n",
+    "r": "proc f {} {set x [format %d 010]; return [expr {$x+1}]}; puts [f]",
+    "f": "11\n0 {}\n"
+  },
+  {
+    "d": "jim",
+    "c": "puts [format %d 08]",
+    "o": "8\n0 {}\n",
+    "r": "puts [format %d 08]",
+    "f": "8\n0 {}\n"
+  },
+  {
+    "d": "jim",
+    "c": "set x [format %d 08]; puts $x",
+    "o": "8\n0 {}\n",
+    "r": "set x [format %d 08]; puts $x",
+    "f": "8\n0 {}\n"
+  },
+  {
+    "d": "jim",
+    "c": "proc f {} {set x [format %d 08]; return $x}; puts [f]",
+    "o": "8\n0 {}\n",
+    "r": "proc f {} {set x [format %d 08]; return $x}; puts [f]",
+    "f": "8\n0 {}\n"
+  },
+  {
+    "d": "jim",
+    "c": "proc f {} {set x [format %d 08]; return [expr {$x+1}]}; puts [f]",
+    "o": "9\n0 {}\n",
+    "r": "proc f {} {set x [format %d 08]; return [expr {$x+1}]}; puts [f]",
+    "f": "9\n0 {}\n"
+  }
+]

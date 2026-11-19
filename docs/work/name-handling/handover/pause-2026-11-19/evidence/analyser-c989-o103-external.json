@@ -1,0 +1,182 @@
+[
+  [
+    "tcl8.4",
+    "proc unknown_future_entry {} {rename ::answer ::saved; proc ::answer {} {return 99}}",
+    "proc answer {} {return 42}; proc f {} {set y [answer]}; unknown_future_entry",
+    [
+      [
+        "99\n",
+        ""
+      ],
+      [
+        "99\n",
+        ""
+      ]
+    ]
+  ],
+  [
+    "tcl8.4",
+    "proc unknown_future_entry {} {return}",
+    "proc answer {} {return 42}; proc f {} {set y [answer]}; unknown_future_entry",
+    [
+      [
+        "42\n",
+        ""
+      ],
+      [
+        "42\n",
+        ""
+      ]
+    ]
+  ],
+  [
+    "tcl8.5",
+    "proc unknown_future_entry {} {rename ::answer ::saved; proc ::answer {} {return 99}}",
+    "proc answer {} {return 42}; proc f {} {set y [answer]}; unknown_future_entry",
+    [
+      [
+        "99\n",
+        ""
+      ],
+      [
+        "99\n",
+        ""
+      ]
+    ]
+  ],
+  [
+    "tcl8.5",
+    "proc unknown_future_entry {} {return}",
+    "proc answer {} {return 42}; proc f {} {set y [answer]}; unknown_future_entry",
+    [
+      [
+        "42\n",
+        ""
+      ],
+      [
+        "42\n",
+        ""
+      ]
+    ]
+  ],
+  [
+    "tcl8.6",
+    "proc unknown_future_entry {} {rename ::answer ::saved; proc ::answer {} {return 99}}",
+    "proc answer {} {return 42}; proc f {} {set y [answer]}; unknown_future_entry",
+    [
+      [
+        "99\n",
+        ""
+      ],
+      [
+        "99\n",
+        ""
+      ]
+    ]
+  ],
+  [
+    "tcl8.6",
+    "proc unknown_future_entry {} {return}",
+    "proc answer {} {return 42}; proc f {} {set y [answer]}; unknown_future_entry",
+    [
+      [
+        "42\n",
+        ""
+      ],
+      [
+        "42\n",
+        ""
+      ]
+    ]
+  ],
+  [
+    "tcl9.0",
+    "proc unknown_future_entry {} {rename ::answer ::saved; proc ::answer {} {return 99}}",
+    "proc answer {} {return 42}; proc f {} {set y [answer]}; unknown_future_entry",
+    [
+      [
+        "99\n",
+        ""
+      ],
+      [
+        "99\n",
+        ""
+      ]
+    ]
+  ],
+  [
+    "tcl9.0",
+    "proc unknown_future_entry {} {return}",
+    "proc answer {} {return 42}; proc f {} {set y [answer]}; unknown_future_entry",
+    [
+      [
+        "42\n",
+        ""
+      ],
+      [
+        "42\n",
+        ""
+      ]
+    ]
+  ],
+  [
+    "tcl9.1",
+    "proc unknown_future_entry {} {rename ::answer ::saved; proc ::answer {} {return 99}}",
+    "proc answer {} {return 42}; proc f {} {set y [answer]}; unknown_future_entry",
+    [
+      [
+        "99\n",
+        ""
+      ],
+      [
+        "99\n",
+        ""
+      ]
+    ]
+  ],
+  [
+    "tcl9.1",
+    "proc unknown_future_entry {} {return}",
+    "proc answer {} {return 42}; proc f {} {set y [answer]}; unknown_future_entry",
+    [
+      [
+        "42\n",
+        ""
+      ],
+      [
+        "42\n",
+        ""
+      ]
+    ]
+  ],
+  [
+    "jim",
+    "proc unknown_future_entry {} {rename ::answer ::saved; proc ::answer {} {return 99}}",
+    "proc answer {} {return 42}; proc f {} {set y 42}; unknown_future_entry",
+    [
+      [
+        "99\n",
+        ""
+      ],
+      [
+        "42\n",
+        ""
+      ]
+    ]
+  ],
+  [
+    "jim",
+    "proc unknown_future_entry {} {return}",
+    "proc answer {} {return 42}; proc f {} {set y 42}; unknown_future_entry",
+    [
+      [
+        "42\n",
+        ""
+      ],
+      [
+        "42\n",
+        ""
+      ]
+    ]
+  ]
+]
