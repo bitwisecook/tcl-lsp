@@ -246,6 +246,17 @@ These go ahead of missing facts once the ledgers are in.
 | Public analysis skips unknown Tk options containing literal dollars or brackets in braced words and offers a W110 comparison edit past an invalid leading non-breaking space in an expression. | diagnostics, tk-oo |
 | The auto-path evaluator returns a joined path for a two-command script and reads `$a:b` as the scalar `a:b`. Both disagree with the public compiler API versus Tcl comparison. | analyser-binding |
 
+### Additional public witnesses from the parser migration
+
+| Public entry and observation | Owner and current verification |
+| --- | --- |
+| The native Rust runtime accepts malformed or unknown `glob -types` on `/dev/null`. Its filesystem glob also misses alternatives for `glob -nocomplain -- {{alpha,beta}}` and an escaped literal in `{alp\ha}` with files `alpha` and `beta`. | Execution. All five C releases reject the invalid type input. Jim rejects the unsupported `-types` option. All six match the brace and escape filesystem controls. Keep string-pattern semantics and pathname expansion separate. |
+| Malformed runtime `try` handlers produce the right message but lose the trap failure's structured error code. | Execution. Reproduced via the real Rust runtime ABI. Native C 8.6, 9.0 and 9.1 supply `TCL OPERATION TRY TRAP EXNFORMAT`. The candidate delegates to the registry's existing cause. |
+| Native Thread 2.8.13 rejects a list append to a cell holding an unmatched brace and preserves the cell. Appending `#foo` to the list `a` gives `a #foo`. The VM previously appended to the malformed cell and quoted the leading hash as the first element of a fresh list. | Execution. A candidate parses and writes the complete selected list. Keep the normal VM regression open until the candidate run. |
+| The public optimiser previously changed Jim's output spelling for `dict create x {a] b}`. Duplicate keys and merge spelling exercise the same selected dictionary writer. | Dataflow. The constructor candidate passed 24 public optimiser executions across four cases and all six interpreters. Other producers, including Jim `dict keys`, `dict values`, `split`, `lreverse` and `lsort`, still need their own output checks. |
+| The public list optimiser changes original padding on some empty/singleton `lreverse` and `lsort` inputs. | Dataflow. Reproduced for C release-specific `lreverse` and latest Jim `lsort`. Retain the selected original spelling wherever the native command does. |
+| Spec Studio inferred a compulsory option operand from text like `{lindex arbitrary}` or a comment containing `incr x` in a switch arm. | Tooling. The selected branch and the missing-argument outcome must prove arity. The coordinator's ruling and public controls are recorded in current-state. |
+
 <a id="waiting-on-the-owners-approval"></a>
 
 ## Owner-approved edits
