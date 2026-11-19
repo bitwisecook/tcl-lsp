@@ -285,25 +285,59 @@ fn public_module_warning_projection_requires_matching_source_owners() {
 #[test]
 fn taint_warnings_emitted_in_deterministic_proc_order() {
     use crate::compilation_unit::CompilationUnit;
-    for (release, registry) in release_registries() {
-        // `bbb` is defined *before* `aaa` in source. Per-proc warning order
-        // must follow qualified name (aaa, then bbb) — not source order and
-        // not the (random) HashMap order — so the output is reproducible.
-        let source = "proc bbb {p} { set v [exec $p]\n eval $v }\n\
-                      proc aaa {p} { set v [exec $p]\n eval $v }\n";
-        let cu = CompilationUnit::build_for(source, &registry, false)
-            .with_interprocedural(&registry, None);
-        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+    use tcl_registry::model::ingress::resolve_environment;
+
+    // Later declaration aaa sorts first. Each eval has one warning. On the
+    // older C releases and Jim, exec also has two independent policies at $p.
+    let source = "proc bbb {p} { set v [exec $p]\n eval $v }\n\
+                  proc aaa {p} { set v [exec $p]\n eval $v }\n";
+    for release in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+        let environment = resolve_environment(release);
+        let context = environment.default_context_registry();
+        let registry = context.commands();
+        let profile = Some(environment.analyser_profile());
+        let unit = CompilationUnit::build_for_dialect(source, registry, false, release)
+            .with_interprocedural(registry, profile);
+        let warnings = find_taint_warnings_for_cu(&unit, registry, profile);
+        let tuple =
+            |warning: &TaintWarning| (warning.code, warning.span.start(), warning.span.end());
+        let eval: Vec<_> = warnings
+            .iter()
+            .filter(|warning| warning.sink_command == "eval")
+            .map(|warning| (warning.variable.as_str(), tuple(warning)))
+            .collect();
         assert_eq!(
-            warnings.len(),
-            2,
-            "{release}: one eval sink per proc: {warnings:?}"
+            eval,
+            [
+                ("v", (DiagCode::T100, 79, 81)),
+                ("v", (DiagCode::T100, 37, 39))
+            ],
+            "{release}"
         );
-        // `aaa` is defined later in source (larger span) yet sorts first.
-        assert!(
-            warnings[0].span.start() > warnings[1].span.start(),
-            "{release}: expected name order (aaa before bbb) regardless of source order: {warnings:?}",
-        );
+        if matches!(release, "tcl8.4" | "tcl8.5" | "tcl8.6" | "jim") {
+            let all: Vec<_> = warnings
+                .iter()
+                .map(|warning| {
+                    (
+                        warning.sink_command.as_str(),
+                        warning.variable.as_str(),
+                        tuple(warning),
+                    )
+                })
+                .collect();
+            assert_eq!(
+                all,
+                [
+                    ("exec", "p", (DiagCode::T100, 69, 71)),
+                    ("exec", "p", (DiagCode::T102, 69, 71)),
+                    ("eval", "v", (DiagCode::T100, 79, 81)),
+                    ("exec", "p", (DiagCode::T100, 27, 29)),
+                    ("exec", "p", (DiagCode::T102, 27, 29)),
+                    ("eval", "v", (DiagCode::T100, 37, 39)),
+                ],
+                "{release}"
+            );
+        }
     }
 }
 
