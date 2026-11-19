@@ -928,7 +928,13 @@ fn selected_result(
             let values = (from..from.checked_add(len)?)
                 .map(|index| arguments.literal_at(index))
                 .collect::<Option<Vec<_>>>()?;
-            tcl_syntax::list::join_list(values)
+            String::from_utf8(
+                arguments
+                    .dialect()?
+                    .list_result_serialization()?
+                    .render(&values),
+            )
+            .ok()?
         }
         NativeResultSelection::DictionaryArguments { .. }
         | NativeResultSelection::DictionaryValue { .. } => {
@@ -999,7 +1005,13 @@ fn selected_result(
             let values = (from..from.checked_add(len)?)
                 .map(|index| arguments.literal_at(index))
                 .collect::<Option<Vec<_>>>()?;
-            tcl_syntax::list::join_list(std::iter::repeat_n(values, repetitions).flatten())
+            String::from_utf8(
+                arguments
+                    .dialect()?
+                    .list_result_serialization()?
+                    .render(&values.repeat(repetitions)),
+            )
+            .ok()?
         }
         NativeResultSelection::ListSort { .. } => selection.sorted_literal_result(arguments)?,
         NativeResultSelection::ListRange { .. }
