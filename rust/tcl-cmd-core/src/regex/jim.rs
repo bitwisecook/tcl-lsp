@@ -114,19 +114,14 @@ fn jim_options<O: NativeRegexSource>(
             .jim_regex_option(&args[selected.offset], names)
             .map_err(RegexError::from)?;
         selected.offset += 1;
+        if selected.flags.apply_compile_option(names[index]) {
+            continue;
+        }
         match names[index] {
             "-indices" => selected.indices = JimCaptureOutput::Indices,
-            "-nocase" => selected.flags.nocase = true,
-            "-line" => {
-                selected.flags.lineanchor = true;
-                selected.flags.linestop = true;
-            }
-            "-linestop" => selected.flags.linestop = true,
-            "-lineanchor" => selected.flags.lineanchor = true,
             "-all" => selected.all = true,
             "-inline" => selected.inline = JimResultDelivery::Inline,
             "-command" => selected.command = JimReplacement::Command,
-            "-expanded" => selected.flags.expanded = true,
             "-start" => {
                 let original = args.get(selected.offset).ok_or_else(|| {
                     wrong_args(if substitution {

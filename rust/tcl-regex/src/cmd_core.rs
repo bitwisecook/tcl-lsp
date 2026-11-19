@@ -27,6 +27,41 @@ use tcl_cmd_core::regex::{
     RegexpPrecision,
 };
 
+/// Native ARE flags for an already selected command configuration.
+#[must_use]
+pub fn are_flags(flags: RegexFlags) -> i32 {
+    let mut cflags = defs::REG_ADVANCED;
+    if flags.nosub {
+        cflags |= defs::REG_NOSUB;
+    }
+    if flags.nocase {
+        cflags |= defs::REG_ICASE;
+    }
+    if flags.expanded {
+        cflags |= defs::REG_EXPANDED;
+    }
+    if flags.linestop {
+        cflags |= defs::REG_NLSTOP;
+    }
+    if flags.lineanchor {
+        cflags |= defs::REG_NLANCH;
+    }
+    if flags.z_anchor {
+        cflags |= defs::REG_ZANCHOR;
+    }
+    cflags
+}
+
+/// Bundled Jim options for the same engine-neutral command configuration.
+#[must_use]
+pub const fn jim_flags(flags: RegexFlags) -> crate::jim::Flags {
+    crate::jim::Flags::new()
+        .with_nocase(flags.nocase)
+        .with_lineanchor(flags.lineanchor)
+        .with_linestop(flags.linestop)
+        .with_expanded(flags.expanded)
+}
+
 /// The ARE engine as the shared plumbing's provider.
 pub struct AreEngine;
 
@@ -47,41 +82,15 @@ impl RegexEngine for AreEngine {
     }
 
     fn compile_units(pattern: &[u32], flags: RegexFlags) -> Option<Result<CompiledRegex, Vec<u8>>> {
-        let mut cflags = defs::REG_ADVANCED;
-        if flags.nosub {
-            cflags |= defs::REG_NOSUB;
-        }
-        if flags.nocase {
-            cflags |= defs::REG_ICASE;
-        }
-        if flags.expanded {
-            cflags |= defs::REG_EXPANDED;
-        }
-        if flags.linestop {
-            cflags |= defs::REG_NLSTOP;
-        }
-        if flags.lineanchor {
-            cflags |= defs::REG_NLANCH;
-        }
-        if flags.z_anchor {
-            cflags |= defs::REG_ZANCHOR;
-        }
         Some(
-            Regex::compile(pattern, cflags)
+            Regex::compile(pattern, are_flags(flags))
                 .map(CompiledRegex::C)
                 .map_err(|e| e.message().as_bytes().to_vec()),
         )
     }
 
     fn compile_jim(pattern: &[u8], flags: RegexFlags) -> Option<Result<CompiledRegex, Vec<u8>>> {
-        match crate::jim::Regex::compile(
-            pattern,
-            crate::jim::Flags::new()
-                .with_nocase(flags.nocase)
-                .with_lineanchor(flags.lineanchor)
-                .with_linestop(flags.linestop)
-                .with_expanded(flags.expanded),
-        ) {
+        match crate::jim::Regex::compile(pattern, jim_flags(flags)) {
             Ok(program) => Some(Ok(CompiledRegex::Jim(program))),
             Err(crate::jim::Error::Syntax(code)) => Some(Err(crate::jim::Error::Syntax(code)
                 .message()

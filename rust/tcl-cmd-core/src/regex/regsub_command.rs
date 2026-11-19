@@ -156,17 +156,12 @@ pub(super) fn regsub_option_scan(
         // Matched by name, not by table index: the 8.x and 9.x tables list the
         // same options in different orders (see the tables above), so an index
         // means nothing without knowing which one answered.
+        if c.flags.apply_compile_option(options.names()[idx]) {
+            continue;
+        }
         match options.names()[idx] {
             "-all" => c.all = true,
             "-command" => command = true,
-            "-expanded" => c.flags.expanded = true,
-            "-line" => {
-                c.flags.linestop = true;
-                c.flags.lineanchor = true;
-            }
-            "-linestop" => c.flags.linestop = true,
-            "-lineanchor" => c.flags.lineanchor = true,
-            "-nocase" => c.flags.nocase = true,
             "-start" => match (i < args.len()).then(|| args.bytes(i)).transpose()? {
                 Some(v) => {
                     c.start = Some(v);

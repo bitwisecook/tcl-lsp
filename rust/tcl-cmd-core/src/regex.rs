@@ -218,6 +218,24 @@ pub struct RegexFlags {
 }
 
 impl RegexFlags {
+    /// Apply one canonical option from an already selected command table.
+    /// Occurrence, availability, abbreviation and value widths belong to the
+    /// caller's option grammar. A non-compilation option leaves the flags alone.
+    pub fn apply_compile_option(&mut self, name: &str) -> bool {
+        match name {
+            "-expanded" => self.expanded = true,
+            "-nocase" => self.nocase = true,
+            "-line" => {
+                self.linestop = true;
+                self.lineanchor = true;
+            }
+            "-linestop" => self.linestop = true,
+            "-lineanchor" => self.lineanchor = true,
+            _ => return false,
+        }
+        true
+    }
+
     /// Exact command compile configuration key; this is not an ABI flag word.
     #[must_use]
     pub const fn cache_key(self) -> u32 {

@@ -51,16 +51,6 @@ const RE_INDICES: usize = 2;
 
 const RE_INLINE: usize = 3;
 
-const RE_EXPANDED: usize = 4;
-
-const RE_LINE: usize = 5;
-
-const RE_LINESTOP: usize = 6;
-
-const RE_LINEANCHOR: usize = 7;
-
-const RE_NOCASE: usize = 8;
-
 const RE_START: usize = 9;
 
 static REGEXP_NAMES: [&str; 11] = [
@@ -155,19 +145,14 @@ fn regexp_option_scan(
         };
         let idx = args.option(i, options)?;
         i += 1;
+        if c.flags.apply_compile_option(options.names()[idx]) {
+            continue;
+        }
         match idx {
             RE_ALL => c.all = true,
             RE_ABOUT => about = true,
             RE_INDICES => indices = true,
             RE_INLINE => inline = true,
-            RE_EXPANDED => c.flags.expanded = true,
-            RE_LINE => {
-                c.flags.linestop = true;
-                c.flags.lineanchor = true;
-            }
-            RE_LINESTOP => c.flags.linestop = true,
-            RE_LINEANCHOR => c.flags.lineanchor = true,
-            RE_NOCASE => c.flags.nocase = true,
             RE_START => match (i < args.len()).then(|| args.bytes(i)).transpose()? {
                 Some(v) => {
                     c.start = Some(v);
