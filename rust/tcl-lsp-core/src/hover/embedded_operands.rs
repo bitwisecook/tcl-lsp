@@ -174,7 +174,14 @@ fn original_pattern_format_hover_with_workspace(
         };
         let text = match pattern.kind {
             tcl_registry::patterns::PatternType::Glob => glob_hover_text(&text),
-            tcl_registry::patterns::PatternType::Regex => regex_hover_text(&text),
+            tcl_registry::patterns::PatternType::Regex => {
+                let flags = words
+                    .with_source_schema(&context, crate::pattern_components::source_flags)
+                    .flatten();
+                let profile = analysis.resolved_input.as_ref()?.analyser_profile();
+                let components = crate::pattern_components::components(&text, profile, flags)?;
+                regex_hover_text(&text, &components)
+            }
         };
         return Some(Hover::markdown(text));
     }

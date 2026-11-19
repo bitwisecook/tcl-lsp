@@ -88,6 +88,7 @@ pub mod file_ops;
 pub mod file_uri;
 pub mod folding;
 mod format_template;
+mod pattern_components;
 pub mod formatting;
 pub mod graphs;
 pub mod hover;

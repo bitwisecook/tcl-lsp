@@ -351,3 +351,24 @@ fn original_pattern_hover_preserves_full_lexer_configuration() {
         );
     }
 }
+
+#[test]
+fn regex_hover_uses_the_selected_engine_and_command_options() {
+    fn card(source: &str, dialect: &str, needle: &str) -> Option<String> {
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, dialect);
+        let column = u32::try_from(source.find(needle)?).ok()?;
+        registry_pattern_format_hover(source, 0, column, &analysis, analysis.resolved_registry()?)
+            .map(|hover| hover.value)
+    }
+    let literal = "regexp {***=a.*} literal";
+    let ordinary = card(literal, "tcl8.6", "a.*").unwrap();
+    assert!(ordinary.contains("Pattern options"));
+    assert!(!ordinary.contains("Repetition"));
+    assert!(card(literal, "jim", "a.*").is_none());
+    assert!(card("regexp {(?>a)} a", "tcl9.1", "?>").is_none());
+    let source = "regexp -expanded {a # ()+} a";
+    let expanded = card(source, "tcl9.1", "()").unwrap();
+    assert!(!expanded.contains("Group open"), "{expanded}");
+    let compact = card("regexp {a # ()+} a", "tcl9.1", "()").unwrap();
+    assert!(compact.contains("Group open"), "{compact}");
+}

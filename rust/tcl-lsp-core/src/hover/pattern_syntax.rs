@@ -145,212 +145,36 @@ pub(super) fn glob_hover_text(text: &str) -> String {
     parts.join("\n")
 }
 
-/// Regex metacharacter descriptions.
-fn regex_meta_desc(token: &str) -> Option<&'static str> {
-    match token {
-        "^" => Some("Start of line/string anchor"),
-        "$" => Some("End of line/string anchor"),
-        "." => Some("Match any single character"),
-        "*" => Some("Zero or more (greedy)"),
-        "+" => Some("One or more (greedy)"),
-        "?" => Some("Zero or one (greedy)"),
-        "*?" => Some("Zero or more (lazy)"),
-        "+?" => Some("One or more (lazy)"),
-        "??" => Some("Zero or one (lazy)"),
-        "|" => Some("Alternation (OR)"),
-        _ => None,
+/// Render roles emitted by the selected engine for this pattern and invocation.
+pub(super) fn regex_hover_text(text: &str, components: &[tcl_regex::PatternComponent]) -> String {
+    use tcl_regex::PatternRole as Role;
+    let mut parts = vec!["**Regex pattern**\n".to_owned()];
+    let mut seen = FxHashSet::default();
+    if !components.is_empty() {
+        parts.push("| Component | Meaning |".to_owned());
+        parts.push("|-----------|---------|".to_owned());
     }
-}
-
-/// Regex escape descriptions for common shorthand classes.
-fn regex_escape_desc(token: &str) -> Option<&'static str> {
-    match token {
-        "\\d" => Some("Digit `[0-9]`"),
-        "\\D" => Some("Non-digit"),
-        "\\s" => Some("Whitespace"),
-        "\\S" => Some("Non-whitespace"),
-        "\\w" => Some("Word character `[a-zA-Z0-9_]`"),
-        "\\W" => Some("Non-word character"),
-        "\\b" => Some("Word boundary"),
-        "\\B" => Some("Non-word boundary"),
-        "\\A" => Some("Start of string"),
-        "\\Z" => Some("End of string"),
-        "\\z" => Some("End of string (Tcl 9.1+)"),
-        "\\n" => Some("Newline"),
-        "\\t" => Some("Tab"),
-        "\\r" => Some("Carriage return"),
-        _ => None,
-    }
-}
-
-/// One emitted regex-token entry — `(consumed, key, tok, desc)`.
-/// `consumed` is the number of source chars the token covers;
-/// `key` is the dedup key; `tok` is what the table renders;
-/// `desc` is the explanation.  Returned by each sub-scanner so
-/// the outer loop in [`scan_regex_components`] stays readable.
-type RegexComp = (usize, String, String, String);
-
-/// Scan a regex pattern for metacharacters / classes /
-/// escapes.  Handles common cases:
-/// anchors, quantifiers, alternation, character classes,
-/// shorthand escapes, capture-group parens, lazy
-/// quantifiers.
-pub(super) fn scan_regex_components(text: &str) -> Vec<(String, String)> {
-    let chars: Vec<char> = text.chars().collect();
-    let mut out: Vec<(String, String)> = Vec::new();
-    let mut seen: FxHashSet<String> = FxHashSet::default();
-    let mut i = 0;
-    while i < chars.len() {
-        // The sub-scanners are tried in order: escape and char
-        // class are eager (they consume multi-char windows);
-        // lazy-quantifier has to run before single-char meta so
-        // `*?` doesn't get split.  Group-open also runs before
-        // single-char meta so `(?:` / `(` get attributed
-        // correctly.
-        let token = scan_regex_escape(&chars, i)
-            .or_else(|| scan_regex_char_class(&chars, i))
-            .or_else(|| scan_regex_lazy_quantifier(&chars, i))
-            .or_else(|| scan_regex_group(&chars, i))
-            .or_else(|| scan_regex_single_meta(chars[i]));
-        match token {
-            Some((consumed, key, tok, desc)) => {
-                if seen.insert(key) {
-                    out.push((tok, desc));
-                }
-                i += consumed.max(1);
-            }
-            None => i += 1,
+    for component in components {
+        let spelling = &text[component.range.clone()];
+        if !seen.insert((spelling, component.role)) {
+            continue;
         }
-    }
-    out
-}
-
-/// `\<char>` escape sequences — shorthand classes (`\d`, `\w`),
-/// numbered backreferences (`\1`-`\9`), and escaped literals
-/// (`\.`, `\*`, …).  Falls back to a generic "Escape sequence"
-/// label for unknown payloads.
-fn scan_regex_escape(chars: &[char], i: usize) -> Option<RegexComp> {
-    if chars.get(i)? != &'\\' {
-        return None;
-    }
-    let next = *chars.get(i + 1)?;
-    let tok = format!("\\{next}");
-    let desc = if next.is_ascii_digit() {
-        format!("Backreference to group {next}")
-    } else if let Some(d) = regex_escape_desc(&tok) {
-        d.to_string()
-    } else if ".*+?(){}[]|^$\\".contains(next) {
-        format!("Escaped literal `{next}`")
-    } else {
-        format!("Escape sequence `{tok}`")
-    };
-    Some((2, tok.clone(), tok, desc))
-}
-
-/// `[...]` character classes, including leading `^` negation
-/// and a literal `]` as first char per regex grammar.
-/// Consumes the entire class including the closing `]` (or to
-/// EOL when the pattern is malformed).
-fn scan_regex_char_class(chars: &[char], i: usize) -> Option<RegexComp> {
-    if chars.get(i)? != &'[' {
-        return None;
-    }
-    let start = i;
-    let mut end = i + 1;
-    if chars.get(end) == Some(&'^') {
-        end += 1;
-    }
-    if chars.get(end) == Some(&']') {
-        end += 1;
-    }
-    while end < chars.len() && chars[end] != ']' {
-        if chars[end] == '\\' && end + 1 < chars.len() {
-            end += 2;
-        } else {
-            end += 1;
-        }
-    }
-    let (tok_slice, consumed) = if end < chars.len() {
-        (&chars[start..=end], end + 1 - start)
-    } else {
-        (&chars[start..end], end - start)
-    };
-    let tok: String = tok_slice.iter().collect();
-    let inner: String = if tok.starts_with('[') && tok.ends_with(']') {
-        tok[1..tok.len() - 1].to_string()
-    } else {
-        tok[1..].to_string()
-    };
-    let desc = format!("Character class: matches any of `{inner}`");
-    Some((consumed, tok.clone(), tok, desc))
-}
-
-/// Lazy quantifiers — `*?`, `+?`, `??`.  Must run before
-/// [`scan_regex_single_meta`] so `*` alone doesn't claim the
-/// pair.
-fn scan_regex_lazy_quantifier(chars: &[char], i: usize) -> Option<RegexComp> {
-    let c = *chars.get(i)?;
-    if !matches!(c, '*' | '+' | '?') {
-        return None;
-    }
-    if chars.get(i + 1) != Some(&'?') {
-        return None;
-    }
-    let tok = format!("{c}?");
-    let desc = regex_meta_desc(&tok)?.to_string();
-    Some((2, tok.clone(), tok, desc))
-}
-
-/// Grouping — `(?:`, `(?=`, `(?!`, `(?>`, and bare `(` / `)`.
-fn scan_regex_group(chars: &[char], i: usize) -> Option<RegexComp> {
-    let c = *chars.get(i)?;
-    if c == ')' {
-        return Some((1, ")".into(), ")".into(), "Group close".into()));
-    }
-    if c != '(' {
-        return None;
-    }
-    if chars.get(i + 1) == Some(&'?')
-        && let Some(trail) = chars.get(i + 2)
-    {
-        let pair = match trail {
-            ':' => Some(("(?:", "Non-capturing group")),
-            '=' => Some(("(?=", "Positive lookahead")),
-            '!' => Some(("(?!", "Negative lookahead")),
-            '>' => Some(("(?>", "Atomic (possessive) group")),
-            _ => None,
+        let meaning = match component.role {
+            Role::Options => "Pattern options",
+            Role::Comment => "Pattern comment",
+            Role::Anchor => "Position constraint",
+            Role::CharacterClass => "Character class",
+            Role::Alternation => "Alternation",
+            Role::CaptureOpen => "Group open",
+            Role::NoncaptureOpen => "Non-capturing group",
+            Role::PositiveLookahead => "Positive lookahead",
+            Role::NegativeLookahead => "Negative lookahead",
+            Role::GroupClose => "Group close",
+            Role::Quantifier => "Repetition",
+            Role::Escape => "Escaped character",
+            Role::Backreference => "Backreference",
         };
-        if let Some((tok, desc)) = pair {
-            return Some((3, tok.to_string(), tok.to_string(), desc.to_string()));
-        }
-    }
-    Some((1, "(".into(), "(".into(), "Capture group open".into()))
-}
-
-/// Single-char metacharacters — `^`, `$`, `.`, `*`, `+`, `?`,
-/// `|`.  Anything [`regex_meta_desc`] knows about.
-fn scan_regex_single_meta(c: char) -> Option<RegexComp> {
-    let key = c.to_string();
-    let desc = regex_meta_desc(&key)?.to_string();
-    Some((1, key.clone(), key, desc))
-}
-
-/// Render a regex-pattern hover markdown.
-pub(super) fn regex_hover_text(text: &str) -> String {
-    let mut parts: Vec<String> = vec!["**Regex pattern**\n".to_string()];
-    let comps = scan_regex_components(text);
-    if comps.is_empty() {
-        parts.push("Literal string (no metacharacters).".to_string());
-    } else {
-        parts.push("| Component | Meaning |".to_string());
-        parts.push("|-----------|---------|".to_string());
-        for (tok, desc) in comps {
-            parts.push(format!(
-                "| `{}` | {} |",
-                gfm_table_cell(&tok),
-                gfm_table_cell(&desc)
-            ));
-        }
+        parts.push(format!("| `{}` | {meaning} |", gfm_table_cell(spelling)));
     }
     parts.join("\n")
 }

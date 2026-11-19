@@ -96,7 +96,7 @@ use format_specifiers::{
 #[cfg(test)]
 use pattern_syntax::{glob_hover_text, regex_hover_text, regsub_hover_text, scan_regsub_backrefs};
 #[cfg(test)]
-use pattern_syntax::{scan_glob_metachars, scan_regex_components};
+use pattern_syntax::scan_glob_metachars;
 use procedures::{
     alias_hover_at, ensemble_subcommand_hover, format_docstring, lenient_declared_procedure_hover,
     proc_hover_at, proc_hover_text,

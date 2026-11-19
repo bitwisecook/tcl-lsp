@@ -20,11 +20,22 @@
 
 use super::*;
 
+fn c_regex_hover(text: &str) -> String {
+    let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+    let components = crate::pattern_components::components(
+        text,
+        profile,
+        Some(tcl_cmd_core::regex::RegexFlags::default()),
+    )
+    .unwrap();
+    regex_hover_text(text, &components)
+}
+
 #[test]
 fn regex_and_glob_hover_escape_table_pipes() {
     // A `|` inside a code-span table cell must be `\|` or it splits the GFM
     // row (issue 187).
-    let rx = regex_hover_text("foo|bar");
+    let rx = c_regex_hover("foo|bar");
     assert!(
         rx.lines().all(|l| !l.starts_with("| `|`")),
         "raw pipe token would break the row: {rx}"
@@ -35,7 +46,7 @@ fn regex_and_glob_hover_escape_table_pipes() {
     );
     // Glob alternation `{a,b}` has no pipe, but a bracketed pipe would; a
     // char-class-style pattern with `|` escapes too.
-    let rxcc = regex_hover_text("[a|b]");
+    let rxcc = c_regex_hover("[a|b]");
     assert!(rxcc.contains("\\|"));
     // Every non-separator row keeps a balanced cell count (3 pipes → 2
     // cells) after escaping.
@@ -128,41 +139,8 @@ fn hover_fires_for_glob_pattern() {
 // regex pattern hover
 
 #[test]
-fn scan_regex_components_finds_anchors_and_quantifiers() {
-    let r = scan_regex_components("^foo.*$");
-    let toks: Vec<&str> = r.iter().map(|(t, _)| t.as_str()).collect();
-    assert!(toks.contains(&"^"), "{r:?}");
-    assert!(toks.contains(&"."), "{r:?}");
-    assert!(toks.contains(&"*"), "{r:?}");
-    assert!(toks.contains(&"$"), "{r:?}");
-}
-
-#[test]
-fn scan_regex_components_finds_character_class() {
-    let r = scan_regex_components("[a-z]+");
-    let toks: Vec<&str> = r.iter().map(|(t, _)| t.as_str()).collect();
-    assert!(toks.contains(&"[a-z]"), "{r:?}");
-    assert!(toks.contains(&"+"), "{r:?}");
-}
-
-#[test]
-fn scan_regex_components_finds_escapes() {
-    let r = scan_regex_components("\\d+");
-    let toks: Vec<&str> = r.iter().map(|(t, _)| t.as_str()).collect();
-    assert!(toks.contains(&"\\d"), "{r:?}");
-}
-
-#[test]
-fn scan_regex_components_finds_groups_and_lookahead() {
-    let r = scan_regex_components("(?:foo)(?=bar)");
-    let toks: Vec<&str> = r.iter().map(|(t, _)| t.as_str()).collect();
-    assert!(toks.contains(&"(?:"), "{r:?}");
-    assert!(toks.contains(&"(?="), "{r:?}");
-}
-
-#[test]
 fn regex_hover_renders_table() {
-    let text = regex_hover_text("^foo$");
+    let text = c_regex_hover("^foo$");
     assert!(text.contains("**Regex pattern**"), "{text}");
     assert!(text.contains("| `^` |"), "{text}");
 }
