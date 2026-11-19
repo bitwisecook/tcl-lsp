@@ -163,7 +163,7 @@ const RATCHET: &[(&str, usize)] = &[
     ),
     ("rust/tcl-compiler/src/analyser/irules_event_checks.rs", 2),
     ("rust/tcl-compiler/src/analyser/per_item.rs", 4),
-    ("rust/tcl-compiler/src/analyser/tk_checks.rs", 2),
+    ("rust/tcl-compiler/src/analyser/tk_checks.rs", 1),
     ("rust/tcl-codegen/src/codegen/cmd_subst.rs", 19),
     ("rust/tcl-codegen/src/codegen/emitter/bytecoded.rs", 13),
     ("rust/tcl-codegen/src/codegen/emitter/ordering.rs", 2),

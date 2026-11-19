@@ -43,6 +43,7 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | irreducible | never | `rust/tcl-compiler/src/command_binding/source_transition_advice/transition_capture.rs` | 2 | site | selects which calls a debug trace logs |
 | irreducible | never | `rust/tcl-compiler/src/parsing/spectcl_source.rs` | 1 | site | the SpecTcl DSL's own include row, which the loader defines |
 | irreducible | never | `rust/tcl-diagram/src/graph.rs` | 12 | file | the diagram IR's own node kinds and branch labels, not Tcl words |
+| irreducible | never | `rust/tcl-expr/src/expr/jim_function_tree.rs` | 1 | file | expression operators, not commands |
 | irreducible | never | `rust/tcl-lsp-core/src/file_uri.rs` | 4 | file | a URI scheme and a home-directory marker, not Tcl words |
 | irreducible | never | `rust/tcl-lsp-core/src/formatting/config.rs` | 1 | site | an editor-settings spelling for `tclLsp.formatting.docstringStyle` (a stub-placement choice), not a Tcl clause-grammar keyword; "body" here coincides with the registry's `ArgRole::Body` word by English spelling only |
 | irreducible | never | `rust/tcl-lsp-core/src/formatting/docstring.rs` | 1 | site | `args` here is a proc's own *formal parameter* name (Tcl's variadic-last-parameter convention, checked against the signature this stub is generated from), not a call to `info args`; the spelling coincides with `info`'s subcommand by coincidence only |
@@ -59,7 +60,6 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | irreducible | never | `rust/tcl-mcp/src/datagroup.rs` | 1 | site | `set` and `return` are recognised as Tcl's own primitive syntax for this one-command-body shape, not as a pack-authorable command |
 | irreducible | never | `rust/tcl-mcp/src/datagroup.rs` | 1 | site | same primitive-syntax reason |
 | irreducible | never | `rust/tcl-syntax/src/execution_conformance.rs` | 1 | file | a conformance table's empty-cell marker, not a Tcl word |
-| irreducible | never | `rust/tcl-syntax/src/expr/jim_function_tree.rs` | 1 | file | expression operators, not commands |
 | options | the ensemble option table drives the walk | `rust/tcl-compiler/src/analyser/handlers/ensembles.rs` | 5 | site | namespace ensemble configuration options |
 | options | the getter's option table marks the normalising flag | `rust/tcl-compiler/src/rendered_properties.rs` | 1 | site | the HTTP getter's normalising flag |
 | options | the option table carries the safe-interpreter flag | `rust/tcl-compiler/src/analyser/handlers/interpreters.rs` | 2 | site | the interp create flag run |
@@ -78,7 +78,7 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 
 ## The ratchet
 
-The files the gate holds clean, with every site waived or gone: `rust/tcl-compiler/src/analyser/commands.rs`, `rust/tcl-compiler/src/analyser/param_traits.rs`, `rust/tcl-compiler/src/analyser/recovery.rs`, `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs`, `rust/tcl-compiler/src/executable_ir.rs`, `rust/tcl-compiler/src/signature_scan/walker.rs`, `rust/tcl-compiler/src/var_escape/slot_resolution.rs`, `rust/tcl-lsp-core/src/definition.rs`, `rust/tcl-lsp-core/src/formatting/config.rs`, `rust/tcl-lsp-core/src/formatting/docstring.rs`, `rust/tcl-lsp-core/src/formatting/engine.rs`, `rust/tcl-lsp-core/src/formatting/keywords.rs`, `rust/tcl-lsp-core/src/minify.rs`, `rust/tcl-lsp-core/src/refactor/datagroup.rs`, `rust/tcl-lsp-core/src/refactor/if_to_switch.rs`, `rust/tcl-lsp-core/src/semantic_tokens.rs`, `rust/tcl-lsp-core/src/workspace_index.rs`, `rust/tcl-mcp/src/datagroup.rs`.
+The files the gate holds clean, with every site waived or gone: `rust/tcl-compiler/src/auto_path_eval.rs`, `rust/tcl-compiler/src/analyser/commands.rs`, `rust/tcl-compiler/src/analyser/param_traits.rs`, `rust/tcl-compiler/src/analyser/recovery.rs`, `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs`, `rust/tcl-compiler/src/executable_ir.rs`, `rust/tcl-compiler/src/signature_scan/walker.rs`, `rust/tcl-compiler/src/var_escape/slot_resolution.rs`, `rust/tcl-lsp-core/src/definition.rs`, `rust/tcl-lsp-core/src/formatting/config.rs`, `rust/tcl-lsp-core/src/formatting/docstring.rs`, `rust/tcl-lsp-core/src/formatting/engine.rs`, `rust/tcl-lsp-core/src/formatting/keywords.rs`, `rust/tcl-lsp-core/src/minify.rs`, `rust/tcl-lsp-core/src/refactor/datagroup.rs`, `rust/tcl-lsp-core/src/refactor/if_to_switch.rs`, `rust/tcl-lsp-core/src/semantic_tokens.rs`, `rust/tcl-lsp-core/src/workspace_index.rs`, `rust/tcl-mcp/src/datagroup.rs`.
 
 Every other scanned file with an unwaived site, and its count, which is the pin in `rust/xtask/src/registry_axes.rs`. The count may only fall: the change that removes or waives a file's sites lowers its pin.
 
@@ -132,8 +132,7 @@ Every other scanned file with an unwaived site, and its count, which is the pin 
 | `rust/tcl-compiler/src/analyser/diagnostics/var_command.rs` | 1 |
 | `rust/tcl-compiler/src/analyser/irules_event_checks.rs` | 2 |
 | `rust/tcl-compiler/src/analyser/per_item.rs` | 4 |
-| `rust/tcl-compiler/src/analyser/tk_checks.rs` | 2 |
-| `rust/tcl-compiler/src/auto_path_eval.rs` | 6 |
+| `rust/tcl-compiler/src/analyser/tk_checks.rs` | 1 |
 | `rust/tcl-compiler/src/inline_uplevel.rs` | 1 |
 | `rust/tcl-compiler/src/interprocedural.rs` | 1 |
 | `rust/tcl-compiler/src/ir.rs` | 2 |
@@ -157,6 +156,8 @@ Every other scanned file with an unwaived site, and its count, which is the pin 
 | `rust/tcl-compiler/src/var_escape/handlers.rs` | 1 |
 | `rust/tcl-diagram/src/attach.rs` | 2 |
 | `rust/tcl-diagram/src/data.rs` | 4 |
+| `rust/tcl-expr/src/expr/mathfunc.rs` | 6 |
+| `rust/tcl-expr/src/expr/parser.rs` | 43 |
 | `rust/tcl-irules/src/ilx.rs` | 2 |
 | `rust/tcl-irules/src/lib.rs` | 26 |
 | `rust/tcl-lsp-core/src/call_hierarchy.rs` | 4 |
@@ -175,17 +176,15 @@ Every other scanned file with an unwaived site, and its count, which is the pin 
 | `rust/tcl-mcp/src/irule_test.rs` | 20 |
 | `rust/tcl-mcp/src/spectcl.rs` | 4 |
 | `rust/tcl-mcp/src/tools.rs` | 1 |
+| `rust/tcl-numeric/src/boolean.rs` | 3 |
 | `rust/tcl-sslictcl/src/dsl.rs` | 24 |
 | `rust/tcl-sslictcl/src/estimate.rs` | 2 |
 | `rust/tcl-sslictcl/src/nginx.rs` | 10 |
 | `rust/tcl-sslictcl/src/openssl_config.rs` | 1 |
 | `rust/tcl-sslictcl/src/testssl.rs` | 1 |
 | `rust/tcl-sslictcl/src/trust.rs` | 1 |
-| `rust/tcl-syntax/src/boolean.rs` | 3 |
 | `rust/tcl-syntax/src/case_list.rs` | 2 |
 | `rust/tcl-syntax/src/event_handler.rs` | 7 |
-| `rust/tcl-syntax/src/expr/mathfunc.rs` | 6 |
-| `rust/tcl-syntax/src/expr/parser.rs` | 43 |
 | `rust/tcl-syntax/src/glob.rs` | 1 |
 | `rust/tcl-syntax/src/naming.rs` | 2 |
 | `rust/tcl-syntax/src/ns_op_conformance.rs` | 21 |
