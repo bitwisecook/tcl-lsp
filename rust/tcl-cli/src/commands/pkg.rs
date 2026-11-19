@@ -1537,12 +1537,9 @@ fn build_profile(
     profile.fs_read = tcl_pkg::venv::tclsh_installation(tclsh)
         .into_iter()
         .chain(std::env::var_os("TCL_LIBRARY").map(PathBuf::from))
-        .chain(
-            std::env::var("TCLLIBPATH")
-                .unwrap_or_default()
-                .split_whitespace()
-                .map(PathBuf::from),
-        )
+        .chain(tcl_pkg::venv::tcllibpath_directories(
+            std::env::var_os("TCLLIBPATH").as_deref(),
+        ))
         .collect();
     profile
 }

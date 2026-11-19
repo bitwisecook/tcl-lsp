@@ -39,6 +39,47 @@ fn venv_error(message: impl Into<String>, hint: Option<&str>) -> TclPkgError {
     TclPkgError::venv(message, hint.map(ToString::to_string))
 }
 
+fn supported_list_grammars()
+-> impl Iterator<Item = (tcl_dialect::ListParse, tcl_dialect::EscapeSyntax)> {
+    tcl_dialect::EscapeSyntax::ALL.iter().flat_map(|&escapes| {
+        [
+            tcl_dialect::ListParse::Strict,
+            tcl_dialect::ListParse::Lenient,
+        ]
+        .into_iter()
+        .map(move |syntax| (syntax, escapes))
+    })
+}
+
+/// Decode only directories shared by all supported Tcl interpreters. A build's
+/// external tclsh can be a wrapper, so its filename cannot select a grammar.
+#[must_use]
+pub fn tcllibpath_directories(inherited: Option<&OsStr>) -> Vec<PathBuf> {
+    let Some(source) = inherited.and_then(OsStr::to_str) else {
+        return Vec::new();
+    };
+    let mut common = None::<Vec<PathBuf>>;
+    for (syntax, escapes) in supported_list_grammars() {
+        let Ok(elements) =
+            tcl_syntax::list::split_list_bytes_in(source.as_bytes(), syntax, escapes)
+        else {
+            return Vec::new();
+        };
+        let paths: Vec<_> = elements
+            .iter()
+            .filter_map(|value| {
+                let value = std::str::from_utf8(value).ok()?;
+                (!value.is_empty() && !value.contains('\0')).then(|| PathBuf::from(value))
+            })
+            .collect();
+        match &mut common {
+            Some(common) => common.retain(|directory| paths.contains(directory)),
+            None => common = Some(paths),
+        }
+    }
+    common.unwrap_or_default()
+}
+
 /// Prepend one actual Unicode path to a Tcl environment-list value, preserving
 /// the inherited source verbatim. Each supported list grammar must retain its
 /// own original suffix interpretation. This constructs environment text only;
@@ -70,39 +111,29 @@ pub fn prepare_tcllibpath(
         output.push(' ');
         output.push_str(inherited);
     }
-    for &escapes in tcl_dialect::EscapeSyntax::ALL {
-        for syntax in [
-            tcl_dialect::ListParse::Strict,
-            tcl_dialect::ListParse::Lenient,
-        ] {
-            let original =
-                tcl_syntax::list::split_list_bytes_in(inherited.as_bytes(), syntax, escapes)
-                    .map_err(|_| {
-                        venv_error(
-                            "inherited TCLLIBPATH is not a complete supported Tcl list",
-                            None,
-                        )
-                    })?;
-            let combined = tcl_syntax::list::split_list_bytes_in(
-                output.as_bytes(),
-                syntax,
-                escapes,
-            )
+    for (syntax, escapes) in supported_list_grammars() {
+        let original = tcl_syntax::list::split_list_bytes_in(inherited.as_bytes(), syntax, escapes)
+            .map_err(|_| {
+                venv_error(
+                    "inherited TCLLIBPATH is not a complete supported Tcl list",
+                    None,
+                )
+            })?;
+        let combined = tcl_syntax::list::split_list_bytes_in(output.as_bytes(), syntax, escapes)
             .map_err(|_| {
                 venv_error(
                     "TCLLIBPATH directory cannot be represented in the supported Tcl list grammars",
                     None,
                 )
             })?;
-            if combined.len() != original.len() + 1
-                || combined.first().map(std::convert::AsRef::as_ref) != Some(directory.as_bytes())
-                || combined.iter().skip(1).ne(original.iter())
-            {
-                return Err(venv_error(
-                    "TCLLIBPATH construction changed a supported Tcl list interpretation",
-                    None,
-                ));
-            }
+        if combined.len() != original.len() + 1
+            || combined.first().map(std::convert::AsRef::as_ref) != Some(directory.as_bytes())
+            || combined.iter().skip(1).ne(original.iter())
+        {
+            return Err(venv_error(
+                "TCLLIBPATH construction changed a supported Tcl list interpretation",
+                None,
+            ));
         }
     }
     Ok(OsString::from(output))
@@ -506,6 +537,21 @@ mod tests {
         assert!(prepare_tcllibpath(Path::new(&opaque), None).is_err());
         assert!(prepare_tcllibpath(Path::new("/plain/lib"), None).is_ok());
         assert!(prepare_tcllibpath(Path::new("/plain/lib"), Some(OsStr::new(""))).is_ok());
+    }
+
+    #[test]
+    fn inherited_tcllibpath_uses_tcl_list_boundaries_for_external_builds() {
+        let value = OsStr::new(r#"{/tmp/Tcl Packages} "/tmp/more packages" /tmp/escaped\ space"#);
+        assert_eq!(
+            tcllibpath_directories(Some(value)),
+            [
+                Path::new("/tmp/Tcl Packages"),
+                Path::new("/tmp/more packages"),
+                Path::new("/tmp/escaped space")
+            ]
+        );
+        assert!(tcllibpath_directories(Some(OsStr::new("{/unclosed path"))).is_empty());
+        assert!(tcllibpath_directories(None).is_empty());
     }
 
     #[test]
