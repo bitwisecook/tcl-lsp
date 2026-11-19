@@ -355,12 +355,18 @@ def measure_rss(
     before = rss_kib(pid)
     after = None
     if trim:
-        result = gdb_batch(pid, [r'printf "malloc_trim_result=%d\n", (int) malloc_trim(0)'])
-        if any(line in {"malloc_trim_result=0", "malloc_trim_result=1"}
-               for line in result.splitlines()):
+        result = gdb_batch(
+            pid, [r'printf "malloc_trim_result=%d\n", (int) malloc_trim(0)']
+        )
+        if any(
+            line in {"malloc_trim_result=0", "malloc_trim_result=1"}
+            for line in result.splitlines()
+        ):
             after = rss_kib(pid)
         else:
-            log("trim_error", round=round_no, detail=result.strip() or "gdb unavailable")
+            log(
+                "trim_error", round=round_no, detail=result.strip() or "gdb unavailable"
+            )
     log(
         "rss",
         round=round_no,
