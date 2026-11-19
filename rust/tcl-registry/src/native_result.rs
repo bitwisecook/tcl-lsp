@@ -802,6 +802,27 @@ mod tests {
     }
 
     #[test]
+    fn dictionary_construction_uses_the_selected_native_writer() {
+        use tcl_dialect::model::{DialectPoint, Release};
+        let words = ["x", "old", "x", "a] b"];
+        let contract = NativeResultContract::DictionaryArguments { from: 0 };
+        for (release, expected) in [
+            (Release::TCL_8_6, "x {a] b}"),
+            (Release::JIM_0_84, "x a\\]\\ b"),
+        ] {
+            let dialect = crate::InvocationDialect::of_point(DialectPoint::canonical(release));
+            let arguments = crate::InvocationArguments::literals(&words).with_dialect(dialect);
+            assert_eq!(
+                contract
+                    .select(arguments, 0)
+                    .dictionary_literal_result(arguments)
+                    .as_deref(),
+                Some(expected)
+            );
+        }
+    }
+
+    #[test]
     fn dictionary_results_keep_offsets_duplicate_keys_and_unknown_values() {
         let words = ["create", "a", "1", "b", "2", "a", "3"];
         let arguments = InvocationArguments::literals(&words);
@@ -1546,7 +1567,12 @@ impl NativeResultSelection {
                 let operands = (from..from.checked_add(len)?)
                     .map(|index| arguments.literal_at(index))
                     .collect::<Option<Vec<_>>>()?;
-                crate::const_fold::fold_dict_create(&operands)
+                let Some(dialect) = arguments.dialect() else {
+                    return crate::const_fold::fold_dict_create(&operands);
+                };
+                let layout = dialect.native_dictionary_layout()?;
+                let pairs = crate::const_fold::dictionary_argument_pairs(&operands)?;
+                String::from_utf8(layout.render(&pairs)).ok()
             }
             Self::DictionaryValue {
                 dictionary_at,

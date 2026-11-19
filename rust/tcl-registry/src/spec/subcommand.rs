@@ -715,6 +715,16 @@ impl SubCommand {
         args: &[&str],
         dialect: crate::InvocationDialect,
     ) -> Option<String> {
+        if let Some(
+            contract @ crate::native_result::NativeResultContract::DictionaryArguments { .. },
+        ) = self.native_result
+        {
+            self.const_fold?;
+            let arguments = crate::InvocationArguments::literals(args).with_dialect(dialect);
+            return contract
+                .select(arguments, 0)
+                .dictionary_literal_result(arguments);
+        }
         if let Some(contract @ crate::native_result::NativeResultContract::ListRange { .. }) =
             self.native_result
         {

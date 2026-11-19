@@ -576,14 +576,26 @@ pub(crate) fn fold_dict_values(args: &[&str]) -> Option<String> {
 /// dict pairwise, which is the same rule `SetDictFromAny` applies to a list
 /// rep, so the same function answers for both.
 pub(crate) fn fold_dict_create(args: &[&str]) -> Option<String> {
+    use tcl_syntax::value::NativeDictionaryLayout;
+    let pairs = dictionary_argument_pairs(args)?;
+    let bytes = NativeDictionaryLayout::Tcl.render(&pairs);
+    if bytes != NativeDictionaryLayout::Jim.render(&pairs) {
+        return None;
+    }
+    String::from_utf8(bytes).ok()
+}
+
+/// The first position and last value of each key in validated dict-create argv.
+pub(crate) fn dictionary_argument_pairs<'a>(args: &[&'a str]) -> Option<Vec<(&'a str, &'a str)>> {
     if !args.len().is_multiple_of(2) {
         return None;
     }
-    let order: Vec<&str> = tcl_syntax::value::canonical_dict_slots(args.iter().step_by(2).copied())
-        .into_iter()
-        .flat_map(|(key_slot, value_slot)| [args[key_slot * 2], args[value_slot * 2 + 1]])
-        .collect();
-    Some(list_join(&order))
+    Some(
+        tcl_syntax::value::canonical_dict_slots(args.iter().step_by(2).copied())
+            .into_iter()
+            .map(|(key, value)| (args[key * 2], args[value * 2 + 1]))
+            .collect(),
+    )
 }
 
 /// `dict merge ?dictionary ...?` — later dicts override earlier keys
