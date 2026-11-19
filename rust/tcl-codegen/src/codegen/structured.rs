@@ -167,7 +167,7 @@ fn walk_stmt<E: Emit>(emit: &mut E, stmt: &Statement, source: WalkSource<'_>, de
             body,
             ..
         } => {
-            let cond = clause_text(source.text, *condition_span, *condition_base);
+            let cond = clause_text(source.text, *condition_span, *condition_base, source.config);
             emit_loop(emit, opt(cond), body, None, source, depth);
             Flow::Normal
         }
@@ -183,7 +183,7 @@ fn walk_stmt<E: Emit>(emit: &mut E, stmt: &Statement, source: WalkSource<'_>, de
         } => {
             // The init clause runs once, in the enclosing scope.
             walk_script(emit, init, source, depth);
-            let cond = clause_text(source.text, *condition_span, *condition_base);
+            let cond = clause_text(source.text, *condition_span, *condition_base, source.config);
             // `Statement::For` carries `condition_base`
             // but no `next_base`, so the step clause takes the lowerer's own
             // de-braced word text (`raw_args[2]` — `for init cond next body`)
@@ -193,7 +193,7 @@ fn walk_stmt<E: Emit>(emit: &mut E, stmt: &Statement, source: WalkSource<'_>, de
             // fall back to the span-derived content.
             let step = match raw_args.get(2) {
                 Some(text) => text.trim(),
-                None => clause_text(source.text, *next_span, None),
+                None => clause_text(source.text, *next_span, None, source.config),
             };
             emit_loop(emit, opt(cond), body, opt(step), source, depth);
             Flow::Normal
@@ -250,6 +250,7 @@ fn emit_if<E: Emit>(
         source.text,
         first.condition_span,
         first.condition_base,
+        source.config,
     ));
     walk_script(emit, &first.body, source, depth + 1);
 
@@ -348,7 +349,7 @@ fn emit_loop<E: Emit>(
 /// classes whose value *excludes* the opener (braced and bare), and only when
 /// it lands inside the word — for every other class it is `None` by
 /// construction anyway, since the segmenter reconstructs those words' text.
-fn clause_text(source: &str, span: Span, base: Option<u32>) -> &str {
+fn clause_text(source: &str, span: Span, base: Option<u32>, config: LexerConfig) -> &str {
     let (start, span_end) = (span.start() as usize, span.end() as usize);
     let opener = source.as_bytes().get(start).copied().unwrap_or(b'\0');
 
@@ -368,7 +369,7 @@ fn clause_text(source: &str, span: Span, base: Option<u32>) -> &str {
         // word. `max(start + 1)` keeps the end from crossing the content start.
         b'"' => (
             start + 1,
-            tcl_lexer::close_quote_offset(source, start)
+            tcl_lexer::close_quote_offset_in(source, start, config)
                 .unwrap_or(span_end)
                 .min(span_end.max(start + 1)),
         ),
@@ -519,7 +520,7 @@ mod tests {
         for &(source, start, end, base, expected) in cases {
             let span = Span::new(start, end);
             assert_eq!(
-                clause_text(source, span, base),
+                clause_text(source, span, base, LexerConfig::default()),
                 expected,
                 "clause_text({source:?}, {start}..{end}, {base:?})"
             );
