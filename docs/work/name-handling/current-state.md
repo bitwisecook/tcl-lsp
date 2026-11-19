@@ -103,6 +103,10 @@ The hourly review confirmed O129's original programme now prints zero before and
 
 **Named incident rerun, 19 November at 13:44 UTC.** On clean combined `8d6ae9adde` with all six interpreters required, `tcl-compiler::it_2` passed the original #2418 / O129 regression. Two other selected tests failed. The original I230 assertion passed before the fixture failed to find `::p`. The O101 two-call witness still changes `no/yes` to `no/no`. These are three selected tests from a 501-case target. For the collector comparison on clean `a6c66517c7`, 65 compiler preservation controls pass and all six proposed fixes fail. The historical LSP indentation control needs a separate measurement.
 
+**Hourly check, 19 November at 13:52 UTC.** All six replacement workers reported. The 24-case callback follow-up isolated 12 incorrect I230 reports for caller-visible or unspecified frame access. The own-frame and no-frame controls agreed in 12 cases. The strict optimiser retained both successors and made no edit. The named O129 regression passed, and O101 still changes the two-call result. New wrong answers include selected numeric/string options in the optimiser, member rename missing a captured compound name, and partial SpecTcl transition descriptors. These are in the [scrub](../test-scrub/README.md). Bytecode compilation matched 52 oracle instruction-offset and mnemonic comparisons on the candidate before a final marker-remapping change. Clean DB timings, #2543 attribution and the collector A/B remain outstanding.
+
+The worktree census matched all 35,804 tracked paths at `d9b4c677e6`. The [review register](parser-review) keeps 7,176 structural leads, many with open semantic checks. On the combined tree the standalone owner-resolution check resolved 657 contract rows. The official build exposed a shared glob type still pointing into the old crate, missing documentation for the SCF token API, and a clippy import-order violation. Corrections are in the next combined gate run.
+
 ## Scoreboard, 18 November 2026, 11:55 UTC (at the pause)
 
 Failing tests by area on the restructured tree, from the successor sessions' baselines and first pushes.
