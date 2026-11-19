@@ -89,6 +89,78 @@ fn fresh_irules_realm(
     tcl_compiler::realm::document_realm_bindings_for_fresh_hosted_source(source, &input)
 }
 
+/// Compare authored iRule source for the SCF diff. Only separators and
+/// comments between original words of a checked script can disappear. Braced
+/// and quoted data retain their written bytes. A recognised event's body is
+/// the only braced word entered as a nested script here.
+#[must_use]
+pub fn same_rule_source_for_diff(before: &str, after: &str) -> bool {
+    before == after
+        || comparison_commands(before)
+            .zip(comparison_commands(after))
+            .is_some_and(|(left, right)| left == right)
+}
+
+#[derive(PartialEq, Eq)]
+enum ComparedWord<'a> {
+    Written(&'a str),
+    EventBody(Vec<Vec<&'a str>>),
+}
+
+fn comparison_commands(source: &str) -> Option<Vec<Vec<ComparedWord<'_>>>> {
+    use tcl_lexer::{
+        SourceImage, SourceSegmentationPurpose, Span, native_script_words_in_with_purpose,
+    };
+    let config = LexerConfig::for_file_dialect("f5-irules");
+    let image = SourceImage::document(source);
+    let commands = |region| {
+        let plan = native_script_words_in_with_purpose(
+            image.clone(),
+            region,
+            config,
+            SourceSegmentationPurpose::NestedScript,
+        )
+        .ok()?;
+        plan.fatal_tail.is_none().then_some(plan.commands)
+    };
+    let script = commands(Span::new(0, u32::try_from(source.len()).ok()?))?;
+    let handlers: std::collections::HashMap<_, _> = when_blocks(source)
+        .into_iter()
+        .map(|handler| (handler.span, handler.body_span))
+        .collect();
+    let mut compared = Vec::new();
+    for command in script {
+        let handler = handlers.get(&command.span).copied();
+        let mut row = Vec::new();
+        for word in command.words {
+            let span = word.span();
+            let written = source.get(std::ops::Range::<usize>::from(span))?;
+            let body = handler.filter(|body| {
+                body.start().checked_sub(1) == Some(span.start())
+                    && body.end().checked_add(1) == Some(span.end())
+                    && written.starts_with('{')
+                    && written.ends_with('}')
+            });
+            if let Some(body) = body {
+                let mut body_words = Vec::new();
+                for nested in commands(body)? {
+                    let words = nested
+                        .words
+                        .iter()
+                        .map(|w| source.get(std::ops::Range::<usize>::from(w.span())))
+                        .collect::<Option<Vec<_>>>()?;
+                    body_words.push(words);
+                }
+                row.push(ComparedWord::EventBody(body_words));
+            } else {
+                row.push(ComparedWord::Written(written));
+            }
+        }
+        compared.push(row);
+    }
+    Some(compared)
+}
+
 /// Whether a discovered handler body contains no executable command.  This
 /// intentionally delegates comment classification to the iRules lexer.
 #[must_use]

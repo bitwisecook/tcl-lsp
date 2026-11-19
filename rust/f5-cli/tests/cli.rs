@@ -169,6 +169,41 @@ fn diff_add_remove_json() {
 }
 
 #[test]
+fn diff_preserves_literal_and_incomplete_irule_source() {
+    let dir = fixtures_dir();
+    let before = dir.join("diff-irule-source-before.scf");
+    let after = dir.join("diff-irule-source-after.scf");
+    let raw = run_f5_codes(
+        &[
+            "diff",
+            before.to_str().unwrap(),
+            after.to_str().unwrap(),
+            "--json",
+        ],
+        &[1],
+    );
+    let report: serde_json::Value = serde_json::from_slice(&raw).unwrap();
+    let names: Vec<_> = report["modified"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|item| item["full_path"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        names,
+        [
+            "/Common/boundary",
+            "/Common/hash",
+            "/Common/incomplete",
+            "/Common/space"
+        ]
+    );
+    let hash = &report["modified"][1]["fields"][0];
+    assert!(hash["before"].as_str().unwrap().contains("{tag#old}"));
+    assert!(hash["after"].as_str().unwrap().contains("{tag#new}"));
+}
+
+#[test]
 fn diff_tmsh_input() {
     // tmsh-script input is normalised to SCF before parsing (the `to_scf` path),
     // so `tmsh create/modify` headers compare against the real objects.

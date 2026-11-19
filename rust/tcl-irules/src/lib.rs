@@ -72,7 +72,8 @@ pub use executable::{
 };
 mod when_block;
 pub use when_block::{
-    WhenBlock, when_block_candidates, when_block_is_empty, when_blocks, when_source_inventory,
+    WhenBlock, same_rule_source_for_diff, when_block_candidates, when_block_is_empty, when_blocks,
+    when_source_inventory,
 };
 
 pub mod ilx;

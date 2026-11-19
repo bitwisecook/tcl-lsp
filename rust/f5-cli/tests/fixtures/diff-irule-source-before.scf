@@ -1,0 +1,18 @@
+ltm rule /Common/hash {
+    when HTTP_REQUEST { set tag {tag#old} }
+}
+ltm rule /Common/space {
+    when HTTP_REQUEST { set tag {a  b} }
+}
+ltm rule /Common/boundary {
+    when HTTP_REQUEST { set x one; set y two }
+}
+ltm rule /Common/trivia {
+    when HTTP_REQUEST {
+        # an ordinary script comment
+        set tag unchanged
+    }
+}
+ltm rule /Common/incomplete {
+    when HTTP_REQUEST { set tag [ }
+}

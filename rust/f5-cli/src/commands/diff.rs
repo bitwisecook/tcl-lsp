@@ -87,9 +87,36 @@ fn table_to_kind(table: &str) -> Option<&'static str> {
     }
 }
 
-/// `kind -> {full_path: canonical-fields}`.
-fn kind_inventories(cfg: &BigipConfig) -> BTreeMap<String, BTreeMap<String, Value>> {
-    let mut inv: BTreeMap<String, BTreeMap<String, Value>> = BTreeMap::new();
+struct DiffObject {
+    fields: Value,
+    /// The outer SCF parser observed the iRule's closing delimiter.
+    rule_closed: Option<bool>,
+}
+
+type Inventories = BTreeMap<String, BTreeMap<String, DiffObject>>;
+
+/// `kind -> {full_path: canonical-fields}`. The generic parser retains the
+/// original rule body, including trailing whitespace removed from its model
+/// display string. Match its original opening offset to the SCF shell span.
+fn kind_inventories(cfg: &BigipConfig, source: &str) -> Inventories {
+    let mut inv = Inventories::new();
+    let shells: BTreeMap<_, _> = tcl_bigip::parser::block_spans(source)
+        .map(|span| (span.header.end, span.closed))
+        .collect();
+    let rule_bodies: BTreeMap<_, _> = cfg
+        .generic_objects
+        .iter()
+        .filter_map(|(_, object)| {
+            if object.module != "ltm" || object.object_type != "rule" {
+                return None;
+            }
+            let open = object.range?.start.offset as usize;
+            Some((
+                object.identifier.as_str(),
+                (&object.body, *shells.get(&open)?),
+            ))
+        })
+        .collect();
     // All typed kinds are always present (possibly empty).
     for kind in [
         "virtual",
@@ -108,9 +135,24 @@ fn kind_inventories(cfg: &BigipConfig) -> BTreeMap<String, BTreeMap<String, Valu
 
     for placed in &cfg.objects {
         if let Some(kind) = table_to_kind(placed.table_name) {
-            inv.get_mut(kind)
-                .unwrap()
-                .insert(placed.full_path.clone(), placed.object.canon_fields());
+            let mut fields = placed.object.canon_fields();
+            let rule_closed = if kind == "rule" {
+                rule_bodies
+                    .get(placed.full_path.as_str())
+                    .map(|(body, closed)| {
+                        fields["source"] = Value::String((*body).clone());
+                        *closed
+                    })
+            } else {
+                None
+            };
+            inv.get_mut(kind).unwrap().insert(
+                placed.full_path.clone(),
+                DiffObject {
+                    fields,
+                    rule_closed,
+                },
+            );
         }
     }
 
@@ -120,7 +162,13 @@ fn kind_inventories(cfg: &BigipConfig) -> BTreeMap<String, BTreeMap<String, Valu
         if specialised.contains(&(obj.module.as_str(), obj.object_type.as_str())) {
             continue;
         }
-        generic.insert(obj.identifier.clone(), obj.canon_fields());
+        generic.insert(
+            obj.identifier.clone(),
+            DiffObject {
+                fields: obj.canon_fields(),
+                rule_closed: None,
+            },
+        );
     }
     inv
 }
@@ -164,11 +212,8 @@ pub fn run_diff(
     json: bool,
     output: Option<&Path>,
 ) -> anyhow::Result<u8> {
-    let before = read_config(before_path)?;
-    let after = read_config(after_path)?;
-
-    let a_inv = kind_inventories(&before);
-    let b_inv = kind_inventories(&after);
+    let a_inv = read_config(before_path)?;
+    let b_inv = read_config(after_path)?;
 
     let mut added: Vec<ObjectChange> = Vec::new();
     let mut removed: Vec<ObjectChange> = Vec::new();
@@ -248,7 +293,7 @@ pub fn run_diff(
     Ok(u8::from(has_changes))
 }
 
-fn read_config(path: &Path) -> anyhow::Result<BigipConfig> {
+fn read_config(path: &Path) -> anyhow::Result<Inventories> {
     // Read via the UCS-aware resolver so a `.ucs` — plain or encrypted — is
     // transparently extracted to SCF, exactly like a `.conf`/`.scf`.
     let opts = crate::cli::PassphraseArgs::default().to_options();
@@ -256,25 +301,39 @@ fn read_config(path: &Path) -> anyhow::Result<BigipConfig> {
         tcl_bigip_io::read_path(path, false, &opts).map_err(|e| anyhow::anyhow!("{e}"))?;
     // Accept tmsh-script input as well as SCF so `tmsh create/modify` headers
     // compare against the same objects, not `tmsh`-module generics.
-    Ok(parse_bigip_conf(
-        &crate::commands::scf::to_scf(&source),
-        "Common",
-    ))
+    let scf = crate::commands::scf::to_scf(&source);
+    Ok(kind_inventories(&parse_bigip_conf(&scf, "Common"), &scf))
 }
 
 /// Compare the interesting fields of two objects.
-fn diff_object(before: &Value, after: &Value) -> Vec<FieldChange> {
+fn diff_object(before: &DiffObject, after: &DiffObject) -> Vec<FieldChange> {
     let mut changes = Vec::new();
     for &field in INTERESTING_FIELDS {
-        let b = field_value(before, field);
-        let a = field_value(after, field);
+        let b = field_value(&before.fields, field);
+        let a = field_value(&after.fields, field);
         if b != a {
+            if field == "source"
+                && before.rule_closed == Some(true)
+                && after.rule_closed == Some(true)
+                && tcl_irules::same_rule_source_for_diff(&b, &a)
+            {
+                continue;
+            }
             changes.push(FieldChange {
                 field,
                 before: b,
                 after: a,
             });
         }
+    }
+    if let (Some(a), Some(b)) = (before.rule_closed, after.rule_closed)
+        && a != b
+    {
+        changes.push(FieldChange {
+            field: "stanza_closed",
+            before: a.to_string(),
+            after: b.to_string(),
+        });
     }
     changes
 }
@@ -286,9 +345,6 @@ fn field_value(obj: &Value, field: &str) -> String {
     };
     if val.is_null() {
         return String::new();
-    }
-    if field == "source" {
-        return normalise_irule_source(val.as_str().unwrap_or(""));
     }
     if let Some(arr) = val.as_array() {
         let mut items: Vec<String> = arr.iter().map(py_str).collect();
@@ -309,19 +365,6 @@ fn py_str(val: &Value) -> String {
         Value::Number(n) => n.to_string(),
         other => other.to_string(),
     }
-}
-
-/// Strip comments and collapse whitespace.
-fn normalise_irule_source(source: &str) -> String {
-    let mut no_comments = String::with_capacity(source.len());
-    for line in source.split_inclusive('\n') {
-        let body = line.find('#').map_or(line, |idx| &line[..idx]);
-        no_comments.push_str(body);
-        if body.len() < line.len() && line.ends_with('\n') {
-            no_comments.push('\n');
-        }
-    }
-    no_comments.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 /// Text report.
