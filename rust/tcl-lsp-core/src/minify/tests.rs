@@ -1026,7 +1026,10 @@ fn expr_string_and_membership_inversion_still_applies() {
 
 #[test]
 fn expr_redundant_parentheses_are_dropped() {
-    check("if {($a * $b) + (($c))} {puts x}\n", "if {$a*$b+$c} {puts x}");
+    check(
+        "if {($a * $b) + (($c))} {puts x}\n",
+        "if {$a*$b+$c} {puts x}",
+    );
     check("if {$a - ($b - $c)} {puts x}\n", "if {$a-($b-$c)} {puts x}");
 }
 

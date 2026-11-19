@@ -67,6 +67,7 @@
 | W151 | warning | Numeral changes meaning or validity across the project's declared version-target range — e.g. a leading-zero literal is octal under Tcl 8.x targets and decimal under 9.0. | ✓ |
 | W152 | warning | A registry-declared option relation is unmet — an option or argument the call supplied requires a companion option or argument it did not (`-command` without `-channel`), or the invocation supplies none of a required set. | ✓ |
 | W153 | warning | A valid `# tcl-lsp:` stub directive is outside a `stubs-begin` / `stubs-end` block and has no effect. | ✓ |
+| W154 | warning | Operator precedence groups an unparenthesised expression differently from how it reads — a comparison under `&`/`|`/`^` (`$x & 0xff == 1` is `$x & (0xff == 1)`), `+`/`-` under a shift, or `!` applied before a comparison. | ✓ |
 | W200 | warning | Unsigned (`u`) suffix on a `binary format`/`binary scan` field requires a newer Tcl release. | ✓ |
 | W201 | warning | Manual path concatenation — use `file join` instead. | ✓ |
 | W202 | warning | `binary format`/`binary scan` field letter requires a newer Tcl release — `t`, `n`, `m`, `r`, `R`, `q` and `Q` arrive in Tcl 8.5. | ✓ |
@@ -149,6 +150,7 @@
 | IRULE5005 | irules | Direct proc invocation without `call` — use `call proc_name`. | ✓ |
 | IRULE5006 | irules | Top-level-only command used inside a nested body. | ✓ |
 | IRULE5007 | irules | Executable command used on iRules' declaration-only top level. | ✓ |
+| IRULE5008 | irules | Value read as a signed integer by `binary scan` or `scan` compared with a constant outside the signed range — the comparison can never hold; mask it to unsigned (`$v & 0xff`) or compare with the signed value. | ✓ |
 | IRULE6001 | irules | `global`/`::`-qualified variable forces CMP compatibility mode, pinning the virtual server to one TMM — use `static::`. | ✓ |
 | IRULE3001 | irules_security | Tainted data in HTTP response body. | ✓ |
 | IRULE3002 | irules_security | Tainted data in HTTP header or cookie value. | ✓ |

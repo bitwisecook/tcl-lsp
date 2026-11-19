@@ -105,7 +105,10 @@ mod tests {
             "if {($c & (0xff == 0x81)) || $d} {puts x}"
         );
         let trimmed = remove_redundant_parens(source, 6, &a).unwrap();
-        assert_eq!(trimmed.apply(source), "if {$c & 0xff == 0x81 || $d} {puts x}");
+        assert_eq!(
+            trimmed.apply(source),
+            "if {$c & 0xff == 0x81 || $d} {puts x}"
+        );
     }
 
     #[test]

@@ -52,8 +52,8 @@
 
 mod brace_expr;
 mod datagroup;
-mod expression_parens;
 pub mod equality_source;
+mod expression_parens;
 mod extract_proc;
 mod extract_variable;
 mod if_to_switch;
@@ -64,7 +64,6 @@ mod source_rewrite;
 mod switch_to_dict;
 
 pub use brace_expr::brace_expr;
-pub use expression_parens::{parenthesise_expression, remove_redundant_parens};
 pub use datagroup::{
     DataGroupDefinition, OriginalExactCaseSource, OriginalExactSwitchSource,
     OriginalScalarVariableSubject, ScalarVariableSourceSyntax, data_group_tcl,
@@ -72,6 +71,7 @@ pub use datagroup::{
     extract_to_datagroup_with_analysis, original_exact_case_source_at_analysis,
     original_exact_switch_source_at_analysis, scalar_variable_source_syntax,
 };
+pub use expression_parens::{parenthesise_expression, remove_redundant_parens};
 pub use extract_proc::{extract_proc, extract_proc_rename_command_for_analysis};
 pub use extract_variable::extract_variable;
 pub use if_to_switch::if_to_switch;

@@ -375,6 +375,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W154",
+    section: "warning",
+    description:
+      "Operator precedence groups an unparenthesised expression differently from how it reads — a comparison under `&`/`|`/`^` (`$x & 0xff == 1` is `$x & (0xff == 1)`), `+`/`-` under a shift, or `!` applied before a comparison.",
+    defaultEnabled: true,
+  },
+  {
     code: "W200",
     section: "warning",
     description:
@@ -836,6 +843,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     code: "IRULE5007",
     section: "irules",
     description: "Executable command used on iRules' declaration-only top level.",
+    defaultEnabled: true,
+  },
+  {
+    code: "IRULE5008",
+    section: "irules",
+    description:
+      "Value read as a signed integer by `binary scan` or `scan` compared with a constant outside the signed range — the comparison can never hold; mask it to unsigned (`$v & 0xff`) or compare with the signed value.",
     defaultEnabled: true,
   },
   {

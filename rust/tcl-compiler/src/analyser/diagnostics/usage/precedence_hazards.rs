@@ -26,16 +26,19 @@ use tcl_core_types::DiagCode;
 impl Analyser {
     /// W154 on one braced expression operand. Only a braced word reaches the
     /// evaluator as written, so only its source grouping is the parse.
-    pub(in crate::analyser) fn emit_w154_precedence_hazards(&mut self, word: &tcl_lexer::NativeWord) {
+    pub(in crate::analyser) fn emit_w154_precedence_hazards(
+        &mut self,
+        word: &tcl_lexer::NativeWord,
+    ) {
         if word.group().kind != tcl_lexer::WordKind::Braced
             || word.image().bytes() != self.source.as_bytes()
         {
             return;
         }
-        let Ok(content) = word.content_span() else {
+        let Ok(body) = word.content_span() else {
             return;
         };
-        let Some(text) = self.source.get(content.as_range()) else {
+        let Some(text) = self.source.get(body.as_range()) else {
             return;
         };
         let Some(context) = self.original_expression_parser_context() else {
@@ -48,7 +51,7 @@ impl Analyser {
         };
         for hazard in expression.precedence_hazards() {
             let shift = |span: tcl_lexer::Span| {
-                tcl_lexer::Span::new(span.start() + content.start(), span.end() + content.start())
+                tcl_lexer::Span::new(span.start() + body.start(), span.end() + body.start())
             };
             let extent = shift(hazard.extent);
             let fixes = vec![

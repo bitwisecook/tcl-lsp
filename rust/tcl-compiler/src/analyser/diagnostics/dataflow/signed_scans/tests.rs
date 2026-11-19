@@ -37,7 +37,11 @@ fn byte_compared_with_unsigned_constant_is_reported_on_the_variable() {
         panic!("{found:?}");
     };
     assert_eq!(&source[diagnostic.span.as_range()], "$type");
-    assert!(diagnostic.message.contains("-128..127"), "{}", diagnostic.message);
+    assert!(
+        diagnostic.message.contains("-128..127"),
+        "{}",
+        diagnostic.message
+    );
     assert!(diagnostic.message.contains("($type & 0xff) == 0x81"));
     assert!(diagnostic.message.contains("-127"));
 }

@@ -126,7 +126,11 @@ impl<'a> Geometry<'a> {
         if !stack.is_empty() {
             return None;
         }
-        let by_start = tokens.iter().enumerate().map(|(i, t)| (t.start, i)).collect();
+        let by_start = tokens
+            .iter()
+            .enumerate()
+            .map(|(i, t)| (t.start, i))
+            .collect();
         let by_end = tokens.iter().enumerate().map(|(i, t)| (t.end, i)).collect();
         let mut geometry = Self {
             source: expression.source(),
@@ -143,7 +147,9 @@ impl<'a> Geometry<'a> {
             .tokens
             .iter()
             .enumerate()
-            .filter(|(i, t)| t.kind == ExprTokenType::ParenOpen && !geometry.call_parens.contains(i))
+            .filter(|(i, t)| {
+                t.kind == ExprTokenType::ParenOpen && !geometry.call_parens.contains(i)
+            })
             .count();
         (grouping == geometry.parens.len()).then_some(geometry)
     }
@@ -296,11 +302,19 @@ impl OriginalSourceExpression {
         }
         offsets.sort_unstable();
         let bytes = self.source().as_bytes();
-        let removed = |i: usize| offsets.binary_search(&u32::try_from(i).unwrap_or(u32::MAX)).is_ok();
+        let removed = |i: usize| {
+            offsets
+                .binary_search(&u32::try_from(i).unwrap_or(u32::MAX))
+                .is_ok()
+        };
         let neighbour = |from: usize, forward: bool| {
             let mut i = from;
             loop {
-                i = if forward { i.checked_add(1)? } else { i.checked_sub(1)? };
+                i = if forward {
+                    i.checked_add(1)?
+                } else {
+                    i.checked_sub(1)?
+                };
                 let byte = *bytes.get(i)?;
                 if !byte.is_ascii_whitespace() && !removed(i) {
                     return Some(byte);
@@ -338,7 +352,8 @@ impl OriginalSourceExpression {
         for (offset, replacement) in edits {
             out.push_str(self.source().get(at..offset as usize)?);
             let spaced = out.ends_with(|c: char| c.is_ascii_whitespace())
-                || self.source()[offset as usize + 1..].starts_with(|c: char| c.is_ascii_whitespace());
+                || self.source()[offset as usize + 1..]
+                    .starts_with(|c: char| c.is_ascii_whitespace());
             if !spaced {
                 out.push_str(replacement);
             }
@@ -411,7 +426,8 @@ impl OriginalSourceExpression {
 /// Bytes that would fuse with a neighbour if the parenthesis between them
 /// were deleted outright.
 fn joins(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'$' | b'.' | b'"' | b'{' | b'}' | b'[' | b']')
+    byte.is_ascii_alphanumeric()
+        || matches!(byte, b'_' | b'$' | b'.' | b'"' | b'{' | b'}' | b'[' | b']')
 }
 
 const fn is_comparison(op: BinOp) -> bool {
@@ -502,14 +518,14 @@ fn hazard_at(geometry: &Geometry<'_>, node: &ExprNode) -> Option<PrecedenceHazar
         )
     };
     if is_comparison(*op)
-        && let ExprNode::Unary {
-            op: not,
-            operand,
-        } = left.as_ref()
+        && let ExprNode::Unary { op: not, operand } = left.as_ref()
         && is_not(left)
         && !is_not(right)
         && !geometry.extent(left)?.wrapped
-        && !matches!(operand.as_ref(), ExprNode::Binary { .. } | ExprNode::Ternary { .. })
+        && !matches!(
+            operand.as_ref(),
+            ExprNode::Binary { .. } | ExprNode::Ternary { .. }
+        )
     {
         let (a, c) = (text(operand)?, text(right)?);
         let space = if *not == UnaryOp::WordNot { " " } else { "" };
@@ -532,13 +548,11 @@ fn render_grouped(geometry: &Geometry<'_>, node: &ExprNode, depth: u32) -> Optio
     let child = |slot: ChildSlot, n: &ExprNode| -> Option<String> {
         let text = render_grouped(geometry, n, depth + 1)?;
         let composite = matches!(n, ExprNode::Binary { .. } | ExprNode::Ternary { .. });
-        Some(
-            if composite && !matches!(slot, ChildSlot::CallArgument) {
-                format!("({text})")
-            } else {
-                text
-            },
-        )
+        Some(if composite && !matches!(slot, ChildSlot::CallArgument) {
+            format!("({text})")
+        } else {
+            text
+        })
     };
     Some(match node {
         ExprNode::Binary { op, left, right } => format!(
@@ -591,16 +605,20 @@ fn owns_token(geometry: &Geometry<'_>, node: &ExprNode, focus: usize) -> bool {
             geometry.extent(left).is_some_and(|l| l.end + 1 == focus)
                 && geometry.extent(right).is_some_and(|r| r.start == focus + 1)
         }
-        ExprNode::Unary { operand, .. } => {
-            geometry.extent(operand).is_some_and(|o| o.start == focus + 1)
-        }
+        ExprNode::Unary { operand, .. } => geometry
+            .extent(operand)
+            .is_some_and(|o| o.start == focus + 1),
         ExprNode::Ternary {
             true_branch,
             false_branch,
             ..
         } => {
-            geometry.extent(true_branch).is_some_and(|t| t.start == focus + 1)
-                || geometry.extent(false_branch).is_some_and(|f| f.start == focus + 1)
+            geometry
+                .extent(true_branch)
+                .is_some_and(|t| t.start == focus + 1)
+                || geometry
+                    .extent(false_branch)
+                    .is_some_and(|f| f.start == focus + 1)
         }
         _ => false,
     };

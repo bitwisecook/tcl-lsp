@@ -28,7 +28,8 @@ pub(super) fn expression_precedence_hover(
     analysis: &AnalysisResult,
     cursor_offset: u32,
 ) -> Option<Hover> {
-    let operand = crate::expr_context::source_expression_operand_at(source, analysis, cursor_offset)?;
+    let operand =
+        crate::expr_context::source_expression_operand_at(source, analysis, cursor_offset)?;
     let content = operand.content_span()?;
     let local = cursor_offset.checked_sub(content.start())?;
     let expression = operand.original_expression(source, analysis)?;
@@ -58,12 +59,16 @@ mod tests {
     fn operator_hover_draws_the_parse_tree() {
         let text = hover_at("if {$c & 0xff == 0x81} {puts x}", "tcl8.6", "&").unwrap();
         assert!(text.contains("$c & (0xff == 0x81)"), "{text}");
-        assert!(text.contains("&  (precedence 5)  ◀\n├─ $c\n└─ ==  (precedence 6)"), "{text}");
+        assert!(
+            text.contains("&  (precedence 5)  ◀\n├─ $c\n└─ ==  (precedence 6)"),
+            "{text}"
+        );
     }
 
     #[test]
     fn irules_word_operator_hover() {
-        let source = "when HTTP_REQUEST { if {[HTTP::uri] starts_with \"/a\" and $x} { log local0. y } }";
+        let source =
+            "when HTTP_REQUEST { if {[HTTP::uri] starts_with \"/a\" and $x} { log local0. y } }";
         let text = hover_at(source, "f5-irules", "and").unwrap();
         assert!(text.contains("and  (precedence 2)  ◀"), "{text}");
         assert!(text.contains("starts_with  (precedence 6)"), "{text}");

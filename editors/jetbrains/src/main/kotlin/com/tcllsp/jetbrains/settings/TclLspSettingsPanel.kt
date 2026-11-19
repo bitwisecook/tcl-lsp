@@ -266,6 +266,7 @@ class TclLspSettingsPanel {
     private val diagW151 = JBCheckBox("W151: Numeral changes meaning or validity across the proje...")
     private val diagW152 = JBCheckBox("W152: A registry-declared option relation is unmet")
     private val diagW153 = JBCheckBox("W153: A valid # tcl-lsp: stub directive is outside a stubs...")
+    private val diagW154 = JBCheckBox("W154: Operator precedence groups an unparenthesised expres...")
     private val diagW200 = JBCheckBox("W200: Unsigned (u) suffix on a binary format/binary scan f...")
     private val diagW201 = JBCheckBox("W201: Manual path concatenation")
     private val diagW202 = JBCheckBox("W202: binary format/binary scan field letter requires a ne...")
@@ -351,6 +352,7 @@ class TclLspSettingsPanel {
     private val diagIRULE5005 = JBCheckBox("IRULE5005: Direct proc invocation without call")
     private val diagIRULE5006 = JBCheckBox("IRULE5006: Top-level-only command used inside a nested body")
     private val diagIRULE5007 = JBCheckBox("IRULE5007: Executable command used on iRules' declaration-only ...")
+    private val diagIRULE5008 = JBCheckBox("IRULE5008: Value read as a signed integer by binary scan or sca...")
     private val diagIRULE3001 = JBCheckBox("IRULE3001: Tainted data in HTTP response body")
     private val diagIRULE3002 = JBCheckBox("IRULE3002: Tainted data in HTTP header or cookie value")
     private val diagIRULE3003 = JBCheckBox("IRULE3003: Tainted data in log command")
@@ -590,9 +592,10 @@ class TclLspSettingsPanel {
                     diagW126, diagW127, diagW128, diagW129, diagW135, diagW136,
                     diagW137, diagW138, diagW139, diagW140, diagW141, diagW142,
                     diagW143, diagW144, diagW145, diagW146, diagW147, diagW148,
-                    diagW149, diagW150, diagW151, diagW152, diagW153, diagW200,
-                    diagW201, diagW202, diagW230, diagW231, diagW232, diagW233,
-                    diagW240, diagW241, diagW250, diagW308, diagW314, diagW315,
+                    diagW149, diagW150, diagW151, diagW152, diagW153, diagW154,
+                    diagW200, diagW201, diagW202, diagW230, diagW231, diagW232,
+                    diagW233, diagW240, diagW241, diagW250, diagW308, diagW314,
+                    diagW315,
                 ),
             ),
         )
@@ -652,9 +655,9 @@ class TclLspSettingsPanel {
                     diagIRULE1001, diagIRULE1002, diagIRULE1003, diagIRULE1004, diagIRULE1005, diagIRULE1006,
                     diagIRULE1007, diagIRULE1008, diagIRULE1201, diagIRULE1202, diagIRULE2001, diagIRULE2002,
                     diagIRULE2003, diagIRULE2004, diagIRULE2101, diagIRULE5001, diagIRULE5002, diagIRULE5004,
-                    diagIRULE5005, diagIRULE5006, diagIRULE5007, diagIRULE3001, diagIRULE3002, diagIRULE3003,
-                    diagIRULE3004, diagIRULE3101, diagIRULE3102, diagIRULE4001, diagIRULE4002, diagIRULE4003,
-                    diagIRULE4004, diagIRULE4005,
+                    diagIRULE5005, diagIRULE5006, diagIRULE5007, diagIRULE5008, diagIRULE3001, diagIRULE3002,
+                    diagIRULE3003, diagIRULE3004, diagIRULE3101, diagIRULE3102, diagIRULE4001, diagIRULE4002,
+                    diagIRULE4003, diagIRULE4004, diagIRULE4005,
                 ),
             ),
         )
@@ -876,6 +879,7 @@ class TclLspSettingsPanel {
             diagW151.isSelected != s.diagnosticW151 ||
             diagW152.isSelected != s.diagnosticW152 ||
             diagW153.isSelected != s.diagnosticW153 ||
+            diagW154.isSelected != s.diagnosticW154 ||
             diagW200.isSelected != s.diagnosticW200 ||
             diagW201.isSelected != s.diagnosticW201 ||
             diagW202.isSelected != s.diagnosticW202 ||
@@ -949,6 +953,7 @@ class TclLspSettingsPanel {
             diagIRULE5005.isSelected != s.diagnosticIRULE5005 ||
             diagIRULE5006.isSelected != s.diagnosticIRULE5006 ||
             diagIRULE5007.isSelected != s.diagnosticIRULE5007 ||
+            diagIRULE5008.isSelected != s.diagnosticIRULE5008 ||
             diagIRULE3001.isSelected != s.diagnosticIRULE3001 ||
             diagIRULE3002.isSelected != s.diagnosticIRULE3002 ||
             diagIRULE3003.isSelected != s.diagnosticIRULE3003 ||
@@ -1186,6 +1191,7 @@ class TclLspSettingsPanel {
         s.diagnosticW151 = diagW151.isSelected
         s.diagnosticW152 = diagW152.isSelected
         s.diagnosticW153 = diagW153.isSelected
+        s.diagnosticW154 = diagW154.isSelected
         s.diagnosticW200 = diagW200.isSelected
         s.diagnosticW201 = diagW201.isSelected
         s.diagnosticW202 = diagW202.isSelected
@@ -1259,6 +1265,7 @@ class TclLspSettingsPanel {
         s.diagnosticIRULE5005 = diagIRULE5005.isSelected
         s.diagnosticIRULE5006 = diagIRULE5006.isSelected
         s.diagnosticIRULE5007 = diagIRULE5007.isSelected
+        s.diagnosticIRULE5008 = diagIRULE5008.isSelected
         s.diagnosticIRULE3001 = diagIRULE3001.isSelected
         s.diagnosticIRULE3002 = diagIRULE3002.isSelected
         s.diagnosticIRULE3003 = diagIRULE3003.isSelected
@@ -1543,6 +1550,7 @@ class TclLspSettingsPanel {
         diagW151.isSelected = s.diagnosticW151
         diagW152.isSelected = s.diagnosticW152
         diagW153.isSelected = s.diagnosticW153
+        diagW154.isSelected = s.diagnosticW154
         diagW200.isSelected = s.diagnosticW200
         diagW201.isSelected = s.diagnosticW201
         diagW202.isSelected = s.diagnosticW202
@@ -1616,6 +1624,7 @@ class TclLspSettingsPanel {
         diagIRULE5005.isSelected = s.diagnosticIRULE5005
         diagIRULE5006.isSelected = s.diagnosticIRULE5006
         diagIRULE5007.isSelected = s.diagnosticIRULE5007
+        diagIRULE5008.isSelected = s.diagnosticIRULE5008
         diagIRULE3001.isSelected = s.diagnosticIRULE3001
         diagIRULE3002.isSelected = s.diagnosticIRULE3002
         diagIRULE3003.isSelected = s.diagnosticIRULE3003

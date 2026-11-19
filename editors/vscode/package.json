@@ -6013,12 +6013,40 @@
             "markdownDescription": "Display severity for **W153:** A valid `# tcl-lsp:` stub directive is outside a `stubs-begin` / `stubs-end` block and has no effect.",
             "order": 46
           },
+          "tclLsp.diagnostics.W154": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**W154:** Operator precedence groups an unparenthesised expression differently from how it reads — a comparison under `&`/`|`/`^` (`$x & 0xff == 1` is `$x & (0xff == 1)`), `+`/`-` under a shift, or `!` applied before a comparison.",
+            "order": 47
+          },
+          "tclLsp.diagnosticSeverity.W154": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **W154:** Operator precedence groups an unparenthesised expression differently from how it reads — a comparison under `&`/`|`/`^` (`$x & 0xff == 1` is `$x & (0xff == 1)`), `+`/`-` under a shift, or `!` applied before a comparison.",
+            "order": 47
+          },
           "tclLsp.diagnostics.W200": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W200:** Unsigned (`u`) suffix on a `binary format`/`binary scan` field requires a newer Tcl release.",
-            "order": 47
+            "order": 48
           },
           "tclLsp.diagnosticSeverity.W200": {
             "scope": "resource",
@@ -6039,14 +6067,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W200:** Unsigned (`u`) suffix on a `binary format`/`binary scan` field requires a newer Tcl release.",
-            "order": 47
+            "order": 48
           },
           "tclLsp.diagnostics.W201": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W201:** Manual path concatenation — use `file join` instead.",
-            "order": 48
+            "order": 49
           },
           "tclLsp.diagnosticSeverity.W201": {
             "scope": "resource",
@@ -6067,14 +6095,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W201:** Manual path concatenation — use `file join` instead.",
-            "order": 48
+            "order": 49
           },
           "tclLsp.diagnostics.W202": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W202:** `binary format`/`binary scan` field letter requires a newer Tcl release — `t`, `n`, `m`, `r`, `R`, `q` and `Q` arrive in Tcl 8.5.",
-            "order": 49
+            "order": 50
           },
           "tclLsp.diagnosticSeverity.W202": {
             "scope": "resource",
@@ -6095,14 +6123,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W202:** `binary format`/`binary scan` field letter requires a newer Tcl release — `t`, `n`, `m`, `r`, `R`, `q` and `Q` arrive in Tcl 8.5.",
-            "order": 49
+            "order": 50
           },
           "tclLsp.diagnostics.W230": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W230:** Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp.",
-            "order": 50
+            "order": 51
           },
           "tclLsp.diagnosticSeverity.W230": {
             "scope": "resource",
@@ -6123,14 +6151,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W230:** Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp.",
-            "order": 50
+            "order": 51
           },
           "tclLsp.diagnostics.W231": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W231:** Constant list index out of range — lset raises a runtime error.",
-            "order": 51
+            "order": 52
           },
           "tclLsp.diagnosticSeverity.W231": {
             "scope": "resource",
@@ -6151,14 +6179,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W231:** Constant list index out of range — lset raises a runtime error.",
-            "order": 51
+            "order": 52
           },
           "tclLsp.diagnostics.W232": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W232:** Constant string index out of range — string index/range/replace/insert silently return empty or no-op.",
-            "order": 52
+            "order": 53
           },
           "tclLsp.diagnosticSeverity.W232": {
             "scope": "resource",
@@ -6179,14 +6207,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W232:** Constant string index out of range — string index/range/replace/insert silently return empty or no-op.",
-            "order": 52
+            "order": 53
           },
           "tclLsp.diagnostics.W233": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W233:** Division or modulo by a provably-zero divisor — raises 'divide by zero' at runtime.",
-            "order": 53
+            "order": 54
           },
           "tclLsp.diagnosticSeverity.W233": {
             "scope": "resource",
@@ -6207,14 +6235,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W233:** Division or modulo by a provably-zero divisor — raises 'divide by zero' at runtime.",
-            "order": 53
+            "order": 54
           },
           "tclLsp.diagnostics.W240": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W240:** Loop condition is a constant false — body never executes.",
-            "order": 54
+            "order": 55
           },
           "tclLsp.diagnosticSeverity.W240": {
             "scope": "resource",
@@ -6235,14 +6263,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W240:** Loop condition is a constant false — body never executes.",
-            "order": 54
+            "order": 55
           },
           "tclLsp.diagnostics.W241": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W241:** Loop is provably infinite — constant-true condition with no break/return, zero/wrong-direction counter step.",
-            "order": 55
+            "order": 56
           },
           "tclLsp.diagnosticSeverity.W241": {
             "scope": "resource",
@@ -6263,14 +6291,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W241:** Loop is provably infinite — constant-true condition with no break/return, zero/wrong-direction counter step.",
-            "order": 55
+            "order": 56
           },
           "tclLsp.diagnostics.W250": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W250:** Instantiating an `oo::abstract` class — abstract classes cannot be created directly; use a concrete subclass.",
-            "order": 56
+            "order": 57
           },
           "tclLsp.diagnosticSeverity.W250": {
             "scope": "resource",
@@ -6291,14 +6319,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W250:** Instantiating an `oo::abstract` class — abstract classes cannot be created directly; use a concrete subclass.",
-            "order": 56
+            "order": 57
           },
           "tclLsp.diagnostics.W308": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W308:** Unknown TclOO method — the method is not defined on the receiver's statically-known class or any of its superclasses.",
-            "order": 57
+            "order": 58
           },
           "tclLsp.diagnosticSeverity.W308": {
             "scope": "resource",
@@ -6319,14 +6347,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W308:** Unknown TclOO method — the method is not defined on the receiver's statically-known class or any of its superclasses.",
-            "order": 57
+            "order": 58
           },
           "tclLsp.diagnostics.W314": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W314:** Definition has no absolute (fully-qualified) name — an all-colon name or namespace segment (e.g. a proc or namespace named `:`) is reachable only by relative lookup.",
-            "order": 58
+            "order": 59
           },
           "tclLsp.diagnosticSeverity.W314": {
             "scope": "resource",
@@ -6347,14 +6375,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W314:** Definition has no absolute (fully-qualified) name — an all-colon name or namespace segment (e.g. a proc or namespace named `:`) is reachable only by relative lookup.",
-            "order": 58
+            "order": 59
           },
           "tclLsp.diagnostics.W315": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W315:** Class or object definition cannot run — a `deletemethod`/`renamemethod` names a member that does not exist on the side it is scoped to (for `oo::objdefine`, on the object's own table), or renames onto a name already taken, which aborts the whole definition.",
-            "order": 59
+            "order": 60
           },
           "tclLsp.diagnosticSeverity.W315": {
             "scope": "resource",
@@ -6375,7 +6403,7 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W315:** Class or object definition cannot run — a `deletemethod`/`renamemethod` names a member that does not exist on the side it is scoped to (for `oo::objdefine`, on the object's own table), or renames onto a name already taken, which aborts the whole definition.",
-            "order": 59
+            "order": 60
           }
         }
       },
@@ -8100,12 +8128,40 @@
             "markdownDescription": "Display severity for **IRULE5007:** Executable command used on iRules' declaration-only top level.",
             "order": 20
           },
+          "tclLsp.diagnostics.IRULE5008": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE5008:** Value read as a signed integer by `binary scan` or `scan` compared with a constant outside the signed range — the comparison can never hold; mask it to unsigned (`$v & 0xff`) or compare with the signed value.",
+            "order": 21
+          },
+          "tclLsp.diagnosticSeverity.IRULE5008": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **IRULE5008:** Value read as a signed integer by `binary scan` or `scan` compared with a constant outside the signed range — the comparison can never hold; mask it to unsigned (`$v & 0xff`) or compare with the signed value.",
+            "order": 21
+          },
           "tclLsp.diagnostics.IRULE3001": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE3001:** Tainted data in HTTP response body.",
-            "order": 21
+            "order": 22
           },
           "tclLsp.diagnosticSeverity.IRULE3001": {
             "scope": "resource",
@@ -8126,14 +8182,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE3001:** Tainted data in HTTP response body.",
-            "order": 21
+            "order": 22
           },
           "tclLsp.diagnostics.IRULE3002": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE3002:** Tainted data in HTTP header or cookie value.",
-            "order": 22
+            "order": 23
           },
           "tclLsp.diagnosticSeverity.IRULE3002": {
             "scope": "resource",
@@ -8154,14 +8210,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE3002:** Tainted data in HTTP header or cookie value.",
-            "order": 22
+            "order": 23
           },
           "tclLsp.diagnostics.IRULE3003": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE3003:** Tainted data in `log` command — log injection risk.",
-            "order": 23
+            "order": 24
           },
           "tclLsp.diagnosticSeverity.IRULE3003": {
             "scope": "resource",
@@ -8182,14 +8238,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE3003:** Tainted data in `log` command — log injection risk.",
-            "order": 23
+            "order": 24
           },
           "tclLsp.diagnostics.IRULE3004": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE3004:** Tainted data in an `HTTP::redirect` URL — open-redirect risk.",
-            "order": 24
+            "order": 25
           },
           "tclLsp.diagnosticSeverity.IRULE3004": {
             "scope": "resource",
@@ -8210,14 +8266,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE3004:** Tainted data in an `HTTP::redirect` URL — open-redirect risk.",
-            "order": 24
+            "order": 25
           },
           "tclLsp.diagnostics.IRULE3101": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE3101:** `HTTP::uri`/`HTTP::path` set to value not provably starting with `/`.",
-            "order": 25
+            "order": 26
           },
           "tclLsp.diagnosticSeverity.IRULE3101": {
             "scope": "resource",
@@ -8238,14 +8294,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE3101:** `HTTP::uri`/`HTTP::path` set to value not provably starting with `/`.",
-            "order": 25
+            "order": 26
           },
           "tclLsp.diagnostics.IRULE3102": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE3102:** `HTTP::path`/`HTTP::uri`/`HTTP::query` getter used without `-normalized`.",
-            "order": 26
+            "order": 27
           },
           "tclLsp.diagnosticSeverity.IRULE3102": {
             "scope": "resource",
@@ -8266,14 +8322,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE3102:** `HTTP::path`/`HTTP::uri`/`HTTP::query` getter used without `-normalized`.",
-            "order": 26
+            "order": 27
           },
           "tclLsp.diagnostics.IRULE4001": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE4001:** Write to `static::` variable outside `RULE_INIT`.",
-            "order": 27
+            "order": 28
           },
           "tclLsp.diagnosticSeverity.IRULE4001": {
             "scope": "resource",
@@ -8294,14 +8350,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE4001:** Write to `static::` variable outside `RULE_INIT`.",
-            "order": 27
+            "order": 28
           },
           "tclLsp.diagnostics.IRULE4002": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE4002:** Generic `static::` variable name — collision likely across iRules.",
-            "order": 28
+            "order": 29
           },
           "tclLsp.diagnosticSeverity.IRULE4002": {
             "scope": "resource",
@@ -8322,14 +8378,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE4002:** Generic `static::` variable name — collision likely across iRules.",
-            "order": 28
+            "order": 29
           },
           "tclLsp.diagnostics.IRULE4003": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE4003:** Variable scoping concern across events.",
-            "order": 29
+            "order": 30
           },
           "tclLsp.diagnosticSeverity.IRULE4003": {
             "scope": "resource",
@@ -8350,14 +8406,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE4003:** Variable scoping concern across events.",
-            "order": 29
+            "order": 30
           },
           "tclLsp.diagnostics.IRULE4004": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE4004:** Constant `set` in per-request event could be hoisted to an earlier once-per-connection event.",
-            "order": 30
+            "order": 31
           },
           "tclLsp.diagnosticSeverity.IRULE4004": {
             "scope": "resource",
@@ -8378,14 +8434,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE4004:** Constant `set` in per-request event could be hoisted to an earlier once-per-connection event.",
-            "order": 30
+            "order": 31
           },
           "tclLsp.diagnostics.IRULE4005": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE4005:** Potential race — `static::` variable written outside `RULE_INIT` and read in another event.",
-            "order": 31
+            "order": 32
           },
           "tclLsp.diagnosticSeverity.IRULE4005": {
             "scope": "resource",
@@ -8406,7 +8462,7 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE4005:** Potential race — `static::` variable written outside `RULE_INIT` and read in another event.",
-            "order": 31
+            "order": 32
           },
           "tclLsp.diagnostics.genericVariablePatterns": {
             "scope": "resource",
@@ -8416,7 +8472,7 @@
             },
             "default": [],
             "markdownDescription": "Regex patterns for generic `static::` variable names (IRULE4002). Each pattern is matched case-insensitively against the bare name after stripping `static::`. Also configurable via the tcl-lsp config file (see docs/kcs/kcs-xdg-config.md).",
-            "order": 32
+            "order": 33
           }
         }
       },

@@ -164,6 +164,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var diagnosticW151: Boolean = true
     var diagnosticW152: Boolean = true
     var diagnosticW153: Boolean = true
+    var diagnosticW154: Boolean = true
     var diagnosticW200: Boolean = true
     var diagnosticW201: Boolean = true
     var diagnosticW202: Boolean = true
@@ -237,6 +238,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var diagnosticIRULE5005: Boolean = true
     var diagnosticIRULE5006: Boolean = true
     var diagnosticIRULE5007: Boolean = true
+    var diagnosticIRULE5008: Boolean = true
     var diagnosticIRULE3001: Boolean = true
     var diagnosticIRULE3002: Boolean = true
     var diagnosticIRULE3003: Boolean = true
@@ -499,6 +501,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "W151" to diagnosticW151,
                 "W152" to diagnosticW152,
                 "W153" to diagnosticW153,
+                "W154" to diagnosticW154,
                 "W200" to diagnosticW200,
                 "W201" to diagnosticW201,
                 "W202" to diagnosticW202,
@@ -572,6 +575,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "IRULE5005" to diagnosticIRULE5005,
                 "IRULE5006" to diagnosticIRULE5006,
                 "IRULE5007" to diagnosticIRULE5007,
+                "IRULE5008" to diagnosticIRULE5008,
                 "IRULE3001" to diagnosticIRULE3001,
                 "IRULE3002" to diagnosticIRULE3002,
                 "IRULE3003" to diagnosticIRULE3003,

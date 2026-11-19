@@ -228,6 +228,7 @@ impl SourceInvocationBinding {
     /// Exact scoped normal result plus independent complete-evaluation proof.
     /// All captured world, compiler, source, argv and declaration owners remain
     /// prerequisites. This receipt cannot supply actual dispatch or native CPP.
+    #[must_use]
     pub fn scoped_procedure_evaluation(
         &self,
         tokens: &crate::ir::CommandTokens,

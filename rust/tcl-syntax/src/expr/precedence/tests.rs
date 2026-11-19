@@ -100,9 +100,14 @@ fn f5_word_operators_take_part() {
 
 #[test]
 fn grouping_parens_record_whether_the_parse_needs_them() {
-    let parens = tcl("($a + $b) * (($c)) - (f($d))").grouping_parens().unwrap();
+    let parens = tcl("($a + $b) * (($c)) - (f($d))")
+        .grouping_parens()
+        .unwrap();
     let needed: Vec<_> = parens.iter().map(|p| (p.open, p.needed)).collect();
-    assert_eq!(needed, vec![(0, true), (12, false), (13, false), (21, false)]);
+    assert_eq!(
+        needed,
+        vec![(0, true), (12, false), (13, false), (21, false)]
+    );
 }
 
 #[test]
@@ -139,7 +144,9 @@ fn fully_parenthesised_makes_every_grouping_explicit() {
         Some("($a + ($b * $c)) - -$d")
     );
     assert_eq!(
-        tcl("$a || $b && $c ? 1 : 2").fully_parenthesised().as_deref(),
+        tcl("$a || $b && $c ? 1 : 2")
+            .fully_parenthesised()
+            .as_deref(),
         Some("($a || ($b && $c)) ? 1 : 2")
     );
     assert_eq!(tcl("$a + 1").fully_parenthesised(), None);
@@ -173,9 +180,24 @@ fn focused_tree_marks_the_hovered_operator_or_paren() {
         expression.precedence_tree_at(9).unwrap(),
         "*  (precedence 10)  ◀\n├─ +  (precedence 9)\n│  ├─ $a\n│  └─ 1\n└─ -  (unary)\n   └─ $b\n"
     );
-    assert!(expression.precedence_tree_at(0).unwrap().contains("+  (precedence 9)  ◀"));
-    assert!(expression.precedence_tree_at(11).unwrap().contains("-  (unary)  ◀"));
+    assert!(
+        expression
+            .precedence_tree_at(0)
+            .unwrap()
+            .contains("+  (precedence 9)  ◀")
+    );
+    assert!(
+        expression
+            .precedence_tree_at(11)
+            .unwrap()
+            .contains("-  (unary)  ◀")
+    );
     assert_eq!(expression.precedence_tree_at(1), None);
     let ternary = tcl("$a ? 1 : 2");
-    assert!(ternary.precedence_tree_at(3).unwrap().starts_with("?:  (ternary)  ◀"));
+    assert!(
+        ternary
+            .precedence_tree_at(3)
+            .unwrap()
+            .starts_with("?:  (ternary)  ◀")
+    );
 }

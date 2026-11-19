@@ -674,6 +674,20 @@ fn native_hover(
 
 /// The body of [`hover_with_profile`] / [`hover_in_program`], stated once over
 /// the [`crate::definition::CallResolution`] both build.
+/// Hovers decided by the exact cursor position before any word lookup: a
+/// proved registered instance's method word (a Tk widget call), or an
+/// operator or grouping parenthesis inside a braced expression.
+fn positional_hover(
+    source: &str,
+    analysis: &AnalysisResult,
+    cursor_offset: u32,
+    profile: &'static tcl_dialect::DialectProfile,
+) -> Option<Hover> {
+    registered_instance::method_hover(source, analysis, cursor_offset, profile).or_else(|| {
+        expression_precedence::expression_precedence_hover(source, analysis, cursor_offset)
+    })
+}
+
 fn hover_impl(
     source: &str,
     line: u32,
@@ -689,9 +703,7 @@ fn hover_impl(
     let cursor_offset =
         crate::original_context::CurrentSourcePosition::capture(source, analysis, line, character)?
             .offset();
-    // A proved registered instance's method word (a Tk widget call).
-    if let Some(hover) = registered_instance::method_hover(source, analysis, cursor_offset, profile)
-    {
+    if let Some(hover) = positional_hover(source, analysis, cursor_offset, profile) {
         return Some(hover);
     }
     if let std::ops::ControlFlow::Break(selected) = source_role_hover(
@@ -741,12 +753,6 @@ fn hover_impl(
         // An unavailable Logical receipt cannot borrow an ordinary head or the
         // analyser's resolved display. Native selection above remains terminal.
         return math_function_hover(source, analysis, cursor_offset);
-    }
-
-    if let Some(hover) =
-        expression_precedence::expression_precedence_hover(source, analysis, cursor_offset)
-    {
-        return Some(hover);
     }
 
     // A word inside an enclosing proc/method's own *literal* parameter list is

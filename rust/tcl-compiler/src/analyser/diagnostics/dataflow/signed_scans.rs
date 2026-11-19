@@ -26,6 +26,7 @@
 //! `!=`, `<`, `<=`, `>`, `>=`, `eq` or `ne` against an integer literal.
 
 use std::collections::HashMap;
+use std::fmt::Write as _;
 
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
@@ -78,7 +79,7 @@ impl Analyser {
         let mut findings: Vec<(tcl_lexer::Span, String)> = Vec::new();
         let mut check = |expr: &ExprNode,
                          view: SsaSourceView<'_>,
-                         exit: Option<&HashMap<crate::ssa::Symbol, crate::ssa::Version>>,
+                         exit: Option<&ExitVersions>,
                          base: Option<u32>,
                          fallback| {
             for comparison in comparisons(expr, numbers) {
@@ -103,61 +104,7 @@ impl Analyser {
                 findings.push((fu.abs_span(span), message));
             }
         };
-        for (&block, data) in &fu.ssa.blocks {
-            for (index, statement) in data.statements.iter().enumerate() {
-                let view = SsaSourceView::at_statement(&fu.ssa, block, index);
-                match &statement.statement {
-                    Statement::AssignExpr {
-                        expr,
-                        expr_base,
-                        span,
-                        ..
-                    }
-                    | Statement::ExprEval {
-                        expr,
-                        expr_base,
-                        span,
-                        ..
-                    } => check(expr, view, None, *expr_base, *span),
-                    Statement::Return {
-                        expr: Some(expr),
-                        expr_base,
-                        span,
-                        ..
-                    } => check(expr, view, None, *expr_base, *span),
-                    _ => {
-                        for evaluation in crate::word_subst::entered_expression_evaluations(
-                            view.source_tokens(),
-                            self.file_lexer_config(),
-                            registry,
-                        ) {
-                            check(
-                                evaluation.expression(),
-                                view,
-                                None,
-                                Some(evaluation.expression_base()),
-                                evaluation.span(),
-                            );
-                        }
-                    }
-                }
-            }
-            if let Some(Terminator::Branch {
-                condition,
-                span: Some(span),
-                condition_base,
-                ..
-            }) = fu.cfg.blocks.get(&block).and_then(|b| b.terminator.as_ref())
-            {
-                check(
-                    condition,
-                    SsaSourceView::at_terminator(&fu.ssa, block),
-                    Some(&data.exit_versions),
-                    *condition_base,
-                    *span,
-                );
-            }
-        }
+        for_each_expression(fu, self.file_lexer_config(), registry, &mut check);
         findings.sort_by_key(|(span, _)| (span.start(), span.end()));
         findings.dedup();
         for (span, message) in findings {
@@ -169,6 +116,85 @@ impl Analyser {
                     message,
                     Severity::Warning,
                 ));
+        }
+    }
+}
+
+type ExitVersions = HashMap<crate::ssa::Symbol, crate::ssa::Version>;
+
+/// Every expression the body evaluates: lowered `expr`/`return` operands,
+/// `[expr …]` substitutions inside other commands, and branch conditions,
+/// each with its SSA view, the block's exit versions for a condition, its
+/// source base and a fallback span.
+fn for_each_expression(
+    fu: &crate::compilation_unit::FunctionUnit,
+    config: tcl_lexer::LexerConfig,
+    registry: &tcl_registry::CommandRegistry,
+    visit: &mut impl FnMut(
+        &ExprNode,
+        SsaSourceView<'_>,
+        Option<&ExitVersions>,
+        Option<u32>,
+        tcl_lexer::Span,
+    ),
+) {
+    for (&block, data) in &fu.ssa.blocks {
+        for (index, statement) in data.statements.iter().enumerate() {
+            let view = SsaSourceView::at_statement(&fu.ssa, block, index);
+            match &statement.statement {
+                Statement::AssignExpr {
+                    expr,
+                    expr_base,
+                    span,
+                    ..
+                }
+                | Statement::ExprEval {
+                    expr,
+                    expr_base,
+                    span,
+                    ..
+                }
+                | Statement::Return {
+                    expr: Some(expr),
+                    expr_base,
+                    span,
+                    ..
+                } => visit(expr, view, None, *expr_base, *span),
+                _ => {
+                    for evaluation in crate::word_subst::entered_expression_evaluations(
+                        view.source_tokens(),
+                        config,
+                        registry,
+                    ) {
+                        visit(
+                            evaluation.expression(),
+                            view,
+                            None,
+                            Some(evaluation.expression_base()),
+                            evaluation.span(),
+                        );
+                    }
+                }
+            }
+        }
+        if let Some(Terminator::Branch {
+            condition,
+            span: Some(span),
+            condition_base,
+            ..
+        }) = fu
+            .cfg
+            .blocks
+            .get(&block)
+            .and_then(|b| b.terminator.as_ref())
+        {
+            visit(
+                condition,
+                SsaSourceView::at_terminator(&fu.ssa, block),
+                Some(&data.exit_versions),
+                *condition_base,
+                *span,
+            );
         }
     }
 }
@@ -254,7 +280,10 @@ fn scanned_fields(
     let [format] = formats.as_slice() else {
         return Vec::new();
     };
-    let Some(template) = words.get(format.index).filter(|t| !t.contains(['$', '[', '\\'])) else {
+    let Some(template) = words
+        .get(format.index)
+        .filter(|t| !t.contains(['$', '[', '\\']))
+    else {
         return Vec::new();
     };
     let variables: Vec<&str> = registry
@@ -272,12 +301,8 @@ fn scanned_fields(
                 .iter()
                 .filter(|field| tcl_cmd_core::binary::scan_field_assigns(field.letter))
                 .map(|field| {
-                    tcl_cmd_core::binary::signed_scan_width(field).map(|bits| {
-                        (
-                            bits,
-                            template[field.letter_start..field.end].to_owned(),
-                        )
-                    })
+                    tcl_cmd_core::binary::signed_scan_width(field)
+                        .map(|bits| (bits, template[field.letter_start..field.end].to_owned()))
                 })
                 .collect()
         }
@@ -291,7 +316,10 @@ fn scanned_fields(
                 .filter(|field| field.spec.assigns())
                 .map(|field| {
                     field.spec.truncates_to_int32_c84().then(|| {
-                        (32, template[field.percent.start..field.conversion.end].to_owned())
+                        (
+                            32,
+                            template[field.percent.start..field.conversion.end].to_owned(),
+                        )
                     })
                 })
                 .collect()
@@ -407,16 +435,18 @@ fn message(comparison: &Comparison<'_>, origin: &SignedOrigin) -> Option<String>
         comparison.literal_text,
         if always { "true" } else { "false" },
     );
-    match signed_equivalent {
-        Some(signed) => text.push_str(&format!(
+    let _ = match signed_equivalent {
+        Some(signed) => write!(
+            text,
             "Mask it to unsigned, `({var} & {mask}) {} {}`, or compare with the signed value {signed}.",
             op.as_str(),
             comparison.literal_text
-        )),
-        None => text.push_str(&format!(
+        ),
+        None => write!(
+            text,
             "Mask it to unsigned with `({var} & {mask})` before comparing."
-        )),
-    }
+        ),
+    };
     Some(text)
 }
 
