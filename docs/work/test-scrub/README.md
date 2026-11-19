@@ -325,27 +325,27 @@ The failing behaviours are far fewer than the failing tests. The causes ranked h
 
 The second pass (overlap among passing tests: 88 exact-copy groups, 385 overlap groups, the vacuous negatives on unwired helpers) follows the repairs.
 
-## Status of the rows, 18 November 2026, 11:55 UTC (at the pause)
+## Status of the rows, 19 November 2026
 
-From `tools/ledger_status.py` (a cell counts by its first word, so `routed (analyser-binding)` is routed; a cell that does not start with one of the seven words counts as open).
+Recounted from the committed ledgers at clean `origin/work` head `2ea0ea7fd5` with `tools/ledger_status.py --check`. These are recorded dispositions. Fresh oracle-required runs verify which tests pass at the restart. The 18 November pause table contained 3,397 rows.
 
 | Ledger | open | repaired | exposed | fixed | deleted | blocked | routed | Rows |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| analyser-binding | 412 | 5 | 0 | 1 | 0 | 0 | 0 | 418 |
-| analysis-performance | 52 | 0 | 0 | 0 | 0 | 0 | 0 | 52 |
-| class-facts | 236 | 8 | 2 | 0 | 0 | 0 | 0 | 246 |
+| analyser-binding | 404 | 5 | 0 | 9 | 0 | 0 | 0 | 418 |
+| analysis-performance | 54 | 0 | 0 | 0 | 0 | 0 | 0 | 54 |
+| class-facts | 231 | 8 | 2 | 6 | 0 | 0 | 0 | 247 |
 | dataflow-optimiser | 323 | 39 | 40 | 18 | 0 | 2 | 2 | 424 |
 | diagnostics | 232 | 62 | 64 | 13 | 19 | 1 | 9 | 400 |
 | execution | 190 | 11 | 0 | 13 | 56 | 0 | 0 | 270 |
-| irules-registry-tooling | 128 | 0 | 0 | 5 | 0 | 35 | 0 | 168 |
+| irules-registry-tooling | 120 | 0 | 0 | 4 | 0 | 28 | 0 | 152 |
 | live-inlining | 18 | 0 | 0 | 0 | 0 | 9 | 0 | 27 |
-| lsp-features | 474 | 29 | 54 | 52 | 10 | 32 | 32 | 683 |
+| lsp-features | 473 | 29 | 54 | 52 | 10 | 32 | 33 | 683 |
 | server-e2e-db-flaky | 3 | 3 | 0 | 0 | 0 | 0 | 1 | 7 |
-| server-e2e-db | 157 | 14 | 1 | 19 | 0 | 11 | 25 | 227 |
+| server-e2e-db | 164 | 14 | 1 | 19 | 0 | 11 | 25 | 234 |
 | taint | 132 | 5 | 26 | 10 | 0 | 11 | 1 | 185 |
-| tk-oo | 58 | 9 | 0 | 3 | 0 | 0 | 0 | 70 |
+| tk-oo | 61 | 9 | 0 | 3 | 0 | 0 | 0 | 73 |
 | values | 6 | 1 | 23 | 11 | 1 | 0 | 178 | 220 |
-| **all** | 2421 | 186 | 210 | 145 | 86 | 101 | 248 | 3397 |
+| **all** | 2411 | 186 | 210 | 158 | 86 | 94 | 249 | 3394 |
 
 ## Progress
 
