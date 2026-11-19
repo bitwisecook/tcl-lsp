@@ -602,7 +602,14 @@ struct BindingBaseline {
 struct PackageProvision {
     present: bool,
     version: Option<String>,
-    implementation: Option<String>,
+    implementation: Option<Arc<InstalledPackageProvider>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+struct InstalledPackageProvider {
+    id: String,
+    /// Rooted descriptor identities attested by this particular loader.
+    commands: BTreeSet<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

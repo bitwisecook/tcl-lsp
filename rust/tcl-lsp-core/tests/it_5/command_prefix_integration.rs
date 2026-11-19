@@ -374,7 +374,7 @@ fn tcllib_calculus_func_records_reference_with_fixed_arity() {
 #[test]
 fn tk_scale_command_bareword_head_is_a_callback_edge() {
     let reg = CommandRegistry::build_default();
-    let src = "proc onScale {v} { puts $v }\nproc build {} {\n    scale .s -command onScale\n}\n";
+    let src = "package require Tk\nproc onScale {v} { puts $v }\nproc build {} {\n    scale .s -command onScale\n}\n";
     let g = graphs::call_graph(
         src,
         &reg,
@@ -397,7 +397,7 @@ fn tk_scroll_callback_braced_widget_path_does_not_fire_w123() {
     // head is not a literal bareword, so it is dropped — no W123.  (Regression
     // guard for the conversion's headline benefit.)
     let mut a = tcl_compiler::analyser::Analyser::new();
-    let src = "listbox .lb -yscrollcommand {.sb set}\n";
+    let src = "package require Tk\nlistbox .lb -yscrollcommand {.sb set}\n";
     let codes: Vec<_> = a
         .analyse(src, "tcl9.0")
         .diagnostics
@@ -415,7 +415,7 @@ fn tk_scroll_callback_bareword_undefined_head_fires_w123() {
     // A bareword scroll callback head that resolves to no proc is a genuine
     // typo — now caught (it was silently missed under `script()`).
     let mut a = tcl_compiler::analyser::Analyser::new();
-    let bad = "listbox .lb -yscrollcommand missingScroller\n";
+    let bad = "package require Tk\nlistbox .lb -yscrollcommand missingScroller\n";
     let codes: Vec<_> = a
         .analyse(bad, "tcl9.0")
         .diagnostics
@@ -427,7 +427,7 @@ fn tk_scroll_callback_bareword_undefined_head_fires_w123() {
         "an unknown bareword scroll callback head must fire W123; got {codes:?}"
     );
     // A defined head is silent.
-    let ok = "proc myScroller {first last} { }\nlistbox .lb -yscrollcommand myScroller\n";
+    let ok = "package require Tk\nproc myScroller {first last} { }\nlistbox .lb -yscrollcommand myScroller\n";
     assert!(
         !a.analyse(ok, "tcl9.0")
             .diagnostics

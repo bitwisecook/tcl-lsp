@@ -431,10 +431,8 @@ impl ModuleCommandBindings {
         let [provision] = self.packages.get(package)?.iter().collect::<Vec<_>>()[..] else {
             return None;
         };
-        provision
-            .present
-            .then_some(provision.implementation.as_deref())
-            .flatten()
+        provision.present.then_some(())?;
+        Some(&provision.implementation.as_ref()?.id)
     }
 
     pub(super) fn loaded_provider(&self, package: &str) -> Option<&TrustedPackageLoader> {
@@ -456,7 +454,10 @@ impl ModuleCommandBindings {
             return None;
         }
         (provision.present
-            && provision.implementation.as_deref() == Some(loader.implementation_id.as_str()))
+            && provision
+                .implementation
+                .as_ref()
+                .is_some_and(|provider| provider.id == loader.implementation_id))
         .then_some(loader)
     }
 }
@@ -850,7 +851,15 @@ fn install_trusted_package_provider(
         BTreeSet::from([PackageProvision {
             present: true,
             version: loader.version,
-            implementation: Some(loader.implementation_id),
+            implementation: Some(Arc::new(super::InstalledPackageProvider {
+                id: loader.implementation_id,
+                commands: loader
+                    .command_surface
+                    .iter()
+                    .chain(&loader.optional_command_surface)
+                    .map(|command| tcl_registry::rooted_command_descriptor_label(command))
+                    .collect(),
+            })),
         }]),
     );
 }

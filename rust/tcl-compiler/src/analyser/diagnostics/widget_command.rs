@@ -234,9 +234,12 @@ impl Analyser {
 mod tests {
     use crate::analyser::Analyser;
 
+    // Each fixture runs with Tk loaded: without `package require Tk`,
+    // tclsh 8.6.18, 9.0.4 and 9.1.0 answer `invalid command name
+    // "ttk::treeview"` and no widget exists.
     fn codes(src: &str) -> Vec<(String, String)> {
         Analyser::new()
-            .analyse(src, "tcl8.6")
+            .analyse(&format!("package require Tk\n{src}"), "tcl8.6")
             .diagnostics
             .iter()
             .map(|d| (d.code.to_string(), d.message.clone()))

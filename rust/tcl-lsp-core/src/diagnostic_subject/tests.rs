@@ -210,7 +210,7 @@ fn lexical_next_arity_transport_retains_declaration_and_effective_count() {
 fn registered_instance_transport_retains_factory_and_applicability_without_message_identity() {
     // naming.source.original-registered-instance-words
     // docs/design/analysis/name-resolution-proofs/source-original-registered-instance-words.md
-    let source = "ttk::treeview .t; .t bogus";
+    let source = "package require Tk; ttk::treeview .t; .t bogus";
     let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
     let diagnostic = analysis
         .diagnostics

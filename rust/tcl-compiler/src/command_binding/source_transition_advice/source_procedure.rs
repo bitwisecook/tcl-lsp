@@ -920,11 +920,11 @@ mod tests {
     fn original_future_procedure_local_handle_does_not_borrow_parent_value_or_escape_branch() {
         // naming.source.original-future-procedure-body
         // docs/design/analysis/name-resolution-proofs/source-original-future-procedure-body.md
-        let source = "set lb [listbox .l]; proc p {} {$lb bogus}; p";
+        let source = "package require Tk; set lb [listbox .l]; proc p {} {$lb bogus}; p";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let offset = u32::try_from(source.find("$lb bogus").unwrap()).unwrap();
         assert!(source_registered_instance_words_at(source, &analysis, offset).is_none());
-        let source = "proc p {} {set local [listbox .new]; $local bogus}; p; $local bogus";
+        let source = "package require Tk; proc p {} {set local [listbox .new]; $local bogus}; p; $local bogus";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let inside = u32::try_from(source.find("$local bogus").unwrap()).unwrap();
         let outside = u32::try_from(source.rfind("$local bogus").unwrap()).unwrap();

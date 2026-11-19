@@ -909,7 +909,7 @@ mod tests {
     fn original_registered_instance_keeps_factory_argv_alias_move_and_method_prefix() {
         // naming.source.original-registered-instance-words
         // docs/design/analysis/name-resolution-proofs/source-original-registered-instance-words.md
-        let source = "rename ttk::treeview make; make .t; rename .t .held; interp alias {} dispatch {} .held; dispatch mov onlyone";
+        let source = "package require Tk; rename ttk::treeview make; make .t; rename .t .held; interp alias {} dispatch {} .held; dispatch mov onlyone";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let words =
             source_registered_instance_words_at(source, &analysis, at(source, "dispatch mov"))
@@ -962,9 +962,9 @@ mod tests {
     fn original_registered_handle_retains_whole_setter_and_factory_without_value_grant() {
         // naming.source.original-registered-instance-words
         // docs/design/analysis/name-resolution-proofs/source-original-registered-instance-words.md
-        let source = "::set lb [listbox .l]; $lb curselection extra";
+        let source = "package require Tk; ::set lb [listbox .l]; $lb curselection extra";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
-        let handle = source_registered_handle_binding_at(source, &analysis, 0)
+        let handle = source_registered_handle_binding_at(source, &analysis, at(source, "::set"))
             .expect("whole original setter");
         assert_eq!(handle.variable_input().bytes(), b"lb");
         assert_eq!(handle.setter().original_words().len(), 3);
@@ -998,12 +998,12 @@ mod tests {
         // naming.source.original-registered-instance-words
         // docs/design/analysis/name-resolution-proofs/source-original-registered-instance-words.md
         for source in [
-            "proc ttk::treeview {args} {}; ttk::treeview .t; .t bogus",
-            "ttk::treeview .t; proc .t {args} {}; .t bogus",
-            "ttk::treeview .t; rename .t {}; .t bogus",
-            "ttk::treeview $name; .t bogus",
-            "set lb [listbox .l]; set lb other; $lb bogus",
-            "interp alias {} keep {} set lb [listbox .l]; keep; $lb bogus",
+            "package require Tk; proc ttk::treeview {args} {}; ttk::treeview .t; .t bogus",
+            "package require Tk; ttk::treeview .t; proc .t {args} {}; .t bogus",
+            "package require Tk; ttk::treeview .t; rename .t {}; .t bogus",
+            "package require Tk; ttk::treeview $name; .t bogus",
+            "package require Tk; set lb [listbox .l]; set lb other; $lb bogus",
+            "package require Tk; interp alias {} keep {} set lb [listbox .l]; keep; $lb bogus",
         ] {
             let analysis = Analyser::new().analyse(source, "tcl8.6");
             let offset = source.rfind(';').unwrap() + 2;
@@ -1017,7 +1017,7 @@ mod tests {
                 "{source}"
             );
         }
-        let source = "ttk::treeview .t; .t {*}$method";
+        let source = "package require Tk; ttk::treeview .t; .t {*}$method";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let words =
             source_registered_instance_words_at(source, &analysis, at(source, ".t {*}")).unwrap();
@@ -1030,7 +1030,7 @@ mod tests {
         // naming.source.original-registered-instance-words
         // docs/design/analysis/name-resolution-proofs/source-original-registered-instance-words.md
         // The original factory remains source advice; no current widget or command is proved.
-        let source = "ttk::treeview .t; eval $script; .t bogus";
+        let source = "package require Tk; ttk::treeview .t; eval $script; .t bogus";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let words = source_registered_instance_words_at(source, &analysis, at(source, ".t bogus"))
             .expect("conditional original factory survives unknown source widening");
@@ -1044,7 +1044,7 @@ mod tests {
         assert!(words.obligations().contains(
             &crate::command_binding::SourceCommandTransitionObligation::UnavailableActualLookup
         ));
-        let source = "set lb [listbox .l]; eval $script; $lb bogus";
+        let source = "package require Tk; set lb [listbox .l]; eval $script; $lb bogus";
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         assert!(
             source_registered_instance_words_at(source, &analysis, at(source, "$lb bogus"))
@@ -1159,11 +1159,13 @@ mod inherited_registered_provider_tests {
         };
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
         let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
-        let source = "floorfactory .t; interp alias {} invoke {} .t; invoke lat payload";
-        let offset = u32::try_from(source.rfind("invoke lat").unwrap()).unwrap();
         for (factory_package, provider_package, selected) in
             [("Itcl", "Tk", true), ("Tk", "Itcl", false)]
         {
+            let source = &format!(
+                "package require {factory_package}; floorfactory .t; interp alias {{}} invoke {{}} .t; invoke lat payload"
+            );
+            let offset = u32::try_from(source.rfind("invoke lat").unwrap()).unwrap();
             let mut registry = tcl_registry::CommandRegistry::build_default();
             let mut factory = registry.get("ttk::treeview").unwrap().clone();
             factory.name = "floorfactory";
@@ -1250,7 +1252,7 @@ mod inherited_registered_provider_tests {
             tcl_registry::model::ingress::static_context_for("tcl8.6")
                 .with_command_store(Arc::new(registry)),
         );
-        let source = "incompletefactory .t; .t missing";
+        let source = "package require Tk; incompletefactory .t; .t missing";
         let analysis = Analyser::new()
             .with_resolved_input(ResolvedAnalysisInput::new(
                 profile,

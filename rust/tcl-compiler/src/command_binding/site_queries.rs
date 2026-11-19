@@ -333,6 +333,62 @@ impl SourceCommandBindings {
         seen
     }
 
+    /// A package-owned descriptor is usable as an instance factory only when
+    /// the actual selected command is its implementation and every reaching
+    /// dispatch carries that provider. A provided version alone is insufficient.
+    pub(crate) fn package_factory_is_proved_at(
+        &self,
+        head: &tcl_lexer::NativeWord,
+        descriptor: &tcl_registry::CommandSpec,
+        context: &tcl_registry::model::ContextRegistry,
+    ) -> bool {
+        let Some(package) = descriptor.owning_package() else {
+            return true;
+        };
+        let Some(origin) = self.source_origin() else {
+            return false;
+        };
+        if head.image() != origin.source_image() {
+            return false;
+        }
+        let offset = head.span().start();
+        let binding = self.invocation_at_source("", offset);
+        if binding
+            .proved_execution_target()
+            .and_then(super::SourceCommandTarget::registry_identity)
+            .is_none_or(|command| {
+                !tcl_registry::command_descriptor_labels_match(command, descriptor.name)
+            })
+        {
+            return false;
+        }
+        let slot = tcl_registry::rooted_command_descriptor_label(descriptor.name);
+        let mut points = self.dispatch_points_at(offset).peekable();
+        points.peek().is_some()
+            && points.all(|point| {
+                let state = &point.state;
+                if context.context().ambient_package(package)
+                    && state.baseline.native_entry.is_some()
+                    && !state.has_opaque_domain()
+                {
+                    return true;
+                }
+                if state.has_opaque_domain() {
+                    return false;
+                }
+                state.packages.get(package).is_some_and(|provisions| {
+                    !provisions.is_empty()
+                        && provisions.iter().all(|value| {
+                            value.present
+                                && value
+                                    .implementation
+                                    .as_ref()
+                                    .is_some_and(|provider| provider.commands.contains(&slot))
+                        })
+                })
+            })
+    }
+
     /// Loader provenance live at an exact invocation site, independently of
     /// its current command-table binding.
     #[must_use]

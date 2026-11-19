@@ -21,6 +21,25 @@
 use std::sync::Arc;
 
 impl super::super::CommandBindingRealm {
+    pub(super) fn registered_factory_provider_is_proved(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        instance: &crate::command_binding::OriginalSourceRegisteredInstance,
+    ) -> bool {
+        let context = input.borrowed_context_registry();
+        let Some(spec) = instance.descriptor(context) else {
+            return false;
+        };
+        instance
+            .factory()
+            .original_words()
+            .first()
+            .is_some_and(|head| {
+                self.bindings
+                    .package_factory_is_proved_at(head, spec, context)
+            })
+    }
+
     /// Conditional instance method source syntax, with its own actual factory.
     /// Neither an entered callable nor a runtime object is supplied.
     pub(crate) fn original_source_registered_instance_words(
@@ -47,8 +66,9 @@ impl super::super::CommandBindingRealm {
             .as_ref()?
             .registered_instance(original.first()?.span().start())?;
         (receipt.matches_source_context(image, config, &context)
-            && receipt.original_words() == original)
-            .then(|| receipt.clone())
+            && receipt.original_words() == original
+            && self.registered_factory_provider_is_proved(input, receipt.instance()))
+        .then(|| receipt.clone())
     }
 
     /// Original selected named Registry factory, without successful allocation.
@@ -77,8 +97,9 @@ impl super::super::CommandBindingRealm {
             .registered_factory(original.first()?.span().start())?;
         (receipt.factory().matches_source(image, config)
             && receipt.factory().matches_context(&context)
-            && receipt.factory().original_words() == original)
-            .then(|| receipt.clone())
+            && receipt.factory().original_words() == original
+            && self.registered_factory_provider_is_proved(input, receipt))
+        .then(|| receipt.clone())
     }
 
     /// Distinct conditional Jim source header and parent-bound base providers.

@@ -366,6 +366,105 @@ fn bareword_widget_constructor_binds_instance_class() {
     );
 }
 
+#[test]
+fn a_widget_constructor_without_its_package_publishes_no_instance() {
+    // tclsh 8.4.20-9.1.0 without `package require Tk`: invalid command name
+    // "ttk::treeview", so `.t` is never created.
+    let source =
+        "ttk::treeview .t\n.t instate {selected} {}\nset lb [listbox .l]\n$lb curselection\n";
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        let mut a = super::super::state::Analyser::new();
+        let res = a.analyse(source, dialect);
+        assert!(
+            !res.instance_classes.contains_key(".t") && !res.instance_classes.contains_key("lb"),
+            "{dialect}: instance_classes: {:?}",
+            res.instance_classes
+        );
+        for call in [".t instate", "$lb curselection"] {
+            assert!(
+                crate::registry_invocation::source_structure::source_registered_instance_words_at(
+                    source,
+                    &res,
+                    u32::try_from(source.find(call).unwrap()).unwrap()
+                )
+                .is_none(),
+                "{dialect}: {call}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_widget_constructor_after_an_unproved_require_publishes_no_instance() {
+    // tclsh 8.6.18, 9.0.4 and 9.1.0 without Tk installed: a caught or
+    // conditional require leaves `info commands ttk::treeview` empty.
+    for prefix in [
+        "catch {package require Tk}\n",
+        "if {[info exists nothing]} {package require Tk}\n",
+        "package provide Tk 8.6; package require Tk\n",
+        "package require Tk; rename ttk::treeview {}; proc ttk::treeview args {}\n",
+    ] {
+        let source = format!("{prefix}ttk::treeview .t\n");
+        let mut a = super::super::state::Analyser::new();
+        let res = a.analyse(&source, "tcl8.6");
+        assert!(
+            !res.instance_classes.contains_key(".t"),
+            "{prefix}: instance_classes: {:?}",
+            res.instance_classes
+        );
+    }
+}
+
+#[test]
+fn a_widget_constructor_publishes_where_tk_is_present() {
+    // A stock loader reached from the selected authoring entry supplies the
+    // factory. A successful namespace body preserves its load.
+    for (source, dialect) in [
+        ("package require Tk\nttk::treeview .t\n", "tcl8.6"),
+        (
+            "namespace eval ui {package require Tk}\nttk::treeview .t\n",
+            "tcl8.6",
+        ),
+    ] {
+        let mut a = super::super::state::Analyser::new();
+        let res = a.analyse(source, dialect);
+        assert_eq!(
+            res.instance_classes.get(".t").map(String::as_str),
+            Some("ttk::treeview"),
+            "{dialect}: {source:?}"
+        );
+    }
+}
+
+#[test]
+fn a_widget_constructor_in_a_sourced_document_uses_its_actual_entry() {
+    use crate::registry_invocation::source_structure::original_project_source_load_at;
+    let child = "ttk::treeview .t";
+    for (prefix, expected) in [
+        ("package require Tk", true),
+        ("package provide Tk 8.6; package require Tk", false),
+        (
+            "package require Tk; rename ttk::treeview {}; proc ttk::treeview args {}",
+            false,
+        ),
+    ] {
+        let parent = format!("{prefix}; source child.tcl");
+        let analysis = Analyser::new().analyse(&parent, "tcl8.6");
+        let offset = u32::try_from(parent.find("source child.tcl").unwrap()).unwrap();
+        let load =
+            original_project_source_load_at(&parent, &analysis, offset).expect("source handler");
+        let entry = load.source_point_entry(&analysis).expect("parent entry");
+        let child = Analyser::new()
+            .analyse_with_source_point_entry(child, "tcl8.6", &entry)
+            .expect("inherited child");
+        assert_eq!(
+            child.instance_classes.contains_key(".t"),
+            expected,
+            "{prefix}"
+        );
+    }
+}
+
 /// The `set w [ctor .path]` return-value-capture shape resolves through
 /// the shared source handle-class receipt and retains a class label.
 #[test]

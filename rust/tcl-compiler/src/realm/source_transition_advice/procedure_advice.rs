@@ -236,8 +236,9 @@ impl super::super::CommandBindingRealm {
             .as_ref()?
             .registered_handle(original.first()?.span().start())?;
         (receipt.matches_source_context(image, config, &context)
-            && receipt.setter().original_words() == original)
-            .then(|| receipt.clone())
+            && receipt.setter().original_words() == original
+            && self.registered_factory_provider_is_proved(input, receipt.instance()))
+        .then(|| receipt.clone())
     }
 
     /// Original list-built future syntax under the same retained whole-source

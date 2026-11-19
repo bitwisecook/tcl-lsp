@@ -144,6 +144,7 @@ impl Analyser {
             let Instance { class_name } = publication.kind() else {
                 return None;
             };
+            Self::factory_package_proved(&self.result, publication.original_invocation())?;
             let name = std::str::from_utf8(publication.name_bytes()).ok()?;
             Some((name.to_owned(), class_name.to_owned()))
         });
@@ -160,6 +161,7 @@ impl Analyser {
             let Instance { class_name } = binding.factory().kind() else {
                 return None;
             };
+            Self::factory_package_proved(&self.result, binding.factory().original_invocation())?;
             Some((
                 std::str::from_utf8(binding.variable_bytes())
                     .ok()?
@@ -172,6 +174,26 @@ impl Analyser {
             return true;
         }
         false
+    }
+
+    /// A factory whose owning package is not proved present names no instance.
+    fn factory_package_proved(
+        analysis: &super::super::types::AnalysisResult,
+        factory: &crate::registry_invocation::source_structure::OriginalRegistryWords,
+    ) -> Option<()> {
+        let context = analysis
+            .resolved_input
+            .as_ref()?
+            .borrowed_context_registry();
+        let head = factory.head_source()?.word()?;
+        let descriptor = factory.with_source_schema(context, |schema| {
+            schema.authored_source_descriptors().command
+        })?;
+        analysis
+            .retained_command_realm()?
+            .source_bindings_ref()
+            .package_factory_is_proved_at(head, descriptor, context)
+            .then_some(())
     }
 
     /// Collision-safe registry instance reporting metadata. Differing class
