@@ -110,6 +110,7 @@ pub struct StanzaSourceIndex {
 }
 
 impl StanzaSourceIndex {
+    /// Index every outer stanza by its opening brace on this source image.
     #[must_use]
     pub fn new(source: &str) -> Self {
         let lines = LineIndex::new(source);
