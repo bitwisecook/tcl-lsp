@@ -6,8 +6,11 @@ with no lexical lead. A surface classification describes review scope, not sign-
 """
 
 import argparse
+import csv
+import json
 import re
 import subprocess
+import sys
 from collections import Counter
 from pathlib import Path
 
@@ -130,6 +133,59 @@ def surface_for(path: Path) -> str:
     return "other-review"
 
 
+def list_cargo_targets(root: Path, tracked: list[str]) -> None:
+    """Ask Cargo for each target including standalone packages and test fixtures."""
+    manifests = {root / path for path in tracked if Path(path).name == "Cargo.toml"}
+    rows = []
+    while manifests:
+        manifest = min(manifests, key=lambda p: (len(p.parts), p))
+        metadata = json.loads(
+            subprocess.check_output(
+                [
+                    "cargo",
+                    "metadata",
+                    "--offline",
+                    "--locked",
+                    "--no-deps",
+                    "--format-version",
+                    "1",
+                    "--manifest-path",
+                    str(manifest),
+                ],
+                cwd=root,
+            )
+        )
+        manifests.remove(manifest)
+        for package in metadata["packages"]:
+            member = Path(package["manifest_path"])
+            manifests.discard(member)
+            for target in package["targets"]:
+                rows.append(
+                    (
+                        str(member.relative_to(root)),
+                        package["name"],
+                        target["name"],
+                        ",".join(sorted(target["kind"])),
+                        str(Path(target["src_path"]).relative_to(root)),
+                        ",".join(sorted(target.get("required-features", []))),
+                        ",".join(sorted(package["features"])),
+                    )
+                )
+    writer = csv.writer(sys.stdout, delimiter="\t", lineterminator="\n")
+    writer.writerow(
+        (
+            "manifest",
+            "package",
+            "target",
+            "kind",
+            "entry",
+            "required_features",
+            "package_features",
+        )
+    )
+    writer.writerows(sorted(rows))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     modes = parser.add_mutually_exclusive_group()
@@ -138,6 +194,11 @@ def main():
         "--files",
         action="store_true",
         help="list every tracked path and its review surface",
+    )
+    modes.add_argument(
+        "--cargo-targets",
+        action="store_true",
+        help="list workspace and standalone Cargo entries and their declared features",
     )
     args = parser.parse_args()
     root = Path(
@@ -151,6 +212,9 @@ def main():
         .split("\0")
     )
     packages = {Path(name).parent for name in tracked if name.endswith("/Cargo.toml")}
+    if args.cargo_targets:
+        list_cargo_targets(root, tracked)
+        return
     if args.files:
         print("component\tsurface\tpath")
         for name in tracked:

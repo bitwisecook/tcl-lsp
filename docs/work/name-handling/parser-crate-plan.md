@@ -94,6 +94,7 @@ From the checkout run:
 python3 docs/work/name-handling/validation-tools/parser_census.py
 python3 docs/work/name-handling/validation-tools/parser_census.py --sites > /tmp/tcl-parser-sites.tsv
 python3 docs/work/name-handling/validation-tools/parser_census.py --files > /tmp/tcl-parser-files.tsv
+python3 docs/work/name-handling/validation-tools/parser_census.py --cargo-targets > /tmp/tcl-parser-targets.tsv
 ```
 
 The [census](validation-tools/parser_census.py) lists components, source files, reader/writer declarations, common host parsing primitives and known shared-owner calls. The second command emits a file and line for each lexical lead. At the reviewed revision it scanned **6,772 files across 73 component groups** under `rust`, the separate runtime, editors, grammars, scripts, AI and spec roots. It reported 2,375 declaration matches, 1,051 host-primitive matches and 1,299 owner-call matches. These are line matches, not counts of implementations or defects. Configured source suffixes and exclusions are in the script. Inline test modules and some generated inputs can still match. The counts exclude generated tree-sitter C parsers and vendored sources. TextMate assets, tree-sitter injection queries and associated generator ownership were also examined separately.
