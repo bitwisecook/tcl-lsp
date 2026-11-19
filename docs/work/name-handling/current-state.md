@@ -81,6 +81,8 @@ The owner authorised the complete [library and consumer migration](parser-crate-
 
 The owner requires every shipping parser and dialect-sensitive consumer to be accounted for. Use the [family register](parser-coverage.tsv) and the complete tracked-file inventory in the [crate plan](parser-crate-plan.md#coverage-and-sign-off). Mark a family complete only with a reviewed owner and caller inventory, public-entry evidence and a regression check. Unreviewed paths stay open.
 
+**Parser integration checkpoint, 19 November.** The combined all-files inventory on `e1caf3e94d` contains 35,782 tracked paths and Cargo reports 304 targets. The first semantic pass identifies [208 direct or default parsing call groups](parser-callers.tsv), each assigned for review. Generated assets and non-Rust sources also remain in scope. The direct registry dispatch now returns an empty list for `split ""` on all six oracle cases. The original compiler O129 and I230 assertions both failed on clean `a6c66517c7`. Keep those wrong answers open until the public compiler witnesses pass on the combined implementation.
+
 ## Scoreboard, 18 November 2026, 11:55 UTC (at the pause)
 
 Failing tests by area on the restructured tree, from the successor sessions' baselines and first pushes.
