@@ -116,6 +116,51 @@ pub struct SourceInstalledProcedureBody {
     pub source: ExecutedScriptSource,
 }
 
+impl SourceInstalledProcedureBody {
+    /// Match the named body's formal-list text to the original definition.
+    /// A one-field Jim specifier keeps its spelling as its actual storage name.
+    pub(crate) fn matches_named_parameter_text(
+        &self,
+        raw: &str,
+        dialect: Option<tcl_registry::InvocationDialect>,
+    ) -> bool {
+        let original = self.original_parameters.as_ref();
+        if original.is_some_and(|formals| {
+            tcl_syntax::word_rules::original_static_word_unicode_value(
+                formals.original_input().original_word(),
+            )
+            .as_deref()
+                == Some(raw.as_bytes())
+        }) {
+            return true;
+        }
+        // Outside ASCII the named Unicode display need not be the native
+        // string representation. Only the original grouped word above can
+        // establish correspondence in that case.
+        if !raw.is_ascii() || raw.as_bytes().contains(&0) {
+            return false;
+        }
+        let protocol = original
+            .map(|formals| formals.original_input().policy().recipe())
+            .or_else(|| dialect?.native_name_protocol());
+        let Some(parsed) = protocol.and_then(|protocol| {
+            super::formal_topology::native_formal_parameters(raw.as_bytes(), protocol)
+        }) else {
+            return false;
+        };
+        if let Some(formals) = original {
+            return parsed == formals.parameters();
+        }
+        parsed
+            .iter()
+            .map(|p| (p.name.as_slice(), p.default.as_deref()))
+            .eq(self
+                .parameters
+                .iter()
+                .map(|p| (p.name.as_bytes(), p.default.as_ref().map(String::as_bytes))))
+    }
+}
+
 impl SourceCommandBindings {
     /// Original procedure implementations retained for body analysis. This
     /// includes replaced declarations and does not select a callable at any site.

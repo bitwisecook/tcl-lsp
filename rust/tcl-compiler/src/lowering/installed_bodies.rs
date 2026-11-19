@@ -51,7 +51,6 @@ impl Lowerer<'_> {
         {
             return;
         }
-        let rules = tcl_syntax::word_rules::WordValueRules::from_config(&self.config);
         let named: Vec<_> = self
             .module
             .procedures
@@ -61,7 +60,7 @@ impl Lowerer<'_> {
                     procedure.body.executed_source.as_deref()?.clone(),
                     procedure.body.namespace_context.as_deref()?.clone(),
                     procedure.span.start(),
-                    canonical_parameter_list(&procedure.params_raw, rules),
+                    procedure.params_raw.clone(),
                 ))
             })
             .collect();
@@ -80,8 +79,6 @@ impl Lowerer<'_> {
                 installed.source.clone(),
                 installed.namespace_key.clone(),
             );
-            let parameters =
-                tcl_syntax::formal_params::canonical_formal_list(&installed.parameters);
             let already_named = installed.allocation.incarnation
                 == crate::command_binding::AllocationIncarnation::First
                 && installed.allocation.site.source == installed.source.origin
@@ -89,7 +86,7 @@ impl Lowerer<'_> {
                     source == &installed.source
                         && namespace == &installed.namespace_key
                         && *offset == installed.allocation.site.offset
-                        && params == &parameters
+                        && installed.matches_named_parameter_text(params, self.invocation_dialect)
                 });
             if already_named || declared.contains(&context) {
                 continue;
@@ -360,21 +357,4 @@ impl Lowerer<'_> {
                 .insert(id, installed.allocation);
         }
     }
-}
-
-/// The written formal list in the canonical form an installed body carries:
-/// each formal re-joined from its list elements, so `{"as" v}` and its
-/// installed `as v` name the same formals. Unparsable text keeps its spelling.
-fn canonical_parameter_list(raw: &str, rules: tcl_syntax::word_rules::WordValueRules) -> String {
-    let Ok(formals) = rules.split_list(raw) else {
-        return raw.to_owned();
-    };
-    let mut canonical = Vec::with_capacity(formals.len());
-    for formal in &formals {
-        let Ok(fields) = rules.split_list(formal) else {
-            return raw.to_owned();
-        };
-        canonical.push(tcl_syntax::list::join_list(&fields));
-    }
-    tcl_syntax::list::join_list(canonical.iter().map(String::as_str))
 }
