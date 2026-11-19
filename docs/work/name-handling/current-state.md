@@ -1,6 +1,10 @@
 # Current LSP naming migration state
 
-Updated 15 November 2026. Results apply to their captured source and stated purpose. **The LSP is not release-ready.** Sections below the measured state are dated snapshots from 4 to 13 November.
+## Paused on 19 November 2026
+
+The owner paused the naming, test-scrub and shared-parser work. The hourly check is disabled. Start with the [coordinator handover and thirteen area handovers](handover/pause-2026-11-19/coordinator.md) for the saved work, last measurements and restart order. The seven owner decisions below stand.
+
+Earlier measurements include a 15 November 2026 snapshot. Results apply to their captured source and stated purpose. **The LSP is not release-ready.** Sections below the measured state are dated snapshots from 4 to 13 November.
 
 ## Burn-down restarted with new sessions, 17 November 2026
 
@@ -12,7 +16,7 @@ The owner asked for a deep evaluation of the tests: what overlaps, and which fai
 
 ## Owner decisions and restart, 19 November 2026
 
-The owner authorised replacement workers for the thirteen areas in [the roster](handover/successors.md). Each replacement inherits its named area's handoff. The original Claude sessions remain paused. The coordinator's replacement hourly check is enabled at minute 52. The scoreboard below is the last measurement from the pause. Each area reports its first new count against a clean `origin/work` baseline.
+The owner authorised replacement workers for the thirteen areas in [the roster](handover/successors.md). Each replacement inherits its named area's handoff. The original Claude sessions remain paused. The coordinator enabled the replacement hourly check at minute 52 on restart and paused it at the owner's next stop request. The scoreboard below is the last measurement from the pause. Each area reports its first new count against a clean `origin/work` baseline.
 
 Use the most precise answer the selected dialect supports and the available facts prove. Use C Tcl 8.4–9.1 and the latest Jim Tcl as the oracles for their respective dialects. Put iRule and iApp questions that need a device in [the BIG-IP checks](bigip-name-checks.md).
 

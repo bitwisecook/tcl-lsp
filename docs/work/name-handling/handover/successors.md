@@ -1,5 +1,7 @@
 # Successor sessions, from 17 November 2026
 
+**Current roster and pause.** The [19 November coordinator handover](pause-2026-11-19/coordinator.md) maps the thirteen areas to the six paused replacement workers. The Claude IDs below belong to the earlier roster.
+
 The burn-down continues with new sessions. This file is what every one of them reads after `AGENTS.md` and `fixing-guide.md`.
 
 ## Roster

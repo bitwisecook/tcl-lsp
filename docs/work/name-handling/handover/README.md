@@ -1,5 +1,7 @@
 # Burn-down hand-over, 17 November 2026
 
+The [19 November pause](pause-2026-11-19/coordinator.md) is the current entry point. The instructions below describe the earlier replacement of the original workers.
+
 The owner is replacing the burn-down sessions with new ones. Each outgoing session writes one hand-over here, `SLUG.md`, that a successor in a fresh container can start from. The successor has no access to the outgoing container, its scratchpad, its stashes or its conversation: what is not in the repository is lost.
 
 An outgoing session stays paused for code work and does exactly this, and nothing else (no fixes, no test-suite runs, no rebuilds beyond what the steps need):

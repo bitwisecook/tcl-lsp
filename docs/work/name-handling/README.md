@@ -1,5 +1,7 @@
 # LSP naming migration on work
 
+The latest [coordinator and area handovers](handover/pause-2026-11-19/coordinator.md) record the 19 November pause of the naming and shared-parser migration.
+
 Updated 04 November 2026, 13:43 UTC. [Current state](current-state.md) binds exact outcomes; [outstanding work](outstanding/README.md) lists acceptance.
 
 **The LSP is not release-ready.** LSP and transitive libraries remain the priority; separate VM/BIG-IP features are deferred while linked execution and all required gates remain critical. No PR/merge/tag/release exists.

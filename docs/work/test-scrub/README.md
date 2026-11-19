@@ -1,5 +1,7 @@
 # Test scrub
 
+**Paused on 19 November 2026.** The [coordinator handover](../name-handling/handover/pause-2026-11-19/coordinator.md) records each area’s last executed checks and saved work. Resume from the open wrong answers below before taking up missing facts or test consolidation.
+
 Started 17 November 2026 at the owner's request: find what the tests hold, where they overlap, and
 which of the failing ones are worth making pass. Value is counted in behaviours, not in tests.
 
