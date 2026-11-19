@@ -66,9 +66,8 @@
 use std::ops::Range;
 use tcl_dialect::model::SpecProvider;
 
-use tcl_compiler::parsing::syntax::build::build_document;
-use tcl_compiler::parsing::syntax::segment::segments_from_document;
-use tcl_lexer::{LexerConfig, SourceMap, TokenType};
+use tcl_compiler::parsing::spectcl_source::{pack_source_lexer_config, pack_source_statements};
+use tcl_lexer::{SourceSegmentationPurpose, TokenType};
 
 use crate::export::{ExportLoss, Registration, export_pack_reporting};
 use crate::loader::{
@@ -690,12 +689,9 @@ impl PackRow {
 /// Every statement directly inside the first `speclib` body — pack scope
 /// only, no recursion — located through the loader's own lexer.
 fn pack_level_rows(source: &str) -> Vec<PackRow> {
-    let source_map = SourceMap::new(source);
-    // dialect-drift-ok: `.tclspec` pack DSL source, not a document's Tcl — the
-    // loader's own fixed vocabulary grammar, which no document dialect varies.
-    let (document, _warnings) = build_document(source, LexerConfig::default());
+    let config = pack_source_lexer_config(SourceSegmentationPurpose::WholeInput);
     let mut body: Option<Range<usize>> = None;
-    for segment in segments_from_document(document, &source_map) {
+    for segment in pack_source_statements(source, config) {
         if segment.texts.first().map(String::as_str) != Some("speclib") {
             continue;
         }
@@ -718,12 +714,9 @@ fn pack_level_rows(source: &str) -> Vec<PackRow> {
 
 /// The statements of one block's text, with ranges absolute to the file.
 fn rows_in(text: &str, base: usize) -> Vec<PackRow> {
-    let source_map = SourceMap::new(text);
-    // dialect-drift-ok: `.tclspec` pack DSL source, not a document's Tcl — the
-    // loader's own fixed vocabulary grammar, which no document dialect varies.
-    let (document, _warnings) = build_document(text, LexerConfig::default());
+    let config = pack_source_lexer_config(SourceSegmentationPurpose::NestedScript);
     let mut out = Vec::new();
-    for segment in segments_from_document(document, &source_map) {
+    for segment in pack_source_statements(text, config) {
         let mut words = Vec::new();
         let mut word_ranges = Vec::new();
         let mut content_ranges = Vec::new();
@@ -1252,7 +1245,7 @@ struct Site {
 /// loader's own lexer.
 fn dialects_sites(source: &str) -> Vec<Site> {
     let mut out = Vec::new();
-    scan(source, 0, &mut out);
+    scan(source, 0, SourceSegmentationPurpose::WholeInput, &mut out);
     out.sort_by_key(|site| site.keyword.1.start);
     locate_lines(source, &mut out);
     out
@@ -1262,12 +1255,9 @@ fn dialects_sites(source: &str) -> Vec<Site> {
 ///
 /// `base` is the absolute offset of `text` inside the whole file, so every
 /// recorded range is a range in the file rather than in the block.
-fn scan(text: &str, base: usize, out: &mut Vec<Site>) {
-    let source_map = SourceMap::new(text);
-    // dialect-drift-ok: `.tclspec` pack DSL source, not a document's Tcl — the
-    // loader's own fixed vocabulary grammar, which no document dialect varies.
-    let (document, _warnings) = build_document(text, LexerConfig::default());
-    for segment in segments_from_document(document, &source_map) {
+fn scan(text: &str, base: usize, purpose: SourceSegmentationPurpose, out: &mut Vec<Site>) {
+    let config = pack_source_lexer_config(purpose);
+    for segment in pack_source_statements(text, config) {
         // A `hook` body is arbitrary Tcl, not pack vocabulary; descending
         // into it would let a body's own words be rewritten as if they were
         // declarations.
@@ -1297,7 +1287,12 @@ fn scan(text: &str, base: usize, out: &mut Vec<Site>) {
                 let content = token.span.start() as usize + usize::from(token.content_offset);
                 let close = token.span.end() as usize;
                 if close > content {
-                    scan(&text[content..close], base + content, out);
+                    scan(
+                        &text[content..close],
+                        base + content,
+                        SourceSegmentationPurpose::NestedScript,
+                        out,
+                    );
                 }
             }
         }

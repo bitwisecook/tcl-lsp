@@ -440,6 +440,9 @@ fn an_ambient_package_row_rehomes_into_the_owning_environment() {
         "{}",
         outcome.source
     );
+    let with_bom = upgrade_source(&format!("\u{feff}{source}"), &UpgradeOptions::default());
+    assert_eq!(with_bom.status, outcome.status);
+    assert_eq!(with_bom.source, format!("\u{feff}{}", outcome.source));
     let before = evaluate_pack(source);
     let after = evaluate_pack(&outcome.source);
     assert!(
