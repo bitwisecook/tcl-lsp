@@ -53,15 +53,15 @@ fn regex_and_glob_hover_escape_table_pipes() {
 
 #[test]
 fn scan_regsub_backrefs_finds_each_backref() {
-    let r = scan_regsub_backrefs("\\1-\\2 (\\& and \\0)");
-    assert_eq!(r, vec!["\\1", "\\2", "\\&", "\\0"]);
+    let r = scan_regsub_backrefs(r"é & \1 \& \\1 \0");
+    assert_eq!(r, [("&", 0), (r"\1", 1), (r"\0", 0)]);
 }
 
 #[test]
 fn regsub_hover_renders_backref_table() {
     let text = regsub_hover_text("prefix \\1 suffix");
     assert!(text.contains("**Substitution spec**"), "{text}");
-    assert!(text.contains("| `\\1` | First capture group |"), "{text}");
+    assert!(text.contains("| `\\1` | Capture group 1 |"), "{text}");
 }
 
 #[test]

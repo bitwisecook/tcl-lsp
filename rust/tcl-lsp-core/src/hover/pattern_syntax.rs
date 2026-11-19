@@ -20,45 +20,14 @@
 
 use rustc_hash::FxHashSet;
 
-/// `regsub` backref description table.
-fn regsub_backref_desc(c: char) -> Option<&'static str> {
-    match c {
-        '&' | '0' => Some("Entire matched string"),
-        '1' => Some("First capture group"),
-        '2' => Some("Second capture group"),
-        '3' => Some("Third capture group"),
-        '4' => Some("Fourth capture group"),
-        '5' => Some("Fifth capture group"),
-        '6' => Some("Sixth capture group"),
-        '7' => Some("Seventh capture group"),
-        '8' => Some("Eighth capture group"),
-        '9' => Some("Ninth capture group"),
-        _ => None,
-    }
-}
-
-/// Scan a `regsub` substitution spec for `\0` … `\9` / `\&`
-/// backreferences.  Returns each match as written (e.g.
-/// `\\1`).
-pub(super) fn scan_regsub_backrefs(text: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    let chars: Vec<char> = text.chars().collect();
-    let mut i = 0;
-    while i < chars.len() {
-        if chars[i] != '\\' {
-            i += 1;
-            continue;
-        }
-        if i + 1 >= chars.len() {
-            break;
-        }
-        let next = chars[i + 1];
-        if next == '&' || next.is_ascii_digit() {
-            out.push(chars[i..=i + 1].iter().collect());
-        }
-        i += 2;
-    }
-    out
+/// Capture references and their actual group numbers in a replacement value.
+pub(super) fn scan_regsub_backrefs(text: &str) -> Vec<(&str, u8)> {
+    tcl_cmd_core::regex::replacement_parts(text.as_bytes())
+        .filter_map(|(range, part)| match part {
+            tcl_cmd_core::regex::ReplacementPart::Capture(group) => Some((&text[range], group)),
+            tcl_cmd_core::regex::ReplacementPart::Literal(_) => None,
+        })
+        .collect()
 }
 
 /// Render the regsub substitution-spec hover markdown.
@@ -70,12 +39,13 @@ pub(super) fn regsub_hover_text(text: &str) -> String {
     } else {
         parts.push("| Reference | Meaning |".to_string());
         parts.push("|-----------|---------|".to_string());
-        for r in refs {
-            let backref_char = r.chars().nth(1).unwrap_or(' ');
-            let desc = regsub_backref_desc(backref_char).unwrap_or("Unknown");
-            // Escape the backslash for display (`\\` in
-            // markdown renders as `\`).
-            parts.push(format!("| `{r}` | {desc} |"));
+        for (spelling, group) in refs {
+            let description = if group == 0 {
+                "Entire matched string".to_owned()
+            } else {
+                format!("Capture group {group}")
+            };
+            parts.push(format!("| `{spelling}` | {description} |"));
         }
     }
     parts.join("\n")
