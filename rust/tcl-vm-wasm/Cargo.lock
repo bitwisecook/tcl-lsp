@@ -447,6 +447,7 @@ dependencies = [
  "num-bigint",
  "tcl-core-types",
  "tcl-dialect",
+ "tcl-expr",
  "tcl-lexer",
  "tcl-numeric",
  "tcl-value-syntax",
@@ -458,7 +459,6 @@ version = "0.1.0"
 dependencies = [
  "tcl-core-types",
  "tcl-dialect",
- "tcl-expr",
  "tcl-lexer",
 ]
 
