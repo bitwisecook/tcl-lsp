@@ -40,36 +40,7 @@ pub fn string_match_bytes(pattern: &[u8], text: &[u8]) -> bool {
     }
 }
 
-/// A source construct in an object/name glob. Filesystem globbing has a
-/// further path/brace grammar and must select that grammar independently.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum GlobRole {
-    AnySequence,
-    AnyCharacter,
-    CharacterClass,
-    Escape,
-}
-
-impl GlobRole {
-    /// First-unit dispatch shared by the matcher and its readonly source view.
-    #[must_use]
-    pub const fn from_unit(unit: u32) -> Option<Self> {
-        match unit {
-            42 => Some(Self::AnySequence),
-            63 => Some(Self::AnyCharacter),
-            91 => Some(Self::CharacterClass),
-            92 => Some(Self::Escape),
-            _ => None,
-        }
-    }
-}
-
-/// One complete, subject-independent pattern component in the input's units.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct GlobComponent {
-    pub range: std::ops::Range<usize>,
-    pub role: GlobRole,
-}
+pub use tcl_value_syntax::glob::{GlobComponent, GlobRole};
 
 /// Whether `pattern` contains no glob metacharacter, so
 /// [`string_match(pattern, text)`](string_match) is exactly `pattern == text`.

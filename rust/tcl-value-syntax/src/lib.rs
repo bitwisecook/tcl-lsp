@@ -20,6 +20,7 @@
 
 pub mod backslash;
 pub mod dictionary;
+pub mod glob;
 pub mod list;
 pub mod list_result;
 pub mod native_string;
