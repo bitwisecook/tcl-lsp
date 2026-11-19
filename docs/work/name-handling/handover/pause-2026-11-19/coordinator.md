@@ -48,6 +48,12 @@ All six replacement workers acknowledged the pause and stopped their jobs, inclu
 
 The two distinct APL readers in Zed and the hosted parser disagree even on the bytes of a complete embedded expression. The saved C and Rust probes reproduce 28..36 versus 28..42 for `[list {]} yes]`. The [tooling handover](irules-registry-tooling.md) includes the pinned editor grammar and the remaining malformed and Unicode examples.
 
+## Final pause checks
+
+The implementation stopped at `c9b656f11e`. Workspace formatting passed. On `e9ba6dd8e3` with the area handovers present, `make xtask-gates` passed 38 of 40. The earlier GVN dialect-drift issue cleared. Diagnostics owns the remaining segmentation-drift finding at `rust/tcl-compiler/src/analyser/diagnostics/usage/unbraced_words.rs:102`, where the code checks Tcl separators and command terminators. Tooling owns the registry-axis ratchet for `rust/tcl-compiler/src/analyser/diagnostics/usage.rs`: the observed count fell from one to zero. The generated registry inventory reflects the new count.
+
+The expanded parser ownership gate passed on 35,962 tracked paths and 304 Cargo targets. It parsed 8,871 Rust files, reported 10,295 structural/host leads and 324 entry/default leads, and followed possible shipping edges to 16 test-named Rust sources. The wider register still needs reconciliation to this scan. These are discovery counts, and the three scoped contracts are the current enforcement boundary.
+
 ## Prompt for the next coordinator
 
 > Resume the naming, shared-parser migration and test scrub in bitwisecook/tcl-lsp on branch `work` from the 19 November 2026 pause. Read `docs/work/name-handling/handover/pause-2026-11-19/coordinator.md` first, then the current scoreboard, scrub README, parser plan, roster and all thirteen linked area handovers. Carry forward the seven owner decisions. Re-enable the hourly Burn-down session check at :52 for the active coordinator. Resume or replace the six area workers with appropriate subagents. Keep the retired and separately paused sessions untouched.

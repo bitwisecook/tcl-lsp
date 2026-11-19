@@ -1,6 +1,6 @@
 # Shared parsing libraries for Tcl
 
-The [19 November pause handover](handover/pause-2026-11-19/coordinator.md) records the last combined gate, reviewed scopes, open counts and the next public verifications.
+At the [19 November pause](handover/pause-2026-11-19/coordinator.md#final-pause-checks), the expanded gate reported 10,295 structural/host leads and 324 entry/default leads on 8,871 Rust syntax trees. It traced possible shipping paths to 16 test-named sources. Reconcile the earlier site-by-site review with this inventory on restart.
 
 Use one owner for each grammar and each observable spelling. Give the LSP, compiler, registry, VM, standalone runtime and tools access to that owner at the lowest layer that has the required inputs. The highest-value first change is to route optimiser folds through the command implementations already used at run time. Moving modules between crates comes after proving that the consumer can use the same contract. See the [production findings and oracle evidence](parser-audit.md) and the [existing owner map](../../design/contracts/shared-utility-contracts-rust.md).
 
