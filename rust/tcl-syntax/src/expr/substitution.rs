@@ -26,7 +26,7 @@
 //! actual `[…]` closer to the lexer range owner.
 
 use tcl_dialect::DialectProfile;
-use tcl_lexer::{Lexer, LexerConfig, Span, TokenType};
+use tcl_lexer::{LexerConfig, Span};
 
 use super::ExprNode;
 use super::parser::{CheckedExprParse, ExprParseContext, parse_expr_checked_with_context};
@@ -69,12 +69,11 @@ pub fn checked_expression_substitutions(
     source: &str,
     context: &ExprParseContext,
 ) -> Option<LiveExpressionSubstitutions> {
-    let CheckedExprParse::Parsed(parsed) = parse_expr_checked_with_context(source, context) else {
+    let CheckedExprParse::Parsed(_) = parse_expr_checked_with_context(source, context) else {
         return None;
     };
-    substitutions_from_parsed(
+    checked_substitution_spans(
         source,
-        &parsed,
         context,
         LexerConfig::from_grammar(context.lexer_grammar),
     )
@@ -165,10 +164,9 @@ pub fn checked_source_expression_substitutions(
     source: &str,
     context: &ExprParseContext,
 ) -> Option<LiveExpressionSubstitutions> {
-    let parsed = super::parser::parse_source_expression_checked(source, context)?;
-    substitutions_from_parsed(
+    super::parser::parse_source_expression_checked(source, context)?;
+    checked_substitution_spans(
         source,
-        &parsed,
         context,
         LexerConfig::from_grammar(context.lexer_grammar),
     )
@@ -204,50 +202,22 @@ pub fn live_expression_substitutions(
     if !surface_accepts(&parsed) {
         return LiveExpressionSubstitutions::default();
     }
-    substitutions_from_parsed(source, &parsed, &context, lexer_config).unwrap_or_default()
+    checked_substitution_spans(source, &context, lexer_config).unwrap_or_default()
 }
 
-fn substitutions_from_parsed(
+fn checked_substitution_spans(
     source: &str,
-    parsed: &ExprNode,
     context: &ExprParseContext,
-    lexer_config: LexerConfig,
+    config: LexerConfig,
 ) -> Option<LiveExpressionSubstitutions> {
-    // The checked expression owns the complete quote delimiters. Its extracted
-    // interiors deliberately have no closing quote, so quoted-body EOF is not
-    // a new syntax failure. Nested syntax was checked before this projection.
-    let mut variables: Vec<Span> = parsed
-        .variable_spans()
-        .into_iter()
-        .filter_map(|(start, end)| expression_span(source, start, end))
-        .collect();
-    // Direct AST variables include the whole `$array(index)` form. The array
-    // key evaluates as a Tcl substitution context of its own, so recover its
-    // direct variables through the lexer owner. Commands inside the index stay
-    // opaque here and are recovered from `commands` by the script recursion.
-    let direct_variables = variables.clone();
-    for variable in direct_variables {
-        append_array_index_variable_spans(source, variable, lexer_config, &mut variables);
-    }
-    // The expression AST deliberately keeps string operands opaque. A
-    // double-quoted operand nevertheless evaluates Tcl substitutions at expr
-    // time, unlike a braced operand. Re-enter only the raw quoted interiors
-    // through the shared lexer; scanning decoded string text would lose exact
-    // escapes and can turn inert source into a false live variable.
-    for (start, end) in parsed.quoted_string_spans() {
-        append_quoted_string_variable_spans(source, start, end, lexer_config, &mut variables)?;
-    }
-    variables.sort_unstable_by_key(|span| (span.start(), span.end()));
-    variables.dedup();
-
-    let commands = original_command_regions(source, context, lexer_config)?
-        .into_iter()
-        .map(|region| region.substitution)
-        .collect();
-
+    let regions = original_substitution_regions(source, context, config)?;
     Some(LiveExpressionSubstitutions {
-        variables,
-        commands,
+        variables: regions.variables,
+        commands: regions
+            .commands
+            .into_iter()
+            .map(|region| region.substitution)
+            .collect(),
     })
 }
 
@@ -300,122 +270,6 @@ pub fn expression_span(source: &str, start: u32, end: u32) -> Option<Span> {
         u32::try_from(start).ok()?,
         u32::try_from(end).ok()?,
     ))
-}
-
-/// Add direct variable substitutions from a `$name(index)` key. The enclosing
-/// expression parser has already proved the full variable syntax valid; this
-/// function only decomposes the index's Tcl substitution context.
-fn append_array_index_variable_spans(
-    source: &str,
-    variable: Span,
-    lexer_config: LexerConfig,
-    out: &mut Vec<Span>,
-) {
-    let Some(raw) = source.get(variable.as_range()) else {
-        return;
-    };
-    let Some(index_range) = array_index_content_range(raw, lexer_config) else {
-        return;
-    };
-    let Some(index) = raw.get(index_range.clone()) else {
-        return;
-    };
-    let index_start = variable.start() as usize + index_range.start;
-    let Ok(tokens) = Lexer::with_config(index, lexer_config)
-        .as_quoted_body()
-        .tokenise_all()
-    else {
-        return;
-    };
-    for token in tokens
-        .into_iter()
-        .filter(|token| token.kind == TokenType::Var)
-    {
-        let start = index_start + token.span.start() as usize;
-        let end = index_start + token.span.end() as usize;
-        let (Ok(start), Ok(end)) = (u32::try_from(start), u32::try_from(end)) else {
-            continue;
-        };
-        let nested = Span::new(start, end);
-        out.push(nested);
-        append_array_index_variable_spans(source, nested, lexer_config, out);
-    }
-}
-
-/// Add direct variable substitutions from one quoted expression operand.
-///
-/// `start` and `end` use the expression lexer's inclusive convention and
-/// include the quote delimiters. The lexer sees only the raw interior in
-/// quoted-body mode, preserving Tcl escape, array-index, and command-boundary
-/// semantics without decoding the expression string.
-fn append_quoted_string_variable_spans(
-    source: &str,
-    start: u32,
-    end: u32,
-    lexer_config: LexerConfig,
-    out: &mut Vec<Span>,
-) -> Option<()> {
-    let quoted = expression_span(source, start, end)?;
-    let quoted_start = quoted.start() as usize;
-    let quoted_end = quoted.end() as usize;
-    let interior_start = quoted_start.checked_add(1)?;
-    let interior_end = quoted_end.checked_sub(1)?;
-    let interior = source.get(interior_start..interior_end)?;
-    // The expr parser owns the quotes but treats their interiors as opaque.
-    // Validate nested substitution delimiters through the same script scanner;
-    // quoted-body EOF alone cannot distinguish a missing array closer.
-    let extent = Span::new(0, u32::try_from(interior.len()).ok()?);
-    let arena = tcl_lexer::ExecutablePartArena::decompose(
-        tcl_lexer::SourceImage::document(interior),
-        extent,
-        tcl_lexer::word_parts::SubstFlags::default(),
-        lexer_config,
-    )
-    .ok()?;
-    if arena
-        .all_parts()
-        .any(|part| matches!(part.part, tcl_lexer::ExecutablePart::ParseError(_)))
-    {
-        return None;
-    }
-    let Ok(tokens) = Lexer::with_config(interior, lexer_config)
-        .as_quoted_body()
-        .tokenise_all()
-    else {
-        return None;
-    };
-    for token in tokens
-        .into_iter()
-        .filter(|token| token.kind == TokenType::Var)
-    {
-        let start = interior_start + token.span.start() as usize;
-        let end = interior_start + token.span.end() as usize;
-        let (Ok(start), Ok(end)) = (u32::try_from(start), u32::try_from(end)) else {
-            continue;
-        };
-        let variable = Span::new(start, end);
-        out.push(variable);
-        append_array_index_variable_spans(source, variable, lexer_config, out);
-    }
-    Some(())
-}
-
-/// The content range of a non-braced `$name(index)` variable spelling.
-///
-/// The native variable scanner owns both the complete name grammar and index
-/// delimiters. Borrowed index geometry preserves Jim high-byte names and empty
-/// indices without a second name scan or closer calculation.
-fn array_index_content_range(
-    variable: &str,
-    config: LexerConfig,
-) -> Option<std::ops::Range<usize>> {
-    let bytes = variable.as_bytes();
-    if bytes.first() != Some(&b'$') {
-        return None;
-    }
-    let reference = tcl_lexer::word_parts::scan_var_ref(bytes, 0, config).ok()??;
-    (reference.next == bytes.len()).then_some(())?;
-    reference.index_range_in(bytes)
 }
 
 /// The caller may change offsets, strictness, or file-vs-nested BOM handling,
@@ -1125,15 +979,20 @@ impl OriginalSourceExpression {
     /// The caller separately retains its original word/channel/selected role.
     #[must_use]
     pub fn command_regions(&self) -> Option<Vec<OriginalExpressionCommandRegion>> {
-        original_command_regions(&self.source, &self.context, self.config)
+        Some(original_substitution_regions(&self.source, &self.context, self.config)?.commands)
     }
 }
 
-fn original_command_regions(
+struct OriginalSubstitutionRegions {
+    variables: Vec<Span>,
+    commands: Vec<OriginalExpressionCommandRegion>,
+}
+
+fn original_substitution_regions(
     text: &str,
     context: &ExprParseContext,
     config: LexerConfig,
-) -> Option<Vec<OriginalExpressionCommandRegion>> {
+) -> Option<OriginalSubstitutionRegions> {
     let source = text.as_bytes();
     let (tokens, failures) = tcl_lexer::tokenise_expr_bytes_with_config_and_failures(
         source,
@@ -1145,13 +1004,14 @@ fn original_command_regions(
     failures.is_empty().then_some(())?;
     let terms = tcl_lexer::expression_terms(source, &tokens, config)?;
     let image = tcl_lexer::SourceImage::document(text);
-    let mut regions = Vec::new();
+    let mut variables = Vec::new();
+    let mut commands = Vec::new();
     for term in terms {
         let whole = Span::new(term.source.start, term.source.end);
         let value_span = Span::new(term.value.start, term.value.end);
         let parts = match term.kind {
             tcl_lexer::ExprTermKind::Command => {
-                regions.push(OriginalExpressionCommandRegion {
+                commands.push(OriginalExpressionCommandRegion {
                     substitution: whole,
                     body: value_span,
                     whole_operand: true,
@@ -1172,8 +1032,9 @@ fn original_command_regions(
         for part in arena.all_parts() {
             match part.part {
                 tcl_lexer::ExecutablePart::ParseError(_) => return None,
+                tcl_lexer::ExecutablePart::Variable { .. } => variables.push(part.span),
                 tcl_lexer::ExecutablePart::Command { body } => {
-                    regions.push(OriginalExpressionCommandRegion {
+                    commands.push(OriginalExpressionCommandRegion {
                         substitution: part.span,
                         body,
                         whole_operand: false,
@@ -1183,9 +1044,15 @@ fn original_command_regions(
             }
         }
     }
-    regions.sort_unstable_by_key(|region| (region.substitution.start(), region.substitution.end()));
-    regions.dedup();
-    Some(regions)
+    variables.sort_unstable_by_key(|span| (span.start(), span.end()));
+    variables.dedup();
+    commands
+        .sort_unstable_by_key(|region| (region.substitution.start(), region.substitution.end()));
+    commands.dedup();
+    Some(OriginalSubstitutionRegions {
+        variables,
+        commands,
+    })
 }
 
 #[cfg(test)]
