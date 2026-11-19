@@ -50,6 +50,10 @@ Six workers cover the thirteen area handoffs in this coordinator chat. Progress 
 
 **Oracle baseline.** execution found that the Jim bootstrap pin predates upstream HEAD and the required-oracle harness checks its patchlevel. execution verifies the interpreters and irules-registry-tooling owns the pin correction. Every new measurement records the source head and actual Jim version. Historical counts below retain their original date.
 
+**Unmarked switch subject, 19 November.** class-facts may correct the two marker-only expectations named in its handoff for a selected C Tcl 8.5–9.1 release. With `set x -glob`, `switch -exact $x {-glob {set y MATCH} default {set y NO}}` returns `MATCH` on 8.5.19, 8.6.18, 9.0.4 and 9.1.0. C Tcl 8.4.20 raises `bad option`; Jim 0.84-15-g2f8e155 raises `wrong # args`. Preserve the option-value versus marker control, distinguish the actual selected release in the Logical fixture, and leave the subject layout unknown when the context cannot prove it. Record the F5 case for device verification.
+
+**Restart evidence.** All thirteen queues have been acknowledged. The five C Tcl releases above and latest Jim all returned zero for `llength [split ""]`. This establishes the oracle side of O129. The product fix and clean-head suite counts are pending. For the database, the server handoff records a completed 507-second `it_5` run on `a375d8656`; per-test timings are outstanding. The two compiler tests also fail in the full `command_binding::` group on one thread. Investigate order-dependent state.
+
 ## Scoreboard, 18 November 2026, 11:55 UTC (at the pause)
 
 Failing tests by area on the restructured tree, from the successor sessions' baselines and first pushes.
