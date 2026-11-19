@@ -1313,4 +1313,4 @@ This implementation question has no external provider execution receipt. Fixed R
 - [rust/tcl-runtime-api/src/native_literal](../../../../rust/tcl-runtime-api/src/native_literal)
 - [rust/xtask/src](../../../../rust/xtask/src)
 - [rust/tcl-spec-hooks/src](../../../../rust/tcl-spec-hooks/src)
-- [rust/tcl-syntax/src/native_string](../../../../rust/tcl-syntax/src/native_string)
+- [rust/tcl-syntax/src/native_string](../../../../rust/tcl-value-syntax/src/native_string)
