@@ -92,34 +92,29 @@ fn offset_to_line_char(source: &str, byte: usize) -> (u32, u32) {
     (line, character)
 }
 
-/// Return the byte offset past the closing `}` matching the `{` at
-/// `start`, skipping braces inside quoted strings.
-fn find_brace_end(source: &str, start: usize) -> usize {
+/// The matching APL closing brace, or the real end of an incomplete body.
+/// Each returned offset is a source boundary, including at a non-ASCII EOF.
+fn block_body_end(source: &str, start: usize) -> usize {
     let bytes = source.as_bytes();
-    let len = bytes.len();
     let mut pos = start + 1;
     let mut depth = 1;
-    while pos < len && depth > 0 {
-        match bytes[pos] {
-            b'"' => {
-                pos += 1;
-                while pos < len && bytes[pos] != b'"' {
-                    if bytes[pos] == b'\\' {
-                        pos += 1;
-                    }
-                    pos += 1;
-                }
-                pos += 1;
-                continue;
-            }
-            b'{' => depth += 1,
-            b'}' => depth -= 1,
+    let mut quoted = false;
+    while let Some(&byte) = bytes.get(pos) {
+        match byte {
             b'\\' => pos += 1,
+            b'"' => quoted = !quoted,
+            b'{' if !quoted => depth += 1,
+            b'}' if !quoted => {
+                depth -= 1;
+                if depth == 0 {
+                    return pos;
+                }
+            }
             _ => {}
         }
         pos += 1;
     }
-    pos
+    source.len()
 }
 
 /// Build a name range from a byte offset + the name (code-point spans).
@@ -232,8 +227,8 @@ pub fn parse_apl(source: &str) -> AplModel {
         let name_m = m.get(1).unwrap();
         let sec_name = name_m.as_str().to_owned();
         let brace_pos = whole.end() - 1;
-        let end_pos = find_brace_end(source, brace_pos);
-        let block = &source[brace_pos + 1..end_pos.saturating_sub(1).max(brace_pos + 1)];
+        let end_pos = block_body_end(source, brace_pos);
+        let block = &source[brace_pos + 1..end_pos];
         section_ranges.push((brace_pos, end_pos, sec_name.clone()));
 
         let fields = parse_fields_in_block(block, &sec_name, brace_pos + 1, source);
@@ -256,8 +251,8 @@ pub fn parse_apl(source: &str) -> AplModel {
         let name_m = m.get(1).unwrap();
         let tbl_name = name_m.as_str().to_owned();
         let brace_pos = whole.end() - 1;
-        let end_pos = find_brace_end(source, brace_pos);
-        let block = &source[brace_pos + 1..end_pos.saturating_sub(1).max(brace_pos + 1)];
+        let end_pos = block_body_end(source, brace_pos);
+        let block = &source[brace_pos + 1..end_pos];
 
         let parent_prefix = section_ranges
             .iter()
@@ -377,6 +372,22 @@ mod tests {
             assert!(all.contains(&q), "missing {q} in {all:?}");
         }
         assert_eq!(m.tcl_variable_names()[0], "::basic__addr");
+    }
+
+    #[test]
+    fn unfinished_apl_sections_and_tables_keep_the_last_utf8_character() {
+        for tail in ["é", "𐐀", "\"unfinished\\"] {
+            let source = format!("section example {{\n string child {tail}");
+            assert_eq!(
+                block_body_end(&source, source.find('{').unwrap()),
+                source.len()
+            );
+            let model = parse_apl(&source);
+            assert_eq!(model.sections[0].0, "example");
+            let source = format!("table example {{\n string child {tail}");
+            let model = parse_apl(&source);
+            assert_eq!(model.tables[0].0, "example");
+        }
     }
 
     #[test]
