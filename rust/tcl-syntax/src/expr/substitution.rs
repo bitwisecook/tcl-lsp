@@ -26,9 +26,7 @@
 //! actual `[…]` closer to the lexer range owner.
 
 use tcl_dialect::DialectProfile;
-use tcl_lexer::{
-    Lexer, LexerConfig, Span, TokenType, backslash_escape_end, command_substitution_end,
-};
+use tcl_lexer::{Lexer, LexerConfig, Span, TokenType};
 
 use super::ExprNode;
 use super::parser::{CheckedExprParse, ExprParseContext, parse_expr_checked_with_context};
@@ -74,7 +72,12 @@ pub fn checked_expression_substitutions(
     let CheckedExprParse::Parsed(parsed) = parse_expr_checked_with_context(source, context) else {
         return None;
     };
-    substitutions_from_parsed(source, &parsed, context)
+    substitutions_from_parsed(
+        source,
+        &parsed,
+        context,
+        LexerConfig::from_grammar(context.lexer_grammar),
+    )
 }
 
 /// Complete checked source expression, without a selected Native parser or evaluator.
@@ -163,7 +166,12 @@ pub fn checked_source_expression_substitutions(
     context: &ExprParseContext,
 ) -> Option<LiveExpressionSubstitutions> {
     let parsed = super::parser::parse_source_expression_checked(source, context)?;
-    substitutions_from_parsed(source, &parsed, context)
+    substitutions_from_parsed(
+        source,
+        &parsed,
+        context,
+        LexerConfig::from_grammar(context.lexer_grammar),
+    )
 }
 
 /// Return every variable and complete command substitution directly evaluated
@@ -196,19 +204,18 @@ pub fn live_expression_substitutions(
     if !surface_accepts(&parsed) {
         return LiveExpressionSubstitutions::default();
     }
-    substitutions_from_parsed(source, &parsed, &context).unwrap_or_default()
+    substitutions_from_parsed(source, &parsed, &context, lexer_config).unwrap_or_default()
 }
 
 fn substitutions_from_parsed(
     source: &str,
     parsed: &ExprNode,
     context: &ExprParseContext,
+    lexer_config: LexerConfig,
 ) -> Option<LiveExpressionSubstitutions> {
     // The checked expression owns the complete quote delimiters. Its extracted
     // interiors deliberately have no closing quote, so quoted-body EOF is not
     // a new syntax failure. Nested syntax was checked before this projection.
-    let lexer_config = LexerConfig::from_grammar(context.lexer_grammar);
-
     let mut variables: Vec<Span> = parsed
         .variable_spans()
         .into_iter()
@@ -233,9 +240,10 @@ fn substitutions_from_parsed(
     variables.sort_unstable_by_key(|span| (span.start(), span.end()));
     variables.dedup();
 
-    let comments = context.lexer_grammar.expr_comments.comments();
-    let mut commands = Vec::new();
-    scan_expression(source, 0, source.len(), comments, &mut commands);
+    let commands = original_command_regions(source, context, lexer_config)?
+        .into_iter()
+        .map(|region| region.substitution)
+        .collect();
 
     Some(LiveExpressionSubstitutions {
         variables,
@@ -265,7 +273,7 @@ fn substitutions_from_parsed(
 /// commands.
 ///
 /// The closer itself is owned by
-/// [`tcl_lexer::command_substitution_end`], so quotes, braces, nested command
+/// the selected expression terms and executable word parts, so quotes, braces, nested command
 /// substitutions, escapes, and command-position comments *inside* a returned
 /// command use Tcl script grammar rather than a duplicate expression scan.
 #[must_use]
@@ -412,116 +420,9 @@ fn array_index_content_range(
 
 /// The caller may change offsets, strictness, or file-vs-nested BOM handling,
 /// but not the dialect-derived script grammar while using this expression
-/// profile.  `command_substitution_end` is release-blind because no supported
-/// release's escape *width* changes a `[`/`]` boundary; checking the resolved
-/// config here still prevents a caller from mixing Tcl 8/iRules word grammar
-/// with a Tcl 9 expression parse.
+/// profile. The nested command and word owners receive the same grammar.
 fn lexer_config_matches_profile(config: LexerConfig, profile: &DialectProfile) -> bool {
     config.grammar_over(profile.grammar) == profile.grammar
-}
-
-fn scan_expression(
-    source: &str,
-    mut pos: usize,
-    end: usize,
-    comments: bool,
-    spans: &mut Vec<Span>,
-) {
-    let bytes = source.as_bytes();
-    while pos < end {
-        match bytes[pos] {
-            b'\\' => pos = backslash_escape_end(source, pos).min(end),
-            b'#' if comments => {
-                pos = source[pos..end]
-                    .find('\n')
-                    .map_or(end, |relative| pos + relative + 1);
-            }
-            b'{' => match braced_literal_end(source, pos, end) {
-                Some(next) => pos = next,
-                // A malformed braced operand gives us no sound outer grammar
-                // in which to prove a later `[` live.  Fail closed.
-                None => return,
-            },
-            b'"' => {
-                pos = scan_quoted_operand(source, pos, end, spans).unwrap_or(end);
-            }
-            b'[' => match command_substitution_end(source, pos).filter(|&next| next <= end) {
-                Some(next) => {
-                    spans.push(span(pos, next));
-                    pos = next;
-                }
-                // Do not manufacture a span for an editor-buffer fragment
-                // whose `]` has not yet been written.
-                None => return,
-            },
-            _ => pos += 1,
-        }
-    }
-}
-
-/// Skip a braced expression operand.  Braces are literal syntax: neither
-/// substitutions nor comments run in them.  This mirrors the brace balance
-/// rule used by the expression lexer.
-fn braced_literal_end(source: &str, open: usize, end: usize) -> Option<usize> {
-    let bytes = source.as_bytes();
-    let mut pos = open + 1;
-    let mut depth = 1_u32;
-    while pos < end {
-        match bytes[pos] {
-            b'\\' => pos = backslash_escape_end(source, pos).min(end),
-            b'{' => {
-                depth += 1;
-                pos += 1;
-            }
-            b'}' => {
-                depth -= 1;
-                pos += 1;
-                if depth == 0 {
-                    return Some(pos);
-                }
-            }
-            _ => pos += 1,
-        }
-    }
-    None
-}
-
-/// Scan a quoted expression operand for substitutions; braces and `#` are
-/// ordinary characters here.  Spans are committed only after the closing
-/// quote, so an incomplete quoted operand does not claim that its inner
-/// command can execute.
-fn scan_quoted_operand(
-    source: &str,
-    open: usize,
-    end: usize,
-    spans: &mut Vec<Span>,
-) -> Option<usize> {
-    let bytes = source.as_bytes();
-    let mut pos = open + 1;
-    let mut quoted_spans = Vec::new();
-    while pos < end {
-        match bytes[pos] {
-            b'\\' => pos = backslash_escape_end(source, pos).min(end),
-            b'"' => {
-                spans.extend(quoted_spans);
-                return Some(pos + 1);
-            }
-            b'[' => {
-                let next = command_substitution_end(source, pos).filter(|&next| next <= end)?;
-                quoted_spans.push(span(pos, next));
-                pos = next;
-            }
-            _ => pos += 1,
-        }
-    }
-    None
-}
-
-fn span(start: usize, end: usize) -> Span {
-    Span::new(
-        u32::try_from(start).expect("expression offset fits u32"),
-        u32::try_from(end).expect("expression offset fits u32"),
-    )
 }
 
 #[cfg(test)]
@@ -1224,63 +1125,67 @@ impl OriginalSourceExpression {
     /// The caller separately retains its original word/channel/selected role.
     #[must_use]
     pub fn command_regions(&self) -> Option<Vec<OriginalExpressionCommandRegion>> {
-        let source = self.source.as_bytes();
-        let (tokens, failures) = tcl_lexer::tokenise_expr_bytes_with_config_and_failures(
-            source,
-            &self.context.lexer_grammar,
-            self.context.expr_grammar_base,
-            self.context.f5_word_grammar,
-            self.config,
-        );
-        failures.is_empty().then_some(())?;
-        let terms = tcl_lexer::expression_terms(source, &tokens, self.config)?;
-        let image = tcl_lexer::SourceImage::document(&self.source);
-        let mut regions = Vec::new();
-        for term in terms {
-            let whole = Span::new(term.source.start, term.source.end);
-            let content = Span::new(term.value.start, term.value.end);
-            let parts = match term.kind {
-                tcl_lexer::ExprTermKind::Command => {
+        original_command_regions(&self.source, &self.context, self.config)
+    }
+}
+
+fn original_command_regions(
+    text: &str,
+    context: &ExprParseContext,
+    config: LexerConfig,
+) -> Option<Vec<OriginalExpressionCommandRegion>> {
+    let source = text.as_bytes();
+    let (tokens, failures) = tcl_lexer::tokenise_expr_bytes_with_config_and_failures(
+        source,
+        &context.lexer_grammar,
+        context.expr_grammar_base,
+        context.f5_word_grammar,
+        config,
+    );
+    failures.is_empty().then_some(())?;
+    let terms = tcl_lexer::expression_terms(source, &tokens, config)?;
+    let image = tcl_lexer::SourceImage::document(text);
+    let mut regions = Vec::new();
+    for term in terms {
+        let whole = Span::new(term.source.start, term.source.end);
+        let content = Span::new(term.value.start, term.value.end);
+        let parts = match term.kind {
+            tcl_lexer::ExprTermKind::Command => {
+                regions.push(OriginalExpressionCommandRegion {
+                    substitution: whole,
+                    body: content,
+                    whole_operand: true,
+                });
+                continue;
+            }
+            tcl_lexer::ExprTermKind::EscapedString => content,
+            tcl_lexer::ExprTermKind::Variable | tcl_lexer::ExprTermKind::IndexedVariable => whole,
+            _ => continue,
+        };
+        let arena = tcl_lexer::ExecutablePartArena::decompose(
+            image.clone(),
+            parts,
+            tcl_lexer::word_parts::SubstFlags::default(),
+            config,
+        )
+        .ok()?;
+        for part in arena.all_parts() {
+            match part.part {
+                tcl_lexer::ExecutablePart::ParseError(_) => return None,
+                tcl_lexer::ExecutablePart::Command { body } => {
                     regions.push(OriginalExpressionCommandRegion {
-                        substitution: whole,
-                        body: content,
-                        whole_operand: true,
+                        substitution: part.span,
+                        body,
+                        whole_operand: false,
                     });
-                    continue;
                 }
-                tcl_lexer::ExprTermKind::EscapedString => content,
-                tcl_lexer::ExprTermKind::Variable | tcl_lexer::ExprTermKind::IndexedVariable => {
-                    whole
-                }
-                _ => continue,
-            };
-            let arena = tcl_lexer::ExecutablePartArena::decompose(
-                image.clone(),
-                parts,
-                tcl_lexer::word_parts::SubstFlags::default(),
-                self.config,
-            )
-            .ok()?;
-            for part in arena.all_parts() {
-                match part.part {
-                    tcl_lexer::ExecutablePart::ParseError(_) => return None,
-                    tcl_lexer::ExecutablePart::Command { body } => {
-                        regions.push(OriginalExpressionCommandRegion {
-                            substitution: part.span,
-                            body,
-                            whole_operand: false,
-                        });
-                    }
-                    _ => {}
-                }
+                _ => {}
             }
         }
-        regions.sort_unstable_by_key(|region| {
-            (region.substitution.start(), region.substitution.end())
-        });
-        regions.dedup();
-        Some(regions)
     }
+    regions.sort_unstable_by_key(|region| (region.substitution.start(), region.substitution.end()));
+    regions.dedup();
+    Some(regions)
 }
 
 #[cfg(test)]

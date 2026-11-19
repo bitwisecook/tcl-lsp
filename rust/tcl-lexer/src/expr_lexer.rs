@@ -767,7 +767,7 @@ impl<'s> Inner<'s> {
             f5_word_grammar,
             expr_comments: grammar.expr_comments.comments(),
             numbers: grammar.numbers,
-            variable_config: crate::LexerConfig::default().with_grammar(*grammar),
+            variable_config: crate::LexerConfig::from_grammar(*grammar),
             expr_grammar_base,
             numeric_suffix_probe: false,
             unknown: false,

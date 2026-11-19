@@ -591,7 +591,8 @@ fn backslash_length(src: &[u8]) -> usize {
 /// where the string ends.
 fn parse_quoted(src: &[u8], at: usize, commands: &mut Vec<String>) -> Result<usize, String> {
     let text = std::str::from_utf8(src).map_err(|_| "missing \"".to_owned())?;
-    let close = tcl_lexer::quoted_word_close(text, at - 1).map_err(str::to_owned)?;
+    let close = tcl_lexer::word_parts::quoted_word_close_in(text, at - 1, lexer_config())
+        .map_err(str::to_owned)?;
     record_commands(src, at, close, commands)?;
     Ok(close + 1)
 }
