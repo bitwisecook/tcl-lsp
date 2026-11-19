@@ -185,9 +185,35 @@ pub struct Regex {
 }
 impl Regex {
     pub fn compile(original: &[u8], flags: Flags) -> Result<Self, Error> {
+        Self::compile_recording(original, flags, None)
+    }
+
+    /// Original byte ranges selected by the bundled Jim pattern compiler.
+    ///
+    /// # Errors
+    /// Returns the same error as compilation of the pattern.
+    pub fn components(
+        original: &[u8],
+        flags: Flags,
+    ) -> Result<Vec<crate::PatternComponent>, Error> {
+        let mut components = Vec::new();
+        Self::compile_recording(original, flags, Some(&mut components))?;
+        Ok(components)
+    }
+
+    fn compile_recording(
+        original: &[u8],
+        flags: Flags,
+        mut output: Option<&mut Vec<crate::PatternComponent>>,
+    ) -> Result<Self, Error> {
         let source = tcl_core_types::c_string_extent(original);
+        let mut offsets = Vec::new();
         let source = if flags.expanded() {
-            expanded(source)
+            expanded(source, |offset| {
+                if output.is_some() {
+                    offsets.push(offset);
+                }
+            })
         } else {
             source.to_vec()
         };
@@ -198,6 +224,7 @@ impl Regex {
             flags,
             nsub: 0,
             depth: 0,
+            components: output.as_ref().map(|_| Vec::new()),
         };
         let (_, shape) = compiler.group(false)?;
         if compiler.nsub >= 100 {
@@ -225,6 +252,23 @@ impl Regex {
                     }
                 }
                 scan = compiler.next(scan)?;
+            }
+        }
+        if let (Some(output), Some(components)) = (&mut output, compiler.components) {
+            if flags.expanded() {
+                // An expanded token can span discarded whitespace or comments.
+                // Only a contiguous run has one exact original source spelling.
+                for mut item in components {
+                    let positions = &offsets[item.range.clone()];
+                    if let (Some(&first), Some(&last)) = (positions.first(), positions.last())
+                        && last - first + 1 == positions.len()
+                    {
+                        item.range = first..last + 1;
+                        output.push(item);
+                    }
+                }
+            } else {
+                **output = components;
             }
         }
         Ok(Self {
@@ -352,7 +396,7 @@ fn prefix(literal: &[i32], source: &[u8], mut cursor: usize, nocase: bool) -> bo
     true
 }
 
-fn expanded(source: &[u8]) -> Vec<u8> {
+fn expanded(source: &[u8], mut kept: impl FnMut(usize)) -> Vec<u8> {
     let mut result = Vec::new();
     let mut escaped = false;
     let mut pos = 0;
@@ -372,6 +416,7 @@ fn expanded(source: &[u8]) -> Vec<u8> {
             }
             continue;
         }
+        kept(pos);
         result.push(byte);
         pos += 1;
     }
@@ -389,6 +434,7 @@ fn mult(source: &[u8], pos: usize) -> bool {
         || (source.get(pos) == Some(&b'{') && source.get(pos + 1).is_some_and(u8::is_ascii_digit))
 }
 struct Compiler {
+    components: Option<Vec<crate::PatternComponent>>,
     source: Vec<u8>,
     pos: usize,
     program: Vec<i32>,
@@ -397,6 +443,15 @@ struct Compiler {
     depth: usize,
 }
 impl Compiler {
+    fn record(&mut self, start: usize, role: crate::PatternRole) {
+        if let Some(output) = &mut self.components {
+            output.push(crate::PatternComponent {
+                range: start..self.pos,
+                role,
+            });
+        }
+    }
+
     fn byte(&self) -> u8 {
         self.source.get(self.pos).copied().unwrap_or(0)
     }
@@ -447,6 +502,7 @@ impl Compiler {
     }
     fn group_inner(&mut self, parenthesized: bool) -> Result<(usize, u8), Error> {
         let mut flags = WIDTH;
+        let group_open = self.pos.saturating_sub(1);
         let number = if parenthesized && self.source.get(self.pos..self.pos + 2) == Some(b"?:") {
             self.pos += 2;
             -1
@@ -455,6 +511,14 @@ impl Compiler {
             i32::try_from(self.nsub).map_err(|_| Error::Unavailable)?
         };
         let mut result = if parenthesized {
+            self.record(
+                group_open,
+                if number == -1 {
+                    crate::PatternRole::NoncaptureOpen
+                } else {
+                    crate::PatternRole::CaptureOpen
+                },
+            );
             self.node(OPEN + number)
         } else {
             0
@@ -471,6 +535,7 @@ impl Compiler {
         flags |= f & SPSTART;
         while self.byte() == b'|' {
             self.pos += 1;
+            self.record(self.pos - 1, crate::PatternRole::Alternation);
             let (branch, f) = self.branch()?;
             self.tail(result, branch)?;
             if f & WIDTH == 0 {
@@ -492,6 +557,7 @@ impl Compiler {
                 return Err(Error::Syntax(8));
             }
             self.pos += 1;
+            self.record(self.pos - 1, crate::PatternRole::GroupClose);
         } else if self.byte() != 0 {
             return Err(Error::Syntax(if self.byte() == b')' { 8 } else { 11 }));
         }
@@ -533,6 +599,7 @@ impl Compiler {
         if !mult(&self.source, self.pos) {
             return Ok((result, flags));
         }
+        let quantifier = self.pos;
         let op = self.byte();
         if flags & WIDTH == 0 && op != b'?' {
             return Err(Error::Syntax(12));
@@ -580,6 +647,7 @@ impl Compiler {
             self.tail(result + 5, back)?;
         }
         self.pos += 1;
+        self.record(quantifier, crate::PatternRole::Quantifier);
         if mult(&self.source, self.pos) {
             return Err(Error::Syntax(13));
         }
@@ -771,13 +839,23 @@ impl Compiler {
             _ => None,
         };
         if let Some(opcode) = opcode {
+            self.record(
+                saved,
+                if opcode == ANY {
+                    crate::PatternRole::CharacterClass
+                } else {
+                    crate::PatternRole::Anchor
+                },
+            );
             return Ok((
                 self.node(opcode),
                 if opcode == ANY { WIDTH | SIMPLE } else { 0 },
             ));
         }
         if unit == 91 {
-            return self.charset();
+            let parsed = self.charset()?;
+            self.record(saved, crate::PatternRole::CharacterClass);
+            return Ok(parsed);
         }
         if unit == 40 {
             return self.group(true).map(|(id, f)| (id, f & (WIDTH | SPSTART)));
@@ -797,6 +875,7 @@ impl Compiler {
                 _ => None,
             };
             if let Some(opcode) = opcode {
+                self.record(saved, crate::PatternRole::Anchor);
                 return Ok((self.node(opcode), 0));
             }
             if matches!(escaped, b'd' | b'D' | b'w' | b'W' | b's' | b'S') {
@@ -820,6 +899,7 @@ impl Compiler {
                     self.class(name);
                 }
                 self.program.push(0);
+                self.record(saved, crate::PatternRole::CharacterClass);
                 return Ok((result, WIDTH | SIMPLE));
             }
         }
@@ -836,7 +916,8 @@ impl Compiler {
             let before = self.pos;
             let (mut c, width) = decode(&self.source, self.pos, self.flags.nocase());
             self.pos += width;
-            if c == 92 && self.byte() != 0 {
+            let escaped = c == 92 && self.byte() != 0;
+            if escaped {
                 if b"<>mMwWdDsSAZ".contains(&self.byte()) {
                     self.pos = before;
                     break;
@@ -849,6 +930,9 @@ impl Compiler {
             if mult(&self.source, self.pos) && added != 0 {
                 self.pos = before;
                 break;
+            }
+            if escaped {
+                self.record(before, crate::PatternRole::Escape);
             }
             self.program.push(c);
             added += 1;

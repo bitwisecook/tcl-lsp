@@ -98,6 +98,9 @@ pub struct Compiled {
 }
 
 pub struct Parser<'a> {
+    components: Option<&'a mut Vec<crate::PatternComponent>>,
+    token_start: usize,
+    aggregate_start: Option<usize>,
     input: &'a [Chr],
     now: usize,
     cflags: i32,
@@ -131,6 +134,14 @@ const MAX_PARSE_DEPTH: usize = 1000;
 /// The first `REG_*` failure encountered (matching Tcl's behaviour of reporting
 /// only the first compile error).
 pub fn compile(input: &[Chr], cflags: i32) -> Result<Compiled, Err> {
+    compile_traced(input, cflags, None)
+}
+
+pub(super) fn compile_traced<'a>(
+    input: &'a [Chr],
+    cflags: i32,
+    components: Option<&'a mut Vec<crate::PatternComponent>>,
+) -> Result<Compiled, Err> {
     // Sanity checks on flag combinations (regcomp.c `compile`).
     if cflags & REG_QUOTE != 0 && cflags & (REG_ADVANCED | REG_EXPANDED | REG_NEWLINE) != 0 {
         return Err(Err::Invarg);
@@ -139,6 +150,9 @@ pub fn compile(input: &[Chr], cflags: i32) -> Result<Compiled, Err> {
         return Err(Err::Invarg);
     }
     let mut p = Parser {
+        components,
+        token_start: 0,
+        aggregate_start: None,
         input,
         now: 0,
         cflags,
@@ -375,16 +389,78 @@ impl Parser<'_> {
 
     fn set(&mut self, t: Tok) {
         self.nexttype = t;
+        if self.components.is_some() {
+            self.record_component(t);
+        }
     }
+
+    fn record_component(&mut self, token: Tok) {
+        use crate::{PatternComponent, PatternRole as Role};
+        let mut start = self.token_start;
+        let role = match token {
+            Tok::OpenBrack | Tok::OpenBrace => {
+                self.aggregate_start = Some(start);
+                return;
+            }
+            Tok::CloseBrack | Tok::CloseBrace => {
+                let Some(open) = self.aggregate_start.take() else {
+                    return;
+                };
+                start = open;
+                if token == Tok::CloseBrack {
+                    Role::CharacterClass
+                } else {
+                    Role::Quantifier
+                }
+            }
+            _ if self.aggregate_start.is_some() => return,
+            Tok::Lacon if self.nextvalue == 0 => Role::NegativeLookahead,
+            Tok::Lacon => Role::PositiveLookahead,
+            Tok::OpenParen if self.nextvalue == 0 => Role::NoncaptureOpen,
+            Tok::OpenParen => Role::CaptureOpen,
+            Tok::CloseParen => Role::GroupClose,
+            Tok::Shorthand | Tok::Dot => Role::CharacterClass,
+            Tok::Backref => Role::Backreference,
+            Tok::Plain if self.now - start > 1 && self.input[start] == u32::from(b'\\') => {
+                Role::Escape
+            }
+            Tok::Wbdry
+            | Tok::NWbdry
+            | Tok::Sbegin
+            | Tok::Send
+            | Tok::Caret
+            | Tok::Dollar
+            | Tok::Lt
+            | Tok::Gt => Role::Anchor,
+            Tok::Bar => Role::Alternation,
+            Tok::Star | Tok::Plus | Tok::Quest => Role::Quantifier,
+            _ => return,
+        };
+        if let Some(output) = &mut self.components {
+            output.push(PatternComponent {
+                range: start..self.now,
+                role,
+            });
+        }
+    }
+
     fn setv(&mut self, t: Tok, v: i64) {
-        self.nexttype = t;
         self.nextvalue = v;
+        self.set(t);
     }
 
     // lexer
 
     fn lexstart(&mut self) {
         self.prefixes();
+        if self.now > 0
+            && let Some(output) = &mut self.components
+        {
+            output.push(crate::PatternComponent {
+                range: 0..self.now,
+                role: crate::PatternRole::Options,
+            });
+        }
         if self.iserr() {
             return;
         }
@@ -520,6 +596,7 @@ impl Parser<'_> {
             return;
         }
 
+        self.token_start = self.now;
         let c = self.input[self.now];
         self.now += 1;
 
@@ -722,6 +799,12 @@ impl Parser<'_> {
                             }
                             if !self.ateos() {
                                 self.now += 1;
+                            }
+                            if let Some(output) = &mut self.components {
+                                output.push(crate::PatternComponent {
+                                    range: self.token_start..self.now,
+                                    role: crate::PatternRole::Comment,
+                                });
                             }
                             self.next();
                             return;

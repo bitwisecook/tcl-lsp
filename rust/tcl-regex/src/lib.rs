@@ -71,6 +71,8 @@ mod exec;
 pub mod jim;
 mod nfa;
 mod parser;
+mod source;
+pub use source::{PatternComponent, PatternRole, are_components};
 
 pub use defs::Err as ErrorCode;
 pub use exec::{ExecLimits, ExecOutcome, ExecStop, MATCH_FUEL, Span};
