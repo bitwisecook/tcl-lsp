@@ -284,6 +284,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-expr"
+version = "0.1.0"
+dependencies = [
+ "tcl-dialect",
+]
+
+[[package]]
 name = "tcl-host-c-abi"
 version = "0.1.0"
 dependencies = [
@@ -390,6 +397,7 @@ dependencies = [
  "libm",
  "tcl-core-types",
  "tcl-dialect",
+ "tcl-expr",
  "tcl-lexer",
  "tcl-numeric",
  "tcl-value-syntax",

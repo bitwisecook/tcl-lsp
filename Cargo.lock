@@ -4370,6 +4370,7 @@ dependencies = [
  "tcl-core-types",
  "tcl-dialect",
  "tcl-engine-tclvm",
+ "tcl-expr",
  "tcl-lexer",
  "tcl-registry",
  "tcl-runtime-api",
@@ -4486,6 +4487,13 @@ dependencies = [
  "tcl-spectcl",
  "tcl-syntax",
  "tcl-vm",
+]
+
+[[package]]
+name = "tcl-expr"
+version = "0.1.0"
+dependencies = [
+ "tcl-dialect",
 ]
 
 [[package]]
@@ -4891,6 +4899,7 @@ dependencies = [
  "num-bigint 0.5.1",
  "tcl-core-types",
  "tcl-dialect",
+ "tcl-expr",
  "tcl-lexer",
  "tcl-numeric",
  "tcl-test-support",

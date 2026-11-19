@@ -331,6 +331,7 @@ dependencies = [
  "tcl-cmd-core",
  "tcl-core-types",
  "tcl-dialect",
+ "tcl-expr",
  "tcl-lexer",
  "tcl-registry",
  "tcl-runtime-api",
@@ -348,6 +349,13 @@ name = "tcl-dialect"
 version = "0.1.0"
 dependencies = [
  "tcl-core-types",
+]
+
+[[package]]
+name = "tcl-expr"
+version = "0.1.0"
+dependencies = [
+ "tcl-dialect",
 ]
 
 [[package]]
@@ -450,6 +458,7 @@ version = "0.1.0"
 dependencies = [
  "tcl-core-types",
  "tcl-dialect",
+ "tcl-expr",
  "tcl-lexer",
 ]
 

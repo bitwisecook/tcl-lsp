@@ -51,6 +51,7 @@ num-bigint = ["tcl-numeric/num-bigint", "dep:num-bigint"]
 [dependencies]
 tcl-numeric = { path = "../tcl-numeric" }
 tcl-value-syntax = { path = "../tcl-value-syntax" }
+tcl-expr = { path = "../tcl-expr" }
 num-bigint = { version = "0.5", optional = true }
 tcl-dialect = { path = "../tcl-dialect" }
 tcl-core-types = { path = "../tcl-core-types" }
