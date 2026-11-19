@@ -119,6 +119,7 @@ mod number_drift;
 mod object_recipe_gate;
 mod owner_resolution;
 mod pack_goldens;
+mod parser_ownership;
 mod registry_axes;
 mod registry_oracle;
 mod resolution_drift;
@@ -422,6 +423,13 @@ enum Command {
         check: bool,
     },
 
+    /// Verify migrated parser routes and inventory further review sites.
+    #[command(name = "parser-ownership")]
+    ParserOwnership {
+        /// Emit candidate Rust call sites and cross-language lexical leads.
+        #[arg(long)]
+        report: bool,
+    },
     /// Flag a private Tcl command-terminator scan or a private word-start
     /// state machine outside the boundary owners, and verify the
     /// owner/scanner corpus differential is wired (segmentation-drift gate).
@@ -697,6 +705,7 @@ fn dispatch(command: Command) -> anyhow::Result<ExitCode> {
         Command::GenAiDiagnostics { check } => gen_ai::run(check),
         Command::WorkflowSync { check } => workflow_sync::run(check),
         Command::DialectDrift { check } => Ok(dialect_drift::run(check)),
+        Command::ParserOwnership { report } => parser_ownership::run(report),
         Command::NumberDrift { check } => Ok(number_drift::run(check)),
         Command::ResolutionDrift { check } => Ok(resolution_drift::run(check)),
         Command::SegmentationDrift { check } => Ok(segmentation_drift::run(check)),

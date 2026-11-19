@@ -933,6 +933,7 @@ XTASK_GATES := \
 	'number-drift' \
 	'dialect-drift' \
 	'segmentation-drift' \
+	'parser-ownership' \
 	'value-transfers --check' \
 	'registry-axes --check' \
 	'semantics-matrix --check' \
@@ -947,7 +948,7 @@ XTASK_GATES := \
 	'bigip-data-schema --check'
 
 xtask-gates: ## Run every single-command xtask drift gate in one process
-	@echo "==> Running 39 xtask drift gates in one process (cargo xtask batch)"
+	@echo "==> Running 40 xtask drift gates in one process (cargo xtask batch)"
 	cd $(ROOT) && cargo xtask batch $(XTASK_GATES)
 
 xtask-check: check-tracked-size check-license-headers check-host-lockfiles check-tcl-evidence check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph check-vsix-web-assets-contract check-vsix-wasi-assets-contract xtask-gates xtask-sslictcl-data xtask-c-api-ownership check-c-extension-wasm check-xtask-gates ## Rust-side check gates (docs index coverage + generated-table/catalog drift)
