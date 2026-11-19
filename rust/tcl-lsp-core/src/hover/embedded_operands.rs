@@ -173,7 +173,14 @@ fn original_pattern_format_hover_with_workspace(
             continue;
         };
         let text = match pattern.kind {
-            tcl_registry::patterns::PatternType::Glob => glob_hover_text(&text),
+            tcl_registry::patterns::PatternType::Glob => {
+                let profile = analysis.resolved_input.as_ref()?.analyser_profile();
+                let components = crate::pattern_components::glob_components(&text, profile)?;
+                glob_hover_text(&text, &components)
+            }
+            tcl_registry::patterns::PatternType::FilesystemGlob => {
+                "**Glob pattern** (filesystem)".to_owned()
+            }
             tcl_registry::patterns::PatternType::Regex => {
                 let flags = words
                     .with_source_schema(&context, crate::pattern_components::source_flags)

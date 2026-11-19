@@ -485,6 +485,7 @@ fn effect_axis_words(expr: &str) -> Option<(&'static str, Option<String>)> {
     if let Some(inner) = between(expr, "EffectAxis::PatternLanguage(", ")") {
         let word = match variant_of(inner) {
             "Glob" => "glob",
+            "FilesystemGlob" => "filesystem-glob",
             "Regex" => "regex",
             _ => return None,
         };

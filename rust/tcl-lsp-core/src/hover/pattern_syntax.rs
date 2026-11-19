@@ -40,79 +40,16 @@ pub(super) fn regsub_hover_text(text: &str) -> String {
         parts.push("| Reference | Meaning |".to_string());
         parts.push("|-----------|---------|".to_string());
         for (spelling, group) in refs {
-            let description = if group == 0 {
-                "Entire matched string".to_owned()
-            } else {
-                format!("Capture group {group}")
+            let description = match group {
+                0 => "Entire matched string".to_owned(),
+                1 => "First capture group".to_owned(),
+                2 => "Second capture group".to_owned(),
+                _ => format!("Capture group {group}"),
             };
             parts.push(format!("| `{spelling}` | {description} |"));
         }
     }
     parts.join("\n")
-}
-
-/// Glob metacharacter descriptions.
-fn glob_meta_desc(c: char) -> Option<&'static str> {
-    match c {
-        '*' => Some("Matches any sequence of characters"),
-        '?' => Some("Matches any single character"),
-        '[' => Some("Character class — matches any character inside brackets"),
-        _ => None,
-    }
-}
-
-/// Scan a glob pattern for metacharacters.  Returns a list of
-/// `(token, description)` tuples — `*`, `?`, character class
-/// `[abc]`, and escape sequences. +
-/// `_glob_hover`'s metacharacter walk.
-pub(super) fn scan_glob_metachars(text: &str) -> Vec<(String, String)> {
-    let mut out: Vec<(String, String)> = Vec::new();
-    let mut seen: FxHashSet<String> = FxHashSet::default();
-    let chars: Vec<char> = text.chars().collect();
-    let mut i = 0;
-    while i < chars.len() {
-        if chars[i] == '\\' && i + 1 < chars.len() {
-            let next = chars[i + 1];
-            let key = "escape".to_string();
-            if !seen.contains(&key) {
-                out.push((format!("\\{next}"), format!("Escaped character `{next}`")));
-                seen.insert(key);
-            }
-            i += 2;
-            continue;
-        }
-        if chars[i] == '[' {
-            let start = i;
-            let mut end = i + 1;
-            while end < chars.len() && chars[end] != ']' {
-                end += 1;
-            }
-            let token: String = if end < chars.len() {
-                chars[start..=end].iter().collect()
-            } else {
-                chars[start..end].iter().collect()
-            };
-            if !seen.contains(&token) {
-                let inner: String = chars[start + 1..end].iter().collect();
-                out.push((
-                    token.clone(),
-                    format!("Character class: matches any of `{inner}`"),
-                ));
-                seen.insert(token);
-            }
-            i = end + 1;
-            continue;
-        }
-        if let Some(desc) = glob_meta_desc(chars[i]) {
-            let key = chars[i].to_string();
-            if !seen.contains(&key) {
-                out.push((key.clone(), desc.to_string()));
-                seen.insert(key);
-            }
-        }
-        i += 1;
-    }
-    out
 }
 
 /// Escape a value for a GFM table cell: a literal `|` closes the cell even
@@ -126,21 +63,29 @@ fn gfm_table_cell(s: &str) -> String {
 }
 
 /// Render the glob-pattern hover markdown.
-pub(super) fn glob_hover_text(text: &str) -> String {
-    let mut parts: Vec<String> = vec!["**Glob pattern**\n".to_string()];
-    let metas = scan_glob_metachars(text);
-    if metas.is_empty() {
-        parts.push("Literal string (no metacharacters).".to_string());
-    } else {
-        parts.push("| Pattern | Meaning |".to_string());
-        parts.push("|---------|---------|".to_string());
-        for (tok, desc) in metas {
-            parts.push(format!(
-                "| `{}` | {} |",
-                gfm_table_cell(&tok),
-                gfm_table_cell(&desc)
-            ));
+pub(super) fn glob_hover_text(
+    text: &str,
+    components: &[tcl_syntax::glob::GlobComponent],
+) -> String {
+    use tcl_syntax::glob::GlobRole;
+    let mut parts = vec!["**Glob pattern**\n".to_owned()];
+    if !components.is_empty() {
+        parts.push("| Pattern | Meaning |".to_owned());
+        parts.push("|---------|---------|".to_owned());
+    }
+    let mut seen = FxHashSet::default();
+    for component in components {
+        let spelling = &text[component.range.clone()];
+        if !seen.insert(spelling) {
+            continue;
         }
+        let meaning = match component.role {
+            GlobRole::AnySequence => "Matches any sequence of characters",
+            GlobRole::AnyCharacter => "Matches a single character",
+            GlobRole::CharacterClass => "Character class",
+            GlobRole::Escape => "Escaped character",
+        };
+        parts.push(format!("| `{}` | {meaning} |", gfm_table_cell(spelling)));
     }
     parts.join("\n")
 }
@@ -150,6 +95,9 @@ pub(super) fn regex_hover_text(text: &str, components: &[tcl_regex::PatternCompo
     use tcl_regex::PatternRole as Role;
     let mut parts = vec!["**Regex pattern**\n".to_owned()];
     let mut seen = FxHashSet::default();
+    if components.is_empty() && text.bytes().all(|byte| byte.is_ascii_alphanumeric()) {
+        parts.push("Literal string (no metacharacters).".to_owned());
+    }
     if !components.is_empty() {
         parts.push("| Component | Meaning |".to_owned());
         parts.push("|-----------|---------|".to_owned());
@@ -162,7 +110,7 @@ pub(super) fn regex_hover_text(text: &str, components: &[tcl_regex::PatternCompo
         let meaning = match component.role {
             Role::Options => "Pattern options",
             Role::Comment => "Pattern comment",
-            Role::Anchor => "Position constraint",
+            Role::Anchor => "Zero-width position anchor",
             Role::CharacterClass => "Character class",
             Role::Alternation => "Alternation",
             Role::CaptureOpen => "Group open",
@@ -170,7 +118,12 @@ pub(super) fn regex_hover_text(text: &str, components: &[tcl_regex::PatternCompo
             Role::PositiveLookahead => "Positive lookahead",
             Role::NegativeLookahead => "Negative lookahead",
             Role::GroupClose => "Group close",
-            Role::Quantifier => "Repetition",
+            Role::Quantifier => match spelling {
+                "+" | "+?" => "One or more repetitions",
+                "*" | "*?" => "Zero or more repetitions",
+                "?" | "??" => "Zero or one repetition",
+                _ => "Bounded repetition",
+            },
             Role::Escape => "Escaped character",
             Role::Backreference => "Backreference",
         };

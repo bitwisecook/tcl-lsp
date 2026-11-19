@@ -44,9 +44,11 @@ macro_rules! templated {
 /// validation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PatternType {
-    /// Glob pattern (`string match`, `glob`, `lsearch` default,
+    /// Object/name glob pattern (`string match`, `lsearch` default,
     /// `switch` default).
     Glob,
+    /// Filesystem path glob, including brace alternatives and path components.
+    FilesystemGlob,
     /// Regular expression (`regexp`, `regsub`, `lsearch -regexp`,
     /// `switch -regexp`).
     Regex,
@@ -132,7 +134,7 @@ pub(crate) fn resolve_available_option_prefix_with<'a>(
 
 impl PatternType {
     /// Every pattern language, in declaration order.
-    pub const ALL: &'static [Self] = &[Self::Glob, Self::Regex];
+    pub const ALL: &'static [Self] = &[Self::Glob, Self::FilesystemGlob, Self::Regex];
 
     /// Stable lowercase tag (`"glob"` / `"regex"`), kept so external
     /// consumers can normalise it identically to this crate.
@@ -140,6 +142,7 @@ impl PatternType {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Glob => "glob",
+            Self::FilesystemGlob => "filesystem-glob",
             Self::Regex => "regex",
         }
     }
@@ -163,6 +166,9 @@ impl PatternType {
         match self {
             Self::Glob => {
                 templated!("set name [file tail $path]\nset is_script [string match *.tcl $name]\nif {$is_script} { source $path }"; carrier (1, "string match"); (1, "string match", "takes the pattern as its first argument"), (1, "*.tcl", "is tokenised as wildcards, never as regex syntax"), (2, "$is_script", "carries the match result"))
+            }
+            Self::FilesystemGlob => {
+                templated!("set sources [glob -nocomplain -- {src/*.{tcl,tm}}]"; carrier (0, "glob"); (0, "glob", "selects filesystem path patterns"), (0, "{src/*.{tcl,tm}}", "uses path components and brace alternatives"))
             }
             Self::Regex => {
                 templated!("set version 8.6.14\nregexp {^(\\d+)\\.(\\d+)} $version -> major minor\nputs $major.$minor"; carrier (1, "regexp"); (1, "regexp", "takes the pattern as its first non-option argument"), (1, "{^(\\d+)\\.(\\d+)}", "is highlighted as regex syntax and checked for ReDoS (W303) and quoting pitfalls (W306)"), (2, "$major.$minor", "uses the captured groups"))

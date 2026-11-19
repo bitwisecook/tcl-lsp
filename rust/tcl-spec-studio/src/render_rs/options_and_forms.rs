@@ -172,6 +172,7 @@ fn effect_axis_expr(axis: &str, value: Option<&str>) -> Option<String> {
         "pattern-language" => {
             let kind = match value? {
                 "glob" => "Glob",
+                "filesystem-glob" => "FilesystemGlob",
                 "regex" => "Regex",
                 _ => return None,
             };

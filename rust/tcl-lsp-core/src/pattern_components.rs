@@ -115,16 +115,8 @@ fn c_components(
     version: TclVersion,
     flags: RegexFlags,
 ) -> Option<Vec<PatternComponent>> {
-    let utf = NativeTclUtf::for_version(version);
+    let offsets = c_unit_offsets(text, version);
     let bytes = text.as_bytes();
-    let mut offsets = vec![0];
-    let mut cursor = 0;
-    let mut previous = None;
-    while let Some(unit) = utf.decode_unit(&bytes[cursor..], previous) {
-        cursor += unit.width;
-        previous = Some(unit.value);
-        offsets.push(cursor);
-    }
     let recipe = tcl_syntax::native_regex::NativeRegexpRecipe::for_version(version);
     let units = recipe.pattern_units(bytes, NativeCPlainChar::Signed);
     let cflags = tcl_regex::cmd_core::are_flags(flags);
@@ -140,4 +132,71 @@ fn c_components(
         text.get(entry.range.clone())?;
     }
     Some(observed)
+}
+
+fn c_unit_offsets(text: &str, version: TclVersion) -> Vec<usize> {
+    let utf = NativeTclUtf::for_version(version);
+    let bytes = text.as_bytes();
+    let mut offsets = vec![0];
+    let mut cursor = 0;
+    let mut previous = None;
+    while let Some(unit) = utf.decode_unit(&bytes[cursor..], previous) {
+        cursor += unit.width;
+        previous = Some(unit.value);
+        offsets.push(cursor);
+    }
+    offsets
+}
+
+/// Object and name patterns can have a different native extent: some
+/// APIs stop at NUL while others take the entire original object. Keep only
+/// ranges supported by the available source receipt and character model.
+pub(crate) fn glob_components(
+    text: &str,
+    profile: &DialectProfile,
+) -> Option<Vec<tcl_syntax::glob::GlobComponent>> {
+    use tcl_syntax::native_glob::{c_string_pattern_components, c_unit_pattern_components};
+    use tcl_syntax::raw_string::RawString;
+    match profile.runtime_core_family()? {
+        Family::Tcl => {
+            let single;
+            let versions = if let Some(version) = profile.runtime_version() {
+                single = [version];
+                &single[..]
+            } else {
+                &TclVersion::ALL[..]
+            };
+            let mut common = None::<Vec<tcl_syntax::glob::GlobComponent>>;
+            for &version in versions {
+                let on_bytes = c_string_pattern_components(text.as_bytes(), version)?;
+                let units = NativeTclUtf::for_version(version)
+                    .decode_storage_units(text.as_bytes(), NativeCPlainChar::Unsigned);
+                let offsets = c_unit_offsets(text, version);
+                let mut on_units = c_unit_pattern_components(&units, version)?;
+                for item in &mut on_units {
+                    item.range = *offsets.get(item.range.start)?..*offsets.get(item.range.end)?;
+                    text.get(item.range.clone())?;
+                }
+                let retained = common.get_or_insert_with(|| on_units.clone());
+                for observed in [&on_bytes, &on_units] {
+                    retained.retain(|wanted| {
+                        observed
+                            .binary_search_by_key(&wanted.range.start, |item| item.range.start)
+                            .is_ok_and(|index| observed[index] == *wanted)
+                    });
+                }
+            }
+            common
+        }
+        Family::Jim => {
+            if profile
+                .core_point
+                .is_some_and(|point| point.release() != tcl_dialect::model::Release::JIM_0_84)
+            {
+                return None;
+            }
+            RawString::from_bytes(text.as_bytes()).jim084_glob_components()
+        }
+        _ => None,
+    }
 }

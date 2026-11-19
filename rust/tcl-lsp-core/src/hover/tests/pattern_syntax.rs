@@ -44,7 +44,7 @@ fn regex_and_glob_hover_escape_table_pipes() {
         rx.contains("\\|"),
         "alternation `|` should be escaped: {rx}"
     );
-    // Glob alternation `{a,b}` has no pipe, but a bracketed pipe would; a
+    // A bracketed pipe is escaped in a character class as well; a
     // char-class-style pattern with `|` escapes too.
     let rxcc = c_regex_hover("[a|b]");
     assert!(rxcc.contains("\\|"));
@@ -72,7 +72,7 @@ fn scan_regsub_backrefs_finds_each_backref() {
 fn regsub_hover_renders_backref_table() {
     let text = regsub_hover_text("prefix \\1 suffix");
     assert!(text.contains("**Substitution spec**"), "{text}");
-    assert!(text.contains("| `\\1` | Capture group 1 |"), "{text}");
+    assert!(text.contains("First capture group"), "{text}");
 }
 
 #[test]
@@ -91,34 +91,6 @@ fn hover_fires_for_regsub_backref() {
 }
 
 // glob pattern hover
-
-#[test]
-fn scan_glob_metachars_finds_star_and_question() {
-    let m = scan_glob_metachars("*.tcl");
-    let toks: Vec<&str> = m.iter().map(|(t, _)| t.as_str()).collect();
-    assert!(toks.contains(&"*"), "{m:?}");
-}
-
-#[test]
-fn scan_glob_metachars_finds_character_class() {
-    let m = scan_glob_metachars("[abc]*.tcl");
-    let toks: Vec<&str> = m.iter().map(|(t, _)| t.as_str()).collect();
-    assert!(toks.contains(&"[abc]"), "{m:?}");
-    assert!(toks.contains(&"*"), "{m:?}");
-}
-
-#[test]
-fn glob_hover_renders_table() {
-    let text = glob_hover_text("*.tcl");
-    assert!(text.contains("**Glob pattern**"), "{text}");
-    assert!(text.contains("| `*` |"), "{text}");
-}
-
-#[test]
-fn glob_hover_for_literal_string() {
-    let text = glob_hover_text("plain");
-    assert!(text.contains("Literal string"), "{text}");
-}
 
 #[test]
 fn hover_fires_for_glob_pattern() {

@@ -191,7 +191,7 @@ pub fn spec() -> CommandSpec {
         // misflagging a legitimate modern zero-pattern call; the exact
         // per-era requirement is documented precisely on `FORMS` above.
         arity: Arity::any(),
-        pattern_type: Some(PatternType::Glob),
+        pattern_type: Some(PatternType::FilesystemGlob),
         arg_role_layout_resolver: Some(glob_arg_roles),
         arg_role_resolver_roles: &[ArgRole::Pattern],
         return_type: Some(TclType::List),

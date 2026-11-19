@@ -1113,7 +1113,7 @@ mod tests {
         }
         fn pattern(k: PatternType) -> bool {
             match k {
-                PatternType::Glob | PatternType::Regex => true,
+                PatternType::Glob | PatternType::FilesystemGlob | PatternType::Regex => true,
             }
         }
         fn transform_condition(k: TaintTransformCondition) -> bool {
