@@ -607,7 +607,7 @@ impl MemberRenameScan<'_, '_> {
             return Err(OriginalMemberRenameRefusal::Collision);
         }
         for word in words.iter().skip(2) {
-            if mentions_member(document.source, word, old.bytes(), wanted)? {
+            if mentions_member(document.source, word, old, wanted)? {
                 return Err(OriginalMemberRenameRefusal::UneditableLinks);
             }
         }
@@ -711,12 +711,7 @@ impl MemberRenameScan<'_, '_> {
                             | tcl_lexer::ExecutablePart::Variable { .. }
                     )
                 })
-                || mentions_member(
-                    document.source,
-                    word,
-                    method.original_name_input().bytes(),
-                    wanted,
-                )?
+                || mentions_member(document.source, word, method.original_name_input(), wanted)?
             {
                 return Err(OriginalMemberRenameRefusal::UneditableLinks);
             }
@@ -822,12 +817,16 @@ impl MemberRenameScan<'_, '_> {
         }
         // Literal text naming either member outside a script this walk
         // classifies could be a captured selector dispatched later.
-        let old = method.original_name_input().bytes();
+        let old = method.original_name_input();
         for word in words.iter().skip(1) {
-            for name in [old, wanted] {
-                let mentions =
-                    crate::original_declaration::word_member_mentions(document.source, word, name)
-                        .ok_or(OriginalMemberRenameRefusal::IncompleteCoverage)?;
+            for name in [old.bytes(), wanted] {
+                let mentions = crate::original_declaration::word_member_mentions(
+                    document.source,
+                    word,
+                    name,
+                    old.policy().string_protocol(),
+                )
+                .ok_or(OriginalMemberRenameRefusal::IncompleteCoverage)?;
                 if mentions.iter().any(|mention| {
                     !same_frame.iter().chain(&shifted).any(|&(start, end)| {
                         start <= mention.start() as usize && mention.end() as usize <= end
@@ -942,13 +941,17 @@ fn census_requests(
     let methods = original_source_self_method_references(document.source, document.analysis)?;
     let properties = original_source_self_property_references(document.source, document.analysis)?;
     let old = method.original_name_input();
-    if !crate::original_declaration::complete_member_name_census(
-        old.bytes(),
-        document.source,
-        document.analysis,
-        &methods,
-        &properties,
-    ) {
+    let covered = |name| {
+        crate::original_declaration::complete_member_name_census(
+            name,
+            old.policy().string_protocol(),
+            document.source,
+            document.analysis,
+            &methods,
+            &properties,
+        )
+    };
+    if !covered(old.bytes()) || (old.bytes() != wanted && !covered(wanted)) {
         return None;
     }
     let mut requests = family
@@ -1087,13 +1090,18 @@ pub(crate) fn original_member_occurrence_census(
 fn mentions_member(
     source: &str,
     word: &tcl_lexer::NativeWord,
-    old: &[u8],
+    old: &SignatureSourceNameInput,
     wanted: &[u8],
 ) -> Result<bool, OriginalMemberRenameRefusal> {
-    for name in [old, wanted] {
-        if !crate::original_declaration::word_member_mentions(source, word, name)
-            .ok_or(OriginalMemberRenameRefusal::IncompleteCoverage)?
-            .is_empty()
+    for name in [old.bytes(), wanted] {
+        if !crate::original_declaration::word_member_mentions(
+            source,
+            word,
+            name,
+            old.policy().string_protocol(),
+        )
+        .ok_or(OriginalMemberRenameRefusal::IncompleteCoverage)?
+        .is_empty()
         {
             return Ok(true);
         }

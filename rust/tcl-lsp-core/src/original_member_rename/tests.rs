@@ -209,3 +209,34 @@ fn original_member_rename_checks_builtin_roster_visibility_and_source_family_clo
         );
     }
 }
+
+#[test]
+fn retained_member_rename_checks_completed_selector_values_in_callbacks() {
+    for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+        for name in ["pick", "m;n", "m n", "m(n)"] {
+            let base = format!(
+                "oo::class create C {{method {{{name}}} {{}} {{return body}}}}\nC create object\nobject {{{name}}}\n"
+            );
+            for (callback, safe) in [
+                (String::new(), true),
+                ("set callback [list object other]".to_owned(), true),
+                (format!("set callback [list object {{{name}}}]"), false),
+                (format!("set callback {{object {{{name}}}}}"), false),
+                ("set callback [list object changed]".to_owned(), false),
+            ] {
+                let source = format!("{base}{callback}\n");
+                let analysis = Analyser::new().analyse(&source, dialect);
+                let profile = analysis.resolved_profile().unwrap();
+                let cursor = u32::try_from(source.find(name).unwrap()).unwrap();
+                let edits = crate::rename::rename_with_diagnosis(
+                    &source, profile, 0, cursor, "changed", &analysis, None,
+                );
+                if safe {
+                    assert_eq!(edits.unwrap().len(), 2, "{dialect} {name}: {callback}");
+                } else {
+                    assert!(edits.is_err(), "{dialect} {name}: {callback}");
+                }
+            }
+        }
+    }
+}

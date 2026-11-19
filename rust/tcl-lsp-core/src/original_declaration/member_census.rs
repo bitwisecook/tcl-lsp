@@ -21,6 +21,7 @@
 use super::OriginalDeclarationIdentity;
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::Span;
+use tcl_syntax::native_string::NativeStringProtocol;
 
 /// One classified command of a readonly member census.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,6 +39,7 @@ struct MemberCensus<'a> {
     context: std::sync::Arc<tcl_registry::model::ContextRegistry>,
     syntax: crate::source_structure::SourceSyntaxStructure,
     pub(super) name: &'a [u8],
+    protocol: NativeStringProtocol,
     /// Literal operand text naming the member, with its whole word extent.
     mentions: Vec<(Span, Span)>,
 }
@@ -69,7 +71,14 @@ pub(super) fn complete_member_source_census(
     properties: &[tcl_compiler::analyser::class_hierarchy::original_metadata::OriginalSourceSelfPropertyReference],
 ) -> bool {
     identity.input.as_ref().is_some_and(|input| {
-        complete_member_name_census(input.bytes(), source, analysis, methods, properties)
+        complete_member_name_census(
+            input.bytes(),
+            input.policy().string_protocol(),
+            source,
+            analysis,
+            methods,
+            properties,
+        )
     })
 }
 
@@ -77,6 +86,7 @@ pub(super) fn complete_member_source_census(
 /// the declaration that spells it.
 pub(crate) fn complete_member_name_census(
     name: &[u8],
+    protocol: NativeStringProtocol,
     source: &str,
     analysis: &AnalysisResult,
     methods: &[tcl_compiler::analyser::class_hierarchy::original_metadata::OriginalSourceSelfMethodReference],
@@ -98,6 +108,7 @@ pub(crate) fn complete_member_name_census(
         context: input.context_registry(),
         syntax,
         name,
+        protocol,
         mentions: Vec::new(),
     };
     let mut walked = Vec::new();
@@ -271,7 +282,8 @@ impl MemberCensus<'_> {
             let Some(word) = operand.as_ref().and_then(|operand| operand.word.as_ref()) else {
                 return false;
             };
-            let Some(mentions) = word_member_mentions(self.source, word, self.name) else {
+            let Some(mentions) = word_member_mentions(self.source, word, self.name, self.protocol)
+            else {
                 return false;
             };
             self.mentions
@@ -289,8 +301,33 @@ pub(crate) fn word_member_mentions(
     source: &str,
     word: &tcl_lexer::NativeWord,
     name: &[u8],
+    protocol: NativeStringProtocol,
 ) -> Option<Vec<Span>> {
+    let captured = tcl_registry::native_compiler_words::NativeCompilerWords::capture(
+        std::slice::from_ref(word),
+        protocol,
+    )
+    .ok()?;
     let mut mentions = Vec::new();
+    if let Some(value) = captured.literal(0) {
+        // A selector is a complete native value. Whitespace, semicolons and
+        // parentheses inside its name remain data, including inside a stored
+        // command prefix. A formed value can span several source fragments.
+        if census_names_member(value, name) {
+            return Some(vec![word.span()]);
+        }
+        if let Ok(elements) = tcl_syntax::list::split_native_list_elements(value, protocol) {
+            for element in elements {
+                if census_names_member(&element.value, name) {
+                    mentions.push(
+                        captured
+                            .original_literal_extent(0, element.source.value)
+                            .unwrap_or(word.span()),
+                    );
+                }
+            }
+        }
+    }
     for part in word.executable_parts().all_parts() {
         let tcl_lexer::ExecutablePart::Text(text) = &part.part else {
             continue;
