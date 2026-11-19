@@ -266,6 +266,96 @@ impl AnalysisResult {
             return false;
         }
         self.original_variable_alias_coverage()
+            && match symbol.slot() {
+                crate::signature_scan::variable_symbol::SignatureSourceVariableSlot::Local {
+                    frame,
+                    ..
+                } => self.computed_calls_preserve_local_names(frame),
+                _ => true,
+            }
+    }
+
+    /// A computed callee may inspect or link a caller's local by its original
+    /// name, even if its argv and every subsequent word omit that spelling.
+    fn computed_calls_preserve_local_names(
+        &self,
+        frame: &crate::command_binding::SourceOriginalVariableFrame,
+    ) -> bool {
+        let Some(realm) = self.retained_command_realm() else {
+            return false;
+        };
+        let Some(image) = realm.original_source_image() else {
+            return false;
+        };
+        let Some(input) = self.resolved_input.as_ref() else {
+            return false;
+        };
+        if frame.source().origin.source_image() != image {
+            return true;
+        }
+        let base = frame.source().base();
+        let Some(end) = u32::try_from(frame.source().text.len())
+            .ok()
+            .and_then(|len| base.checked_add(len))
+        else {
+            return false;
+        };
+        let config = frame.lexer_config();
+        let static_word = |head: &tcl_lexer::NativeWord| {
+            !head.group().expand
+                && tcl_syntax::word_rules::original_static_word_unicode_value(head).is_some()
+        };
+        for invocation in &self.command_invocations {
+            let offset = invocation.range.start();
+            if invocation.lookup
+                != crate::signature_scan::types::SignatureCommandLookup::InvocationHead
+                || !(base..end).contains(&offset)
+            {
+                continue;
+            }
+            // Determine whether the whole written head is static. An unreached
+            // branch may have no binding observation. Read the complete word
+            // from its script region so a static prefix cannot hide a suffix.
+            let head = realm
+                .original_written_head_at_span_in_source(image, invocation.range, config)
+                .map(|(word, _)| word)
+                .or_else(|| {
+                    let plan = tcl_lexer::native_script_words_in(
+                        image.clone(),
+                        Span::new(offset, end),
+                        config.nested(),
+                    )
+                    .ok()?;
+                    let head = plan.commands.into_iter().next()?.words.into_iter().next()?;
+                    (head.span().start() == offset).then_some(head)
+                });
+            if head.as_ref().is_some_and(static_word) {
+                continue;
+            }
+            if self
+                .original_variable_frame_in_source(image, config, offset)
+                .is_some_and(|owner| owner != *frame)
+            {
+                continue;
+            }
+            let binding = realm.invocation_at_source("", offset);
+            if !binding.unobserved_native_dispatch() || binding.proved_execution_target().is_none()
+            {
+                return false;
+            }
+            let Some(mut tokens) = binding.original_recorded_command_tokens() else {
+                return false;
+            };
+            realm.stamp_original_tokens(&mut tokens);
+            let selected = crate::registry_invocation::resolved_tokens_invocation_in_context(
+                input.borrowed_context_registry(),
+                &tokens,
+            );
+            if !selected.is_some_and(|invocation| invocation.facts.is_pure()) {
+                return false;
+            }
+        }
+        true
     }
 
     /// [`Self::original_variable_rename_is_complete`] for renaming a C

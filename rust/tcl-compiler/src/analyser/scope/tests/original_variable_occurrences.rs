@@ -816,3 +816,29 @@ fn original_array_receiver_symbols_keep_combined_names_and_guest_error_independe
         }
     }
 }
+
+#[test]
+fn local_rename_accounts_for_caller_names_even_at_the_final_computed_call() {
+    for (body, covered) in [
+        ("$w ${dir}view", false),
+        ("[set w] x", false),
+        ("if {$w} {$w x}", false),
+        ("set w list; $w ${dir}view", true),
+        ("set w list; [set w] x", true),
+    ] {
+        let source = format!(
+            "proc m {{w dir}} {{
+{body}
+}}"
+        );
+        let analysis = Analyser::new().analyse(&source, "tcl8.6");
+        let formal = analysis
+            .original_variable_symbol_at_offset(10)
+            .expect("dir formal");
+        assert_eq!(
+            analysis.original_variable_rename_is_complete(formal.symbol()),
+            covered,
+            "{body}"
+        );
+    }
+}
