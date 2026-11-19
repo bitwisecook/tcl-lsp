@@ -40,7 +40,7 @@ fn original_logical_case_role_projection_keeps_selected_options_and_body_residua
         ),
         (
             vec![Literal("-exact"), Dynamic, Literal("café {BODY}")],
-            Some((true, true, 2)),
+            Some((false, true, 2)),
         ),
         (
             vec![Dynamic, Literal("café {BODY}")],
@@ -99,6 +99,23 @@ fn original_logical_case_role_projection_keeps_selected_options_and_body_residua
             );
         }
     }
+    let unmarked = [Literal("-exact"), Dynamic, Literal("café {BODY}")];
+    let selected = crate::model::assembly::resolve_structured_invocation_in_resolved_context(
+        older.commands(),
+        Some(older.context()),
+        crate::InvocationWords::structured(Literal("switch"), &unmarked),
+        tcl_dialect::model::InvocationRealm::RuleLoader,
+    )
+    .resolved()
+    .unwrap();
+    assert!(
+        selected
+            .authored_logical_source_role_projection()
+            .unwrap()
+            .case_body_operands()
+            .unwrap()
+            .selection_unknown
+    );
     // Tcl 8.6.18 and 9.0.4 raise "-matchvar option requires -regexp
     // option" without `-regexp`; 8.4.20 has no `-matchvar` at all.
     let values = [

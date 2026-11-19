@@ -193,7 +193,23 @@ impl CaseListSpec {
             query,
             crate::abbrev::PrefixMatching::Enabled,
         );
-        !(effects.complete && effects.ended_by_marker && effects.option_end <= index)
+        // From Tcl 8.5 the option scan stops `reserved` words before the end
+        // (`objc - 2`), so a subject among those words is never an option even
+        // without `--`. Tcl 8.4 scans every dash-led word (tclsh 8.4.20:
+        // `switch -exact $x {...}` with x=-glob raises `bad option`), and an
+        // unpinned release cannot say which.
+        let reserves = query.is_some_and(|selected| {
+            matches!(
+                selected.core.nearest(),
+                Some((tcl_dialect::model::Family::Tcl, Some(_)))
+            ) && self
+                .two_arg_optionless_surface
+                .is_some_and(|rows| tcl_dialect::model::surface_admits(rows, Some(&selected)))
+        });
+        let known = effects.complete
+            && effects.option_end <= index
+            && (effects.ended_by_marker || (reserves && index + reserved >= values.len()));
+        !known
     }
 
     fn clauses_are_exhaustive(
@@ -352,7 +368,6 @@ mod tests {
             ..OptionSpec::DEFAULT
         };
         let options = [&value_option, &marker];
-        let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
         let spec = CaseListSpec::SWITCH;
         let data_marker = [
             Literal("-takes"),
@@ -360,14 +375,6 @@ mod tests {
             Dynamic,
             Literal("a {set x 1}"),
         ];
-        let selected = spec
-            .possible_body_operands(
-                InvocationArguments::structured(&data_marker).with_dialect(dialect),
-                &options,
-            )
-            .expect("possible bodies with unknown subject");
-        assert!(selected.selection_unknown);
-        assert_eq!(selected.bodies[0].argument, 3);
         let ended = [
             Literal("-takes"),
             Literal("--"),
@@ -375,14 +382,28 @@ mod tests {
             Dynamic,
             Literal("a {set x 1}"),
         ];
-        let selected = spec
-            .possible_body_operands(
-                InvocationArguments::structured(&ended).with_dialect(dialect),
-                &options,
-            )
-            .expect("genuine selected end marker");
-        assert!(!selected.selection_unknown);
-        assert_eq!(selected.bodies[0].argument, 4);
+        for version in [tcl_dialect::TclVersion::V8_4, tcl_dialect::TclVersion::V8_6] {
+            let dialect = crate::InvocationDialect::for_version(version);
+            let selected = spec
+                .possible_body_operands(
+                    InvocationArguments::structured(&data_marker).with_dialect(dialect),
+                    &options,
+                )
+                .expect("possible bodies with unknown subject");
+            assert_eq!(
+                selected.selection_unknown,
+                version == tcl_dialect::TclVersion::V8_4
+            );
+            assert_eq!(selected.bodies[0].argument, 3);
+            let selected = spec
+                .possible_body_operands(
+                    InvocationArguments::structured(&ended).with_dialect(dialect),
+                    &options,
+                )
+                .expect("genuine selected end marker");
+            assert!(!selected.selection_unknown);
+            assert_eq!(selected.bodies[0].argument, 4);
+        }
     }
 
     #[test]
@@ -512,9 +533,6 @@ mod tests {
                 )
                 .expect("bodies");
             assert!(!selected.selection_unknown, "{dialect_name}");
-            if dialect_name != "tcl8.4" {
-                continue;
-            }
             let unmarked = [
                 crate::InvocationWord::Literal("-exact"),
                 crate::InvocationWord::Dynamic,
@@ -528,9 +546,12 @@ mod tests {
                     &options,
                 )
                 .expect("bodies");
-            assert!(
+            // tclsh 8.5.19-9.1.0 reserve the last two words, so the unmarked
+            // subject is the subject; 8.4.20 raises `bad option` for x=-glob.
+            assert_eq!(
                 selected.selection_unknown,
-                "8.4 may read an unmarked dynamic subject as an option"
+                dialect_name == "tcl8.4",
+                "{dialect_name}: an unmarked dynamic subject"
             );
         }
     }
