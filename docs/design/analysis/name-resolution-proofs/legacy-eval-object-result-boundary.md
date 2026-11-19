@@ -128,10 +128,10 @@ tcl9.1 9.1.0, revision `Pinned Tcl 9.1.0`, `tmp/tcl9.1.0/generic/tclDecls.h`, fu
 
 ## Consumer bindings
 
-- [rust/tcl-syntax/src/native_string.rs](../../../../rust/tcl-syntax/src/native_string.rs), `NativeStringProtocol::legacy_eval_result_input`: Pure selected legacy C result extent; does not mutate counted results or stored variable keys.
+- [rust/tcl-value-syntax/src/native_string.rs](../../../../rust/tcl-value-syntax/src/native_string.rs), `NativeStringProtocol::legacy_eval_result_input`: Pure selected legacy C result extent; does not mutate counted results or stored variable keys.
 - [rust/tcl-vm/src/cmd_oo/native_variables.rs](../../../../rust/tcl-vm/src/cmd_oo/native_variables.rs), `cmd_oo::native_variables::tests::compiled_and_dynamic_declared_variables_match_original_native_controls` (linked): Compares original counted dispatch results with the legacy result projection only for rows actually captured through Tcl_Eval, and independently asserts v5 object-vector bytes without projection. No execution is inferred.
 - [runtime/rust/src/cmd_oo/native_variables.rs](../../../../runtime/rust/src/cmd_oo/native_variables.rs), `cmd_oo::native_variables::tests::compiled_and_dynamic_declared_variables_match_original_native_controls` (linked): Compares original counted dispatch results with the legacy result projection only for rows actually captured through Tcl_Eval, and independently asserts v5 object-vector bytes without projection. No execution is inferred.
-- [rust/tcl-syntax/src/native_string.rs](../../../../rust/tcl-syntax/src/native_string.rs), `native_string::tests::legacy_eval_result_extent_keeps_encoded_zero_separate_from_counted_zero` (linked): Pure C API result extent selection distinguishes raw zero from encoded C080; Jim C API purpose is unavailable. Source-only old C recipe checks are not empirical old C TclOO comparisons.
+- [rust/tcl-value-syntax/src/native_string.rs](../../../../rust/tcl-value-syntax/src/native_string.rs), `native_string::tests::legacy_eval_result_extent_keeps_encoded_zero_separate_from_counted_zero` (linked): Pure C API result extent selection distinguishes raw zero from encoded C080; Jim C API purpose is unavailable. Source-only old C recipe checks are not empirical old C TclOO comparisons.
 
 ## Evidence
 

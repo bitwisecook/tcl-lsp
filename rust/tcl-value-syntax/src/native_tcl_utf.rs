@@ -455,11 +455,11 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/native-utf-unit-encoding.md
         use super::*;
         let fixtures = [
-            include_str!("../tests/data/native_tcl_utf/unicode_encoder/8.4.20.tsv"),
-            include_str!("../tests/data/native_tcl_utf/unicode_encoder/8.5.19.tsv"),
-            include_str!("../tests/data/native_tcl_utf/unicode_encoder/8.6.18.tsv"),
-            include_str!("../tests/data/native_tcl_utf/unicode_encoder/9.0.4.tsv"),
-            include_str!("../tests/data/native_tcl_utf/unicode_encoder/9.1.0.tsv"),
+            include_str!("../../tcl-syntax/tests/data/native_tcl_utf/unicode_encoder/8.4.20.tsv"),
+            include_str!("../../tcl-syntax/tests/data/native_tcl_utf/unicode_encoder/8.5.19.tsv"),
+            include_str!("../../tcl-syntax/tests/data/native_tcl_utf/unicode_encoder/8.6.18.tsv"),
+            include_str!("../../tcl-syntax/tests/data/native_tcl_utf/unicode_encoder/9.0.4.tsv"),
+            include_str!("../../tcl-syntax/tests/data/native_tcl_utf/unicode_encoder/9.1.0.tsv"),
         ];
         let mut rows = 0;
         for (version, fixture) in TclVersion::ALL.into_iter().zip(fixtures) {
@@ -497,23 +497,33 @@ mod tests {
     const FIXTURES: [(TclVersion, &str); 5] = [
         (
             TclVersion::V8_4,
-            include_str!("../tests/data/native_scalar_getters/errors/character-units-8.4.20.txt"),
+            include_str!(
+                "../../tcl-syntax/tests/data/native_scalar_getters/errors/character-units-8.4.20.txt"
+            ),
         ),
         (
             TclVersion::V8_5,
-            include_str!("../tests/data/native_scalar_getters/errors/character-units-8.5.19.txt"),
+            include_str!(
+                "../../tcl-syntax/tests/data/native_scalar_getters/errors/character-units-8.5.19.txt"
+            ),
         ),
         (
             TclVersion::V8_6,
-            include_str!("../tests/data/native_scalar_getters/errors/character-units-8.6.18.txt"),
+            include_str!(
+                "../../tcl-syntax/tests/data/native_scalar_getters/errors/character-units-8.6.18.txt"
+            ),
         ),
         (
             TclVersion::V9_0,
-            include_str!("../tests/data/native_scalar_getters/errors/character-units-9.0.4.txt"),
+            include_str!(
+                "../../tcl-syntax/tests/data/native_scalar_getters/errors/character-units-9.0.4.txt"
+            ),
         ),
         (
             TclVersion::V9_1,
-            include_str!("../tests/data/native_scalar_getters/errors/character-units-9.1.0.txt"),
+            include_str!(
+                "../../tcl-syntax/tests/data/native_scalar_getters/errors/character-units-9.1.0.txt"
+            ),
         ),
     ];
 

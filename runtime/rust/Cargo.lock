@@ -369,6 +369,7 @@ dependencies = [
  "tcl-runtime-api",
  "tcl-syntax",
  "tcl-test-support",
+ "tcl-value-syntax",
 ]
 
 [[package]]
@@ -391,6 +392,7 @@ dependencies = [
  "tcl-dialect",
  "tcl-lexer",
  "tcl-numeric",
+ "tcl-value-syntax",
 ]
 
 [[package]]
@@ -401,6 +403,15 @@ dependencies = [
  "tcl-dialect",
  "tcl-host-c-abi",
  "tcl-platform",
+]
+
+[[package]]
+name = "tcl-value-syntax"
+version = "0.1.0"
+dependencies = [
+ "tcl-core-types",
+ "tcl-dialect",
+ "tcl-lexer",
 ]
 
 [[package]]

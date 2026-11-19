@@ -703,16 +703,10 @@ fn collapsed_bytes_to_str<'s>(text: &'s str, collapsed: Cow<'s, [u8]>) -> Cow<'s
     }
 }
 
-/// Unsupported source recipe or malformed host request, never a guest error.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NativeSourceUnavailable {
-    /// Source grammar and independently selected string recipe disagree.
-    GrammarProtocolMismatch,
-    /// The requested position is not a backslash or has no valid bounded extent.
-    InvalidEscapePosition,
-    /// A Unicode Document contains native bytes that have no Unicode source value.
-    InvalidDocumentUnicode,
-}
+pub use tcl_value_syntax::backslash::{
+    NativeSourceEscape, NativeSourceUnavailable, native_source_escape_in,
+    native_source_string_bytes_in,
+};
 
 /// Unavailable original executable text, distinct from a guest syntax error.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -762,41 +756,6 @@ pub fn native_arena_text<'a>(
     }
 }
 
-/// Native bytes for one scanner-selected source escape token.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NativeSourceEscape {
-    /// End of the original selected token, in the supplied source buffer.
-    pub end: usize,
-    /// Exact resulting native string units.
-    pub bytes: Vec<u8>,
-}
-
-/// Decode one source escape through the shared lexer fragment scanner.
-///
-/// C source scanning selects a token extent before the evaluator decodes that
-/// bounded token. The distinction matters for truncated C8.6 astral input:
-/// scanning can select a high surrogate's one-byte extent, while decoding the
-/// selected token yields that original lead byte's native character unit.
-/// Literal bytes after the selected extent remain literal, independently of
-/// what the `subst` command does with its remaining string representation.
-///
-/// # Errors
-/// Returns an error for a grammar/recipe mismatch or an invalid requested escape extent.
-pub fn native_source_escape_in(
-    raw: &[u8],
-    pos: usize,
-    escapes: EscapeSyntax,
-    protocol: crate::native_string::NativeStringProtocol,
-) -> Result<NativeSourceEscape, NativeSourceUnavailable> {
-    native_source_escape_channel_in(
-        raw,
-        pos,
-        tcl_lexer::SourceChannel::NativeValue,
-        escapes,
-        protocol,
-    )
-}
-
 /// Decode one original source escape under its explicit input channel.
 ///
 /// # Errors
@@ -808,7 +767,6 @@ pub fn native_source_escape_channel_in(
     escapes: EscapeSyntax,
     protocol: crate::native_string::NativeStringProtocol,
 ) -> Result<NativeSourceEscape, NativeSourceUnavailable> {
-    use tcl_lexer::{BackslashFragmentValue, source_backslash_fragment_in};
     if escapes != protocol.escape_syntax() {
         return Err(NativeSourceUnavailable::GrammarProtocolMismatch);
     }
@@ -826,58 +784,7 @@ pub fn native_source_escape_channel_in(
             bytes: decoded.bytes,
         });
     }
-    let scan = source_backslash_fragment_in(raw, pos, channel, escapes, |suffix| {
-        native_original_escape_unit(protocol, suffix)
-    })
-    .ok_or(NativeSourceUnavailable::InvalidEscapePosition)?;
-    let decoded = source_backslash_fragment_in(&raw[..scan.end], pos, channel, escapes, |suffix| {
-        native_original_escape_unit(protocol, suffix)
-    })
-    .ok_or(NativeSourceUnavailable::InvalidEscapePosition)?;
-    let mut bytes = Vec::new();
-    match decoded.value {
-        BackslashFragmentValue::Byte(byte) => bytes.push(byte),
-        BackslashFragmentValue::Literal(range) => bytes.extend_from_slice(&raw[range]),
-        BackslashFragmentValue::Codepoint(value) => match protocol {
-            crate::native_string::NativeStringProtocol::Jim084 => {
-                tcl_lexer::encode_jim084_unicode(&mut bytes, value);
-            }
-            crate::native_string::NativeStringProtocol::C(version) => {
-                let value = if version < tcl_dialect::TclVersion::V9_0 && value > 0xffff {
-                    0xfffd
-                } else {
-                    value
-                };
-                crate::native_tcl_utf::NativeTclUtf::for_version(version).encode_unit(value, &mut bytes)
-                    .expect("shared numeric scanner and native input-unit decoder select a supported C unit");
-            }
-        },
-    }
-    Ok(NativeSourceEscape {
-        end: scan.end,
-        bytes,
-    })
-}
-
-/// Encode escaped source content as native string bytes. This does not parse
-/// word boundaries, perform substitutions, materialise byte arrays, decode
-/// file channels or grant compilation permission. The caller supplies already
-/// selected word content and retains its original source/object provenance.
-/// Backslash-free content borrows the complete original byte string.
-///
-/// # Errors
-/// Returns an error for a grammar/recipe mismatch or an invalid requested escape extent.
-pub fn native_source_string_bytes_in(
-    raw: &[u8],
-    escapes: EscapeSyntax,
-    protocol: crate::native_string::NativeStringProtocol,
-) -> Result<Cow<'_, [u8]>, NativeSourceUnavailable> {
-    native_source_string_bytes_channel_in(
-        raw,
-        tcl_lexer::SourceChannel::NativeValue,
-        escapes,
-        protocol,
-    )
+    native_source_escape_in(raw, pos, escapes, protocol)
 }
 
 /// Native value bytes decoded from original source under an explicit channel.
@@ -903,60 +810,7 @@ pub fn native_source_string_bytes_channel_in(
             )),
         };
     }
-    if !raw.contains(&b'\\') {
-        return Ok(source_literal_bytes(raw, channel));
-    }
-    let mut output = Vec::with_capacity(raw.len());
-    let mut pos = 0;
-    while pos < raw.len() {
-        if raw[pos] == b'\\' {
-            let fragment = native_source_escape_channel_in(raw, pos, channel, escapes, protocol)?;
-            output.extend_from_slice(&fragment.bytes);
-            pos = fragment.end;
-        } else {
-            if channel == tcl_lexer::SourceChannel::Document && raw[pos] == b'\r' {
-                output.push(b'\n');
-                pos += usize::from(raw.get(pos + 1) == Some(&b'\n'));
-            } else {
-                output.push(raw[pos]);
-            }
-            pos += 1;
-        }
-    }
-    Ok(Cow::Owned(output))
-}
-
-fn native_original_escape_unit(
-    protocol: crate::native_string::NativeStringProtocol,
-    suffix: &[u8],
-) -> tcl_lexer::EscapedInputUnit {
-    use tcl_lexer::{EscapedInputUnit, EscapedInputValue};
-    let crate::native_string::NativeStringProtocol::C(version) = protocol else {
-        return EscapedInputUnit {
-            width: 1,
-            value: EscapedInputValue::CopyOriginal,
-        };
-    };
-    let units = crate::native_tcl_utf::NativeTclUtf::for_version(version);
-    let first = units
-        .decode_unit(suffix, None)
-        .expect("unrecognised escape has an input byte");
-    if version == tcl_dialect::TclVersion::V8_6
-        && (0xd800..=0xdbff).contains(&first.value)
-        && let Some(low) = units.decode_unit(&suffix[first.width..], Some(first.value))
-        && (0xdc00..=0xdfff).contains(&low.value)
-    {
-        return EscapedInputUnit {
-            width: first.width + low.width,
-            value: EscapedInputValue::Codepoint(
-                ((first.value & 0x3ff) << 10 | (low.value & 0x3ff)) + 0x1_0000,
-            ),
-        };
-    }
-    EscapedInputUnit {
-        width: first.width,
-        value: EscapedInputValue::Codepoint(first.value),
-    }
+    native_source_string_bytes_in(raw, escapes, protocol)
 }
 
 /// Quote literal source characters for the content of a double-quoted word.

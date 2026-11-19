@@ -24,8 +24,9 @@ use super::{
 };
 use std::rc::Rc;
 use tcl_cmd_core::namespace::TclStringHashOrder;
-use tcl_syntax::native_string::{NativeStringProtocol, NativeStringStorageIdentity};
-use tcl_syntax::value::{ValueError, canonical_dict_slots};
+use tcl_syntax::value::ValueError;
+use tcl_value_syntax::dictionary::canonical_dict_slots;
+use tcl_value_syntax::native_string::{NativeStringProtocol, NativeStringStorageIdentity};
 
 impl OriginalNativeDictionaryCursor {
     pub(crate) fn check(&self, original: &Value) -> Result<(), ValueError> {
@@ -70,7 +71,7 @@ impl NativeDictionarySearch {
         };
         if backing.epoch.get() != self.epoch {
             return Err(tcl_syntax::value::ValueError::NativeFatalCondition(
-                tcl_syntax::raw_string::NativeFatalCondition::DictionarySearchConcurrentMutation,
+                tcl_value_syntax::raw_string::NativeFatalCondition::DictionarySearchConcurrentMutation,
             ));
         }
         let pair = backing.with_pairs(|pairs| pairs.get(self.next).cloned());
@@ -114,7 +115,7 @@ impl NativeDictionarySearch {
         };
         if backing.epoch.get() != self.epoch {
             return Err(tcl_syntax::value::ValueError::NativeFatalCondition(
-                tcl_syntax::raw_string::NativeFatalCondition::DictionarySearchConcurrentMutation,
+                tcl_value_syntax::raw_string::NativeFatalCondition::DictionarySearchConcurrentMutation,
             )
             .into());
         }
@@ -346,7 +347,7 @@ impl Value {
     /// Prepare from borrowed original storage before retaining a working handle.
     pub(crate) fn prepare_native_dictionary(
         &self,
-        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        protocol: tcl_value_syntax::native_string::NativeStringProtocol,
     ) -> Result<PreparedNativeDictionary, tcl_syntax::value::ValueError> {
         let value = if self.native_object_is_shared() {
             let value = self.duplicate_native_object_in(protocol);
@@ -363,14 +364,14 @@ impl Value {
     /// Existing path children and integer/body updates retain the conversion on aliases.
     pub(crate) fn prepare_native_dictionary_after_conversion(
         &self,
-        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        protocol: tcl_value_syntax::native_string::NativeStringProtocol,
     ) -> Result<PreparedNativeDictionary, ValueError> {
         self.prepare_native_dictionary_after_conversion_using(protocol, &mut None, &mut None)
     }
 
     pub(crate) fn prepare_native_dictionary_after_conversion_checked(
         &self,
-        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        protocol: tcl_value_syntax::native_string::NativeStringProtocol,
         check: &mut dyn FnMut() -> Result<(), tcl_cmd_core::CmdError>,
         strings: &mut NativeStringAccess<'_, tcl_cmd_core::CmdError>,
     ) -> Result<PreparedNativeDictionary, tcl_cmd_core::CmdError> {
@@ -383,7 +384,7 @@ impl Value {
 
     fn prepare_native_dictionary_after_conversion_using<E: From<ValueError>>(
         &self,
-        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        protocol: tcl_value_syntax::native_string::NativeStringProtocol,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
         strings: &mut Option<&mut NativeStringAccess<'_, E>>,
     ) -> Result<PreparedNativeDictionary, E> {
@@ -402,7 +403,7 @@ impl Value {
     /// Integer updates duplicate a shared C Dictionary without its resident string.
     pub(crate) fn prepare_native_dictionary_for_increment(
         &self,
-        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        protocol: tcl_value_syntax::native_string::NativeStringProtocol,
     ) -> Result<PreparedNativeDictionary, tcl_syntax::value::ValueError> {
         let shared = self.native_object_is_shared();
         let prepared = self.prepare_native_dictionary_after_conversion(protocol)?;
@@ -422,7 +423,7 @@ impl Value {
         &self,
         key: Value,
         value: Value,
-        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        protocol: tcl_value_syntax::native_string::NativeStringProtocol,
     ) -> Result<Value, tcl_syntax::value::ValueError> {
         let mut prepared = self.prepare_native_dictionary(protocol)?;
         prepared.set_member(key, value)?;
@@ -539,7 +540,7 @@ impl Value {
         self.seal_compound_string_protocol(protocol)
             .map_err(|error| {
                 tcl_syntax::value::ValueError::NativeStringAccess(
-                    tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
+                    tcl_value_syntax::raw_string::NativeStringAccessError::Unavailable(error),
                 )
             })?;
         let backing = match &*self.0.intrep.borrow() {
@@ -566,7 +567,7 @@ impl Value {
     /// Preserves checked storage refusal and native dictionary parse failures.
     pub fn native_object_dict_pairs(
         &self,
-        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        protocol: tcl_value_syntax::native_string::NativeStringProtocol,
     ) -> Result<Vec<(Value, Value)>, ValueError> {
         self.native_object_dict_pairs_using(protocol, &mut None, &mut None)
     }
@@ -605,7 +606,7 @@ impl Value {
             Some(strings) => strings(self),
             None => self
                 .native_string_bytes(protocol)
-                .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
+                .map_err(tcl_value_syntax::raw_string::NativeStringAccessError::Unavailable)
                 .map_err(ValueError::from)
                 .map_err(E::from),
         }
@@ -613,7 +614,7 @@ impl Value {
 
     fn native_object_dict_pairs_using<E: From<ValueError>>(
         &self,
-        protocol: tcl_syntax::native_string::NativeStringProtocol,
+        protocol: tcl_value_syntax::native_string::NativeStringProtocol,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
         strings: &mut Option<&mut NativeStringAccess<'_, E>>,
     ) -> Result<Vec<(Value, Value)>, E> {
@@ -622,7 +623,7 @@ impl Value {
         self.seal_compound_string_protocol(protocol)
             .map_err(|error| {
                 ValueError::NativeStringAccess(
-                    tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
+                    tcl_value_syntax::raw_string::NativeStringAccessError::Unavailable(error),
                 )
             })?;
         if let Some(pairs) = self.cached_dictionary_representation() {
@@ -643,12 +644,11 @@ impl Value {
                 let reached = self.native_compound_string_using(protocol, strings);
                 Self::native_stage_check(check)?;
                 let bytes = reached?;
-                let parsed = tcl_syntax::list::split_native_list_bytes(&bytes, protocol).map_err(
-                    |error| ValueError::DictionaryParse {
+                let parsed = tcl_value_syntax::list::split_native_list_bytes(&bytes, protocol)
+                    .map_err(|error| ValueError::DictionaryParse {
                         error,
                         source: bytes.to_vec(),
-                    },
-                )?;
+                    })?;
                 crate::NativeListItems::new(
                     parsed
                         .into_iter()
@@ -688,7 +688,7 @@ impl Value {
         self.seal_compound_string_protocol(protocol)
             .map_err(|error| {
                 ValueError::NativeStringAccess(
-                    tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
+                    tcl_value_syntax::raw_string::NativeStringAccessError::Unavailable(error),
                 )
             })?;
         Ok(pairs)
@@ -737,7 +737,7 @@ impl Value {
             &mut |(), actual| {
                 actual.native_string_bytes(protocol).map_err(|error| {
                     ValueError::NativeStringAccess(
-                        tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
+                        tcl_value_syntax::raw_string::NativeStringAccessError::Unavailable(error),
                     )
                 })
             },

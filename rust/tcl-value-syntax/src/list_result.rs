@@ -196,7 +196,7 @@ mod tests {
                 })
                 .collect::<Vec<_>>()
         };
-        let fixture = include_str!("testdata/native_list_result_ascii.tsv");
+        let fixture = include_str!("../../tcl-syntax/src/testdata/native_list_result_ascii.tsv");
         let mut observations = 0;
         for row in fixture.lines().filter(|row| !row.starts_with('#')) {
             let fields = row.split_whitespace().collect::<Vec<_>>();

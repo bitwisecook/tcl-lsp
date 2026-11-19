@@ -1273,6 +1273,16 @@ dependencies = [
  "tcl-dialect",
  "tcl-lexer",
  "tcl-numeric",
+ "tcl-value-syntax",
+]
+
+[[package]]
+name = "tcl-value-syntax"
+version = "0.1.0"
+dependencies = [
+ "tcl-core-types",
+ "tcl-dialect",
+ "tcl-lexer",
 ]
 
 [[package]]

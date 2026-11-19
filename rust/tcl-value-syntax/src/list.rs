@@ -696,7 +696,7 @@ pub fn split_list_bytes_in(
         elements.push(if element.literal {
             Cow::Borrowed(value)
         } else {
-            crate::backslash::decode_bytes_in(value, escapes)
+            tcl_lexer::backslash_subst_bytes_in(value, escapes)
         });
         offset = element.next;
     }
@@ -1114,11 +1114,11 @@ where
 /// Note that Tcl's `\<newline>` line-continuation collapse happens in a
 /// *pre-pass* over the script, before any word is list-parsed — even inside
 /// braces. A caller holding raw source text must run
-/// [`crate::backslash::collapse_brace_continuations_str`] over it first, or
+/// the script grammar’s brace-continuation decoder over it first, or
 /// the backslash will be read as escaping the newline *inside* an element.
 ///
 /// ```
-/// use tcl_syntax::list::normalise_spacing;
+/// use tcl_value_syntax::list::normalise_spacing;
 /// assert_eq!(normalise_spacing("a    b   c").unwrap(), "a b c");
 /// // Structure is preserved, not flattened.
 /// assert_eq!(normalise_spacing("a  {b 1}  c").unwrap(), "a {b 1} c");

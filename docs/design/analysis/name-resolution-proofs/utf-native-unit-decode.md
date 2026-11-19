@@ -103,8 +103,8 @@ No native observation of this exact question is attached for this provider.
 
 ## Consumer bindings
 
-- [rust/tcl-syntax/src/native_tcl_utf.rs](../../../../rust/tcl-syntax/src/native_tcl_utf.rs), `NativeTclUtf`: Owns canonical release-selected native unit decoding/encoding and reverse boundaries separately from document UTF.
-- [rust/tcl-syntax/src/native_tcl_utf.rs](../../../../rust/tcl-syntax/src/native_tcl_utf.rs), `native_tcl_utf::tests::canonical_native_units_encoding_and_previous_boundaries_match_five_releases` (linked): Checks70 exact native decoder widths/unit/isolated encoder and every reverse boundary, retaining each independent field.
+- [rust/tcl-value-syntax/src/native_tcl_utf.rs](../../../../rust/tcl-value-syntax/src/native_tcl_utf.rs), `NativeTclUtf`: Owns canonical release-selected native unit decoding/encoding and reverse boundaries separately from document UTF.
+- [rust/tcl-value-syntax/src/native_tcl_utf.rs](../../../../rust/tcl-value-syntax/src/native_tcl_utf.rs), `native_tcl_utf::tests::canonical_native_units_encoding_and_previous_boundaries_match_five_releases` (linked): Checks70 exact native decoder widths/unit/isolated encoder and every reverse boundary, retaining each independent field.
 
 ## Evidence
 

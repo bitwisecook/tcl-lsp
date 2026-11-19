@@ -759,7 +759,7 @@ fn build_word<'s>(
 // keeps the actual byte API (`&[u8]` in, owned bytes out).
 
 /// Why splitting a string as a Tcl list failed. Mirrors
-/// [`tcl_syntax::list::ListError`] without requiring Unicode projection.
+/// [`tcl_value_syntax::list::ListError`] without requiring Unicode projection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ListError {
     /// An unmatched `{` (`unmatched open brace in list`).
@@ -772,9 +772,9 @@ pub enum ListError {
     QuoteFollowedByJunk,
 }
 
-impl From<tcl_syntax::list::ListError> for ListError {
-    fn from(e: tcl_syntax::list::ListError) -> Self {
-        use tcl_syntax::list::ListError as L;
+impl From<tcl_value_syntax::list::ListError> for ListError {
+    fn from(e: tcl_value_syntax::list::ListError) -> Self {
+        use tcl_value_syntax::list::ListError as L;
         match e {
             L::UnmatchedBrace => ListError::UnmatchedBrace,
             L::UnmatchedQuote => ListError::UnmatchedQuote,
@@ -785,17 +785,21 @@ impl From<tcl_syntax::list::ListError> for ListError {
 }
 
 impl ListError {
-    pub(crate) fn shared(self) -> tcl_syntax::list::ListError {
+    pub(crate) fn shared(self) -> tcl_value_syntax::list::ListError {
         match self {
-            ListError::UnmatchedBrace => tcl_syntax::list::ListError::UnmatchedBrace,
-            ListError::UnmatchedQuote => tcl_syntax::list::ListError::UnmatchedQuote,
-            ListError::BraceFollowedByJunk => tcl_syntax::list::ListError::BraceFollowedByJunk,
-            ListError::QuoteFollowedByJunk => tcl_syntax::list::ListError::QuoteFollowedByJunk,
+            ListError::UnmatchedBrace => tcl_value_syntax::list::ListError::UnmatchedBrace,
+            ListError::UnmatchedQuote => tcl_value_syntax::list::ListError::UnmatchedQuote,
+            ListError::BraceFollowedByJunk => {
+                tcl_value_syntax::list::ListError::BraceFollowedByJunk
+            }
+            ListError::QuoteFollowedByJunk => {
+                tcl_value_syntax::list::ListError::QuoteFollowedByJunk
+            }
         }
     }
 
     /// The Tcl error message for this failure — reusing the **shared**
-    /// [`tcl_syntax::list::ListError`] strings (one source). The `…FollowedByJunk`
+    /// [`tcl_value_syntax::list::ListError`] strings (one source). The `…FollowedByJunk`
     /// variants are the message *prefix*; the byte-exact text appends `"<frag>"
     /// instead of space`, which needs the offending fragment surfaced from the
     /// splitter — see [`list_error_message`] for the byte-exact form.
@@ -828,13 +832,15 @@ pub(crate) fn install_native_list_policy(
 
 /// Split `src` into its Tcl list element *values* (owned): `{braced}` elements
 /// verbatim, bare/`"quoted"` elements with backslash escapes decoded. The
-/// `Tcl_SplitList` primitive, delegating to [`tcl_syntax::list::split_list`].
+/// `Tcl_SplitList` primitive, delegating to [`tcl_value_syntax::list::split_list`].
 pub fn split_list(src: &[u8]) -> Result<Vec<Vec<u8>>, ListError> {
     let (syntax, escapes) = NATIVE_LIST_POLICY.get();
-    Ok(tcl_syntax::list::split_list_bytes_in(src, syntax, escapes)?
-        .into_iter()
-        .map(std::borrow::Cow::into_owned)
-        .collect())
+    Ok(
+        tcl_value_syntax::list::split_list_bytes_in(src, syntax, escapes)?
+            .into_iter()
+            .map(std::borrow::Cow::into_owned)
+            .collect(),
+    )
 }
 
 /// The byte-exact `Tcl_SplitList` error message for `src` (the `FindElement`
@@ -844,8 +850,8 @@ pub fn split_list(src: &[u8]) -> Result<Vec<Vec<u8>>, ListError> {
 /// no access to the position. Other variants render their fixed text.
 ///
 /// Both halves come from the shared codec: the fragment walk from
-/// [`tcl_syntax::list::junk_fragment`] and the sentence from
-/// [`tcl_syntax::list::ListError::full_message`], rather than a separate
+/// [`tcl_value_syntax::list::junk_fragment`] and the sentence from
+/// [`tcl_value_syntax::list::ListError::full_message`], rather than a separate
 /// re-implementation of that walk in this crate.
 #[must_use]
 pub fn list_error_message(src: &[u8], err: ListError) -> Vec<u8> {

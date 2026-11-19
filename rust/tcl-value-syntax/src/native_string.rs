@@ -365,27 +365,27 @@ mod tests {
         let fixtures = [
             (
                 NativeStringProtocol::C(TclVersion::V8_4),
-                include_str!("../testdata/native_empty_compound_updaters/8.4.20.tsv"),
+                include_str!("../../tcl-syntax/testdata/native_empty_compound_updaters/8.4.20.tsv"),
             ),
             (
                 NativeStringProtocol::C(TclVersion::V8_5),
-                include_str!("../testdata/native_empty_compound_updaters/8.5.19.tsv"),
+                include_str!("../../tcl-syntax/testdata/native_empty_compound_updaters/8.5.19.tsv"),
             ),
             (
                 NativeStringProtocol::C(TclVersion::V8_6),
-                include_str!("../testdata/native_empty_compound_updaters/8.6.18.tsv"),
+                include_str!("../../tcl-syntax/testdata/native_empty_compound_updaters/8.6.18.tsv"),
             ),
             (
                 NativeStringProtocol::C(TclVersion::V9_0),
-                include_str!("../testdata/native_empty_compound_updaters/9.0.4.tsv"),
+                include_str!("../../tcl-syntax/testdata/native_empty_compound_updaters/9.0.4.tsv"),
             ),
             (
                 NativeStringProtocol::C(TclVersion::V9_1),
-                include_str!("../testdata/native_empty_compound_updaters/9.1.0.tsv"),
+                include_str!("../../tcl-syntax/testdata/native_empty_compound_updaters/9.1.0.tsv"),
             ),
             (
                 NativeStringProtocol::Jim084,
-                include_str!("../testdata/native_empty_compound_updaters/jim.tsv"),
+                include_str!("../../tcl-syntax/testdata/native_empty_compound_updaters/jim.tsv"),
             ),
         ];
         let mut rows = 0;

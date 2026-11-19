@@ -83,7 +83,7 @@ const SANCTIONED_PREFIXES: &[&str] = &[
     "rust/tcl-registry/src/dialects.rs",
     // The word-value owner and the list grammar it is built on.
     "rust/tcl-syntax/src/word_rules.rs",
-    "rust/tcl-syntax/src/list.rs",
+    "rust/tcl-value-syntax/src/list.rs",
     // The gates that name the banned spellings in their own source.
     "rust/xtask/src/dialect_drift.rs",
     "rust/xtask/src/number_drift.rs",

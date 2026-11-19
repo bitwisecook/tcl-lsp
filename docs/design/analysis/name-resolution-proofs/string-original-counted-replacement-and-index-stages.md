@@ -143,8 +143,8 @@ tcl8.5 8.5.19, revision `retained released source bytes`, `/workspace/tcl-lsp/tm
 
 ## Consumer bindings
 
-- [rust/tcl-syntax/src/native_tcl_utf.rs](../../../../rust/tcl-syntax/src/native_tcl_utf.rs), `legacy_storage_plain_char_promotion_is_separate_from_public_unit_decoding` (linked): Software source definition checks legacy storage plain char promotion is separate from public unit decoding.
-- [rust/tcl-syntax/src/raw_string.rs](../../../../rust/tcl-syntax/src/raw_string.rs), `original_jim_after_part_uses_the_measured_character_derived_byte_extent` (linked): Software source definition checks jim after part uses the measured character derived byte extent.
+- [rust/tcl-value-syntax/src/native_tcl_utf.rs](../../../../rust/tcl-value-syntax/src/native_tcl_utf.rs), `legacy_storage_plain_char_promotion_is_separate_from_public_unit_decoding` (linked): Software source definition checks legacy storage plain char promotion is separate from public unit decoding.
+- [rust/tcl-value-syntax/src/raw_string.rs](../../../../rust/tcl-value-syntax/src/raw_string.rs), `original_jim_after_part_uses_the_measured_character_derived_byte_extent` (linked): Software source definition checks jim after part uses the measured character derived byte extent.
 - [rust/tcl-vm/src/value_ops/native_jim_index.rs](../../../../rust/tcl-vm/src/value_ops/native_jim_index.rs), `original_replacement_matches_every_native_observed_projection` (linked): Software source definition checks replacement matches every native observed projection.
 - [runtime/rust/src/value_ops/native_jim_index.rs](../../../../runtime/rust/src/value_ops/native_jim_index.rs), `original_replacement_matches_every_native_observed_projection` (linked): Software source definition checks replacement matches every native observed projection.
 

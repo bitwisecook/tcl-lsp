@@ -72,6 +72,7 @@ wasm_stdlib = []
 engine = ["dep:tcl-engine-api"]
 
 [dependencies]
+tcl-value-syntax = { path = "../../rust/tcl-value-syntax" }
 # Pure executable artifact tables shared with the native bytecode producer.
 tcl-bytecode = { path = "../../rust/tcl-bytecode" }
 tcl-lexer = { path = "../../rust/tcl-lexer" }

@@ -340,7 +340,7 @@ fn missing_source_is_reported() {
 fn missing_entry_point_is_reported() {
     let root = crate::util::repo_root();
     let contract = synthetic_manifest(
-        "`rust/tcl-syntax/src/list.rs`",
+        "`rust/tcl-value-syntax/src/list.rs`",
         "`DefinitelyMissing`",
         "none",
     );
@@ -493,7 +493,7 @@ fn module_qualified_entries_require_the_actual_public_module() {
 fn missing_make_gate_is_reported() {
     let root = crate::util::repo_root();
     let contract = synthetic_manifest(
-        "`rust/tcl-syntax/src/list.rs`",
+        "`rust/tcl-value-syntax/src/list.rs`",
         "`split_list`",
         "`xtask-does-not-exist`",
     );
@@ -514,7 +514,7 @@ fn legacy_naming_gate_resolves_the_tcl_evidence_check() {
     let main = read(&root, XTASK_MAIN_PATH).expect("xtask main");
     assert!(naming_proof_gate_is_current(&root, &makefile));
     let contract = synthetic_manifest(
-        "`rust/tcl-syntax/src/list.rs`",
+        "`rust/tcl-value-syntax/src/list.rs`",
         "`split_list`",
         "`check-name-resolution-proofs`",
     );

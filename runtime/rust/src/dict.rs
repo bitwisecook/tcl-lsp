@@ -1457,7 +1457,7 @@ impl DictError {
     pub fn message_bytes(&self) -> Vec<u8> {
         match self {
             Self::Parse { error, source } => {
-                tcl_syntax::value::dictionary_parse_message(*error, source)
+                tcl_value_syntax::dictionary::dictionary_parse_message(*error, source)
             }
             Self::MissingValue => b"missing value to go with key".to_vec(),
             Self::BraceJunk(fragment) | Self::QuoteJunk(fragment) => {

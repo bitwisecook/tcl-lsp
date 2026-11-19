@@ -28,5 +28,5 @@ This is a Rust source-consumer implementation contract. No native provider obser
 
 ## Consumer bindings
 
-- [rust/tcl-syntax/src/native_string/name_display.rs](../../../../rust/tcl-syntax/src/native_string/name_display.rs), `resident_name_label`: Present complete resident bytes without replacing invalid units or treating the label as source spelling or semantic identity.
-- [rust/tcl-syntax/src/native_string/name_display.rs](../../../../rust/tcl-syntax/src/native_string/name_display.rs), `native_string::name_display::tests::labels_preserve_counted_bytes_without_claiming_source_roundtrips` (linked): Printable Unicode stays readable while raw zero/C080/surrogate bytes/FF and literal backslash escapes retain distinct labels; no source roundtrip is claimed.
+- [rust/tcl-value-syntax/src/native_string/name_display.rs](../../../../rust/tcl-value-syntax/src/native_string/name_display.rs), `resident_name_label`: Present complete resident bytes without replacing invalid units or treating the label as source spelling or semantic identity.
+- [rust/tcl-value-syntax/src/native_string/name_display.rs](../../../../rust/tcl-value-syntax/src/native_string/name_display.rs), `native_string::name_display::tests::labels_preserve_counted_bytes_without_claiming_source_roundtrips` (linked): Printable Unicode stays readable while raw zero/C080/surrogate bytes/FF and literal backslash escapes retain distinct labels; no source roundtrip is claimed.

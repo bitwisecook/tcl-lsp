@@ -32,7 +32,7 @@ use std::{
     cell::{Cell, Ref, RefCell, RefMut},
     rc::Rc,
 };
-use tcl_syntax::native_string::NativeStringProtocol;
+use tcl_value_syntax::native_string::NativeStringProtocol;
 
 use crate::obj::{self, TclObj, TclObjType};
 use crate::parse::{self, ListError};
@@ -404,7 +404,7 @@ pub(crate) fn native_header_reference_count(
 pub(crate) fn duplicate_native_backing(
     original: *mut TclObj,
     duplicate: *mut TclObj,
-    protocol: tcl_syntax::native_string::NativeStringProtocol,
+    protocol: tcl_value_syntax::native_string::NativeStringProtocol,
 ) {
     if obj::obj_type_ptr(original) != &TCL_LIST_TYPE || protocol.is_jim084() {
         return;
@@ -535,7 +535,7 @@ pub(crate) fn install_native_string(
             value,
             bytes,
             protocol.compound_updater_storage()
-                == tcl_syntax::native_string::NativeStringStorageIdentity::CanonicalEmpty,
+                == tcl_value_syntax::native_string::NativeStringStorageIdentity::CanonicalEmpty,
         )
     };
     let backing = unsafe { list_ref(value) };
@@ -726,7 +726,7 @@ pub fn list_elements(obj: *mut TclObj) -> Result<Vec<*mut TclObj>, tcl_syntax::v
 /// Convert original native object-list storage while preserving host refusals.
 pub(crate) fn list_elements_native_checked(
     value: *mut TclObj,
-    protocol: tcl_syntax::native_string::NativeStringProtocol,
+    protocol: tcl_value_syntax::native_string::NativeStringProtocol,
 ) -> Result<Vec<*mut TclObj>, tcl_syntax::value::ValueError> {
     list_elements_native_with_currency(value, protocol, None)
 }
@@ -1503,7 +1503,7 @@ fn native_full_list_range_with_original<E>(
 
 fn list_elements_using<E>(
     value: *mut TclObj,
-    native: Option<tcl_syntax::native_string::NativeStringProtocol>,
+    native: Option<tcl_value_syntax::native_string::NativeStringProtocol>,
     syntax: tcl_dialect::ListParse,
     escapes: tcl_dialect::EscapeSyntax,
     source: Option<(
@@ -1536,12 +1536,12 @@ fn list_elements_using<E>(
     if obj::obj_type_ptr(value) != &TCL_LIST_TYPE {
         let bytes = obj::bytes_of(value);
         let parsed: Vec<_> = match native {
-            Some(protocol) => tcl_syntax::list::split_native_list_elements(&bytes, protocol)
+            Some(protocol) => tcl_value_syntax::list::split_native_list_elements(&bytes, protocol)
                 .map_err(|error| parse_error(error.into()))?
                 .into_iter()
                 .map(|element| (element.value, element.line_delta))
                 .collect(),
-            None => tcl_syntax::list::split_list_bytes_in(&bytes, syntax, escapes)
+            None => tcl_value_syntax::list::split_list_bytes_in(&bytes, syntax, escapes)
                 .map_err(|error| parse_error(error.into()))?
                 .into_iter()
                 .map(|value| (value, 0))
@@ -1582,7 +1582,7 @@ fn list_elements_using<E>(
                 .tcl_version()
                 .is_some_and(|version| version >= tcl_dialect::TclVersion::V9_0)
         }) {
-            storage.set_capacity(tcl_syntax::list::max_list_length_bytes(&bytes).max(1));
+            storage.set_capacity(tcl_value_syntax::list::max_list_length_bytes(&bytes).max(1));
         }
         let backing = Box::new(TclList {
             elems: storage,
@@ -1812,7 +1812,7 @@ pub fn list_append(obj: *mut TclObj, elem: *mut TclObj) -> Result<(), ListError>
 /// and `\<newline>` arms stays aligned with C. One implementation, one
 /// parity table.
 pub(crate) fn append_list_element(buf: &mut Vec<u8>, elem: &[u8], quote_hash: bool) {
-    tcl_syntax::list::append_list_element(buf, elem, quote_hash);
+    tcl_value_syntax::list::append_list_element(buf, elem, quote_hash);
 }
 
 #[cfg(test)]

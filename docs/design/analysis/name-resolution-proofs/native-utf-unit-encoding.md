@@ -36,10 +36,10 @@ No interpreter-source anchor is asserted for this question; the retained probe a
 
 ## Shared owners and tests
 
-- `rust/tcl-syntax/src/native_tcl_utf.rs`: `NativeTclUtf::encode_units` — Retained native unit encoding.
-- `rust/tcl-syntax/src/native_tcl_utf.rs`: `NativeTclUtf::encode_character` — Integer-character API encoding.
-- `rust/tcl-syntax/src/native_tcl_utf.rs`: `NativeTclUtf::encode_unit` — Single native unit encoder.
-- `rust/tcl-syntax/src/native_tcl_utf.rs`: `native_tcl_utf::tests::encoding_matches_every_selected_native_unit_control`. Compare seventy selected unit/character outputs to actual C fixtures.
+- `rust/tcl-value-syntax/src/native_tcl_utf.rs`: `NativeTclUtf::encode_units` — Retained native unit encoding.
+- `rust/tcl-value-syntax/src/native_tcl_utf.rs`: `NativeTclUtf::encode_character` — Integer-character API encoding.
+- `rust/tcl-value-syntax/src/native_tcl_utf.rs`: `NativeTclUtf::encode_unit` — Single native unit encoder.
+- `rust/tcl-value-syntax/src/native_tcl_utf.rs`: `native_tcl_utf::tests::encoding_matches_every_selected_native_unit_control`. Compare seventy selected unit/character outputs to actual C fixtures.
 
 Native output is evidence for the interpreter operation. Rust tests must independently pass to establish implementation correspondence.
 
