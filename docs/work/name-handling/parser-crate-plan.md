@@ -88,6 +88,19 @@ The [direct and default caller register](parser-callers.tsv) opens with 224 indi
 
 Run `cargo xtask parser-ownership --report` on the revision under review. On `e1caf3e94d` the wider pass inspected 6,227 Rust source trees, including the standalone runtime. It reported 5,557 functions for structural inspection, 919 uses of host parsing operations, and 616 foreign source entries. Each item is a review lead. Looping over data and parsing Tcl have different dispositions. For generated and bundled assets, trace the generator, source and embedding rule. A wrapper can be accepted only with its selected grammar and reachable caller established.
 
+The wider queue assigns 7,176 entries, including Rust structural and host operations, foreign source, generated files, grammar assets and vendored boundaries. Some entry types overlap within a file.
+
+| Reviewer | Wider entries | Current evidence |
+| --- | ---: | --- |
+| analyser-binding | 1,665 | Compiler, core types and dialect ownership. Formal and original-word discrepancies have public witnesses. |
+| dataflow-optimiser | 990 | Registry and compiler folding. The selected list/dictionary result writers require byte-for-byte checks through the optimiser. |
+| diagnostics | 602 | First pass covers all assigned entries. It explicitly leaves 34 open, including host number parsing, literal Tcl construction, scan and credential predicates. |
+| execution | 1,092 | Runtime, VM, codegen and engine adapters. Real runtime witnesses include malformed Thread lists, `try` error codes and glob filters. |
+| LSP features | 831 | First pass covers all assigned entries. It explicitly leaves 238 leads open and identifies 186 calls into existing owners. |
+| tooling | 1,996 | Editor/domain generators, scripts, packs and tooling. Record host grammar and the Tcl re-entry point. |
+
+Gated scope records live in [the reviewed scope manifest](validation-tools/parser-reviewed-scopes.tsv). Current signed scopes cover the literal manifest reader and the APL embedded Tcl callback. The latter covers the hand-off to the selected Tcl lexer. The outer APL grammar and device questions retain their separate evidence requirements.
+
 Use the all-files inventory alongside Cargo targets/features, standalone manifests, build scripts, generated grammars, packaged files and embedded-language boundaries. Trace host-language scanners, regular expressions, splitting, joining and manual byte/character loops to their inputs and consumers. Follow data into delegates and generated artifacts. Check a deliberately introduced private scanner, a forwarding adapter and a genuine host-language parser when validating the ownership gate. A newly tracked source or a previously unseen grammar requires review.
 
 ## Source census and limits
