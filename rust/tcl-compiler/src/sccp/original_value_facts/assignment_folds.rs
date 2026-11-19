@@ -199,10 +199,21 @@ pub(super) fn fold_assign_value<'a, S1: std::hash::BuildHasher, S2: std::hash::B
         // checked registry dispatch as the optional multi-hop engine.
         if let Some(f) = folds {
             let trusts = |name: &str| {
-                if name == "list" && matches!(f.trust, FoldTrust::ObservedBindings) {
+                let constructs_list = f
+                    .registry
+                    .get_for_surface(name, f.registry.own_surface_query())
+                    .is_some_and(|spec| {
+                        spec.native_result
+                            == Some(
+                                tcl_registry::native_result::NativeResultContract::ListArguments {
+                                    from: 0,
+                                },
+                            )
+                    });
+                if constructs_list && matches!(f.trust, FoldTrust::ObservedBindings) {
                     f.mutations.observed_binding_is_the_builtin(name)
                 } else {
-                    (f.registry_engine || name == "list") && f.mutations.trusts(name)
+                    (f.registry_engine || constructs_list) && f.mutations.trusts(name)
                 }
             };
             let lookup = |name: &str| {
