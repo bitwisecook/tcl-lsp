@@ -422,7 +422,7 @@ impl<'ast> Visit<'ast> for Source {
             _ => "<type expression>".to_owned(),
         };
         let owner = match &item.trait_ {
-            Some((_, p, _)) => format!("<{target} as {}>", path_text(p)),
+            Some((p, _)) => format!("<{target} as {}>", path_text(p)),
             None => target,
         };
         self.scopes.push(owner);
