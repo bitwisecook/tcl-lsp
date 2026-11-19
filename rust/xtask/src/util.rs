@@ -306,6 +306,7 @@ pub const ANALYSIS_TIER_ROOTS: &[&str] = &[
     "rust/tcl-irule-test/src",
     "rust/tcl-bigip/src",
     "rust/tcl-sslictcl/src",
+    "rust/tcl-numeric/src",
     "rust/tcl-syntax/src",
 ];
 
