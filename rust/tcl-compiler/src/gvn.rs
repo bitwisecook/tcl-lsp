@@ -246,7 +246,7 @@ pub fn canonicalise_word<S: std::hash::BuildHasher>(
     let Ok(arena) = ExecutablePartArena::decompose(
         tcl_lexer::SourceImage::native(text.as_bytes()),
         tcl_lexer::Span::new(0, end),
-        SubstFlags::compiled_word(),
+        SubstFlags::default(),
         config,
     ) else {
         return text.to_owned();
@@ -431,7 +431,11 @@ pub fn is_pure_command(
     // depends on the inner side effect's per-call return (e.g.
     // `expr [incr counter]`). Recurse into every nested `[…]` and
     // require each to be pure too.
-    arg_substitutions_pure(args, |c, a| is_pure_command(registry, c, a, dialect))
+    arg_substitutions_pure(
+        args,
+        tcl_lexer::LexerConfig::for_profile(dialect),
+        |c, a| classify_side_effects(registry, c, a, dialect, None).pure,
+    )
 }
 
 /// Scan `args` for embedded `[cmd …]` command substitutions and return
@@ -439,12 +443,15 @@ pub fn is_pure_command(
 /// are skipped (no substitution inside `{…}`). Shared by the purity
 /// gates so an outer pure command wrapping an impure inner subst is
 /// rejected as loop-invariant (O106).
-fn arg_substitutions_pure(args: &[String], check: impl Fn(&str, &[String]) -> bool) -> bool {
+fn arg_substitutions_pure(
+    args: &[String],
+    config: tcl_lexer::LexerConfig,
+    check: impl Fn(&str, &[String]) -> bool,
+) -> bool {
     args.iter().all(|arg| {
         !arg.contains('[')
-            || scan_bracketed_commands(arg)
-                .iter()
-                .all(|(cmd, inner)| check(cmd, inner))
+            || scan_bracketed_commands_with_config(arg, config)
+                .is_some_and(|commands| commands.iter().all(|(cmd, inner)| check(cmd, inner)))
     })
 }
 
@@ -974,7 +981,10 @@ fn statement_occurrences_for_gvn(
     };
     let span = stmt_ssa.statement.span();
     for text in texts_to_scan {
-        for (cmd, args) in scan_bracketed_commands(text) {
+        for (cmd, args) in
+            scan_bracketed_commands_with_config(text, tcl_lexer::LexerConfig::for_profile(dialect))
+                .unwrap_or_default()
+        {
             if !is_pure_command(registry, &cmd, &args, dialect) {
                 continue;
             }
@@ -1016,152 +1026,70 @@ fn statement_occurrences_for_gvn(
 /// then each nested inner).
 #[must_use]
 pub fn scan_bracketed_commands(text: &str) -> Vec<(String, Vec<String>)> {
-    let bytes = text.as_bytes();
-    let mut out = Vec::new();
-    let mut i = 0;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'{' => {
-                // Skip braced region entirely.
-                let mut depth = 1i32;
-                i += 1;
-                while i < bytes.len() && depth > 0 {
-                    match bytes[i] {
-                        b'{' => depth += 1,
-                        b'}' => depth -= 1,
-                        b'\\' if i + 1 < bytes.len() => i += 1,
-                        _ => {}
-                    }
-                    i += 1;
-                }
-            }
-            b'[' => {
-                let start = i + 1;
-                let mut depth = 1i32;
-                let mut j = start;
-                while j < bytes.len() && depth > 0 {
-                    match bytes[j] {
-                        b'[' => depth += 1,
-                        b']' => depth -= 1,
-                        b'\\' if j + 1 < bytes.len() => j += 1,
-                        _ => {}
-                    }
-                    if depth == 0 {
-                        break;
-                    }
-                    j += 1;
-                }
-                if depth == 0 && j < bytes.len() {
-                    let inner = &text[start..j];
-                    if let Some(pair) = split_cmd_text(inner) {
-                        out.push(pair);
-                    }
-                    // Also scan the inner content for further
-                    // nested substitutions.
-                    out.extend(scan_bracketed_commands(inner));
-                    i = j + 1;
-                } else {
-                    i += 1;
-                }
-            }
-            b'\\' if i + 1 < bytes.len() => {
-                i += 2;
-            }
-            _ => i += 1,
-        }
-    }
-    out
+    scan_bracketed_commands_with_config(text, tcl_lexer::LexerConfig::for_profile(None))
+        .unwrap_or_default()
 }
 
-/// Split `"cmd arg1 arg2 ..."` into `(cmd, args)`.
-///
-/// Whitespace-separated at the top level; brace and quote regions
-/// are kept as a single word (delimiters preserved so downstream
-/// canonicalisation still sees variable references). Returns
-/// `None` for empty / whitespace-only input.
-fn split_cmd_text(text: &str) -> Option<(String, Vec<String>)> {
-    let bytes = text.as_bytes();
-    let mut words: Vec<String> = Vec::new();
-    let mut i = 0;
-    while i < bytes.len() {
-        while i < bytes.len() && matches!(bytes[i], b' ' | b'\t' | b'\n' | b'\r') {
-            i += 1;
+fn scan_bracketed_commands_with_config(
+    text: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<Vec<(String, Vec<String>)>> {
+    use tcl_lexer::word_parts::ExecutablePart;
+    let plan = tcl_lexer::native_script_words_in_with_purpose(
+        tcl_lexer::SourceImage::native(text.as_bytes()),
+        tcl_lexer::Span::new(0, u32::try_from(text.len()).ok()?),
+        config,
+        tcl_lexer::SourceSegmentationPurpose::NestedScript,
+    )
+    .ok()?;
+    let mut pending = vec![(plan, false)];
+    let mut commands = Vec::new();
+    while let Some((plan, nested)) = pending.pop() {
+        if plan.fatal_tail.is_some() {
+            return None;
         }
-        if i >= bytes.len() {
-            break;
-        }
-        let start = i;
-        match bytes[i] {
-            b'{' => {
-                let mut depth = 1i32;
-                i += 1;
-                while i < bytes.len() && depth > 0 {
-                    match bytes[i] {
-                        b'{' => depth += 1,
-                        b'}' => depth -= 1,
-                        b'\\' if i + 1 < bytes.len() => i += 1,
+        let mut children = Vec::new();
+        for command in &plan.commands {
+            if nested {
+                let (head, args) = command.words.split_first()?;
+                let head = String::from_utf8(
+                    tcl_syntax::word_rules::original_static_word_unicode_value(head)?,
+                )
+                .ok()?;
+                let args = args
+                    .iter()
+                    .map(|word| {
+                        std::str::from_utf8(word.written_bytes())
+                            .ok()
+                            .map(str::to_owned)
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                commands.push((head, args));
+            }
+            for word in &command.words {
+                let parts = word.executable_parts();
+                let mut bodies = Vec::new();
+                for component in parts.all_parts() {
+                    match component.part {
+                        ExecutablePart::Command { body } => bodies.push(body),
+                        ExecutablePart::Expression { .. } | ExecutablePart::ParseError(_) => {
+                            return None;
+                        }
                         _ => {}
                     }
-                    i += 1;
                 }
-            }
-            b'"' => {
-                i += 1;
-                while i < bytes.len() && bytes[i] != b'"' {
-                    if bytes[i] == b'\\' && i + 1 < bytes.len() {
-                        i += 2;
-                        continue;
-                    }
-                    i += 1;
-                }
-                if i < bytes.len() {
-                    i += 1;
-                }
-            }
-            _ => {
-                while i < bytes.len() && !matches!(bytes[i], b' ' | b'\t' | b'\n' | b'\r') {
-                    match bytes[i] {
-                        b'\\' if i + 1 < bytes.len() => {
-                            i += 2;
-                        }
-                        // A `[…]` command substitution or `{…}` brace region
-                        // inside a word keeps its internal whitespace — skip the
-                        // balanced region so `x[incr i]y` / `[format %d [incr
-                        // i]]` stay a single word (else the nested `[incr i]`
-                        // splits and its impurity is lost to the LICM purity
-                        // check).
-                        b'[' | b'{' => {
-                            let (open, close) = if bytes[i] == b'[' {
-                                (b'[', b']')
-                            } else {
-                                (b'{', b'}')
-                            };
-                            let mut depth = 1i32;
-                            i += 1;
-                            while i < bytes.len() && depth > 0 {
-                                match bytes[i] {
-                                    b'\\' if i + 1 < bytes.len() => {
-                                        i += 1;
-                                    }
-                                    c if c == open => depth += 1,
-                                    c if c == close => depth -= 1,
-                                    _ => {}
-                                }
-                                i += 1;
-                            }
-                        }
-                        _ => i += 1,
-                    }
+                bodies.sort_unstable_by_key(|span| span.start());
+                for body in bodies {
+                    children.push((
+                        plan.reborrow_command_substitution_plan(word, body).ok()?,
+                        true,
+                    ));
                 }
             }
         }
-        words.push(text[start..i].to_owned());
+        pending.extend(children.into_iter().rev());
     }
-    if words.is_empty() {
-        return None;
-    }
-    let cmd = words.remove(0);
-    Some((cmd, words))
+    Some(commands)
 }
 
 // Find-redundancies driver

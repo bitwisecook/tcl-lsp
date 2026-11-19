@@ -297,13 +297,13 @@ fn scan_bracketed_commands_handles_backslash_escape() {
 }
 
 #[test]
-fn split_cmd_text_braced_and_quoted_words() {
-    let (cmd, args) = split_cmd_text("list {a b c} \"d e\" f").unwrap();
+fn bracketed_command_keeps_braced_and_quoted_words() {
+    let commands = scan_bracketed_commands("[list {a b c} \"d e\" f]");
+    let [(cmd, args)] = commands.as_slice() else {
+        panic!("expected one command")
+    };
     assert_eq!(cmd, "list");
-    assert_eq!(
-        args,
-        vec!["{a b c}".to_string(), "\"d e\"".into(), "f".into()]
-    );
+    assert_eq!(args, &["{a b c}".to_string(), "\"d e\"".into(), "f".into()]);
 }
 
 #[test]

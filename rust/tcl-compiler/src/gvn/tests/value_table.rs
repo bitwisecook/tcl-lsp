@@ -133,6 +133,11 @@ fn canonicalise_replaces_bare_and_braced() {
     uses.insert(ssa.intern_var("x"), 3);
     assert_eq!(canonicalise_word("$x", &uses, &ssa, STYLE), "$x@3");
     assert_eq!(canonicalise_word("${x}", &uses, &ssa, STYLE), "$x@3");
+    assert_eq!(
+        canonicalise_word("é$x:tail", &uses, &ssa, STYLE),
+        "é$x@3:tail"
+    );
+    assert_eq!(canonicalise_word(r"\$x", &uses, &ssa, STYLE), r"\$x");
 }
 
 /// The `${…}` closer follows the release rule, so a
