@@ -123,7 +123,10 @@ fn redundant_computation_constructor() {
 fn canonicalise_empty_uses_returns_input() {
     let ssa = bare_ssa();
     let uses = HashMap::new();
-    assert_eq!(canonicalise_word("foo", &uses, &ssa, STYLE), "foo");
+    assert_eq!(
+        canonicalise_word("foo", &uses, &ssa, fixture_config("tcl9.1")),
+        "foo"
+    );
 }
 
 #[test]
@@ -131,13 +134,22 @@ fn canonicalise_replaces_bare_and_braced() {
     let mut ssa = bare_ssa();
     let mut uses = HashMap::new();
     uses.insert(ssa.intern_var("x"), 3);
-    assert_eq!(canonicalise_word("$x", &uses, &ssa, STYLE), "$x@3");
-    assert_eq!(canonicalise_word("${x}", &uses, &ssa, STYLE), "$x@3");
     assert_eq!(
-        canonicalise_word("é$x:tail", &uses, &ssa, STYLE),
+        canonicalise_word("$x", &uses, &ssa, fixture_config("tcl9.1")),
+        "$x@3"
+    );
+    assert_eq!(
+        canonicalise_word("${x}", &uses, &ssa, fixture_config("tcl9.1")),
+        "$x@3"
+    );
+    assert_eq!(
+        canonicalise_word("é$x:tail", &uses, &ssa, fixture_config("tcl9.1")),
         "é$x@3:tail"
     );
-    assert_eq!(canonicalise_word(r"\$x", &uses, &ssa, STYLE), r"\$x");
+    assert_eq!(
+        canonicalise_word(r"\$x", &uses, &ssa, fixture_config("tcl9.1")),
+        r"\$x"
+    );
 }
 
 /// The `${…}` closer follows the release rule, so a
@@ -150,7 +162,6 @@ fn canonicalise_replaces_bare_and_braced() {
 /// on tclsh 9.0.4 and `can't read "a{b"` on 8.6.16.
 #[test]
 fn canonicalise_braced_var_follows_the_release_rule() {
-    use tcl_dialect::BracedVarStyle::{FirstClose, Tcl9Nesting};
     let mut ssa = bare_ssa();
     let mut uses = HashMap::new();
     let nested = ssa.intern_var("a{b}c");
@@ -160,12 +171,12 @@ fn canonicalise_braced_var_follows_the_release_rule() {
 
     // 9.x: the whole name is `a{b}c`, so the reference carries its version.
     assert_eq!(
-        canonicalise_word("${a{b}c}", &uses, &ssa, Tcl9Nesting),
+        canonicalise_word("${a{b}c}", &uses, &ssa, fixture_config("tcl9.1")),
         "$a{b}c@4"
     );
     // 8.x: the name ends at the first `}` and `c}` is ordinary word text.
     assert_eq!(
-        canonicalise_word("${a{b}c}", &uses, &ssa, FirstClose),
+        canonicalise_word("${a{b}c}", &uses, &ssa, fixture_config("tcl8.6")),
         "$a{b@9c}"
     );
 
@@ -174,8 +185,8 @@ fn canonicalise_braced_var_follows_the_release_rule() {
     let mut other = HashMap::new();
     other.insert(nested, 5);
     assert_ne!(
-        canonicalise_word("${a{b}c}", &uses, &ssa, Tcl9Nesting),
-        canonicalise_word("${a{b}c}", &other, &ssa, Tcl9Nesting),
+        canonicalise_word("${a{b}c}", &uses, &ssa, fixture_config("tcl9.1")),
+        canonicalise_word("${a{b}c}", &other, &ssa, fixture_config("tcl9.1")),
     );
 }
 
@@ -187,7 +198,7 @@ fn canonicalise_sorts_by_name_length_desc() {
     let mut uses = HashMap::new();
     uses.insert(ssa.intern_var("long"), 1);
     uses.insert(ssa.intern_var("longname"), 2);
-    let out = canonicalise_word("$longname$long", &uses, &ssa, STYLE);
+    let out = canonicalise_word("$longname$long", &uses, &ssa, fixture_config("tcl9.1"));
     assert_eq!(out, "$longname@2$long@1");
 }
 
@@ -195,7 +206,10 @@ fn canonicalise_sorts_by_name_length_desc() {
 fn canonicalise_ignores_unmentioned_variables() {
     let ssa = bare_ssa();
     let uses = HashMap::new();
-    assert_eq!(canonicalise_word("$x", &uses, &ssa, STYLE), "$x");
+    assert_eq!(
+        canonicalise_word("$x", &uses, &ssa, fixture_config("tcl9.1")),
+        "$x"
+    );
 }
 
 #[test]
@@ -204,7 +218,7 @@ fn build_call_key_for_pure_command() {
     let mut uses = HashMap::new();
     uses.insert(ssa.intern_var("x"), 3);
     let args = vec!["$x".into(), "literal".into()];
-    let key = build_call_key("llength", &args, &uses, &ssa, STYLE);
+    let key = build_call_key("llength", &args, &uses, &ssa, fixture_config("tcl9.1"));
     assert_eq!(
         key,
         vec![

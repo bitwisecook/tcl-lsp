@@ -231,7 +231,7 @@ pub fn canonicalise_word<S: std::hash::BuildHasher>(
     text: &str,
     uses: &HashMap<crate::ssa::Symbol, u32, S>,
     ssa: &SsaFunction,
-    braced_var: tcl_dialect::BracedVarStyle,
+    config: tcl_lexer::LexerConfig,
 ) -> String {
     use std::fmt::Write as _;
     use tcl_lexer::word_parts::{ExecutablePart, ExecutablePartArena, SubstFlags};
@@ -241,8 +241,6 @@ pub fn canonicalise_word<S: std::hash::BuildHasher>(
     let Ok(end) = u32::try_from(text.len()) else {
         return text.to_owned();
     };
-    let mut config = tcl_lexer::LexerConfig::for_profile(None);
-    config.braced_var = braced_var;
     let Ok(arena) = ExecutablePartArena::decompose(
         tcl_lexer::SourceImage::native(text.as_bytes()),
         tcl_lexer::Span::new(0, end),
@@ -350,13 +348,13 @@ pub fn build_call_key<S: std::hash::BuildHasher>(
     args: &[String],
     uses: &HashMap<crate::ssa::Symbol, u32, S>,
     ssa: &SsaFunction,
-    braced_var: tcl_dialect::BracedVarStyle,
+    config: tcl_lexer::LexerConfig,
 ) -> ExprKey {
     let mut parts: ExprKey = Vec::with_capacity(2 + args.len());
     parts.push("call".into());
     parts.push(command.to_owned());
     for arg in args {
-        parts.push(canonicalise_word(arg, uses, ssa, braced_var));
+        parts.push(canonicalise_word(arg, uses, ssa, config));
     }
     parts
 }
@@ -918,6 +916,16 @@ fn statement_occurrences_for_gvn(
     ssa: &SsaFunction,
     legality: GvnLegalitySource<'_>,
 ) -> Vec<ExprOccurrence> {
+    let legacy_config = || {
+        if let Some(tokens) = stmt_ssa.statement.tokens()
+            && let Some(binding) = &tokens.source_binding
+        {
+            return binding.original_lexer_config_for_tokens(tokens);
+        }
+        dialect
+            .or_else(|| registry.profile())
+            .map(|profile| tcl_lexer::LexerConfig::for_profile(Some(profile)))
+    };
     let mut out: Vec<ExprOccurrence> = Vec::new();
     let variable_uses = || -> Vec<String> {
         stmt_ssa
@@ -951,7 +959,7 @@ fn statement_occurrences_for_gvn(
                 args,
                 &stmt_ssa.uses,
                 ssa,
-                tcl_dialect::BracedVarStyle::of_profile(dialect),
+                legacy_config()?,
             )),
             GvnLegalitySource::Common(_) => {
                 original_call_key(canonical_command, stmt_ssa, ssa, world_key)
@@ -981,10 +989,10 @@ fn statement_occurrences_for_gvn(
     };
     let span = stmt_ssa.statement.span();
     for text in texts_to_scan {
-        for (cmd, args) in
-            scan_bracketed_commands_with_config(text, tcl_lexer::LexerConfig::for_profile(dialect))
-                .unwrap_or_default()
-        {
+        let Some(config) = legacy_config() else {
+            break;
+        };
+        for (cmd, args) in scan_bracketed_commands_with_config(text, config).unwrap_or_default() {
             if !is_pure_command(registry, &cmd, &args, dialect) {
                 continue;
             }
@@ -992,13 +1000,7 @@ fn statement_occurrences_for_gvn(
                 continue;
             }
             out.push(ExprOccurrence {
-                key: build_call_key(
-                    &cmd,
-                    &args,
-                    &stmt_ssa.uses,
-                    ssa,
-                    tcl_dialect::BracedVarStyle::of_profile(dialect),
-                ),
+                key: build_call_key(&cmd, &args, &stmt_ssa.uses, ssa, config),
                 span,
                 expression_text: format_expression_text(&cmd, &args),
                 block: block_name.to_owned(),
@@ -1025,9 +1027,11 @@ fn statement_occurrences_for_gvn(
 /// with nested regions emitted in depth-first order (outer first,
 /// then each nested inner).
 #[must_use]
-pub fn scan_bracketed_commands(text: &str) -> Vec<(String, Vec<String>)> {
-    scan_bracketed_commands_with_config(text, tcl_lexer::LexerConfig::for_profile(None))
-        .unwrap_or_default()
+pub fn scan_bracketed_commands(
+    text: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Vec<(String, Vec<String>)> {
+    scan_bracketed_commands_with_config(text, config).unwrap_or_default()
 }
 
 fn scan_bracketed_commands_with_config(

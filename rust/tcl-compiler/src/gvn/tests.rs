@@ -30,7 +30,9 @@ mod value_table;
 
 /// The default document's `${…}` close rule — these unit tests build no
 /// dialect profile, so they exercise the same style the lexer would use.
-const STYLE: tcl_dialect::BracedVarStyle = tcl_dialect::BracedVarStyle::Tcl9Nesting;
+fn fixture_config(release: &str) -> tcl_lexer::LexerConfig {
+    tcl_lexer::LexerConfig::for_profile(Some(tcl_dialect::DialectProfile::find(release).unwrap()))
+}
 
 use super::*;
 use crate::semantic_analysis::ExecutableAnalysisAvailability;

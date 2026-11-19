@@ -262,7 +262,7 @@ fn is_worth_reporting_unknown_command_is_false() {
 
 #[test]
 fn scan_bracketed_commands_simple() {
-    let out = scan_bracketed_commands("[llength $x]");
+    let out = scan_bracketed_commands("[llength $x]", fixture_config("tcl9.1"));
     assert_eq!(out.len(), 1);
     assert_eq!(out[0].0, "llength");
     assert_eq!(out[0].1, vec!["$x".to_string()]);
@@ -270,7 +270,7 @@ fn scan_bracketed_commands_simple() {
 
 #[test]
 fn scan_bracketed_commands_nested() {
-    let out = scan_bracketed_commands("[set v [lindex $x 0]]");
+    let out = scan_bracketed_commands("[set v [lindex $x 0]]", fixture_config("tcl9.1"));
     // Outer pair + inner pair.
     assert_eq!(out.len(), 2);
     assert_eq!(out[0].0, "set");
@@ -279,7 +279,7 @@ fn scan_bracketed_commands_nested() {
 
 #[test]
 fn scan_bracketed_commands_skips_braced_regions() {
-    let out = scan_bracketed_commands("{[not a command]}");
+    let out = scan_bracketed_commands("{[not a command]}", fixture_config("tcl9.1"));
     assert_eq!(
         out,
         [] as [(std::string::String, std::vec::Vec<std::string::String>); 0]
@@ -289,7 +289,7 @@ fn scan_bracketed_commands_skips_braced_regions() {
 #[test]
 fn scan_bracketed_commands_handles_backslash_escape() {
     // `\[` shouldn't start a region.
-    let out = scan_bracketed_commands("hello \\[world]");
+    let out = scan_bracketed_commands("hello \\[world]", fixture_config("tcl9.1"));
     assert_eq!(
         out,
         [] as [(std::string::String, std::vec::Vec<std::string::String>); 0]
@@ -298,7 +298,7 @@ fn scan_bracketed_commands_handles_backslash_escape() {
 
 #[test]
 fn bracketed_command_keeps_braced_and_quoted_words() {
-    let commands = scan_bracketed_commands("[list {a b c} \"d e\" f]");
+    let commands = scan_bracketed_commands("[list {a b c} \"d e\" f]", fixture_config("tcl9.1"));
     let [(cmd, args)] = commands.as_slice() else {
         panic!("expected one command")
     };
