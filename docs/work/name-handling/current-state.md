@@ -33,6 +33,23 @@ Read your own [18 November handoff](handover/pause-2026-11-18/) and the [scrub l
 3. analyser-binding has first offer of the declared-frame collector work at `issues/dataflow-2` commit `429ef5da`. Verify on a rebased copy before landing on `work`. Six regressions were measured fixed and the remaining merge was unmeasured. The four issue sessions are separately paused.
 4. For #2543, the per-database table and single-entry eviction landed in `2a026629`. Recheck that head with the server handoff's driver, then attribute the residual 2.7 MB per round. Keep the issue open pending evidence.
 
+### Replacement workers and outstanding baselines
+
+Six workers cover the thirteen area handoffs in this coordinator chat. Progress and counts are tracked by area. Use the worker in the first column for messages about any area on that row.
+
+| Worker | Areas | First work |
+| --- | --- | --- |
+| dataflow_optimiser | dataflow-optimiser, values, taint | O129 witness and advisory solver prototype. Seek an independent reviewer for the prototype. |
+| diagnostics | diagnostics, tk-oo | Strict rename, I230 and Jim W210 witnesses. Coordinate the stale global with analyser-binding. |
+| analyser_binding | analyser-binding, class-facts | O101 and O103 binding, rename trust, renamed class and stale global. Inspect the collector WIP separately from its probes. |
+| execution | execution, live-inlining | Four bytecode mismatches, shared oracle bootstrap and ClausePlan review with analyser-binding. |
+| lsp_features | lsp-features, server-e2e-db, analysis-performance | Core integration measurements, DB timings and the compiler's parallel-only failures. Carry per-test evidence into the performance queue. |
+| irules_registry_tooling | irules-registry-tooling | Oracle pin verification, crate sweep, ledger truth pass and approved test edits. |
+
+**Dataflow decision, 19 November.** The solver owner acknowledged both lost requests and approved mode A for an `incr` prototype. Resolve advisory facts through a type-level mode with a distinct result, confined to F5 handlers and rule procedures, consumed only by `semantic_values`. Use separate memo entries for advisory results and keep strict reachability independent. Check strict `sccp.values` byte for byte in stable SSA-key order across corpus and sample functions. Include the F5 negative in `release_optimiser_safety`. Production landing awaits the differential and independent review.
+
+**Oracle baseline.** execution found that the Jim bootstrap pin predates upstream HEAD and the required-oracle harness checks its patchlevel. execution verifies the interpreters and irules-registry-tooling owns the pin correction. Every new measurement records the source head and actual Jim version. Historical counts below retain their original date.
+
 ## Scoreboard, 18 November 2026, 11:55 UTC (at the pause)
 
 Failing tests by area on the restructured tree, from the successor sessions' baselines and first pushes.
