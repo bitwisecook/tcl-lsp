@@ -106,13 +106,35 @@ mod tests {
     fn probing_a_command_and_reading_a_supplied_level_use_separate_rules() {
         for version in TclVersion::ALL {
             let numbers = version.number_syntax();
-            assert_eq!(parse_supplied_level("#0x0", numbers), Some(LiteralLevel::Absolute(0)));
-            assert_eq!(parse_supplied_level("+1", numbers), Some(LiteralLevel::Relative(1)));
-            assert_eq!(leading_word_is_level(b"+1", version.uplevel_level_presence(), numbers), Some(version >= TclVersion::V8_6));
-            assert_eq!(leading_word_is_level(b"#oops", version.uplevel_level_presence(), numbers), Some(true));
+            assert_eq!(
+                parse_supplied_level("#0x0", numbers),
+                Some(LiteralLevel::Absolute(0))
+            );
+            assert_eq!(
+                parse_supplied_level("+1", numbers),
+                Some(LiteralLevel::Relative(1))
+            );
+            assert_eq!(
+                leading_word_is_level(b"+1", version.uplevel_level_presence(), numbers),
+                Some(version >= TclVersion::V8_6)
+            );
+            assert_eq!(
+                leading_word_is_level(b"#oops", version.uplevel_level_presence(), numbers),
+                Some(true)
+            );
             assert_eq!(parse_supplied_level("#oops", numbers), None);
         }
-        assert_eq!(leading_word_is_level(b"1", FrameLevelPresence::ArgumentParity, NumberSyntax::Tcl85), None);
-        assert_eq!(leading_word_is_level(b"1\0", FrameLevelPresence::DigitOrHash, NumberSyntax::Tcl84), None);
+        assert_eq!(
+            leading_word_is_level(
+                b"1",
+                FrameLevelPresence::ArgumentParity,
+                NumberSyntax::Tcl85
+            ),
+            None
+        );
+        assert_eq!(
+            leading_word_is_level(b"1\0", FrameLevelPresence::DigitOrHash, NumberSyntax::Tcl84),
+            None
+        );
     }
 }
