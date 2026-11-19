@@ -187,7 +187,7 @@ These go ahead of missing facts once the ledgers are in.
 | W304 (information) on a value proved to be a constant that cannot be read as an option | diagnostics |
 | IRULE5001 fires where the setup event sets the flag (three tests) | taint |
 | IRULE3102 reported inside an event body the rule loader rejects | taint |
-| A duplicate eval-sink warning for each procedure | taint |
+| The ordering fixture reports more warnings than expected. On the clean baseline each procedure has exactly one T100 at its `eval` operand. Its separate `exec` operand has both T100 (code execution) and T102 (option injection). Check order and multiplicity by code, operand and range in the selected public modes. | taint, reclassified 19 November |
 | IRULE3101 on a path proved to be `/` | taint |
 | Nine in the class and object facts area, listed first in `class-facts.md`: a creation recorded after a `proc` in a namespace that does not exist (tclsh stops); a call in an uncalled procedure closed to the in-file callee although a later `proc` or `rename` decides it; a nested `proc` selected as structured, feeding rename's coverage; `struct::graph g` typed as an object with no provider; and five more | class-facts |
 | Two analyses of the same file compare unequal (`aliases.tcl`): the analysis is not deterministic there | class-facts to name the field |
