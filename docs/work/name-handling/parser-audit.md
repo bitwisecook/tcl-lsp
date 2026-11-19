@@ -87,3 +87,6 @@ Run each script in a fresh interpreter. These are observed results from the six 
 | `proc outer {} {inner}; proc inner {} {uplevel +1 {info level}}; outer` | invalid command `+1` | same | 1 | 1 | invalid command `+1` |
 
 All six return 0 for `llength [split ""]`, 2 for `llength {{two words} end}`, and 3 for `string length "x\0y"`. Those invariant cases catch shared defects. The table catches incorrect assumptions about equivalence between dialects. No F5 result is inferred from either set.
+
+
+Source-channel control from the clean `tcl-vm-wasm` native test target: C Tcl 9.0.4 reads the UTF-8 café name with a backslash-CRLF continuation from a file and returns VALUE. Counted `Tcl_EvalEx` on those bytes raises, as does the product's Document path. For a file containing opaque FF, C's default UTF-8 file reader raises a decode error; counted evaluation preserves the opaque and replacement names separately. The [source channel owner](../../../rust/tcl-lexer/src/source_map.rs#L47) and host adapter must convey which operation was requested. Measure browser execution independently.
