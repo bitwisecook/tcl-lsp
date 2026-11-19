@@ -3872,6 +3872,17 @@ its citation and a regression that reads the recorded lines.
     keyword. (e) is the evidence for whether a top-level variable can feed
     `priority`; without it the tests keep treating `priority $var` as not a
     declaration value.
+    - (f) **Literal event and file priority spellings.** Pending a device run.
+      Load separate rules for `when HTTP_REQUEST priority TOKEN { … }` and for
+      `priority TOKEN` followed by `when HTTP_REQUEST { … }`. Use each exact
+      spelling in turn: `10`, `010`, `+10`, `0xA`, `1_0` and
+      `9223372036854775808`. Record TMOS build, acceptance and the loader's
+      full message. For an accepted rule, record the sequence of its marker and
+      control handlers at priorities 7, 9 and 11 in the same request. This
+      distinguishes an effective priority of 8 from 10. Record any range
+      refusal separately from rejection of the spelling. The event declaration
+      and file default have independent outcomes. Consumers include
+      `tcl_syntax::event_handler` and the rule-loader file-priority proof.
 31. **What `event … disable` touches** (issue #1712 audit). Not a naming
     question; filed here because it needs a device. The registry stated it
     as a `ConnectionControl` write, the target the connection-terminating
