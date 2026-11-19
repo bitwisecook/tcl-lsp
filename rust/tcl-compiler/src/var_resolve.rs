@@ -789,14 +789,18 @@ impl ResolveContext {
     /// `None` where the runtime names no release and the rendering depends
     /// on one.
     pub(crate) fn render_rest_list<S: AsRef<str>>(&self, elements: &[S]) -> Option<String> {
-        tcl_registry::value_transfer::TargetSemantics {
-            quotes_leading_hash: self
-                .invocation_dialect
-                .and_then(|dialect| dialect.tcl_version)
-                .map(|version| version >= tcl_dialect::TclVersion::V8_5),
-            ..tcl_registry::value_transfer::TargetSemantics::of(None)
-        }
-        .render_list(elements)
+        let words: Vec<_> = elements
+            .iter()
+            .map(|word| word.as_ref().as_bytes())
+            .collect();
+        let bytes = match self
+            .invocation_dialect
+            .and_then(tcl_registry::InvocationDialect::list_result_serialization)
+        {
+            Some(layout) => layout.render(&words),
+            None => tcl_syntax::list_result::portable_list_result(&words)?,
+        };
+        String::from_utf8(bytes).ok()
     }
 
     /// Select a frame's existing policies without claiming observer completeness.

@@ -282,19 +282,69 @@ pub(crate) fn fold_llength(args: &[&str]) -> Option<String> {
     Some(split_list(l)?.len().to_string())
 }
 
+fn read_literal_list(text: &str, dialect: Option<crate::InvocationDialect>) -> Option<Vec<String>> {
+    match dialect {
+        Some(dialect) => Some(
+            dialect
+                .read_list(text)
+                .ok()?
+                .into_iter()
+                .map(std::borrow::Cow::into_owned)
+                .collect(),
+        ),
+        None => split_list(text),
+    }
+}
+
+fn render_literal_list(
+    words: &[String],
+    dialect: Option<crate::InvocationDialect>,
+) -> Option<String> {
+    let bytes = match dialect {
+        Some(dialect) => dialect.list_result_serialization()?.render(words),
+        None => tcl_syntax::list_result::portable_list_result(words)?,
+    };
+    String::from_utf8(bytes).ok()
+}
+
 /// `lreverse list`.
 pub(crate) fn fold_lreverse(args: &[&str]) -> Option<String> {
-    let [l] = args else {
+    fold_lreverse_in(args, None)
+}
+
+pub(crate) fn fold_lreverse_in(
+    args: &[&str],
+    dialect: Option<crate::InvocationDialect>,
+) -> Option<String> {
+    let [list] = args else {
         return None;
     };
-    let mut elems = split_list(l)?;
+    let mut elems = read_literal_list(list, dialect)?;
+    let preserve = match dialect.and_then(crate::InvocationDialect::native_string_protocol) {
+        Some(tcl_syntax::native_string::NativeStringProtocol::C(version)) => {
+            Some(elems.is_empty() || (elems.len() == 1 && version == tcl_dialect::TclVersion::V9_1))
+        }
+        Some(tcl_syntax::native_string::NativeStringProtocol::Jim084) => Some(false),
+        None => None,
+    };
+    if preserve == Some(true) {
+        return Some((*list).to_owned());
+    }
     elems.reverse();
-    Some(list_join(&elems))
+    let result = render_literal_list(&elems, dialect)?;
+    (preserve.is_some() || elems.len() > 1 || result == *list).then_some(result)
 }
 
 /// ASCII byte order agrees across the supported engines. Non-ASCII ordering
 /// depends on the native encoding (notably C Tcl 8.6's supplementary units).
 pub(crate) fn fold_lsort(args: &[&str]) -> Option<String> {
+    fold_lsort_in(args, None)
+}
+
+pub(crate) fn fold_lsort_in(
+    args: &[&str],
+    dialect: Option<crate::InvocationDialect>,
+) -> Option<String> {
     let (list, options) = args.split_last()?;
     let mut decreasing = false;
     let mut unique = false;
@@ -307,7 +357,19 @@ pub(crate) fn fold_lsort(args: &[&str]) -> Option<String> {
             _ => return None,
         }
     }
-    let mut elems = split_list(list)?;
+    let mut elems = read_literal_list(list, dialect)?;
+    if elems.len() <= 1 {
+        match dialect.and_then(crate::InvocationDialect::native_string_protocol) {
+            Some(tcl_syntax::native_string::NativeStringProtocol::Jim084) => {
+                return Some((*list).to_owned());
+            }
+            None => {
+                let common = render_literal_list(&elems, dialect)?;
+                return (common == *list).then_some(common);
+            }
+            Some(tcl_syntax::native_string::NativeStringProtocol::C(_)) => {}
+        }
+    }
     if elems
         .iter()
         .any(|elem| !elem.is_ascii() || elem.contains('\0'))
@@ -321,10 +383,7 @@ pub(crate) fn fold_lsort(args: &[&str]) -> Option<String> {
     if decreasing {
         elems.reverse();
     }
-    if elems.first().is_some_and(|first| first.starts_with('#')) {
-        return None;
-    }
-    Some(list_join(&elems))
+    render_literal_list(&elems, dialect)
 }
 
 /// `join list ?joinString?` — flatten elements with the separator.
@@ -488,7 +547,14 @@ pub(crate) fn fold_lrange(args: &[&str]) -> Option<String> {
 /// program results. This layer keeps only what is local to it: how a malformed
 /// dict is reported (a declined fold, not an error).
 fn parse_dict(s: &str) -> Option<Vec<(String, String)>> {
-    let elems = split_list(s)?;
+    parse_dict_in(s, None)
+}
+
+fn parse_dict_in(
+    s: &str,
+    dialect: Option<crate::InvocationDialect>,
+) -> Option<Vec<(String, String)>> {
+    let elems = read_literal_list(s, dialect)?;
     if elems.len() % 2 != 0 {
         return None;
     }
@@ -551,20 +617,48 @@ pub(crate) fn fold_dict_size(args: &[&str]) -> Option<String> {
 
 /// `dict keys dictionary` (no glob pattern).
 pub(crate) fn fold_dict_keys(args: &[&str]) -> Option<String> {
-    let [d] = args else {
-        return None;
-    };
-    let keys: Vec<String> = parse_dict(d)?.into_iter().map(|(k, _)| k).collect();
-    Some(list_join(&keys))
+    fold_dict_members(
+        args,
+        None,
+        crate::native_dictionary::NativeDictionaryCommand::Keys,
+    )
 }
 
 /// `dict values dictionary` (no glob pattern).
 pub(crate) fn fold_dict_values(args: &[&str]) -> Option<String> {
-    let [d] = args else {
+    fold_dict_members(
+        args,
+        None,
+        crate::native_dictionary::NativeDictionaryCommand::Values,
+    )
+}
+
+pub(crate) fn fold_dict_members(
+    args: &[&str],
+    dialect: Option<crate::InvocationDialect>,
+    command: crate::native_dictionary::NativeDictionaryCommand,
+) -> Option<String> {
+    use crate::native_dictionary::NativeDictionaryCommand;
+    use tcl_syntax::list_result::NativeListResultSerialization;
+
+    let [dictionary] = args else {
         return None;
     };
-    let vals: Vec<String> = parse_dict(d)?.into_iter().map(|(_, v)| v).collect();
-    Some(list_join(&vals))
+    let members = parse_dict_in(dictionary, dialect)?;
+    let selected: Vec<_> = match command {
+        NativeDictionaryCommand::Keys => members.into_iter().map(|(key, _)| key).collect(),
+        NativeDictionaryCommand::Values => members.into_iter().map(|(_, value)| value).collect(),
+        _ => return None,
+    };
+    if dialect.is_some() {
+        return render_literal_list(&selected, dialect);
+    }
+    // The dict command is available from C Tcl 8.5 and in Jim.
+    let bytes = NativeListResultSerialization::Tcl85Plus.render(&selected);
+    if bytes != NativeListResultSerialization::Jim084.render(&selected) {
+        return None;
+    }
+    String::from_utf8(bytes).ok()
 }
 
 /// `dict create ?key value ...?` — canonicalise duplicate keys (last
@@ -905,6 +999,39 @@ mod tests {
             assert_eq!(fold_lsort(&[option, "b a"]), None, "{option}");
         }
         assert_eq!(fold_lsort(&[]), None);
+    }
+
+    #[test]
+    fn short_list_results_keep_receiver_spelling_and_dictionary_members_use_its_writer() {
+        use crate::native_dictionary::NativeDictionaryCommand::{Keys, Values};
+        use tcl_dialect::model::{DialectPoint, Release};
+        let jim = crate::InvocationDialect::of_point(DialectPoint::canonical(Release::JIM_0_84));
+        let c86 = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let c91 = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1);
+        for (dialect, reversed, sorted, members) in [
+            (jim, "abc", " {abc} ", r"a\]\ b"),
+            (c86, "abc", "abc", "{a] b}"),
+            (c91, " {abc} ", "abc", "{a] b}"),
+        ] {
+            assert_eq!(
+                fold_lreverse_in(&[" {abc} "], Some(dialect)).as_deref(),
+                Some(reversed)
+            );
+            assert_eq!(
+                fold_lsort_in(&[" {abc} "], Some(dialect)).as_deref(),
+                Some(sorted)
+            );
+            assert_eq!(
+                fold_dict_members(&["{a] b} x"], Some(dialect), Keys).as_deref(),
+                Some(members)
+            );
+            assert_eq!(
+                fold_dict_members(&["x {a] b}"], Some(dialect), Values).as_deref(),
+                Some(members)
+            );
+        }
+        assert_eq!(fold_lreverse(&[" {abc} "]), None);
+        assert_eq!(fold_lsort(&[" {abc} "]), None);
     }
 
     #[test]

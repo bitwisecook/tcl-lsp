@@ -428,27 +428,37 @@ impl TargetSemantics {
         }
     }
 
-    /// `elements` rendered as one canonical list under this target, or
-    /// `None` when the rendering depends on a release the target does not
-    /// name: a first element that starts with `#` is brace-quoted from 8.5
-    /// (`[list # a]` is `{#} a`) and bare in 8.4 (`# a`). The rule every
-    /// consumer that renders a list for a target reads, so a folded list is
-    /// the one the target prints.
+    /// Render a value through the selected list writer. An unselected target
+    /// can propagate a string only when all supported writers agree.
     #[must_use]
     pub fn render_list<S: AsRef<str>>(&self, elements: &[S]) -> Option<String> {
-        let first_hash = elements
-            .first()
-            .is_some_and(|first| first.as_ref().starts_with('#'));
-        let quote_hash = match self.quotes_leading_hash {
-            Some(quotes) => quotes,
-            None if first_hash => return None,
-            None => true,
+        let words: Vec<_> = elements
+            .iter()
+            .map(|word| word.as_ref().as_bytes())
+            .collect();
+        String::from_utf8(self.render_list_bytes(&words)?).ok()
+    }
+
+    fn render_list_bytes(&self, words: &[impl AsRef<[u8]>]) -> Option<Vec<u8>> {
+        use tcl_syntax::list_result::{
+            NativeListResultSerialization as Layout, portable_list_result,
         };
-        let rendered = render_list_bytes(
-            elements.iter().map(|element| element.as_ref().as_bytes()),
-            quote_hash,
-        );
-        String::from_utf8(rendered).ok()
+        let layout = self
+            .profile
+            .and_then(|p| crate::InvocationDialect::of_profile(p).list_result_serialization())
+            .or_else(|| {
+                self.quotes_leading_hash.map(|quotes| {
+                    if quotes {
+                        Layout::Tcl85Plus
+                    } else {
+                        Layout::Tcl84
+                    }
+                })
+            });
+        layout.map_or_else(
+            || portable_list_result(words),
+            |layout| Some(layout.render(words)),
+        )
     }
 }
 
@@ -480,19 +490,6 @@ pub(crate) fn literal_double(text: &str, version: Option<TclVersion>) -> Option<
                 == Some(common.to_bits())
         })
         .then_some(common)
-}
-
-/// Join `elements` into one canonical list, the first element's leading
-/// `#` brace-quoted when `quote_hash` says the target does.
-fn render_list_bytes<'e>(elements: impl Iterator<Item = &'e [u8]>, quote_hash: bool) -> Vec<u8> {
-    let mut rendered = Vec::new();
-    for (index, element) in elements.enumerate() {
-        if index != 0 {
-            rendered.push(b' ');
-        }
-        tcl_syntax::list::append_list_element(&mut rendered, element, index == 0 && quote_hash);
-    }
-    rendered
 }
 
 /// The one live compile-time value model. Byte-exact, release-bound,
@@ -975,20 +972,6 @@ impl<'ctx> ConstOps<'ctx> {
         }
     }
 
-    /// Whether the rendered list brace-quotes a leading `#` on `first`: the
-    /// named release's rule, or — with no release named and a first element
-    /// that starts with `#` — a `ReleaseAmbiguous(ListRendering)` fault,
-    /// because 8.4 renders `[list # a]` as `# a` and 8.5 onwards as `{#} a`.
-    fn quotes_leading_hash(&mut self, first: Option<&ConstValue>) -> bool {
-        if let Some(quotes) = self.target.quotes_leading_hash {
-            return quotes;
-        }
-        if first.is_some_and(|value| value.bytes.first() == Some(&b'#')) {
-            self.poison(DeclineReason::ReleaseAmbiguous(Axis::ListRendering));
-        }
-        true
-    }
-
     /// The canonical spelling of an integer past the wide boundary under a
     /// release that widens.
     fn widened(&mut self, sum: i128) -> Result<ConstValue, ValueError> {
@@ -1160,17 +1143,17 @@ impl ValueOps for ConstOps<'_> {
         ConstValue::bytes(if b { b"1" } else { b"0" }, Representation::Int)
     }
 
-    /// The canonical rendering under the target's list rules: the element
-    /// quoting every release shares, and the one rule they do not — whether
-    /// a leading `#` on the first element is brace-quoted, which a profile
-    /// naming no release cannot say.
+    /// Tcl and Jim construct the string representation with their own list writer.
     fn new_list(&mut self, items: Vec<ConstValue>) -> ConstValue {
         self.require(Needs::LIST_RENDERING);
-        let quote_hash = self.quotes_leading_hash(items.first());
         if items.iter().any(|item| item.as_utf8().is_none()) {
             self.poison(DeclineReason::NotText);
         }
-        let rendered = render_list_bytes(items.iter().map(|item| &*item.bytes), quote_hash);
+        let words: Vec<_> = items.iter().map(|item| item.bytes.as_ref()).collect();
+        let rendered = self.target.render_list_bytes(&words).unwrap_or_else(|| {
+            self.poison(DeclineReason::ReleaseAmbiguous(Axis::ListRendering));
+            Vec::new()
+        });
         let _ = self.charge_bytes(u64::try_from(rendered.len()).unwrap_or(u64::MAX));
         ConstValue::bytes(&rendered, Representation::List)
     }

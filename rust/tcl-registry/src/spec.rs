@@ -1491,6 +1491,12 @@ impl CommandSpec {
                     return String::from_utf8(dialect.list_result_serialization()?.render(args))
                         .ok();
                 }
+                Some(NativeResultContract::ListReverse { list_at: 0 }) => {
+                    return crate::const_fold::fold_lreverse_in(args, Some(dialect));
+                }
+                Some(NativeResultContract::ListSort) => {
+                    return crate::const_fold::fold_lsort_in(args, Some(dialect));
+                }
                 Some(NativeResultContract::ListRepeat { count_at: 0 }) => {
                     return crate::const_fold::fold_lrepeat_in(args, dialect);
                 }

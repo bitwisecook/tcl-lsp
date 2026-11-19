@@ -1365,7 +1365,7 @@ impl NativeResultSelection {
         let words = (options_from..=list_at)
             .map(|at| arguments.literal_at(at))
             .collect::<Option<Vec<_>>>()?;
-        crate::const_fold::fold_lsort(&words)
+        crate::const_fold::fold_lsort_in(&words, arguments.dialect())
     }
 
     /// Bytes of a result that C Tcl builds as a fresh stock string object.

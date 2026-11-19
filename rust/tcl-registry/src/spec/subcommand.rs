@@ -715,6 +715,17 @@ impl SubCommand {
         args: &[&str],
         dialect: crate::InvocationDialect,
     ) -> Option<String> {
+        use crate::native_compilation::NativeCompilationGrammar;
+        use crate::native_dictionary::NativeDictionaryCommand;
+
+        if let Some(NativeCompilationGrammar::Dictionary {
+            command: member @ (NativeDictionaryCommand::Keys | NativeDictionaryCommand::Values),
+            ..
+        }) = self.native_compilation.map(|spec| spec.grammar)
+        {
+            self.const_fold?;
+            return crate::const_fold::fold_dict_members(args, Some(dialect), member);
+        }
         if let Some(
             contract @ crate::native_result::NativeResultContract::DictionaryArguments { .. },
         ) = self.native_result
