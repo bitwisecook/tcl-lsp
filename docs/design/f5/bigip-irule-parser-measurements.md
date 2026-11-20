@@ -1270,6 +1270,17 @@ What it explains:
   around 1 KB, so a rule with many errors shows only the first few. Probe drivers
   that read load errors must keep each rule small. `evmatrix.py` detects the cut
   and re-runs truncated chunks one command at a time.
+- **The full argument grammar is recoverable.**
+  [`render-irule-grammar.tcl`](../../../scripts/dev/bigip-probes/open-questions/render-irule-grammar.tcl)
+  loads the extracted `jet_tcl` tables (data only) into a plain tclsh and
+  renders every entry of `bigip_rule_syntax` as a signature, with its event and
+  profile constraints, and every `jet_macros` placeholder with its character
+  grammar and value checker. On 21.1.0.1 that is 1,036 entries: 984 commands,
+  of which 327 take no arguments and 6 (`class`, `matchclass`, `table`,
+  `ACCESS::log`, `relate_client`, `relate_server`) are checked by hand-written
+  procs instead of a declarative grammar, plus 52 bare namespace entries; and
+  866 macros. The output is derived from F5 source and stays with the
+  extraction.
 - The checker's Tcl itself uses `starts_with`, so mcpd's embedded interpreter
   has the F5 operators too. The R/N lexical rules and the expression grammar are
   in the C parser, not in these scripts.
