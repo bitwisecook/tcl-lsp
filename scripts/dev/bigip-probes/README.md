@@ -24,6 +24,8 @@ input; nothing runs in CI.
 | `lib/tclcheck.tcl` | Stock-Tcl acceptance checker. Stubs only iRule-specific commands. |
 | `controls/*.tcl` | Stock-Tcl controls, run with `tclsh8.4` and `tclsh8.5` **on the appliance itself**. |
 | `results/*` | Raw transcripts from the 2026-08-26 run. |
+| `open-questions/` | The 2026-11-20 follow-up for the measurements doc's §12: `gen.py` per-cell probes, `evidence.py` grouped evidence rules, `drive.sh`/`run.sh` (load on the appliance, traffic from off-box), `tmsh-scope.sh` and `roles.sh` for tmsh, `evmatrix.py`/`evmatrix-run.sh` for the full command × event matrix, and `extract-tclcheck.py` for the rule checker's embedded Tcl. |
+| `results/21.1-event-matrix.json` | Loader verdict for every documented command in every documented event on 21.1.0.1 (see `open-questions/evmatrix.py`). |
 
 ## Running a suite
 
@@ -52,6 +54,16 @@ Learned the hard way; all of these cost a cycle.
 - A literal unbalanced `}` breaks the *tmsh config parser* before the Tcl parser
   ever sees it. Reach those cases by building the script text at runtime and
   passing it to `eval` (see `irules/interpreter/evprobe.conf`).
+- On the single-NIC VE, traffic the appliance host sends to its own self
+  address never reaches TMM. Send probe traffic from another host.
+- mcpd cuts the error part of a load message at about 1 KB. Keep rules whose
+  load errors you parse small, or you will silently lose the later errors.
+- One `tmsh` process reading commands on standard input is ~10x faster than a
+  `tmsh` per command (~2 s each). `run util bash -c "echo marker"` separates the
+  outputs.
+- A new local user starts with an expired password, which blocks even key
+  logins; clear it with `chage -d`. Apply a role through a real SSH login:
+  `su` from root keeps root's tmsh access.
 - Stubbing `unknown` in a tclsh control silently swallows misuse of *builtins*
   too — an `else` command, for instance — and manufactures false agreement.
   Stub only the iRule-specific commands.

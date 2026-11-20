@@ -19,7 +19,7 @@ Measured against a live appliance, not inferred from documentation.
 | --- | --- |
 | **Host** | `bigip1` |
 | **Version** | BIG-IP 21.1.0.1, build 0.0.26 (2026-07-14) |
-| **Probed** | 2026-08-26 |
+| **Probed** | 2026-08-26; §12 follow-up 2026-11-20 on the same build (VM 211, 192.168.9.24) |
 | **Probes** | 97 syntax · 41 word-formation · 25 feature-availability · 85 command-availability · 120 event-context · 30 runtime-semantic · 15 proc-semantics · 14 dynamic-code |
 | **Controls** | `tclsh8.4` (8.4.6) and `tclsh8.5` (8.5.13), both on the same host |
 | **Corpora** | 170 public files; ~559 iRule-bearing files in `~/src/tcl-lsp-testsrc`; vendor manpages in `~/src/bigip-extract` |
@@ -773,7 +773,9 @@ Two things to note before using this as an LSP table:
 `CommandRegistry::is_irules_call_legal_in_event` agrees with the measured
 matrix except for six `RULE_INIT` compile acceptances. Those commands retain
 flow requirements: load acceptance alone does not establish usable connection
-state. The corpus records that distinction as `RuleInitCompileAcceptance`.
+state. Executed in `RULE_INIT`, all six fail at runtime, and the four `HTTP::`
+ones now load with a warning
+([§12](#rule_init-runtime-for-the-six-load-accepted-flow-commands)). The corpus records that distinction as `RuleInitCompileAcceptance`.
 
 | Command and event | Current constraint in `rust/tcl-registry/src/commands/irules/` |
 | --- | --- |
@@ -960,7 +962,8 @@ Both build profiles remain `Unknown`; iApp's measured width selects
 `rust/tcl-registry/src/f5/tmsh_syntax.rs` owns the BIG-IP-independent tmsh syntax
 axis and its `tmsh::modify cli version active` transition. Literal syntax
 versions can select that axis; dynamic versions remain `Unknown`. The
-transition's realm scope is unmeasured. `rust/tcl-registry/src/f5/iapp_metadata.rs`
+transition is script-scoped: it lasts for the rest of the cli script and the
+caller's version is restored on return ([§12](#tmsh-cli-version-scope-and-restricted-roles)). `rust/tcl-registry/src/f5/iapp_metadata.rs`
 owns action-local target constraints, `role-acl` and `run-as`; an omitted
 principal means the calling user. Those documentary contracts do not claim
 unmeasured appliance behaviour.
@@ -985,62 +988,202 @@ contracts above.
 
 ---
 
-## 12. Open questions
+## 12. Open questions answered on 2026-11-20
 
-- Whether the `switch` *body* list is re-parsed by the same script parser
-  (`switch "a" {a{log …}}` is rejected, but the failure mode was not isolated to
-  either parser).
-- The disabled-command list was derived from the 85 stock 8.4 builtins; F5's own
-  command namespace was not enumerated from the other direction.
-- Whether TMM and scriptd share one parser *build*, or merely agree on every case
-  probed here.
-- The event-context matrix covers 15 commands across 8 events. The full matrix
-  (hundreds of `NAMESPACE::command` entries across ~100 events) would need the
-  manpage extraction in `~/src/bigip-extract` cross-checked against live probes.
-- Whether N1 interacts with `priority` ordering or with event-time versus
-  load-time compilation.
+Measured on the same build as above: BIG-IP 21.1.0.1 build 0.0.26, now running
+as Proxmox VM 211 at 192.168.9.24 (single NIC, 4 TMMs, FIPS licence). Each answer
+links its execution evidence. The probe drivers are in
+[`scripts/dev/bigip-probes/open-questions/`](../../../scripts/dev/bigip-probes/open-questions/).
+Every probe object was named `tcllsp_oq_*`, checked absent before creation and
+deleted afterwards. Nothing was saved, except a `save sys config user-only` after
+resetting the admin and root passwords for lab access.
 
-### Unmeasured axes and discriminating controls
+### `matches` and the F5 word operators
 
-The current evidence covers one appliance build. Semantic queries for other
-builds remain unknown; nearest-known assistance does not prove interpolation.
-The following axes require independent measurements:
+- **`matches` is a glob match, not equality.** `"abc" matches "a*"`, `"abc" matches "a?c"`
+  and `"b" matches "[abc]"` are 1, while `"abc" matches "a.c"` and `"ABC" matches "a*"` are 0.
+  It is case-sensitive and anchored at both ends, so `"abcd" matches "bc"` and
+  `"abcd" matches "ab"` are 0. `matches_glob` agrees; `matches_regex` is an unanchored
+  regex search. See [bigip-f5-matches-operator-semantics](../../../evidence/tcl/bigip-f5-matches-operator-semantics.md).
+  The analyser's authored evaluator, which uses equality, is wrong for any operand
+  containing `*`, `?` or `[`.
+- **The registry binding powers are right.** `contains`, `starts_with`,
+  `ends_with`, `equals`, `matches`, `matches_glob` and `matches_regex` sit at the
+  `==` level and are left-associative. They bind tighter than `&` and `&&` and
+  looser than `<` and `+`. Every discriminating bare expression equals the grouping
+  `binary_bp` predicts ([bigip-f5-word-operator-binding-power](../../../evidence/tcl/bigip-f5-word-operator-binding-power.md)).
+  `and` and `or` bind exactly like `&&` and `||`, including mixed with them and
+  above `?:`, and they short-circuit. `not` is the tight unary `!`; its error message
+  names `"!"` ([bigip-f5-and-or-not-binding-power](../../../evidence/tcl/bigip-f5-and-or-not-binding-power.md)).
+  W154/W155's grouping is therefore measured, not assumed.
+- The operators work the same in a computed `expr` string the loader cannot see.
+  The loader then warns `use curly braces to avoid double substitution`
+  ([bigip-f5-word-operators-in-computed-expr](../../../evidence/tcl/bigip-f5-word-operators-in-computed-expr.md)).
 
-| Axis | Current evidence boundary and useful control |
-| --- | --- |
-| Other BIG-IP releases | Run the same byte-controlled suites on supported 17.x and older builds; retain exact build identifiers and context-specific results |
-| Restricted-role tmsh | Record role, command visibility and relevant policy settings; the current surface has no role annotation |
-| APL presentation and its Tcl callbacks | Exercise each context independently through a non-interactive renderer; neither inherits iApp implementation facts |
-| `tmsh::modify cli version active` scope | Distinguish script, process, session and system state; `scope_is_measured` remains false |
-| `matches` semantics and precedence | The measured equal-string case is true and `"abcd" matches "bc"` is false. Both equality and glob interpretations fit those results. A wildcard-bearing operand distinguishes them. A mixed-operator expression distinguishes binding power, and the same question is open for every F5 word operator (`contains`, `starts_with`, `ends_with`, `equals`, `matches_glob`, `matches_regex`, `and`, `or`, `not`): W154/W155 group them at the registry precedence (`==` level, `&&`/`||` level, unary), which is unmeasured. Discriminating controls: `1 & 3 contains 3`, `"ab" contains "a" == 0`, `not 0 == 1`, `1 or 0 and 0`, each against its two explicit groupings The current authored evaluator uses equality, and native constant folding declines this operator. These are separate from its measured grammatical presence |
-| Surface, event and traffic provenance | Repeat non-E4-conforming cells with the complete probe-and-cleanup contract; retain each suite's own provenance rather than promoting another suite's conformance |
-| `RULE_INIT` runtime command validity | For each of the six compile-accepted flow commands, execute the original command and capture its completion and required connection state; load acceptance alone cannot settle the runtime question |
+### `switch` bodies are parsed as lists, not scripts
+
+The R-rules (implicit word break after a closing `}` or `"`) apply to script
+words only. A `switch` pattern/body list is split with stock Tcl list rules,
+both by the loader and by TMM at runtime:
+
+- A literal `switch a {"a"{set r A}}` (or `{a}{…}`, or `{default}{…}`) is refused
+  at load with Tcl's own `invalid list: list element in quotes followed by "{set" instead of space`
+  ([bigip-switch-body-list-at-load](../../../evidence/tcl/bigip-switch-body-list-at-load.md)).
+- The same value built at runtime fails `llength` and `switch` with the same list
+  error ([bigip-switch-body-list-runtime](../../../evidence/tcl/bigip-switch-body-list-runtime.md)).
+- Given as separate `switch` words, `"a"{…}`, `{a}{…}` and `{default}{…}` do split
+  and match ([bigip-switch-separate-args-word-break](../../../evidence/tcl/bigip-switch-separate-args-word-break.md)).
+- `a{set r A}` never splits: it does not *start* with a brace or quote. It is
+  three ordinary list elements, which explains the original
+  `switch "a" {a{log …}}` failure.
+
+### N1 is independent of `priority` and of when the code runs
+
+N1 holds at event time on a live request. That covers a rule with a rule-level
+`priority 100` and a `when HTTP_REQUEST priority 900` handler, plus a proc called
+from it (`while` ⏎ `{…}` ran, `[list a b` ⏎ `{c}]` gave `a b c`)
+([bigip-brace-line-continuation-event-time-priority](../../../evidence/tcl/bigip-brace-line-continuation-event-time-priority.md)).
+It also applies to the rule file's own header words: `priority` ⏎ `{200}` and
+`when RULE_INIT priority` ⏎ `{10}` ⏎ `{…}` both load and run
+([bigip-brace-line-continuation-priority-words](../../../evidence/tcl/bigip-brace-line-continuation-priority-words.md)).
+
+### Parser builds: TMM, mcpd, tmsh and scriptd each embed their own Tcl 8.4.6
+
+No process links a shared `libtcl`. The 64-bit `tmm64.pgo_use` (82 MB, stripped,
+6,169 dynamic symbols) and the 64-bit `mcpd` each contain their own Tcl 8.4.6
+(by patchlevel string). The 32-bit `tmsh` and `scriptd` each carry their own
+copy too. The host's `tclsh8.4` is a different release, 8.4.13. So "same parser
+build" is false at binary level, and grammar agreement between contexts is
+per-case agreement between separate copies. The load-time verdict comes from
+**mcpd**, not TMM ([§14](#14-how-the-rule-loader-decides)), so a load result
+and a runtime result can disagree. `binary scan … cu` is accepted at load and
+fails at runtime with `bad field specifier "u"`.
+
+### Event context: the full matrix
+
+The checker's command table enumerates F5's command namespace from the other
+direction. It defines **984** iRule commands. The appliance's own
+`/usr/local/www/docs/irule/irule-schema.json` documents 933 commands and 158
+events. Of the 984, 931 are documented; 53 are recognised but undocumented
+(`LB::prime`, `LB::select`, `REST::send`, `DIAG::test`, `tcpdump`, `md4`, …).
+`ACCESS::flowid` and `listen` are documented but absent from the checker. The
+command registry already names 983 of the 984; `radius_avp` is the gap.
+
+Validity was measured for every documented command in every documented event,
+158 events × 931 commands, 147,098 cells. 84,736 are valid, 60,852 are refused at
+load and 1,510 load with only a JET warning. The rules held 4 commands each. The
+772 rules whose error text hit mcpd's cap were re-run one command per rule, so no
+cell is unknown. The method and caveats are in
+[`evmatrix.py`](../../../scripts/dev/bigip-probes/open-questions/evmatrix.py); the
+result is [`results/21.1-event-matrix.json`](../../../scripts/dev/bigip-probes/results/21.1-event-matrix.json).
+Each cell is the loader's verdict for the bare command name: `invalid` (load
+error), `invalid-warn` (the rule loads with a "not caught before" warning) or
+`valid`. A bare name is checked for event context even when its arguments are
+wrong, so the matrix covers the context check only, not argument validity.
+`relate_client` and `relate_server` are excluded: given bare, they crash the
+checker itself (`incr len -1` on an empty length in `checkBracesBlock`), which
+aborts the whole rule check.
+
+The 14 command rows of the §8 table are reproduced cell for cell, with one change since
+2026-08-26: `HTTP::uri`, `HTTP::status`, `HTTP::respond` and `HTTP::collect` in
+`RULE_INIT` now load with `command is not valid in RULE_INIT` as a **warning**
+(they were recorded as accepted).
+
+### `RULE_INIT` runtime for the six load-accepted flow commands
+
+Executed in `RULE_INIT` under `catch`, all six fail at runtime. `HTTP::uri`,
+`HTTP::status` and `HTTP::collect` raise `Invalid context`; `HTTP::respond`,
+`TCP::collect` and `TCP::payload` raise `Operation not supported`. `errorCode`
+is `NONE` for all of them, and the handler continues after the catch
+([bigip-rule-init-flow-commands-runtime](../../../evidence/tcl/bigip-rule-init-flow-commands-runtime.md)).
+The `flow: true` requirement is right. Load acceptance in `RULE_INIT` never
+means usable.
+
+### tmsh: `cli version` scope and restricted roles
+
+- **`tmsh::modify cli version active` is script-scoped.** Inside a cli script it
+  selects the schema for the rest of that script. The caller's version is
+  restored when the script returns. In an interactive or `-c` session it persists
+  for that tmsh process only: child processes, new processes and other sessions
+  never see it, and it is not saved
+  ([bigip-tmsh-cli-version-scope](../../../evidence/tcl/bigip-tmsh-cli-version-scope.md)).
+  `TmshSyntaxTransition::scope_is_measured` can become `true` with script scope.
+  F5's own 11.5.0/11.6.0 example versions are refused on 21.1, which accepts
+  14.0.0 to 21.1.0.1.
+- **The role changes the cli-script interpreter, not just tmsh authorisation.**
+  For guest, operator, manager and resource-admin, `exec` does not exist
+  (`invalid command name "exec"`); for root and admin it does (95 commands).
+  Guest and operator get a syntax-level `"rule" unexpected argument` for
+  `create ltm rule`, so the command is hidden, while `delete` reports an
+  authorisation error. `run util bash` is a syntax error for all four roles
+  ([bigip-tmsh-cli-script-role-command-surface](../../../evidence/tcl/bigip-tmsh-cli-script-role-command-surface.md)).
+  A role must be applied through a real login: `su` from root keeps root's access.
 
 ### Signed integers reaching F5 commands
 
-W156 reports a value `binary scan` or `scan` stored as a signed integer and
-then compared with a constant outside its range. In stock Tcl the same signed
-value also goes wrong in hex or unsigned `format`, a dotted-quad `format`,
-`<<`/`|` and `*`/`+` byte composition, and list or string indices and lengths
-([execution evidence](../../../evidence/tcl/signed-scan-downstream-consumers.md));
-only a `binary format` round trip survives. Whether F5 commands that take a
-length, offset, address or key misbehave the same way is unmeasured, and the
-registry has no argument domain that would let a check report them. Each row
-needs a `RULE_INIT` or traffic probe that logs the result for a signed value
-(`-127`, `-32768`), its unsigned twin (`129`, `32768`) and the masked form:
-
-| Question | Probe and control |
+| Question | Measured on 21.1.0.1 |
 | --- | --- |
-| Does TMM's `binary scan` match stock 8.4? | `binary scan \x81\x00\x80 cS b s` should give `-127 -32768`; `binary scan \x81 cu b` should be rejected at load. Also `scan ffffffff %x v` (stock 8.4: `-1`) and `scan ffffffff %lx v` |
-| What width does TMM's `format` use for a negative value? | `format %02x -127` (stock 8.4: `ffffffffffffff81`, 9.x: `ffffff81`), `format %u -127`, `format %c -127` |
-| What do length and offset arguments do with a negative value? | `TCP::collect -1`, `TCP::release -1`, `TCP::payload -1 4`, `TCP::payload 0 -1`, `TCP::payload replace -1 1 x`, and the `UDP::payload`, `HTTP::collect`, `HTTP::payload`, `SSL::collect`, `SSL::payload` equivalents: load-time rejection, runtime error, or a silent default (0, all, or connection reset)? |
-| Does `IP::addr` accept a dotted quad built from signed octets? | `IP::addr 192.-64.-1.1 equals 192.192.255.1` and `IP::addr 192.-64.-1.1 mask 255.255.255.0`: error, rejection, or a silent mismatch |
-| Do integer data groups match a signed key? | An integer-type data group holding `129`: `class match -127 equals dg`, `class match 129 equals dg`, `class lookup -127 dg` |
-| Do counters and ports accept a negative value? | `table incr k -32768` after `table set k 0`; `node 10.0.0.1 -1` and `pool p member 10.0.0.1 -1` in a traffic probe, logging completion and the selected port |
+| TMM `binary scan` vs stock 8.4 | Same signed fields (`c` of `\x81` is -127; `S` of `\x80\x00` is -32768). The table's original probe `\x81\x00\x80 cS` reads `S` from `00 80`, which is 128, not -32768. The `u` flag loads but fails at runtime (`bad field specifier "u"`). `scan ffffffff %x` is -1. **`scan ffffffff %lx` is -1 in TMM but 4294967295 in the host's tclsh 8.4.13 and 8.5.13** ([TMM](../../../evidence/tcl/bigip-tmm-signed-scan-and-format.md), [host control](../../../evidence/tcl/bigip-host-tclsh-signed-scan-and-format.md)) |
+| TMM `format` width | 64-bit, like 8.4 on a 64-bit host: `format %02x -127` is `ffffffffffffff81` and `%u` is `18446744073709551489`. `format %c -127` gives a two-character string in TMM (one in host tclsh). Integers are 64-bit: `1 << 63` is INT64_MIN and `1 << 64` is 1 (shift count taken mod 64) |
+| Lengths and offsets of -1 | `TCP::collect -1`: load warning (JET checker); at runtime CLIENT_DATA fires with all 8 bytes, as with no length. `TCP::release -1`: warning; releases everything (returns 8, payload 0 after). `TCP::payload 0 -1` and `UDP::payload 0 -1`: warning; the whole payload. `TCP::payload -1 4` and `UDP::payload -1 4`: warning; runtime error. `TCP::payload replace -1 1 x`: **refused at load**. `HTTP::collect -1`: warning; no runtime error. `HTTP::payload -1`: warning; runtime `Neither <offset> nor <length> may be negative` ([TCP](../../../evidence/tcl/bigip-tcp-payload-release-negative.md), [collect](../../../evidence/tcl/bigip-tcp-collect-negative.md), [replace](../../../evidence/tcl/bigip-tcp-payload-replace-negative-refused.md), [UDP](../../../evidence/tcl/bigip-udp-payload-negative.md), [HTTP](../../../evidence/tcl/bigip-http-collect-and-payload-negative.md)) |
+| `IP::addr` with signed octets | A literal `192.-64.-1.1` is **refused at load** (`expected syntax spec: (IP_ADDR|parse)`) ([evidence](../../../evidence/tcl/bigip-ip-addr-literal-signed-octet-refused.md)). Built at runtime, it raises `bad IP network address format` / `bad IP address format` |
+| Integer data group with a signed key | A group holding 129: `class match -- -127 equals dg` is 0, the masked key matches. **`class match -127 …` without `--` is an error** (`bad option "-127"`); `class lookup -127 dg` returns empty with no error ([evidence](../../../evidence/tcl/bigip-class-match-signed-key.md)) |
+| Counters and ports | `table incr k -32768` from 0 stores and returns **18446744073709518848**: the table is unsigned 64-bit and wraps. `incr k -1` from 5 gives 4. `node 10.0.0.1 -1` (`invalid IP port:-1`) and `pool p member 10.0.0.1 -1` are refused at load ([table](../../../evidence/tcl/bigip-table-incr-negative.md), [ports](../../../evidence/tcl/bigip-node-and-pool-member-negative-port-refused.md)) |
 
-A measured row would give the affected argument a registry domain (a
-non-negative or unsigned integer), which W156 could then check against the
-scanned value's signed range.
+These give W156 measured argument domains. Ports, `IP::addr` octets and the
+`TCP::payload replace` offset are non-negative at load. TMM offsets and lengths
+are non-negative at runtime, where -1 for a length means "all". `table` values are
+unsigned 64-bit. A negative leading argument to `class match` needs `--`.
+
+## 13. Still open
+
+- **Other BIG-IP releases.** Everything here is 21.1.0.1 build 0.0.26. The
+  extraction in [§14](#14-how-the-rule-loader-decides) makes a cheap per-release
+  diff of the checker possible; behaviour still needs a run per release.
+- **APL presentation and its Tcl callbacks** remain unmeasured as separate
+  contexts.
+- **E4 provenance for §5–§9.** The new probes check absence first, clean up, and
+  attach only to dedicated virtual servers. They do not use the full E4 driver
+  (`lib/e4-context-probe.sh`), so they carry the same non-E4 qualification as
+  the earlier traffic lab.
+- Load-time verdicts are mcpd's. The event matrix is a statement about the
+  checker, not about what TMM would do if a refused rule were somehow installed.
+
+## 14. How the rule loader decides
+
+mcpd validates every iRule with a **Tcl program**, derived from the Ajuba/TclPro
+checker ("Copyright (c) 1998-2000 Ajuba Solutions", `package provide tclCheck 1.0`),
+loaded from `libtclCheck_tcl.so`. Its sources are embedded as 17 exported
+`*_tcl` data symbols (`checker_tcl`, `jet_tcl`, `f5Cmds_tcl`, `jet_event_tcl`,
+`context_tcl`, …), about 61,000 lines, each XORed with the single byte `0xF5`.
+[`extract-tclcheck.py`](../../../scripts/dev/bigip-probes/open-questions/extract-tclcheck.py)
+recovers them. The output is F5 proprietary source: the 21.1.0.1 copy is kept
+outside this repository (`~/src/bigip-extract/tclcheck-21.1.0.1-0.0.26/`) and must
+not be committed here.
+
+What it explains:
+
+- **Two checkers run.** The legacy one (`f5Cmds_tcl`: `checkEvent`,
+  `checkSimpleArgs`) and the newer JET one (`jet_tcl`'s `bigip_rule_syntax`: a
+  full argument grammar per command, with `jet_event_profile_constraint`
+  allow/deny lists over events, event categories and profiles). When JET rejects
+  a command and the legacy checker accepts it, mcpd logs `warnOldCheckerFlaw`
+  ("The following errors were not caught before…") as a **warning**, and the rule
+  loads. That is the whole WARN-versus-REJECT split for argument and event
+  errors in §5–§8 and above.
+- **Event validity is declarative.** Events map to categories in
+  `jet_event_tcl`'s `event_table` (for example `WS_REQUEST → {IP TCP HTTP WEBSOCKET}`),
+  and each command lists `allow`/`deny` over events or categories, optionally per
+  profile. `HTTP::uri` is
+  `{allow HTTP} {deny HTTP_RESPONSE HTTP_RESPONSE_CONTINUE HTTP_RESPONSE_DATA HTTP_RESPONSE_RELEASE}`
+  for the HTTP profile, plus explicit events for FASTHTTP, ICAP and HTTPROUTER.
+- **The load message is capped.** mcpd stops the error part of its message
+  around 1 KB, so a rule with many errors shows only the first few. Probe drivers
+  that read load errors must keep each rule small. `evmatrix.py` detects the cut
+  and re-runs truncated chunks one command at a time.
+- The checker's Tcl itself uses `starts_with`, so mcpd's embedded interpreter
+  has the F5 operators too. The R/N lexical rules and the expression grammar are
+  in the C parser, not in these scripts.
 
 The remaining resolution-specific identity, callable replacement and deletion
 boundaries have exact probes in

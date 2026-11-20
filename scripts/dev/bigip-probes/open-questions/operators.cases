@@ -1,0 +1,89 @@
+# id<TAB>expression. Each case becomes its own rule so one load rejection
+# cannot hide another. Grouped cases (suffix a/b) are the two explicit
+# parenthesisations of the bare case with the same stem.
+m_eq	"abc" matches "abc"
+m_sub	"abcd" matches "bc"
+m_prefix	"abcd" matches "ab"
+m_glob	"abc" matches "a*"
+m_globlit	"a*" matches "a*"
+m_class	"b" matches "\[abc\]"
+m_re	"abc" matches "a.c"
+mg_glob	"abc" matches_glob "a*"
+mg_lit	"abc" matches_glob "abc"
+mr_re	"abc" matches_regex {^a.c$}
+c1	1 & 3 contains 3
+c1a	(1 & 3) contains 3
+c1b	1 & (3 contains 3)
+c2	"ab" contains "a" == 1
+c2a	("ab" contains "a") == 1
+c2b	"ab" contains ("a" == 1)
+c2doc	"ab" contains "a" == 0
+c3	1 == 2 contains 0
+c3a	(1 == 2) contains 0
+c3b	1 == (2 contains 0)
+c4	"x0" contains 1 < 2
+c4a	("x0" contains 1) < 2
+c4b	"x0" contains (1 < 2)
+c5	0 && 0 contains 0
+c5a	(0 && 0) contains 0
+c5b	0 && (0 contains 0)
+c6	"12" starts_with 1 + 1
+c6a	("12" starts_with 1) + 1
+c6b	"12" starts_with (1 + 1)
+c7	"21" ends_with 1 + 1
+c7a	("21" ends_with 1) + 1
+c7b	"21" ends_with (1 + 1)
+c8	1 == 2 equals 0
+c8a	(1 == 2) equals 0
+c8b	1 == (2 equals 0)
+c9	1 == 2 matches_glob 0
+c9a	(1 == 2) matches_glob 0
+c9b	1 == (2 matches_glob 0)
+c10	1 == 2 matches_regex 0
+c10a	(1 == 2) matches_regex 0
+c10b	1 == (2 matches_regex 0)
+c11	"abc" contains "b" contains 1
+c11a	("abc" contains "b") contains 1
+c11b	"abc" contains ("b" contains 1)
+c12	1 == 2 matches 0
+c12a	(1 == 2) matches 0
+c12b	1 == (2 matches 0)
+c13	"x0" starts_with 1 < 2
+c13a	("x0" starts_with 1) < 2
+c13b	"x0" starts_with (1 < 2)
+o1	1 or 0 and 0
+o1a	(1 or 0) and 0
+o1b	1 or (0 and 0)
+o2	0 and 0 == 0
+o2a	(0 and 0) == 0
+o2b	0 and (0 == 0)
+o3	1 or 0 && 0
+o3a	(1 or 0) && 0
+o3b	1 or (0 && 0)
+o4	1 || 0 and 0
+o4a	(1 || 0) and 0
+o4b	1 || (0 and 0)
+o5	0 or 1 ? 5 : 6
+o5a	(0 or 1) ? 5 : 6
+o5b	0 or (1 ? 5 : 6)
+o6	1 && 0 or 1
+o6a	(1 && 0) or 1
+o6b	1 && (0 or 1)
+o7	0 or 2
+o8	0 and [error side]
+o9	1 or [error side]
+n1	not 2 == 1
+n1a	(not 2) == 1
+n1b	not (2 == 1)
+n2	not 0 + 1
+n2a	(not 0) + 1
+n2b	not (0 + 1)
+n3	not 10 contains 0
+n3a	(not 10) contains 0
+n3b	not (10 contains 0)
+n4	!2 == 1
+n5	not 1 and 0
+n5a	(not 1) and 0
+n5b	not (1 and 0)
+n6	not 5
+n7	not "abc"
