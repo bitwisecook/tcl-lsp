@@ -84,60 +84,73 @@ impl Analyser {
         }
         let numbers = crate::intervals::numbers_for_dialect(Some(self.profile));
         let mut findings: Vec<(tcl_lexer::Span, String)> = Vec::new();
-        let mut check = |expr: &ExprNode,
-                         view: SsaSourceView<'_>,
-                         exit: Option<&ExitVersions>,
-                         (block, index, base): (crate::cfg::BlockId, usize, Option<u32>),
-                         fallback| {
-            let used = |symbol: &crate::ssa::Symbol| {
-                fu.ssa
-                    .blocks
-                    .get(&block)
-                    .and_then(|data| data.statements.get(index))
-                    .and_then(|statement| statement.uses.get(symbol).copied())
-            };
-            let resolve = |variable: &ExprNode| {
-                view.read_expression_variable(variable, base)
-                    .and_then(|read| {
-                        let version = read
-                            .version
-                            .or_else(|| exit.and_then(|exit| exit.get(&read.symbol).copied()))
-                            .or_else(|| used(&read.symbol))?;
-                        signed.get(&(read.symbol, version))
-                    })
-                    .or_else(|| straight_line_scan(fu, &unresolved, variable, block, index))
-            };
-            let locate = |variable: &ExprNode| match (base, variable) {
-                (Some(base), ExprNode::Var { start, end, .. }) => {
-                    tcl_lexer::Span::new(base + start, base + end + 1)
-                }
-                _ => fallback,
-            };
-            for (variable, composition) in compositions(expr, numbers) {
-                if let Some(origin) = resolve(variable) {
-                    findings.push((
-                        fu.abs_span(locate(variable)),
-                        composition.message(variable, origin),
-                    ));
-                }
-            }
-            for comparison in comparisons(expr, numbers) {
-                let Some(origin) = resolve(comparison.variable) else {
-                    continue;
+        let mut check =
+            |expr: &ExprNode,
+             view: SsaSourceView<'_>,
+             exit: Option<&ExitVersions>,
+             (block, index, base, guard): (crate::cfg::BlockId, usize, Option<u32>, &[String]),
+             fallback| {
+                let used = |symbol: &crate::ssa::Symbol| {
+                    fu.ssa
+                        .blocks
+                        .get(&block)
+                        .and_then(|data| data.statements.get(index))
+                        .and_then(|statement| statement.uses.get(symbol).copied())
                 };
-                let Some(message) = message(&comparison, origin) else {
-                    continue;
+                let resolve = |variable: &ExprNode| {
+                    view.read_expression_variable(variable, base)
+                        .and_then(|read| {
+                            let version = read
+                                .version
+                                .or_else(|| exit.and_then(|exit| exit.get(&read.symbol).copied()))
+                                .or_else(|| used(&read.symbol))?;
+                            signed.get(&(read.symbol, version))
+                        })
+                        .or_else(|| straight_line_scan(fu, &unresolved, variable, block, index))
+                        .filter(|_| {
+                            !matches!(variable, ExprNode::Var { name, .. }
+                            if mentions_bare(guard, name))
+                        })
                 };
-                let span = match (base, comparison.variable) {
+                let locate = |variable: &ExprNode| match (base, variable) {
                     (Some(base), ExprNode::Var { start, end, .. }) => {
                         tcl_lexer::Span::new(base + start, base + end + 1)
                     }
                     _ => fallback,
                 };
-                findings.push((fu.abs_span(span), message));
-            }
+                for (variable, composition) in compositions(expr, numbers) {
+                    if let Some(origin) = resolve(variable) {
+                        findings.push((
+                            fu.abs_span(locate(variable)),
+                            composition.message(variable, origin),
+                        ));
+                    }
+                }
+                for comparison in comparisons(expr, numbers) {
+                    let Some(origin) = resolve(comparison.variable) else {
+                        continue;
+                    };
+                    let Some(message) = message(&comparison, origin) else {
+                        continue;
+                    };
+                    let span = match (base, comparison.variable) {
+                        (Some(base), ExprNode::Var { start, end, .. }) => {
+                            tcl_lexer::Span::new(base + start, base + end + 1)
+                        }
+                        _ => fallback,
+                    };
+                    findings.push((fu.abs_span(span), message));
+                }
+            };
+        let parser_context = self.original_expression_parser_context();
+        let parse = |text: &str| {
+            let parsed = tcl_syntax::expr::parser::parse_expr_with_syntax_context(
+                text,
+                parser_context.as_ref()?,
+            );
+            (!matches!(parsed, ExprNode::Raw { .. })).then_some(parsed)
         };
-        for_each_expression(fu, self.file_lexer_config(), registry, &mut check);
+        for_each_expression(fu, self.file_lexer_config(), (registry, &parse), &mut check);
         findings.extend(call_consumers(
             fu,
             (registry, Some(context.as_ref().into())),
@@ -161,6 +174,10 @@ impl Analyser {
 
 type ExitVersions = HashMap<crate::ssa::Symbol, crate::ssa::Version>;
 
+/// Parses expression text under the document's grammar; `None` when it does
+/// not parse.
+type ExpressionParser<'a> = dyn Fn(&str) -> Option<ExprNode> + 'a;
+
 /// Every expression the body evaluates: lowered `expr`/`return` operands,
 /// `[expr …]` substitutions inside other commands, and branch conditions,
 /// each with its SSA view, the block's exit versions for a condition, its
@@ -168,12 +185,12 @@ type ExitVersions = HashMap<crate::ssa::Symbol, crate::ssa::Version>;
 fn for_each_expression(
     fu: &crate::compilation_unit::FunctionUnit,
     config: tcl_lexer::LexerConfig,
-    registry: &tcl_registry::CommandRegistry,
+    (registry, parse): (&tcl_registry::CommandRegistry, &ExpressionParser<'_>),
     visit: &mut impl FnMut(
         &ExprNode,
         SsaSourceView<'_>,
         Option<&ExitVersions>,
-        (crate::cfg::BlockId, usize, Option<u32>),
+        (crate::cfg::BlockId, usize, Option<u32>, &[String]),
         tcl_lexer::Span,
     ),
 ) {
@@ -198,18 +215,26 @@ fn for_each_expression(
                     expr_base,
                     span,
                     ..
-                } => visit(expr, view, None, (block, index, *expr_base), *span),
+                } => visit(expr, view, None, (block, index, *expr_base, &[]), *span),
                 _ => {
-                    for evaluation in crate::word_subst::entered_expression_evaluations(
+                    let entered = crate::word_subst::entered_expression_evaluations(
                         view.source_tokens(),
                         config,
                         registry,
-                    ) {
+                    );
+                    if entered.is_empty() {
+                        for (expr, base, span, guard) in
+                            unlowered_expressions(&statement.statement, config, (registry, parse))
+                        {
+                            visit(&expr, view, None, (block, index, Some(base), &guard), span);
+                        }
+                    }
+                    for evaluation in entered {
                         visit(
                             evaluation.expression(),
                             view,
                             None,
-                            (block, index, Some(evaluation.expression_base())),
+                            (block, index, Some(evaluation.expression_base()), &[]),
                             evaluation.span(),
                         );
                     }
@@ -231,9 +256,136 @@ fn for_each_expression(
                 condition,
                 SsaSourceView::at_terminator(&fu.ssa, block),
                 Some(&data.exit_versions),
-                (block, data.statements.len(), *condition_base),
+                (block, data.statements.len(), *condition_base, &[]),
                 *span,
             );
+        }
+    }
+}
+
+/// Braced expression arguments of a call the module did not lower — in a
+/// procedure body, a command after one the module cannot prove (it may have
+/// renamed `if`, `while` or `expr`) stays a plain call — and of every `[…]`
+/// call its words make, parsed under the document's expression grammar, with
+/// each expression's absolute source base. The registry's `Expr` role picks
+/// the arguments; W156 then reads them as the commands they normally are.
+fn unlowered_expressions(
+    statement: &Statement,
+    config: tcl_lexer::LexerConfig,
+    (registry, parse): (&tcl_registry::CommandRegistry, &ExpressionParser<'_>),
+) -> Vec<(ExprNode, u32, tcl_lexer::Span, Vec<String>)> {
+    let Statement::Call {
+        command,
+        canonical_command,
+        args,
+        tokens: Some(tokens),
+        ..
+    } = statement
+    else {
+        return Vec::new();
+    };
+    let mut calls: Vec<(String, Vec<String>, Vec<tcl_lexer::Span>)> = vec![(
+        canonical_command.as_deref().unwrap_or(command).to_owned(),
+        args.clone(),
+        tokens.argv.iter().skip(1).copied().collect(),
+    )];
+    for lifted in crate::word_subst::lifted_calls(Some(tokens), config) {
+        calls.push((lifted.command, lifted.args, lifted.arg_spans));
+    }
+    let mut out = Vec::new();
+    let mut walk = UnloweredWalk {
+        config,
+        registry,
+        parse,
+        guard: Vec::new(),
+        out: &mut out,
+    };
+    for (name, args, spans) in &calls {
+        walk.call(name, args, spans, 0);
+    }
+    out
+}
+
+/// The content of a braced word and the offset of its first content byte.
+/// A statement's IR keeps a braced word's content, whose span runs from `{`
+/// to the last inner character (or past the closer); a lifted or segmented
+/// word keeps the braces and spans them whole.
+fn braced_content(word: &str, span: tcl_lexer::Span) -> Option<(&str, u32)> {
+    let length = usize::try_from(span.end() - span.start()).ok();
+    match word.strip_prefix('{').and_then(|w| w.strip_suffix('}')) {
+        Some(inner) if length == Some(word.len()) => Some((inner, span.start() + 1)),
+        _ if length == Some(word.len() + 1) || length == Some(word.len() + 2) => {
+            Some((word, span.start() + 1))
+        }
+        _ => None,
+    }
+}
+
+/// Walks unlowered calls and the bodies they hold, collecting their braced
+/// expressions. `guard` holds the words of every earlier command in the
+/// bodies entered, so a name one of them writes is not trusted after it.
+struct UnloweredWalk<'a, 'o> {
+    config: tcl_lexer::LexerConfig,
+    registry: &'a tcl_registry::CommandRegistry,
+    parse: &'a ExpressionParser<'a>,
+    guard: Vec<String>,
+    out: &'o mut Vec<(ExprNode, u32, tcl_lexer::Span, Vec<String>)>,
+}
+
+impl UnloweredWalk<'_, '_> {
+    const MAX_DEPTH: u32 = 16;
+
+    fn call(&mut self, name: &str, args: &[String], spans: &[tcl_lexer::Span], depth: u32) {
+        let words: Vec<&str> = args.iter().map(String::as_str).collect();
+        for index in self
+            .registry
+            .arg_indices_for_role(name, &words, ArgRole::Expr)
+        {
+            let (Some(word), Some(&span)) = (args.get(index), spans.get(index)) else {
+                continue;
+            };
+            let Some((content, base)) = braced_content(word, span) else {
+                continue;
+            };
+            if let Some(expr) = (self.parse)(content) {
+                self.out.push((expr, base, span, self.guard.clone()));
+            }
+        }
+        if depth >= Self::MAX_DEPTH {
+            return;
+        }
+        for index in self
+            .registry
+            .arg_indices_for_role(name, &words, ArgRole::Body)
+        {
+            let (Some(word), Some(&span)) = (args.get(index), spans.get(index)) else {
+                continue;
+            };
+            let Some((content, base)) = braced_content(word, span) else {
+                continue;
+            };
+            let mark = self.guard.len();
+            for command in crate::segmenter::segment_commands_with_offset_and_config(
+                content,
+                base,
+                self.config,
+            ) {
+                if command.is_partial {
+                    break;
+                }
+                let Some((head, rest)) = command.texts.split_first() else {
+                    continue;
+                };
+                let spans: Vec<tcl_lexer::Span> = command
+                    .argv
+                    .iter()
+                    .skip(1)
+                    .map(|token| token.span)
+                    .collect();
+                self.call(head, rest, &spans, depth + 1);
+                self.guard.extend(command.texts.iter().cloned());
+            }
+            self.guard.truncate(mark);
         }
     }
 }
@@ -291,16 +443,76 @@ fn signed_scan_values(
 /// body a head the module cannot prove (it may have been renamed before the
 /// procedure runs) is an unseen call, after which the frame's names have no
 /// version. `(statement index, variable, origin)`.
-type UnresolvedScans = HashMap<crate::cfg::BlockId, Vec<(usize, String, SignedOrigin)>>;
+/// Whether any word names `name` bare — `set t 0`, `upvar 1 t x`,
+/// `uplevel {incr t}` — rather than reading it as `$t` or `${t}`.
+fn mentions_bare(args: &[String], name: &str) -> bool {
+    let ident = |c: char| c.is_alphanumeric() || c == '_';
+    args.iter().any(|arg| {
+        arg.match_indices(name).any(|(at, _)| {
+            let before = arg[..at].chars().next_back();
+            let after = arg[at + name.len()..].chars().next();
+            let read = arg[..at].ends_with('$') || arg[..at].ends_with("${");
+            !read && !before.is_some_and(ident) && !after.is_some_and(ident)
+        })
+    })
+}
+
+#[derive(Default)]
+struct UnresolvedScans {
+    scans: HashMap<crate::cfg::BlockId, Vec<(usize, String, SignedOrigin)>>,
+    /// Unseen-call markers that stand beside a call to a command the
+    /// registry ships, with that call's argument words: such a call writes a
+    /// name only by mentioning it (`upvar 1 t x`, `uplevel {set t 5}`).
+    known_markers: HashMap<(crate::cfg::BlockId, usize), Vec<String>>,
+}
+
+impl UnresolvedScans {
+    fn is_empty(&self) -> bool {
+        self.scans.is_empty()
+    }
+
+    fn get(&self, block: crate::cfg::BlockId) -> Option<&Vec<(usize, String, SignedOrigin)>> {
+        self.scans.get(&block)
+    }
+
+    /// Whether statement `at` of `block` may write `name`.
+    fn writes(
+        &self,
+        fu: &crate::compilation_unit::FunctionUnit,
+        (block, at): (crate::cfg::BlockId, usize),
+        statement: &crate::ssa::SsaStatement,
+        name: &str,
+    ) -> bool {
+        let mentions = |args: &[String]| mentions_bare(args, name);
+        if crate::ssa::is_unseen_call_marker(&statement.statement) {
+            return self
+                .known_markers
+                .get(&(block, at))
+                .is_none_or(|args| mentions(args));
+        }
+        statement
+            .defs
+            .keys()
+            .any(|symbol| fu.ssa.var_name(*symbol) == name)
+            || matches!(&statement.statement, Statement::Call { args, .. } if mentions(args))
+    }
+}
 
 fn unresolved_scans(
     fu: &crate::compilation_unit::FunctionUnit,
     registry: &tcl_registry::CommandRegistry,
     profile: &tcl_dialect::DialectProfile,
 ) -> UnresolvedScans {
-    let mut out: UnresolvedScans = HashMap::new();
+    let mut out = UnresolvedScans::default();
     for (&block, data) in &fu.ssa.blocks {
+        let mut beside: Option<Vec<String>> = None;
         for (index, statement) in data.statements.iter().enumerate() {
+            if crate::ssa::is_unseen_call_marker(&statement.statement) {
+                if let Some(args) = beside.take() {
+                    out.known_markers.insert((block, index), args);
+                }
+                continue;
+            }
             let Statement::Call {
                 command,
                 canonical_command,
@@ -308,15 +520,20 @@ fn unresolved_scans(
                 ..
             } = &statement.statement
             else {
+                if !matches!(statement.statement, Statement::Barrier { .. }) {
+                    beside = None;
+                }
                 continue;
             };
+            let name = canonical_command.as_deref().unwrap_or(command);
+            beside = registry.get(name).map(|_| args.clone());
             if !statement.defs.is_empty() {
                 continue;
             }
-            let name = canonical_command.as_deref().unwrap_or(command);
             let words: Vec<&str> = args.iter().map(String::as_str).collect();
             for (variable, origin) in scanned_fields(registry, name, &words, profile) {
-                out.entry(block)
+                out.scans
+                    .entry(block)
                     .or_default()
                     .push((index, variable, origin));
             }
@@ -356,26 +573,113 @@ fn straight_line_scan_named<'a>(
     if name.contains(['$', '(', ':', '[', '\\', '{', '"']) {
         return None;
     }
-    let statements = &fu.ssa.blocks.get(&block)?.statements;
-    let (scan, _, origin) = unresolved
-        .get(&block)?
-        .iter()
-        .filter(|(at, variable, _)| *at < index && variable == name)
-        .max_by_key(|(at, ..)| *at)?;
-    let mut between = statements.iter().take(index).skip(scan + 1).peekable();
-    while between.peek().is_some_and(|s| {
-        matches!(s.statement, Statement::Barrier { .. })
-            || crate::ssa::is_unseen_call_marker(&s.statement)
-    }) {
-        between.next();
-    }
-    let writes = |s: &crate::ssa::SsaStatement| {
-        crate::ssa::is_unseen_call_marker(&s.statement)
-            || s.defs.keys().any(|symbol| fu.ssa.var_name(*symbol) == name)
-            || matches!(&s.statement, Statement::Call { args, .. }
-                if args.iter().any(|arg| arg == name))
+    let writes = |at: crate::cfg::BlockId, index: usize, s: &crate::ssa::SsaStatement| {
+        unresolved.writes(fu, (at, index), s, name)
     };
-    (!between.any(writes)).then_some(origin)
+    let latest = |at: crate::cfg::BlockId, before: usize| {
+        unresolved
+            .get(at)?
+            .iter()
+            .filter(|(scan, variable, _)| *scan < before && variable == name)
+            .max_by_key(|(scan, ..)| *scan)
+    };
+    // The statements after a scan, past the marker standing beside it.
+    let after_scan = |at: crate::cfg::BlockId, scan: usize| -> bool {
+        let Some(data) = fu.ssa.blocks.get(&at) else {
+            return false;
+        };
+        let mut rest = data.statements.iter().enumerate().skip(scan + 1).peekable();
+        while rest.peek().is_some_and(|(_, s)| {
+            matches!(s.statement, Statement::Barrier { .. })
+                || crate::ssa::is_unseen_call_marker(&s.statement)
+        }) {
+            rest.next();
+        }
+        !rest.any(|(i, s)| writes(at, i, s))
+    };
+    let statements = &fu.ssa.blocks.get(&block)?.statements;
+    if let Some((scan, _, origin)) = latest(block, index) {
+        let mut between = statements
+            .iter()
+            .enumerate()
+            .take(index)
+            .skip(scan + 1)
+            .peekable();
+        while between.peek().is_some_and(|(_, s)| {
+            matches!(s.statement, Statement::Barrier { .. })
+                || crate::ssa::is_unseen_call_marker(&s.statement)
+        }) {
+            between.next();
+        }
+        return (!between.any(|(i, s)| writes(block, i, s))).then_some(origin);
+    }
+    // The nearest dominating block that scans the name, with no write on any
+    // path from its scan to this read.
+    let mut dominator = fu.ssa.idom.get(&block).copied().flatten();
+    while let Some(at) = dominator {
+        if let Some((scan, _, origin)) = latest(at, usize::MAX) {
+            let (forward, backward) = paths_between(fu, at, block);
+            let cyclic = backward.contains(&block);
+            let clean_between = forward
+                .intersection(&backward)
+                .filter(|&&between| between != block)
+                .all(|between| {
+                    fu.ssa.blocks.get(between).is_some_and(|data| {
+                        !data
+                            .statements
+                            .iter()
+                            .enumerate()
+                            .any(|(i, s)| writes(*between, i, s))
+                    })
+                });
+            let reach = if cyclic { statements.len() } else { index };
+            let clean_here = !statements
+                .iter()
+                .enumerate()
+                .take(reach)
+                .any(|(i, s)| writes(block, i, s));
+            return (clean_between && clean_here && after_scan(at, *scan)).then_some(origin);
+        }
+        dominator = fu.ssa.idom.get(&at).copied().flatten();
+    }
+    None
+}
+
+/// Blocks reachable from `from`'s successors and blocks that reach `to`
+/// through its predecessors, neither passing back through `from`.
+fn paths_between(
+    fu: &crate::compilation_unit::FunctionUnit,
+    from: crate::cfg::BlockId,
+    to: crate::cfg::BlockId,
+) -> (
+    std::collections::HashSet<crate::cfg::BlockId>,
+    std::collections::HashSet<crate::cfg::BlockId>,
+) {
+    let walk = |start: Vec<crate::cfg::BlockId>,
+                next: &dyn Fn(crate::cfg::BlockId) -> Vec<crate::cfg::BlockId>| {
+        let mut seen = std::collections::HashSet::new();
+        let mut pending = start;
+        while let Some(at) = pending.pop() {
+            if at == from || !seen.insert(at) {
+                continue;
+            }
+            pending.extend(next(at));
+        }
+        seen
+    };
+    let successors = |at: crate::cfg::BlockId| {
+        fu.cfg
+            .blocks
+            .get(&at)
+            .map_or_else(Vec::new, crate::cfg::Block::successors)
+    };
+    let predecessors = fu.cfg.predecessors();
+    let preds = |at: crate::cfg::BlockId| {
+        predecessors
+            .get(&at)
+            .map_or_else(Vec::new, |set| set.iter().copied().collect())
+    };
+    (walk(successors(from), &successors), walk(preds(to), &preds))
 }
 
 /// The fresh versions an unseen-call marker beside the call at `index`
@@ -579,9 +883,6 @@ fn comparisons(expr: &ExprNode, numbers: tcl_dialect::NumberSyntax) -> Vec<Compa
 fn message(comparison: &Comparison<'_>, origin: &SignedOrigin) -> Option<String> {
     let (lo, hi) = origin.range();
     let k = comparison.literal;
-    if (lo..=hi).contains(&k) {
-        return None;
-    }
     // Normalise to `variable OP literal`.
     let op = if comparison.variable_left {
         comparison.op
@@ -594,11 +895,16 @@ fn message(comparison: &Comparison<'_>, origin: &SignedOrigin) -> Option<String>
             other => other,
         }
     };
+    // The comparison's outcome when it is the same for every value in
+    // `lo..=hi`: `$byte > 127` is always false for a signed byte.
+    let outside = !(lo..=hi).contains(&k);
     let always = match op {
-        BinOp::Eq | BinOp::StrEq => false,
-        BinOp::Ne | BinOp::StrNe => true,
-        BinOp::Lt | BinOp::Le => k > hi,
-        BinOp::Gt | BinOp::Ge => k < lo,
+        BinOp::Eq | BinOp::StrEq if outside => false,
+        BinOp::Ne | BinOp::StrNe if outside => true,
+        BinOp::Lt if k > hi || k <= lo => k > hi,
+        BinOp::Le if k >= hi || k < lo => k >= hi,
+        BinOp::Gt if k < lo || k >= hi => k < lo,
+        BinOp::Ge if k <= lo || k > hi => k <= lo,
         _ => return None,
     };
     let ExprNode::Var { text: var, .. } = comparison.variable else {

@@ -1135,13 +1135,12 @@ means usable.
 
 These give W156 measured argument domains, now declared as each argument's
 `arg_domains` entry: the `TCP::`, `UDP::`, `SSL::` and `HTTP::` collect, release
-and payload lengths and offsets, the `TCP::payload replace` offset, and the
-`node` and `pool … member` ports. W156 reports a signed scan value passed to any
+and payload lengths and offsets, the `TCP::payload replace` and
+`SSL::payload replace` offsets, and the `node` and `pool … member` ports. W156 reports a signed scan value passed to any
 of them, and to an address built from signed octets. `table` values are
 unsigned 64-bit, but a negative `table incr` delta is legitimate, so it carries
 no domain. A negative leading argument to `class match` needs `--`, which W304
-already reports for any substituted key. `SSL::payload replace` is not yet a
-registry subcommand, so its offset has no domain.
+already reports for any substituted key.
 
 ### How much data a `*::collect` delivers
 

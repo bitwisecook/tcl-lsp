@@ -19,24 +19,55 @@
 //! `SSL::payload` iRules command.
 use crate::prelude::*;
 use tcl_dialect::model::SpecSurface;
+
+/// The command's subcommands; any other first word is an offset or length.
+const SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "replace",
+        arity: Arity::exact(3),
+        detail: "Replace bytes in collected plaintext payload.",
+        synopsis: "SSL::payload replace <offset> <length> <data>",
+        mutator: true,
+        // A negative offset is refused at load with `out of expected
+        // range(0 - 4294967295)` (BIG-IP 21.1.0.1,
+        // `evidence/tcl/bigip-ssl-payload-replace-negative.md`).
+        arg_domains: &[(0, IntegerDomain::Range(0, 4_294_967_295))],
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "length",
+        arity: Arity::exact(0),
+        detail: "Returns the amount of collected plaintext data in bytes.",
+        synopsis: "SSL::payload length",
+        ..SubCommand::DEFAULT
+    },
+];
+
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SSL::payload",
         surface: Some(SpecSurface::IRULES),
-        arity: Arity::at_least(0),
+        arity: Arity::new(0, 4),
         data_collection: Some(SSL_PAYLOAD),
+        default_form_first_word: Some(DefaultFormFirstWord::Integer),
         hover: Some(HoverSnippet {
             summary: "Returns and manipulates plaintext data collected via SSL::collect.",
-            synopsis: &["SSL::payload (length |"],
+            synopsis: &[
+                "SSL::payload ?<offset>? ?<length>?",
+                "SSL::payload replace <offset> <length> <data>",
+                "SSL::payload length",
+            ],
             snippet: "The SSL::payload commands allow you to return and manipulate the data collected via the SSL::collect command. This data is in plaintext format.",
             source: "https://clouddocs.f5.com/api/irules/SSL__payload.html",
             examples: "when CLIENTSSL_HANDSHAKE {\n    log local0. \"[IP::client_addr]:[TCP::client_port]: SSL handshake completed, collecting SSL payload\"\n    SSL::collect\n}",
             return_value: "SSL::payload length Returns the amount of plaintext data collected by the SSL::collect command.",
         }),
         forms: &[FormSpec {
-            synopsis: "SSL::payload (length |",
+            kind: FormKind::Getter,
+            synopsis: "SSL::payload ?<offset>? ?<length>?",
             ..FormSpec::DEFAULT
         }],
+        subcommands: SUBCOMMANDS,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::SslState,
             reads: true,

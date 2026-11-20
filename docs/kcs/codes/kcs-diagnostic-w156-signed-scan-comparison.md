@@ -85,6 +85,10 @@ The F5 rows were measured on BIG-IP 21.1; the registry records each as the
 argument's integer domain (`arg_domains`). Mask the value first, for
 example `[expr {$len & 0xffff}]`.
 
+W156 follows the value through branches and loops, into nested expressions
+and command substitutions, and through procedure code after a call it cannot
+resolve. It does not yet look inside `oo::class` or `itcl` method bodies.
+
 ## How to suppress
 
 Use `# tcl-lsp: disable=W156`, or disable W156 in editor diagnostic settings.

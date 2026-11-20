@@ -328,6 +328,9 @@ fn signed_values_reaching_non_negative_arguments() {
         ("TCP::payload replace $b 1 x", &["$b"]),
         ("TCP::payload replace 0 $len x", &[]),
         ("SSL::collect $len", &["$len"]),
+        ("SSL::payload $b $len", &["$b", "$len"]),
+        ("SSL::payload replace $b 1 x", &["$b"]),
+        ("set n [SSL::payload length]", &[]),
         ("node 10.0.0.1 $len", &["$len"]),
         ("pool p member 10.0.0.1 $len", &["$len"]),
         ("TCP::collect [expr {$len & 0xffff}]", &[]),
@@ -383,4 +386,115 @@ fn interpolated_addresses_report_signed_octets() {
     assert_eq!(spans, ["$a", "$b", "$c", "$d", "$c", "$d"], "{found:?}");
     let quiet = "when CLIENT_DATA {\n  binary scan [TCP::payload] cccc a b c d\n  log local0. \"$a.$b\"\n  log local0. \"v=$a.$b.$c.$d.x\"\n}";
     assert!(w156("f5-irules", quiet).is_empty());
+}
+
+/// In a procedure body, a command after one the module cannot prove stays
+/// an unlowered call, and so do the bodies it holds; W156 reads their
+/// braced expressions as the commands they normally are, across blocks.
+#[test]
+fn unlowered_procedure_code_is_followed() {
+    let rows: &[(&str, usize)] = &[
+        (
+            "proc p {data} { binary scan $data c t\n expr {$t == 200} }",
+            1,
+        ),
+        (
+            "proc p {data} { binary scan $data c t\n set ok [expr {$t == 200}] }",
+            1,
+        ),
+        (
+            "proc p {data} { binary scan $data c t\n while {$t == 200} { break } }",
+            1,
+        ),
+        (
+            "proc p {data} { binary scan $data c t\n puts $t\n if {$t == 200} { return } }",
+            1,
+        ),
+        (
+            "proc p {data} { binary scan $data cc hi lo\n return [expr {($hi << 8) | $lo}] }",
+            2,
+        ),
+        (
+            "proc p {data} { binary scan $data c t\n return [format %02x $t] }",
+            1,
+        ),
+        (
+            "proc p {data} { binary scan $data c t\n if {$data ne {}} { if {$t == 200} { return } } }",
+            1,
+        ),
+        (
+            "proc p {data} { binary scan $data c t\n foreach x {1 2} { if {$t == 200} { return } } }",
+            1,
+        ),
+        (
+            "proc p {data} { binary scan $data c t\n if {$data ne {}} { while {$t > 127} { break } } }",
+            1,
+        ),
+        (
+            "proc p {data} { binary scan $data c t\n upvar 1 t x\n if {$t == 200} { return } }",
+            0,
+        ),
+        (
+            "proc p {data} { binary scan $data c t\n foo\n if {$t == 200} { return } }",
+            0,
+        ),
+        (
+            "proc p {data} { binary scan $data c t\n if {$data ne {}} { set t 0\n if {$t == 200} { return } } }",
+            0,
+        ),
+        (
+            "proc p {data} { binary scan $data c t\n uplevel {incr t}\n if {$t == 200} { return } }",
+            0,
+        ),
+    ];
+    for &(source, expected) in rows {
+        assert_eq!(w156("tcl8.6", source).len(), expected, "{source}");
+    }
+}
+
+#[test]
+fn reads_in_later_blocks_follow_the_dominating_scan() {
+    let rows: &[(&str, usize)] = &[
+        (
+            "set data x\nbinary scan $data c t\nwhile {$t == 200} { break }",
+            1,
+        ),
+        (
+            "set data x\nbinary scan $data c t\nif {$data ne {}} { if {$t == 200} { puts x } }",
+            1,
+        ),
+        (
+            "set data x\nbinary scan $data c t\nwhile {$t == 200} { set t 0 }",
+            0,
+        ),
+    ];
+    for &(source, expected) in rows {
+        assert_eq!(w156("tcl8.6", source).len(), expected, "{source}");
+    }
+}
+
+/// A comparison whose outcome is the same over the whole signed range,
+/// including at its bound: `$b > 127` is never true for a signed byte.
+#[test]
+fn comparisons_at_the_signed_bound_are_constant() {
+    let source =
+        |test: &str| format!("set data x\nbinary scan $data c b\nif {{{test}}} {{ puts x }}");
+    for (test, expected) in [
+        ("$b > 127", Some("false")),
+        ("$b >= 128", Some("false")),
+        ("$b <= 127", Some("true")),
+        ("127 < $b", Some("false")),
+        ("$b > 126", None),
+        ("$b < 0", None),
+        ("$b == -127", None),
+    ] {
+        let found = w156("tcl8.6", &source(test));
+        match expected {
+            None => assert!(found.is_empty(), "{test}: {found:?}"),
+            Some(outcome) => assert!(
+                found.len() == 1 && found[0].message.contains(&format!("always {outcome}")),
+                "{test}: {found:?}"
+            ),
+        }
+    }
 }
