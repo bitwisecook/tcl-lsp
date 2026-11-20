@@ -169,16 +169,7 @@ fn re_escape(s: &str) -> String {
 
 /// Convert a glob pattern to a regex string.
 fn glob_to_regex(pattern: &str) -> String {
-    let mut parts = String::from("^");
-    for ch in pattern.chars() {
-        match ch {
-            '*' => parts.push_str(".*"),
-            '?' => parts.push('.'),
-            other => parts.push_str(&re_escape(&other.to_string())),
-        }
-    }
-    parts.push('$');
-    parts
+    tcl_syntax::glob::glob_to_re(pattern)
 }
 
 /// Strip surrounding double quotes from `text` (only `"…"`; braced strings
@@ -335,7 +326,7 @@ pub(super) fn condition_to_path_match(
         BinOp::MatchesRegex if getter_is_path(left) => {
             expr_string_value(right).map(|v| pair("regex", v))
         }
-        BinOp::MatchesGlob if getter_is_path(left) => {
+        BinOp::Matches | BinOp::MatchesGlob if getter_is_path(left) => {
             expr_string_value(right).map(|v| pair("regex", glob_to_regex(&v)))
         }
         _ => None,

@@ -1005,8 +1005,11 @@ resetting the admin and root passwords for lab access.
   It is case-sensitive and anchored at both ends, so `"abcd" matches "bc"` and
   `"abcd" matches "ab"` are 0. `matches_glob` agrees; `matches_regex` is an unanchored
   regex search. See [bigip-f5-matches-operator-semantics](../../../evidence/tcl/bigip-f5-matches-operator-semantics.md).
-  The analyser's authored evaluator, which uses equality, is wrong for any operand
-  containing `*`, `?` or `[`.
+  The authored evaluator (`F5StringPredicate::Glob`) and the VM already match this
+  table. The F5 XC translator now turns bare `matches` into the same anchored regex
+  as `matches_glob`, through `tcl_syntax::glob::glob_to_re`, which follows
+  `string match` for bracket sets and backslashes
+  ([string-match-bracket-set-edges](../../../evidence/tcl/string-match-bracket-set-edges.md)).
 - **The registry binding powers are right.** `contains`, `starts_with`,
   `ends_with`, `equals`, `matches`, `matches_glob` and `matches_regex` sit at the
   `==` level and are left-associative. They bind tighter than `&` and `&&` and

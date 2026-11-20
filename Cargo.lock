@@ -4902,6 +4902,7 @@ version = "0.1.0"
 dependencies = [
  "bitflags 2.13.2",
  "num-bigint 0.5.1",
+ "regex",
  "tcl-core-types",
  "tcl-dialect",
  "tcl-expr",

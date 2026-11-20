@@ -59,6 +59,7 @@ tcl-lexer = { path = "../tcl-lexer" }
 bitflags = "2"
 
 [dev-dependencies]
+regex = "1"
 tcl-test-support = { path = "../tcl-test-support" }
 
 [lints]

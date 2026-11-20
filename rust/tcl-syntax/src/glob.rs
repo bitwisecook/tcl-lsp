@@ -279,6 +279,75 @@ fn do_match(p: &[char], mut pi: usize, s: &[char], mut si: usize, nocase: bool) 
     }
 }
 
+/// The anchored, dot-all regular expression that matches exactly what the Tcl `string
+/// match` pattern `pattern` matches, case-sensitively: `*` and `?` become
+/// `.*` and `.`, a `[...]` set (ranges in either order, an unterminated set
+/// running to the end) becomes a class, a backslash makes the next character
+/// literal, and every
+/// other character is literal. The F5 `matches` and `matches_glob`
+/// operators measure as this match on BIG-IP 21.1.0.1
+/// (`evidence/tcl/bigip-f5-matches-operator-semantics.md`).
+#[must_use]
+pub fn glob_to_re(pattern: &str) -> String {
+    fn literal(out: &mut String, c: char) {
+        if "\\.+*?()|[]{}^$-".contains(c) {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    let chars: Vec<char> = pattern.chars().collect();
+    let mut out = String::from("(?s)^");
+    let mut i = 0;
+    while i < chars.len() {
+        match chars[i] {
+            '*' => out.push_str(".*"),
+            '?' => out.push('.'),
+            '\\' if i + 1 < chars.len() => {
+                i += 1;
+                literal(&mut out, chars[i]);
+            }
+            '[' => {
+                // `Tcl_StringCaseMatch`: a `]` before any item closes the set,
+                // `-` takes the next character (even `]`) as a range end, a
+                // range missing its end never matches, and an unterminated
+                // set is the pattern's last element.
+                let mut class = String::new();
+                i += 1;
+                while let Some(&start) = chars.get(i).filter(|&&c| c != ']') {
+                    if chars.get(i + 1) == Some(&'-') {
+                        if let Some(&end) = chars.get(i + 2) {
+                            let (from, to) = if start <= end {
+                                (start, end)
+                            } else {
+                                (end, start)
+                            };
+                            literal(&mut class, from);
+                            class.push('-');
+                            literal(&mut class, to);
+                        }
+                        i += 3;
+                    } else {
+                        literal(&mut class, start);
+                        i += 1;
+                    }
+                }
+                if class.is_empty() {
+                    out.push_str("\\b\\B");
+                } else {
+                    out.push('[');
+                    out.push_str(&class);
+                    out.push(']');
+                }
+            }
+            '\\' if i + 1 == chars.len() => out.push_str("\\b\\B"),
+            c => literal(&mut out, c),
+        }
+        i += 1;
+    }
+    out.push('$');
+    out
+}
+
 /// A regular expression as the glob pattern `TclReToGlob` turns it into, with
 /// whether matching it is an exact comparison (both anchors and nothing
 /// else special), or `None` where it is no simple glob: the conversion
@@ -378,6 +447,89 @@ pub fn re_to_glob(re: &[u8]) -> Option<(Vec<u8>, bool)> {
         out.push(b'*');
     }
     Some((out, anchor_left && anchor_right))
+}
+
+#[cfg(test)]
+mod glob_to_re_tests {
+    use super::{glob_to_re, string_match};
+
+    /// The regex agrees with `string match` on every pattern and subject,
+    /// including the BIG-IP `matches` table.
+    #[test]
+    fn regex_agrees_with_string_match() {
+        let patterns = [
+            "a*",
+            "a?c",
+            "[abc]",
+            "a.c",
+            "*",
+            "",
+            "?",
+            "[a-z]*",
+            "[z-a]",
+            "x[0-9]y",
+            "\\*lit",
+            "a\\?b",
+            "[abc",
+            "[]",
+            "a+b",
+            "(a)",
+            "^a$",
+            "a|b",
+            "[.]",
+            "[-]",
+            "[a-]",
+            "*.io",
+            "/api/*/v2",
+            "\\[x\\]",
+            "a\\",
+            "[\\]]",
+            "[]]",
+            "[a-",
+            "[ab-",
+            "x[",
+            "[a-]",
+        ];
+        let subjects = [
+            "abc",
+            "a.c",
+            "axc",
+            "b",
+            "d",
+            "",
+            "abcd",
+            "ABC",
+            "m",
+            "x5y",
+            "*lit",
+            "a?b",
+            "a",
+            "a+b",
+            "(a)",
+            "^a$",
+            "a|b",
+            ".",
+            "-",
+            "www.io",
+            "/api/x/v2",
+            "[x]",
+            "a\\",
+            "]",
+            "a\nc",
+            "\n",
+        ];
+        for pattern in patterns {
+            let re = regex::Regex::new(&glob_to_re(pattern)).unwrap();
+            for subject in subjects {
+                assert_eq!(
+                    re.is_match(subject),
+                    string_match(pattern, subject),
+                    "{pattern:?} on {subject:?} via {}",
+                    glob_to_re(pattern)
+                );
+            }
+        }
+    }
 }
 
 #[cfg(test)]

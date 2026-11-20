@@ -437,3 +437,23 @@ fn json_simple_route_emits_method() {
         .expect("methods array");
     assert_eq!(methods[0], "POST");
 }
+
+/// Bare `matches` is the same anchored, case-sensitive glob as
+/// `matches_glob` on BIG-IP 21.1.0.1, bracket sets included
+/// (`evidence/tcl/bigip-f5-matches-operator-semantics.md`).
+#[test]
+fn bare_matches_path_is_the_glob_regex() {
+    for operator in ["matches", "matches_glob"] {
+        let src = format!(
+            "when HTTP_REQUEST {{\n    if {{[HTTP::path] {operator} {{/v[12]/*.json}}}} {{\n        pool api_pool\n    }}\n}}"
+        );
+        let result = translate_irule(&src);
+        let path = result
+            .routes
+            .iter()
+            .find_map(|route| route.path_match.as_ref())
+            .expect("a route with a path match");
+        assert_eq!(path.match_type, "regex", "{operator}");
+        assert_eq!(path.value, r"(?s)^/v[12]/.*\.json$", "{operator}");
+    }
+}
