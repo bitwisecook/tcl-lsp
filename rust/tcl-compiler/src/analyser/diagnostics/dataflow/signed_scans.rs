@@ -85,18 +85,40 @@ impl Analyser {
                          exit: Option<&ExitVersions>,
                          (block, index, base): (crate::cfg::BlockId, usize, Option<u32>),
                          fallback| {
-            for comparison in comparisons(expr, numbers) {
-                let resolved = view
-                    .read_expression_variable(comparison.variable, base)
+            let used = |symbol: &crate::ssa::Symbol| {
+                fu.ssa
+                    .blocks
+                    .get(&block)
+                    .and_then(|data| data.statements.get(index))
+                    .and_then(|statement| statement.uses.get(symbol).copied())
+            };
+            let resolve = |variable: &ExprNode| {
+                view.read_expression_variable(variable, base)
                     .and_then(|read| {
                         let version = read
                             .version
-                            .or_else(|| exit.and_then(|exit| exit.get(&read.symbol).copied()))?;
+                            .or_else(|| exit.and_then(|exit| exit.get(&read.symbol).copied()))
+                            .or_else(|| used(&read.symbol))?;
                         signed.get(&(read.symbol, version))
-                    });
-                let Some(origin) = resolved.or_else(|| {
-                    straight_line_scan(fu, &unresolved, comparison.variable, block, index)
-                }) else {
+                    })
+                    .or_else(|| straight_line_scan(fu, &unresolved, variable, block, index))
+            };
+            let locate = |variable: &ExprNode| match (base, variable) {
+                (Some(base), ExprNode::Var { start, end, .. }) => {
+                    tcl_lexer::Span::new(base + start, base + end + 1)
+                }
+                _ => fallback,
+            };
+            for (variable, composition) in compositions(expr, numbers) {
+                if let Some(origin) = resolve(variable) {
+                    findings.push((
+                        fu.abs_span(locate(variable)),
+                        composition.message(variable, origin),
+                    ));
+                }
+            }
+            for comparison in comparisons(expr, numbers) {
+                let Some(origin) = resolve(comparison.variable) else {
                     continue;
                 };
                 let Some(message) = message(&comparison, origin) else {
@@ -112,6 +134,12 @@ impl Analyser {
             }
         };
         for_each_expression(fu, self.file_lexer_config(), registry, &mut check);
+        findings.extend(format_consumers(
+            fu,
+            registry,
+            self.file_lexer_config(),
+            (&signed, &unresolved),
+        ));
         findings.sort_by_key(|(span, _)| (span.start(), span.end()));
         findings.dedup();
         for (span, message) in findings {
@@ -307,7 +335,21 @@ fn straight_line_scan<'a>(
     let ExprNode::Var { text, name, .. } = read else {
         return None;
     };
-    if text.as_str() != format!("${name}") || name.contains("::") {
+    if text.as_str() != format!("${name}") {
+        return None;
+    }
+    straight_line_scan_named(fu, unresolved, name, block, index)
+}
+
+/// [`straight_line_scan`] for a plain local name.
+fn straight_line_scan_named<'a>(
+    fu: &crate::compilation_unit::FunctionUnit,
+    unresolved: &'a UnresolvedScans,
+    name: &str,
+    block: crate::cfg::BlockId,
+    index: usize,
+) -> Option<&'a SignedOrigin> {
+    if name.contains(['$', '(', ':', '[', '\\', '{', '"']) {
         return None;
     }
     let statements = &fu.ssa.blocks.get(&block)?.statements;
@@ -586,6 +628,243 @@ fn message(comparison: &Comparison<'_>, origin: &SignedOrigin) -> Option<String>
         None => write!(text, "."),
     };
     Some(text)
+}
+
+/// How an unmasked signed operand corrupts a byte composition.
+#[derive(Clone, Copy)]
+enum Composition {
+    /// The low part of `hi << k | lo`: a negative value sign-extends over
+    /// every bit above it.
+    Low { op: BinOp },
+    /// The shifted high part: a negative value makes the whole result
+    /// negative.
+    High,
+}
+
+impl Composition {
+    fn message(self, variable: &ExprNode, origin: &SignedOrigin) -> String {
+        let ExprNode::Var { text: var, .. } = variable else {
+            return String::new();
+        };
+        let (lo, hi) = origin.range();
+        let mask = format!("0x{:x}", (1u64 << origin.bits) - 1);
+        let effect = match self {
+            Self::Low { op } => {
+                format!("combining it with '{op}' sign-extends a negative value over the high bits")
+            }
+            Self::High => "shifting a negative value keeps the combined result negative".to_owned(),
+        };
+        format!(
+            "{var} holds a signed {}-bit value from `{} … {}` ({lo}..{hi}); {effect}. Mask it first: `({var} & {mask})`.",
+            origin.bits, origin.command, origin.field
+        )
+    }
+}
+
+/// `k` when `node` is `base << k` or `base * 2**k` with a literal `k`.
+fn shifted_base(node: &ExprNode, numbers: tcl_dialect::NumberSyntax) -> Option<&ExprNode> {
+    let ExprNode::Binary { op, left, right } = node else {
+        return None;
+    };
+    let amount = crate::intervals::literal_int(right, numbers)?;
+    match op {
+        BinOp::LShift if amount > 0 => Some(left),
+        BinOp::Mul if amount > 1 && (amount & (amount - 1)) == 0 => Some(left),
+        _ => None,
+    }
+}
+
+/// Plain variables used as parts of a byte composition: `(hi << k) | lo`,
+/// `hi * 256 + lo`, `^` likewise. Measured on Tcl 8.4-9.1 and Jim
+/// (`evidence/tcl/signed-scan-downstream-consumers.md`): with signed bytes
+/// `0xc0 0xff` both give a negative result instead of `49407`.
+fn compositions(
+    expr: &ExprNode,
+    numbers: tcl_dialect::NumberSyntax,
+) -> Vec<(&ExprNode, Composition)> {
+    let mut out = Vec::new();
+    for node in expr.evaluation_nodes() {
+        let ExprNode::Binary { op, left, right } = node else {
+            continue;
+        };
+        if !matches!(op, BinOp::BitOr | BinOp::BitXor | BinOp::Add) {
+            continue;
+        }
+        for (shifted, other) in [(left, right), (right, left)] {
+            let Some(base) = shifted_base(shifted, numbers) else {
+                continue;
+            };
+            if matches!(base, ExprNode::Var { .. }) {
+                out.push((base, Composition::High));
+            }
+            if matches!(other.as_ref(), ExprNode::Var { .. }) {
+                out.push((other.as_ref(), Composition::Low { op: *op }));
+            }
+        }
+    }
+    out
+}
+
+/// What `format` does with a negative value in one conversion.
+fn format_effect(verb: u8, dotted: bool) -> Option<&'static str> {
+    match verb {
+        b'x' | b'X' | b'o' | b'b' => Some(
+            "renders a negative value sign-extended (`format %02x -127` is `ffffffffffffff81`, or `ffffff81` on Tcl 9)",
+        ),
+        b'u' => {
+            Some("renders a negative value as a negative or wrapped number, not the unsigned one")
+        }
+        b'c' => Some("renders a negative value as some other character, not the byte"),
+        b'd' | b'i' if dotted => {
+            Some("builds a dotted address with a negative octet, such as `192.-64.-1.1`")
+        }
+        _ => None,
+    }
+}
+
+/// `$name` arguments of a `format` call whose conversion renders a signed
+/// scan value wrongly: `%x %X %o %b %u %c`, and `%d`/`%i` in a dotted run
+/// such as `%d.%d.%d.%d`. Measured on Tcl 8.4-9.1, Jim and TMM
+/// (`evidence/tcl/signed-scan-downstream-consumers.md`,
+/// `evidence/tcl/bigip-tmm-signed-scan-and-format.md`).
+fn format_consumers(
+    fu: &crate::compilation_unit::FunctionUnit,
+    registry: &tcl_registry::CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    (signed, unresolved): (&HashMap<ValueKey, SignedOrigin>, &UnresolvedScans),
+) -> Vec<(tcl_lexer::Span, String)> {
+    let mut out = Vec::new();
+    for (&block, data) in &fu.ssa.blocks {
+        for (index, statement) in data.statements.iter().enumerate() {
+            let Some(tokens) = statement.statement.tokens() else {
+                continue;
+            };
+            // The statement's own call and every `[…]` call its words hold.
+            let mut calls: Vec<(String, Vec<String>, Vec<tcl_lexer::Span>)> = Vec::new();
+            if let Statement::Call {
+                command,
+                canonical_command,
+                args,
+                ..
+            } = &statement.statement
+            {
+                calls.push((
+                    canonical_command.as_deref().unwrap_or(command).to_owned(),
+                    args.clone(),
+                    tokens.argv.iter().skip(1).copied().collect(),
+                ));
+            }
+            for lifted in crate::word_subst::lifted_calls(Some(tokens), config) {
+                calls.push((lifted.command, lifted.args, lifted.arg_spans));
+            }
+            let read = |span: tcl_lexer::Span, variable: &str| {
+                tokens
+                    .variable_accesses
+                    .iter()
+                    .filter(|access| access.source.span == span)
+                    .find_map(|access| {
+                        let read = fu.ssa.read_reference_at(
+                            block,
+                            index,
+                            &access.source,
+                            &access.original_spelling,
+                        )?;
+                        let version = read
+                            .version
+                            .or_else(|| statement.uses.get(&read.symbol).copied())?;
+                        signed.get(&(read.symbol, version))
+                    })
+                    .or_else(|| straight_line_scan_named(fu, unresolved, variable, block, index))
+            };
+            for (name, args, spans) in &calls {
+                let words: Vec<&str> = args.iter().map(String::as_str).collect();
+                let formats = registry.format_string_args(name, &words);
+                let [format] = formats.as_slice() else {
+                    continue;
+                };
+                if format.scan || format.kind != tcl_registry::patterns::FormatType::Sprintf {
+                    continue;
+                }
+                let Some(template) = words
+                    .get(format.index)
+                    .filter(|t| !t.contains(['$', '[', '\\']))
+                else {
+                    continue;
+                };
+                for (argument, verb, dotted) in format_arguments(template.as_bytes(), format.index)
+                {
+                    let Some(effect) = format_effect(verb, dotted) else {
+                        continue;
+                    };
+                    let (Some(word), Some(&span)) = (words.get(argument), spans.get(argument))
+                    else {
+                        continue;
+                    };
+                    let Some(origin) = word.strip_prefix('$').and_then(|v| read(span, v)) else {
+                        continue;
+                    };
+                    let (lo, hi) = origin.range();
+                    let mask = format!("0x{:x}", (1u64 << origin.bits) - 1);
+                    out.push((
+                        fu.abs_span(span),
+                        format!(
+                            "{word} holds a signed {}-bit value from `{} … {}` ({lo}..{hi}); `format %{}` {effect}. Mask it first: `[expr {{{word} & {mask}}}]`.",
+                            origin.bits,
+                            origin.command,
+                            origin.field,
+                            char::from(verb)
+                        ),
+                    ));
+                }
+            }
+        }
+    }
+    out
+}
+
+/// `(argument index, verb, in a dotted run)` for each value a sequential
+/// `format` template consumes; a positional (`%n$`) template yields nothing.
+fn format_arguments(template: &[u8], format_index: usize) -> Vec<(usize, u8, bool)> {
+    let mut conversions = Vec::new();
+    let mut i = 0;
+    let mut argument = format_index + 1;
+    while i < template.len() {
+        if template[i] != b'%' {
+            i += 1;
+            continue;
+        }
+        let start = i;
+        i += 1;
+        if template.get(i) == Some(&b'%') {
+            i += 1;
+            continue;
+        }
+        let Some(spec) = tcl_syntax::format::parse_spec(template, &mut i) else {
+            return Vec::new();
+        };
+        if spec.arg_index.is_some() {
+            return Vec::new();
+        }
+        argument += usize::from(spec.width_star) + usize::from(spec.precision_star);
+        conversions.push((argument, spec.verb, start, i));
+        argument += 1;
+    }
+    let integer = |verb: u8| matches!(verb, b'd' | b'i' | b'u');
+    (0..conversions.len())
+        .map(|n| {
+            let (argument, verb, start, end) = conversions[n];
+            let joined = |other: Option<&(usize, u8, usize, usize)>, dot: usize| {
+                other.is_some_and(|o| integer(o.1)) && template.get(dot) == Some(&b'.')
+            };
+            let before = n.checked_sub(1).and_then(|p| conversions.get(p));
+            let after = conversions.get(n + 1);
+            let dotted = integer(verb)
+                && (before.is_some_and(|b| b.3 + 1 == start)
+                    && joined(before, start.wrapping_sub(1))
+                    || after.is_some_and(|a| end + 1 == a.2) && joined(after, end));
+            (argument, verb, dotted)
+        })
+        .collect()
 }
 
 #[cfg(test)]

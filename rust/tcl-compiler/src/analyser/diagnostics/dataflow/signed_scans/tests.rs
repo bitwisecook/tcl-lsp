@@ -248,3 +248,68 @@ fn irules_report_the_unsigned_suffix() {
         .collect();
     assert!(codes.contains(&DiagCode::W200), "{codes:?}");
 }
+
+fn located(dialect: &str, source: &str) -> Vec<(String, String)> {
+    w156(dialect, source)
+        .into_iter()
+        .map(|d| (source[d.span.as_range()].to_owned(), d.message))
+        .collect()
+}
+
+/// Byte composition with signed parts, measured in
+/// `evidence/tcl/signed-scan-downstream-consumers.md`.
+#[test]
+fn byte_compositions_report_each_signed_part() {
+    let source = "set data x\nbinary scan $data cc hi lo\nset port [expr {($hi << 8) | $lo}]";
+    let found = located("tcl8.6", source);
+    let spans: Vec<&str> = found.iter().map(|(span, _)| span.as_str()).collect();
+    assert_eq!(spans, ["$hi", "$lo"], "{found:?}");
+    assert!(found[1].1.contains("sign-extends"), "{}", found[1].1);
+    assert!(found[1].1.contains("($lo & 0xff)"), "{}", found[1].1);
+    let sum = located(
+        "tcl8.4",
+        "set data x\nbinary scan $data cc hi lo\nset n [expr {$hi * 256 + $lo}]",
+    );
+    assert_eq!(sum.len(), 2, "{sum:?}");
+    for quiet in [
+        "set data x\nbinary scan $data cc hi lo\nset port [expr {(($hi & 0xff) << 8) | ($lo & 0xff)}]",
+        "set data x\nbinary scan $data cucu hi lo\nset port [expr {($hi << 8) | $lo}]",
+        "set data x\nbinary scan $data cc hi lo\nset n [expr {$hi + $lo}]",
+    ] {
+        assert!(w156("tcl8.6", quiet).is_empty(), "{quiet}");
+    }
+}
+
+#[test]
+fn format_conversions_that_render_a_negative_value_wrongly() {
+    let rows: &[(&str, &[&str])] = &[
+        ("format %02x $b", &["$b"]),
+        ("format %u $b", &["$b"]),
+        ("format %c $b", &["$b"]),
+        ("format %d.%d.%d.%d 192 $b 1 2", &["$b"]),
+        ("format %*x 4 $b", &["$b"]),
+        ("format {%d %d} $b $b", &[]),
+        ("format %02x [expr {$b & 0xff}]", &[]),
+        ("format %d $b", &[]),
+        ("format {%1$x} $b", &[]),
+    ];
+    for &(call, expected) in rows {
+        let source = format!("set data x\nbinary scan $data c b\nset out [{call}]");
+        let spans: Vec<String> = located("tcl8.6", &source)
+            .into_iter()
+            .map(|(span, _)| span)
+            .collect();
+        assert_eq!(spans, expected, "{call}");
+    }
+}
+
+#[test]
+fn irules_consumers_in_event_bodies() {
+    let source = "when CLIENT_DATA {\n  binary scan [TCP::payload] cccc a b c d\n  log local0. [format %d.%d.%d.%d $a $b $c $d]\n  log local0. [format %02x $a]\n}";
+    let found = located("f5-irules", source);
+    assert_eq!(found.len(), 5, "{found:?}");
+    assert!(
+        found.iter().any(|(_, m)| m.contains("IP::addr")),
+        "{found:?}"
+    );
+}
