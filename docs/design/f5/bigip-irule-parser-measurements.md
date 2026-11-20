@@ -1125,7 +1125,7 @@ means usable.
 | --- | --- |
 | TMM `binary scan` vs stock 8.4 | Same signed fields (`c` of `\x81` is -127; `S` of `\x80\x00` is -32768). The table's original probe `\x81\x00\x80 cS` reads `S` from `00 80`, which is 128, not -32768. The `u` flag loads but fails at runtime (`bad field specifier "u"`). `scan ffffffff %x` is -1. **`scan ffffffff %lx` is -1 in TMM but 4294967295 in the host's tclsh 8.4.13 and 8.5.13** ([TMM](../../../evidence/tcl/bigip-tmm-signed-scan-and-format.md), [host control](../../../evidence/tcl/bigip-host-tclsh-signed-scan-and-format.md)) |
 | TMM `format` width | 64-bit, like 8.4 on a 64-bit host: `format %02x -127` is `ffffffffffffff81` and `%u` is `18446744073709551489`. `format %c -127` gives a two-character string in TMM (one in host tclsh). Integers are 64-bit: `1 << 63` is INT64_MIN and `1 << 64` is 1 (shift count taken mod 64) |
-| Lengths and offsets of -1 | `TCP::collect -1`: load warning (JET checker); at runtime CLIENT_DATA fires with all 8 bytes, as with no length. `TCP::release -1`: warning; releases everything (returns 8, payload 0 after). `TCP::payload 0 -1` and `UDP::payload 0 -1`: warning; the whole payload. `TCP::payload -1 4` and `UDP::payload -1 4`: warning; runtime error. `TCP::payload replace -1 1 x`: **refused at load**. `HTTP::collect -1`: warning; no runtime error. `HTTP::payload -1`: warning; runtime `Neither <offset> nor <length> may be negative` ([TCP](../../../evidence/tcl/bigip-tcp-payload-release-negative.md), [collect](../../../evidence/tcl/bigip-tcp-collect-negative.md), [replace](../../../evidence/tcl/bigip-tcp-payload-replace-negative-refused.md), [UDP](../../../evidence/tcl/bigip-udp-payload-negative.md), [HTTP](../../../evidence/tcl/bigip-http-collect-and-payload-negative.md)) |
+| Lengths and offsets of -1 | `TCP::collect -1`: load warning (JET checker); at runtime CLIENT_DATA fires with all 8 bytes, as with no length. `TCP::release -1`: warning; releases everything (returns 8, payload 0 after). `TCP::payload 0 -1` and `UDP::payload 0 -1`: warning; the whole payload. `TCP::payload -1 4` and `UDP::payload -1 4`: warning; runtime error. `TCP::payload replace -1 1 x`: **refused at load**. `HTTP::collect -1`: warning; no runtime error. `HTTP::payload -1`: warning; runtime `Neither <offset> nor <length> may be negative`. `SSL::collect -1`: warning (`out of expected range(0 - 4294967295)`); at runtime `CLIENTSSL_DATA` **never fires**, unlike `TCP::collect -1`. `SSL::payload 0 -1`: the whole payload. `SSL::payload -1 4`: runtime error. `SSL::release -1`: releases everything. `SSL::payload replace -1 1 x`: refused at load ([SSL collect](../../../evidence/tcl/bigip-ssl-collect-negative.md), [SSL payload](../../../evidence/tcl/bigip-ssl-payload-release-negative.md), [SSL replace](../../../evidence/tcl/bigip-ssl-payload-replace-negative.md); [TCP](../../../evidence/tcl/bigip-tcp-payload-release-negative.md), [collect](../../../evidence/tcl/bigip-tcp-collect-negative.md), [replace](../../../evidence/tcl/bigip-tcp-payload-replace-negative-refused.md), [UDP](../../../evidence/tcl/bigip-udp-payload-negative.md), [HTTP](../../../evidence/tcl/bigip-http-collect-and-payload-negative.md)) |
 | `IP::addr` with signed octets | A literal `192.-64.-1.1` is **refused at load** (`expected syntax spec: (IP_ADDR|parse)`) ([evidence](../../../evidence/tcl/bigip-ip-addr-literal-signed-octet-refused.md)). Built at runtime, it raises `bad IP network address format` / `bad IP address format` |
 | Integer data group with a signed key | A group holding 129: `class match -- -127 equals dg` is 0, the masked key matches. **`class match -127 …` without `--` is an error** (`bad option "-127"`); `class lookup -127 dg` returns empty with no error ([evidence](../../../evidence/tcl/bigip-class-match-signed-key.md)) |
 | Counters and ports | `table incr k -32768` from 0 stores and returns **18446744073709518848**: the table is unsigned 64-bit and wraps. `incr k -1` from 5 gives 4. `node 10.0.0.1 -1` (`invalid IP port:-1`) and `pool p member 10.0.0.1 -1` are refused at load ([table](../../../evidence/tcl/bigip-table-incr-negative.md), [ports](../../../evidence/tcl/bigip-node-and-pool-member-negative-port-refused.md)) |
@@ -1135,6 +1135,53 @@ These give W156 measured argument domains. Ports, `IP::addr` octets and the
 are non-negative at runtime, where -1 for a length means "all". `table` values are
 unsigned 64-bit. A negative leading argument to `class match` needs `--`.
 
+### How much data a `*::collect` delivers
+
+[`collect.py`](../../../scripts/dev/bigip-probes/open-questions/collect.py)
+drove `TCP::collect`, `SSL::collect` and `HTTP::collect` with no length, 0, 1,
+4, 100, 1460, 1500, 3000, 65536 (and 1048576 for HTTP), each fired once or
+re-armed after every release. Client write patterns ran from 1 byte to 70,000
+bytes, including back-to-back and gapped writes, against a real backend sink.
+The per-trial results are in
+[`results/21.1-collect-matrix.json`](../../../scripts/dev/bigip-probes/results/21.1-collect-matrix.json).
+
+- **`TCP::collect` (no length), `0` and `1`** fire `CLIENT_DATA` for whatever
+  has arrived: one segment (1448 bytes here), or several if they arrived
+  together (2896, 8688). `TCP::collect 0` loads with a JET warning but behaves
+  like no length.
+- **`TCP::collect N`** is a *minimum*. The event fires once at least N bytes
+  are buffered and delivers everything buffered at that moment, which can be
+  far more than N (`TCP::collect 1` with 10,000 bytes in flight gave 2896;
+  `TCP::collect 65536` with 70,000 gave 69,504). If fewer than N bytes ever
+  arrive, it fires **when the client closes**, with what it has: `TCP::collect 100`
+  with 1 byte held open fired at 5,508 ms, as the client closed at about 5.5 s
+  ([evidence](../../../evidence/tcl/bigip-tcp-collect-short-data-fires-at-close.md)).
+  Re-armed, it fires once more at close with 0 bytes. Three 100-byte writes
+  300 ms apart under `TCP::collect 1460` gave one 300-byte event at close.
+- **`SSL::collect N`** fires once at least N *decrypted* bytes are buffered and
+  delivers whole TLS records (at most 16,384 bytes each; `SSL::collect 65536`
+  with 70,000 bytes gave exactly 65,536). If fewer than N bytes arrive it
+  **never fires**, not even at close, though the data still reaches the server
+  ([evidence](../../../evidence/tcl/bigip-ssl-collect-short-data-never-fires.md)).
+  With no length, it fires per record.
+- **`HTTP::collect N`** fires when the whole body has arrived if its length is
+  under N, and otherwise once at least N body bytes are buffered (`1` with a
+  70,000-byte body gave 2896). A body shorter than its `Content-Length` fires
+  at client close with the partial body. A request with no body never raises
+  `HTTP_REQUEST_DATA` and goes straight to the server. With a chunked body,
+  `HTTP::payload` holds the **raw chunk framing** (106 bytes for one 100-byte
+  chunk). A length above the body waits for the terminating chunk (217 bytes)
+  ([evidence](../../../evidence/tcl/bigip-http-collect-length-and-short-body.md)).
+- **`HTTP::collect` with no length never fires `HTTP_REQUEST_DATA` by itself**,
+  even with the complete body present. The connection stays in TMM's table
+  after the client has gone, until idle timeout, exactly as F5's description
+  warns ([evidence](../../../evidence/tcl/bigip-http-collect-without-length-stalls.md)).
+- Re-arming inside `HTTP_REQUEST_DATA` with `HTTP::collect 0` or
+  `HTTP::collect 1048576` raised a runtime `ERR_ARG` (TCL error in the log).
+  Other re-arm lengths were not checked for this.
+- In every fire-once TCP and SSL run, all data after the first release reached
+  the server; nothing was lost by not re-arming.
+
 ## 13. Still open
 
 - **Other BIG-IP releases.** Everything here is 21.1.0.1 build 0.0.26. The
@@ -1142,6 +1189,10 @@ unsigned 64-bit. A negative leading argument to `class match` needs `--`.
   diff of the checker possible; behaviour still needs a run per release.
 - **APL presentation and its Tcl callbacks** remain unmeasured as separate
   contexts.
+- **Server-side collection** (`TCP::collect` in `SERVER_CONNECTED`,
+  `SERVERSSL_DATA`, `HTTP_RESPONSE_DATA`), `TCP::collect`'s `<skip_bytes>`
+  argument, and collect behaviour under client-side TCP options other than
+  `TCP_NODELAY` were not exercised.
 - **E4 provenance for §5–§9.** The new probes check absence first, clean up, and
   attach only to dedicated virtual servers. They do not use the full E4 driver
   (`lib/e4-context-probe.sh`), so they carry the same non-E4 qualification as

@@ -226,6 +226,32 @@ case(id="sgudp", slug="bigip-udp-payload-negative",
            ])
            + "UDP::drop\n}\n"))
 
+case(id="sslcollect", slug="bigip-ssl-collect-negative",
+     title="`SSL::collect -1`",
+     question="""On a client-SSL virtual server, what does `SSL::collect -1` in `CLIENTSSL_HANDSHAKE` do at load and at runtime: does `CLIENTSSL_DATA` fire, and with how many decrypted bytes, when the client sends 8 bytes?""",
+     ssl=True,
+     body=("when CLIENTSSL_HANDSHAKE {\nset c [catch {SSL::collect -1} v]\n" + L("sslcollect", "CLIENTSSL_HANDSHAKE", "$c", "$v") + "\n}\n"
+           "when CLIENTSSL_DATA {\n" + L("sslcollect", "CLIENTSSL_DATA", "[SSL::payload length]") + "\nSSL::respond \"seen\\n\"\nSSL::release\n}\n"))
+
+case(id="sslpayload", slug="bigip-ssl-payload-release-negative",
+     title="`SSL::payload` offsets and lengths and `SSL::release` with -1",
+     question="""With 8 collected decrypted bytes on a client-SSL virtual server, what do `SSL::payload -1 4`, `SSL::payload 0 -1` and `SSL::release -1` do at load and at runtime, compared with `SSL::payload 0 4`?""",
+     ssl=True,
+     body=("when CLIENTSSL_HANDSHAKE {\nSSL::collect 8\n}\n"
+           "when CLIENTSSL_DATA {\n"
+           + "".join(f"set c [catch {{{s}}} v]\n{L('sslpayload', lbl, '$c', '$v')}\n" for lbl, s in [
+               ("ctl_0_4", "string length [SSL::payload 0 4]"),
+               ("off_neg", "string length [SSL::payload -1 4]"),
+               ("len_neg", "string length [SSL::payload 0 -1]"),
+               ("release_neg", "SSL::release -1"),
+           ])
+           + L("sslpayload", "after_release", "[SSL::payload length]") + "\nSSL::respond \"done\\n\"\n}\n"))
+
+case(id="sslreplace", slug="bigip-ssl-payload-replace-negative",
+     title="`SSL::payload replace` with a negative offset at rule load",
+     question="""Does the rule loader accept `SSL::payload replace -1 1 x`, as it refuses the `TCP::payload` equivalent?""",
+     body="when CLIENTSSL_DATA {\nSSL::payload replace -1 1 x\n}\n")
+
 # ------------------------------------------------------- RULE_INIT flow
 case(id="riflow", slug="bigip-rule-init-flow-commands-runtime",
      title="Flow commands executed in `RULE_INIT`",
@@ -304,6 +330,15 @@ def gen(outdir):
         elif c.get("tcp"):
             conf += virtual(cid, port, "tcp { }")
             traffic = f"printf abcdefgh | nc -w 5 {VIP} {port}; echo \" exit=$?\"\n"
+        elif c.get("ssl"):
+            # the default clientssl profile carries the appliance's self-signed
+            # certificate; the test client does not verify it
+            conf += virtual(cid, port, "tcp { } clientssl { context clientside }")
+            traffic = (f"python3 -I -c 'import socket,ssl;c=ssl.create_default_context();c.check_hostname=False;"
+                       f"c.verify_mode=ssl.CERT_NONE;s=c.wrap_socket(socket.create_connection((\"{VIP}\",{port}),5));"
+                       f"s.settimeout(4);s.sendall(b\"abcdefgh\");d=b\"\"\n"
+                       f"try:\n while True:\n  b=s.recv(100)\n  if not b: break\n  d+=b\nexcept Exception as e: print(type(e).__name__, end=\" \")\n"
+                       f"print(s.version(), d)'\n")
         elif c.get("udp"):
             conf += virtual(cid, port, "udp { }", proto="udp")
             traffic = f"printf abcdefgh | nc -u -w 1 {VIP} {port}; echo \" exit=$?\"\n"
@@ -332,12 +367,14 @@ def render(drive_out, evdir):
     for c in CASES:
         cid = c["id"]
         recs = by.get(cid, [])
+        if not recs:
+            continue  # not in this run; leave any existing evidence file alone
         verdict = next((v for k, v in recs if k == "RESULT"), "not recorded")
         status, _, msg = verdict.partition("~~")
         logs = [v for k, v in recs if k == "LOG"]
         traffic = [v for k, v in recs if k == "TRAFFIC"]
         loader_msg = msg.strip() or "(none)"
-        channel = ("`RULE_INIT`, run by every TMM when the rule loads" if "RULE_INIT" in c["body"] and not (c.get("http") or c.get("tcp") or c.get("udp"))
+        channel = ("`RULE_INIT`, run by every TMM when the rule loads" if "RULE_INIT" in c["body"] and not (c.get("http") or c.get("tcp") or c.get("udp") or c.get("ssl"))
                    else "a request through a dedicated virtual server (SNAT automap) sent from a host on the same LAN")
         lines = [f"# {c['title']}", "", "## Question", "", textwrap.fill(c["question"], 10000), "",
                  "## Assumptions", "",
@@ -363,7 +400,7 @@ def render(drive_out, evdir):
                   "`LOAD` is the loader verdict (`ACCEPT`, `WARN` = loaded with warnings, `REJECT` = refused) and its message. "
                   "`LOG <n>x <label>|<catch code>|<result>` is one tagged log line with its `TCLLSP_OQ|<case>|` prefix removed; `TRAFFIC` is the client's own output.", ""]
         (pathlib.Path(evdir) / f"{c['slug']}.md").write_text("\n".join(lines))
-    print("rendered", len(CASES))
+    print("rendered", sum(1 for c in CASES if by.get(c["id"])))
 
 
 if __name__ == "__main__":
