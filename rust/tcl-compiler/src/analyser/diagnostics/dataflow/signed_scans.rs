@@ -445,7 +445,10 @@ fn scanned_fields(
                             &template[field.percent.start..field.size.start],
                             &template[field.conversion.clone()]
                         );
-                        (32, written.to_owned(), Some(wide))
+                        let full_width =
+                            tcl_syntax::scan::ScanConversion::long_size_reads_full_width(profile)
+                                && field.spec.size != Some(tcl_syntax::scan::SizeModifier::Long);
+                        (32, written.to_owned(), full_width.then_some(wide))
                     })
                 })
                 .collect()

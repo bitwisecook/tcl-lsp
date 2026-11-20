@@ -28,6 +28,7 @@ Some releases also truncate `scan` integer conversions to signed 32 bits:
 | `binary scan … i`, `I`, `n` | `-2147483648..2147483647` | every release and Jim |
 | `scan … %d %i %o %x` (no `l`) | `-2147483648..2147483647` | Tcl 8.4, 9.0, 9.1 |
 | `scan … %u` (no `l`) | `-2147483648..2147483647` | Tcl 8.4 |
+| `scan … %lx` | `-2147483648..2147483647` | iRules (TMM on BIG-IP 21.1; stock 8.4 reads it at full width) |
 
 A byte `0x81` is stored as `-127`, so comparing it with `0x81` (129) is always
 false, `!= 0x81` always true, and `> 127` never holds. Tcl 8.5, 8.6 and Jim
@@ -57,7 +58,8 @@ when CLIENT_DATA {
 The message offers what the dialect supports:
 
 - Read it unsigned (Tcl 8.5+ and Jim): `binary scan $data cu type`; for
-  `scan`, add the `l` size: `scan $text %lx id`.
+  `scan`, add the `l` size: `scan $text %lx id`. Neither works in an iRule:
+  TMM loads `cu` but fails at run time (W200), and truncates `%lx` too.
 - Mask it: `if {($type & 0xff) == 0x81}`.
 - Compare with the signed value: `if {$type == -127}`.
 
@@ -78,4 +80,6 @@ Use `# tcl-lsp: disable=W156`, or disable W156 in editor diagnostic settings.
 - [Execution evidence: signed bytes, masking and precedence](../../../evidence/tcl/binary-scan-signed-byte-comparison.md)
 - [Execution evidence: scan and binary scan signedness by release](../../../evidence/tcl/scan-integer-signedness.md)
 - [Execution evidence: downstream consumers of a signed value](../../../evidence/tcl/signed-scan-downstream-consumers.md)
+- [BIG-IP evidence: TMM `binary scan`, `scan` and `format`](../../../evidence/tcl/bigip-tmm-signed-scan-and-format.md)
+- [BIG-IP measurements: signed integers reaching F5 commands](../../design/f5/bigip-irule-parser-measurements.md#signed-integers-reaching-f5-commands)
 - [Diagnostics feature](../features/kcs-feature-diagnostics.md)

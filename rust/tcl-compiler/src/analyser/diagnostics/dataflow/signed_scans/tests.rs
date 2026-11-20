@@ -196,3 +196,55 @@ fn straight_line_procedure_reads_follow_the_scan() {
         assert_eq!(w156("tcl8.6", source).len(), expected, "{source}");
     }
 }
+
+/// TMM truncates `%lx` as well as `%x`, where stock 8.4 reads `%lx` at full
+/// width (`evidence/tcl/bigip-tmm-signed-scan-and-format.md`), so an iRule
+/// is told to mask and never to add an `l` size.
+#[test]
+fn irules_follow_tmm_scan_truncation() {
+    let wrap = |format: &str| {
+        format!(
+            "when HTTP_REQUEST {{ scan [HTTP::header value X-Id] {format} id\n if {{$id == 0xffffffff}} {{ log local0. max }} }}"
+        )
+    };
+    for format in ["%x", "%lx"] {
+        let found = w156("f5-irules", &wrap(format));
+        let [diagnostic] = found.as_slice() else {
+            panic!("{format}: {found:?}");
+        };
+        assert!(
+            diagnostic
+                .message
+                .contains("Mask it as `($id & 0xffffffff) == 0xffffffff`"),
+            "{format}: {}",
+            diagnostic.message
+        );
+        assert!(
+            !diagnostic.message.contains("full width"),
+            "{}",
+            diagnostic.message
+        );
+    }
+    assert!(w156("f5-irules", &wrap("%ld")).is_empty());
+    assert!(
+        w156(
+            "tcl8.4",
+            "set text x\nscan $text %lx id\nif {$id == 0xffffffff} { puts max }"
+        )
+        .is_empty()
+    );
+}
+
+/// TMM loads `binary scan … cu` and then fails at run time; the `u`-suffix
+/// version gate already reports it in an iRule.
+#[test]
+fn irules_report_the_unsigned_suffix() {
+    let source = "when CLIENT_DATA { binary scan [TCP::payload] cu type\n if {$type == 0x81} { log local0. hit } }";
+    let codes: Vec<_> = Analyser::new()
+        .analyse(source, "f5-irules")
+        .diagnostics
+        .into_iter()
+        .map(|d| d.code)
+        .collect();
+    assert!(codes.contains(&DiagCode::W200), "{codes:?}");
+}

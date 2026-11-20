@@ -34,8 +34,11 @@ convention and are a common source of bugs:
 | `-2 ** 2` | `(-2) ** 2`, which is `4` |
 
 Every Tcl release from 8.4 to 9.1 and Jim group these the same way. The
-iRules word operators (`contains`, `starts_with`, `equals`, `and`, `or`,
-`not`, …) take part at their own precedence. Every expression is checked:
+iRules word operators take part too: on BIG-IP 21.1 `contains`,
+`starts_with`, `ends_with`, `equals` and the `matches` family bind at the
+`==` level and group left to right, and `and`, `or` and `not` bind like `&&`,
+`||` and `!` ([word operators](../../../evidence/tcl/bigip-f5-word-operator-binding-power.md),
+[`and`/`or`/`not`](../../../evidence/tcl/bigip-f5-and-or-not-binding-power.md)). Every expression is checked:
 `expr`, `if`/`elseif`, `while` and `for` conditions, nested `[expr …]`,
 math-function arguments, procedure, method and `when` bodies, and literal
 expressions written across several words or in quotes.

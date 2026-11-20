@@ -117,13 +117,23 @@ impl ScanConversion {
     /// value. Measured on tclsh 8.4.20-9.1.0 and Jim 0.84
     /// (`evidence/tcl/scan-integer-signedness.md`): `scan ffffffff %x v`
     /// stores `-1` on 8.4, 9.0 and 9.1 and `4294967295` elsewhere.
+    ///
+    /// iRules run in TMM, whose `scan` also truncates `%lx`: `scan ffffffff
+    /// %lx v` stores `-1` on BIG-IP 21.1.0.1, where the host's stock tclsh
+    /// 8.4.13 stores `4294967295`
+    /// (`evidence/tcl/bigip-tmm-signed-scan-and-format.md`). Other `l`-sized
+    /// conversions are unmeasured in TMM and are not claimed.
     #[must_use]
     pub fn truncates_to_int32(&self, profile: &tcl_dialect::DialectProfile) -> bool {
         use tcl_dialect::{TclVersion, model::Family};
-        if !self.assigns()
-            || self.size.is_some_and(SizeModifier::is_wide)
-            || profile.runtime_core_family() == Some(Family::Jim)
-        {
+        if !self.assigns() || profile.runtime_core_family() == Some(Family::Jim) {
+            return false;
+        }
+        let long = self.size == Some(SizeModifier::Long);
+        if profile.is_irules() && long {
+            return self.verb == 'x';
+        }
+        if self.size.is_some_and(SizeModifier::is_wide) {
             return false;
         }
         match profile.runtime_version() {
@@ -133,6 +143,14 @@ impl ScanConversion {
             }
             _ => false,
         }
+    }
+
+    /// Whether an `l` size makes this dialect's `scan` store an integer
+    /// conversion at full width, so `%lx` is a fix for a truncated `%x`.
+    /// TMM truncates `%lx` as well, so iRules have no such spelling.
+    #[must_use]
+    pub fn long_size_reads_full_width(profile: &tcl_dialect::DialectProfile) -> bool {
+        !profile.is_irules()
     }
 }
 
