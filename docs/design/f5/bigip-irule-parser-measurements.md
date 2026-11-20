@@ -1181,9 +1181,46 @@ The per-trial results are in
   warns ([evidence](../../../evidence/tcl/bigip-http-collect-without-length-stalls.md)).
 - Re-arming inside `HTTP_REQUEST_DATA` with `HTTP::collect 0` or
   `HTTP::collect 1048576` raised a runtime `ERR_ARG` (TCL error in the log).
-  Other re-arm lengths were not checked for this.
+  On the server side, every re-arm length did; see below.
 - In every fire-once TCP and SSL run, all data after the first release reached
   the server; nothing was lost by not re-arming.
+
+#### Server side
+
+[`collect_server.py`](../../../scripts/dev/bigip-probes/open-questions/collect_server.py)
+repeated the matrix with the *server* sending the data. A scripted backend on
+the driver host replayed each write pattern, held the connection open, then
+closed it. `TCP::collect` ran in `SERVER_CONNECTED` firing `SERVER_DATA`;
+`SSL::collect` in `SERVERSSL_HANDSHAKE` (default `serverssl`) firing
+`SERVERSSL_DATA`; `HTTP::collect` in `HTTP_RESPONSE` firing `HTTP_RESPONSE_DATA`.
+Results: [`results/21.1-server-collect-matrix.json`](../../../scripts/dev/bigip-probes/results/21.1-server-collect-matrix.json).
+
+- **The server side behaves like the client side.** `TCP::collect N` fires
+  once N bytes are buffered, with everything buffered, and at the **server's**
+  close when fewer arrive. Short data is held until then: 1 byte under
+  `TCP::collect 4` reached the client only at 1,026 ms, when the server closed
+  ([evidence](../../../evidence/tcl/bigip-server-tcp-collect-delivery.md)).
+  Bare `TCP::collect` fires per arrival; re-armed sized collects fire once more
+  with 0 bytes at close; bare re-armed ones do not.
+- **`SSL::collect N` short of N never fires `SERVERSSL_DATA`.** The data is
+  still delivered to the client, but only when the server closes. Otherwise it
+  delivers whole records (65,536 of 70,000 under `SSL::collect 65536`)
+  ([evidence](../../../evidence/tcl/bigip-server-ssl-collect-delivery.md)).
+- **`HTTP::collect N` on a response** fires at the end of a body shorter than N.
+  It fires at server close for a body short of its `Content-Length`, and also
+  for a **close-delimited** body (no `Content-Length`) when N exceeds it.
+  Otherwise it fires once N bytes are buffered. A response with no body skips
+  the event; a chunked body exposes the raw chunk framing
+  ([evidence](../../../evidence/tcl/bigip-server-http-collect-delivery.md)).
+- **Bare `HTTP::collect` in `HTTP_RESPONSE` stalls the response.** The client
+  received nothing, and `SERVER_CLOSED` came only about 68 s later.
+- **Re-arming `HTTP::collect` after `HTTP::release` in `HTTP_RESPONSE_DATA` is
+  a runtime `ERR_ARG` at every length tried (0 to 1048576).** The connection
+  is reset, and the client gets a **truncated response**: the headers plus the
+  first collected chunk, such as 13,032 of 70,000 body bytes
+  ([evidence](../../../evidence/tcl/bigip-server-http-collect-rearm-after-release.md)).
+  That is a concrete lint target: `HTTP::collect` after `HTTP::release` in the
+  same `HTTP_*_DATA` event.
 
 ## 13. Still open
 
@@ -1192,10 +1229,8 @@ The per-trial results are in
   diff of the checker possible; behaviour still needs a run per release.
 - **APL presentation and its Tcl callbacks** remain unmeasured as separate
   contexts.
-- **Server-side collection** (`TCP::collect` in `SERVER_CONNECTED`,
-  `SERVERSSL_DATA`, `HTTP_RESPONSE_DATA`), `TCP::collect`'s `<skip_bytes>`
-  argument, and collect behaviour under client-side TCP options other than
-  `TCP_NODELAY` were not exercised.
+- `TCP::collect`'s `<skip_bytes>` argument, and collect behaviour with peers
+  that do not set `TCP_NODELAY`, were not exercised.
 - **E4 provenance for §5–§9.** The new probes check absence first, clean up, and
   attach only to dedicated virtual servers. They do not use the full E4 driver
   (`lib/e4-context-probe.sh`), so they carry the same non-E4 qualification as
