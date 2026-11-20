@@ -24,3 +24,5 @@ The owner paused this worker before implementation of the CI driver follow-up. N
 | Manifest, virtual environment and fish | Selected word/list readers, quoted library paths, script writer and host fish activation corrections were committed. The merge and public controls are in the area history. |
 
 The area hashes for the latest query, F5 source comparison, report and Studio changes were `71d7fbb2`, `88b9367d`, `1c4c527e`, `84ce545d` and `91dcc4b2`. The local logs in this handoff cover individual entry points. The official six-oracle package baselines and combined gate status are maintained separately in the scrub README and coordinator handoff.
+
+The [signed scan and precedence handover](../signed-scan-precedence.md) covers registry `arg_domains`, SpecTcl vocabulary 2.3, the `f5-xc` `matches` fix and their baseline failures.

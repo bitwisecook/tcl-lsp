@@ -1,0 +1,13 @@
+f5-xc::diagnostics::tests::emitted_codes_are_catalogued
+f5-xc::differential::rust_translator_matches_golden_fixture
+f5-xc::model::event_shaped_procedure_names_do_not_select_response_event_semantics
+f5-xc::model::switch_exact_path_with_star_is_literal
+f5-xc::model::switch_fallthrough_into_default_routes_pattern_and_catch_all
+f5-xc::model::switch_fallthrough_arm_routes_all_patterns
+f5-xc::model::switch_glob_host_is_regex
+f5-xc::model::switch_regexp_path_is_regex_not_prefix
+f5-xc::model::switch_nocase_glob_host_is_case_insensitive_regex
+f5-xc::model::switch_path_glob_yields_prefix_matches
+tcl-spec-studio::versions::an_option_that_appears_later_gets_its_own_introduction
+tcl-spec-studio::spectcl_roundtrip
+tcl-mcp::review_reports_the_compiler_check_families

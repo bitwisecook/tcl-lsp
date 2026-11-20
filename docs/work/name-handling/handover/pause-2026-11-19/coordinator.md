@@ -15,6 +15,8 @@ Read [current rulings and scoreboard](../../current-state.md), [scrub method and
 | lsp_features | [LSP features](lsp-features.md), [server, E2E and DB](server-e2e-db.md), [analysis-performance](analysis-performance.md) |
 | irules_registry_tooling | [iRules, registry and tooling](irules-registry-tooling.md) |
 
+The [signed scan and precedence handover](../signed-scan-precedence.md) records the 20 November W154–W156 work, its baseline failures on `3dcd870a` and the methods-versus-procedures review.
+
 Use a fresh `origin/work` on branch `work`. Reuse an available replacement worker or create a new subagent for its area. Area workers write the implementations. The coordinator rules on cross-area questions, records decisions immediately, points affected workers to the file, keeps the scoreboard and integrates work. Keep the original issue sessions paused. Open a PR only upon an explicit owner request.
 
 ## Measurements and next work
