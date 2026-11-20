@@ -92,6 +92,7 @@ pub(in super::super) fn load_refinement(
             || !args.closed.is_empty()
             || !args.presentation.is_empty()
             || !args.prefixes.is_empty()
+            || !args.domains.is_empty()
         {
             log.say(
                 line,

@@ -301,6 +301,15 @@ pub(super) fn presentation_map(entries: &[(u8, ArgPresentation)]) -> Value {
     )
 }
 
+pub(super) fn domain_map(entries: &[(u8, IntegerDomain)]) -> Value {
+    Value::Array(
+        entries
+            .iter()
+            .map(|(i, d)| json!({ "index": i, "domain": integer_domain(Some(*d)) }))
+            .collect(),
+    )
+}
+
 pub(super) fn prefix_map(entries: &[(u8, AppendedArity)]) -> Value {
     Value::Array(
         entries

@@ -996,6 +996,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // classification.
         byte_array_effect: ByteArrayEffect::Coerces,
         arity: Arity::exact(2),
+        // A negative count returns the empty string on Tcl 8.4-9.1 and Jim
+        // (`evidence/tcl/signed-scan-downstream-consumers.md`).
+        arg_domains: &[(1, IntegerDomain::Range(0, i64::MAX))],
         detail: "Repeat string N times.",
         synopsis: "string repeat string count",
         successful_handler: Some(

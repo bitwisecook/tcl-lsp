@@ -48,7 +48,7 @@ use field_values::dialect_constant;
 pub(crate) use field_values::dialect_set;
 use field_values::{
     arg_type_map_expr, arg_value_map_expr, arity_expr, body_interpreter_expr,
-    callback_taint_map_expr, enum_slice, flag_union, index_slice, prefix_map_expr,
+    callback_taint_map_expr, domain_map_expr, enum_slice, flag_union, index_slice, prefix_map_expr,
     presentation_map_expr, role_map_expr, variable_receivers_expr,
 };
 pub(crate) use options_and_forms::knowledge_expr;
@@ -297,6 +297,7 @@ fn field_expr(field: &FieldSchema, value: &Value, default: &Value, indent: &str)
         FieldKind::PrefixMap => prefix_map_expr(as_array(value)),
         FieldKind::CallbackTaintMap => callback_taint_map_expr(as_array(value)),
         FieldKind::PresentationMap => presentation_map_expr(as_array(value)),
+        FieldKind::DomainMap => domain_map_expr(as_array(value)),
         FieldKind::ArgTypeMap => arg_type_map_expr(as_array(value), indent),
         FieldKind::ArgValueMap => arg_value_map_expr(as_array(value), indent),
         FieldKind::Options => "OPTIONS".to_owned(),

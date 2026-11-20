@@ -52,6 +52,8 @@ pub const fn spec() -> CommandSpec {
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
         }]),
+        // A negative length loads with a warning and collects as if none were given (BIG-IP 21.1.0.1, `evidence/tcl/bigip-tcp-collect-negative.md`).
+        arg_domains: &[(0, IntegerDomain::Range(0, i64::MAX))],
         ..CommandSpec::DEFAULT
     }
 }

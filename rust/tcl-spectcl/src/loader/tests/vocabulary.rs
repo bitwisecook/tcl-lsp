@@ -20,7 +20,7 @@
 
 use super::*;
 
-/// `1`, `1.0`, `1.1`, `1.2`, `2.0`, `2.1` and `2.2` are all known; an
+/// `1`, `1.0`, `1.1`, `1.2`, `2.0`, `2.1`, `2.2` and `2.3` are all known; an
 /// unknown *minor* loads with a notice rather than being refused.
 #[test]
 fn the_speclib_version_word_names_a_vocabulary_this_loader_knows() {
@@ -43,7 +43,7 @@ fn the_speclib_version_word_names_a_vocabulary_this_loader_knows() {
             .map(|notice| notice.message.as_str())
             .collect::<Vec<_>>(),
         vec![
-            "pack declares SpecTcl vocabulary 2.9; this loader knows 2.2 — \
+            "pack declares SpecTcl vocabulary 2.9; this loader knows 2.3 — \
                  newer words may be dropped"
         ]
     );
@@ -60,7 +60,7 @@ fn the_speclib_version_word_names_a_vocabulary_this_loader_knows() {
             .collect::<Vec<_>>(),
         vec![
             "`0.15` is not a SpecTcl vocabulary version (this loader knows \
-                 2.2); if it is the library's own version, it belongs in \
+                 2.3); if it is the library's own version, it belongs in \
                  `introduced_version`, not the `speclib` slot"
         ]
     );

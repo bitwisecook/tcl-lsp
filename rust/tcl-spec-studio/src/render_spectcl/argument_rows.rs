@@ -117,7 +117,7 @@ pub(super) fn arity_window_rows(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
     }
 }
 
-/// The per-argument rows: six schema keys, one statement per index.
+/// The per-argument rows: seven schema keys, one statement per index.
 ///
 /// Indices are visited in the order the tables themselves list them — roles
 /// first, then the tables that only ever accompany them — so a spec that
@@ -130,6 +130,7 @@ pub(super) fn arg_row_statements(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft
     let values = table("arg_values");
     let presentation = table("arg_presentation");
     let prefixes = table("command_prefixes");
+    let domains = table("arg_domains");
     let closed: Vec<u64> = as_array(draft.get("closed_value_args").unwrap_or(&Value::Null))
         .iter()
         .filter_map(Value::as_u64)
@@ -149,6 +150,7 @@ pub(super) fn arg_row_statements(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft
         .chain(&values)
         .chain(&presentation)
         .chain(&prefixes)
+        .chain(&domains)
     {
         note(entry["index"].as_u64(), &mut order);
     }
@@ -224,6 +226,12 @@ pub(super) fn arg_row_statements(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft
         if let Some(entry) = at(&prefixes, index) {
             row.push("-appends".to_owned());
             row.push(appended_arity_word(&entry["arity"]));
+        }
+        if let Some(word) = at(&domains, index)
+            .and_then(|entry| super::option_rows::integer_domain_word(&entry["domain"]))
+        {
+            row.push("-domain".to_owned());
+            row.push(word);
         }
         emit_row(out, "arg_values", &row, lost, "-detail");
     }

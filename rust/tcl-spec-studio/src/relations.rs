@@ -59,6 +59,7 @@ pub const CLUSTERS: &[Cluster] = &[
             "arg_role_resolver_roles",
             "repeated_args",
             "arg_presentation",
+            "arg_domains",
             "assigns_variable_at",
             "arg_types",
             "arg_role_count_resolver",

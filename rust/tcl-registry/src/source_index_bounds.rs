@@ -63,6 +63,33 @@ impl SourceIndexBounds {
         }
     }
 
+    /// The relationship a call has: the one its command or subcommand
+    /// declares, else the one its semantic operation implies.
+    #[must_use]
+    pub const fn selected(
+        declared: Option<Self>,
+        operation: crate::SemanticOperationId,
+    ) -> Option<Self> {
+        match declared {
+            Some(declared) => Some(declared),
+            None => Self::from_operation(operation),
+        }
+    }
+
+    /// Which of `count` post-selector operands are indices: every operand
+    /// after the list for `lindex`, the first and last of a range or
+    /// replacement, the one index of `string index` / `string insert`.
+    #[must_use]
+    pub fn index_operands(self, count: usize) -> std::ops::Range<usize> {
+        match self {
+            Self::ListIndex => 1..count,
+            Self::ListRange | Self::ListReplace | Self::StringRange | Self::StringReplace => {
+                1..count.min(3)
+            }
+            Self::StringIndex | Self::StringInsert => 1..count.min(2),
+        }
+    }
+
     pub(crate) const fn from_operation(operation: crate::SemanticOperationId) -> Option<Self> {
         use crate::{IntrinsicId as I, SemanticOperationId as O};
         match operation {

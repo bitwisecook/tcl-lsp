@@ -214,6 +214,7 @@ pub(super) fn command_from_parts(
         spec.arg_values = leak_slice(args.values);
         spec.closed_value_args = leak_slice(args.closed);
         spec.arg_presentation = leak_slice(args.presentation);
+        spec.arg_domains = leak_slice(args.domains);
         spec.command_prefixes = leak_slice(args.prefixes);
         spec.callback_taint_inputs = leak_slice(callback_taint_inputs);
         spec.arity_windows = checked_arity_windows(acc.arity_windows, "command", line, log);

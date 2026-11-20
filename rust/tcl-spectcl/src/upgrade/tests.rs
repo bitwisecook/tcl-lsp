@@ -44,7 +44,7 @@ fn dialects_rows_translate_and_nothing_else_moves() {
     assert_eq!(
         outcome.source,
         "# a comment the rewriter must not touch\n\
-             speclib probe 2.2 {\n\
+             speclib probe 2.3 {\n\
              \x20   command demo {\n\
              \x20       arity 1..\n\
              \x20       available {tcl 8.6-} {f5-irules}\n\
@@ -110,7 +110,7 @@ fn restyle_emits_canonical_form_that_loads_to_the_same_snapshot() {
              }\n\
              \n\
              }\n"
-        .replace("probe 1.1", "probe 2.2")
+        .replace("probe 1.1", "probe 2.3")
     );
     assert!(
         restyled.above_target.is_empty(),
@@ -149,7 +149,7 @@ fn restyle_emits_canonical_form_that_loads_to_the_same_snapshot() {
 /// translated either — the whole file is refused, byte-identical.
 #[test]
 fn restyle_refuses_a_programmed_pack() {
-    let source = "speclib probe 2.2 {\n\
+    let source = "speclib probe 2.3 {\n\
                       set version 1.0\n\
                       foreach name {alpha beta} {\n\
                       \x20   command $name { arity 0 }\n\
@@ -185,15 +185,15 @@ fn restyle_refuses_a_programmed_pack() {
 #[test]
 fn restyle_refuses_a_computed_word_at_any_depth() {
     let programmed = [
-        "speclib probe 2.2 {\n command demo [list arity 1]\n}\n",
-        "speclib probe 2.2 {\n\
+        "speclib probe 2.3 {\n command demo [list arity 1]\n}\n",
+        "speclib probe 2.3 {\n\
              set flag -nocase\n\
              command demo {\n\
              \x20   arity 1\n\
              \x20   option $flag -takes none\n\
              }\n\
              }\n",
-        "speclib probe 2.2 {\n\
+        "speclib probe 2.3 {\n\
              command demo {\n\
              \x20   arity 1\n\
              \x20   subcommand sub {\n\
@@ -201,7 +201,7 @@ fn restyle_refuses_a_computed_word_at_any_depth() {
              \x20   }\n\
              }\n\
              }\n",
-        "speclib probe 2.2 {\n\
+        "speclib probe 2.3 {\n\
              set x 1\n\
              command demo {\n\
              \x20   arity \"$x..\"\n\
@@ -233,7 +233,7 @@ fn restyle_refuses_a_computed_word_at_any_depth() {
     }
     // Braced bodies at every level are verbatim data, so a canonical pack
     // with nested blocks and braced prose still restyles.
-    let canonical = "speclib probe 2.2 {\n\
+    let canonical = "speclib probe 2.3 {\n\
                          command demo {\n\
                          \x20   arity 1\n\
                          \x20   hover { summary {Costs $5 [really].} }\n\
@@ -289,7 +289,7 @@ fn restyle_is_skipped_on_a_partial_upgrade() {
 /// restyled when asked, and reports as such.
 #[test]
 fn restyle_of_a_current_pack_reports_restyled() {
-    let source = "speclib probe 2.2 {\n  command demo {\n      arity 1\n  }\n}\n";
+    let source = "speclib probe 2.3 {\n  command demo {\n      arity 1\n  }\n}\n";
     let outcome = upgrade_source(
         source,
         &UpgradeOptions {
@@ -301,7 +301,7 @@ fn restyle_of_a_current_pack_reports_restyled() {
     assert!(outcome.restyled);
     assert_eq!(
         outcome.source,
-        "speclib probe 2.2 {\n\ncommand demo {\n    arity 1\n}\n\n}\n"
+        "speclib probe 2.3 {\n\ncommand demo {\n    arity 1\n}\n\n}\n"
     );
 }
 
@@ -684,7 +684,7 @@ fn a_hook_body_is_not_descended_into() {
 /// is finished, and its bytes are untouched.
 #[test]
 fn an_already_current_pack_is_left_alone() {
-    let source = "speclib probe 2.2 {\n command demo {\n arity 1\n \
+    let source = "speclib probe 2.3 {\n command demo {\n arity 1\n \
                       available {tcl 8.6-}\n }\n}\n";
     let outcome = upgrade_source(source, &UpgradeOptions::default());
     assert_eq!(outcome.status, UpgradeStatus::AlreadyCurrent);

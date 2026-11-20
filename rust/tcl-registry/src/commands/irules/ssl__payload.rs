@@ -45,6 +45,11 @@ pub const fn spec() -> CommandSpec {
             ..SideEffect::DEFAULT
         }]),
         taint_source: Some(TaintColour::TAINTED),
+        // As `TCP::payload` (BIG-IP 21.1.0.1, `evidence/tcl/bigip-ssl-payload-release-negative.md`).
+        arg_domains: &[
+            (0, IntegerDomain::Range(0, i64::MAX)),
+            (1, IntegerDomain::Range(0, i64::MAX)),
+        ],
         ..CommandSpec::DEFAULT
     }
 }

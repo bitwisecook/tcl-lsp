@@ -51,6 +51,8 @@ pub const fn spec() -> CommandSpec {
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
         }]),
+        // The loader's range for the length; -1 never raises the data event (BIG-IP 21.1.0.1, `evidence/tcl/bigip-ssl-collect-negative.md`).
+        arg_domains: &[(0, IntegerDomain::Range(0, 4_294_967_295))],
         ..CommandSpec::DEFAULT
     }
 }

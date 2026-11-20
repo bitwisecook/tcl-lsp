@@ -725,10 +725,10 @@ fn empty_pack() -> Pack {
 /// does not know. Only an unsupported major fails closed (see
 /// [`check_vocabulary_version`]).
 pub const KNOWN_VOCABULARY_VERSIONS: &[&str] =
-    &["1", "1.0", "1.1", "1.2", "2", "2.0", "2.1", "2.2"];
+    &["1", "1.0", "1.1", "1.2", "2", "2.0", "2.1", "2.2", "2.3"];
 
 /// The newest vocabulary this loader speaks, for the notice below.
-pub const NEWEST_VOCABULARY_VERSION: &str = "2.2";
+pub const NEWEST_VOCABULARY_VERSION: &str = "2.3";
 
 /// The newest `speclib` **major** this loader supports.
 ///
@@ -809,9 +809,10 @@ struct ArgRow {
     closed: bool,
     presentation: Option<ArgPresentation>,
     appends: Option<tcl_registry::arg_role::AppendedArity>,
+    domain: Option<tcl_registry::hover::IntegerDomain>,
 }
 
-/// The six parallel per-argument slices a command or subcommand stores.
+/// The seven parallel per-argument slices a command or subcommand stores.
 #[derive(Debug, Default)]
 struct ArgSlices {
     roles: Vec<(u8, ArgRole)>,
@@ -820,6 +821,7 @@ struct ArgSlices {
     closed: Vec<u8>,
     presentation: Vec<(u8, ArgPresentation)>,
     prefixes: Vec<(u8, tcl_registry::arg_role::AppendedArity)>,
+    domains: Vec<(u8, tcl_registry::hover::IntegerDomain)>,
 }
 
 /// The `arg` rows a command or subcommand body declared, in source order.

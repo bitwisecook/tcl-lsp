@@ -123,6 +123,10 @@ pub struct SubCommand {
     /// means every body argument is laid out as a block, the default.
     pub arg_presentation: &'static [(u8, ArgPresentation)],
 
+    /// Integer domains per argument index (after the subcommand word) — the
+    /// subcommand-level twin of [`CommandSpec::arg_domains`].
+    pub arg_domains: &'static [(u8, crate::hover::IntegerDomain)],
+
     /// Repeated argument-role layouts (after the subcommand word) — the
     /// subcommand-level twin of [`CommandSpec::repeated_args`]
     /// (`namespace upvar NS o l o l`, `dict update d k v k v body`).

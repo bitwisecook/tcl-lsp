@@ -171,6 +171,14 @@ the exceptions; an empty map means \"format every body as a block\", which \
 is right for almost every command.",
     ),
     (
+        "arg_domains",
+        "The integer values an argument accepts, where the command measurably \
+refuses or mishandles the rest — a negative length, offset or port. `{Range 0 \
+max}` is non-negative, `Port` is 0..65535. W156 reports a value `binary scan` \
+or `scan` stored as a signed integer reaching a non-negative domain.\n\nOnly \
+declare a domain the command's behaviour has been measured to need.",
+    ),
+    (
         "repeated_args",
         "For argument tails that repeat a pattern without limit: `global a b \
 c` (a variable name at every word), `variable n1 v1 n2 v2` (a name at every \

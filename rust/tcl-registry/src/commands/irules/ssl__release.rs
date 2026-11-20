@@ -51,6 +51,8 @@ pub const fn spec() -> CommandSpec {
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
         }]),
+        // A negative length releases everything (BIG-IP 21.1.0.1, `evidence/tcl/bigip-ssl-payload-release-negative.md`).
+        arg_domains: &[(0, IntegerDomain::Range(0, i64::MAX))],
         ..CommandSpec::DEFAULT
     }
 }

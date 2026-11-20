@@ -126,6 +126,13 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Formatter layout override per 0-based argument index; body arguments are block-expanded unless declared inline.",
     ),
     f(
+        "arg_domains",
+        "Argument integer domains",
+        ARGS,
+        FieldKind::DomainMap,
+        "Measured integer domain per 0-based argument index: a value outside it is refused or mishandled (a negative length, offset or port).",
+    ),
+    f(
         "repeated_args",
         "Repeated argument layouts",
         ADVANCED,

@@ -100,6 +100,8 @@ pub enum FieldKind {
     CallbackTaintMap,
     /// `&'static [(u8, ArgPresentation)]` — formatter layout overrides.
     PresentationMap,
+    /// `&'static [(u8, IntegerDomain)]` — measured integer domains.
+    DomainMap,
     /// `&'static [(u8, ArgTypeHint)]`.
     ArgTypeMap,
     /// `&'static [(u8, &'static [ArgValue])]`.
@@ -191,6 +193,7 @@ impl FieldKind {
             Self::PrefixMap => "prefixMap",
             Self::CallbackTaintMap => "callbackTaintMap",
             Self::PresentationMap => "presentationMap",
+            Self::DomainMap => "domainMap",
             Self::ArgTypeMap => "argTypeMap",
             Self::ArgValueMap => "argValueMap",
             Self::Options => "options",

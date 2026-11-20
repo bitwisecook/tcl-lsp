@@ -166,6 +166,7 @@ pub(super) fn subcommand_from_parts(
         sub.arg_values = leak_slice(args.values);
         sub.closed_value_args = leak_slice(args.closed);
         sub.arg_presentation = leak_slice(args.presentation);
+        sub.arg_domains = leak_slice(args.domains);
         sub.command_prefixes = leak_slice(args.prefixes);
         sub.callback_taint_inputs = leak_slice(callback_taint_inputs);
         sub.arity_windows = checked_arity_windows(acc.arity_windows, kind, line, log);

@@ -245,6 +245,20 @@ pub(super) fn presentation_map_expr(values: &[Value]) -> String {
     format!("&[{}]", items.join(", "))
 }
 
+pub(super) fn domain_map_expr(values: &[Value]) -> String {
+    let items: Vec<String> = values
+        .iter()
+        .filter_map(|entry| {
+            Some(format!(
+                "({}, {})",
+                as_u64(&entry["index"]),
+                integer_domain_expr(&entry["domain"])?
+            ))
+        })
+        .collect();
+    format!("&[{}]", items.join(", "))
+}
+
 pub(super) fn prefix_map_expr(values: &[Value]) -> String {
     let items: Vec<String> = values
         .iter()

@@ -62,6 +62,8 @@ pub const fn spec() -> CommandSpec {
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
         }]),
+        // A negative length loads with a warning (BIG-IP 21.1.0.1, `evidence/tcl/bigip-http-collect-and-payload-negative.md`).
+        arg_domains: &[(0, IntegerDomain::Range(0, i64::MAX))],
         ..CommandSpec::DEFAULT
     }
 }

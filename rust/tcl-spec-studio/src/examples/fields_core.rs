@@ -168,6 +168,24 @@ pub(super) const ENTRIES: &[(&str, Example)] = &[
         },
     ),
     (
+        "arg_domains",
+        Example {
+            code: "binary scan [TCP::payload] S len\nTCP::collect $len",
+            focuses: &[
+                focus(
+                    0,
+                    "S len",
+                    "S stores a signed 16-bit value, so a length above 32767 reads negative",
+                ),
+                focus(
+                    1,
+                    "$len",
+                    "TCP::collect declares {Range 0 max} here, so W156 reports the signed value",
+                ),
+            ],
+        },
+    ),
+    (
         "command_prefixes",
         Example {
             code: "namespace unknown fallback\nproc fallback {} { ... }",

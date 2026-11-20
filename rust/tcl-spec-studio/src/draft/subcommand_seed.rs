@@ -21,9 +21,9 @@
 use super::definition_grammar::{clause_grammar, semantic_operation};
 use super::field_values::{
     arg_type_map, arg_value_map, arity, arity_windows, body_interpreter, callback_taint_map,
-    dialects, hook_name, hover, index_list, insert_lifecycle, knowledge, nested_rows, opt_index,
-    opt_str, prefix_map, presentation_map, role_list, role_map, semantics_value, side_effect,
-    stamp_windows, str_list, taint, traits, variable_receiver_positions,
+    dialects, domain_map, hook_name, hover, index_list, insert_lifecycle, knowledge, nested_rows,
+    opt_index, opt_str, prefix_map, presentation_map, role_list, role_map, semantics_value,
+    side_effect, stamp_windows, str_list, taint, traits, variable_receiver_positions,
 };
 use super::options_and_forms::{option_rows, refinement_rows};
 use super::rust_expressions::{
@@ -186,6 +186,7 @@ fn subcommand_identity(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) 
         "arg_presentation".into(),
         presentation_map(sub.arg_presentation),
     );
+    d.insert("arg_domains".into(), domain_map(sub.arg_domains));
     d.insert(
         "repeated_args".into(),
         expr_or_null(!sub.repeated_args.is_empty(), || {

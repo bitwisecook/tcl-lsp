@@ -60,6 +60,11 @@ pub const fn spec() -> CommandSpec {
         taint_source: Some(TaintColour::TAINTED),
         byte_array_payload: Some(BytePayloadSpec::DEFAULT),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
+        // `Neither <offset> nor <length> may be negative` at run time (BIG-IP 21.1.0.1, `evidence/tcl/bigip-http-collect-and-payload-negative.md`).
+        arg_domains: &[
+            (0, IntegerDomain::Range(0, i64::MAX)),
+            (1, IntegerDomain::Range(0, i64::MAX)),
+        ],
         ..CommandSpec::DEFAULT
     }
 }

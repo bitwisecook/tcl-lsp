@@ -174,6 +174,14 @@ How the formatter lays an argument out, when that differs from the default. Body
 
 Only declare the exceptions; an empty map means "format every body as a block", which is right for almost every command.
 
+### `arg_domains` — Argument integer domains
+
+*command and subcommand* — Measured integer domain per 0-based argument index: a value outside it is refused or mishandled (a negative length, offset or port).
+
+The integer values an argument accepts, where the command measurably refuses or mishandles the rest — a negative length, offset or port. `{Range 0 max}` is non-negative, `Port` is 0..65535. W156 reports a value `binary scan` or `scan` stored as a signed integer reaching a non-negative domain.
+
+Only declare a domain the command's behaviour has been measured to need.
+
 ### `command_prefixes` — Command-prefix positions
 
 *command and subcommand* — Argument indices carrying a callback command prefix, with the arity appended to it.

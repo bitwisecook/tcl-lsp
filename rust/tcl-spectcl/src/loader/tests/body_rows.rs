@@ -253,6 +253,7 @@ fn projection_carries_every_row_column() {
             closed: true,
             presentation: Some(ArgPresentation::InlineScript),
             appends: Some(AppendedArity::Exactly(2)),
+            domain: Some(tcl_registry::hover::IntegerDomain::Range(0, 9)),
         }],
     };
 
@@ -276,5 +277,39 @@ fn projection_carries_every_row_column() {
         sealed.presentation,
         vec![(3, ArgPresentation::InlineScript)]
     );
+    assert_eq!(
+        sealed.domains,
+        vec![(3, tcl_registry::hover::IntegerDomain::Range(0, 9))]
+    );
     assert_eq!(sealed.prefixes, vec![(3, AppendedArity::Exactly(2))]);
+}
+
+#[test]
+fn argument_integer_domains_load_at_both_scopes() {
+    use tcl_registry::hover::IntegerDomain;
+    let pack = evaluate_pack(
+        "speclib probe 2.3 {\n command demo {\n arity 0..2\n \
+             arg 0 -domain {Range 0 max}\n arg 1 -domain Port\n \
+             subcommand replace {\n arity 3\n arg 0 -domain {Range 0 4294967295}\n }\n \
+             }\n}",
+    );
+    assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+    let spec = &pack.command("demo").expect("demo loads").spec;
+    assert_eq!(
+        spec.arg_domains,
+        &[
+            (0, IntegerDomain::Range(0, i64::MAX)),
+            (1, IntegerDomain::Port)
+        ]
+    );
+    assert_eq!(
+        spec.subcommands[0].arg_domains,
+        &[(0, IntegerDomain::Range(0, 4_294_967_295))]
+    );
+    let older = evaluate_pack("speclib probe 2.2 {\n command demo { arg 0 -domain Port }\n}");
+    assert!(
+        older.notices.iter().any(|n| n.message.contains("-domain")),
+        "{:?}",
+        older.notices
+    );
 }

@@ -902,6 +902,31 @@ impl CommandRegistry {
             .map_or_else(ArgPresentation::default, |(_, p)| *p)
     }
 
+    /// The declared integer domain of argument `index` (0-based after the
+    /// command name), or `None`. A subcommand-dispatching call resolves
+    /// against the subcommand's own table with the same `+1` offset as
+    /// [`Self::arg_presentation`].
+    #[must_use]
+    pub fn arg_domain(
+        &self,
+        name: &str,
+        args: &[&str],
+        index: usize,
+    ) -> Option<crate::hover::IntegerDomain> {
+        let spec = self.get(name)?;
+        let find = |table: &[(u8, crate::hover::IntegerDomain)], at: usize| {
+            let at = u8::try_from(at).ok()?;
+            table.iter().find(|(i, _)| *i == at).map(|(_, d)| *d)
+        };
+        if index > 0
+            && !spec.subcommands.is_empty()
+            && let Some(sub) = args.first().and_then(|word| spec.resolve_subcommand(word))
+        {
+            return find(sub.arg_domains, index - 1);
+        }
+        find(spec.arg_domains, index)
+    }
+
     /// The declared roles of the argument positions a call has **not**
     /// filled — the optional trailing words a caller could still append.
     ///

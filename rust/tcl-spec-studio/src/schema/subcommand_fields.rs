@@ -137,6 +137,13 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Formatter layout override per index, counted after the subcommand word.",
     ),
     f(
+        "arg_domains",
+        "Argument integer domains",
+        ARGS,
+        FieldKind::DomainMap,
+        "Measured integer domain per index, counted after the subcommand word.",
+    ),
+    f(
         "repeated_args",
         "Repeated argument layouts",
         ADVANCED,

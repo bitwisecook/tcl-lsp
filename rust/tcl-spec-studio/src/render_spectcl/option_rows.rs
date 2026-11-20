@@ -249,7 +249,7 @@ pub(super) fn option_row(out: &mut Out, ctx: &mut Ctx<'_>, option: &Value) {
 
 /// `{Range lo hi}` / `Any` / `Port`, with the `max` / `min` sentinels the DSL
 /// documents.
-fn integer_domain_word(value: &Value) -> Option<String> {
+pub(super) fn integer_domain_word(value: &Value) -> Option<String> {
     match str_of(&value["kind"]) {
         "Any" => Some("Any".to_owned()),
         "Port" => Some("Port".to_owned()),

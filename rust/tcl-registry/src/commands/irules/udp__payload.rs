@@ -63,6 +63,11 @@ pub const fn spec() -> CommandSpec {
         }]),
         taint_source: Some(TaintColour::TAINTED),
         byte_array_payload: Some(BytePayloadSpec::DEFAULT),
+        // As `TCP::payload` (BIG-IP 21.1.0.1, `evidence/tcl/bigip-udp-payload-negative.md`).
+        arg_domains: &[
+            (0, IntegerDomain::Range(0, i64::MAX)),
+            (1, IntegerDomain::Range(0, i64::MAX)),
+        ],
         ..CommandSpec::DEFAULT
     }
 }

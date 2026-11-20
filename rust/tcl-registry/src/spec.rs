@@ -407,6 +407,14 @@ pub struct CommandSpec {
     /// than a different [`ArgRole`].
     pub arg_presentation: &'static [(u8, ArgPresentation)],
 
+    /// The integer values a positional argument accepts, per 0-based index
+    /// *after* the command name, where the command measurably treats values
+    /// outside the domain wrongly or refuses them — a negative length, offset
+    /// or port. Only measured domains are declared; an unlisted argument
+    /// has no declared domain. W156 reports a signed scan value reaching a
+    /// non-negative domain.
+    pub arg_domains: &'static [(u8, crate::hover::IntegerDomain)],
+
     /// Repeated argument-role layouts — a role that recurs at a fixed
     /// stride over the argument tail (`global a b c`, `variable n v n v`,
     /// `foreach v1 l1 v2 l2 body`, `upvar ?level? o l o l`).

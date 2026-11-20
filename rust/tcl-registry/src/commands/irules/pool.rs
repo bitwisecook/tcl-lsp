@@ -54,6 +54,8 @@ pub const fn spec() -> CommandSpec {
             connection_side: ConnectionSide::Server,
             ..SideEffect::DEFAULT
         }]),
+        // A negative member port is refused at load (BIG-IP 21.1.0.1, `evidence/tcl/bigip-node-and-pool-member-negative-port-refused.md`).
+        arg_domains: &[(3, IntegerDomain::Port)],
         ..CommandSpec::DEFAULT
     }
 }

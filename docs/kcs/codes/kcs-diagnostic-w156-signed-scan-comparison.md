@@ -66,8 +66,24 @@ The message offers what the dialect supports:
 Mind the parentheses: `$type & 0xff == 0x81` parses as
 `$type & (0xff == 0x81)` (W154).
 
-The same signed value also goes wrong in `format %02x`, dotted-quad `format`,
-`($hi << 8) | $lo`, and list or string indices; mask it before any of them.
+## Where else it is reported
+
+The same signed value goes wrong wherever an unsigned value is expected, so
+W156 also reports it, unmasked, as:
+
+| Use | What happens |
+| --- | --- |
+| `($hi << 8) \| $lo`, `$hi * 256 + $lo`, `^` | a negative part sign-extends: `0xc0 0xff` gives -1 or -16385, not 49407 |
+| `format %x`, `%X`, `%o`, `%b`, `%u`, `%c` | `ffffffffffffff81` (`ffffff81` on Tcl 9), a huge or negative number, another character |
+| `format %d.%d.%d.%d`, `"$a.$b.$c.$d"` | an address such as `192.-64.-1.1`, which `IP::addr` rejects |
+| `lindex`, `string index`, `string range`, `lrange`, `lreplace` indices | a negative index selects nothing |
+| `string repeat` count | a negative count returns the empty string |
+| `TCP::collect`, `TCP::release`, `TCP::payload`, `UDP::payload`, `HTTP::collect`, `HTTP::payload`, `SSL::collect`, `SSL::payload`, `SSL::release` lengths and offsets | -1 means "everything", other negatives raise at run time, and `SSL::collect -1` never raises its data event |
+| `node` and `pool … member` ports | refused |
+
+The F5 rows were measured on BIG-IP 21.1; the registry records each as the
+argument's integer domain (`arg_domains`). Mask the value first, for
+example `[expr {$len & 0xffff}]`.
 
 ## How to suppress
 
@@ -81,5 +97,6 @@ Use `# tcl-lsp: disable=W156`, or disable W156 in editor diagnostic settings.
 - [Execution evidence: scan and binary scan signedness by release](../../../evidence/tcl/scan-integer-signedness.md)
 - [Execution evidence: downstream consumers of a signed value](../../../evidence/tcl/signed-scan-downstream-consumers.md)
 - [BIG-IP evidence: TMM `binary scan`, `scan` and `format`](../../../evidence/tcl/bigip-tmm-signed-scan-and-format.md)
+- [Execution evidence: `string match` bracket sets](../../../evidence/tcl/string-match-bracket-set-edges.md)
 - [BIG-IP measurements: signed integers reaching F5 commands](../../design/f5/bigip-irule-parser-measurements.md#signed-integers-reaching-f5-commands)
 - [Diagnostics feature](../features/kcs-feature-diagnostics.md)

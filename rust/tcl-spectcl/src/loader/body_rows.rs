@@ -73,11 +73,14 @@ impl ArgRows {
             if let Some(appends) = row.appends {
                 out.prefixes.push((row.index, appends));
             }
+            if let Some(domain) = row.domain {
+                out.domains.push((row.index, domain));
+            }
         }
         out
     }
 
-    // One flag per `arg` row column, and there are eleven of them; splitting
+    // One flag per `arg` row column, and there are twelve of them; splitting
     // the match would put each column further from the others it constrains.
     #[allow(clippy::too_many_lines)]
     pub(super) fn apply(&mut self, stmt: &Stmt, tables: &PackTables, log: &mut Log) {
@@ -195,6 +198,11 @@ impl ArgRows {
                             row.role = Some(ArgRole::CommandPrefix);
                         }
                     }
+                }
+                "-domain" => {
+                    log.since(stmt.line, "-domain", "2.3");
+                    let text = next_text(words, &mut i);
+                    row.domain = parse_integer_domain(&text, stmt.line, log);
                 }
                 _ => log.unknown_flag("arg", stmt.line, &rejected_flag_word),
             }

@@ -52,6 +52,8 @@ pub const fn spec() -> CommandSpec {
             ..SideEffect::DEFAULT
         }]),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
+        // A negative port is refused at load (BIG-IP 21.1.0.1, `evidence/tcl/bigip-node-and-pool-member-negative-port-refused.md`).
+        arg_domains: &[(1, IntegerDomain::Port)],
         ..CommandSpec::DEFAULT
     }
 }

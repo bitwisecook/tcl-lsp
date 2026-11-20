@@ -37,6 +37,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Replace bytes in collected payload.",
         synopsis: "TCP::payload replace <offset> <length> <data>",
         mutator: true,
+        // A negative offset is refused at load (BIG-IP 21.1.0.1,
+        // `evidence/tcl/bigip-tcp-payload-replace-negative-refused.md`).
+        arg_domains: &[(0, IntegerDomain::Range(0, i64::MAX))],
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -91,6 +94,11 @@ pub const fn spec() -> CommandSpec {
         }]),
         taint_source: Some(TaintColour::TAINTED),
         byte_array_payload: Some(BytePayloadSpec::DEFAULT),
+        // A negative offset raises at run time and a negative length returns everything (BIG-IP 21.1.0.1, `evidence/tcl/bigip-tcp-payload-release-negative.md`).
+        arg_domains: &[
+            (0, IntegerDomain::Range(0, i64::MAX)),
+            (1, IntegerDomain::Range(0, i64::MAX)),
+        ],
         ..CommandSpec::DEFAULT
     }
 }

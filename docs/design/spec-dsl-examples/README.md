@@ -54,8 +54,8 @@ it gates hard breaks (a word whose *meaning* changed), never additions.
 It is the **only** loader directive; a `pragma` statement is an unknown
 property, dropped with a logged notice.
 
-The current vocabulary is **2.2**. `1`, `1.0`, `1.1`, `1.2`, `2.0`, `2.1` and
-`2.2` all name a vocabulary the loader reads in full. A pack declaring a newer
+The current vocabulary is **2.3**. `1`, `1.0`, `1.1`, `1.2`, `2.0`, `2.1`, `2.2`
+and `2.3` all name a vocabulary the loader reads in full. A pack declaring a newer
 *minor* of a major the loader knows still loads, with a notice saying
 which vocabulary the loader knows — it only loses the words that server
 has never heard of. A newer **major** is the one case that fails closed;
@@ -199,8 +199,8 @@ configuration-object identity. Omission or an invalid layout declines advice.
 
 ### Per-argument facts
 
-Six schema keys are indexed by the same argument position, and reading
-them as six parallel tables is the single worst thing about the `.rs`
+Seven schema keys are indexed by the same argument position, and reading
+them as seven parallel tables is the single worst thing about the `.rs`
 form. The DSL collapses them into one row per index — not every flag is
 used together, but every one belongs to the same word:
 
@@ -209,6 +209,7 @@ arg 0 -type String -shimmers -transparent {ByteArray} \
       -values-from is-classes -closed
 arg 1 -role Body -layout InlineScript
 arg 2 -appends {Exactly 2}
+arg 3 -domain {Range 0 max}
 ```
 
 | flag | fills |
@@ -219,6 +220,7 @@ arg 2 -appends {Exactly 2}
 | `-closed` | `closed_value_args` |
 | `-layout BlockScript\|InlineScript` | `arg_presentation` |
 | `-appends {Exactly N}` | `command_prefixes` (implies `-role CommandPrefix`) |
+| `-domain {Range LO HI}\|Port\|Any` | `arg_domains` (since 2.3) |
 
 Indices are 0-based after the command name, or after the subcommand word
 inside a `subcommand` block — the same coordinates the registry uses. An
@@ -1447,6 +1449,7 @@ schema order. "excluded" rows carry the reason.
 | `arg_role_layout_resolver` | `arg_role_layout_resolver -native ID` | actual structured argv and selected available options; unknown values remain unknown; known native descriptor required; Tcl layout bodies are explicitly rejected |
 | `arg_role_resolver_roles` | `arg_role_resolver_roles {ROLE …}` | since 2.1; the required, non-empty complete set the dynamic resolver can emit |
 | `arg_presentation` | `arg N -layout BlockScript\|InlineScript` |  |
+| `arg_domains` | `arg N -domain {Range LO HI}\|Port\|Any` | since 2.3; `max` / `min` are the integer sentinels, as for an option's `-integer` |
 | `repeated_args` | `repeat ROLE -from N -stride N ?-exclude-trailing N? ?-optional-leading? ?-conditional?` | one row per layout |
 | `frame_effect` | `frame_effect -level-word W -layout L` | both payloads are closed enums, so fully declarative |
 | `clause_shape_check` | **derived** from `clause_grammar`; `-native ID` escape | no hook body needed for any chain the grammar can spell |
@@ -1573,6 +1576,7 @@ schema order. "excluded" rows carry the reason.
 | `arg_role_layout_resolver` | `arg_role_layout_resolver -native ID` | actual structured argv and selected available options; unknown values remain unknown; known native descriptor required; Tcl layout bodies are explicitly rejected |
 | `arg_role_resolver_roles` | `arg_role_resolver_roles {ROLE …}` | since 2.1; the required, non-empty complete set the dynamic resolver can emit |
 | `arg_presentation` | `arg N -layout BlockScript\|InlineScript` |  |
+| `arg_domains` | `arg N -domain {Range LO HI}\|Port\|Any` | since 2.3; `max` / `min` are the integer sentinels, as for an option's `-integer` |
 | `repeated_args` | `repeat ROLE -from N -stride N ?-exclude-trailing N? ?-optional-leading? ?-conditional?` | one row per layout |
 | `command_prefixes` | `arg N -appends {Exactly 2}` | implies `-role CommandPrefix` |
 | `command_prefix_resolver` | `command_prefix_resolver {words ctx} { … }` \| `-native ID` | emitter verb `prefix IDX {Exactly N}` |

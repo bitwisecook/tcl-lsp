@@ -44,7 +44,11 @@ use tcl_registry::ArgRole;
 struct SignedOrigin {
     bits: u32,
     field: String,
-    command: &'static str,
+    /// The scanning call as written: its command and, for an ensemble, the
+    /// subcommand word (`binary scan`, `scan`).
+    command: String,
+    /// Whether the field is a `scan` conversion rather than a binary field.
+    conversion: bool,
     /// The same field read unsigned or at full width, where the dialect has
     /// a spelling for it (`cu`, `%lx`).
     unsigned_field: Option<String>,
@@ -134,9 +138,9 @@ impl Analyser {
             }
         };
         for_each_expression(fu, self.file_lexer_config(), registry, &mut check);
-        findings.extend(format_consumers(
+        findings.extend(call_consumers(
             fu,
-            registry,
+            (registry, Some(context.as_ref().into())),
             self.file_lexer_config(),
             (&signed, &unresolved),
         ));
@@ -497,9 +501,13 @@ fn scanned_fields(
         }
         _ => return Vec::new(),
     };
-    let command = match format.kind {
-        tcl_registry::patterns::FormatType::Binary => "binary scan",
-        _ => "scan",
+    let conversion = format.kind == tcl_registry::patterns::FormatType::Sprintf;
+    let ensemble = registry
+        .get(command)
+        .is_some_and(|spec| !spec.subcommands.is_empty());
+    let command = match words.first() {
+        Some(word) if ensemble => format!("{command} {word}"),
+        _ => command.to_owned(),
     };
     widths
         .into_iter()
@@ -513,7 +521,8 @@ fn scanned_fields(
                     SignedOrigin {
                         bits,
                         field,
-                        command,
+                        command: command.clone(),
+                        conversion,
                         unsigned_field,
                     },
                 )
@@ -608,7 +617,7 @@ fn message(comparison: &Comparison<'_>, origin: &SignedOrigin) -> Option<String>
         if always { "true" } else { "false" },
     );
     if let Some(unsigned) = &origin.unsigned_field {
-        let how = if origin.command == "scan" {
+        let how = if origin.conversion {
             "at full width"
         } else {
             "unsigned"
@@ -722,102 +731,427 @@ fn format_effect(verb: u8, dotted: bool) -> Option<&'static str> {
     }
 }
 
+/// One call a statement makes, itself or in a `[…]` word: its command, its
+/// post-head words with their spans, and which of them are indices.
+struct ConsumerCall {
+    name: String,
+    args: Vec<String>,
+    spans: Vec<tcl_lexer::Span>,
+    indices: Vec<usize>,
+}
+
+/// Signed scan values passed, unmasked, to a command that mishandles them:
+/// a `format` conversion ([`format_consumers`]) or an argument with a
+/// non-negative domain or index role ([`argument_consumers`]), in every call
+/// a statement makes.
+fn call_consumers(
+    fu: &crate::compilation_unit::FunctionUnit,
+    (registry, context): (
+        &tcl_registry::CommandRegistry,
+        Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    ),
+    config: tcl_lexer::LexerConfig,
+    (signed, unresolved): (&HashMap<ValueKey, SignedOrigin>, &UnresolvedScans),
+) -> Vec<(tcl_lexer::Span, String)> {
+    let surface = tcl_registry::model::DocumentCommandSurface::new(registry, None);
+    let lift = |lifted: crate::word_subst::LiftedCall| ConsumerCall {
+        indices: index_positions(registry, context, lifted.tokens.as_ref(), &lifted.args),
+        name: lifted.command,
+        args: lifted.args,
+        spans: lifted.arg_spans,
+    };
+    let mut out = Vec::new();
+    for (&block, data) in &fu.ssa.blocks {
+        for (index, statement) in data.statements.iter().enumerate() {
+            let tokens = statement.statement.tokens();
+            let mut calls: Vec<ConsumerCall> = Vec::new();
+            if let (
+                Statement::Call {
+                    command,
+                    canonical_command,
+                    args,
+                    ..
+                },
+                Some(tokens),
+            ) = (&statement.statement, tokens)
+            {
+                calls.push(ConsumerCall {
+                    name: canonical_command.as_deref().unwrap_or(command).to_owned(),
+                    args: args.clone(),
+                    spans: tokens.argv.iter().skip(1).copied().collect(),
+                    indices: index_positions(registry, context, Some(tokens), args),
+                });
+            }
+            if tokens.is_some() {
+                calls.extend(
+                    crate::word_subst::lifted_calls(tokens, config)
+                        .into_iter()
+                        .map(lift),
+                );
+            }
+            if let Some((expr, base)) = statement_expression(&statement.statement) {
+                calls.extend(
+                    crate::word_subst::lifted_calls_in_expr(expr, base, config, &surface)
+                        .into_iter()
+                        .map(lift),
+                );
+            }
+            let site = ReadSite {
+                fu,
+                block,
+                index,
+                versions: &statement.uses,
+                accesses: tokens.map_or(&[], |tokens| &tokens.variable_accesses[..]),
+                signed,
+                unresolved,
+            };
+            consume_calls(registry, &calls, &site, &mut out);
+        }
+        if let Some(Terminator::Branch {
+            condition,
+            condition_base,
+            ..
+        }) = fu
+            .cfg
+            .blocks
+            .get(&block)
+            .and_then(|b| b.terminator.as_ref())
+        {
+            let calls: Vec<ConsumerCall> = crate::word_subst::lifted_calls_in_expr(
+                condition,
+                *condition_base,
+                config,
+                &surface,
+            )
+            .into_iter()
+            .map(lift)
+            .collect();
+            let site = ReadSite {
+                fu,
+                block,
+                index: data.statements.len(),
+                versions: &data.exit_versions,
+                accesses: &[],
+                signed,
+                unresolved,
+            };
+            consume_calls(registry, &calls, &site, &mut out);
+        }
+    }
+    out
+}
+
+/// The expression a statement evaluates, with its source base.
+fn statement_expression(statement: &Statement) -> Option<(&ExprNode, Option<u32>)> {
+    match statement {
+        Statement::AssignExpr {
+            expr, expr_base, ..
+        }
+        | Statement::ExprEval {
+            expr, expr_base, ..
+        }
+        | Statement::Return {
+            expr: Some(expr),
+            expr_base,
+            ..
+        } => Some((expr, *expr_base)),
+        _ => None,
+    }
+}
+
+/// Where a call's variable words are read: the SSA versions in force there
+/// and the retained source accesses, if any.
+struct ReadSite<'a> {
+    fu: &'a crate::compilation_unit::FunctionUnit,
+    block: crate::cfg::BlockId,
+    index: usize,
+    versions: &'a HashMap<crate::ssa::Symbol, crate::ssa::Version>,
+    accesses: &'a [crate::command_binding::SourceVariableAccess],
+    signed: &'a HashMap<ValueKey, SignedOrigin>,
+    unresolved: &'a UnresolvedScans,
+}
+
+impl<'a> ReadSite<'a> {
+    /// The signed scan a read of `variable` at `span` sees: through its
+    /// retained access, else by name among the versions in force, else along
+    /// a straight run of code from an unproven scan.
+    fn read(&self, span: tcl_lexer::Span, variable: &str) -> Option<&'a SignedOrigin> {
+        let ssa = &self.fu.ssa;
+        self.accesses
+            .iter()
+            .filter(|access| access.source.span == span)
+            .find_map(|access| {
+                let read = ssa.read_reference_at(
+                    self.block,
+                    self.index,
+                    &access.source,
+                    &access.original_spelling,
+                )?;
+                let version = read
+                    .version
+                    .or_else(|| self.versions.get(&read.symbol).copied())?;
+                self.signed.get(&(read.symbol, version))
+            })
+            .or_else(|| {
+                self.versions
+                    .iter()
+                    .filter(|(symbol, _)| ssa.var_name(**symbol) == variable)
+                    .find_map(|(&symbol, &version)| self.signed.get(&(symbol, version)))
+            })
+            .or_else(|| {
+                straight_line_scan_named(self.fu, self.unresolved, variable, self.block, self.index)
+            })
+    }
+}
+
+fn consume_calls(
+    registry: &tcl_registry::CommandRegistry,
+    calls: &[ConsumerCall],
+    site: &ReadSite<'_>,
+    out: &mut Vec<(tcl_lexer::Span, String)>,
+) {
+    let read = |span: tcl_lexer::Span, variable: &str| site.read(span, variable);
+    for call in calls {
+        let words: Vec<&str> = call.args.iter().map(String::as_str).collect();
+        let found = argument_consumers(
+            registry,
+            &call.name,
+            (&words, &call.indices),
+            &call.spans,
+            &read,
+        )
+        .into_iter()
+        .chain(dotted_word_consumers(
+            &words,
+            &call.spans,
+            site.accesses,
+            &read,
+        ))
+        .chain(format_consumers(
+            registry,
+            (&call.name, &words),
+            &call.spans,
+            &read,
+        ));
+        out.extend(found.map(|(span, message)| (site.fu.abs_span(span), message)));
+    }
+}
+
 /// `$name` arguments of a `format` call whose conversion renders a signed
 /// scan value wrongly: `%x %X %o %b %u %c`, and `%d`/`%i` in a dotted run
 /// such as `%d.%d.%d.%d`. Measured on Tcl 8.4-9.1, Jim and TMM
 /// (`evidence/tcl/signed-scan-downstream-consumers.md`,
 /// `evidence/tcl/bigip-tmm-signed-scan-and-format.md`).
-fn format_consumers(
-    fu: &crate::compilation_unit::FunctionUnit,
+fn format_consumers<'a>(
     registry: &tcl_registry::CommandRegistry,
-    config: tcl_lexer::LexerConfig,
-    (signed, unresolved): (&HashMap<ValueKey, SignedOrigin>, &UnresolvedScans),
+    (name, words): (&str, &[&str]),
+    spans: &[tcl_lexer::Span],
+    read: &impl Fn(tcl_lexer::Span, &str) -> Option<&'a SignedOrigin>,
 ) -> Vec<(tcl_lexer::Span, String)> {
     let mut out = Vec::new();
-    for (&block, data) in &fu.ssa.blocks {
-        for (index, statement) in data.statements.iter().enumerate() {
-            let Some(tokens) = statement.statement.tokens() else {
+    let formats = registry.format_string_args(name, words);
+    let [format] = formats.as_slice() else {
+        return out;
+    };
+    if format.scan || format.kind != tcl_registry::patterns::FormatType::Sprintf {
+        return out;
+    }
+    let Some(template) = words
+        .get(format.index)
+        .filter(|t| !t.contains(['$', '[', '\\']))
+    else {
+        return out;
+    };
+    for (argument, verb, dotted) in format_arguments(template.as_bytes(), format.index) {
+        let Some(effect) = format_effect(verb, dotted) else {
+            continue;
+        };
+        let (Some(word), Some(&span)) = (words.get(argument), spans.get(argument)) else {
+            continue;
+        };
+        let Some(variable) = plain_variable(word) else {
+            continue;
+        };
+        let Some(origin) = read(span, variable) else {
+            continue;
+        };
+        let word = format!("${variable}");
+        let (lo, hi) = origin.range();
+        let mask = format!("0x{:x}", (1u64 << origin.bits) - 1);
+        out.push((
+            span,
+            format!(
+                "{word} holds a signed {}-bit value from `{} … {}` ({lo}..{hi}); `format %{}` {effect}. Mask it first: `[expr {{{word} & {mask}}}]`.",
+                origin.bits,
+                origin.command,
+                origin.field,
+                char::from(verb)
+            ),
+        ));
+    }
+    out
+}
+
+/// Octets of an address built by interpolation (`"$a.$b.$c.$d"`): a word of
+/// four `.`-separated parts, each a variable or a decimal octet. A signed
+/// 8-bit scan value there renders negative (`192.-64.-1.1`), which TMM's
+/// `IP::addr` rejects at run time
+/// (`evidence/tcl/bigip-tmm-signed-scan-and-format.md`).
+fn dotted_word_consumers<'a>(
+    words: &[&str],
+    spans: &[tcl_lexer::Span],
+    accesses: &[crate::command_binding::SourceVariableAccess],
+    read: &impl Fn(tcl_lexer::Span, &str) -> Option<&'a SignedOrigin>,
+) -> Vec<(tcl_lexer::Span, String)> {
+    let mut out = Vec::new();
+    for (word, span) in words.iter().zip(spans) {
+        let text = word.trim_matches('"');
+        let parts: Vec<&str> = text.split('.').collect();
+        if parts.len() != 4
+            || !parts.iter().all(|part| {
+                plain_variable(part).is_some_and(|v| !v.is_empty())
+                    || (!part.is_empty()
+                        && part.len() <= 3
+                        && part.bytes().all(|b| b.is_ascii_digit()))
+            })
+        {
+            continue;
+        }
+        let inside: Vec<(tcl_lexer::Span, &str)> = accesses
+            .iter()
+            .filter(|a| span.start() <= a.source.span.start() && a.source.span.end() <= span.end())
+            .filter_map(|a| Some((a.source.span, plain_variable(&a.original_spelling)?)))
+            .collect();
+        let reads = if inside.is_empty() {
+            // A lifted expression call keeps its source spelling, so a word
+            // as long as its span locates each part within it.
+            let spelled = usize::try_from(span.end() - span.start()).ok() == Some(word.len());
+            let mut cursor = 0;
+            parts
+                .iter()
+                .filter_map(|part| {
+                    let at = word[cursor..].find(part).map(|found| cursor + found)?;
+                    cursor = at + part.len();
+                    let variable = plain_variable(part)?;
+                    let start = span.start() + u32::try_from(at).ok()?;
+                    let located =
+                        tcl_lexer::Span::new(start, start + u32::try_from(part.len()).ok()?);
+                    Some((if spelled { located } else { *span }, variable))
+                })
+                .collect()
+        } else {
+            inside
+        };
+        for (at, variable) in reads {
+            let Some(origin) = read(at, variable).filter(|o| o.bits == 8) else {
                 continue;
             };
-            // The statement's own call and every `[…]` call its words hold.
-            let mut calls: Vec<(String, Vec<String>, Vec<tcl_lexer::Span>)> = Vec::new();
-            if let Statement::Call {
-                command,
-                canonical_command,
-                args,
-                ..
-            } = &statement.statement
-            {
-                calls.push((
-                    canonical_command.as_deref().unwrap_or(command).to_owned(),
-                    args.clone(),
-                    tokens.argv.iter().skip(1).copied().collect(),
-                ));
-            }
-            for lifted in crate::word_subst::lifted_calls(Some(tokens), config) {
-                calls.push((lifted.command, lifted.args, lifted.arg_spans));
-            }
-            let read = |span: tcl_lexer::Span, variable: &str| {
-                tokens
-                    .variable_accesses
-                    .iter()
-                    .filter(|access| access.source.span == span)
-                    .find_map(|access| {
-                        let read = fu.ssa.read_reference_at(
-                            block,
-                            index,
-                            &access.source,
-                            &access.original_spelling,
-                        )?;
-                        let version = read
-                            .version
-                            .or_else(|| statement.uses.get(&read.symbol).copied())?;
-                        signed.get(&(read.symbol, version))
-                    })
-                    .or_else(|| straight_line_scan_named(fu, unresolved, variable, block, index))
-            };
-            for (name, args, spans) in &calls {
-                let words: Vec<&str> = args.iter().map(String::as_str).collect();
-                let formats = registry.format_string_args(name, &words);
-                let [format] = formats.as_slice() else {
-                    continue;
-                };
-                if format.scan || format.kind != tcl_registry::patterns::FormatType::Sprintf {
-                    continue;
-                }
-                let Some(template) = words
-                    .get(format.index)
-                    .filter(|t| !t.contains(['$', '[', '\\']))
-                else {
-                    continue;
-                };
-                for (argument, verb, dotted) in format_arguments(template.as_bytes(), format.index)
-                {
-                    let Some(effect) = format_effect(verb, dotted) else {
-                        continue;
-                    };
-                    let (Some(word), Some(&span)) = (words.get(argument), spans.get(argument))
-                    else {
-                        continue;
-                    };
-                    let Some(origin) = word.strip_prefix('$').and_then(|v| read(span, v)) else {
-                        continue;
-                    };
-                    let (lo, hi) = origin.range();
-                    let mask = format!("0x{:x}", (1u64 << origin.bits) - 1);
-                    out.push((
-                        fu.abs_span(span),
-                        format!(
-                            "{word} holds a signed {}-bit value from `{} … {}` ({lo}..{hi}); `format %{}` {effect}. Mask it first: `[expr {{{word} & {mask}}}]`.",
-                            origin.bits,
-                            origin.command,
-                            origin.field,
-                            char::from(verb)
-                        ),
-                    ));
-                }
-            }
+            out.push((
+                at,
+                format!(
+                    "${variable} holds a signed 8-bit value from `{} … {}` (-128..127); interpolated into a dotted address it renders a negative octet, such as `192.-64.-1.1`. Mask it first: `[expr {{${variable} & 0xff}}]`.",
+                    origin.command, origin.field
+                ),
+            ));
         }
+    }
+    out
+}
+
+/// The name a `$name` or `${name}` word reads.
+fn plain_variable(word: &str) -> Option<&str> {
+    word.strip_prefix("${")
+        .and_then(|rest| rest.strip_suffix('}'))
+        .or_else(|| word.strip_prefix('$'))
+}
+
+/// Post-head argument positions that the call's index relationship reads as
+/// indices, from its declared or operation-implied
+/// [`tcl_registry::SourceIndexBounds`].
+fn index_positions(
+    registry: &tcl_registry::CommandRegistry,
+    context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    tokens: Option<&crate::ir::CommandTokens>,
+    words: &[String],
+) -> Vec<usize> {
+    let Some(resolved) = tokens.and_then(|tokens| {
+        crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+            registry, context, tokens,
+        )
+    }) else {
+        return Vec::new();
+    };
+    let Some(spec) = registry.get(&resolved.facts.canonical_command) else {
+        return Vec::new();
+    };
+    let sub = (!spec.subcommands.is_empty())
+        .then(|| words.first().and_then(|word| spec.resolve_subcommand(word)))
+        .flatten();
+    let declared = sub.map_or(spec.source_index_bounds, |sub| sub.source_index_bounds);
+    let Some(bounds) =
+        tcl_registry::SourceIndexBounds::selected(declared, resolved.facts.operation)
+    else {
+        return Vec::new();
+    };
+    let first = usize::from(sub.is_some());
+    bounds
+        .index_operands(words.len().saturating_sub(first))
+        .map(|at| at + first)
+        .collect()
+}
+
+/// `$name` arguments whose registry facts say a negative value is refused or
+/// mishandled: a declared non-negative [`tcl_registry::hover::IntegerDomain`]
+/// (a length, offset or port measured on BIG-IP 21.1, a `string repeat`
+/// count), or an index (`lindex`, `string index`, `string range`, …), where a
+/// negative value selects nothing on Tcl 8.4-9.1 and Jim.
+fn argument_consumers<'a>(
+    registry: &tcl_registry::CommandRegistry,
+    name: &str,
+    (words, indices): (&[&str], &[usize]),
+    spans: &[tcl_lexer::Span],
+    read: &impl Fn(tcl_lexer::Span, &str) -> Option<&'a SignedOrigin>,
+) -> Vec<(tcl_lexer::Span, String)> {
+    use tcl_registry::hover::IntegerDomain;
+    let mut out = Vec::new();
+    for (argument, word) in words.iter().enumerate() {
+        let Some(variable) = plain_variable(word) else {
+            continue;
+        };
+        let word = format!("${variable}");
+        let effect = match registry.arg_domain(name, words, argument) {
+            Some(IntegerDomain::Port) => Some("takes a port (0..65535) here".to_owned()),
+            Some(IntegerDomain::Range(lo, hi)) if lo >= 0 => Some(if hi == i64::MAX {
+                "takes a non-negative value here".to_owned()
+            } else {
+                format!("takes a value in {lo}..{hi} here")
+            }),
+            _ if indices.contains(&argument) => {
+                Some("selects nothing for a negative index".to_owned())
+            }
+            _ => None,
+        };
+        let (Some(effect), Some(&span)) = (effect, spans.get(argument)) else {
+            continue;
+        };
+        let Some(origin) = read(span, variable) else {
+            continue;
+        };
+        let (lo, hi) = origin.range();
+        let mask = format!("0x{:x}", (1u64 << origin.bits) - 1);
+        let head = words.first().filter(|_| {
+            registry
+                .get(name)
+                .is_some_and(|spec| !spec.subcommands.is_empty())
+        });
+        let shown = head.map_or_else(|| name.to_owned(), |sub| format!("{name} {sub}"));
+        out.push((
+            span,
+            format!(
+                "{word} holds a signed {}-bit value from `{} … {}` ({lo}..{hi}); `{shown}` {effect}. Mask it first: `[expr {{{word} & {mask}}}]`.",
+                origin.bits, origin.command, origin.field
+            ),
+        ));
     }
     out
 }

@@ -313,3 +313,74 @@ fn irules_consumers_in_event_bodies() {
         "{found:?}"
     );
 }
+
+/// Arguments the registry declares non-negative (measured on BIG-IP 21.1 or
+/// stock Tcl) and index arguments.
+#[test]
+fn signed_values_reaching_non_negative_arguments() {
+    let irule = |body: &str| {
+        format!("when CLIENT_DATA {{\n  binary scan [TCP::payload] cS b len\n  {body}\n}}")
+    };
+    let rows: &[(&str, &[&str])] = &[
+        ("TCP::collect $len", &["$len"]),
+        ("TCP::release $len", &["$len"]),
+        ("TCP::payload $b $len", &["$b", "$len"]),
+        ("TCP::payload replace $b 1 x", &["$b"]),
+        ("TCP::payload replace 0 $len x", &[]),
+        ("SSL::collect $len", &["$len"]),
+        ("node 10.0.0.1 $len", &["$len"]),
+        ("pool p member 10.0.0.1 $len", &["$len"]),
+        ("TCP::collect [expr {$len & 0xffff}]", &[]),
+        ("log local0. $len", &[]),
+    ];
+    for &(body, expected) in rows {
+        let source = irule(body);
+        let spans: Vec<String> = located("f5-irules", &source)
+            .into_iter()
+            .map(|(span, _)| span)
+            .collect();
+        assert_eq!(spans, expected, "{body}");
+    }
+    let message = &located("f5-irules", &irule("TCP::collect $len"))[0].1;
+    assert!(
+        message.contains("`TCP::collect` takes a non-negative value"),
+        "{message}"
+    );
+    assert!(message.contains("[expr {$len & 0xffff}]"), "{message}");
+    let replace = &located("f5-irules", &irule("TCP::payload replace $b 1 x"))[0].1;
+    assert!(replace.contains("`TCP::payload replace`"), "{replace}");
+    let port = &located("f5-irules", &irule("node 10.0.0.1 $len"))[0].1;
+    assert!(port.contains("port (0..65535)"), "{port}");
+}
+
+#[test]
+fn signed_values_used_as_indices_or_counts() {
+    let stock =
+        |body: &str| format!("set data x\nset l {{a b c}}\nbinary scan $data c b\nset r [{body}]");
+    let rows: &[(&str, &[&str])] = &[
+        ("lindex $l $b", &["$b"]),
+        ("string index abc $b", &["$b"]),
+        ("string repeat x $b", &["$b"]),
+        ("string repeat $b 2", &[]),
+        ("lindex $l [expr {$b & 0xff}]", &[]),
+    ];
+    for &(body, expected) in rows {
+        let spans: Vec<String> = located("tcl8.6", &stock(body))
+            .into_iter()
+            .map(|(span, _)| span)
+            .collect();
+        assert_eq!(spans, expected, "{body}");
+    }
+}
+
+/// An address built by interpolation renders a negative octet, which TMM's
+/// `IP::addr` rejects (`evidence/tcl/bigip-tmm-signed-scan-and-format.md`).
+#[test]
+fn interpolated_addresses_report_signed_octets() {
+    let source = "when CLIENT_DATA {\n  binary scan [TCP::payload] cccc a b c d\n  if {[IP::addr \"$a.$b.$c.$d\" equals 10.0.0.1]} { log local0. hit }\n  log local0. \"192.168.$c.$d\"\n}";
+    let found = located("f5-irules", source);
+    let spans: Vec<&str> = found.iter().map(|(span, _)| span.as_str()).collect();
+    assert_eq!(spans, ["$a", "$b", "$c", "$d", "$c", "$d"], "{found:?}");
+    let quiet = "when CLIENT_DATA {\n  binary scan [TCP::payload] cccc a b c d\n  log local0. \"$a.$b\"\n  log local0. \"v=$a.$b.$c.$d.x\"\n}";
+    assert!(w156("f5-irules", quiet).is_empty());
+}

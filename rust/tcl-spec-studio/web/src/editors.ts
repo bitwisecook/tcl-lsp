@@ -56,6 +56,7 @@ export const STRUCTURAL_KINDS = new Set([
   "bodyInterpreter",
   "roleMap",
   "presentationMap",
+  "domainMap",
   "prefixMap",
   "callbackTaintMap",
   "argTypeMap",
@@ -1008,6 +1009,62 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
         },
         set,
         "role",
+      ),
+
+    domainMap: (_kind, value, set) =>
+      rowList<Json>(
+        asArray(value),
+        () => ({ index: 0, domain: { kind: "Range", lo: 0, hi: Number.MAX_SAFE_INTEGER } }),
+        (item, _i, update, remove) => {
+          const row = asRecord(item);
+          const domain = asRecord(row.domain ?? { kind: "Range", lo: 0, hi: 0 });
+          const kind = asString(domain.kind) || "Range";
+          const write = (next: Record<string, Json>, structural = false): void =>
+            update({ index: row.index ?? 0, domain: next }, structural);
+          const select = el("select", {}, [
+            el("option", { value: "Range", text: "Range" }),
+            el("option", { value: "Port", text: "Port (0..65535)" }),
+            el("option", { value: "Any", text: "Any" }),
+          ]);
+          select.value = kind;
+          select.addEventListener("change", () =>
+            write(
+              select.value === "Range"
+                ? { kind: "Range", lo: 0, hi: Number.MAX_SAFE_INTEGER }
+                : { kind: select.value },
+              true,
+            ),
+          );
+          const controls: HTMLElement[] = [
+            labelled(
+              "index",
+              numberInput(asNumber(row.index) ?? 0, (n) =>
+                update({ index: n ?? 0, domain: row.domain ?? domain }),
+              ),
+            ),
+            labelled("domain", select),
+          ];
+          if (kind === "Range") {
+            controls.push(
+              labelled(
+                "lo",
+                numberInput(asNumber(domain.lo) ?? 0, (n) => write({ ...domain, lo: n ?? 0 }), {
+                  min: Number.MIN_SAFE_INTEGER,
+                }),
+              ),
+              labelled(
+                "hi",
+                numberInput(asNumber(domain.hi) ?? 0, (n) => write({ ...domain, hi: n ?? 0 }), {
+                  min: Number.MIN_SAFE_INTEGER,
+                }),
+              ),
+            );
+          }
+          controls.push(removeButton(remove));
+          return el("div", { class: "row" }, controls);
+        },
+        set,
+        "domain",
       ),
 
     presentationMap: (_kind, value, set) =>
