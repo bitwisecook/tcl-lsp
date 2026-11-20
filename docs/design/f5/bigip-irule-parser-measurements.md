@@ -1133,10 +1133,15 @@ means usable.
 | Integer data group with a signed key | A group holding 129: `class match -- -127 equals dg` is 0, the masked key matches. **`class match -127 …` without `--` is an error** (`bad option "-127"`); `class lookup -127 dg` returns empty with no error ([evidence](../../../evidence/tcl/bigip-class-match-signed-key.md)) |
 | Counters and ports | `table incr k -32768` from 0 stores and returns **18446744073709518848**: the table is unsigned 64-bit and wraps. `incr k -1` from 5 gives 4. `node 10.0.0.1 -1` (`invalid IP port:-1`) and `pool p member 10.0.0.1 -1` are refused at load ([table](../../../evidence/tcl/bigip-table-incr-negative.md), [ports](../../../evidence/tcl/bigip-node-and-pool-member-negative-port-refused.md)) |
 
-These give W156 measured argument domains. Ports, `IP::addr` octets and the
-`TCP::payload replace` offset are non-negative at load. TMM offsets and lengths
-are non-negative at runtime, where -1 for a length means "all". `table` values are
-unsigned 64-bit. A negative leading argument to `class match` needs `--`.
+These give W156 measured argument domains, now declared as each argument's
+`arg_domains` entry: the `TCP::`, `UDP::`, `SSL::` and `HTTP::` collect, release
+and payload lengths and offsets, the `TCP::payload replace` offset, and the
+`node` and `pool … member` ports. W156 reports a signed scan value passed to any
+of them, and to an address built from signed octets. `table` values are
+unsigned 64-bit, but a negative `table incr` delta is legitimate, so it carries
+no domain. A negative leading argument to `class match` needs `--`, which W304
+already reports for any substituted key. `SSL::payload replace` is not yet a
+registry subcommand, so its offset has no domain.
 
 ### How much data a `*::collect` delivers
 
