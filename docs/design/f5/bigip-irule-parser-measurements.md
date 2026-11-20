@@ -1323,6 +1323,87 @@ What it explains:
   has the F5 operators too. The R/N lexical rules and the expression grammar are
   in the C parser, not in these scripts.
 
+## 15. The registry against the checker (2026-11-20, `work` at `1d64acd646`)
+
+[`verify-registry.py`](../../../scripts/dev/bigip-probes/open-questions/verify-registry.py)
+compares the registry with the checker-derived model. It uses the registry's
+own answers, from the
+[`dump_irules_surface`](../../../rust/tcl-registry/examples/dump_irules_surface.rs)
+example (`is_irules_call_legal_in_event` for a bare call, arity,
+`event_requires`, argument-prefix event forms), plus `dump_specs irules` and
+`meta-events-props`. Legality is compared against the oracle's load-time
+verdict. Disagreements a checker-side profile requirement explains are counted
+apart, because the registry folds profiles into legality and the checker defers
+them to attach time.
+
+**Coverage.**
+- **Commands.** Of 1,016 checker commands, the registry lacks 30. 29 of those
+  are legacy-checker leftovers that TMM 21.1 does not implement and F5 does not
+  document (`SPDY::*`, `PSM::TFTP::*`, `PROFILE::json`, bare namespace
+  entries). Only `radius_avp` is a real gap.
+- **Specs 21.1 does not know.** 29 registry iRules specs exist in neither TMM
+  nor the checker, and none carries a lifecycle: `XML::*`, `HTTP::class`,
+  `PROFILE::httpclass`, `PLUGIN::*`, `URI::escape`, `URI::encode_component`,
+  `HTML::encode`, and `html_encode`, `html_escape`, `htmlencode`, `xff_list`,
+  `*_ip_list`, `accumulate`, `http_client_ip`, `http_content_len_max`,
+  `local_port`, `remote_port`.
+- **Events.** The registry lacks 8 events: `AM_CACHE_RESPONSE`,
+  `AM_CACHE_UPDATE`, `AM_MEDIA_PLAYLIST`, `AM_REQUEST`, `ANOMALY_REQUEST`,
+  `CLIENT_LINE`, `SERVER_LINE` and `IKE_AUTH`. `SIP_REQUEST_DONE` and
+  `SIP_RESPONSE_DONE` are claimed from 15.0 but do not exist on 21.1. The
+  `*_GTM` events are GTM-context events.
+
+**Event legality**, 160,718 shared cells:
+
+| | Cells | Commands |
+| --- | --- | --- |
+| Registry allows, checker rejects | 20,435 | |
+| … no event constraint at all in the registry | 13,416 | 408 |
+| … allow-list encoded as bare `also_in` (legal everywhere) | 3,446 | 26 |
+| … other constrained commands | 3,573 | 391 |
+| Registry rejects, checker accepts (no profile explanation) | 1,490 | |
+| Registry rejects, checker accepts with a profile requirement | 7,045 | |
+| Checker only warns; registry allows / rejects | 446 / 1,108 | |
+
+- **Allow-lists encoded as `also_in`.** An allow-list (`LB::reselect`,
+  `ACL::eval`, `LDAP::enable`, `*::activation_mode`, …) is encoded as
+  `event_requires { also_in: [...] }` with no other requirement. `also_in` means
+  *additionally* valid, and an otherwise empty requirement is always satisfied,
+  so those commands are legal everywhere. They need "only in" semantics, which
+  `EventRequirementForm::only_in` already provides.
+- **GLOBAL events.** The checker treats `LB_FAILED`, `LB_QUEUED`,
+  `LB_SELECTED`, `NAME_RESOLVED` and `PERSIST_DOWN` as GLOBAL events: anything
+  not explicitly denied is valid there. The registry does not model this, which
+  is the main driver of its false rejections.
+- **Invented profile requirements.** Some commands carry registry profile
+  requirements the checker does not have, confining them to 1–65 events:
+  `URI::query`, `urlcatquery`, `VDI::enable`/`disable`, `SSE::field`,
+  `REWRITE::enable`, `WAM::enable`, `LB::enable_decisionlog`.
+- **Contradicted `also_in`.** 13 `also_in` entries name events the checker
+  rejects: `HTTP::path`, `HTTP::query` and `HTTP2::header` in
+  `SERVER_CONNECTED`; `LSN::*`; `UDP::payload`/`hold`/`release` in SIP events;
+  `SSL::forward_proxy`.
+- **Per-form constraints.** 19 commands with per-form event constraints have
+  no argument-prefix forms in the registry (`SSL::alpn`, `SSL::extensions`,
+  `HTTP::proxy`, `HTTP::payload`, `ACCESS::session`, `persist`, `event`, …).
+
+**Profiles.** 501 commands' profile sets differ. In 230 the checker requires
+a profile and the registry none; 104 are disjoint (`ANTIFRAUD::*` need
+ANTIFRAUD, the registry says FASTHTTP); 116 overlap; in 51 the registry
+requires a profile the checker does not. Event implied profiles differ for 88
+events, mostly because the registry uses module names (`ACCESS`, `ASM`, `MQTT`,
+`WS`) where the checker lists profile types.
+
+**Arity.** 924 of 986 registry commands keep the default `0..∞`, so arity is
+effectively unmodelled. Of the rest, only three contradict the grammar:
+- `log`: the checker accepts up to 4 arguments, the registry up to 3.
+- `close`: the registry allows 2 arguments, the checker 1 (Tcl's channel
+  `close`, not the iRules sideband `close`).
+- `when`: the registry caps it at 6, the checker has no cap.
+
+Not compared yet: licence gating (25 commands), object dependencies (50),
+value checks, and suspension.
+
 The remaining resolution-specific identity, callable replacement and deletion
 boundaries have exact probes in
 [FOLLOWUP_APPLIANCE_CHECKS.md](../../../scripts/dev/bigip-probes/resolution-2286/FOLLOWUP_APPLIANCE_CHECKS.md).

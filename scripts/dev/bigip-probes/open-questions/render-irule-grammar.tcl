@@ -166,6 +166,47 @@ proc forms {g} {
     return [list [list [r $g] [node_constraints $g]]]
 }
 
+# word-count range a grammar node accepts: {min max}, max -1 = unbounded
+proc span {node} {
+    set node [string trim $node]
+    if {$node eq ""} { return {0 0} }
+    set head [lindex $node 0]
+    switch -- $head {
+        cmd_noop_word { return {0 0} }
+        cmd_literal_word - cmd_abbreviate_word - run_jet_macro - cmd_not_arg { return {1 1} }
+        cmd_sequence_word {
+            set lo 0; set hi 0
+            foreach item [lindex $node 1] {
+                lassign [span $item] a b
+                incr lo $a
+                if {$hi >= 0} { set hi [expr {$b < 0 ? -1 : $hi + $b}] }
+            }
+            return [list $lo $hi]
+        }
+        cmd_sequence_list_word {
+            # one list word, or the elements as separate words
+            set lo 0; set hi 0
+            foreach item [lindex $node 1] {
+                lassign [span $item] a b
+                incr lo $a
+                if {$hi >= 0} { set hi [expr {$b < 0 ? -1 : $hi + $b}] }
+            }
+            return [list [expr {min(1, $lo)}] $hi]
+        }
+        cmd_alternative_word {
+            set lo -1; set hi 0
+            foreach item [lindex $node 1] {
+                lassign [span $item] a b
+                if {$lo < 0 || $a < $lo} { set lo $a }
+                if {$hi >= 0} { set hi [expr {$b < 0 ? -1 : max($hi, $b)}] }
+            }
+            return [list [expr {max($lo, 0)}] $hi]
+        }
+        cmd_optional_word { lassign [span [lindex $node 1]] a b; return [list 0 $b] }
+        cmd_zero_more_word - cmd_table_word { return {0 -1} }
+        default { return {0 -1} }
+    }
+}
 proc forms_json {fl} {
     set parts {}
     foreach f $fl {
@@ -186,7 +227,7 @@ set cf [open $out/commands.txt w]
 set json "\{\"commands\": \{"
 set first 1
 foreach name [lsort [array names syntax]] {
-    set sig ""; set ev {}; set sem ""; set fl {}
+    set sig ""; set ev {}; set sem ""; set fl {}; set ar {}
     set ::used {}
     foreach part $syntax($name) {
         set part [string trim $part]
@@ -202,6 +243,7 @@ foreach name [lsort [array names syntax]] {
                 set sig [r $g]
             }
             set fl [forms $g]
+            set ar [expr {$g eq "" ? "" : [span $g]}]
         } elseif {$head ne ""} {
             lappend ev [events $part]
         }
@@ -225,7 +267,7 @@ foreach name [lsort [array names syntax]] {
     puts $cf "$name\t$sig\t$evs\t$sem\t$depstr\t$chkstr"
     if {!$first} { append json "," }
     set first 0
-    append json "\n  [list2json $name]: \{\"signature\": [list2json $sig], \"constraints\": [list2json $evs], \"semantic\": [list2json $sem], \"object_dependencies\": [list2json $depstr], \"value_checks\": [list2json $chkstr], \"forms\": [forms_json $fl]\}"
+    append json "\n  [list2json $name]: \{\"signature\": [list2json $sig], \"constraints\": [list2json $evs], \"semantic\": [list2json $sem], \"object_dependencies\": [list2json $depstr], \"value_checks\": [list2json $chkstr], \"forms\": [forms_json $fl], \"arity\": [expr {$ar eq "" ? "null" : "\[[join $ar {, }]\]"}]\}"
 }
 close $cf
 
