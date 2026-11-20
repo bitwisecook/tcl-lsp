@@ -131,6 +131,51 @@ proc rc {node} {
     }
 }
 
+# constraint scripts carried by grammar nodes in a subtree
+proc node_constraints {node} {
+    set node [string trim $node]
+    set head [lindex $node 0]
+    set out {}
+    switch -- $head {
+        cmd_noop_word { set out [lindex $node 1] }
+        cmd_literal_word - cmd_abbreviate_word { set out [lindex $node end] }
+        cmd_sequence_word - cmd_sequence_list_word - cmd_table_word {
+            foreach item [lindex $node 1] { set out [concat $out [node_constraints $item]] }
+            set out [concat $out [lindex $node 2]]
+        }
+        cmd_alternative_word {
+            foreach item [lindex $node 1] { set out [concat $out [node_constraints $item]] }
+            set out [concat $out [lindex $node 2]]
+        }
+        cmd_optional_word - cmd_zero_more_word {
+            set out [concat [node_constraints [lindex $node 1]] [lindex $node 3]]
+        }
+    }
+    set r {}
+    foreach c $out { set c [string trim [regsub -all {\s+} $c " "]]; if {$c ne "" && $c ni $r} { lappend r $c } }
+    return $r
+}
+# top-level forms: each alternative of the command grammar with its constraints
+proc forms {g} {
+    set g [string trim $g]
+    if {[lindex $g 0] eq "cmd_alternative_word"} {
+        set f {}
+        foreach alt [lindex $g 1] { lappend f [list [r $alt] [node_constraints $alt]] }
+        return $f
+    }
+    return [list [list [r $g] [node_constraints $g]]]
+}
+
+proc forms_json {fl} {
+    set parts {}
+    foreach f $fl {
+        set cs {}
+        foreach c [lindex $f 1] { lappend cs [list2json $c] }
+        lappend parts [format {{"signature": %s, "constraints": [%s]}} [list2json [lindex $f 0]] [join $cs ", "]]
+    }
+    return [format {[%s]} [join $parts ", "]]
+}
+
 proc events {script} {
     set head [lindex $script 0]
     set args [lrange $script 1 end]
@@ -141,7 +186,7 @@ set cf [open $out/commands.txt w]
 set json "\{\"commands\": \{"
 set first 1
 foreach name [lsort [array names syntax]] {
-    set sig ""; set ev {}; set sem ""
+    set sig ""; set ev {}; set sem ""; set fl {}
     set ::used {}
     foreach part $syntax($name) {
         set part [string trim $part]
@@ -156,6 +201,7 @@ foreach name [lsort [array names syntax]] {
             } else {
                 set sig [r $g]
             }
+            set fl [forms $g]
         } elseif {$head ne ""} {
             lappend ev [events $part]
         }
@@ -179,7 +225,7 @@ foreach name [lsort [array names syntax]] {
     puts $cf "$name\t$sig\t$evs\t$sem\t$depstr\t$chkstr"
     if {!$first} { append json "," }
     set first 0
-    append json "\n  [list2json $name]: \{\"signature\": [list2json $sig], \"constraints\": [list2json $evs], \"semantic\": [list2json $sem], \"object_dependencies\": [list2json $depstr], \"value_checks\": [list2json $chkstr]\}"
+    append json "\n  [list2json $name]: \{\"signature\": [list2json $sig], \"constraints\": [list2json $evs], \"semantic\": [list2json $sem], \"object_dependencies\": [list2json $depstr], \"value_checks\": [list2json $chkstr], \"forms\": [forms_json $fl]\}"
 }
 close $cf
 
