@@ -1281,6 +1281,44 @@ What it explains:
   procs instead of a declarative grammar, plus 52 bare namespace entries; and
   866 macros. The output is derived from F5 source and stays with the
   extraction.
+- **The checker can be run offline as an oracle.**
+  [`irule-oracle.tcl`](../../../scripts/dev/bigip-probes/open-questions/irule-oracle.tcl)
+  loads the extracted checker into a stock tclsh, stubs its C hooks, and
+  evaluates the loader's event logic for every event × command:
+  command/namespace constraints with the two-stage downgrade, the constraints
+  of the grammar form a bare call matches (49 commands constrain events per
+  form, such as `SSL::alpn` reads versus `SSL::alpn set`), and the implicit
+  namespace-to-event check. It agrees with the measured matrix on **147,079 of
+  147,098 cells (99.987 %)**. The 19 residuals are structural keywords whose
+  RULE_INIT error is a scope error, not a context error (4), `DIAMETER::retry`'s
+  downgrade (9), `ACCESS::session` (4) and two single cells. The
+  oracle also yields what the load-time verdict cannot show: the **profile
+  requirement per command per event**, which the checker saves for mcpd to
+  enforce when the rule is attached to a virtual server (`HTTP::uri` needs
+  `{HTTP FASTHTTP}` in `HTTP_REQUEST`, `{FASTHTTP}` in `SERVER_CONNECTED`,
+  `{ICAP}` in ICAP events, `{HTTPROUTER}` in MR events), plus licence and
+  proxy dependencies. The live tables hold 171 events (the shipped schema
+  documents 158) and 1,068 command entries.
+  [`build-irule-model.py`](../../../scripts/dev/bigip-probes/open-questions/build-irule-model.py)
+  joins oracle, grammar, schema and TMM table into one model.
+- **TMM registers 1,332 command names** in an ELF section, `set_tclcmd`
+  ([`extract-tmm-cmdtable.py`](../../../scripts/dev/bigip-probes/open-questions/extract-tmm-cmdtable.py)),
+  against 892 distinct handlers. 453 names are known to neither the checker nor
+  the documentation (`EPVA::*`, `DIAG::*`, `CGC::*`, subcommand registrations).
+- **Suspension is Tcl return code 5.** A suspending handler allocates a pending
+  operation with a resume callback and returns 5. The rule resumes through
+  `tclrule.c`'s continue routine, which requires the context's suspended bit,
+  and the command is re-executed, consulting a thread-local "resuming" flag
+  (seen for `after`). Ghidra scripts in
+  [`ghidra/`](../../../scripts/dev/bigip-probes/open-questions/ghidra/) tag the
+  handlers that can return 5. 28 dedicated handlers do so directly (`table`,
+  `session`, `connect`, `recv`, `send`, `close`, `call`, `ILX::call`,
+  `DNS::query`, `RESOLVER::name_lookup`, `OFFBOX::request`, `CATEGORY::lookup`,
+  `ACCESS::oauth`, `ACCESS::saml`, `PEM::subscriber`, `LB::select`, `persist`,
+  …), and `after` one call deeper. Handlers shared by several commands (307)
+  and deeper returns are only candidates, and `RESOLV::lookup` and
+  `NAME::lookup` are missed statically. The suspend list therefore needs a
+  runtime confirmation pass on the appliance.
 - The checker's Tcl itself uses `starts_with`, so mcpd's embedded interpreter
   has the F5 operators too. The R/N lexical rules and the expression grammar are
   in the C parser, not in these scripts.
