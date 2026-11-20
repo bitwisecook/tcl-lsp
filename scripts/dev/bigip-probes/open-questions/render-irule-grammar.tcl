@@ -5,7 +5,9 @@
 # <jet_tcl.tcl> is the JET checker table extracted by extract-tclcheck.py. It
 # is data only (namespace eval + array set); this script sources it into a
 # fresh interpreter and walks bigip_rule_syntax and jet_macros. It writes
-#   commands.txt  NAME <tab> signature <tab> event constraint <tab> semantic checker
+#   commands.txt  NAME <tab> signature <tab> constraints (events, profiles,
+#                 licence, proxy) <tab> semantic checker <tab> object
+#                 dependencies <tab> placeholder value checks
 #   macros.txt    PLACEHOLDER <tab> definition
 #   grammar.json  the same as JSON
 # The output is derived from F5 proprietary source: keep it with the
@@ -30,7 +32,9 @@ interp delete data
 set used {}
 
 proc list2json {s} {
-    return "\"[string map [list \\ \\\\ \" \\\" \n \\n \t \\t] $s]\""
+    set map [list \\ \\\\ \" \\\"]
+    for {set c 0} {$c < 32} {incr c} { lappend map [format %c $c] [format \\u%04x $c] }
+    return "\"[string map $map $s]\""
 }
 
 proc words {l} {
@@ -138,6 +142,7 @@ set json "\{\"commands\": \{"
 set first 1
 foreach name [lsort [array names syntax]] {
     set sig ""; set ev {}; set sem ""
+    set ::used {}
     foreach part $syntax($name) {
         set part [string trim $part]
         set head [lindex $part 0]
@@ -157,10 +162,24 @@ foreach name [lsort [array names syntax]] {
     }
     if {$sig eq "" && ![string match *::* $name]} { set sig "(namespace entry, not a command)" }
     set evs [join $ev " ; "]
-    puts $cf "$name\t$sig\t$evs\t$sem"
+    # load-time effects carried by the placeholders this command uses
+    set deps {}; set checks {}
+    foreach m [dict keys $::used] {
+        if {![info exists macros($m)]} continue
+        set md $macros($m)
+        foreach c [dict get $md constraint] {
+            set c [string trim [regsub -all {\s+} $c " "]]
+            if {$c ne "" && $c ni $deps} { lappend deps $c }
+        }
+        set chk [string trim [regsub -all {\s+} [dict get $md syntaxer] " "]]
+        if {$chk ne "" && $chk ni $checks} { lappend checks "[regsub {^cmd_macro_} $m {}]=$chk" }
+    }
+    set depstr [join $deps " ; "]
+    set chkstr [join $checks " ; "]
+    puts $cf "$name\t$sig\t$evs\t$sem\t$depstr\t$chkstr"
     if {!$first} { append json "," }
     set first 0
-    append json "\n  [list2json $name]: \{\"signature\": [list2json $sig], \"constraints\": [list2json $evs], \"semantic\": [list2json $sem]\}"
+    append json "\n  [list2json $name]: \{\"signature\": [list2json $sig], \"constraints\": [list2json $evs], \"semantic\": [list2json $sem], \"object_dependencies\": [list2json $depstr], \"value_checks\": [list2json $chkstr]\}"
 }
 close $cf
 
