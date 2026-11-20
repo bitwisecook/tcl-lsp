@@ -309,7 +309,7 @@ fn irules_consumers_in_event_bodies() {
     let found = located("f5-irules", source);
     assert_eq!(found.len(), 5, "{found:?}");
     assert!(
-        found.iter().any(|(_, m)| m.contains("IP::addr")),
+        found.iter().any(|(_, m)| m.contains("192.-64.-1.1")),
         "{found:?}"
     );
 }
