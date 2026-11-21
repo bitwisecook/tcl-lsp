@@ -108,7 +108,7 @@ A profile therefore defines lookup as Tcl code, run by the repository's own inte
 - **Outputs.** `linearise` returns the ordered classes for a class; `call_chain` returns, for an object and a method name, the ordered implementations with their kind (filter, mixin, object, class, unknown handler). Either may return a structured refusal (code, message, offending paths), which becomes a diagnostic at the definition â€” itcl's repeated base, C3's inconsistent order.
 - **Partial knowledge.** A relation the analyser cannot prove arrives as an `unknown` element. The shipped procedures keep the known prefix and end the result with an open marker, so method checks abstain past it rather than guess; a custom procedure must do the same, and the loader checks it does.
 - **Sandbox.** Lists, dictionaries, control flow, `proc` and `error` only; no I/O, introspection or time; a command budget through the VM's existing limits; results cached per profile and graph.
-- **Standard library.** SpecTcl ships `c3`, `dfs-keep-last` (TclOO), `dfs-refuse-repeats` (itcl), `single` and `none`, as procedures a profile can call or compose with its own mixin and filter placement. The shipped profiles use them.
+- **Standard library.** SpecTcl ships `lookup::c3`, `lookup::dfs-keep-last` (TclOO), `lookup::dfs-refuse-repeats` (itcl), `lookup::single` and `lookup::none`, plus helpers such as `lookup::implementations`, as procedures a profile can call or compose with its own mixin and filter placement. The shipped profiles use them.
 - **Checks.** A profile carries `lookup_test GRAPH EXPECTED` rows; the rows for shipped profiles are the oracle measurements above. Shipped algorithms also have native Rust implementations for speed, kept equal to the SpecTcl procedures by a differential test over generated graphs; a custom profile runs in the VM.
 - **Consumers.** Method resolution (W308, E002), the target of `next`/`nextto`/`chain` and its arity, hover and go-to-definition, find-references and rename across overrides, the optimiser's devirtualisation, and interprocedural summaries of the called method.
 
@@ -117,7 +117,7 @@ The same mechanism suits other rules that are naturally code rather than data â€
 ```tcl
 object_system mini {
     lookup_order {
-        proc linearise {graph class} { tcloo::dfs-keep-last $graph $class superclass }
+        proc linearise {graph class} { lookup::dfs-keep-last $graph $class superclass }
         proc call_chain {graph object method} {
             set chain [linearise $graph [dict get $graph objects $object class]]
             return [lookup::implementations $graph $chain $method]
