@@ -38,4 +38,10 @@ Non-OO evaluation, namespace and alias gaps (queue item 4 of the handover, fixtu
 13. Model 8.x namespace variable "creative writing" (`set x` in `namespace eval` writes an existing global on 8.4–8.6, not on 9.0) per selected dialect.
 14. Report: `namespace code` captured in the wrong namespace, reads of never-set globals, reads after `unset`, calls through a deleted alias target, arity of procedures defined inside procedures, writes to a 9.0 `const`, and calls to a built-in replaced by a procedure with a different signature.
 
+Tk gaps (queue item 5 of the handover, fixtures in `oo-dispatch-probe/tk/`):
+
+15. Check options and enumerated values wherever Tk takes them, not only at creation: `configure`, `itemconfigure`, `entryconfigure`, `tag configure`, geometry managers, `wm`, dialogs, `font`, `image create`, canvas item types and coordinate counts, text indices, and event and virtual-event names; through the registry's widget and option specs.
+16. Follow widget paths as values: paths built from variables (`$w.ok`), widget commands held in variables, `image create` and `font create` results; report duplicate paths, upper-case names and use after `destroy`; drop the W307 noise on these.
+17. Report `-textvariable`/`-variable`/`-listvariable` naming a procedure local (Tk links the global) and arity in `after` scripts; gate `tk print` to 9.0 and check its arguments.
+
 Before the final PR, move useful contracts and real experiments/tests into durable locations. Correct documentation/comments across the entire tracked repository, including generated guidance and files outside the implementation diff. Remove obsolete guidance, completed TODOs, development narratives, temporary ledgers/prompts/archives and their references, including this directory and the work-specific AGENTS exception. Preserve reproducible evidence and legal attribution. Complete all gates before creating a ready-to-merge PR; do not merge. This final cleanup is still required and is not completed by source-audit closure.

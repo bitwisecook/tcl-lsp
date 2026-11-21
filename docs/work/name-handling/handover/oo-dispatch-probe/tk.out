@@ -1,0 +1,41 @@
+PROBE t01-basic-layout.tcl tcl8.6: [Tk1001 L11 Geometry manager conflict: cannot use 'pack' in parent '.' while 'grid]
+PROBE t01-basic-layout.tcl tcl9.0: [Tk1001 L11 Geometry manager conflict: cannot use 'pack' in parent '.' while 'grid]
+PROBE t02-command-quoting.tcl tcl8.6: [W105 L6 Code block argument to 'button' is not braced and contains substitutio]
+PROBE t02-command-quoting.tcl tcl9.0: [W105 L6 Code block argument to 'button' is not braced and contains substitutio]
+PROBE t03-bind-percent.tcl tcl8.6: [E002 L6 Too few arguments for 'onkey': expected at least 2, got 1]
+PROBE t03-bind-percent.tcl tcl9.0: [E002 L6 Too few arguments for 'onkey': expected at least 2, got 1]
+PROBE t04-textvariable-scope.tcl tcl8.6: 
+PROBE t04-textvariable-scope.tcl tcl9.0: 
+PROBE t05-after-loop.tcl tcl8.6: 
+PROBE t05-after-loop.tcl tcl9.0: 
+PROBE t06-wm.tcl tcl8.6: 
+PROBE t06-wm.tcl tcl9.0: 
+PROBE t07-ttk.tcl tcl8.6: [Tk1003 L7 Unknown option '-bg' for ttk::button.]
+PROBE t07-ttk.tcl tcl9.0: [Tk1003 L7 Unknown option '-bg' for ttk::button.]
+PROBE t08-canvas.tcl tcl8.6: 
+PROBE t08-canvas.tcl tcl9.0: 
+PROBE t09-text.tcl tcl8.6: 
+PROBE t09-text.tcl tcl9.0: 
+PROBE t10-menu.tcl tcl8.6: 
+PROBE t10-menu.tcl tcl9.0: 
+PROBE t11-listbox-path-vars.tcl tcl8.6: [W307 L6 Non-literal command name — cannot statically analyse] [W307 L8 Non-literal command name — cannot statically analyse]
+PROBE t11-listbox-path-vars.tcl tcl9.0: [W307 L6 Non-literal command name — cannot statically analyse] [W307 L8 Non-literal command name — cannot statically analyse]
+PROBE t12-megawidget-paths.tcl tcl8.6: 
+PROBE t12-megawidget-paths.tcl tcl9.0: 
+PROBE t13-paths.tcl tcl8.6: [Tk1002 L4 Widget path '.nope.b' references non-existent parent '.nope'.]
+PROBE t13-paths.tcl tcl9.0: [Tk1002 L4 Widget path '.nope.b' references non-existent parent '.nope'.]
+PROBE t14-events.tcl tcl8.6: 
+PROBE t14-events.tcl tcl9.0: 
+PROBE t15-dialogs.tcl tcl8.6: 
+PROBE t15-dialogs.tcl tcl9.0: 
+PROBE t16-image-font.tcl tcl8.6: [W307 L3 Non-literal command name — cannot statically analyse]
+PROBE t16-image-font.tcl tcl9.0: [W307 L3 Non-literal command name — cannot statically analyse]
+PROBE t17-scroll.tcl tcl8.6: 
+PROBE t17-scroll.tcl tcl9.0: 
+PROBE t18-tk-90.tcl tcl8.6: [W002 L3 'tk sysnotify' is disabled in the active dialect profile (available in]
+PROBE t18-tk-90.tcl tcl9.0: 
+PROBE t19-option-db.tcl tcl8.6: 
+PROBE t19-option-db.tcl tcl9.0: 
+PROBE t20-winfo-update.tcl tcl8.6: 
+PROBE t20-winfo-update.tcl tcl9.0: 
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10344 filtered out; finished in 29.50s
