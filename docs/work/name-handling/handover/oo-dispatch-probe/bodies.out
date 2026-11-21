@@ -1,0 +1,61 @@
+PROBE 01-proc.tcl tcl8.6: W154@& W156@$b
+PROBE 01-proc.tcl tcl9.0: W154@& W156@$b
+PROBE 02-class-method.tcl tcl8.6: W154@&
+PROBE 02-class-method.tcl tcl9.0: W154@&
+PROBE 03-class-constructor.tcl tcl8.6: W154@&
+PROBE 03-class-constructor.tcl tcl9.0: W154@&
+PROBE 04-class-destructor.tcl tcl8.6: W154@&
+PROBE 04-class-destructor.tcl tcl9.0: W154@&
+PROBE 05-define-method.tcl tcl8.6: 
+PROBE 05-define-method.tcl tcl9.0: 
+PROBE 06-define-constructor.tcl tcl8.6: 
+PROBE 06-define-constructor.tcl tcl9.0: 
+PROBE 07-define-destructor.tcl tcl8.6: 
+PROBE 07-define-destructor.tcl tcl9.0: 
+PROBE 08-define-script-method.tcl tcl8.6: W154@&
+PROBE 08-define-script-method.tcl tcl9.0: W154@&
+PROBE 09-objdefine-method.tcl tcl8.6: 
+PROBE 09-objdefine-method.tcl tcl9.0: 
+PROBE 10-objdefine-script.tcl tcl8.6: W154@&
+PROBE 10-objdefine-script.tcl tcl9.0: W154@&
+PROBE 11-self-method.tcl tcl8.6: W154@&
+PROBE 11-self-method.tcl tcl9.0: W154@&
+PROBE 12-classmethod.tcl tcl8.6: W002@classmethod
+PROBE 12-classmethod.tcl tcl9.0: W154@&
+PROBE 13-initialise.tcl tcl8.6: W002@initialise
+PROBE 13-initialise.tcl tcl9.0: 
+PROBE 14-private-method.tcl tcl8.6: W002@private
+PROBE 14-private-method.tcl tcl9.0: W154@&
+PROBE 15-method-export-flag.tcl tcl8.6: W002@-unexport
+PROBE 15-method-export-flag.tcl tcl9.0: W154@&
+PROBE 16-self-constructor.tcl tcl8.6: W154@&
+PROBE 16-self-constructor.tcl tcl9.0: W154@&
+PROBE 17-itcl-method.tcl tcl8.6: W120@itcl::class W154@&
+PROBE 17-itcl-method.tcl tcl9.0: W120@itcl::class W154@&
+PROBE 18-itcl-constructor.tcl tcl8.6: W120@itcl::class W154@&
+PROBE 18-itcl-constructor.tcl tcl9.0: W120@itcl::class W154@&
+PROBE 19-itcl-body.tcl tcl8.6: W120@itcl::body W120@itcl::class
+PROBE 19-itcl-body.tcl tcl9.0: W120@itcl::body W120@itcl::class
+PROBE 20-ns-proc.tcl tcl8.6: W154@& W156@$b
+PROBE 20-ns-proc.tcl tcl9.0: W154@& W156@$b
+PROBE 21-apply.tcl tcl8.6: W156@$b W214@
+PROBE 21-apply.tcl tcl9.0: W156@$b W214@
+PROBE 22-singleton.tcl tcl8.6: W002@oo::singleto W123@oo::singleto
+PROBE 22-singleton.tcl tcl9.0: W154@&
+PROBE 23-abstract.tcl tcl8.6: W002@oo::abstract W123@oo::abstract
+PROBE 23-abstract.tcl tcl9.0: W154@&
+PROBE 24-class-in-ns.tcl tcl8.6: W154@&
+PROBE 24-class-in-ns.tcl tcl9.0: W154@&
+PROBE 25-define-self-method.tcl tcl8.6: 
+PROBE 25-define-self-method.tcl tcl9.0: 
+PROBE 26-objdefine-class.tcl tcl8.6: 
+PROBE 26-objdefine-class.tcl tcl9.0: 
+PROBE 27-itcl-proc.tcl tcl8.6: W120@itcl::class W154@&
+PROBE 27-itcl-proc.tcl tcl9.0: W120@itcl::class W154@&
+PROBE 28-snit-method.tcl tcl8.6: W154@&
+PROBE 28-snit-method.tcl tcl9.0: W154@&
+PROBE 29-snit-typemethod.tcl tcl8.6: W154@&
+PROBE 29-snit-typemethod.tcl tcl9.0: W154@&
+PROBE 30-snit-constructor.tcl tcl8.6: W154@&
+PROBE 30-snit-constructor.tcl tcl9.0: W154@&
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10344 filtered out; finished in 13.82s

@@ -1,0 +1,67 @@
+PROBE b01-property-90.tcl tcl8.6: [W002 L1 "oo::configurab" 'oo::configurable' is disabled in the active dialect profile (availabl] [W123 L1 "oo::configurab" Unresolved command 'oo::configurable' at this source point. The call w]
+PROBE b01-property-90.tcl tcl9.0: 
+PROBE b02-slots.tcl tcl8.6: [W307 L4 "[C new]" Non-literal command name — cannot statically analyse] [W307 L6 "[C new]" Non-literal command name — cannot statically analyse]
+PROBE b02-slots.tcl tcl9.0: [W307 L4 "[C new]" Non-literal command name — cannot statically analyse] [W307 L6 "[C new]" Non-literal command name — cannot statically analyse]
+PROBE b03-copy.tcl tcl8.6: 
+PROBE b03-copy.tcl tcl9.0: 
+PROBE b04-class-change.tcl tcl8.6: 
+PROBE b04-class-change.tcl tcl9.0: 
+PROBE b05-self-introspection.tcl tcl8.6: [W123 L2 "self" Unresolved command 'self' at this source point. The call widens the va]
+PROBE b05-self-introspection.tcl tcl9.0: [W123 L2 "self" Unresolved command 'self' at this source point. The call widens the va]
+PROBE b06-nextto.tcl tcl8.6: [W307 L4 "[C new]" Non-literal command name — cannot statically analyse]
+PROBE b06-nextto.tcl tcl9.0: [W307 L4 "[C new]" Non-literal command name — cannot statically analyse]
+PROBE b07-export.tcl tcl8.6: 
+PROBE b07-export.tcl tcl9.0: 
+PROBE b08-object-builtins.tcl tcl8.6: [W123 L3 "my" Unresolved command 'my' at this source point. The call widens the vari]
+PROBE b08-object-builtins.tcl tcl9.0: [W123 L3 "my" Unresolved command 'my' at this source point. The call widens the vari]
+PROBE b09-method-wrong-args.tcl tcl8.6: 
+PROBE b09-method-wrong-args.tcl tcl9.0: 
+PROBE b10-class-wrong-sub.tcl tcl8.6: 
+PROBE b10-class-wrong-sub.tcl tcl9.0: 
+PROBE c01-ensemble-map.tcl tcl8.6: 
+PROBE c01-ensemble-map.tcl tcl9.0: 
+PROBE c02-ensemble-export.tcl tcl8.6: 
+PROBE c02-ensemble-export.tcl tcl9.0: 
+PROBE c03-ensemble-parameters.tcl tcl8.6: 
+PROBE c03-ensemble-parameters.tcl tcl9.0: 
+PROBE c04-ensemble-unknown.tcl tcl8.6: [W214 L2 "ens" Parameter 'ens' of proc '::u::fallback' is unused] [W214 L2 "sub" Parameter 'sub' of proc '::u::fallback' is unused]
+PROBE c04-ensemble-unknown.tcl tcl9.0: [W214 L2 "ens" Parameter 'ens' of proc '::u::fallback' is unused] [W214 L2 "sub" Parameter 'sub' of proc '::u::fallback' is unused]
+PROBE c05-alias.tcl tcl8.6: [E002 L4 "hello" Too few arguments for 'hello': expected at least 1, got 0]
+PROBE c05-alias.tcl tcl9.0: [E002 L4 "hello" Too few arguments for 'hello': expected at least 1, got 0]
+PROBE c06-rename.tcl tcl8.6: [W123 L4 "old" Unresolved command 'old' at this source point]
+PROBE c06-rename.tcl tcl9.0: [W123 L4 "old" Unresolved command 'old' at this source point]
+PROBE c07-unknown-proc.tcl tcl8.6: 
+PROBE c07-unknown-proc.tcl tcl9.0: 
+PROBE c08-namespace-path.tcl tcl8.6: 
+PROBE c08-namespace-path.tcl tcl9.0: 
+PROBE c09-namespace-unknown.tcl tcl8.6: 
+PROBE c09-namespace-unknown.tcl tcl9.0: 
+PROBE c10-tailcall.tcl tcl8.6: 
+PROBE c10-tailcall.tcl tcl9.0: 
+PROBE c11-command-prefix.tcl tcl8.6: 
+PROBE c11-command-prefix.tcl tcl9.0: 
+PROBE c12-coroutine.tcl tcl8.6: [W241 L1 "1" while is provably infinite: condition is constant true and the body ne]
+PROBE c12-coroutine.tcl tcl9.0: [W241 L1 "1" while is provably infinite: condition is constant true and the body ne]
+PROBE c13-namespace-code.tcl tcl8.6: [W307 L3 "$c" Non-literal command name — cannot statically analyse]
+PROBE c13-namespace-code.tcl tcl9.0: [W307 L3 "$c" Non-literal command name — cannot statically analyse]
+PROBE c14-trace-exec.tcl tcl8.6: 
+PROBE c14-trace-exec.tcl tcl9.0: 
+PROBE c15-interp-slave.tcl tcl8.6: 
+PROBE c15-interp-slave.tcl tcl9.0: 
+PROBE c16-apply-var.tcl tcl8.6: [E002 L3 "apply $lam" Too few arguments for 'apply': expected at least 1, got 0]
+PROBE c16-apply-var.tcl tcl9.0: [E002 L3 "apply $lam" Too few arguments for 'apply': expected at least 1, got 0]
+PROBE c17-proc-computed-name.tcl tcl8.6: 
+PROBE c17-proc-computed-name.tcl tcl9.0: 
+PROBE c18-ensemble-on-class.tcl tcl8.6: [W307 L3 "[e mk]" Non-literal command name — cannot statically analyse]
+PROBE c18-ensemble-on-class.tcl tcl9.0: [W307 L3 "[e mk]" Non-literal command name — cannot statically analyse]
+PROBE c18b-ensemble-on-class-abs.tcl tcl8.6: [W307 L3 "[e mk]" Non-literal command name — cannot statically analyse]
+PROBE c18b-ensemble-on-class-abs.tcl tcl9.0: [W307 L3 "[e mk]" Non-literal command name — cannot statically analyse]
+PROBE d01-itcl-inherit.tcl tcl8.6: [W120 L2 "itcl::class" "itcl::class" requires `package require Itcl`]
+PROBE d01-itcl-inherit.tcl tcl9.0: [W120 L2 "itcl::class" "itcl::class" requires `package require Itcl`]
+PROBE d02-snit-delegate.tcl tcl8.6: 
+PROBE d02-snit-delegate.tcl tcl9.0: 
+PROBE d03-critcl.tcl tcl8.6: 
+PROBE d03-critcl.tcl tcl9.0: 
+PROBE d04-itcl-public-var.tcl tcl8.6: [W120 L2 "itcl::class" "itcl::class" requires `package require Itcl`]
+PROBE d04-itcl-public-var.tcl tcl9.0: [W120 L2 "itcl::class" "itcl::class" requires `package require Itcl`]
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10344 filtered out; finished in 29.68s

@@ -1,0 +1,49 @@
+PROBE a01-declared-variable.tcl tcl8.6: 
+PROBE a01-declared-variable.tcl tcl9.0: 
+PROBE a02-my-variable.tcl tcl8.6: W123@my W123@my
+PROBE a02-my-variable.tcl tcl9.0: W123@my W123@my
+PROBE a03-classvariable.tcl tcl8.6: W120@classvariabl
+PROBE a03-classvariable.tcl tcl9.0: 
+PROBE a04-link.tcl tcl8.6: W120@link W123@link
+PROBE a04-link.tcl tcl9.0: W123@link
+PROBE a05-next-constructor.tcl tcl8.6: W307@[D new 1 2]
+PROBE a05-next-constructor.tcl tcl9.0: W307@[D new 1 2]
+PROBE a06-forward.tcl tcl8.6: W123@my
+PROBE a06-forward.tcl tcl9.0: W123@my
+PROBE a07-deletemethod.tcl tcl8.6: 
+PROBE a07-deletemethod.tcl tcl9.0: 
+PROBE a08-private-call.tcl tcl8.6: W123@my
+PROBE a08-private-call.tcl tcl9.0: W123@my
+PROBE a09-ctor-arity.tcl tcl8.6: 
+PROBE a09-ctor-arity.tcl tcl9.0: 
+PROBE a09b-ctor-arity-body.tcl tcl8.6: 
+PROBE a09b-ctor-arity-body.tcl tcl9.0: 
+PROBE a10-self-calls.tcl tcl8.6: W123@self W123@self
+PROBE a10-self-calls.tcl tcl9.0: W123@self W123@self
+PROBE a11-objdefine-variable.tcl tcl8.6: 
+PROBE a11-objdefine-variable.tcl tcl9.0: 
+PROBE a12-unknown-method.tcl tcl8.6: 
+PROBE a12-unknown-method.tcl tcl9.0: 
+PROBE a13-filter.tcl tcl8.6: W307@[C new]
+PROBE a13-filter.tcl tcl9.0: W307@[C new]
+PROBE a14-mixin.tcl tcl8.6: 
+PROBE a14-mixin.tcl tcl9.0: 
+PROBE a15-namespace-upvar.tcl tcl8.6: 
+PROBE a15-namespace-upvar.tcl tcl9.0: 
+PROBE a16-variable-in-define.tcl tcl8.6: W307@[C new]
+PROBE a16-variable-in-define.tcl tcl9.0: W307@[C new]
+PROBE a17-renamemethod.tcl tcl8.6: 
+PROBE a17-renamemethod.tcl tcl9.0: 
+PROBE a18-destroy-in-method.tcl tcl8.6: W123@my
+PROBE a18-destroy-in-method.tcl tcl9.0: W123@my
+PROBE a19-callback.tcl tcl8.6: W123@callback
+PROBE a19-callback.tcl tcl9.0: W123@callback
+PROBE a20-mymethod-86.tcl tcl8.6: 
+PROBE a20-mymethod-86.tcl tcl9.0: 
+PROBE a21-variable-slot-ops.tcl tcl8.6: W307@[C new] W307@[C new]
+PROBE a21-variable-slot-ops.tcl tcl9.0: W307@[C new] W307@[C new]
+PROBE a22-private-variable.tcl tcl8.6: W002@private W307@[C new]
+PROBE a22-private-variable.tcl tcl9.0: W307@[C new]
+PROBE a23-method-arity.tcl tcl8.6: E002@$o E002@$o
+PROBE a23-method-arity.tcl tcl9.0: E002@$o E002@$o
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10344 filtered out; finished in 16.16s
