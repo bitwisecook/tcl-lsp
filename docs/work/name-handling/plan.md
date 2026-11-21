@@ -29,6 +29,8 @@ TclOO and class-system coverage, measured against tclsh 8.6–9.1 (matrix in the
 9. Carry arity through `tailcall`, literal `{*}` command prefixes and coroutine commands, and stop W241 on `while 1 { yield … }` generators.
 10. itcl: accept `package require itcl` as well as `Itcl`, and check object methods, `chain` and `configure` options. snit: model `delegate`. critcl: add a model for `critcl::cproc` and `critcl::ccommand` (measurements in [`oo-dispatch-probe/`](handover/oo-dispatch-probe/README.md); queue item 3 of the handover).
 
+**First:** centralise command lookup — one lookup-frame value, registry-declared evaluation contexts, one lookup owner with one answer type that every diagnostic, editor feature and the optimiser ask, and consumer conformance vectors. Evidence and steps: [command lookup is not centralised](command-lookup-centralisation.md). Most items below are symptoms of it.
+
 The shared causes behind items 1–17 — one frame lookup context, one per-invocation record for nested commands, one instance value, fine-grained transitions, one class fact with option tables on methods, value grammars — are set out with their evidence in [TclOO and Tk naming: root causes](oo-tk-root-causes.md); fix those before the individual symptoms.
 
 Build items 1–10 on one object model specialised per system through registry profiles and SpecTcl, as set out in the [object systems plan](object-systems-plan.md): profile facts replace every `DefinerFamily` match, source and registry classes share one class fact and one method-call checker, objects are values on one path, and member bodies get the procedure pass. New profiles follow for itcl, snit delegation, stooop, XOTcl/NX, critcl and Tk megawidgets.

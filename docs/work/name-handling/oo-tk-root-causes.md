@@ -17,7 +17,7 @@ A command name in a frame resolves through the current namespace, its `namespace
 
 Symptoms: false W123 on `my`, `self`, `next`, `link` and `callback`, only in bodies that are entered (*measured*: an uncalled method is silent, the same method once called reports; the presence query looks the head up in the defining namespace — *read* via the TclOO investigation, `deferred_method/retained_entries.rs:646`). Method bodies without SSA, because the guard refuses whole bodies rather than asking a per-name resolver (*read*, `compilation_unit/body_units.rs:236-260`). `ExecutionNamespace` has no "receiver frame with a known path" variant; lowering collapses the grammar's runtime-receiver namespace into `RuntimeSelected` (`lowering/declarations/class_members.rs:700-706`) even though only object-local publications are unknown.
 
-Fix: one frame lookup context (namespace, namespace path, helper path from the profile, receiver namespace contents with their own unknowns) built once per frame and passed to every resolver; delete the partial resolvers.
+Fix: one frame lookup context (namespace, namespace path, helper path from the profile, receiver namespace contents with their own unknowns) built once per frame and passed to every resolver; delete the partial resolvers. The full census of resolvers and the plan are in [command lookup is not centralised](command-lookup-centralisation.md).
 
 ## 2. Instance identity has no single value type
 
