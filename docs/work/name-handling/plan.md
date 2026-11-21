@@ -16,4 +16,12 @@ Current counts, original controls, build/source/artifact bindings, actual provid
 
 Review methods against procedures in the per-function pass: method bodies currently get no SSA, so SSA-driven diagnostics are silent in them, and procedure code after an unproven call stays unlowered. Give both unit kinds the same pass; see the [signed scan and precedence handover](handover/signed-scan-precedence.md).
 
+TclOO and class-system coverage, measured against tclsh 8.6–9.1 (matrix in the same handover, queue item 2):
+
+1. Walk the bodies that are currently never read: one-member `oo::define C method|constructor|destructor|self method`, `oo::objdefine o method` (objects and class objects), the 9.0 `initialise` script (run at definition time), and `itcl::body`.
+2. Give method, constructor, destructor, `self`/`classmethod`/`private` method, `oo::objdefine`, `oo::singleton`/`oo::abstract`, itcl and snit bodies the procedure dataflow pass; the relative-head guard in `build_method_units` should read the receiver command-world proof instead of refusing every relative head.
+3. Resolve `my`, `self`, `next`, and the 9.0 `link` and `callback` helpers through the object namespace and `::oo::Helpers`, removing the false W123 in entered bodies.
+4. Keep classes typed after `superclass`, `filter`, `private variable` and later `oo::define` members, removing the spurious W307 on `[C new]`.
+5. Report constructor arity at `C new`/`C create`, honouring TclOO's deletion of an empty-bodied constructor or destructor, and calls to methods removed by `deletemethod` or renamed by `renamemethod`.
+
 Before the final PR, move useful contracts and real experiments/tests into durable locations. Correct documentation/comments across the entire tracked repository, including generated guidance and files outside the implementation diff. Remove obsolete guidance, completed TODOs, development narratives, temporary ledgers/prompts/archives and their references, including this directory and the work-specific AGENTS exception. Preserve reproducible evidence and legal attribution. Complete all gates before creating a ready-to-merge PR; do not merge. This final cleanup is still required and is not completed by source-audit closure.
