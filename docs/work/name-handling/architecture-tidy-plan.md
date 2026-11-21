@@ -79,6 +79,29 @@ Dependency rules, enforced by a gate: data and loaders sit below features (`tcl-
 
 One memoisation layer: salsa, at the granularity of the units above — source file, structured words, binding per file, body unit, summaries per unit, query results — so invalidation follows real dependencies and memory is accounted per ingredient. The hand-written memos are converted into salsa queries or deleted; a gate forbids new `Mutex`/`OnceLock` memo types outside the database. The existing incremental-versus-fresh comparisons become the acceptance test, alongside #2543's allocator trace.
 
+## Third-party building blocks
+
+Anything that defines Tcl semantics stays in-house, because it must match the C Tcl and Jim oracles byte for byte: numbers, list and dictionary grammar, ARE regexp, glob, `format`/`scan`, `clock`, command and variable lookup rules. Third-party crates fit the machinery around them. Today the workspace depends on little (salsa, serde, `rustc-hash`, `indexmap`, `smallvec`, `num-bigint`, `regex`, `syn`, `tower-lsp-server`); the compiler already has its own red/green syntax tree (`parsing/syntax/green.rs`) and dominators (`ssa/dominators.rs`), and `deny.toml` bans nothing.
+
+| Need | Candidates | Use |
+| --- | --- | --- |
+| Structured words and the source tree | `rowan`, `cstree`, `text-size` | Optional replacement for the home-grown green tree; evaluate during phase 2, adopt only if it removes code or speeds incremental reparse |
+| Source maps and UTF-16 positions | `line-index` | Replace per-feature offset arithmetic |
+| Typed identities | `slotmap` (generational keys), `la-arena`, `typed-index-collections` | Generations model a recreated namespace or command under the same name; arenas hold dense per-unit tables |
+| Name interning | salsa interned structs; `lasso`, `smol_str`/`compact_str` | Prefer salsa so names live in the one cache layer; keep byte names (`NameBytes`) |
+| Fine-grained world transitions | `imbl`, `rpds` | Persistent maps with structural sharing for per-point command, class and frame state (root cause 3) |
+| Dataflow sets | `fixedbitset`, `bitvec`, `roaring` | Liveness, reaching definitions, W210/W211/W220 on SSA |
+| Graph algorithms | `petgraph` | SCC order for interprocedural summaries, call-graph queries, cycle checks; keep tuned SSA dominators |
+| Facts and rules | `ascent` (Datalog with lattices), `datafrog`, `crepe` | Trial for phase 6 on one analysis (call edges or taint), measured native and WASM |
+| Caching and memory | salsa (finer granularity), `dhat` | One cache layer; heap profiling for #2543 |
+| Per-analysis allocation | `bumpalo` | Optional arenas for transient fact tables |
+| Crate layering gate | `cargo-deny` `[bans]` with `wrappers`; `cargo-modules`, `cargo-depgraph` | Name the crates allowed to depend on each layer; visualise the graph |
+| Walker, memo and resolver ratchets | the existing `syn`-based xtask gates; `ast-grep` or `dylint` | Follow the `registry-axes`/`value-transfers` pattern |
+| Agreement harness | `insta` or `expect-test`, `libtest-mimic` or `datatest-stable`, `proptest` | One reported test per vector row; generated graphs and scripts for differential tests |
+| Dependency housekeeping | `cargo-machete`/`cargo-udeps`, `cargo-hakari` | During the crate split |
+
+Order of adoption by payoff: `imbl` and `slotmap`; `cargo-deny` wrappers; `insta` with `libtest-mimic` for the harness; a time-boxed `ascent` trial; `rowan`/`cstree` only if the structured-words work shows the home-grown tree is the bottleneck. Each candidate is checked against the `deny.toml` licence allowlist (the project is AGPL-3.0; these are MIT or Apache-2.0) and the native and WASM builds when it is added.
+
 ## Phases
 
 Each phase ends with its walkers deleted, its gates tightened and the agreement tests green; nothing is left half-migrated across a phase boundary.
