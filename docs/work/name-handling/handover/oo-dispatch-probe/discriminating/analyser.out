@@ -1,0 +1,50 @@
+PROBE k01-create-typo.tcl tcl9.0: [Tk1003 L2 Unknown option '-txt' for button. Did you mean '-text'?]
+PROBE k02-configure-typo.tcl tcl9.0: 
+PROBE k03-var-configure.tcl tcl9.0: 
+PROBE k04-var-literal.tcl tcl9.0: 
+PROBE k05-sub-typo.tcl tcl9.0: [W001 L3 Unknown subcommand 'invokee' for widget 'button']
+PROBE k06-ttk-configure.tcl tcl9.0: 
+PROBE k07-proc-path.tcl tcl9.0: 
+PROBE k08-sticky.tcl tcl9.0: 
+PROBE m01-my-uncalled.tcl tcl9.0: 
+PROBE m02-my-created.tcl tcl9.0: 
+PROBE m03-my-called.tcl tcl9.0: [W123 L1 Unresolved command 'my' at this source point. The call widen]
+PROBE m04-my-ctor.tcl tcl9.0: [W123 L1 Unresolved command 'my' at this source point. The call widen]
+PROBE m05-self-called.tcl tcl9.0: [W123 L1 Unresolved command 'self' at this source point. The call wid]
+PROBE m06-next-called.tcl tcl9.0: [W123 L2 Unresolved command 'next' at this source point. The call wid]
+PROBE n01-create-named.tcl tcl9.0: [E002 L3 Too few arguments for 'o m': expected at least 1, got 0]
+PROBE n02-create-qualified.tcl tcl9.0: [E002 L3 Too few arguments for '::o m': expected at least 1, got 0]
+PROBE n03-create-captured.tcl tcl9.0: [E002 L3 Too few arguments for 'o m': expected at least 1, got 0]
+PROBE n04-new-var.tcl tcl9.0: [E002 L3 Too few arguments for 'o m': expected at least 1, got 0]
+PROBE n05-create-nosuch.tcl tcl9.0: [W308 L3 Unknown method 'nosuch' on class '::C']
+PROBE n06-new-nosuch.tcl tcl9.0: [W308 L3 Unknown method 'nosuch' on class '::C']
+PROBE p01-plain.tcl tcl9.0: 
+PROBE p02-superclass.tcl tcl9.0: 
+PROBE p03-define-after.tcl tcl9.0: 
+PROBE p04-define-after-var.tcl tcl9.0: 
+PROBE p05-filter.tcl tcl9.0: [W307 L2 Non-literal command name — cannot statically analyse]
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10344 filtered out; finished in 6.58s
+PROBE q01-nested-superclass.tcl: 
+PROBE q02-nested-define.tcl: 
+PROBE q03-nested-plain.tcl: 
+PROBE q04-set-superclass.tcl: 
+PROBE q05-top-superclass-filter-free.tcl: 
+PROBE r01-after-good-call.tcl: [E002 L4 Too few arguments for 'o m': expected at least 1, got 0]
+PROBE r02-in-catch.tcl: [W302 L3 catch without a result variable silently swallows errors. Co]
+PROBE r03-in-puts-catch.tcl: 
+PROBE r04-body-return.tcl: [E002 L3 Too few arguments for 'o m': expected at least 1, got 0]
+PROBE r05-in-puts.tcl: 
+PROBE r06-catch-var-m.tcl: 
+PROBE r07-new-in-puts-catch.tcl: [E002 L3 Too few arguments for 'o m': expected at least 1, got 0]
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10344 filtered out; finished in 3.40s
+PROBE s01-lb-top.tcl: [W001 L3 Unknown subcommand 'insertt' for widget 'listbox']
+PROBE s02-lb-nested.tcl: 
+PROBE s03-after-top.tcl: [E002 L2 Too few arguments for 'tick': expected at least 1, got 0]
+PROBE s04-after-nested.tcl: 
+PROBE s05-relief-configure.tcl: 
+PROBE s06-lsort-option.tcl: 
+PROBE s07-widget-top.tcl: [W001 L3 Unknown subcommand 'invokee' for widget 'button']
+PROBE s08-widget-nested.tcl: 
+PROBE s09-proc-arity-nested.tcl: [E002 L2 Too few arguments for 'f': expected at least 1, got 0]
+PROBE s10-proc-arity-subst.tcl: [E002 L2 Too few arguments for 'f': expected at least 1, got 0]
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10344 filtered out; finished in 2.91s

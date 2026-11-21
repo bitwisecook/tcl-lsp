@@ -23,11 +23,13 @@ TclOO and class-system coverage, measured against tclsh 8.6–9.1 (matrix in the
 3. Resolve `my`, `self`, `next`, and the 9.0 `link` and `callback` helpers through the object namespace and `::oo::Helpers`, removing the false W123 in entered bodies.
 4. Keep classes typed after `superclass`, `filter`, `private variable` and later `oo::define` members, removing the spurious W307 on `[C new]`.
 5. Report constructor arity at `C new`/`C create`, honouring TclOO's deletion of an empty-bodied constructor or destructor, and calls to methods removed by `deletemethod` or renamed by `renamemethod`.
-6. Keep method checking on objects named by `C create o` and on class objects, as it already works for `set o [C new]`.
+6. Check method calls nested in scripts and substitutions (`catch {o m}`, `puts [o m]`) as at the top level; today named objects, widgets and `after` scripts are checked only at the top level, while procedures and `$o` handles are checked everywhere.
 7. Follow object reshaping: `oo::copy`, `oo::objdefine o class`, `export`/`unexport`, superclass slot operations, unexported built-ins such as `eval`, and 9.0 `oo::configurable` properties.
 8. Model namespace ensembles as dispatchers: `-map` (resolved in the ensemble's namespace), exports, `-subcommands`, `-parameters` and `-unknown` (whose handler formals are fixed, so no W214).
 9. Carry arity through `tailcall`, literal `{*}` command prefixes and coroutine commands, and stop W241 on `while 1 { yield … }` generators.
 10. itcl: accept `package require itcl` as well as `Itcl`, and check object methods, `chain` and `configure` options. snit: model `delegate`. critcl: add a model for `critcl::cproc` and `critcl::ccommand` (measurements in [`oo-dispatch-probe/`](handover/oo-dispatch-probe/README.md); queue item 3 of the handover).
+
+The shared causes behind items 1–17 — one frame lookup context, one per-invocation record for nested commands, one instance value, fine-grained transitions, one class fact with option tables on methods, value grammars — are set out with their evidence in [TclOO and Tk naming: root causes](oo-tk-root-causes.md); fix those before the individual symptoms.
 
 Build items 1–10 on one object model specialised per system through registry profiles and SpecTcl, as set out in the [object systems plan](object-systems-plan.md): profile facts replace every `DefinerFamily` match, source and registry classes share one class fact and one method-call checker, objects are values on one path, and member bodies get the procedure pass. New profiles follow for itcl, snit delegation, stooop, XOTcl/NX, critcl and Tk megawidgets.
 
