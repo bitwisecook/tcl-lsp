@@ -100,13 +100,46 @@ Anything that defines Tcl semantics stays in-house, because it must match the C 
 | Agreement harness | `insta` or `expect-test`, `libtest-mimic` or `datatest-stable`, `proptest` | One reported test per vector row; generated graphs and scripts for differential tests |
 | Dependency housekeeping | `cargo-machete`/`cargo-udeps`, `cargo-hakari` | During the crate split |
 
-Order of adoption by payoff: `imbl` and `slotmap`; `cargo-deny` wrappers; `insta` with `libtest-mimic` for the harness; a time-boxed `ascent` trial; `rowan`/`cstree` only if the structured-words work shows the home-grown tree is the bottleneck. Each candidate is checked against the `deny.toml` licence allowlist (the project is AGPL-3.0; these are MIT or Apache-2.0) and the native and WASM builds when it is added.
+Order of adoption by payoff: `imbl` and `slotmap`; `cargo-deny` wrappers; `insta` with `libtest-mimic` for the harness; a time-boxed `ascent` trial; `rowan`/`cstree` only if the structured-words work shows the home-grown tree is the bottleneck. Each candidate is checked against the `deny.toml` licence allowlist and the native and WASM builds when it is added. All are MIT, Apache-2.0, Zlib or similar except `imbl` and `rpds`, which are MPL-2.0 (file-level copyleft, usable from a permissive project and already allowed by `deny.toml`).
+
+### Hand-rolled generic code to replace
+
+Found by searching for implementation signatures (hash constants, CRC tables, alphabets, escape writers) outside the Tcl-semantic owners.
+
+| Code | What it is | Replacement | Condition |
+| --- | --- | --- | --- |
+| `tcl-bigip-io/src/aes_cfb.rs` | hand-written AES and OpenPGP CFB | RustCrypto `aes` (already used elsewhere) and `cfb-mode` | security-sensitive: replace first |
+| `tcl-bigip-io/src/openpgp.rs` | dependency-free OpenPGP symmetric decryptor with its own inflate | `pgp` (rPGP, MIT/Apache) with `flate2` | not `sequoia-openpgp` (LGPL) |
+| `tcl-lexer/src/line_index.rs`, UTF-16 helpers in `tcl-lsp-core/src/definition.rs` | offset to line and UTF-16 column | `line-index` | becomes the source-map structure |
+| `tcl-lsp-server/src/uri_norm.rs`, percent encoding in `tcl-lsp-core/src/document_links.rs` and `f5-cli` | URI normalisation and percent encoding | `fluent-uri` or `url`, `percent-encoding` | editor URI round-trip tests |
+| ANSI escapes in `tcl-cli-support` (output, sink, highlight), `tcl-explorer/src/render.rs`, `tcl-pkg/src/ui.rs` | terminal colour | `anstyle`/`anstream` (already a transitive dependency of `clap`) | adds Windows and `NO_COLOR` handling |
+| `tcl-registry/src/snapshot.rs` | hand-written JSON escaping | `serde_json` | byte-identical snapshot output |
+| `tcl-cmd-core/src/base32.rs` | RFC 4648 base32 as tcllib reads it | `data-encoding` | tcllib oracle: padding and error cases |
+| `tcl::idna` punycode (`tcl-registry/src/commands/tcl/tcl_idna.rs`) | RFC 3492 punycode | `idna`'s punycode module | Tcl 9.0/9.1 oracle |
+| CRC-32 and Adler-32 in `runtime/rust/src/cmd_zlib.rs` | checksums (DEFLATE already uses `flate2`) | `crc32fast`, `adler2` | `zlib crc32`/`adler32` oracle incl. start values |
+| `tcl-compiler/src/text.rs` | text similarity for suggestions | `strsim` | same suggestion order |
+| `tcl-userdirs` | per-user directory conventions | `etcetera` or `dirs` | only if their conventions match ours |
+| DOT writers (`tcl-bigip/src/graph.rs` and other graph output) | Graphviz text | `petgraph::dot` once `petgraph` is adopted | diagram goldens |
+
+Kept on purpose: `tcl-cli-support/src/difflib.rs` (byte-for-byte Python `difflib` output), `tcl-fuzz`'s reproducible xorshift generator, `uri_split.rs` (an iRules diagnostic, not a parser), and every Tcl-semantic owner (numbers, lists, dictionaries, ARE regexp, glob, `format`/`scan`, `clock`, `encoding` tables, Unicode case and class data, which follow each release's own tables).
+
+## Licence change
+
+Relicensing from AGPL-3.0-or-later to a permissive licence is under consideration. The common Rust choice is `MIT OR Apache-2.0` (Apache adds a patent grant); the Tcl licence (SPDX `TCL`) matches upstream Tcl and is equally permissive, with a US-government clause. Inbound code is compatible either way: the C Tcl ports (Tcl licence), Jim (BSD-2-Clause) and tcllib-derived code are permissive. Relicensing the project's own code needs every copyright holder's agreement, so check the history for outside contributions first.
+
+Decide before phase 1, because it settles which licences new dependencies may carry. The change itself touches:
+
+- `LICENSE` and the `license` field of every crate's `Cargo.toml`.
+- The AGPL header on every source file, `scripts/dev/check-license-headers.py` and its exemptions, `rust/xtask/src/util.rs`'s generated-file banner, and the AGENTS.md rule requiring the header.
+- `deny.toml`: drop `AGPL-3.0-or-later` from the allowlist; keep `GPL-3.0-or-later` only while the Zed extension is distributed separately under GPLv3.
+- Editor marketplace manifests (VS Code, JetBrains, Zed) and any packaging metadata that states the licence.
+- Dependency choices: prefer MIT, Apache-2.0, BSD, ISC or Zlib; MPL-2.0 (`imbl`, `rpds`) remains usable; avoid LGPL and GPL crates in shipped binaries.
 
 ## Phases
 
 Each phase ends with its walkers deleted, its gates tightened and the agreement tests green; nothing is left half-migrated across a phase boundary.
 
-0. **Inventory and gates.** Turn the censuses into a walker manifest beside the owner manifest (fact, owner, competing walkers, disposition), and add a `walker-ownership` ratchet modelled on `registry-axes`/`value-transfers`: the known set may only shrink; a waiver names its fact and owner. Add the agreement harness: one fixture table, every consumer asked the same question, compared with each other and with tclsh. Add the crate-dependency and memo gates.
+0. **Inventory, gates and the licence decision.** Settle the licence (see above) so dependency choices follow it. Turn the censuses into a walker manifest beside the owner manifest (fact, owner, competing walkers, disposition), and add a `walker-ownership` ratchet modelled on `registry-axes`/`value-transfers`: the known set may only shrink; a waiver names its fact and owner. Add the agreement harness: one fixture table, every consumer asked the same question, compared with each other and with tclsh. Add the crate-dependency and memo gates.
 1. **Switch to owners that already exist** (about 11 walkers): frame effects (parameter traits, interprocedural `upvar`, LSP caller-frame), purity (GVN, `source_purity`, `var_escape`), dead stores (one implementation for O109, W220 and the explorer), call edges (taint, tail calls, call hierarchy, graphs). Fixes the `upvar`-level and purity disagreements.
 2. **Structured words.** Lower command words as structured parts; migrate the 143 users of the text scanners; delete about 10 walkers. The largest single change; do it before anything else that touches SSA construction.
 3. **Frames and lookup.** The frame value, registry-declared evaluation contexts, the command and variable lookup owners and their conformance vectors through every consumer ([command plan](command-lookup-centralisation.md), [variable plan](variable-lookup-centralisation.md)).
@@ -116,7 +149,7 @@ Each phase ends with its walkers deleted, its gates tightened and the agreement 
 7. **Crates and caching.** Split along the layers, enforce the dependency rules, move all memoisation into salsa.
 8. **Object-system profiles and value grammars** ([object systems plan](object-systems-plan.md)): itcl, snit, Jim, Clay, NX, stooop, critcl and Tk megawidgets as data; code-in-data such as override dictionaries.
 
-Phases 1 and 2 can start at once and in parallel; 3 and 4 depend on 2; 5 and 6 on 3 and 4; 7 can begin with the leaf crates (`tcl-source`) as soon as 2 lands.
+Alongside phase 1, replace the hand-rolled generic code above, the AES and OpenPGP code first, each behind its condition. Phases 1 and 2 can start at once and in parallel; 3 and 4 depend on 2; 5 and 6 on 3 and 4; 7 can begin with the leaf crates (`tcl-source`) as soon as 2 lands.
 
 ## Measuring progress
 
