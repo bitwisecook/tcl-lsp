@@ -70,6 +70,84 @@ Every callable member body becomes a function unit with the same pass as a proce
 
 Add an `object_system NAME { … }` block (or widen `definition_body`) carrying the profile facts above, with the new member effects as `member -effect` values and a vocabulary bump. Spec Studio gets the matching fields (registry field, loader, renderer, studio, coverage, as for any SpecTcl addition). A user library such as apave can then declare its own system without Rust changes.
 
+## Defining a system entirely in SpecTcl
+
+The aim is that snit, itcl, critcl, stooop, NX, Jim's `oo` and a user's own system are each a SpecTcl declaration with no Rust of their own. Rust implements a fixed set of **mechanisms** once; a **profile** selects and parameterises them. The shipped profiles are written in SpecTcl and compiled into the registry like any other pack, so the Rust per-family code disappears. A behaviour no mechanism covers (XOTcl's guarded mixins, say) is added as a new mechanism once and is then available to every profile. Members produced by running arbitrary Tcl at definition time (a loop that calls `method`) are outside any profile and stay with the analyser's ordinary evaluation.
+
+### Mechanisms
+
+| Mechanism | Choices a profile makes |
+| --- | --- |
+| Member sources | a definition script with a member vocabulary (exists); a per-member command naming its class (`oo::define C method`, `C method m` in Jim); a qualified-name body (`itcl::body C::m`); procedures named into the class namespace taking a receiver formal (stooop `proc C::m {this}`); a variable dictionary (Jim) |
+| Member effects | the existing eight, plus delegation, component, option (with handler members such as snit `-configuremethod`), hierarchical method names (snit `method {a b}`) and reshaping (remove, rename, re-export, change class, copy) |
+| Parameter grammars | Tcl formals; TclOO/itcl formals (itcl constructors also take an initialiser block); NX parameter specifications (`-name:integer,required`); C declarations for critcl. Each maps a parameter to an arity contribution and an argument domain (`arg_domains`) |
+| Lifecycle | factories (exists); bare-word construction (exists); generated names (`%AUTO%`, `::oo::ObjN`); constructor argument forwarding; base construction (`next`, itcl initialiser, snit `install`); destruction routes; the TclOO rule that an empty constructor or destructor body deletes it |
+| Dispatch | lookup order (TclOO filters/mixins/class chain, itcl `inherit` order, single class, delegation fallback); export rule (pattern, declared access, all); unknown handling (handler method, open set, prefix matching) |
+| Body environment | namespace (defined entity, object, type), command path (`::oo::Helpers`), implicit variables, how instance variables become visible (declared and automatic, as in itcl and snit; per-method `my variable`; namespace variables) |
+| Receiver helpers | commands with a semantic role — self call (`my`, NX `:m`), next call (`next`, `nextto`, `chain`), introspection (`self`, `info`), method callback (`callback`, `mymethod`), variable link (`link`, `classvariable`) — and implicit receiver variables (`$self`, `$this`, `$win`) |
+| Options | declared names and defaults, `configure`/`cget` routing, per-option handlers and value types (snit `-type`) |
+| Command definers | a command that defines a command: name word, parameter list under a grammar, a foreign or Tcl body. Covers critcl `cproc`/`ccommand`/`cconst` and a user's own `proc` wrappers |
+| Availability | package names (`itcl` and `Itcl`), dialects, versions |
+
+### Sketches
+
+Proposed syntax, extending the existing `definition_body` block. The words and value names are illustrative, not settled.
+
+A user's own system, built on namespaces with a `new` factory:
+
+```tcl
+object_system mini {
+    member_namespace   defined-entity
+    export_rule        all
+    lookup_order       single
+    instance_variables declared-automatic
+    implicit_vars      {self}
+    receiver_helper    self -role self-call
+    destruction        {method destroy}
+}
+
+command mini::class {
+    arg 0 -role Name
+    arg 1 -role Body
+    definition_body {
+        system mini
+        member method -roles {0 Name 1 ParamList 2 Body} -effect {callable -receiver instance -role method}
+        member field  -roles {0 VarWrite} -effect {state-declaration per-instance}
+        manufacturer new -constructor-args-from 1
+    }
+}
+```
+
+critcl as a command definer. The type names, default syntax and the hidden interpreter parameter must be taken from critcl's documentation and checked against a critcl build before the profile is written:
+
+```tcl
+param_grammar critcl-c {
+    shape    type-name-pairs
+    type int        -domain {Range -2147483648 2147483647}
+    type double     -domain Double
+    type Tcl_Obj*   -domain Any
+    type Tcl_Interp* -implicit
+}
+
+command critcl::cproc {
+    arg 0 -role Name
+    arg 1 -role ParamList -grammar critcl-c
+    arg 3 -role ForeignBody -language c
+    defines_command -name-at 0 -params-at 1
+}
+```
+
+snit's delegation, replacing today's `configuration` rows:
+
+```tcl
+member delegate -roles {0 DelegationKind 1 Name 3 ComponentRef} \
+                -effect {delegation -keyword-at {2 to} -options {except as using}}
+```
+
+### Checking a profile
+
+A profile ships with conformance fixtures in the style of `oo-dispatch-probe/`: each body form with a dataflow witness, each dispatch route used correctly and wrongly, run under the real package where one is available (itcl 4.3.5 is in this container; snit and stooop come from tcllib; critcl and NX need their packages). The analyser must be silent on the correct uses and report the wrong ones. Spec Studio validates a profile's coverage of the mechanisms it selects.
+
 ## Order
 
 1. Write the profile facts as registry fields, populated for the existing seven families so behaviour is unchanged; replace each family `match` in the registry with a fact read. Tighten the registry-axes `definition_body` ratchet as compiler sites move; retire stale waivers (`original_members.rs` and `retained_member_source.rs` already have `MemberEffect::Relation` available).
@@ -77,5 +155,5 @@ Add an `object_system NAME { … }` block (or widen `definition_body`) carrying 
 3. Bodies into the per-function pass with profile entry facts (closes the body and W123 gaps).
 4. One class fact and one method-call checker for source and registry classes; typed analyser model; named objects and handles on one path.
 5. Reshaping transitions, options, delegation and components.
-6. SpecTcl `object_system` block and Spec Studio support; move Jim onto it.
+6. SpecTcl `object_system`, `param_grammar` and `defines_command` support in the loader, renderer and Spec Studio; rewrite TclOO, itcl, snit, Clay and Jim as shipped `.tclspec` profiles and delete their Rust grammars and family code.
 7. New profiles: itcl completeness, snit delegation, stooop, XOTcl/NX, critcl command definer, Tk megawidgets.
