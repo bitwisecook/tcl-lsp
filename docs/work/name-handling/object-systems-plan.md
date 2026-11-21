@@ -89,6 +89,45 @@ The aim is that snit, itcl, critcl, stooop, NX, Jim's `oo` and a user's own syst
 | Command definers | a command that defines a command: name word, parameter list under a grammar, a foreign or Tcl body. Covers critcl `cproc`/`ccommand`/`cconst` and a user's own `proc` wrappers |
 | Availability | package names (`itcl` and `Itcl`), dialects, versions |
 
+### Inheritance and lookup order as code
+
+Lookup order differs between systems in ways a fixed enum would not survive; measured in [`oo-dispatch-probe/inheritance/`](handover/oo-dispatch-probe/inheritance/results.txt):
+
+| Hierarchy | TclOO 8.6, 9.0, 9.1 | itcl 4.3.5 (Tcl 9.0, 9.1) | C3 |
+| --- | --- | --- | --- |
+| Diamond D(B,C), B(A), C(A) | D B C A | definition refused: "inherits base class ::A more than once" | D B C A |
+| Conflict Z(X,Y), X(A,B), Y(B,A) | Z X Y B A | refused (repeated base) | refused (inconsistent order) |
+| Distinct bases D2(B2,C2) | D2 B2 C2 | D2 B2 C2 | D2 B2 C2 |
+| Object mixin F, class mixin M, object method, class D | F M object D B C A; a class filter runs first | — | — |
+
+TclOO walks depth first, left to right, and keeps the last occurrence of a repeated class, so it accepts orders C3 refuses. itcl refuses any repeated base.
+
+A profile therefore defines lookup as Tcl code, run by the repository's own interpreter (`tcl-vm`, already a dependency of `tcl-spectcl` and `tcl-compiler`):
+
+- **Inputs.** A relation graph built from the profile's `Relation` effects: for each class, its ordered lists per relation slot (superclass, mixin, filter, and any slot the profile declares, such as an object-level class or delegation target), the same for each object, and which members each class defines.
+- **Outputs.** `linearise` returns the ordered classes for a class; `call_chain` returns, for an object and a method name, the ordered implementations with their kind (filter, mixin, object, class, unknown handler). Either may return a structured refusal (code, message, offending paths), which becomes a diagnostic at the definition — itcl's repeated base, C3's inconsistent order.
+- **Partial knowledge.** A relation the analyser cannot prove arrives as an `unknown` element. The shipped procedures keep the known prefix and end the result with an open marker, so method checks abstain past it rather than guess; a custom procedure must do the same, and the loader checks it does.
+- **Sandbox.** Lists, dictionaries, control flow, `proc` and `error` only; no I/O, introspection or time; a command budget through the VM's existing limits; results cached per profile and graph.
+- **Standard library.** SpecTcl ships `c3`, `dfs-keep-last` (TclOO), `dfs-refuse-repeats` (itcl), `single` and `none`, as procedures a profile can call or compose with its own mixin and filter placement. The shipped profiles use them.
+- **Checks.** A profile carries `lookup_test GRAPH EXPECTED` rows; the rows for shipped profiles are the oracle measurements above. Shipped algorithms also have native Rust implementations for speed, kept equal to the SpecTcl procedures by a differential test over generated graphs; a custom profile runs in the VM.
+- **Consumers.** Method resolution (W308, E002), the target of `next`/`nextto`/`chain` and its arity, hover and go-to-definition, find-references and rename across overrides, the optimiser's devirtualisation, and interprocedural summaries of the called method.
+
+The same mechanism suits other rules that are naturally code rather than data — the export predicate, generated instance names, unknown-method routing — but data stays the default where a table is enough.
+
+```tcl
+object_system mini {
+    lookup_order {
+        proc linearise {graph class} { tcloo::dfs-keep-last $graph $class superclass }
+        proc call_chain {graph object method} {
+            set chain [linearise $graph [dict get $graph objects $object class]]
+            return [lookup::implementations $graph $chain $method]
+        }
+    }
+    lookup_test {classes {D {superclass {B C}} B {superclass A} C {superclass A} A {}}} \
+                {linearise D} {D B C A}
+}
+```
+
 ### Sketches
 
 Proposed syntax, extending the existing `definition_body` block. The words and value names are illustrative, not settled.

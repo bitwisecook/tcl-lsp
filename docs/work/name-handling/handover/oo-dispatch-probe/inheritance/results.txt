@@ -1,0 +1,31 @@
+== tclsh8.6 tcloo.tcl
+diamond D(B,C) B(A) C(A): ::D:method ::B:method ::C:method ::A:method
+conflict Z(X,Y) X(A,B) Y(B,A): ::Z:method ::X:method ::Y:method ::B:method ::A:method
+mixins: ::F:method ::M:method object:method ::D:method ::B:method ::C:method ::A:method
+filter: {filter f ::D method} {method m ::F method}
+== tclsh9.0 tcloo.tcl
+diamond D(B,C) B(A) C(A): ::D:method ::B:method ::C:method ::A:method
+conflict Z(X,Y) X(A,B) Y(B,A): ::Z:method ::X:method ::Y:method ::B:method ::A:method
+mixins: ::F:method ::M:method object:method ::D:method ::B:method ::C:method ::A:method
+filter: {filter f ::D method} {method m ::F method}
+== tclsh9.1 tcloo.tcl
+diamond D(B,C) B(A) C(A): ::D:method ::B:method ::C:method ::A:method
+conflict Z(X,Y) X(A,B) Y(B,A): ::Z:method ::X:method ::Y:method ::B:method ::A:method
+mixins: ::F:method ::M:method object:method ::D:method ::B:method ::C:method ::A:method
+filter: {filter f ::D method} {method m ::F method}
+== tclsh9.0 itcl.tcl (itcl 4.3.5)
+1:class "::D" inherits base class "::A" more than once:
+  D->B->A
+  D->C->A
+D2(B2,C2) heritage: ::D2 ::B2 ::C2 m=B2
+1:class "::Z" inherits base class "::Q" more than once:
+  Z->X->Q
+  Z->Y->Q
+== tclsh9.1 itcl.tcl (itcl 4.3.5)
+1:class "::D" inherits base class "::A" more than once:
+  D->B->A
+  D->C->A
+D2(B2,C2) heritage: ::D2 ::B2 ::C2 m=B2
+1:class "::Z" inherits base class "::Q" more than once:
+  Z->X->Q
+  Z->Y->Q
