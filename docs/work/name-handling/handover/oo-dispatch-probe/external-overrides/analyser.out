@@ -1,0 +1,36 @@
+## editor features and diagnostics (tcl-lsp-core probe; o3-o5 inlined the package source and are not kept)
+EXT o1-usage-load.tcl tcl8.6 word=load | def=[] | hover=-
+EXTD o1-usage-load.tcl tcl8.6 W113@L3[load]
+EXT o1-usage-load.tcl tcl9.0 word=load | def=[] | hover=-
+EXTD o1-usage-load.tcl tcl9.0 W113@L3[load]
+EXT o2-usage-next.tcl tcl8.6 word=nextOverride | def=[] | hover=-
+EXTD o2-usage-next.tcl tcl8.6 W113@L3[load]
+EXT o2-usage-next.tcl tcl9.0 word=nextOverride | def=[] | hover=-
+EXTD o2-usage-next.tcl tcl9.0 W113@L3[load]
+EXT o3-lib-usage-load.tcl tcl8.6 word=load | def=[] | hover=-
+EXTD o3-lib-usage-load.tcl tcl8.6 W100@L112[![info exists LambdaStac] W100@L150[![info exists LambdaStac] W100@L160[![llength $LambdaStacks(] W100@L286[$overrideCount] W100@L473[![llength $OverridesStac] W100@L509[![llength $OverridesStac] W100@L605[[string length $nameQual] W100@L80[![llength $lambdaMarkerV] W100@L86[$stackPosition] W110@L186[!=] W110@L225[!=] W110@L536[==] W113@L688[load] W155@L186[?] W155@L225[?] W214@L559[proc overrides::ResolveC] W214@L559[proc overrides::ResolveC] W301@L533[$callerNameResLvl] W301@L78[$LambdaMarker] W301@L84[$LambdaMarker] W307@L189[$procCmd]
+EXT o3-lib-usage-load.tcl tcl9.0 word=load | def=[] | hover=-
+EXTD o3-lib-usage-load.tcl tcl9.0 W100@L112[![info exists LambdaStac] W100@L150[![info exists LambdaStac] W100@L160[![llength $LambdaStacks(] W100@L286[$overrideCount] W100@L473[![llength $OverridesStac] W100@L509[![llength $OverridesStac] W100@L605[[string length $nameQual] W100@L80[![llength $lambdaMarkerV] W100@L86[$stackPosition] W110@L186[!=] W110@L225[!=] W110@L536[==] W113@L688[load] W155@L186[?] W155@L225[?] W214@L559[proc overrides::ResolveC] W214@L559[proc overrides::ResolveC] W301@L533[$callerNameResLvl] W301@L78[$LambdaMarker] W301@L84[$LambdaMarker] W307@L189[$procCmd]
+EXT o4-lib-usage-next.tcl tcl8.6 word=nextOverride | def=[] | hover=-
+EXTD o4-lib-usage-next.tcl tcl8.6 W100@L112[![info exists LambdaStac] W100@L150[![info exists LambdaStac] W100@L160[![llength $LambdaStacks(] W100@L286[$overrideCount] W100@L473[![llength $OverridesStac] W100@L509[![llength $OverridesStac] W100@L605[[string length $nameQual] W100@L80[![llength $lambdaMarkerV] W100@L86[$stackPosition] W110@L186[!=] W110@L225[!=] W110@L536[==] W113@L688[load] W155@L186[?] W155@L225[?] W214@L559[proc overrides::ResolveC] W214@L559[proc overrides::ResolveC] W301@L533[$callerNameResLvl] W301@L78[$LambdaMarker] W301@L84[$LambdaMarker] W307@L189[$procCmd]
+EXT o4-lib-usage-next.tcl tcl9.0 word=nextOverride | def=[] | hover=-
+EXTD o4-lib-usage-next.tcl tcl9.0 W100@L112[![info exists LambdaStac] W100@L150[![info exists LambdaStac] W100@L160[![llength $LambdaStacks(] W100@L286[$overrideCount] W100@L473[![llength $OverridesStac] W100@L509[![llength $OverridesStac] W100@L605[[string length $nameQual] W100@L80[![llength $lambdaMarkerV] W100@L86[$stackPosition] W110@L186[!=] W110@L225[!=] W110@L536[==] W113@L688[load] W155@L186[?] W155@L225[?] W214@L559[proc overrides::ResolveC] W214@L559[proc overrides::ResolveC] W301@L533[$callerNameResLvl] W301@L78[$LambdaMarker] W301@L84[$LambdaMarker] W307@L189[$procCmd]
+EXT o5-lib-only.tcl tcl8.6 word=probe | def=["L687:set probe 1 ;# CALL probe"] | hover=**Variable** `probe`
+EXTD o5-lib-only.tcl tcl8.6 W100@L112[![info exists LambdaStac] W100@L150[![info exists LambdaStac] W100@L160[![llength $LambdaStacks(] W100@L286[$overrideCount] W100@L473[![llength $OverridesStac] W100@L509[![llength $OverridesStac] W100@L605[[string length $nameQual] W100@L80[![llength $lambdaMarkerV] W100@L86[$stackPosition] W110@L186[!=] W110@L225[!=] W110@L536[==] W155@L186[?] W155@L225[?] W214@L559[proc overrides::ResolveC] W214@L559[proc overrides::ResolveC] W301@L361[$callerNameResLvl] W301@L533[$callerNameResLvl] W301@L78[$LambdaMarker] W301@L84[$LambdaMarker] W307@L189[$procCmd]
+EXT o5-lib-only.tcl tcl9.0 word=probe | def=["L687:set probe 1 ;# CALL probe"] | hover=**Variable** `probe`
+EXTD o5-lib-only.tcl tcl9.0 W100@L112[![info exists LambdaStac] W100@L150[![info exists LambdaStac] W100@L160[![llength $LambdaStacks(] W100@L286[$overrideCount] W100@L473[![llength $OverridesStac] W100@L509[![llength $OverridesStac] W100@L605[[string length $nameQual] W100@L80[![llength $lambdaMarkerV] W100@L86[$stackPosition] W110@L186[!=] W110@L225[!=] W110@L536[==] W155@L186[?] W155@L225[?] W214@L559[proc overrides::ResolveC] W214@L559[proc overrides::ResolveC] W301@L361[$callerNameResLvl] W301@L533[$callerNameResLvl] W301@L78[$LambdaMarker] W301@L84[$LambdaMarker] W307@L189[$procCmd]
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3663 filtered out; finished in 84.67s
+## w214 bisection (tcl9.0)
+PROBE d00-full.tcl: [W100 L8 Expression argument to 'if' is not brace] [W214 L1 Parameter 'callerNameResLvl' of proc '::] [W214 L1 Parameter 'cmdName' of proc '::ResolveCm]
+PROBE d01-minus-1.tcl: [W100 L7 Expression argument to 'if' is not brace] [W214 L1 Parameter 'callerNameResLvl' of proc '::] [W214 L1 Parameter 'cmdName' of proc '::ResolveCm]
+PROBE d02-minus-2-3.tcl: [W100 L6 Expression argument to 'if' is not brace] [W210 L1 Variable 'resolvedName' is read before i] [W214 L1 Parameter 'callerNameResLvl' of proc '::] [W214 L1 Parameter 'cmdName' of proc '::ResolveCm]
+PROBE d03-minus-4.tcl: [W100 L7 Expression argument to 'if' is not brace] [W214 L1 Parameter 'callerNameResLvl' of proc '::] [W214 L1 Parameter 'cmdName' of proc '::ResolveCm]
+PROBE d04-minus-5-6.tcl: [W100 L6 Expression argument to 'if' is not brace] [W214 L1 Parameter 'callerNameResLvl' of proc '::] [W214 L1 Parameter 'cmdName' of proc '::ResolveCm]
+PROBE d05-minus-7-8-9-10-11.tcl: [W301 L3 uplevel with multiple arguments concaten]
+PROBE d06-minus-8-9.tcl: [W100 L8 Expression argument to 'if' is not brace] [W214 L1 Parameter 'callerNameResLvl' of proc '::] [W214 L1 Parameter 'cmdName' of proc '::ResolveCm]
+PROBE d07-minus-10.tcl: [W100 L8 Expression argument to 'if' is not brace] [W301 L3 uplevel with multiple arguments concaten]
+PROBE d08-minus-12.tcl: [W100 L8 Expression argument to 'if' is not brace] [W214 L1 Parameter 'callerNameResLvl' of proc '::] [W214 L1 Parameter 'cmdName' of proc '::ResolveCm]
+PROBE e01-no-braced-var.tcl: [W100 L8 Expression argument to 'if' is not brace] [W301 L3 uplevel with multiple arguments concaten]
+PROBE e02-unquoted-eq.tcl: [W100 L8 Expression argument to 'if' is not brace] [W214 L1 Parameter 'callerNameResLvl' of proc '::] [W214 L1 Parameter 'cmdName' of proc '::ResolveCm]
+PROBE e03-no-continuation-in-bracket.tcl: [W100 L8 Expression argument to 'if' is not brace] [W214 L1 Parameter 'callerNameResLvl' of proc '::] [W214 L1 Parameter 'cmdName' of proc '::ResolveCm]
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10344 filtered out; finished in 13.95s

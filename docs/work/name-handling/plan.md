@@ -35,6 +35,8 @@ The shared causes behind items 1–17 — one frame lookup context, one per-invo
 
 Build items 1–10 on one object model specialised per system through registry profiles and SpecTcl, as set out in the [object systems plan](object-systems-plan.md): profile facts replace every `DefinerFamily` match, source and registry classes share one class fact and one method-call checker, objects are values on one path, and member bodies get the procedure pass. New profiles follow for itcl, snit delegation, stooop, XOTcl/NX, critcl and Tk megawidgets.
 
+A third-party package review ([overrides](overrides-package-review.md)) adds: caller-frame script parameters derived from `uplevel 1` in procedure bodies, value grammars for code inside data (override dictionaries of lambdas), body-scoped helpers outside object systems, scoped command overrides, a false W214/lost W301 around `"${name}::$x"` (reproducer kept), and whole-file specialisation of library procedures.
+
 Non-OO evaluation, namespace and alias gaps (queue item 4 of the handover, fixtures in `oo-dispatch-probe/dynamic/`):
 
 11. Remove false W210 for variables set by `catch` bodies, `regexp` match variables, a callee's `upvar`, `subst` command substitution and `eval` of a literal `list` command.
