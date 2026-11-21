@@ -1,0 +1,11 @@
+PROBE w01-nseval-shared.tcl tcl8.6: 
+PROBE w01-nseval-shared.tcl tcl9.0: 
+PROBE w02-nseval-then-proc.tcl tcl8.6: 
+PROBE w02-nseval-then-proc.tcl tcl9.0: 
+PROBE w03-branch-global-dead.tcl tcl8.6: 
+PROBE w03-branch-global-dead.tcl tcl9.0: 
+PROBE w04-nseval-unset.tcl tcl8.6: 
+PROBE w04-nseval-unset.tcl tcl9.0: 
+PROBE w05-uplevel-namespace.tcl tcl8.6: 
+PROBE w05-uplevel-namespace.tcl tcl9.0: 
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10344 filtered out; finished in 5.59s
