@@ -1,0 +1,65 @@
+PROBE e01-eval-var.tcl tcl8.6: [W101 L3 eval with substituted arguments risks code injection. Prefer direct in]
+PROBE e01-eval-var.tcl tcl9.0: [W101 L3 eval with substituted arguments risks code injection. Prefer direct in]
+PROBE e02-eval-literal.tcl tcl8.6: [W001 L7 Unknown subcommand 'lenght' for 'string'; did you mean 'length'?] [W210 L4 Variable 'z' is read before it is set]
+PROBE e02-eval-literal.tcl tcl9.0: [W001 L7 Unknown subcommand 'lenght' for 'string'; did you mean 'length'?] [W210 L4 Variable 'z' is read before it is set]
+PROBE e03-uplevel.tcl tcl8.6: [E002 L4 Too few arguments for 'llength': expected at least 1, got 0 — usage: l]
+PROBE e03-uplevel.tcl tcl9.0: [E002 L4 Too few arguments for 'llength': expected at least 1, got 0 — usage: l]
+PROBE e04-upvar.tcl tcl8.6: [W210 L2 Variable 'q' is read before it is set]
+PROBE e04-upvar.tcl tcl9.0: [W210 L2 Variable 'q' is read before it is set]
+PROBE e05-global.tcl tcl8.6: 
+PROBE e05-global.tcl tcl9.0: 
+PROBE e06-ns-variable.tcl tcl8.6: 
+PROBE e06-ns-variable.tcl tcl9.0: 
+PROBE e07-shadow-builtin.tcl tcl8.6: [W113 L3 Procedure 'string' shadows built-in command (tcl8.6)]
+PROBE e07-shadow-builtin.tcl tcl9.0: [W113 L3 Procedure 'string' shadows built-in command (tcl9.0)]
+PROBE e08-redefine-arity.tcl tcl8.6: [E002 L4 Too few arguments for 'f': expected at least 2, got 1]
+PROBE e08-redefine-arity.tcl tcl9.0: [E002 L4 Too few arguments for 'f': expected at least 2, got 1]
+PROBE e09-delete-proc.tcl tcl8.6: [W123 L4 Unresolved command 'f' at this source point; did you mean '!'?]
+PROBE e09-delete-proc.tcl tcl9.0: [W123 L4 Unresolved command 'f' at this source point; did you mean '!'?]
+PROBE e10-namespace-import.tcl tcl8.6: [W123 L5 Unresolved command 'helper' at this source point. The call widens the ]
+PROBE e10-namespace-import.tcl tcl9.0: [W123 L5 Unresolved command 'helper' at this source point. The call widens the ]
+PROBE e11-ns-relative-resolution.tcl tcl8.6: 
+PROBE e11-ns-relative-resolution.tcl tcl9.0: 
+PROBE e12-namespace-eval-set.tcl tcl8.6: 
+PROBE e12-namespace-eval-set.tcl tcl9.0: 
+PROBE e13-subst.tcl tcl8.6: [W210 L1 Variable 'w' may be read before it is set in the declared local frame]
+PROBE e13-subst.tcl tcl9.0: [W210 L1 Variable 'w' may be read before it is set in the declared local frame]
+PROBE e14-dict-with.tcl tcl8.6: 
+PROBE e14-dict-with.tcl tcl9.0: 
+PROBE e15-unset-read.tcl tcl8.6: 
+PROBE e15-unset-read.tcl tcl9.0: 
+PROBE e16-alias-chain.tcl tcl8.6: [E002 L5 Too few arguments for 'two': expected at least 1, got 0]
+PROBE e16-alias-chain.tcl tcl9.0: [E002 L5 Too few arguments for 'two': expected at least 1, got 0]
+PROBE e17-proc-inside-proc.tcl tcl8.6: 
+PROBE e17-proc-inside-proc.tcl tcl9.0: 
+PROBE e18-uplevel-proc-def.tcl tcl8.6: 
+PROBE e18-uplevel-proc-def.tcl tcl9.0: 
+PROBE e19-apply-namespace.tcl tcl8.6: [W123 L3 Unresolved command 'helper' at this source point. The call widens the ]
+PROBE e19-apply-namespace.tcl tcl9.0: [W123 L3 Unresolved command 'helper' at this source point. The call widens the ]
+PROBE e20-const-90.tcl tcl8.6: [W002 L1 'const' is disabled in the active dialect profile (available in: Tcl 9] [W123 L1 Unresolved command 'const' at this source point. The call widens the v]
+PROBE e20-const-90.tcl tcl9.0: 
+PROBE e21-upvar-array-elem.tcl tcl8.6: 
+PROBE e21-upvar-array-elem.tcl tcl9.0: 
+PROBE e22-trace-var.tcl tcl8.6: [W214 L1 Parameter 'n2' of proc '::fix' is unused] [W214 L1 Parameter 'op' of proc '::fix' is unused]
+PROBE e22-trace-var.tcl tcl9.0: [W214 L1 Parameter 'n2' of proc '::fix' is unused] [W214 L1 Parameter 'op' of proc '::fix' is unused]
+PROBE e23-ns-code.tcl tcl8.6: [W101 L3 eval with substituted arguments risks code injection. Prefer direct in]
+PROBE e23-ns-code.tcl tcl9.0: [W101 L3 eval with substituted arguments risks code injection. Prefer direct in]
+PROBE e24-variable-in-global-proc.tcl tcl8.6: 
+PROBE e24-variable-in-global-proc.tcl tcl9.0: 
+PROBE e25-interp-alias-ns.tcl tcl8.6: 
+PROBE e25-interp-alias-ns.tcl tcl9.0: 
+PROBE e26-info-commands-dispatch.tcl tcl8.6: [W307 L2 Non-literal command name — cannot statically analyse]
+PROBE e26-info-commands-dispatch.tcl tcl9.0: [W307 L2 Non-literal command name — cannot statically analyse]
+PROBE e27-catch-var.tcl tcl8.6: [W210 L1 Variable 'inside' is read before it is set] [W302 L1 catch without a result variable silently swallows errors. Consider cap]
+PROBE e27-catch-var.tcl tcl9.0: [W210 L1 Variable 'inside' is read before it is set] [W302 L1 catch without a result variable silently swallows errors. Consider cap]
+PROBE e28-foreach-lassign-regexp.tcl tcl8.6: [W210 L6 Variable 'n' is read before it is set]
+PROBE e28-foreach-lassign-regexp.tcl tcl9.0: [W210 L6 Variable 'n' is read before it is set]
+PROBE e29-namespace-eval-var-90.tcl tcl8.6: 
+PROBE e29-namespace-eval-var-90.tcl tcl9.0: 
+PROBE e30-rename-builtin-proc-wrap.tcl tcl8.6: [W113 L2 Procedure 'puts' shadows built-in command (tcl8.6)]
+PROBE e30-rename-builtin-proc-wrap.tcl tcl9.0: [W113 L2 Procedure 'puts' shadows built-in command (tcl9.0)]
+PROBE e31-namespace-eval-read.tcl tcl8.6: 
+PROBE e31-namespace-eval-read.tcl tcl9.0: 
+PROBE e32-interp-alias-arity-target-proc.tcl tcl8.6: [E002 L2 Too few arguments for 'base': expected at least 2, got 1]
+PROBE e32-interp-alias-arity-target-proc.tcl tcl9.0: [E002 L2 Too few arguments for 'base': expected at least 2, got 1]
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10344 filtered out; finished in 38.87s

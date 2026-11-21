@@ -1,6 +1,6 @@
 # TclOO, class-system and dispatch probe
 
-Fixtures behind queue items 2 and 3 of the [signed scan and precedence handover](../signed-scan-precedence.md). `bodies/` puts a signed-byte comparison and a precedence hazard in every body form; `variables/` and `dispatch/` are programs that run cleanly, with each wrong call wrapped in `catch` and marked `# BAD`. The `.out` files are the analyser's output on `d6bd5cf7`.
+Fixtures behind queue items 2 and 3 of the [signed scan and precedence handover](../signed-scan-precedence.md). `bodies/` puts a signed-byte comparison and a precedence hazard in every body form; `variables/`, `dispatch/` and `dynamic/` (non-OO evaluation, namespaces and aliases) are programs that run cleanly, with each wrong call wrapped in `catch` and marked `# BAD`. The `.out` files are the analyser's output on `d6bd5cf7`.
 
 Run a fixture under every release (TclOO needs 8.6 or later; `oo::configurable`, `classmethod`, `private`, `link`, `callback` and `initialise` need 9.0):
 

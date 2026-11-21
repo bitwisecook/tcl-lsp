@@ -29,4 +29,13 @@ TclOO and class-system coverage, measured against tclsh 8.6–9.1 (matrix in the
 9. Carry arity through `tailcall`, literal `{*}` command prefixes and coroutine commands, and stop W241 on `while 1 { yield … }` generators.
 10. itcl: accept `package require itcl` as well as `Itcl`, and check object methods, `chain` and `configure` options. snit: model `delegate`. critcl: add a model for `critcl::cproc` and `critcl::ccommand` (measurements in [`oo-dispatch-probe/`](handover/oo-dispatch-probe/README.md); queue item 3 of the handover).
 
+Build items 1–10 on one object model specialised per system through registry profiles and SpecTcl, as set out in the [object systems plan](object-systems-plan.md): profile facts replace every `DefinerFamily` match, source and registry classes share one class fact and one method-call checker, objects are values on one path, and member bodies get the procedure pass. New profiles follow for itcl, snit delegation, stooop, XOTcl/NX, critcl and Tk megawidgets.
+
+Non-OO evaluation, namespace and alias gaps (queue item 4 of the handover, fixtures in `oo-dispatch-probe/dynamic/`):
+
+11. Remove false W210 for variables set by `catch` bodies, `regexp` match variables, a callee's `upvar`, `subst` command substitution and `eval` of a literal `list` command.
+12. Exempt fixed-signature callbacks (variable traces, ensemble `-unknown` handlers) from W214, and drop the nonsense "did you mean '!'" suggestion on W123.
+13. Model 8.x namespace variable "creative writing" (`set x` in `namespace eval` writes an existing global on 8.4–8.6, not on 9.0) per selected dialect.
+14. Report: `namespace code` captured in the wrong namespace, reads of never-set globals, reads after `unset`, calls through a deleted alias target, arity of procedures defined inside procedures, writes to a 9.0 `const`, and calls to a built-in replaced by a procedure with a different signature.
+
 Before the final PR, move useful contracts and real experiments/tests into durable locations. Correct documentation/comments across the entire tracked repository, including generated guidance and files outside the implementation diff. Remove obsolete guidance, completed TODOs, development narratives, temporary ledgers/prompts/archives and their references, including this directory and the work-specific AGENTS exception. Preserve reproducible evidence and legal attribution. Complete all gates before creating a ready-to-merge PR; do not merge. This final cleanup is still required and is not completed by source-audit closure.
