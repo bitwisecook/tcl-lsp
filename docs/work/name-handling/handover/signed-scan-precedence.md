@@ -64,4 +64,5 @@ Each was measured by stashing the change and running the same command on the cle
 7. **Expressions.** `in`/`ni` precedence is wrong in the shared parser (wrong answers in both engines, false I230, and W154 — written on this branch — explains the wrong grouping because it reports the parser's tree); measured and planned in [expressions](../expression-design.md), plan items 26–29.
 8. **Packages.** Measured and planned in [packages](../package-design.md), plan items 30–33.
 9. **Rename and alias tracking.** Measured and planned in [rename and alias](../rename-alias-design.md), plan items 34–37. Two faults reported by a census through the cached MCP server (namespace-relative rename navigation, renaming onto an alias name) do not reproduce on the current tree.
-10. W156 consumers not modelled: `table` values (unsigned 64-bit, but negative `incr` deltas are legitimate) and `class match` (W304 already covers it).
+10. **Scripts, words, lists, strings and writers.** Measured and planned in [scripts and words](../words-scripts-design.md), plan items 38–41; includes the VM's literal `{*}` failure behind the silent `msgcat` exit.
+11. W156 consumers not modelled: `table` values (unsigned 64-bit, but negative `incr` deltas are legitimate) and `class match` (W304 already covers it).

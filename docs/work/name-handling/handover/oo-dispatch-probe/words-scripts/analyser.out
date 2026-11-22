@@ -1,0 +1,41 @@
+PROBE s01-comments.tcl tcl8.6: 
+PROBE s01-comments.tcl tcl9.0: 
+PROBE s01b-brace-in-body-comment.tcl tcl8.6: [E102 L4 Unmatched '}' — missing opening '{'?] [E204 L4 extra characters after close-brace]
+PROBE s01b-brace-in-body-comment.tcl tcl9.0: [E102 L4 Unmatched '}' — missing opening '{'?] [E204 L4 extra characters after close-brace]
+PROBE s02-continuation.tcl tcl8.6: 
+PROBE s02-continuation.tcl tcl9.0: 
+PROBE s03-expansion.tcl tcl8.6: 
+PROBE s03-expansion.tcl tcl9.0: 
+PROBE s03b.tcl tcl8.6: 
+PROBE s03b.tcl tcl9.0: 
+PROBE s04-extra-chars.tcl tcl8.6: 
+PROBE s04-extra-chars.tcl tcl9.0: 
+PROBE s05-escapes.tcl tcl8.6: 
+PROBE s05-escapes.tcl tcl9.0: 
+PROBE s06-var-boundaries.tcl tcl8.6: 
+PROBE s06-var-boundaries.tcl tcl9.0: 
+PROBE s07-nested-subst.tcl tcl8.6: 
+PROBE s07-nested-subst.tcl tcl9.0: 
+PROBE s08-list-parse.tcl tcl8.6: 
+PROBE s08-list-parse.tcl tcl9.0: 
+PROBE s09-list-quoting.tcl tcl8.6: 
+PROBE s09-list-quoting.tcl tcl9.0: 
+PROBE s10-split-join.tcl tcl8.6: 
+PROBE s10-split-join.tcl tcl9.0: 
+PROBE s11-concat.tcl tcl8.6: 
+PROBE s11-concat.tcl tcl9.0: 
+PROBE s12-subst-flags.tcl tcl8.6: [W102 L2 subst with a variable argument enables code injection: any $] [W102 L2 subst with a variable argument enables code injection: any [] [W102 L2 subst with a variable argument enables code injection: any [] [W102 L2 subst with a variable argument enables code injection: any []
+PROBE s12-subst-flags.tcl tcl9.0: [W102 L2 subst with a variable argument enables code injection: any $] [W102 L2 subst with a variable argument enables code injection: any [] [W102 L2 subst with a variable argument enables code injection: any [] [W102 L2 subst with a variable argument enables code injection: any []
+PROBE s13-info-complete.tcl tcl8.6: 
+PROBE s13-info-complete.tcl tcl9.0: 
+PROBE s14-char-index.tcl tcl8.6: 
+PROBE s14-char-index.tcl tcl9.0: 
+PROBE s15-hex-escape-length.tcl tcl8.6: 
+PROBE s15-hex-escape-length.tcl tcl9.0: 
+PROBE s16-dict-string.tcl tcl8.6: 
+PROBE s16-dict-string.tcl tcl9.0: 
+PROBE s17-semicolons.tcl tcl8.6: 
+PROBE s17-semicolons.tcl tcl9.0: 
+PROBE s18-braces-in-quotes.tcl tcl8.6: 
+PROBE s18-braces-in-quotes.tcl tcl9.0: 
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10344 filtered out; finished in 17.38s

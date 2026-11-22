@@ -1,0 +1,50 @@
+s01-comments.tcl 8.6 vm=ok rt=ok
+s01-comments.tcl 9.0 vm=ok rt=ok
+s01b-brace-in-body-comment.tcl 8.6 vm=ok rt=DIFF
+   tclsh: extra characters after close-brace     while executing "set code {proc p {} {     # } brace in comment inside body     return ok }}"     (file "s01b-brace-in-body-comment.tcl" line 1) 
+   rt:    error: extra characters after close-brace 
+s01b-brace-in-body-comment.tcl 9.0 vm=ok rt=DIFF
+   tclsh: extra characters after close-brace     while executing "set code {proc p {} {     # } brace in comment inside body     return ok }}"     (file "s01b-brace-in-body-comment.tcl" line 1) 
+   rt:    error: extra characters after close-brace 
+s02-continuation.tcl 8.6 vm=ok rt=ok
+s02-continuation.tcl 9.0 vm=ok rt=ok
+s03-expansion.tcl 8.6 vm=DIFF rt=ok
+   tclsh: 4 3 1 
+   vm:     
+s03-expansion.tcl 9.0 vm=DIFF rt=ok
+   tclsh: 4 3 1 
+   vm:     
+s04-extra-chars.tcl 8.6 vm=ok rt=ok
+s04-extra-chars.tcl 9.0 vm=ok rt=ok
+s05-escapes.tcl 8.6 vm=DIFF rt=DIFF
+   tclsh: 65 65 195 2 65 65533 
+   vm:    65 65 233 2 65 65533 
+   tclsh: 65 65 195 2 65 65533 
+   rt:    65 65 233 2 65 65533 
+s05-escapes.tcl 9.0 vm=ok rt=ok
+s06-var-boundaries.tcl 8.6 vm=ok rt=ok
+s06-var-boundaries.tcl 9.0 vm=ok rt=ok
+s07-nested-subst.tcl 8.6 vm=ok rt=ok
+s07-nested-subst.tcl 9.0 vm=ok rt=ok
+s08-list-parse.tcl 8.6 vm=ok rt=ok
+s08-list-parse.tcl 9.0 vm=ok rt=ok
+s09-list-quoting.tcl 8.6 vm=ok rt=ok
+s09-list-quoting.tcl 9.0 vm=ok rt=ok
+s10-split-join.tcl 8.6 vm=ok rt=ok
+s10-split-join.tcl 9.0 vm=ok rt=ok
+s11-concat.tcl 8.6 vm=ok rt=ok
+s11-concat.tcl 9.0 vm=ok rt=ok
+s12-subst-flags.tcl 8.6 vm=ok rt=ok
+s12-subst-flags.tcl 9.0 vm=ok rt=ok
+s13-info-complete.tcl 8.6 vm=ok rt=ok
+s13-info-complete.tcl 9.0 vm=ok rt=ok
+s14-char-index.tcl 8.6 vm=ok rt=ok
+s14-char-index.tcl 9.0 vm=ok rt=ok
+s15-hex-escape-length.tcl 8.6 vm=ok rt=ok
+s15-hex-escape-length.tcl 9.0 vm=ok rt=ok
+s16-dict-string.tcl 8.6 vm=ok rt=ok
+s16-dict-string.tcl 9.0 vm=ok rt=ok
+s17-semicolons.tcl 8.6 vm=ok rt=ok
+s17-semicolons.tcl 9.0 vm=ok rt=ok
+s18-braces-in-quotes.tcl 8.6 vm=ok rt=ok
+s18-braces-in-quotes.tcl 9.0 vm=ok rt=ok
