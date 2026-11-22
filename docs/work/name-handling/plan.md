@@ -188,6 +188,7 @@ Foundations, architecture and object systems (the structural work the domain ite
 | Parsers and walkers, crates and APIs | 76, 82, 84, 85, 90 |
 | Third-party crates, licence | 74, 91 |
 | Editor actions and tools | 100–106 |
+| Remaining sprawl (diagnostics, dialects, positions, BIG-IP, errors, config, gates, tracing, clients) | 107–115 |
 
 **Order:** the phase order, the structural decisions that make the designs one design (binding and value fixpoint, `Frame` versus name world, one per-site record, identity types, summaries versus contracts, the answer type and receipts, the potential-execution owner, native linearisation recipes) and the dependencies behind them are in [design integration](design-integration.md); it supersedes the order previously given here.
 
@@ -214,5 +215,17 @@ Editor actions and tool equivalents ([editor actions](editor-actions-design.md);
 104. One action engine over a session (workspace root plus overlays) used by the LSP server, MCP and the CLI; the server's rename tiers move into it; MCP keeps sessions instead of a fresh single-file analysis per call; the agreement harness requires identical edits or refusals across surfaces.
 105. Cancellation, `workDoneProgress` and post-edit verification: superseded requests cancelled through salsa; progress for workspace renames and scans; every rename re-binds the edited body units and checks that each edited site now names the renamed identity and nothing else changed target.
 106. Action budgets as gates: the editor-actions workspaces in the analysis-performance suite with per-class targets (point query ≤ 50 ms at p95 warm, collection query ≤ 300 ms on 10,000 lines, local transform ≤ 100 ms, point query ≤ 100 ms after a one-line edit) on release builds.
+
+Remaining sprawl outside the earlier studies ([remaining sprawl](remaining-sprawl.md)):
+
+107. Quick fixes (observed, independent of the phases): `orphan-monitor`, `convert.rs` and `irule_context.rs` read pool monitors through `monitor_expression::try_parse` instead of the first word; `explain_flow`'s event order and MCP `irule_gen`'s SSL profile mapping (SERVERSSL events give a SERVERSSL profile) come from the registry's event data; `resolution_drift` matches only its own waiver tag; the explorer uses the catalogue severity for S102 and taint.
+108. Diagnostic severity and category in the registry's diagnostic catalogue (and the generated TypeScript and Kotlin catalogues); producers stop choosing severity by code string; one `Severity` type; one category vocabulary; the BIG-IP query WASM, Spec Studio samples and explorer views go through the diagnostic policy.
+109. One dialect-selection call (detector plus document, folder, ini and session precedence, lone-CR normalisation, filename tier) used by the LSP's open and closed paths, the CLI and MCP; the CLI and MCP read `dialect=` from the ini.
+110. Positions: one line rule for client-facing ranges (`new_lsp` semantics) wherever a range leaves the process; one position and range type (exclusive end, UTF-16) for every tool; delete the hand-written line-start and UTF-16 helpers; one documented unit convention for diagnostic JSON across CLI, MCP, explorer, report generator and the BIG-IP query.
+111. BIG-IP domain data from one owner: event order, event phases and profile requirements from the registry for `f5-cli`, MCP, the report generator, `f5-xc` and the VS Code skeleton; partition formatting from `tcl-bigip::object_names`; one BIG-IP object graph builder shared by `tcl-bigip`, `bigip-report-gen` and `tcl-bigip-query`.
+112. Tcl error messages from one set of builders in `tcl-cmd-core`/`tcl-value-syntax` (bad-value description, wrong-# args, return options) used by both engines and the analysis, checked against the tclsh error-message vectors.
+113. One configuration stack (global < editor < project < invocation) built by a shared function for the LSP, CLI and MCP; MCP gains the project layer and caches the global layer.
+114. One waiver syntax and matcher for every xtask gate (tag-exact, comment-block scoped), with a test that each gate ignores the others' tags.
+115. One tracing facade: environment flags read once into a typed configuration, `tracing`-style spans for timings, no direct `eprintln!` or `env::var` in library crates; editor clients take snippets and iRule skeletons from the server, and the editor READMEs' extension maps are generated.
 
 Before the final PR, move useful contracts and real experiments/tests into durable locations. Correct documentation/comments across the entire tracked repository, including generated guidance and files outside the implementation diff. Remove obsolete guidance, completed TODOs, development narratives, temporary ledgers/prompts/archives and their references, including this directory and the work-specific AGENTS exception. Preserve reproducible evidence and legal attribution. Complete all gates before creating a ready-to-merge PR; do not merge. This final cleanup is still required and is not completed by source-audit closure.
