@@ -141,6 +141,10 @@ Decide before phase 1, because it settles which licences new dependencies may ca
 - Editor marketplace manifests (VS Code, JetBrains, Zed) and any packaging metadata that states the licence.
 - Dependency choices: prefer MIT, Apache-2.0, BSD, ISC or Zlib; MPL-2.0 (`imbl`, `rpds`) remains usable; avoid LGPL and GPL crates in shipped binaries.
 
+## Foundations
+
+The [cross-cutting review](cross-cutting-review.md) reorders this plan: phase 0 builds the probe harness and conformance matrix, the answer and outcome types and the identity layer, and fixes the correctness backlog; release facts, registry descriptors and abstract-value kernels follow before the pipeline phases. The phases below keep their content but assume those foundations.
+
 ## Phases
 
 Each phase ends with its walkers deleted, its gates tightened and the agreement tests green; nothing is left half-migrated across a phase boundary.

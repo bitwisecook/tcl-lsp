@@ -66,4 +66,5 @@ Each was measured by stashing the change and running the same command on the cle
 9. **Rename and alias tracking.** Measured and planned in [rename and alias](../rename-alias-design.md), plan items 34–37. Two faults reported by a census through the cached MCP server (namespace-relative rename navigation, renaming onto an alias name) do not reproduce on the current tree.
 10. **Scripts, words, lists, strings and writers.** Measured and planned in [scripts and words](../words-scripts-design.md), plan items 38–41; includes the VM's literal `{*}` failure behind the silent `msgcat` exit.
 11. **Lists, dicts and arrays.** Measured and planned in [lists, dicts and arrays](../lists-dicts-arrays-design.md), plan items 42–45.
-12. W156 consumers not modelled: `table` values (unsigned 64-bit, but negative `incr` deltas are legitimate) and `class match` (W304 already covers it).
+12. **Cross-cutting review.** [cross-cutting-review.md](../cross-cutting-review.md) collects the faults common to every study, the correctness backlog, and the foundations-first reordering of the plan.
+13. W156 consumers not modelled: `table` values (unsigned 64-bit, but negative `incr` deltas are legitimate) and `class match` (W304 already covers it).
