@@ -40,7 +40,7 @@
    - Code registered with `after`, traces, `bind` or `interp alias`, or captured with `namespace code`, runs at some later time, not at a program point.
    - Its name world is the join of the worlds at every point reachable after registration, in the global frame. In practice that is the end-of-script world of each file in the workspace assumption, joined with "unknown" for anything an unproven call could change.
    - The potential-execution owner (decision 8) computes these points.
-4. **One per-site record: the annotated command.** It replaces the "invocation record", the "forward answer per site", `SourceInvocationBinding` and the `CommandTokens` side record.
+4. **One per-site record: the annotated command.** It replaces the "invocation record", the "forward answer per site" and the `CommandTokens` side record. It is `SourceInvocationBinding` evolved in place, returned by `invocation_at_source(offset)`, so the guide's API stays the entry point ([architecture review](architecture-review.md), resolution 1).
    - Binding produces one for every reached command, however deeply nested.
    - It carries the structured words, the command and variable answers, the selected form, per-word roles, places and value facts, and its result and effects.
    - The reverse index is derived from these records and from nothing else.
@@ -56,7 +56,7 @@
    - **The class model is built once.** The typed class model of phase 5 is the object-system profile's class fact, populated for the existing families (object systems plan, Order 1–4). Phase 8 only adds new systems and the SpecTcl rewrite.
 7. **The answer type keeps the authorities separate.**
    - `Answer<T>` has four states: proven `T`, a bounded set of `T`, absent, or unknown with a reason. Variable answers are `Answer<VariableTarget>`, where `VariableTarget` is `Cell`, `Alias { alias, target }` or `Unset`.
-   - An answer carries the **receipts** that support it, each keeping its own bounded authority (Logical advice, Native execution, normal completion, edit permission), as the naming guide requires. Consumers re-check the receipt they need, and the semantic model never merges receipts into one level.
+   - An answer carries the **receipts** that support it, each keeping its own bounded authority from one fixed enum (Display, Logical, Native, normal completion, Edit), as the naming guide requires. Display answers may come from written words, for display features only ([architecture review](architecture-review.md), resolution 2). Consumers re-check the receipt they need, and the semantic model never merges receipts into one level.
    - SCCP keeps its own lattice. Its "unknown" (not yet reached) maps to an unreached region, not to `Answer::Unknown`; overdefined maps to unknown.
    - One `AbstractValue` holds exact values, sets, intervals and container shapes, with `ExactValue` as its exact case.
 8. **A potential-execution owner.** One owner computes which code is reached, not reached or possibly reached, the deferred points, and which names unknown code may affect. These all depend on it:
@@ -82,7 +82,7 @@ Each is small, measured and reverts if it fails. They run in phase 0, before the
 
 - **92. Name-world cost:** memory and time of the per-point binding states on the 687-line file and the corpus. Answers whether per-point state is affordable now that analysis retains about 230 MB.
 - **93. Annotated command for nested commands:** produce the record for every reached command in one fixture directory (`oo-dispatch-probe/frames/`) from today's binding and compare it with the existing consumers' answers. Answers whether "computed once" covers nested sites.
-- **94. Binding and value fixpoint:** run the loop of decision 1 on the dynamic-head, `upvar $n` and `uplevel $lvl` fixtures in `oo-dispatch-probe/dynamic/` and count the iterations and re-bound sites.
+- **94. Binding and value fixpoint:** run the loop of decision 1 on the dynamic-head, `upvar $n` and `uplevel $lvl` fixtures in `oo-dispatch-probe/dynamic/`; count the iterations and re-bound sites, and check that fresh and incremental runs give identical, sealed realms.
 - **95. Per-body salsa query:** move one consumer (W210 on one body unit) onto a per-body query and measure re-analysis after a one-line edit.
 
 ## Corrected order
@@ -115,5 +115,7 @@ The dependencies the pages state, applied to the plan:
 
 - **Effect descriptors and transitions are one vocabulary.** The registry's existing transitions are extended, and nothing parallel is added.
 - **Places:** `PlaceRef` is the interned identity; dense per-unit indices are an implementation detail of a pass.
-- **Body units** are allocated by binding (L4).
+- **Body units** are issued at lowering by the provenance owner, during the walk that also binds ([structured-procedure plan](structured-procedure-plan.md); [architecture review](architecture-review.md), resolution 3).
 - **Counts:** about 42 resolvers is superseded by the inventories' about 60 command and about 70 variable implementations; the frame and namespace choosers are as counted in the [frame page](frame-design.md) and [namespace page](namespace-design.md).
+
+The [architecture review](architecture-review.md) checks these decisions against the branch's earlier ones, resolves six contradictions (decisions 4 and 7 and the body-unit issuer are amended above), and adds plan items 96–99.
