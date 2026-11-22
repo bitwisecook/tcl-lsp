@@ -1,0 +1,39 @@
+Release tcl-lsp-server built from 204509ef, run with .claude/skills/lsp-client on 2026-11-22.
+
+Workspace A: main.tcl and lib/util.tcl (this directory) plus http.tcl, package.tcl, auto.tcl, safe.tcl, clock.tcl copied from tmp/tcl9.0.4/library (10,513 lines)
+initialize 0.69s
+workspace-scan 63.40s (server timing: workspace_folders_scan 58305ms, files=7)
+open+diagnostics main.tcl: 0.30s
+  prepareRename proc-call ::util::scale: 19752 ms -> None
+  rename proc-call ::util::scale: 22666 ms -> None
+  references proc-call ::util::scale: 102 ms -> {'util.tcl': 1, 'main.tcl': 2}
+  definition proc-call ::util::scale: 13 ms -> None
+  prepareRename local-var doubled: 30 ms -> None
+  rename local-var doubled: 60 ms -> None
+  references local-var doubled: 58 ms -> None
+  prepareRename proc-decl compute: 42 ms -> None
+  rename proc-decl compute: 110 ms -> None
+  references proc-decl compute: 19248 ms -> {'main.tcl': 1}
+open+diagnostics http.tcl: 28.42s
+  prepareRename proc-decl http::geturl: 4116 ms -> None
+  rename proc-decl http::geturl: 1714 ms -> None
+  references proc-decl http::geturl: 21950 ms -> {'http.tcl': 1}
+  definition proc-decl http::geturl: 1629 ms -> None
+  prepareRename proc-decl http::Finish: 1529 ms -> None
+  rename proc-decl http::Finish: 1700 ms -> None
+  references proc-decl http::Finish: 20574 ms -> {'http.tcl': 1}
+  after-edit rename http::Finish: 13217 ms -> None
+  after-edit references http::Finish: 22011 ms -> {'http.tcl': 1}
+
+Workspace B: main.tcl and lib/util.tcl only
+  every prepareRename, rename and definition in main.tcl -> null, including same-file `[compute 5`;
+  the same file without its first line (`source [file join [file dirname [info script]] lib util.tcl]`, nosource.tcl): navigation works;
+  with `source lib/util.tcl` (literal.tcl): definition of same-file `[compute 5` -> none.
+  nosource.tcl rename: local `doubled` -> error "cannot account for every original variable name, alias target and read in this document";
+                       `compute` -> error "a completed original command world is unavailable for collision coverage"; prepareRename -> null (no reason).
+
+Workspace C: the same six-line procedure file alone
+  prepareRename 2-12 ms, rename 3-12 ms (edits returned), definition 1-10 ms, references 63-79 ms.
+
+In-process (tcl-lsp-core, opt-level 2, Analyser without pack overlay): http.tcl analysis 13.2 s; one-line edit then full re-analysis 12.5 s;
+per request after analysis on http.tcl: rename 1.2-1.9 s, references 0.8-1.5 s, definition 2.5 s, hover 3.4 s.

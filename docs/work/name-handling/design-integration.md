@@ -119,3 +119,5 @@ The dependencies the pages state, applied to the plan:
 - **Counts:** about 42 resolvers is superseded by the inventories' about 60 command and about 70 variable implementations; the frame and namespace choosers are as counted in the [frame page](frame-design.md) and [namespace page](namespace-design.md).
 
 The [architecture review](architecture-review.md) checks these decisions against the branch's earlier ones, resolves six contradictions (decisions 4 and 7 and the body-unit issuer are amended above), and adds plan items 96–99.
+
+Editor actions (rename, references and their MCP and CLI equivalents) add requirements these decisions must meet: binding facts as their own tier per body unit, positioned lookups by index, a persistent workspace tier, `source` as an import edge, scoped completeness and one action engine for every surface ([editor actions](editor-actions-design.md), items 100–106).
