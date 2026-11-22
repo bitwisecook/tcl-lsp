@@ -22,7 +22,7 @@ Other measured faults, from 61 expressions in [`oo-dispatch-probe/expressions/`]
 
 - **Both engines in 8.6 mode lack `max()` and `min()`**: `invalid command name "tcl::mathfunc::max"`; they exist since 8.5. Everything else, including every release-dependent case (`int(1e20)`, `010`, `1_000`), matches tclsh.
 - **W233 on `-7.0/0`** says it "raises divide by zero at runtime"; Tcl returns `-Inf` when either operand is a float. Only integer division and modulus by zero raise.
-- **The optimiser folds none of the 61** (`set r [expr {…}]; puts $r`); there is no constant rewrite to compare. The compiler's constant folder (`tcl_expr_eval`) serves SCCP and diagnostics, not a rewrite.
+- **The optimiser folds 28 of the 61 under 8.6 and 34 under 9.0** (`set r [expr {…}]; puts $r`), and every rewrite gives tclsh's output. An earlier version of this page said it folds none: the probe passed no dialect, which makes every release-dependent fold decline. Folds, declines and missed folds are in [constants and folding](constant-folding-design.md).
 - Correct: the W155 hint on `-7/2`, `-7%2` and `-1 >> 1` (grouping changes the value), W148 on `1_000` under 8.6.
 
 ## Structure

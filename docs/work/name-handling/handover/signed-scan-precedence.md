@@ -70,4 +70,5 @@ Each was measured by stashing the change and running the same command on the cle
 13. **Caching.** Measured and planned in [caching](../caching-design.md), plan items 46–49 (probe output in `oo-dispatch-probe/caching-perf.out`).
 14. **Analysis data structures.** Measured and planned in [analysis data structures](../analysis-data-structures.md), plan items 50–53.
 15. **User procedures, objects and libraries.** Designed in [user and library commands](../user-and-library-commands.md), plan items 54–57.
-16. W156 consumers not modelled: `table` values (unsigned 64-bit, but negative `incr` deltas are legitimate) and `class match` (W304 already covers it).
+16. **Constants and folding.** Measured and planned in [constants and folding](../constant-folding-design.md), plan items 59–65 (fixtures and executed rewrites in `oo-dispatch-probe/constants/`). It corrects the earlier "optimiser folds none" findings for expressions and lists, which came from a probe that passed no dialect.
+17. W156 consumers not modelled: `table` values (unsigned 64-bit, but negative `incr` deltas are legitimate) and `class match` (W304 already covers it).

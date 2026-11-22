@@ -1,0 +1,237 @@
+file	release	tclsh original	tclsh rewritten
+c01-arith-chain.tcl	8.6	11 	11 
+c01-arith-chain.tcl	9.0	11 	11 
+c02-string-ops.tcl	8.6	ABC ababab bxnxnx ell 3 	ABC ababab bxnxnx ell 3 
+c02-string-ops.tcl	9.0	ABC ababab bxnxnx ell 3 	ABC ababab bxnxnx ell 3 
+c03-format.tcl	8.6	00042|2a|3.14|abc 	00042|2a|3.14|abc 
+c03-format.tcl	9.0	00042|2a|3.14|abc 	00042|2a|3.14|abc 
+c04-list-dict.tcl	8.6	b 3 2 {a b c} 	b 3 2 {a b c} 
+c04-list-dict.tcl	9.0	b 3 2 {a b c} 	b 3 2 {a b c} 
+c05-branch.tcl	8.6	big 	big 
+c05-branch.tcl	9.0	big 	big 
+c06-loop.tcl	8.6	10 	10 
+c06-loop.tcl	9.0	10 	10 
+c07-pure-proc.tcl	8.6	42 	42 
+c07-pure-proc.tcl	9.0	42 	42 
+c08-recursive.tcl	8.6	120 	120 
+c08-recursive.tcl	9.0	120 	120 
+c09-impure-proc.tcl	8.6	1 2 	1 2 
+c09-impure-proc.tcl	9.0	1 2 	1 2 
+c10-global-read.tcl	8.6	7 8 	7 8 
+c10-global-read.tcl	9.0	7 8 	7 8 
+c11-redefined.tcl	8.6	one two 	one two 
+c11-redefined.tcl	9.0	one two 	one two 
+c12-renamed-builtin.tcl	8.6	3 99 	3 99 
+c12-renamed-builtin.tcl	9.0	3 99 	3 99 
+c13-number-forms.tcl	8.6	01 1 0x10 16 1.0 1 1 0 	01 1 0x10 16 1.0 1 1 0 
+c13-number-forms.tcl	9.0	01 1 0x10 16 1.0 1 1 0 	01 1 0x10 16 1.0 1 1 0 
+c14-float-format.tcl	8.6	0.3333333333333333 0.30000000000000004 1e+21 18446744073709551616 -0.0 	0.3333333333333333 0.30000000000000004 1e+21 18446744073709551616 -0.0 
+c14-float-format.tcl	9.0	0.3333333333333333 0.30000000000000004 1e+21 18446744073709551616 -0.0 	0.3333333333333333 0.30000000000000004 1e+21 18446744073709551616 -0.0 
+c15-upvar-proc.tcl	8.6	6 	6 
+c15-upvar-proc.tcl	9.0	6 	6 
+c16-constant-in-callback.tcl	8.6	0:6 	0:6 
+c16-constant-in-callback.tcl	9.0	0:6 	0:6 
+c17-string-concat.tcl	8.6	7 	7 
+c17-string-concat.tcl	9.0	7 	7 
+c18-octal-release.tcl	8.6	8 	8 
+c18-octal-release.tcl	9.0	10 	10 
+c19-info-exists.tcl	8.6	yes 	yes 
+c19-info-exists.tcl	9.0	yes 	yes 
+c20-dead-after-return.tcl	8.6	early 	early 
+c20-dead-after-return.tcl	9.0	early 	early 
+d01-toplevel.tcl	8.6	11 	11 
+d01-toplevel.tcl	9.0	11 	11 
+d02-args.tcl	8.6	5 9 	5 9 
+d02-args.tcl	9.0	5 9 	5 9 
+d03-string-lit.tcl	8.6	ABC ababab 	ABC ababab 
+d03-string-lit.tcl	9.0	ABC ababab 	ABC ababab 
+d04-list-lit.tcl	8.6	b 3 	b 3 
+d04-list-lit.tcl	9.0	b 3 	b 3 
+d05-expr-lit.tcl	8.6	3 18446744073709551616 	3 18446744073709551616 
+d05-expr-lit.tcl	9.0	3 18446744073709551616 	3 18446744073709551616 
+d06-divzero.tcl	8.6	err divide by zero 	err divide by zero 
+d06-divzero.tcl	9.0	err divide by zero 	err divide by zero 
+d07-clock.tcl	8.6	1 	1 
+d07-clock.tcl	9.0	1 	1 
+d08-trace.tcl	8.6	7 	7 
+d08-trace.tcl	9.0	7 	7 
+d09-mathfunc-override.tcl	8.6	42 	42 
+d09-mathfunc-override.tcl	9.0	42 	42 
+d10-copy-incr.tcl	8.6	3 4 	3 4 
+d10-copy-incr.tcl	9.0	3 4 	3 4 
+d11-append.tcl	8.6	6 	6 
+d11-append.tcl	9.0	6 	6 
+d12-lappend.tcl	8.6	2 	2 
+d12-lappend.tcl	9.0	2 	2 
+d13-const-proc-in-expr.tcl	8.6	14 	14 
+d13-const-proc-in-expr.tcl	9.0	14 	14 
+d14-08.tcl	8.6	0 	0 
+d14-08.tcl	9.0	1 	1 
+d15-uplevel0.tcl	8.6	2 	2 
+d15-uplevel0.tcl	9.0	2 	2 
+d16-eval.tcl	8.6	2 	2 
+d16-eval.tcl	9.0	2 	2 
+d17-global-later.tcl	8.6	6 	6 
+d17-global-later.tcl	9.0	6 	6 
+d18-indirect.tcl	8.6	2 	2 
+d18-indirect.tcl	9.0	2 	2 
+d19-wide.tcl	8.6	9223372036854775808 	9223372036854775808 
+d19-wide.tcl	9.0	9223372036854775808 	9223372036854775808 
+d20-unicode.tcl	8.6	3 	3 
+d20-unicode.tcl	9.0	2 	2 
+e01-bool-return.tcl	8.6	true 4 	true 4 
+e01-bool-return.tcl	9.0	true 4 	true 4 
+e05-bool-var.tcl	8.6	false 	false 
+e05-bool-var.tcl	9.0	false 	false 
+e06-float.tcl	8.6	0.5 	0.5 
+e06-float.tcl	9.0	0.5 	0.5 
+e07-float-text.tcl	8.6	1.0 	1.0 
+e07-float-text.tcl	9.0	1.0 	1.0 
+e08-third.tcl	8.6	0.3333333333333333 	0.3333333333333333 
+e08-third.tcl	9.0	0.3333333333333333 	0.3333333333333333 
+g01.tcl	8.6	b 	b 
+g01.tcl	9.0	b 	b 
+g02.tcl	8.6	c 	c 
+g02.tcl	9.0	c 	c 
+g03.tcl	8.6	3 	3 
+g03.tcl	9.0	3 	3 
+g04.tcl	8.6	b c 	b c 
+g04.tcl	9.0	b c 	b c 
+g05.tcl	8.6	a b c 	a b c 
+g05.tcl	9.0	a b c 	a b c 
+g06.tcl	8.6	1 	1 
+g06.tcl	9.0	1 	1 
+g07.tcl	8.6	2 	2 
+g07.tcl	9.0	2 	2 
+g08.tcl	8.6	2 	2 
+g08.tcl	9.0	2 	2 
+g09.tcl	8.6	a-b 	a-b 
+g09.tcl	9.0	a-b 	a-b 
+g10.tcl	8.6	 	 
+g10.tcl	9.0	 	 
+g11.tcl	8.6	3 2 1 	3 2 1 
+g11.tcl	9.0	3 2 1 	3 2 1 
+g12.tcl	8.6	3 	3 
+g12.tcl	9.0	3 	3 
+x01.tcl	8.6	512 	512 
+x01.tcl	9.0	512 	512 
+x02.tcl	8.6	4 	4 
+x02.tcl	9.0	4 	4 
+x03.tcl	8.6	0 	0 
+x03.tcl	9.0	0 	0 
+x04.tcl	8.6	9223372036854775808 	9223372036854775808 
+x04.tcl	9.0	9223372036854775808 	9223372036854775808 
+x05.tcl	8.6	9223372036854775808 	9223372036854775808 
+x05.tcl	9.0	9223372036854775808 	9223372036854775808 
+x06.tcl	8.6	-9223372036854775809 	-9223372036854775809 
+x06.tcl	9.0	-9223372036854775809 	-9223372036854775809 
+x07.tcl	8.6	9223372036854775808 	9223372036854775808 
+x07.tcl	9.0	9223372036854775808 	9223372036854775808 
+x08.tcl	8.6	-4 	-4 
+x08.tcl	9.0	-4 	-4 
+x09.tcl	8.6	1 	1 
+x09.tcl	9.0	1 	1 
+x10.tcl	8.6	-1 	-1 
+x10.tcl	9.0	-1 	-1 
+x11.tcl	8.6	Inf 	Inf 
+x11.tcl	9.0	Inf 	Inf 
+x12.tcl	8.6	-Inf 	-Inf 
+x12.tcl	9.0	-Inf 	-Inf 
+x13.tcl	8.6	domain error: argument not in valid range     while executing 	domain error: argument not in valid range     while executing 
+x13.tcl	9.0	domain error: argument not in valid range     while executing 	domain error: argument not in valid range     while executing 
+x14.tcl	8.6	9223372036854775808 	9223372036854775808 
+x14.tcl	9.0	9223372036854775808 	9223372036854775808 
+x15.tcl	8.6	7766279631452241920 	7766279631452241920 
+x15.tcl	9.0	100000000000000000000 	100000000000000000000 
+x16.tcl	8.6	7766279631452241920 	7766279631452241920 
+x16.tcl	9.0	7766279631452241920 	7766279631452241920 
+x17.tcl	8.6	100000000000000000000 	100000000000000000000 
+x17.tcl	9.0	100000000000000000000 	100000000000000000000 
+x18.tcl	8.6	10000000000 	10000000000 
+x18.tcl	9.0	10000000000 	10000000000 
+x19.tcl	8.6	-3 	-3 
+x19.tcl	9.0	-3 	-3 
+x20.tcl	8.6	3 	3 
+x20.tcl	9.0	3 	3 
+x21.tcl	8.6	0.3333333333333333 	0.3333333333333333 
+x21.tcl	9.0	0.3333333333333333 	0.3333333333333333 
+x22.tcl	8.6	Inf 	Inf 
+x22.tcl	9.0	Inf 	Inf 
+x23.tcl	8.6	-Inf 	-Inf 
+x23.tcl	9.0	-Inf 	-Inf 
+x24.tcl	8.6	0.30000000000000004 	0.30000000000000004 
+x24.tcl	9.0	0.30000000000000004 	0.30000000000000004 
+x25.tcl	8.6	1 	1 
+x25.tcl	9.0	1 	1 
+x26.tcl	8.6	1 	1 
+x26.tcl	9.0	1 	1 
+x27.tcl	8.6	0 	0 
+x27.tcl	9.0	0 	0 
+x28.tcl	8.6	1 	1 
+x28.tcl	9.0	1 	1 
+x29.tcl	8.6	0 	0 
+x29.tcl	9.0	0 	0 
+x30.tcl	8.6	8 	8 
+x30.tcl	9.0	10 	10 
+x31.tcl	8.6	8 	8 
+x31.tcl	9.0	8 	8 
+x32.tcl	8.6	5 	5 
+x32.tcl	9.0	5 	5 
+x33.tcl	8.6	31 	31 
+x33.tcl	9.0	31 	31 
+x34.tcl	8.6	invalid bareword "1_000" in expression "1_000"; 	invalid bareword "1_000" in expression "1_000"; 
+x34.tcl	9.0	1000 	1000 
+x35.tcl	8.6	invalid bareword "1__0" in expression "1__0"; 	invalid bareword "1__0" in expression "1__0"; 
+x35.tcl	9.0	10 	10 
+x36.tcl	8.6	1 	1 
+x36.tcl	9.0	1 	1 
+x37.tcl	8.6	1 	1 
+x37.tcl	9.0	1 	1 
+x38.tcl	8.6	1 	1 
+x38.tcl	9.0	1 	1 
+x39.tcl	8.6	2 	2 
+x39.tcl	9.0	2 	2 
+x40.tcl	8.6	0 	0 
+x40.tcl	9.0	0 	0 
+x41.tcl	8.6	1 	1 
+x41.tcl	9.0	1 	1 
+x42.tcl	8.6	3 	3 
+x42.tcl	9.0	3 	3 
+x43.tcl	8.6	9 	9 
+x43.tcl	9.0	9 	9 
+x44.tcl	8.6	1 	1 
+x44.tcl	9.0	1 	1 
+x45.tcl	8.6	-1.0 	-1.0 
+x45.tcl	9.0	-1.0 	-1.0 
+x46.tcl	8.6	5.0 	5.0 
+x46.tcl	9.0	5.0 	5.0 
+x47.tcl	8.6	2 	2 
+x47.tcl	9.0	2 	2 
+x48.tcl	8.6	2.5 	2.5 
+x48.tcl	9.0	2.5 	2.5 
+x49.tcl	8.6	0.3333333333333333 	0.3333333333333333 
+x49.tcl	9.0	0.3333333333333333 	0.3333333333333333 
+x50.tcl	8.6	1e-5 	1e-5 
+x50.tcl	9.0	1e-5 	1e-5 
+x51.tcl	8.6	1e+21 	1e+21 
+x51.tcl	9.0	1e+21 	1e+21 
+x52.tcl	8.6	1e+20 	1e+20 
+x52.tcl	9.0	1e+20 	1e+20 
+x53.tcl	8.6	-0.0 	-0.0 
+x53.tcl	9.0	-0.0 	-0.0 
+x54.tcl	8.6	55340232221128654848 	55340232221128654848 
+x54.tcl	9.0	55340232221128654848 	55340232221128654848 
+x55.tcl	8.6	-1 	-1 
+x55.tcl	9.0	-1 	-1 
+x56.tcl	8.6	-1 	-1 
+x56.tcl	9.0	-1 	-1 
+x57.tcl	8.6	9223372036854775808 	9223372036854775808 
+x57.tcl	9.0	9223372036854775808 	9223372036854775808 
+x58.tcl	8.6	17 	17 
+x58.tcl	9.0	17 	17 
+x59.tcl	8.6	6 	6 
+x59.tcl	9.0	6 	6 
+x60.tcl	8.6	1 	1 
+x60.tcl	9.0	1 	1 
+x61.tcl	8.6	9223372036854775808 	9223372036854775808 
+x61.tcl	9.0	9223372036854775808 	9223372036854775808 

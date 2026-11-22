@@ -16,7 +16,7 @@ The 20 fixtures in [`oo-dispatch-probe/lists-dicts-arrays/`](handover/oo-dispatc
 
 **Analysis:**
 
-- **The optimiser folds none** of twelve constant list and dict operations (`lindex {a b c} 1`, `llength`, `lrange`, `lsort`, `lsearch`, `dict get`, `dict size`, `join`, `lreverse` and others).
+- **The optimiser folds 11 of twelve** constant list and dict operations (`lindex {a b c} 1`, `llength`, `lrange`, `lsort`, `dict get`, `dict size`, `join`, `lreverse` and others; not `lsearch`) under both 8.6 and 9.0, all matching tclsh. An earlier version of this page said none: the probe passed no dialect ([constants and folding](constant-folding-design.md)).
 - **W230 is accurate**: `lindex` past the end, an empty `lrange`, `lreplace` past the end appending instead of replacing.
 - **False W210 after `array unset a {[xy]}`**: the pattern leaves `a(z)`, but reading `a` is reported as read before set.
 - **No diagnostic for array/scalar misuse** (`set s(x)` on a scalar, `set a2 5` on an array), though Tcl always errors.

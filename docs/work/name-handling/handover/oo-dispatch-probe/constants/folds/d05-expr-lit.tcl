@@ -1,0 +1,6 @@
+puts [expr {1 + 2}]
+puts [expr {2**64}]
+puts [expr {int(1e20)}]
+puts [expr {0.1 + 0.2}]
+puts [expr {"0x10" == 16}]
+puts [expr {"abc" < "abd"}]

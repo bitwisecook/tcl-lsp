@@ -47,7 +47,7 @@ Answers come back as `Present`/`Absent`/`MayPresent`/`Unknown`, `Option`, `bool`
 
 ### 4. Release and dialect policy is copied, not owned
 
-The per-release facts are copied by hand into many tables: six precedence tables (one wrong), seven math-function lists, two `lsort`/`lsearch` option tables, four version schemes, nine index readers, escape widths, `concat` trimming, character counting, five partial bundled-package rosters, Itcl pins twice, the `namespace` subcommand table three times. Several copies are release-blind (taint's escape widths, the registry's prerelease-blind version comparator, `.chars().count()` in three components), and some engine copies miss release features (`max`/`min` in 8.6 mode, 8.6's system-encoding source reading).
+The per-release facts are copied by hand into many tables: six precedence tables (one wrong), seven math-function lists, two `lsort`/`lsearch` option tables, four version schemes, nine index readers, escape widths, `concat` trimming, character counting, five partial bundled-package rosters, Itcl pins twice, the `namespace` subcommand table three times, and float spelling and the missing-release default decided separately by four constant-folding bridges ([constants and folding](constant-folding-design.md)). Several copies are release-blind (taint's escape widths, the registry's prerelease-blind version comparator, `.chars().count()` in three components), and some engine copies miss release features (`max`/`min` in 8.6 mode, 8.6's system-encoding source reading).
 
 **Improve:** every release-dependent fact lives once, in `tcl-dialect` or the registry, generated from or checked against the C Tcl and Jim sources and the oracles (operator tables from `tclCompExpr.c`, bundled packages from each tree's `pkgs/package.list.txt`, math functions from the library); every other table is generated or deleted. A lint flags hand-written release tables and `.chars().count()`/`trim()`-style host primitives on Tcl text.
 
@@ -149,6 +149,7 @@ Wrong answers found by these studies, independent of the refactor; each has a fi
 | SslicTcl | writes unbalanced Tcl for values ending in a backslash |
 | codegen | `concat` fold strips non-breaking spaces Tcl keeps |
 | contracts | a source rename is documented as removing an import |
+| optimiser | `optimise()` and a `None` dialect silently fold nothing, even `1 + 2` |
 
 ## Changes to the plan
 

@@ -39,3 +39,7 @@ fn oo_body_probe() {
     }
 }
 ```
+
+## Constants
+
+`constants/folds/` holds the constant-folding fixtures (`c*`, `d*`, `e*`; see [constants and folding](../../constant-folding-design.md)). `constants/optimiser.out` lists the non-hint rewrites per fixture and profile (`CF` lines; `expressions-and-lists` lines are the `expressions/exprs.txt` cases as `x01`–`x61` and the `lists-dicts-arrays/folds/` cases; `NONE-VS-9.0` lines compare a `None` dialect with the 9.0 profile). `constants/execution.tsv` runs each fixture under tclsh 8.6 and 9.0 before and after applying the rewrites. The probe calls `crate::optimiser::optimise_with_dialect(&source, &registry, Some(tcl_dialect::DialectProfile::find(rel).unwrap()))`, applies the non-overlapping, non-hint rewrites from the end of the file backwards and writes the result; always pass a profile, since `None` folds nothing that depends on the release.
