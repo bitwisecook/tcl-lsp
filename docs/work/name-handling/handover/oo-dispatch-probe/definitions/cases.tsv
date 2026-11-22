@@ -1,0 +1,32 @@
+tcl9.0	oo::class create C2 {} extra
+tcl9.0	oo::class create C3 {method m {} {}}; set o [C3 new]; info object class $o C3
+tcl9.0	oo::class create C4 {}; set o [C4 new]; info object vars $o p*
+tcl9.0	file link -symbolic la lb
+tcl9.0	package require http; http::meta tok name
+tcl8.6	package require http; http::meta tok name
+tcl9.0	package require http; http::registerError sock1 msg
+tcl9.0	package require http; http::formatQuery
+tcl8.4	package require http; http::formatQuery a
+tcl8.4	puts -nonewline stdout x
+tcl8.4	puts stdout x nonewline
+tcl9.0	zlib stream deflate -level 6 -dictionary d
+tcl8.6	set f [open zz w]; zlib push deflate $f -level 6 -dictionary dd -header h -limit 1
+tcl9.0	encoding convertfrom -profile strict -failindex v utf-8 data
+tcl8.6	encoding convertfrom -profile strict -failindex v utf-8 data
+tcl9.0	package require tcltest; tcltest::cleanupTests 0
+tcl9.0	oo::class create H { method m {} { link } }
+tcl9.0	destroy
+tcl9.0	package require Tk; destroy
+tcl9.0	package require Tk; bell -displayof . -nice extra
+tcl9.0	+ 1 2
+tcl9.0	info alias foo
+tcl8.4	unload foo
+tcl8.6	array default get a
+tcl9.0	string bytelength abc
+tcl8.6	dict getdef {a 1} a 0
+tcl8.4	string reverse abc
+tcl9.0	tcl::tm::list
+tcl9.0	package require http; http::mapReply abc
+tcl8.6	package require http; http::responseBody tok
+tcl9.0	pkg_mkindex . *.tcl
+tcl9.0	noop

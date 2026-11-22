@@ -1,0 +1,730 @@
+== missed-arity: 145 command/subcommand pairs
+   ::auto_mkindex_parser::childhook : 9.0:0 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:0 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::auto_mkindex_parser::childhook cmd"
+   ::auto_mkindex_parser::cleanup : 8.4:1 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12 8.5:1 8.5:2 8.5:3 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12 8.6:1 8.6:2 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:1 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:1 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | cannot delete the current interpreter
+   ::auto_mkindex_parser::command : 8.4:0 8.4:1 8.4:2 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12 8.5:0 8.5:1 8.5:2 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12 8.6:0 8.6:1 8.6:2 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:0 9.0:1 9.0:2 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:0 9.1:1 9.1:2 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::auto_mkindex_parser::command name arglist b
+   ::auto_mkindex_parser::commandInit : 8.4:0 8.4:1 8.4:2 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12 8.5:0 8.5:1 8.5:2 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12 8.6:0 8.6:1 8.6:2 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:0 9.0:1 9.0:2 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:0 9.1:1 9.1:2 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::auto_mkindex_parser::commandInit name argli
+   ::auto_mkindex_parser::fullname : 8.4:0 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12 8.5:0 8.5:2 8.5:3 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12 8.6:0 8.6:2 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:0 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:0 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::auto_mkindex_parser::fullname name"
+   ::auto_mkindex_parser::hook : 8.4:0 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12 8.5:0 8.5:2 8.5:3 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12 8.6:0 8.6:2 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:0 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:0 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::auto_mkindex_parser::hook cmd"
+   ::auto_mkindex_parser::indexEntry : 9.0:0 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:0 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::auto_mkindex_parser::indexEntry name"
+   ::auto_mkindex_parser::init : 8.4:1 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12 8.5:1 8.5:2 8.5:3 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12 8.6:1 8.6:2 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:1 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:1 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::auto_mkindex_parser::init"
+   ::auto_mkindex_parser::mkindex : 8.4:0 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12 8.5:0 8.5:2 8.5:3 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12 8.6:0 8.6:2 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:0 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:0 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::auto_mkindex_parser::mkindex file"
+   ::auto_mkindex_parser::slavehook : 8.4:0 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12 8.5:0 8.5:2 8.5:3 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12 8.6:0 8.6:2 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12   | wrong # args: should be "::auto_mkindex_parser::slavehook cmd"
+   ::http::formatQuery : 8.6:3 8.6:5 8.6:7 9.0:3 9.0:5 9.0:7 9.1:3 9.1:5 9.1:7   | __x__
+   ::http::register : 8.4:4 8.4:5 8.4:6 8.5:4 8.5:5 8.5:6 8.6:4 8.6:5 8.6:6   | wrong # args: should be "::http::register proto port command"
+   ::msgcat::mcexists : 8.6:2 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::msgcat::mcexists ?-exactnamespace? ?-exactl
+   ::msgcat::mcpackageconfig : 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::msgcat::mcpackageconfig subcommand option ?
+   ::msgcat::mcpackagelocale : 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12   | wrong # args: should be "::msgcat::mcpackagelocale subcommand ?locale?
+   ::msgcat::mcpackagelocale clear: 8.6:1 8.6:2 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:1 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:1 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | clear only when package locale set
+   ::msgcat::mcpackagelocale get: 8.6:1 8.6:2 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:1 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:1 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | c
+   ::msgcat::mcpackagelocale isset: 8.6:1 8.6:2 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:1 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:1 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | 0
+   ::msgcat::mcpackagelocale loaded: 8.6:1 8.6:2 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:1 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:1 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | c {}
+   ::msgcat::mcpackagelocale present: 8.6:2 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:0 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:0 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | can't read "locale": no such variable
+   ::msgcat::mcpackagelocale set: 8.6:2 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | c
+   ::msgcat::mcpackagelocale unset: 8.6:1 8.6:2 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:1 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:1 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::msgcat::mcpackagelocale unset"
+   ::msgcat::mcpreferences : 8.4:1 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12 8.5:1 8.5:2 8.5:3 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12 8.6:1 8.6:2 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12   | c
+   ::msgcat::mcutil getpreferences: 9.0:0 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:0 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::msgcat::mcutil getpreferences locale"
+   ::msgcat::mcutil getsystemlocale: 9.0:1 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:1 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | C
+   ::oo::InfoObject class: 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::oo::InfoObject class objName ?className?"
+   ::oo::InfoObject vars: 8.6:0 9.0:0 9.1:0   | wrong # args: should be "::oo::InfoObject vars objName ?pattern?"
+   ::pkg::create : 8.4:4 8.4:5 8.5:4 8.5:5 8.6:4 8.6:5 9.0:4 9.0:5 9.1:4 9.1:5   | wrong # args: should be "::pkg::create -name packageName -version pack
+   ::safe::AddSubDirs : 8.4:0 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12 8.5:0 8.5:2 8.5:3 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12 8.6:0 8.6:2 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:0 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:0 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::safe::AddSubDirs pathList"
+   ::safe::AliasEncoding : 8.5:0 8.5:1 8.6:0 8.6:1   | wrong # args: should be "::safe::AliasEncoding slave option ..."
+   ::safe::AliasEncodingSystem : 9.0:0 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:0 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::safe::AliasEncodingSystem child ?arg ...?"
+   ::safe::AliasExeName : 8.6:0 8.6:2 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:0 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:0 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::safe::AliasExeName child"
+   ::safe::AliasFileSubcommand : 8.6:0 8.6:1 8.6:2 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:0 9.0:1 9.0:2 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:0 9.1:1 9.1:2 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::safe::AliasFileSubcommand child subcommand 
+   ::safe::AliasGlob : 8.6:0 9.0:0 9.1:0   | wrong # args: should be "::safe::AliasGlob child ?arg ...?"
+   ::safe::AliasLoad : 8.4:0 8.4:1 8.4:5 8.4:6 8.4:7 8.4:12 8.5:0 8.5:1 8.5:5 8.5:6 8.5:7 8.5:12 8.6:0 8.6:1 8.6:5 8.6:6 8.6:7 8.6:12 9.0:0 9.0:1 9.0:5 9.0:6 9.0:7 9.0:12 9.1:0 9.1:1 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::safe::AliasLoad slave file args"
+   ::safe::AliasSource : 8.4:0 8.4:1 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12 8.5:0 8.5:1 8.5:3 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12 8.6:0 8.6:1 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:0 9.0:1 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:0 9.1:1 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::safe::AliasSource slave args"
+   ::safe::AliasSubset : 8.4:0 8.4:1 8.4:2 8.5:0 8.5:1 8.5:2   | wrong # args: should be "::safe::AliasSubset slave alias target args"
+   ::safe::BadSubcommand : 8.6:0 8.6:1 8.6:2 9.0:0 9.0:1 9.0:2 9.1:0 9.1:1 9.1:2   | wrong # args: should be "::safe::BadSubcommand child command subcomman
+   ::safe::CheckFileName : 8.4:0 8.4:1 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12 8.5:0 8.5:1 8.5:3 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12 8.6:0 8.6:1 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:0 9.0:1 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:0 9.1:1 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::safe::CheckFileName slave file"
+   ::safe::CheckInterp : 8.4:0 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12 8.5:0 8.5:2 8.5:3 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12 8.6:0 8.6:2 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:0 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:0 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::safe::CheckInterp slave"
+   ::safe::DeleteHookName : 8.4:0 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12   | wrong # args: should be "::safe::DeleteHookName slave"
+   ::safe::DetokPath : 9.0:0 9.0:1 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:0 9.1:1 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::safe::DetokPath child tokenPath"
+   ::safe::DirInAccessPath : 8.6:0 8.6:1 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:0 9.0:1 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:0 9.1:1 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::safe::DirInAccessPath child dir"
+   ::safe::Exists : 8.4:0 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12   | wrong # args: should be "::safe::Exists varname"
+   ::safe::FileInAccessPath : 8.4:0 8.4:1 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12 8.5:0 8.5:1 8.5:3 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12 8.6:0 8.6:1 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:0 9.0:1 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:0 9.1:1 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::safe::FileInAccessPath slave file"
+   ::safe::GetAccessPath : 8.4:0 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12   | wrong # args: should be "::safe::GetAccessPath slave"
+   ::safe::InterpCreate : 8.4:0 8.4:1 8.4:2 8.4:3 8.4:4 8.4:6 8.4:7 8.4:12 8.5:0 8.5:1 8.5:2 8.5:3 8.5:4 8.5:6 8.5:7 8.5:12 8.6:0 8.6:1 8.6:2 8.6:3 8.6:4 8.6:6 8.6:7 8.6:12 9.0:0 9.0:1 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:12 9.1:0 9.1:1 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:12   | wrong # args: should be "::safe::InterpCreate slave access_path static
+   ::safe::InterpInit : 8.4:0 8.4:1 8.4:2 8.4:3 8.4:4 8.4:6 8.4:7 8.4:12 8.5:0 8.5:1 8.5:2 8.5:3 8.5:4 8.5:6 8.5:7 8.5:12 8.6:0 8.6:1 8.6:2 8.6:3 8.6:4 8.6:6 8.6:7 8.6:12 9.0:0 9.0:1 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:12 9.1:0 9.1:1 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:12   | wrong # args: should be "::safe::InterpInit slave access_path staticso
+   ::safe::InterpNested : 8.4:1 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12 8.5:1 8.5:2 8.5:3 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12 8.6:1 8.6:2 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:1 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:1 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | can't read "alist": no such variable
+   ::safe::InterpSetConfig : 8.4:0 8.4:1 8.4:2 8.4:3 8.4:4 8.4:6 8.4:7 8.4:12 8.5:0 8.5:1 8.5:2 8.5:3 8.5:4 8.5:6 8.5:7 8.5:12 8.6:0 8.6:1 8.6:2 8.6:3 8.6:4 8.6:6 8.6:7 8.6:12 9.0:0 9.0:1 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:12 9.1:0 9.1:1 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:12   | wrong # args: should be "::safe::InterpSetConfig slave access_path sta
+   ::safe::InterpStateName : 8.4:0 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12   | wrong # args: should be "::safe::InterpStateName slave"
+   ::safe::InterpStatics : 8.4:1 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12 8.5:1 8.5:2 8.5:3 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12 8.6:1 8.6:2 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:1 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:1 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | can't read "alist": no such variable
+   ::safe::IsInterp : 8.4:0 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12   | wrong # args: should be "::safe::IsInterp slave"
+   ::safe::Lappend : 8.4:0   | wrong # args: should be "lappend varName ?value value ...?"
+   ::safe::Log : 8.4:0 8.4:1 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12   | wrong # args: should be "::safe::Log slave msg ?type?"
+   ::safe::NestedOk : 8.4:0 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12   | wrong # args: should be "::safe::NestedOk slave"
+   ::safe::NestedOkName : 8.4:0 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12   | wrong # args: should be "::safe::NestedOkName slave"
+   ::safe::PathListName : 8.4:0 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12   | wrong # args: should be "::safe::PathListName slave"
+   ::safe::PathNumberName : 8.4:0 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12   | wrong # args: should be "::safe::PathNumberName slave"
+   ::safe::PathToken : 8.4:0 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12 8.5:0 8.5:2 8.5:3 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12 8.6:0 8.6:2 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:0 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:0 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::safe::PathToken n ?slave?"
+   ::safe::RejectExcessColons : 8.6:0 8.6:2 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:0 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:0 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::safe::RejectExcessColons child"
+   ::safe::Set : 8.4:0 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12   | wrong # args: should be "set varName ?newValue?"
+   ::safe::Setup : 8.6:1 8.6:2 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:1 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:1 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::safe::Setup"
+   ::safe::StaticsOk : 8.4:0 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12   | wrong # args: should be "::safe::StaticsOk slave"
+   ::safe::StaticsOkName : 8.4:0 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12   | wrong # args: should be "::safe::StaticsOkName slave"
+   ::safe::Subset : 8.4:0 8.4:1 8.4:2 8.5:0 8.5:1 8.5:2   | wrong # args: should be "::safe::Subset slave command okpat args"
+   ::safe::SyncAccessPath : 8.4:0 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12 8.5:0 8.5:2 8.5:3 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12 8.6:0 8.6:2 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:0 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:0 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::safe::SyncAccessPath slave"
+   ::safe::TranslatePath : 8.4:0 8.4:1 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12 8.5:0 8.5:1 8.5:3 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12 8.6:0 8.6:1 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:0 9.0:1 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:0 9.1:1 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::safe::TranslatePath slave path"
+   ::safe::VarName : 8.6:0 8.6:2 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:0 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:0 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::safe::VarName child"
+   ::safe::VirtualPathListName : 8.4:0 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12   | wrong # args: should be "::safe::VirtualPathListName slave"
+   ::safe::interpAddToAccessPath : 8.4:0 8.4:1 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12 8.5:0 8.5:1 8.5:3 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12 8.6:0 8.6:1 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:0 9.0:1 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:0 9.1:1 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::safe::interpAddToAccessPath slave path"
+   ::safe::interpConfigure : 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12 8.5:3 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | no value given for parameter "slave" (use -help for full usage) :     
+   ::safe::interpCreate : 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12 8.5:2 8.5:3 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12 8.6:2 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | interp0
+   ::safe::interpDelete : 8.4:0 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12 8.5:0 8.5:2 8.5:3 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12 8.6:0 8.6:2 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:0 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:0 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::safe::interpDelete slave"
+   ::safe::interpFindInAccessPath : 8.4:0 8.4:1 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12 8.5:0 8.5:1 8.5:3 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12 8.6:0 8.6:1 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:0 9.0:1 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:0 9.1:1 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::safe::interpFindInAccessPath slave path"
+   ::safe::interpInit : 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12 8.5:2 8.5:3 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12 8.6:2 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | no value given for parameter "slave" (use -help for full usage) :     
+   ::safe::setSyncMode : 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | 0
+   ::tcl::HistAdd : 8.4:0 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12   | wrong # args: should be "::tcl::HistAdd command ?exec?"
+   ::tcl::HistChange : 8.4:0 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12   | wrong # args: should be "::tcl::HistChange cmd ?event?"
+   ::tcl::HistClear : 8.4:1 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12   | wrong # args: should be "::tcl::HistClear"
+   ::tcl::HistEvent : 8.4:0 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12   | wrong # args: should be "::tcl::HistEvent event"
+   ::tcl::HistIndex : 8.4:0 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12   | wrong # args: should be "::tcl::HistIndex event"
+   ::tcl::HistInfo : 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12   | can't use non-numeric string as operand of "-"
+   ::tcl::HistKeep : 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12   | 20
+   ::tcl::HistRedo : 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12   | can't read "history(-1)": no such element in array
+   ::tcl::MacOSXPkgUnknown : 8.4:0 8.4:1 8.4:2 8.4:5 8.4:6 8.4:7 8.4:12   | wrong # args: should be "::tcl::MacOSXPkgUnknown original name version
+   ::tcl::MacPkgUnknown : 8.4:0 8.4:1 8.4:2 8.4:5 8.4:6 8.4:7 8.4:12   | wrong # args: should be "::tcl::MacPkgUnknown original name version ?e
+   ::tcl::Pkg::CompareExtension : 8.6:0 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:0 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:0 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::tcl::Pkg::CompareExtension fileName ?ext?"
+   ::tcl::tm::path add: 8.5:0   | wrong # args: should be "::tcl::tm::path add path ..."
+   ::tcl::tm::path remove: 8.5:0   | wrong # args: should be "::tcl::tm::path remove path ..."
+   ::tcl::unsupported::disassemble : 8.5:0 8.5:1 8.5:3 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12   | wrong # args: should be "::tcl::unsupported::disassemble type procName
+   ::tcltest::test : 8.4:6 8.4:7 8.4:12 8.5:6 8.5:7 8.5:12 8.6:6 8.6:7 8.6:12 9.0:6 9.0:7 9.0:12 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::tcltest::test name description args"
+   catch : 8.4:3   | wrong # args: should be "catch command ?varName?"
+   chan close: 8.5:2   | wrong # args: should be "chan close channelId"
+   chan configure: 8.5:4 8.5:6 8.5:12 8.6:4 8.6:6 8.6:12 9.0:4 9.0:6 9.0:12 9.1:4 9.1:6 9.1:12   | wrong # args: should be "chan configure channelId ?optionName? ?value?
+   chan copy: 8.5:3 8.5:5 8.5:7 8.5:12 8.6:3 8.6:5 8.6:7 8.6:12 9.0:3 9.0:5 9.0:7 9.0:12 9.1:3 9.1:5 9.1:7 9.1:12   | wrong # args: should be "chan copy input output ?-size size? ?-command
+   chan puts: 8.5:3 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "chan puts ?-nonewline? ?channelId? string"
+   clock add: 8.5:2 8.5:4 8.5:6 8.5:12 8.6:2 8.6:4 8.6:6 8.6:12 9.0:2 9.0:4 9.0:6 9.0:12 9.1:2 9.1:4 9.1:6 9.1:12   | bad option "add": must be clicks, format, scan, or seconds
+   clock format: 8.4:6 8.4:7 8.4:12 8.5:2 8.5:4 8.5:6 8.5:12 8.6:2 8.6:4 8.6:6 8.6:12 9.0:2 9.0:4 9.0:6 9.0:12 9.1:2 9.1:4 9.1:6 9.1:12   | wrong # args: should be "clock format clockval ?-format string? ?-gmt 
+   clock scan: 8.4:2 8.4:6 8.4:7 8.4:12 8.5:2 8.5:4 8.5:6 8.5:12 8.6:2 8.6:4 8.6:6 8.6:12 9.0:2 9.0:4 9.0:6 9.0:12 9.1:2 9.1:4 9.1:6 9.1:12   | wrong # args: should be "clock scan dateString ?-base clockValue? ?-gm
+   close : 8.4:2 8.5:2   | wrong # args: should be "close channelId"
+   encoding convertfrom: 8.4:3 8.4:4 8.4:5 8.4:6 8.5:3 8.5:4 8.5:5 8.5:6 8.6:3 8.6:4 8.6:5 8.6:6   | wrong # args: should be "encoding convertfrom ?encoding? data"
+   encoding convertto: 8.4:3 8.4:4 8.4:5 8.4:6 8.5:3 8.5:4 8.5:5 8.5:6 8.6:3 8.6:4 8.6:5 8.6:6   | wrong # args: should be "encoding convertto ?encoding? data"
+   fconfigure : 8.4:4 8.4:6 8.4:12 8.5:4 8.5:6 8.5:12 8.6:4 8.6:6 8.6:12 9.0:4 9.0:6 9.0:12 9.1:4 9.1:6 9.1:12   | wrong # args: should be "fconfigure channelId ?optionName? ?value? ?op
+   fcopy : 8.4:3 8.4:5 8.4:7 8.4:12 8.5:3 8.5:5 8.5:7 8.5:12 8.6:3 8.6:5 8.6:7 8.6:12 9.0:3 9.0:5 9.0:7 9.0:12 9.1:3 9.1:5 9.1:7 9.1:12   | wrong # args: should be "fcopy input output ?-size size? ?-command cal
+   file delete: 8.4:0 8.5:0   | wrong # args: should be "file delete ?options? file ?file ...?"
+   file lstat: 8.4:1 8.5:1 8.6:1   | wrong # args: should be "file lstat name varName"
+   file mkdir: 8.4:0 8.5:0   | wrong # args: should be "file mkdir name ?name ...?"
+   file stat: 8.4:1 8.5:1 8.6:1   | wrong # args: should be "file stat name varName"
+   glob : 8.4:0 8.5:0   | wrong # args: should be "glob ?switches? name ?name ...?"
+   global : 8.4:0 8.5:0   | wrong # args: should be "global varName ?varName ...?"
+   if : 8.4:0 8.5:0 8.6:0 9.0:0 9.1:0   | wrong # args: no expression after "if" argument
+   info loaded: 8.4:2 8.5:2 8.6:2   | could not find interpreter "__x__"
+   linsert : 8.4:2 8.5:2   | wrong # args: should be "linsert list index element ?element ...?"
+   lrepeat : 8.5:1   | invalid command name "lrepeat"
+   namespace upvar: 8.5:1   | bad option "upvar": must be children, code, current, delete, eval, exi
+   package present: 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12   | wrong # args: should be "package present ?-exact? package ?version?"
+   package require: 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12   | wrong # args: should be "package require ?-exact? package ?version?"
+   platform::shell::generic : 8.4:0 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12 8.5:0 8.5:2 8.5:3 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12 8.6:0 8.6:2 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:0 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:0 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "platform::shell::generic shell"
+   platform::shell::identify : 8.4:0 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12 8.5:0 8.5:2 8.5:3 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12 8.6:0 8.6:2 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:0 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:0 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "platform::shell::identify shell"
+   regexp : 8.4:1 8.5:1 8.6:1 9.0:1 9.1:1   | wrong # args: should be "regexp ?switches? exp string ?matchVar? ?subM
+   socket : 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12 8.5:3 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be either: socket ?-myaddr addr? ?-myport myport?
+   source : 8.4:2 8.4:3 8.5:2 8.6:2   | wrong # args: should be "source fileName"
+   string compare: 8.4:6 8.4:7 8.4:12 8.5:6 8.5:7 8.5:12 8.6:6 8.6:7 8.6:12 9.0:6 9.0:7 9.0:12 9.1:6 9.1:7 9.1:12   | wrong # args: should be "string compare ?-nocase? ?-length int? string
+   string equal: 8.4:6 8.4:7 8.4:12 8.5:6 8.5:7 8.5:12 8.6:6 8.6:7 8.6:12 9.0:6 9.0:7 9.0:12 9.1:6 9.1:7 9.1:12   | wrong # args: should be "string equal ?-nocase? ?-length int? string1 
+   string is: 8.4:6 8.4:7 8.4:12 8.5:6 8.5:7 8.5:12 8.6:6 8.6:7 8.6:12 9.0:6 9.0:7 9.0:12 9.1:6 9.1:7 9.1:12   | wrong # args: should be "string is class ?-strict? ?-failindex var? st
+   string map: 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "string map ?-nocase? charMap string"
+   string match: 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "string match ?-nocase? pattern string"
+   tcl::OptKeyDelete : 8.4:0 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12   | wrong # args: should be "tcl::OptKeyDelete key"
+   tcl::OptKeyError : 8.4:0 8.4:1 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12   | wrong # args: should be "tcl::OptKeyError prefix descKey ?header?"
+   tcl::OptKeyParse : 8.4:0 8.4:1 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12   | wrong # args: should be "tcl::OptKeyParse descKey arglist"
+   tcl::OptKeyRegister : 8.4:0 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12   | wrong # args: should be "tcl::OptKeyRegister desc ?key?"
+   tcl::OptParse : 8.4:0 8.4:1 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12   | wrong # args: should be "tcl::OptParse desc arglist"
+   tcl::OptProc : 8.4:0 8.4:1 8.4:2 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12   | wrong # args: should be "tcl::OptProc name desc body"
+   tcl::OptProcArgGiven : 8.4:0 8.4:2 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12   | wrong # args: should be "tcl::OptProcArgGiven argname"
+   tcl::clock::ParseFormatArgs : 8.6:2 8.6:4 8.6:6 8.6:12   | invalid command name "tcl::clock::ParseFormatArgs"
+   tclPkgUnknown : 8.4:1 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12   | wrong # args: should be "tclPkgUnknown name version ?exact?"
+   unicode tonfc: 9.1:2   | wrong # args: should be "unicode tonfc ?-profile PROFILE? STRING"
+   unicode tonfd: 9.1:2   | wrong # args: should be "unicode tonfd ?-profile PROFILE? STRING"
+   unicode tonfkc: 9.1:2   | wrong # args: should be "unicode tonfkc ?-profile PROFILE? STRING"
+   unicode tonfkd: 9.1:2   | wrong # args: should be "unicode tonfkd ?-profile PROFILE? STRING"
+   variable : 8.4:0 8.5:0   | wrong # args: should be "variable ?name value...? name ?value?"
+   zlib gunzip: 8.6:2   | wrong # args: should be "zlib gunzip data ?-headerVar varName?"
+   zlib gzip: 8.6:2 8.6:4   | wrong # args: should be "zlib gzip data ?-level level? ?-header header
+   zlib stream: 8.6:2 8.6:4   | wrong # args: should be "zlib stream mode ?-option value...?"
+== false-arity: 34 command/subcommand pairs
+   ::http::formatQuery : 8.4:0 8.4:1 8.5:0 8.5:1 8.6:0 9.0:0 9.1:0   | __x__
+   ::oo::InfoObject class: 8.6:1 9.0:1 9.1:1   | wrong # args: should be "::oo::InfoObject class objName ?className?"
+   ::oo::InfoObject vars: 8.6:2 9.0:2 9.1:2   | wrong # args: should be "::oo::InfoObject vars objName ?pattern?"
+   ::oo::abstract create: 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::oo::abstract create objectName ?arg ...?"
+   ::oo::class create: 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::oo::class create objectName ?arg ...?"
+   ::oo::configurable create: 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::oo::configurable create objectName ?arg ...
+   ::oo::singleton create: 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "::oo::singleton create objectName ?arg ...?"
+   ::tcltest::cleanupTests : 8.4:1 8.5:1   | can't use non-numeric string as operand of "!"
+   binary decode: 8.6:1 9.0:1 9.1:1   | bad option "decode": must be format or scan
+   binary encode: 8.6:1 9.0:1 9.1:1   | bad option "encode": must be format or scan
+   encoding convertfrom: 9.0:7 9.0:12 9.1:7 9.1:12   | wrong # args: should be "encoding convertfrom ?encoding? data"
+   encoding convertto: 9.0:7 9.0:12 9.1:7 9.1:12   | wrong # args: should be "encoding convertto ?encoding? data"
+   file link: 8.4:3 8.5:3 8.6:3 9.0:3 9.1:3   | wrong # args: should be "file link ?-linktype? linkname ?target?"
+   http::meta : 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "http::meta token"
+   http::registerError : 8.6:2 9.0:2 9.1:2   | invalid command name "http::registerError"
+   http::requestHeaders : 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | invalid command name "http::requestHeaders"
+   http::responseHeaders : 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | invalid command name "http::responseHeaders"
+   info class: 8.6:1 9.0:1 9.1:1   | bad option "class": must be args, body, cmdcount, commands, complete, 
+   info object: 8.6:1 9.0:1 9.1:1   | bad option "object": must be args, body, cmdcount, commands, complete,
+   interp limit: 8.5:5 8.5:7 8.6:5 8.6:7 9.0:5 9.0:7 9.1:5 9.1:7   | bad option "limit": must be alias, aliases, create, delete, eval, exis
+   oo::Helpers::callback : 9.0:0 9.1:0   | invalid command name "oo::Helpers::callback"
+   oo::Helpers::link : 9.0:0 9.1:0   | invalid command name "oo::Helpers::link"
+   oo::Helpers::mymethod : 9.0:0 9.1:0   | invalid command name "oo::Helpers::mymethod"
+   oo::Helpers::nextto : 8.6:0 9.0:0 9.1:0   | invalid command name "oo::Helpers::nextto"
+   oo::Helpers::self : 8.6:2 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:2 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:2 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | invalid command name "oo::Helpers::self"
+   puts : 8.4:3   | wrong # args: should be "puts ?-nonewline? ?channelId? string"
+   switch : 8.4:4 8.4:6 8.4:12 8.5:4 8.5:6 8.5:12 8.6:4 8.6:6 8.6:12 9.0:4 9.0:6 9.0:12 9.1:4 9.1:6 9.1:12   | wrong # args: should be "switch ?switches? string pattern body ... ?de
+   tcltest::cleanupTests : 8.6:1 9.0:1 9.1:1   | expected boolean value but got "__x__"
+   trace add: 8.4:1 8.4:2 8.4:3 8.4:5 8.4:6 8.4:7 8.4:12 8.5:1 8.5:2 8.5:3 8.5:5 8.5:6 8.5:7 8.5:12 8.6:1 8.6:2 8.6:3 8.6:5 8.6:6 8.6:7 8.6:12 9.0:1 9.0:2 9.0:3 9.0:5 9.0:6 9.0:7 9.0:12 9.1:1 9.1:2 9.1:3 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "trace add type ?arg arg ...?"
+   trace info: 8.4:1 8.4:3 8.4:4 8.4:5 8.4:6 8.4:7 8.4:12 8.5:1 8.5:3 8.5:4 8.5:5 8.5:6 8.5:7 8.5:12 8.6:1 8.6:3 8.6:4 8.6:5 8.6:6 8.6:7 8.6:12 9.0:1 9.0:3 9.0:4 9.0:5 9.0:6 9.0:7 9.0:12 9.1:1 9.1:3 9.1:4 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "trace info type ?arg arg ...?"
+   trace remove: 8.4:1 8.4:2 8.4:3 8.4:5 8.4:6 8.4:7 8.4:12 8.5:1 8.5:2 8.5:3 8.5:5 8.5:6 8.5:7 8.5:12 8.6:1 8.6:2 8.6:3 8.6:5 8.6:6 8.6:7 8.6:12 9.0:1 9.0:2 9.0:3 9.0:5 9.0:6 9.0:7 9.0:12 9.1:1 9.1:2 9.1:3 9.1:5 9.1:6 9.1:7 9.1:12   | wrong # args: should be "trace remove type ?arg arg ...?"
+   unknown : 8.4:0 8.5:0 8.6:0 9.0:0 9.1:0   | invalid command name ""
+   zlib push: 8.6:12   | wrong # args: should be "zlib push mode channel ?options...?"
+   zlib stream: 8.6:7   | wrong # args: should be "zlib stream mode ?-option value...?"
+== false-unknown: 310 command/subcommand pairs
+   ::http::mapReply : 8.4 8.5 8.6 9.0 9.1   | wrong # args: should be "::http::mapReply string"
+   ::oo::DelegateName : 9.0 9.1   | wrong # args: should be "::oo::DelegateName class"
+   ::oo::SingletonInstance : 9.0 9.1   | wrong # args: should be "::oo::SingletonInstance method ?arg ...?"
+   ::oo::SingletonInstance create: 9.0 9.1   | wrong # args: should be "::oo::SingletonInstance create objectName ?ar
+   ::oo::Slot : 8.6 9.0 9.1   | wrong # args: should be "::oo::Slot method ?arg ...?"
+   ::oo::Slot create: 8.6 9.0 9.1   | wrong # args: should be "::oo::Slot create objectName ?arg ...?"
+   ::oo::UnknownDefinition : 8.6 9.0 9.1   | bad call of unknown handler
+   ::tcl::HistAdd : 8.5 8.6 9.0 9.1   | wrong # args: should be "::tcl::HistAdd command ?exec?"
+   ::tcl::HistChange : 8.5 8.6 9.0 9.1   | wrong # args: should be "::tcl::HistChange cmd ?event?"
+   ::tcl::HistClear : 8.5 8.6 9.0 9.1   | wrong # args: should be "::tcl::HistClear"
+   ::tcl::HistEvent : 8.5 8.6 9.0 9.1   | wrong # args: should be "::tcl::HistEvent event"
+   ::tcl::HistIndex : 8.5 8.6 9.0 9.1   | wrong # args: should be "::tcl::HistIndex event"
+   ::tcl::HistInfo : 8.5 8.6 9.0 9.1   | can't use non-numeric string as operand of "-"
+   ::tcl::HistKeep : 8.5 8.6 9.0 9.1   | 20
+   ::tcl::HistNextID : 8.6 9.0 9.1   | 1
+   ::tcl::HistRedo : 8.5 8.6 9.0 9.1   | can't read "history(-1)": no such element in array
+   ::tcl::MacOSXPkgUnknown : 8.5 8.6 9.0 9.1   | wrong # args: should be "::tcl::MacOSXPkgUnknown original name version
+   ::tcl::UpdateWordBreakREs : 8.6 9.0 9.1   | \\W*(\\w+)\\W*$
+   ::tcl::clock::ChangeCurrentLocale : 9.0 9.1   | __x__
+   ::tcl::clock::ClearCaches : 9.0 9.1   | wrong # args: should be "::tcl::clock::ClearCaches"
+   ::tcl::clock::DeterminePosixDSTTime : 9.0 9.1   | wrong # args: should be "::tcl::clock::DeterminePosixDSTTime z bound y
+   ::tcl::clock::EnterLocale : 9.0 9.1   | wrong # args: should be "::tcl::clock::EnterLocale locale"
+   ::tcl::clock::GetJulianDayFromEraYearDay : 9.0 9.1   | wrong # args: should be "::tcl::clock::GetJulianDayFromEraYearDay date
+   ::tcl::clock::GetJulianDayFromEraYearMonthWeekDay : 9.0 9.1   | wrong # args: should be "::tcl::clock::GetJulianDayFromEraYearMonthWee
+   ::tcl::clock::GetSystemLocale : 9.0 9.1   | c
+   ::tcl::clock::GetSystemTimeZone : 9.0 9.1   | :Tcl/Localtime
+   ::tcl::clock::GuessWindowsTimeZone : 9.0 9.1   | :localtime
+   ::tcl::clock::IsGregorianLeapYear : 9.0 9.1   | wrong # args: should be "::tcl::clock::IsGregorianLeapYear date"
+   ::tcl::clock::LoadTimeZoneFile : 9.0 9.1   | wrong # args: should be "::tcl::clock::LoadTimeZoneFile fileName"
+   ::tcl::clock::LoadWindowsDateTimeFormats : 9.0 9.1   | wrong # args: should be "::tcl::clock::LoadWindowsDateTimeFormats loca
+   ::tcl::clock::LoadZoneinfoFile : 9.0 9.1   | wrong # args: should be "::tcl::clock::LoadZoneinfoFile fileName"
+   ::tcl::clock::LocalizeFormat : 9.0 9.1   | wrong # args: should be "::tcl::clock::LocalizeFormat locale format mc
+   ::tcl::clock::ParsePosixTimeZone : 9.0 9.1   | wrong # args: should be "::tcl::clock::ParsePosixTimeZone tz"
+   ::tcl::clock::ProcessPosixTimeZone : 9.0 9.1   | wrong # args: should be "::tcl::clock::ProcessPosixTimeZone z"
+   ::tcl::clock::ReadZoneinfoFile : 9.0 9.1   | wrong # args: should be "::tcl::clock::ReadZoneinfoFile fileName fname
+   ::tcl::clock::SetupTimeZone : 9.0 9.1   | wrong # args: should be "::tcl::clock::SetupTimeZone timezone ?alias?"
+   ::tcl::clock::WeekdayOnOrBefore : 9.0 9.1   | wrong # args: should be "::tcl::clock::WeekdayOnOrBefore weekday j"
+   ::tcl::clock::_hasRegistry : 9.0 9.1   | 0
+   ::tcl::clock::mcMerge : 9.0 9.1   | wrong # args: should be "::tcl::clock::mcMerge locales"
+   ::tcl::clock::mcget : 9.0 9.1   | wrong # args: should be "::tcl::clock::mcget loc"
+   ::tcl::history : 8.6 9.0 9.1   | wrong # args: should be "::tcl::history subcommand ?arg ...?"
+   ::tcl::history add: 8.6 9.0 9.1   | wrong # args: should be "::tcl::history add event ?exec?"
+   ::tcl::history change: 8.6 9.0 9.1   | wrong # args: should be "::tcl::history change newValue ?event?"
+   ::tcl::history clear: 8.6 9.0 9.1   | wrong # args: should be "::tcl::history clear"
+   ::tcl::history event: 8.6 9.0 9.1   | no event matches "__x__"
+   ::tcl::history info: 8.6 9.0 9.1   | bad integer "__x__"
+   ::tcl::history keep: 8.6 9.0 9.1   | 20
+   ::tcl::history nextid: 8.6 9.0 9.1   | 1
+   ::tcl::history redo: 8.6 9.0 9.1   | can't read "history(-1)": no such element in array
+   ::tcl::tm::Defaults : 8.6 9.0 9.1   | wrong # args: should be "::tcl::tm::Defaults"
+   ::tcl::tm::UnknownHandler : 8.5 8.6 9.0 9.1   | wrong # args: should be "::tcl::tm::UnknownHandler original name ..."
+   ::tcl::tm::add : 8.5 8.6 9.0 9.1   | wrong # args: should be "::tcl::tm::add path ..."
+   ::tcl::tm::list : 8.5 8.6 9.0 9.1   | /home/user/tcl-lsp/tmp/tcl8.5.19/lib/tcl8/site-tcl /home/user/tcl-lsp/
+   ::tcl::tm::remove : 8.5 8.6 9.0 9.1   | wrong # args: should be "::tcl::tm::remove path ..."
+   ::tcl::unsupported::assemble : 8.6 9.0 9.1   | wrong # args: should be "::tcl::unsupported::assemble bytecodeList"
+   ::tcl::unsupported::assemble add: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble append: 8.6 9.0 9.1   | wrong # args: should be "append varname"
+   ::tcl::unsupported::assemble appendArray: 8.6 9.0 9.1   | wrong # args: should be "appendArray varname"
+   ::tcl::unsupported::assemble appendArrayStk: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble appendStk: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble arrayExistsImm: 8.6 9.0 9.1   | wrong # args: should be "arrayExistsImm varname"
+   ::tcl::unsupported::assemble arrayExistsStk: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble arrayMakeImm: 8.6 9.0 9.1   | wrong # args: should be "arrayMakeImm varname"
+   ::tcl::unsupported::assemble arrayMakeStk: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble beginCatch: 8.6 9.0 9.1   | wrong # args: should be "beginCatch label"
+   ::tcl::unsupported::assemble bitand: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble bitnot: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble bitor: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble bitxor: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble clockRead: 8.6 9.0 9.1   | wrong # args: should be "clockRead imm8"
+   ::tcl::unsupported::assemble concat: 8.6 9.0 9.1   | wrong # args: should be "concat imm8"
+   ::tcl::unsupported::assemble concatStk: 8.6 9.0 9.1   | wrong # args: should be "concatStk count"
+   ::tcl::unsupported::assemble coroName: 8.6 9.0 9.1   | wrong # args: should be "::tcl::unsupported::assemble bytecodeList"
+   ::tcl::unsupported::assemble currentNamespace: 8.6 9.0 9.1   | ::
+   ::tcl::unsupported::assemble dictAppend: 8.6 9.0 9.1   | wrong # args: should be "dictAppend varname"
+   ::tcl::unsupported::assemble dictExists: 8.6 9.0 9.1   | wrong # args: should be "dictExists count"
+   ::tcl::unsupported::assemble dictExpand: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble dictGet: 8.6 9.0 9.1   | wrong # args: should be "dictGet count"
+   ::tcl::unsupported::assemble dictGetDef: 9.0 9.1   | wrong # args: should be "dictGetDef count"
+   ::tcl::unsupported::assemble dictIncrImm: 8.6 9.0 9.1   | wrong # args: should be "dictIncrImm count varName"
+   ::tcl::unsupported::assemble dictLappend: 8.6 9.0 9.1   | wrong # args: should be "dictLappend varname"
+   ::tcl::unsupported::assemble dictPut: 9.1   | stack underflow
+   ::tcl::unsupported::assemble dictRecombineImm: 8.6 9.0 9.1   | wrong # args: should be "dictRecombineImm varname"
+   ::tcl::unsupported::assemble dictRecombineStk: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble dictRemove: 9.1   | stack underflow
+   ::tcl::unsupported::assemble dictSet: 8.6 9.0 9.1   | wrong # args: should be "dictSet count varName"
+   ::tcl::unsupported::assemble dictUnset: 8.6 9.0 9.1   | wrong # args: should be "dictUnset count varName"
+   ::tcl::unsupported::assemble div: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble dup: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble endCatch: 8.6 9.0 9.1   | endCatch without a corresponding beginCatch
+   ::tcl::unsupported::assemble eq: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble eval: 8.6 9.0 9.1   | wrong # args: should be "eval script"
+   ::tcl::unsupported::assemble evalStk: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble exist: 8.6 9.0 9.1   | wrong # args: should be "exist varname"
+   ::tcl::unsupported::assemble existArray: 8.6 9.0 9.1   | wrong # args: should be "existArray varname"
+   ::tcl::unsupported::assemble existArrayStk: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble existStk: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble expon: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble expr: 8.6 9.0 9.1   | wrong # args: should be "expr expression"
+   ::tcl::unsupported::assemble exprStk: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble ge: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble gt: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble incr: 8.6 9.0 9.1   | wrong # args: should be "incr varname"
+   ::tcl::unsupported::assemble incrArray: 8.6 9.0 9.1   | wrong # args: should be "incrArray varname"
+   ::tcl::unsupported::assemble incrArrayImm: 8.6 9.0 9.1   | wrong # args: should be "incrArrayImm varName imm8"
+   ::tcl::unsupported::assemble incrArrayStk: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble incrArrayStkImm: 8.6 9.0 9.1   | wrong # args: should be "incrArrayStkImm imm8"
+   ::tcl::unsupported::assemble incrImm: 8.6 9.0 9.1   | wrong # args: should be "incrImm varName imm8"
+   ::tcl::unsupported::assemble incrStk: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble incrStkImm: 8.6 9.0 9.1   | wrong # args: should be "incrStkImm imm8"
+   ::tcl::unsupported::assemble infoLevelArgs: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble infoLevelNumber: 8.6 9.0 9.1   | 0
+   ::tcl::unsupported::assemble invokeStk: 8.6 9.0 9.1   | wrong # args: should be "invokeStk count"
+   ::tcl::unsupported::assemble isEmpty: 9.1   | stack underflow
+   ::tcl::unsupported::assemble jump: 8.6 9.0 9.1   | wrong # args: should be "jump label"
+   ::tcl::unsupported::assemble jump4: 8.6 9.0 9.1   | wrong # args: should be "jump4 label"
+   ::tcl::unsupported::assemble jumpFalse: 8.6 9.0 9.1   | wrong # args: should be "jumpFalse label"
+   ::tcl::unsupported::assemble jumpFalse4: 8.6 9.0 9.1   | wrong # args: should be "jumpFalse4 label"
+   ::tcl::unsupported::assemble jumpTable: 8.6 9.0 9.1   | wrong # args: should be "jumpTable table"
+   ::tcl::unsupported::assemble jumpTableNum: 9.1   | wrong # args: should be "jumpTableNum table"
+   ::tcl::unsupported::assemble jumpTrue: 8.6 9.0 9.1   | wrong # args: should be "jumpTrue label"
+   ::tcl::unsupported::assemble jumpTrue4: 8.6 9.0 9.1   | wrong # args: should be "jumpTrue4 label"
+   ::tcl::unsupported::assemble label: 8.6 9.0 9.1   | wrong # args: should be "label name"
+   ::tcl::unsupported::assemble land: 8.6   | stack underflow
+   ::tcl::unsupported::assemble lappend: 8.6 9.0 9.1   | wrong # args: should be "lappend varname"
+   ::tcl::unsupported::assemble lappendArray: 8.6 9.0 9.1   | wrong # args: should be "lappendArray varname"
+   ::tcl::unsupported::assemble lappendArrayStk: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble lappendList: 8.6 9.0 9.1   | wrong # args: should be "lappendList varname"
+   ::tcl::unsupported::assemble lappendListArray: 8.6 9.0 9.1   | wrong # args: should be "lappendListArray varname"
+   ::tcl::unsupported::assemble lappendListArrayStk: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble lappendListStk: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble lappendStk: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble le: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble lindexMulti: 8.6 9.0 9.1   | wrong # args: should be "lindexMulti count"
+   ::tcl::unsupported::assemble list: 8.6 9.0 9.1   | wrong # args: should be "list count"
+   ::tcl::unsupported::assemble listConcat: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble listIn: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble listIndex: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble listIndexImm: 8.6 9.0 9.1   | wrong # args: should be "listIndexImm count"
+   ::tcl::unsupported::assemble listLength: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble listNotIn: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble load: 8.6 9.0 9.1   | wrong # args: should be "load varname"
+   ::tcl::unsupported::assemble loadArray: 8.6 9.0 9.1   | wrong # args: should be "loadArray varname"
+   ::tcl::unsupported::assemble loadArrayStk: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble loadStk: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble lor: 8.6   | stack underflow
+   ::tcl::unsupported::assemble lsetFlat: 8.6 9.0 9.1   | wrong # args: should be "lsetFlat count"
+   ::tcl::unsupported::assemble lsetList: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble lshift: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble lt: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble mod: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble mult: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble neq: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble nop: 8.6 9.0 9.1   | wrong # args: should be "::tcl::unsupported::assemble bytecodeList"
+   ::tcl::unsupported::assemble not: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble nsupvar: 8.6 9.0 9.1   | wrong # args: should be "nsupvar varname"
+   ::tcl::unsupported::assemble numericType: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble originCmd: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble over: 8.6 9.0 9.1   | wrong # args: should be "over count"
+   ::tcl::unsupported::assemble pop: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble push: 8.6 9.0 9.1   | wrong # args: should be "push value"
+   ::tcl::unsupported::assemble pushResult: 8.6 9.0 9.1   | wrong # args: should be "::tcl::unsupported::assemble bytecodeList"
+   ::tcl::unsupported::assemble pushReturnCode: 8.6 9.0 9.1   | 0
+   ::tcl::unsupported::assemble pushReturnOpts: 8.6 9.0 9.1   | -code 0 -level 0
+   ::tcl::unsupported::assemble regexp: 8.6 9.0 9.1   | wrong # args: should be "regexp boolean"
+   ::tcl::unsupported::assemble resolveCmd: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble reverse: 8.6 9.0 9.1   | wrong # args: should be "reverse count"
+   ::tcl::unsupported::assemble rshift: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble store: 8.6 9.0 9.1   | wrong # args: should be "store varname"
+   ::tcl::unsupported::assemble storeArray: 8.6 9.0 9.1   | wrong # args: should be "storeArray varname"
+   ::tcl::unsupported::assemble storeArrayStk: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble storeStk: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble strcaseLower: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble strcaseTitle: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble strcaseUpper: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble strcat: 8.6 9.0 9.1   | wrong # args: should be "strcat imm8"
+   ::tcl::unsupported::assemble strcmp: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble streq: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble strfind: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble strge: 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble strgt: 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble strindex: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble strle: 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble strlen: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble strlt: 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble strmap: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble strmatch: 8.6 9.0 9.1   | wrong # args: should be "strmatch boolean"
+   ::tcl::unsupported::assemble strneq: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble strrange: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble strreplace: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble strrfind: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble strtrim: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble strtrimLeft: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble strtrimRight: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble sub: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble swap: 9.1   | stack underflow
+   ::tcl::unsupported::assemble tclooClass: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble tclooId: 9.1   | stack underflow
+   ::tcl::unsupported::assemble tclooIsObject: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble tclooNamespace: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble tclooSelf: 8.6 9.0 9.1   | self may only be called from inside a method
+   ::tcl::unsupported::assemble tryCvtToBoolean: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble tryCvtToNumeric: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble uminus: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble unset: 8.6 9.0 9.1   | wrong # args: should be "unset boolean varName"
+   ::tcl::unsupported::assemble unsetArray: 8.6 9.0 9.1   | wrong # args: should be "unsetArray boolean varName"
+   ::tcl::unsupported::assemble unsetArrayStk: 8.6 9.0 9.1   | wrong # args: should be "unsetArrayStk boolean"
+   ::tcl::unsupported::assemble unsetStk: 8.6 9.0 9.1   | wrong # args: should be "unsetStk boolean"
+   ::tcl::unsupported::assemble uplus: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble upvar: 8.6 9.0 9.1   | wrong # args: should be "upvar varname"
+   ::tcl::unsupported::assemble variable: 8.6 9.0 9.1   | wrong # args: should be "variable varname"
+   ::tcl::unsupported::assemble verifyDict: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::assemble yield: 8.6 9.0 9.1   | stack underflow
+   ::tcl::unsupported::disassemble : 8.6 9.0 9.1   | wrong # args: should be "::tcl::unsupported::disassemble type procName
+   ::tcl::unsupported::disassemble constructor: 8.6 9.0 9.1   | wrong # args: should be "::tcl::unsupported::disassemble constructor c
+   ::tcl::unsupported::disassemble destructor: 8.6 9.0 9.1   | wrong # args: should be "::tcl::unsupported::disassemble destructor cl
+   ::tcl::unsupported::disassemble lambda: 8.6 9.0 9.1   | wrong # args: should be "::tcl::unsupported::disassemble lambda lambda
+   ::tcl::unsupported::disassemble method: 8.6 9.0 9.1   | wrong # args: should be "::tcl::unsupported::disassemble method classN
+   ::tcl::unsupported::disassemble objmethod: 8.6 9.0 9.1   | wrong # args: should be "::tcl::unsupported::disassemble objmethod obj
+   ::tcl::unsupported::disassemble proc: 8.6 9.0 9.1   | wrong # args: should be "::tcl::unsupported::disassemble proc procName
+   ::tcl::unsupported::disassemble script: 8.6 9.0 9.1   | wrong # args: should be "::tcl::unsupported::disassemble script script
+   ::tcl::unsupported::getbytecode : 8.6 9.0 9.1   | wrong # args: should be "::tcl::unsupported::getbytecode type ..."
+   ::tcl::unsupported::getbytecode constructor: 8.6 9.0 9.1   | wrong # args: should be "::tcl::unsupported::getbytecode constructor c
+   ::tcl::unsupported::getbytecode destructor: 8.6 9.0 9.1   | wrong # args: should be "::tcl::unsupported::getbytecode destructor cl
+   ::tcl::unsupported::getbytecode lambda: 8.6 9.0 9.1   | wrong # args: should be "::tcl::unsupported::getbytecode lambda lambda
+   ::tcl::unsupported::getbytecode method: 8.6 9.0 9.1   | wrong # args: should be "::tcl::unsupported::getbytecode method classN
+   ::tcl::unsupported::getbytecode objmethod: 8.6 9.0 9.1   | wrong # args: should be "::tcl::unsupported::getbytecode objmethod obj
+   ::tcl::unsupported::getbytecode proc: 8.6 9.0 9.1   | wrong # args: should be "::tcl::unsupported::getbytecode proc procName
+   ::tcl::unsupported::getbytecode script: 8.6 9.0 9.1   | wrong # args: should be "::tcl::unsupported::getbytecode script script
+   ::tcl::unsupported::icu : 9.0 9.1   | wrong # args: should be "::tcl::unsupported::icu subcommand ?arg ...?"
+   ::tcl::unsupported::icu aliases: 9.0 9.1   | wrong # args: should be "::tcl::unsupported::icu aliases convertername
+   ::tcl::unsupported::icu converters: 9.0 9.1   | UTF-8 UTF-16 UTF-16BE UTF-16LE UTF-32 UTF-32BE UTF-32LE UTF16_Platform
+   ::tcl::unsupported::icu convertfrom: 9.0 9.1   | wrong # args: should be "::tcl::unsupported::icu convertfrom ?-profile
+   ::tcl::unsupported::icu convertto: 9.0 9.1   | wrong # args: should be "::tcl::unsupported::icu convertto ?-profile P
+   ::tcl::unsupported::icu detect: 9.0 9.1   | UTF-8 UTF-16BE UTF-16LE UTF-32BE UTF-32LE ISO-8859-1 ISO-8859-2 ISO-88
+   ::tcl::unsupported::icu icuToTcl: 9.0 9.1   | wrong # args: should be "::tcl::unsupported::icu icuToTcl icuName"
+   ::tcl::unsupported::icu normalize: 9.0 9.1   | wrong # args: should be "::tcl::unsupported::icu normalize ?-profile P
+   ::tcl::unsupported::icu tclToIcu: 9.0 9.1   | wrong # args: should be "::tcl::unsupported::icu tclToIcu tclName"
+   ::tcl::unsupported::inject : 8.6   | wrong # args: should be "::tcl::unsupported::inject coroName cmd ?arg1
+   ::tcl::unsupported::loadIcu : 9.0 9.1   | wrong # args: should be "::tcl::unsupported::loadIcu "
+   ::tcl::unsupported::timerate : 8.6   | wrong # args: should be "::tcl::unsupported::timerate ?-direct? ?-cali
+   array default: 8.6   | unknown or ambiguous subcommand "default": must be anymore, donesearch
+   array for: 8.6   | unknown or ambiguous subcommand "for": must be anymore, donesearch, ex
+   binary decode: 8.4 8.5   | bad option "decode": must be format or scan
+   binary encode: 8.4 8.5   | bad option "encode": must be format or scan
+   chan isbinary: 8.5 8.6   | unknown or ambiguous subcommand "isbinary": must be blocked, close, co
+   chan pipe: 8.5   | unknown or ambiguous subcommand "pipe": must be blocked, close, config
+   chan pop: 8.5   | unknown or ambiguous subcommand "pop": must be blocked, close, configu
+   chan push: 8.5   | unknown or ambiguous subcommand "push": must be blocked, close, config
+   clock add: 8.4   | bad option "add": must be clicks, format, scan, or seconds
+   clock microseconds: 8.4   | bad option "microseconds": must be clicks, format, scan, or seconds
+   clock milliseconds: 8.4   | bad option "milliseconds": must be clicks, format, scan, or seconds
+   clock monotonic: 8.4 8.5 8.6 9.0   | bad option "monotonic": must be clicks, format, scan, or seconds
+   dict getd: 8.5 8.6   | unknown or ambiguous subcommand "getd": must be append, create, exists
+   dict getdef: 8.5 8.6   | unknown or ambiguous subcommand "getdef": must be append, create, exis
+   dict getwithdefault: 8.5 8.6   | unknown or ambiguous subcommand "getwithdefault": must be append, crea
+   dict map: 8.5   | unknown or ambiguous subcommand "map": must be append, create, exists,
+   encoding dirs: 8.4   | bad option "dirs": must be convertfrom, convertto, names, or system
+   encoding profiles: 8.4 8.5 8.6   | bad option "profiles": must be convertfrom, convertto, names, or syste
+   encoding user: 8.4 8.5 8.6   | bad option "user": must be convertfrom, convertto, names, or system
+   file home: 8.4 8.5 8.6   | bad option "home": must be atime, attributes, channels, copy, delete, 
+   file tempdir: 8.4 8.5 8.6   | bad option "tempdir": must be atime, attributes, channels, copy, delet
+   file tempfile: 8.4 8.5   | bad option "tempfile": must be atime, attributes, channels, copy, dele
+   file tildeexpand: 8.4 8.5 8.6   | bad option "tildeexpand": must be atime, attributes, channels, copy, d
+   info args: 8.4 8.5 8.6 9.0 9.1   | wrong # args: should be "info args procname"
+   info body: 8.4 8.5 8.6 9.0 9.1   | wrong # args: should be "info body procname"
+   info class: 8.4 8.5   | bad option "class": must be args, body, cmdcount, commands, complete, 
+   info cmdtype: 8.4 8.5 8.6 9.0 9.1   | bad option "cmdtype": must be args, body, cmdcount, commands, complete
+   info constant: 8.4 8.5 8.6   | bad option "constant": must be args, body, cmdcount, commands, complet
+   info consts: 8.4 8.5 8.6   | bad option "consts": must be args, body, cmdcount, commands, complete,
+   info coroutine: 8.4 8.5   | bad option "coroutine": must be args, body, cmdcount, commands, comple
+   info errorstack: 8.4 8.5   | bad option "errorstack": must be args, body, cmdcount, commands, compl
+   info frame: 8.4   | bad option "frame": must be args, body, cmdcount, commands, complete, 
+   info object: 8.4 8.5   | bad option "object": must be args, body, cmdcount, commands, complete,
+   info stacktrace: 8.4 8.5 8.6 9.0 9.1   | bad option "stacktrace": must be args, body, cmdcount, commands, compl
+   info version: 8.4 8.5 8.6 9.0 9.1   | bad option "version": must be args, body, cmdcount, commands, complete
+   interp bgerror: 8.4   | bad option "bgerror": must be alias, aliases, create, delete, eval, ex
+   interp cancel: 8.4 8.5   | bad option "cancel": must be alias, aliases, create, delete, eval, exi
+   interp children: 8.4 8.5   | bad option "children": must be alias, aliases, create, delete, eval, e
+   interp debug: 8.4   | bad option "debug": must be alias, aliases, create, delete, eval, exis
+   interp limit: 8.4   | bad option "limit": must be alias, aliases, create, delete, eval, exis
+   interp set: 8.4 8.5 8.6 9.0   | bad option "set": must be alias, aliases, create, delete, eval, exists
+   namespace ensemble: 8.4   | bad option "ensemble": must be children, code, current, delete, eval, 
+   namespace origin: 8.4 8.5 8.6 9.0 9.1   | wrong # args: should be "namespace origin name"
+   namespace path: 8.4   | bad option "path": must be children, code, current, delete, eval, exis
+   namespace unknown: 8.4   | bad option "unknown": must be children, code, current, delete, eval, e
+   namespace upvar: 8.4   | bad option "upvar": must be children, code, current, delete, eval, exi
+   package files: 8.4 8.5 8.6   | bad option "files": must be forget, ifneeded, names, present, provide,
+   package prefer: 8.4   | bad option "prefer": must be forget, ifneeded, names, present, provide
+   pkg_compareExtension : 8.4   | wrong # args: should be "pkg_compareExtension fileName ?ext?"
+   string bytelength: 9.0 9.1   | wrong # args: should be "string bytelength string"
+   string cat: 8.4 8.5   | bad option "cat": must be bytelength, compare, equal, first, index, is
+   string insert: 8.4 8.5 8.6   | bad option "insert": must be bytelength, compare, equal, first, index,
+   string reverse: 8.4   | bad option "reverse": must be bytelength, compare, equal, first, index
+   tcl::OptKeyDelete : 8.5 8.6 9.0 9.1   | wrong # args: should be "tcl::OptKeyDelete key"
+   tcl::OptKeyError : 8.5 8.6 9.0 9.1   | wrong # args: should be "tcl::OptKeyError prefix descKey ?header?"
+   tcl::OptKeyParse : 8.5 8.6 9.0 9.1   | wrong # args: should be "tcl::OptKeyParse descKey arglist"
+   tcl::OptKeyRegister : 8.5 8.6 9.0 9.1   | wrong # args: should be "tcl::OptKeyRegister desc ?key?"
+   tcl::OptParse : 8.5 8.6 9.0 9.1   | wrong # args: should be "tcl::OptParse desc arglist"
+   tcl::OptProc : 8.5 8.6 9.0 9.1   | wrong # args: should be "tcl::OptProc name desc body"
+   tcl::OptProcArgGiven : 8.5 8.6 9.0 9.1   | wrong # args: should be "tcl::OptProcArgGiven argname"
+   tcl::clock::GetDateFields : 8.5 9.0 9.1   | invalid command name "tcl::clock::GetDateFields"
+   tcl::clock::ParseFormatArgs : 8.5   | invalid command name "tcl::clock::ParseFormatArgs"
+   tcl::clock::getenv : 8.5 9.0 9.1   | invalid command name "tcl::clock::getenv"
+   tclLdAout : 8.4   | can't read "env(CC)": no such variable
+   timerate : 8.6 9.0 9.1   | invalid command name "timerate"
+   trace variable: 9.0 9.1   | wrong # args: should be "trace variable name ops command"
+   trace vdelete: 9.0 9.1   | wrong # args: should be "trace vdelete name ops command"
+   trace vinfo: 9.0 9.1   | wrong # args: should be "trace vinfo name"
+   try : 8.6 9.0 9.1   | invalid command name "try"
+== claims-nonexistent: 203 command/subcommand pairs
+   ! : 8.5 8.6 9.0 9.1   | invalid command name "!"
+   != : 8.5 8.6 9.0 9.1   | invalid command name "!="
+   % : 8.5 8.6 9.0 9.1   | invalid command name "%"
+   & : 8.5 8.6 9.0 9.1   | invalid command name "&"
+   * : 8.5 8.6 9.0 9.1   | invalid command name "*"
+   ** : 8.5 8.6 9.0 9.1   | invalid command name "**"
+   + : 8.5 8.6 9.0 9.1   | invalid command name "+"
+   - : 8.5 8.6 9.0 9.1   | invalid command name "-"
+   / : 8.5 8.6 9.0 9.1   | invalid command name "/"
+   ::safe::DeleteHookName : 8.5   | wrong # args: should be "::safe::DeleteHookName slave"
+   ::safe::Exists : 8.5   | wrong # args: should be "::safe::Exists varname"
+   ::safe::GetAccessPath : 8.5   | wrong # args: should be "::safe::GetAccessPath slave"
+   ::safe::InterpStateName : 8.5   | wrong # args: should be "::safe::InterpStateName slave"
+   ::safe::IsInterp : 8.5   | wrong # args: should be "::safe::IsInterp slave"
+   ::safe::Lappend : 8.5   | wrong # args: should be "lappend varName ?value value ...?"
+   ::safe::NestedOk : 8.5   | wrong # args: should be "::safe::NestedOk slave"
+   ::safe::NestedOkName : 8.5   | wrong # args: should be "::safe::NestedOkName slave"
+   ::safe::PathListName : 8.5   | wrong # args: should be "::safe::PathListName slave"
+   ::safe::PathNumberName : 8.5   | wrong # args: should be "::safe::PathNumberName slave"
+   ::safe::Set : 8.5   | wrong # args: should be "set varName ?newValue?"
+   ::safe::StaticsOk : 8.5   | wrong # args: should be "::safe::StaticsOk slave"
+   ::safe::StaticsOkName : 8.5   | wrong # args: should be "::safe::StaticsOkName slave"
+   ::safe::Toplevel : 8.5   | invalid command name "__x__"
+   ::safe::Unset : 8.5   | can't unset "__x__": no such variable
+   ::safe::VirtualPathListName : 8.5   | wrong # args: should be "::safe::VirtualPathListName slave"
+   < : 8.5 8.6 9.0 9.1   | invalid command name "<"
+   << : 8.5 8.6 9.0 9.1   | invalid command name "<<"
+   <= : 8.5 8.6 9.0 9.1   | invalid command name "<="
+   == : 8.5 8.6 9.0 9.1   | invalid command name "=="
+   > : 8.5 8.6 9.0 9.1   | invalid command name ">"
+   >= : 8.5 8.6 9.0 9.1   | invalid command name ">="
+   >> : 8.5 8.6 9.0 9.1   | invalid command name ">>"
+   ^ : 8.5 8.6 9.0 9.1   | invalid command name "^"
+   bgerror : 8.4 8.5 8.6 9.0 9.1   | invalid command name "bgerror"
+   disabled_in_irules : 8.4 8.5 8.6 9.0 9.1   | invalid command name "disabled_in_irules"
+   eq : 8.5 8.6 9.0 9.1   | invalid command name "eq"
+   filename : 8.4 8.5 8.6 9.0 9.1   | invalid command name "filename"
+   ge : 9.0 9.1   | invalid command name "ge"
+   gettimes : 8.4 8.5 8.6 9.0 9.1   | invalid command name "gettimes"
+   gt : 9.0 9.1   | invalid command name "gt"
+   http : 8.4 8.5 8.6 9.0 9.1   | invalid command name "http"
+   http::postError : 8.4 8.5 8.6   | invalid command name "http::postError"
+   http::quoteString : 8.4 8.5   | invalid command name "http::quoteString"
+   http::reasonPhrase : 8.4 8.5 8.6   | invalid command name "http::reasonPhrase"
+   http::registerError : 8.4 8.5   | invalid command name "http::registerError"
+   http::requestHeaderValue : 8.4 8.5 8.6   | invalid command name "http::requestHeaderValue"
+   http::requestHeaders : 8.4 8.5 8.6   | invalid command name "http::requestHeaders"
+   http::requestLine : 8.4 8.5 8.6   | invalid command name "http::requestLine"
+   http::responseBody : 8.4 8.5 8.6   | invalid command name "http::responseBody"
+   http::responseCode : 8.4 8.5 8.6   | invalid command name "http::responseCode"
+   http::responseHeaderValue : 8.4 8.5 8.6   | invalid command name "http::responseHeaderValue"
+   http::responseHeaders : 8.4 8.5 8.6   | invalid command name "http::responseHeaders"
+   http::responseInfo : 8.4 8.5 8.6   | invalid command name "http::responseInfo"
+   http::responseLine : 8.4 8.5 8.6   | invalid command name "http::responseLine"
+   in : 8.5 8.6 9.0 9.1   | invalid command name "in"
+   le : 9.0 9.1   | invalid command name "le"
+   lgen : 8.4 8.5 8.6 9.0 9.1   | invalid command name "lgen"
+   lstring : 8.4 8.5 8.6 9.0 9.1   | invalid command name "lstring"
+   lt : 9.0 9.1   | invalid command name "lt"
+   memory : 8.4 8.5 8.6 9.0 9.1   | invalid command name "memory"
+   msgcat::mcexists : 8.4 8.5   | invalid command name "msgcat::mcexists"
+   msgcat::mcflmset : 8.4   | invalid command name "msgcat::mcflmset"
+   msgcat::mcflset : 8.4   | invalid command name "msgcat::mcflset"
+   msgcat::mcforgetpackage : 8.4 8.5   | invalid command name "msgcat::mcforgetpackage"
+   msgcat::mcloadedlocales : 8.4 8.5   | invalid command name "msgcat::mcloadedlocales"
+   msgcat::mcn : 8.4 8.5 8.6   | invalid command name "msgcat::mcn"
+   msgcat::mcpackageconfig : 8.4 8.5   | invalid command name "msgcat::mcpackageconfig"
+   msgcat::mcpackagelocale : 8.4 8.5   | invalid command name "msgcat::mcpackagelocale"
+   msgcat::mcpackagenamespaceget : 8.4 8.5 8.6   | invalid command name "msgcat::mcpackagenamespaceget"
+   msgcat::mcutil : 8.4 8.5 8.6   | invalid command name "msgcat::mcutil"
+   ne : 8.5 8.6 9.0 9.1   | invalid command name "ne"
+   ni : 8.5 8.6 9.0 9.1   | invalid command name "ni"
+   noop : 8.4 8.5 8.6 9.0 9.1   | invalid command name "noop"
+   pkg_mkindex : 8.4 8.5 8.6 9.0 9.1   | invalid command name "pkg_mkindex"
+   registry : 8.4 8.5 8.6 9.0 9.1   | invalid command name "registry"
+   tcl::mathfunc : 8.5 8.6 9.0 9.1   | invalid command name "tcl::mathfunc"
+   tcl::mathop : 8.5 8.6 9.0 9.1   | invalid command name "tcl::mathop"
+   tcltest::bytestring : 9.0 9.1   | invalid command name "tcltest::bytestring"
+   testaccessproc : 8.4   | invalid command name "testaccessproc"
+   testalarm : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testalarm"
+   testapplylambda : 8.6 9.0 9.1   | invalid command name "testapplylambda"
+   testappverifierpresent : 9.0 9.1   | invalid command name "testappverifierpresent"
+   testasync : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testasync"
+   testbigdata : 9.0 9.1   | invalid command name "testbigdata"
+   testbignumobj : 8.5 8.6 9.0 9.1   | invalid command name "testbignumobj"
+   testbooleanobj : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testbooleanobj"
+   testbumpinterpepoch : 8.6 9.0 9.1   | invalid command name "testbumpinterpepoch"
+   testbytestring : 8.6 9.0 9.1   | invalid command name "testbytestring"
+   testchancreate : 9.1   | invalid command name "testchancreate"
+   testchannel : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testchannel"
+   testchannelevent : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testchannelevent"
+   testchmod : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testchmod"
+   testcmdinfo : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testcmdinfo"
+   testcmdobj2 : 9.0 9.1   | invalid command name "testcmdobj2"
+   testcmdtoken : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testcmdtoken"
+   testcmdtrace : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testcmdtrace"
+   testconcatobj : 8.5 8.6 9.0 9.1   | invalid command name "testconcatobj"
+   testconvertobj : 8.4   | invalid command name "testconvertobj"
+   testcpuid : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testcpuid"
+   testcreatecommand : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testcreatecommand"
+   testdcall : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testdcall"
+   testdel : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testdel"
+   testdelassocdata : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testdelassocdata"
+   testdoubledigits : 8.5 8.6 9.0 9.1   | invalid command name "testdoubledigits"
+   testdoubleobj : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testdoubleobj"
+   testdstring : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testdstring"
+   testencoding : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testencoding"
+   testevalex : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testevalex"
+   testevalobjv : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testevalobjv"
+   testevent : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testevent"
+   testexithandler : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testexithandler"
+   testexitmainloop : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testexitmainloop"
+   testexprdouble : 8.5 8.6 9.0 9.1   | invalid command name "testexprdouble"
+   testexprdoubleobj : 8.5 8.6 9.0 9.1   | invalid command name "testexprdoubleobj"
+   testexprlong : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testexprlong"
+   testexprlongobj : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testexprlongobj"
+   testexprparser : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testexprparser"
+   testexprstring : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testexprstring"
+   testfevent : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testfevent"
+   testfile : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testfile"
+   testfilehandler : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testfilehandler"
+   testfilelink : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testfilelink"
+   testfilesystem : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testfilesystem"
+   testfilewait : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testfilewait"
+   testfindexecutable : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testfindexecutable"
+   testfindfirst : 8.6 9.0 9.1   | invalid command name "testfindfirst"
+   testfindlast : 8.6 9.0 9.1   | invalid command name "testfindlast"
+   testfork : 8.5 8.6 9.0 9.1   | invalid command name "testfork"
+   testfstildeexpand : 9.0 9.1   | invalid command name "testfstildeexpand"
+   testgetassocdata : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testgetassocdata"
+   testgetdefenc : 8.4 8.5 8.6   | invalid command name "testgetdefenc"
+   testgetindexfromobjstruct : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testgetindexfromobjstruct"
+   testgetint : 8.5 8.6 9.0 9.1   | invalid command name "testgetint"
+   testgetintforindex : 9.0 9.1   | invalid command name "testgetintforindex"
+   testgetopenfile : 8.4 8.5 8.6   | invalid command name "testgetopenfile"
+   testgetplatform : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testgetplatform"
+   testgetunichar : 8.6 9.0 9.1   | invalid command name "testgetunichar"
+   testgetvarfullname : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testgetvarfullname"
+   testgotsig : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testgotsig"
+   testhandlecount : 9.0 9.1   | invalid command name "testhandlecount"
+   testhashsystemhash : 8.5 8.6 9.0 9.1   | invalid command name "testhashsystemhash"
+   testindexobj : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testindexobj"
+   testinterpdelete : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testinterpdelete"
+   testinterpresolver : 8.6 9.0 9.1   | invalid command name "testinterpresolver"
+   testintobj : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testintobj"
+   testisempty : 9.1   | invalid command name "testisempty"
+   testlink : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testlink"
+   testlinkarray : 9.0 9.1   | invalid command name "testlinkarray"
+   testlistapi : 9.1   | invalid command name "testlistapi"
+   testlistobj : 8.5 8.6 9.0 9.1   | invalid command name "testlistobj"
+   testlistrep : 9.0 9.1   | invalid command name "testlistrep"
+   testlocale : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testlocale"
+   testlongsize : 9.0 9.1   | invalid command name "testlongsize"
+   testlutil : 9.0 9.1   | invalid command name "testlutil"
+   testmainthread : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testmainthread"
+   testmsb : 9.0 9.1   | invalid command name "testmsb"
+   testnrelevels : 8.6 9.0 9.1   | invalid command name "testnrelevels"
+   testnreunwind : 8.6 9.0 9.1   | invalid command name "testnreunwind"
+   testnumutfchars : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testnumutfchars"
+   testobj : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testobj"
+   testopenfilechannelproc : 8.4   | invalid command name "testopenfilechannelproc"
+   testpanic : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testpanic"
+   testparseargs : 8.6 9.0 9.1   | invalid command name "testparseargs"
+   testparser : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testparser"
+   testparsevar : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testparsevar"
+   testparsevarname : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testparsevarname"
+   testpostinit : 9.1   | invalid command name "testpostinit"
+   testpreferstable : 9.0 9.1   | invalid command name "testpreferstable"
+   testprint : 8.6 9.0 9.1   | invalid command name "testprint"
+   testpurebytesobj : 8.6 9.0 9.1   | invalid command name "testpurebytesobj"
+   testregexp : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testregexp"
+   testreturn : 8.5 8.6 9.0 9.1   | invalid command name "testreturn"
+   testsaveresult : 8.4 8.5 8.6   | invalid command name "testsaveresult"
+   testservicemode : 8.6 9.0 9.1   | invalid command name "testservicemode"
+   testset2 : 8.5 8.6 9.0 9.1   | invalid command name "testset2"
+   testsetassocdata : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testsetassocdata"
+   testsetbytearraylength : 8.6 9.0 9.1   | invalid command name "testsetbytearraylength"
+   testsetdefenc : 8.4 8.5 8.6   | invalid command name "testsetdefenc"
+   testseterr : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testseterr"
+   testseterrorcode : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testseterrorcode"
+   testsetmainloop : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testsetmainloop"
+   testsetnoerr : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testsetnoerr"
+   testsetobjerrorcode : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testsetobjerrorcode"
+   testsetplatform : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testsetplatform"
+   testsimplefilesystem : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testsimplefilesystem"
+   testsize : 8.6 9.0 9.1   | invalid command name "testsize"
+   testsocket : 9.0 9.1   | invalid command name "testsocket"
+   teststaticlibrary : 9.0 9.1   | invalid command name "teststaticlibrary"
+   teststaticpkg : 8.4 8.5 8.6   | invalid command name "teststaticpkg"
+   teststatproc : 8.4   | invalid command name "teststatproc"
+   teststringbytes : 8.6 9.0 9.1   | invalid command name "teststringbytes"
+   teststringobj : 8.4 8.5 8.6 9.0 9.1   | invalid command name "teststringobj"
+   testtranslatefilename : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testtranslatefilename"
+   testuniclass : 9.0 9.1   | invalid command name "testuniclass"
+   testupvar : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testupvar"
+   testutfnext : 8.6 9.0 9.1   | invalid command name "testutfnext"
+   testutfprev : 8.6 9.0 9.1   | invalid command name "testutfprev"
+   testutftonormalized : 9.1   | invalid command name "testutftonormalized"
+   testutftonormalizeddstring : 9.1   | invalid command name "testutftonormalizeddstring"
+   testwrongnumargs : 8.4 8.5 8.6 9.0 9.1   | invalid command name "testwrongnumargs"
+   unload : 8.4   | invalid command name "unload"
+   | : 8.5 8.6 9.0 9.1   | invalid command name "|"
+   ~ : 8.5 8.6 9.0 9.1   | invalid command name "~"
+== false-unknown-sub: 27 command/subcommand pairs
+   ::oo::InfoClass call: 8.6 9.0 9.1   | wrong # args: should be "::oo::InfoClass call className methodName"
+   ::oo::InfoClass constructor: 8.6 9.0 9.1   | wrong # args: should be "::oo::InfoClass constructor className"
+   ::oo::InfoClass definition: 8.6 9.0 9.1   | wrong # args: should be "::oo::InfoClass definition className methodNa
+   ::oo::InfoClass definitionnamespace: 9.0 9.1   | wrong # args: should be "::oo::InfoClass definitionnamespace className
+   ::oo::InfoClass destructor: 8.6 9.0 9.1   | wrong # args: should be "::oo::InfoClass destructor className"
+   ::oo::InfoClass filters: 8.6 9.0 9.1   | wrong # args: should be "::oo::InfoClass filters className"
+   ::oo::InfoClass forward: 8.6 9.0 9.1   | wrong # args: should be "::oo::InfoClass forward className methodName"
+   ::oo::InfoClass instances: 8.6 9.0 9.1   | wrong # args: should be "::oo::InfoClass instances className ?pattern?
+   ::oo::InfoClass methods: 8.6 9.0 9.1   | wrong # args: should be "::oo::InfoClass methods className ?-option va
+   ::oo::InfoClass methodtype: 8.6 9.0 9.1   | wrong # args: should be "::oo::InfoClass methodtype className methodNa
+   ::oo::InfoClass mixins: 8.6 9.0 9.1   | wrong # args: should be "::oo::InfoClass mixins className"
+   ::oo::InfoClass properties: 9.0 9.1   | wrong # args: should be "::oo::InfoClass properties className ?options
+   ::oo::InfoClass subclasses: 8.6 9.0 9.1   | wrong # args: should be "::oo::InfoClass subclasses className ?pattern
+   ::oo::InfoClass superclasses: 8.6 9.0 9.1   | wrong # args: should be "::oo::InfoClass superclasses className"
+   ::oo::InfoClass variables: 8.6 9.0 9.1   | wrong # args: should be "::oo::InfoClass variables className"
+   ::oo::InfoObject call: 8.6 9.0 9.1   | wrong # args: should be "::oo::InfoObject call objName methodName"
+   ::oo::InfoObject creationid: 9.0 9.1   | wrong # args: should be "::oo::InfoObject creationid objName"
+   ::oo::InfoObject definition: 8.6 9.0 9.1   | wrong # args: should be "::oo::InfoObject definition objName methodNam
+   ::oo::InfoObject filters: 8.6 9.0 9.1   | wrong # args: should be "::oo::InfoObject filters objName"
+   ::oo::InfoObject forward: 8.6 9.0 9.1   | wrong # args: should be "::oo::InfoObject forward objName methodName"
+   ::oo::InfoObject isa: 8.6 9.0 9.1   | wrong # args: should be "::oo::InfoObject isa category objName ?arg ..
+   ::oo::InfoObject methods: 8.6 9.0 9.1   | wrong # args: should be "::oo::InfoObject methods objName ?-option val
+   ::oo::InfoObject methodtype: 8.6 9.0 9.1   | wrong # args: should be "::oo::InfoObject methodtype objName methodNam
+   ::oo::InfoObject mixins: 8.6 9.0 9.1   | wrong # args: should be "::oo::InfoObject mixins objName"
+   ::oo::InfoObject namespace: 8.6 9.0 9.1   | wrong # args: should be "::oo::InfoObject namespace objName"
+   ::oo::InfoObject properties: 9.0 9.1   | wrong # args: should be "::oo::InfoObject properties objName ?options.
+   ::oo::InfoObject variables: 8.6 9.0 9.1   | wrong # args: should be "::oo::InfoObject variables objName"
+== claims-nonexistent-sub: 5 command/subcommand pairs
+   oo::abstract createWithNamespace: 9.0 9.1   | unknown method "createWithNamespace": must be create, destroy or new
+   oo::class createWithNamespace: 8.6 9.0 9.1   | unknown method "createWithNamespace": must be create or destroy
+   oo::class new: 8.6 9.0 9.1   | unknown method "new": must be create or destroy
+   oo::configurable createWithNamespace: 9.0 9.1   | unknown method "createWithNamespace": must be create, destroy or new
+   oo::singleton createWithNamespace: 9.0 9.1   | unknown method "createWithNamespace": must be create, destroy or new
