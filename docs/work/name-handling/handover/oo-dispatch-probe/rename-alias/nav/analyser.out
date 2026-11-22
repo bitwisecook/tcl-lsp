@@ -1,0 +1,9 @@
+EXT n01-renamed-call.tcl word=q col=6 | def=["L1:proc p {x} {return p:$x}"] | hover=proc ::p {x} {...} | diag=[]
+EXT n02-alias-call.tcl word=al col=6 | def=["L1:proc t {a b} {return $a$b}"] | hover=proc ::t {a b} {...} | diag=[]
+EXT n03-alias-arity.tcl word=al col=0 | def=[] | hover=**`puts`** — built-in command | diag=["E002@L3"]
+EXT n04-renamed-arity.tcl word=q col=0 | def=[] | hover=**`puts`** — built-in command | diag=["E002@L3"]
+EXT n05-old-name-after-rename.tcl word=p col=0 | def=[] | hover=**`puts`** — built-in command | diag=["W123@L3"]
+EXT n06-import-renamed-origin.tcl word=f col=0 | def=[] | hover=**`puts`** — built-in command | diag=[]
+EXT n07-forward-target.tcl word=f col=14 | def=[] | hover=- | diag=[]
+EXT n08-alias-to-renamed.tcl word=al col=12 | def=[] | hover=- | diag=[]
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3663 filtered out; finished in 4.92s

@@ -1,0 +1,36 @@
+r01-rename-basic.tcl 8.6 vm=ok rt=ok
+r01-rename-basic.tcl 9.0 vm=ok rt=ok
+r02-rename-relative-ns.tcl 8.6 vm=ok rt=ok
+r02-rename-relative-ns.tcl 9.0 vm=ok rt=ok
+r03-alias-late-binding.tcl 8.6 vm=ok rt=ok
+r03-alias-late-binding.tcl 9.0 vm=ok rt=ok
+r04-alias-prefix-global.tcl 8.6 vm=ok rt=ok
+r04-alias-prefix-global.tcl 9.0 vm=ok rt=ok
+r05-alias-query-delete-rename.tcl 8.6 vm=DIFF rt=DIFF
+   tclsh: {t 1} 0 12 -1 0 alias "al2" not found     while executing "interp alias {} al2 {}"     (file "/tmp/claude-0/-home-user-tcl-lsp/f7dbb319-8ab1-5afd-8dae-540ae9760ea3/scratchpad/renx/r05-alias-query-delete-rename.tcl" line 
+   vm:    {t 1} 0 12 -1 0 0 -1 
+   tclsh: {t 1} 0 12 -1 0 alias "al2" not found     while executing "interp alias {} al2 {}"     (file "/tmp/claude-0/-home-user-tcl-lsp/f7dbb319-8ab1-5afd-8dae-540ae9760ea3/scratchpad/renx/r05-alias-query-delete-rename.tcl" line 
+   rt:    {t 1} 0 12 -1 0 0 -1 
+r05-alias-query-delete-rename.tcl 9.0 vm=DIFF rt=DIFF
+   tclsh: {t 1} 0 12 -1 0 alias "al2" not found     while executing "interp alias {} al2 {}"     (file "/tmp/claude-0/-home-user-tcl-lsp/f7dbb319-8ab1-5afd-8dae-540ae9760ea3/scratchpad/renx/r05-alias-query-delete-rename.tcl" line 
+   vm:    {t 1} 0 12 -1 0 0 -1 
+   tclsh: {t 1} 0 12 -1 0 alias "al2" not found     while executing "interp alias {} al2 {}"     (file "/tmp/claude-0/-home-user-tcl-lsp/f7dbb319-8ab1-5afd-8dae-540ae9760ea3/scratchpad/renx/r05-alias-query-delete-rename.tcl" line 
+   rt:    {t 1} 0 12 -1 0 0 -1 
+r06-alias-chain-args.tcl 8.6 vm=ok rt=ok
+r06-alias-chain-args.tcl 9.0 vm=ok rt=ok
+r07-rename-imported.tcl 8.6 vm=ok rt=ok
+r07-rename-imported.tcl 9.0 vm=ok rt=ok
+r08-trace-command.tcl 8.6 vm=ok rt=ok
+r08-trace-command.tcl 9.0 vm=ok rt=ok
+r09-info-after-rename.tcl 8.6 vm=ok rt=ok
+r09-info-after-rename.tcl 9.0 vm=ok rt=ok
+r10-rename-builtin.tcl 8.6 vm=ok rt=ok
+r10-rename-builtin.tcl 9.0 vm=ok rt=ok
+r11-rename-errors.tcl 8.6 vm=ok rt=ok
+r11-rename-errors.tcl 9.0 vm=ok rt=ok
+r12-tcloo-forward-renamemethod.tcl 8.6 vm=ok rt=ok
+r12-tcloo-forward-renamemethod.tcl 9.0 vm=ok rt=ok
+r13-proc-redefine-capture.tcl 8.6 vm=ok rt=ok
+r13-proc-redefine-capture.tcl 9.0 vm=ok rt=ok
+r14-rename-object.tcl 8.6 vm=ok rt=ok
+r14-rename-object.tcl 9.0 vm=ok rt=ok

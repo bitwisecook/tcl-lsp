@@ -1,0 +1,13 @@
+REN e01-calls.tcl edits=3 L1[helper] L2[helper] L3[helper]
+REN e02-rename-operand.tcl edits=0 
+REN e03-alias-target.tcl edits=0 
+REN e04-export-import.tcl edits=0 
+REN e05-callbacks.tcl edits=0 
+REN e06-info-commands.tcl edits=0 
+REN e07-qualified-and-fallback.tcl edits=0 
+REN e08-dynamic-name.tcl edits=0 
+REN e09-forward.tcl edits=0 
+REN e10-ns-proc.tcl edits=4 L1[helper] L1[helper] L2[::lib::helper] L2[helper]
+REN e11-string-arg.tcl edits=1 L1[helper]
+REN e12-uplevel-script.tcl edits=0 
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3663 filtered out; finished in 7.36s
