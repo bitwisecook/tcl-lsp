@@ -191,6 +191,7 @@ Foundations, architecture and object systems (the structural work the domain ite
 | Remaining sprawl (diagnostics, dialects, positions, BIG-IP, errors, config, gates, tracing, clients) | 107–115 |
 | Registry | 116–122 |
 | Command-definition fixes (Tcl, Tk, packages) | 123–131 |
+| Fixes found in the studies, not yet planned | 132–143 |
 | Open questions for BIG-IP and iRules data | Q1–Q10 |
 
 **Order:** the phase order, the structural decisions that make the designs one design (binding and value fixpoint, `Frame` versus name world, one per-site record, identity types, summaries versus contracts, the answer type and receipts, the potential-execution owner, native linearisation recipes) and the dependencies behind them are in [design integration](design-integration.md); it supersedes the order previously given here.
@@ -270,6 +271,21 @@ Command-definition fixes (Tcl, Tk, bundled packages; each confirmed against tcls
 129. Wrong maxima or minima: `chan puts` (at most 3), `string compare` and `string equal` (at most 5), `string is` (at most 5 after the class), `string map` and `string match` (at most 3), `regexp` (at least 2), `if` (at least 2), Tk `bell` (at most 3).
 130. Missing definitions: `tcl::tm::add`, `tcl::tm::list`, `tcl::tm::remove` (8.5+, `tm.n`), `http::mapReply`, `pkg_compareExtension`, 8.4 `tclLdAout`.
 131. Make the definitions harness a gate: run `oo-dispatch-probe/definitions/` over every tclsh release, every Tk release and Jim, one analysis per call, with a reviewed allow-list for internal helpers; add tcllib when it can be fetched; extend to options and value grammars; a release cannot ship with a new false-arity, false-unknown or claimed-nonexistent row.
+
+Fixes found in the studies but not yet planned:
+
+132. `var_escape`/`var_scoping` (`tcl-compiler/src/var_scoping.rs`) build the default registry whatever the dialect, so WASM slot eligibility and type inference use the wrong command set for non-default dialects; take the analysis's `ContextRegistry` ([variable lookup](variable-lookup-centralisation.md)).
+133. Memory SSA keys `Global`/`NamespaceVar` locations by the literal subject without qualification (`memory_ssa.rs`), so `global x`, `global ::x` and `upvar #0 ::x` can become different locations from the place binder's; key memory SSA by place ([validation](name-resolution-validation.md); inferred, add a fixture first).
+134. Two instance-variable collectors (the analyser's `analyser/oo/{itcl,snit}.rs` and lowering's `declarations/class_members.rs`) feed the LSP and dataflow separately; one collector from the object-system profile.
+135. The runtime's `var_home` (`namespace/variable_tables.rs`) applies no 8.x global fallback while its `vars.rs` does; add a fixture and route both through the shared variable lookup bases.
+136. Definition and references disagree after a `source` line: in a file starting `source [file join [file dirname [info script]] lib util.tcl]`, references to `::util::scale` find its declaration in the sourced file while definition finds nothing ([editor actions](editor-actions-design.md)); both must read the one binding answer (with items 67 and 100).
+137. The VM reports `domain error: argument not in valid range` for `if {NaN}`, where tclsh 8.6 and 9.0 report `floating point value is Not a Number` (observed on the VM build of 21 November; re-check on HEAD and add to the expression vectors).
+138. tclsh 9.0.4 and 9.1.0 segfault when `zlib` subcommands are called with dummy arguments in a child interpreter (the definitions harness, run unattended); reduce to a minimal reproducer, check the VM and runtime on the same input, and report upstream if it is in C Tcl.
+139. Jim external-entry rebinding for O103 (the 99 → 42 wrong answer fixed by `9a0dc3fbd3`): re-verify after integration, as the coordinator handover requires, and keep the fixture in the execution-checked fold suite (item 65).
+140. Frame housekeeping from [call frames](frame-design.md) step 7: rename the colliding frame types, and correct the contract and runtime model documents that cite `Vm::enter_level` and the non-existent `frame_depth_stash`.
+141. Packages step 1 remainder from [packages](package-design.md): use an absolute library path in the VM's `auto_path`.
+142. W156 consumers not modelled (from the signed-scan handover): `table` values (unsigned 64-bit, while negative `incr` deltas are legitimate) and `class match` (covered by W304 today; decide whether W156 should own it).
+143. Small cleanups found on the way: `tcl-bigip`'s `offset_to_line_char` doc comment says 1-based UTF-8 while the code is 0-based UTF-16 (with item 110); `tcl-pkg`'s `find_tclsh` duplicates `tcl-test-support`'s `locate_tclsh`.
 
 Open questions for the BIG-IP and iRules data (to settle in a separate session, before items 107, 111, 118 and 119 are implemented and before the iRules definitions are checked like items 123–131):
 
