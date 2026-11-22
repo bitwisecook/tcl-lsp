@@ -1,0 +1,52 @@
+l01-index-forms.tcl 8.6 vm=ok rt=ok
+l01-index-forms.tcl 9.0 vm=ok rt=ok
+l02-lrange-lreplace.tcl 8.6 vm=ok rt=ok
+l02-lrange-lreplace.tcl 9.0 vm=ok rt=ok
+l03-lset.tcl 8.6 vm=ok rt=ok
+l03-lset.tcl 9.0 vm=ok rt=ok
+l04-lsort.tcl 8.6 vm=ok rt=ok
+l04-lsort.tcl 9.0 vm=ok rt=ok
+l05-lsort-stride-90.tcl 8.6 vm=ok rt=ok
+l05-lsort-stride-90.tcl 9.0 vm=ok rt=ok
+l06-lsearch.tcl 8.6 vm=ok rt=ok
+l06-lsearch.tcl 9.0 vm=ok rt=ok
+l07-lassign-lmap-lrepeat.tcl 8.6 vm=ok rt=ok
+l07-lassign-lmap-lrepeat.tcl 9.0 vm=ok rt=ok
+l08-90-list-cmds.tcl 8.6 vm=ok rt=DIFF
+   tclsh: invalid command name "ledit"     while executing "ledit m 1 2 X Y Z"     (file "l08-90-list-cmds.tcl" line 3) 
+   rt:    error: invalid command name "ledit" 
+l08-90-list-cmds.tcl 9.0 vm=DIFF rt=ok
+   tclsh: {1 2 3 4 5} {0 3 6 9} {5 4 3 2 1} d {a b c} {a d} {a X Y Z d} {1 2 3} 
+   vm:    invalid command name "lremove"     while executing "lremove {a b c d} 1 2"     invoked from within "list [lseq 1 5] [lseq 0 10 3] [lseq 5 1] [lpop l] $l [lremove {a b c d} 1 2] $m [lseq 1 count 3]"     invoked from within "puts [l
+l09-dict-basic.tcl 8.6 vm=ok rt=ok
+l09-dict-basic.tcl 9.0 vm=ok rt=ok
+l10-dict-nested-merge.tcl 8.6 vm=ok rt=ok
+l10-dict-nested-merge.tcl 9.0 vm=ok rt=ok
+l11-dict-with-update.tcl 8.6 vm=ok rt=DIFF
+   tclsh: a 10 b 2 a 11 
+   rt:      
+l11-dict-with-update.tcl 9.0 vm=ok rt=DIFF
+   tclsh: a 10 b 2 a 11 
+   rt:      
+l12-dict-getdef-90.tcl 8.6 vm=ok rt=DIFF
+   tclsh: unknown or ambiguous subcommand "getwithdefault": must be append, create, exists, filter, for, get, incr, info, keys, lappend, map, merge, remove, replace, set, size, unset, update, values, or with     while executing "dict getwit
+   rt:    error: unknown or ambiguous subcommand "getwithdefault": must be append, create, exists, filter, for, get, incr, info, keys, lappend, map, merge, remove, replace, set, size, unset, update, values, or with 
+l12-dict-getdef-90.tcl 9.0 vm=ok rt=ok
+l13-array-basic.tcl 8.6 vm=ok rt=ok
+l13-array-basic.tcl 9.0 vm=ok rt=ok
+l14-array-scalar-conflict.tcl 8.6 vm=ok rt=ok
+l14-array-scalar-conflict.tcl 9.0 vm=ok rt=ok
+l15-array-unset-search.tcl 8.6 vm=ok rt=ok
+l15-array-unset-search.tcl 9.0 vm=ok rt=ok
+l16-array-default-90.tcl 8.6 vm=ok rt=DIFF
+   tclsh: unknown or ambiguous subcommand "default": must be anymore, donesearch, exists, get, names, nextelement, set, size, startsearch, statistics, or unset     while executing "array default set a 0"     (file "l16-array-default-90.tcl"
+   rt:    error: unknown or ambiguous subcommand "default": must be anymore, donesearch, exists, get, names, nextelement, set, size, startsearch, or unset 
+l16-array-default-90.tcl 9.0 vm=ok rt=ok
+l17-shimmer-canonical.tcl 8.6 vm=ok rt=ok
+l17-shimmer-canonical.tcl 9.0 vm=ok rt=ok
+l18-list-of-dicts.tcl 8.6 vm=ok rt=ok
+l18-list-of-dicts.tcl 9.0 vm=ok rt=ok
+l19-lindex-nested.tcl 8.6 vm=ok rt=ok
+l19-lindex-nested.tcl 9.0 vm=ok rt=ok
+l20-concat-list-boundary.tcl 8.6 vm=ok rt=ok
+l20-concat-list-boundary.tcl 9.0 vm=ok rt=ok

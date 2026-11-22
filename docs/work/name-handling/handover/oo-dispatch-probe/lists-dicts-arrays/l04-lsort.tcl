@@ -1,0 +1,1 @@
+puts [list [lsort {b10 b9 B2 a}] [lsort -dictionary {b10 b9 B2 a}] [lsort -integer {10 9 -2 0x1F}] [lsort -real {1.5 1e1 -0.5}] [lsort -nocase {b A c}] [lsort -unique {c a c b a}] [lsort -decreasing -integer {1 3 2}] [lsort -index 1 {{a 3} {b 1} {c 2}}] [lsort -indices {c a b}]]
