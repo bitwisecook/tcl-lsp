@@ -85,6 +85,9 @@ Dependency rules, enforced by a gate: data and loaders sit below features (`tcl-
 
 One memoisation layer: salsa, at the granularity of the units above — source file, structured words, binding per file, body unit, summaries per unit, query results — so invalidation follows real dependencies and memory is accounted per ingredient. The hand-written memos are converted into salsa queries or deleted; a gate forbids new `Mutex`/`OnceLock` memo types outside the database. The existing incremental-versus-fresh comparisons become the acceptance test, alongside #2543's allocator trace.
 
+
+The measured costs, the inventory of about 110 caches outside salsa and the step-by-step plan are in [caching](caching-design.md).
+
 ## Third-party building blocks
 
 Anything that defines Tcl semantics stays in-house, because it must match the C Tcl and Jim oracles byte for byte: numbers, list and dictionary grammar, ARE regexp, glob, `format`/`scan`, `clock`, command and variable lookup rules. Third-party crates fit the machinery around them. Today the workspace depends on little (salsa, serde, `rustc-hash`, `indexmap`, `smallvec`, `num-bigint`, `regex`, `syn`, `tower-lsp-server`); the compiler already has its own red/green syntax tree (`parsing/syntax/green.rs`) and dominators (`ssa/dominators.rs`), and `deny.toml` bans nothing.

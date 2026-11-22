@@ -1,0 +1,13 @@
+PERF analyse tiny cold 62.906627ms
+PERF analyse tiny repeated-each 17.202757ms
+PERF analyse medium cold 2.157430049s
+PERF analyse medium repeated-each 1.269942401s
+PERF rss same-text after 10: +0 KB
+PERF rss same-text after 20: +0 KB
+PERF rss same-text after 30: +1428 KB
+PERF rss same-text after 40: +0 KB
+PERF rss varied-text after 10: +230976 KB
+PERF rss varied-text after 20: +237836 KB
+PERF rss varied-text after 30: +238248 KB
+PERF rss varied-text after 40: +237028 KB
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10344 filtered out; finished in 138.32s

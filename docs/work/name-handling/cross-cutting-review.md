@@ -111,6 +111,12 @@ Every study here was measured by appending a temporary probe test, building, and
 
 **Improve:** a permanent probe harness — fixture directories in, a matrix of tclsh, Jim, the VM, the runtime, the analyser's diagnostics and each LSP feature out — which becomes the conformance framework's runner; and an oracle environment that installs Tk, itcl, tcllib (snit, stooop), critcl and NX for every release, recorded in the environment setup.
 
+### 15. Caching is layered by accident
+
+Salsa memoises whole documents and some bodies; beneath it about 110 caches use five staleness mechanisms, registries and spec packs are treated as static but versioned (held in generation-keyed globals, several leaked), the server analyses one document through several pipelines, and an edit re-analyses the whole file (1.27 s for a 687-line file at opt-level 2, 17 ms for two lines), with about 230 MB retained after ten distinct analyses.
+
+**Improve:** everything versioned becomes a salsa input; memos inside memoised values and process-global memos become queries or per-query scratch; one analysis pipeline; per-body granularity; interned identities in the database; per-layer memory accounting, eviction and gates. Details in [caching](caching-design.md).
+
 ## Correctness backlog
 
 Wrong answers found by these studies, independent of the refactor; each has a fixture under [`oo-dispatch-probe/`](handover/oo-dispatch-probe/README.md).
