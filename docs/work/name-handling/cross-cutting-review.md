@@ -153,7 +153,7 @@ Wrong answers found by these studies, independent of the refactor; each has a fi
 
 ## Changes to the plan
 
-The domain items 1–45 in [plan.md](plan.md) and the phases of the [architecture plan](architecture-tidy-plan.md) stand, but they should hang off the foundations above instead of each re-solving them:
+The domain items in [plan.md](plan.md) (now numbered with the foundations as items 74–95, ordered in [design integration](design-integration.md)) and the phases of the [architecture plan](architecture-tidy-plan.md) stand, but they should hang off the foundations above instead of each re-solving them:
 
 - **Phase 0 becomes foundations-first:** the probe harness and conformance matrix (faults 5, 14), the answer and outcome types (fault 3), the identity layer (fault 1), and the correctness backlog fixed with its fixtures in the matrix. These unblock everything else and make every later step measurable.
 - **Then the data foundations:** release facts in one place (fault 4) and registry descriptors for effects, evaluation contexts, value grammars and identities (fault 9); kernels with abstract-value interfaces (fault 6).

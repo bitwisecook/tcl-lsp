@@ -188,6 +188,13 @@ Foundations, architecture and object systems (the structural work the domain ite
 | Parsers and walkers, crates and APIs | 76, 82, 84, 85, 90 |
 | Third-party crates, licence | 74, 91 |
 
-Order follows the architecture plan's phases: **phase 0** — 74, 75, 76, 77, 78 and the correctness backlog (items 18, 26, 28, 30, 34, 38, 39, 40, 42 and the analyser false positives in 3, 4, 9, 11, 12, 22, 45, 60, 64, 89); **then** 79, 80, 81; **phase 1** — owners that already exist (22, 31, 43, 60, 61) and 91; **phase 2** — 82; **phase 3** — 19–25, 66–73; **phase 4** — 83, 2; **phase 5** — 84, 35, 50–53; **phase 6** — 85, 54–58, 62–63; **phase 7** — 90, 46–49; **phase 8** — 86, 87, 1–10, 15–17; engine work (20, 72, 88) alongside phases 3–5.
+**Order:** the phase order, the structural decisions that make the designs one design (binding and value fixpoint, `Frame` versus name world, one per-site record, identity types, summaries versus contracts, the answer type and receipts, the potential-execution owner, native linearisation recipes) and the dependencies behind them are in [design integration](design-integration.md); it supersedes the order previously given here.
+
+Validation spikes, phase 0, before the phases that rely on them ([design integration](design-integration.md)):
+
+92. Name-world cost: memory and time of per-point binding states (`ModuleCommandBindings`) on the 687-line file and the analysis-performance corpus.
+93. Annotated commands for nested sites: build the per-site record for every reached command over `oo-dispatch-probe/frames/` from today's binding and compare with existing consumers.
+94. Binding and value fixpoint: run the bounded loop on the `oo-dispatch-probe/dynamic/` dynamic-head, `upvar $n` and `uplevel $lvl` fixtures; count iterations and re-bound sites.
+95. Per-body salsa query: move W210 for one body unit onto a per-body query and measure re-analysis after a one-line edit.
 
 Before the final PR, move useful contracts and real experiments/tests into durable locations. Correct documentation/comments across the entire tracked repository, including generated guidance and files outside the implementation diff. Remove obsolete guidance, completed TODOs, development narratives, temporary ledgers/prompts/archives and their references, including this directory and the work-specific AGENTS exception. Preserve reproducible evidence and legal attribution. Complete all gates before creating a ready-to-merge PR; do not merge. This final cleanup is still required and is not completed by source-audit closure.

@@ -189,6 +189,9 @@ A profile ships with conformance fixtures in the style of `oo-dispatch-probe/`: 
 
 ## Order
 
+Shipped lookup recipes are Rust functions in `tcl-syntax` named by profiles, used by both engines and analysis; only custom recipes run as Tcl, in analysis ([design integration](design-integration.md), decision 9). Steps 1–2 run in phase 0b and steps 3–4 in phase 5 of the corrected order.
+
+
 1. Write the profile facts as registry fields, populated for the existing seven families so behaviour is unchanged; replace each family `match` in the registry with a fact read. Tighten the registry-axes `definition_body` ratchet as compiler sites move; retire stale waivers (`original_members.rs` and `retained_member_source.rs` already have `MemberEffect::Relation` available).
 2. Move the compiler's family and keyword sites onto the facts, one consumer at a time, each with the probe fixtures as conformance tests checked against tclsh 8.6–9.1 (and itcl 4.3.5).
 3. Bodies into the per-function pass with profile entry facts (closes the body and W123 gaps).
