@@ -1,0 +1,54 @@
+p01-vcompare.tcl 8.6 vm=ok rt=ok
+p01-vcompare.tcl 9.0 vm=ok rt=ok
+p02-vsatisfies.tcl 8.6 vm=ok rt=ok
+p02-vsatisfies.tcl 9.0 vm=ok rt=ok
+p03-bad-versions.tcl 8.6 vm=ok rt=ok
+p03-bad-versions.tcl 9.0 vm=ok rt=ok
+p04-ifneeded-require.tcl 8.6 vm=ok rt=ok
+p04-ifneeded-require.tcl 9.0 vm=ok rt=ok
+p05-exact.tcl 8.6 vm=ok rt=ok
+p05-exact.tcl 9.0 vm=ok rt=ok
+p06-prefer.tcl 8.6 vm=ok rt=ok
+p06-prefer.tcl 9.0 vm=ok rt=ok
+p07-unknown.tcl 8.6 vm=ok rt=ok
+p07-unknown.tcl 9.0 vm=ok rt=ok
+p08-forget-present.tcl 8.6 vm=ok rt=ok
+p08-forget-present.tcl 9.0 vm=ok rt=ok
+p09-multi-req.tcl 8.6 vm=ok rt=ok
+p09-multi-req.tcl 9.0 vm=ok rt=ok
+p10-provide-mismatch.tcl 8.6 vm=ok rt=ok
+p10-provide-mismatch.tcl 9.0 vm=ok rt=ok
+p11-pkgindex.tcl 8.6 vm=DIFF rt=DIFF
+   tclsh: 1.2 foo12 {1.2 2.0b1} 
+   vm:    can't find package foo     while executing "package require foo"     invoked from within "list [package require foo] [::foo::hi] [lsort [package versions foo]]"     invoked from within "puts [list [pa
+   tclsh: 1.2 foo12 {1.2 2.0b1} 
+   rt:    error: can't find package foo 
+p11-pkgindex.tcl 9.0 vm=DIFF rt=DIFF
+   tclsh: 1.2 foo12 {1.2 2.0b1} 
+   vm:    can't find package foo     while executing "package require foo"     invoked from within "list [package require foo] [::foo::hi] [lsort [package versions foo]]"     invoked from within "puts [list [pa
+   tclsh: 1.2 foo12 {1.2 2.0b1} 
+   rt:    error: can't find package foo 
+p12-tm.tcl 8.6 vm=DIFF rt=DIFF
+   tclsh: 1.10 1.10 {1.10 1.5} 
+   vm:    invalid command name "::tcl::tm::path"     while executing "::tcl::tm::path add [list <fixtures>/tm]"     (file "/tmp/claude-
+   tclsh: 1.10 1.10 {1.10 1.5} 
+   rt:    error: invalid command name "::tcl::tm::path" 
+p12-tm.tcl 9.0 vm=DIFF rt=DIFF
+   tclsh: 1.10 1.10 {1.10 1.5} 
+   vm:    invalid command name "::tcl::tm::path"     while executing "::tcl::tm::path add [list <fixtures>/tm]"     (file "/tmp/claude-
+   tclsh: 1.10 1.10 {1.10 1.5} 
+   rt:    error: invalid command name "::tcl::tm::path" 
+p13-names-bundled.tcl 8.6 vm=DIFF rt=DIFF
+   tclsh: 2.5.11 1.6.1 0 1 {can't find package nosuchpkg} 
+   vm:    can't find package tcltest     while executing "package require tcltest"     invoked from within "list [package require tcltest] [package require msgcat] [catch {package require http} m] [catch {packa
+   tclsh: 2.5.11 1.6.1 0 1 {can't find package nosuchpkg} 
+   rt:    error: can't find package tcltest 
+p13-names-bundled.tcl 9.0 vm=DIFF rt=DIFF
+   tclsh: 2.5.11 1.7.1 0 1 {can't find package nosuchpkg} 
+   vm:    can't find package tcltest     while executing "package require tcltest"     invoked from within "list [package require tcltest] [package require msgcat] [catch {package require http} m] [catch {packa
+   tclsh: 2.5.11 1.7.1 0 1 {can't find package nosuchpkg} 
+   rt:    error: can't find package tcltest 
+p14-case.tcl 8.6 vm=ok rt=ok
+p14-case.tcl 9.0 vm=ok rt=ok
+p15-provide-query.tcl 8.6 vm=ok rt=ok
+p15-provide-query.tcl 9.0 vm=ok rt=ok

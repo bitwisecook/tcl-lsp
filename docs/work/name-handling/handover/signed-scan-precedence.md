@@ -62,4 +62,5 @@ Each was measured by stashing the change and running the same command on the cle
    - Missed: `-textvariable`/`-variable` naming a procedure local, which Tk links as a global (the entry stays empty); wrong arity in an `after` script; `tk print` under 8.6 (9.0 only) and its missing window argument.
 6. **Call frames and namespaces.** Measured and planned in [call frames](../frame-design.md) and [namespaces](../namespace-design.md) (fixtures in `oo-dispatch-probe/frames-semantics/` and `oo-dispatch-probe/namespaces/`); plan items 18–25.
 7. **Expressions.** `in`/`ni` precedence is wrong in the shared parser (wrong answers in both engines, false I230, and W154 — written on this branch — explains the wrong grouping because it reports the parser's tree); measured and planned in [expressions](../expression-design.md), plan items 26–29.
-8. W156 consumers not modelled: `table` values (unsigned 64-bit, but negative `incr` deltas are legitimate) and `class match` (W304 already covers it).
+8. **Packages.** Measured and planned in [packages](../package-design.md), plan items 30–33.
+9. W156 consumers not modelled: `table` values (unsigned 64-bit, but negative `incr` deltas are legitimate) and `class match` (W304 already covers it).
