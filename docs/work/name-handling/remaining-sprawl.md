@@ -71,6 +71,23 @@ Severity and category belong in the registry's diagnostic catalogue with the cod
 
 The BIG-IP domain crates fall under the architecture plan's rule that domain crates contribute data and hooks through interfaces. Their event tables come from the registry, and their monitor and partition logic from `tcl-bigip`'s typed values.
 
+## Second survey
+
+A further survey of twelve areas (release identifiers, edit types, refactors, presentation walkers, hover and completion, errors, paths, interpreter discovery, bytecode, locking, fixtures, JSON shapes). Items marked *observed* were checked here.
+
+1. **Range JSON with the same keys in different units.** MCP's `byte_pos` (`tcl-mcp/src/tools.rs`) writes byte columns under LSP-style `{line, character}` keys, used for diagnostic and fix ranges, while code-action and rename edits use UTF-16 under the same keys. *Observed:* in `proc p {} { set s "éé"; return [expr {$s == "x"}] }` MCP reports the `==` at column 43; its UTF-16 column is 41. The explorer's `range_dict` puts bytes in `startCol` and the CLI `diff` copy puts UTF-16 there. There are at least five range key spellings across MCP input, server commands, the explorer, `tcl diag` and MCP output.
+2. **About twelve edit and range types and four edit appliers with different rules.** `Refactoring::apply` sorts by `(start, end)` and clamps; `minify.rs` `apply_edits` takes `(offset, length, text)` and sorts by start only; the CLI minimiser's `apply_edits` takes `(start, end, text)`, sorts by start only and panics out of bounds (*observed*: the two same-named functions read the same tuple type differently); `tcl-bigip-query`'s `splice_edits` rejects overlaps. Only two refactors (inline variable, inline procedure) check their result after editing.
+3. **Workspace scan filters.** Five skip lists and five extension predicates. *Observed:* the CLI skips `build/`, `dist/` and `.venv` but scans `target/` and `tmp/`; the LSP does the opposite, so `tcl check dir/` and the editor see different workspaces. Spec Studio's archive list includes `.itk` and misses `.tk` and the iRules extensions.
+4. **Release identifiers.** `TclVersion`, a mirror `NativeCVersion` with hand-written maps, 39 public enums whose variants name releases with about 10 separate release mappings and about 90 files matching `V9_0 | V9_1` by hand; two identical accessors (`dialect_profile_name`, `dialect_name`) and 28 sites rebuilding the name with `format!("tcl{}", …)`; version-text parsers disagree (`from_package_version` refuses `8.6b1` and `9.1b0`, `extract_major_minor` accepts them), so `package require Tcl 8.6b1` selects Tcl 8.6 in detection but sets no floor in the version gate.
+5. **MCP failure shapes.** `null` for both "not applicable" and "analysis context missing", `{"error": …}` inside 23 success results, a `disabled` field, and a real tool error only for an unknown tool; the fact tools analyse raw text while the diagnostic tools normalise lone CRs first.
+6. **Docstrings and signatures.** Three docstring readers (MCP `read_proc_docs`, hover, the analyser) and four procedure-signature renderers (completion, document symbols, hover, signature help), none of which quote a default containing spaces.
+7. **Presentation walkers.** Document symbols, workspace symbols, code lens, call hierarchy (two modules), the call graph, the diagram and folding each read a different procedure inventory (inferred: a procedure can appear in the outline but not in workspace symbols or the call hierarchy). Three highlighters (semantic tokens, `tcl_lexer::highlight`, Spec Studio's DSL highlighter).
+8. **Finding interpreters.** `tcl-test-support::locate_tclsh` is the owner, but three test helpers accept any 9.x as 9.0, about 60 VM tests run `tclsh…` directly, `tcl-pkg`'s production `find_tclsh` omits `tclsh9.1` (*observed*), and there are five `which` implementations, none handling Windows `PATHEXT`.
+9. **Test fixtures.** About 300 hand-written TSV readers in 184 files with no shared escape decoder; oracle data keyed by patchlevel directories, `tcl8.6` and `8.6` columns.
+10. **Paths and URIs.** Mostly owned (`file_uri.rs`, `uri_norm.rs`); three bypasses (`tcl-bigip-io`'s percent encoder, `strip_prefix("file://")` in `f5-cli` and `tcl-bigip`, and a direct `Uri::from_file_path` in the server's pack registrations, which `uri_norm.rs` warns gives duplicate document keys on Windows).
+
+Well owned: the bytecode instruction set (`tcl-bytecode/src/op.rs`), cancellation and lock tracking (though about 90 `std::sync::Mutex` beside about 71 `tokio::sync::Mutex` uses in the server should be audited for locks held across `.await`), and the generated editor dialect lists.
+
 ## Plan
 
-Items 107–115 in [plan.md](plan.md). The quick fixes (item 107) are small, observed and independent of the phases.
+Items 107–115 and 144–152 in [plan.md](plan.md). The quick fixes (item 107) are small, observed and independent of the phases.

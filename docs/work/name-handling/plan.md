@@ -192,6 +192,7 @@ Foundations, architecture and object systems (the structural work the domain ite
 | Registry | 116–122 |
 | Command-definition fixes (Tcl, Tk, packages) | 123–131 |
 | Fixes found in the studies, not yet planned | 132–143 |
+| More sprawl (JSON units, edits, scan policy, versions, MCP failures, docstrings, presentation, interpreters) | 144–152 |
 | Open questions for BIG-IP and iRules data | Q1–Q10 |
 
 **Order:** the phase order, the structural decisions that make the designs one design (binding and value fixpoint, `Frame` versus name world, one per-site record, identity types, summaries versus contracts, the answer type and receipts, the potential-execution owner, native linearisation recipes) and the dependencies behind them are in [design integration](design-integration.md); it supersedes the order previously given here.
@@ -286,6 +287,18 @@ Fixes found in the studies but not yet planned:
 141. Packages step 1 remainder from [packages](package-design.md): use an absolute library path in the VM's `auto_path`.
 142. W156 consumers not modelled (from the signed-scan handover): `table` values (unsigned 64-bit, while negative `incr` deltas are legitimate) and `class match` (covered by W304 today; decide whether W156 should own it).
 143. Small cleanups found on the way: `tcl-bigip`'s `offset_to_line_char` doc comment says 1-based UTF-8 while the code is 0-based UTF-16 (with item 110); `tcl-pkg`'s `find_tclsh` duplicates `tcl-test-support`'s `locate_tclsh`.
+
+More sprawl (second survey, [remaining sprawl](remaining-sprawl.md#second-survey)):
+
+144. One range JSON helper with explicit units: MCP diagnostic and fix ranges in UTF-16 like its edits (today byte columns under the same keys; `==` reported at column 43 instead of 41 after `éé`); the explorer's and CLI `diff`'s `startCol` in one unit; one key spelling per surface documented with item 110.
+145. One `SourceEdit { span, text }` and one checked `apply_edits` (sort by `(start, end)`, refuse overlaps, refuse out-of-bounds) replacing `Refactoring::apply`, `minify.rs` `apply_edits` (offset/length), the CLI minimiser's `apply_edits` (start/end, panics) and `tcl-bigip-query`'s `splice_edits`; every refactor re-checks its result (only inline variable and inline procedure do today).
+146. One workspace scan policy: `SKIP_SCAN_DIRS` and `is_tcl_source` beside `TCL_SOURCE_EXTENSIONS` used by the LSP, CLI, xtask, SpecTcl discovery, `tcl pkg discover`, `tcl-pkg` and Spec Studio (today the CLI and LSP disagree on `target/`, `tmp/` and `build/`).
+147. Release identifiers: delete the duplicate `TclVersion::dialect_name`/`dialect_profile_name` and the 28 `format!("tcl{}", …)` sites; one lenient `TclVersion::parse` for every version text (beta and alpha suffixes); `NativeCVersion` derived from `TclVersion`; the 39 release-named enums' mappings in one release table (with items 79 and 122).
+148. MCP failure shape: `isError` for real failures, a `refused` object with a reason instead of `null` or `{"error"}` inside a success result (with items 89 and 104); fact and diagnostic tools analyse the same normalised text.
+149. One docstring parser for hover, MCP and the analyser; one procedure-signature renderer that quotes defaults, for completion, document symbols, hover and signature help.
+150. Presentation features read one procedure and symbol inventory (the binding tier of item 101): document and workspace symbols, code lens, both call-hierarchy modules, the call graph, the diagram and folding.
+151. Interpreter discovery through `tcl_test_support::locate_tclsh` (or a production equivalent) everywhere: add `tclsh9.1` to `tcl-pkg`'s `find_tclsh`, route the `find_tclsh9`/`find_tclsh91` helpers and the VM's direct `tclsh…` calls through it, one `which` with exec-bit and `PATHEXT` handling.
+152. Smaller items: one TSV fixture reader with escape decoding and one release key form for oracle data; route the remaining URI bypasses (`tcl-bigip-io` percent encoder, `strip_prefix("file://")` in `f5-cli` and `tcl-bigip`, the server's direct `Uri::from_file_path`) through `uri_norm`; audit the server's mixed `std` and `tokio` mutexes for locks held across `.await`.
 
 Open questions for the BIG-IP and iRules data (to settle in a separate session, before items 107, 111, 118 and 119 are implemented and before the iRules definitions are checked like items 123–131):
 
