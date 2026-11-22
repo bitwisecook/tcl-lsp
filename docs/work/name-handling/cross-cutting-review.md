@@ -117,6 +117,12 @@ Salsa memoises whole documents and some bodies; beneath it about 110 caches use 
 
 **Improve:** everything versioned becomes a salsa input; memos inside memoised values and process-global memos become queries or per-query scratch; one analysis pipeline; per-body granularity; interned identities in the database; per-layer memory accounting, eviction and gates. Details in [caching](caching-design.md).
 
+### 16. The IR does not carry what the registry knows
+
+The lattices are typed, but command nodes are strings with structure held beside them; per-word roles, places, types, the resolved command and its effects are never projected onto the IR, so about 990 production lines re-ask the registry by name, and passes key their tables by strings (GVN by command spelling, block-name maps, name-keyed escape and class sets, rendered-text equality). Details in [analysis data structures](analysis-data-structures.md).
+
+**Improve:** annotated commands computed once from the registry and packs, typed keys in every pass, and type-level gates.
+
 ## Correctness backlog
 
 Wrong answers found by these studies, independent of the refactor; each has a fixture under [`oo-dispatch-probe/`](handover/oo-dispatch-probe/README.md).

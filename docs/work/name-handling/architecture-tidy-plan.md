@@ -51,6 +51,7 @@ flowchart TD
 
 | Structure | Replaces | Main consumers |
 | --- | --- | --- |
+| Annotated command (L4) | per-consumer registry role lookups by name; string-keyed pass tables ([analysis data structures](analysis-data-structures.md)) | every pass, diagnostics, the optimiser, codegen |
 | Structured word (L3) | flat-text Call arguments and the text re-scanners | SSA construction, SCCP, GVN, taint, codegen inlining, diagnostics, tokens |
 | Source map (L3) | per-feature offset arithmetic and UTF-16 conversions | every editor feature |
 | Frame value (L4) | the partial frame types, the nine frame and six namespace choosers, string-keyed namespace tables ([call frames](frame-design.md), [namespaces](namespace-design.md)) | lookup owners, SSA entry facts, frame-effect summaries, LSP |

@@ -68,4 +68,5 @@ Each was measured by stashing the change and running the same command on the cle
 11. **Lists, dicts and arrays.** Measured and planned in [lists, dicts and arrays](../lists-dicts-arrays-design.md), plan items 42–45.
 12. **Cross-cutting review.** [cross-cutting-review.md](../cross-cutting-review.md) collects the faults common to every study, the correctness backlog, and the foundations-first reordering of the plan.
 13. **Caching.** Measured and planned in [caching](../caching-design.md), plan items 46–49 (probe output in `oo-dispatch-probe/caching-perf.out`).
-14. W156 consumers not modelled: `table` values (unsigned 64-bit, but negative `incr` deltas are legitimate) and `class match` (W304 already covers it).
+14. **Analysis data structures.** Measured and planned in [analysis data structures](../analysis-data-structures.md), plan items 50–53.
+15. W156 consumers not modelled: `table` values (unsigned 64-bit, but negative `incr` deltas are legitimate) and `class match` (W304 already covers it).
