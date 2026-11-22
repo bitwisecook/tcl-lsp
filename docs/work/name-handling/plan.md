@@ -189,6 +189,7 @@ Foundations, architecture and object systems (the structural work the domain ite
 | Third-party crates, licence | 74, 91 |
 | Editor actions and tools | 100–106 |
 | Remaining sprawl (diagnostics, dialects, positions, BIG-IP, errors, config, gates, tracing, clients) | 107–115 |
+| Registry | 116–122 |
 
 **Order:** the phase order, the structural decisions that make the designs one design (binding and value fixpoint, `Frame` versus name world, one per-site record, identity types, summaries versus contracts, the answer type and receipts, the potential-execution owner, native linearisation recipes) and the dependencies behind them are in [design integration](design-integration.md); it supersedes the order previously given here.
 
@@ -227,5 +228,15 @@ Remaining sprawl outside the earlier studies ([remaining sprawl](remaining-spraw
 113. One configuration stack (global < editor < project < invocation) built by a shared function for the LSP, CLI and MCP; MCP gains the project layer and caches the global layer.
 114. One waiver syntax and matcher for every xtask gate (tag-exact, comment-block scoped), with a test that each gate ignores the others' tags.
 115. One tracing facade: environment flags read once into a typed configuration, `tracing`-style spans for timings, no direct `eprintln!` or `env::var` in library crates; editor clients take snippets and iRule skeletons from the server, and the editor READMEs' extension maps are generated.
+
+The registry ([registry review](registry-review.md)):
+
+116. Fix the measured arity faults now: Tk `destroy` accepts no arguments (false E002 today) and `bell` at most three (missed today); then a usage-conformance vector of every command's and subcommand's "wrong # args" usage line from each tclsh, Tk and Jim release, checked against the spec's synopsis and arity and against both engines' messages (510 of 2,198 commands' arity differs from their synopsis by a rough parse; top-level arity is unchecked today).
+117. Move the 58,000 lines of `native_*` interpreter algorithms out of the registry into a native-model crate beside `tcl-runtime-api` (the VM imports them in 157 files), and `value_transfer`/`resolved_invocation` evaluation into the analysis layer; reconcile `project-layout.md` rule 3 with the shared-utility manifest.
+118. A BIG-IP configuration-schema data crate for the 176,000 lines of `bigip/`, `base_objects/`, `profile_defaults/` and `f5/`, with `tcl-bigip`'s model generated from it and gated, and the 219 vocabulary comparisons in `tcl-bigip` moved onto it.
+119. Generators in the repository with `--check` gates for every file marked generated (about 52,700 lines in the registry plus `tcl-bigip/src/model/gen/` have none); the SpecTcl equivalence packs' check in `xtask-check`; the report-generator WASM rebuilt by the build, not by hand.
+120. One statement per fact in a spec: one operation field from which lowering, codegen, native-compilation and handler hooks are derived; one effect descriptor from which traits, `assigns_variable_at`, mutator flags and taint subcommand lists are derived (with item 80); the synopsis stated once; registry-internal name-keyed tables such as `value_transfer`'s `variable_words` derived from `arg_roles`; the `registry-axes` lint extended inside the registry.
+121. Documentation complete in the registry: `clock format` and other specifier documentation moved from `tcl-lsp-core`; event prose with a completeness gate; spec-field documentation written once for rustdoc, the Spec Studio schema and help; MCP `command_info` for every dialect.
+122. Release cost: per-release facts in release-keyed tables instead of about 400 `V9_1` branches across 144 registry files (with item 79); a new command touches one file.
 
 Before the final PR, move useful contracts and real experiments/tests into durable locations. Correct documentation/comments across the entire tracked repository, including generated guidance and files outside the implementation diff. Remove obsolete guidance, completed TODOs, development narratives, temporary ledgers/prompts/archives and their references, including this directory and the work-specific AGENTS exception. Preserve reproducible evidence and legal attribution. Complete all gates before creating a ready-to-merge PR; do not merge. This final cleanup is still required and is not completed by source-audit closure.
