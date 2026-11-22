@@ -98,4 +98,10 @@
 - **Names that are not commands** (namespaces, packages, form names, markers, test-binary commands, debug-build and platform commands, application hooks) are registered with `surface: ALL_TCL`.
 - **Unexported TclOO methods** are listed as subcommands.
 
-The registry review's plan item 116 (a usage-conformance vector from each interpreter's "wrong # args" line) would have caught most of the arity faults. The harness here generalises it to existence, subcommands and arity per release. Plan item 123 makes it a gate and fixes the errors above.
+The registry review's plan item 116 (a usage-conformance vector from each interpreter's "wrong # args" line) would have caught most of the arity faults. The harness here generalises it to existence, subcommands and arity per release.
+
+Also found while planning the fixes: `commands/tcl/fcopy_.rs` is an uncompiled duplicate of `fcopy.rs`.
+
+## Fixes
+
+Plan items 123–131: false errors (123), non-commands (124), release availability (125), unexported TclOO methods (126), release arity windows (127), option-value pairs (128), maxima and minima (129), missing definitions (130), and the harness as a gate (131).

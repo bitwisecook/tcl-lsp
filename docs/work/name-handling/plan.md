@@ -189,7 +189,8 @@ Foundations, architecture and object systems (the structural work the domain ite
 | Third-party crates, licence | 74, 91 |
 | Editor actions and tools | 100–106 |
 | Remaining sprawl (diagnostics, dialects, positions, BIG-IP, errors, config, gates, tracing, clients) | 107–115 |
-| Registry | 116–123 |
+| Registry | 116–122 |
+| Command-definition fixes (Tcl, Tk, packages) | 123–131 |
 
 **Order:** the phase order, the structural decisions that make the designs one design (binding and value fixpoint, `Frame` versus name world, one per-site record, identity types, summaries versus contracts, the answer type and receipts, the potential-execution owner, native linearisation recipes) and the dependencies behind them are in [design integration](design-integration.md); it supersedes the order previously given here.
 
@@ -238,6 +239,35 @@ The registry ([registry review](registry-review.md)):
 120. One statement per fact in a spec: one operation field from which lowering, codegen, native-compilation and handler hooks are derived; one effect descriptor from which traits, `assigns_variable_at`, mutator flags and taint subcommand lists are derived (with item 80); the synopsis stated once; registry-internal name-keyed tables such as `value_transfer`'s `variable_words` derived from `arg_roles`; the `registry-axes` lint extended inside the registry.
 121. Documentation complete in the registry: `clock format` and other specifier documentation moved from `tcl-lsp-core`; event prose with a completeness gate; spec-field documentation written once for rustdoc, the Spec Studio schema and help; MCP `command_info` for every dialect.
 122. Release cost: per-release facts in release-keyed tables instead of about 400 `V9_1` branches across 144 registry files (with item 79); a new command touches one file.
-123. Fix the command-definition errors found against tclsh 8.4–9.1 and Tk 9.0.3 ([registry definition errors](registry-definition-errors.md)): false errors on Tk `destroy`, `http::formatQuery`, `http::meta` (9.x), `http::registerError`, `tcltest::cleanupTests`, 8.4 `puts … nonewline` and 9.x `link`; non-commands accepted (`tcl::mathop`, `tcl::mathfunc`, bare operator names, `http`, `filename`, `disabled_in_irules`, `pkg_mkindex`, test-binary commands, `memory`, `registry`, `bgerror`, global `next`); per-release availability of `unload`, `msgcat` and `http` 2.10 commands and the 9.0 TclOO helpers; unexported `oo::class new`/`createWithNamespace`; arity windows for commands that changed between releases; parity for option-value commands; corrected maxima for `chan puts`, `string compare|equal|is|map|match`, `regexp`, `bell`; missing `tcl::tm::*`, `http::mapReply`, `pkg_compareExtension`. Then make the harness in `oo-dispatch-probe/definitions/` a gate over every release, Tk release and Jim, with tcllib added when available.
+Command-definition fixes (Tcl, Tk, bundled packages; each confirmed against tclsh 8.4–9.1 or Tk 9.0.3 and the analyser — evidence in [registry definition errors](registry-definition-errors.md), harness in `oo-dispatch-probe/definitions/`; iRules and BIG-IP definitions are reviewed separately):
+
+123. False errors on valid code — widen arity, with release windows where the command changed:
+     - Tk `destroy`: minimum 0 (`commands/tk/destroy.rs`).
+     - `http::formatQuery`: minimum 0, even count required from http 2.7 (8.6+), any count before (`commands/stdlib/http__formatquery.rs`).
+     - `http::meta token ?headerName?` on 9.0+ (`http__meta.rs`).
+     - `http::registerError sock ?msg?` (`http__registererror.rs`).
+     - `tcltest::cleanupTests ?calledFromAllFile?` (`tcltest__cleanuptests.rs`).
+     - 8.4 legacy `puts ?-nonewline? ?channelId? string` and `puts channelId string nonewline` (`commands/tcl/puts_.rs`).
+     - TclOO `link` with no arguments (`commands/tcl/oo_link.rs`).
+124. Names accepted as commands that are not Tcl commands — remove or scope:
+     - `tcl::mathop` and `tcl::mathfunc` (namespaces; `mathop.rs`, `mathfunc.rs`): keep as namespace documentation, not command specs.
+     - Bare operator names (`+ - * / % ** ! ~ & | ^ << >> == != < <= > >= eq ne in ni lt le gt ge`): resolve only as `::tcl::mathop::*` or after `namespace path`/`namespace import` brings them in.
+     - `http` (package name), `filename` (a `source` form name leaking into the command list), `disabled_in_irules` (internal marker), `pkg_mkindex` (duplicate of `pkg_mkIndex`).
+     - About 120 Tcl C test-binary commands (`noop`, `lstring`, `lgen`, `gettimes`, `test*`, source "Tcl test binary (tclTest.c)"): offer only to a `tcltest`-executable environment.
+     - `memory` (only `TCL_MEM_DEBUG` builds), `registry` (Windows, needs `package require registry`), `bgerror` (application-defined handler: document, do not resolve as built-in), `next`/`self`/`my` outside method bodies.
+     - Delete the uncompiled duplicate `commands/tcl/fcopy_.rs`.
+125. Commands offered in releases that lack them — add availability:
+     - `unload` from 8.5.
+     - `msgcat` by bundled version: `mcexists`, `mcforgetpackage`, `mcloadedlocales`, `mcpackageconfig`, `mcpackagelocale` from 8.6; `mcflset`, `mcflmset` from 8.5; `mcn`, `mcpackagenamespaceget`, `mcutil` from 9.0.
+     - `http` 2.10 (9.0+): `responseBody`, `responseCode`, `responseHeaders`, `responseHeaderValue`, `responseInfo`, `responseLine`, `requestHeaders`, `requestHeaderValue`, `requestLine`, `reasonPhrase`, `postError`; `quoteString`, `registerError` from 8.6.
+     - `oo::Helpers::classvariable`, `link`, `mymethod` from 9.0; `tcltest::bytestring` not in 9.0/9.1.
+     - Package commands keyed to the package version each release bundles, not to "any Tcl".
+126. Unexported TclOO methods listed as subcommands: `oo::class new`, `createWithNamespace` on `oo::class`, `oo::abstract`, `oo::configurable` and `oo::singleton` — mark unexported (callable through `my` only) so a direct call reports the unknown method.
+127. Arity that changed between releases — add `arity_windows`:
+     - `catch` (8.4: `script ?varName?`), `close` and `chan close` (direction from 8.6), `linsert` (8.4/8.5: at least one element), `lrepeat` (8.5: at least one element), `source` (`-encoding` from 8.5), `package require|present` (8.4: one version), `file delete`, `file mkdir`, `glob`, `global`, `variable` (no-argument forms from 8.6), `file stat|lstat` (variable optional from 9.0), `encoding convertfrom|convertto` (options from 9.0), `http::register` (4th argument from 9.0), `msgcat::mcpreferences` (arguments from 9.0), `unicode tonf*` (`-profile` arity).
+128. Option-value pairs not modelled — use `Arity::stepped` or option grammars so odd counts are reported: `fconfigure`, `chan configure`, `fcopy`, `chan copy`, `clock add`, `clock format`, `clock scan`, `zlib gunzip`, `http::formatQuery`, `pkg::create`.
+129. Wrong maxima or minima: `chan puts` (at most 3), `string compare` and `string equal` (at most 5), `string is` (at most 5 after the class), `string map` and `string match` (at most 3), `regexp` (at least 2), `if` (at least 2), Tk `bell` (at most 3).
+130. Missing definitions: `tcl::tm::add`, `tcl::tm::list`, `tcl::tm::remove` (8.5+, `tm.n`), `http::mapReply`, `pkg_compareExtension`, 8.4 `tclLdAout`.
+131. Make the definitions harness a gate: run `oo-dispatch-probe/definitions/` over every tclsh release, every Tk release and Jim, one analysis per call, with a reviewed allow-list for internal helpers; add tcllib when it can be fetched; extend to options and value grammars; a release cannot ship with a new false-arity, false-unknown or claimed-nonexistent row.
 
 Before the final PR, move useful contracts and real experiments/tests into durable locations. Correct documentation/comments across the entire tracked repository, including generated guidance and files outside the implementation diff. Remove obsolete guidance, completed TODOs, development narratives, temporary ledgers/prompts/archives and their references, including this directory and the work-specific AGENTS exception. Preserve reproducible evidence and legal attribution. Complete all gates before creating a ready-to-merge PR; do not merge. This final cleanup is still required and is not completed by source-audit closure.
