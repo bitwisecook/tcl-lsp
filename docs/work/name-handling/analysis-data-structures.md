@@ -49,6 +49,8 @@ String comparison is correct where Tcl semantics are string-based and must not b
 
 Computed once at binding and lowering with the selected dialect, environment and packs, this lets every pass compare identities and typed values: GVN keys become `Call { command: CommandRef, operands: [Literal(ValueId) | Read(ValueKey)] }`, SSA uses and defs come straight from word roles as places, SCCP and type inference key by symbol and place, taint and diagnostics read roles instead of spellings, and the optimiser compares trees structurally. The registry gaps this exposes are the ones the other studies found: complete effect descriptors, evaluation contexts, value grammars and types for option values and results, and package and object-system identities.
 
+User procedures, objects and libraries get the same annotations through command contracts inferred from source, declared in packs and stubs, or explicitly unknown: see [user and library commands](user-and-library-commands.md).
+
 ## Plan
 
 1. **Annotated commands:** add `CommandRef`, `FormRef` and per-word role, place, type and body annotations to the IR, computed once from the registry and packs; make `word_exprs` mandatory and retire `argv_texts`/`args` consumers; drop sentinel text where a `SyntheticMarker` exists.
