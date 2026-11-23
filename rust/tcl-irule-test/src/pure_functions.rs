@@ -124,9 +124,49 @@ impl PureFunction {
     }
 }
 
+struct IpClassMatch;
+
+impl NativeCommand for IpClassMatch {
+    fn invoke(&self, vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+        let [records, item] = args else {
+            return vm.refuse_host_command("IP class match requires records and an item".into());
+        };
+        let reached = vm.with_original_operand_projection(|vm, original| {
+            let item = vm.original_operand_strict_string(original, item)?;
+            let records = vm.original_operand_list(original, records)?;
+            let Some(operand) = tcl_syntax::irules_address::AddressOperand::parse(&item) else {
+                vm.check_original_operand_projection(original)?;
+                return Ok(Completion::new(
+                    Code::Error,
+                    Value::string("bad IP network address format"),
+                    Value::empty(),
+                ));
+            };
+            let mut matched = false;
+            for key in records.iter().step_by(2) {
+                let key = vm.original_operand_strict_string(original, key)?;
+                if tcl_bigip::value::Network::try_parse(&key)
+                    .is_some_and(|network| network.contains_addr(operand.address))
+                {
+                    matched = true;
+                    break;
+                }
+            }
+            vm.check_original_operand_projection(original)?;
+            Ok(Completion::new(
+                Code::Ok,
+                Value::int(i64::from(matched)),
+                Value::empty(),
+            ))
+        });
+        reached.unwrap_or_else(|error| original_completion(vm, error))
+    }
+}
+
 /// Register every pure function the shared cores run, under its mock name,
 /// before `::orch::init` registers the commands.
 pub(crate) fn register(vm: &mut Vm) {
+    vm.register_native_command("::tmm::_ip_class_match", Rc::new(IpClassMatch));
     for &command in irules::COMMANDS {
         let Some(publication) =
             tcl_registry::simulator_mock_name::SimulatorMockName::for_label(command)
@@ -642,6 +682,36 @@ mod tests {
 mod stub_transport_tests {
     use super::*;
     use std::cell::Cell;
+
+    #[test]
+    fn ip_class_mock_matches_the_measured_cidrs() {
+        let (mut vm, _) = fixture();
+        vm.try_eval_source("namespace eval ::tmm {}").unwrap();
+        register(&mut vm);
+        for (value, expected) in [
+            ("192.0.2.53%2", "1"),
+            ("198.51.100.53%3", "1"),
+            ("2001:db8::53%0", "1"),
+            ("192.0.2.53/24", "1"),
+            ("192.0.3.53/16", "0"),
+        ] {
+            let result = vm
+                .try_eval_source(&format!(
+                    "::tmm::_ip_class_match {{192.0.2.0%0/24 {{}} 198.51.100.0%2/24 {{}} 2001:db8::%0/64 {{}}}} {value}",
+                ))
+                .unwrap();
+            assert_eq!(result.code, Code::Ok, "{value}");
+            assert_eq!(
+                result.result.string_bytes().as_ref(),
+                expected.as_bytes(),
+                "{value}"
+            );
+        }
+        let result = vm
+            .try_eval_source("::tmm::_ip_class_match {} invalid")
+            .unwrap();
+        assert_eq!(result.code, Code::Error);
+    }
 
     struct RunStub(PureFunction);
     impl NativeCommand for RunStub {

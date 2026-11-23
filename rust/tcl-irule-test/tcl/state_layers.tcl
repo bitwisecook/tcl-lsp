@@ -692,7 +692,10 @@ namespace eval ::state {
         }
 
         proc _match_ip {records value} {
-            # IP matching is exact-value only; it does not match CIDR subnets.
+            if {[llength [info commands ::tmm::_ip_class_match]]} {
+                return [::tmm::_ip_class_match $records $value]
+            }
+            # The standalone Tcl harness keeps exact matching.
             foreach {k v} $records {
                 if {$k eq $value} { return 1 }
             }

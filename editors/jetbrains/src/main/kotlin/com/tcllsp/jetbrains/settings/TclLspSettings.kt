@@ -265,6 +265,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var diagnosticBIGIP6012: Boolean = true
     var diagnosticBIGIP6013: Boolean = true
     var diagnosticBIGIP6014: Boolean = true
+    var diagnosticBIGIP6015: Boolean = true
     var diagnosticBIGIP6038: Boolean = true
     var diagnosticBIGIP6039: Boolean = true
     var diagnosticIAPP7001: Boolean = true
@@ -603,6 +604,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "BIGIP6012" to diagnosticBIGIP6012,
                 "BIGIP6013" to diagnosticBIGIP6013,
                 "BIGIP6014" to diagnosticBIGIP6014,
+                "BIGIP6015" to diagnosticBIGIP6015,
                 "BIGIP6038" to diagnosticBIGIP6038,
                 "BIGIP6039" to diagnosticBIGIP6039,
                 "IAPP7001" to diagnosticIAPP7001,

@@ -1014,6 +1014,12 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "BIGIP6015",
+    section: "bigip",
+    description: "A literal address is invalid for its BIG-IP configuration or iRules grammar.",
+    defaultEnabled: true,
+  },
+  {
     code: "BIGIP6038",
     section: "bigip",
     description: "An iRule event requires a profile that is not active on its virtual server.",

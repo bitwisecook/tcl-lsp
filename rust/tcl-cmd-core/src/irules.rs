@@ -678,54 +678,50 @@ pub fn uri_compare(first: &str, second: &str) -> Answer<bool> {
     Err(UNMODELLED)
 }
 
-/// An IPv4 address with an optional prefix length, as `IP::addr` reads one: a
-/// dotted quad of decimal octets with no leading zero, and `/N` with `N` from
-/// 0 to 32. A dotted mask, a route domain (`%N`) and IPv6 are unmodelled.
-fn ipv4(text: &str) -> Answer<(u32, Option<u32>)> {
-    let (address, prefix) = match text.split_once('/') {
-        Some((address, prefix)) => {
-            let prefix = count(prefix)?;
-            if prefix > 32 {
-                return Err(UNMODELLED);
-            }
-            (
-                address,
-                Some(u32::try_from(prefix).map_err(|_| UNMODELLED)?),
-            )
-        }
-        None => (text, None),
-    };
-    let octets: Vec<&str> = address.split('.').collect();
-    let [a, b, c, d] = octets.as_slice() else {
-        return Err(UNMODELLED);
-    };
-    let mut value = 0u32;
-    for octet in [a, b, c, d] {
-        let octet = count(octet)?;
-        let octet = u8::try_from(octet).map_err(|_| UNMODELLED)?;
-        value = (value << 8) | u32::from(octet);
-    }
-    Ok((value, prefix))
-}
-
-/// `IP::addr addr1[/mask] equals addr2[/mask]`: whether the two addresses fall
-/// in one network under the prefix one side gives, or are the same address
-/// when neither does (`10.42.2.0/24 equals 10.42.2.1` is true). Prefixes on
-/// both sides are unmodelled: the reference does not say which applies.
+/// Compare two iRules IP addresses and an optional mask.
+///
+/// TMM treats an omitted route domain as zero, ignores zero-width masks
+/// and uses the shorter of two nonzero prefixes. IPv4-mapped addresses
+/// compare to IPv4 hosts. Mixed IPv4 and mapped IPv6 operands with a mask
+/// wider than 32 bits are unmodelled.
 ///
 /// # Errors
 ///
-/// [`Unmodelled`] outside the published behaviour.
+/// Returns [`Unmodelled`] for unmeasured operand forms.
 pub fn ip_addr_equals(first: &str, second: &str) -> Answer<bool> {
-    let (first, first_prefix) = ipv4(first)?;
-    let (second, second_prefix) = ipv4(second)?;
-    let prefix = match (first_prefix, second_prefix) {
-        (Some(_), Some(_)) => return Err(UNMODELLED),
-        (Some(prefix), None) | (None, Some(prefix)) => prefix,
-        (None, None) => 32,
+    use std::net::IpAddr;
+    use tcl_syntax::irules_address::AddressOperand;
+
+    let first = AddressOperand::parse(first).ok_or(UNMODELLED)?;
+    let second = AddressOperand::parse(second).ok_or(UNMODELLED)?;
+    if first.route_domain.unwrap_or(0) != second.route_domain.unwrap_or(0) {
+        return Ok(false);
+    }
+    let prefix = |width| {
+        [first.prefix, second.prefix]
+            .into_iter()
+            .flatten()
+            .filter(|&prefix| prefix != 0)
+            .min()
+            .unwrap_or(width)
     };
-    let mask = u32::MAX.checked_shl(32 - prefix).unwrap_or(0);
-    Ok(first & mask == second & mask)
+
+    if let (IpAddr::V6(a), IpAddr::V6(b)) = (first.address, second.address) {
+        let host_bits = u32::from(128 - prefix(128));
+        return Ok(a.to_bits() >> host_bits == b.to_bits() >> host_bits);
+    }
+    let ipv4 = |address| match address {
+        IpAddr::V4(address) => Some(address),
+        IpAddr::V6(address) => address.to_ipv4_mapped(),
+    };
+    match (ipv4(first.address), ipv4(second.address)) {
+        (Some(a), Some(b)) if prefix(32) <= 32 => {
+            let host_bits = u32::from(32 - prefix(32));
+            Ok(a.to_bits() >> host_bits == b.to_bits() >> host_bits)
+        }
+        (Some(_), Some(_)) => Err(UNMODELLED),
+        _ => Ok(false),
+    }
 }
 
 #[cfg(test)]
@@ -746,12 +742,39 @@ mod tests {
         }
     }
 
+    #[test]
+    fn ip_addr_equals_matches_measured_tmm_operands() {
+        for (first, second, expected) in [
+            ("192.0.2.53%0", "192.0.2.53", true),
+            ("192.0.2.53%1", "192.0.2.53", false),
+            ("192.0.2.53%1", "192.0.2.53%2", false),
+            ("192.0.2.53%1", "192.0.2.0%1/24", true),
+            ("192.0.2.53", "192.0.2.0/255.255.255.0", true),
+            ("2001:db8::53%0", "2001:db8::/64", true),
+            ("2001:db8::53", "2001:db9::/64", false),
+            ("2001:db8::", "2001:db9::/0", false),
+            ("192.0.2.53/0", "198.51.100.53", false),
+            ("192.0.2.53/24", "192.0.3.1/16", true),
+            ("192.0.2.53/16", "192.0.3.1/24", true),
+            ("192.0.2.53/24", "192.1.3.1/16", false),
+            ("192.0.2.53", "::ffff:192.0.2.53", true),
+            ("192.0.2.0/24", "::ffff:192.0.2.53", true),
+            ("192.0.2.53", "2001:db8::53", false),
+        ] {
+            assert_eq!(
+                ip_addr_equals(first, second),
+                Ok(expected),
+                "{first} {second}"
+            );
+        }
+    }
+
     /// Each function answers inside what the reference states and is
     /// unmodelled at its edges: a byte function's non-ASCII word, a
     /// non-canonical base64 text, a terminator count of 0, a search string
     /// or a field that is not there, a scheme with no default port the
     /// reference lists, a scheme or a host in a case the reference does not
-    /// show, two prefixes, a shape the command does not take.
+    /// show, a shape the command does not take.
     #[test]
     fn each_function_answers_only_what_the_reference_states() {
         assert_eq!(text("b64encode", &["abc"]).as_deref(), Some("YWJj"));
@@ -786,10 +809,7 @@ mod tests {
         assert_eq!(text("URI::decode", &["%2"]), None);
         assert_eq!(text("URI::encode", &["a[b]"]), None);
         assert_eq!(text("URI::compare", &["/a", "/b?x"]), None);
-        assert_eq!(
-            text("IP::addr", &["10.0.0.1/8", "equals", "10.0.0.2/8"]),
-            None
-        );
+        assert_eq!(ip_addr_equals("10.0.0.1/8", "10.0.0.2/8"), Ok(true));
         assert_eq!(text("IP::addr", &["10.0.0.01", "equals", "10.0.0.1"]), None);
         assert_eq!(text("IP::addr", &["10.0.0.0", "mask", "255.0.0.0"]), None);
         assert_eq!(

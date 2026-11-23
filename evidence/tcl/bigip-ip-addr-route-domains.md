@@ -60,3 +60,41 @@ nonzero domain failed to match the same address in the omitted domain or in
 a different nonzero domain. Dotted masks and the IPv6 prefix both worked.
 The final case matches under either prefix, so it leaves prefix precedence
 unmeasured. The temporary rule and virtual were removed after the request.
+
+## Follow-up TMM results
+
+A second temporary virtual used the same release and partition. It compared
+the pairs below using `IP::addr $left equals $right` and used
+`class match $item equals $group` with an internal IP data group containing
+`192.0.2.0%0/24`, `198.51.100.0%2/24` and `2001:db8::%0/64`. Each call ran
+inside `catch` and returned the status and result in the HTTP response. The
+virtual, rule and group were removed afterwards.
+
+| First IP operand | Second IP operand | Result |
+| --- | --- | --- |
+| `192.0.2.53/24` | `192.0.3.1/16` | 1 |
+| `192.0.2.53/16` | `192.0.3.1/24` | 1 |
+| `192.0.2.53/24` | `192.1.3.1/16` | 0 |
+| `192.0.2.53/0` | `198.51.100.53` | 0 |
+| `192.0.2.53` | `198.51.100.53/0` | 0 |
+| `2001:db8::/0` | `2001:db9::` | 0 |
+| `2001:db8::` | `2001:db9::/0` | 0 |
+| `2001:db8::` | `2001:db9::/1` | 1 |
+| `192.0.2.53` | `2001:db8::53` | 0 |
+| `192.0.2.53` | `::ffff:192.0.2.53` | 1 |
+| `192.0.2.53` | `::ffff:192.0.2.0/120` | 0 |
+| `192.0.2.0/24` | `::ffff:192.0.2.53` | 1 |
+| `192.0.2.53` | `::ffff:192.0.3.53` | 0 |
+| `192.0.2.53` | `192.0.2.0/255.0.255.0` | Error, mask must be contiguous |
+
+The mixed IPv4 and mapped-IPv6 comparison with an IPv6 prefix remains
+unmodelled. In this run, the two-prefix comparisons matched under the
+shorter prefix, and a zero-width prefix behaved like an omitted mask.
+
+| IP data-group match item | Result |
+| --- | --- |
+| `192.0.2.53`, `192.0.2.53%0`, `192.0.2.53%2` | 1 each |
+| `198.51.100.53`, `198.51.100.53%2`, `198.51.100.53%3` | 1 each |
+| `2001:db8::53%0`, `192.0.2.53/24` | 1 each |
+| `192.0.3.53`, `192.0.3.53/16` | 0 each |
+| `invalid` | Error, bad IP network address format |

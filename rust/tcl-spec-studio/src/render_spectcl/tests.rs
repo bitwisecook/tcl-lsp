@@ -1649,6 +1649,7 @@ fn authored_source_configuration_reference_survives_render_load_and_draft() {
     ] {
         let expected = Some(AuthoredSourceConfigurationReference {
             argument,
+            comparison_item: Some(argument - 2),
             family: ConfigurationObjectFamily::DataGroup,
             selection_unknown,
         });
