@@ -1,0 +1,3 @@
+# Errors, completion codes and return options
+
+Fixtures for [errors, completion codes and return options](../../../error-handling-design.md). `engines.tsv` holds each fixture's output (lines joined by ` ⏎ `, exit status last) under tclsh 8.4.20–9.1.0, Jim, the VM (`target/debug/tclvm --tcl-version 8.6|9.0`, `TCL_LIBRARY` set to the matching `tmp/tcl*/library`) and the runtime (`target/debug/examples/run_script --quiet --tcl-version 8.6|9.0`, without `--init`), each run from an empty temporary directory with stdin from `/dev/null` and a 20 s timeout, on `afe2f2d8`. `analyser-mcp.out` holds the analyser and optimiser results through the MCP server (a cached build older than HEAD; see its last section).

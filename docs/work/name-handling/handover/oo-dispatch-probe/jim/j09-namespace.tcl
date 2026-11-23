@@ -5,4 +5,3 @@ namespace eval ns {
 }
 puts [ns::p]
 puts [set ns::v]
-puts [namespace exists ns]
