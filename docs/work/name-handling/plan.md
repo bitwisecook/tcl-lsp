@@ -23,7 +23,7 @@ Review methods against procedures in the per-function pass: method bodies curren
 - **designed**: the approach, owner and completion test are written down (a design page or the item itself); no implementation yet.
 - **not yet started**: needs a decision, an investigation or a design before implementation can begin.
 
-Counts: completed 9, in progress 13, designed 201, not yet started 11. Wrong answers re-checked on the current binaries and source for this pass:
+Counts: completed 9, in progress 13, designed 203, not yet started 9 (owner decisions on items 74, 142 and 196 recorded on 23 November 2026). Wrong answers re-checked on the current binaries and source for this pass:
 - item 26: `"b" eq "b" in {1}` is still 0 in both engines;
 - item 42: `lremove` is still missing in the VM;
 - item 18: `next` still runs one level too deep in the VM;
@@ -159,7 +159,7 @@ Name resolution end to end (validation of the plans above against two code inven
 
 Foundations, architecture and object systems (the structural work the domain items depend on; evidence and detail in the [cross-cutting review](cross-cutting-review.md), the [architecture plan](architecture-tidy-plan.md), [root causes](oo-tk-root-causes.md), the [object systems plan](object-systems-plan.md) and the [overrides review](overrides-package-review.md)):
 
-74. **[not yet started]** (licence decision pending) Decide the licence (Tcl or `MIT OR Apache-2.0` instead of AGPL-3.0-or-later) before phase 1, then change `LICENSE`, every `Cargo.toml`, the source headers and their checker, the xtask banner, AGENTS.md, `deny.toml` and the marketplace manifests; set the dependency licence policy.
+74. **[not yet started]** (deferred by the owner on 23 November 2026; revisit before release) Decide the licence (Tcl or `MIT OR Apache-2.0` instead of AGPL-3.0-or-later), then change `LICENSE`, every `Cargo.toml`, the source headers and their checker, the xtask banner, AGENTS.md, `deny.toml` and the marketplace manifests; set the dependency licence policy.
 75. **[in progress]** (fixture sets and oracle runs exist under `oo-dispatch-probe/`; no permanent runner yet) Probe harness and conformance framework (faults 5 and 14): vector tables as rows, implementations as columns (tclsh 8.4–9.1, Jim, the VM, the runtime, the folder, analysis queries, each LSP feature, the optimiser, writers and tools), one reported test per row (`insta`, `libtest-mimic`); the `oo-dispatch-probe/` fixtures become rows and the temporary probes in its README become permanent runners.
 76. **[designed]** Semantic gates (fault 12): the walker and resolver manifest with an only-shrinks `walker-ownership` ratchet, the crate-dependency rule (`cargo-deny` wrappers), the memo rule, the release-table lint and host-primitive lints (`split_whitespace`, `trim`, `.chars().count()`, `contains('(')`); contract claims linked to vector rows or tests (fault 13).
 77. **[designed]** Identity layer (fault 1): interned, typed keys with incarnation or generation and provenance for command, namespace, variable place, frame, body unit, instance and package; display text derived and never parsed; the engines' tokens exposed in the same vocabulary through `tcl-runtime-api`.
@@ -304,7 +304,12 @@ Fixes found in the studies but not yet planned:
 139. **[in progress]** (fix `9a0dc3fbd3` is on `work`; re-verification after integration not done) Jim external-entry rebinding for O103 (the 99 → 42 wrong answer fixed by `9a0dc3fbd3`): re-verify after integration, as the coordinator handover requires, and keep the fixture in the execution-checked fold suite (item 65).
 140. **[designed]** Frame housekeeping from [call frames](frame-design.md) step 7: rename the colliding frame types, and correct the contract and runtime model documents that cite `Vm::enter_level` and the non-existent `frame_depth_stash`.
 141. **[designed]** Packages step 1 remainder from [packages](package-design.md): use an absolute library path in the VM's `auto_path`.
-142. **[not yet started]** (ownership decision pending) W156 consumers not modelled (from the signed-scan handover): `table` values (unsigned 64-bit, while negative `incr` deltas are legitimate) and `class match` (covered by W304 today; decide whether W156 should own it).
+142. **[designed]** (owner decision, 23 November 2026) W156 consumers not modelled (from the signed-scan handover): `class match` keys and `table` values.
+   - **`class match`: W156 owns it.** A signed scan value used as a `class match`/`class search` item is a W156 consumer, like `==`. Measured: after `binary scan … c b`, `class match $b equals int_dg` gets only W304's generic "insert `--`" suggestion, and with `--` added nothing fires, although a byte 0x81 is stored as -127 and can never equal key 129.
+   - **Severity follows what is known about the data group.** A hint by default. A real finding (warning) when the data group is known, from the BIG-IP configuration or workspace data groups, to hold as a key the unsigned value that the signed scan result is compared against (for example key 129 against a `c` read). The data-group facts come from the BIG-IP schema owner (items 111, 118), not from a W156 table.
+   - **W304 stays the generic option-terminator suggestion.** When the operand is a signed scan value it says the leading `-` is certain, not merely possible; W156 and W304 do not repeat each other's message.
+   - **`table`: full, cross-event.** W156 follows a signed scan value written with `table set`/`add`/`replace` to comparisons on `table lookup` results in any event and connection, keyed by the table key (and subtable). This needs the session-state model of `table` keys across events (shared with the fakeCMP and `static::` work); `table incr` with a negative delta stays legitimate, and values remain unsigned 64-bit.
+   - Done when: fixtures for `class match` with and without `--`, with an unknown data group (hint), and with a known integer data group holding 129 (warning); a `table set` in `CLIENT_DATA` read by `table lookup` in `HTTP_REQUEST` and compared with 0x81 reports W156; `table incr k -1` reports nothing.
 143. **[designed]** Small cleanups found on the way: `tcl-bigip`'s `offset_to_line_char` doc comment says 1-based UTF-8 while the code is 0-based UTF-16 (with item 110); `tcl-pkg`'s `find_tclsh` duplicates `tcl-test-support`'s `locate_tclsh`.
 
 More sprawl (second survey, [remaining sprawl](remaining-sprawl.md#second-survey)):
@@ -408,7 +413,11 @@ Comments and continuations ([comments and continuations](comments-continuations-
 
 Jim ([Jim](jim-design.md)):
 
-196. **[not yet started]** (execution decision pending) Decide Jim execution: expose a Jim mode in `tclvm`/`run_script` and share the ~10 parallel engine Jim modules, or record Jim execution as a non-goal and keep Jim as an analysis dialect only; implement references and GC as one kernel feature only if execution is kept; add a `jim` analysis profile reachable from `DialectProfile::find` and the MCP dialect list.
+196. **[designed]** (owner decision, 23 November 2026: analysis only) Jim execution is a non-goal. Jim stays an analysis dialect with jimsh as the oracle.
+   - Delete the engine Jim modes reachable only from native-fixture tests (VM 26 files, about 11,900 lines; runtime 40 files, about 13,700), including `Interp::with_native_core(…, profile_for_dialect("jimtcl"), …)` and `tcl-vm/src/native_fixture.rs`'s Jim construction. Keep `tcl-syntax`'s native Jim policy where the lexer and analyser use it; delete the `tcl-registry`/`tcl-cmd-core` native Jim modules that only the engines read.
+   - References and GC are not implemented in any engine.
+   - Add a `jim` analysis profile reachable from `DialectProfile::find` and the MCP dialect enum, and the Jim effect descriptors in the [Jim design](jim-design.md) (`local`, `upcall`, `alias`/`curry`, `ref` finalizers, statics, `exists`, `defer`).
+   - Done when: no engine source names a Jim profile; the conformance matrix's Jim column reads "not run (non-goal)"; `oo-dispatch-probe/jim/` analysis fixtures pass under the `jim` profile against jimsh's answers.
 197. **[designed]** Jim analysis: effect descriptors for `local`, `upcall`, `alias`, `curry`, `defer` and procedure statics so navigation follows them; fix the false W210 on statics (and its Rust `Debug` message), W001 on Jim `string` subcommands, W214 on finalizer parameters and W211 on `exists`-tested variables; one declaration route for Jim commands (`alias_.rs`, `exists_.rs` versus the tclspec pack).
 
 Across the fourteen areas:
