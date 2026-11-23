@@ -249,14 +249,11 @@ fn convert_pool(pool: &crate::model::BigipPool) -> Json {
         };
         let addr_text = member.address.as_ref().map_or_default(ToString::to_string);
         let addr = if addr_text.is_empty() {
-            split_destination(&member.name).0
+            let node = crate::value::MemberKey::try_parse(&member.name)
+                .map_or(member.name.as_str(), |key| key.node);
+            short_name(node).to_owned()
         } else {
             addr_text
-        };
-        let port = if member.port != 0 {
-            member.port
-        } else {
-            split_destination(&member.name).1.unwrap_or(0)
         };
         let server_addresses = if addr.is_empty() {
             Json::Array(vec![])
@@ -264,7 +261,7 @@ fn convert_pool(pool: &crate::model::BigipPool) -> Json {
             Json::Array(vec![Json::Str(addr)])
         };
         members.push(Json::Object(vec![
-            ("servicePort".to_owned(), Json::Int(port)),
+            ("servicePort".to_owned(), Json::Int(member.port)),
             ("serverAddresses".to_owned(), server_addresses),
         ]));
     }
@@ -484,6 +481,68 @@ pub fn scf_to_as3(cfg: &BigipConfig, tenant: &str, application: &str) -> AS3Conv
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pool_member_ports_survive_scf_parsing_and_as3_conversion() {
+        let probe = include_str!(
+            "../../../docs/work/name-handling/handover/oo-dispatch-probe/bigip-addresses/addresses.conf"
+        );
+        let device = include_str!("../../bigip-report-gen/python/tests/data/device-01.bigip.conf");
+        let probe_ports: &[(&str, &[i64])] = &[
+            ("p_v4", &[80, 80]),
+            ("p_v6", &[80, 443]),
+            ("p_fqdn", &[443]),
+            ("p_rel", &[80]),
+            ("p_http", &[80]),
+            ("app_pool", &[8080]),
+        ];
+        let device_ports: &[(&str, &[i64])] = &[
+            ("app1_t80_pool", &[80, 80]),
+            ("app2_t80_pool", &[80, 80]),
+            ("app3_t8443_pool", &[8443, 8443]),
+            ("manyOptions_pool", &[80, 443, 8443, 8443, 443]),
+            ("app4_pool", &[443]),
+            ("css_pool", &[]),
+            ("jpg.pool", &[]),
+            ("js.io_t80_pool", &[]),
+            ("bigiq.benlab.io_t443_pool", &[443]),
+        ];
+        for (source, expected) in [(probe, probe_ports), (device, device_ports)] {
+            let config = crate::parser::parse_bigip_conf(source, "Common");
+            let report = scf_to_as3(&config, "tenant", "app");
+            let declaration: serde_json::Value =
+                serde_json::from_str(&report.declaration.dumps_indent2()).unwrap();
+            let app = &declaration["declaration"]["tenant"]["app"];
+            let pools = config.objects.iter().filter_map(|placed| {
+                if let ModelObject::Pool(pool) = &placed.object {
+                    Some((short_name(&placed.full_path), pool))
+                } else {
+                    None
+                }
+            });
+            assert_eq!(pools.clone().count(), expected.len());
+            for (name, pool) in pools {
+                let (_, expected_ports) = expected.iter().find(|entry| entry.0 == name).unwrap();
+                let parsed: Vec<i64> = pool
+                    .members
+                    .items
+                    .iter()
+                    .map(|item| match &item.value {
+                        ListItemValue::PoolMember(member) => member.port,
+                        other => panic!("unexpected member value: {other:?}"),
+                    })
+                    .collect();
+                assert_eq!(&parsed, expected_ports, "{name}");
+                let converted: Vec<i64> = app[name]["members"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|member| member["servicePort"].as_i64().unwrap())
+                    .collect();
+                assert_eq!(&converted, expected_ports, "{name}");
+            }
+        }
+    }
 
     #[test]
     fn split_destination_ipv4_named_and_numeric() {

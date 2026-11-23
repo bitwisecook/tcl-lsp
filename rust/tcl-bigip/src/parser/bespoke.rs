@@ -600,16 +600,15 @@ fn parse_pool_members(braced: &str, base_offset: usize) -> Vec<BigipPoolMember> 
             parse_pool_member_body_with_spans(body_text, body_abs_offset)
         };
         let addr = props.get("address").cloned().unwrap_or_default();
-        let mut port: i64 = 0;
-        if name.contains(':')
-            && addr.is_empty()
-            && let Some(tail) = name.rsplit(':').next()
-        {
-            port = tail.parse().unwrap_or(0);
-        }
-        if port == 0 {
-            port = props.get("port").map_or(0, |p| p.parse().unwrap_or(0));
-        }
+        let port = crate::value::MemberKey::try_parse(&name).map_or_else(
+            || {
+                props
+                    .get("port")
+                    .and_then(|value| crate::value::Port::try_parse_service(value))
+                    .map_or(0, |port| i64::from(port.port))
+            },
+            |key| i64::from(key.port.port),
+        );
         let addr_typed = if addr.is_empty() {
             None
         } else {

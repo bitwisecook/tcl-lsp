@@ -72,10 +72,21 @@ fn pool_members() {
         members[0].address.as_ref().unwrap().to_string(),
         "10.0.1.10"
     );
-    // address present -> port stays 0 (the port is only parsed from the
-    // name when no explicit address is set).
-    assert_eq!(members[0].port, 0);
+    assert_eq!(members[0].port, 80);
     assert!(members[0].field_offsets.contains_key("address"));
+}
+
+#[test]
+fn pool_member_port_reads_the_tmsh_service_from_each_key() {
+    let body = r"{
+        /Common/folder/v6:443 { address 2001:db8::53%0 }
+        /Common/2001:db8::54%0.8443 { address 2001:db8::54%0 }
+        /Common/web:http { address 192.0.2.53 }
+        /Common/numeric:0 { address 192.0.2.54 port 80 }
+    }";
+    let members = parse_pool_members(body, 0);
+    let ports: Vec<_> = members.iter().map(|member| member.port).collect();
+    assert_eq!(ports, [443, 8443, 80, 0]);
 }
 
 #[test]
