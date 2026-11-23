@@ -1,0 +1,40 @@
+# harder ARE cases: preference rules, embedded flags, collating elements, anchors
+proc t {label args} { if {[catch {uplevel 1 $args} r]} { puts "$label: error: $r" } else { puts "$label: $r" } }
+t alt-longest regexp -inline {a|ab|abc} "abcd"
+t alt-group regexp -inline {(a|ab)(c|bcd)} "abcd"
+t pref-1 regexp -inline {(a*)(a+)} "aaaa"
+t pref-2 regexp -inline {(a*?)(a+)} "aaaa"
+t pref-3 regexp -inline {(a+|b+)*c} "aabbc"
+t backref-alt regexp -inline {(a|b)\1} "abba"
+t nocase-backref regexp -nocase -inline {(a)\1} "aA"
+t A-Z regexp -all -inline {\A.|.\Z} "abc"
+t noncap regexp -inline {(?:ab)+(c)} "ababc"
+t zero-bound regexp -inline {ab{0}c} "ac"
+t flag-x regexp -inline {(?x) a b # c} "ab"
+t flag-n regexp -inline {(?n)a.b} "a\nb"
+t flag-s regexp -inline {(?s)a.b} "a\nb"
+t flag-w regexp -inline {(?w)^b} "a\nb"
+t flag-p regexp -inline {(?p)a.b} "a\nb"
+t flag-q regexp -inline {(?q)a.b} "xa.b"
+t flag-c regexp -inline {(?c)A} "a"
+t bound-255 regexp {a{255}} [string repeat a 255]
+t bound-256 regexp {a{256}} [string repeat a 256]
+t collate regexp -inline {[[.space.]]} "a b"
+t equiv regexp -inline {[[=a=]]+} "aaa"
+t class-in-range regexp {[a-[:digit:]]} "a"
+t s-unicode regexp {\s} "\xa0"
+t start-all regexp -all -inline -start 1 {^.} "abc"
+t start-indices regexp -indices -inline -start 2 {c} "abc"
+t expanded-bracket regexp -expanded -inline {[# ]+} "a# b"
+t empty-re regexp -inline {} "abc"
+t esc-ctrl regexp -inline {\ca} "\x01"
+t esc-unicode-in-re regexp -inline {\x41+} "AAB"
+t ignored-brace regexp -inline {a{,2}} "a{,2}"
+t dollar-mid regexp -inline {a$b} {a$b}
+t many-groups regexp -inline {(a)(b)(c)(d)(e)(f)(g)(h)(i)(j)\10} "abcdefghijj"
+t A-all-start regexp -all -inline -start 1 {\A.} "abc"
+t caret-all regexp -all -inline {^.} "abc"
+t Z-all regexp -all -inline {.\Z} "abc"
+t A-regsub regsub -all {\A.} "abc" X
+t caret-regsub regsub -all {^.} "abc" X
+t m-all regexp -all -inline {\m.} "ab cd"

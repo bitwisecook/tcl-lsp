@@ -1,0 +1,1 @@
+set v 1puts "lonecr: $v"set w {xy}puts [string length $w]

@@ -1,0 +1,21 @@
+# Analyser (MCP tcl-lsp analyze/rename/references/definition/optimize, cached build that may lag HEAD afe2f2d8) on the regex-patterns fixtures.
+fixture	dialect	codes	notes
+r01-are-syntax.tcl	tcl9.0	(none)	(?<=a)b is a compile error in every tclsh: not flagged (no invalid-regex diagnostic exists)
+r02-regexp-options.tcl	tcl9.0	(none)	regexp -foo not flagged (inside the t wrapper: arguments are data, acceptable)
+r03-match-vars.tcl	tcl8.6	(none)	no false W210 on regexp match vars m s1 s2 s3 m2 m3 whole -> lo hi w x y; regexp -all -inline ... v (an error in tclsh) not flagged
+r04-regsub.tcl	tcl9.0	(none)	count/out variable recognised
+r06-switch.tcl	tcl8.6	W210(iv) W210(mv, "did you mean 'm'?")	FALSE: switch -matchvar/-indexvar write the variables before the body runs; switch -glob -matchvar (an error) not flagged
+r10-regex-errors.tcl	tcl9.0	W304	patterns are loop data, nothing expected
+r11-analyser-matchvars.tcl	tcl8.6	W210(mv)	FALSE on switch -matchvar in proc d; regexp/regsub/-indices/-inline cases clean
+r11 excerpt (global switch -matchvar g)	tcl9.0	W210(g) W210(iv) W210(mv)	FALSE in global scope as well
+r09-lsearch.tcl	tcl9.0	(none)	lsearch -regexp $l {(} (an error) not flagged
+r14-all-restart-context.tcl	tcl9.0	(none)	
+invalid literal patterns: regexp {a{3,2}}, {(}, regsub {a**}, lsearch -regexp {(?z)}, switch -regexp {a{1000}}, regexp -foo	tcl8.6	W211 only	no diagnostic for any compile error (false negatives)
+regsub -command on 8.6	tcl8.6	W004	correct
+W303 probe: {(a+)+$}	tcl9.0	W303	tclsh 9.0 and our VM both match (a+)+$ against a^n b in constant time for n=20,40,80 (measured); the "exponential" premise does not hold for this shape on Tcl's engine
+W303 probe: {\(a|b\)+}	tcl9.0	W303	FALSE: escaped parentheses are literals; the detector scans text (security.rs:580) instead of using the tcl-regex parse
+rename on regexp match var k (proc a)	tcl8.6	2 edits (k and $k)	correct
+rename on switch -matchvar mv	tcl8.6	null	refused; references and definition on $mv: empty
+optimize full (tcl8.6 and tcl9.0)	-	O129 folds regsub -all {\A.} abc X -> Xbc; regsub -all {\m.} "ab cd" X -> {Xb Xd}; regsub -all {\y} "ab cd" | -> {|ab| |cd|}	WRONG: tclsh 8.4-9.1 give XXX, {XX XX}, {|a|b |c|d}. The folder runs the shared engine, which has the -all restart bug (engines.tsv r14)
+optimize full: regexp -all -inline {\m.}, regexp -start 1 {\A.}	-	not folded	(would also be wrong)
+hover on (?i)\mfoo\M(\d{2,3})	tcl9.0	"(" capture group open, "?" zero or one, \m "escape sequence"	cached build's wording differs from HEAD's regex_hover_text (hover/pattern_syntax.rs:94), so not counted as a finding

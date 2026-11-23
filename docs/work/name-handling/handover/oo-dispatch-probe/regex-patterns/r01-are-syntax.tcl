@@ -1,0 +1,22 @@
+# ARE syntax: embedded options, word boundaries, back references, bounds, lookahead, classes
+proc t {label args} { if {[catch {uplevel 1 $args} r]} { puts "$label: error: $r" } else { puts "$label: $r" } }
+t nocase-embedded regexp {(?i)HELLO} hello
+t word-m regexp -inline {\mfoo\M} "a foo b"
+t word-y regexp -all -inline {\yab\y} "ab cab ab"
+t backref regexp -inline {(a+)b\1} "aabaa"
+t bound regexp -inline {a{2,3}} "aaaa"
+t lookahead regexp -inline {foo(?=bar)} "foobar"
+t neg-lookahead regexp -inline {foo(?!bar)\w*} "foobaz"
+t lookbehind regexp -inline {(?<=a)b} "ab"
+t class-d regexp -all -inline {\d+} "a12b345"
+t posix-class regexp -all -inline {[[:alpha:]]+} "ab1cd"
+t nongreedy regexp -inline {a.*?b} "axxbyyb"
+t mixed-greed regexp -inline {(a+?)(b+)} "aaabbb"
+t first-quant-rule regexp -inline {.*?(\d+)} "abc123"
+t brackets-escape regexp -inline {[\]a]+} "]a]b"
+t bre-director regexp -inline {***=a.b} "xa.by"
+t ere-director regexp -inline {***:(?e)a+} "caaa"
+t unicode-w regexp -inline {\w+} "caf\xe9!"
+t shorthand-in-bracket regexp -inline {[\d]+} "x42"
+t escape-B regexp -inline {a\Bb} "ab"
+t class-upper-nocase regexp -nocase -inline {[[:upper:]]+} "abC"

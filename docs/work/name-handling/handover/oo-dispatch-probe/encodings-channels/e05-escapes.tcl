@@ -1,0 +1,15 @@
+# backslash escapes: \u, \U, \x widths, lone surrogates
+proc cps {s} { set o {}; foreach c [split $s ""] { lappend o [format %X [scan $c %c]] }; return $o }
+puts "u4: [cps \u00e9z]"
+puts "u-short: [cps \u41z]"
+puts "U-emoji: [string length \U0001F600] [cps \U0001F600]"
+puts "U-max: [cps \U10FFFFz]"
+puts "U-over: [cps \U110000]"
+puts "x3: [cps \x414]"
+puts "x-long: [cps \x00041]"
+puts "oct: [cps \101\777]"
+puts "lone-hi: [string length \uD800] [cps \uD800]"
+puts "pair: [string length \uD83D\uDE00] [cps \uD83D\uDE00]"
+puts "bytelength: [string bytelength \U0001F600]"
+puts "utf8 of emoji: [binary encode hex [encoding convertto utf-8 \U0001F600]]"
+puts "utf8 of lone: [binary encode hex [encoding convertto utf-8 \uD800]]"
