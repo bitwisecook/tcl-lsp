@@ -605,6 +605,11 @@ and variable-cell contents are unaffected by this descriptor.
 
 ### `refine` — one invocation form
 
+`header_write NAME_INDEX VALUE_INDEX ?empty-result?` in a refinement
+records the HTTP header name and value operands after the selected command
+or subcommand. The indices are zero-based. Use `empty-result` when the form
+is known to return an empty result.
+
 An eleventh block, `refine NAME { … }`, is different in kind: it does not
 have inner words of its own. A form is a **refinement** of the command or
 subcommand that owns it, so it states the owning scope's own words about

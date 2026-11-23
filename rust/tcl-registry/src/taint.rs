@@ -588,6 +588,40 @@ pub struct TaintSinkInfo {
     pub interp_eval_subcommands: &'static [&'static str],
 }
 
+/// Credential-bearing HTTP header names, compared case-insensitively at the
+/// selected header-name operand.
+pub const SENSITIVE_HTTP_HEADERS: &[&str] = &[
+    "authorization",
+    "proxy-authorization",
+    "x-api-key",
+    "x-auth-token",
+    "x-secret",
+];
+
+impl crate::ResolvedInvocation<'_, '_> {
+    /// Positions of the header name and value in the effective post-head argv.
+    #[must_use]
+    pub fn header_write_arguments(&self) -> Option<(usize, Option<usize>)> {
+        let write = self.selected.form?.header_write?;
+        let name = self.semantics.argument_offset + usize::from(write.name);
+        let value = self.semantics.argument_offset + usize::from(write.value);
+        let count = self.words.arguments().exact_argv_len()?;
+        (name < count).then_some((name, (value < count).then_some(value)))
+    }
+}
+
+/// Query a header write from an already selected command and nominal argv.
+#[must_use]
+pub fn header_write_arguments(
+    registry: &CommandRegistry,
+    command: &str,
+    args: &[&str],
+) -> Option<(usize, Option<usize>)> {
+    registry
+        .resolve_invocation(command, args, None)?
+        .header_write_arguments()
+}
+
 /// Classify all taint-sink properties of `command` (with optional
 /// `subcommand`) in a single pass, filtered to `dialect`.
 ///

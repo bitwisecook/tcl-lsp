@@ -48,17 +48,14 @@ const HEADER_SETTER: CommandForm = CommandForm {
     name: "setter",
     arity: Arity::exact(2),
     mutator: Some(true),
+    header_write: Some(crate::forms::HeaderWrite {
+        name: 0,
+        value: 1,
+        returns_empty: true,
+    }),
     side_effects: Some(crate::knowledge::Knowledge::Partial(HEADER_WRITE)),
     ..CommandForm::DEFAULT
 };
-
-const SENSITIVE_HEADERS: &[&str] = &[
-    "authorization",
-    "proxy-authorization",
-    "x-api-key",
-    "x-auth-token",
-    "x-secret",
-];
 
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
@@ -95,8 +92,16 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Insert header/value pair.",
         synopsis: "HTTP::header insert <name> <value>",
         mutator: true,
-        credential_arg: Some(2),
-        sensitive_headers: SENSITIVE_HEADERS,
+        subcommand_forms: &[CommandForm {
+            name: "insert",
+            arity: Arity::at_least(2),
+            header_write: Some(crate::forms::HeaderWrite {
+                name: 0,
+                value: 1,
+                returns_empty: false,
+            }),
+            ..HEADER_SETTER
+        }],
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -160,8 +165,16 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Replace header value.",
         synopsis: "HTTP::header replace <name> ?<string>?",
         mutator: true,
-        credential_arg: Some(2),
-        sensitive_headers: SENSITIVE_HEADERS,
+        subcommand_forms: &[CommandForm {
+            name: "replace",
+            arity: Arity::new(1, 2),
+            header_write: Some(crate::forms::HeaderWrite {
+                name: 0,
+                value: 1,
+                returns_empty: false,
+            }),
+            ..HEADER_SETTER
+        }],
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -186,8 +199,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
             },
             HEADER_SETTER,
         ],
-        credential_arg: Some(2),
-        sensitive_headers: SENSITIVE_HEADERS,
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -236,12 +247,7 @@ pub const fn spec() -> CommandSpec {
             examples: "",
             return_value: "",
         }),
-        // `HTTP::header insert|replace` with tainted data →
-        // header injection (IRULE3002).
-        // (`credential_arg` + `sensitive_headers` now live on the
-        // `insert` / `replace` SubCommand specs above.)
-        taint_output_sink: Some("IRULE3002"),
-        taint_output_sink_subcommands: &["insert", "replace"],
+        excluded_events: &["RULE_INIT"],
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,

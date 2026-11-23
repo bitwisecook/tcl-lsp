@@ -113,8 +113,13 @@ corresponding SSL profile on the correct side.
 | Event | Persistence only | Required profile when refused |
 | --- | --- | --- |
 | `CLIENTSSL_CLIENTHELLO` | Accepted | |
+| `CLIENTSSL_DATA` | Rejected | CLIENTSSL |
 | `CLIENTSSL_HANDSHAKE` | Rejected | CLIENTSSL |
+| `CLIENTSSL_PASSTHROUGH` | Rejected | CLIENTSSL |
+| `CLIENTSSL_SERVERHELLO_SEND` | Rejected | CLIENTSSL |
 | `SERVERSSL_CLIENTHELLO_SEND` | Rejected | SERVERSSL |
+| `SERVERSSL_DATA` | Rejected | SERVERSSL |
+| `SERVERSSL_SERVERCERT` | Rejected | SERVERSSL |
 | `SERVERSSL_SERVERHELLO` | Accepted | |
 | `SERVERSSL_HANDSHAKE` | Accepted | |
 

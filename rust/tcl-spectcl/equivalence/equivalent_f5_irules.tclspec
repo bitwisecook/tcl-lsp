@@ -11435,14 +11435,13 @@ command HTTP::header {
     available {f5-irules}
     traits {CSE_CANDIDATE REQUIRES_HTTP_CONTEXT DIAGRAM_ACTION}
     arity 1..
+    excluded_events RULE_INIT
 
     allow_unknown_subcommands
     prefix_matching Strict
 
     side_effect HttpHeader -reads -writes -side Both
 
-    taint_output_sink IRULE3002
-    taint_output_sink_subcommands {insert replace}
     taint_source TAINTED
     # TODO(spectcl): `event_requires` is set on the source spec. The DSL spells
     #   it `event_requires NAME|{ … }`, but a draft records only that the
@@ -11470,6 +11469,7 @@ command HTTP::header {
     refine setter {
         arity 2
         mutator yes
+        header_write 0 1 empty-result
         side_effect HttpHeader -writes -side Both
     }
 
@@ -11499,8 +11499,13 @@ command HTTP::header {
         detail {Insert header/value pair.}
         synopsis {HTTP::header insert <name> <value>}
         mutator
-        credential_arg 2
-        sensitive_headers {authorization proxy-authorization x-api-key x-auth-token x-secret}
+
+        refine insert {
+            arity 2..
+            mutator yes
+            header_write 0 1
+            side_effect HttpHeader -writes -side Both
+        }
     }
 
     subcommand insert_modssl_fields {
@@ -11550,8 +11555,13 @@ command HTTP::header {
         detail {Replace header value.}
         synopsis {HTTP::header replace <name> ?<string>?}
         mutator
-        credential_arg 2
-        sensitive_headers {authorization proxy-authorization x-api-key x-auth-token x-secret}
+
+        refine replace {
+            arity 1..2
+            mutator yes
+            header_write 0 1
+            side_effect HttpHeader -writes -side Both
+        }
     }
 
     subcommand sanitize {
@@ -11574,10 +11584,9 @@ command HTTP::header {
         refine setter {
             arity 2
             mutator yes
+            header_write 0 1 empty-result
             side_effect HttpHeader -writes -side Both
         }
-        credential_arg 2
-        sensitive_headers {authorization proxy-authorization x-api-key x-auth-token x-secret}
     }
 
     subcommand values {

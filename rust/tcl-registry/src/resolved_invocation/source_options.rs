@@ -292,6 +292,22 @@ impl<'r> ResolvedInvocation<'r, '_> {
                 }
             }
         }
+        if let Some((header, Some(argument))) = self.header_write_arguments()
+            && self
+                .words
+                .arguments()
+                .literal_at(header)
+                .is_some_and(|name| {
+                    crate::taint::SENSITIVE_HTTP_HEADERS
+                        .iter()
+                        .any(|sensitive| name.eq_ignore_ascii_case(sensitive))
+                })
+        {
+            arguments.push(AuthoredSourceCredentialArgument {
+                argument,
+                position: AuthoredSourceCredentialPosition::Header(header),
+            });
+        }
         if let Some(subcommand) = selected.subcommand
             && let Some(argument) = subcommand.credential_arg.map(usize::from)
             && let Some(count) = self.words.arguments().exact_argv_len()

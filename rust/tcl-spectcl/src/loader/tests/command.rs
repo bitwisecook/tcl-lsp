@@ -229,6 +229,30 @@ fn a_refine_block_states_one_invocation_form() {
     assert!(effect.writes);
 }
 
+#[test]
+fn a_refined_header_write_keeps_the_name_and_value_operands() {
+    let pack = evaluate_pack(
+        "speclib probe 2.3 {
+            command header {
+                arity 2
+                refine setter {
+                    arity 2
+                    header_write 0 1 empty-result
+                }
+            }
+        }",
+    );
+    let form = &pack.command("header").unwrap().spec.command_forms[0];
+    assert_eq!(
+        form.header_write,
+        Some(tcl_registry::forms::HeaderWrite {
+            name: 0,
+            value: 1,
+            returns_empty: true,
+        })
+    );
+}
+
 /// A subcommand refines its own forms, through the same reader — which is
 /// the shape Tk's widget methods need: one query arity and one mutation
 /// arity under a single method word.

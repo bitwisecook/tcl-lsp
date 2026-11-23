@@ -670,10 +670,20 @@ fn http_header_uses_exact_keywords_and_resolves_both_write_forms() {
         assert_eq!(effect.reads, !writes, "{args:?}");
     }
 
-    let write_secret = registry
-        .resolve_invocation("HTTP::header", &["value", "Authorization", "opaque"], query)
-        .unwrap();
-    assert_eq!(write_secret.authored_source_credential_arguments().len(), 1);
+    for args in [
+        &["Authorization", "opaque"][..],
+        &["value", "Authorization", "opaque"][..],
+        &["insert", "Authorization", "opaque"][..],
+    ] {
+        let write_secret = registry
+            .resolve_invocation("HTTP::header", args, query)
+            .unwrap();
+        assert_eq!(write_secret.authored_source_credential_arguments().len(), 1);
+        assert!(write_secret.header_write_arguments().is_some());
+        if args.first() != Some(&"insert") {
+            assert!(write_secret.facts().taint_source.is_none());
+        }
+    }
 }
 
 #[test]

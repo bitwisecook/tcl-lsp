@@ -296,6 +296,9 @@ fn command_form(form: &CommandForm, lost: &mut Unrecovered) -> (Value, bool) {
         "mutator".into(),
         form.mutator.map_or(Value::Null, |flag| json!(flag)),
     );
+    d.insert("header_write".into(), form.header_write.map_or(Value::Null, |write| {
+        json!({"name": write.name, "value": write.value, "returns_empty": write.returns_empty})
+    }));
     d.insert(
         "side_effects".into(),
         form.side_effects.map_or(Value::Null, |effects| {

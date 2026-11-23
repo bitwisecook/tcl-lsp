@@ -77,6 +77,24 @@ suite("iRule Event Skeleton", () => {
     );
   });
 
+  test("uses registry flow order across both SSL legs", () => {
+    const source = buildIruleEventSkeleton([
+      "SERVERSSL_HANDSHAKE",
+      "SERVERSSL_SERVERHELLO",
+      "SERVERSSL_CLIENTHELLO_SEND",
+      "CLIENTSSL_HANDSHAKE",
+      "CLIENTSSL_CLIENTHELLO",
+    ]);
+    const order = [...source.matchAll(/^when (\w+)/gm)].map((match) => match[1]);
+    assert.deepStrictEqual(order.filter((event) => event.includes("SSL_")), [
+      "CLIENTSSL_CLIENTHELLO",
+      "CLIENTSSL_HANDSHAKE",
+      "SERVERSSL_CLIENTHELLO_SEND",
+      "SERVERSSL_SERVERHELLO",
+      "SERVERSSL_HANDSHAKE",
+    ]);
+  });
+
   test("returns empty string for empty event selection", () => {
     assert.strictEqual(buildIruleEventSkeleton([]), "");
   });

@@ -432,7 +432,7 @@ fn event_props_table_4() -> Vec<(&'static str, EventProps)> {
             EventProps {
                 client_side: true,
                 transport: &["tcp"],
-                implied_profiles: &["CLIENTSSL", "PERSIST", "SSL_PERSISTENCE"],
+                implied_profiles: &["CLIENTSSL"],
                 setup_event: Some("CLIENTSSL_HANDSHAKE"),
                 data_collect_protocols: &["SSL"],
                 data_collect_side: Some(ConnectionSide::Client),
@@ -454,7 +454,7 @@ fn event_props_table_4() -> Vec<(&'static str, EventProps)> {
             EventProps {
                 client_side: true,
                 transport: &["tcp"],
-                implied_profiles: &["CLIENTSSL", "PERSIST", "SSL_PERSISTENCE"],
+                implied_profiles: &["CLIENTSSL"],
                 ..EventProps::DEFAULT
             },
         ),
@@ -463,7 +463,7 @@ fn event_props_table_4() -> Vec<(&'static str, EventProps)> {
             EventProps {
                 client_side: true,
                 transport: &["tcp"],
-                implied_profiles: &["CLIENTSSL", "PERSIST", "SSL_PERSISTENCE"],
+                implied_profiles: &["CLIENTSSL"],
                 ..EventProps::DEFAULT
             },
         ),
@@ -1460,7 +1460,7 @@ fn event_props_table_16() -> Vec<(&'static str, EventProps)> {
                 server_side: true,
                 command_side: ConnectionSide::Server,
                 transport: &["tcp"],
-                implied_profiles: &["PERSIST", "SERVERSSL", "SSL_PERSISTENCE"],
+                implied_profiles: &["SERVERSSL"],
                 setup_event: Some("SERVERSSL_HANDSHAKE"),
                 data_collect_protocols: &["SSL"],
                 data_collect_side: Some(ConnectionSide::Server),
@@ -1485,7 +1485,7 @@ fn event_props_table_16() -> Vec<(&'static str, EventProps)> {
                 client_side: true,
                 server_side: true,
                 transport: &["tcp"],
-                implied_profiles: &["PERSIST", "SERVERSSL", "SSL_PERSISTENCE"],
+                implied_profiles: &["SERVERSSL"],
                 ..EventProps::DEFAULT
             },
         ),

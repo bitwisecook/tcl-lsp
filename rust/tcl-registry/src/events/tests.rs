@@ -92,7 +92,12 @@ fn ssl_handshake_attachment_profiles_keep_event_specific_persistence() {
     for (event, ssl, persist) in [
         ("CLIENTSSL_CLIENTHELLO", "CLIENTSSL", true),
         ("CLIENTSSL_HANDSHAKE", "CLIENTSSL", false),
+        ("CLIENTSSL_DATA", "CLIENTSSL", false),
+        ("CLIENTSSL_PASSTHROUGH", "CLIENTSSL", false),
+        ("CLIENTSSL_SERVERHELLO_SEND", "CLIENTSSL", false),
         ("SERVERSSL_CLIENTHELLO_SEND", "SERVERSSL", false),
+        ("SERVERSSL_DATA", "SERVERSSL", false),
+        ("SERVERSSL_SERVERCERT", "SERVERSSL", false),
         ("SERVERSSL_SERVERHELLO", "SERVERSSL", true),
         ("SERVERSSL_HANDSHAKE", "SERVERSSL", true),
     ] {
