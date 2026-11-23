@@ -1,0 +1,58 @@
+# The MCP tools' dialect enum has no Jim entry, so diagnostics come from target/release/tcl-lsp-server (built 2026-11-22)
+# over JSON-RPC with workspace/didChangeConfiguration {tclLsp:{dialect:...}}: 'jimtcl' (accepted) and 'tcl9.0' for comparison.
+# Format: fixture <TAB> dialect <TAB> code@line ...
+j01-ref-getref-setref.tcl	jimtcl	-
+j02-collect-finalize.tcl	jimtcl	W214@L2
+j03-local-proc.tcl	jimtcl	-
+j04-upcall.tcl	jimtcl	-
+j05-expr-sugar.tcl	jimtcl	-
+j06-dict-sugar.tcl	jimtcl	T101@L3 T101@L5
+j07-lambda-statics.tcl	jimtcl	W307@L3
+j08-alias-curry.tcl	jimtcl	W307@L6
+j09-namespace.tcl	jimtcl	-
+j10-stackdump.tcl	jimtcl	T101@L5 T101@L6
+j11-exists.tcl	jimtcl	W211@L2
+j12-lmap.tcl	jimtcl	-
+j13-info-differences.tcl	jimtcl	T101@L3 T101@L4
+j14-error-return.tcl	jimtcl	T101@L2
+j15-backslash-newline-in-braces.tcl	jimtcl	-
+j16-array-is-dict.tcl	jimtcl	T101@L3 T101@L4
+j17-defer.tcl	jimtcl	-
+j18-loop-range.tcl	jimtcl	T101@L1 T101@L3
+j19-proc-statics.tcl	jimtcl	W210@L4
+j20-octal-and-expr.tcl	jimtcl	W155@L3 T101@L2
+j21-upvar-global.tcl	jimtcl	-
+j22-string-and-list-misc.tcl	jimtcl	W001@L1 T101@L1 T101@L2 T101@L3 T101@L4
+j23-rt-expr-literal-in-catch.tcl	jimtcl	T101@L3 T101@L4
+j01-ref-getref-setref.tcl	tcl9.0	W002@L2 W123@L2 W002@L4 W002@L5 W002@L6
+j02-collect-finalize.tcl	tcl9.0	W214@L2 W002@L3 W123@L3 W002@L4 W002@L6
+j03-local-proc.tcl	tcl9.0	W002@L3 W123@L3
+j04-upcall.tcl	tcl9.0	W002@L4 W123@L4
+j05-expr-sugar.tcl	tcl9.0	W210@L3
+j06-dict-sugar.tcl	tcl9.0	T101@L3
+j07-lambda-statics.tcl	tcl9.0	W120@L2 W123@L2 W307@L3
+j08-alias-curry.tcl	tcl9.0	W002@L2 W123@L2 W002@L5 W307@L6
+j09-namespace.tcl	tcl9.0	-
+j10-stackdump.tcl	tcl9.0	W002@L7 W123@L7 T101@L5 T101@L6
+j11-exists.tcl	tcl9.0	W002@L4 W123@L4 W002@L4 W002@L4 W002@L4 W002@L4
+j12-lmap.tcl	tcl9.0	-
+j13-info-differences.tcl	tcl9.0	E003@L2
+j14-error-return.tcl	tcl9.0	T101@L2
+j15-backslash-newline-in-braces.tcl	tcl9.0	-
+j16-array-is-dict.tcl	tcl9.0	T101@L3 T101@L4
+j17-defer.tcl	tcl9.0	W002@L2 W123@L2
+j18-loop-range.tcl	tcl9.0	W002@L1 W123@L1
+j19-proc-statics.tcl	tcl9.0	E003@L2
+j20-octal-and-expr.tcl	tcl9.0	W155@L3 T101@L2
+j21-upvar-global.tcl	tcl9.0	T101@L6 T101@L7
+j22-string-and-list-misc.tcl	tcl9.0	W001@L1
+j23-rt-expr-literal-in-catch.tcl	tcl9.0	T101@L3 T101@L4
+
+# Notable messages under jimtcl
+j19-proc-statics.tcl	L4	W210	Variable 'Callable { allocation: CallableStorageIdentity { site: CommandAllocationSite { s
+j22-string-and-list-misc.tcl	L1	W001	Unknown subcommand 'byterange' for 'string'
+j02-collect-finalize.tcl	L2	W214	Parameter 'r' of proc '::fin' is unused
+j11-exists.tcl	L2	W211	Variable 'x' is set but never used
+# j19 W210 is false (statics initialise count) and its message prints a Rust Debug value; j22 W001 is false (Jim has string byterange);
+# j02 W214 is false (finalizer has a fixed signature); j11 W211 is arguable ('exists x' observes x).
+# False negatives under tcl9.0: j06 $d(a) on a scalar (tclsh: variable isn't array), j16 dict get on an array, j15 brace backslash-newline difference.

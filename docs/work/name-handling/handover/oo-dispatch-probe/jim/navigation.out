@@ -1,0 +1,75 @@
+# Hover / definition / references at Jim-specific sites (server JSON-RPC; 1-based lines; refs=None means null).
+##### jimtcl
+j03-local-proc.tcl L4:13 [call helper] word='elper]'
+   hover='None'
+   def=None refs=None
+j04-upcall.tcl L4:40 [upcall greet word] word='call greet]"'
+   hover='None'
+   def=None refs=None
+j04-upcall.tcl L5:13 [call greet in wrap (local)] word='reet]'
+   hover='```tcl\nproc ::greet {} {...}\n```\n\nJim upcall: call the command that a local proc replaced'
+   def=[2] refs=None
+j04-upcall.tcl L8:7 [call greet at top] word='reet]'
+   hover='```tcl\nproc ::greet {} {...}\n```\n\nJim upcall: call the command that a local proc replaced'
+   def=[2] refs=None
+j01-ref-getref-setref.tcl L2:8 [ref] word='ef hello myt'
+   hover='**`ref`** — built-in command\n\nCreate a reference to a string; the finalizer runs when the reference is collected.\n\n```tcl\nref string tag ?finalizer?\n```\n'
+   def=None refs=None
+j01-ref-getref-setref.tcl L4:7 [getref] word='etref $r]'
+   hover='**`getref`** — built-in command\n\nThe string a reference holds.\n\n```tcl\ngetref reference\n```\n'
+   def=None refs=None
+j08-alias-curry.tcl L4:7 [call e (alias)] word=' v]:[e nope]'
+   hover='None'
+   def=None refs=None
+j07-lambda-statics.tcl L2:8 [lambda] word='ambda {x} {e'
+   hover='**`lambda`** — built-in command\n\nReturn an anonymous command with the given parameters, optional static variables and body.\n\n```tcl\nlambda arglist ?statics? bod'
+   def=None refs=None
+j11-exists.tcl L4:7 [exists] word='xists x]:[ex'
+   hover='**`exists`** — built-in command\n\nReport 0 or 1 for whether a variable, command, proc, alias or channel exists.\n\n```tcl\nexists ?-command|-proc|-alias|-channel|-v'
+   def=None refs=None
+j06-dict-sugar.tcl L3:7 [$d(a)] word='(a)'
+   hover='**Variable** `d`\n\n2 declaration(s) and 2 reference(s) in this document'
+   def=[2, 4] refs=[2, 3, 4, 5]
+j17-defer.tcl L2:5 [defer] word='efer {puts d'
+   hover='**`defer`** — built-in command\n\nRun a script when the calling proc, or the interpreter, exits.\n\n```tcl\ndefer script\n```\n'
+   def=None refs=None
+j10-stackdump.tcl L7:23 [stackdump] word='p [dict get '
+   hover='**`stackdump`** — built-in command\n\nFormat a stack trace list as readable text.\n\n```tcl\nstackdump stacktrace\n```\n'
+   def=None refs=None
+##### tcl9.0
+j03-local-proc.tcl L4:13 [call helper] word='elper]'
+   hover='None'
+   def=None refs=None
+j04-upcall.tcl L4:40 [upcall greet word] word='call greet]"'
+   hover='None'
+   def=None refs=None
+j04-upcall.tcl L5:13 [call greet in wrap (local)] word='reet]'
+   hover='None'
+   def=None refs=None
+j04-upcall.tcl L8:7 [call greet at top] word='reet]'
+   hover='None'
+   def=None refs=None
+j01-ref-getref-setref.tcl L2:8 [ref] word='ef hello myt'
+   hover='None'
+   def=None refs=None
+j01-ref-getref-setref.tcl L4:7 [getref] word='etref $r]'
+   hover='None'
+   def=None refs=None
+j08-alias-curry.tcl L4:7 [call e (alias)] word=' v]:[e nope]'
+   hover='None'
+   def=None refs=None
+j07-lambda-statics.tcl L2:8 [lambda] word='ambda {x} {e'
+   hover='**`lambda`** — command documentation\n\nConstruct an anonymous procedure (a lambda term).\n\n```tcl\nlambda arguments body ?arg ...?\n```\n\nDeclared provider: `lambda`'
+   def=None refs=None
+j11-exists.tcl L4:7 [exists] word='xists x]:[ex'
+   hover='None'
+   def=None refs=None
+j06-dict-sugar.tcl L3:7 [$d(a)] word='(a)'
+   hover='**Variable** `d`\n\n2 declaration(s) and 2 reference(s) in this document'
+   def=[2, 4] refs=[2, 3, 4, 5]
+j17-defer.tcl L2:5 [defer] word='efer {puts d'
+   hover='None'
+   def=None refs=None
+j10-stackdump.tcl L7:23 [stackdump] word='p [dict get '
+   hover='None'
+   def=None refs=None
