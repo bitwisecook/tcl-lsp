@@ -139,6 +139,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             allow_none: true,
             references: &["ltm_node"],
             list_operators: &["add", "delete", "modify", "replace-all-with"],
+            address_validation: crate::bigip::AddressValidation::Syntax21_1,
             block: &[
                 BigipPropertySpec {
                     name: "address",

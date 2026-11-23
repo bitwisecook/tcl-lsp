@@ -985,6 +985,65 @@ fn reference_supplied_by_property(
     }
 }
 
+fn check_measured_address_syntax(
+    object: &crate::model::BigipGenericObject,
+    field: &tcl_registry::bigip::BigipPropertySpec,
+    raw: &str,
+    out: &mut Vec<ConfigDiagnostic>,
+) -> bool {
+    use tcl_registry::bigip::AddressGrammar;
+
+    if !object
+        .tmos_version
+        .is_some_and(|version| (version.major, version.minor) == (21, 1))
+    {
+        return true;
+    }
+    let mut valid = true;
+    let mut check = |field: &tcl_registry::bigip::BigipPropertySpec, path: &[&str], value: &str| {
+        let value = crate::parser::helpers::unquote(value);
+        if !field.address_validation.checks_syntax() || (field.allow_none && value == "none") {
+            return;
+        }
+        if crate::value::read_address_field(&object.module, &object.object_type, path, value)
+            .is_none()
+        {
+            valid = false;
+            out.push(ConfigDiagnostic {
+                code: DiagCode::Bigip6015.as_str().to_owned(),
+                message: format!(
+                    "{} '{}' has invalid address value '{}' in property '{}' for BIG-IP 21.1.",
+                    object.object_type,
+                    object.identifier,
+                    value,
+                    path.join(" ")
+                ),
+                severity: DiagSeverity::Warning,
+                subject: ConfigDiagnosticSubject::Object,
+                range: object_range(object.range),
+            });
+        }
+    };
+    if field.address_grammar == Some(AddressGrammar::MemberKey) {
+        for (key, _) in parse_keyed_block_entries(raw) {
+            check(field, &[field.name], &key);
+        }
+    } else if field.address_grammar.is_some() {
+        check(field, &[field.name], raw);
+    } else if field
+        .block
+        .iter()
+        .any(|child| child.address_validation.checks_syntax())
+    {
+        for (property, value) in parse_properties_with_spans(raw.trim_matches(['{', '}'])) {
+            if let Some(child) = field.block.iter().find(|child| child.name == property) {
+                check(child, &[field.name, child.name], &value.value);
+            }
+        }
+    }
+    valid
+}
+
 fn check_address_route_domain(
     object: &crate::model::BigipGenericObject,
     property: &str,
@@ -992,6 +1051,7 @@ fn check_address_route_domain(
     route_domains: &HashSet<u32>,
     out: &mut Vec<ConfigDiagnostic>,
 ) {
+    let value = crate::parser::helpers::unquote(value);
     let Some(domain) = read_address_property(&object.module, &object.object_type, property, value)
         .and_then(|value| value.route_domain())
         .filter(|domain| *domain != 0 && !route_domains.contains(domain))
@@ -1038,12 +1098,21 @@ fn check_registry_references(config: &BigipConfig, out: &mut Vec<ConfigDiagnosti
 
     for (object, from_kind) in &objects {
         for (property, parsed) in parse_properties_with_spans(&object.body) {
-            if let Some(field) = registry
-                .get(from_kind)
-                .and_then(|spec| spec.properties.iter().find(|field| field.name == property))
-                .filter(|field| field.requires_route_domain)
+            if let Some(field) =
+                registry.property(&object.module, &object.object_type, &[&property])
             {
-                check_address_route_domain(object, field.name, &parsed.value, &route_domains, out);
+                if !check_measured_address_syntax(object, field, &parsed.value, out) {
+                    continue;
+                }
+                if field.address_validation.requires_route_domain() {
+                    check_address_route_domain(
+                        object,
+                        field.name,
+                        &parsed.value,
+                        &route_domains,
+                        out,
+                    );
+                }
             }
             // BIGIP6003 and BIGIP6005 already own these two virtual-server
             // links. All other registry edges, including monitors, members,
@@ -1370,6 +1439,26 @@ ltm rule /Common/probe {
         assert_eq!(diagnostics.len(), 1, "{diagnostics:#?}");
         assert!(diagnostics[0].message.contains("'invalid'"));
         assert!(diagnostics[0].message.contains("/Common/addresses"));
+    }
+
+    #[test]
+    fn measured_21_1_address_rejections_have_diagnostics() {
+        let source = r"#TMSH-VERSION: 21.1.0.1
+ltm virtual /Common/invalid_port { destination 192.0.2.53:65536 }
+ltm virtual /Common/invalid_service { destination 192.0.2.53:nh234_unknown }
+ltm virtual /Common/bad_colon { destination 2001:db8::53%0:80 }
+ltm virtual /Common/good_v6 { destination 2001:db8::53%0.http }
+ltm monitor tcp /Common/bad_wildcard { destination 2001:db8::53.* }
+ltm monitor tcp /Common/good_colon { destination 2001:db8::53%0:80 }
+ltm node /Common/bad_fqdn { fqdn { name example.com. } }
+ltm node /Common/good_fqdn { fqdn { name xn--caf-dma.example } }
+";
+        let diagnostics: Vec<_> = validate_bigip_source(source, "Common")
+            .into_iter()
+            .filter(|diagnostic| diagnostic.code == "BIGIP6015")
+            .collect();
+        assert_eq!(diagnostics.len(), 5, "{diagnostics:#?}");
+        assert!(!has(&source.replace("21.1.0.1", "17.1.0"), "BIGIP6015"));
     }
 
     #[test]

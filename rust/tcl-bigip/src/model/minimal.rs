@@ -51,6 +51,8 @@ pub struct BigipGenericObject {
     /// Raw stanza body. This is retained for registry-driven validation of
     /// references on object kinds that do not yet have a bespoke model.
     pub body: String,
+    /// Version from the source SCF header, if it declared one.
+    pub tmos_version: Option<tcl_registry::profile_defaults::BigipVersion>,
     /// Source span, when captured.
     pub range: Option<Range>,
 }

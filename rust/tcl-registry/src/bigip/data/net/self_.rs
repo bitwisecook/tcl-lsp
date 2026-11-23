@@ -36,6 +36,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             value_type: ValueKind::String,
             shape_kind: Some(ValueKind::IpAddress),
             usage_flags: &["optional"],
+            address_validation: crate::bigip::AddressValidation::Syntax21_1,
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {

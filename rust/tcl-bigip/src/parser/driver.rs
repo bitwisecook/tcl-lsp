@@ -146,6 +146,15 @@ pub fn parse_bigip_conf(source: &str, default_partition: &str) -> BigipConfig {
     let index = ObjectTypeIndex::build(&registry);
     let line_index = LineIndex::new(source);
 
+    let tmos_version = source
+        .lines()
+        .map(str::trim)
+        .take_while(|line| line.is_empty() || line.starts_with('#'))
+        .find_map(|line| {
+            let version = line.strip_prefix("#TMSH-VERSION:")?;
+            tcl_registry::profile_defaults::BigipVersion::parse(version)
+        });
+
     let mut config = BigipConfig {
         default_partition: default_partition.to_owned(),
         ..BigipConfig::default()
@@ -196,6 +205,7 @@ pub fn parse_bigip_conf(source: &str, default_partition: &str) -> BigipConfig {
                 identifier: identifier.clone(),
                 header: block.header.clone(),
                 body: block.body.clone(),
+                tmos_version,
                 range: Some(range),
             },
         ));

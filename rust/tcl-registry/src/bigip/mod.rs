@@ -151,6 +151,31 @@ pub enum AddressGrammar {
     GtmMemberKey,
 }
 
+/// Appliance coverage for an authored address property.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum AddressValidation {
+    /// The registry has no matching appliance verdict for the local reader.
+    Unmeasured,
+    /// Validate syntax on SCF input identifying 21.1.
+    Syntax21_1,
+    /// Validate 21.1 syntax and resolve every explicit nonzero route domain.
+    RouteDomain21_1,
+}
+
+impl AddressValidation {
+    /// Whether the 21.1 reader can diagnose an invalid literal.
+    #[must_use]
+    pub const fn checks_syntax(self) -> bool {
+        !matches!(self, Self::Unmeasured)
+    }
+
+    /// Whether the property requires a defined route domain.
+    #[must_use]
+    pub const fn requires_route_domain(self) -> bool {
+        matches!(self, Self::RouteDomain21_1)
+    }
+}
+
 /// Resolution metadata for one BIG-IP object kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BigipObjectKindSpec {
@@ -198,8 +223,8 @@ pub struct BigipPropertySpec {
     pub shape_kind: Option<ValueKind>,
     /// Reader for an address-bearing scalar or keyed block.
     pub address_grammar: Option<AddressGrammar>,
-    /// An explicit nonzero route domain must be defined by the configuration.
-    pub requires_route_domain: bool,
+    /// Appliance-backed validation for the property's reader.
+    pub address_validation: AddressValidation,
     /// Documented default value.
     pub default: Option<&'static str>,
     /// Lifecycle flags (`deprecated`, `read_only`, `not_synced`, …).
@@ -259,7 +284,7 @@ impl BigipPropertySpec {
         description: "",
         shape_kind: None,
         address_grammar: None,
-        requires_route_domain: false,
+        address_validation: AddressValidation::Unmeasured,
         default: None,
         usage_flags: &[],
         list_operators: &[],
@@ -743,7 +768,7 @@ mod address_grammar_coverage {
             if matches!(
                 field.shape_kind,
                 Some(ValueKind::IpAddress | ValueKind::Endpoint)
-            ) || field.requires_route_domain
+            ) || field.address_validation.checks_syntax()
             {
                 assert!(field.address_grammar.is_some(), "{kind} {}", field.name);
             }
