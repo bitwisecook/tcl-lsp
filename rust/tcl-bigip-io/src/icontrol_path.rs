@@ -46,6 +46,20 @@ fn percent_encode(s: &str) -> String {
     out
 }
 
+/// Encode an authored path, short name or already encoded resource ID.
+#[must_use]
+pub fn checked_resource_id(name: &str) -> Option<String> {
+    if name.starts_with('~') {
+        return Some(encode_path(&decode_path(name)?));
+    }
+    let valid = if name.starts_with('/') {
+        BigIpName::try_parse(name).is_some()
+    } else {
+        BigIpName::valid_leaf(name)
+    };
+    valid.then(|| encode_path(name))
+}
+
 /// Decode an iControl REST resource ID into an authored path or short name.
 ///
 /// Returns `None` for an invalid escape, UTF-8 sequence or object path.
@@ -101,6 +115,24 @@ mod tests {
         ] {
             assert_eq!(encode_path(name), encoded);
             assert_eq!(decode_path(encoded).as_deref(), Some(name));
+        }
+    }
+
+    #[test]
+    fn rest_boundary_validates_paths_and_recognises_existing_resource_ids() {
+        let encoded = "~Common~10.0.0.1%252";
+        assert_eq!(checked_resource_id(encoded).as_deref(), Some(encoded));
+        assert_eq!(
+            checked_resource_id("/Common/10.0.0.1%2").as_deref(),
+            Some(encoded)
+        );
+        for name in [
+            "/Common//pool",
+            "/Common/pool/",
+            " /Common/pool ",
+            "pool/name",
+        ] {
+            assert_eq!(checked_resource_id(name), None, "{name}");
         }
     }
 
