@@ -21,6 +21,28 @@
 use super::*;
 
 #[test]
+fn w124_distinguishes_times_and_mac_addresses_from_invalid_ipv6() {
+    let mut analyser = Analyser::new();
+    for other in ["12:30:45", "00:11:22:aa:bb:cc"] {
+        let result = analyser.analyse(&format!("proc inspect {{}} {{ set value {other} }}"), "tcl");
+        assert!(
+            !result
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == DiagCode::W124),
+            "{other}"
+        );
+    }
+    let result = analyser.analyse("proc inspect {} { set value 2001:db8:abcd:1 }", "tcl");
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == DiagCode::W124)
+    );
+}
+
+#[test]
 fn ipv6_candidate_scanner_extracts_runs() {
     let c = super::super::super::find_ipv6_candidates("addr fe80::1 end");
     assert_eq!(c, vec!["fe80::1"]);

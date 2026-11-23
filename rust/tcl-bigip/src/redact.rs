@@ -92,7 +92,9 @@ fn ipv4_re() -> &'static Regex {
 
 fn ipv6_re() -> &'static Regex {
     static RE: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
-    RE.get_or_init(|| Regex::new(RGXG_V6).expect("valid v6 regex"))
+    RE.get_or_init(|| {
+        Regex::new(&format!("(?i:::ffff:{RGXG_V4})|{RGXG_V6}")).expect("valid v6 regex")
+    })
 }
 
 /// `\w` for ASCII text is `[A-Za-z0-9_]`; the inputs here are ASCII config
@@ -1855,6 +1857,13 @@ mod tests {
         assert!(toml.contains(r#"target = "10.0.0.0/24""#));
         assert!(toml.contains(r#""1.1.1.1" = "10.0.2.1""#));
         assert!(toml.ends_with('\n'));
+    }
+
+    #[test]
+    fn mapped_ipv4_is_one_complete_ipv6_match() {
+        let matches = find_v6("address ::ffff:10.0.0.1%2");
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].text, "::ffff:10.0.0.1");
     }
 
     #[test]
