@@ -27,6 +27,7 @@ rust/tcl-engine-api
 rust/tcl-engine-tclvm
 rust/tcl-engine-wasm
 rust/tcl-explorer
+rust/tcl-expr
 rust/tcl-f5mku
 rust/tcl-fuzz
 rust/tcl-host-c-abi
@@ -38,6 +39,7 @@ rust/tcl-lsp-core
 rust/tcl-lsp-db
 rust/tcl-lsp-server
 rust/tcl-mcp
+rust/tcl-numeric
 rust/tcl-pkg
 rust/tcl-pkg-model
 rust/tcl-platform
@@ -52,6 +54,7 @@ rust/tcl-sslictcl
 rust/tcl-syntax
 rust/tcl-test-support
 rust/tcl-userdirs
+rust/tcl-value-syntax
 rust/tcl-version
 rust/tcl-vm
 rust/tcl-vm-cli

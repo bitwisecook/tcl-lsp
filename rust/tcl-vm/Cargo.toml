@@ -42,7 +42,6 @@ name = "tcl_vm"
 
 [dependencies]
 tcl-value-syntax = { path = "../tcl-value-syntax" }
-tcl-codegen = { path = "../tcl-codegen" }
 tcl-core-types = { path = "../tcl-core-types" }
 tcl-bytecode = { path = "../tcl-bytecode" }
 tcl-dialect = { path = "../tcl-dialect" }
@@ -98,6 +97,7 @@ js-clock = ["dep:js-sys"]
 test-support = []
 
 [dev-dependencies]
+tcl-codegen = { path = "../tcl-codegen" }
 # End-to-end tests compile real Tcl to bytecode then run it. Dev-only, so the
 # library itself stays off the compiler (CompileService is the runtime seam).
 tcl-compiler = { path = "../tcl-compiler" }

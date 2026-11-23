@@ -1707,7 +1707,6 @@ name = "tcl-lsp-db"
 version = "0.1.0"
 dependencies = [
  "salsa",
- "tcl-codegen",
  "tcl-compiler",
  "tcl-core-types",
  "tcl-dialect",
@@ -1920,7 +1919,6 @@ dependencies = [
  "rustc-hash",
  "tcl-bytecode",
  "tcl-cmd-core",
- "tcl-codegen",
  "tcl-core-types",
  "tcl-dialect",
  "tcl-host-native",

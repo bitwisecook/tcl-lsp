@@ -11,6 +11,7 @@ Usage: extract-tclcheck.py <libtclCheck_tcl.so.1.0 (64-bit)> <outdir>
 Keep the extracted vendor source in private storage outside this repository.
 Requires `nm` (binutils or llvm) on PATH.
 """
+
 import pathlib
 import struct
 import subprocess
@@ -23,7 +24,9 @@ def sections(data):
     shoff = struct.unpack_from("<Q", data, 0x28)[0]
     shentsize, shnum = struct.unpack_from("<HH", data, 0x3A)
     for i in range(shnum):
-        _name, _typ, _flags, addr, off, size = struct.unpack_from("<IIQQQQ", data, shoff + i * shentsize)
+        _name, _typ, _flags, addr, off, size = struct.unpack_from(
+            "<IIQQQQ", data, shoff + i * shentsize
+        )
         yield addr, off, size
 
 
@@ -39,8 +42,14 @@ def main(lib, outdir):
                 return va - addr + off
         raise ValueError(hex(va))
 
-    nm = subprocess.run(["nm", "-D", "--defined-only", lib], capture_output=True, text=True, check=True)
-    syms = sorted((int(a, 16), n) for a, _t, n in (l.split() for l in nm.stdout.splitlines()) if n.endswith("_tcl"))
+    nm = subprocess.run(
+        ["nm", "-D", "--defined-only", lib], capture_output=True, text=True, check=True
+    )
+    syms = sorted(
+        (int(a, 16), n)
+        for a, _t, n in (l.split() for l in nm.stdout.splitlines())
+        if n.endswith("_tcl")
+    )
     out = pathlib.Path(outdir)
     out.mkdir(parents=True, exist_ok=True)
     for va, name in syms:

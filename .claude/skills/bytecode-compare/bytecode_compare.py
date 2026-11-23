@@ -210,9 +210,23 @@ def ours_text(name: str, version: str) -> str:
     cached = REF_BASE / f"ours-{version}" / f"{name}.disasm"
     source = SNIPPETS_DIR / f"{name}.tcl"
     if not cached.exists() or cached.stat().st_mtime < source.stat().st_mtime:
-        cmd = ["cargo", "run", "-q", "-p", "tcl-cli", "--bin", "tcl", "--",
-               "dis", "--dialect", dialect, str(source)]
-        proc = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True, check=False)
+        cmd = [
+            "cargo",
+            "run",
+            "-q",
+            "-p",
+            "tcl-cli",
+            "--bin",
+            "tcl",
+            "--",
+            "dis",
+            "--dialect",
+            dialect,
+            str(source),
+        ]
+        proc = subprocess.run(
+            cmd, cwd=REPO_ROOT, capture_output=True, text=True, check=False
+        )
         if proc.returncode != 0:
             sys.exit(f"tcl dis failed for {name}: {proc.stderr.strip()}")
         cached.parent.mkdir(parents=True, exist_ok=True)

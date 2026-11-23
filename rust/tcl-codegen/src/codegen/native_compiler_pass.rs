@@ -298,7 +298,9 @@ fn place_original_operation_starts(ctx: &mut CodegenCtx<'_>) {
             marker.source_span = Some(site.span);
             marker.source_cmd_text = site.source.clone();
             marker.source_command_namespace = site.namespace.clone();
-            marker.source_command_namespace_context = site.namespace_context.clone();
+            marker
+                .source_command_namespace_context
+                .clone_from(&site.namespace_context);
             marker.source_command_boundary = tcl_bytecode::SourceCommandBoundary::Start;
             marker.native_operation_selections =
                 std::mem::take(&mut instruction.native_operation_selections);

@@ -3,14 +3,14 @@
 # The native `f5-irules` command surface (1062 commands) as SpecTcl, for
 # like-for-like comparison with the compiled-in specs. Not loaded by any
 # product; see docs/design/registry/spectcl-compiled-surface-plan.md.
-# Fields the renderer cannot carry: 989.
+# Fields the renderer cannot carry: 1042.
 
 # Rendered from the tcl-lsp command registry by the spec studio's SpecTcl
 #   renderer (rust/tcl-spec-studio/src/render_spectcl.rs).
 # The syntax is docs/design/spec-dsl-examples/README.md. Every `TODO(spectcl)`
 #   line below names a field the source spec sets that a pack cannot yet say.
 
-speclib equivalent_f5_irules 2.2 {
+speclib equivalent_f5_irules 2.3 {
 
 values access-perflow-set-arg0 {
     value perflow.custom -detail {Custom perflow variable.}
@@ -425,7 +425,6 @@ ACCESS::acl eval $acl_name
         arity 0
         detail {Get ACL match result (Allow/Reject).}
         synopsis {ACCESS::acl result}
-        pure
         side_effect ApmState -reads -side Both
     }
 
@@ -433,7 +432,6 @@ ACCESS::acl eval $acl_name
         arity 0
         detail {Get matched ACL.}
         synopsis {ACCESS::acl matched}
-        pure
         side_effect ApmState -reads -side Both
     }
 
@@ -441,7 +439,6 @@ ACCESS::acl eval $acl_name
         arity 0
         detail {List assigned ACLs for the session.}
         synopsis {ACCESS::acl lookup}
-        pure
         side_effect ApmState -reads -side Both
     }
 
@@ -707,7 +704,6 @@ command ACCESS::perflow {
         arity 1
         detail {Get a perflow variable value.}
         synopsis {ACCESS::perflow get <key>}
-        pure
         side_effect ApmState -reads -side Both
     }
 
@@ -769,7 +765,6 @@ ACCESS::policy uri
         arity 0
         detail {Get the agent identifier.}
         synopsis {ACCESS::policy agent_id}
-        pure
         side_effect ApmState -reads -side Both
     }
 
@@ -784,7 +779,6 @@ ACCESS::policy uri
     subcommand result {
         detail {Get the policy result (allow/deny/redirect).}
         synopsis {ACCESS::policy result ?-sid id?}
-        pure
         side_effect ApmState -reads -side Both
 
         option -sid -takes SESSION_ID -detail {Session ID.}
@@ -794,7 +788,6 @@ ACCESS::policy uri
         arity 0
         detail {Check if URI is internal to ACCESS.}
         synopsis {ACCESS::policy uri}
-        pure
         side_effect ApmState -reads -side Both
     }
 }
@@ -912,7 +905,6 @@ ACCESS::saml assertion
         arity ..1
         detail {Get/set SAML authentication request.}
         synopsis {ACCESS::saml authn ?content?}
-        pure
         mutator
         side_effect ApmState -reads -writes -side Both
     }
@@ -921,7 +913,6 @@ ACCESS::saml assertion
         arity ..1
         detail {Get/set SAML assertion.}
         synopsis {ACCESS::saml assertion ?content?}
-        pure
         mutator
         side_effect ApmState -reads -writes -side Both
     }
@@ -930,7 +921,6 @@ ACCESS::saml assertion
         arity ..1
         detail {Get/set SAML single logout request.}
         synopsis {ACCESS::saml slo_req ?content?}
-        pure
         mutator
         side_effect ApmState -reads -writes -side Both
     }
@@ -939,7 +929,6 @@ ACCESS::saml assertion
         arity ..1
         detail {Get/set SAML single logout response.}
         synopsis {ACCESS::saml slo_resp ?content?}
-        pure
         mutator
         side_effect ApmState -reads -writes -side Both
     }
@@ -1024,7 +1013,6 @@ HTTP::header insert "X-USERNAME" $user
         arity ..1
         detail {Check if a session exists.}
         synopsis {ACCESS::session exists ?-sid id?}
-        pure
         side_effect ApmState -reads -side Both
 
         option -sid -takes SESSION_ID -detail {Session ID.}
@@ -1061,7 +1049,6 @@ HTTP::header insert "X-USERNAME" $user
         arity 0
         detail {Get the session ID.}
         synopsis {ACCESS::session sid}
-        pure
         side_effect ApmState -reads -side Both
     }
 }
@@ -1104,7 +1091,6 @@ ACCESS::user getkey <sid_hash>
         arity 1
         detail {Get original SID from hash.}
         synopsis {ACCESS::user getkey <sid_hash>}
-        pure
         side_effect ApmState -reads -side Both
     }
 
@@ -1112,7 +1098,6 @@ ACCESS::user getkey <sid_hash>
         arity 1
         detail {Get external SIDs for key.}
         synopsis {ACCESS::user getsid <key>}
-        pure
         side_effect ApmState -reads -side Both
     }
 }
@@ -7438,7 +7423,6 @@ Names are written as listed in RFC 3588, formatted as e.g.,
         arity 1..3
         detail {Get/set AVP code.}
         synopsis {DIAMETER::avp code <avp_code> ?vendor_id? ?index?}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 
@@ -7446,7 +7430,6 @@ Names are written as listed in RFC 3588, formatted as e.g.,
         arity 1..2
         detail {Count AVPs matching code.}
         synopsis {DIAMETER::avp count <avp_code> ?vendor_id?}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 
@@ -7454,7 +7437,6 @@ Names are written as listed in RFC 3588, formatted as e.g.,
         arity 1..3
         detail {Get AVP length.}
         synopsis {DIAMETER::avp length <avp_code> ?vendor_id? ?index?}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 
@@ -7470,7 +7452,6 @@ Names are written as listed in RFC 3588, formatted as e.g.,
         arity 1..3
         detail {Get/set AVP data.}
         synopsis {DIAMETER::avp data <avp_code> ?vendor_id? ?index?}
-        pure
         mutator
         side_effect NetworkIo -reads -writes -side Both
     }
@@ -7511,7 +7492,6 @@ Names are written as listed in RFC 3588, formatted as e.g.,
         arity 2..5
         detail {Get/set AVP flags.}
         synopsis {DIAMETER::avp flags <get|set> <avp_code> ?value? ?vendor_id? ?index?}
-        pure
         mutator
         arg 0 -values-from diameter-avp-flags-arg0
         side_effect NetworkIo -reads -writes -side Both
@@ -7677,7 +7657,6 @@ command DIAMETER::header {
         arity ..1
         detail {Get/set the DIAMETER protocol version.}
         synopsis {DIAMETER::header version ?value?}
-        pure
         mutator
         side_effect NetworkIo -reads -writes -side Both
     }
@@ -7686,7 +7665,6 @@ command DIAMETER::header {
         arity 0
         detail {Get the message length (read-only).}
         synopsis {DIAMETER::header length}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 
@@ -7694,7 +7672,6 @@ command DIAMETER::header {
         arity ..1
         detail {Get/set the request flag (R-bit).}
         synopsis {DIAMETER::header rflag ?value?}
-        pure
         mutator
         side_effect NetworkIo -reads -writes -side Both
     }
@@ -7703,7 +7680,6 @@ command DIAMETER::header {
         arity ..1
         detail {Get/set the proxiable flag (P-bit).}
         synopsis {DIAMETER::header pflag ?value?}
-        pure
         mutator
         side_effect NetworkIo -reads -writes -side Both
     }
@@ -7712,7 +7688,6 @@ command DIAMETER::header {
         arity ..1
         detail {Get/set the error flag (E-bit).}
         synopsis {DIAMETER::header eflag ?value?}
-        pure
         mutator
         side_effect NetworkIo -reads -writes -side Both
     }
@@ -7721,7 +7696,6 @@ command DIAMETER::header {
         arity ..1
         detail {Get/set the retransmit flag (T-bit).}
         synopsis {DIAMETER::header tflag ?value?}
-        pure
         mutator
         side_effect NetworkIo -reads -writes -side Both
     }
@@ -7730,7 +7704,6 @@ command DIAMETER::header {
         arity ..1
         detail {Get/set the command code.}
         synopsis {DIAMETER::header command_code ?value?}
-        pure
         mutator
         side_effect NetworkIo -reads -writes -side Both
     }
@@ -7739,7 +7712,6 @@ command DIAMETER::header {
         arity ..1
         detail {Get/set the application ID.}
         synopsis {DIAMETER::header application_id ?value?}
-        pure
         mutator
         side_effect NetworkIo -reads -writes -side Both
     }
@@ -7748,7 +7720,6 @@ command DIAMETER::header {
         arity ..1
         detail {Get/set the hop-by-hop identifier.}
         synopsis {DIAMETER::header hop_by_hop_id ?value?}
-        pure
         mutator
         side_effect NetworkIo -reads -writes -side Both
     }
@@ -7757,7 +7728,6 @@ command DIAMETER::header {
         arity ..1
         detail {Get/set the end-to-end identifier.}
         synopsis {DIAMETER::header end_to_end_id ?value?}
-        pure
         mutator
         side_effect NetworkIo -reads -writes -side Both
     }
@@ -8687,7 +8657,6 @@ part of GTM or the DNS Services add-on.}
         arity ..1
         detail {Get/set the cd header field.}
         synopsis {DNS::header cd ?value?}
-        pure
         mutator
         side_effect DnsState -reads -writes -side Both
     }
@@ -8696,7 +8665,6 @@ part of GTM or the DNS Services add-on.}
         arity ..1
         detail {Get/set the aa header field.}
         synopsis {DNS::header aa ?value?}
-        pure
         mutator
         side_effect DnsState -reads -writes -side Both
     }
@@ -8705,7 +8673,6 @@ part of GTM or the DNS Services add-on.}
         arity ..1
         detail {Get/set the ra header field.}
         synopsis {DNS::header ra ?value?}
-        pure
         mutator
         side_effect DnsState -reads -writes -side Both
     }
@@ -8714,7 +8681,6 @@ part of GTM or the DNS Services add-on.}
         arity ..1
         detail {Get/set the rd header field.}
         synopsis {DNS::header rd ?value?}
-        pure
         mutator
         side_effect DnsState -reads -writes -side Both
     }
@@ -8723,7 +8689,6 @@ part of GTM or the DNS Services add-on.}
         arity ..1
         detail {Get/set the arcount header field.}
         synopsis {DNS::header arcount ?value?}
-        pure
         mutator
         side_effect DnsState -reads -writes -side Both
     }
@@ -8732,7 +8697,6 @@ part of GTM or the DNS Services add-on.}
         arity ..1
         detail {Get/set the qdcount header field.}
         synopsis {DNS::header qdcount ?value?}
-        pure
         mutator
         side_effect DnsState -reads -writes -side Both
     }
@@ -8741,7 +8705,6 @@ part of GTM or the DNS Services add-on.}
         arity ..1
         detail {Get/set the nscount header field.}
         synopsis {DNS::header nscount ?value?}
-        pure
         mutator
         side_effect DnsState -reads -writes -side Both
     }
@@ -8750,7 +8713,6 @@ part of GTM or the DNS Services add-on.}
         arity ..1
         detail {Get/set the id header field.}
         synopsis {DNS::header id ?value?}
-        pure
         mutator
         side_effect DnsState -reads -writes -side Both
     }
@@ -8759,7 +8721,6 @@ part of GTM or the DNS Services add-on.}
         arity ..1
         detail {Get/set the tc header field.}
         synopsis {DNS::header tc ?value?}
-        pure
         mutator
         side_effect DnsState -reads -writes -side Both
     }
@@ -8768,7 +8729,6 @@ part of GTM or the DNS Services add-on.}
         arity ..1
         detail {Get/set the qr header field.}
         synopsis {DNS::header qr ?value?}
-        pure
         mutator
         side_effect DnsState -reads -writes -side Both
     }
@@ -8777,7 +8737,6 @@ part of GTM or the DNS Services add-on.}
         arity ..1
         detail {Get/set the ancount header field.}
         synopsis {DNS::header ancount ?value?}
-        pure
         mutator
         side_effect DnsState -reads -writes -side Both
     }
@@ -8786,7 +8745,6 @@ part of GTM or the DNS Services add-on.}
         arity ..1
         detail {Get/set the opcode header field.}
         synopsis {DNS::header opcode ?value?}
-        pure
         mutator
         side_effect DnsState -reads -writes -side Both
     }
@@ -8795,7 +8753,6 @@ part of GTM or the DNS Services add-on.}
         arity ..1
         detail {Get/set the rcode header field.}
         synopsis {DNS::header rcode ?value?}
-        pure
         mutator
         side_effect DnsState -reads -writes -side Both
     }
@@ -8804,7 +8761,6 @@ part of GTM or the DNS Services add-on.}
         arity ..1
         detail {Get/set the ad header field.}
         synopsis {DNS::header ad ?value?}
-        pure
         mutator
         side_effect DnsState -reads -writes -side Both
     }
@@ -9126,8 +9082,9 @@ command DNS::return {
 
     side_effect DnsState -writes -side Both
     # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … }`, but a draft records only that the
-    #   field is set, never the expression that set it.
+    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
+    #   but a draft records only that the field is set, never the expression
+    #   that set it.
 
     # TODO(spectcl): `event_requires` is set on the source spec. The DSL spells
     #   it `event_requires NAME|{ … }`, but a draft records only that the
@@ -10238,7 +10195,6 @@ order conversion happens transparently.}
         arity 0
         detail {Get GTP version.}
         synopsis {GTP::header version ?-message msg?}
-        pure
         side_effect NetworkIo -reads -side Both
 
         option -message -takes MESSAGE -detail {Operate on specific message.}
@@ -10248,7 +10204,6 @@ order conversion happens transparently.}
         arity 0
         detail {Get GTP type.}
         synopsis {GTP::header type ?-message msg?}
-        pure
         side_effect NetworkIo -reads -side Both
 
         option -message -takes MESSAGE -detail {Operate on specific message.}
@@ -10257,7 +10212,6 @@ order conversion happens transparently.}
     subcommand npdu {
         detail {Get/set/remove GTP npdu.}
         synopsis {GTP::header npdu ?set|remove? ?-message msg? ?value?}
-        pure
         mutator
         side_effect NetworkIo -reads -writes -side Both
 
@@ -10267,7 +10221,6 @@ order conversion happens transparently.}
     subcommand teid {
         detail {Get/set/remove GTP teid.}
         synopsis {GTP::header teid ?set|remove? ?-message msg? ?value?}
-        pure
         mutator
         side_effect NetworkIo -reads -writes -side Both
 
@@ -10277,7 +10230,6 @@ order conversion happens transparently.}
     subcommand sequence {
         detail {Get/set/remove GTP sequence.}
         synopsis {GTP::header sequence ?set|remove? ?-message msg? ?value?}
-        pure
         mutator
         side_effect NetworkIo -reads -writes -side Both
 
@@ -10287,7 +10239,6 @@ order conversion happens transparently.}
     subcommand extension {
         detail {Access GTP extension headers.}
         synopsis {GTP::header extension ?args?}
-        pure
         mutator
         side_effect NetworkIo -reads -writes -side Both
 
@@ -10934,7 +10885,6 @@ command HTTP2::requests {
 
 command HTTP2::stream {
     available {f5-irules}
-    traits PURE
     arity ..2
 
     side_effect Http2State -reads -writes -side Both
@@ -11075,6 +11025,8 @@ command HTTP::collect {
     available {f5-irules}
     traits {REQUIRES_HTTP_CONTEXT DIAGRAM_ACTION}
 
+    arg 0 -domain {Range 0 max}
+
     side_effect HttpBody -writes -side Both
 
     # TODO(spectcl): `event_requires` is set on the source spec. The DSL spells
@@ -11116,7 +11068,7 @@ double-collect across multiple iRules.}
 
 command HTTP::cookie {
     available {f5-irules}
-    traits {PURE CSE_CANDIDATE REQUIRES_HTTP_CONTEXT DIAGRAM_ACTION}
+    traits {CSE_CANDIDATE REQUIRES_HTTP_CONTEXT DIAGRAM_ACTION}
 
     side_effect HttpCookie -reads -writes -side Both
 
@@ -11403,7 +11355,6 @@ command HTTP::fallback {
 
 command HTTP::has_responded {
     available {f5-irules}
-    traits PURE
     arity 0
 
     side_effect ResponseCommit -reads -side Both
@@ -11605,7 +11556,7 @@ command HTTP::header {
 
 command HTTP::host {
     available {f5-irules}
-    traits {PURE CSE_CANDIDATE REQUIRES_HTTP_CONTEXT DIAGRAM_ACTION}
+    traits {CSE_CANDIDATE REQUIRES_HTTP_CONTEXT DIAGRAM_ACTION}
     arity ..1
 
     side_effect HttpHeader -reads -side Both
@@ -11704,7 +11655,7 @@ command HTTP::hsts {
 
 command HTTP::is_keepalive {
     available {f5-irules}
-    traits {PURE REQUIRES_HTTP_CONTEXT}
+    traits REQUIRES_HTTP_CONTEXT
     arity 0
 
     side_effect HttpHeader -reads -side Both
@@ -11730,7 +11681,7 @@ command HTTP::is_keepalive {
 
 command HTTP::is_redirect {
     available {f5-irules}
-    traits {PURE REQUIRES_HTTP_CONTEXT}
+    traits REQUIRES_HTTP_CONTEXT
     arity 0
 
     side_effect HttpStatus -reads -side Both
@@ -11758,7 +11709,7 @@ in a clientside event.}
 
 command HTTP::method {
     available {f5-irules}
-    traits {PURE CSE_CANDIDATE REQUIRES_HTTP_CONTEXT}
+    traits {CSE_CANDIDATE REQUIRES_HTTP_CONTEXT}
 
     side_effect HttpMethod -reads -side Both
 
@@ -11835,7 +11786,7 @@ The HTTP::password command parses and base64 decodes the password.}
 
 command HTTP::path {
     available {f5-irules}
-    traits {PURE CSE_CANDIDATE UNNORMALISED_HTTP_GETTER REQUIRES_HTTP_CONTEXT DIAGRAM_ACTION}
+    traits {CSE_CANDIDATE UNNORMALISED_HTTP_GETTER REQUIRES_HTTP_CONTEXT DIAGRAM_ACTION}
 
     side_effect HttpUri -reads -side Both
 
@@ -11880,9 +11831,11 @@ for consistent matching (prevents URL-encoding evasion).}
 
 command HTTP::payload {
     available {f5-irules}
-    traits {PURE CSE_CANDIDATE REQUIRES_HTTP_CONTEXT}
+    traits {CSE_CANDIDATE REQUIRES_HTTP_CONTEXT}
 
     byte_array_payload -replace-data-index 3
+    arg 0 -domain {Range 0 max}
+    arg 1 -domain {Range 0 max}
 
     side_effect HttpBody -reads -side Both
 
@@ -11974,7 +11927,6 @@ When a HTTP Proxy Chaining profile is applied to a virtual server, HTTP::proxy c
         arity 0
         detail {Get proxy destination address.}
         synopsis {HTTP::proxy addr}
-        pure
         side_effect HttpUri -reads -side Both
     }
 
@@ -11982,7 +11934,6 @@ When a HTTP Proxy Chaining profile is applied to a virtual server, HTTP::proxy c
         arity 0
         detail {Get proxy destination port.}
         synopsis {HTTP::proxy port}
-        pure
         side_effect HttpUri -reads -side Both
     }
 
@@ -11990,7 +11941,6 @@ When a HTTP Proxy Chaining profile is applied to a virtual server, HTTP::proxy c
         arity 0
         detail {Get proxy route domain.}
         synopsis {HTTP::proxy rtdom}
-        pure
         side_effect HttpUri -reads -side Both
     }
 
@@ -11998,7 +11948,6 @@ When a HTTP Proxy Chaining profile is applied to a virtual server, HTTP::proxy c
         arity 0
         detail {Check if proxy is active.}
         synopsis {HTTP::proxy exists}
-        pure
         side_effect HttpUri -reads -side Both
     }
 
@@ -12006,7 +11955,6 @@ When a HTTP Proxy Chaining profile is applied to a virtual server, HTTP::proxy c
         arity 0
         detail {Get proxy IP tuple.}
         synopsis {HTTP::proxy iptuple}
-        pure
         side_effect HttpUri -reads -side Both
     }
 
@@ -12020,7 +11968,7 @@ When a HTTP Proxy Chaining profile is applied to a virtual server, HTTP::proxy c
 
 command HTTP::query {
     available {f5-irules}
-    traits {PURE CSE_CANDIDATE UNNORMALISED_HTTP_GETTER REQUIRES_HTTP_CONTEXT}
+    traits {CSE_CANDIDATE UNNORMALISED_HTTP_GETTER REQUIRES_HTTP_CONTEXT}
     arity ..1
 
     side_effect HttpUri -reads -side Both
@@ -12145,7 +12093,7 @@ of the TCP::collect and TCP::release commands.}
 
 command HTTP::request {
     available {f5-irules}
-    traits {PURE CSE_CANDIDATE REQUIRES_HTTP_CONTEXT}
+    traits {CSE_CANDIDATE REQUIRES_HTTP_CONTEXT}
 
     side_effect HttpHeader -reads -side Both
 
@@ -12173,7 +12121,7 @@ command HTTP::request {
 
 command HTTP::request_num {
     available {f5-irules}
-    traits {PURE CSE_CANDIDATE REQUIRES_HTTP_CONTEXT}
+    traits {CSE_CANDIDATE REQUIRES_HTTP_CONTEXT}
     arity 0
 
     side_effect HttpHeader -reads -side Both
@@ -12299,7 +12247,7 @@ all subsequent client-side events.}
 
 command HTTP::status {
     available {f5-irules}
-    traits {PURE CSE_CANDIDATE REQUIRES_HTTP_CONTEXT}
+    traits {CSE_CANDIDATE REQUIRES_HTTP_CONTEXT}
     excluded_events HTTP_REQUEST
 
     side_effect HttpStatus -reads -side Both
@@ -12326,7 +12274,7 @@ command HTTP::status {
 
 command HTTP::uri {
     available {f5-irules}
-    traits {PURE CSE_CANDIDATE UNNORMALISED_HTTP_GETTER REQUIRES_HTTP_CONTEXT DIAGRAM_ACTION}
+    traits {CSE_CANDIDATE UNNORMALISED_HTTP_GETTER REQUIRES_HTTP_CONTEXT DIAGRAM_ACTION}
     arity ..1
     excluded_events HTTP_RESPONSE
 
@@ -12399,7 +12347,7 @@ The HTTP::password command parses and base64 decodes the password.}
 
 command HTTP::version {
     available {f5-irules}
-    traits {PURE CSE_CANDIDATE REQUIRES_HTTP_CONTEXT}
+    traits {CSE_CANDIDATE REQUIRES_HTTP_CONTEXT}
 
     arg 0 -values-from http-version-arg0 -closed
 
@@ -12935,7 +12883,7 @@ when CLIENT_ACCEPTED {
 
 command IP::client_addr {
     available {f5-irules}
-    traits {PURE CSE_CANDIDATE}
+    traits CSE_CANDIDATE
 
     # TODO(spectcl): `successful_handler` is set on the source spec. The DSL
     #   spells it `successful_handler -native
@@ -13068,7 +13016,7 @@ command IP::intelligence {
 
 command IP::local_addr {
     available {f5-irules}
-    traits {PURE CSE_CANDIDATE}
+    traits CSE_CANDIDATE
 
     side_effect TcpState -reads -side Both
 
@@ -13096,7 +13044,7 @@ This command in BIG-IP 10.}
 
 command IP::protocol {
     available {f5-irules}
-    traits {PURE CSE_CANDIDATE}
+    traits CSE_CANDIDATE
 
     side_effect TcpState -reads -side Both
 
@@ -13125,7 +13073,7 @@ For a list of the IP protocol numbers, see /etc/protocols or the L<IANA protocol
 
 command IP::remote_addr {
     available {f5-irules}
-    traits {PURE CSE_CANDIDATE}
+    traits CSE_CANDIDATE
 
     side_effect TcpState -reads -side Both
 
@@ -13182,7 +13130,7 @@ when CLIENT_ACCEPTED {
 
 command IP::server_addr {
     available {f5-irules}
-    traits {PURE CSE_CANDIDATE}
+    traits CSE_CANDIDATE
 
     side_effect TcpState -reads -side Both
 
@@ -13255,7 +13203,6 @@ when HTTP_REQUEST {
         arity ..1
         detail {Get packet counts.}
         synopsis {IP::stats pkts ?in|out?}
-        pure
         arg 0 -values-from ip-stats-pkts-arg0
         side_effect TcpState -reads -side Both
     }
@@ -13264,7 +13211,6 @@ when HTTP_REQUEST {
         arity ..1
         detail {Get byte counts.}
         synopsis {IP::stats bytes ?in|out?}
-        pure
         arg 0 -values-from ip-stats-bytes-arg0
         side_effect TcpState -reads -side Both
     }
@@ -13273,7 +13219,6 @@ when HTTP_REQUEST {
         arity 0
         detail {Get all inbound stats.}
         synopsis {IP::stats in}
-        pure
         side_effect TcpState -reads -side Both
     }
 
@@ -13281,7 +13226,6 @@ when HTTP_REQUEST {
         arity 0
         detail {Get all outbound stats.}
         synopsis {IP::stats out}
-        pure
         side_effect TcpState -reads -side Both
     }
 
@@ -13289,14 +13233,13 @@ when HTTP_REQUEST {
         arity 0
         detail {Get connection age in ms.}
         synopsis {IP::stats age}
-        pure
         side_effect TcpState -reads -side Both
     }
 }
 
 command IP::tos {
     available {f5-irules}
-    traits {PURE CSE_CANDIDATE}
+    traits CSE_CANDIDATE
 
     side_effect TcpState -reads -writes -side Both
 
@@ -13892,7 +13835,6 @@ command LB::connlimit {
     subcommand virtual {
         detail {Set/get virtual connection limit.}
         synopsis {LB::connlimit virtual ?limit <value>? ?key <value>?}
-        pure
         mutator
         side_effect PoolSelection -reads -writes -side Server
     }
@@ -13900,7 +13842,6 @@ command LB::connlimit {
     subcommand node {
         detail {Set/get node connection limit.}
         synopsis {LB::connlimit node ?limit <value>? ?key <value>?}
-        pure
         mutator
         side_effect PoolSelection -reads -writes -side Server
     }
@@ -13908,7 +13849,6 @@ command LB::connlimit {
     subcommand poolmember {
         detail {Set/get poolmember connection limit.}
         synopsis {LB::connlimit poolmember ?limit <value>? ?key <value>?}
-        pure
         mutator
         side_effect PoolSelection -reads -writes -side Server
     }
@@ -14082,7 +14022,6 @@ This enables an iRule to evaluate the pending load balancing/persistence decisio
         arity 0
         detail {Get persistence key.}
         synopsis {LB::persist key}
-        pure
         side_effect PersistenceTable -reads -side Both
     }
 
@@ -14090,7 +14029,6 @@ This enables an iRule to evaluate the pending load balancing/persistence decisio
         arity 0
         detail {Get persistence cookie.}
         synopsis {LB::persist cookie}
-        pure
         side_effect PersistenceTable -reads -side Both
     }
 }
@@ -14215,7 +14153,6 @@ LB::server [name | pool | route_domain | addr | port | priority | ratio | weight
         arity 0
         detail {Get server name.}
         synopsis {LB::server name}
-        pure
         side_effect PoolSelection -reads -side Server
     }
 
@@ -14223,7 +14160,6 @@ LB::server [name | pool | route_domain | addr | port | priority | ratio | weight
         arity 0
         detail {Get pool name.}
         synopsis {LB::server pool}
-        pure
         side_effect PoolSelection -reads -side Server
     }
 
@@ -14231,7 +14167,6 @@ LB::server [name | pool | route_domain | addr | port | priority | ratio | weight
         arity 0
         detail {Get route domain.}
         synopsis {LB::server route_domain}
-        pure
         side_effect PoolSelection -reads -side Server
     }
 
@@ -14239,7 +14174,6 @@ LB::server [name | pool | route_domain | addr | port | priority | ratio | weight
         arity 0
         detail {Get server address.}
         synopsis {LB::server addr}
-        pure
         side_effect PoolSelection -reads -side Server
     }
 
@@ -14247,7 +14181,6 @@ LB::server [name | pool | route_domain | addr | port | priority | ratio | weight
         arity 0
         detail {Get server port.}
         synopsis {LB::server port}
-        pure
         side_effect PoolSelection -reads -side Server
     }
 
@@ -14255,7 +14188,6 @@ LB::server [name | pool | route_domain | addr | port | priority | ratio | weight
         arity 0
         detail {Get server priority.}
         synopsis {LB::server priority}
-        pure
         side_effect PoolSelection -reads -side Server
     }
 
@@ -14263,7 +14195,6 @@ LB::server [name | pool | route_domain | addr | port | priority | ratio | weight
         arity 0
         detail {Get server ratio.}
         synopsis {LB::server ratio}
-        pure
         side_effect PoolSelection -reads -side Server
     }
 
@@ -14271,7 +14202,6 @@ LB::server [name | pool | route_domain | addr | port | priority | ratio | weight
         arity 0
         detail {Get server weight.}
         synopsis {LB::server weight}
-        pure
         side_effect PoolSelection -reads -side Server
     }
 
@@ -14279,7 +14209,6 @@ LB::server [name | pool | route_domain | addr | port | priority | ratio | weight
         arity 0
         detail {Get server ripeness.}
         synopsis {LB::server ripeness}
-        pure
         side_effect PoolSelection -reads -side Server
     }
 }
@@ -14358,7 +14287,6 @@ Syntax:
         arity 1..
         detail {Query/set node status.}
         synopsis {LB::status node <addr> ?status?}
-        pure
         side_effect PoolSelection -reads -side Server
     }
 
@@ -14366,7 +14294,6 @@ Syntax:
         arity 3..
         detail {Query/set pool member status.}
         synopsis {LB::status pool <pool> member <addr> <port> ?status?}
-        pure
         side_effect PoolSelection -reads -side Server
     }
 }
@@ -15392,7 +15319,6 @@ when MQTT_CLIENT_INGRESS {
         arity 0
         detail {Get payload length.}
         synopsis {MQTT::payload length}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 
@@ -15810,7 +15736,6 @@ This command is valid only for following MQTT message types:
         arity 0
         detail {Get topic count.}
         synopsis {MQTT::topic count}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 
@@ -15818,7 +15743,6 @@ This command is valid only for following MQTT message types:
         arity 0
         detail {List all topics.}
         synopsis {MQTT::topic list}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 
@@ -15826,7 +15750,6 @@ This command is valid only for following MQTT message types:
         arity 1
         detail {Get topic at index.}
         synopsis {MQTT::topic index <n>}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 
@@ -15834,7 +15757,6 @@ This command is valid only for following MQTT message types:
         arity ..1
         detail {Get/set topic QoS.}
         synopsis {MQTT::topic qos ?index?}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 
@@ -19308,7 +19230,6 @@ in 11.6.}
         arity 1..2
         detail {Get header value by name and optional index.}
         synopsis {SIP::header value <name> ?index?}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 
@@ -19332,7 +19253,6 @@ in 11.6.}
         arity 0
         detail {List all header names.}
         synopsis {SIP::header names}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 
@@ -19340,7 +19260,6 @@ in 11.6.}
         arity 1
         detail {Get header at index.}
         synopsis {SIP::header at <index>}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 
@@ -19348,7 +19267,6 @@ in 11.6.}
         arity 1
         detail {Check if header exists.}
         synopsis {SIP::header exists <name>}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 
@@ -19364,7 +19282,6 @@ in 11.6.}
         arity 1
         detail {Count headers with name.}
         synopsis {SIP::header count <name>}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 
@@ -19372,7 +19289,6 @@ in 11.6.}
         arity 1
         detail {Get all values for header.}
         synopsis {SIP::header values <name>}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 }
@@ -19580,7 +19496,6 @@ phrase.}
         arity 0
         detail {Get response code.}
         synopsis {SIP::response code}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 
@@ -19588,7 +19503,6 @@ phrase.}
         arity 0
         detail {Get response phrase.}
         synopsis {SIP::response phrase}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 
@@ -19743,7 +19657,6 @@ command SIP::via {
         arity ..1
         detail {Get Via protocol.}
         synopsis {SIP::via proto ?index?}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 
@@ -19751,7 +19664,6 @@ command SIP::via {
         arity ..1
         detail {Get Via sent-by field.}
         synopsis {SIP::via sent_by ?index?}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 
@@ -19759,7 +19671,6 @@ command SIP::via {
         arity ..1
         detail {Get Via received parameter.}
         synopsis {SIP::via received ?index?}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 
@@ -19767,7 +19678,6 @@ command SIP::via {
         arity ..1
         detail {Get Via branch parameter.}
         synopsis {SIP::via branch ?index?}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 
@@ -19775,7 +19685,6 @@ command SIP::via {
         arity ..1
         detail {Get Via maddr parameter.}
         synopsis {SIP::via maddr ?index?}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 
@@ -19783,7 +19692,6 @@ command SIP::via {
         arity ..1
         detail {Get Via ttl parameter.}
         synopsis {SIP::via ttl ?index?}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 }
@@ -20262,7 +20170,7 @@ command SSL::c3d {
 
 command SSL::cert {
     available {f5-irules}
-    traits {PURE CSE_CANDIDATE}
+    traits CSE_CANDIDATE
 
     side_effect SslState -reads -side Both
 
@@ -20288,7 +20196,6 @@ command SSL::cert {
         arity 0
         detail {Get certificate count in chain.}
         synopsis {SSL::cert count}
-        pure
         side_effect SslState -reads -side Both
     }
 
@@ -20296,7 +20203,6 @@ command SSL::cert {
         arity 1
         detail {Get issuer info for cert at index.}
         synopsis {SSL::cert issuer <index>}
-        pure
         side_effect SslState -reads -side Both
     }
 
@@ -20304,7 +20210,6 @@ command SSL::cert {
         arity ..1
         detail {Get/set certificate mode.}
         synopsis {SSL::cert mode ?ignore|request|require?}
-        pure
         mutator
         arg 0 -values-from ssl-cert-mode-arg0
         side_effect SslState -reads -writes -side Both
@@ -20337,7 +20242,7 @@ command SSL::cert_constraint {
 
 command SSL::cipher {
     available {f5-irules}
-    traits {PURE CSE_CANDIDATE}
+    traits CSE_CANDIDATE
     excluded_events {CLIENT_ACCEPTED CLIENT_CLOSED CLIENT_DATA SERVER_CONNECTED}
 
     side_effect SslState -reads -side Both
@@ -20367,7 +20272,6 @@ command SSL::cipher {
         arity 0
         detail {Get number of secret bits used.}
         synopsis {SSL::cipher bits}
-        pure
         side_effect SslState -reads -side Both
     }
 
@@ -20375,7 +20279,6 @@ command SSL::cipher {
         arity 0
         detail {Get cipher name.}
         synopsis {SSL::cipher name}
-        pure
         side_effect SslState -reads -side Both
     }
 
@@ -20383,7 +20286,6 @@ command SSL::cipher {
         arity 0
         detail {Get cipher version.}
         synopsis {SSL::cipher version}
-        pure
         side_effect SslState -reads -side Both
     }
 
@@ -20391,7 +20293,6 @@ command SSL::cipher {
         arity 0
         detail {Get client cipher list.}
         synopsis {SSL::cipher clientlist}
-        pure
         side_effect SslState -reads -side Both
     }
 }
@@ -20417,6 +20318,8 @@ command SSL::clientrandom {
 
 command SSL::collect {
     available {f5-irules}
+
+    arg 0 -domain {Range 0 4294967295}
 
     side_effect SslState -writes -side Both
 
@@ -20495,7 +20398,7 @@ If a server-side connection is already established, this command will immediatel
 
 command SSL::extensions {
     available {f5-irules}
-    traits {PURE CSE_CANDIDATE}
+    traits CSE_CANDIDATE
 
     side_effect SslState -reads -side Both
 
@@ -20564,7 +20467,6 @@ command SSL::forward_proxy {
         arity ..2
         detail {Retrieve the forged certificate or set cert options.}
         synopsis {SSL::forward_proxy cert ?response_control? ?status?}
-        pure
         arg 0 -values-from ssl-forward-proxy-cert-arg0
         side_effect SslState -reads -side Both
     }
@@ -20712,6 +20614,11 @@ command SSL::nextproto {
 
 command SSL::payload {
     available {f5-irules}
+    arity ..4
+
+    arg 0 -domain {Range 0 max}
+    arg 1 -domain {Range 0 max}
+    default_form_first_word Integer
 
     side_effect SslState -reads -writes -side Both
 
@@ -20720,11 +20627,13 @@ command SSL::payload {
     #   it `data_collection -native ID`, but a draft records only that the field
     #   is set, never the expression that set it.
 
-    form Default {SSL::payload (length |}
+    form Getter {SSL::payload ?<offset>? ?<length>?}
 
     hover {
         summary {Returns and manipulates plaintext data collected via SSL::collect.}
-        synopsis {SSL::payload (length |}
+        synopsis {SSL::payload ?<offset>? ?<length>?}
+        synopsis {SSL::payload replace <offset> <length> <data>}
+        synopsis {SSL::payload length}
         description {The SSL::payload commands allow you to return and manipulate the data collected via the SSL::collect command. This data is in plaintext format.}
         source {https://clouddocs.f5.com/api/irules/SSL__payload.html}
         example {when CLIENTSSL_HANDSHAKE {
@@ -20733,6 +20642,16 @@ command SSL::payload {
 }}
         returns {SSL::payload length Returns the amount of plaintext data collected by the SSL::collect command.}
     }
+
+    subcommand replace {
+        arity 3
+        detail {Replace bytes in collected plaintext payload.}
+        synopsis {SSL::payload replace <offset> <length> <data>}
+        mutator
+        arg 0 -domain {Range 0 4294967295}
+    }
+
+    subcommand length { arity 0 ; detail {Returns the amount of collected plaintext data in bytes.} ; synopsis {SSL::payload length} }
 }
 
 command SSL::profile {
@@ -20758,6 +20677,8 @@ In order to switch SSL profiles, a profile must be assigned to the virtual to be
 
 command SSL::release {
     available {f5-irules}
+
+    arg 0 -domain {Range 0 max}
 
     side_effect SslState -writes -side Both
 
@@ -20975,7 +20896,6 @@ command SSL::sni {
         arity 0
         detail {Get SNI name.}
         synopsis {SSL::sni name}
-        pure
         side_effect SslState -reads -side Both
     }
 
@@ -20983,7 +20903,6 @@ command SSL::sni {
         arity 0
         detail {Get SNI required setting.}
         synopsis {SSL::sni required}
-        pure
         side_effect SslState -reads -side Both
     }
 }
@@ -21016,7 +20935,6 @@ command SSL::tls13_secret {
         arity 1
         detail {Client-side TLS 1.3 secret.}
         synopsis {SSL::tls13_secret client (app | hs | early)}
-        pure
         arg 0 -values-from ssl-tls13-secret-client-arg0
         side_effect SslState -reads -side Client
     }
@@ -21025,7 +20943,6 @@ command SSL::tls13_secret {
         arity 1
         detail {Server-side TLS 1.3 secret.}
         synopsis {SSL::tls13_secret server (app | hs)}
-        pure
         arg 0 -values-from ssl-tls13-secret-server-arg0
         side_effect SslState -reads -side Server
     }
@@ -21523,7 +21440,7 @@ command TCP::autowin {
 
 command TCP::bandwidth {
     available {f5-irules}
-    traits {PURE CSE_CANDIDATE}
+    traits CSE_CANDIDATE
 
     side_effect TcpState -reads -side Both
 
@@ -21555,7 +21472,7 @@ if {[HTTP::uri] starts_with "/xxx.css"}{
 
 command TCP::client_port {
     available {f5-irules}
-    traits {PURE CSE_CANDIDATE}
+    traits CSE_CANDIDATE
 
     side_effect TcpState -reads -side Client
 
@@ -21613,6 +21530,8 @@ command TCP::close {
 command TCP::collect {
     available {f5-irules}
     traits DIAGRAM_ACTION
+
+    arg 0 -domain {Range 0 max}
 
     side_effect TcpState -writes -side Both
 
@@ -21878,7 +21797,7 @@ command TCP::limxmit {
 
 command TCP::local_port {
     available {f5-irules}
-    traits {PURE CSE_CANDIDATE}
+    traits CSE_CANDIDATE
 
     side_effect TcpState -reads -side Both
 
@@ -22174,7 +22093,6 @@ when SERVER_CONNECTED {
         arity 1
         detail {Get TCP option value.}
         synopsis {TCP::option get <kind>}
-        pure
         side_effect TcpState -reads -side Both
     }
 
@@ -22229,6 +22147,8 @@ command TCP::payload {
     arity ..4
 
     byte_array_payload -replace-data-index 3
+    arg 0 -domain {Range 0 max}
+    arg 1 -domain {Range 0 max}
     default_form_first_word Integer
 
     side_effect TcpState -reads -writes -side Both
@@ -22264,6 +22184,7 @@ command TCP::payload {
         detail {Replace bytes in collected payload.}
         synopsis {TCP::payload replace <offset> <length> <data>}
         mutator
+        arg 0 -domain {Range 0 max}
     }
 
     subcommand length { arity 0 ; detail {Returns the amount of accumulated TCP data in bytes.} ; synopsis {TCP::payload length} }
@@ -22427,6 +22348,8 @@ command TCP::release {
     available {f5-irules}
     traits DIAGRAM_ACTION
 
+    arg 0 -domain {Range 0 max}
+
     side_effect TcpState -writes -side Both
 
     # TODO(spectcl): `event_requires` is set on the source spec. The DSL spells
@@ -22455,7 +22378,7 @@ Returns the number of bytes actually released. If specified, up to length bytes 
 
 command TCP::remote_port {
     available {f5-irules}
-    traits {PURE CSE_CANDIDATE}
+    traits CSE_CANDIDATE
 
     side_effect TcpState -reads -side Both
 
@@ -22577,7 +22500,7 @@ command TCP::rto {
 
 command TCP::rtt {
     available {f5-irules}
-    traits {PURE CSE_CANDIDATE}
+    traits CSE_CANDIDATE
 
     side_effect TcpState -reads -side Both
 
@@ -22653,7 +22576,7 @@ TCP::sendbuf BUFFER_SIZE sets the send buffer size to BUFFER_SIZE bytes.}
 
 command TCP::server_port {
     available {f5-irules}
-    traits {PURE CSE_CANDIDATE}
+    traits CSE_CANDIDATE
 
     side_effect TcpState -reads -side Server
 
@@ -23197,6 +23120,8 @@ command UDP::payload {
     available {f5-irules}
 
     byte_array_payload -replace-data-index 3
+    arg 0 -domain {Range 0 max}
+    arg 1 -domain {Range 0 max}
 
     side_effect UdpState -reads -writes -side Both
 
@@ -23976,7 +23901,6 @@ WS::frame drop
         arity 0
         detail {Check if frame is end of message.}
         synopsis {WS::frame eom}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 
@@ -23992,7 +23916,6 @@ WS::frame drop
         arity 0
         detail {Check if frame was masked.}
         synopsis {WS::frame orig_masked}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 
@@ -24000,7 +23923,6 @@ WS::frame drop
         arity 0
         detail {Get frame type.}
         synopsis {WS::frame type}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 
@@ -24008,7 +23930,6 @@ WS::frame drop
         arity 0
         detail {Get frame mask.}
         synopsis {WS::frame mask}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 
@@ -24256,7 +24177,6 @@ WS::request key
         arity 0
         detail {Get Sec-WebSocket-Protocol header value.}
         synopsis {WS::request protocol}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 
@@ -24264,7 +24184,6 @@ WS::request key
         arity 0
         detail {Get Sec-WebSocket-Extensions header value.}
         synopsis {WS::request extension}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 
@@ -24272,7 +24191,6 @@ WS::request key
         arity 0
         detail {Get Sec-WebSocket-Version header value.}
         synopsis {WS::request version}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 
@@ -24280,7 +24198,6 @@ WS::request key
         arity 0
         detail {Get Sec-WebSocket-Key header value.}
         synopsis {WS::request key}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 }
@@ -24326,7 +24243,6 @@ WS::response valid
         arity 0
         detail {Get Sec-WebSocket-Protocol header value.}
         synopsis {WS::response protocol}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 
@@ -24334,7 +24250,6 @@ WS::response valid
         arity 0
         detail {Get Sec-WebSocket-Extensions header value.}
         synopsis {WS::response extension}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 
@@ -24342,7 +24257,6 @@ WS::response valid
         arity 0
         detail {Get Sec-WebSocket-Version header value.}
         synopsis {WS::response version}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 
@@ -24350,7 +24264,6 @@ WS::response valid
         arity 0
         detail {Get Sec-WebSocket-Accept header value.}
         synopsis {WS::response key}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 
@@ -24358,7 +24271,6 @@ WS::response valid
         arity 0
         detail {Check if WebSocket upgrade was successful.}
         synopsis {WS::response valid}
-        pure
         side_effect NetworkIo -reads -side Both
     }
 }
@@ -25201,8 +25113,8 @@ command append {
     lowering_hook -native AppendOrLappend
     codegen_hook -native Append
     # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …}`, but a draft records only that the field is set,
-    #   never the expression that set it.
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     side_effect Variable -reads -writes
 
@@ -25232,6 +25144,8 @@ foreach n {1 2 3 4 5} {
         traits {FRAMELESS_RUNTIME FIRST_ARG_VARNAME}
         side_effect Variable -reads
     }
+    # TODO(spectcl): `command_forms`: a refinement carries descriptors a draft
+    #   does not hold.
 }
 
 command array {
@@ -25563,7 +25477,6 @@ set back [binary decode hex $hex]
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
         arg 1 -type String
         arg 0 -values-from binary-decode-arg0 -closed
 
@@ -25599,7 +25512,6 @@ set back [binary decode hex $hex]
         #   F5String|F5Binary|VariableOperands|InitialiseEmptyVariable|CatchOutputs|PossibleBodies|CommandBindingTransition`,
         #   but a pack may not author this field.
         byte_array_effect {Rebinarifies 1}
-        pure
         arg 1 -type ByteArray -shimmers
         arg 0 -values-from binary-decode-arg0 -closed
 
@@ -25636,11 +25548,11 @@ set back [binary decode hex $hex]
         #   F5String|F5Binary|VariableOperands|InitialiseEmptyVariable|CatchOutputs|PossibleBodies|CommandBindingTransition`,
         #   but a pack may not author this field.
         format_string_type Binary
-        pure
         arg 0 -role FormatString -type String
         # TODO(spectcl): `completion` is set on the source spec. The DSL spells
-        #   it `completion {CODE …}`, but a draft records only that the field
-        #   is set, never the expression that set it.
+        #   it `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a
+        #   draft records only that the field is set, never the expression that
+        #   set it.
     }
 
     subcommand scan {
@@ -25680,17 +25592,18 @@ command break {
 
     inline_codegen_hook -native Break
     # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …}`, but a draft records only that the field is set,
-    #   never the expression that set it.
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … }`, but a draft records only that the
-    #   field is set, never the expression that set it.
+    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
+    #   but a draft records only that the field is set, never the expression
+    #   that set it.
     # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
     #   spells it `state_transitions NAME|{ composition … argument_shape …
     #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … }`, but a draft records only that the field is
-    #   set, never the expression that set it.
+    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     runtime_backing shipped-builtin break
 
@@ -25922,7 +25835,6 @@ The class command deprecates the findclass and matchclass commands as it offers 
     subcommand match {
         detail {Match an item against a data group.}
         synopsis {class match ?options? ?--? <item> <operator> <class>}
-        pure
         source_configuration_reference DataGroupComparison
 
         option -all -detail {Return all matches.}
@@ -25937,7 +25849,6 @@ The class command deprecates the findclass and matchclass commands as it offers 
     subcommand search {
         detail {Search a data group for an item.}
         synopsis {class search ?options? ?--? <class> <operator> <item>}
-        pure
 
         option -all -detail {Return all matches.}
         option -value -detail {Return value instead of name.}
@@ -25952,7 +25863,6 @@ The class command deprecates the findclass and matchclass commands as it offers 
         arity 2
         detail {Return the value paired with a name.}
         synopsis {class lookup <name> <class>}
-        pure
         source_configuration_reference DataGroupLookup
     }
 
@@ -25960,39 +25870,20 @@ The class command deprecates the findclass and matchclass commands as it offers 
         arity 2
         detail {Return an element by index.}
         synopsis {class element ?-value|-name? ?--? <index> <class>}
-        pure
 
         option -value -detail {Return value instead of name.}
         option -name -detail {Return name.}
         option --
     }
 
-    subcommand type {
-        arity 1
-        detail {Return the data type of a data group.}
-        synopsis {class type <class>}
-        pure
-    }
-
-    subcommand exists {
-        arity 1
-        detail {Check if a data group exists.}
-        synopsis {class exists <class>}
-        pure
-    }
-
-    subcommand size {
-        arity 1
-        detail {Return the number of elements.}
-        synopsis {class size <class>}
-        pure
-    }
+    subcommand type { arity 1 ; detail {Return the data type of a data group.} ; synopsis {class type <class>} }
+    subcommand exists { arity 1 ; detail {Check if a data group exists.} ; synopsis {class exists <class>} }
+    subcommand size { arity 1 ; detail {Return the number of elements.} ; synopsis {class size <class>} }
 
     subcommand names {
         arity 1..2
         detail {Return list of data group names.}
         synopsis {class names ?-nocase? ?-list? ?--? <class> ?pattern?}
-        pure
 
         option -nocase -detail {Case-insensitive comparison.}
         option -list -detail {Return value always as a list.}
@@ -26003,7 +25894,6 @@ The class command deprecates the findclass and matchclass commands as it offers 
         arity 1..2
         detail {Return all elements as a list.}
         synopsis {class get ?-nocase? ?-list? ?--? <class> ?pattern?}
-        pure
 
         option -nocase -detail {Case-insensitive comparison.}
         option -list -detail {Return value always as a list.}
@@ -26025,13 +25915,7 @@ The class command deprecates the findclass and matchclass commands as it offers 
         option --
     }
 
-    subcommand anymore {
-        arity 2
-        detail {Check if more elements remain.}
-        synopsis {class anymore <class> <search_id>}
-        pure
-    }
-
+    subcommand anymore { arity 2 ; detail {Check if more elements remain.} ; synopsis {class anymore <class> <search_id>} }
     subcommand donesearch { arity 2 ; detail {End a data group iteration.} ; synopsis {class donesearch <class> <search_id>} }
 }
 
@@ -26150,7 +26034,9 @@ clock add [clock seconds] 1 day -timezone :UTC}
         synopsis {clock add timeVal ?count unit ...?}
         available {tcl 8.5-}
         return_type Int
-        pure
+        # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
+        #   spells it `native_compilation -native CONTRACT`, but a draft records
+        #   only that the field is set, never the expression that set it.
         option_prefix_words 1
         arg 2 -values-from clock-add-arg2
         arg 4 -values-from clock-add-arg2
@@ -26159,8 +26045,8 @@ clock add [clock seconds] 1 day -timezone :UTC}
         # TODO(spectcl): `result_stability` is set on the source spec. The DSL
         #   spells it `result_stability
         #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-        #   …}}`, but a draft records only that the field is set, never the
-        #   expression that set it.
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
 
         option -gmt -takes boolean -role Boolean \
             -detail {Do the arithmetic in UTC instead of the local time zone; superseded by -timezone :UTC but still accepted.}
@@ -26177,12 +26063,11 @@ clock add [clock seconds] 1 day -timezone :UTC}
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
         # TODO(spectcl): `result_stability` is set on the source spec. The DSL
         #   spells it `result_stability
         #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-        #   …}}`, but a draft records only that the field is set, never the
-        #   expression that set it.
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
 
         option -milliseconds \
             -detail {Return the same value as `clock milliseconds` instead of the raw high-resolution counter.}
@@ -26195,14 +26080,16 @@ clock add [clock seconds] 1 day -timezone :UTC}
         detail {Format a time value.}
         synopsis {clock format timeVal ?-option value ...?}
         return_type String
+        # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
+        #   spells it `native_compilation -native CONTRACT`, but a draft records
+        #   only that the field is set, never the expression that set it.
         format_string_type Clock
-        pure
         option_prefix_words 1
         # TODO(spectcl): `result_stability` is set on the source spec. The DSL
         #   spells it `result_stability
         #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-        #   …}}`, but a draft records only that the field is set, never the
-        #   expression that set it.
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
 
         option -format -takes format -role FormatString \
             -detail {strftime-style output format string (default "%a %b %d %H:%M:%S %Z %Y").}
@@ -26223,12 +26110,11 @@ clock add [clock seconds] 1 day -timezone :UTC}
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
         # TODO(spectcl): `result_stability` is set on the source spec. The DSL
         #   spells it `result_stability
         #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-        #   …}}`, but a draft records only that the field is set, never the
-        #   expression that set it.
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
     }
 
     subcommand milliseconds {
@@ -26240,12 +26126,11 @@ clock add [clock seconds] 1 day -timezone :UTC}
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
         # TODO(spectcl): `result_stability` is set on the source spec. The DSL
         #   spells it `result_stability
         #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-        #   …}}`, but a draft records only that the field is set, never the
-        #   expression that set it.
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
     }
 
     subcommand monotonic {
@@ -26254,12 +26139,11 @@ clock add [clock seconds] 1 day -timezone :UTC}
         synopsis {clock monotonic}
         available {tcl 9.1}
         return_type Int
-        pure
         # TODO(spectcl): `result_stability` is set on the source spec. The DSL
         #   spells it `result_stability
         #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-        #   …}}`, but a draft records only that the field is set, never the
-        #   expression that set it.
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
     }
 
     subcommand scan {
@@ -26267,13 +26151,16 @@ clock add [clock seconds] 1 day -timezone :UTC}
         detail {Parse a date/time string.}
         synopsis {clock scan inputString ?-option value ...?}
         return_type Int
+        # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
+        #   spells it `native_compilation -native CONTRACT`, but a draft records
+        #   only that the field is set, never the expression that set it.
         format_string_type Clock
         option_prefix_words 1
         # TODO(spectcl): `result_stability` is set on the source spec. The DSL
         #   spells it `result_stability
         #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-        #   …}}`, but a draft records only that the field is set, never the
-        #   expression that set it.
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
 
         option -base -takes seconds \
             -detail {Base date/time used to fill in fields the input string doesn't specify.}
@@ -26297,12 +26184,11 @@ clock add [clock seconds] 1 day -timezone :UTC}
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
         # TODO(spectcl): `result_stability` is set on the source spec. The DSL
         #   spells it `result_stability
         #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-        #   …}}`, but a draft records only that the field is set, never the
-        #   expression that set it.
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
     }
 }
 
@@ -26356,7 +26242,7 @@ close conn_id}
 
 command concat {
     available {tcl 8.4-} {f5-irules}
-    traits {PURE BYTE_COMPILED FRAMELESS_RUNTIME EXPANSION_ESCAPE_SAFE}
+    traits {BYTE_COMPILED FRAMELESS_RUNTIME EXPANSION_ESCAPE_SAFE}
 
     return_type String
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
@@ -26368,29 +26254,34 @@ command concat {
     #   -direct-provider
     #   F5String|F5Binary|VariableOperands|InitialiseEmptyVariable|CatchOutputs|PossibleBodies|CommandBindingTransition`,
     #   but a pack may not author this field.
+    # TODO(spectcl): `native_result` is set on the source spec. The DSL spells
+    #   it `native_result -native CONTRACT`, but a draft records only that the
+    #   field is set, never the expression that set it.
     byte_array_effect Coerces
 
     const_fold -native concat::const_fold
     codegen_hook -native Concat
     # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …}`, but a draft records only that the field is set,
-    #   never the expression that set it.
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
     # TODO(spectcl): `dispatch_dependencies` is set on the source spec. — a
     #   pack may not author this field.
     # TODO(spectcl): `result_stability` is set on the source spec. The DSL
     #   spells it `result_stability
-    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-    #   …}}`, but a draft records only that the field is set, never the
-    #   expression that set it.
-
-    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … }`, but a draft records only that the
+    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}
+    #   ?-partial? ?-complete WINDOW?…`, but a draft records only that the
     #   field is set, never the expression that set it.
+
+    effects -complete {8.4 9.1}
+    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
+    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
+    #   but a draft records only that the field is set, never the expression
+    #   that set it.
     # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
     #   spells it `state_transitions NAME|{ composition … argument_shape …
     #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … }`, but a draft records only that the field is
-    #   set, never the expression that set it.
+    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     runtime_backing shipped-builtin concat
 
@@ -26460,17 +26351,18 @@ command continue {
 
     inline_codegen_hook -native Continue
     # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …}`, but a draft records only that the field is set,
-    #   never the expression that set it.
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … }`, but a draft records only that the
-    #   field is set, never the expression that set it.
+    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
+    #   but a draft records only that the field is set, never the expression
+    #   that set it.
     # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
     #   spells it `state_transitions NAME|{ composition … argument_shape …
     #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … }`, but a draft records only that the field is
-    #   set, never the expression that set it.
+    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     runtime_backing shipped-builtin continue
 
@@ -26589,8 +26481,9 @@ command discard {
 
     side_effect ConnectionControl -writes -side Both
     # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … }`, but a draft records only that the
-    #   field is set, never the expression that set it.
+    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
+    #   but a draft records only that the field is set, never the expression
+    #   that set it.
 
     form Default {discard}
 
@@ -26660,8 +26553,9 @@ command drop {
 
     side_effect ConnectionControl -writes -side Both
     # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … }`, but a draft records only that the
-    #   field is set, never the expression that set it.
+    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
+    #   but a draft records only that the field is set, never the expression
+    #   that set it.
 
     form Default {drop}
 
@@ -26759,6 +26653,8 @@ if {[catch {encoding convertfrom -profile strict -failindex idx ascii $data} res
             traits FRAMELESS_RUNTIME
             side_effect InterpState -reads
         }
+        # TODO(spectcl): `subcommand_forms`: a refinement carries descriptors a
+        #   draft does not hold.
         side_effect Variable -writes -available {tcl 9.0-}
 
         option -profile -takes profile -values-from encoding-convertfrom-profile -closed -available {tcl 9.0-} \
@@ -26787,7 +26683,6 @@ if {[catch {encoding convertfrom -profile strict -failindex idx ascii $data} res
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
     }
 
     subcommand system {
@@ -26810,7 +26705,28 @@ if {[catch {encoding convertfrom -profile strict -failindex idx ascii $data} res
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
+        # TODO(spectcl): `completion` is set on the source spec. The DSL spells
+        #   it `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a
+        #   draft records only that the field is set, never the expression that
+        #   set it.
+        # TODO(spectcl): `dispatch_dependencies` is set on the source spec. —
+        #   a pack may not author this field.
+        # TODO(spectcl): `result_stability` is set on the source spec. The DSL
+        #   spells it `result_stability
+        #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
+        effects -complete {9.0 9.1}
+        # TODO(spectcl): `world_effects` is set on the source spec. The DSL
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
+        # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
+        #   spells it `state_transitions NAME|{ composition … argument_shape
+        #   … resolver none|from-frame-effect|-native ID|{words ctx} {…}
+        #   widen … covers … commit … } ?-partial? ?-complete WINDOW?…`,
+        #   but a draft records only that the field is set, never the expression
+        #   that set it.
     }
 
     subcommand user {
@@ -26822,7 +26738,6 @@ if {[catch {encoding convertfrom -profile strict -failindex idx ascii $data} res
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
     }
 }
 
@@ -26838,8 +26753,8 @@ command error {
 
     inline_codegen_hook -native Error
     # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …}`, but a draft records only that the field is set,
-    #   never the expression that set it.
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     side_effect InterpState -writes
 
@@ -26924,8 +26839,6 @@ command event {
     traits DIAGRAM_ACTION
 
     irules_source_flow EventControl
-
-    side_effect ConnectionControl -writes -side Both
 
     form Default {event info}
 
@@ -27179,7 +27092,7 @@ foreach x {1 2 3} y {a b} {
 
 command format {
     available {tcl 8.4-} {f5-irules}
-    traits {PURE CSE_CANDIDATE BYTE_COMPILED FRAMELESS_RUNTIME}
+    traits {CSE_CANDIDATE BYTE_COMPILED FRAMELESS_RUNTIME}
     arity 1..
 
     return_type String
@@ -27198,24 +27111,26 @@ command format {
 
     const_fold_versioned -native format::const_fold_versioned
     # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …}`, but a draft records only that the field is set,
-    #   never the expression that set it.
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
     # TODO(spectcl): `dispatch_dependencies` is set on the source spec. — a
     #   pack may not author this field.
     # TODO(spectcl): `result_stability` is set on the source spec. The DSL
     #   spells it `result_stability
-    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-    #   …}}`, but a draft records only that the field is set, never the
-    #   expression that set it.
-
-    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … }`, but a draft records only that the
+    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}
+    #   ?-partial? ?-complete WINDOW?…`, but a draft records only that the
     #   field is set, never the expression that set it.
+
+    effects -complete {8.4 9.1}
+    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
+    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
+    #   but a draft records only that the field is set, never the expression
+    #   that set it.
     # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
     #   spells it `state_transitions NAME|{ composition … argument_shape …
     #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … }`, but a draft records only that the field is
-    #   set, never the expression that set it.
+    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     runtime_backing shipped-builtin format
 
@@ -27301,18 +27216,19 @@ command global {
     lowering_hook -native Global
     codegen_hook -native Global
     # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …}`, but a draft records only that the field is set,
-    #   never the expression that set it.
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     side_effect Variable -writes
     # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … }`, but a draft records only that the
-    #   field is set, never the expression that set it.
+    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
+    #   but a draft records only that the field is set, never the expression
+    #   that set it.
     # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
     #   spells it `state_transitions NAME|{ composition … argument_shape …
     #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … }`, but a draft records only that the field is
-    #   set, never the expression that set it.
+    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     runtime_backing shipped-builtin global
 
@@ -27753,13 +27669,14 @@ command incr {
     lowering_hook -native Incr
     inline_codegen_hook -native Incr
     # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …}`, but a draft records only that the field is set,
-    #   never the expression that set it.
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     side_effect Variable -reads -writes
     # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … }`, but a draft records only that the
-    #   field is set, never the expression that set it.
+    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
+    #   but a draft records only that the field is set, never the expression
+    #   that set it.
 
     runtime_backing shipped-builtin incr
 
@@ -27825,17 +27742,16 @@ puts "Tcl [info tclversion] (patchlevel [info patchlevel])"}
         arity 0
         detail {Returns the major and minor version of the Jim interpreter.}
         synopsis {info version}
-        dialects jim
+        dialects jim0.84+
         return_type String
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
     }
 
     subcommand stacktrace {
         arity 0
-        dialects jim
+        dialects jim0.84+
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
@@ -27851,7 +27767,6 @@ puts "Tcl [info tclversion] (patchlevel [info patchlevel])"}
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
         arg 0 -role CommandName
     }
 
@@ -27864,7 +27779,6 @@ puts "Tcl [info tclversion] (patchlevel [info patchlevel])"}
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
         arg 0 -role CommandName
     }
 
@@ -27872,12 +27786,12 @@ puts "Tcl [info tclversion] (patchlevel [info patchlevel])"}
         arity 2..
         detail {Returns information about the class.}
         synopsis {info class subcommand class ?arg ...?}
+        traits REFLECTS_COMMAND_NAMES
         available {tcl 8.6-}
         return_type String
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
         # TODO(spectcl): `nested_native_compilation` is set on the source spec.
         #   The DSL spells it `sub_subcommand NAME -native_compilation
         #   CONTRACT`, but a pack may not author this field.
@@ -27979,7 +27893,6 @@ puts "Tcl [info tclversion] (patchlevel [info patchlevel])"}
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
     }
 
     subcommand cmdtype {
@@ -27992,7 +27905,6 @@ puts "Tcl [info tclversion] (patchlevel [info patchlevel])"}
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
         arg 0 -role CommandName
     }
 
@@ -28011,13 +27923,13 @@ puts "Tcl [info tclversion] (patchlevel [info patchlevel])"}
         #   -direct-provider
         #   F5String|F5Binary|VariableOperands|InitialiseEmptyVariable|CatchOutputs|PossibleBodies|CommandBindingTransition`,
         #   but a pack may not author this field.
-        pure
         arg 0 -role CommandNameProbe
         inline_codegen_hook -native InfoCommandsResolve
         semantic_operation Invoke
         # TODO(spectcl): `completion` is set on the source spec. The DSL spells
-        #   it `completion {CODE …}`, but a draft records only that the field
-        #   is set, never the expression that set it.
+        #   it `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a
+        #   draft records only that the field is set, never the expression that
+        #   set it.
     }
 
     subcommand complete {
@@ -28028,7 +27940,28 @@ puts "Tcl [info tclversion] (patchlevel [info patchlevel])"}
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
+        # TODO(spectcl): `completion` is set on the source spec. The DSL spells
+        #   it `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a
+        #   draft records only that the field is set, never the expression that
+        #   set it.
+        # TODO(spectcl): `dispatch_dependencies` is set on the source spec. —
+        #   a pack may not author this field.
+        # TODO(spectcl): `result_stability` is set on the source spec. The DSL
+        #   spells it `result_stability
+        #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
+        effects -complete {8.4 9.1}
+        # TODO(spectcl): `world_effects` is set on the source spec. The DSL
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
+        # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
+        #   spells it `state_transitions NAME|{ composition … argument_shape
+        #   … resolver none|from-frame-effect|-native ID|{words ctx} {…}
+        #   widen … covers … commit … } ?-partial? ?-complete WINDOW?…`,
+        #   but a draft records only that the field is set, never the expression
+        #   that set it.
     }
 
     subcommand constant {
@@ -28041,7 +27974,6 @@ puts "Tcl [info tclversion] (patchlevel [info patchlevel])"}
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
         arg 0 -role VarRead
     }
 
@@ -28054,7 +27986,6 @@ puts "Tcl [info tclversion] (patchlevel [info patchlevel])"}
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
     }
 
     subcommand coroutine {
@@ -28067,7 +27998,6 @@ puts "Tcl [info tclversion] (patchlevel [info patchlevel])"}
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
     }
 
     subcommand default {
@@ -28093,7 +28023,6 @@ puts "Tcl [info tclversion] (patchlevel [info patchlevel])"}
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
     }
 
     subcommand exists {
@@ -28108,13 +28037,13 @@ puts "Tcl [info tclversion] (patchlevel [info patchlevel])"}
         # TODO(spectcl): `native_result` is set on the source spec. The DSL
         #   spells it `native_result -native CONTRACT`, but a draft records only
         #   that the field is set, never the expression that set it.
-        pure
         arg 0 -role VarRead
         inline_codegen_hook -native InfoExists
         semantic_operation {Intrinsic InfoExists}
         # TODO(spectcl): `world_effects` is set on the source spec. The DSL
-        #   spells it `world_effects none|NAME|{ … }`, but a draft records
-        #   only that the field is set, never the expression that set it.
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
     }
 
     subcommand frame {
@@ -28127,7 +28056,6 @@ puts "Tcl [info tclversion] (patchlevel [info patchlevel])"}
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
     }
 
     subcommand functions {
@@ -28138,7 +28066,6 @@ puts "Tcl [info tclversion] (patchlevel [info patchlevel])"}
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
     }
 
     subcommand globals {
@@ -28150,7 +28077,6 @@ puts "Tcl [info tclversion] (patchlevel [info patchlevel])"}
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
     }
 
     subcommand hostname {
@@ -28161,7 +28087,6 @@ puts "Tcl [info tclversion] (patchlevel [info patchlevel])"}
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
     }
 
     subcommand level {
@@ -28173,8 +28098,11 @@ puts "Tcl [info tclversion] (patchlevel [info patchlevel])"}
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
         inline_codegen_hook -native InfoLevel
+        # TODO(spectcl): `completion` is set on the source spec. The DSL spells
+        #   it `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a
+        #   draft records only that the field is set, never the expression that
+        #   set it.
     }
 
     subcommand library {
@@ -28185,7 +28113,6 @@ puts "Tcl [info tclversion] (patchlevel [info patchlevel])"}
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
         returns_path
     }
 
@@ -28197,7 +28124,6 @@ puts "Tcl [info tclversion] (patchlevel [info patchlevel])"}
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
     }
 
     subcommand locals {
@@ -28209,7 +28135,6 @@ puts "Tcl [info tclversion] (patchlevel [info patchlevel])"}
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
     }
 
     subcommand nameofexecutable {
@@ -28220,7 +28145,6 @@ puts "Tcl [info tclversion] (patchlevel [info patchlevel])"}
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
         returns_path
     }
 
@@ -28228,12 +28152,12 @@ puts "Tcl [info tclversion] (patchlevel [info patchlevel])"}
         arity 2..
         detail {Returns information about the object.}
         synopsis {info object subcommand object ?arg ...?}
+        traits REFLECTS_COMMAND_NAMES
         available {tcl 8.6-}
         return_type String
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
         # TODO(spectcl): `nested_native_compilation` is set on the source spec.
         #   The DSL spells it `sub_subcommand NAME -native_compilation
         #   CONTRACT`, but a pack may not author this field.
@@ -28335,7 +28259,6 @@ puts "Tcl [info tclversion] (patchlevel [info patchlevel])"}
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
     }
 
     subcommand procs {
@@ -28347,7 +28270,6 @@ puts "Tcl [info tclversion] (patchlevel [info patchlevel])"}
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
         arg 0 -role CommandNameProbe
     }
 
@@ -28359,7 +28281,6 @@ puts "Tcl [info tclversion] (patchlevel [info patchlevel])"}
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
         mutator
         returns_path
         source_path_operation ScriptPath
@@ -28374,7 +28295,28 @@ puts "Tcl [info tclversion] (patchlevel [info patchlevel])"}
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
+        # TODO(spectcl): `completion` is set on the source spec. The DSL spells
+        #   it `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a
+        #   draft records only that the field is set, never the expression that
+        #   set it.
+        # TODO(spectcl): `dispatch_dependencies` is set on the source spec. —
+        #   a pack may not author this field.
+        # TODO(spectcl): `result_stability` is set on the source spec. The DSL
+        #   spells it `result_stability
+        #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
+        effects -complete {8.4 9.1}
+        # TODO(spectcl): `world_effects` is set on the source spec. The DSL
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
+        # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
+        #   spells it `state_transitions NAME|{ composition … argument_shape
+        #   … resolver none|from-frame-effect|-native ID|{words ctx} {…}
+        #   widen … covers … commit … } ?-partial? ?-complete WINDOW?…`,
+        #   but a draft records only that the field is set, never the expression
+        #   that set it.
     }
 
     subcommand tclversion {
@@ -28386,7 +28328,6 @@ puts "Tcl [info tclversion] (patchlevel [info patchlevel])"}
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
     }
 
     subcommand vars {
@@ -28398,7 +28339,6 @@ puts "Tcl [info tclversion] (patchlevel [info patchlevel])"}
         # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
-        pure
     }
 }
 
@@ -28481,36 +28421,41 @@ received.}
 
 command join {
     available {tcl 8.4-} {f5-irules}
-    traits {PURE CSE_CANDIDATE FRAMELESS_RUNTIME}
+    traits {CSE_CANDIDATE FRAMELESS_RUNTIME}
     arity 1..2
 
     return_type String
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
+    # TODO(spectcl): `native_result` is set on the source spec. The DSL spells
+    #   it `native_result -native CONTRACT`, but a draft records only that the
+    #   field is set, never the expression that set it.
     byte_array_effect Coerces
     arg 0 -type List -shimmers
 
     const_fold -native join::const_fold
     # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …}`, but a draft records only that the field is set,
-    #   never the expression that set it.
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
     # TODO(spectcl): `dispatch_dependencies` is set on the source spec. — a
     #   pack may not author this field.
     # TODO(spectcl): `result_stability` is set on the source spec. The DSL
     #   spells it `result_stability
-    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-    #   …}}`, but a draft records only that the field is set, never the
-    #   expression that set it.
-
-    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … }`, but a draft records only that the
+    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}
+    #   ?-partial? ?-complete WINDOW?…`, but a draft records only that the
     #   field is set, never the expression that set it.
+
+    effects -complete {8.4 9.1}
+    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
+    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
+    #   but a draft records only that the field is set, never the expression
+    #   that set it.
     # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
     #   spells it `state_transitions NAME|{ composition … argument_shape …
     #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … }`, but a draft records only that the field is
-    #   set, never the expression that set it.
+    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     runtime_backing shipped-builtin join
 
@@ -28556,8 +28501,8 @@ command lappend {
     lowering_hook -native AppendOrLappend
     codegen_hook -native Lappend
     # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …}`, but a draft records only that the field is set,
-    #   never the expression that set it.
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     side_effect Variable -reads -writes
 
@@ -28586,6 +28531,8 @@ lappend newlist a b c
         traits {READS_BEFORE_WRITE CONDITIONAL_VARIABLE_WRITE FRAMELESS_RUNTIME FIRST_ARG_VARNAME}
         representation_effect None
     }
+    # TODO(spectcl): `command_forms`: a refinement carries descriptors a draft
+    #   does not hold.
 }
 
 command lasthop {
@@ -28617,7 +28564,7 @@ connection.}
 
 command lindex {
     available {tcl 8.4-} {f5-irules}
-    traits {PURE CSE_CANDIDATE BYTE_COMPILED NOT_PROC_FACTORY FRAMELESS_RUNTIME}
+    traits {CSE_CANDIDATE BYTE_COMPILED NOT_PROC_FACTORY FRAMELESS_RUNTIME}
     arity 1..
 
     return_type String
@@ -28632,30 +28579,35 @@ command lindex {
     #   -direct-provider
     #   F5String|F5Binary|VariableOperands|InitialiseEmptyVariable|CatchOutputs|PossibleBodies|CommandBindingTransition`,
     #   but a pack may not author this field.
+    # TODO(spectcl): `native_result` is set on the source spec. The DSL spells
+    #   it `native_result -native CONTRACT`, but a draft records only that the
+    #   field is set, never the expression that set it.
     arg 0 -type List -shimmers
     arg 1 -type Int -shimmers
 
     const_fold -native lindex::const_fold
     inline_codegen_hook -native Lindex
     # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …}`, but a draft records only that the field is set,
-    #   never the expression that set it.
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
     # TODO(spectcl): `dispatch_dependencies` is set on the source spec. — a
     #   pack may not author this field.
     # TODO(spectcl): `result_stability` is set on the source spec. The DSL
     #   spells it `result_stability
-    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-    #   …}}`, but a draft records only that the field is set, never the
-    #   expression that set it.
-
-    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … }`, but a draft records only that the
+    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}
+    #   ?-partial? ?-complete WINDOW?…`, but a draft records only that the
     #   field is set, never the expression that set it.
+
+    effects -complete {8.4 9.1}
+    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
+    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
+    #   but a draft records only that the field is set, never the expression
+    #   that set it.
     # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
     #   spells it `state_transitions NAME|{ composition … argument_shape …
     #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … }`, but a draft records only that the field is
-    #   set, never the expression that set it.
+    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     runtime_backing shipped-builtin lindex
 
@@ -28706,7 +28658,7 @@ LINK::qos instead.}
 
 command linsert {
     available {tcl 8.4-} {f5-irules}
-    traits {PURE CSE_CANDIDATE BYTE_COMPILED FRAMELESS_RUNTIME}
+    traits {CSE_CANDIDATE BYTE_COMPILED FRAMELESS_RUNTIME}
     arity 2..
 
     return_type List
@@ -28726,24 +28678,26 @@ command linsert {
     codegen_hook -native Linsert
     inline_codegen_hook -native Linsert
     # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …}`, but a draft records only that the field is set,
-    #   never the expression that set it.
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
     # TODO(spectcl): `dispatch_dependencies` is set on the source spec. — a
     #   pack may not author this field.
     # TODO(spectcl): `result_stability` is set on the source spec. The DSL
     #   spells it `result_stability
-    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-    #   …}}`, but a draft records only that the field is set, never the
-    #   expression that set it.
-
-    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … }`, but a draft records only that the
+    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}
+    #   ?-partial? ?-complete WINDOW?…`, but a draft records only that the
     #   field is set, never the expression that set it.
+
+    effects -complete {8.4 9.1}
+    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
+    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
+    #   but a draft records only that the field is set, never the expression
+    #   that set it.
     # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
     #   spells it `state_transitions NAME|{ composition … argument_shape …
     #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … }`, but a draft records only that the field is
-    #   set, never the expression that set it.
+    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     runtime_backing shipped-builtin linsert
 
@@ -28765,7 +28719,7 @@ set newList [linsert $midList end-1 lazy]}
 
 command list {
     available {tcl 8.4-} {f5-irules}
-    traits {PURE PRODUCES_CANONICAL_LIST BUILDS_COMMAND_PREFIX BYTE_COMPILED NOT_PROC_FACTORY FRAMELESS_RUNTIME EXPANSION_ESCAPE_SAFE}
+    traits {PRODUCES_CANONICAL_LIST BUILDS_COMMAND_PREFIX BYTE_COMPILED NOT_PROC_FACTORY FRAMELESS_RUNTIME EXPANSION_ESCAPE_SAFE}
 
     return_type List
     return_elements {ListOfArgs 0}
@@ -28785,24 +28739,26 @@ command list {
     const_fold -native list::const_fold
     inline_codegen_hook -native List
     # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …}`, but a draft records only that the field is set,
-    #   never the expression that set it.
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
     # TODO(spectcl): `dispatch_dependencies` is set on the source spec. — a
     #   pack may not author this field.
     # TODO(spectcl): `result_stability` is set on the source spec. The DSL
     #   spells it `result_stability
-    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-    #   …}}`, but a draft records only that the field is set, never the
-    #   expression that set it.
-
-    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … }`, but a draft records only that the
+    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}
+    #   ?-partial? ?-complete WINDOW?…`, but a draft records only that the
     #   field is set, never the expression that set it.
+
+    effects -complete {8.4 9.1}
+    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
+    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
+    #   but a draft records only that the field is set, never the expression
+    #   that set it.
     # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
     #   spells it `state_transitions NAME|{ composition … argument_shape …
     #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … }`, but a draft records only that the field is
-    #   set, never the expression that set it.
+    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     runtime_backing shipped-builtin list
 
@@ -28847,7 +28803,7 @@ known.}
 
 command llength {
     available {tcl 8.4-} {f5-irules}
-    traits {PURE CSE_CANDIDATE BYTE_COMPILED FRAMELESS_RUNTIME}
+    traits {CSE_CANDIDATE BYTE_COMPILED FRAMELESS_RUNTIME}
     arity 1
 
     return_type Int
@@ -28869,24 +28825,26 @@ command llength {
     const_fold -native llength::const_fold
     codegen_hook -native Llength
     # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …}`, but a draft records only that the field is set,
-    #   never the expression that set it.
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
     # TODO(spectcl): `dispatch_dependencies` is set on the source spec. — a
     #   pack may not author this field.
     # TODO(spectcl): `result_stability` is set on the source spec. The DSL
     #   spells it `result_stability
-    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-    #   …}}`, but a draft records only that the field is set, never the
-    #   expression that set it.
-
-    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … }`, but a draft records only that the
+    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}
+    #   ?-partial? ?-complete WINDOW?…`, but a draft records only that the
     #   field is set, never the expression that set it.
+
+    effects -complete {8.4 9.1}
+    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
+    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
+    #   but a draft records only that the field is set, never the expression
+    #   that set it.
     # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
     #   spells it `state_transitions NAME|{ composition … argument_shape …
     #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … }`, but a draft records only that the field is
-    #   set, never the expression that set it.
+    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     runtime_backing shipped-builtin llength
 
@@ -29002,7 +28960,7 @@ command log {
 
 command lrange {
     available {tcl 8.4-} {f5-irules}
-    traits {PURE CSE_CANDIDATE BYTE_COMPILED NOT_PROC_FACTORY FRAMELESS_RUNTIME}
+    traits {CSE_CANDIDATE BYTE_COMPILED NOT_PROC_FACTORY FRAMELESS_RUNTIME}
     arity 3
 
     return_type List
@@ -29028,24 +28986,26 @@ command lrange {
     codegen_hook -native Lrange
     inline_codegen_hook -native Lrange
     # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …}`, but a draft records only that the field is set,
-    #   never the expression that set it.
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
     # TODO(spectcl): `dispatch_dependencies` is set on the source spec. — a
     #   pack may not author this field.
     # TODO(spectcl): `result_stability` is set on the source spec. The DSL
     #   spells it `result_stability
-    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-    #   …}}`, but a draft records only that the field is set, never the
-    #   expression that set it.
-
-    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … }`, but a draft records only that the
+    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}
+    #   ?-partial? ?-complete WINDOW?…`, but a draft records only that the
     #   field is set, never the expression that set it.
+
+    effects -complete {8.4 9.1}
+    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
+    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
+    #   but a draft records only that the field is set, never the expression
+    #   that set it.
     # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
     #   spells it `state_transitions NAME|{ composition … argument_shape …
     #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … }`, but a draft records only that the field is
-    #   set, never the expression that set it.
+    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     runtime_backing shipped-builtin lrange
 
@@ -29071,7 +29031,7 @@ lrange $var 1 1            ;# {elements to}}
 
 command lreplace {
     available {tcl 8.4-} {f5-irules}
-    traits {PURE CSE_CANDIDATE BYTE_COMPILED NOT_PROC_FACTORY FRAMELESS_RUNTIME}
+    traits {CSE_CANDIDATE BYTE_COMPILED NOT_PROC_FACTORY FRAMELESS_RUNTIME}
     arity 3..
 
     return_type List
@@ -29091,24 +29051,26 @@ command lreplace {
 
     inline_codegen_hook -native Lreplace
     # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …}`, but a draft records only that the field is set,
-    #   never the expression that set it.
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
     # TODO(spectcl): `dispatch_dependencies` is set on the source spec. — a
     #   pack may not author this field.
     # TODO(spectcl): `result_stability` is set on the source spec. The DSL
     #   spells it `result_stability
-    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-    #   …}}`, but a draft records only that the field is set, never the
-    #   expression that set it.
-
-    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … }`, but a draft records only that the
+    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}
+    #   ?-partial? ?-complete WINDOW?…`, but a draft records only that the
     #   field is set, never the expression that set it.
+
+    effects -complete {8.4 9.1}
+    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
+    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
+    #   but a draft records only that the field is set, never the expression
+    #   that set it.
     # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
     #   spells it `state_transitions NAME|{ composition … argument_shape …
     #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … }`, but a draft records only that the field is
-    #   set, never the expression that set it.
+    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     runtime_backing shipped-builtin lreplace
 
@@ -29133,7 +29095,7 @@ set var [lreplace $var 12345 end+2 f g h i]    ;# a b c d e f g h i -- out-of-ra
 
 command lsearch {
     available {tcl 8.4-} {f5-irules}
-    traits {PURE CSE_CANDIDATE BYTE_COMPILED FRAMELESS_RUNTIME}
+    traits {CSE_CANDIDATE BYTE_COMPILED FRAMELESS_RUNTIME}
     arity 2 -positionals
 
     return_type Int
@@ -29151,8 +29113,8 @@ command lsearch {
 
     return_type_hook -native Lsearch
     # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …}`, but a draft records only that the field is set,
-    #   never the expression that set it.
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     runtime_backing shipped-builtin lsearch
 
@@ -29231,13 +29193,14 @@ command lset {
     codegen_hook -native Lset
     semantic_operation {Intrinsic ListSet}
     # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …}`, but a draft records only that the field is set,
-    #   never the expression that set it.
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     side_effect Variable -reads -writes
     # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … }`, but a draft records only that the
-    #   field is set, never the expression that set it.
+    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
+    #   but a draft records only that the field is set, never the expression
+    #   that set it.
 
     runtime_backing shipped-builtin lset
 
@@ -29288,7 +29251,12 @@ command lsort {
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
+    # TODO(spectcl): `native_result` is set on the source spec. The DSL spells
+    #   it `native_result -native CONTRACT`, but a draft records only that the
+    #   field is set, never the expression that set it.
     reserved_trailing_words 1
+
+    const_fold -native lsort::const_fold
 
     runtime_backing shipped-builtin lsort
 
@@ -29694,7 +29662,7 @@ persistence table.}
 }
 
 command pkg::create {
-    traits {PURE OVERRIDABLE_LIBRARY_PROC}
+    traits OVERRIDABLE_LIBRARY_PROC
     arity 6.. -step 2
 
     return_type String
@@ -29797,8 +29765,8 @@ command proc {
     # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
     #   spells it `state_transitions NAME|{ composition … argument_shape …
     #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … }`, but a draft records only that the field is
-    #   set, never the expression that set it.
+    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     form Default {proc NAME ARGUMENT_N_DEFAULT PROC_SCRIPT}
 
@@ -29938,8 +29906,8 @@ command regexp {
     analyser_hook -native RegexPatternCapture
     return_type_hook -native Regexp
     # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …}`, but a draft records only that the field is set,
-    #   never the expression that set it.
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     side_effect Variable -writes
 
@@ -30018,8 +29986,8 @@ command regsub {
     analyser_hook -native RegexPatternCapture
     return_type_hook -native Regsub
     # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …}`, but a draft records only that the field is set,
-    #   never the expression that set it.
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     side_effect Variable -writes
 
@@ -30043,7 +30011,7 @@ command regsub {
         -detail {Replace every non-overlapping match of exp in string instead of only the first; & and \n backreferences in subSpec are recomputed independently for each match.}
     option -start -takes index \
         -detail {Character index into string to start matching at. Tcl 8.4 accepts only a plain non-negative integer; Tcl 8.5 and later accept the fuller index syntax used by string index (e.g. end, end-N). ^ no longer anchors to the string's real start there, though \A still does; index is clamped to the string's bounds.}
-    option -command -dialects {tcl9.0+ jim} \
+    option -command -dialects {tcl9.0+ jim0.84+} \
         -detail {Treat subSpec as a command prefix (a non-empty list) instead of a substitution template: & and \n lose their special meaning. The whole match, then each capturing subexpression's match (like regexp -inline), are appended to the prefix, and the completed list is evaluated as a Tcl command whose result becomes the replacement text. Invoked once per match with -all, otherwise at most once; any error or exception from the callback becomes an error from regsub itself.}
     option -- \
         -detail {Ends switch parsing; the next word is treated as exp even if it begins with -.}
@@ -30081,8 +30049,9 @@ command reject {
 
     side_effect ConnectionControl -writes -side Both
     # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … }`, but a draft records only that the
-    #   field is set, never the expression that set it.
+    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
+    #   but a draft records only that the field is set, never the expression
+    #   that set it.
 
     form Default {reject}
 
@@ -30222,13 +30191,14 @@ command return {
 
     side_effect EventControl -writes -available {f5-irules}
     # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … }`, but a draft records only that the
-    #   field is set, never the expression that set it.
+    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
+    #   but a draft records only that the field is set, never the expression
+    #   that set it.
     # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
     #   spells it `state_transitions NAME|{ composition … argument_shape …
     #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … }`, but a draft records only that the field is
-    #   set, never the expression that set it.
+    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     runtime_backing shipped-builtin return
 
@@ -30322,8 +30292,8 @@ command scan {
     const_fold -native scan::const_fold
     return_type_hook -native Scan
     # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …}`, but a draft records only that the field is set,
-    #   never the expression that set it.
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     side_effect Variable -writes
 
@@ -30482,9 +30452,9 @@ set value [session lookup uie [list $myVar any virtual]]
     }
 
     subcommand add { mutator ; side_effect PersistenceTable -writes -side Client }
-    subcommand lookup { pure ; side_effect PersistenceTable -reads -side Client }
+    subcommand lookup { side_effect PersistenceTable -reads -side Client }
     subcommand delete { mutator ; side_effect PersistenceTable -writes -side Client }
-    subcommand count { pure ; side_effect PersistenceTable -reads -side Client }
+    subcommand count { side_effect PersistenceTable -reads -side Client }
 }
 
 command set {
@@ -30496,6 +30466,8 @@ command set {
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
+    # TODO(spectcl): `arg_roles`: a position carries more than one role; an
+    #   `arg` row names one.
     arg 0 -role VarRead
     assigns_variable_at 0
 
@@ -30503,13 +30475,14 @@ command set {
     codegen_hook -native Set
     inline_codegen_hook -native Set
     # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …}`, but a draft records only that the field is set,
-    #   never the expression that set it.
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     side_effect Variable -reads -writes
     # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … }`, but a draft records only that the
-    #   field is set, never the expression that set it.
+    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
+    #   but a draft records only that the field is set, never the expression
+    #   that set it.
 
     runtime_backing shipped-builtin set
 
@@ -30548,6 +30521,8 @@ set out [set $vbl]}
         arg 0 -role VarWrite
         side_effect Variable -writes
     }
+    # TODO(spectcl): `command_forms`: a refinement carries descriptors a draft
+    #   does not hold.
 }
 
 command sha1 {
@@ -30730,37 +30705,42 @@ as translation addresses to create a SNAT.}
 
 command split {
     available {tcl 8.4-} {f5-irules}
-    traits {PURE CSE_CANDIDATE FRAMELESS_RUNTIME}
+    traits {CSE_CANDIDATE FRAMELESS_RUNTIME}
     arity 1..2
 
     return_type List
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
+    # TODO(spectcl): `native_result` is set on the source spec. The DSL spells
+    #   it `native_result -native CONTRACT`, but a draft records only that the
+    #   field is set, never the expression that set it.
     byte_array_effect Coerces
     arg 0 -type String -shimmers
 
     const_fold -native split::const_fold
     const_fold_versioned -native split::const_fold_versioned
     # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …}`, but a draft records only that the field is set,
-    #   never the expression that set it.
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
     # TODO(spectcl): `dispatch_dependencies` is set on the source spec. — a
     #   pack may not author this field.
     # TODO(spectcl): `result_stability` is set on the source spec. The DSL
     #   spells it `result_stability
-    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-    #   …}}`, but a draft records only that the field is set, never the
-    #   expression that set it.
-
-    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … }`, but a draft records only that the
+    #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}
+    #   ?-partial? ?-complete WINDOW?…`, but a draft records only that the
     #   field is set, never the expression that set it.
+
+    effects -complete {8.4 9.1}
+    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
+    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
+    #   but a draft records only that the field is set, never the expression
+    #   that set it.
     # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
     #   spells it `state_transitions NAME|{ composition … argument_shape …
     #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … }`, but a draft records only that the field is
-    #   set, never the expression that set it.
+    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     runtime_backing shipped-builtin split
 
@@ -30837,10 +30817,28 @@ if {[string first "World" $s] >= 0} {
         #   -direct-provider
         #   F5String|F5Binary|VariableOperands|InitialiseEmptyVariable|CatchOutputs|PossibleBodies|CommandBindingTransition`,
         #   but a pack may not author this field.
-        pure
         # TODO(spectcl): `completion` is set on the source spec. The DSL spells
-        #   it `completion {CODE …}`, but a draft records only that the field
-        #   is set, never the expression that set it.
+        #   it `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a
+        #   draft records only that the field is set, never the expression that
+        #   set it.
+        # TODO(spectcl): `dispatch_dependencies` is set on the source spec. —
+        #   a pack may not author this field.
+        # TODO(spectcl): `result_stability` is set on the source spec. The DSL
+        #   spells it `result_stability
+        #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
+        effects -complete {8.4 8.6}
+        # TODO(spectcl): `world_effects` is set on the source spec. The DSL
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
+        # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
+        #   spells it `state_transitions NAME|{ composition … argument_shape
+        #   … resolver none|from-frame-effect|-native ID|{words ctx} {…}
+        #   widen … covers … commit … } ?-partial? ?-complete WINDOW?…`,
+        #   but a draft records only that the field is set, never the expression
+        #   that set it.
     }
 
     subcommand cat {
@@ -30858,26 +30856,29 @@ if {[string first "World" $s] >= 0} {
         #   F5String|F5Binary|VariableOperands|InitialiseEmptyVariable|CatchOutputs|PossibleBodies|CommandBindingTransition`,
         #   but a pack may not author this field.
         byte_array_effect Coerces
-        pure
         const_fold -native string::cat::const_fold
         # TODO(spectcl): `completion` is set on the source spec. The DSL spells
-        #   it `completion {CODE …}`, but a draft records only that the field
-        #   is set, never the expression that set it.
+        #   it `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a
+        #   draft records only that the field is set, never the expression that
+        #   set it.
         # TODO(spectcl): `dispatch_dependencies` is set on the source spec. —
         #   a pack may not author this field.
         # TODO(spectcl): `result_stability` is set on the source spec. The DSL
         #   spells it `result_stability
         #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-        #   …}}`, but a draft records only that the field is set, never the
-        #   expression that set it.
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
+        effects -complete {8.6 9.1}
         # TODO(spectcl): `world_effects` is set on the source spec. The DSL
-        #   spells it `world_effects none|NAME|{ … }`, but a draft records
-        #   only that the field is set, never the expression that set it.
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
         # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
         #   spells it `state_transitions NAME|{ composition … argument_shape
         #   … resolver none|from-frame-effect|-native ID|{words ctx} {…}
-        #   widen … covers … commit … }`, but a draft records only that
-        #   the field is set, never the expression that set it.
+        #   widen … covers … commit … } ?-partial? ?-complete WINDOW?…`,
+        #   but a draft records only that the field is set, never the expression
+        #   that set it.
     }
 
     subcommand compare {
@@ -30894,28 +30895,32 @@ if {[string first "World" $s] >= 0} {
         #   -direct-provider
         #   F5String|F5Binary|VariableOperands|InitialiseEmptyVariable|CatchOutputs|PossibleBodies|CommandBindingTransition`,
         #   but a pack may not author this field.
-        pure
         reserved_trailing_words 2
         const_fold -native string::compare::const_fold
+        const_fold_versioned -native string::compare::const_fold_versioned
         semantic_operation {Intrinsic StringCompare}
         # TODO(spectcl): `completion` is set on the source spec. The DSL spells
-        #   it `completion {CODE …}`, but a draft records only that the field
-        #   is set, never the expression that set it.
+        #   it `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a
+        #   draft records only that the field is set, never the expression that
+        #   set it.
         # TODO(spectcl): `dispatch_dependencies` is set on the source spec. —
         #   a pack may not author this field.
         # TODO(spectcl): `result_stability` is set on the source spec. The DSL
         #   spells it `result_stability
         #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-        #   …}}`, but a draft records only that the field is set, never the
-        #   expression that set it.
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
+        effects -complete {8.4 8.4} -complete {8.6 9.1}
         # TODO(spectcl): `world_effects` is set on the source spec. The DSL
-        #   spells it `world_effects none|NAME|{ … }`, but a draft records
-        #   only that the field is set, never the expression that set it.
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
         # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
         #   spells it `state_transitions NAME|{ composition … argument_shape
         #   … resolver none|from-frame-effect|-native ID|{words ctx} {…}
-        #   widen … covers … commit … }`, but a draft records only that
-        #   the field is set, never the expression that set it.
+        #   widen … covers … commit … } ?-partial? ?-complete WINDOW?…`,
+        #   but a draft records only that the field is set, never the expression
+        #   that set it.
 
         option -nocase -detail {Compare without regard to case.}
         option -length -takes length -integer Any \
@@ -30936,28 +30941,32 @@ if {[string first "World" $s] >= 0} {
         #   -direct-provider
         #   F5String|F5Binary|VariableOperands|InitialiseEmptyVariable|CatchOutputs|PossibleBodies|CommandBindingTransition`,
         #   but a pack may not author this field.
-        pure
         reserved_trailing_words 2
         const_fold -native string::equal::const_fold
+        const_fold_versioned -native string::equal::const_fold_versioned
         semantic_operation {Intrinsic StringEqual}
         # TODO(spectcl): `completion` is set on the source spec. The DSL spells
-        #   it `completion {CODE …}`, but a draft records only that the field
-        #   is set, never the expression that set it.
+        #   it `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a
+        #   draft records only that the field is set, never the expression that
+        #   set it.
         # TODO(spectcl): `dispatch_dependencies` is set on the source spec. —
         #   a pack may not author this field.
         # TODO(spectcl): `result_stability` is set on the source spec. The DSL
         #   spells it `result_stability
         #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-        #   …}}`, but a draft records only that the field is set, never the
-        #   expression that set it.
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
+        effects -complete {8.4 8.4} -complete {8.6 9.1}
         # TODO(spectcl): `world_effects` is set on the source spec. The DSL
-        #   spells it `world_effects none|NAME|{ … }`, but a draft records
-        #   only that the field is set, never the expression that set it.
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
         # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
         #   spells it `state_transitions NAME|{ composition … argument_shape
         #   … resolver none|from-frame-effect|-native ID|{words ctx} {…}
-        #   widen … covers … commit … }`, but a draft records only that
-        #   the field is set, never the expression that set it.
+        #   widen … covers … commit … } ?-partial? ?-complete WINDOW?…`,
+        #   but a draft records only that the field is set, never the expression
+        #   that set it.
 
         option -nocase -detail {Compare without regard to case.}
         option -length -takes length -integer Any \
@@ -30978,29 +30987,32 @@ if {[string first "World" $s] >= 0} {
         #   -direct-provider
         #   F5String|F5Binary|VariableOperands|InitialiseEmptyVariable|CatchOutputs|PossibleBodies|CommandBindingTransition`,
         #   but a pack may not author this field.
-        pure
         arg 0 -type String -shimmers -transparent ByteArray
         arg 1 -type String -shimmers -transparent ByteArray
         arg 2 -type Int -shimmers
         const_fold -native string::first::const_fold
         # TODO(spectcl): `completion` is set on the source spec. The DSL spells
-        #   it `completion {CODE …}`, but a draft records only that the field
-        #   is set, never the expression that set it.
+        #   it `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a
+        #   draft records only that the field is set, never the expression that
+        #   set it.
         # TODO(spectcl): `dispatch_dependencies` is set on the source spec. —
         #   a pack may not author this field.
         # TODO(spectcl): `result_stability` is set on the source spec. The DSL
         #   spells it `result_stability
         #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-        #   …}}`, but a draft records only that the field is set, never the
-        #   expression that set it.
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
+        effects -complete {8.4 9.1}
         # TODO(spectcl): `world_effects` is set on the source spec. The DSL
-        #   spells it `world_effects none|NAME|{ … }`, but a draft records
-        #   only that the field is set, never the expression that set it.
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
         # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
         #   spells it `state_transitions NAME|{ composition … argument_shape
         #   … resolver none|from-frame-effect|-native ID|{words ctx} {…}
-        #   widen … covers … commit … }`, but a draft records only that
-        #   the field is set, never the expression that set it.
+        #   widen … covers … commit … } ?-partial? ?-complete WINDOW?…`,
+        #   but a draft records only that the field is set, never the expression
+        #   that set it.
     }
 
     subcommand index {
@@ -31018,29 +31030,32 @@ if {[string first "World" $s] >= 0} {
         #   F5String|F5Binary|VariableOperands|InitialiseEmptyVariable|CatchOutputs|PossibleBodies|CommandBindingTransition`,
         #   but a pack may not author this field.
         byte_array_effect Transparent
-        pure
         arg 0 -type String -shimmers -transparent ByteArray
         arg 1 -type Int -shimmers
         const_fold -native string::index::const_fold
         semantic_operation {Intrinsic StringIndex}
         # TODO(spectcl): `completion` is set on the source spec. The DSL spells
-        #   it `completion {CODE …}`, but a draft records only that the field
-        #   is set, never the expression that set it.
+        #   it `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a
+        #   draft records only that the field is set, never the expression that
+        #   set it.
         # TODO(spectcl): `dispatch_dependencies` is set on the source spec. —
         #   a pack may not author this field.
         # TODO(spectcl): `result_stability` is set on the source spec. The DSL
         #   spells it `result_stability
         #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-        #   …}}`, but a draft records only that the field is set, never the
-        #   expression that set it.
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
+        effects -complete {8.4 9.1}
         # TODO(spectcl): `world_effects` is set on the source spec. The DSL
-        #   spells it `world_effects none|NAME|{ … }`, but a draft records
-        #   only that the field is set, never the expression that set it.
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
         # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
         #   spells it `state_transitions NAME|{ composition … argument_shape
         #   … resolver none|from-frame-effect|-native ID|{words ctx} {…}
-        #   widen … covers … commit … }`, but a draft records only that
-        #   the field is set, never the expression that set it.
+        #   widen … covers … commit … } ?-partial? ?-complete WINDOW?…`,
+        #   but a draft records only that the field is set, never the expression
+        #   that set it.
     }
 
     subcommand insert {
@@ -31059,12 +31074,30 @@ if {[string first "World" $s] >= 0} {
         #   F5String|F5Binary|VariableOperands|InitialiseEmptyVariable|CatchOutputs|PossibleBodies|CommandBindingTransition`,
         #   but a pack may not author this field.
         byte_array_effect Coerces
-        pure
         source_index_bounds StringInsert
         arg 1 -type Int -shimmers
         # TODO(spectcl): `completion` is set on the source spec. The DSL spells
-        #   it `completion {CODE …}`, but a draft records only that the field
-        #   is set, never the expression that set it.
+        #   it `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a
+        #   draft records only that the field is set, never the expression that
+        #   set it.
+        # TODO(spectcl): `dispatch_dependencies` is set on the source spec. —
+        #   a pack may not author this field.
+        # TODO(spectcl): `result_stability` is set on the source spec. The DSL
+        #   spells it `result_stability
+        #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
+        effects -complete {9.0 9.1}
+        # TODO(spectcl): `world_effects` is set on the source spec. The DSL
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
+        # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
+        #   spells it `state_transitions NAME|{ composition … argument_shape
+        #   … resolver none|from-frame-effect|-native ID|{words ctx} {…}
+        #   widen … covers … commit … } ?-partial? ?-complete WINDOW?…`,
+        #   but a draft records only that the field is set, never the expression
+        #   that set it.
     }
 
     subcommand is {
@@ -31077,6 +31110,8 @@ if {[string first "World" $s] >= 0} {
         #   spells it `native_compilation -native CONTRACT`, but a draft records
         #   only that the field is set, never the expression that set it.
         arg_values_accept_prefix
+        option_prefix_words 1
+        reserved_trailing_words 1
         arg 0 -values-from string-is-arg0 -closed
         const_fold_versioned -native string::is::const_fold_versioned
         inline_codegen_hook -native StringIs -introduced 8.6
@@ -31084,9 +31119,11 @@ if {[string first "World" $s] >= 0} {
 
         refine value {
             arity 2
-            traits {PURE CSE_CANDIDATE}
+            traits CSE_CANDIDATE
             side_effects none
         }
+        # TODO(spectcl): `subcommand_forms`: a refinement carries descriptors a
+        #   draft does not hold.
         side_effect Variable -writes
 
         option -strict \
@@ -31109,29 +31146,32 @@ if {[string first "World" $s] >= 0} {
         #   -direct-provider
         #   F5String|F5Binary|VariableOperands|InitialiseEmptyVariable|CatchOutputs|PossibleBodies|CommandBindingTransition`,
         #   but a pack may not author this field.
-        pure
         arg 0 -type String -shimmers -transparent ByteArray
         arg 1 -type String -shimmers -transparent ByteArray
         arg 2 -type Int -shimmers
         const_fold -native string::last::const_fold
         # TODO(spectcl): `completion` is set on the source spec. The DSL spells
-        #   it `completion {CODE …}`, but a draft records only that the field
-        #   is set, never the expression that set it.
+        #   it `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a
+        #   draft records only that the field is set, never the expression that
+        #   set it.
         # TODO(spectcl): `dispatch_dependencies` is set on the source spec. —
         #   a pack may not author this field.
         # TODO(spectcl): `result_stability` is set on the source spec. The DSL
         #   spells it `result_stability
         #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-        #   …}}`, but a draft records only that the field is set, never the
-        #   expression that set it.
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
+        effects -complete {8.4 9.1}
         # TODO(spectcl): `world_effects` is set on the source spec. The DSL
-        #   spells it `world_effects none|NAME|{ … }`, but a draft records
-        #   only that the field is set, never the expression that set it.
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
         # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
         #   spells it `state_transitions NAME|{ composition … argument_shape
         #   … resolver none|from-frame-effect|-native ID|{words ctx} {…}
-        #   widen … covers … commit … }`, but a draft records only that
-        #   the field is set, never the expression that set it.
+        #   widen … covers … commit … } ?-partial? ?-complete WINDOW?…`,
+        #   but a draft records only that the field is set, never the expression
+        #   that set it.
     }
 
     subcommand length {
@@ -31148,28 +31188,31 @@ if {[string first "World" $s] >= 0} {
         #   -direct-provider
         #   F5String|F5Binary|VariableOperands|InitialiseEmptyVariable|CatchOutputs|PossibleBodies|CommandBindingTransition`,
         #   but a pack may not author this field.
-        pure
         arg 0 -type String -shimmers -transparent ByteArray
         const_fold -native string::length::const_fold
         semantic_operation {Intrinsic StringLength}
         # TODO(spectcl): `completion` is set on the source spec. The DSL spells
-        #   it `completion {CODE …}`, but a draft records only that the field
-        #   is set, never the expression that set it.
+        #   it `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a
+        #   draft records only that the field is set, never the expression that
+        #   set it.
         # TODO(spectcl): `dispatch_dependencies` is set on the source spec. —
         #   a pack may not author this field.
         # TODO(spectcl): `result_stability` is set on the source spec. The DSL
         #   spells it `result_stability
         #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-        #   …}}`, but a draft records only that the field is set, never the
-        #   expression that set it.
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
+        effects -complete {8.4 9.1}
         # TODO(spectcl): `world_effects` is set on the source spec. The DSL
-        #   spells it `world_effects none|NAME|{ … }`, but a draft records
-        #   only that the field is set, never the expression that set it.
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
         # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
         #   spells it `state_transitions NAME|{ composition … argument_shape
         #   … resolver none|from-frame-effect|-native ID|{words ctx} {…}
-        #   widen … covers … commit … }`, but a draft records only that
-        #   the field is set, never the expression that set it.
+        #   widen … covers … commit … } ?-partial? ?-complete WINDOW?…`,
+        #   but a draft records only that the field is set, never the expression
+        #   that set it.
     }
 
     subcommand map {
@@ -31186,29 +31229,35 @@ if {[string first "World" $s] >= 0} {
         #   -direct-provider
         #   F5String|F5Binary|VariableOperands|InitialiseEmptyVariable|CatchOutputs|PossibleBodies|CommandBindingTransition`,
         #   but a pack may not author this field.
+        # TODO(spectcl): `native_result` is set on the source spec. The DSL
+        #   spells it `native_result -native CONTRACT`, but a draft records only
+        #   that the field is set, never the expression that set it.
         byte_array_effect Coerces
-        pure
         arg 0 -type List -shimmers -transparent Dict
         arg 1 -type String -shimmers
         const_fold -native string::map::const_fold
         # TODO(spectcl): `completion` is set on the source spec. The DSL spells
-        #   it `completion {CODE …}`, but a draft records only that the field
-        #   is set, never the expression that set it.
+        #   it `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a
+        #   draft records only that the field is set, never the expression that
+        #   set it.
         # TODO(spectcl): `dispatch_dependencies` is set on the source spec. —
         #   a pack may not author this field.
         # TODO(spectcl): `result_stability` is set on the source spec. The DSL
         #   spells it `result_stability
         #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-        #   …}}`, but a draft records only that the field is set, never the
-        #   expression that set it.
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
+        effects -complete {8.4 9.1}
         # TODO(spectcl): `world_effects` is set on the source spec. The DSL
-        #   spells it `world_effects none|NAME|{ … }`, but a draft records
-        #   only that the field is set, never the expression that set it.
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
         # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
         #   spells it `state_transitions NAME|{ composition … argument_shape
         #   … resolver none|from-frame-effect|-native ID|{words ctx} {…}
-        #   widen … covers … commit … }`, but a draft records only that
-        #   the field is set, never the expression that set it.
+        #   widen … covers … commit … } ?-partial? ?-complete WINDOW?…`,
+        #   but a draft records only that the field is set, never the expression
+        #   that set it.
         taint_transform CRLF_FREE
         taint_transform_when MappingDeletesCrlf
 
@@ -31230,30 +31279,33 @@ if {[string first "World" $s] >= 0} {
         #   F5String|F5Binary|VariableOperands|InitialiseEmptyVariable|CatchOutputs|PossibleBodies|CommandBindingTransition`,
         #   but a pack may not author this field.
         pattern_type Glob
-        pure
         arg_role_layout_resolver -native string::match::arg_role_layout_resolver
         arg_role_resolver_roles Pattern
         const_fold -native string::match::const_fold
         const_fold_versioned -native string::match::const_fold_versioned
         inline_codegen_hook -native StringMatch
         # TODO(spectcl): `completion` is set on the source spec. The DSL spells
-        #   it `completion {CODE …}`, but a draft records only that the field
-        #   is set, never the expression that set it.
+        #   it `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a
+        #   draft records only that the field is set, never the expression that
+        #   set it.
         # TODO(spectcl): `dispatch_dependencies` is set on the source spec. —
         #   a pack may not author this field.
         # TODO(spectcl): `result_stability` is set on the source spec. The DSL
         #   spells it `result_stability
         #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-        #   …}}`, but a draft records only that the field is set, never the
-        #   expression that set it.
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
+        effects -complete {8.4 9.1}
         # TODO(spectcl): `world_effects` is set on the source spec. The DSL
-        #   spells it `world_effects none|NAME|{ … }`, but a draft records
-        #   only that the field is set, never the expression that set it.
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
         # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
         #   spells it `state_transitions NAME|{ composition … argument_shape
         #   … resolver none|from-frame-effect|-native ID|{words ctx} {…}
-        #   widen … covers … commit … }`, but a draft records only that
-        #   the field is set, never the expression that set it.
+        #   widen … covers … commit … } ?-partial? ?-complete WINDOW?…`,
+        #   but a draft records only that the field is set, never the expression
+        #   that set it.
 
         option -nocase \
             -detail {Match without regard to case; the endpoints of a [x-y] range are lower-cased first, so [A-z] behaves like [A-Za-z].}
@@ -31274,7 +31326,6 @@ if {[string first "World" $s] >= 0} {
         #   F5String|F5Binary|VariableOperands|InitialiseEmptyVariable|CatchOutputs|PossibleBodies|CommandBindingTransition`,
         #   but a pack may not author this field.
         byte_array_effect Transparent
-        pure
         arg 0 -type String -shimmers -transparent ByteArray
         arg 1 -type Int -shimmers
         arg 2 -type Int -shimmers
@@ -31282,23 +31333,27 @@ if {[string first "World" $s] >= 0} {
         const_fold_versioned -native string::range::const_fold_versioned
         semantic_operation {Intrinsic StringRange}
         # TODO(spectcl): `completion` is set on the source spec. The DSL spells
-        #   it `completion {CODE …}`, but a draft records only that the field
-        #   is set, never the expression that set it.
+        #   it `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a
+        #   draft records only that the field is set, never the expression that
+        #   set it.
         # TODO(spectcl): `dispatch_dependencies` is set on the source spec. —
         #   a pack may not author this field.
         # TODO(spectcl): `result_stability` is set on the source spec. The DSL
         #   spells it `result_stability
         #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-        #   …}}`, but a draft records only that the field is set, never the
-        #   expression that set it.
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
+        effects -complete {8.4 9.1}
         # TODO(spectcl): `world_effects` is set on the source spec. The DSL
-        #   spells it `world_effects none|NAME|{ … }`, but a draft records
-        #   only that the field is set, never the expression that set it.
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
         # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
         #   spells it `state_transitions NAME|{ composition … argument_shape
         #   … resolver none|from-frame-effect|-native ID|{words ctx} {…}
-        #   widen … covers … commit … }`, but a draft records only that
-        #   the field is set, never the expression that set it.
+        #   widen … covers … commit … } ?-partial? ?-complete WINDOW?…`,
+        #   but a draft records only that the field is set, never the expression
+        #   that set it.
     }
 
     subcommand repeat {
@@ -31315,29 +31370,35 @@ if {[string first "World" $s] >= 0} {
         #   -direct-provider
         #   F5String|F5Binary|VariableOperands|InitialiseEmptyVariable|CatchOutputs|PossibleBodies|CommandBindingTransition`,
         #   but a pack may not author this field.
+        # TODO(spectcl): `native_result` is set on the source spec. The DSL
+        #   spells it `native_result -native CONTRACT`, but a draft records only
+        #   that the field is set, never the expression that set it.
         byte_array_effect Coerces
-        pure
-        arg 1 -type Int -shimmers
+        arg 1 -type Int -shimmers -domain {Range 0 max}
         const_fold -native string::repeat::const_fold
         const_fold_versioned -native string::repeat::const_fold_versioned
         # TODO(spectcl): `completion` is set on the source spec. The DSL spells
-        #   it `completion {CODE …}`, but a draft records only that the field
-        #   is set, never the expression that set it.
+        #   it `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a
+        #   draft records only that the field is set, never the expression that
+        #   set it.
         # TODO(spectcl): `dispatch_dependencies` is set on the source spec. —
         #   a pack may not author this field.
         # TODO(spectcl): `result_stability` is set on the source spec. The DSL
         #   spells it `result_stability
         #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-        #   …}}`, but a draft records only that the field is set, never the
-        #   expression that set it.
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
+        effects -complete {8.4 9.1}
         # TODO(spectcl): `world_effects` is set on the source spec. The DSL
-        #   spells it `world_effects none|NAME|{ … }`, but a draft records
-        #   only that the field is set, never the expression that set it.
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
         # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
         #   spells it `state_transitions NAME|{ composition … argument_shape
         #   … resolver none|from-frame-effect|-native ID|{words ctx} {…}
-        #   widen … covers … commit … }`, but a draft records only that
-        #   the field is set, never the expression that set it.
+        #   widen … covers … commit … } ?-partial? ?-complete WINDOW?…`,
+        #   but a draft records only that the field is set, never the expression
+        #   that set it.
     }
 
     subcommand replace {
@@ -31355,7 +31416,6 @@ if {[string first "World" $s] >= 0} {
         #   F5String|F5Binary|VariableOperands|InitialiseEmptyVariable|CatchOutputs|PossibleBodies|CommandBindingTransition`,
         #   but a pack may not author this field.
         byte_array_effect Coerces
-        pure
         arg 0 -type String -shimmers -transparent ByteArray
         arg 1 -type Int -shimmers
         arg 2 -type Int -shimmers
@@ -31363,23 +31423,27 @@ if {[string first "World" $s] >= 0} {
         inline_codegen_hook -native StringReplace -introduced 8.6
         semantic_operation {Intrinsic StringReplace}
         # TODO(spectcl): `completion` is set on the source spec. The DSL spells
-        #   it `completion {CODE …}`, but a draft records only that the field
-        #   is set, never the expression that set it.
+        #   it `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a
+        #   draft records only that the field is set, never the expression that
+        #   set it.
         # TODO(spectcl): `dispatch_dependencies` is set on the source spec. —
         #   a pack may not author this field.
         # TODO(spectcl): `result_stability` is set on the source spec. The DSL
         #   spells it `result_stability
         #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-        #   …}}`, but a draft records only that the field is set, never the
-        #   expression that set it.
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
+        effects -complete {8.4 9.1}
         # TODO(spectcl): `world_effects` is set on the source spec. The DSL
-        #   spells it `world_effects none|NAME|{ … }`, but a draft records
-        #   only that the field is set, never the expression that set it.
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
         # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
         #   spells it `state_transitions NAME|{ composition … argument_shape
         #   … resolver none|from-frame-effect|-native ID|{words ctx} {…}
-        #   widen … covers … commit … }`, but a draft records only that
-        #   the field is set, never the expression that set it.
+        #   widen … covers … commit … } ?-partial? ?-complete WINDOW?…`,
+        #   but a draft records only that the field is set, never the expression
+        #   that set it.
     }
 
     subcommand reverse {
@@ -31398,27 +31462,30 @@ if {[string first "World" $s] >= 0} {
         #   F5String|F5Binary|VariableOperands|InitialiseEmptyVariable|CatchOutputs|PossibleBodies|CommandBindingTransition`,
         #   but a pack may not author this field.
         byte_array_effect Transparent
-        pure
         arg 0 -type String -shimmers -transparent ByteArray
         const_fold -native string::reverse::const_fold
         # TODO(spectcl): `completion` is set on the source spec. The DSL spells
-        #   it `completion {CODE …}`, but a draft records only that the field
-        #   is set, never the expression that set it.
+        #   it `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a
+        #   draft records only that the field is set, never the expression that
+        #   set it.
         # TODO(spectcl): `dispatch_dependencies` is set on the source spec. —
         #   a pack may not author this field.
         # TODO(spectcl): `result_stability` is set on the source spec. The DSL
         #   spells it `result_stability
         #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-        #   …}}`, but a draft records only that the field is set, never the
-        #   expression that set it.
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
+        effects -complete {8.5 9.1}
         # TODO(spectcl): `world_effects` is set on the source spec. The DSL
-        #   spells it `world_effects none|NAME|{ … }`, but a draft records
-        #   only that the field is set, never the expression that set it.
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
         # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
         #   spells it `state_transitions NAME|{ composition … argument_shape
         #   … resolver none|from-frame-effect|-native ID|{words ctx} {…}
-        #   widen … covers … commit … }`, but a draft records only that
-        #   the field is set, never the expression that set it.
+        #   widen … covers … commit … } ?-partial? ?-complete WINDOW?…`,
+        #   but a draft records only that the field is set, never the expression
+        #   that set it.
     }
 
     subcommand tolower {
@@ -31436,28 +31503,31 @@ if {[string first "World" $s] >= 0} {
         #   F5String|F5Binary|VariableOperands|InitialiseEmptyVariable|CatchOutputs|PossibleBodies|CommandBindingTransition`,
         #   but a pack may not author this field.
         byte_array_effect CaseFolds
-        pure
         arg 1 -type Int -shimmers
         arg 2 -type Int -shimmers
         const_fold -native string::tolower::const_fold
         # TODO(spectcl): `completion` is set on the source spec. The DSL spells
-        #   it `completion {CODE …}`, but a draft records only that the field
-        #   is set, never the expression that set it.
+        #   it `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a
+        #   draft records only that the field is set, never the expression that
+        #   set it.
         # TODO(spectcl): `dispatch_dependencies` is set on the source spec. —
         #   a pack may not author this field.
         # TODO(spectcl): `result_stability` is set on the source spec. The DSL
         #   spells it `result_stability
         #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-        #   …}}`, but a draft records only that the field is set, never the
-        #   expression that set it.
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
+        effects -complete {8.4 9.1}
         # TODO(spectcl): `world_effects` is set on the source spec. The DSL
-        #   spells it `world_effects none|NAME|{ … }`, but a draft records
-        #   only that the field is set, never the expression that set it.
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
         # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
         #   spells it `state_transitions NAME|{ composition … argument_shape
         #   … resolver none|from-frame-effect|-native ID|{words ctx} {…}
-        #   widen … covers … commit … }`, but a draft records only that
-        #   the field is set, never the expression that set it.
+        #   widen … covers … commit … } ?-partial? ?-complete WINDOW?…`,
+        #   but a draft records only that the field is set, never the expression
+        #   that set it.
     }
 
     subcommand totitle {
@@ -31475,28 +31545,31 @@ if {[string first "World" $s] >= 0} {
         #   F5String|F5Binary|VariableOperands|InitialiseEmptyVariable|CatchOutputs|PossibleBodies|CommandBindingTransition`,
         #   but a pack may not author this field.
         byte_array_effect CaseFolds
-        pure
         arg 1 -type Int -shimmers
         arg 2 -type Int -shimmers
         const_fold -native string::totitle::const_fold
         # TODO(spectcl): `completion` is set on the source spec. The DSL spells
-        #   it `completion {CODE …}`, but a draft records only that the field
-        #   is set, never the expression that set it.
+        #   it `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a
+        #   draft records only that the field is set, never the expression that
+        #   set it.
         # TODO(spectcl): `dispatch_dependencies` is set on the source spec. —
         #   a pack may not author this field.
         # TODO(spectcl): `result_stability` is set on the source spec. The DSL
         #   spells it `result_stability
         #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-        #   …}}`, but a draft records only that the field is set, never the
-        #   expression that set it.
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
+        effects -complete {8.4 9.1}
         # TODO(spectcl): `world_effects` is set on the source spec. The DSL
-        #   spells it `world_effects none|NAME|{ … }`, but a draft records
-        #   only that the field is set, never the expression that set it.
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
         # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
         #   spells it `state_transitions NAME|{ composition … argument_shape
         #   … resolver none|from-frame-effect|-native ID|{words ctx} {…}
-        #   widen … covers … commit … }`, but a draft records only that
-        #   the field is set, never the expression that set it.
+        #   widen … covers … commit … } ?-partial? ?-complete WINDOW?…`,
+        #   but a draft records only that the field is set, never the expression
+        #   that set it.
     }
 
     subcommand toupper {
@@ -31514,28 +31587,31 @@ if {[string first "World" $s] >= 0} {
         #   F5String|F5Binary|VariableOperands|InitialiseEmptyVariable|CatchOutputs|PossibleBodies|CommandBindingTransition`,
         #   but a pack may not author this field.
         byte_array_effect CaseFolds
-        pure
         arg 1 -type Int -shimmers
         arg 2 -type Int -shimmers
         const_fold -native string::toupper::const_fold
         # TODO(spectcl): `completion` is set on the source spec. The DSL spells
-        #   it `completion {CODE …}`, but a draft records only that the field
-        #   is set, never the expression that set it.
+        #   it `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a
+        #   draft records only that the field is set, never the expression that
+        #   set it.
         # TODO(spectcl): `dispatch_dependencies` is set on the source spec. —
         #   a pack may not author this field.
         # TODO(spectcl): `result_stability` is set on the source spec. The DSL
         #   spells it `result_stability
         #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-        #   …}}`, but a draft records only that the field is set, never the
-        #   expression that set it.
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
+        effects -complete {8.4 9.1}
         # TODO(spectcl): `world_effects` is set on the source spec. The DSL
-        #   spells it `world_effects none|NAME|{ … }`, but a draft records
-        #   only that the field is set, never the expression that set it.
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
         # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
         #   spells it `state_transitions NAME|{ composition … argument_shape
         #   … resolver none|from-frame-effect|-native ID|{words ctx} {…}
-        #   widen … covers … commit … }`, but a draft records only that
-        #   the field is set, never the expression that set it.
+        #   widen … covers … commit … } ?-partial? ?-complete WINDOW?…`,
+        #   but a draft records only that the field is set, never the expression
+        #   that set it.
     }
 
     subcommand trim {
@@ -31552,29 +31628,35 @@ if {[string first "World" $s] >= 0} {
         #   -direct-provider
         #   F5String|F5Binary|VariableOperands|InitialiseEmptyVariable|CatchOutputs|PossibleBodies|CommandBindingTransition`,
         #   but a pack may not author this field.
+        # TODO(spectcl): `native_result` is set on the source spec. The DSL
+        #   spells it `native_result -native CONTRACT`, but a draft records only
+        #   that the field is set, never the expression that set it.
         byte_array_effect Coerces
-        pure
         const_fold -native string::trim::const_fold
         const_fold_versioned -native string::trim::const_fold_versioned
         inline_codegen_hook -native StringTrim -introduced 8.6
         # TODO(spectcl): `completion` is set on the source spec. The DSL spells
-        #   it `completion {CODE …}`, but a draft records only that the field
-        #   is set, never the expression that set it.
+        #   it `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a
+        #   draft records only that the field is set, never the expression that
+        #   set it.
         # TODO(spectcl): `dispatch_dependencies` is set on the source spec. —
         #   a pack may not author this field.
         # TODO(spectcl): `result_stability` is set on the source spec. The DSL
         #   spells it `result_stability
         #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-        #   …}}`, but a draft records only that the field is set, never the
-        #   expression that set it.
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
+        effects -complete {8.4 9.1}
         # TODO(spectcl): `world_effects` is set on the source spec. The DSL
-        #   spells it `world_effects none|NAME|{ … }`, but a draft records
-        #   only that the field is set, never the expression that set it.
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
         # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
         #   spells it `state_transitions NAME|{ composition … argument_shape
         #   … resolver none|from-frame-effect|-native ID|{words ctx} {…}
-        #   widen … covers … commit … }`, but a draft records only that
-        #   the field is set, never the expression that set it.
+        #   widen … covers … commit … } ?-partial? ?-complete WINDOW?…`,
+        #   but a draft records only that the field is set, never the expression
+        #   that set it.
     }
 
     subcommand trimleft {
@@ -31591,29 +31673,35 @@ if {[string first "World" $s] >= 0} {
         #   -direct-provider
         #   F5String|F5Binary|VariableOperands|InitialiseEmptyVariable|CatchOutputs|PossibleBodies|CommandBindingTransition`,
         #   but a pack may not author this field.
+        # TODO(spectcl): `native_result` is set on the source spec. The DSL
+        #   spells it `native_result -native CONTRACT`, but a draft records only
+        #   that the field is set, never the expression that set it.
         byte_array_effect Coerces
-        pure
         const_fold -native string::trimleft::const_fold
         const_fold_versioned -native string::trimleft::const_fold_versioned
         inline_codegen_hook -native StringTrimLeft -introduced 8.6
         # TODO(spectcl): `completion` is set on the source spec. The DSL spells
-        #   it `completion {CODE …}`, but a draft records only that the field
-        #   is set, never the expression that set it.
+        #   it `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a
+        #   draft records only that the field is set, never the expression that
+        #   set it.
         # TODO(spectcl): `dispatch_dependencies` is set on the source spec. —
         #   a pack may not author this field.
         # TODO(spectcl): `result_stability` is set on the source spec. The DSL
         #   spells it `result_stability
         #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-        #   …}}`, but a draft records only that the field is set, never the
-        #   expression that set it.
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
+        effects -complete {8.4 9.1}
         # TODO(spectcl): `world_effects` is set on the source spec. The DSL
-        #   spells it `world_effects none|NAME|{ … }`, but a draft records
-        #   only that the field is set, never the expression that set it.
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
         # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
         #   spells it `state_transitions NAME|{ composition … argument_shape
         #   … resolver none|from-frame-effect|-native ID|{words ctx} {…}
-        #   widen … covers … commit … }`, but a draft records only that
-        #   the field is set, never the expression that set it.
+        #   widen … covers … commit … } ?-partial? ?-complete WINDOW?…`,
+        #   but a draft records only that the field is set, never the expression
+        #   that set it.
     }
 
     subcommand trimright {
@@ -31630,29 +31718,35 @@ if {[string first "World" $s] >= 0} {
         #   -direct-provider
         #   F5String|F5Binary|VariableOperands|InitialiseEmptyVariable|CatchOutputs|PossibleBodies|CommandBindingTransition`,
         #   but a pack may not author this field.
+        # TODO(spectcl): `native_result` is set on the source spec. The DSL
+        #   spells it `native_result -native CONTRACT`, but a draft records only
+        #   that the field is set, never the expression that set it.
         byte_array_effect Coerces
-        pure
         const_fold -native string::trimright::const_fold
         const_fold_versioned -native string::trimright::const_fold_versioned
         inline_codegen_hook -native StringTrimRight -introduced 8.6
         # TODO(spectcl): `completion` is set on the source spec. The DSL spells
-        #   it `completion {CODE …}`, but a draft records only that the field
-        #   is set, never the expression that set it.
+        #   it `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a
+        #   draft records only that the field is set, never the expression that
+        #   set it.
         # TODO(spectcl): `dispatch_dependencies` is set on the source spec. —
         #   a pack may not author this field.
         # TODO(spectcl): `result_stability` is set on the source spec. The DSL
         #   spells it `result_stability
         #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-        #   …}}`, but a draft records only that the field is set, never the
-        #   expression that set it.
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
+        effects -complete {8.4 9.1}
         # TODO(spectcl): `world_effects` is set on the source spec. The DSL
-        #   spells it `world_effects none|NAME|{ … }`, but a draft records
-        #   only that the field is set, never the expression that set it.
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
         # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
         #   spells it `state_transitions NAME|{ composition … argument_shape
         #   … resolver none|from-frame-effect|-native ID|{words ctx} {…}
-        #   widen … covers … commit … }`, but a draft records only that
-        #   the field is set, never the expression that set it.
+        #   widen … covers … commit … } ?-partial? ?-complete WINDOW?…`,
+        #   but a draft records only that the field is set, never the expression
+        #   that set it.
     }
 
     subcommand wordend {
@@ -31669,11 +31763,29 @@ if {[string first "World" $s] >= 0} {
         #   -direct-provider
         #   F5String|F5Binary|VariableOperands|InitialiseEmptyVariable|CatchOutputs|PossibleBodies|CommandBindingTransition`,
         #   but a pack may not author this field.
-        pure
         arg 1 -type Int -shimmers
         # TODO(spectcl): `completion` is set on the source spec. The DSL spells
-        #   it `completion {CODE …}`, but a draft records only that the field
-        #   is set, never the expression that set it.
+        #   it `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a
+        #   draft records only that the field is set, never the expression that
+        #   set it.
+        # TODO(spectcl): `dispatch_dependencies` is set on the source spec. —
+        #   a pack may not author this field.
+        # TODO(spectcl): `result_stability` is set on the source spec. The DSL
+        #   spells it `result_stability
+        #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
+        effects -complete {8.4 9.1}
+        # TODO(spectcl): `world_effects` is set on the source spec. The DSL
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
+        # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
+        #   spells it `state_transitions NAME|{ composition … argument_shape
+        #   … resolver none|from-frame-effect|-native ID|{words ctx} {…}
+        #   widen … covers … commit … } ?-partial? ?-complete WINDOW?…`,
+        #   but a draft records only that the field is set, never the expression
+        #   that set it.
     }
 
     subcommand wordstart {
@@ -31690,11 +31802,29 @@ if {[string first "World" $s] >= 0} {
         #   -direct-provider
         #   F5String|F5Binary|VariableOperands|InitialiseEmptyVariable|CatchOutputs|PossibleBodies|CommandBindingTransition`,
         #   but a pack may not author this field.
-        pure
         arg 1 -type Int -shimmers
         # TODO(spectcl): `completion` is set on the source spec. The DSL spells
-        #   it `completion {CODE …}`, but a draft records only that the field
-        #   is set, never the expression that set it.
+        #   it `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a
+        #   draft records only that the field is set, never the expression that
+        #   set it.
+        # TODO(spectcl): `dispatch_dependencies` is set on the source spec. —
+        #   a pack may not author this field.
+        # TODO(spectcl): `result_stability` is set on the source spec. The DSL
+        #   spells it `result_stability
+        #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
+        effects -complete {8.4 9.1}
+        # TODO(spectcl): `world_effects` is set on the source spec. The DSL
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
+        # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
+        #   spells it `state_transitions NAME|{ composition … argument_shape
+        #   … resolver none|from-frame-effect|-native ID|{words ctx} {…}
+        #   widen … covers … commit … } ?-partial? ?-complete WINDOW?…`,
+        #   but a draft records only that the field is set, never the expression
+        #   that set it.
     }
 }
 
@@ -31772,6 +31902,8 @@ puts [subst -variables {$name < [expr {1+1}] > \n}]}
         arity 1
         side_effects none
     }
+    # TODO(spectcl): `command_forms`: a refinement carries descriptors a draft
+    #   does not hold.
 }
 
 command substr {
@@ -32145,13 +32277,15 @@ trace remove variable ::config(port) write logWrite}
         literal_argument_validator -native trace::add::literal_argument_validator
         side_effect InterpState -writes
         # TODO(spectcl): `world_effects` is set on the source spec. The DSL
-        #   spells it `world_effects none|NAME|{ … }`, but a draft records
-        #   only that the field is set, never the expression that set it.
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
         # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
         #   spells it `state_transitions NAME|{ composition … argument_shape
         #   … resolver none|from-frame-effect|-native ID|{words ctx} {…}
-        #   widen … covers … commit … }`, but a draft records only that
-        #   the field is set, never the expression that set it.
+        #   widen … covers … commit … } ?-partial? ?-complete WINDOW?…`,
+        #   but a draft records only that the field is set, never the expression
+        #   that set it.
     }
 
     subcommand info {
@@ -32162,7 +32296,6 @@ trace remove variable ::config(port) write logWrite}
         available {tcl 8.4-}
         return_type List
         variable_receivers {{1 trace-subject}}
-        pure
         arg_values_accept_prefix
         arg 0 -values-from trace-add-arg0 -closed
         arg_role_layout_resolver -native trace::info::arg_role_layout_resolver
@@ -32170,17 +32303,19 @@ trace remove variable ::config(port) write logWrite}
         # TODO(spectcl): `result_stability` is set on the source spec. The DSL
         #   spells it `result_stability
         #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-        #   …}}`, but a draft records only that the field is set, never the
-        #   expression that set it.
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
         side_effect InterpState -reads
         # TODO(spectcl): `world_effects` is set on the source spec. The DSL
-        #   spells it `world_effects none|NAME|{ … }`, but a draft records
-        #   only that the field is set, never the expression that set it.
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
         # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
         #   spells it `state_transitions NAME|{ composition … argument_shape
         #   … resolver none|from-frame-effect|-native ID|{words ctx} {…}
-        #   widen … covers … commit … }`, but a draft records only that
-        #   the field is set, never the expression that set it.
+        #   widen … covers … commit … } ?-partial? ?-complete WINDOW?…`,
+        #   but a draft records only that the field is set, never the expression
+        #   that set it.
     }
 
     subcommand remove {
@@ -32202,13 +32337,15 @@ trace remove variable ::config(port) write logWrite}
         literal_argument_validator -native trace::remove::literal_argument_validator
         side_effect InterpState -reads -writes
         # TODO(spectcl): `world_effects` is set on the source spec. The DSL
-        #   spells it `world_effects none|NAME|{ … }`, but a draft records
-        #   only that the field is set, never the expression that set it.
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
         # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
         #   spells it `state_transitions NAME|{ composition … argument_shape
         #   … resolver none|from-frame-effect|-native ID|{words ctx} {…}
-        #   widen … covers … commit … }`, but a draft records only that
-        #   the field is set, never the expression that set it.
+        #   widen … covers … commit … } ?-partial? ?-complete WINDOW?…`,
+        #   but a draft records only that the field is set, never the expression
+        #   that set it.
     }
 
     subcommand variable {
@@ -32230,13 +32367,15 @@ trace remove variable ::config(port) write logWrite}
         literal_argument_validator -native trace::variable::literal_argument_validator
         side_effect InterpState -writes
         # TODO(spectcl): `world_effects` is set on the source spec. The DSL
-        #   spells it `world_effects none|NAME|{ … }`, but a draft records
-        #   only that the field is set, never the expression that set it.
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
         # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
         #   spells it `state_transitions NAME|{ composition … argument_shape
         #   … resolver none|from-frame-effect|-native ID|{words ctx} {…}
-        #   widen … covers … commit … }`, but a draft records only that
-        #   the field is set, never the expression that set it.
+        #   widen … covers … commit … } ?-partial? ?-complete WINDOW?…`,
+        #   but a draft records only that the field is set, never the expression
+        #   that set it.
     }
 
     subcommand vdelete {
@@ -32258,13 +32397,15 @@ trace remove variable ::config(port) write logWrite}
         literal_argument_validator -native trace::vdelete::literal_argument_validator
         side_effect InterpState -reads -writes
         # TODO(spectcl): `world_effects` is set on the source spec. The DSL
-        #   spells it `world_effects none|NAME|{ … }`, but a draft records
-        #   only that the field is set, never the expression that set it.
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
         # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
         #   spells it `state_transitions NAME|{ composition … argument_shape
         #   … resolver none|from-frame-effect|-native ID|{words ctx} {…}
-        #   widen … covers … commit … }`, but a draft records only that
-        #   the field is set, never the expression that set it.
+        #   widen … covers … commit … } ?-partial? ?-complete WINDOW?…`,
+        #   but a draft records only that the field is set, never the expression
+        #   that set it.
     }
 
     subcommand vinfo {
@@ -32277,22 +32418,23 @@ trace remove variable ::config(port) write logWrite}
         retired_version 9.0
         return_type List
         variable_receivers {{0 trace-subject}}
-        pure
         arg 0 -role VarRead
         # TODO(spectcl): `result_stability` is set on the source spec. The DSL
         #   spells it `result_stability
         #   Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D
-        #   …}}`, but a draft records only that the field is set, never the
-        #   expression that set it.
+        #   …}} ?-partial? ?-complete WINDOW?…`, but a draft records only
+        #   that the field is set, never the expression that set it.
         side_effect InterpState -reads
         # TODO(spectcl): `world_effects` is set on the source spec. The DSL
-        #   spells it `world_effects none|NAME|{ … }`, but a draft records
-        #   only that the field is set, never the expression that set it.
+        #   spells it `world_effects none|NAME|{ … } ?-partial? ?-complete
+        #   WINDOW?…`, but a draft records only that the field is set, never
+        #   the expression that set it.
         # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
         #   spells it `state_transitions NAME|{ composition … argument_shape
         #   … resolver none|from-frame-effect|-native ID|{words ctx} {…}
-        #   widen … covers … commit … }`, but a draft records only that
-        #   the field is set, never the expression that set it.
+        #   widen … covers … commit … } ?-partial? ?-complete WINDOW?…`,
+        #   but a draft records only that the field is set, never the expression
+        #   that set it.
     }
 }
 
@@ -32426,13 +32568,14 @@ command unset {
     lowering_hook -native Unset
     codegen_hook -native Unset
     # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …}`, but a draft records only that the field is set,
-    #   never the expression that set it.
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     side_effect Variable -writes
     # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … }`, but a draft records only that the
-    #   field is set, never the expression that set it.
+    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
+    #   but a draft records only that the field is set, never the expression
+    #   that set it.
 
     runtime_backing shipped-builtin unset
 
@@ -32530,26 +32673,28 @@ command upvar {
     # TODO(spectcl): `native_result` is set on the source spec. The DSL spells
     #   it `native_result -native CONTRACT`, but a draft records only that the
     #   field is set, never the expression that set it.
+    repeat VarCell -stride 2 -exclude-trailing 1 -optional-leading
     repeat VarWrite -from 1 -stride 2 -optional-leading
 
     lowering_hook -native Upvar
     codegen_hook -native Upvar
     # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
-    #   `completion {CODE …}`, but a draft records only that the field is set,
-    #   never the expression that set it.
+    #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     side_effect Variable -writes
     # TODO(spectcl): `frame_effect` is set on the source spec. The DSL spells it
     #   `frame_effect -level-word W -layout L`, but a draft records only that
     #   the field is set, never the expression that set it.
     # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
-    #   it `world_effects none|NAME|{ … }`, but a draft records only that the
-    #   field is set, never the expression that set it.
+    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
+    #   but a draft records only that the field is set, never the expression
+    #   that set it.
     # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
     #   spells it `state_transitions NAME|{ composition … argument_shape …
     #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … }`, but a draft records only that the field is
-    #   set, never the expression that set it.
+    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     xc_translatable no
     runtime_backing shipped-builtin upvar
@@ -32684,11 +32829,15 @@ command variable {
     codegen_hook -native Variable
 
     side_effect Variable -writes
+    # TODO(spectcl): `world_effects` is set on the source spec. The DSL spells
+    #   it `world_effects none|NAME|{ … } ?-partial? ?-complete WINDOW?…`,
+    #   but a draft records only that the field is set, never the expression
+    #   that set it.
     # TODO(spectcl): `state_transitions` is set on the source spec. The DSL
     #   spells it `state_transitions NAME|{ composition … argument_shape …
     #   resolver none|from-frame-effect|-native ID|{words ctx} {…} widen …
-    #   covers … commit … }`, but a draft records only that the field is
-    #   set, never the expression that set it.
+    #   covers … commit … } ?-partial? ?-complete WINDOW?…`, but a draft
+    #   records only that the field is set, never the expression that set it.
 
     runtime_backing shipped-builtin variable
 

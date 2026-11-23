@@ -33,9 +33,21 @@ TCLLIB_LADDER = ["8.5", "8.6", "9.0", "9.1"]
 # Rows whose authored spec deliberately leaves a domain open, which the
 # evidence does not override, with the reason the row gives.
 OPEN_BY_AUTHOR = {
-    ("tcl", "dict", "create"): "an unknown key object still needs its string materialised",
-    ("tcl", "::tcl::dict::create", ""): "an unknown key object still needs its string materialised",
-    ("tcl", "binary", "format"): "an `a`/`A` cursor converts its operand to bytes in place",
+    (
+        "tcl",
+        "dict",
+        "create",
+    ): "an unknown key object still needs its string materialised",
+    (
+        "tcl",
+        "::tcl::dict::create",
+        "",
+    ): "an unknown key object still needs its string materialised",
+    (
+        "tcl",
+        "binary",
+        "format",
+    ): "an `a`/`A` cursor converts its operand to bytes in place",
 }
 
 
@@ -78,7 +90,9 @@ def tcllib_packages() -> dict[str, tuple[str, str]]:
     provided: dict[str, tuple[str, str]] = {}
     for path in sorted(TCLLIB.rglob("*.tcl")):
         text = path.read_text(encoding="utf-8", errors="replace")
-        m = re.search(r"^\s*package provide\s+(\S+)\s+([0-9][0-9.]*)", text, re.MULTILINE)
+        m = re.search(
+            r"^\s*package provide\s+(\S+)\s+([0-9][0-9.]*)", text, re.MULTILINE
+        )
         if not m:
             continue
         for ns in re.findall(r"^\s*namespace eval\s+:*([\w:]+)", text, re.MULTILINE):

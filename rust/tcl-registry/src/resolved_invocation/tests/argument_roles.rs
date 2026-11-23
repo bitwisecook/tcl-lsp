@@ -26,9 +26,6 @@ fn original_logical_case_role_projection_keeps_selected_options_and_body_residua
     // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
     use crate::InvocationWord::{Dynamic, Expanded, KnownBytes, Literal};
     let current = crate::model::ingress::resolve_environment("tcl8.6").default_context_registry();
-    let older = crate::model::ingress::resolve_environment("tcl8.4")
-        .default_context_registry()
-        .with_command_store(std::sync::Arc::clone(current.commands()));
     for (values, expected) in [
         (
             vec![
@@ -99,6 +96,14 @@ fn original_logical_case_role_projection_keeps_selected_options_and_body_residua
             );
         }
     }
+    assert_case_role_projection_by_release(&current);
+}
+
+fn assert_case_role_projection_by_release(current: &crate::model::assembly::ContextRegistry) {
+    use crate::InvocationWord::{Dynamic, Literal};
+    let older = crate::model::ingress::resolve_environment("tcl8.4")
+        .default_context_registry()
+        .with_command_store(std::sync::Arc::clone(current.commands()));
     let unmarked = [Literal("-exact"), Dynamic, Literal("café {BODY}")];
     let selected = crate::model::assembly::resolve_structured_invocation_in_resolved_context(
         older.commands(),
@@ -126,7 +131,7 @@ fn original_logical_case_role_projection_keeps_selected_options_and_body_residua
         Dynamic,
         Literal("a {BODY}"),
     ];
-    for (context, available) in [(current.as_ref(), true), (&older, false)] {
+    for (context, available) in [(current, true), (&older, false)] {
         let selected = crate::model::assembly::resolve_structured_invocation_in_resolved_context(
             context.commands(),
             Some(context.context()),

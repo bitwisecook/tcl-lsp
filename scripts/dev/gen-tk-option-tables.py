@@ -42,7 +42,10 @@ TABLES = {
     "message": ("tkMessage.c", ["optionSpecs"]),
     "panedwindow": ("tkPanedWindow.c", ["optionSpecs"]),
     "scale": ("tkScale.c", ["optionSpecs"]),
-    "scrollbar": ("tkScrollbar.c", ["tkpScrollbarConfigSpecs", "configSpecs", "optionSpecs"]),
+    "scrollbar": (
+        "tkScrollbar.c",
+        ["tkpScrollbarConfigSpecs", "configSpecs", "optionSpecs"],
+    ),
     "text": ("tkText.c", ["optionSpecs", "configSpecs"]),
 }
 
@@ -60,7 +63,9 @@ def table(source: str, name: str) -> set[str] | None:
     if not match:
         return None
     return set(
-        re.findall(r'\{\s*TK_(?:OPTION|CONFIG)_[A-Z_]+,\s*"(-[a-zA-Z0-9]+)"', match.group(1))
+        re.findall(
+            r'\{\s*TK_(?:OPTION|CONFIG)_[A-Z_]+,\s*"(-[a-zA-Z0-9]+)"', match.group(1)
+        )
     )
 
 
@@ -107,11 +112,15 @@ def ttk_tables(tk: pathlib.Path) -> dict[str, list[str]]:
         return found
 
     out = {}
-    for widget, spec in re.findall(r'RegisterWidget\(\s*interp,\s*"(ttk::\w+)",\s*&(\w+)\)', every):
+    for widget, spec in re.findall(
+        r'RegisterWidget\(\s*interp,\s*"(ttk::\w+)",\s*&(\w+)\)', every
+    ):
         # `ttk::square` is the demonstration widget of ttkSquare.c.
         if widget == "ttk::square":
             continue
-        table = re.search(r"WidgetSpec\s+" + spec + r"\s*=\s*\{[^,]*,[^,]*,\s*(\w+)", every)
+        table = re.search(
+            r"WidgetSpec\s+" + spec + r"\s*=\s*\{[^,]*,[^,]*,\s*(\w+)", every
+        )
         if not table:
             raise SystemExit(f"no WidgetSpec {spec} in {tk}")
         out[widget] = sorted(options(table.group(1)))
@@ -125,14 +134,23 @@ def ttk_methods(tk: pathlib.Path) -> dict[str, list[str]]:
     if not ttk.is_dir():
         return {}
     every = re.sub(
-        r"/\*.*?\*/", "", "\n".join(p.read_text(errors="ignore") for p in ttk.glob("*.c")), flags=re.S
+        r"/\*.*?\*/",
+        "",
+        "\n".join(p.read_text(errors="ignore") for p in ttk.glob("*.c")),
+        flags=re.S,
     )
     out = {}
-    for widget, spec in re.findall(r'RegisterWidget\(\s*interp,\s*"(ttk::\w+)",\s*&(\w+)\)', every):
+    for widget, spec in re.findall(
+        r'RegisterWidget\(\s*interp,\s*"(ttk::\w+)",\s*&(\w+)\)', every
+    ):
         if widget == "ttk::square":
             continue
-        table = re.search(r"WidgetSpec\s+" + spec + r"\s*=\s*\{[^,]*,[^,]*,[^,]*,\s*(\w+)", every).group(1)
-        body = re.search(r"Ttk_Ensemble\s+" + table + r"\[\]\s*=\s*\{(.*?)\n\};", every, re.S).group(1)
+        table = re.search(
+            r"WidgetSpec\s+" + spec + r"\s*=\s*\{[^,]*,[^,]*,[^,]*,\s*(\w+)", every
+        ).group(1)
+        body = re.search(
+            r"Ttk_Ensemble\s+" + table + r"\[\]\s*=\s*\{(.*?)\n\};", every, re.S
+        ).group(1)
         out[widget] = sorted(re.findall(r'\{\s*"(\w+)"', body))
     return out
 
@@ -143,11 +161,15 @@ def main() -> None:
     target.mkdir(parents=True, exist_ok=True)
     for release in RELEASES:
         tables = release_tables(tmp / f"tk{release}") | ttk_tables(tmp / f"tk{release}")
-        lines = [" ".join([widget, *options]) for widget, options in sorted(tables.items())]
+        lines = [
+            " ".join([widget, *options]) for widget, options in sorted(tables.items())
+        ]
         (target / f"tk{release}.txt").write_text("\n".join(lines) + "\n")
         methods = ttk_methods(tmp / f"tk{release}")
         if methods:
-            lines = [" ".join([widget, *names]) for widget, names in sorted(methods.items())]
+            lines = [
+                " ".join([widget, *names]) for widget, names in sorted(methods.items())
+            ]
             (target / f"tk{release}.methods.txt").write_text("\n".join(lines) + "\n")
 
 

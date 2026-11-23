@@ -95,7 +95,7 @@ use format_specifiers::{
     binary_field_bytes, scan_binary_fields, scan_clock_specifiers, scan_sprintf_specifiers,
 };
 #[cfg(test)]
-use pattern_syntax::{glob_hover_text, regex_hover_text, regsub_hover_text, scan_regsub_backrefs};
+use pattern_syntax::{regex_hover_text, regsub_hover_text, scan_regsub_backrefs};
 use procedures::{
     alias_hover_at, ensemble_subcommand_hover, format_docstring, lenient_declared_procedure_hover,
     proc_hover_at, proc_hover_text,

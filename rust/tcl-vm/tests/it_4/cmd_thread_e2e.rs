@@ -268,13 +268,13 @@ fn tsv_element_operations() {
     );
     assert_eq!(
         result(
-            r#"
+            r"
             tsv::set T k [format %c 123]
             set rc [catch {tsv::lappend T k x} msg]
             set preserved [string equal [tsv::get T k] [format %c 123]]
             tsv::set T k a
             list $rc $msg $preserved [tsv::lappend T k #foo]
-        "#
+        "
         ),
         "1 {unmatched open brace in list} 1 {a #foo}"
     );
@@ -449,7 +449,7 @@ fn mutex_missing_handle_errors() {
 fn thread_commands_convert_original_job_lists_and_shared_counts() {
     // Thread 2.8.13 uses Tcl_ListObjGetElements before pool lookup and
     // Tcl_GetWideIntFromObj on each job. Unknown IDs retain their spelling.
-    let script = r#"
+    let script = r"
         catch {tpool::wait absent [format %c 123]} malformed
         set p [tpool::create -maxworkers 1]
         catch {tpool::wait $p x} bad
@@ -461,7 +461,7 @@ fn thread_commands_convert_original_job_lists_and_shared_counts() {
         set blank [tsv::set A k]
         tsv::set A k 1
         list $malformed $bad [string equal $done $id] $pending $increment $blank [tsv::incr A k 0x10]
-    "#;
+    ";
     let (ok, got, _) = run(script);
     assert!(ok, "{got}");
     assert_eq!(

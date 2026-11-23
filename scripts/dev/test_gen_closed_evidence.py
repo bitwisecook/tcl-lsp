@@ -19,7 +19,10 @@ def test_a_contiguous_run_is_one_window_open_at_the_newest_release():
 
 
 def test_a_gap_splits_the_releases_into_windows():
-    assert gen.windows(["8.4", "8.6", "9.0", "9.1"], LADDER) == [("8.4", "8.5"), ("8.6", None)]
+    assert gen.windows(["8.4", "8.6", "9.0", "9.1"], LADDER) == [
+        ("8.4", "8.5"),
+        ("8.6", None),
+    ]
     assert gen.windows(["9.0"], LADDER) == [("9.0", "9.1")]
     assert gen.windows([], LADDER) == []
 

@@ -24,6 +24,7 @@ error) or "invalid-warn" (loads with a JET-only warning), for the bare
 command. Profile requirements are the dependencies the checker saves for
 mcpd to check when the rule is attached to a virtual server.
 """
+
 import argparse
 import collections
 import json
@@ -54,15 +55,26 @@ def main():
 
     events = {}
     for ev, cats, profs in tsv(od / "events.tsv"):
-        events[ev] = {"categories": cats.split(), "profiles": profs, "documented": ev in doc_events}
+        events[ev] = {
+            "categories": cats.split(),
+            "profiles": profs,
+            "documented": ev in doc_events,
+        }
     hierarchy = {c: v.split() for c, v in tsv(od / "hierarchy.tsv")}
     cat_events = {c: v.split() for c, v in tsv(od / "cat_events.tsv")}
     nsmap = {n: v.split() for n, v in tsv(od / "nsmap.tsv")}
     disabled = open(od / "disabled.tsv").read().split()
 
-    per_cmd = collections.defaultdict(lambda: {"valid": [], "invalid": [], "invalid-warn": [],
-                                               "profiles": collections.defaultdict(list), "licence": set(),
-                                               "proxy": set()})
+    per_cmd = collections.defaultdict(
+        lambda: {
+            "valid": [],
+            "invalid": [],
+            "invalid-warn": [],
+            "profiles": collections.defaultdict(list),
+            "licence": set(),
+            "proxy": set(),
+        }
+    )
     oracle_v = {}
     for ev, cmd, verdict, prof, lic, proxy in tsv(od / "oracle.tsv"):
         r = per_cmd[cmd]
@@ -78,8 +90,11 @@ def main():
     if a.suspend:
         for row in tsv(a.suspend):
             if len(row) >= 3 and row[2] not in ("", "?"):
-                suspend[row[0]] = {"depth": int(row[2]), "via": row[3] if len(row) > 3 else "",
-                                   "confidence": row[4] if len(row) > 4 else ""}
+                suspend[row[0]] = {
+                    "depth": int(row[2]),
+                    "via": row[3] if len(row) > 3 else "",
+                    "confidence": row[4] if len(row) > 4 else "",
+                }
 
     commands = {}
     names = set(grammar["commands"]) | set(per_cmd) | set(doc_cmds)
@@ -94,13 +109,28 @@ def main():
             "forms": g.get("forms", []),
             "constraints": g.get("constraints", ""),
             "semantic_checker": g.get("semantic", ""),
-            "object_dependencies": sorted({d.split()[-1] for d in g.get("object_dependencies", "").split(" ; ") if d}),
+            "object_dependencies": sorted(
+                {
+                    d.split()[-1]
+                    for d in g.get("object_dependencies", "").split(" ; ")
+                    if d
+                }
+            ),
             "value_checks": g.get("value_checks", ""),
             "licence": sorted(r["licence"]) if r else [],
             "proxy": sorted(r["proxy"]) if r else [],
-            "events": ({"valid": sorted(r["valid"]), "invalid": sorted(r["invalid"]),
-                        "warn_only": sorted(r["invalid-warn"])} if r else {}),
-            "profile_requirements": ({k: sorted(v) for k, v in r["profiles"].items()} if r else {}),
+            "events": (
+                {
+                    "valid": sorted(r["valid"]),
+                    "invalid": sorted(r["invalid"]),
+                    "warn_only": sorted(r["invalid-warn"]),
+                }
+                if r
+                else {}
+            ),
+            "profile_requirements": (
+                {k: sorted(v) for k, v in r["profiles"].items()} if r else {}
+            ),
             "suspends": suspend.get(name),
             "disabled_in_irules": name in disabled,
         }
@@ -140,8 +170,14 @@ def main():
         "oracle_agreement_with_measured_loader": agreement,
     }
     json.dump(model, open(a.out, "w"), indent=1, sort_keys=False)
-    print(f"{len(events)} events, {len(commands)} commands, {len(model['tmm_only_commands'])} TMM-only names"
-          + (f", oracle agrees on {agreement['agree']}/{agreement['cells']} measured cells" if agreement else ""))
+    print(
+        f"{len(events)} events, {len(commands)} commands, {len(model['tmm_only_commands'])} TMM-only names"
+        + (
+            f", oracle agrees on {agreement['agree']}/{agreement['cells']} measured cells"
+            if agreement
+            else ""
+        )
+    )
 
 
 if __name__ == "__main__":

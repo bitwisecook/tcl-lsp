@@ -212,17 +212,7 @@ fn apply_refine_stmt(
             acc.declarations.read(stmt, &scope, log);
             form.semantics = acc.declarations.declaration(&scope).0;
         }
-        "arity" => match parse_arity(stmt, log) {
-            (arity, None) => form.arity = arity,
-            (arity, Some(_)) => {
-                form.arity = arity;
-                log.say(
-                    stmt.line,
-                    "a form's `arity` takes no lifecycle window — gate the whole \
-                     form with `available` instead",
-                );
-            }
-        },
+        "arity" => form_arity(form, stmt, log),
         "selector" => form.literal_argument_prefix = selector_row(stmt, log),
         "arg" => acc.args.apply(stmt, tables, log),
         "option" => apply_refine_option(form, acc, stmt, tables, &scope, log),
@@ -247,33 +237,7 @@ fn apply_refine_stmt(
         }
         "traits" => form.traits = Some(parse_traits(&value, stmt.line, log)),
         "mutator" => form.mutator = Some(parse_flag(stmt.tail())),
-        "header_write" => {
-            match (
-                value.parse::<u8>(),
-                stmt.word_text(2).parse::<u8>(),
-                stmt.tail().len(),
-                stmt.word_text(3),
-            ) {
-                (Ok(name), Ok(value), 2, _) if name != value => {
-                    form.header_write = Some(tcl_registry::forms::HeaderWrite {
-                        name,
-                        value,
-                        returns_empty: false,
-                    });
-                }
-                (Ok(name), Ok(value), 3, "empty-result") if name != value => {
-                    form.header_write = Some(tcl_registry::forms::HeaderWrite {
-                        name,
-                        value,
-                        returns_empty: true,
-                    });
-                }
-                _ => log.say(
-                    stmt.line,
-                    "expected header_write NAME_INDEX VALUE_INDEX ?empty-result?",
-                ),
-            }
-        }
+        "header_write" => form_header_write(form, stmt, &value, log),
         "side_effect" => {
             if let Some(effect) = side_effect_row(stmt, log) {
                 acc.side_effects.push(effect);
@@ -310,6 +274,46 @@ fn apply_refine_stmt(
         }
         "codegen_hook" => form_codegen_hook(form, stmt, log),
         _ => log.unknown_property(stmt),
+    }
+}
+
+fn form_arity(form: &mut CommandForm, stmt: &Stmt, log: &mut Log) {
+    let (arity, lifecycle) = parse_arity(stmt, log);
+    form.arity = arity;
+    if lifecycle.is_some() {
+        log.say(
+            stmt.line,
+            "a form's `arity` takes no lifecycle window — gate the whole \
+             form with `available` instead",
+        );
+    }
+}
+
+fn form_header_write(form: &mut CommandForm, stmt: &Stmt, value: &str, log: &mut Log) {
+    match (
+        value.parse::<u8>(),
+        stmt.word_text(2).parse::<u8>(),
+        stmt.tail().len(),
+        stmt.word_text(3),
+    ) {
+        (Ok(name), Ok(value), 2, _) if name != value => {
+            form.header_write = Some(tcl_registry::forms::HeaderWrite {
+                name,
+                value,
+                returns_empty: false,
+            });
+        }
+        (Ok(name), Ok(value), 3, "empty-result") if name != value => {
+            form.header_write = Some(tcl_registry::forms::HeaderWrite {
+                name,
+                value,
+                returns_empty: true,
+            });
+        }
+        _ => log.say(
+            stmt.line,
+            "expected header_write NAME_INDEX VALUE_INDEX ?empty-result?",
+        ),
     }
 }
 

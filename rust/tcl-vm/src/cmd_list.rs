@@ -186,7 +186,7 @@ fn cmd_lreverse(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 fn cmd_lrepeat(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let version = vm
         .actual_native_string_protocol()
-        .and_then(|policy| policy.tcl_version());
+        .and_then(tcl_syntax::native_string::NativeStringProtocol::tcl_version);
     if let Some(usage) = list_core::lrepeat_usage_error(args.len(), version) {
         return err_wrong_args(vm, usage);
     }

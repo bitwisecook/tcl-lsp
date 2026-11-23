@@ -48,7 +48,9 @@ LOCAL_WRITERS: dict[str, tuple[int, ...] | str] = {
 
 # Control commands whose braced script and expression words the analysis
 # enters itself.
-CONTROL = frozenset("if while for foreach lmap catch try switch expr return error break continue".split())
+CONTROL = frozenset(
+    "if while for foreach lmap catch try switch expr return error break continue".split()
+)
 
 COMPLETIONS = frozenset({"ok", "error", "0", "1"})
 
@@ -168,7 +170,9 @@ def parse_word_parts(text: str) -> list[tuple[str, str]]:
     return parts
 
 
-def parse_script(text: str, i: int = 0, in_brackets: bool = False) -> tuple[list[list[Word]], int]:
+def parse_script(
+    text: str, i: int = 0, in_brackets: bool = False
+) -> tuple[list[list[Word]], int]:
     """Commands of `text` from `i`; stops at an unmatched `]` when nested."""
     commands: list[list[Word]] = []
     n = len(text)
@@ -215,7 +219,11 @@ def parse_script(text: str, i: int = 0, in_brackets: bool = False) -> tuple[list
             i = j + 1
         else:
             j = i
-            while j < n and text[j] not in " \t\r\n;" and not (in_brackets and text[j] == "]"):
+            while (
+                j < n
+                and text[j] not in " \t\r\n;"
+                and not (in_brackets and text[j] == "]")
+            ):
                 if text[j] == "\\":
                     j += 2
                 elif text[j] == "[":
@@ -240,7 +248,9 @@ class Proc:
     path: str
 
 
-def namespace_procs(text: str, namespace: str, path: str, procs: dict[str, Proc]) -> None:
+def namespace_procs(
+    text: str, namespace: str, path: str, procs: dict[str, Proc]
+) -> None:
     """Collect `proc` definitions, entering `namespace eval NS {…}` bodies."""
     try:
         commands, _ = parse_script(text)
@@ -252,8 +262,10 @@ def namespace_procs(text: str, namespace: str, path: str, procs: dict[str, Proc]
             name, args, body = (w.literal for w in words[1:])
             if name is None or args is None or body is None:
                 continue
-            qualified = name.lstrip(":") if name.startswith("::") else (
-                f"{namespace}::{name}" if namespace else name
+            qualified = (
+                name.lstrip(":")
+                if name.startswith("::")
+                else (f"{namespace}::{name}" if namespace else name)
             )
             try:
                 arglist, _ = parse_script(args)
@@ -269,7 +281,11 @@ def namespace_procs(text: str, namespace: str, path: str, procs: dict[str, Proc]
             body = words[3].literal
             if ns is None or body is None or len(words) != 4:
                 continue
-            ns = ns.lstrip(":") if ns.startswith("::") else (f"{namespace}::{ns}" if namespace else ns)
+            ns = (
+                ns.lstrip(":")
+                if ns.startswith("::")
+                else (f"{namespace}::{ns}" if namespace else ns)
+            )
             namespace_procs(body, ns, path, procs)
 
 
@@ -348,7 +364,9 @@ class Analyser:
                 verdict = self.script(value, locals_, proc)
                 if not verdict.closed:
                     return verdict
-        for function in re.findall(r"\b([A-Za-z_]\w*)\s*\(", re.sub(r'"[^"]*"', "", text)):
+        for function in re.findall(
+            r"\b([A-Za-z_]\w*)\s*\(", re.sub(r'"[^"]*"', "", text)
+        ):
             if f"tcl::mathfunc::{function}" not in self.closed_core:
                 return Verdict(False, f"math function {function}()")
         return Verdict(True)
@@ -368,13 +386,23 @@ class Analyser:
         target = self.resolve(head, proc)
         if target is not None:
             verdict = self.proc(target)
-            return verdict if verdict.closed else Verdict(False, f"calls {target}: {verdict.reason}")
+            return (
+                verdict
+                if verdict.closed
+                else Verdict(False, f"calls {target}: {verdict.reason}")
+            )
         name = head.lstrip(":")
         if name in self.closed_core:
             return Verdict(True)
-        if literal and literal[0] is not None and f"{name} {literal[0]}" in self.closed_core:
+        if (
+            literal
+            and literal[0] is not None
+            and f"{name} {literal[0]}" in self.closed_core
+        ):
             return Verdict(True)
-        return Verdict(False, f"runs {name}{' ' + literal[0] if literal and literal[0] else ''}")
+        return Verdict(
+            False, f"runs {name}{' ' + literal[0] if literal and literal[0] else ''}"
+        )
 
     def builtin(self, head, args, literal, locals_, proc) -> Verdict:
         def var_names(names):
@@ -385,7 +413,11 @@ class Analyser:
             return Verdict(True)
 
         def body(index):
-            if index >= len(literal) or literal[index] is None or args[index].braced is None:
+            if (
+                index >= len(literal)
+                or literal[index] is None
+                or args[index].braced is None
+            ):
                 return Verdict(False, f"{head} body is not a braced literal")
             return self.script(literal[index], locals_, proc)
 
@@ -451,13 +483,22 @@ class Analyser:
         if head == "while":
             return expr(0) if not expr(0).closed else body(1)
         if head == "for":
-            for check in (lambda: body(0), lambda: expr(1), lambda: body(2), lambda: body(3)):
+            for check in (
+                lambda: body(0),
+                lambda: expr(1),
+                lambda: body(2),
+                lambda: body(3),
+            ):
                 verdict = check()
                 if not verdict.closed:
                     return verdict
             return Verdict(True)
         if head == "expr":
-            return expr(0) if len(literal) == 1 else Verdict(False, "expr of several words")
+            return (
+                expr(0)
+                if len(literal) == 1
+                else Verdict(False, "expr of several words")
+            )
         if head == "catch":
             verdict = body(0)
             if verdict.closed and len(literal) > 1:
@@ -503,8 +544,14 @@ class Analyser:
 
 def main(argv: list[str]) -> int:
     root = pathlib.Path(__file__).resolve().parents[2]
-    modules = pathlib.Path(argv[1]) if len(argv) > 1 else root / "tmp/tcllib-2.0/modules"
-    core = pathlib.Path(argv[2]) if len(argv) > 2 else root / "rust/tcl-registry/tests/data/command_evidence"
+    modules = (
+        pathlib.Path(argv[1]) if len(argv) > 1 else root / "tmp/tcllib-2.0/modules"
+    )
+    core = (
+        pathlib.Path(argv[2])
+        if len(argv) > 2
+        else root / "rust/tcl-registry/tests/data/command_evidence"
+    )
     out = pathlib.Path(argv[3]) if len(argv) > 3 else core / "tcllib.txt"
     # tcllib 2.0 supports Tcl 8.5 to 9.x: a core command counts only when it
     # is closed on every one of those releases.
@@ -520,7 +567,12 @@ def main(argv: list[str]) -> int:
     for path in sorted(modules.rglob("*.tcl")):
         if "/tests/" in str(path) or path.name.endswith(".test"):
             continue
-        namespace_procs(path.read_text(encoding="utf-8", errors="replace"), "", str(path.relative_to(modules)), procs)
+        namespace_procs(
+            path.read_text(encoding="utf-8", errors="replace"),
+            "",
+            str(path.relative_to(modules)),
+            procs,
+        )
     analyser = Analyser(procs, closed_core or set())
     lines = []
     opened = 0

@@ -301,24 +301,7 @@ impl Backend {
             })
             .collect::<Option<_>>()?;
 
-        // Only edges whose both ends survived the walk, so the client never
-        // draws an arrow to a node it was not given.
-        let edge_values: Vec<serde_json::Value> = graph
-            .edges
-            .iter()
-            .filter(|e| {
-                depth_of.contains_key(e.source_id.as_str())
-                    && depth_of.contains_key(e.target_id.as_str())
-            })
-            .map(|e| {
-                serde_json::json!({
-                    "source": e.source_id,
-                    "target": e.target_id,
-                    "viaProperty": e.via_property,
-                    "viaKind": e.via_kind,
-                })
-            })
-            .collect();
+        let edge_values = Self::linked_object_edges(&graph.edges, &depth_of);
 
         let root = by_id.get(first_root)?;
         let roots: Vec<serde_json::Value> = root_ids
@@ -343,6 +326,29 @@ impl Backend {
             "nodes": node_values,
             "edges": edge_values,
         }))
+    }
+
+    fn linked_object_edges(
+        edges: &[tcl_bigip::graph::ObjectEdge],
+        depth_of: &HashMap<&str, u64>,
+    ) -> Vec<serde_json::Value> {
+        // Only edges whose both ends survived the walk, so the client never
+        // draws an arrow to a node it was not given.
+        edges
+            .iter()
+            .filter(|e| {
+                depth_of.contains_key(e.source_id.as_str())
+                    && depth_of.contains_key(e.target_id.as_str())
+            })
+            .map(|e| {
+                serde_json::json!({
+                    "source": e.source_id,
+                    "target": e.target_id,
+                    "viaProperty": e.via_property,
+                    "viaKind": e.via_kind,
+                })
+            })
+            .collect()
     }
 
     /// Handle `tcl-lsp.bigipCleanup`: the objects no virtual server or wide-IP

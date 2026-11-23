@@ -172,25 +172,8 @@ fn original_pattern_format_hover_with_workspace(
         else {
             continue;
         };
-        let text = match pattern.kind {
-            tcl_registry::patterns::PatternType::Glob => {
-                let profile = analysis.resolved_input.as_ref()?.analyser_profile();
-                let components = crate::pattern_components::glob_components(&text, profile)?;
-                glob_hover_text(&text, &components)
-            }
-            tcl_registry::patterns::PatternType::FilesystemGlob => {
-                "**Glob pattern** (filesystem)".to_owned()
-            }
-            tcl_registry::patterns::PatternType::Regex => {
-                let flags = words
-                    .with_source_schema(&context, crate::pattern_components::source_flags)
-                    .flatten();
-                let profile = analysis.resolved_input.as_ref()?.analyser_profile();
-                let components = crate::pattern_components::components(&text, profile, flags)?;
-                regex_hover_text(&text, &components)
-            }
-        };
-        return Some(Hover::markdown(text));
+        return original_pattern_hover_text(&words, analysis, &text, pattern.kind)
+            .map(Hover::markdown);
     }
     let formats = words
         .with_source_schema(&context, schema_format_arguments)
@@ -240,6 +223,34 @@ fn original_pattern_format_hover_with_workspace(
         return Some(Hover::markdown(text));
     }
     None
+}
+
+fn original_pattern_hover_text(
+    words: &crate::original_invocation::OriginalRegistryWords,
+    analysis: &AnalysisResult,
+    text: &str,
+    kind: tcl_registry::patterns::PatternType,
+) -> Option<String> {
+    let text = match kind {
+        tcl_registry::patterns::PatternType::Glob => {
+            let profile = analysis.resolved_input.as_ref()?.analyser_profile();
+            let components = crate::pattern_components::glob_components(text, profile)?;
+            glob_hover_text(text, &components)
+        }
+        tcl_registry::patterns::PatternType::FilesystemGlob => {
+            "**Glob pattern** (filesystem)".to_owned()
+        }
+        tcl_registry::patterns::PatternType::Regex => {
+            let context = analysis.resolved_input.as_ref()?.context_registry();
+            let flags = words
+                .with_source_schema(&context, crate::pattern_components::source_flags)
+                .flatten();
+            let profile = analysis.resolved_input.as_ref()?.analyser_profile();
+            let components = crate::pattern_components::components(text, profile, flags)?;
+            regex_hover_text(text, &components)
+        }
+    };
+    Some(text)
 }
 
 fn original_binary_format_hover_text(

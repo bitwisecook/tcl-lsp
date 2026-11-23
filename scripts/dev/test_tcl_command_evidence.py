@@ -54,7 +54,7 @@ def tree_of(**sources: str) -> ev.Tree:
 
 
 def test_strip_c_blanks_comments_and_literals_but_keeps_lines():
-    text = 'a /* b\nc */ "d(e)" \'f\' // g\nh'
+    text = "a /* b\nc */ \"d(e)\" 'f' // g\nh"
     stripped = ev.strip_c(text)
     assert stripped.count("\n") == text.count("\n")
     assert "b" not in stripped and "d(e)" not in stripped and "g" not in stripped
@@ -77,22 +77,32 @@ def test_the_closure_follows_calls_and_ignores_comments_and_strings():
 
 
 def test_a_macro_is_followed_like_a_function():
-    tree = tree_of(**{"a.h": "#define TclGetVarish(i, n) \\\n    Tcl_GetVar2(i, n, NULL, 0)\n",
-                      "a.c": "int\nF(\n    int x)\n{\n    return TclGetVarish(interp, x);\n}\n"})
+    tree = tree_of(
+        **{
+            "a.h": "#define TclGetVarish(i, n) \\\n    Tcl_GetVar2(i, n, NULL, 0)\n",
+            "a.c": "int\nF(\n    int x)\n{\n    return TclGetVarish(interp, x);\n}\n",
+        }
+    )
     assert ev.closure(tree, ["F"]).classes == {"variables": "Tcl_GetVar2"}
 
 
 def test_non_normal_completion_codes_open_the_closure():
-    tree = tree_of(**{"a.c": "int\nBreakCmd(\n    int x)\n{\n    return TCL_BREAK;\n}\n"})
+    tree = tree_of(
+        **{"a.c": "int\nBreakCmd(\n    int x)\n{\n    return TCL_BREAK;\n}\n"}
+    )
     result = ev.closure(tree, ["BreakCmd"])
     assert not result.closed and result.codes == {"TCL_BREAK"}
 
 
 def test_error_reporting_is_not_entered():
-    tree = tree_of(**{"a.c": (
-        "void\nTcl_SetErrorCode(\n    int x)\n{\n    Tcl_SetVar2(x);\n}\n\n"
-        "int\nF(\n    int x)\n{\n    Tcl_SetErrorCode(x);\n    return TCL_ERROR;\n}\n"
-    )})
+    tree = tree_of(
+        **{
+            "a.c": (
+                "void\nTcl_SetErrorCode(\n    int x)\n{\n    Tcl_SetVar2(x);\n}\n\n"
+                "int\nF(\n    int x)\n{\n    Tcl_SetErrorCode(x);\n    return TCL_ERROR;\n}\n"
+            )
+        }
+    )
     assert ev.closure(tree, ["F"]).closed
 
 
@@ -145,10 +155,14 @@ def test_switch_subcommands_slice_each_case_with_the_code_around_it():
 
 
 def test_a_reviewed_edge_is_not_followed():
-    tree = tree_of(**{"a.c": (
-        "int\nGetEndOffsetFromObj(\n    int x)\n{\n    Tcl_ExprObj(x);\n    return TCL_OK;\n}\n\n"
-        "int\nOther(\n    int x)\n{\n    Tcl_ExprObj(x);\n    return TCL_OK;\n}\n"
-    )})
+    tree = tree_of(
+        **{
+            "a.c": (
+                "int\nGetEndOffsetFromObj(\n    int x)\n{\n    Tcl_ExprObj(x);\n    return TCL_OK;\n}\n\n"
+                "int\nOther(\n    int x)\n{\n    Tcl_ExprObj(x);\n    return TCL_OK;\n}\n"
+            )
+        }
+    )
     assert ev.closure(tree, ["GetEndOffsetFromObj"]).closed
     assert ev.closure(tree, ["Other"]).classes == {"scripts": "Tcl_ExprObj"}
 
@@ -191,57 +205,81 @@ def test_a_goto_into_another_case_takes_only_that_case():
 
 
 def test_interpreter_fields_and_stored_pointers_open_the_closure():
-    tree = tree_of(**{"a.c": (
-        "int\nReadsTable(\n    int x)\n{\n    return iPtr->packageTable;\n}\n\n"
-        "int\nSetsResult(\n    int x)\n{\n    iPtr->objResultPtr = x;\n    return TCL_OK;\n}\n\n"
-        "int\nCallsStored(\n    int x)\n{\n    cmdPtr->objProc(x);\n    return TCL_OK;\n}\n\n"
-        "int\nCallsLocal(\n    int x)\n{\n    fn = Helper;\n    (*fn)(x);\n    return TCL_OK;\n}\n\n"
-        "int\nHelper(\n    int x)\n{\n    return TCL_OK;\n}\n"
-    )})
-    assert ev.closure(tree, ["ReadsTable"]).classes == {"interpreter": "ReadsTable:packageTable"}
+    tree = tree_of(
+        **{
+            "a.c": (
+                "int\nReadsTable(\n    int x)\n{\n    return iPtr->packageTable;\n}\n\n"
+                "int\nSetsResult(\n    int x)\n{\n    iPtr->objResultPtr = x;\n    return TCL_OK;\n}\n\n"
+                "int\nCallsStored(\n    int x)\n{\n    cmdPtr->objProc(x);\n    return TCL_OK;\n}\n\n"
+                "int\nCallsLocal(\n    int x)\n{\n    fn = Helper;\n    (*fn)(x);\n    return TCL_OK;\n}\n\n"
+                "int\nHelper(\n    int x)\n{\n    return TCL_OK;\n}\n"
+            )
+        }
+    )
+    assert ev.closure(tree, ["ReadsTable"]).classes == {
+        "interpreter": "ReadsTable:packageTable"
+    }
     assert ev.closure(tree, ["SetsResult"]).closed
-    assert ev.closure(tree, ["CallsStored"]).classes == {"indirect": "CallsStored:objProc"}
+    assert ev.closure(tree, ["CallsStored"]).classes == {
+        "indirect": "CallsStored:objProc"
+    }
     local = ev.closure(tree, ["CallsLocal"])
     assert local.closed and "Helper" in local.reached
 
 
 def test_a_file_static_table_is_followed_only_from_its_own_file():
-    tree = tree_of(**{
-        "a.c": "static const T table[] = {\n    {\"x\", Writer},\n};\n\nint\nUses(\n    int x)\n{\n    return table[x].proc(x);\n}\n\nint\nWriter(\n    int x)\n{\n    return Tcl_SetVar2(x);\n}\n",
-        "b.c": "int\nOther(\n    int table)\n{\n    return table;\n}\n",
-    })
+    tree = tree_of(
+        **{
+            "a.c": 'static const T table[] = {\n    {"x", Writer},\n};\n\nint\nUses(\n    int x)\n{\n    return table[x].proc(x);\n}\n\nint\nWriter(\n    int x)\n{\n    return Tcl_SetVar2(x);\n}\n',
+            "b.c": "int\nOther(\n    int table)\n{\n    return table;\n}\n",
+        }
+    )
     assert ev.closure(tree, ["Uses"]).classes.get("variables") == "Tcl_SetVar2"
     assert ev.closure(tree, ["Other"]).closed
 
 
 def test_a_dereferenced_result_free_procedure_is_a_value_procedure():
-    tree = tree_of(**{"a.c": (
-        "int\nResets(\n    int x)\n{\n    (*iPtr->freeProc)(iPtr->result);\n    return TCL_OK;\n}\n"
-    )})
+    tree = tree_of(
+        **{
+            "a.c": (
+                "int\nResets(\n    int x)\n{\n    (*iPtr->freeProc)(iPtr->result);\n    return TCL_OK;\n}\n"
+            )
+        }
+    )
     assert ev.closure(tree, ["Resets"]).closed
 
 
 def test_a_call_nothing_defines_opens_the_closure_unless_it_is_pure_libc():
-    tree = tree_of(**{"a.c": (
-        "int\nF(\n    int x)\n{\n    memcpy(a, b, 1);\n    return TclpGetDayTime(x);\n}\n"
-    )})
+    tree = tree_of(
+        **{
+            "a.c": (
+                "int\nF(\n    int x)\n{\n    memcpy(a, b, 1);\n    return TclpGetDayTime(x);\n}\n"
+            )
+        }
+    )
     assert ev.closure(tree, ["F"]).classes == {"unresolved": "F:TclpGetDayTime"}
 
 
 def test_a_call_through_a_local_pointer_is_followed_only_when_every_value_is_named():
-    tree = tree_of(**{"a.c": (
-        "int\nNamed(\n    int x)\n{\n    cmp = x ? Helper : strcmp;\n    return cmp(x);\n}\n\n"
-        "int\nStored(\n    int x)\n{\n    proc = refPtr->callback;\n    return proc(x);\n}\n\n"
-        "int\nParameter(\n    int (*func)(int),\n    int x)\n{\n    return func(x);\n}\n\n"
-        "int\nHelper(\n    int x)\n{\n    return TCL_OK;\n}\n"
-    )})
+    tree = tree_of(
+        **{
+            "a.c": (
+                "int\nNamed(\n    int x)\n{\n    cmp = x ? Helper : strcmp;\n    return cmp(x);\n}\n\n"
+                "int\nStored(\n    int x)\n{\n    proc = refPtr->callback;\n    return proc(x);\n}\n\n"
+                "int\nParameter(\n    int (*func)(int),\n    int x)\n{\n    return func(x);\n}\n\n"
+                "int\nHelper(\n    int x)\n{\n    return TCL_OK;\n}\n"
+            )
+        }
+    )
     assert ev.closure(tree, ["Named"]).closed
     assert ev.closure(tree, ["Stored"]).classes == {"unresolved": "Stored:proc"}
     assert ev.closure(tree, ["Parameter"]).closed
 
 
 def test_a_switch_slice_follows_its_files_tables_and_a_call_through_an_unknown_table_opens():
-    tree = tree_of(**{"a.c": """\
+    tree = tree_of(
+        **{
+            "a.c": """\
 static const Proc subCmds[] = {
     InfoWriter,
 };
@@ -271,9 +309,13 @@ InfoWriter(
 {
     return Tcl_SetVar2(x);
 }
-"""})
+"""
+        }
+    )
     subs = ev.switch_subcommands(tree, "trace", "Tcl_TraceObjCmd")
     roots, code = subs["trace info"]
-    assert ev.closure(tree, roots, [code], "Tcl_TraceObjCmd").classes == {"variables": "Tcl_SetVar2"}
+    assert ev.closure(tree, roots, [code], "Tcl_TraceObjCmd").classes == {
+        "variables": "Tcl_SetVar2"
+    }
     roots, code = subs["trace other"]
     assert "indirect" in ev.closure(tree, roots, [code], "Tcl_TraceObjCmd").classes

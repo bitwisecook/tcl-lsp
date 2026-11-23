@@ -55,85 +55,225 @@ KEYWORDS = frozenset(
 # `*`. Each class is one reason the command is not closed.
 WORLD_CLASSES: dict[str, tuple[str, ...]] = {
     "variables": (
-        "Tcl_SetVar*", "Tcl_ObjSetVar2", "Tcl_GetVar*", "Tcl_ObjGetVar2",
-        "Tcl_UnsetVar*", "Tcl_UpVar*", "TclPtrSetVar*", "TclPtrGetVar*",
-        "TclPtrIncrObjVar*", "TclLookupVar", "TclObjLookupVar*", "TclPtrUnsetVar*",
-        "TclLookupArrayElement", "Tcl_LinkVar", "TclVarHashCreateVar",
-        "TclObjVarErrMsg", "Tcl_TraceVar*", "TclCallVarTraces",
-        "TclObjCallVarTraces", "TclGetNamespaceFromObj",
+        "Tcl_SetVar*",
+        "Tcl_ObjSetVar2",
+        "Tcl_GetVar*",
+        "Tcl_ObjGetVar2",
+        "Tcl_UnsetVar*",
+        "Tcl_UpVar*",
+        "TclPtrSetVar*",
+        "TclPtrGetVar*",
+        "TclPtrIncrObjVar*",
+        "TclLookupVar",
+        "TclObjLookupVar*",
+        "TclPtrUnsetVar*",
+        "TclLookupArrayElement",
+        "Tcl_LinkVar",
+        "TclVarHashCreateVar",
+        "TclObjVarErrMsg",
+        "Tcl_TraceVar*",
+        "TclCallVarTraces",
+        "TclObjCallVarTraces",
+        "TclGetNamespaceFromObj",
     ),
     "scripts": (
-        "Tcl_Eval*", "TclEval*", "Tcl_NREval*", "TclNREval*", "Tcl_GlobalEval*",
-        "Tcl_ExprObj", "Tcl_ExprString", "Tcl_ExprLong*", "Tcl_ExprDouble*",
-        "Tcl_ExprBoolean*", "TclExecuteByteCode", "TclNRExecuteByteCode",
-        "TclObjInvoke*", "TclInvoke*", "Tcl_NRCallObjProc", "TclNRInvoke*",
-        "TclCompileScript", "TclCompileExpr", "Tcl_NRExprObj", "TclNRRunCallbacks",
-        "Tcl_NRAddCallback", "TclNRAddCallback", "TclSetTailcall",
-        "TclNRTailcallEval", "TclNRCoroutine*",
+        "Tcl_Eval*",
+        "TclEval*",
+        "Tcl_NREval*",
+        "TclNREval*",
+        "Tcl_GlobalEval*",
+        "Tcl_ExprObj",
+        "Tcl_ExprString",
+        "Tcl_ExprLong*",
+        "Tcl_ExprDouble*",
+        "Tcl_ExprBoolean*",
+        "TclExecuteByteCode",
+        "TclNRExecuteByteCode",
+        "TclObjInvoke*",
+        "TclInvoke*",
+        "Tcl_NRCallObjProc",
+        "TclNRInvoke*",
+        "TclCompileScript",
+        "TclCompileExpr",
+        "Tcl_NRExprObj",
+        "TclNRRunCallbacks",
+        "Tcl_NRAddCallback",
+        "TclNRAddCallback",
+        "TclSetTailcall",
+        "TclNRTailcallEval",
+        "TclNRCoroutine*",
     ),
     "commands": (
-        "Tcl_CreateObjCommand*", "Tcl_CreateCommand", "TclCreateObjCommand*",
-        "Tcl_DeleteCommand*", "TclRenameCommand", "Tcl_FindCommand",
-        "Tcl_GetCommandFromObj", "TclGetOriginalCommand", "Tcl_GetCommandInfo*",
-        "Tcl_SetCommandInfo*", "TclMakeEnsemble", "Tcl_CreateEnsemble",
-        "TclCreateProc", "TclFindProc", "TclGetObjInterpProc",
+        "Tcl_CreateObjCommand*",
+        "Tcl_CreateCommand",
+        "TclCreateObjCommand*",
+        "Tcl_DeleteCommand*",
+        "TclRenameCommand",
+        "Tcl_FindCommand",
+        "Tcl_GetCommandFromObj",
+        "TclGetOriginalCommand",
+        "Tcl_GetCommandInfo*",
+        "Tcl_SetCommandInfo*",
+        "TclMakeEnsemble",
+        "Tcl_CreateEnsemble",
+        "TclCreateProc",
+        "TclFindProc",
+        "TclGetObjInterpProc",
     ),
     "namespaces": (
-        "Tcl_GetCurrentNamespace", "Tcl_GetGlobalNamespace", "Tcl_FindNamespace",
-        "Tcl_CreateNamespace", "Tcl_DeleteNamespace", "TclGetNamespaceForQualName",
-        "Tcl_PushCallFrame", "TclPushStackFrame", "Tcl_PopCallFrame",
-        "TclGetFrame", "TclObjGetFrame",
+        "Tcl_GetCurrentNamespace",
+        "Tcl_GetGlobalNamespace",
+        "Tcl_FindNamespace",
+        "Tcl_CreateNamespace",
+        "Tcl_DeleteNamespace",
+        "TclGetNamespaceForQualName",
+        "Tcl_PushCallFrame",
+        "TclPushStackFrame",
+        "Tcl_PopCallFrame",
+        "TclGetFrame",
+        "TclObjGetFrame",
     ),
     "channels": (
-        "Tcl_GetChannel*", "TclGetChannelFromObj", "Tcl_Write*", "Tcl_Read*",
-        "Tcl_Gets*", "Tcl_Seek", "Tcl_Tell", "Tcl_Flush", "Tcl_Close*",
-        "Tcl_OpenFileChannel", "Tcl_FSOpenFileChannel", "Tcl_Eof",
-        "Tcl_InputBlocked", "Tcl_SetChannelOption", "Tcl_GetChannelOption",
-        "Tcl_RegisterChannel", "Tcl_UnregisterChannel", "Tcl_CreateChannel",
-        "Tcl_GetStdChannel", "TclGetOpenMode", "fprintf", "printf", "fputs", "fflush",
+        "Tcl_GetChannel*",
+        "TclGetChannelFromObj",
+        "Tcl_Write*",
+        "Tcl_Read*",
+        "Tcl_Gets*",
+        "Tcl_Seek",
+        "Tcl_Tell",
+        "Tcl_Flush",
+        "Tcl_Close*",
+        "Tcl_OpenFileChannel",
+        "Tcl_FSOpenFileChannel",
+        "Tcl_Eof",
+        "Tcl_InputBlocked",
+        "Tcl_SetChannelOption",
+        "Tcl_GetChannelOption",
+        "Tcl_RegisterChannel",
+        "Tcl_UnregisterChannel",
+        "Tcl_CreateChannel",
+        "Tcl_GetStdChannel",
+        "TclGetOpenMode",
+        "fprintf",
+        "printf",
+        "fputs",
+        "fflush",
         "fwrite",
     ),
     "filesystem": (
-        "Tcl_FS*", "TclFS*", "TclpObj*", "TclpOpen*", "TclpGetCwd", "TclpStat",
-        "TclpAccess", "TclpMatchInDirectory", "Tcl_Stat", "Tcl_Access",
-        "TclpTempFileName", "TclGetPathType", "TclpFindExecutable",
-        "TclpGetNativeCwd", "TclGetProcessGlobalValue", "Tcl_GetNameOfExecutable",
-        "TclpGetUserHome", "TclpLoadFile", "Tcl_LoadFile",
+        "Tcl_FS*",
+        "TclFS*",
+        "TclpObj*",
+        "TclpOpen*",
+        "TclpGetCwd",
+        "TclpStat",
+        "TclpAccess",
+        "TclpMatchInDirectory",
+        "Tcl_Stat",
+        "Tcl_Access",
+        "TclpTempFileName",
+        "TclGetPathType",
+        "TclpFindExecutable",
+        "TclpGetNativeCwd",
+        "TclGetProcessGlobalValue",
+        "Tcl_GetNameOfExecutable",
+        "TclpGetUserHome",
+        "TclpLoadFile",
+        "Tcl_LoadFile",
     ),
     "clock": (
-        "Tcl_GetTime", "TclpGetClicks", "TclpGetWideClicks", "TclpGetMicroseconds",
-        "TclpGetSeconds", "TclpGetDate", "TclpLocaltime", "TclpGmtime", "time",
-        "gettimeofday", "clock_gettime", "TclpGetTimeZone", "TclpGetTZName",
-        "TclScaleTime", "localtime", "gmtime", "mktime", "TclGetMonotonicTime",
-        "_ftime", "ftime", "GetSystemTimeAsFileTime", "QueryPerformanceCounter",
+        "Tcl_GetTime",
+        "TclpGetClicks",
+        "TclpGetWideClicks",
+        "TclpGetMicroseconds",
+        "TclpGetSeconds",
+        "TclpGetDate",
+        "TclpLocaltime",
+        "TclpGmtime",
+        "time",
+        "gettimeofday",
+        "clock_gettime",
+        "TclpGetTimeZone",
+        "TclpGetTZName",
+        "TclScaleTime",
+        "localtime",
+        "gmtime",
+        "mktime",
+        "TclGetMonotonicTime",
+        "_ftime",
+        "ftime",
+        "GetSystemTimeAsFileTime",
+        "QueryPerformanceCounter",
     ),
     "entropy": ("rand", "random", "srand", "TclpGetRandom*"),
     "process": (
-        "getpid", "TclpGetPid", "getenv", "TclGetEnv", "TclSetEnv", "TclUnsetEnv",
-        "Tcl_GetHostName", "TclpGetHostName", "Tcl_Exit", "Tcl_Finalize",
-        "TclpCreateProcess", "Tcl_ReapDetachedProcs", "TclpGetUserName",
-        "Tcl_GetPid", "TclpGetPlatform", "_wgetenv", "GetEnvironmentVariable*",
+        "getpid",
+        "TclpGetPid",
+        "getenv",
+        "TclGetEnv",
+        "TclSetEnv",
+        "TclUnsetEnv",
+        "Tcl_GetHostName",
+        "TclpGetHostName",
+        "Tcl_Exit",
+        "Tcl_Finalize",
+        "TclpCreateProcess",
+        "Tcl_ReapDetachedProcs",
+        "TclpGetUserName",
+        "Tcl_GetPid",
+        "TclpGetPlatform",
+        "_wgetenv",
+        "GetEnvironmentVariable*",
     ),
     "interpreter": (
-        "Tcl_GetAssocData", "Tcl_SetAssocData", "Tcl_DeleteAssocData",
-        "Tcl_CreateInterp", "Tcl_DeleteInterp", "Tcl_GetSlave", "Tcl_GetChild",
-        "Tcl_CreateAlias*", "Tcl_IsSafe", "Tcl_HideCommand", "Tcl_ExposeCommand",
-        "Tcl_SetRecursionLimit", "Tcl_LimitCheck", "TclInterpReady",
-        "Tcl_CreateTrace", "Tcl_CreateObjTrace", "Tcl_DeleteTrace",
-        "Tcl_CreateTimerHandler", "Tcl_DeleteTimerHandler", "Tcl_DoWhenIdle",
-        "Tcl_CancelIdleCall", "Tcl_DoOneEvent", "Tcl_ServiceAll",
-        "Tcl_AsyncMark", "Tcl_AsyncInvoke", "Tcl_ThreadQueueEvent",
-        "Tcl_SetMaxBlockTime", "Tcl_Sleep",
+        "Tcl_GetAssocData",
+        "Tcl_SetAssocData",
+        "Tcl_DeleteAssocData",
+        "Tcl_CreateInterp",
+        "Tcl_DeleteInterp",
+        "Tcl_GetSlave",
+        "Tcl_GetChild",
+        "Tcl_CreateAlias*",
+        "Tcl_IsSafe",
+        "Tcl_HideCommand",
+        "Tcl_ExposeCommand",
+        "Tcl_SetRecursionLimit",
+        "Tcl_LimitCheck",
+        "TclInterpReady",
+        "Tcl_CreateTrace",
+        "Tcl_CreateObjTrace",
+        "Tcl_DeleteTrace",
+        "Tcl_CreateTimerHandler",
+        "Tcl_DeleteTimerHandler",
+        "Tcl_DoWhenIdle",
+        "Tcl_CancelIdleCall",
+        "Tcl_DoOneEvent",
+        "Tcl_ServiceAll",
+        "Tcl_AsyncMark",
+        "Tcl_AsyncInvoke",
+        "Tcl_ThreadQueueEvent",
+        "Tcl_SetMaxBlockTime",
+        "Tcl_Sleep",
     ),
     "packages": (
-        "Tcl_PkgRequire*", "Tcl_PkgProvide*", "Tcl_PkgPresent*", "TclPkgRequire*",
-        "Tcl_StaticPackage", "Tcl_StaticLibrary", "TclGetLoadedPackages*",
+        "Tcl_PkgRequire*",
+        "Tcl_PkgProvide*",
+        "Tcl_PkgPresent*",
+        "TclPkgRequire*",
+        "Tcl_StaticPackage",
+        "Tcl_StaticLibrary",
+        "TclGetLoadedPackages*",
         "TclGetLoadedLibraries",
     ),
     "encodings": (
-        "Tcl_GetEncoding", "Tcl_GetEncodingFromObj", "Tcl_SetSystemEncoding",
-        "Tcl_GetEncodingName", "Tcl_GetEncodingNames", "Tcl_GetEncodingSearchPath",
-        "Tcl_SetEncodingSearchPath", "TclGetEncodingFromObj",
+        "Tcl_GetEncoding",
+        "Tcl_GetEncodingFromObj",
+        "Tcl_SetSystemEncoding",
+        "Tcl_GetEncodingName",
+        "Tcl_GetEncodingNames",
+        "Tcl_GetEncodingSearchPath",
+        "Tcl_SetEncodingSearchPath",
+        "TclGetEncodingFromObj",
     ),
 }
 
@@ -153,7 +293,9 @@ RESULT_FIELDS = frozenset(
 )
 TABLE_CALL = re.compile(r"\b(\w+)\s*\[[^\]]*\]\s*\(")
 MEMBER = re.compile(r"(?:->|\.)\s*(\w+)")
-FIELD = re.compile(r"\b(?:iPtr|interp)\s*->\s*(\w+)|\(\s*\(\s*Interp\s*\*\s*\)\s*\w+\s*\)\s*->\s*(\w+)")
+FIELD = re.compile(
+    r"\b(?:iPtr|interp)\s*->\s*(\w+)|\(\s*\(\s*Interp\s*\*\s*\)\s*\w+\s*\)\s*->\s*(\w+)"
+)
 
 # Procedures a closed command may call through a pointer: an object type's
 # own value procedures (`Tcl_ObjType`), a hash table's key procedures
@@ -166,9 +308,7 @@ VALUE_PROCS = frozenset(
     "freeProc lengthProc indexProc sliceProc reverseProc getElementsProc "
     "setElementProc replaceProc inOperProc".split()
 )
-INDIRECT = re.compile(
-    r"\(\s*\*\s*([\w.\[\]>-]+)\s*\)\s*\(|(?:->|\.)\s*(\w+)\s*\("
-)
+INDIRECT = re.compile(r"\(\s*\*\s*([\w.\[\]>-]+)\s*\)\s*\(|(?:->|\.)\s*(\w+)\s*\(")
 
 # Interfaces the closure does not enter, with the reason. Each one only
 # reports an error to its caller through the interpreter's result and its
@@ -247,7 +387,9 @@ THREAD_SYNC = frozenset(
 )
 
 
-def local_pointer_reaches_only_named(fn: Function | None, ident: str, tree: "Tree") -> bool:
+def local_pointer_reaches_only_named(
+    fn: Function | None, ident: str, tree: "Tree"
+) -> bool:
     """Whether a call through `ident` reaches only procedures the closure
     follows: a parameter (the caller names what it passes), or a local whose
     every assignment is a named function, `NULL`, or an object type's own
@@ -285,7 +427,9 @@ CALL = re.compile(r"(?<!->)(?<!\.)\b([A-Za-z_]\w*)\s*\(")
 # The `TCL_MEM_DEBUG` allocator and its object variants: a debug build
 # configuration that adds a memory log on stderr. The evidence is for builds
 # without it, so the closure does not enter it.
-DEBUG_ALLOCATOR = re.compile(r"Tcl_Db\w+|TclDb\w+|Tcl_ValidateAllMemory|TclDumpMemoryInfo")
+DEBUG_ALLOCATOR = re.compile(
+    r"Tcl_Db\w+|TclDb\w+|Tcl_ValidateAllMemory|TclDumpMemoryInfo"
+)
 
 
 @dataclass
@@ -344,7 +488,9 @@ def string_literals(text: str) -> list[str]:
     return [m.group(1) for m in re.finditer(r'"((?:[^"\\]|\\.)*)"', text)]
 
 
-DEF_START = re.compile(r"^(?:[A-Za-z_][\w\s*]*?[\s*])?([A-Za-z_]\w*)\s*\(", re.MULTILINE)
+DEF_START = re.compile(
+    r"^(?:[A-Za-z_][\w\s*]*?[\s*])?([A-Za-z_]\w*)\s*\(", re.MULTILINE
+)
 
 
 def find_functions(stripped: str, path: str) -> dict[str, Function]:
@@ -363,7 +509,9 @@ def find_functions(stripped: str, path: str) -> dict[str, Function]:
             k = i + 1
             while k < len(lines) and not lines[k].startswith("}"):
                 k += 1
-            found[m.group(1)] = Function(m.group(1), "\n".join(lines[i : k + 1]), path, lines[i])
+            found[m.group(1)] = Function(
+                m.group(1), "\n".join(lines[i : k + 1]), path, lines[i]
+            )
             i = k + 1
             continue
         j = i + 1
@@ -371,7 +519,11 @@ def find_functions(stripped: str, path: str) -> dict[str, Function]:
             line = lines[j]
             if line.startswith("{"):
                 break
-            if line[:1] not in ("", " ", "\t") or line.rstrip().endswith(";") and line[:1] not in (" ", "\t"):
+            if (
+                line[:1] not in ("", " ", "\t")
+                or line.rstrip().endswith(";")
+                and line[:1] not in (" ", "\t")
+            ):
                 j = len(lines)
                 break
             j += 1
@@ -388,11 +540,15 @@ def find_functions(stripped: str, path: str) -> dict[str, Function]:
     return found
 
 
-MACRO = re.compile(r"^[ \t]*#[ \t]*define[ \t]+([A-Za-z_]\w*)((?:\\\n|[^\n])*)", re.MULTILINE)
+MACRO = re.compile(
+    r"^[ \t]*#[ \t]*define[ \t]+([A-Za-z_]\w*)((?:\\\n|[^\n])*)", re.MULTILINE
+)
 
 
 def find_macros(stripped: str) -> dict[str, str]:
-    return {m.group(1): m.group(2).replace("\\\n", " ") for m in MACRO.finditer(stripped)}
+    return {
+        m.group(1): m.group(2).replace("\\\n", " ") for m in MACRO.finditer(stripped)
+    }
 
 
 TABLE = re.compile(
@@ -414,7 +570,16 @@ def find_tables(stripped: str) -> dict[str, str]:
 # The directories of a release tree that define what `generic/` calls: the
 # platform layers (both are read, so a call reaches either platform's
 # body), bundled libtommath, and the compatibility replacements.
-SOURCE_DIRS = ("generic", "unix", "win", "macosx", "libtommath", "compat", "compat/zlib", "utf8proc")
+SOURCE_DIRS = (
+    "generic",
+    "unix",
+    "win",
+    "macosx",
+    "libtommath",
+    "compat",
+    "compat/zlib",
+    "utf8proc",
+)
 
 
 def load_tree(generic: pathlib.Path) -> Tree:
@@ -471,7 +636,9 @@ IDENT = re.compile(r"\b([A-Za-z_]\w*)\b")
 
 
 def matches(name: str, patterns: tuple[str, ...]) -> bool:
-    return any(name.startswith(p[:-1]) if p.endswith("*") else name == p for p in patterns)
+    return any(
+        name.startswith(p[:-1]) if p.endswith("*") else name == p for p in patterns
+    )
 
 
 def world_class(name: str) -> str | None:
@@ -557,7 +724,9 @@ def closure(
                 or called in THREAD_SYNC
                 or THREAD_FAMILY.match(called)
                 or world_class(called)
-                or local_pointer_reaches_only_named(tree.functions.get(name or context or ""), called, tree)
+                or local_pointer_reaches_only_named(
+                    tree.functions.get(name or context or ""), called, tree
+                )
                 or (name, called) in REVIEWED_EDGES
                 or called in (tree.tables.get(file, {}) if file else {})
             ):
@@ -628,7 +797,8 @@ def table_entries(source: str, start: int) -> list[tuple[str, list[str]]]:
 def command_procs(idents: list[str], tree: Tree) -> list[str]:
     """The procedures of a table row: in-tree functions, compile procs excluded."""
     return [
-        i for i in idents
+        i
+        for i in idents
         if (i in tree.functions or i in tree.macros)
         and not i.startswith("TclCompile")
         and not i.isupper()
@@ -638,7 +808,9 @@ def command_procs(idents: list[str], tree: Tree) -> list[str]:
 def builtin_commands(tree: Tree) -> dict[str, list[str]]:
     source = tree.sources["tclBasic.c"]
     m = re.search(r"\bbuiltInCmds\[\]\s*=", source)
-    return {name: command_procs(ids, tree) for name, ids in table_entries(source, m.end())}
+    return {
+        name: command_procs(ids, tree) for name, ids in table_entries(source, m.end())
+    }
 
 
 def ensemble_commands(tree: Tree) -> dict[str, list[str]]:
@@ -651,7 +823,9 @@ def ensemble_commands(tree: Tree) -> dict[str, list[str]]:
             maps.setdefault(m.group(1), (source, m.end()))
     named: list[tuple[str, str, str | None]] = []
     for source in tree.sources.values():
-        for m in re.finditer(r'TclMakeEnsemble\(\s*\w+\s*,\s*"([^"]+)"\s*,\s*(\w+)\s*\)', source):
+        for m in re.finditer(
+            r'TclMakeEnsemble\(\s*\w+\s*,\s*"([^"]+)"\s*,\s*(\w+)\s*\)', source
+        ):
             named.append((m.group(1), m.group(2), source))
     basic = tree.sources["tclBasic.c"]
     setup = re.search(r"\bensembleCommands\[\]\s*=", basic)
@@ -677,24 +851,36 @@ def ensemble_commands(tree: Tree) -> dict[str, list[str]]:
 def math_commands(tree: Tree) -> dict[str, list[str]]:
     found: dict[str, list[str]] = {}
     source = tree.sources["tclBasic.c"]
-    for table, ns in (("BuiltinFuncTable", "tcl::mathfunc"), ("mathOpCmds", "tcl::mathop")):
+    for table, ns in (
+        ("BuiltinFuncTable", "tcl::mathfunc"),
+        ("mathOpCmds", "tcl::mathop"),
+    ):
         t = re.search(rf"\b{table}\[\]\s*=", source)
         if not t:
             continue
         for name, ids in table_entries(source, t.end()):
             procs = command_procs(ids, tree)
             if ns == "tcl::mathop" and not procs:
-                procs = ["TclVariadicOpCmd", "TclNoIdentOpCmd", "TclSortingOpCmd", "TclSingleOpCmd"]
+                procs = [
+                    "TclVariadicOpCmd",
+                    "TclNoIdentOpCmd",
+                    "TclSortingOpCmd",
+                    "TclSingleOpCmd",
+                ]
                 procs = [p for p in procs if p in tree.functions]
             found[f"{ns}::{name}"] = procs
     return found
 
 
 CASE = re.compile(r"\bcase\s+(\w+)\s*:")
-SWITCH = re.compile(r"\bswitch\s*\(\s*\(\s*enum\s+\w+\s*\)\s*\w+\s*\)|\bswitch\s*\(\s*index\s*\)")
+SWITCH = re.compile(
+    r"\bswitch\s*\(\s*\(\s*enum\s+\w+\s*\)\s*\w+\s*\)|\bswitch\s*\(\s*index\s*\)"
+)
 
 
-def switch_subcommands(tree: Tree, ensemble: str, proc: str) -> dict[str, tuple[list[str], str]]:
+def switch_subcommands(
+    tree: Tree, ensemble: str, proc: str
+) -> dict[str, tuple[list[str], str]]:
     """The `switch`-dispatched subcommands of one `ObjCmd`: each subcommand's
     code is its case, any case it falls into, and the code around the switch.
 
@@ -707,7 +893,9 @@ def switch_subcommands(tree: Tree, ensemble: str, proc: str) -> dict[str, tuple[
     if at is None:
         return {}
     raw_body = raw[at.start() :]
-    arrays = re.search(r"char\s*\*\s*(?:CONST|const)?\s*\w+\[\]\s*=\s*\{([^}]*)\}", raw_body)
+    arrays = re.search(
+        r"char\s*\*\s*(?:CONST|const)?\s*\w+\[\]\s*=\s*\{([^}]*)\}", raw_body
+    )
     enum = re.search(r"enum\s+\w*\s*\{([^}]*)\}", fn.body)
     switch = SWITCH.search(fn.body)
     if not (arrays and enum and switch):
@@ -758,7 +946,9 @@ def switch_subcommands(tree: Tree, ensemble: str, proc: str) -> dict[str, tuple[
         order = [lbl for lbl, _ in cases]
         pos = order.index(label)
         code = slices[label]
-        while pos + 1 < len(order) and not re.search(r"\b(break|return|goto)\b[^;]*;\s*\}?\s*$", code.rstrip()):
+        while pos + 1 < len(order) and not re.search(
+            r"\b(break|return|goto)\b[^;]*;\s*\}?\s*$", code.rstrip()
+        ):
             pos += 1
             code += slices[order[pos]]
         # A `goto LABEL` reaches the code after `LABEL:` up to the next case
@@ -816,14 +1006,20 @@ def evidence_lines(tree: Tree) -> list[str]:
         verdict = "closed" if ev.closed else "open"
         classes = [f"{cls}:{iface}" for cls, iface in sorted(ev.classes.items())]
         classes += [f"completion:{code}" for code in sorted(ev.codes)]
-        lines.append(f"{name}\t{verdict}\t{','.join(classes) or '-'}\t{','.join(roots) or 'switch'}")
+        lines.append(
+            f"{name}\t{verdict}\t{','.join(classes) or '-'}\t{','.join(roots) or 'switch'}"
+        )
     return lines
 
 
 def main(argv: list[str]) -> int:
     root = pathlib.Path(__file__).resolve().parents[2]
     tmp = pathlib.Path(argv[1]) if len(argv) > 1 else root / "tmp"
-    out = pathlib.Path(argv[2]) if len(argv) > 2 else root / "rust/tcl-registry/tests/data/command_evidence"
+    out = (
+        pathlib.Path(argv[2])
+        if len(argv) > 2
+        else root / "rust/tcl-registry/tests/data/command_evidence"
+    )
     out.mkdir(parents=True, exist_ok=True)
     for release in RELEASES:
         generic = tmp / f"tcl{release}" / "generic"
@@ -838,7 +1034,9 @@ def main(argv: list[str]) -> int:
             "# NAME\tVERDICT\tCLASSES\tROOTS\n"
         )
         (out / f"tcl{major_minor}.txt").write_text(header + "\n".join(lines) + "\n")
-        print(f"tcl{release}: {len(lines)} commands, {sum('	closed	' in l for l in lines)} closed")
+        print(
+            f"tcl{release}: {len(lines)} commands, {sum('	closed	' in l for l in lines)} closed"
+        )
     return 0
 
 

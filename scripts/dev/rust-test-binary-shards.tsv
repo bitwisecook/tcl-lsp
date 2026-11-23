@@ -72,6 +72,7 @@
 3	tcl-cshim::pkga_e2e	test	tcl-cshim	pkga_e2e
 3	tcl-engine-tclvm	lib	tcl-engine-tclvm	tcl_engine_tclvm
 3	tcl-explorer	lib	tcl-explorer	tcl_explorer
+3	tcl-expr	lib	tcl-expr	tcl_expr
 3	tcl-f5mku	lib	tcl-f5mku	tcl_f5mku
 3	tcl-host-c-abi	lib	tcl-host-c-abi	tcl_host_c_abi
 3	tcl-irules::event_emission	test	tcl-irules	event_emission
@@ -146,6 +147,7 @@
 4	tcl-lsp-db::class_factory_fixpoint	test	tcl-lsp-db	class_factory_fixpoint
 4	tcl-lsp-db::file_decls_corpus	test	tcl-lsp-db	file_decls_corpus
 4	tcl-lsp-db::project_diagnostics_corpus	test	tcl-lsp-db	project_diagnostics_corpus
+4	tcl-numeric	lib	tcl-numeric	tcl_numeric
 4	tcl-regex	lib	tcl-regex	tcl_regex
 4	tcl-regex::reg_test	test	tcl-regex	reg_test
 4	tcl-registry::it_4	test	tcl-registry	it_4
@@ -200,9 +202,11 @@
 5	tcl-spec-studio::it_5	test	tcl-spec-studio	it_5
 5	tcl-spectcl	lib	tcl-spectcl	tcl_spectcl
 5	tcl-spectcl::golden_packs	test	tcl-spectcl	golden_packs
+5	tcl-spectcl::hook_plan_republish	test	tcl-spectcl	hook_plan_republish
 5	tcl-spectcl::it_5	test	tcl-spectcl	it_5
 5	tcl-syntax::jim_name_resolution_conformance	test	tcl-syntax	jim_name_resolution_conformance
 5	tcl-syntax::variable_resolution_conformance	test	tcl-syntax	variable_resolution_conformance
+5	tcl-value-syntax	lib	tcl-value-syntax	tcl_value_syntax
 5	tcl-version	lib	tcl-version	tcl_version
 5	tcl-vm	lib	tcl-vm	tcl_vm
 5	tcl-vm-cli::bin/tclvm	bin	tcl-vm-cli	tclvm

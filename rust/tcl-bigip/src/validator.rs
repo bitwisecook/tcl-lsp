@@ -993,9 +993,9 @@ fn check_measured_address_syntax(
 ) -> bool {
     use tcl_registry::bigip::AddressGrammar;
 
-    if !object
+    if object
         .tmos_version
-        .is_some_and(|version| (version.major, version.minor) == (21, 1))
+        .is_none_or(|version| (version.major, version.minor) != (21, 1))
     {
         return true;
     }

@@ -1379,7 +1379,6 @@ dependencies = [
  "rustc-hash",
  "tcl-bytecode",
  "tcl-cmd-core",
- "tcl-codegen",
  "tcl-core-types",
  "tcl-dialect",
  "tcl-host-native",

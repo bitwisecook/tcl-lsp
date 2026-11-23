@@ -33,6 +33,7 @@ Appliance run: one tmsh process reading, per rule,
   delete ltm rule tcllsp_oq_<id>
 on standard input. A separate tmsh process per load costs ~2 s each.
 """
+
 import json
 import pathlib
 import re
@@ -43,15 +44,25 @@ from collections import Counter
 # (`incr len -1` on an empty length in checkBracesBlock), which aborts the
 # whole rule check. They are left out and recorded as a checker defect.
 CHECKER_CRASHERS = {"relate_client", "relate_server"}
-LINE_OFFSET = 3  # the loader numbers the rule body: 1 `when`, 2 `if {0} {`, commands from 3
-CONTEXT_MARKERS = ("not valid in current event context", "badEventContext",
-                   "not valid in RULE_INIT", "badRuleInitContext")
+LINE_OFFSET = (
+    3  # the loader numbers the rule body: 1 `when`, 2 `if {0} {`, commands from 3
+)
+CONTEXT_MARKERS = (
+    "not valid in current event context",
+    "badEventContext",
+    "not valid in RULE_INIT",
+    "badRuleInitContext",
+)
 
 
 def load_schema(path):
     d = json.load(open(path))
     events = [o["eventName"] for o in d if "eventName" in o]
-    cmds = [o["commandName"] for o in d if "commandName" in o and o["commandName"] not in CHECKER_CRASHERS]
+    cmds = [
+        o["commandName"]
+        for o in d
+        if "commandName" in o and o["commandName"] not in CHECKER_CRASHERS
+    ]
     return events, cmds
 
 
@@ -61,8 +72,11 @@ def write_rules(out, rules):
     for rid, ev, cmds in rules:
         body = "\n".join(cmds)
         (out / f"{rid}.conf").write_text(
-            f"ltm rule tcllsp_oq_{rid} {{\nwhen {ev} {{\nif {{0}} {{\n{body}\n}}\n}}\n}}\n")
-    (out / "index.tsv").write_text("".join(f"{r}\t{e}\t{','.join(c)}\n" for r, e, c in rules))
+            f"ltm rule tcllsp_oq_{rid} {{\nwhen {ev} {{\nif {{0}} {{\n{body}\n}}\n}}\n}}\n"
+        )
+    (out / "index.tsv").write_text(
+        "".join(f"{r}\t{e}\t{','.join(c)}\n" for r, e, c in rules)
+    )
     print(len(rules), "rules")
 
 
@@ -71,7 +85,7 @@ def gen(schema, outdir, size):
     rules = []
     for n, ev in enumerate(events):
         for k in range(0, len(cmds), size):
-            rules.append((f"ev_{n:03d}_{k // size:03d}", ev, cmds[k:k + size]))
+            rules.append((f"ev_{n:03d}_{k // size:03d}", ev, cmds[k : k + size]))
     write_rules(outdir, rules)
 
 
@@ -109,7 +123,9 @@ def regen(loader_out, index, outdir):
     write_rules(outdir, rules)
 
 
-MSG = re.compile(r"tcllsp_oq_(ev_[0-9_]+):(\d+): (error|warning): \[(.*)\]\[([^\]]*)\]$")
+MSG = re.compile(
+    r"tcllsp_oq_(ev_[0-9_]+):(\d+): (error|warning): \[(.*)\]\[([^\]]*)\]$"
+)
 
 
 def parse(schema, dest, runs):
@@ -129,7 +145,9 @@ def parse(schema, dest, runs):
                 if not m or m.group(1) != rid:
                     continue
                 i = int(m.group(2)) - LINE_OFFSET
-                if 0 <= i < len(rcmds) and any(s in m.group(4) for s in CONTEXT_MARKERS):
+                if 0 <= i < len(rcmds) and any(
+                    s in m.group(4) for s in CONTEXT_MARKERS
+                ):
                     v = "invalid" if m.group(3) == "error" else "invalid-warn"
                     if found.get(rcmds[i]) != "invalid":
                         found[rcmds[i]] = v
@@ -142,8 +160,15 @@ def parse(schema, dest, runs):
                     matrix[ev][c] = "unknown"
             if cut:
                 still_truncated.append(rid)
-    json.dump({"events": events, "commands": cmds, "excluded": sorted(CHECKER_CRASHERS),
-               "matrix": matrix}, open(dest, "w"))
+    json.dump(
+        {
+            "events": events,
+            "commands": cmds,
+            "excluded": sorted(CHECKER_CRASHERS),
+            "matrix": matrix,
+        },
+        open(dest, "w"),
+    )
     print(Counter(v for r in matrix.values() for v in r.values()))
 
 

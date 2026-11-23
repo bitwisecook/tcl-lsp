@@ -949,13 +949,7 @@ fn cmd_dict_with(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
             Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         };
     let reached = (|| {
-        let Some((variable, tail)) = rest.split_first() else {
-            return crate::command::native_wrong_arguments_message(
-                vm,
-                "wrong # args: should be \"dict with dictVarName ?key ...? script\"",
-            );
-        };
-        let Some((body, path)) = tail.split_last() else {
+        let [variable, path @ .., body] = rest else {
             return crate::command::native_wrong_arguments_message(
                 vm,
                 "wrong # args: should be \"dict with dictVarName ?key ...? script\"",
@@ -1014,78 +1008,107 @@ fn cmd_dict_with(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         // commands that can replace the interpreter's current result.
         outcome.result = outcome.result.into_native_reference();
         if plan.writeback == tcl_registry::dictionary_scope::DictionaryWriteback::NormalOnly {
-            // JimDictWith applies each surviving member independently using
-            // Jim_SetDictKeysVector(JIM_NORESULT). A failed member leaves its
-            // result and later members are still attempted.
-            if vm.read_variable_result_bytes(&name, None).is_err() {
-                return vm.refused_completion().unwrap_or(outcome);
-            }
-            let mut member_path = path.to_vec();
-            for (key, _) in mappings {
-                let equals_root =
-                    match tcl_cmd_core::string::jim_object_compare(vm, variable, &key, None, false)
-                    {
-                        Ok(order) => order.is_eq(),
-                        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-                    };
-                if !plan.writes_mapped_key(equals_root) {
-                    continue;
-                }
-                let mapped = match original_names.read(vm, &key) {
-                    Ok(mapped) => mapped,
-                    Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-                };
-                let value = vm.read_variable_result_bytes(&mapped, None).ok();
-                if let Some(refusal) = vm.refused_completion() {
-                    return refusal;
-                }
-                member_path.push(key);
-                if let Err(error) = dictionary_path_update_bytes(
-                    vm,
-                    &name,
-                    crate::interp::native_dictionary::DictionaryVariablePublication::CommandName,
-                    &member_path,
-                    value,
-                ) {
-                    if let Some(refusal) = vm.refused_completion() {
-                        return refusal;
-                    }
-                    outcome = dictionary_scope_writeback_failure(plan.writeback_failure, error);
-                }
-                member_path.pop();
-            }
-            return outcome;
+            return writeback_jim_dict_with(
+                vm,
+                (variable, &name),
+                path,
+                mappings,
+                &plan,
+                &original_names,
+                outcome,
+            );
         }
-        let objects = match VmDictionaryObjects::selected(vm) {
-            Ok(objects) => objects.with_preparation(
-                tcl_cmd_core::native_dictionary::NativeDictionaryPreparation::ConvertBeforeCopy,
-            ),
-            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-        };
-        let publication =
-            crate::interp::native_dictionary::DictionaryVariablePublication::RetainedLocalCell;
-        let writeback =
-            vm.dictionary_scope_writeback_bytes(&name, publication, &objects, |vm, root| {
-                tcl_cmd_core::native_dictionary::transform_existing_prepared_path(
-                    &objects,
-                    root,
-                    path,
-                    |leaf| reflect_dictionary_scope_leaf(vm, leaf, &mappings),
-                )
-                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))
-            });
-        if let Some(refusal) = vm.refused_completion() {
-            return refusal;
-        }
-        if let Err(error) = writeback {
-            return dictionary_scope_writeback_failure(plan.writeback_failure, error);
-        }
-        outcome
+        writeback_tcl_dict_with(vm, &name, path, &mappings, plan.writeback_failure, outcome)
     })();
     if let Err(error) = original_names.finish(vm) {
         return crate::command::completion_from_cmd_error(vm, error);
     }
     reached
+}
+
+fn writeback_jim_dict_with(
+    vm: &mut Vm,
+    (variable, name): (&Value, &[u8]),
+    path: &[Value],
+    mappings: Vec<(Value, Value)>,
+    plan: &tcl_registry::dictionary_scope::DictionaryScopePlan,
+    original_names: &crate::interp::native_name_consumers::OriginalNameConsumerScope,
+    mut outcome: Completion<Value>,
+) -> Completion<Value> {
+    // JimDictWith applies each surviving member independently using
+    // Jim_SetDictKeysVector(JIM_NORESULT). A failed member leaves its
+    // result and later members are still attempted.
+    if vm.read_variable_result_bytes(name, None).is_err() {
+        return vm.refused_completion().unwrap_or(outcome);
+    }
+    let mut member_path = path.to_vec();
+    for (key, _) in mappings {
+        let equals_root =
+            match tcl_cmd_core::string::jim_object_compare(vm, variable, &key, None, false) {
+                Ok(order) => order.is_eq(),
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+            };
+        if !plan.writes_mapped_key(equals_root) {
+            continue;
+        }
+        let mapped = match original_names.read(vm, &key) {
+            Ok(mapped) => mapped,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        let value = vm.read_variable_result_bytes(&mapped, None).ok();
+        if let Some(refusal) = vm.refused_completion() {
+            return refusal;
+        }
+        member_path.push(key);
+        if let Err(error) = dictionary_path_update_bytes(
+            vm,
+            name,
+            crate::interp::native_dictionary::DictionaryVariablePublication::CommandName,
+            &member_path,
+            value,
+        ) {
+            if let Some(refusal) = vm.refused_completion() {
+                return refusal;
+            }
+            outcome = dictionary_scope_writeback_failure(plan.writeback_failure, error);
+        }
+        member_path.pop();
+    }
+    outcome
+}
+
+fn writeback_tcl_dict_with(
+    vm: &mut Vm,
+    name: &[u8],
+    path: &[Value],
+    mappings: &[(Value, Value)],
+    failure: tcl_registry::dictionary_scope::DictionaryWritebackFailure,
+    outcome: Completion<Value>,
+) -> Completion<Value> {
+    let objects = match VmDictionaryObjects::selected(vm) {
+        Ok(objects) => objects.with_preparation(
+            tcl_cmd_core::native_dictionary::NativeDictionaryPreparation::ConvertBeforeCopy,
+        ),
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+    };
+    let publication =
+        crate::interp::native_dictionary::DictionaryVariablePublication::RetainedLocalCell;
+    let writeback = vm.dictionary_scope_writeback_bytes(name, publication, &objects, |vm, root| {
+        tcl_cmd_core::native_dictionary::transform_existing_prepared_path(
+            &objects,
+            root,
+            path,
+            |leaf| reflect_dictionary_scope_leaf(vm, leaf, mappings),
+        )
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))
+    });
+    if let Some(refusal) = vm.refused_completion() {
+        return refusal;
+    }
+    if let Err(error) = writeback {
+        return dictionary_scope_writeback_failure(failure, error);
+    }
+    outcome
 }
 
 fn dictionary_scope_writeback_failure(

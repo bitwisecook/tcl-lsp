@@ -537,9 +537,9 @@ impl Vm {
             source.bytes()[..plan.complete_prefix_len].to_vec(),
             source.channel(),
         );
-        let plain = self.requires_plain_command_dispatch()
+        let plain_dispatch = self.requires_plain_command_dispatch()
             || (direct && self.runtime_version().compile_errors_fail_scripts());
-        let module = self.compile_module_bytes_as(&prefix, &namespace, plain, direct)?;
+        let module = self.compile_module_bytes_as(&prefix, &namespace, plain_dispatch, direct)?;
         let mut completion = self.run_current_module_at(&module, location);
         if self.execution_refusal.is_some() {
             return Ok(completion);

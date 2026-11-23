@@ -190,22 +190,7 @@ pub(super) fn arg_row_statements(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft
             row.push(str_of(&entry["role"]).to_owned());
         }
         if let Some(entry) = at(&types, index) {
-            if let Some(expected) = entry["expected"].as_str() {
-                row.push("-type".to_owned());
-                row.push(expected.to_owned());
-            }
-            if entry["shimmers"].as_bool() == Some(true) {
-                row.push("-shimmers".to_owned());
-            }
-            let transparent = as_array(&entry["transparent_from"]);
-            if !transparent.is_empty() {
-                push_flag(
-                    &mut row,
-                    &mut lost,
-                    "-transparent",
-                    str_list_word(&entry["transparent_from"]),
-                );
-            }
+            append_arg_type_flags(&mut row, &mut lost, &entry);
         }
         if let Some(entry) = at(&values, index) {
             push_values(
@@ -234,6 +219,25 @@ pub(super) fn arg_row_statements(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft
             row.push(word);
         }
         emit_row(out, "arg_values", &row, lost, "-detail");
+    }
+}
+
+fn append_arg_type_flags(row: &mut Vec<String>, lost: &mut bool, entry: &Value) {
+    if let Some(expected) = entry["expected"].as_str() {
+        row.push("-type".to_owned());
+        row.push(expected.to_owned());
+    }
+    if entry["shimmers"].as_bool() == Some(true) {
+        row.push("-shimmers".to_owned());
+    }
+    let transparent = as_array(&entry["transparent_from"]);
+    if !transparent.is_empty() {
+        push_flag(
+            row,
+            lost,
+            "-transparent",
+            str_list_word(&entry["transparent_from"]),
+        );
     }
 }
 

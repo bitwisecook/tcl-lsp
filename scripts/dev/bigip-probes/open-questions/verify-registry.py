@@ -15,6 +15,7 @@ registry folds profile requirements into legality; the checker records them
 as attach-time dependencies. Disagreements are therefore split into those a
 checker-side profile requirement explains and those it does not.
 """
+
 import argparse
 import collections
 import json
@@ -32,7 +33,14 @@ def profsets(req):
 
 def main():
     ap = argparse.ArgumentParser()
-    for a in ("model", "grammar", "registry", "registry-events", "registry-specs", "out"):
+    for a in (
+        "model",
+        "grammar",
+        "registry",
+        "registry-events",
+        "registry-specs",
+        "out",
+    ):
         ap.add_argument("--" + a, required=True)
     a = ap.parse_args()
     model = json.load(open(a.model))
@@ -58,18 +66,26 @@ def main():
         "checker_commands": len(checker),
         "checker_missing_from_registry": sorted(checker - in_reg),
         "documented_missing_from_registry": sorted(documented - in_reg),
-        "registry_irules_specs_unknown_to_checker_docs_tmm": sorted(reg_irules_specs - checker - documented - tmm),
+        "registry_irules_specs_unknown_to_checker_docs_tmm": sorted(
+            reg_irules_specs - checker - documented - tmm
+        ),
         "tmm_only_names_in_registry": sorted(set(model["tmm_only_commands"]) & in_reg),
-        "disabled_commands_resolving_in_registry": sorted(set(model["disabled_commands"]) & in_reg),
+        "disabled_commands_resolving_in_registry": sorted(
+            set(model["disabled_commands"]) & in_reg
+        ),
     }
     report["coverage"] = cov
 
     # 2. events
     ck_ev, rg_ev = set(events), set(reg_events)
-    ev_rep = {"checker_events": len(ck_ev), "registry_events": len(rg_ev),
-              "checker_events_missing_from_registry": sorted(ck_ev - rg_ev),
-              "registry_events_unknown_to_checker": sorted(rg_ev - ck_ev),
-              "profile_mismatch": [], "side_mismatch": []}
+    ev_rep = {
+        "checker_events": len(ck_ev),
+        "registry_events": len(rg_ev),
+        "checker_events_missing_from_registry": sorted(ck_ev - rg_ev),
+        "registry_events_unknown_to_checker": sorted(rg_ev - ck_ev),
+        "profile_mismatch": [],
+        "side_mismatch": [],
+    }
     for e in sorted(ck_ev & rg_ev):
         cp = profsets(events[e]["profiles"])
         rp = set(reg_events[e]["implied_profiles"])
@@ -78,7 +94,9 @@ def main():
         cats = set(events[e]["categories"])
         ck_server = "SERVERSIDE" in cats
         if ck_server and not reg_events[e]["server_side"]:
-            ev_rep["side_mismatch"].append([e, "checker SERVERSIDE", "registry not server_side"])
+            ev_rep["side_mismatch"].append(
+                [e, "checker SERVERSIDE", "registry not server_side"]
+            )
     report["events"] = ev_rep
 
     # 3. legality
@@ -117,8 +135,11 @@ def main():
         totals["warn_only_registry_allows"] += len(warn_legal)
         totals["warn_only_registry_rejects"] += len(warn_illegal)
         if fa or fd or fd_prof:
-            per_cmd[n] = {"registry_allows_checker_rejects": fa, "registry_rejects_checker_accepts": fd,
-                          "registry_rejects_profile_conditional": fd_prof}
+            per_cmd[n] = {
+                "registry_allows_checker_rejects": fa,
+                "registry_rejects_checker_accepts": fd,
+                "registry_rejects_profile_conditional": fd_prof,
+            }
     report["legality"] = {"totals": dict(totals), "commands": per_cmd}
 
     # 4. profiles
@@ -148,17 +169,33 @@ def main():
     form_rep = []
     for n in sorted(checker & in_reg):
         fs = grammar.get(n, {}).get("forms", [])
-        has_form_cons = any(any("Event" in c or "event" in c for c in f["constraints"]) for f in fs)
+        has_form_cons = any(
+            any("Event" in c or "event" in c for c in f["constraints"]) for f in fs
+        )
         if has_form_cons and not reg[n]["event_forms"]:
-            form_rep.append([n, [[f["signature"], f["constraints"]] for f in fs if f["constraints"]]])
+            form_rep.append(
+                [
+                    n,
+                    [
+                        [f["signature"], f["constraints"]]
+                        for f in fs
+                        if f["constraints"]
+                    ],
+                ]
+            )
     report["form_constraints_missing"] = form_rep
 
     # 7. also_in claims contradicted by the checker
     also = []
     for n in sorted(checker & in_reg):
         er = reg[n]["event_requires"] or {}
-        bad = [e for e in er.get("also_in", []) if e in events and e not in cmds[n]["events"].get("valid", [])
-               and e not in cmds[n]["events"].get("warn_only", [])]
+        bad = [
+            e
+            for e in er.get("also_in", [])
+            if e in events
+            and e not in cmds[n]["events"].get("valid", [])
+            and e not in cmds[n]["events"].get("warn_only", [])
+        ]
         if bad:
             also.append([n, bad])
     report["also_in_contradicted"] = also
@@ -178,7 +215,9 @@ def main():
     print(f"  commands with a disagreement: {len(per_cmd)}")
     print(f"== profile requirement mismatches: {len(prof_rep)}")
     print(f"== arity mismatches: {len(ar_rep)}")
-    print(f"== commands whose per-form event constraints the registry lacks: {len(form_rep)}")
+    print(
+        f"== commands whose per-form event constraints the registry lacks: {len(form_rep)}"
+    )
     print(f"== also_in entries contradicted by the checker: {len(also)}")
 
 

@@ -747,8 +747,6 @@ impl MemberRenameScan<'_, '_> {
             document,
             definitions,
             syntax,
-            method,
-            wanted,
             walk,
             ..
         } = *self;
@@ -815,6 +813,32 @@ impl MemberRenameScan<'_, '_> {
         if !walk.complete() {
             return Err(OriginalMemberRenameRefusal::IncompleteCoverage);
         }
+        self.check_unclassified_selectors(&words, &same_frame, &shifted)?;
+        pending.extend(
+            same_frame
+                .into_iter()
+                .map(|(start, end)| (start, end, depth + 1, owner)),
+        );
+        pending.extend(
+            shifted
+                .into_iter()
+                .map(|(start, end)| (start, end, depth + 1, None)),
+        );
+        Ok(())
+    }
+
+    fn check_unclassified_selectors(
+        &self,
+        words: &[tcl_lexer::NativeWord],
+        same_frame: &[(usize, usize)],
+        shifted: &[(usize, usize)],
+    ) -> Result<(), OriginalMemberRenameRefusal> {
+        let Self {
+            document,
+            method,
+            wanted,
+            ..
+        } = *self;
         // Literal text naming either member outside a script this walk
         // classifies could be a captured selector dispatched later.
         let old = method.original_name_input();
@@ -828,7 +852,7 @@ impl MemberRenameScan<'_, '_> {
                 )
                 .ok_or(OriginalMemberRenameRefusal::IncompleteCoverage)?;
                 if mentions.iter().any(|mention| {
-                    !same_frame.iter().chain(&shifted).any(|&(start, end)| {
+                    !same_frame.iter().chain(shifted).any(|&(start, end)| {
                         start <= mention.start() as usize && mention.end() as usize <= end
                     })
                 }) {
@@ -836,16 +860,6 @@ impl MemberRenameScan<'_, '_> {
                 }
             }
         }
-        pending.extend(
-            same_frame
-                .into_iter()
-                .map(|(start, end)| (start, end, depth + 1, owner)),
-        );
-        pending.extend(
-            shifted
-                .into_iter()
-                .map(|(start, end)| (start, end, depth + 1, None)),
-        );
         Ok(())
     }
 }

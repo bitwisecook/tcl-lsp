@@ -16,6 +16,7 @@ rust/tcl-dialect
 rust/tcl-engine-api
 rust/tcl-engine-tclvm
 rust/tcl-explorer
+rust/tcl-expr
 rust/tcl-host-c-abi
 rust/tcl-host-native
 rust/tcl-irules
@@ -23,6 +24,7 @@ rust/tcl-lexer
 rust/tcl-lsp-core
 rust/tcl-lsp-db
 rust/tcl-lsp-server
+rust/tcl-numeric
 rust/tcl-pkg-model
 rust/tcl-platform
 rust/tcl-regex
@@ -34,5 +36,6 @@ rust/tcl-sslictcl
 rust/tcl-syntax
 rust/tcl-test-support
 rust/tcl-userdirs
+rust/tcl-value-syntax
 rust/tcl-version
 rust/tcl-vm
