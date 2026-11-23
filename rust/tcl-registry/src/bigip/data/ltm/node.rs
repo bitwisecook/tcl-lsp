@@ -67,11 +67,17 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             shape_kind: Some(ValueKind::Object),
             block: &[
                 BigipPropertySpec {
+                    name: "name",
+                    value_type: ValueKind::String,
+                    in_sections: &["fqdn"],
+                    address_grammar: Some(crate::bigip::AddressGrammar::Fqdn),
+                    ..BigipPropertySpec::DEFAULT
+                },
+                BigipPropertySpec {
                     name: "address-family",
                     value_type: ValueKind::Enum,
                     in_sections: &["fqdn"],
                     enum_values: &["ipv4", "ipv6"],
-                    shape_kind: Some(ValueKind::IpAddress),
                     ..BigipPropertySpec::DEFAULT
                 },
                 BigipPropertySpec {
@@ -105,7 +111,6 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             value_type: ValueKind::Enum,
             in_sections: &["fqdn"],
             enum_values: &["ipv4", "ipv6"],
-            shape_kind: Some(ValueKind::IpAddress),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {

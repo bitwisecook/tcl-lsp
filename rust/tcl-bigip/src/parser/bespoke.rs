@@ -73,8 +73,8 @@ use crate::range::Range;
 use crate::value::bigip_list::SourceSpan;
 use crate::value::grammar::{ConfigurationAddress, read_address_property};
 use crate::value::{
-    BigipList, FQDN, FirewallRule, ListItem, ListItemValue, ListSyntax, Network,
-    PersistenceAttachment, ProfileAttachment, try_parse_address,
+    BigipList, FirewallRule, ListItem, ListItemValue, ListSyntax, Network, PersistenceAttachment,
+    ProfileAttachment,
 };
 
 use super::helpers::{
@@ -608,11 +608,11 @@ fn parse_pool_members(braced: &str, base_offset: usize) -> Vec<BigipPoolMember> 
                 .and_then(|value| crate::value::Port::try_parse_service(value))
                 .map_or(0, |port| i64::from(port.port)),
         };
-        let addr_typed = if addr.is_empty() {
-            None
-        } else {
-            try_parse_address(&addr)
-        };
+        let addr_typed =
+            match crate::value::read_address_field("ltm", "pool", &["members", "address"], &addr) {
+                Some(ConfigurationAddress::Address(address)) => Some(address),
+                _ => None,
+            };
         members.push(BigipPoolMember {
             name,
             address: addr_typed,
@@ -888,15 +888,13 @@ pub fn parse_node(full_path: &str, body: &str, range: Range) -> BigipNode {
         fqdn_raw = fqdn_props.get("name").cloned().unwrap_or_default();
     }
     let addr_raw = props.get("address").cloned().unwrap_or_default();
-    obj.address = if addr_raw.is_empty() {
-        None
-    } else {
-        try_parse_address(&addr_raw)
+    obj.address = match read_address_property("ltm", "node", "address", &addr_raw) {
+        Some(ConfigurationAddress::Address(address)) => Some(address),
+        _ => None,
     };
-    obj.fqdn = if fqdn_raw.is_empty() {
-        None
-    } else {
-        FQDN::try_parse(&fqdn_raw)
+    obj.fqdn = match crate::value::read_address_field("ltm", "node", &["fqdn", "name"], &fqdn_raw) {
+        Some(ConfigurationAddress::Fqdn(fqdn)) => Some(fqdn),
+        _ => None,
     };
     obj
 }

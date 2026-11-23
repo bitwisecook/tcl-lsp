@@ -90,6 +90,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
                 value_type: ValueKind::String,
                 in_sections: &["domain-controllers"],
                 shape_kind: Some(ValueKind::IpAddress),
+                address_grammar: Some(crate::bigip::AddressGrammar::Address),
                 ..BigipPropertySpec::DEFAULT
             }],
             ..BigipPropertySpec::DEFAULT
@@ -99,6 +100,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             value_type: ValueKind::String,
             in_sections: &["domain-controllers"],
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Address),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {

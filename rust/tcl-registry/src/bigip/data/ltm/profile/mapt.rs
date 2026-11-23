@@ -41,6 +41,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             name: "br-prefix",
             value_type: ValueKind::String,
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Network),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {
@@ -66,12 +67,14 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             name: "ip4-prefix",
             value_type: ValueKind::String,
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Network),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {
             name: "ip6-prefix",
             value_type: ValueKind::String,
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Network),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {

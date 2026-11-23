@@ -302,7 +302,6 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[
                 name: "proto",
                 value_type: ValueKind::Enum,
                 enum_values: &["IPv4", "IPv6"],
-                shape_kind: Some(ValueKind::IpAddress),
                 default: Some("IPv4"),
                 ..BigipPropertySpec::DEFAULT
             },
@@ -437,12 +436,14 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[
                 name: "ip4-prefix",
                 value_type: ValueKind::String,
                 shape_kind: Some(ValueKind::IpAddress),
+                address_grammar: Some(crate::bigip::AddressGrammar::Network),
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
                 name: "ip6-prefix",
                 value_type: ValueKind::String,
                 shape_kind: Some(ValueKind::IpAddress),
+                address_grammar: Some(crate::bigip::AddressGrammar::Network),
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -582,6 +583,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[
                 value_type: ValueKind::String,
                 required: true,
                 shape_kind: Some(ValueKind::IpAddress),
+                address_grammar: Some(crate::bigip::AddressGrammar::AddressOrWildcard),
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -738,12 +740,14 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[
                 value_type: ValueKind::String,
                 required: true,
                 shape_kind: Some(ValueKind::IpAddress),
+                address_grammar: Some(crate::bigip::AddressGrammar::AddressOrWildcard),
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
                 name: "secondary-address",
                 value_type: ValueKind::String,
                 shape_kind: Some(ValueKind::IpAddress),
+                address_grammar: Some(crate::bigip::AddressGrammar::AddressOrWildcard),
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -811,6 +815,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[
                 value_type: ValueKind::String,
                 shape_kind: Some(ValueKind::IpAddress),
                 default: Some("0"),
+                address_grammar: Some(crate::bigip::AddressGrammar::Network),
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -823,6 +828,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[
                 name: "v6rdprefix",
                 value_type: ValueKind::String,
                 shape_kind: Some(ValueKind::IpAddress),
+                address_grammar: Some(crate::bigip::AddressGrammar::Network),
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {

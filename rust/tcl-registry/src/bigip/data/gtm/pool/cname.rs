@@ -137,6 +137,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             value_type: ValueKind::Unknown,
             allow_none: true,
             default: Some("none"),
+            address_grammar: Some(crate::bigip::AddressGrammar::GtmMemberKey),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {

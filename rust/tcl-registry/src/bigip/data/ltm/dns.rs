@@ -1218,6 +1218,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[
                 name: "address",
                 value_type: ValueKind::String,
                 shape_kind: Some(ValueKind::IpAddress),
+                address_grammar: Some(crate::bigip::AddressGrammar::Address),
                 default: Some("127"),
                 ..BigipPropertySpec::DEFAULT
             },

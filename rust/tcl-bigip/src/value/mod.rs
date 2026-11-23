@@ -57,6 +57,7 @@ pub use destination::{Destination, Endpoint};
 pub use error::ValueError;
 pub use firewall_rule::{FirewallEndpoint, FirewallRule, NatRule};
 pub use folder::{Folder, ObjectPath};
+pub use grammar::{ConfigurationAddress, address_readings, read_address_field};
 pub use gtm_region_member::GtmRegionMember;
 pub use ip_range::IPRange;
 pub(crate) use member_key::split_numeric_service;

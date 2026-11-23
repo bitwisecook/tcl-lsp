@@ -784,6 +784,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 required: true,
                 allow_none: true,
                 shape_kind: Some(ValueKind::IpAddress),
+                address_grammar: Some(crate::bigip::AddressGrammar::Address),
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -1122,6 +1123,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 value_type: ValueKind::String,
                 required: true,
                 shape_kind: Some(ValueKind::Endpoint),
+                address_grammar: Some(crate::bigip::AddressGrammar::EndpointList),
                 usage_flags: &["optional"],
                 ..BigipPropertySpec::DEFAULT
             },

@@ -34,7 +34,7 @@ Measured against the 21.1 oracle:
 - `with_route_domain` writes an IPv6 destination with a colon port, which reads back as a different address.
 - None of our readers rejects either form the appliance rejected.
 
-The registry already declares an address shape on 244 properties (188 `IpAddress`, 56 `Endpoint`), but nothing reads it. The rule this page proposes is: **the property's value grammar, from the registry, selects the reader; the string never does.** It follows the decision recorded for Q8: `tcl-bigip::object_names` owns paths, `tcl-bigip::value` owns typed addresses and services, and REST tilde encoding stays at the iControl boundary.
+The original registry declared 244 address shapes. Seven were protocol or address-family selectors. Each of the other 237 fields now declares an address grammar, including nested fields. The property descriptor selects the reader. As agreed in Q8, `tcl-bigip::object_names` owns paths, `tcl-bigip::value` owns typed addresses and services, and REST tilde encoding stays at the iControl boundary.
 
 ## Measured
 
@@ -161,10 +161,10 @@ Each snippet ran in `when HTTP_REQUEST` under `f5-irules`. Every report that W21
 | `MemberKey` | node reference **or** address literal, plus service | `ltm pool members`, `snatpool members` (no service) |
 | `MonitorDestination` | `*`, address, service | monitor `destination` |
 | `GtmMemberKey` | server path `:` virtual-server name | `gtm pool members` |
-| `Fqdn` | name, trailing dot kept as spelled | node `fqdn name` |
+| `Fqdn` | ASCII DNS name | node `fqdn name` |
 | `Service` | number, `any`, `*`, name | port fields |
 
-A `MemberKey` reader knows that `/P/f/v6:443` is node `v6` with service 443 and that `2001:db8::54%0.443` is a literal with service 443. An `Address` reader takes `fe80::1:80` as one address. Neither guesses. A string with no declared grammar, such as a search box, a pcap token or an iRules literal of unknown role, goes to an explicit `Endpoint::read_any`. It returns every reading that the active release's separator rules allow (two for `fe80::1:80`: the address alone, or `fe80::1` with service 80 where colon service is in force), and callers must choose.
+A `MemberKey` reader reads `/P/f/v6:443` as node `v6` with service 443 and `2001:db8::54%0.443` as a literal with service 443. An `Address` reader takes `fe80::1:80` as one address. A caller without a property descriptor can use `address_readings` to enumerate distinct readings. A caller that needs only an IP gets a value when those readings agree on the host. The legacy IPv6 colon-port variant awaits a measured release window.
 
 **Types** (in `tcl-bigip::value`, the owner the Q8 decision names):
 
@@ -195,7 +195,7 @@ A `MemberKey` reader knows that `/P/f/v6:443` is node `v6` with service 443 and 
 - Lint, the validator (BIGIP6011/6013), graph edges (member→node, virtual→virtual-address for every family and RD), stats, the pcap index, the Wireshark profile, AS3 and `explain_flow` match on `(host, rd, service)`.
 - f5-query drops `typed_values` and projects `Endpoint` fields (`host`, `route_domain` and `port` become accessors).
 - `bigip-report-gen` consumes the projected fields and stops re-splitting.
-- The front end receives `family/address/rd/port` from the model and keeps only a query parser that calls `read_any` (via WASM, or a generated table).
+- The report front end receives family, address, route domain and port from the model. Its listener and CIDR search use the shared Rust address reader through the report's standalone WebAssembly module.
 - `f5-xc` takes `BigIpName` for names and `Endpoint` for origin pools.
 - The iRules analyser reads iRules address arguments with the registry's argument roles and the iRules context reader. The invalid-IP check uses the same parser.
 

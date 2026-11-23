@@ -61,6 +61,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[
                         value_type: ValueKind::String,
                         in_sections: &["records"],
                         shape_kind: Some(ValueKind::IpAddress),
+                        address_grammar: Some(crate::bigip::AddressGrammar::Endpoint),
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -98,6 +99,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[
                 value_type: ValueKind::String,
                 in_sections: &["records"],
                 shape_kind: Some(ValueKind::IpAddress),
+                address_grammar: Some(crate::bigip::AddressGrammar::Endpoint),
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {

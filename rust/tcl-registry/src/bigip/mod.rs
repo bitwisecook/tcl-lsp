@@ -133,8 +133,22 @@ pub enum AddressGrammar {
     Destination,
     /// Pool member keys of node references and services.
     MemberKey,
-    /// HTTP monitor alias or endpoint.
+    /// LTM monitor alias or endpoint.
     MonitorDestination,
+    /// An address with an optional service, retaining both when present.
+    Endpoint,
+    /// A list of literal addresses with optional route domains.
+    AddressList,
+    /// A list of hosts with optional services.
+    EndpointList,
+    /// A contiguous IP mask or prefix.
+    Mask,
+    /// An ASCII DNS name.
+    Fqdn,
+    /// A numeric, named or wildcard transport service.
+    Service,
+    /// A GTM server and virtual-server key.
+    GtmMemberKey,
 }
 
 /// Resolution metadata for one BIG-IP object kind.
@@ -348,6 +362,29 @@ impl BigipRegistry {
             .map(|&i| self.specs[i])
     }
 
+    /// Find a property descriptor, descending through named sections.
+    #[must_use]
+    pub fn property(
+        &self,
+        module: &str,
+        object_type: &str,
+        path: &[&str],
+    ) -> Option<&'static BigipPropertySpec> {
+        let (leaf, sections) = path.split_last()?;
+        let properties = sections.iter().try_fold(
+            self.get_by_header(module, object_type)?.properties,
+            |properties, section| {
+                Some(
+                    properties
+                        .iter()
+                        .find(|field| field.name == *section)?
+                        .block,
+                )
+            },
+        )?;
+        properties.iter().find(|field| field.name == *leaf)
+    }
+
     /// Return the explicitly chosen grammar for a top-level TMSH property.
     #[must_use]
     pub fn address_grammar(
@@ -356,10 +393,7 @@ impl BigipRegistry {
         object_type: &str,
         property: &str,
     ) -> Option<AddressGrammar> {
-        self.get_by_header(module, object_type)?
-            .properties
-            .iter()
-            .find(|spec| spec.name == property)?
+        self.property(module, object_type, &[property])?
             .address_grammar
     }
 
@@ -697,5 +731,30 @@ mod tests {
             "expected ≥80% of edge source kinds to resolve, got {resolved}/{}",
             sources.len()
         );
+    }
+}
+
+#[cfg(test)]
+mod address_grammar_coverage {
+    use super::{BigipPropertySpec, ValueKind, default_registry};
+
+    fn check_fields(kind: &str, fields: &[BigipPropertySpec]) {
+        for field in fields {
+            if matches!(
+                field.shape_kind,
+                Some(ValueKind::IpAddress | ValueKind::Endpoint)
+            ) || field.requires_route_domain
+            {
+                assert!(field.address_grammar.is_some(), "{kind} {}", field.name);
+            }
+            check_fields(kind, field.block);
+        }
+    }
+
+    #[test]
+    fn address_shaped_registry_properties_declare_readers() {
+        for spec in default_registry().specs() {
+            check_fields(spec.kind_spec.kind, spec.properties);
+        }
     }
 }

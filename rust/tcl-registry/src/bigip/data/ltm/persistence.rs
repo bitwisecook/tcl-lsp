@@ -220,6 +220,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[
                 allow_none: true,
                 shape_kind: Some(ValueKind::IpAddress),
                 default: Some("::"),
+                address_grammar: Some(crate::bigip::AddressGrammar::Mask),
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -744,6 +745,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[
                 name: "map-proxy-address",
                 value_type: ValueKind::String,
                 shape_kind: Some(ValueKind::IpAddress),
+                address_grammar: Some(crate::bigip::AddressGrammar::Address),
                 default: Some(
                     "any which results in the default behavior of using one of the IP addresses from the proxy data-group/class",
                 ),
@@ -763,6 +765,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[
                 allow_none: true,
                 shape_kind: Some(ValueKind::IpAddress),
                 default: Some("::"),
+                address_grammar: Some(crate::bigip::AddressGrammar::Mask),
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {

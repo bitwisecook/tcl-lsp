@@ -68,6 +68,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             value_type: ValueKind::String,
             allow_none: true,
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Address),
             default: Some("none"),
             ..BigipPropertySpec::DEFAULT
         },
@@ -96,6 +97,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             value_type: ValueKind::String,
             allow_none: true,
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Address),
             default: Some("the fully-qualified domain name of the BIG-IP system"),
             ..BigipPropertySpec::DEFAULT
         },

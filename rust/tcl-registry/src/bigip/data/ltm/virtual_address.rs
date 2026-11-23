@@ -91,6 +91,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             value_type: ValueKind::Unknown,
             required: true,
             default: Some("255"),
+            address_grammar: Some(crate::bigip::AddressGrammar::Mask),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {

@@ -73,20 +73,26 @@ impl IPAddress {
         Self::parse(text).ok()
     }
 
-    /// Project a concrete IP from a literal address, a network, or an endpoint.
+    /// Project a concrete IP when the legal address, network and endpoint
+    /// readings agree on the host.
     ///
     /// Use the configured property's grammar when its type is available.
     #[must_use]
     pub fn from_address_value(text: &str) -> Option<Self> {
-        Self::try_parse(text)
-            .or_else(|| super::Network::try_parse(text)?.host_address())
-            .or_else(|| {
-                let endpoint = super::Endpoint::try_parse(text)?;
-                if matches!(endpoint.address, Address::Ip(_)) {
-                    return endpoint.ip_address();
+        let mut addresses = super::address_readings(text)
+            .into_iter()
+            .filter_map(|reading| match reading {
+                super::ConfigurationAddress::Address(Address::Ip(address)) => Some(address),
+                super::ConfigurationAddress::Network(network) => network.host_address(),
+                super::ConfigurationAddress::Destination(endpoint)
+                    if matches!(endpoint.address, Address::Ip(_)) =>
+                {
+                    endpoint.ip_address()
                 }
-                None
-            })
+                _ => None,
+            });
+        let address = addresses.next()?;
+        addresses.all(|other| other == address).then_some(address)
     }
 
     /// `true` when the address is IPv4.
