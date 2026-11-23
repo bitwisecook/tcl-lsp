@@ -339,7 +339,7 @@ Traces ([traces](traces-design.md)):
 158. **[designed]** One trace fact owner in binding: per-point trace registrations in the name world keyed by place and `CommandRef`, built from `TraceTransition`; `var_observability`'s `TRACED` flag, `variable_observation_names`, `outcome_defs::is_traced`, GVN's check and the four refactor checks become views or go.
 159. **[designed]** Trace firing as a call: each callback lowered as a deferred body unit whose frame-effect summary applies at every access or call that may fire it, so folds decline exactly where a callback may write and proceed elsewhere (`tr02`, `tr03`, `tr14`, `tr15`, `tr20`, `tr22`, `tr23`).
 160. **[designed]** W210 reads the registration's operations (a write-only trace does not make a later read defined; `trace add variable y write cb; puts $y` is reported); W214 reads the registry's appended callback arity for every trace callback (`tr02`–`tr04`, `tr13`); references and rename include `trace info execution|command f` (`tr10`, after a current-source re-check).
-161. **[designed]** Engine trace contract in `tcl-runtime-api` (registration, removal, `trace info` order, firing order) implemented by both engines, with the 23 fixtures as conformance rows for every release and Jim.
+161. **[designed]** Engine trace contract in `tcl-runtime-api` (registration, removal, `trace info` order, firing order) implemented by both engines, with the 23 fixtures as conformance rows for every release (Jim rows are jimsh oracle and analysis rows only; dialect execution in the engines is out of scope on `work`, item 196).
 
 Special and global variables ([special variables](special-variables-design.md)):
 
@@ -413,16 +413,15 @@ Comments and continuations ([comments and continuations](comments-continuations-
 
 Jim ([Jim](jim-design.md)):
 
-196. **[designed]** (owner decision, 23 November 2026: analysis only) Jim execution is a non-goal. Jim stays an analysis dialect with jimsh as the oracle.
-   - Delete the engine Jim modes reachable only from native-fixture tests (VM 26 files, about 11,900 lines; runtime 40 files, about 13,700), including `Interp::with_native_core(…, profile_for_dialect("jimtcl"), …)` and `tcl-vm/src/native_fixture.rs`'s Jim construction. Keep `tcl-syntax`'s native Jim policy where the lexer and analyser use it; delete the `tcl-registry`/`tcl-cmd-core` native Jim modules that only the engines read.
-   - References and GC are not implemented in any engine.
+196. **[designed]** (owner decision, 23 November 2026: analysis only on `work`) Jim stays an analysis dialect with jimsh as the oracle. Dialect execution in the VM and the runtime (Jim, iRules or any other dialect) is a distant goal and not part of the `work` branch.
+   - On `work`, the engines' Jim code is neither exposed nor deleted: no `--dialect` on `tclvm` or `run_script`, no references or GC, and no engine conformance rows for Jim. Any later decision about that code belongs to the dialect-execution goal.
    - Add a `jim` analysis profile reachable from `DialectProfile::find` and the MCP dialect enum, and the Jim effect descriptors in the [Jim design](jim-design.md) (`local`, `upcall`, `alias`/`curry`, `ref` finalizers, statics, `exists`, `defer`).
-   - Done when: no engine source names a Jim profile; the conformance matrix's Jim column reads "not run (non-goal)"; `oo-dispatch-probe/jim/` analysis fixtures pass under the `jim` profile against jimsh's answers.
+   - Done when: the `oo-dispatch-probe/jim/` analysis and navigation fixtures give jimsh's answers under the `jim` profile, and the conformance matrix shows jimsh as an oracle column with the engine Jim columns marked "out of scope on `work`".
 197. **[designed]** Jim analysis: effect descriptors for `local`, `upcall`, `alias`, `curry`, `defer` and procedure statics so navigation follows them; fix the false W210 on statics (and its Rust `Debug` message), W001 on Jim `string` subcommands, W214 on finalizer parameters and W211 on `exists`-tested variables; one declaration route for Jim commands (`alias_.rs`, `exists_.rs` versus the tclspec pack).
 
 Across the fourteen areas:
 
-198. **[designed]** Conformance: turn every area's fixtures and `engines.tsv` into rows run by both engines (8.4–9.1 pins where relevant, Jim where relevant) and by the analyser, optimiser (executed before and after) and LSP features, regenerating `tcl-areas-head/` instead of hand-written `analyser-mcp.out` files.
+198. **[designed]** Conformance: turn every area's fixtures and `engines.tsv` into rows run by both engines (8.4–9.1 pins where relevant; Jim rows by jimsh and the analyser only, item 196) and by the analyser, optimiser (executed before and after) and LSP features, regenerating `tcl-areas-head/` instead of hand-written `analyser-mcp.out` files.
 199. **[designed]** MCP freshness: the MCP server reports its build stamp and source revision in every result, and the repository's MCP configuration rebuilds it from source (or refuses when stale), so tool results are current (the audits' cached build was three days behind).
 
 Structural corrections from reading all findings together ([findings synthesis](findings-synthesis.md)); each retires a class of items, whose symptoms become its acceptance tests:
