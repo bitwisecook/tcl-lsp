@@ -330,28 +330,7 @@ pub fn object_name_candidates<'a, T>(
     }
 }
 
-/// Treatment of an empty service suffix in an authored object reference.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum EmptyServiceSuffix {
-    /// Leave a trailing colon in the object key.
-    Retain,
-    /// Remove a trailing colon as well as a numeric service suffix.
-    Strip,
-}
-
-/// Remove one numeric colon suffix while preserving IPv6 and nonnumeric keys.
-#[must_use]
-pub fn reference_without_numeric_service(reference: &str, empty: EmptyServiceSuffix) -> &str {
-    if reference.matches(':').count() == 1
-        && let Some((path, service)) = reference.rsplit_once(':')
-        && (empty == EmptyServiceSuffix::Strip || !service.is_empty())
-        && service.bytes().all(|byte| byte.is_ascii_digit())
-    {
-        path
-    } else {
-        reference
-    }
-}
+pub use crate::value::{EmptyServiceSuffix, reference_without_numeric_service};
 
 /// Construct exact registry-reference paths in the owner's partition and Common.
 ///

@@ -56,3 +56,25 @@ impl<'a> MemberKey<'a> {
         })
     }
 }
+
+pub(crate) fn split_numeric_service(text: &str, empty: EmptyServiceSuffix) -> Option<(&str, &str)> {
+    let (host, service) = text.split_once(':')?;
+    ((empty == EmptyServiceSuffix::Strip || !service.is_empty())
+        && service.bytes().all(|byte| byte.is_ascii_digit()))
+    .then_some((host, service))
+}
+
+/// Treatment of an empty service suffix in an authored object reference.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum EmptyServiceSuffix {
+    /// Leave a trailing colon in the object key.
+    Retain,
+    /// Remove a trailing colon as well as a numeric service suffix.
+    Strip,
+}
+
+/// Remove one numeric colon suffix while preserving IPv6 and nonnumeric keys.
+#[must_use]
+pub fn reference_without_numeric_service(reference: &str, empty: EmptyServiceSuffix) -> &str {
+    split_numeric_service(reference, empty).map_or(reference, |(host, _)| host)
+}

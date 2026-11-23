@@ -22,7 +22,7 @@ use super::error::ValueError;
 use super::port::{parse_decimal_int, py_repr};
 use std::fmt;
 
-const MAX_ID: u32 = 65_534;
+use tcl_syntax::irules_address::{MAX_ROUTE_DOMAIN, RouteDomainError, split_route_domain};
 
 /// An F5 route-domain identifier (the `%N` suffix on addresses).
 ///
@@ -64,7 +64,7 @@ impl RouteDomain {
         }
         let id = u32::try_from(value)
             .ok()
-            .filter(|&id| id <= MAX_ID)
+            .filter(|&id| id <= MAX_ROUTE_DOMAIN)
             .ok_or_else(|| ValueError(format!("RouteDomain: out of range ({value})")))?;
         Ok(Self { id })
     }
@@ -76,18 +76,14 @@ impl RouteDomain {
     }
 
     pub(super) fn split_suffix(text: &str) -> Result<(&str, Option<u32>), ValueError> {
-        let Some((host, digits)) = text.rsplit_once('%') else {
-            return Ok((text, None));
-        };
-        if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
-            return Err(ValueError(format!("invalid route-domain suffix %{digits}")));
-        }
-        let id = digits
-            .parse::<u32>()
-            .ok()
-            .filter(|&id| id <= MAX_ID)
-            .ok_or_else(|| ValueError(format!("route domain out of range: {digits}")))?;
-        Ok((host, Some(id)))
+        split_route_domain(text).map_err(|error| match error {
+            RouteDomainError::Invalid(digits) => {
+                ValueError(format!("invalid route-domain suffix %{digits}"))
+            }
+            RouteDomainError::OutOfRange(digits) => {
+                ValueError(format!("route domain out of range: {digits}"))
+            }
+        })
     }
 
     /// `true` when this is route-domain 0 (no segregation).

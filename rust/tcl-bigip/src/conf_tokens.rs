@@ -556,11 +556,32 @@ fn emit_value(
         return;
     }
 
+    if let Some(network) = crate::value::Network::try_parse(text)
+        && network.is_ipv6()
+        && network.host_address().is_some()
+    {
+        if let Some(start) = text.find('%') {
+            let end = text[start..]
+                .find('/')
+                .map_or(text.len(), |prefix| start + prefix);
+            push(out, lx.start, lx.start + start, BigipTokenKind::IpAddress);
+            push(
+                out,
+                lx.start + start,
+                lx.start + end,
+                BigipTokenKind::RouteDomain,
+            );
+            push(out, lx.start + end, lx.end, BigipTokenKind::IpAddress);
+        } else {
+            push(out, lx.start, lx.end, BigipTokenKind::IpAddress);
+        }
+        return;
+    }
+
     // A `proto:port` / `host:port` value (`tcp:22`, `www.example.com:443`):
     // split the port off rather than overlaying it, and classify the head.
-    if let Some((head, port)) = text.rsplit_once(':')
-        && !port.is_empty()
-        && port.bytes().all(|b| b.is_ascii_digit())
+    if let Some((head, port)) =
+        crate::value::split_numeric_service(text, crate::value::EmptyServiceSuffix::Retain)
         && !head.is_empty()
     {
         let head_lx = Lexeme {
@@ -637,8 +658,10 @@ fn emit_path(source: &str, lx: Lexeme, tail: BigipTokenKind, out: &mut Vec<Bigip
     for (i, part) in rest.iter().enumerate() {
         let last = i + 1 == rest.len();
         let kind = if last { tail } else { BigipTokenKind::Object };
-        match part.split_once(':') {
-            Some((name, port)) if last && !port.is_empty() => {
+        match crate::value::MemberKey::try_parse(part) {
+            Some(key) if last => {
+                let name = key.node;
+                let port = &key.port.spelling;
                 push(out, lx.start + off, lx.start + off + name.len(), kind);
                 let port_at = lx.start + off + name.len() + 1;
                 push(out, port_at, port_at + port.len(), BigipTokenKind::Port);
@@ -897,6 +920,31 @@ mod tests {
         assert!(t.contains(&("10.0.0.1", K::IpAddress)), "{t:?}");
         assert!(t.contains(&("%2", K::RouteDomain)), "{t:?}");
         assert_no_overlap("ltm x /C/n {\n    address 10.0.0.1%2\n}\n");
+    }
+
+    #[test]
+    fn ipv6_host_and_member_service_have_distinct_spans() {
+        let plain = toks(
+            "ltm node /C/n {
+  address 2001:db8::53%0
+}
+",
+        );
+        assert!(plain.contains(&("2001:db8::53", K::IpAddress)), "{plain:?}");
+        assert!(plain.contains(&("%0", K::RouteDomain)), "{plain:?}");
+        let member = toks(
+            "ltm pool /C/p {
+  members {
+    /C/2001:db8::53%0.80 { }
+  }
+}
+",
+        );
+        assert!(
+            member.contains(&("2001:db8::53%0", K::Object)),
+            "{member:?}"
+        );
+        assert!(member.contains(&("80", K::Port)), "{member:?}");
     }
 
     #[test]

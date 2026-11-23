@@ -8,6 +8,7 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
+    "test:network": "node --test src/network/address.test.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "prettier --check \"src/search/**/*.ts\"",
     "format": "prettier --write \"src/search/**/*.ts\""

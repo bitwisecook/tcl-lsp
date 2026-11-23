@@ -58,6 +58,7 @@ async function build() {
       entryPoints: [join(pagesDir, `${name}.ts`)],
       outfile: join(distDir, `${name}.js`),
       bundle: true,
+      loader: { ".wasm": "binary" },
       format: "iife",
       target: "es2020",
       platform: "browser",

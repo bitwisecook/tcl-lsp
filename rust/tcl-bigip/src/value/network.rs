@@ -161,21 +161,7 @@ impl Network {
     /// Read a prefix or a contiguous netmask for an address family.
     #[must_use]
     pub fn prefix_from_mask(mask: &str, ipv6: bool) -> Option<u8> {
-        let mask = mask.trim();
-        if !ipv6 {
-            return parse_v4_prefix(mask);
-        }
-        if let Ok(prefix) = mask.parse::<u8>() {
-            return (prefix <= 128).then_some(prefix);
-        }
-        let bits = mask.parse::<Ipv6Addr>().ok()?.to_bits();
-        let prefix = bits.leading_ones();
-        let expected = if prefix == 0 {
-            0
-        } else {
-            u128::MAX << (128 - prefix)
-        };
-        (bits == expected).then_some(u8::try_from(prefix).ok()?)
+        tcl_syntax::irules_address::prefix_from_mask(mask.trim(), ipv6)
     }
 
     /// Format the network with a new route domain before the prefix.
@@ -216,7 +202,7 @@ impl Network {
         )
     }
 
-    fn network_addr(&self) -> IpAddr {
+    pub(crate) fn network_addr(&self) -> IpAddr {
         match self.network {
             Cidr::V4 { network, .. } => IpAddr::V4(network),
             Cidr::V6 { network, .. } => IpAddr::V6(network),
@@ -406,7 +392,9 @@ fn parse_network(text: &str, strict: bool) -> Result<Cidr, ValueError> {
         IpAddr::V4(a) => {
             let prefix = match prefix_str {
                 None => 32u8,
-                Some(p) => parse_v4_prefix(p).ok_or_else(reject)?,
+                Some(p) => {
+                    tcl_syntax::irules_address::prefix_from_mask(p, false).ok_or_else(reject)?
+                }
             };
             let bits = a.to_bits();
             let mask = if prefix == 0 {
@@ -444,31 +432,6 @@ fn parse_network(text: &str, strict: bool) -> Result<Cidr, ValueError> {
             })
         }
     }
-}
-
-/// Parse an IPv4 prefix specifier: either an integer prefix length or a
-/// dotted-quad netmask (contiguous-mask only, matching `ipaddress`).
-fn parse_v4_prefix(spec: &str) -> Option<u8> {
-    if let Ok(n) = spec.parse::<u8>() {
-        if n <= 32 {
-            return Some(n);
-        }
-        return None;
-    }
-    // Dotted-quad netmask: must be a contiguous run of leading ones.
-    let mask: Ipv4Addr = spec.parse().ok()?;
-    let bits = mask.to_bits();
-    let ones = bits.leading_ones();
-    let expected = if ones == 0 {
-        0
-    } else {
-        u32::MAX << (32 - ones)
-    };
-    if bits == expected {
-        // `leading_ones()` on a u32 is in 0..=32, which always fits in a u8.
-        return Some(u8::try_from(ones).expect("leading_ones <= 32"));
-    }
-    None
 }
 
 #[cfg(test)]
