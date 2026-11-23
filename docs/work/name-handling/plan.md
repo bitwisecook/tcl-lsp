@@ -33,15 +33,14 @@ Deferred engine-only work: 18, 20, 30, 34, 38, 42, 72's engine part, 88, 135, 14
 
 The catalogue-driven header this replaces, with its counts and working rules, is kept in [current-state.md](current-state.md#superseded-plan-header-23-november-2026). Live measurements stay there too.
 
-**Status of every numbered item (checked 23 November 2026 against `work` at `9e479b96`).** The BIG-IP commits of 23 November (`bfc0ef87`–`9e479b96`) completed most of items 217–233. Apart from those, no engine or analyser change has landed on `work` since the items were written, and the fixes for #2142, #2227, #2228, #2249 and #2250 are already on `work` (an earlier "not on `work`" came from a shallow clone). Tags:
+**Status of every numbered item (23 November 2026).** The BIG-IP commits of 23 November (`bfc0ef87`–`9e479b96`) completed most of items 217–233. The fixes for #2142, #2227, #2228, #2249 and #2250 are already on `work` (an earlier "not on `work`" came from a shallow clone). Tags:
 
 - **completed**: done and verified on `work`.
 - **in progress**: part of the work exists on `work` (code, a harness or recorded evidence) and the rest is open.
 - **designed**: the approach, owner and completion test are written down (a design page or the item itself); no implementation yet.
 - **not yet started**: needs a decision, an investigation or a design before implementation can begin.
 
-Counts: completed 12, in progress 14, designed 210, not yet started 6 (owner decisions on items 74, 96, 142 and 196 recorded on 23 November 2026; items 235–242 added). Wrong answers re-checked on the current binaries and source for this pass:
-- item 26: `"b" eq "b" in {1}` is still 0 in both engines;
+Counts: completed 13, in progress 14, designed 209, not yet started 6 (owner decisions on items 74, 96, 142 and 196 recorded on 23 November 2026; items 235–242 added). Wrong answers re-checked on the current binaries and source for this pass:
 - item 42: `lremove` is still missing in the VM;
 - item 18: `next` still runs one level too deep in the VM;
 - item 107: `explain_flow`'s order and the first-word monitor readers are unchanged;
@@ -130,8 +129,8 @@ Call frames and namespaces (evidence and full steps: [call frames](frame-design.
 
 Expressions (evidence and full steps: [expressions](expression-design.md); fixtures in `oo-dispatch-probe/expressions/`):
 
-26. **[designed]** **Wrong answers first:** `in`/`ni` bind at the relational level in the shared parser (C Tcl: the equality level), so `$a == $a in $l` and `"b" eq "b" in {1}` give 0 instead of 1 in the VM and the runtime on every release, the analyser reports a false I230 "always false" for such a condition, and W154 explains the wrong grouping. Fix `binary_bp` and the dialect rows that copy it, and add the cases to the conformance vectors.
-   - Done when: `tclvm` and `run_script` print 1 for `$a == $a in $l` and `"b" eq "b" in {1}` in `expressions/in-precedence.tcl` under every release, matching tclsh 8.4–9.1, the analyser reports no `I230` on `in-precedence-analyser.tcl`, the `W154` message names the equality grouping, and the cases are rows in the expression conformance vectors.
+26. **[completed]** Tcl `in` and `ni` share the equality level and group left to right. Six cases verify compilation, interpretation and constant folding, including Tcl 8.4 rejection and Jim's separate grouping. For the original condition, I230 identifies the alternate branch as unreachable and W154 groups it as `($a == $a) in $l`. [Verification](current-state.md#item-26-verification)
+   - Done when: both engines match the pinned reference results for the mixed comparisons, including rejection in Tcl 8.4. The analyser reports the alternate branch as unreachable and W154 shows the equality grouping. The expression conformance vectors cover these cases.
 27. **[designed]** One precedence source (tcl-dialect's table, per release and Jim version) for the parser, `BinOp::precedence`, the renderer, the hover and W154/W155; a parse-render round-trip property test, since codegen's fallback and optimiser rewrites emit rendered text.
    - Done when: a property test `parse(render(t)) == t` over generated trees passes under every dialect, the `expressions/exprs.txt` cases give the same grouping in parser, renderer, hover and `W154`/`W155`, and `cargo xtask dialect-drift` fails when a precedence table other than tcl-dialect's `PrecedenceTable` is added.
 28. **[in progress]** (merged in part: conformance rows is done once under item 75) (the VM now has `max()`/`min()` in 8.6 mode (checked 23 Nov); the runtime still lacks them, W233 and the vector table are open) An expression-semantics vector table (the 61 probe cases plus a generated precedence matrix) through tclsh, Jim, both engines, the folder and the interval evaluator; fix both engines' missing `max`/`min` in 8.6 mode and W233 on float division by zero.

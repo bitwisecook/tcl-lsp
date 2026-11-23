@@ -31,8 +31,8 @@
 //! 4. `|`
 //! 5. `^`
 //! 6. `&`
-//! 7. `== != eq ne`
-//! 8. `< > <= >= lt le gt ge in ni`
+//! 7. `== != eq ne in ni`
+//! 8. `< > <= >= lt le gt ge`
 //! 9. `<< >>`
 //! 10. `+ -`
 //! 11. `* / %`
@@ -62,11 +62,11 @@ fn binary_bp(op_text: &str) -> Option<(u8, u8)> {
         "|" => (8, 9),
         "^" => (10, 11),
         "&" => (12, 13),
-        // Equality / string comparison / iRules comparisons
-        "==" | "!=" | "eq" | "ne" | "contains" | "starts_with" | "ends_with" | "equals"
-        | "matches" | "matches_glob" | "matches_regex" => (14, 15),
-        // Relational / list membership
-        "<" | ">" | "<=" | ">=" | "in" | "ni" | "lt" | "le" | "gt" | "ge" => (16, 17),
+        // Equality / list membership / iRules comparisons
+        "==" | "!=" | "eq" | "ne" | "in" | "ni" | "contains" | "starts_with" | "ends_with"
+        | "equals" | "matches" | "matches_glob" | "matches_regex" => (14, 15),
+        // Relational
+        "<" | ">" | "<=" | ">=" | "lt" | "le" | "gt" | "ge" => (16, 17),
         // Shift
         "<<" | ">>" => (18, 19),
         // Additive

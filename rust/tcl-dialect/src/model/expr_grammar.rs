@@ -346,10 +346,10 @@ const JIM_WORDS_0_80: &[WordOperator] = &[
 ];
 
 // Binding powers for the Tcl family, transcribed from `binary_bp` in
-// `rust/tcl-syntax/src/expr/parser.rs` so the parser can later source
+// `rust/tcl-expr/src/expr/parser.rs` so the parser can later source
 // them from here. C Tcl merges the comparisons into two levels
-// (`tclCompExpr.c`): `== != eq ne` at one, the relationals and
-// membership at the other. `**` is right-associative (right == left).
+// (`tclCompExpr.c`): `== != eq ne in ni` at one, the relationals at the
+// other. `**` is right-associative (right == left).
 const TCL_PRECEDENCE_ROWS: &[(&str, u16, u16)] = &[
     ("||", 4, 5),
     ("&&", 6, 7),
@@ -360,12 +360,12 @@ const TCL_PRECEDENCE_ROWS: &[(&str, u16, u16)] = &[
     ("!=", 14, 15),
     ("eq", 14, 15),
     ("ne", 14, 15),
+    ("in", 14, 15),
+    ("ni", 14, 15),
     ("<", 16, 17),
     (">", 16, 17),
     ("<=", 16, 17),
     (">=", 16, 17),
-    ("in", 16, 17),
-    ("ni", 16, 17),
     ("lt", 16, 17),
     ("le", 16, 17),
     ("gt", 16, 17),
@@ -436,7 +436,7 @@ const F5_TCL_PRECEDENCE_ROWS: &[(&str, u16, u16)] = &[
 // The comparison block is §3.1's motivating divergence, and the sources
 // bear the design's numbers out: `in ni` 55, `eq ne` 60, `== !=` 70,
 // `lt gt le ge` 75, `< > <= >=` 80. Where C Tcl merges the comparisons
-// into two levels, Jim splits them into four.
+// into two levels, Jim splits them into five.
 
 /// Jim 0.76. `**` sits at **250** here — above the unary operators — and
 /// is **left**-associative (`OPRINIT("**", 250, 2, JimExprOpBin)`, no
@@ -918,13 +918,14 @@ mod tests {
 
     #[test]
     fn tcl_precedence_matches_the_parser_transcription() {
-        // Spot rows against `binary_bp` in tcl-syntax's expr parser.
+        // Spot rows against `binary_bp` in tcl-expr's parser.
         let t = &TCL_PRECEDENCE;
         assert_eq!(t.lookup("||"), Some((4, 5)));
         assert_eq!(t.lookup("&&"), Some((6, 7)));
         assert_eq!(t.lookup("eq"), Some((14, 15)));
         assert_eq!(t.lookup("=="), Some((14, 15)));
-        assert_eq!(t.lookup("in"), Some((16, 17)));
+        assert_eq!(t.lookup("in"), Some((14, 15)));
+        assert_eq!(t.lookup("ni"), Some((14, 15)));
         assert_eq!(t.lookup("lt"), Some((16, 17)));
         assert_eq!(t.lookup("+"), Some((20, 21)));
         assert_eq!(t.lookup("**"), Some((23, 23)), "** is right-associative");
@@ -984,7 +985,7 @@ mod tests {
         assert!(jim_eq < jim_eqeq);
         assert!(jim_eqeq < jim_lt);
         assert!(jim_lt < jim_sym_lt);
-        // Four distinct comparison levels where C Tcl has two.
+        // Five distinct comparison levels where C Tcl has two.
         let levels: std::collections::BTreeSet<u16> =
             [jim_in, jim_eq, jim_eqeq, jim_lt, jim_sym_lt]
                 .into_iter()
@@ -994,6 +995,7 @@ mod tests {
             [
                 TCL_PRECEDENCE.lookup("eq").unwrap().0,
                 TCL_PRECEDENCE.lookup("in").unwrap().0,
+                TCL_PRECEDENCE.lookup("<").unwrap().0,
             ]
             .into_iter()
             .collect::<std::collections::BTreeSet<u16>>()

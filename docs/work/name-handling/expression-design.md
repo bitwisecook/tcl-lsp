@@ -1,22 +1,22 @@
-# Expressions: one parser, several tables, wrong answers
+# Expression parsing, evaluation and diagnostics
 
 How `expr` and expression arguments are tokenised, parsed, represented, evaluated, folded, rendered and checked across execution (VM, runtime, codegen) and analysis (compiler, analyser, LSP). Part of [tidying the architecture](architecture-tidy-plan.md).
 
-**Verdict:** the core is closer to the [parser plan](parser-crate-plan.md)'s intent than frames or namespaces: one tokeniser, one main parser, one tree type (`tcl_expr::ExprNode`), one evaluation walk (`ExprOps`), and shared numeric, math-function and F5-predicate code. But precedence is not one fact, and the parser's own table is wrong for `in`/`ni`, which gives **wrong answers in both engines and in the analyser on every release**. Around the core, floor division, math-function lists and expression re-parsing are duplicated.
+The shared core includes the tokeniser, main parser, expression tree (`tcl_expr::ExprNode`), evaluation walk (`ExprOps`), numeric and math-function code, and F5 predicates. Consumers still maintain several precedence tables, duplicate floor division and math-function lists, and re-parse expressions. [Parser plan](parser-crate-plan.md)
 
-## Wrong answers
+## List membership precedence
 
-C Tcl places `in` and `ni` at `PREC_EQUAL` with `==`, `!=`, `eq` and `ne` (`tmp/tcl9.1.0/generic/tclCompExpr.c:306`, `:353-354`; the same in 8.5 and 8.6). Our parser's `binary_bp` (`rust/tcl-expr/src/expr/parser.rs:56-79`) binds them at the relational level, and the dialect table copies that with a test pinning it (`tcl-dialect/src/model/expr_grammar.rs`).
+C Tcl places `in` and `ni` at `PREC_EQUAL` with `==`, `!=`, `eq` and `ne` in `generic/tclCompExpr.c`. The shared parser and Tcl dialect table now use the same left-associative level. Tcl 8.4 rejects list membership operators. Jim binds them below equality. See the [reference interpreter results](../../../evidence/tcl/expression-membership-precedence.md).
 
-| Expression (`a` = 2, `l` = `{1}`) | tclsh 8.5–9.1, Jim | VM, runtime (8.6, 9.0) |
-| --- | --- | --- |
-| `$a == $a in $l` | 1 | 0 |
-| `"b" eq "b" in {1}` | 1 | 0 |
-| `"x" in {x} == 1` | 1 | 1 |
-| `1 != 1 ni {0}` | 0 | 0 |
-| `2 < 3 in {1}` | 1 | 1 |
+| Expression (`a` = 2, `l` = `{1}`) | C Tcl 8.5.19, 8.6.18, 9.0.4, 9.1.0 | Jim 0.84-15-g2f8e155 | VM and runtime before item 26 (8.6, 9.0) |
+| --- | --- | --- | --- |
+| `$a == $a in $l` | 1 | 1 | 0 |
+| `"b" eq "b" in {1}` | 1 | 1 | 0 |
+| `"x" in {x} == 1` | 1 | 0 | 1 |
+| `1 != 1 ni {0}` | 0 | 0 | 0 |
+| `2 < 3 in {1}` | 1 | 1 | 1 |
 
-For `proc p {} { set a 2; set l {1}; if {$a == $a in $l} {return yes} else {return no} }`, tclsh and Jim return `yes`. The analyser reports **I230 "condition is always false; the consequent branch is unreachable"**, and W154 explains the expression as `$a == ($a in $l)`. The renderer, the precedence hover and W154's reasons use a second table, `BinOp::precedence` (`tcl-expr/src/operator.rs:241-280`), which is correct, so `render_expr` is not the inverse of the parser: `($a == $b) in $l` renders without parentheses and re-parses differently. Codegen's `EXPR_STK` fallback (`tcl-codegen/src/codegen/expressions.rs`) and the O110/O115 rewrites (`optimiser/expr_simplify.rs`) emit rendered text, so they can change meaning too (inferred from the tables).
+The conformance cases include `2 != 2 ni {0}` to distinguish the two groupings for `ni`. For `if {$a == $a in $l}` with those variable values, I230 reports the alternate branch as unreachable and W154 shows `($a == $a) in $l`. The renderer and parser now agree on this grouping. [Shared conformance cases](../../../rust/tcl-test-support/src/expressions.rs)
 
 Other measured faults, from 61 expressions in [`oo-dispatch-probe/expressions/`](handover/oo-dispatch-probe/expressions/) run under tclsh 8.6.18 and 9.0.4, the VM and the runtime (integer and bignum edges, `**`, floor division and modulus, NaN and Inf, octal by release, `_` separators, boolean words, numeric versus string comparison, math functions, lazy `&&`/`||`/`?:`, shifts, number formatting):
 
@@ -28,16 +28,16 @@ Other measured faults, from 61 expressions in [`oo-dispatch-probe/expressions/`]
 ## Structure
 
 - **Parsers:** the lexer's `tokenise_expr*`; the Pratt parser (all consumers except Jim execution); a Jim term-stack parser (`jim_function_tree.rs`) used only at run time, which always uses the Jim 0.84 binding powers whatever the release, and has no `BinOp` for Jim's `<<<`/`>>>`; the 8.4 validator (`syntax_84.rs`), which builds no tree. `tcl-bigip-query` has its own parser for its DSL, not Tcl `expr`.
-- **Precedence tables, six:** `binary_bp` (wrong for `in`/`ni`); `BinOp::precedence` (right); tcl-dialect's `TCL_PRECEDENCE_ROWS`, F5 and Jim rows (a copy of `binary_bp`, read by nothing but the Jim tree); the Jim tree's own unary, ternary and call levels; the 8.4 descent; `UNARY_BP`.
+- **Precedence tables.** The Tcl parser's `binary_bp`, `BinOp::precedence` and tcl-dialect's `TCL_PRECEDENCE_ROWS` agree on list membership. Other tables include F5 and Jim's dialect rows, the Jim parser's unary, ternary and call levels, the 8.4 descent and `UNARY_BP`.
 - **Evaluators:** the shared `ExprOps` walk is implemented by the VM, the runtime and the compiler's folder, over the shared `number_tower`, math functions and F5 predicates. Separately: the interval evaluator (`intervals.rs`, `i64` `+ - *` and comparisons only), native lowering's `floor_div`/`floor_mod`, the wasm floor adjustment, and BPF's deliberately truncating arithmetic. Floor division and modulus are written five times.
 - **Math-function lists, seven:** tcl-expr's `mathfunc.rs` (itself several lists), tcl-dialect's `TCL_MATHFUNCS` and Jim tables (a hand copy whose tie to tcl-expr is claimed in a comment, with no test), the lexer's list (drift-guarded), the registry's 8.6 roster and value-transfer whitelist (hand copies), and two derived ones (LSP and VM). No membership disagreement found.
 - **Type inference** over `ExprNode` is test-only; production rebuilds expression types from command tokens through the registry.
 - **Re-parsing is the norm:** SCCP branch evaluation, folds O100/O101, operator validity, W100, W110, W154/W155, W156, the LSP precedence hover, parenthesis refactors, `brace_expr`, the minifier and the source graph re-parse source text (47 compiler files, 7 LSP, 7 registry, 3 codegen and more). Some check the result against the IR with `matches_tree`; hover and W154 do not.
-- **Conformance:** syntax-failure and syntax-state vectors drive the parser, VM and runtime; `native_arithmetic_conformance.rs` pins integer edges against tclsh and Jim; the registry has differential fold tests. No vector mixes `in`/`ni` with `==`/`eq`, and the fuzz generator braces the left operand of `in`, which hides the bug.
+- **Conformance:** syntax-failure and syntax-state vectors drive the parser, VM and runtime; `native_arithmetic_conformance.rs` pins integer edges against tclsh and Jim; the registry has differential fold tests. The list membership vectors exercise both unparenthesised operator orders, with relational precedence and Tcl 8.4 rejection as controls.
 
 ## Plan
 
-1. **Fix `in`/`ni` now:** bind them at the equality level in `binary_bp`, correct the dialect rows and the test that pins the wrong value, and add the five rows above to the conformance vectors for tclsh, Jim, the VM, the runtime, the folder and the analyser (I230, W154). This is a wrong answer in shipped engines, not a refactor.
+1. **List membership precedence.** Item 26 sets `in` and `ni` at the equality level in the shared parser and Tcl dialect table. Conformance covers the reference interpreters, VM, runtime, Tcl constant folder and analyser.
 2. **One precedence source:** tcl-dialect's `PrecedenceTable`, per release and per Jim version, generated from or checked against the C and Jim sources, drives the parser, `BinOp::precedence`, the renderer, the hover and W154/W155. Delete the other tables. Select the Jim table by the selected Jim release; add `BinOp` variants for `<<<`/`>>>`.
 3. **Render is the inverse of parse:** a property test over generated trees (`parse(render(t)) == t` under every dialect) and over the conformance corpus; codegen's fallback and the optimiser's rewrites rely on it.
 4. **An expression-semantics vector table:** the 61 cases here plus a precedence matrix generated from the C table (every operator pair, both associativities), run through tclsh 8.4–9.1, Jim, both engines, the compiler folder and the interval evaluator. Fix the 8.6 `max`/`min` gap in both engines.

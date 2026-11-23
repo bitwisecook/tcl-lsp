@@ -16,11 +16,17 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Constant folds compared with independent native integer towers.
+//! Expression folds compared with independent native interpreters.
 
-use tcl_compiler::tcl_expr_eval::{Env, FoldPolicy, eval_tcl_expr_with_policy, format_tcl_value};
-use tcl_dialect::DialectProfile;
+use tcl_compiler::analyser::Analyser;
+use tcl_compiler::tcl_expr_eval::{
+    Env, EnvValue, FoldPolicy, analyse_tcl_expr_with_resolved_math_bindings,
+    eval_tcl_expr_with_policy, format_tcl_value,
+};
+use tcl_core_types::DiagCode;
+use tcl_dialect::{DialectProfile, TclVersion};
 use tcl_registry::InvocationDialect;
+use tcl_test_support::expressions::MEMBERSHIP_PRECEDENCE_CASES;
 use tcl_test_support::{available_tclshs, locate_jimsh, require_jimsh, run_script};
 
 // Boolean boundaries test the numeric result without relying on Tcl 8.4's
@@ -106,5 +112,62 @@ fn folds_match_actual_current_jim() {
         )
         .intern();
         compare(&reference.path, profile);
+    }
+}
+
+#[test]
+fn membership_precedence_folds_match_c_tcl() {
+    let env = Env::from([
+        ("a".to_owned(), EnvValue::Int(2)),
+        ("l".to_owned(), EnvValue::Str("1".to_owned())),
+    ]);
+    for version in TclVersion::ALL {
+        let profile = DialectProfile::find(version.dialect_profile_name()).unwrap();
+        let policy = FoldPolicy::for_profile(None, Some(profile))
+            .with_invocation_dialect(InvocationDialect::of_profile(profile));
+        for &(expression, want, _) in MEMBERSHIP_PRECEDENCE_CASES {
+            let node = tcl_syntax::expr::parser::parse_expr_for_profile(expression, Some(profile));
+            // The original variable reads may retain runtime conversion effects.
+            let folded = analyse_tcl_expr_with_resolved_math_bindings(
+                &node,
+                &env,
+                policy,
+                &|_, _| None,
+                None,
+            )
+            .map(|evaluation| format_tcl_value(&evaluation.value));
+            let expected = (version != TclVersion::V8_4).then_some(want);
+            assert_eq!(folded.as_deref(), expected, "{version:?}: {expression}");
+        }
+    }
+}
+
+#[test]
+fn membership_precedence_drives_condition_and_grouping_diagnostics() {
+    let source = "proc p {} { set a 2; set l {1}; if {$a == $a in $l} { return yes } else { return no } }\nputs [p]\n";
+    for result in [
+        Analyser::new().analyse(source, "tcl8.6"),
+        Analyser::new().analyse_per_item(source, "tcl8.6"),
+    ] {
+        let constant_conditions: Vec<_> = result
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == DiagCode::I230)
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect();
+        assert_eq!(
+            constant_conditions,
+            ["Condition '$a == $a in $l' is always true; the alternate branch is unreachable"]
+        );
+        let grouping = result
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == DiagCode::W154)
+            .expect("mixed comparison grouping warning");
+        assert!(
+            grouping.message.contains("parses as `($a == $a) in $l`"),
+            "{grouping:?}"
+        );
+        assert_eq!(grouping.fixes[0].new_text, "($a == $a) in $l");
     }
 }

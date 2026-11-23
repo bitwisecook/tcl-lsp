@@ -159,8 +159,8 @@ binding powers bind tighter:
 | `\|\|`, `or` | 4 | 5 | Logical OR |
 | `&&`, `and` | 6 | 7 | Logical AND |
 | `\|` / `^` / `&` | 8 / 10 / 12 | 9 / 11 / 13 | Bitwise |
-| `==`, `!=`, `eq`, `ne` (and the iRules string operators) | 14 | 15 | Equality |
-| `<`, `>`, `<=`, `>=`, `in`, `ni`, `lt`, `le`, `gt`, `ge` | 16 | 17 | Relational, list membership |
+| `==`, `!=`, `eq`, `ne`, `in`, `ni` (and the iRules string operators) | 14 | 15 | Equality and list membership |
+| `<`, `>`, `<=`, `>=`, `lt`, `le`, `gt`, `ge` | 16 | 17 | Relational |
 | `<<`, `>>` | 18 | 19 | Shift |
 | `+`, `-` | 20 | 21 | Additive |
 | `*`, `/`, `%` | 22 | 23 | Multiplicative |

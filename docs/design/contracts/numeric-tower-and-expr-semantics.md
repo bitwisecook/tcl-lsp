@@ -65,10 +65,11 @@ lazily generated string, *not* a string with a parse on every use.
 
 A separate lexer/parser/evaluator with its own:
 
-* **Grammar & precedence** (high → low): `**` (right-assoc) ; unary `- + ~ !`
-  ; `* / %` ; `+ -` ; `<< >>` ; `< > <= >=` ; `== !=` and `eq ne` ; `in ni`
-  ; `&` ; `^` ; `|` ; `&&` ; `||` ; `?:` (right-assoc). Get the **`**`
-  right-associativity** and the placement of `eq/ne/in/ni` right.
+* **Grammar and precedence from highest to lowest.** Unary `- + ~ !`, `**`
+  (right-associative), `* / %`, `+ -`, `<< >>`, relational comparisons
+  (`< > <= >=` and `lt le gt ge` where available), equality and list membership
+  (`== != eq ne in ni`, left-associative), `&`, `^`, `|`, `&&`, `||`, `?:`
+  (right-associative).
 * **Operators string code lacks:** `eq`/`ne` (always string compare),
   `in`/`ni` (list membership), `?:` ternary, short-circuit `&&`/`||`
   (the un-taken branch is **not** evaluated — observable via side effects).

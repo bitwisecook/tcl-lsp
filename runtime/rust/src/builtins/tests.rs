@@ -501,6 +501,39 @@ fn expression_arguments_use_native_concatenation_and_selected_cardinality() {
 
 #[cfg(have_tommath)]
 #[test]
+fn membership_precedence_matches_the_selected_dialect() {
+    use tcl_test_support::expressions::{MEMBERSHIP_PRECEDENCE_CASES, MEMBERSHIP_PRECEDENCE_SETUP};
+
+    for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+        leak_free(|interp| {
+            interp.set_dialect_profile(crate::environment::profile_for_dialect(environment));
+            ok(interp, MEMBERSHIP_PRECEDENCE_SETUP.as_bytes());
+            for &(expr, tcl, jim) in MEMBERSHIP_PRECEDENCE_CASES {
+                let source = format!("expr {{{expr}}}");
+                let code = interp.eval_str(source.as_bytes());
+                if environment == "tcl8.4" {
+                    assert_eq!(code, Code::Error, "{environment}: {source}");
+                } else {
+                    let want = if environment == "jim" { jim } else { tcl };
+                    assert_eq!(
+                        code,
+                        Code::Ok,
+                        "{environment}: {source}: {:?}",
+                        interp.result_bytes()
+                    );
+                    assert_eq!(
+                        interp.result_bytes(),
+                        want.as_bytes(),
+                        "{environment}: {source}"
+                    );
+                }
+            }
+        });
+    }
+}
+
+#[cfg(have_tommath)]
+#[test]
 fn expression_variable_references_preserve_literal_indices_and_fire_traces() {
     for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         leak_free(|i| {

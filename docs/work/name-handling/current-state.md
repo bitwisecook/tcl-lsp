@@ -1,5 +1,11 @@
 # Current LSP naming migration state
 
+## Item 26 verification
+
+The six membership cases ran under C Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 and Jim 0.84-15-g2f8e155. All five `membership_precedence` tests passed in the VM's `it_2` target, the standalone runtime library and the compiler's `native_arithmetic_conformance` target. The compiler tests covered advisory folding and both analysis entry points. The `tcl-expr` and `tcl-dialect` library suites passed all 393 tests. [Reference interpreter evidence](../../../evidence/tcl/expression-membership-precedence.md)
+
+After rebasing onto `049a4fe74e`, `make rust-check` passed, including all 40 drift checks. `make prep-pr` completed on identical code before the catalogue-only rebase. The final-base reruns reached the smoke build and received SIGKILL while compiling the `tcl-compiler` test binary. CI carries the deep suites.
+
 ## Paused on 19 November 2026
 
 The owner paused the naming, test-scrub and shared-parser work. The hourly check is disabled. Start with the [coordinator handover and thirteen area handovers](handover/pause-2026-11-19/coordinator.md) for the saved work, last measurements and restart order. The seven owner decisions below stand. Final workspace formatting passed. The pause run passed 38 of 40 drift gates and strict all-target clippy stopped on a compiler lint. See the [exact failures and owners](handover/pause-2026-11-19/coordinator.md#final-pause-checks).

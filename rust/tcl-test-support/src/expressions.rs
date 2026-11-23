@@ -20,6 +20,19 @@
 //! Consumers compare actual completions with an independently selected oracle.
 //! These sources carry no compiler, handler or representation authority.
 
+/// Variable values used by the mixed membership and comparison expressions.
+pub const MEMBERSHIP_PRECEDENCE_SETUP: &str = "set a 2; set l {1}\n";
+
+/// Expression, result in C Tcl 8.5 and later, and result in Jim 0.84.
+pub const MEMBERSHIP_PRECEDENCE_CASES: &[(&str, &str, &str)] = &[
+    ("$a == $a in $l", "1", "1"),
+    (r#""b" eq "b" in {1}"#, "1", "1"),
+    (r#""x" in {x} == 1"#, "1", "0"),
+    ("1 != 1 ni {0}", "0", "0"),
+    ("2 < 3 in {1}", "1", "1"),
+    ("2 != 2 ni {0}", "0", "0"),
+];
+
 /// Original native Jim expression value and comparison observations.
 pub const JIM_RAW_EXPRESSION_VALUE_SCRIPTS: &[&str] = &[
     r"set a [binary format H* ff];set b [binary format H* c3bf];list [expr {$a eq $b}] [expr {$a == $b}] [expr {$a lt $b}] [expr {$a le $b}]",

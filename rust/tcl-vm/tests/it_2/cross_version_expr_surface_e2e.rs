@@ -58,6 +58,7 @@ use tcl_codegen::compile_service::BytecodeCompileService;
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect as lower_to_ir;
 use tcl_dialect::TclVersion;
+use tcl_test_support::expressions::{MEMBERSHIP_PRECEDENCE_CASES, MEMBERSHIP_PRECEDENCE_SETUP};
 
 #[derive(Clone, Default)]
 struct Capture(Rc<RefCell<Vec<u8>>>);
@@ -267,6 +268,68 @@ fn expr_operator_set_follows_the_compiled_release() {
                 );
             }
         }
+    }
+}
+
+#[test]
+fn membership_precedence_matches_c_tcl_in_compiled_and_interpreted_exprs() {
+    for version in TclVersion::ALL {
+        let oracle = tcl_test_support::witness_tclsh(version);
+        for &(expr, expected, _) in MEMBERSHIP_PRECEDENCE_CASES {
+            let want = if version == TclVersion::V8_4 {
+                REJECTED
+            } else {
+                expected
+            };
+            for template in [POSITIONS[0].template, INTERPRETED] {
+                let source = format!("{MEMBERSHIP_PRECEDENCE_SETUP}{}", script(template, expr));
+                if let Some(oracle) = &oracle {
+                    let observed = tcl_test_support::run_script(&oracle.path, source.as_bytes())
+                        .expect("C Tcl membership oracle")
+                        .strict_text()
+                        .expect("clean C Tcl membership result");
+                    assert_eq!(observed, want, "C Tcl {version:?}: {source}");
+                }
+                assert_eq!(
+                    vm_output(&source, version),
+                    want,
+                    "VM {version:?}: {source}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn membership_precedence_matches_jim() {
+    let profile = tcl_vm::test_support::profile("jim");
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
+    let oracle = if std::env::var_os("TCL_LSP_REQUIRE_JIM_ORACLE").is_some() {
+        Some(tcl_test_support::require_jimsh().expect("required Jim membership oracle"))
+    } else {
+        tcl_test_support::locate_jimsh().expect("Jim oracle discovery")
+    };
+
+    for &(expr, _, want) in MEMBERSHIP_PRECEDENCE_CASES {
+        let source = format!("{MEMBERSHIP_PRECEDENCE_SETUP}expr {{{expr}}}");
+        if let Some(oracle) = &oracle {
+            let script = format!("puts [eval {{{source}}}]\n");
+            let observed = tcl_test_support::run_script(&oracle.path, script.as_bytes())
+                .expect("Jim membership oracle")
+                .strict_text()
+                .expect("clean Jim membership result");
+            assert_eq!(observed, want, "{source}");
+        }
+        let completion = vm
+            .try_eval_source(&source)
+            .expect("Jim membership evaluation");
+        assert!(completion.code.is_ok(), "{source}: {completion:?}");
+        assert_eq!(
+            completion.result.string_bytes().as_ref(),
+            want.as_bytes(),
+            "{source}"
+        );
     }
 }
 
