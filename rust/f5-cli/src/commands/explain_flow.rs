@@ -141,54 +141,23 @@ struct ExplainFlowReport {
     sessions: Vec<SessionExplain>,
 }
 
-/// Parse a VS destination string like `/Common/10.0.0.1:443` or `/p/[::1]:80`,
-/// returning the canonical address and port.
-fn parse_destination(dest: &str, re: &Regex) -> Option<(String, u32)> {
-    let caps = re.captures(dest.trim())?;
-    let addr = caps
-        .name("addr")?
-        .as_str()
-        .trim_matches(|c| c == '[' || c == ']');
-    let port_raw = caps.name("port")?.as_str();
-    let canonical = canonicalise_ip(addr)?;
-    let port = if port_raw == "any" {
-        0
-    } else {
-        port_raw.parse::<u32>().ok()?
-    };
-    Some((canonical, port))
-}
-
-/// `str(ipaddress.ip_address(addr))` — canonical form, or `None` if invalid.
-fn canonicalise_ip(addr: &str) -> Option<String> {
-    addr.parse::<std::net::IpAddr>()
-        .ok()
-        .map(|ip| ip.to_string())
-}
-
-/// Find the virtual server whose destination matches `(dst_ip, dst_port)`,
-/// iterating VSes in source order.
-fn match_virtual(cfg: &BigipConfig, dst_ip: &str, dst_port: u16, re: &Regex) -> Option<String> {
-    let flow_ip = canonicalise_ip(dst_ip).unwrap_or_else(|| dst_ip.to_owned());
-    for placed in &cfg.objects {
+/// Find a virtual with the destination address, service and route domain.
+fn match_virtual(cfg: &BigipConfig, dst_ip: &str, dst_port: u16) -> Option<String> {
+    let flow_address = tcl_bigip::value::IPAddress::try_parse(dst_ip)?;
+    cfg.objects.iter().find_map(|placed| {
         let ModelObject::VirtualServer(vs) = &placed.object else {
-            continue;
+            return None;
         };
-        let dest_text = vs
-            .destination
-            .as_ref()
-            .map_or_else(String::new, ToString::to_string);
-        let Some((vs_addr, vs_port)) = parse_destination(&dest_text, re) else {
-            continue;
-        };
-        if vs_addr != flow_ip {
-            continue;
-        }
-        if vs_port == 0 || vs_port == u32::from(dst_port) {
-            return Some(vs.full_path.clone());
-        }
-    }
-    None
+        let destination = vs.destination.as_ref()?;
+        let address = cfg.virtual_destination_address(vs)?;
+        let route_domain = address
+            .route_domain
+            .unwrap_or_else(|| cfg.default_route_domain_for(&vs.full_path));
+        (address.addr == flow_address.addr
+            && route_domain == flow_address.route_domain.unwrap_or(0)
+            && (destination.port.is_any() || destination.port.port == dst_port))
+            .then(|| vs.full_path.clone())
+    })
 }
 
 /// Fetch the parsed virtual server with the given full path.
@@ -796,11 +765,6 @@ fn compute_explain_flow(
     tshark_filter: &str,
     simulate: bool,
 ) -> Result<ExplainFlowReport, String> {
-    let dest_re = Regex::new(
-        r"^(?P<path>/[^/\s]+/)?(?P<addr>\[[^\]]+\]|[0-9a-fA-F\.:]+)(?:%\d+)?:(?P<port>\d+|any)$",
-    )
-    .expect("static destination regex");
-
     // Flow extraction has three paths:
     //   * `--tshark-filter` → tshark is the canonical flow source;
     //   * `--tshark` / `--keylog` → built-in walker + tshark L7 overlay;
@@ -841,11 +805,11 @@ fn compute_explain_flow(
         let mut vs_path: Option<String> = None;
         let mut cfg_hit: Option<&BigipConfig> = None;
         for cfg in configs {
-            let mut hit = match_virtual(cfg, &front.client.dst_ip, front.client.dst_port, &dest_re);
+            let mut hit = match_virtual(cfg, &front.client.dst_ip, front.client.dst_port);
             if hit.is_none()
                 && let Some(server) = &front.server
             {
-                hit = match_virtual(cfg, &server.src_ip, server.src_port, &dest_re);
+                hit = match_virtual(cfg, &server.src_ip, server.src_port);
             }
             if hit.is_some() {
                 vs_path = hit;
@@ -1792,4 +1756,33 @@ pub fn run_explain_flow(
     write_text_output(&target, &rendered)?;
 
     Ok(u8::from(report.matched_count == 0))
+}
+
+#[cfg(test)]
+mod destination_tests {
+    use super::*;
+
+    #[test]
+    fn virtual_matching_respects_named_ipv6_services_and_route_domains() {
+        let source = r"
+            auth partition Tenant { default-route-domain 2 }
+            ltm virtual /Tenant/scoped { destination /Tenant/2001:db8::53.http }
+            ltm virtual /Tenant/global { destination /Tenant/2001:db8::53%0.http }
+            ltm virtual /Common/routed { destination /Common/192.0.2.53%2:443 }
+        ";
+        let config = tcl_bigip::parser::parse_bigip_conf(source, "Common");
+        assert_eq!(
+            match_virtual(&config, "2001:db8::53", 80).as_deref(),
+            Some("/Tenant/global")
+        );
+        assert_eq!(
+            match_virtual(&config, "2001:db8::53%2", 80).as_deref(),
+            Some("/Tenant/scoped")
+        );
+        assert_eq!(match_virtual(&config, "192.0.2.53", 443), None);
+        assert_eq!(
+            match_virtual(&config, "192.0.2.53%2", 443).as_deref(),
+            Some("/Common/routed")
+        );
+    }
 }

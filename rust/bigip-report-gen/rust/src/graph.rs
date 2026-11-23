@@ -28,12 +28,10 @@
 //! * per-iRule **dynamic actions** surfaced on the virtuals that attach a rule.
 
 use std::collections::{HashMap, HashSet};
-use std::net::Ipv4Addr;
-use std::str::FromStr;
 
-use ipnet::IpNet;
 use regex::Regex;
 use serde_json::{Map, Value as J};
+use tcl_bigip::value::{IPAddress, Network, Port, WildcardAddress};
 
 use crate::jutil::{barr, bbool, bstr, sarr};
 
@@ -54,88 +52,23 @@ pub(crate) const NODE_TYPES: &[(&str, &str)] = &[
 
 // --- route domain / listener parsing ----------------------------------------
 
-/// Split `10.0.0.1%2` into `('10.0.0.1', 2)`; default route-domain 0.
-fn split_rd(addr: &str) -> (String, i64) {
-    if let Some((base, rd)) = addr.split_once('%') {
-        // rd = re.split(r"[:./]", rd)[0]
-        let rd_head: &str = rd.split([':', '.', '/']).next().unwrap_or("");
-        let n = rd_head.parse::<i64>().unwrap_or(0);
-        (base.to_string(), n)
-    } else {
-        (addr.to_string(), 0)
-    }
-}
-
-/// Turn a netmask (dotted or prefix) into a prefix length for *addr*.
-fn mask_to_prefix(mask: &str) -> Option<i64> {
-    let mask = mask.trim();
-    if mask.is_empty() {
-        return None;
-    }
-    if mask.chars().all(|c| c.is_ascii_digit()) {
-        return mask.parse::<i64>().ok();
-    }
-    if mask.contains(':') {
-        // IPv6 mask is unusual; fall back to counting bits.
-        let mut bits = 0u32;
-        for b in mask.split(':') {
-            if b.is_empty() {
-                continue;
-            }
-            let v = u32::from_str_radix(b, 16).ok()?;
-            bits += v.count_ones();
-        }
-        return Some(i64::from(bits));
-    }
-    // IPv4 dotted netmask -> prefix length (bit popcount, matching a valid
-    // contiguous mask's prefixlen).
-    let v4 = Ipv4Addr::from_str(mask).ok()?;
-    Some(i64::from(u32::from(v4).count_ones()))
-}
-
-fn is_any(addr: &str) -> bool {
-    matches!(addr, "" | "any" | "0.0.0.0" | "::" | "0.0.0.0/0" | "::/0")
-}
-
-fn normalise_cidr(s: &str) -> String {
-    let s = s.split('%').next().unwrap_or("");
-    if s.contains('/') {
-        s.to_string()
-    } else if s.contains(':') {
-        format!("{s}/128")
-    } else {
-        format!("{s}/32")
-    }
-}
-
-fn port_num(p: &str) -> i64 {
-    if !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()) {
-        return p.parse::<i64>().unwrap_or(0);
-    }
-    // named service ports the projection may leave as text
-    crate::services::getservbyname(p).unwrap_or(0)
-}
-
 /// Extract BIG-IP listener-matching fields from a shaped virtual.
 pub(crate) fn parse_listener(v: &Map<String, J>) -> J {
-    let (dest_addr, rd) = split_rd(bstr(v, "destAddr"));
-    let is_v6 = dest_addr.contains(':');
-    let any_addr = is_any(&dest_addr);
-    let full_bits: i64 = if is_v6 { 128 } else { 32 };
-
-    let mask = bstr(v, "mask");
+    let raw = bstr(v, "destAddr");
+    let literal = IPAddress::try_parse(raw);
+    let wildcard = WildcardAddress::try_parse(raw);
+    let rd = literal.as_ref().and_then(|ip| ip.route_domain).unwrap_or(0);
+    let is_v6 =
+        literal.as_ref().is_some_and(IPAddress::is_ipv6) || wildcard == Some(WildcardAddress::Any6);
+    let any_addr = wildcard.is_some() || literal.as_ref().is_some_and(IPAddress::is_unspecified);
+    let dest_addr = literal.map_or_else(|| raw.to_owned(), |ip| ip.addr.to_string());
+    let full_bits = if is_v6 { 128 } else { 32 };
     let prefix = if any_addr {
         0
     } else {
-        mask_to_prefix(mask).unwrap_or(full_bits)
+        Network::prefix_from_mask(bstr(v, "mask"), is_v6).unwrap_or(full_bits)
     };
-
-    let port_raw = bstr(v, "destPort").to_string();
-    let port = if matches!(port_raw.as_str(), "" | "0" | "any" | "*") {
-        0
-    } else {
-        port_num(&port_raw)
-    };
+    let port = Port::try_parse_service(bstr(v, "destPort")).map_or(0, |port| port.port);
 
     let src_default = if is_v6 { "::/0" } else { "0.0.0.0/0" };
     let src_field = bstr(v, "source");
@@ -144,10 +77,9 @@ pub(crate) fn parse_listener(v: &Map<String, J>) -> J {
     } else {
         src_field
     };
-    let src_prefix = match IpNet::from_str(&normalise_cidr(src)) {
-        Ok(net) => i64::from(net.prefix_len()),
-        Err(_) => 0,
-    };
+    let source_network = Network::try_parse(src);
+    let src_prefix = source_network.as_ref().map_or(0, Network::prefix_length);
+    let src = source_network.map_or_else(|| src.to_owned(), |net| net.canonical_cidr());
 
     let vlans: Vec<J> = sarr(v, "vlans")
         .iter()
@@ -177,7 +109,7 @@ pub(crate) fn parse_listener(v: &Map<String, J>) -> J {
     );
     o.insert("protocol".into(), J::String(protocol.to_string()));
     o.insert("routeDomain".into(), J::from(rd));
-    o.insert("source".into(), J::String(src.to_string()));
+    o.insert("source".into(), J::String(src));
     o.insert("sourcePrefix".into(), J::from(src_prefix));
     o.insert("vlans".into(), J::Array(vlans));
     o.insert("vlansEnabled".into(), J::Bool(bbool(v, "vlansEnabled")));
@@ -490,7 +422,7 @@ pub(crate) fn build_graph(device: &Map<String, J>) -> J {
         }
         edge_seen.insert(key);
         let mut e = Map::new();
-        e.insert("from".into(), J::String(src.to_string()));
+        e.insert("from".into(), J::String(src.to_owned()));
         e.insert("to".into(), J::String(dst.to_string()));
         e.insert("kind".into(), J::String(kind.to_string()));
         e.insert("label".into(), J::String(label.to_string()));
@@ -718,4 +650,26 @@ pub(crate) fn build_graph(device: &Map<String, J>) -> J {
     g.insert("nodes".into(), J::Array(nodes));
     g.insert("edges".into(), J::Array(edges));
     J::Object(g)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn listener_preserves_ipv6_service_and_route_domain_source_prefix() {
+        let input = serde_json::json!({
+            "destAddr": "2001:db8::53%2",
+            "destPort": "http",
+            "mask": "ffff:ffff:ffff:ffff::",
+            "source": "2001:db8:1::%2/48"
+        });
+        let listener = parse_listener(input.as_object().unwrap());
+        assert_eq!(listener["family"], "IPv6");
+        assert_eq!(listener["routeDomain"], 2);
+        assert_eq!(listener["port"], 80);
+        assert_eq!(listener["prefix"], 64);
+        assert_eq!(listener["sourcePrefix"], 48);
+        assert_eq!(listener["source"], "2001:db8:1::/48");
+    }
 }

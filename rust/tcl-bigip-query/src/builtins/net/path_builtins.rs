@@ -19,9 +19,8 @@
 //! Builtins that edit a destination or an object path: port, host, folder, name and partition.
 
 use tcl_bigip::object_names::BigIpName;
-use tcl_bigip::value::{Folder, Partition};
+use tcl_bigip::value::{Address, Destination, Folder, Partition, Port, try_parse_address};
 
-use super::typed_values::{Destination, TypedAddress, TypedPort, parse_address};
 use super::{coerce_pathlike, py_str_repr};
 use crate::builtins::{as_str, type_name};
 use crate::errors::QueryError;
@@ -38,11 +37,11 @@ pub(super) fn bi_with_port(args: &[Value]) -> Result<Value, QueryError> {
         ))
     })?;
     let new_port = match &args[1] {
-        Value::Null => TypedPort {
+        Value::Null => Port {
             port: 0,
             spelling: String::new(),
         },
-        Value::Str(p) if p.is_empty() => TypedPort {
+        Value::Str(p) if p.is_empty() => Port {
             port: 0,
             spelling: String::new(),
         },
@@ -55,17 +54,17 @@ pub(super) fn bi_with_port(args: &[Value]) -> Result<Value, QueryError> {
                     "with_port: port out of range ({i})"
                 )));
             }
-            TypedPort {
+            Port {
                 port: *i as u16,
                 spelling: i.to_string(),
             }
         }
-        Value::Str(p) => TypedPort::try_parse(p).ok_or_else(|| {
+        Value::Str(p) => Port::try_parse(p).ok_or_else(|| {
             // Port.parse raised ValueError — surfaced as the raw message.
             port_parse_error(p)
         })?,
         Value::PathRef(p) => {
-            TypedPort::try_parse(&p.full_path).ok_or_else(|| port_parse_error(&p.full_path))?
+            Port::try_parse(&p.full_path).ok_or_else(|| port_parse_error(&p.full_path))?
         }
         other => {
             return Err(QueryError::builtin(format!(
@@ -81,8 +80,9 @@ pub(super) fn bi_with_port(args: &[Value]) -> Result<Value, QueryError> {
         route_domain: parsed.route_domain,
         ipv6_brackets: parsed.ipv6_brackets,
         port_separator: parsed.port_separator,
+        original: parsed.original,
     };
-    Ok(Value::Str(dest.render()))
+    Ok(Value::Str(dest.to_string()))
 }
 
 /// `Port.parse` `ValueError` text, surfaced verbatim when `with_port` is given
@@ -112,7 +112,7 @@ pub(super) fn bi_with_host(args: &[Value]) -> Result<Value, QueryError> {
             py_str_repr(&s)
         ))
     })?;
-    let new_addr = parse_address(&h).ok_or_else(|| {
+    let new_addr = try_parse_address(&h).ok_or_else(|| {
         QueryError::builtin(format!(
             "with_host: cannot parse host {}: {}",
             py_str_repr(&h),
@@ -122,11 +122,11 @@ pub(super) fn bi_with_host(args: &[Value]) -> Result<Value, QueryError> {
             fqdn_value_error(&h)
         ))
     })?;
-    let new_is_v6 = matches!(&new_addr, TypedAddress::Ip(ip) if ip.addr.is_ipv6());
+    let new_is_v6 = matches!(&new_addr, Address::Ip(ip) if ip.addr.is_ipv6());
     let (new_brackets, new_separator) = if new_is_v6 {
         (parsed.ipv6_brackets, parsed.port_separator)
     } else {
-        (false, ':')
+        (false, ":".to_owned())
     };
     let dest = Destination {
         address: new_addr,
@@ -135,8 +135,9 @@ pub(super) fn bi_with_host(args: &[Value]) -> Result<Value, QueryError> {
         route_domain: parsed.route_domain,
         ipv6_brackets: new_brackets,
         port_separator: new_separator,
+        original: parsed.original,
     };
-    Ok(Value::Str(dest.render()))
+    Ok(Value::Str(dest.to_string()))
 }
 
 /// FQDN parse `ValueError` text (best-effort).

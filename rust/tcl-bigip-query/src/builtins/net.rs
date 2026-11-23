@@ -41,9 +41,10 @@
 //!   `ValueError` strings, e.g. `'x' does not appear to be an IPv4 or IPv6
 //!   address`) is reproduced verbatim.
 
-use std::net::{IpAddr, Ipv4Addr};
+use std::net::IpAddr;
 
-use ipnet::{IpNet, Ipv4Net, Ipv6Net};
+use ipnet::{Ipv4Net, Ipv6Net};
+use tcl_bigip::value::{Cidr, IPAddress, Network};
 
 use crate::builtins::{BuiltinSpec, plain, type_name};
 use crate::errors::QueryError;
@@ -54,7 +55,7 @@ mod cidr_builtins;
 mod classification;
 mod path_builtins;
 mod range_builtins;
-mod typed_values;
+mod value_arguments;
 
 use address_builtins::{
     bi_host, bi_in_cidr, bi_ip, bi_ip_translate, bi_is_documentation, bi_is_fqdn, bi_is_ipv4,
@@ -75,7 +76,7 @@ use range_builtins::{
     bi_port_set_contains, bi_port_set_count, bi_port_set_overlaps,
 };
 #[cfg(test)]
-use typed_values::Destination;
+use tcl_bigip::value::Destination;
 
 // A flat registration table — one `plain(...)` row per builtin.
 #[allow(clippy::too_many_lines)]
@@ -272,7 +273,7 @@ fn net_value_error(text: &str) -> String {
 /// `std`'s parser matches on the shapes we care about.
 fn parse_ip_address(text: &str) -> Option<IpAddr> {
     // Address parsing does not strip whitespace; callers strip first.
-    text.parse::<IpAddr>().ok()
+    IPAddress::try_parse(text).map(|parsed| parsed.addr)
 }
 
 /// A parsed network, from a non-strict network parse (host bits allowed).
@@ -342,53 +343,14 @@ impl Net {
 /// Parse a CIDR network non-strictly, accepting integer-prefix and
 /// (IPv4) dotted-quad-netmask spellings.
 fn parse_network(text: &str) -> Result<Net, String> {
-    // `ipnet` already accepts `addr/prefixlen` and masks host bits via
-    // `.trunc()`. It does NOT accept dotted-quad netmasks, so handle those.
-    let trimmed = text;
-    if let Some((addr_part, mask_part)) = trimmed.split_once('/') {
-        // IPv4 dotted-quad netmask form: `10.0.0.0/255.255.255.0`.
-        if mask_part.contains('.') {
-            if let (Ok(addr), Ok(mask)) =
-                (addr_part.parse::<Ipv4Addr>(), mask_part.parse::<Ipv4Addr>())
-                && let Some(prefix) = netmask_to_prefix(u32::from(mask))
-            {
-                let net = Ipv4Net::new(addr, prefix).map_err(|_| net_value_error(text))?;
-                return Ok(Net::V4(net.trunc()));
-            }
-            return Err(net_value_error(text));
-        }
-    }
-    match trimmed.parse::<IpNet>() {
-        Ok(IpNet::V4(n)) => Ok(Net::V4(n.trunc())),
-        Ok(IpNet::V6(n)) => Ok(Net::V6(n.trunc())),
-        Err(_) => {
-            // A bare address with no prefix is a valid `ip_network` (host
-            // network /32 or /128).
-            match trimmed.parse::<IpAddr>() {
-                Ok(IpAddr::V4(a)) => Ok(Net::V4(Ipv4Net::new(a, 32).unwrap())),
-                Ok(IpAddr::V6(a)) => Ok(Net::V6(Ipv6Net::new(a, 128).unwrap())),
-                Err(_) => Err(net_value_error(text)),
-            }
-        }
-    }
-}
-
-/// Contiguous netmask (e.g. `255.255.255.0`) → prefix length, or `None` if
-/// the mask isn't a valid contiguous netmask.
-fn netmask_to_prefix(mask: u32) -> Option<u8> {
-    let ones = mask.leading_ones();
-    // Valid iff the mask is `ones` leading 1-bits and nothing else.
-    let expected = if ones == 0 {
-        0
-    } else if ones == 32 {
-        u32::MAX
-    } else {
-        u32::MAX << (32 - ones)
-    };
-    if expected == mask {
-        Some(ones as u8)
-    } else {
-        None
+    let network = Network::try_parse(text).ok_or_else(|| net_value_error(text))?;
+    match network.network {
+        Cidr::V4 { network, prefix } => Ok(Net::V4(
+            Ipv4Net::new(network, prefix).map_err(|_| net_value_error(text))?,
+        )),
+        Cidr::V6 { network, prefix } => Ok(Net::V6(
+            Ipv6Net::new(network, prefix).map_err(|_| net_value_error(text))?,
+        )),
     }
 }
 

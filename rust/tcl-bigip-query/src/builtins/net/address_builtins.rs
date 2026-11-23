@@ -22,21 +22,20 @@ use super::classification::{
     addr_is_documentation, addr_is_ipv4, addr_is_ipv6, addr_is_link_local, addr_is_loopback,
     addr_is_multicast, addr_is_private, addr_is_public, addr_is_reserved, addr_is_unspecified,
 };
-use super::typed_values::{
-    Destination, TypedAddress, rebuild_destination, split_destination, typed_address,
-};
+use super::value_arguments::{destination_fields, typed_address};
 use super::{Net, addr_value_error, net_value_error, parse_ip_address, parse_network, py_str_repr};
 use crate::builtins::{as_str, type_name};
 use crate::errors::QueryError;
 use crate::value::Value;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use tcl_bigip::value::{Address, Destination, IPAddress, Network, RouteDomain};
 
 // Builtins
 
 pub(super) fn bi_ip(args: &[Value]) -> Result<Value, QueryError> {
     if args.len() == 1 {
         let s = as_str(&args[0], "ip", 1)?;
-        let (_, addr, _, _) = split_destination(&s);
+        let (addr, _, _) = destination_fields(&s);
         if parse_ip_address(&addr).is_none() {
             return Err(QueryError::builtin(format!(
                 "ip: invalid address {}: {}",
@@ -55,7 +54,7 @@ pub(super) fn bi_ip(args: &[Value]) -> Result<Value, QueryError> {
             net_value_error(&net_str)
         ))
     })?;
-    let (partition, src_addr, rd, port) = split_destination(&src_str);
+    let (src_addr, _, _) = destination_fields(&src_str);
     let src_ip = parse_ip_address(&src_addr).ok_or_else(|| {
         QueryError::builtin(format!(
             "ip: invalid source address {}: {}",
@@ -83,7 +82,7 @@ pub(super) fn bi_ip(args: &[Value]) -> Result<Value, QueryError> {
                 .unwrap_or(0);
             let host_bits = u32::from(s) & !netmask;
             let new_int = u32::from(n.network()) | host_bits;
-            Ipv4Addr::from(new_int).to_string()
+            IpAddr::V4(Ipv4Addr::from(new_int))
         }
         (Net::V6(n), IpAddr::V6(s)) => {
             let netmask: u128 = if n.prefix_len() == 0 {
@@ -93,13 +92,18 @@ pub(super) fn bi_ip(args: &[Value]) -> Result<Value, QueryError> {
             };
             let host_bits = u128::from(s) & !netmask;
             let new_int = u128::from(n.network()) | host_bits;
-            Ipv6Addr::from(new_int).to_string()
+            IpAddr::V6(Ipv6Addr::from(new_int))
         }
         _ => unreachable!("family mismatch handled above"),
     };
-    Ok(Value::Str(rebuild_destination(
-        &partition, &new_addr, &rd, &port,
-    )))
+    let mut endpoint = Destination::try_parse(&src_str).ok_or_else(|| {
+        QueryError::builtin(format!(
+            "ip: invalid source address {}",
+            py_str_repr(&src_str)
+        ))
+    })?;
+    endpoint.address = Address::Ip(IPAddress::new(new_addr, None));
+    Ok(Value::Str(endpoint.to_string()))
 }
 
 pub(super) fn bi_ip_translate(args: &[Value]) -> Result<Value, QueryError> {
@@ -120,7 +124,7 @@ pub(super) fn bi_ip_translate(args: &[Value]) -> Result<Value, QueryError> {
             net_value_error(&dst_str)
         ))
     })?;
-    let (_, bare_addr, _, _) = split_destination(&addr_str);
+    let (bare_addr, _, _) = destination_fields(&addr_str);
     let src_ip = parse_ip_address(&bare_addr).ok_or_else(|| {
         QueryError::builtin(format!(
             "ip_translate: invalid addr {}: {}",
@@ -186,13 +190,13 @@ pub(super) fn bi_net(args: &[Value]) -> Result<Value, QueryError> {
 
 pub(super) fn bi_host(args: &[Value]) -> Result<Value, QueryError> {
     let s = as_str(&args[0], "host", 1)?;
-    let (_, addr, _, _) = split_destination(&s);
+    let (addr, _, _) = destination_fields(&s);
     Ok(Value::Str(addr))
 }
 
 pub(super) fn bi_port(args: &[Value]) -> Result<Value, QueryError> {
     let s = as_str(&args[0], "port", 1)?;
-    let (_, _, _, port) = split_destination(&s);
+    let (_, _, port) = destination_fields(&s);
     if port.is_empty() {
         Ok(Value::Null)
     } else {
@@ -211,7 +215,7 @@ pub(super) fn bi_port(args: &[Value]) -> Result<Value, QueryError> {
 pub(super) fn bi_in_cidr(args: &[Value]) -> Result<Value, QueryError> {
     let addr_s = as_str(&args[0], "in_cidr", 1)?;
     let net_s = as_str(&args[1], "in_cidr", 2)?;
-    let (_, host, _, _) = split_destination(&addr_s);
+    let (host, _, _) = destination_fields(&addr_s);
     let Some(ip) = parse_ip_address(&host) else {
         return Ok(Value::Bool(false));
     };
@@ -227,7 +231,7 @@ pub(super) fn bi_in_cidr(args: &[Value]) -> Result<Value, QueryError> {
 
 pub(super) fn bi_route_domain(args: &[Value]) -> Result<Value, QueryError> {
     let s = as_str(&args[0], "route_domain", 1)?;
-    let (_, _, rd, _) = split_destination(&s);
+    let (_, rd, _) = destination_fields(&s);
     if rd.is_empty() {
         Ok(Value::Null)
     } else {
@@ -237,7 +241,6 @@ pub(super) fn bi_route_domain(args: &[Value]) -> Result<Value, QueryError> {
 
 pub(super) fn bi_with_route_domain(args: &[Value]) -> Result<Value, QueryError> {
     let s = as_str(&args[0], "with_route_domain", 1)?;
-    let (partition, addr, _, port) = split_destination(&s);
     let new_rd = match &args[1] {
         Value::Null => String::new(),
         Value::Str(rd) if rd.is_empty() => String::new(),
@@ -256,9 +259,22 @@ pub(super) fn bi_with_route_domain(args: &[Value]) -> Result<Value, QueryError> 
             )));
         }
     };
-    Ok(Value::Str(rebuild_destination(
-        &partition, &addr, &new_rd, &port,
-    )))
+    let domain = if new_rd.is_empty() {
+        None
+    } else {
+        Some(RouteDomain::parse(&new_rd).map_err(|error| QueryError::builtin(error.to_string()))?)
+    };
+    if let Some(network) = Network::try_parse(&s) {
+        return Ok(Value::Str(network.with_route_domain(domain.as_ref())));
+    }
+    let mut destination = Destination::try_parse(&s).ok_or_else(|| {
+        QueryError::builtin(format!(
+            "with_route_domain: cannot parse {}",
+            py_str_repr(&s)
+        ))
+    })?;
+    destination.route_domain = domain;
+    Ok(Value::Str(destination.to_string()))
 }
 
 // predicates
@@ -266,7 +282,7 @@ pub(super) fn bi_with_route_domain(args: &[Value]) -> Result<Value, QueryError> 
 fn addr_predicate(value: &Value, name: &str, f: fn(IpAddr) -> bool) -> Result<Value, QueryError> {
     let a = typed_address(value, name)?;
     Ok(Value::Bool(match a {
-        Some(TypedAddress::Ip(ip)) => f(ip.addr),
+        Some(Address::Ip(ip)) => f(ip.addr),
         _ => false,
     }))
 }
@@ -281,7 +297,7 @@ pub(super) fn bi_is_ipv6(args: &[Value]) -> Result<Value, QueryError> {
 
 pub(super) fn bi_is_fqdn(args: &[Value]) -> Result<Value, QueryError> {
     let a = typed_address(&args[0], "is_fqdn")?;
-    Ok(Value::Bool(matches!(a, Some(TypedAddress::Fqdn(_)))))
+    Ok(Value::Bool(matches!(a, Some(Address::Fqdn(_)))))
 }
 
 pub(super) fn bi_is_private(args: &[Value]) -> Result<Value, QueryError> {

@@ -107,6 +107,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
         },
         BigipPropertySpec {
             name: "destination",
+            address_grammar: Some(crate::bigip::AddressGrammar::Destination),
             value_type: ValueKind::Reference,
             references: &["ltm_virtual_address"],
             default: Some("any:any"),

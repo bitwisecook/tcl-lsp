@@ -18,18 +18,26 @@
 
 //! Per-type shaping of engine objects into report rows: LTM, GTM, firewall, NAT, profiles and policies.
 
-use super::{
-    clean_arr, clean_field, clean_path, event_registry, partition_of, py_str, split_dest, used_by,
-};
+use super::{clean_arr, clean_field, clean_path, event_registry, partition_of, py_str, used_by};
 use crate::jutil::{barr, bbool, bstr, sarr, truthy};
 use serde_json::{Map, Value as J};
 use std::collections::{BTreeSet, HashMap};
+use tcl_bigip::value::Destination;
 use tcl_registry::profile_defaults::{BigipVersion, profile_field_defaults};
 
 // --- per-type shaping --------------------------------------------------------
 
 pub(super) fn shape_virtual(f: &Map<String, J>) -> J {
-    let (addr, port) = split_dest(bstr(f, "destination"));
+    let (addr, port) =
+        Destination::try_parse(bstr(f, "destination")).map_or_default(|destination| {
+            let address = match destination.address {
+                tcl_bigip::value::Address::Ip(_) => destination
+                    .ip_address()
+                    .map_or_else(String::new, |address| address.to_string()),
+                _ => destination.address.to_string(),
+            };
+            (address, destination.port.spelling)
+        });
     let fp = bstr(f, "full-path");
     let disabled = bbool(f, "disabled") || bstr(f, "state") == "disabled";
 

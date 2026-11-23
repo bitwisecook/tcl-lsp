@@ -40,7 +40,7 @@ use std::fmt;
 /// `<folder>/<address>%<rd>:<port>` (with the appropriate IPv6 bracketing
 /// / dot-port separator).
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Destination {
+pub struct Endpoint {
     /// The host address (IP or FQDN).
     pub address: Address,
     /// The destination port.
@@ -53,9 +53,14 @@ pub struct Destination {
     pub ipv6_brackets: bool,
     /// `"."` vs `":"` separator for IPv6 destinations.
     pub port_separator: String,
+    /// The input spelling at the time this endpoint was read.
+    pub original: String,
 }
 
-impl Destination {
+/// A destination parsed as an endpoint.
+pub type Destination = Endpoint;
+
+impl Endpoint {
     /// The partition portion of the folder, if any.
     #[must_use]
     pub fn partition(&self) -> Option<&Partition> {
@@ -67,7 +72,12 @@ impl Destination {
     /// # Errors
     /// Returns [`ValueError`] for unparseable input.
     pub fn parse(text: &str) -> Result<Self, ValueError> {
-        let text = text.trim();
+        let mut endpoint = Self::parse_parts(text.trim())?;
+        text.clone_into(&mut endpoint.original);
+        Ok(endpoint)
+    }
+
+    fn parse_parts(text: &str) -> Result<Self, ValueError> {
         if text.is_empty() {
             return Err(ValueError("Destination: empty input".to_owned()));
         }
@@ -80,7 +90,22 @@ impl Destination {
         }
 
         // No brackets — split address from port.
-        let (addr_part, route_domain, _) = split_route_domain(&rest)?;
+        let (addr_part, route_domain) = split_route_domain(&rest)?;
+        if let Some((host, service)) = addr_part.split_once('.')
+            && let Some(wildcard @ (super::WildcardAddress::Any6 | super::WildcardAddress::Star)) =
+                super::WildcardAddress::try_parse(host)
+            && let Some(port) = Port::try_parse_service(service)
+        {
+            return Ok(Self {
+                address: Address::Wildcard(wildcard),
+                port,
+                folder,
+                route_domain,
+                ipv6_brackets: false,
+                port_separator: ".".to_owned(),
+                original: String::new(),
+            });
+        }
         if count_char(&addr_part, ':') >= 2 {
             // IPv6 without brackets: port separator is the last ``.``.
             return Self::parse_unbracketed_ipv6(&addr_part, folder, route_domain);
@@ -102,7 +127,7 @@ impl Destination {
         })?;
         let addr_text = &after_open[..close];
         let port_part = &after_open[close + 1..];
-        let (addr_clean, route_domain, _) = split_route_domain(addr_text)?;
+        let (addr_clean, route_domain) = split_route_domain(addr_text)?;
         let ip = IPAddress::try_parse(&addr_clean).ok_or_else(|| {
             ValueError(format!(
                 "Destination: bracketed value isn't a valid IP ({})",
@@ -117,6 +142,7 @@ impl Destination {
                 route_domain,
                 ipv6_brackets: true,
                 port_separator: ":".to_owned(),
+                original: String::new(),
             });
         }
         let first = port_part.chars().next().unwrap();
@@ -127,7 +153,10 @@ impl Destination {
             )));
         }
         let port_separator = first.to_string();
-        let port = Port::parse(&port_part[first.len_utf8()..])?;
+        let service = &port_part[first.len_utf8()..];
+        let port = Port::try_parse_service(service).ok_or_else(|| {
+            ValueError(format!("Destination: invalid service {}", py_repr(service)))
+        })?;
         Ok(Self {
             address: Address::Ip(ip),
             port,
@@ -135,6 +164,7 @@ impl Destination {
             route_domain,
             ipv6_brackets: true,
             port_separator,
+            original: String::new(),
         })
     }
 
@@ -145,7 +175,10 @@ impl Destination {
         folder: Option<Folder>,
         route_domain: Option<RouteDomain>,
     ) -> Result<Self, ValueError> {
-        match addr_part.rfind('.') {
+        match addr_part
+            .rfind('.')
+            .filter(|_| IPAddress::try_parse(addr_part).is_none())
+        {
             None => {
                 let ip = IPAddress::try_parse(addr_part).ok_or_else(|| {
                     ValueError(format!(
@@ -160,6 +193,7 @@ impl Destination {
                     route_domain,
                     ipv6_brackets: false,
                     port_separator: ".".to_owned(),
+                    original: String::new(),
                 })
             }
             Some(sep) => {
@@ -173,11 +207,17 @@ impl Destination {
                 })?;
                 Ok(Self {
                     address: Address::Ip(ip),
-                    port: Port::parse(port_text)?,
+                    port: Port::try_parse_service(port_text).ok_or_else(|| {
+                        ValueError(format!(
+                            "Destination: invalid service {}",
+                            py_repr(port_text)
+                        ))
+                    })?,
                     folder,
                     route_domain,
                     ipv6_brackets: false,
                     port_separator: ".".to_owned(),
+                    original: String::new(),
                 })
             }
         }
@@ -192,7 +232,7 @@ impl Destination {
     ) -> Result<Self, ValueError> {
         match addr_part.rfind(':') {
             None => {
-                let address_value = parse_address(addr_part)?;
+                let address_value = destination_host(addr_part, false)?;
                 Ok(Self {
                     address: address_value,
                     port: Port::new(0, ""),
@@ -200,22 +240,95 @@ impl Destination {
                     route_domain,
                     ipv6_brackets: false,
                     port_separator: ":".to_owned(),
+                    original: String::new(),
                 })
             }
             Some(sep) => {
                 let addr_text = &addr_part[..sep];
                 let port_text = &addr_part[sep + 1..];
-                let address_value = parse_address(addr_text)?;
+                let address_value = destination_host(addr_text, true)?;
                 Ok(Self {
                     address: address_value,
-                    port: Port::parse(port_text)?,
+                    port: Port::try_parse_service(port_text).ok_or_else(|| {
+                        ValueError(format!(
+                            "Destination: invalid service {}",
+                            py_repr(port_text)
+                        ))
+                    })?,
                     folder,
                     route_domain,
                     ipv6_brackets: false,
                     port_separator: ":".to_owned(),
+                    original: String::new(),
                 })
             }
         }
+    }
+
+    /// Read the TMSH virtual destination grammar, which requires a service.
+    #[must_use]
+    pub fn try_parse_tmsh(text: &str) -> Option<Self> {
+        let mut destination = Self::try_parse(text)?;
+        if let Address::Fqdn(host) = destination.address {
+            destination.address = Address::Named(host.name);
+        }
+        (!destination.port.spelling.is_empty()
+            && !matches!(
+                destination.address,
+                Address::Wildcard(super::WildcardAddress::Star)
+            ))
+        .then_some(destination)
+    }
+
+    /// Read an LTM HTTP monitor destination with its endpoint or wildcard alias.
+    #[must_use]
+    pub fn try_parse_tmsh_monitor(text: &str) -> Option<Self> {
+        let destination = Self::try_parse(text)
+            .filter(|value| !value.ipv6_brackets && !value.port.spelling.is_empty())
+            .or_else(|| {
+                let (host, service) = text.rsplit_once(':')?;
+                IPAddress::try_parse(host).filter(IPAddress::is_ipv6)?;
+                let mut destination = Self::try_parse_tmsh(&format!("{host}.{service}"))?;
+                ":".clone_into(&mut destination.port_separator);
+                text.clone_into(&mut destination.original);
+                Some(destination)
+            })?;
+        match destination.address {
+            Address::Ip(_) if !destination.port.is_any() => Some(destination),
+            Address::Wildcard(super::WildcardAddress::Star) => Some(destination),
+            _ => None,
+        }
+    }
+
+    /// The literal IP destination, including its route domain when present.
+    #[must_use]
+    pub fn ip_address(&self) -> Option<IPAddress> {
+        let mut address = match &self.address {
+            Address::Ip(address) => address.clone(),
+            Address::Wildcard(wildcard) => wildcard.unspecified_ip()?,
+            Address::Fqdn(_) | Address::Named(_) => return None,
+        };
+        if let Some(route_domain) = &self.route_domain {
+            address.route_domain = Some(route_domain.id);
+        }
+        Some(address)
+    }
+
+    /// The authored virtual-address reference with its final service removed.
+    #[must_use]
+    pub fn tmsh_address_reference(text: &str) -> Option<String> {
+        let destination = Self::try_parse_tmsh(text)?;
+        if destination.ipv6_brackets {
+            let address = destination.ip_address()?;
+            return Some(destination.folder.map_or_else(
+                || address.to_string(),
+                |folder| format!("{folder}/{address}"),
+            ));
+        }
+        text.trim()
+            .strip_suffix(&destination.port.spelling)?
+            .strip_suffix(&destination.port_separator)
+            .map(ToOwned::to_owned)
     }
 
     /// Like [`Destination::parse`] but returns `None` instead of erroring.
@@ -225,16 +338,27 @@ impl Destination {
     }
 }
 
-impl fmt::Display for Destination {
+fn destination_host(text: &str, allow_named: bool) -> Result<Address, ValueError> {
+    if let Some(wildcard) = super::WildcardAddress::try_parse(text) {
+        return Ok(Address::Wildcard(wildcard));
+    }
+    parse_address(text).or_else(|error| {
+        if allow_named && crate::object_names::BigIpName::valid_leaf(text) {
+            Ok(Address::Named(text.to_owned()))
+        } else {
+            Err(error)
+        }
+    })
+}
+
+impl fmt::Display for Endpoint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut addr_text = self.address.to_string();
         let is_ipv6 = matches!(&self.address, Address::Ip(ip) if ip.is_ipv6());
         if is_ipv6 && self.ipv6_brackets {
             addr_text = format!("[{addr_text}]");
         }
-        if let Some(rd) = &self.route_domain
-            && !rd.is_default()
-        {
+        if let Some(rd) = &self.route_domain {
             if self.ipv6_brackets {
                 // Insert ``%rd`` before the closing bracket.
                 let trimmed = &addr_text[..addr_text.len() - 1];
@@ -301,21 +425,24 @@ fn split_folder_prefix(text: &str) -> (Option<Folder>, String) {
     }
 }
 
-/// Strip a trailing `%N` route-domain off `text`, returning
-/// `(addr-without-rd, route-domain, original-rd-text)`.
-fn split_route_domain(text: &str) -> Result<(String, Option<RouteDomain>, String), ValueError> {
-    if !text.contains('%') {
-        return Ok((text.to_owned(), None, String::new()));
+/// Use the route-domain reader on the host portion before the service.
+fn split_route_domain(text: &str) -> Result<(String, Option<RouteDomain>), ValueError> {
+    let Some((host, suffix)) = text.split_once('%') else {
+        return Ok((text.to_owned(), None));
+    };
+    let digits = suffix.bytes().take_while(u8::is_ascii_digit).count();
+    let remainder = &suffix[digits..];
+    if remainder.contains('%') || (!remainder.is_empty() && !remainder.starts_with([':', '.'])) {
+        return Err(ValueError(format!(
+            "Destination: invalid route-domain suffix in {}",
+            py_repr(text)
+        )));
     }
-    // Split on the FIRST '%'.
-    let (addr, rd_text) = text.split_once('%').unwrap_or((text, ""));
-    let rd_digits: String = rd_text.chars().take_while(char::is_ascii_digit).collect();
-    let remainder = &rd_text[rd_digits.len()..];
-    if rd_digits.is_empty() {
-        return Ok((text.to_owned(), None, String::new()));
-    }
-    let rd = RouteDomain::parse(&rd_digits)?;
-    Ok((format!("{addr}{remainder}"), Some(rd), rd_digits))
+    let (_, route_domain) = RouteDomain::split_suffix(&text[..host.len() + 1 + digits])?;
+    Ok((
+        format!("{host}{remainder}"),
+        route_domain.map(RouteDomain::new),
+    ))
 }
 
 fn count_char(s: &str, c: char) -> usize {
@@ -387,10 +514,14 @@ mod tests {
     fn wildcards() {
         assert_eq!(roundtrip("0.0.0.0:any"), "0.0.0.0:any");
         assert_eq!(roundtrip("::.0"), "::.0");
-        // ``*.*`` is an aspirational spelling that is documented but not
-        // accepted here: the real parser treats it as an FQDN with an
-        // invalid label and rejects it.
-        assert!(Destination::try_parse("*.*").is_none());
+        assert_eq!(roundtrip("*.*"), "*.*");
+        assert_eq!(roundtrip("/Common/any6.any"), "/Common/any6.any");
+        assert!(matches!(
+            Destination::try_parse_tmsh("any6.any").unwrap().address,
+            Address::Wildcard(super::super::WildcardAddress::Any6)
+        ));
+        assert!(Destination::try_parse_tmsh("any6").is_none());
+        assert!(Destination::try_parse_tmsh("any").is_none());
     }
 
     #[test]
@@ -455,8 +586,8 @@ mod tests {
                 "/Common/[2001:db8::1%9]:443",
                 Some("/Common/[2001:db8::1%9]:443"),
             ),
-            // Route-domain 0 is the default and is dropped on render.
-            ("10.0.0.1%0:80", Some("10.0.0.1:80")),
+            // An explicitly authored route-domain 0 survives rendering.
+            ("10.0.0.1%0:80", Some("10.0.0.1%0:80")),
             ("10.0.0.1:0", Some("10.0.0.1:0")),
             ("[::]:0", Some("[::]:0")),
             (

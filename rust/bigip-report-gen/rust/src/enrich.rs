@@ -33,31 +33,10 @@ use std::str::FromStr;
 
 use ipnet::IpNet;
 use serde_json::{Map, Value as J};
+use tcl_bigip::value::IPAddress;
 
 use crate::jutil::{barr, bstr};
 use crate::services::getservbyport;
-
-/// Normalise an address token to a bare `IpAddr` (strip `%route-domain`, a
-/// `/prefix`, and an IPv4 `:port`); `None` for hostnames / wildcards.
-fn to_ip(addr: &str) -> Option<IpAddr> {
-    let a = addr.trim();
-    if a.is_empty() {
-        return None;
-    }
-    let a = a.split('%').next().unwrap_or(a);
-    let a = a.split('/').next().unwrap_or(a);
-    if let Ok(ip) = IpAddr::from_str(a) {
-        return Some(ip);
-    }
-    // IPv4 `host:port`.
-    if let Some((host, _)) = a.rsplit_once(':')
-        && !host.contains(':')
-        && let Ok(ip) = IpAddr::from_str(host)
-    {
-        return Some(ip);
-    }
-    None
-}
 
 /// Does `net` contain `ip`, honouring IPv4-in-IPv6 (an IPv4 address is inside an
 /// IPv6 zone covering its `::ffff:0:0/96`-mapped form).
@@ -97,7 +76,7 @@ fn collect_addrs_ports(devices: &[J]) -> (Vec<String>, Vec<i64>) {
     let mut ports: BTreeSet<i64> = BTreeSet::new();
     {
         let mut add_addr = |s: &str| {
-            if to_ip(s).is_some() {
+            if IPAddress::from_address_value(s).is_some() {
                 addrs.insert(s.trim().to_string());
             }
         };
@@ -177,7 +156,9 @@ pub fn build_enrichment(devices: &[J], architecture: &J) -> J {
 
     let mut addr_map = Map::new();
     for a in addrs {
-        let Some(ip) = to_ip(&a) else { continue };
+        let Some(ip) = IPAddress::from_address_value(&a).map(|address| address.addr) else {
+            continue;
+        };
         let zone = zone_nets
             .iter()
             .find(|(n, _)| net_contains(n, ip))

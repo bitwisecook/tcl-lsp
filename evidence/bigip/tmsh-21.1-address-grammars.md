@@ -14,12 +14,19 @@ fixture also defined a virtual address named `alias` with
 
 | Property | Accepted | Refused |
 | --- | --- | --- |
-| LTM virtual `destination` | `2001:db8::53.80`, `2001:db8::53%0.80`, `2001:db8::53.http`, `any6.any`, `any:any`, `192.0.2.53:http`, `192.0.2.53:0`, `/Common/alias:80` | `2001:db8::53%0:80`, `any`, `any6`: missing port or service name |
+| LTM virtual `destination` | `2001:db8::53.80`, `2001:db8::53%0.80`, `2001:db8::53.http`, `any6.any`, `any:any`, `192.0.2.53:http`, `192.0.2.53:0`, `/Common/alias:80`, `alias:80`, `[2001:db8::53]:80`, `any6:80` | `2001:db8::53%0:80`, `2001:db8::53:80`, `any`, `any6`: missing port or service name |
 | LTM HTTP monitor `destination` | `*:*`, `*.*`, `192.0.2.53:http`, `2001:db8::53%0.80`, `2001:db8::53%0:80` | `2001:db8::53.*`: address type requires a port |
 
 The monitor accepted the IPv6 colon service form that the LTM virtual and
 [pool member tests](tmsh-21.1-name-handling.md#names-route-domains-and-services)
 refused. TMSH listing and canonical spelling remain to be measured.
+
+The follow-up fixtures verified a pool member `example.com:443` with an
+`fqdn { name example.com }` block and a named member with an explicit
+`address`. A named member with neither field failed because the node was
+absent. A virtual with a missing named virtual address failed for the same
+reason. The virtual destination `*.*` failed with a missing-service diagnostic.
+A read-only lookup confirmed `/Common/http` exists as a shipped HTTP monitor.
 
 ## Route domains and address records
 
@@ -32,6 +39,11 @@ refused. TMSH listing and canonical spelling remain to be measured.
 | `net route-domain` and `ltm node` | `id 65534` and `address 192.0.2.53%65534` | 0 | Both verified together |
 | `net route-domain` alone | `id 65535` | 1 | ID must be between 1 and 65534 |
 | `net route-domain` and `ltm node` | `id 65536` and `address 192.0.2.53%65536` | 1 | ID out of range |
+
+A separate fixture defined route domain 3999 as a partition's default and
+verified a literal-address node with `%0` on both its name and address, on
+either field alone, and on neither field. These checks establish loader
+acceptance. Effective address identity still needs a listing or a TMM flow.
 
 ## Object names and FQDNs
 

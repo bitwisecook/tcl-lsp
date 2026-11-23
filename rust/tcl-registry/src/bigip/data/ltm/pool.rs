@@ -134,6 +134,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
         },
         BigipPropertySpec {
             name: "members",
+            address_grammar: Some(crate::bigip::AddressGrammar::MemberKey),
             value_type: ValueKind::List,
             allow_none: true,
             references: &["ltm_node"],

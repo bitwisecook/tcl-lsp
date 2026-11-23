@@ -63,7 +63,8 @@ use crate::parser::helpers::{
     parse_keyed_block_entries, parse_list_block, parse_properties_with_spans,
 };
 use crate::range::Range;
-use crate::value::MonitorExpression;
+use crate::value::grammar::{ConfigurationAddress, read_address_property};
+use crate::value::{Address, FQDN, IPAddress, MonitorExpression};
 
 static FACTORY_OBJECT_IDENTITIES: LazyLock<HashSet<String>> = LazyLock::new(|| {
     base_object_identities()
@@ -788,19 +789,13 @@ fn check_ip_data_group_records(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnos
             continue;
         }
         for record in &dg.records {
-            let addr_text = if record.contains('/') {
-                record.split('/').next().unwrap_or("").trim()
-            } else {
-                record.trim()
-            };
-            if addr_text.is_empty() {
+            let record = record.trim();
+            if record.is_empty() {
                 continue;
             }
-            let addr_ok = addr_text.parse::<std::net::IpAddr>().is_ok();
-            // Fall back to a network form ("10.0.0.0/8"), parsed non-strictly
-            // (host bits need not be zero).
-            let net_ok = record.trim().parse::<ipnet::IpNet>().is_ok();
-            if !addr_ok && !net_ok {
+            if crate::value::IPAddress::try_parse(record).is_none()
+                && crate::value::Network::try_parse(record).is_none()
+            {
                 out.push(ConfigDiagnostic {
                     code: DiagCode::Bigip6011.as_str().to_owned(),
                     message: format!(
@@ -871,12 +866,57 @@ fn property_reference_values(property: &str, raw: &str) -> Vec<String> {
     reference_values(raw)
 }
 
-fn reference_candidates(reference: &str, owner: &str, default_partition: &str) -> Vec<String> {
-    let reference = crate::object_names::reference_without_numeric_service(
-        clean_name(reference).trim(),
-        crate::object_names::EmptyServiceSuffix::Strip,
-    );
-    crate::object_names::owner_partition_reference_paths(reference, owner, default_partition)
+fn reference_candidates(
+    reference: &str,
+    owner: &str,
+    default_partition: &str,
+    kinds: &[&str],
+) -> Vec<String> {
+    let reference = clean_name(reference);
+    let mut paths = Vec::new();
+    for kind in kinds {
+        let reference = crate::graph::normalise_reference_for_kind(kind, reference.trim());
+        paths.extend(crate::object_names::owner_partition_reference_paths(
+            &reference,
+            owner,
+            default_partition,
+        ));
+    }
+    paths.sort_unstable();
+    paths.dedup();
+    paths
+}
+
+fn reference_supplied_by_property(
+    module: &str,
+    object_type: &str,
+    property: &str,
+    raw: &str,
+    value: &str,
+) -> bool {
+    match read_address_property(module, object_type, property, value) {
+        Some(ConfigurationAddress::Address(_)) => true,
+        Some(ConfigurationAddress::Destination(destination)) => {
+            matches!(destination.address, Address::Ip(_) | Address::Wildcard(_))
+        }
+        Some(ConfigurationAddress::Member(_)) => parse_keyed_block_entries(raw)
+            .into_iter()
+            .find(|(key, _)| key == value)
+            .is_some_and(|(_, body)| {
+                parse_properties_with_spans(&body)
+                    .into_iter()
+                    .any(|(property, field)| match property.as_str() {
+                        "address" => IPAddress::try_parse(&field.value).is_some(),
+                        "fqdn" => parse_properties_with_spans(field.value.trim_matches(['{', '}']))
+                            .into_iter()
+                            .any(|(name, field)| {
+                                name == "name" && FQDN::try_parse(&field.value).is_some()
+                            }),
+                        _ => false,
+                    })
+            }),
+        _ => false,
+    }
 }
 
 /// BIGIP6013: validate every static registry-declared outbound edge that is
@@ -907,8 +947,21 @@ fn check_registry_references(config: &BigipConfig, out: &mut Vec<ConfigDiagnosti
                 .filter(|edge| edge.section.is_none() && edge.property == property)
             {
                 for value in property_reference_values(&property, &parsed.value) {
-                    let candidates =
-                        reference_candidates(&value, &object.identifier, &config.default_partition);
+                    if reference_supplied_by_property(
+                        &object.module,
+                        &object.object_type,
+                        &property,
+                        &parsed.value,
+                        &value,
+                    ) {
+                        continue;
+                    }
+                    let candidates = reference_candidates(
+                        &value,
+                        &object.identifier,
+                        &config.default_partition,
+                        edge.to_kinds,
+                    );
                     let resolved =
                         objects.iter().any(|(target, target_kind)| {
                             edge.to_kinds.contains(target_kind)
@@ -1155,6 +1208,27 @@ pub fn validate_bigip_source(source: &str, default_partition: &str) -> Vec<Confi
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn address_fixture_has_no_false_reference_or_ip_data_group_warnings() {
+        let source = include_str!(
+            "../../../docs/work/name-handling/handover/oo-dispatch-probe/bigip-addresses/addresses.conf"
+        );
+        let diagnostics: Vec<_> = validate_bigip_source(source, "Common")
+            .into_iter()
+            .filter(|diagnostic| matches!(diagnostic.code.as_str(), "BIGIP6011" | "BIGIP6013"))
+            .collect();
+        assert_eq!(diagnostics.len(), 3, "{diagnostics:#?}");
+        assert!(
+            diagnostics.iter().all(|diagnostic| {
+                diagnostic.code == "BIGIP6013"
+                    && ["/Common/internal", "/Common/fe80::1:80"]
+                        .iter()
+                        .any(|name| diagnostic.message.contains(name))
+            }),
+            "{diagnostics:#?}"
+        );
+    }
 
     #[test]
     fn published_metadata_describes_each_bigip_validator_rule() {

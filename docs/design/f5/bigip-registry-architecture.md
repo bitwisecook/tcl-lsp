@@ -72,6 +72,7 @@ slices, with `..BigipPropertySpec::DEFAULT` filling the unset fields:
 | `name` | Property identifier as it appears in tmsh. |
 | `value_type` | `ValueKind` — the collapsed value tag. |
 | `shape_kind` | A richer kind when `value_type` collapses the scalar (an `Enum` of `disabled`/`enabled` carrying `shape_kind: Boolean`). |
+| `address_grammar` | The TMSH address reader explicitly chosen for a property or for the keys of a structured list. |
 | `in_sections` | Parent sections this property may appear in; empty means unconstrained. |
 | `required` / `repeated` / `allow_none` | Create-time requirement, multiplicity, and whether the literal `none` clears the value. |
 | `enum_values`, `min_value`, `max_value`, `pattern` | The permitted value space. |
@@ -114,8 +115,9 @@ reconstructed object compares equal to the parsed one.
 - `Network` / `Cidr` (`network.rs`) — CIDR with the `default` keyword and
   dotted-quad netmask round-trip.
 - `Port` (`port.rs`), `PortSet` (`port_set.rs`) — single port and wildcards.
-- `Partition` (`partition.rs`), `Folder` / `ObjectPath` (`folder.rs`) —
-  path identity.
+- `BigIpName` (`object_names.rs`) owns authored object paths. `ObjectPath`
+  aliases it. `Partition` and `Folder` carry its scope, including `.app`
+  components. The separate iControl REST codec lives in `tcl-bigip-io`.
 - `RouteDomain` (`route_domain.rs`), `IPRange` (`ip_range.rs`), the
   address-classification predicates (`ip_class.rs`).
 - `BigipList` / `ListItem` / `ListItemValue` / `ListSyntax` /
@@ -124,8 +126,10 @@ reconstructed object compares equal to the parsed one.
 
 ### Compound (per-property)
 
-- `Destination` (`destination.rs`) — `ltm virtual` / pool-member
-  destination (`[partition/]address[%route-domain][.|:port]`).
+- `Endpoint` (`destination.rs`, also exported as `Destination`) owns the
+  host, service and explicit route domain. The TMSH virtual and HTTP
+  monitor readers apply separate acceptance rules to the same value.
+  `MemberKey` reads the member's node reference and service.
 - `MonitorExpression` / `MonitorMode` (`monitor_expression.rs`) —
   pool / node / GTM monitor expression (`default` / `none` / a single
   monitor / `M1 and M2` / `min N of { … }`), with per-monitor source spans.

@@ -69,18 +69,23 @@ impl BigIpName {
                 py_repr(text)
             )));
         };
-        if !leaf.chars().all(is_partition_valid_char) && IPAddress::try_parse(leaf).is_none() {
+        if !Self::valid_leaf(leaf) {
             return Err(ValueError(format!(
                 "BigIpName: invalid character in leaf {}",
                 py_repr(leaf)
+            )));
+        }
+        if folder_path.chars().any(char::is_whitespace) {
+            return Err(ValueError(format!(
+                "BigIpName: invalid folder in {}",
+                py_repr(text)
             )));
         }
         let folder = Folder::parse(folder_path)?;
         if folder.segments.iter().any(|part| {
             matches!(part.as_str(), "." | "..")
                 || part.as_bytes().first().is_some_and(u8::is_ascii_digit)
-        }) || matches!(leaf, "." | "..")
-        {
+        }) {
             return Err(ValueError(format!(
                 "BigIpName: invalid path component in {}",
                 py_repr(text)
@@ -90,6 +95,15 @@ impl BigIpName {
             folder,
             name: leaf.to_owned(),
         })
+    }
+
+    /// Whether a leaf can identify an authored object.
+    #[must_use]
+    pub fn valid_leaf(leaf: &str) -> bool {
+        !leaf.is_empty()
+            && leaf.trim() == leaf
+            && !matches!(leaf, "." | "..")
+            && (leaf.chars().all(is_partition_valid_char) || IPAddress::try_parse(leaf).is_some())
     }
 
     /// Like [`BigIpName::parse`] but returns `None` instead of erroring.
@@ -110,7 +124,10 @@ impl BigIpName {
             .segments
             .iter()
             .map(String::as_str)
-            .filter(|name| name.ends_with(".app"))
+            .filter(|name| {
+                name.rsplit_once('.')
+                    .is_some_and(|(_, suffix)| suffix == "app")
+            })
     }
 
     /// `true` when the object lives at the partition root (no folders).

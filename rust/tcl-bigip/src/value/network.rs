@@ -73,6 +73,8 @@ impl Cidr {
 pub struct Network {
     /// The canonical (host-bits-masked) network.
     pub network: Cidr,
+    /// Route-domain ID when the source explicitly supplies one.
+    pub route_domain: Option<u32>,
     /// Original textual spelling (or the literal keyword `default`).
     pub original: String,
 }
@@ -97,25 +99,22 @@ impl Network {
     /// Returns [`ValueError`] for malformed input or, when `strict`, for
     /// host bits set.
     pub fn parse_strict(text: &str, strict: bool) -> Result<Self, ValueError> {
-        // Strip an optional route-domain `%N` suffix. F5 tmsh writes
-        // route-domain-qualified networks as `<addr>%<rd>/<prefix>`
-        // (e.g. `10.1.1.1%1/24`) or `default%<rd>`. `Network` has no
-        // route-domain field, so — mirroring `IPAddress::parse`,
-        // `Destination`, and `pcap_enrich` — the suffix is stripped before
-        // parsing (and before the `default` keyword check, so `default%1`
-        // still reads as the default route).
-        let original = strip_route_domain(text.trim());
-        let mut work = original.clone();
+        let original = text.trim();
+        let address_end = original.find(['/', ' ']).unwrap_or(original.len());
+        let (host, route_domain) = super::RouteDomain::split_suffix(&original[..address_end])?;
+        let mut work = format!("{host}{}", &original[address_end..]);
         if work == "default" {
             return Ok(Self {
                 network: default_v4(),
-                original: "default".to_owned(),
+                route_domain,
+                original: original.to_owned(),
             });
         }
         if work == "default-inet6" {
             return Ok(Self {
                 network: default_v6(),
-                original: "default-inet6".to_owned(),
+                route_domain,
+                original: original.to_owned(),
             });
         }
         // Space-separated ``ADDR MASK`` form.
@@ -124,7 +123,11 @@ impl Network {
             work = format!("{}/{}", addr_part.trim(), mask_part.trim());
         }
         let network = parse_network(&work, strict)?;
-        Ok(Self { network, original })
+        Ok(Self {
+            network,
+            route_domain,
+            original: original.to_owned(),
+        })
     }
 
     /// Like [`Network::parse`] but returns `None` instead of erroring.
@@ -137,6 +140,53 @@ impl Network {
     #[must_use]
     pub fn try_parse_strict(text: &str, strict: bool) -> Option<Self> {
         Self::parse_strict(text, strict).ok()
+    }
+
+    /// IP host as authored, before applying the network mask.
+    #[must_use]
+    pub fn host_address(&self) -> Option<IPAddress> {
+        let end = self
+            .original
+            .find(['/', ' '])
+            .unwrap_or(self.original.len());
+        IPAddress::try_parse(&self.original[..end])
+    }
+
+    /// Canonical CIDR for an interface that carries the route domain separately.
+    #[must_use]
+    pub fn canonical_cidr(&self) -> String {
+        self.network.with_prefixlen()
+    }
+
+    /// Read a prefix or a contiguous netmask for an address family.
+    #[must_use]
+    pub fn prefix_from_mask(mask: &str, ipv6: bool) -> Option<u8> {
+        let mask = mask.trim();
+        if !ipv6 {
+            return parse_v4_prefix(mask);
+        }
+        if let Ok(prefix) = mask.parse::<u8>() {
+            return (prefix <= 128).then_some(prefix);
+        }
+        let bits = mask.parse::<Ipv6Addr>().ok()?.to_bits();
+        let prefix = bits.leading_ones();
+        let expected = if prefix == 0 {
+            0
+        } else {
+            u128::MAX << (128 - prefix)
+        };
+        (bits == expected).then_some(u8::try_from(prefix).ok()?)
+    }
+
+    /// Format the network with a new route domain before the prefix.
+    #[must_use]
+    pub fn with_route_domain(&self, domain: Option<&super::RouteDomain>) -> String {
+        let original = self.to_string();
+        let address_end = original.find(['/', ' ']).unwrap_or(original.len());
+        let address = &original[..address_end];
+        let host = super::RouteDomain::split_suffix(address).map_or(address, |(host, _)| host);
+        let suffix = domain.map_or_else(String::new, ToString::to_string);
+        format!("{host}{suffix}{}", &original[address_end..])
     }
 
     /// `true` when the network is IPv4.
@@ -160,7 +210,10 @@ impl Network {
     /// `true` when the original spelling was a `default` keyword.
     #[must_use]
     pub fn is_default(&self) -> bool {
-        self.original == "default" || self.original == "default-inet6"
+        matches!(
+            self.original.split('%').next(),
+            Some("default" | "default-inet6")
+        )
     }
 
     fn network_addr(&self) -> IpAddr {
@@ -275,14 +328,17 @@ impl Network {
     /// `true` when the given [`IPAddress`] is a member of this network.
     #[must_use]
     pub fn contains_ip(&self, ip: &IPAddress) -> bool {
-        self.contains_addr(ip.addr)
+        self.route_domain.unwrap_or(0) == ip.route_domain.unwrap_or(0)
+            && self.contains_addr(ip.addr)
     }
 
     /// `true` when `other` is a subnet of `self` (membership of both
     /// endpoints with a prefix at least as long).
     #[must_use]
     pub fn contains_network(&self, other: &Network) -> bool {
-        if self.is_ipv4() != other.is_ipv4() {
+        if self.is_ipv4() != other.is_ipv4()
+            || self.route_domain.unwrap_or(0) != other.route_domain.unwrap_or(0)
+        {
             return false;
         }
         if other.prefix_length() < self.prefix_length() {
@@ -299,28 +355,6 @@ impl fmt::Display for Network {
         }
         f.write_str(&self.network.with_prefixlen())
     }
-}
-
-/// Strip a route-domain `%N` suffix from a network's address portion.
-///
-/// The `%N` attaches to the address, ahead of any `/prefix` or
-/// space-separated netmask. Only a purely-numeric suffix is treated as a
-/// route domain; an IPv6 zone id such as `%eth0` is left intact for the IP
-/// parser to reject. Returns the input unchanged when there is no
-/// route-domain suffix.
-fn strip_route_domain(text: &str) -> String {
-    // Isolate the address from any `/prefix` or ` netmask` tail.
-    let (addr, rest) = match text.find(['/', ' ']) {
-        Some(i) => (&text[..i], &text[i..]),
-        None => (text, ""),
-    };
-    if let Some(idx) = addr.rfind('%') {
-        let rd = &addr[idx + 1..];
-        if !rd.is_empty() && rd.bytes().all(|b| b.is_ascii_digit()) {
-            return format!("{}{rest}", &addr[..idx]);
-        }
-    }
-    text.to_owned()
 }
 
 fn default_v4() -> Cidr {
@@ -392,11 +426,7 @@ fn parse_network(text: &str, strict: bool) -> Result<Cidr, ValueError> {
         IpAddr::V6(a) => {
             let prefix = match prefix_str {
                 None => 128u8,
-                Some(p) => p
-                    .parse::<u8>()
-                    .ok()
-                    .filter(|&n| n <= 128)
-                    .ok_or_else(reject)?,
+                Some(p) => Network::prefix_from_mask(p, true).ok_or_else(reject)?,
             };
             let bits = a.to_bits();
             let mask = if prefix == 0 {
@@ -514,12 +544,12 @@ mod tests {
 
     #[test]
     fn route_domain_qualified_cidr_parses() {
-        // `<addr>%<rd>/<prefix>` must parse (route domain stripped, no field
-        // to hold it) rather than silently failing.
+        // A route domain belongs to the network and survives rendering.
         let n = Network::parse("10.1.1.1%1/24").unwrap();
         assert!(n.is_ipv4());
         assert_eq!(n.prefix_length(), 24);
-        assert_eq!(n.to_string(), "10.1.1.1/24");
+        assert_eq!(n.route_domain, Some(1));
+        assert_eq!(n.to_string(), "10.1.1.1%1/24");
         assert_eq!(
             n.network,
             Cidr::V4 {
@@ -530,19 +560,22 @@ mod tests {
 
         let n = Network::parse("10.2.0.0%1/16").unwrap();
         assert_eq!(n.prefix_length(), 16);
-        assert_eq!(n.to_string(), "10.2.0.0/16");
+        assert_eq!(n.route_domain, Some(1));
+        assert_eq!(n.to_string(), "10.2.0.0%1/16");
 
         // IPv6 route domain.
         let n = Network::parse("2001:db8::%1/64").unwrap();
         assert!(n.is_ipv6());
-        assert_eq!(n.to_string(), "2001:db8::/64");
+        assert_eq!(n.route_domain, Some(1));
+        assert_eq!(n.to_string(), "2001:db8::%1/64");
     }
 
     #[test]
     fn route_domain_qualified_default_keeps_is_default() {
         let n = Network::parse("default%1").unwrap();
         assert!(n.is_default());
-        assert_eq!(n.to_string(), "default");
+        assert_eq!(n.route_domain, Some(1));
+        assert_eq!(n.to_string(), "default%1");
         assert_eq!(n.prefix_length(), 0);
     }
 

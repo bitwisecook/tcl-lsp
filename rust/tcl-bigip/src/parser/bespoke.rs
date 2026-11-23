@@ -71,8 +71,9 @@ use crate::model::{
 };
 use crate::range::Range;
 use crate::value::bigip_list::SourceSpan;
+use crate::value::grammar::{ConfigurationAddress, read_address_property};
 use crate::value::{
-    BigipList, FQDN, FirewallRule, IPAddress, ListItem, ListItemValue, ListSyntax, Network,
+    BigipList, FQDN, FirewallRule, ListItem, ListItemValue, ListSyntax, Network,
     PersistenceAttachment, ProfileAttachment, try_parse_address,
 };
 
@@ -600,15 +601,13 @@ fn parse_pool_members(braced: &str, base_offset: usize) -> Vec<BigipPoolMember> 
             parse_pool_member_body_with_spans(body_text, body_abs_offset)
         };
         let addr = props.get("address").cloned().unwrap_or_default();
-        let port = crate::value::MemberKey::try_parse(&name).map_or_else(
-            || {
-                props
-                    .get("port")
-                    .and_then(|value| crate::value::Port::try_parse_service(value))
-                    .map_or(0, |port| i64::from(port.port))
-            },
-            |key| i64::from(key.port.port),
-        );
+        let port = match read_address_property("ltm", "pool", "members", &name) {
+            Some(ConfigurationAddress::Member(key)) => i64::from(key.port.port),
+            _ => props
+                .get("port")
+                .and_then(|value| crate::value::Port::try_parse_service(value))
+                .map_or(0, |port| i64::from(port.port)),
+        };
         let addr_typed = if addr.is_empty() {
             None
         } else {
@@ -779,12 +778,14 @@ pub fn parse_virtual(
         }
     }
 
-    // destination.
-    let destination_raw = props.get("destination").cloned().unwrap_or_default();
-    obj.destination = if destination_raw.is_empty() {
-        None
-    } else {
-        crate::value::Destination::try_parse(&destination_raw)
+    obj.destination = match read_address_property(
+        "ltm",
+        "virtual",
+        "destination",
+        props.get("destination").map_or("", String::as_str),
+    ) {
+        Some(ConfigurationAddress::Destination(destination)) => Some(destination),
+        _ => None,
     };
 
     // rules / policies / vlans: braced space-separated.
@@ -906,11 +907,17 @@ pub fn parse_virtual_address(full_path: &str, body: &str, range: Range) -> Bigip
     let mut obj = parse_bigip_virtual_address(full_path, body, range);
     let known = property_names_for("ltm", "virtual-address");
     let props = split_compact_props(body, &known);
-    let addr_raw = props.get("address").cloned().unwrap_or_default();
-    obj.address = if addr_raw.is_empty() {
-        None
-    } else {
-        IPAddress::try_parse(&addr_raw)
+    obj.address = match read_address_property(
+        "ltm",
+        "virtual-address",
+        "address",
+        props.get("address").map_or("", String::as_str),
+    ) {
+        Some(ConfigurationAddress::Address(crate::value::Address::Ip(address))) => Some(address),
+        Some(ConfigurationAddress::Address(crate::value::Address::Wildcard(wildcard))) => {
+            wildcard.unspecified_ip()
+        }
+        _ => None,
     };
     // Compact-aware scalar overrides.
     obj.mask = props.get("mask").cloned().unwrap_or_default();
@@ -1432,20 +1439,24 @@ pub fn parse_net_route(full_path: &str, body: &str, range: Range) -> BigipNetRou
     let mut obj = parse_bigip_net_route(full_path, body, range);
     let known = property_names_for("net", "route");
     let props = split_compact_props(body, &known);
-    let network_raw = props.get("network").cloned().unwrap_or_default();
-    let gw_raw = props.get("gw").cloned().unwrap_or_default();
-    obj.network = if network_raw.is_empty() {
-        None
-    } else {
-        Network::try_parse(&network_raw)
+    obj.network = match read_address_property(
+        "net",
+        "route",
+        "network",
+        props.get("network").map_or("", String::as_str),
+    ) {
+        Some(ConfigurationAddress::Network(network)) => Some(network),
+        _ => None,
     };
-    // Derive the default-route flag from the parsed network so a
-    // route-domain-qualified `default%N` is still recognised.
     obj.is_default_route = obj.network.as_ref().is_some_and(Network::is_default);
-    obj.gw = if gw_raw.is_empty() {
-        None
-    } else {
-        IPAddress::try_parse(&gw_raw)
+    obj.gw = match read_address_property(
+        "net",
+        "route",
+        "gw",
+        props.get("gw").map_or("", String::as_str),
+    ) {
+        Some(ConfigurationAddress::Address(crate::value::Address::Ip(gateway))) => Some(gateway),
+        _ => None,
     };
     obj.pool = props.get("pool").cloned().unwrap_or_default();
     obj.mtu = props.get("mtu").cloned().unwrap_or_default();
@@ -1472,11 +1483,14 @@ pub fn parse_net_self(full_path: &str, body: &str, range: Range) -> BigipNetSelf
     }
     obj.allow_service = allow_service;
 
-    let address_raw = plain.get("address").cloned().unwrap_or_default();
-    obj.address = if address_raw.is_empty() {
-        None
-    } else {
-        Network::try_parse(&address_raw)
+    obj.address = match read_address_property(
+        "net",
+        "self",
+        "address",
+        plain.get("address").map_or("", String::as_str),
+    ) {
+        Some(ConfigurationAddress::Network(network)) => Some(network),
+        _ => None,
     };
     obj.vlan = plain.get("vlan").cloned().unwrap_or_default();
     obj.traffic_group = plain.get("traffic-group").cloned().unwrap_or_default();

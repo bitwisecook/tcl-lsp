@@ -342,26 +342,6 @@ fn build_apps(device: &Map<String, J>) -> J {
     J::Array(out)
 }
 
-/// Split a BIG-IP destination into `(address, port)`.
-fn split_dest(dest: &str) -> (String, String) {
-    if dest.is_empty() {
-        return (String::new(), String::new());
-    }
-    let leaf = dest.rsplit('/').next().unwrap_or(dest);
-    let colons = leaf.matches(':').count();
-    if colons >= 2 {
-        // IPv6: address holds the colons, port after a dot.
-        if let Some(idx) = leaf.rfind('.') {
-            return (leaf[..idx].to_string(), leaf[idx + 1..].to_string());
-        }
-        return (leaf.to_string(), String::new());
-    }
-    if let Some(idx) = leaf.rfind(':') {
-        return (leaf[..idx].to_string(), leaf[idx + 1..].to_string());
-    }
-    (leaf.to_string(), String::new())
-}
-
 /// A string array field, cleaned per element.
 fn clean_arr(m: &Map<String, J>, key: &str) -> Vec<J> {
     sarr(m, key)

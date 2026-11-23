@@ -1712,8 +1712,14 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
       return null;
     }
     function v6ToBig(ip) {
-      ip = ip.split("%")[0];
-      var halves = ip.split("::");
+      var address = ip.split("%")[0];
+      if (!/^[0-9a-f:.]+$/i.test(address)) return null;
+      try {
+        address = new URL("http://[" + address + "]/").hostname.slice(1, -1);
+      } catch {
+        return null;
+      }
+      var halves = address.split("::");
       if (halves.length > 2) return null;
       var head = halves[0] ? halves[0].split(":") : [];
       var groups;
@@ -1735,6 +1741,8 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
       return big;
     }
     function ipToBig(ip) {
+      if (!ip) return null;
+      ip = ip.split("%")[0];
       var v = ipVer(ip);
       if (v === 4) {
         var p = ip.split("%")[0].split(".").map(Number);
@@ -1747,13 +1755,13 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
       return null;
     }
     function inNet(ipBig, ver, netIp, prefix) {
-      if (ipBig == null) return true;
+      if (ipBig == null) return false;
       if (ipVer(netIp) !== ver) return false;
       var netBig = ipToBig(netIp);
-      if (netBig == null) return true;
+      if (netBig == null) return false;
       var bits = ver === 6 ? 128 : 32;
-      if (prefix <= 0) return true;
-      if (prefix > bits) prefix = bits;
+      if (!Number.isInteger(prefix) || prefix < 0 || prefix > bits) return false;
+      if (prefix === 0) return true;
       var mask = (1n << BigInt(prefix)) - 1n << BigInt(bits - prefix);
       return (ipBig & mask) === (netBig & mask);
     }
@@ -2271,18 +2279,29 @@ nat-map     -file nat.csv           ;# source,dest[,source_cidr,dest_cidr]
         var s = raw.trim();
         if (!s) return null;
         var rd = null, port = null;
-        var pm = /^(.*?):(\d+)$/.exec(s);
-        if (pm && pm[1].indexOf(".") >= 0) {
-          s = pm[1];
-          port = pm[2];
+        var bracketed = /^\[([^\]]+)\](?::(\d+))?$/.exec(s);
+        var ipv4Port = /^((?:\d+\.){3}\d+(?:%\d+)?):(\d+)$/.exec(s);
+        var endpoint = bracketed || ipv4Port;
+        if (endpoint) {
+          s = endpoint[1];
+          port = endpoint[2] || null;
         }
         var rm = /^([^%]*)%(\d+)(.*)$/.exec(s);
         if (rm) {
-          rd = parseInt(rm[2], 10);
+          rd = Number(rm[2]);
+          if (rd > 65534) return null;
           s = rm[1] + rm[3];
         }
         var net = toNet(s);
-        if (!net) return null;
+        if (!net && !endpoint && s.indexOf(":") >= 0) {
+          var dottedPort = /^(.*)\.(\d+)$/.exec(s);
+          if (dottedPort) {
+            s = dottedPort[1];
+            port = dottedPort[2];
+            net = toNet(s);
+          }
+        }
+        if (!net || port !== null && Number(port) > 65535) return null;
         return { net, rd, port, base: s.split("/")[0] };
       }
       function ipMatcher(raw) {

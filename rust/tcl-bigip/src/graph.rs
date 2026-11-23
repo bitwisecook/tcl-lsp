@@ -370,22 +370,19 @@ fn is_candidate_reference(token: &str) -> bool {
     !FALSEY_REF_TOKENS.contains(&clean.to_ascii_lowercase().as_str())
 }
 
-/// Normalise a reference token for `kind`: strips delimiters, and for
-/// node/virtual-address kinds drops a trailing `:port` suffix.
+/// Remove the service from a registry-selected address reference.
 pub(crate) fn normalise_reference_for_kind(kind: &str, token: &str) -> String {
     let reference = token.trim_matches(REF_STRIP);
-    if matches!(
-        kind,
-        "node" | "virtual_address" | "ltm_node" | "ltm_virtual_address"
-    ) {
-        crate::object_names::reference_without_numeric_service(
-            reference,
-            crate::object_names::EmptyServiceSuffix::Retain,
-        )
-        .to_owned()
-    } else {
-        reference.to_owned()
-    }
+    let host = match kind {
+        "node" | "ltm_node" => {
+            crate::value::MemberKey::try_parse(reference).map(|key| key.node.to_owned())
+        }
+        "virtual_address" | "ltm_virtual_address" => {
+            crate::value::Destination::tmsh_address_reference(reference)
+        }
+        _ => None,
+    };
+    host.unwrap_or_else(|| reference.to_owned())
 }
 
 /// Resolve a reference to a target node id: resolve the span, match a node by
@@ -1282,6 +1279,51 @@ mod tests {
                 && e.via_property.contains("rules")),
             "rule edge is attributed to the `rules` property"
         );
+    }
+
+    #[test]
+    fn address_fixture_links_literal_and_named_service_references() {
+        let source = include_str!(
+            "../../../docs/work/name-handling/handover/oo-dispatch-probe/bigip-addresses/addresses.conf"
+        );
+        let config = parse_bigip_conf(source, "Common");
+        let uri = "file:///addresses.conf".to_owned();
+        let graph = build_bigip_object_graph(
+            &[(uri.clone(), source.to_owned())],
+            &[(uri, &config)],
+            &GraphContext::new(),
+        );
+        let node_id = |identifier: &str| {
+            graph.nodes_by_uri[0]
+                .1
+                .iter()
+                .find(|node| node.identifier == identifier)
+                .unwrap_or_else(|| panic!("missing node {identifier}"))
+                .node_id
+                .as_str()
+        };
+        for (from, to) in [
+            ("/Common/p_v4", "/Common/10.0.0.1"),
+            ("/Common/p_v4", "/Common/10.0.0.1%2"),
+            ("/Common/app.app/app_pool", "/Common/app.app/app_node"),
+            ("/Common/vs_v4", "/Common/10.0.0.10"),
+            ("/Common/vs_any", "/Common/0.0.0.0"),
+            ("/Common/p_v6", "/Common/2001:db8::1"),
+            ("/Common/p_v6", "/Common/2001:db8::1%2"),
+            ("/Common/p_http", "/Common/10.0.0.1"),
+            ("/Common/vs_v6", "/Common/2001:db8::10"),
+            ("/Common/vs_rd", "/Common/10.0.0.10%2"),
+            ("/Common/vs_any6", "/Common/any6"),
+            ("/T1/p_rel", "/T1/node_t1"),
+        ] {
+            assert!(
+                graph
+                    .edges
+                    .iter()
+                    .any(|edge| edge.source_id == node_id(from) && edge.target_id == node_id(to)),
+                "missing {from} to {to}"
+            );
+        }
     }
 
     #[test]

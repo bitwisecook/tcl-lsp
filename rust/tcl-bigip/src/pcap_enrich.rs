@@ -36,6 +36,7 @@ use crate::parser::BigipConfig;
 use crate::parser::helpers::{extract_blocks, parse_list_block, parse_properties};
 use crate::pcap_remap::find_ip_offset;
 use crate::pcapng::{self, Endian};
+use crate::value::{Destination, IPAddress, MemberKey, Network, Port};
 
 /// Result stats reported back to the CLI after a successful enrichment.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -72,55 +73,18 @@ pub struct NameIndex {
     pub v6_subnets: Vec<(IpNetwork, String)>,
 }
 
-/// A canonicalised IP network (address + prefix length), with host bits
-/// cleared (non-strict).
+/// A named subnet with a canonical packet-filter spelling.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IpNetwork {
-    /// Network address (host bits zeroed).
-    network_addr: IpAddr,
-    /// Prefix length in bits.
-    prefix: u8,
-    /// Canonical `network/prefix` text.
+    network: Network,
     text: String,
 }
 
 impl IpNetwork {
-    /// Parse `addr/prefix` non-strictly (host bits are masked off).
-    fn parse(addr: &str, prefix: u8) -> Option<Self> {
-        let ip: IpAddr = addr.parse().ok()?;
-        let (network_addr, max) = match ip {
-            IpAddr::V4(v4) => {
-                if prefix > 32 {
-                    return None;
-                }
-                let bits = u32::from(v4);
-                let mask = if prefix == 0 {
-                    0
-                } else {
-                    u32::MAX << (32 - prefix)
-                };
-                (IpAddr::V4((bits & mask).into()), 32u8)
-            }
-            IpAddr::V6(v6) => {
-                if prefix > 128 {
-                    return None;
-                }
-                let bits = u128::from(v6);
-                let mask = if prefix == 0 {
-                    0
-                } else {
-                    u128::MAX << (128 - prefix)
-                };
-                (IpAddr::V6((bits & mask).into()), 128u8)
-            }
-        };
-        let _ = max;
-        let text = format!("{network_addr}/{prefix}");
-        Some(Self {
-            network_addr,
-            prefix,
-            text,
-        })
+    fn from_network(mut network: Network) -> Self {
+        let text = network.canonical_cidr();
+        network.original.clone_from(&text);
+        Self { network, text }
     }
 
     /// Canonical `network/prefix` text.
@@ -129,40 +93,28 @@ impl IpNetwork {
         &self.text
     }
 
-    /// True if `ip` falls inside this network.
-    fn contains(&self, ip: IpAddr) -> bool {
-        match (self.network_addr, ip) {
-            (IpAddr::V4(net), IpAddr::V4(addr)) => {
-                let mask = if self.prefix == 0 {
-                    0
-                } else {
-                    u32::MAX << (32 - self.prefix)
-                };
-                (u32::from(addr) & mask) == u32::from(net)
-            }
-            (IpAddr::V6(net), IpAddr::V6(addr)) => {
-                let mask = if self.prefix == 0 {
-                    0
-                } else {
-                    u128::MAX << (128 - self.prefix)
-                };
-                (u128::from(addr) & mask) == u128::from(net)
-            }
-            _ => false,
-        }
+    /// Route domain from the configuration, including an authored zero.
+    #[must_use]
+    pub fn route_domain(&self) -> Option<u32> {
+        self.network.route_domain
     }
 
-    /// True if this is an IPv4 network.
+    /// Display the canonical subnet with its configured route domain.
     #[must_use]
-    pub fn is_v4(&self) -> bool {
-        matches!(self.network_addr, IpAddr::V4(_))
+    pub fn configured_cidr(&self) -> String {
+        let domain = self.route_domain().map(crate::value::RouteDomain::new);
+        self.network.with_route_domain(domain.as_ref())
+    }
+
+    pub(crate) fn is_v4(&self) -> bool {
+        self.network.is_ipv4()
     }
 }
 
-/// Canonicalise an address to its standard compressed text form.
-fn canonical_ip(address: &str) -> Option<(IpAddr, String)> {
-    let ip: IpAddr = address.parse().ok()?;
-    Some((ip, ip.to_string()))
+/// Packet formats without a route-domain field can identify domain zero.
+pub(crate) fn wire_ip(address: &str) -> Option<IpAddr> {
+    let address = IPAddress::try_parse(address)?;
+    (address.route_domain.unwrap_or(0) == 0).then_some(address.addr)
 }
 
 impl NameIndex {
@@ -171,9 +123,10 @@ impl NameIndex {
         if address.is_empty() || name.is_empty() {
             return;
         }
-        let Some((ip, canon)) = canonical_ip(address) else {
+        let Some(ip) = IPAddress::try_parse(address) else {
             return;
         };
+        let canon = ip.to_string();
         let bucket = if ip.is_ipv4() {
             &mut self.v4
         } else {
@@ -227,7 +180,7 @@ impl NameIndex {
     /// Every label that applies to `address` (exact + subnet).
     #[must_use]
     pub fn lookup(&self, address: &str) -> Vec<String> {
-        let Some((ip, canon)) = canonical_ip(address) else {
+        let Some(ip) = IPAddress::try_parse(address) else {
             return Vec::new();
         };
         let (exact, subnets) = if ip.is_ipv4() {
@@ -235,12 +188,21 @@ impl NameIndex {
         } else {
             (&self.v6, &self.v6_subnets)
         };
-        let mut names: Vec<String> = exact
-            .iter()
-            .find(|(a, _)| *a == canon)
-            .map_or_default(|(_, n)| n.clone());
+        let mut names: Vec<String> = Vec::new();
+        for (address, labels) in exact {
+            if IPAddress::try_parse(address).is_some_and(|candidate| {
+                candidate.addr == ip.addr
+                    && candidate.route_domain.unwrap_or(0) == ip.route_domain.unwrap_or(0)
+            }) {
+                for label in labels {
+                    if !names.contains(label) {
+                        names.push(label.clone());
+                    }
+                }
+            }
+        }
         for (net, label) in subnets {
-            if net.contains(ip) && !names.iter().any(|n| n == label) {
+            if net.network.contains_ip(&ip) && !names.contains(label) {
                 names.push(label.clone());
             }
         }
@@ -294,38 +256,15 @@ pub fn label(purpose: &str, parts: &[&str]) -> String {
 /// Extract the address portion of a `[/Common/]ADDR[:port]` destination.
 #[must_use]
 pub fn split_destination(dest: &str) -> String {
-    if dest.is_empty() {
-        return String::new();
-    }
-    let base = dest.rsplit('/').next().unwrap_or(dest);
-    for sep in [':', '.'] {
-        // BIG-IP uses `.port` for IPv6 destinations, `:port` for IPv4.
-        if let Some(idx) = base.rfind(sep) {
-            let host = &base[..idx];
-            let port = &base[idx + sep.len_utf8()..];
-            if !host.is_empty() && resolve_port(port).is_some() && host.parse::<IpAddr>().is_ok() {
-                return host.to_owned();
-            }
-        }
-    }
-    if base.parse::<IpAddr>().is_ok() {
-        base.to_owned()
-    } else {
-        String::new()
-    }
+    Destination::try_parse(dest)
+        .and_then(|dest| dest.ip_address())
+        .map_or_else(String::new, |address| address.to_string())
 }
 
 /// Resolve a port token (decimal or BIG-IP service name).
 #[must_use]
 pub fn resolve_port(value: &str) -> Option<i64> {
-    if value.is_empty() {
-        return None;
-    }
-    if value.bytes().all(|b| b.is_ascii_digit()) {
-        let num: i64 = value.parse().ok()?;
-        return (0..=65535).contains(&num).then_some(num);
-    }
-    crate::model::port_names::name_to_port(&value.to_lowercase())
+    Port::try_parse_service(value).map(|service| i64::from(service.port))
 }
 
 // ── BigipConfig accessors ──
@@ -385,21 +324,12 @@ fn resolve_node_address(cfg: &BigipConfig, candidate: &str) -> Option<String> {
 
 /// Resolve a pool member's IP from its name, falling back to the node table.
 fn resolve_pool_member_address(member_name: &str, cfg: &BigipConfig) -> String {
-    let addr = split_destination(member_name);
-    if !addr.is_empty() {
-        return addr;
+    let node = MemberKey::try_parse(member_name).map_or(member_name, |key| key.node);
+    let leaf = node.rsplit('/').next().unwrap_or(node);
+    if let Some(address) = IPAddress::try_parse(leaf) {
+        return address.to_string();
     }
-    let base = member_name.rsplit('/').next().unwrap_or(member_name);
-    // Strip from the first ':' and then the first '.': split(":",1)[0].split(".",1)[0]
-    let short_no_port = {
-        let s = base.split_once(':').map_or(base, |(h, _)| h);
-        s.split_once('.').map_or(s, |(h, _)| h)
-    };
-    let full_no_port = {
-        let s = member_name.split_once(':').map_or(member_name, |(h, _)| h);
-        s.split_once('.').map_or(s, |(h, _)| h)
-    };
-    for candidate in [full_no_port, member_name, short_no_port] {
+    for candidate in [node, member_name, leaf] {
         if let Some(addr) = resolve_node_address(cfg, candidate) {
             return addr;
         }
@@ -480,25 +410,16 @@ pub(crate) fn extract_self_ips(source: &str) -> Vec<SelfIp> {
         if raw.is_empty() {
             continue;
         }
-        let (addr_part, cidr) = match raw.split_once('/') {
-            Some((a, c)) => (a, c),
-            None => (raw, ""),
-        };
-        let addr_no_rd = addr_part.split_once('%').map_or(addr_part, |(a, _)| a);
-        if addr_no_rd.parse::<IpAddr>().is_err() {
+        let Some(network) = Network::try_parse(raw) else {
             continue;
-        }
-        let network = if cidr.is_empty() {
-            None
-        } else {
-            cidr.parse::<u8>()
-                .ok()
-                .and_then(|p| IpNetwork::parse(addr_no_rd, p))
+        };
+        let Some(address) = network.host_address() else {
+            continue;
         };
         found.push(SelfIp {
             full_path,
-            address: addr_no_rd.to_owned(),
-            network,
+            address: address.to_string(),
+            network: raw.contains('/').then(|| IpNetwork::from_network(network)),
         });
     }
     found
@@ -690,11 +611,14 @@ pub fn build_name_index(cfg: &BigipConfig, source: Option<&str>) -> NameIndex {
         let ModelObject::VirtualServer(vs) = obj else {
             continue;
         };
-        let dest_text = vs.destination.as_ref().map_or_default(ToString::to_string);
-        let addr = split_destination(&dest_text);
-        if addr.is_empty() {
+        let Some(mut address) = cfg.virtual_destination_address(vs) else {
             continue;
+        };
+        let default_domain = cfg.default_route_domain_for(full_path);
+        if address.route_domain.is_none() && default_domain != 0 {
+            address.route_domain = Some(default_domain);
         }
+        let addr = address.to_string();
         index.add(&addr, &label("vs", &[full_path]));
         for rule_ref in vs.rules.paths() {
             let resolved = resolve_rule(cfg, &rule_ref).unwrap_or_else(|| rule_ref.clone());
@@ -887,20 +811,18 @@ fn build_packed_records(
         return (v4_packed, v6_packed);
     }
 
-    let mut v4: Vec<&(String, Vec<String>)> = index.v4.iter().collect();
-    v4.sort_by_key(|(a, _)| packed_v4(a));
-    for (addr, names) in v4 {
-        if !names.is_empty() {
-            v4_packed.push((packed_v4(addr), names.clone()));
+    for (address, labels) in &index.v4 {
+        if let Some(IpAddr::V4(ip)) = wire_ip(address) {
+            v4_packed.push((ip.octets(), labels.clone()));
         }
     }
-    let mut v6: Vec<&(String, Vec<String>)> = index.v6.iter().collect();
-    v6.sort_by_key(|(a, _)| packed_v6(a));
-    for (addr, names) in v6 {
-        if !names.is_empty() {
-            v6_packed.push((packed_v6(addr), names.clone()));
+    for (address, labels) in &index.v6 {
+        if let Some(IpAddr::V6(ip)) = wire_ip(address) {
+            v6_packed.push((ip.octets(), labels.clone()));
         }
     }
+    v4_packed.sort_by_key(|(address, _)| *address);
+    v6_packed.sort_by_key(|(address, _)| *address);
     (v4_packed, v6_packed)
 }
 
@@ -1000,6 +922,19 @@ mod tests {
     use crate::parser::parse_bigip_conf;
 
     #[test]
+    fn pcap_name_index_keeps_explicit_route_domains() {
+        let src = "net self /Common/self_rd { address 192.0.2.53%2/24 }";
+        let config = crate::parser::parse_bigip_conf(src, "Common");
+        let index = build_name_index(&config, Some(src));
+        assert!(index.lookup("192.0.2.53").is_empty());
+        assert_eq!(
+            index.lookup("192.0.2.53%2"),
+            ["self-common-self-rd", "net-common-self-rd"]
+        );
+        assert_eq!(index.lookup("192.0.2.58%2"), ["net-common-self-rd"]);
+    }
+
+    #[test]
     fn slug_normalises() {
         assert_eq!(slug("/Common/My_VS"), "common-my-vs");
         assert_eq!(slug("10.0.0.1"), "10-0-0-1");
@@ -1028,7 +963,7 @@ mod tests {
         idx.add("10.0.0.1", "vs-a");
         idx.add("10.0.0.1", "vs-a"); // dup, ignored
         idx.add("10.0.0.1", "irule-b");
-        let net = IpNetwork::parse("10.0.1.0", 24).unwrap();
+        let net = IpNetwork::from_network(Network::parse("10.0.1.0/24").unwrap());
         idx.add_subnet(net, "net-x");
         assert_eq!(idx.lookup("10.0.0.1"), vec!["vs-a", "irule-b"]);
         assert_eq!(idx.lookup("10.0.1.99"), vec!["net-x"]);

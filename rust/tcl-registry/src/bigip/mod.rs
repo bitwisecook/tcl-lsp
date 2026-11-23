@@ -120,6 +120,23 @@ impl ValueKind {
     }
 }
 
+/// Address syntax admitted by an authored BIG-IP configuration property.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum AddressGrammar {
+    /// Literal address with an optional route domain.
+    Address,
+    /// Literal or wildcard address.
+    AddressOrWildcard,
+    /// Address and prefix, or a default route.
+    Network,
+    /// Virtual-address reference and service.
+    Destination,
+    /// Pool member keys of node references and services.
+    MemberKey,
+    /// HTTP monitor alias or endpoint.
+    MonitorDestination,
+}
+
 /// Resolution metadata for one BIG-IP object kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BigipObjectKindSpec {
@@ -165,6 +182,8 @@ pub struct BigipPropertySpec {
     /// Richer shape kind when `value_type` collapses the scalar.
     /// `None` when unset.
     pub shape_kind: Option<ValueKind>,
+    /// Reader for an address-bearing scalar or keyed block.
+    pub address_grammar: Option<AddressGrammar>,
     /// Documented default value.
     pub default: Option<&'static str>,
     /// Lifecycle flags (`deprecated`, `read_only`, `not_synced`, …).
@@ -223,6 +242,7 @@ impl BigipPropertySpec {
         references: &[],
         description: "",
         shape_kind: None,
+        address_grammar: None,
         default: None,
         usage_flags: &[],
         list_operators: &[],
@@ -323,6 +343,21 @@ impl BigipRegistry {
         self.by_header
             .get(&(module, object_type))
             .map(|&i| self.specs[i])
+    }
+
+    /// Return the explicitly chosen grammar for a top-level TMSH property.
+    #[must_use]
+    pub fn address_grammar(
+        &self,
+        module: &str,
+        object_type: &str,
+        property: &str,
+    ) -> Option<AddressGrammar> {
+        self.get_by_header(module, object_type)?
+            .properties
+            .iter()
+            .find(|spec| spec.name == property)?
+            .address_grammar
     }
 
     /// All registered kind names, sorted.
