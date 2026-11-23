@@ -143,7 +143,7 @@ const RATCHET: &[(&str, usize)] = &[
     ("rust/tcl-bigip/src/value/port.rs", 1),
     ("rust/tcl-bigip/src/value/port_set.rs", 1),
     ("rust/tcl-bigip/src/value/snat_mode.rs", 4),
-    ("rust/tcl-bigip/src/wireshark_profile.rs", 7),
+    ("rust/tcl-bigip/src/wireshark_profile.rs", 6),
     ("rust/tcl-cli/src/commands/diff.rs", 1),
     ("rust/tcl-cli/src/commands/graphs.rs", 1),
     ("rust/tcl-cli/src/commands/help.rs", 1),
@@ -155,7 +155,6 @@ const RATCHET: &[(&str, usize)] = &[
     ("rust/tcl-compiler/src/analyser/bounds_checks.rs", 19),
     ("rust/tcl-compiler/src/analyser/class_lattice.rs", 1),
     ("rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs", 6),
-    ("rust/tcl-compiler/src/analyser/diagnostics/usage.rs", 1),
     ("rust/tcl-compiler/src/analyser/diagnostics/validity.rs", 10),
     (
         "rust/tcl-compiler/src/analyser/diagnostics/var_command.rs",

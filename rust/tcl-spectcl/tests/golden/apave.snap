@@ -15,6 +15,6 @@ notice command ::apave::APaveBase / object_class ::apave::APaveBase / method Win
 notice command ::apave::APaveBase / object_class ::apave::APaveBase / method Window 196 presentation unknown flag `-repeats` on `arg` dropped
 notice command ::apave::APaveBase / object_class ::apave::APaveBase / method Window 196 presentation unknown flag `row {…` on `arg` dropped
 commands 3
-command ::apave::ObjectProperty line 31 overrides false degraded false spec 090a0dd3af0a0658 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
-command ::apave::APaveDialog line 95 overrides false degraded false spec e54cf25c49714db3 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
-command ::apave::APaveBase line 154 overrides false degraded false spec e4beec70b422506a hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command ::apave::ObjectProperty line 31 overrides false degraded false spec aec4abb194df1a07 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command ::apave::APaveDialog line 95 overrides false degraded false spec fcbe24976e1d44c5 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command ::apave::APaveBase line 154 overrides false degraded false spec 108d79120deb5871 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9

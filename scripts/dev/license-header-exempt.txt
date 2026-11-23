@@ -3,3 +3,6 @@
 # One repo-relative path per line; `#` starts a comment.
 rust/tcl-syntax/src/native_glob_case_mapping.rs  # carries the Tcl licence of its source tables
 rust/tcl-syntax/src/native_glob_fixtures.rs  # measured C Tcl/Jim results (fixture data)
+
+# Closed-evidence table generated from the Tcl evidence fixtures.
+rust/tcl-registry/src/commands/closed_evidence/table.rs

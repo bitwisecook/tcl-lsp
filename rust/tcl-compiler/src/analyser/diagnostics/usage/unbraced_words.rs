@@ -99,6 +99,7 @@ impl Analyser {
         // A whole script-valued reference, or a Tk +[list ...] prefix,
         // already supplies the script value the receiver will execute.
         let separates =
+            // segmentation-drift-ok: tests an already segmented literal prefix of one word.
             |byte| word.config().word_separators.is_separator(byte) || matches!(byte, b'\n' | b';');
         match parts {
             [only]

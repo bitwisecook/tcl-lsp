@@ -8,6 +8,7 @@ rust/tcl-cshim/src/lib.rs	tcl-cshim	lib	tcl_cshim
 rust/tcl-cshim/tests/it_5/factory.rs	tcl-cshim	test	it_5
 rust/tcl-cshim/tests/pkga_e2e.rs	tcl-cshim	test	pkga_e2e
 rust/tcl-cshim/tests/it_5/sandbox_isolation.rs	tcl-cshim	test	it_5
+rust/tcl-expr/src/expr/parser.rs	tcl-expr	lib	tcl_expr
 rust/tcl-irule-test/src/embedded.rs	tcl-irule-test	lib	tcl_irule_test
 rust/tcl-lexer/src/lexer/tests.rs	tcl-lexer	lib	tcl_lexer
 rust/tcl-lsp-core/src/hover/tests.rs	tcl-lsp-core	lib	tcl_lsp_core
@@ -23,5 +24,4 @@ rust/tcl-lsp-server/tests/smoke/inlay_hint_smoke.rs	tcl-lsp-server	test	smoke
 rust/tcl-lsp-server/tests/smoke/signature_help_smoke.rs	tcl-lsp-server	test	smoke
 rust/tcl-registry/src/registry/tests/lookup.rs	tcl-registry	lib	tcl_registry
 rust/tcl-runtime-api/src/guard.rs	tcl-runtime-api	lib	tcl_runtime_api
-rust/tcl-syntax/src/expr/parser.rs	tcl-syntax	lib	tcl_syntax
 rust/tcl-vm/src/interp/family_b_tests.rs	tcl-vm	lib	tcl_vm

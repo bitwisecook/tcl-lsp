@@ -976,6 +976,7 @@ fn reference_supplied_by_property(
                         "fqdn" => parse_properties_with_spans(field.value.trim_matches(['{', '}']))
                             .into_iter()
                             .any(|(name, field)| {
+                                // registry-axis-ok: irreducible — the name key in the member FQDN block; until never
                                 name == "name" && FQDN::try_parse(&field.value).is_some()
                             }),
                         _ => false,
@@ -1002,6 +1003,7 @@ fn check_measured_address_syntax(
     let mut valid = true;
     let mut check = |field: &tcl_registry::bigip::BigipPropertySpec, path: &[&str], value: &str| {
         let value = crate::parser::helpers::unquote(value);
+        // registry-axis-ok: irreducible — the literal sentinel admitted by BigipPropertySpec::allow_none; until never
         if !field.address_validation.checks_syntax() || (field.allow_none && value == "none") {
             return;
         }

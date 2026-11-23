@@ -1159,7 +1159,7 @@ Commands and subcommands that declare no semantics, write no variable, and decla
 | cadence-eda-tcl | 1208 |
 | expect | 2555 |
 | f5-iapps | 1034 |
-| f5-irules | 1071 |
+| f5-irules | 1073 |
 | f5-tmsh | 1015 |
 | intel-quartus-eda-tcl | 2587 |
 | mentor-eda-tcl | 2852 |

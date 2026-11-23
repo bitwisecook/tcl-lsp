@@ -14,7 +14,7 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | definition_body | 15 |
 | options | 19 |
 | special_vars | 2 |
-| irreducible | 47 |
+| irreducible | 51 |
 
 | Axis | Until | File | Sites | Waiver | Reason |
 |---|---|---|---|---|---|
@@ -34,6 +34,9 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | definition_body | the definition-body grammar exposes relation kinds | `rust/tcl-compiler/src/analyser/original_members.rs` | 2 | site | class-definition relation keywords |
 | definition_body | the snit definition grammar marks callable members | `rust/tcl-compiler/src/command_binding/snit_definition.rs` | 1 | site | snit member keywords that define a callable |
 | irreducible | never | `rust/tcl-bigip/src/f5_trailer.rs` | 1 | site | the keys of the data schema's `ip_fields` table, not a Tcl command word: `offset` coincides with `grapheme`'s subcommand by spelling only |
+| irreducible | never | `rust/tcl-bigip/src/validator.rs` | 1 | site | the literal sentinel admitted by BigipPropertySpec::allow_none |
+| irreducible | never | `rust/tcl-bigip/src/validator.rs` | 1 | site | the name key in the member FQDN block |
+| irreducible | never | `rust/tcl-bigip/src/value/address.rs` | 2 | site | wildcard spellings belong to this address-value grammar |
 | irreducible | never | `rust/tcl-codegen/src/codegen/native_namespace_upvar_tests.rs` | 1 | site | a test asserting which registry compiler was selected |
 | irreducible | never | `rust/tcl-compiler/src/analyser/handlers/definition_warnings.rs` | 1 | site | the variadic `args` formal is Tcl's proc grammar (`VAR_IS_ARGS` on the last formal, `tclProc.c`), no registry fact |
 | irreducible | never | `rust/tcl-compiler/src/analyser/recovery.rs` | 1 | site | this whole function is a switch-specific parser-repair heuristic (splicing orphaned pattern/body segments into a switch's argv when the source is missing its opening brace); no registry fact picks which command's *malformed* source this repair applies to more abstractly than its own name, and every other command's malformed source is left unrepaired |
@@ -110,7 +113,7 @@ Every other scanned file with an unwaived site, and its count, which is the pin 
 | `rust/tcl-bigip/src/value/port.rs` | 1 |
 | `rust/tcl-bigip/src/value/port_set.rs` | 1 |
 | `rust/tcl-bigip/src/value/snat_mode.rs` | 4 |
-| `rust/tcl-bigip/src/wireshark_profile.rs` | 7 |
+| `rust/tcl-bigip/src/wireshark_profile.rs` | 6 |
 | `rust/tcl-cli/src/commands/diff.rs` | 1 |
 | `rust/tcl-cli/src/commands/graphs.rs` | 1 |
 | `rust/tcl-cli/src/commands/help.rs` | 1 |

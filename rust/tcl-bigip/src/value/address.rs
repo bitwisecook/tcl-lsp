@@ -284,6 +284,7 @@ impl WildcardAddress {
     /// Recognise a literal wildcard in an address grammar that permits it.
     #[must_use]
     pub fn try_parse(text: &str) -> Option<Self> {
+        // registry-axis-ok: irreducible — wildcard spellings belong to this address-value grammar; until never
         match text {
             "any" => Some(Self::Any),
             "any6" => Some(Self::Any6),
