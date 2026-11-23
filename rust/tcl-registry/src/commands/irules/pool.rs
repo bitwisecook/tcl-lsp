@@ -30,7 +30,10 @@ pub const fn spec() -> CommandSpec {
         arity: Arity::new(1, 4),
         hover: Some(HoverSnippet {
             summary: "Select a load-balancing pool for the current flow.",
-            synopsis: &["pool <pool_name> [member <addr> [<port>]]"],
+            synopsis: &[
+                "pool <pool_name> [member <addr> [<port>]]",
+                "pool <pool_name> member <addr>:<port>",
+            ],
             snippet: "Can direct traffic to a pool, optionally pinning to a specific member.",
             source: "https://clouddocs.f5.com/api/irules/pool.html",
             examples: "",
@@ -44,10 +47,16 @@ pub const fn spec() -> CommandSpec {
             also_in: &[],
             flow: false,
         }),
-        forms: &[FormSpec {
-            synopsis: "pool <pool_name> [member <addr> [<port>]]",
-            ..FormSpec::DEFAULT
-        }],
+        forms: &[
+            FormSpec {
+                synopsis: "pool <pool_name> [member <addr> [<port>]]",
+                ..FormSpec::DEFAULT
+            },
+            FormSpec {
+                synopsis: "pool <pool_name> member <addr>:<port>",
+                ..FormSpec::DEFAULT
+            },
+        ],
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::PoolSelection,
             writes: true,

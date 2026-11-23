@@ -72,6 +72,8 @@ Each body was the only command in `when CLIENT_ACCEPTED` in a standalone
 | `IP::addr` | `2001:db8::53%0 equals 2001:db8::/64` |
 | `node` | `192.0.2.53:80`, `192.0.2.53%0 80`, `2001:db8::53%0 80` |
 
-An equivalent runtime verdict still needs an attached iRule and a TMM flow.
+An attached `HTTP_REQUEST` probe measured IPv4 and IPv6 `IP::addr`
+comparisons in TMM, including explicit and omitted route domains.
+[Runtime evidence](../tcl/bigip-ip-addr-route-domains.md)
 AFM and GTM were outside the provisioned module set. The only populated boot
 slot contained 21.1.0.1, so 17.5, 17.1 and the legacy releases remain open.

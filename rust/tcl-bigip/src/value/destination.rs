@@ -300,6 +300,22 @@ impl Endpoint {
         }
     }
 
+    /// Read an iRule command's literal IP operand and its optional service word.
+    #[must_use]
+    pub fn try_parse_irule(address: &str, service: Option<&str>) -> Option<Self> {
+        let mut endpoint = Self::try_parse(address)?;
+        if endpoint.folder.is_some() || !matches!(endpoint.address, Address::Ip(_)) {
+            return None;
+        }
+        if let Some(service) = service {
+            if !endpoint.port.spelling.is_empty() {
+                return None;
+            }
+            endpoint.port = Port::try_parse_service(service)?;
+        }
+        Some(endpoint)
+    }
+
     /// The literal IP destination, including its route domain when present.
     #[must_use]
     pub fn ip_address(&self) -> Option<IPAddress> {

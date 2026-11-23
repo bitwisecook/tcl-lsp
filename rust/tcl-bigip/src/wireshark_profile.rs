@@ -758,28 +758,36 @@ fn ethers_from_arp(source: &str) -> Vec<(String, String)> {
 
 // iRule / policy port regex ports
 
-/// `\b(?:node|connect)\s+\S+\s+(\d{1,5})\b | \bpool\s+\S+\s+member\s+\S+\s+(\d{1,5})\b`.
 fn irule_host_port(body: &str) -> Vec<i64> {
-    let mut out = Vec::new();
-    let toks: Vec<&str> = body.split_whitespace().collect();
-    let mut i = 0;
-    while i < toks.len() {
-        if matches!(toks[i], "node" | "connect")
-            && i + 2 < toks.len()
-            && let Some(p) = parse_trailing_digits(toks[i + 2])
-        {
-            out.push(p);
+    use tcl_registry::hover::IntegerDomain;
+    use tcl_registry::model::ingress::static_context_for;
+
+    let registry = static_context_for("f5-irules").commands();
+    let mut ports = Vec::new();
+    for call in tcl_irules::irules_executable_commands(body, registry) {
+        let Some(spec) = registry.get(&call.command) else {
+            continue;
+        };
+        for &(port_slot, domain) in spec.arg_domains {
+            if domain != IntegerDomain::Port {
+                continue;
+            }
+            let service = call.args.get(usize::from(port_slot)).map(String::as_str);
+            let Some(address_slot) = port_slot.checked_sub(1) else {
+                continue;
+            };
+            let Some(address) = call.args.get(usize::from(address_slot)) else {
+                continue;
+            };
+            if let Some(port) = Destination::try_parse_irule(address, service)
+                .as_ref()
+                .and_then(destination_port)
+            {
+                ports.push(port);
+            }
         }
-        if toks[i] == "pool"
-            && i + 4 < toks.len()
-            && toks[i + 2] == "member"
-            && let Some(p) = parse_trailing_digits(toks[i + 4])
-        {
-            out.push(p);
-        }
-        i += 1;
     }
-    out
+    ports
 }
 
 /// `://[^/"\s]+:(\d{1,5})\b`.
@@ -1089,6 +1097,18 @@ pub fn build_wireshark_profile(configs_with_sources: &[(BigipConfig, String)]) -
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn irule_services_read_literal_endpoints_with_route_domains() {
+        let rule = r"
+            when CLIENT_ACCEPTED {
+                node 192.0.2.53:80
+                pool /Common/probe member 2001:db8::53%2 443
+                snat 192.0.2.54%2 8080
+            }
+        ";
+        assert_eq!(irule_host_port(rule), [80, 443, 8080]);
+    }
 
     #[test]
     fn wireshark_filter_keeps_address_and_route_domain_on_the_same_peer() {

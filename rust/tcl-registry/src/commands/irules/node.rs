@@ -27,7 +27,7 @@ pub const fn spec() -> CommandSpec {
         arity: Arity::new(1, 2),
         hover: Some(HoverSnippet {
             summary: "Route traffic directly to a specific node.",
-            synopsis: &["node ip_addr ?service_port?"],
+            synopsis: &["node ip_addr ?service_port?", "node ip_addr:service_port"],
             snippet: "Bypasses pool selection and targets an explicit backend endpoint.",
             source: "https://clouddocs.f5.com/api/irules/node.html",
             examples: "",
@@ -41,10 +41,16 @@ pub const fn spec() -> CommandSpec {
             also_in: &["PERSIST_DOWN"],
             flow: false,
         }),
-        forms: &[FormSpec {
-            synopsis: "node ip_addr ?service_port?",
-            ..FormSpec::DEFAULT
-        }],
+        forms: &[
+            FormSpec {
+                synopsis: "node ip_addr ?service_port?",
+                ..FormSpec::DEFAULT
+            },
+            FormSpec {
+                synopsis: "node ip_addr:service_port",
+                ..FormSpec::DEFAULT
+            },
+        ],
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::NodeSelection,
             writes: true,

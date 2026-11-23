@@ -86,13 +86,16 @@ suite("iRule Event Skeleton", () => {
       "CLIENTSSL_CLIENTHELLO",
     ]);
     const order = [...source.matchAll(/^when (\w+)/gm)].map((match) => match[1]);
-    assert.deepStrictEqual(order.filter((event) => event.includes("SSL_")), [
-      "CLIENTSSL_CLIENTHELLO",
-      "CLIENTSSL_HANDSHAKE",
-      "SERVERSSL_CLIENTHELLO_SEND",
-      "SERVERSSL_SERVERHELLO",
-      "SERVERSSL_HANDSHAKE",
-    ]);
+    assert.deepStrictEqual(
+      order.filter((event) => event.includes("SSL_")),
+      [
+        "CLIENTSSL_CLIENTHELLO",
+        "CLIENTSSL_HANDSHAKE",
+        "SERVERSSL_CLIENTHELLO_SEND",
+        "SERVERSSL_SERVERHELLO",
+        "SERVERSSL_HANDSHAKE",
+      ],
+    );
   });
 
   test("returns empty string for empty event selection", () => {
