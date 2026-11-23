@@ -16,7 +16,7 @@ No BIG-IP runtime was available in the analysis container. The command-definitio
 
 ### Coverage of the answer
 
-Answered in full: the oracle per question kind (TMSH verify for grammar and attachment, the iRule compiler for syntax and diagnostics, TMM traffic for values, effects and delivery), the role of `fakeCMP`, clouddocs and customer configurations, the releases to pin (17.1.x, 17.5.x, 21.1.x live; 15.1.x and 16.1.x historical) and the fields recorded per row. Only 21.1.0.1 build 0.0.26 has been measured so far.
+Answered in full: the oracle per question kind (TMSH verify for grammar and attachment, the iRule compiler for syntax and diagnostics, TMM traffic for values, effects and delivery), the role of `fakeCMP`, clouddocs and customer configurations, the releases to pin (17.1.x, 17.5.x, 21.1.x live; 15.1.x and 16.1.x historical) and the fields recorded per row, plus the separately extracted checker as an offline compile oracle kept outside the repository. Only 21.1.0.1 build 0.0.26 has been measured live so far.
 
 ### Answer
 
@@ -100,7 +100,7 @@ The command-definition harness found Tcl and Tk definition errors only because r
 
 ### Coverage of the answer
 
-Answered as a method (versioned rows per command and form; presence, compile and TMM checks; distinct disabled, deprecated, removed and unmeasured states) with a first sample: `exec` and `open` disabled, `clock seconds` accepted, deprecated `matchclass` still working, and two `HTTP::header` forms that the analyser's subcommand model would misread (an unknown first word and an extra argument both write a header). The audit of the 1,018 specs has not been run.
+Answered as a method (versioned rows per command and form; presence, compile and TMM checks; distinct disabled, deprecated, removed and unmeasured states; vendor sources and raw tables kept in private storage, with only independently authored rows, tests and minimal probes in the project) with a first sample: `exec` and `open` disabled, `clock seconds` accepted, deprecated `matchclass` still working, and two `HTTP::header` forms that the analyser's subcommand model would misread (an unknown first word and an extra argument both write a header). The audit of the 1,018 specs has not been run.
 
 ### Answer
 

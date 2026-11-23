@@ -16,7 +16,7 @@ The [registry review](../registry-review.md) (plan items 117–119) found about 
 
 ### Coverage of the answer
 
-Answered per artifact: origin commits and pull requests, the two recovered generators (`gen_bigip_model_rust.py`, `gen_profile_defaults.py`), and a recovery decision for each. Still unrecovered: the base-object extractor and its file manifest, the reference-edge emitter, the event-property and profile-table emitters, and the exact schema release of `event_facts/generated.rs`.
+Answered per artifact: origin commits and pull requests, the two recovered generators (`gen_bigip_model_rust.py`, `gen_profile_defaults.py`), and a recovery decision for each. Private 21.0.0.1 research material supplies version-labelled observations but not the tables' ancestry, and stays outside the project. Still unrecovered: the base-object extractor and its file manifest, the reference-edge emitter, the event-property and profile-table emitters, and the exact schema release of `event_facts/generated.rs`.
 
 ### Answer
 
