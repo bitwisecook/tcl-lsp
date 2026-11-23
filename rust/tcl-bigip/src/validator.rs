@@ -919,6 +919,31 @@ fn reference_supplied_by_property(
     }
 }
 
+fn check_address_route_domain(
+    object: &crate::model::BigipGenericObject,
+    property: &str,
+    value: &str,
+    route_domains: &HashSet<u32>,
+    out: &mut Vec<ConfigDiagnostic>,
+) {
+    let Some(domain) = read_address_property(&object.module, &object.object_type, property, value)
+        .and_then(|value| value.route_domain())
+        .filter(|domain| *domain != 0 && !route_domains.contains(domain))
+    else {
+        return;
+    };
+    out.push(ConfigDiagnostic {
+        code: DiagCode::Bigip6013.as_str().to_owned(),
+        message: format!(
+            "{} '{}' uses route domain {domain} in property '{property}', but it could not be resolved in the supplied configuration.",
+            object.object_type, object.identifier
+        ),
+        severity: DiagSeverity::Warning,
+        subject: ConfigDiagnosticSubject::Object,
+        range: object_range(object.range),
+    });
+}
+
 /// BIGIP6013: validate every static registry-declared outbound edge that is
 /// not already owned by a specialised BIGIP6001–6012 check. This intentionally
 /// consumes `REFERENCE_EDGES` rather than a hand-maintained object-name table.
@@ -934,8 +959,26 @@ fn check_registry_references(config: &BigipConfig, out: &mut Vec<ConfigDiagnosti
         })
         .collect();
 
+    let route_domains = config
+        .objects
+        .iter()
+        .filter_map(|placed| {
+            let crate::model::ModelObject::NetRouteDomain(domain) = &placed.object else {
+                return None;
+            };
+            u32::try_from(domain.id).ok()
+        })
+        .collect::<HashSet<_>>();
+
     for (object, from_kind) in &objects {
         for (property, parsed) in parse_properties_with_spans(&object.body) {
+            if let Some(field) = registry
+                .get(from_kind)
+                .and_then(|spec| spec.properties.iter().find(|field| field.name == property))
+                .filter(|field| field.requires_route_domain)
+            {
+                check_address_route_domain(object, field.name, &parsed.value, &route_domains, out);
+            }
             // BIGIP6003 and BIGIP6005 already own these two virtual-server
             // links. All other registry edges, including monitors, members,
             // profile attachments, policies and tenant-local objects, converge
@@ -1218,6 +1261,10 @@ mod tests {
             .into_iter()
             .filter(|diagnostic| matches!(diagnostic.code.as_str(), "BIGIP6011" | "BIGIP6013"))
             .collect();
+        let (route_domains, diagnostics): (Vec<_>, Vec<_>) = diagnostics
+            .into_iter()
+            .partition(|diagnostic| diagnostic.message.contains("uses route domain 2"));
+        assert_eq!(route_domains.len(), 7, "{route_domains:#?}");
         assert_eq!(diagnostics.len(), 3, "{diagnostics:#?}");
         assert!(
             diagnostics.iter().all(|diagnostic| {
@@ -1228,6 +1275,27 @@ mod tests {
             }),
             "{diagnostics:#?}"
         );
+    }
+
+    #[test]
+    fn route_domain_requirements_are_selected_by_registry_property() {
+        let source = r"
+ltm node /Common/missing { address 192.0.2.1%65432 }
+ltm node /Common/explicit_zero { address 192.0.2.2%0 }
+ltm node /Common/defined { address 192.0.2.3%11 }
+ltm monitor tcp /Common/missing { destination 192.0.2.1%65432:80 }
+ltm monitor https /Common/defined { destination 2001:db8::53%11:80 }
+ltm data-group internal /Common/ip { type ip records { 192.0.2.1%65432 { } } }
+net route-domain /Common/example { id 11 }
+";
+        let diagnostics: Vec<_> = validate_bigip_source(source, "Common")
+            .into_iter()
+            .filter(|diagnostic| diagnostic.message.contains("uses route domain"))
+            .collect();
+        assert_eq!(diagnostics.len(), 2, "{diagnostics:#?}");
+        assert!(diagnostics.iter().all(|diagnostic| {
+            diagnostic.code == "BIGIP6013" && diagnostic.message.contains("65432")
+        }));
     }
 
     #[test]

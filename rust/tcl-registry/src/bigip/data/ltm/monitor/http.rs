@@ -83,6 +83,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             value_type: ValueKind::String,
             shape_kind: Some(ValueKind::Endpoint),
             default: Some("*:*"),
+            requires_route_domain: true,
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {

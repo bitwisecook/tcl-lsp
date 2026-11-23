@@ -30,6 +30,19 @@ pub(crate) enum ConfigurationAddress<'a> {
     Member(MemberKey<'a>),
 }
 
+impl ConfigurationAddress<'_> {
+    pub(crate) fn route_domain(&self) -> Option<u32> {
+        match self {
+            Self::Address(Address::Ip(address)) => address.route_domain,
+            Self::Network(network) => network.route_domain,
+            Self::Destination(destination) => {
+                destination.route_domain.as_ref().map(|domain| domain.id)
+            }
+            _ => None,
+        }
+    }
+}
+
 pub(crate) fn read_address_property<'a>(
     module: &str,
     object_type: &str,

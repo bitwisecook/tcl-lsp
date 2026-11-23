@@ -105,6 +105,8 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             value_type: ValueKind::String,
             shape_kind: Some(ValueKind::Endpoint),
             default: Some("*:*"),
+            address_grammar: Some(crate::bigip::AddressGrammar::MonitorDestination),
+            requires_route_domain: true,
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {

@@ -111,6 +111,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             value_type: ValueKind::Reference,
             references: &["ltm_virtual_address"],
             default: Some("any:any"),
+            requires_route_domain: true,
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {

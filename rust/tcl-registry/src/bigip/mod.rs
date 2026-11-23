@@ -184,6 +184,8 @@ pub struct BigipPropertySpec {
     pub shape_kind: Option<ValueKind>,
     /// Reader for an address-bearing scalar or keyed block.
     pub address_grammar: Option<AddressGrammar>,
+    /// An explicit nonzero route domain must be defined by the configuration.
+    pub requires_route_domain: bool,
     /// Documented default value.
     pub default: Option<&'static str>,
     /// Lifecycle flags (`deprecated`, `read_only`, `not_synced`, …).
@@ -243,6 +245,7 @@ impl BigipPropertySpec {
         description: "",
         shape_kind: None,
         address_grammar: None,
+        requires_route_domain: false,
         default: None,
         usage_flags: &[],
         list_operators: &[],
