@@ -1,0 +1,18 @@
+# Analyser answers for exec-pipes/ through the tcl-lsp MCP tools (cached build, may lag HEAD
+# afe2f2d8). Dialect tcl9.0 unless stated. Every fixture is a correct program.
+e01-basic.tcl: (none)
+e02-pipeline.tcl: (none)   -- `exec echo a |`, `exec | echo a` are runtime errors (inside catch); not flagged
+e03-redirect-in.tcl: (none)
+e04-redirect-out.tcl: [W302 L7 catch without result variable]
+e05-ignorestderr.tcl: (none)   -- `exec -bogus` (bad option at run time) not flagged
+e06-background.tcl: (none)
+e07-open-pipe.tcl: [W103 L2 hint literal "|echo piped"] [W103 L6 WARNING `open |[list cat] r+` "pipeline containing substitution risks injection" (the list form is the safe idiom, yet it is ranked above the literal form)] [W103 L12 warning |[list false]] [W103 L15 hint] [W103 L18 warning |[list no-such-program-xyz]]
+e08-quoting.tcl: (none)   -- `exec echo $user` with user = "<file", ">file", "|" changes the pipeline (measured); nothing reported
+e09-auto-execok.tcl: (none)
+e10-chan-pipe.tcl: (none)
+
+# Discriminating snippets (not files):
+# tcl8.6: exec -encoding -> W004 (TRUE, 9.0+); exec -bogus, `exec echo a |`, `exec | echo a`, `exec echo a & echo b`, `exec echo a >` -> nothing; bare `exec` -> E002 (TRUE)
+# tcl8.4: exec -ignorestderr -> W004 (TRUE); `exec echo a 2>@1` -> nothing (correct: tclsh8.4.20 accepts 2>@1, although the registry hover says 8.5+)
+# taint (analyze, review and validate, tcl9.0): `set user [gets stdin]; exec echo $user; exec cat $user; exec sh -c $user; interp eval $c $user; socket $user 80` -> no T100/T105/T104 at all;
+#   only W103 on `open "|cat $user"` / `open |[list cat $user]`, W101 on eval, W312 (style) on `interp eval $c $user`.

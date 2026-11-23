@@ -1,0 +1,35 @@
+# Analyser and LSP results through the tcl-lsp MCP server (cached build; may lag HEAD afe2f2d8 slightly), dialect tcl9.0.
+# "FALSE" = contradicted by every tclsh that runs the fixture; "MISSED" = tclsh fails where the analyser is silent.
+u01-unknown-override.tcl: none (the `rename unknown` lines silence W123 for the whole file; see variants)
+u02-namespace-unknown.tcl: none (W123 for `missing3` in namespace other, which has no handler and fails in tclsh: MISSED)
+u03-unknown-rewrites.tcl: none
+u04-auto-index.tcl: [W123 L4 Unknown command 'autofoo'] FALSE [W123 L10 Unknown command 'baz'] FALSE (both defined through auto_index; ::nsauto::bar not checked)
+u05-tclindex-mkindex.tcl: none (`lappend auto_path` silences W123 for the whole file)
+u06-auto-execok.tcl: none
+u07-interactive-exec.tcl: none (echo/stri are inside [catch …] nested in a quoted word, which W123 does not visit)
+u08-tclpkgsetup-lazy.tcl: none
+u09-ensemble-unknown.tcl: [W214 L4 Parameter 'ens' of proc '::ens::fallback' is unused] FALSE (fixed -unknown handler signature) [W214 L11 same for ::ens::adder] FALSE
+u10-oo-unknown-method.tcl: [W308 L10 Unknown method 'missing' on class '::D'] (true); `$o missing` on class C with an unknown method: no diagnostic (correct)
+u11-auto-qualify.tcl: none
+u12-auto-import.tcl: none
+u13-unknown-errorcode.tcl: [W123 L2 Unknown command 'no_such_command_q'] (true)
+u14-auto-reset.tcl: [W123 L3 Unknown command 'rp'] FALSE (auto_index)
+u15-unknown-recursion.tcl: none
+u16-namespace-unknown-errors.tcl: none
+
+# W123 discriminating variants (tcl9.0):
+# baseline: proc go {} {return [zzz 1]}; yyy 2; ::qq::rr 3              -> W123 zzz, W123 yyy; none for the qualified ::qq::rr
+# proc unknown {args} {...} then zzz/yyy                                 -> W123 zzz, W123 yyy (every call succeeds in tclsh: FALSE)
+# namespace eval h {namespace unknown ::h::handler ...}; other::go calls zzz; yyy at global -> none (both fail in tclsh: MISSED; one handler silences the file)
+# lappend auto_path /some/lib; zzz; yyy                                  -> none (blanket)
+# rename unknown ""; zzz; yyy                                            -> none (both certainly fail in tclsh: MISSED)
+# set tcl_interactive 1; zzz                                             -> W123 zzz
+# set auto_index(aa) {proc aa ...}; aa                                   -> W123 aa FALSE; same for bb, cc ('did you mean cd?')
+# catch {echo hi} m (top level)                                          -> W123 echo; [ls] -> W123 "did you mean 'le'?" (suggests an expr operator)
+
+# Navigation (tcl9.0):
+# goto_definition on `autofoo` (defined by auto_index script)            -> [] (no target)
+# hover on `missing` routed to the namespace unknown handler            -> null
+# find_references on proc ::ns::handler                                 -> the proc and the `namespace unknown [list ::ns::handler]` word (correct)
+# rename ::ns::handler -> h2                                            -> edits the proc and rewrites the handler word to ::ns::h2 (correct)
+# goto_definition on `$o missing` (class with method unknown)           -> [] (could go to the unknown method)

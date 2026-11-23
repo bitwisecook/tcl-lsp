@@ -1,0 +1,61 @@
+# Analyser diagnostics through mcp__tcl-lsp__analyze (cached MCP build, close to afe2f2d8), fixture source as is.
+# Format: fixture <TAB> dialect <TAB> codes (L = 1-based line).  "-" = no diagnostics.
+t01-octal-literals.tcl	tcl8.6	W148 L7 (0d10)            [no diagnostic for 08 on L8, which errors in 8.6]
+t01-octal-literals.tcl	tcl9.0	W230 L4 (lindex 010 resolves to 10, list has 10 elements)
+t02-number-underscores.tcl	tcl8.6	W148 L2 (1_000), W148 L4 (1_0)   [L3 string is integer: none, correct]
+t02-number-underscores.tcl	tcl9.0	-
+t03-tilde.tcl	tcl8.6	W002 L5 (file tildeexpand), W002 L6 (file home)
+t03-tilde.tcl	tcl9.0	-   [no note that ~ is literal in 9.0]
+t04-case-removed.tcl	tcl8.6	-
+t04-case-removed.tcl	tcl9.0	W002 L2 (case), W123 L2 (case)
+t05-trace-variable.tcl	tcl8.6	W144 L3 (trace variable deprecated), W144 L4 (trace vinfo)
+t05-trace-variable.tcl	tcl9.0	W002 L3, W002 L4
+t06-string-bytelength.tcl	tcl8.6	-
+t06-string-bytelength.tcl	tcl9.0	W002 L2, W002 L3
+t07-tcl-precision.tcl	tcl8.6	-
+t07-tcl-precision.tcl	tcl9.0	W211 L2 (tcl_precision set but never used), W220 L4   [no "has no effect in 9.0" warning]
+t08-encoding-profiles.tcl	tcl8.6	W004 L4 (-profile), W004 L6 (-failindex), W210 L6 (fi read before set: FALSE, -failindex writes it)
+t08-encoding-profiles.tcl	tcl9.0	W210 L6 (FALSE)   [no warning for removed 'binary' encoding name on L3]
+t09-io-strict-read.tcl	tcl9.0	-
+t11-array-default.tcl	tcl8.6	W002 L2, W002 L5 (array default)
+t11-array-default.tcl	tcl9.0	-
+t12-array-for.tcl	tcl8.6	W002 L2 (array for)
+t13-const.tcl	tcl8.6	W002 L2 (const), W123 L2, W002 L4 (info constant), W002 L5 (info consts)
+t13-const.tcl	tcl9.0	-   [no diagnostic for 'set PI 4' / 'unset PI' on a constant, both always error]
+t14-lseq.tcl	tcl8.6	W002+W123 L2..L5 (lseq; W123 suggests 'lset')
+t14-lseq.tcl	tcl9.0	-   [no diagnostic for 'lseq 0 {1+2}', an error since TIP 746]
+t15-string-insert.tcl	tcl8.6	W002 L1, W002 L2 (string insert), W137 L3 (string is dict needs 9.0)
+t16-list-mutators.tcl	tcl8.6	W002+W123 L3 (lpop), L5 (lremove), L7 (ledit)
+t16-list-mutators.tcl	tcl9.0	-
+t17-dict-getwithdefault.tcl	tcl8.6	W002 L1 (dict getwithdefault), W002 L2 (dict getdef)
+t18-unqualified-var-ns.tcl	tcl8.6	-   [references/rename treat ns 'set x' as ns::x; tclsh 8.6 writes ::x]
+t18-unqualified-var-ns.tcl	tcl9.0	-
+t19-expr-string-cmp.tcl	tcl8.6	W003 L2 (lt), W003 L3 (le), with rewrite fixes
+t20-expr-comments.tcl	tcl8.6	-   [FALSE NEGATIVE: '#' in expr is an error before 9.0]
+t20-expr-comments.tcl	tcl9.0	-
+t21-mathfuncs-9.tcl	tcl8.6	W002+W123 L1 (isinf), L2 (isnan), L3 (fpclassify), L5 (cbrt), L6 (log2)
+t21-mathfuncs-9.tcl	tcl9.0	W002+W123 L5 (cbrt), L6 (log2)   [correct: 9.1 only]
+t22-format-32bit.tcl	tcl9.0	-   [no note that %x/%d truncate to 32 bits in 9.0; optimiser declines to fold, safe]
+t23-puts-read-legacy.tcl	tcl8.6	E003 L2 (too many args for puts: FALSE, 8.x accepts 'puts ch str nonewline')
+t23-puts-read-legacy.tcl	tcl9.0	E003 L2 (correct)
+t25/t26/t27/t34/t36 combined	tcl8.6	W002 info cmdtype x2, W004 lsearch -stride, W004 regsub -command, W002 tcl::process, W002+W123 zipfs, W002 chan isbinary; nothing for scan %Ld
+t28-91-subst-options.tcl	tcl9.0	W004 L3 (-variables)
+t28-91-subst-options.tcl	tcl9.1	-
+t29-91-switch-integer.tcl	tcl9.0	W004 L2 (-integer)
+t29-91-switch-integer.tcl	tcl9.1	-
+t30-91-lfilter-unicode.tcl	tcl9.0	W002+W123 L2, L3 (lfilter), W307 L3, W002+W123 L4 (unicode)
+t30-91-lfilter-unicode.tcl	tcl9.1	W307 L3 ($x % 2 treated as a script body, which matches tclsh 9.1)
+t31/t37/t32 combined	tcl9.0	W002+W123 cbrt   [no diagnostic for regexp \z (invalid before 9.1) or lseq {2+1}]
+t31/t37/t32 combined	tcl9.1	-
+t33-tcloo-9.tcl (+ uses)	tcl8.6	W002 classmethod, oo::configurable, oo::abstract, oo::singleton
+
+# Navigation (TIP 278), source: set ::x global / namespace eval ns { set x local } / puts $::x
+goto_definition on ns 'x' (tcl8.6)	-> the ns 'set x' itself (tclsh 8.6: that write is ::x)
+find_references on $::x (tcl8.6)	-> L1 ::x, L3 $::x only; misses the ns 'set x' write
+rename ::x -> y (tcl8.6)	edits L1 and L3 only; the ns 'set x local' then creates ns::x instead of writing ::y (changes behaviour)
+find_references on ns 'x' (tcl8.6 and tcl9.0)	identical answers: release rule not applied
+
+# Optimiser (mcp__tcl-lsp__optimize, profile aggressive)
+tcl8.6: 'set tcl_precision 3; set c [expr {1.0/3}]; puts $c' -> 'puts 0.3333333333333333' (WRONG: tclsh 8.6 prints 0.333)
+tcl8.6: expr {010 + 1} -> 9, format %d 010 -> 8; tcl9.0: -> 11 and 10 (correct per release)
+tcl9.0: format %x 0x100000001 not folded (safe)

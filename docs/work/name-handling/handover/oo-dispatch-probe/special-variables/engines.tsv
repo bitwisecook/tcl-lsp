@@ -1,0 +1,305 @@
+# fixture	interpreter	exit	output (lines joined with " ¶ "). tclshX.Y = C Tcl; jim = jimsh; vmX.Y = target/debug/tclvm --tcl-version X.Y; rtX.Y = target/debug/examples/run_script --quiet --tcl-version X.Y; binaries built 2026-11-21 (no engine commits since, HEAD afe2f2d8); timeout 20 s, exit 124 = timeout
+sv01-startup-roster.tcl	tclsh8.4	0	argc exists=1 array=0 listed=1 ¶ argv exists=1 array=0 listed=1 ¶ argv0 exists=1 array=0 listed=1 ¶ auto_path exists=1 array=0 listed=1 ¶ auto_index exists=0 array=0 listed=0 ¶ auto_execs exists=0 array=0 listed=0 ¶ auto_noexec exists=0 array=0 listed=0 ¶ auto_noload exists=0 array=0 listed=0 ¶ auto_oldpath exists=0 array=0 listed=0 ¶ env exists=1 array=1 listed=1 ¶ errorInfo exists=1 array=0 listed=1 ¶ errorCode exists=1 array=0 listed=1 ¶ tcl_version exists=1 array=0 listed=1 ¶ tcl_patchLevel exists=1 array=0 listed=1 ¶ tcl_library exists=1 array=0 listed=1 ¶ tcl_libPath exists=1 array=0 listed=1 ¶ tclDefaultLibrary exists=0 array=0 listed=0 ¶ tcl_pkgPath exists=1 array=0 listed=1 ¶ tcl_platform exists=1 array=1 listed=1 ¶ tcl_precision exists=1 array=0 listed=1 ¶ tcl_rcFileName exists=1 array=0 listed=1 ¶ tcl_interactive exists=1 array=0 listed=1 ¶ tcl_wordchars exists=0 array=0 listed=0 ¶ tcl_nonwordchars exists=0 array=0 listed=0 ¶ tcl_traceCompile exists=0 array=0 listed=0 ¶ tcl_traceExec exists=0 array=0 listed=0 ¶ tcl_prompt1 exists=0 array=0 listed=0 ¶ tcl_prompt2 exists=0 array=0 listed=0 ¶ tcl_shlibPath exists=0 array=0 listed=0
+sv01-startup-roster.tcl	tclsh8.5	0	argc exists=1 array=0 listed=1 ¶ argv exists=1 array=0 listed=1 ¶ argv0 exists=1 array=0 listed=1 ¶ auto_path exists=1 array=0 listed=1 ¶ auto_index exists=0 array=0 listed=0 ¶ auto_execs exists=0 array=0 listed=0 ¶ auto_noexec exists=0 array=0 listed=0 ¶ auto_noload exists=0 array=0 listed=0 ¶ auto_oldpath exists=0 array=0 listed=0 ¶ env exists=1 array=1 listed=1 ¶ errorInfo exists=0 array=0 listed=0 ¶ errorCode exists=0 array=0 listed=0 ¶ tcl_version exists=1 array=0 listed=1 ¶ tcl_patchLevel exists=1 array=0 listed=1 ¶ tcl_library exists=1 array=0 listed=1 ¶ tcl_libPath exists=0 array=0 listed=0 ¶ tclDefaultLibrary exists=0 array=0 listed=0 ¶ tcl_pkgPath exists=1 array=0 listed=1 ¶ tcl_platform exists=1 array=1 listed=1 ¶ tcl_precision exists=1 array=0 listed=1 ¶ tcl_rcFileName exists=1 array=0 listed=1 ¶ tcl_interactive exists=1 array=0 listed=1 ¶ tcl_wordchars exists=0 array=0 listed=0 ¶ tcl_nonwordchars exists=0 array=0 listed=0 ¶ tcl_traceCompile exists=0 array=0 listed=0 ¶ tcl_traceExec exists=0 array=0 listed=0 ¶ tcl_prompt1 exists=0 array=0 listed=0 ¶ tcl_prompt2 exists=0 array=0 listed=0 ¶ tcl_shlibPath exists=0 array=0 listed=0
+sv01-startup-roster.tcl	tclsh8.6	0	argc exists=1 array=0 listed=1 ¶ argv exists=1 array=0 listed=1 ¶ argv0 exists=1 array=0 listed=1 ¶ auto_path exists=1 array=0 listed=1 ¶ auto_index exists=0 array=0 listed=0 ¶ auto_execs exists=0 array=0 listed=0 ¶ auto_noexec exists=0 array=0 listed=0 ¶ auto_noload exists=0 array=0 listed=0 ¶ auto_oldpath exists=0 array=0 listed=0 ¶ env exists=1 array=1 listed=1 ¶ errorInfo exists=0 array=0 listed=0 ¶ errorCode exists=0 array=0 listed=0 ¶ tcl_version exists=1 array=0 listed=1 ¶ tcl_patchLevel exists=1 array=0 listed=1 ¶ tcl_library exists=1 array=0 listed=1 ¶ tcl_libPath exists=0 array=0 listed=0 ¶ tclDefaultLibrary exists=0 array=0 listed=0 ¶ tcl_pkgPath exists=1 array=0 listed=1 ¶ tcl_platform exists=1 array=1 listed=1 ¶ tcl_precision exists=1 array=0 listed=1 ¶ tcl_rcFileName exists=1 array=0 listed=1 ¶ tcl_interactive exists=1 array=0 listed=1 ¶ tcl_wordchars exists=0 array=0 listed=0 ¶ tcl_nonwordchars exists=0 array=0 listed=0 ¶ tcl_traceCompile exists=0 array=0 listed=0 ¶ tcl_traceExec exists=0 array=0 listed=0 ¶ tcl_prompt1 exists=0 array=0 listed=0 ¶ tcl_prompt2 exists=0 array=0 listed=0 ¶ tcl_shlibPath exists=0 array=0 listed=0
+sv01-startup-roster.tcl	tclsh9.0	0	argc exists=1 array=0 listed=1 ¶ argv exists=1 array=0 listed=1 ¶ argv0 exists=1 array=0 listed=1 ¶ auto_path exists=1 array=0 listed=1 ¶ auto_index exists=0 array=0 listed=0 ¶ auto_execs exists=0 array=0 listed=0 ¶ auto_noexec exists=0 array=0 listed=0 ¶ auto_noload exists=0 array=0 listed=0 ¶ auto_oldpath exists=0 array=0 listed=0 ¶ env exists=1 array=1 listed=1 ¶ errorInfo exists=0 array=0 listed=0 ¶ errorCode exists=0 array=0 listed=0 ¶ tcl_version exists=1 array=0 listed=1 ¶ tcl_patchLevel exists=1 array=0 listed=1 ¶ tcl_library exists=1 array=0 listed=1 ¶ tcl_libPath exists=0 array=0 listed=0 ¶ tclDefaultLibrary exists=0 array=0 listed=0 ¶ tcl_pkgPath exists=1 array=0 listed=1 ¶ tcl_platform exists=1 array=1 listed=1 ¶ tcl_precision exists=0 array=0 listed=0 ¶ tcl_rcFileName exists=1 array=0 listed=1 ¶ tcl_interactive exists=1 array=0 listed=1 ¶ tcl_wordchars exists=0 array=0 listed=0 ¶ tcl_nonwordchars exists=0 array=0 listed=0 ¶ tcl_traceCompile exists=0 array=0 listed=0 ¶ tcl_traceExec exists=0 array=0 listed=0 ¶ tcl_prompt1 exists=0 array=0 listed=0 ¶ tcl_prompt2 exists=0 array=0 listed=0 ¶ tcl_shlibPath exists=0 array=0 listed=0
+sv01-startup-roster.tcl	tclsh9.1	0	argc exists=1 array=0 listed=1 ¶ argv exists=1 array=0 listed=1 ¶ argv0 exists=1 array=0 listed=1 ¶ auto_path exists=1 array=0 listed=1 ¶ auto_index exists=0 array=0 listed=0 ¶ auto_execs exists=0 array=0 listed=0 ¶ auto_noexec exists=0 array=0 listed=0 ¶ auto_noload exists=0 array=0 listed=0 ¶ auto_oldpath exists=0 array=0 listed=0 ¶ env exists=1 array=1 listed=1 ¶ errorInfo exists=0 array=0 listed=0 ¶ errorCode exists=0 array=0 listed=0 ¶ tcl_version exists=1 array=0 listed=1 ¶ tcl_patchLevel exists=1 array=0 listed=1 ¶ tcl_library exists=1 array=0 listed=1 ¶ tcl_libPath exists=0 array=0 listed=0 ¶ tclDefaultLibrary exists=0 array=0 listed=0 ¶ tcl_pkgPath exists=1 array=0 listed=1 ¶ tcl_platform exists=1 array=1 listed=1 ¶ tcl_precision exists=0 array=0 listed=0 ¶ tcl_rcFileName exists=1 array=0 listed=1 ¶ tcl_interactive exists=1 array=0 listed=1 ¶ tcl_wordchars exists=0 array=0 listed=0 ¶ tcl_nonwordchars exists=0 array=0 listed=0 ¶ tcl_traceCompile exists=0 array=0 listed=0 ¶ tcl_traceExec exists=0 array=0 listed=0 ¶ tcl_prompt1 exists=0 array=0 listed=0 ¶ tcl_prompt2 exists=0 array=0 listed=0 ¶ tcl_shlibPath exists=0 array=0 listed=0
+sv01-startup-roster.tcl	jim	0	argc exists=1 array=0 listed=1 ¶ argv exists=1 array=1 listed=1 ¶ argv0 exists=1 array=0 listed=1 ¶ auto_path exists=1 array=1 listed=1 ¶ auto_index exists=0 array=0 listed=0 ¶ auto_execs exists=0 array=0 listed=0 ¶ auto_noexec exists=0 array=0 listed=0 ¶ auto_noload exists=0 array=0 listed=0 ¶ auto_oldpath exists=0 array=0 listed=0 ¶ env exists=1 array=1 listed=1 ¶ errorInfo exists=0 array=0 listed=0 ¶ errorCode exists=0 array=0 listed=0 ¶ tcl_version exists=0 array=0 listed=0 ¶ tcl_patchLevel exists=0 array=0 listed=0 ¶ tcl_library exists=0 array=0 listed=0 ¶ tcl_libPath exists=0 array=0 listed=0 ¶ tclDefaultLibrary exists=0 array=0 listed=0 ¶ tcl_pkgPath exists=0 array=0 listed=0 ¶ tcl_platform exists=1 array=1 listed=1 ¶ tcl_precision exists=0 array=0 listed=0 ¶ tcl_rcFileName exists=0 array=0 listed=0 ¶ tcl_interactive exists=1 array=0 listed=1 ¶ tcl_wordchars exists=0 array=0 listed=0 ¶ tcl_nonwordchars exists=0 array=0 listed=0 ¶ tcl_traceCompile exists=0 array=0 listed=0 ¶ tcl_traceExec exists=0 array=0 listed=0 ¶ tcl_prompt1 exists=0 array=0 listed=0 ¶ tcl_prompt2 exists=0 array=0 listed=0 ¶ tcl_shlibPath exists=0 array=0 listed=0
+sv01-startup-roster.tcl	vm8.4	0	argc exists=1 array=0 listed=1 ¶ argv exists=1 array=0 listed=1 ¶ argv0 exists=1 array=0 listed=1 ¶ auto_path exists=1 array=0 listed=1 ¶ auto_index exists=0 array=0 listed=0 ¶ auto_execs exists=0 array=0 listed=0 ¶ auto_noexec exists=0 array=0 listed=0 ¶ auto_noload exists=0 array=0 listed=0 ¶ auto_oldpath exists=0 array=0 listed=0 ¶ env exists=1 array=1 listed=1 ¶ errorInfo exists=1 array=0 listed=1 ¶ errorCode exists=1 array=0 listed=1 ¶ tcl_version exists=1 array=0 listed=1 ¶ tcl_patchLevel exists=1 array=0 listed=1 ¶ tcl_library exists=1 array=0 listed=1 ¶ tcl_libPath exists=0 array=0 listed=0 ¶ tclDefaultLibrary exists=0 array=0 listed=0 ¶ tcl_pkgPath exists=1 array=0 listed=1 ¶ tcl_platform exists=1 array=1 listed=1 ¶ tcl_precision exists=1 array=0 listed=1 ¶ tcl_rcFileName exists=0 array=0 listed=0 ¶ tcl_interactive exists=0 array=0 listed=0 ¶ tcl_wordchars exists=0 array=0 listed=0 ¶ tcl_nonwordchars exists=0 array=0 listed=0 ¶ tcl_traceCompile exists=0 array=0 listed=0 ¶ tcl_traceExec exists=0 array=0 listed=0 ¶ tcl_prompt1 exists=0 array=0 listed=0 ¶ tcl_prompt2 exists=0 array=0 listed=0 ¶ tcl_shlibPath exists=0 array=0 listed=0
+sv01-startup-roster.tcl	vm8.5	0	argc exists=1 array=0 listed=1 ¶ argv exists=1 array=0 listed=1 ¶ argv0 exists=1 array=0 listed=1 ¶ auto_path exists=1 array=0 listed=1 ¶ auto_index exists=0 array=0 listed=0 ¶ auto_execs exists=0 array=0 listed=0 ¶ auto_noexec exists=0 array=0 listed=0 ¶ auto_noload exists=0 array=0 listed=0 ¶ auto_oldpath exists=0 array=0 listed=0 ¶ env exists=1 array=1 listed=1 ¶ errorInfo exists=0 array=0 listed=0 ¶ errorCode exists=0 array=0 listed=0 ¶ tcl_version exists=1 array=0 listed=1 ¶ tcl_patchLevel exists=1 array=0 listed=1 ¶ tcl_library exists=1 array=0 listed=1 ¶ tcl_libPath exists=0 array=0 listed=0 ¶ tclDefaultLibrary exists=0 array=0 listed=0 ¶ tcl_pkgPath exists=1 array=0 listed=1 ¶ tcl_platform exists=1 array=1 listed=1 ¶ tcl_precision exists=1 array=0 listed=1 ¶ tcl_rcFileName exists=0 array=0 listed=0 ¶ tcl_interactive exists=0 array=0 listed=0 ¶ tcl_wordchars exists=0 array=0 listed=0 ¶ tcl_nonwordchars exists=0 array=0 listed=0 ¶ tcl_traceCompile exists=0 array=0 listed=0 ¶ tcl_traceExec exists=0 array=0 listed=0 ¶ tcl_prompt1 exists=0 array=0 listed=0 ¶ tcl_prompt2 exists=0 array=0 listed=0 ¶ tcl_shlibPath exists=0 array=0 listed=0
+sv01-startup-roster.tcl	vm8.6	0	argc exists=1 array=0 listed=1 ¶ argv exists=1 array=0 listed=1 ¶ argv0 exists=1 array=0 listed=1 ¶ auto_path exists=1 array=0 listed=1 ¶ auto_index exists=0 array=0 listed=0 ¶ auto_execs exists=0 array=0 listed=0 ¶ auto_noexec exists=0 array=0 listed=0 ¶ auto_noload exists=0 array=0 listed=0 ¶ auto_oldpath exists=0 array=0 listed=0 ¶ env exists=1 array=1 listed=1 ¶ errorInfo exists=0 array=0 listed=0 ¶ errorCode exists=0 array=0 listed=0 ¶ tcl_version exists=1 array=0 listed=1 ¶ tcl_patchLevel exists=1 array=0 listed=1 ¶ tcl_library exists=1 array=0 listed=1 ¶ tcl_libPath exists=0 array=0 listed=0 ¶ tclDefaultLibrary exists=0 array=0 listed=0 ¶ tcl_pkgPath exists=1 array=0 listed=1 ¶ tcl_platform exists=1 array=1 listed=1 ¶ tcl_precision exists=1 array=0 listed=1 ¶ tcl_rcFileName exists=0 array=0 listed=0 ¶ tcl_interactive exists=0 array=0 listed=0 ¶ tcl_wordchars exists=0 array=0 listed=0 ¶ tcl_nonwordchars exists=0 array=0 listed=0 ¶ tcl_traceCompile exists=0 array=0 listed=0 ¶ tcl_traceExec exists=0 array=0 listed=0 ¶ tcl_prompt1 exists=0 array=0 listed=0 ¶ tcl_prompt2 exists=0 array=0 listed=0 ¶ tcl_shlibPath exists=0 array=0 listed=0
+sv01-startup-roster.tcl	vm9.0	0	argc exists=1 array=0 listed=1 ¶ argv exists=1 array=0 listed=1 ¶ argv0 exists=1 array=0 listed=1 ¶ auto_path exists=1 array=0 listed=1 ¶ auto_index exists=0 array=0 listed=0 ¶ auto_execs exists=0 array=0 listed=0 ¶ auto_noexec exists=0 array=0 listed=0 ¶ auto_noload exists=0 array=0 listed=0 ¶ auto_oldpath exists=0 array=0 listed=0 ¶ env exists=1 array=1 listed=1 ¶ errorInfo exists=0 array=0 listed=0 ¶ errorCode exists=0 array=0 listed=0 ¶ tcl_version exists=1 array=0 listed=1 ¶ tcl_patchLevel exists=1 array=0 listed=1 ¶ tcl_library exists=1 array=0 listed=1 ¶ tcl_libPath exists=0 array=0 listed=0 ¶ tclDefaultLibrary exists=0 array=0 listed=0 ¶ tcl_pkgPath exists=1 array=0 listed=1 ¶ tcl_platform exists=1 array=1 listed=1 ¶ tcl_precision exists=0 array=0 listed=0 ¶ tcl_rcFileName exists=0 array=0 listed=0 ¶ tcl_interactive exists=0 array=0 listed=0 ¶ tcl_wordchars exists=0 array=0 listed=0 ¶ tcl_nonwordchars exists=0 array=0 listed=0 ¶ tcl_traceCompile exists=0 array=0 listed=0 ¶ tcl_traceExec exists=0 array=0 listed=0 ¶ tcl_prompt1 exists=0 array=0 listed=0 ¶ tcl_prompt2 exists=0 array=0 listed=0 ¶ tcl_shlibPath exists=0 array=0 listed=0
+sv01-startup-roster.tcl	vm9.1	0	argc exists=1 array=0 listed=1 ¶ argv exists=1 array=0 listed=1 ¶ argv0 exists=1 array=0 listed=1 ¶ auto_path exists=1 array=0 listed=1 ¶ auto_index exists=0 array=0 listed=0 ¶ auto_execs exists=0 array=0 listed=0 ¶ auto_noexec exists=0 array=0 listed=0 ¶ auto_noload exists=0 array=0 listed=0 ¶ auto_oldpath exists=0 array=0 listed=0 ¶ env exists=1 array=1 listed=1 ¶ errorInfo exists=0 array=0 listed=0 ¶ errorCode exists=0 array=0 listed=0 ¶ tcl_version exists=1 array=0 listed=1 ¶ tcl_patchLevel exists=1 array=0 listed=1 ¶ tcl_library exists=1 array=0 listed=1 ¶ tcl_libPath exists=0 array=0 listed=0 ¶ tclDefaultLibrary exists=0 array=0 listed=0 ¶ tcl_pkgPath exists=1 array=0 listed=1 ¶ tcl_platform exists=1 array=1 listed=1 ¶ tcl_precision exists=0 array=0 listed=0 ¶ tcl_rcFileName exists=0 array=0 listed=0 ¶ tcl_interactive exists=0 array=0 listed=0 ¶ tcl_wordchars exists=0 array=0 listed=0 ¶ tcl_nonwordchars exists=0 array=0 listed=0 ¶ tcl_traceCompile exists=0 array=0 listed=0 ¶ tcl_traceExec exists=0 array=0 listed=0 ¶ tcl_prompt1 exists=0 array=0 listed=0 ¶ tcl_prompt2 exists=0 array=0 listed=0 ¶ tcl_shlibPath exists=0 array=0 listed=0
+sv01-startup-roster.tcl	rt8.4	0	argc exists=0 array=0 listed=0 ¶ argv exists=0 array=0 listed=0 ¶ argv0 exists=0 array=0 listed=0 ¶ auto_path exists=0 array=0 listed=0 ¶ auto_index exists=0 array=0 listed=0 ¶ auto_execs exists=0 array=0 listed=0 ¶ auto_noexec exists=0 array=0 listed=0 ¶ auto_noload exists=0 array=0 listed=0 ¶ auto_oldpath exists=0 array=0 listed=0 ¶ env exists=1 array=1 listed=1 ¶ errorInfo exists=0 array=0 listed=0 ¶ errorCode exists=0 array=0 listed=0 ¶ tcl_version exists=1 array=0 listed=1 ¶ tcl_patchLevel exists=1 array=0 listed=1 ¶ tcl_library exists=0 array=0 listed=0 ¶ tcl_libPath exists=0 array=0 listed=0 ¶ tclDefaultLibrary exists=0 array=0 listed=0 ¶ tcl_pkgPath exists=1 array=0 listed=1 ¶ tcl_platform exists=1 array=1 listed=1 ¶ tcl_precision exists=1 array=0 listed=1 ¶ tcl_rcFileName exists=0 array=0 listed=0 ¶ tcl_interactive exists=0 array=0 listed=0 ¶ tcl_wordchars exists=0 array=0 listed=0 ¶ tcl_nonwordchars exists=0 array=0 listed=0 ¶ tcl_traceCompile exists=0 array=0 listed=0 ¶ tcl_traceExec exists=0 array=0 listed=0 ¶ tcl_prompt1 exists=0 array=0 listed=0 ¶ tcl_prompt2 exists=0 array=0 listed=0 ¶ tcl_shlibPath exists=0 array=0 listed=0
+sv01-startup-roster.tcl	rt8.5	0	argc exists=0 array=0 listed=0 ¶ argv exists=0 array=0 listed=0 ¶ argv0 exists=0 array=0 listed=0 ¶ auto_path exists=0 array=0 listed=0 ¶ auto_index exists=0 array=0 listed=0 ¶ auto_execs exists=0 array=0 listed=0 ¶ auto_noexec exists=0 array=0 listed=0 ¶ auto_noload exists=0 array=0 listed=0 ¶ auto_oldpath exists=0 array=0 listed=0 ¶ env exists=1 array=1 listed=1 ¶ errorInfo exists=0 array=0 listed=0 ¶ errorCode exists=0 array=0 listed=0 ¶ tcl_version exists=1 array=0 listed=1 ¶ tcl_patchLevel exists=1 array=0 listed=1 ¶ tcl_library exists=0 array=0 listed=0 ¶ tcl_libPath exists=0 array=0 listed=0 ¶ tclDefaultLibrary exists=0 array=0 listed=0 ¶ tcl_pkgPath exists=1 array=0 listed=1 ¶ tcl_platform exists=1 array=1 listed=1 ¶ tcl_precision exists=1 array=0 listed=1 ¶ tcl_rcFileName exists=0 array=0 listed=0 ¶ tcl_interactive exists=0 array=0 listed=0 ¶ tcl_wordchars exists=0 array=0 listed=0 ¶ tcl_nonwordchars exists=0 array=0 listed=0 ¶ tcl_traceCompile exists=0 array=0 listed=0 ¶ tcl_traceExec exists=0 array=0 listed=0 ¶ tcl_prompt1 exists=0 array=0 listed=0 ¶ tcl_prompt2 exists=0 array=0 listed=0 ¶ tcl_shlibPath exists=0 array=0 listed=0
+sv01-startup-roster.tcl	rt8.6	0	argc exists=0 array=0 listed=0 ¶ argv exists=0 array=0 listed=0 ¶ argv0 exists=0 array=0 listed=0 ¶ auto_path exists=0 array=0 listed=0 ¶ auto_index exists=0 array=0 listed=0 ¶ auto_execs exists=0 array=0 listed=0 ¶ auto_noexec exists=0 array=0 listed=0 ¶ auto_noload exists=0 array=0 listed=0 ¶ auto_oldpath exists=0 array=0 listed=0 ¶ env exists=1 array=1 listed=1 ¶ errorInfo exists=0 array=0 listed=0 ¶ errorCode exists=0 array=0 listed=0 ¶ tcl_version exists=1 array=0 listed=1 ¶ tcl_patchLevel exists=1 array=0 listed=1 ¶ tcl_library exists=0 array=0 listed=0 ¶ tcl_libPath exists=0 array=0 listed=0 ¶ tclDefaultLibrary exists=0 array=0 listed=0 ¶ tcl_pkgPath exists=1 array=0 listed=1 ¶ tcl_platform exists=1 array=1 listed=1 ¶ tcl_precision exists=1 array=0 listed=1 ¶ tcl_rcFileName exists=0 array=0 listed=0 ¶ tcl_interactive exists=0 array=0 listed=0 ¶ tcl_wordchars exists=0 array=0 listed=0 ¶ tcl_nonwordchars exists=0 array=0 listed=0 ¶ tcl_traceCompile exists=0 array=0 listed=0 ¶ tcl_traceExec exists=0 array=0 listed=0 ¶ tcl_prompt1 exists=0 array=0 listed=0 ¶ tcl_prompt2 exists=0 array=0 listed=0 ¶ tcl_shlibPath exists=0 array=0 listed=0
+sv01-startup-roster.tcl	rt9.0	0	argc exists=0 array=0 listed=0 ¶ argv exists=0 array=0 listed=0 ¶ argv0 exists=0 array=0 listed=0 ¶ auto_path exists=0 array=0 listed=0 ¶ auto_index exists=0 array=0 listed=0 ¶ auto_execs exists=0 array=0 listed=0 ¶ auto_noexec exists=0 array=0 listed=0 ¶ auto_noload exists=0 array=0 listed=0 ¶ auto_oldpath exists=0 array=0 listed=0 ¶ env exists=1 array=1 listed=1 ¶ errorInfo exists=0 array=0 listed=0 ¶ errorCode exists=0 array=0 listed=0 ¶ tcl_version exists=1 array=0 listed=1 ¶ tcl_patchLevel exists=1 array=0 listed=1 ¶ tcl_library exists=0 array=0 listed=0 ¶ tcl_libPath exists=0 array=0 listed=0 ¶ tclDefaultLibrary exists=0 array=0 listed=0 ¶ tcl_pkgPath exists=1 array=0 listed=1 ¶ tcl_platform exists=1 array=1 listed=1 ¶ tcl_precision exists=0 array=0 listed=0 ¶ tcl_rcFileName exists=0 array=0 listed=0 ¶ tcl_interactive exists=0 array=0 listed=0 ¶ tcl_wordchars exists=0 array=0 listed=0 ¶ tcl_nonwordchars exists=0 array=0 listed=0 ¶ tcl_traceCompile exists=0 array=0 listed=0 ¶ tcl_traceExec exists=0 array=0 listed=0 ¶ tcl_prompt1 exists=0 array=0 listed=0 ¶ tcl_prompt2 exists=0 array=0 listed=0 ¶ tcl_shlibPath exists=0 array=0 listed=0
+sv01-startup-roster.tcl	rt9.1	0	argc exists=0 array=0 listed=0 ¶ argv exists=0 array=0 listed=0 ¶ argv0 exists=0 array=0 listed=0 ¶ auto_path exists=0 array=0 listed=0 ¶ auto_index exists=0 array=0 listed=0 ¶ auto_execs exists=0 array=0 listed=0 ¶ auto_noexec exists=0 array=0 listed=0 ¶ auto_noload exists=0 array=0 listed=0 ¶ auto_oldpath exists=0 array=0 listed=0 ¶ env exists=1 array=1 listed=1 ¶ errorInfo exists=0 array=0 listed=0 ¶ errorCode exists=0 array=0 listed=0 ¶ tcl_version exists=1 array=0 listed=1 ¶ tcl_patchLevel exists=1 array=0 listed=1 ¶ tcl_library exists=0 array=0 listed=0 ¶ tcl_libPath exists=0 array=0 listed=0 ¶ tclDefaultLibrary exists=0 array=0 listed=0 ¶ tcl_pkgPath exists=1 array=0 listed=1 ¶ tcl_platform exists=1 array=1 listed=1 ¶ tcl_precision exists=0 array=0 listed=0 ¶ tcl_rcFileName exists=0 array=0 listed=0 ¶ tcl_interactive exists=0 array=0 listed=0 ¶ tcl_wordchars exists=0 array=0 listed=0 ¶ tcl_nonwordchars exists=0 array=0 listed=0 ¶ tcl_traceCompile exists=0 array=0 listed=0 ¶ tcl_traceExec exists=0 array=0 listed=0 ¶ tcl_prompt1 exists=0 array=0 listed=0 ¶ tcl_prompt2 exists=0 array=0 listed=0 ¶ tcl_shlibPath exists=0 array=0 listed=0
+sv02-info-globals.tcl	tclsh8.4	0	argc argv argv0 auto_path env errorCode errorInfo tcl_interactive tcl_libPath tcl_library tcl_patchLevel tcl_pkgPath tcl_platform tcl_rcFileName tcl_version
+sv02-info-globals.tcl	tclsh8.5	0	argc argv argv0 auto_path env tcl_interactive tcl_library tcl_patchLevel tcl_pkgPath tcl_platform tcl_rcFileName tcl_version
+sv02-info-globals.tcl	tclsh8.6	0	argc argv argv0 auto_path env tcl_interactive tcl_library tcl_patchLevel tcl_pkgPath tcl_platform tcl_rcFileName tcl_version
+sv02-info-globals.tcl	tclsh9.0	0	argc argv argv0 auto_path env tcl_interactive tcl_library tcl_patchLevel tcl_pkgPath tcl_platform tcl_rcFileName tcl_version
+sv02-info-globals.tcl	tclsh9.1	0	argc argv argv0 auto_path env tcl_interactive tcl_library tcl_patchLevel tcl_pkgPath tcl_platform tcl_rcFileName tcl_version
+sv02-info-globals.tcl	jim	0	argc argv argv0 auto_path binary::convtype binary::scalarinfo env jim::argv0 jim::exe jim::lineedit tcl::autocomplete_commands tcl::stdhint_col tcl::stdhint_cols tcl::stdhint_commands tcl_interactive tcl_platform
+sv02-info-globals.tcl	vm8.4	0	argc argv argv0 auto_path env errorCode errorInfo tcl_library tcl_patchLevel tcl_pkgPath tcl_platform tcl_version
+sv02-info-globals.tcl	vm8.5	0	argc argv argv0 auto_path env tcl_library tcl_patchLevel tcl_pkgPath tcl_platform tcl_version
+sv02-info-globals.tcl	vm8.6	0	argc argv argv0 auto_path env tcl_library tcl_patchLevel tcl_pkgPath tcl_platform tcl_version
+sv02-info-globals.tcl	vm9.0	0	argc argv argv0 auto_path env tcl_library tcl_patchLevel tcl_pkgPath tcl_platform tcl_version
+sv02-info-globals.tcl	vm9.1	0	argc argv argv0 auto_path env tcl_library tcl_patchLevel tcl_pkgPath tcl_platform tcl_version
+sv02-info-globals.tcl	rt8.4	0	env tcl_patchLevel tcl_pkgPath tcl_platform tcl_version
+sv02-info-globals.tcl	rt8.5	0	env tcl_patchLevel tcl_pkgPath tcl_platform tcl_version
+sv02-info-globals.tcl	rt8.6	0	env tcl_patchLevel tcl_pkgPath tcl_platform tcl_version
+sv02-info-globals.tcl	rt9.0	0	env tcl_patchLevel tcl_pkgPath tcl_platform tcl_version
+sv02-info-globals.tcl	rt9.1	0	env tcl_patchLevel tcl_pkgPath tcl_platform tcl_version
+sv03-values.tcl	tclsh8.4	0	version=8.4 ¶ patch=8.4.20 ¶ argc=0 argv={} argv0=sv03-values.tcl ¶ interactive=0 ¶ rc=.tclshrc ¶ library-dir=1 ¶ auto_path-list=1 ¶ pkgPath=1
+sv03-values.tcl	tclsh8.5	0	version=8.5 ¶ patch=8.5.19 ¶ argc=0 argv={} argv0=sv03-values.tcl ¶ interactive=0 ¶ rc=.tclshrc ¶ library-dir=1 ¶ auto_path-list=1 ¶ pkgPath=1
+sv03-values.tcl	tclsh8.6	0	version=8.6 ¶ patch=8.6.18 ¶ argc=0 argv={} argv0=sv03-values.tcl ¶ interactive=0 ¶ rc=.tclshrc ¶ library-dir=1 ¶ auto_path-list=1 ¶ pkgPath=1
+sv03-values.tcl	tclsh9.0	0	version=9.0 ¶ patch=9.0.4 ¶ argc=0 argv={} argv0=sv03-values.tcl ¶ interactive=0 ¶ rc=.tclshrc ¶ library-dir=1 ¶ auto_path-list=1 ¶ pkgPath=1
+sv03-values.tcl	tclsh9.1	0	version=9.1 ¶ patch=9.1.0 ¶ argc=0 argv={} argv0=sv03-values.tcl ¶ interactive=0 ¶ rc=.tclshrc ¶ library-dir=1 ¶ auto_path-list=1 ¶ pkgPath=1
+sv03-values.tcl	jim	1	sv03-values.tcl:2: Error: can't read "tcl_version": no such variable ¶ Traceback (most recent call last): ¶   File "sv03-values.tcl", line 2
+sv03-values.tcl	vm8.4	1	version=8.4 ¶ patch=8.4.20 ¶ argc=0 argv={} argv0=sv03-values.tcl ¶ can't read "tcl_interactive": no such variable ¶     while executing ¶ "puts "interactive=$tcl_interactive"" ¶     (file "sv03-values.tcl" line 5)
+sv03-values.tcl	vm8.5	1	version=8.5 ¶ patch=8.5.19 ¶ argc=0 argv={} argv0=sv03-values.tcl ¶ can't read "tcl_interactive": no such variable ¶     while executing ¶ "puts "interactive=$tcl_interactive"" ¶     (file "sv03-values.tcl" line 5)
+sv03-values.tcl	vm8.6	1	version=8.6 ¶ patch=8.6.18 ¶ argc=0 argv={} argv0=sv03-values.tcl ¶ can't read "tcl_interactive": no such variable ¶     while executing ¶ "puts "interactive=$tcl_interactive"" ¶     (file "sv03-values.tcl" line 5)
+sv03-values.tcl	vm9.0	1	version=9.0 ¶ patch=9.0.4 ¶ argc=0 argv={} argv0=sv03-values.tcl ¶ can't read "tcl_interactive": no such variable ¶     while executing ¶ "puts "interactive=$tcl_interactive"" ¶     (file "sv03-values.tcl" line 5)
+sv03-values.tcl	vm9.1	1	version=9.1 ¶ patch=9.1.0 ¶ argc=0 argv={} argv0=sv03-values.tcl ¶ can't read "tcl_interactive": no such variable ¶     while executing ¶ "puts "interactive=$tcl_interactive"" ¶     (file "sv03-values.tcl" line 5)
+sv03-values.tcl	rt8.4	1	version=8.4 ¶ patch=8.4.20 ¶ error: can't read "argc": no such variable
+sv03-values.tcl	rt8.5	1	version=8.5 ¶ patch=8.5.19 ¶ error: can't read "argc": no such variable
+sv03-values.tcl	rt8.6	1	version=8.6 ¶ patch=8.6.18 ¶ error: can't read "argc": no such variable
+sv03-values.tcl	rt9.0	1	version=9.0 ¶ patch=9.0.4 ¶ error: can't read "argc": no such variable
+sv03-values.tcl	rt9.1	1	version=9.1 ¶ patch=9.1.0 ¶ error: can't read "argc": no such variable
+sv04-platform-keys.tcl	tclsh8.4	0	byteOrder machine os osVersion platform user wordSize ¶ platform=unix engine=<none>
+sv04-platform-keys.tcl	tclsh8.5	0	byteOrder engine machine os osVersion platform pointerSize user wordSize ¶ platform=unix engine=Tcl
+sv04-platform-keys.tcl	tclsh8.6	0	byteOrder engine machine os osVersion pathSeparator platform pointerSize threaded user wordSize ¶ platform=unix engine=Tcl
+sv04-platform-keys.tcl	tclsh9.0	0	byteOrder engine machine os osVersion pathSeparator platform pointerSize user wordSize ¶ platform=unix engine=Tcl
+sv04-platform-keys.tcl	tclsh9.1	0	byteOrder engine machine os osVersion pathSeparator platform pointerSize user wordSize ¶ platform=unix engine=Tcl
+sv04-platform-keys.tcl	jim	0	bootstrap byteOrder engine os pathSeparator platform pointerSize stackFormat threaded wordSize ¶ platform=unix engine=Jim
+sv04-platform-keys.tcl	vm8.4	0	byteOrder ebpf engine machine os osVersion pathSeparator platform pointerSize runtime runtimeVersion threaded user wasi wasiVersion wasm wordSize ¶ platform=unix engine=Tcl
+sv04-platform-keys.tcl	vm8.5	0	byteOrder ebpf engine machine os osVersion pathSeparator platform pointerSize runtime runtimeVersion threaded user wasi wasiVersion wasm wordSize ¶ platform=unix engine=Tcl
+sv04-platform-keys.tcl	vm8.6	0	byteOrder ebpf engine machine os osVersion pathSeparator platform pointerSize runtime runtimeVersion threaded user wasi wasiVersion wasm wordSize ¶ platform=unix engine=Tcl
+sv04-platform-keys.tcl	vm9.0	0	byteOrder ebpf engine machine os osVersion pathSeparator platform pointerSize runtime runtimeVersion threaded user wasi wasiVersion wasm wordSize ¶ platform=unix engine=Tcl
+sv04-platform-keys.tcl	vm9.1	0	byteOrder ebpf engine machine os osVersion pathSeparator platform pointerSize runtime runtimeVersion threaded user wasi wasiVersion wasm wordSize ¶ platform=unix engine=Tcl
+sv04-platform-keys.tcl	rt8.4	0	byteOrder ebpf engine machine os osVersion pathSeparator platform pointerSize runtime runtimeVersion threaded user wasi wasiVersion wasm wordSize ¶ platform=unix engine=Tcl
+sv04-platform-keys.tcl	rt8.5	0	byteOrder ebpf engine machine os osVersion pathSeparator platform pointerSize runtime runtimeVersion threaded user wasi wasiVersion wasm wordSize ¶ platform=unix engine=Tcl
+sv04-platform-keys.tcl	rt8.6	0	byteOrder ebpf engine machine os osVersion pathSeparator platform pointerSize runtime runtimeVersion threaded user wasi wasiVersion wasm wordSize ¶ platform=unix engine=Tcl
+sv04-platform-keys.tcl	rt9.0	0	byteOrder ebpf engine machine os osVersion pathSeparator platform pointerSize runtime runtimeVersion threaded user wasi wasiVersion wasm wordSize ¶ platform=unix engine=Tcl
+sv04-platform-keys.tcl	rt9.1	0	byteOrder ebpf engine machine os osVersion pathSeparator platform pointerSize runtime runtimeVersion threaded user wasi wasiVersion wasm wordSize ¶ platform=unix engine=Tcl
+sv05-precision.tcl	tclsh8.4	1	exists=1 ¶ read 0 12 ¶ default=0.333333333333 ¶ set 0 3 ¶ after=0.333 ¶ can't set "tcl_precision": improper value for precision ¶     while executing ¶ "set tcl_precision 0" ¶     (file "sv05-precision.tcl" line 7)
+sv05-precision.tcl	tclsh8.5	0	exists=1 ¶ read 0 0 ¶ default=0.3333333333333333 ¶ set 0 3 ¶ after=0.333 ¶ reread 0 0
+sv05-precision.tcl	tclsh8.6	0	exists=1 ¶ read 0 0 ¶ default=0.3333333333333333 ¶ set 0 3 ¶ after=0.333 ¶ reread 0 0
+sv05-precision.tcl	tclsh9.0	0	exists=0 ¶ read 1 {can't read "tcl_precision": no such variable} ¶ default=0.3333333333333333 ¶ set 0 3 ¶ after=0.3333333333333333 ¶ reread 1 {can't read "tcl_precision": no such variable}
+sv05-precision.tcl	tclsh9.1	0	exists=0 ¶ read 1 {can't read "tcl_precision": no such variable} ¶ default=0.3333333333333333 ¶ set 0 3 ¶ after=0.3333333333333333 ¶ reread 1 {can't read "tcl_precision": no such variable}
+sv05-precision.tcl	jim	0	exists=0 ¶ read 1 {can't read "tcl_precision": no such variable} ¶ default=0.333333333333 ¶ set 0 3 ¶ after=0.333333333333 ¶ reread 1 {can't read "tcl_precision": no such variable}
+sv05-precision.tcl	vm8.4	1	exists=1 ¶ read 0 12 ¶ default=0.333333333333 ¶ set 0 3 ¶ after=0.333 ¶ can't set "tcl_precision": improper value for precision ¶     while executing ¶ "set tcl_precision 0" ¶     (file "sv05-precision.tcl" line 7)
+sv05-precision.tcl	vm8.5	0	exists=1 ¶ read 0 0 ¶ default=0.3333333333333333 ¶ set 0 3 ¶ after=0.333 ¶ reread 0 0
+sv05-precision.tcl	vm8.6	0	exists=1 ¶ read 0 0 ¶ default=0.3333333333333333 ¶ set 0 3 ¶ after=0.333 ¶ reread 0 0
+sv05-precision.tcl	vm9.0	0	exists=0 ¶ read 1 {can't read "tcl_precision": no such variable} ¶ default=0.3333333333333333 ¶ set 0 3 ¶ after=0.3333333333333333 ¶ reread 1 {can't read "tcl_precision": no such variable}
+sv05-precision.tcl	vm9.1	0	exists=0 ¶ read 1 {can't read "tcl_precision": no such variable} ¶ default=0.3333333333333333 ¶ set 0 3 ¶ after=0.3333333333333333 ¶ reread 1 {can't read "tcl_precision": no such variable}
+sv05-precision.tcl	rt8.4	1	exists=1 ¶ read 0 12 ¶ default=0.333333333333 ¶ set 0 3 ¶ after=0.333 ¶ error: can't set "tcl_precision": improper value for precision
+sv05-precision.tcl	rt8.5	0	exists=1 ¶ read 0 0 ¶ default=0.3333333333333333 ¶ set 0 3 ¶ after=0.333 ¶ reread 0 0
+sv05-precision.tcl	rt8.6	0	exists=1 ¶ read 0 0 ¶ default=0.3333333333333333 ¶ set 0 3 ¶ after=0.333 ¶ reread 0 0
+sv05-precision.tcl	rt9.0	0	exists=0 ¶ read 1 {can't read "tcl_precision": no such variable} ¶ default=0.3333333333333333 ¶ set 0 3 ¶ after=0.3333333333333333 ¶ reread 1 {can't read "tcl_precision": no such variable}
+sv05-precision.tcl	rt9.1	0	exists=0 ¶ read 1 {can't read "tcl_precision": no such variable} ¶ default=0.3333333333333333 ¶ set 0 3 ¶ after=0.3333333333333333 ¶ reread 1 {can't read "tcl_precision": no such variable}
+sv06-errorinfo.tcl	tclsh8.4	0	start ei=1 ec=1 ¶ after-error ei=1 ec=NONE ¶ boom ¶ divzero ec=ARITH DIVZERO {divide by zero} ¶ lookup ec=NONE ¶ explicit ec=MYCODE ei=info ¶ proc-local=0
+sv06-errorinfo.tcl	tclsh8.5	0	start ei=0 ec=0 ¶ after-error ei=1 ec=NONE ¶ boom ¶ divzero ec=ARITH DIVZERO {divide by zero} ¶ lookup ec=NONE ¶ explicit ec=MYCODE ei=info ¶ proc-local=0
+sv06-errorinfo.tcl	tclsh8.6	0	start ei=0 ec=0 ¶ after-error ei=1 ec=NONE ¶ boom ¶ divzero ec=ARITH DIVZERO {divide by zero} ¶ lookup ec=TCL LOOKUP VARNAME nosuch ¶ explicit ec=MYCODE ei=info ¶ proc-local=0
+sv06-errorinfo.tcl	tclsh9.0	0	start ei=0 ec=0 ¶ after-error ei=1 ec=NONE ¶ boom ¶ divzero ec=ARITH DIVZERO {divide by zero} ¶ lookup ec=TCL LOOKUP VARNAME nosuch ¶ explicit ec=MYCODE ei=info ¶ proc-local=0
+sv06-errorinfo.tcl	tclsh9.1	0	start ei=0 ec=0 ¶ after-error ei=1 ec=NONE ¶ boom ¶ divzero ec=ARITH DIVZERO {divide by zero} ¶ lookup ec=TCL LOOKUP VARNAME nosuch ¶ explicit ec=MYCODE ei=info ¶ proc-local=0
+sv06-errorinfo.tcl	jim	1	sv06-errorinfo.tcl:5: Error: can't read "errorInfo": no such variable ¶ Traceback (most recent call last): ¶   File "sv06-errorinfo.tcl", line 5 ¶ start ei=0 ec=0 ¶ after-error ei=0 ec=NONE
+sv06-errorinfo.tcl	vm8.4	0	start ei=1 ec=1 ¶ after-error ei=1 ec=NONE ¶ boom ¶ divzero ec=ARITH DIVZERO {divide by zero} ¶ lookup ec=NONE ¶ explicit ec=MYCODE ei=info ¶ proc-local=0
+sv06-errorinfo.tcl	vm8.5	0	start ei=0 ec=0 ¶ after-error ei=1 ec=NONE ¶ boom ¶ divzero ec=ARITH DIVZERO {divide by zero} ¶ lookup ec=NONE ¶ explicit ec=MYCODE ei=info ¶ proc-local=0
+sv06-errorinfo.tcl	vm8.6	0	start ei=0 ec=0 ¶ after-error ei=1 ec=NONE ¶ boom ¶ divzero ec=ARITH DIVZERO {divide by zero} ¶ lookup ec=TCL LOOKUP VARNAME nosuch ¶ explicit ec=MYCODE ei=info ¶ proc-local=0
+sv06-errorinfo.tcl	vm9.0	0	start ei=0 ec=0 ¶ after-error ei=1 ec=NONE ¶ boom ¶ divzero ec=ARITH DIVZERO {divide by zero} ¶ lookup ec=TCL LOOKUP VARNAME nosuch ¶ explicit ec=MYCODE ei=info ¶ proc-local=0
+sv06-errorinfo.tcl	vm9.1	0	start ei=0 ec=0 ¶ after-error ei=1 ec=NONE ¶ boom ¶ divzero ec=ARITH DIVZERO {divide by zero} ¶ lookup ec=TCL LOOKUP VARNAME nosuch ¶ explicit ec=MYCODE ei=info ¶ proc-local=0
+sv06-errorinfo.tcl	rt8.4	0	start ei=0 ec=0 ¶ after-error ei=1 ec=NONE ¶ boom ¶ divzero ec=ARITH DIVZERO {divide by zero} ¶ lookup ec=NONE ¶ explicit ec=MYCODE ei=info ¶ proc-local=0
+sv06-errorinfo.tcl	rt8.5	0	start ei=0 ec=0 ¶ after-error ei=1 ec=NONE ¶ boom ¶ divzero ec=ARITH DIVZERO {divide by zero} ¶ lookup ec=NONE ¶ explicit ec=MYCODE ei=info ¶ proc-local=0
+sv06-errorinfo.tcl	rt8.6	0	start ei=0 ec=0 ¶ after-error ei=1 ec=NONE ¶ boom ¶ divzero ec=ARITH DIVZERO {divide by zero} ¶ lookup ec=TCL READ VARNAME ¶ explicit ec=MYCODE ei=info ¶ proc-local=0
+sv06-errorinfo.tcl	rt9.0	0	start ei=0 ec=0 ¶ after-error ei=1 ec=NONE ¶ boom ¶ divzero ec=ARITH DIVZERO {divide by zero} ¶ lookup ec=TCL READ VARNAME ¶ explicit ec=MYCODE ei=info ¶ proc-local=0
+sv06-errorinfo.tcl	rt9.1	0	start ei=0 ec=0 ¶ after-error ei=1 ec=NONE ¶ boom ¶ divzero ec=ARITH DIVZERO {divide by zero} ¶ lookup ec=TCL READ VARNAME ¶ explicit ec=MYCODE ei=info ¶ proc-local=0
+sv07-env.tcl	tclsh8.4	0	array=1 path=1 ¶ child=hello ¶ child-after=xx ¶ missing=0 ¶ proc-global=1 ¶ proc-local=0
+sv07-env.tcl	tclsh8.5	0	array=1 path=1 ¶ child=hello ¶ child-after=xx ¶ missing=0 ¶ proc-global=1 ¶ proc-local=0
+sv07-env.tcl	tclsh8.6	0	array=1 path=1 ¶ child=hello ¶ child-after=xx ¶ missing=0 ¶ proc-global=1 ¶ proc-local=0
+sv07-env.tcl	tclsh9.0	0	array=1 path=1 ¶ child=hello ¶ child-after=xx ¶ missing=0 ¶ proc-global=1 ¶ proc-local=0
+sv07-env.tcl	tclsh9.1	0	array=1 path=1 ¶ child=hello ¶ child-after=xx ¶ missing=0 ¶ proc-global=1 ¶ proc-local=0
+sv07-env.tcl	jim	0	array=1 path=1 ¶ child=hello ¶ child-after=xx ¶ missing=0 ¶ proc-global=1 ¶ proc-local=0
+sv07-env.tcl	vm8.4	0	array=1 path=1 ¶ child=hello ¶ child-after=xx ¶ missing=0 ¶ proc-global=1 ¶ proc-local=0
+sv07-env.tcl	vm8.5	0	array=1 path=1 ¶ child=hello ¶ child-after=xx ¶ missing=0 ¶ proc-global=1 ¶ proc-local=0
+sv07-env.tcl	vm8.6	0	array=1 path=1 ¶ child=hello ¶ child-after=xx ¶ missing=0 ¶ proc-global=1 ¶ proc-local=0
+sv07-env.tcl	vm9.0	0	array=1 path=1 ¶ child=hello ¶ child-after=xx ¶ missing=0 ¶ proc-global=1 ¶ proc-local=0
+sv07-env.tcl	vm9.1	0	array=1 path=1 ¶ child=hello ¶ child-after=xx ¶ missing=0 ¶ proc-global=1 ¶ proc-local=0
+sv07-env.tcl	rt8.4	1	array=1 path=1 ¶ error: "exec" is not supported under the WASM runtime
+sv07-env.tcl	rt8.5	1	array=1 path=1 ¶ error: "exec" is not supported under the WASM runtime
+sv07-env.tcl	rt8.6	1	array=1 path=1 ¶ error: "exec" is not supported under the WASM runtime
+sv07-env.tcl	rt9.0	1	array=1 path=1 ¶ error: "exec" is not supported under the WASM runtime
+sv07-env.tcl	rt9.1	1	array=1 path=1 ¶ error: "exec" is not supported under the WASM runtime
+sv08-wordchars.tcl	tclsh8.4	0	before=0/0 ¶ break=2 ¶ after=1/1
+sv08-wordchars.tcl	tclsh8.5	0	before=0/0 ¶ break=2 ¶ after=1/1
+sv08-wordchars.tcl	tclsh8.6	0	before=0/0 ¶ break=2 ¶ after=1/1
+sv08-wordchars.tcl	tclsh9.0	0	before=0/0 ¶ break=2 ¶ after=1/1
+sv08-wordchars.tcl	tclsh9.1	0	before=0/0 ¶ break=2 ¶ after=1/1
+sv08-wordchars.tcl	jim	1	sv08-wordchars.tcl:3: Error: invalid command name "tcl_wordBreakAfter" ¶ Traceback (most recent call last): ¶   File "sv08-wordchars.tcl", line 3 ¶ before=0/0
+sv08-wordchars.tcl	vm8.4	0	before=0/0 ¶ break=2 ¶ after=1/1
+sv08-wordchars.tcl	vm8.5	0	before=0/0 ¶ break=2 ¶ after=1/1
+sv08-wordchars.tcl	vm8.6	0	before=0/0 ¶ break=2 ¶ after=1/1
+sv08-wordchars.tcl	vm9.0	0	before=0/0 ¶ break=2 ¶ after=1/1 ¶ [timed out at 20 s; this output from a 120 s rerun, about 9 s]
+sv08-wordchars.tcl	vm9.1	0	before=0/0 ¶ break=2 ¶ after=1/1 ¶ [timed out at 20 s; this output from a 120 s rerun, about 9 s]
+sv08-wordchars.tcl	rt8.4	1	before=0/0 ¶ error: invalid command name "tcl_wordBreakAfter"
+sv08-wordchars.tcl	rt8.5	1	before=0/0 ¶ error: invalid command name "tcl_wordBreakAfter"
+sv08-wordchars.tcl	rt8.6	1	before=0/0 ¶ error: invalid command name "tcl_wordBreakAfter"
+sv08-wordchars.tcl	rt9.0	1	before=0/0 ¶ error: invalid command name "tcl_wordBreakAfter"
+sv08-wordchars.tcl	rt9.1	1	before=0/0 ¶ error: invalid command name "tcl_wordBreakAfter"
+sv09-proc-shadow.tcl	tclsh8.4	0	1:can't read "tcl_version": no such variable ¶ 8.4 ¶ 8.4 ¶ unix
+sv09-proc-shadow.tcl	tclsh8.5	0	1:can't read "tcl_version": no such variable ¶ 8.5 ¶ 8.5 ¶ unix
+sv09-proc-shadow.tcl	tclsh8.6	0	1:can't read "tcl_version": no such variable ¶ 8.6 ¶ 8.6 ¶ unix
+sv09-proc-shadow.tcl	tclsh9.0	0	1:can't read "tcl_version": no such variable ¶ 9.0 ¶ 9.0 ¶ unix
+sv09-proc-shadow.tcl	tclsh9.1	0	1:can't read "tcl_version": no such variable ¶ 9.1 ¶ 9.1 ¶ unix
+sv09-proc-shadow.tcl	jim	1	sv09-proc-shadow.tcl:3: Error: can't read "tcl_version": no such variable ¶ Traceback (most recent call last): ¶   File "sv09-proc-shadow.tcl", line 7 ¶     b ¶   File "sv09-proc-shadow.tcl", line 3, in b ¶ 1:can't read "tcl_version": no such variable
+sv09-proc-shadow.tcl	vm8.4	0	1:can't read "tcl_version": no such variable ¶ 8.4 ¶ 8.4 ¶ unix
+sv09-proc-shadow.tcl	vm8.5	0	1:can't read "tcl_version": no such variable ¶ 8.5 ¶ 8.5 ¶ unix
+sv09-proc-shadow.tcl	vm8.6	0	1:can't read "tcl_version": no such variable ¶ 8.6 ¶ 8.6 ¶ unix
+sv09-proc-shadow.tcl	vm9.0	0	1:can't read "tcl_version": no such variable ¶ 9.0 ¶ 9.0 ¶ unix
+sv09-proc-shadow.tcl	vm9.1	0	1:can't read "tcl_version": no such variable ¶ 9.1 ¶ 9.1 ¶ unix
+sv09-proc-shadow.tcl	rt8.4	0	1:can't read "tcl_version": no such variable ¶ 8.4 ¶ 8.4 ¶ unix
+sv09-proc-shadow.tcl	rt8.5	0	1:can't read "tcl_version": no such variable ¶ 8.5 ¶ 8.5 ¶ unix
+sv09-proc-shadow.tcl	rt8.6	0	1:can't read "tcl_version": no such variable ¶ 8.6 ¶ 8.6 ¶ unix
+sv09-proc-shadow.tcl	rt9.0	0	1:can't read "tcl_version": no such variable ¶ 9.0 ¶ 9.0 ¶ unix
+sv09-proc-shadow.tcl	rt9.1	0	1:can't read "tcl_version": no such variable ¶ 9.1 ¶ 9.1 ¶ unix
+sv10-namespace-eval-read.tcl	tclsh8.4	0	ns=8.4 ¶ global-changed=1 ns-var=0
+sv10-namespace-eval-read.tcl	tclsh8.5	0	ns=8.5 ¶ global-changed=1 ns-var=0
+sv10-namespace-eval-read.tcl	tclsh8.6	0	ns=8.6 ¶ global-changed=1 ns-var=0
+sv10-namespace-eval-read.tcl	tclsh9.0	1	can't read "tcl_version": no such variable ¶     while executing ¶ "puts "ns=$tcl_version" " ¶     (in namespace eval "::ns" script line 1) ¶     invoked from within ¶ "namespace eval ns { puts "ns=$tcl_version" }" ¶     (file "sv10-namespace-eval-read.tcl" line 2)
+sv10-namespace-eval-read.tcl	tclsh9.1	1	can't read "tcl_version": no such variable ¶     while executing ¶ "puts "ns=$tcl_version" " ¶     (in namespace eval "::ns" script line 1) ¶     invoked from within ¶ "namespace eval ns { puts "ns=$tcl_version" }" ¶     (file "sv10-namespace-eval-read.tcl" line 2)
+sv10-namespace-eval-read.tcl	jim	1	sv10-namespace-eval-read.tcl:2: Error: can't read "tcl_version": no such variable ¶ Traceback (most recent call last): ¶   File "sv10-namespace-eval-read.tcl", line 2
+sv10-namespace-eval-read.tcl	vm8.4	0	ns=8.4 ¶ global-changed=1 ns-var=0
+sv10-namespace-eval-read.tcl	vm8.5	0	ns=8.5 ¶ global-changed=1 ns-var=0
+sv10-namespace-eval-read.tcl	vm8.6	0	ns=8.6 ¶ global-changed=1 ns-var=0
+sv10-namespace-eval-read.tcl	vm9.0	1	can't read "tcl_version": no such variable ¶     while executing ¶ "puts "ns=$tcl_version" " ¶     (in namespace eval "::ns" script line 1) ¶     invoked from within ¶ "namespace eval ns { puts "ns=$tcl_version" }" ¶     (file "sv10-namespace-eval-read.tcl" line 2)
+sv10-namespace-eval-read.tcl	vm9.1	1	can't read "tcl_version": no such variable ¶     while executing ¶ "puts "ns=$tcl_version" " ¶     (in namespace eval "::ns" script line 1) ¶     invoked from within ¶ "namespace eval ns { puts "ns=$tcl_version" }" ¶     (file "sv10-namespace-eval-read.tcl" line 2)
+sv10-namespace-eval-read.tcl	rt8.4	1	ns=8.4 ¶ error: can't read "auto_path": no such variable
+sv10-namespace-eval-read.tcl	rt8.5	1	ns=8.5 ¶ error: can't read "auto_path": no such variable
+sv10-namespace-eval-read.tcl	rt8.6	1	ns=8.6 ¶ error: can't read "auto_path": no such variable
+sv10-namespace-eval-read.tcl	rt9.0	1	error: can't read "tcl_version": no such variable
+sv10-namespace-eval-read.tcl	rt9.1	1	error: can't read "tcl_version": no such variable
+sv11-unset-special.tcl	tclsh8.4	0	0 {} 0 ¶ 0 {} 0 ¶ 0 {} 0 ¶ child=xx
+sv11-unset-special.tcl	tclsh8.5	0	0 {} 0 ¶ 0 {} 0 ¶ 0 {} 0 ¶ child=xx
+sv11-unset-special.tcl	tclsh8.6	0	0 {} 0 ¶ 0 {} 0 ¶ 0 {} 0 ¶ child=xx
+sv11-unset-special.tcl	tclsh9.0	0	0 {} 0 ¶ 0 {} 0 ¶ 0 {} 0 ¶ child=xx
+sv11-unset-special.tcl	tclsh9.1	0	0 {} 0 ¶ 0 {} 0 ¶ 0 {} 0 ¶ child=xx
+sv11-unset-special.tcl	jim	0	0 {} 0 ¶ 0 {} 0 ¶ 0 {} 0 ¶ child=x1x
+sv11-unset-special.tcl	vm8.4	0	0 {} 0 ¶ 0 {} 0 ¶ 0 {} 0 ¶ child=xx
+sv11-unset-special.tcl	vm8.5	0	0 {} 0 ¶ 0 {} 0 ¶ 0 {} 0 ¶ child=xx
+sv11-unset-special.tcl	vm8.6	0	0 {} 0 ¶ 0 {} 0 ¶ 0 {} 0 ¶ child=xx
+sv11-unset-special.tcl	vm9.0	0	0 {} 0 ¶ 0 {} 0 ¶ 0 {} 0 ¶ child=xx
+sv11-unset-special.tcl	vm9.1	0	0 {} 0 ¶ 0 {} 0 ¶ 0 {} 0 ¶ child=xx
+sv11-unset-special.tcl	rt8.4	1	0 {} 0 ¶ 1 {can't unset "argv": no such variable} 0 ¶ 0 {} 0 ¶ error: "exec" is not supported under the WASM runtime
+sv11-unset-special.tcl	rt8.5	1	0 {} 0 ¶ 1 {can't unset "argv": no such variable} 0 ¶ 0 {} 0 ¶ error: "exec" is not supported under the WASM runtime
+sv11-unset-special.tcl	rt8.6	1	0 {} 0 ¶ 1 {can't unset "argv": no such variable} 0 ¶ 0 {} 0 ¶ error: "exec" is not supported under the WASM runtime
+sv11-unset-special.tcl	rt9.0	1	0 {} 0 ¶ 1 {can't unset "argv": no such variable} 0 ¶ 0 {} 0 ¶ error: "exec" is not supported under the WASM runtime
+sv11-unset-special.tcl	rt9.1	1	0 {} 0 ¶ 1 {can't unset "argv": no such variable} 0 ¶ 0 {} 0 ¶ error: "exec" is not supported under the WASM runtime
+sv12-write-only.tcl	tclsh8.4	0	ok
+sv12-write-only.tcl	tclsh8.5	0	ok
+sv12-write-only.tcl	tclsh8.6	0	ok
+sv12-write-only.tcl	tclsh9.0	0	ok
+sv12-write-only.tcl	tclsh9.1	0	ok
+sv12-write-only.tcl	jim	0	ok
+sv12-write-only.tcl	vm8.4	0	ok
+sv12-write-only.tcl	vm8.5	0	ok
+sv12-write-only.tcl	vm8.6	0	ok
+sv12-write-only.tcl	vm9.0	0	ok
+sv12-write-only.tcl	vm9.1	0	ok
+sv12-write-only.tcl	rt8.4	1	error: can't read "auto_path": no such variable
+sv12-write-only.tcl	rt8.5	1	error: can't read "auto_path": no such variable
+sv12-write-only.tcl	rt8.6	1	error: can't read "auto_path": no such variable
+sv12-write-only.tcl	rt9.0	1	error: can't read "auto_path": no such variable
+sv12-write-only.tcl	rt9.1	1	error: can't read "auto_path": no such variable
+sv13-argv-argc.tcl	tclsh8.4	0	argc=0 llength=3 ¶ argc=9
+sv13-argv-argc.tcl	tclsh8.5	0	argc=0 llength=3 ¶ argc=9
+sv13-argv-argc.tcl	tclsh8.6	0	argc=0 llength=3 ¶ argc=9
+sv13-argv-argc.tcl	tclsh9.0	0	argc=0 llength=3 ¶ argc=9
+sv13-argv-argc.tcl	tclsh9.1	0	argc=0 llength=3 ¶ argc=9
+sv13-argv-argc.tcl	jim	0	argc=0 llength=3 ¶ argc=9
+sv13-argv-argc.tcl	vm8.4	0	argc=0 llength=3 ¶ argc=9
+sv13-argv-argc.tcl	vm8.5	0	argc=0 llength=3 ¶ argc=9
+sv13-argv-argc.tcl	vm8.6	0	argc=0 llength=3 ¶ argc=9
+sv13-argv-argc.tcl	vm9.0	0	argc=0 llength=3 ¶ argc=9
+sv13-argv-argc.tcl	vm9.1	0	argc=0 llength=3 ¶ argc=9
+sv13-argv-argc.tcl	rt8.4	1	error: can't read "argc": no such variable
+sv13-argv-argc.tcl	rt8.5	1	error: can't read "argc": no such variable
+sv13-argv-argc.tcl	rt8.6	1	error: can't read "argc": no such variable
+sv13-argv-argc.tcl	rt9.0	1	error: can't read "argc": no such variable
+sv13-argv-argc.tcl	rt9.1	1	error: can't read "argc": no such variable
+sv14-errorinfo-write-before-error.tcl	tclsh8.4	0	x ¶ NONE
+sv14-errorinfo-write-before-error.tcl	tclsh8.5	0	x ¶ NONE
+sv14-errorinfo-write-before-error.tcl	tclsh8.6	0	x ¶ NONE
+sv14-errorinfo-write-before-error.tcl	tclsh9.0	0	x ¶ NONE
+sv14-errorinfo-write-before-error.tcl	tclsh9.1	0	x ¶ NONE
+sv14-errorinfo-write-before-error.tcl	jim	0	seeded ¶ NONE
+sv14-errorinfo-write-before-error.tcl	vm8.4	0	x ¶ NONE
+sv14-errorinfo-write-before-error.tcl	vm8.5	0	x ¶ NONE
+sv14-errorinfo-write-before-error.tcl	vm8.6	0	x ¶ NONE
+sv14-errorinfo-write-before-error.tcl	vm9.0	0	x ¶ NONE
+sv14-errorinfo-write-before-error.tcl	vm9.1	0	x ¶ NONE
+sv14-errorinfo-write-before-error.tcl	rt8.4	0	x ¶ NONE
+sv14-errorinfo-write-before-error.tcl	rt8.5	0	x ¶ NONE
+sv14-errorinfo-write-before-error.tcl	rt8.6	0	x ¶ NONE
+sv14-errorinfo-write-before-error.tcl	rt9.0	0	x ¶ NONE
+sv14-errorinfo-write-before-error.tcl	rt9.1	0	x ¶ NONE
+sv15-tk-globals.tcl	tclsh8.4	0	tk_version=0 tk_library=0 ¶ 1
+sv15-tk-globals.tcl	tclsh8.5	0	tk_version=0 tk_library=0 ¶ 1
+sv15-tk-globals.tcl	tclsh8.6	0	tk_version=0 tk_library=0 ¶ 1
+sv15-tk-globals.tcl	tclsh9.0	0	tk_version=0 tk_library=0 ¶ 1
+sv15-tk-globals.tcl	tclsh9.1	0	tk_version=0 tk_library=0 ¶ 1
+sv15-tk-globals.tcl	jim	0	tk_version=0 tk_library=0 ¶ 1
+sv15-tk-globals.tcl	vm8.4	0	tk_version=0 tk_library=0 ¶ 1
+sv15-tk-globals.tcl	vm8.5	0	tk_version=0 tk_library=0 ¶ 1
+sv15-tk-globals.tcl	vm8.6	0	tk_version=0 tk_library=0 ¶ 1 ¶ [timed out at 20 s; this output from a 120 s rerun]
+sv15-tk-globals.tcl	vm9.0	0	tk_version=0 tk_library=0 ¶ 1
+sv15-tk-globals.tcl	vm9.1	0	tk_version=0 tk_library=0 ¶ 1
+sv15-tk-globals.tcl	rt8.4	0	tk_version=0 tk_library=0 ¶ 1
+sv15-tk-globals.tcl	rt8.5	0	tk_version=0 tk_library=0 ¶ 1
+sv15-tk-globals.tcl	rt8.6	0	tk_version=0 tk_library=0 ¶ 1
+sv15-tk-globals.tcl	rt9.0	0	tk_version=0 tk_library=0 ¶ 1
+sv15-tk-globals.tcl	rt9.1	0	tk_version=0 tk_library=0 ¶ 1
+sv16-lookup-errorcode.tcl	tclsh8.4	0	1 NONE ¶ 2 NONE ¶ 3 NONE ¶ 4 NONE ¶ 5 NONE ¶ 6 NONE ¶ 7 NONE
+sv16-lookup-errorcode.tcl	tclsh8.5	0	1 NONE ¶ 2 NONE ¶ 3 NONE ¶ 4 NONE ¶ 5 NONE ¶ 6 NONE ¶ 7 NONE
+sv16-lookup-errorcode.tcl	tclsh8.6	0	1 TCL LOOKUP VARNAME nosuch ¶ 2 TCL LOOKUP VARNAME nosuch ¶ 3 TCL READ VARNAME ¶ 4 TCL READ VARNAME ¶ 5 TCL LOOKUP VARNAME nosuch ¶ 6 TCL LOOKUP VARNAME a ¶ 7 TCL LOOKUP VARNAME nosuch
+sv16-lookup-errorcode.tcl	tclsh9.0	0	1 TCL LOOKUP VARNAME nosuch ¶ 2 TCL LOOKUP VARNAME nosuch ¶ 3 TCL READ VARNAME ¶ 4 TCL READ VARNAME ¶ 5 TCL LOOKUP VARNAME nosuch ¶ 6 TCL LOOKUP VARNAME a ¶ 7 TCL LOOKUP VARNAME nosuch
+sv16-lookup-errorcode.tcl	tclsh9.1	0	1 TCL LOOKUP VARNAME nosuch ¶ 2 TCL LOOKUP VARNAME nosuch ¶ 3 TCL READ VARNAME ¶ 4 TCL READ VARNAME ¶ 5 TCL LOOKUP VARNAME nosuch ¶ 6 TCL LOOKUP VARNAME a ¶ 7 TCL LOOKUP VARNAME nosuch
+sv16-lookup-errorcode.tcl	jim	0	1 NONE ¶ 2 NONE ¶ 3 NONE ¶ 4 NONE ¶ 5 NONE ¶ 6 NONE ¶ 7 NONE
+sv16-lookup-errorcode.tcl	vm8.4	0	1 NONE ¶ 2 NONE ¶ 3 NONE ¶ 4 NONE ¶ 5 NONE ¶ 6 NONE ¶ 7 NONE
+sv16-lookup-errorcode.tcl	vm8.5	0	1 NONE ¶ 2 NONE ¶ 3 NONE ¶ 4 NONE ¶ 5 NONE ¶ 6 NONE ¶ 7 NONE
+sv16-lookup-errorcode.tcl	vm8.6	0	1 TCL LOOKUP VARNAME nosuch ¶ 2 TCL LOOKUP VARNAME nosuch ¶ 3 TCL READ VARNAME ¶ 4 TCL READ VARNAME ¶ 5 TCL LOOKUP VARNAME nosuch ¶ 6 TCL LOOKUP VARNAME a ¶ 7 TCL LOOKUP VARNAME nosuch
+sv16-lookup-errorcode.tcl	vm9.0	0	1 TCL LOOKUP VARNAME nosuch ¶ 2 TCL LOOKUP VARNAME nosuch ¶ 3 TCL READ VARNAME ¶ 4 TCL READ VARNAME ¶ 5 TCL LOOKUP VARNAME nosuch ¶ 6 TCL LOOKUP VARNAME a ¶ 7 TCL LOOKUP VARNAME nosuch
+sv16-lookup-errorcode.tcl	vm9.1	0	1 TCL LOOKUP VARNAME nosuch ¶ 2 TCL LOOKUP VARNAME nosuch ¶ 3 TCL READ VARNAME ¶ 4 TCL READ VARNAME ¶ 5 TCL LOOKUP VARNAME nosuch ¶ 6 TCL LOOKUP VARNAME a ¶ 7 TCL LOOKUP VARNAME nosuch
+sv16-lookup-errorcode.tcl	rt8.4	0	1 NONE ¶ 2 NONE ¶ 3 NONE ¶ 4 NONE ¶ 5 NONE ¶ 6 NONE ¶ 7 NONE
+sv16-lookup-errorcode.tcl	rt8.5	0	1 NONE ¶ 2 NONE ¶ 3 NONE ¶ 4 NONE ¶ 5 NONE ¶ 6 NONE ¶ 7 NONE
+sv16-lookup-errorcode.tcl	rt8.6	0	1 TCL READ VARNAME ¶ 2 NONE ¶ 3 TCL READ VARNAME ¶ 4 TCL READ VARNAME ¶ 5 NONE ¶ 6 TCL READ VARNAME ¶ 7 TCL LOOKUP VARNAME nosuch
+sv16-lookup-errorcode.tcl	rt9.0	0	1 TCL READ VARNAME ¶ 2 NONE ¶ 3 TCL READ VARNAME ¶ 4 TCL READ VARNAME ¶ 5 NONE ¶ 6 TCL READ VARNAME ¶ 7 TCL LOOKUP VARNAME nosuch
+sv16-lookup-errorcode.tcl	rt9.1	0	1 TCL READ VARNAME ¶ 2 NONE ¶ 3 TCL READ VARNAME ¶ 4 TCL READ VARNAME ¶ 5 NONE ¶ 6 TCL READ VARNAME ¶ 7 TCL LOOKUP VARNAME nosuch
+sv17-error-vars-across-catch.tcl	tclsh8.4	0	x ¶ NONE
+sv17-error-vars-across-catch.tcl	tclsh8.5	0	x ¶ NONE
+sv17-error-vars-across-catch.tcl	tclsh8.6	0	x ¶ NONE
+sv17-error-vars-across-catch.tcl	tclsh9.0	0	x ¶ NONE
+sv17-error-vars-across-catch.tcl	tclsh9.1	0	x ¶ NONE
+sv17-error-vars-across-catch.tcl	jim	0	seeded ¶ NONE
+sv17-error-vars-across-catch.tcl	vm8.4	0	x ¶ NONE
+sv17-error-vars-across-catch.tcl	vm8.5	0	x ¶ NONE
+sv17-error-vars-across-catch.tcl	vm8.6	0	x ¶ NONE
+sv17-error-vars-across-catch.tcl	vm9.0	0	x ¶ NONE
+sv17-error-vars-across-catch.tcl	vm9.1	0	x ¶ NONE
+sv17-error-vars-across-catch.tcl	rt8.4	0	x ¶ NONE
+sv17-error-vars-across-catch.tcl	rt8.5	0	x ¶ NONE
+sv17-error-vars-across-catch.tcl	rt8.6	0	x ¶ NONE
+sv17-error-vars-across-catch.tcl	rt9.0	0	x ¶ NONE
+sv17-error-vars-across-catch.tcl	rt9.1	0	x ¶ NONE
+sv18-precision-write.tcl	tclsh8.4	0	0.333 ¶ 3
+sv18-precision-write.tcl	tclsh8.5	0	0.333 ¶ 3
+sv18-precision-write.tcl	tclsh8.6	0	0.333 ¶ 3
+sv18-precision-write.tcl	tclsh9.0	0	0.3333333333333333 ¶ 3
+sv18-precision-write.tcl	tclsh9.1	0	0.3333333333333333 ¶ 3
+sv18-precision-write.tcl	jim	0	0.333333333333 ¶ 3
+sv18-precision-write.tcl	vm8.4	0	0.333 ¶ 3
+sv18-precision-write.tcl	vm8.5	0	0.333 ¶ 3
+sv18-precision-write.tcl	vm8.6	0	0.333 ¶ 3
+sv18-precision-write.tcl	vm9.0	0	0.3333333333333333 ¶ 3
+sv18-precision-write.tcl	vm9.1	0	0.3333333333333333 ¶ 3
+sv18-precision-write.tcl	rt8.4	0	0.333 ¶ 3
+sv18-precision-write.tcl	rt8.5	0	0.333 ¶ 3
+sv18-precision-write.tcl	rt8.6	0	0.333 ¶ 3
+sv18-precision-write.tcl	rt9.0	0	0.3333333333333333 ¶ 3
+sv18-precision-write.tcl	rt9.1	0	0.3333333333333333 ¶ 3
+sv19-auto-path-write.tcl	tclsh8.4	0	0:1.0
+sv19-auto-path-write.tcl	tclsh8.5	0	0:1.0
+sv19-auto-path-write.tcl	tclsh8.6	0	0:1.0
+sv19-auto-path-write.tcl	tclsh9.0	0	0:1.0
+sv19-auto-path-write.tcl	tclsh9.1	0	0:1.0
+sv19-auto-path-write.tcl	jim	0	1:Can't load package svprobe
+sv19-auto-path-write.tcl	vm8.4	0	0:1.0
+sv19-auto-path-write.tcl	vm8.5	0	1:invalid command name "add"
+sv19-auto-path-write.tcl	vm8.6	0	0:1.0
+sv19-auto-path-write.tcl	vm9.0	0	0:1.0
+sv19-auto-path-write.tcl	vm9.1	0	0:1.0
+sv19-auto-path-write.tcl	rt8.4	1	error: can't read "auto_path": no such variable
+sv19-auto-path-write.tcl	rt8.5	1	error: can't read "auto_path": no such variable
+sv19-auto-path-write.tcl	rt8.6	1	error: can't read "auto_path": no such variable
+sv19-auto-path-write.tcl	rt9.0	1	error: can't read "auto_path": no such variable
+sv19-auto-path-write.tcl	rt9.1	1	error: can't read "auto_path": no such variable

@@ -1,0 +1,105 @@
+fixture	interpreter	output (lines joined by ' | ', <rc>, <elapsed>)
+e01-basic.tcl	tclsh8.4	echo=hello world | keep=3 | strip=2 | true=0 <> | wrong # args: should be "catch command ?varName?" |     while executing | "catch {exec false} m opts" |     invoked from within | "set rc [catch {exec false} m opts]" |     (file "/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/exec-pipes/e01-basic.tcl" line 6) | <rc=1> <0s>
+e01-basic.tcl	tclsh8.5	echo=hello world | keep=3 | strip=2 | true=0 <> | false=1 code=CHILDSTATUS status=1 msg=<child process exited abnormally> | missing=1 POSIX ENOENT | dashdash=-keepnewline | <rc=0> <0s>
+e01-basic.tcl	tclsh8.6	echo=hello world | keep=3 | strip=2 | true=0 <> | false=1 code=CHILDSTATUS status=1 msg=<child process exited abnormally> | missing=1 POSIX ENOENT | dashdash=-keepnewline | <rc=0> <0s>
+e01-basic.tcl	tclsh9.0	echo=hello world | keep=3 | strip=2 | true=0 <> | false=1 code=CHILDSTATUS status=1 msg=<child process exited abnormally> | missing=1 POSIX ENOENT | dashdash=-keepnewline | <rc=0> <0s>
+e01-basic.tcl	tclsh9.1	echo=hello world | keep=3 | strip=2 | true=0 <> | false=1 code=CHILDSTATUS status=1 msg=<child process exited abnormally> | missing=1 POSIX ENOENT | dashdash=-keepnewline | <rc=0> <0s>
+e01-basic.tcl	jim	/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/exec-pipes/e01-basic.tcl:3: Error: couldn't exec "-keepnewline" | Traceback (most recent call last): |   File "/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/exec-pipes/e01-basic.tcl", line 3 |     exec -keepnewline echo ab | echo=hello world | <rc=1> <0s>
+e01-basic.tcl	vm8.6	echo=hello world | no such file or directory |     while executing | "exec -keepnewline echo ab" |     invoked from within | "string length [exec -keepnewline echo ab]" |     invoked from within | "puts "keep=[string length [exec -keepnewline echo ab]]"" |     (file "/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/exec-pipes/e01-basic.tcl" line 3) | <rc=1> <6s>
+e01-basic.tcl	runtime8.6	error: "exec" is not supported under the WASM runtime | <rc=1> <1s>
+e01-basic.tcl	vm9.0	echo=hello world | no such file or directory |     while executing | "exec -keepnewline echo ab" |     invoked from within | "string length [exec -keepnewline echo ab]" |     invoked from within | "puts "keep=[string length [exec -keepnewline echo ab]]"" |     (file "/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/exec-pipes/e01-basic.tcl" line 3) | <rc=1> <4s>
+e01-basic.tcl	runtime9.0	error: "exec" is not supported under the WASM runtime | <rc=1> <0s>
+e02-pipeline.tcl	tclsh8.4	pipe=a b c | pipe-amp=1 1 | trailing-bar=1 illegal use of | or |& in command | leading-bar=1 illegal use of | or |& in command | bar-as-word=0 a|b | <rc=0> <0s>
+e02-pipeline.tcl	tclsh8.5	pipe=a b c | pipe-amp=1 1 | trailing-bar=1 illegal use of | or |& in command | leading-bar=1 illegal use of | or |& in command | bar-as-word=0 a|b | <rc=0> <0s>
+e02-pipeline.tcl	tclsh8.6	pipe=a b c | pipe-amp=1 1 | trailing-bar=1 illegal use of | or |& in command | leading-bar=1 illegal use of | or |& in command | bar-as-word=0 a|b | <rc=0> <1s>
+e02-pipeline.tcl	tclsh9.0	pipe=a b c | pipe-amp=1 1 | trailing-bar=1 illegal use of | or |& in command | leading-bar=1 illegal use of | or |& in command | bar-as-word=0 a|b | <rc=0> <0s>
+e02-pipeline.tcl	tclsh9.1	pipe=a b c | pipe-amp=1 1 | trailing-bar=1 illegal use of | or |& in command | leading-bar=1 illegal use of | or |& in command | bar-as-word=0 a|b | <rc=0> <0s>
+e02-pipeline.tcl	jim	pipe=a b c | pipe-amp=1 1 | trailing-bar=1 illegal use of | or |& in command | leading-bar=1 invalid redirection a | bar-as-word=0 a|b | <rc=0> <0s>
+e02-pipeline.tcl	vm8.6	pipe=a b c | cat | cat | pipe-amp=0 0 | trailing-bar=0 a | | leading-bar=1 no such file or directory | bar-as-word=0 a|b | <rc=0> <5s>
+e02-pipeline.tcl	runtime8.6	error: "exec" is not supported under the WASM runtime | <rc=1> <1s>
+e02-pipeline.tcl	vm9.0	pipe=a b c | cat | cat | pipe-amp=0 0 | trailing-bar=0 a | | leading-bar=1 no such file or directory | bar-as-word=0 a|b | <rc=0> <4s>
+e02-pipeline.tcl	runtime9.0	error: "exec" is not supported under the WASM runtime | <rc=1> <1s>
+e03-redirect-in.tcl	tclsh8.4	lt=from file | lt-joined=from file | heredoc=from value | heredoc-joined=joined | lt-at=from file | <rc=0> <0s>
+e03-redirect-in.tcl	tclsh8.5	lt=from file | lt-joined=from file | heredoc=from value | heredoc-joined=joined | lt-at=from file | <rc=0> <0s>
+e03-redirect-in.tcl	tclsh8.6	lt=from file | lt-joined=from file | heredoc=from value | heredoc-joined=joined | lt-at=from file | <rc=0> <0s>
+e03-redirect-in.tcl	tclsh9.0	lt=from file | lt-joined=from file | heredoc=from value | heredoc-joined=joined | lt-at=from file | <rc=0> <1s>
+e03-redirect-in.tcl	tclsh9.1	lt=from file | lt-joined=from file | heredoc=from value | heredoc-joined=joined | lt-at=from file | <rc=0> <0s>
+e03-redirect-in.tcl	jim	lt=from file | lt-joined=from file | heredoc=from value | heredoc-joined=joined | lt-at=from file | <rc=0> <0s>
+e03-redirect-in.tcl	vm8.6	lt=from file | lt-joined= | heredoc= | heredoc-joined= | lt-at= | <rc=0> <4s>
+e03-redirect-in.tcl	runtime8.6	error: "exec" is not supported under the WASM runtime | <rc=1> <1s>
+e03-redirect-in.tcl	vm9.0	lt=from file | lt-joined= | heredoc= | heredoc-joined= | lt-at= | <rc=0> <5s>
+e03-redirect-in.tcl	runtime9.0	error: "exec" is not supported under the WASM runtime | <rc=1> <1s>
+e04-redirect-out.tcl	tclsh8.4	gt-append=one | two | two-gt=1 result=<0> | gt-amp=1 | two-at-one=1 1 | gt-at=to-chan | <rc=0> <0s>
+e04-redirect-out.tcl	tclsh8.5	gt-append=one | two | two-gt=1 result=<0> | gt-amp=1 | two-at-one=1 1 | gt-at=to-chan | <rc=0> <0s>
+e04-redirect-out.tcl	tclsh8.6	gt-append=one | two | two-gt=1 result=<0> | gt-amp=1 | two-at-one=1 1 | gt-at=to-chan | <rc=0> <0s>
+e04-redirect-out.tcl	tclsh9.0	gt-append=one | two | two-gt=1 result=<0> | gt-amp=1 | two-at-one=1 1 | gt-at=to-chan | <rc=0> <0s>
+e04-redirect-out.tcl	tclsh9.1	gt-append=one | two | two-gt=1 result=<0> | gt-amp=1 | two-at-one=1 1 | gt-at=to-chan | <rc=0> <0s>
+e04-redirect-out.tcl	jim	gt-append=one | two | two-gt=1 result=<0> | gt-amp=1 | two-at-one=1 1 | gt-at=to-chan | <rc=0> <0s>
+e04-redirect-out.tcl	vm8.6	gt-append= | two-gt=0 result=<0> | gt-amp=0 | two-at-one=0 0 | gt-at= | <rc=0> <5s>
+e04-redirect-out.tcl	runtime8.6	error: "exec" is not supported under the WASM runtime | <rc=1> <0s>
+e04-redirect-out.tcl	vm9.0	gt-append= | two-gt=0 result=<0> | gt-amp=0 | two-at-one=0 0 | gt-at= | <rc=0> <3s>
+e04-redirect-out.tcl	runtime9.0	error: "exec" is not supported under the WASM runtime | <rc=1> <1s>
+e05-ignorestderr.tcl	tclsh8.4	stderr-fails=1 CHILDSTATUS | ignorestderr=1 NONE | ignorestderr-zero=1 bad switch "-ignorestderr": must be -keepnewline or -- | unknown-switch=1 bad switch "-bogus": must be -keepnewline or -- | <rc=0> <0s>
+e05-ignorestderr.tcl	tclsh8.5	stderr-fails=1 CHILDSTATUS | ignorestderr=1 CHILDSTATUS | ignorestderr-zero=0 fine | unknown-switch=1 bad switch "-bogus": must be -ignorestderr, -keepnewline, or -- | <rc=0> <0s>
+e05-ignorestderr.tcl	tclsh8.6	stderr-fails=1 CHILDSTATUS | ignorestderr=1 CHILDSTATUS | ignorestderr-zero=0 fine | unknown-switch=1 bad option "-bogus": must be -ignorestderr, -keepnewline, or -- | <rc=0> <0s>
+e05-ignorestderr.tcl	tclsh9.0	stderr-fails=1 CHILDSTATUS | ignorestderr=1 CHILDSTATUS | ignorestderr-zero=0 fine | unknown-switch=1 bad option "-bogus": must be -ignorestderr, -keepnewline, -encoding, or -- | <rc=0> <1s>
+e05-ignorestderr.tcl	tclsh9.1	stderr-fails=1 CHILDSTATUS | ignorestderr=1 CHILDSTATUS | ignorestderr-zero=0 fine | unknown-switch=1 bad option "-bogus": must be -ignorestderr, -keepnewline, -encoding, or -- | <rc=0> <0s>
+e05-ignorestderr.tcl	jim	stderr-fails=1 CHILDSTATUS | ignorestderr=1 CHILDSTATUS | ignorestderr-zero=1 couldn't exec "-ignorestderr" | unknown-switch=1 couldn't exec "-bogus" | <rc=0> <0s>
+e05-ignorestderr.tcl	vm8.6	can't read "::errorCode": no such variable |     while executing | "lindex $::errorCode 0" |     invoked from within | "puts "stderr-fails=[catch {exec cat no-such-file} m] [lindex $::errorCode 0]"" |     (file "/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/exec-pipes/e05-ignorestderr.tcl" line 3) | <rc=1> <4s>
+e05-ignorestderr.tcl	runtime8.6	stderr-fails=1 NONE | ignorestderr=1 NONE | ignorestderr-zero=1 "exec" is not supported under the WASM runtime | unknown-switch=1 "exec" is not supported under the WASM runtime | <rc=0> <0s>
+e05-ignorestderr.tcl	vm9.0	can't read "::errorCode": no such variable |     while executing | "lindex $::errorCode 0" |     invoked from within | "puts "stderr-fails=[catch {exec cat no-such-file} m] [lindex $::errorCode 0]"" |     (file "/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/exec-pipes/e05-ignorestderr.tcl" line 3) | <rc=1> <5s>
+e05-ignorestderr.tcl	runtime9.0	stderr-fails=1 NONE | ignorestderr=1 NONE | ignorestderr-zero=1 "exec" is not supported under the WASM runtime | unknown-switch=1 "exec" is not supported under the WASM runtime | <rc=0> <1s>
+e06-background.tcl	tclsh8.4	count=1 int=1 | out=bg | pipeline-pids=2 | amp-not-last=0 a & echo b | <rc=0> <1s>
+e06-background.tcl	tclsh8.5	count=1 int=1 | out=bg | pipeline-pids=2 | amp-not-last=0 a & echo b | <rc=0> <1s>
+e06-background.tcl	tclsh8.6	count=1 int=1 | out=bg | pipeline-pids=2 | amp-not-last=0 a & echo b | <rc=0> <1s>
+e06-background.tcl	tclsh9.0	count=1 int=1 | out=bg | pipeline-pids=2 | amp-not-last=0 a & echo b | <rc=0> <0s>
+e06-background.tcl	tclsh9.1	count=1 int=1 | out=bg | pipeline-pids=2 | amp-not-last=0 a & echo b | <rc=0> <0s>
+e06-background.tcl	jim	count=1 int=1 | out=bg | pipeline-pids=2 | amp-not-last=0 a & echo b | <rc=0> <1s>
+e06-background.tcl	vm8.6	count=4 int=0 | out= | pipeline-pids=6 | amp-not-last=0 a & echo b | <rc=0> <3s>
+e06-background.tcl	runtime8.6	error: "exec" is not supported under the WASM runtime | <rc=1> <0s>
+e06-background.tcl	vm9.0	count=4 int=0 | out= | pipeline-pids=6 | amp-not-last=0 a & echo b | <rc=0> <3s>
+e06-background.tcl	runtime9.0	error: "exec" is not supported under the WASM runtime | <rc=1> <0s>
+e07-open-pipe.tcl	tclsh8.4	read=piped | pid=1 | invalid command name "chan" |     while executing | "chan close $ch write" |     (file "/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/exec-pipes/e07-open-pipe.tcl" line 9) | <rc=1> <0s>
+e07-open-pipe.tcl	tclsh8.5	read=piped | pid=1 | wrong # args: should be "chan close channelId" |     while executing | "chan close $ch write" |     (file "/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/exec-pipes/e07-open-pipe.tcl" line 9) | <rc=1> <0s>
+e07-open-pipe.tcl	tclsh8.6	read=piped | pid=1 | rw=round trip | close-status=1 CHILDSTATUS | close-stderr=1 1 | bad-open=1 1 | <rc=0> <0s>
+e07-open-pipe.tcl	tclsh9.0	read=piped | pid=1 | rw=round trip | close-status=1 CHILDSTATUS | close-stderr=1 1 | bad-open=1 1 | <rc=0> <0s>
+e07-open-pipe.tcl	tclsh9.1	read=piped | pid=1 | rw=round trip | close-status=1 CHILDSTATUS | close-stderr=1 1 | bad-open=1 1 | <rc=0> <0s>
+e07-open-pipe.tcl	jim	/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/exec-pipes/e07-open-pipe.tcl:8: Error: pipe: Bad file descriptor | Traceback (most recent call last): |   File "/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/exec-pipes/e07-open-pipe.tcl", line 8 |     ::aio.pipe6 flush | read=piped | pid=1 | <rc=1> <0s>
+e07-open-pipe.tcl	vm8.6	command pipelines are not supported |     while executing | "open "|echo piped" r" |     invoked from within | "set ch [open "|echo piped" r]" |     (file "/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/exec-pipes/e07-open-pipe.tcl" line 2) | <rc=1> <1s>
+e07-open-pipe.tcl	runtime8.6	error: couldn't open "|echo piped": no such file or directory | <rc=1> <0s>
+e07-open-pipe.tcl	vm9.0	command pipelines are not supported |     while executing | "open "|echo piped" r" |     invoked from within | "set ch [open "|echo piped" r]" |     (file "/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/exec-pipes/e07-open-pipe.tcl" line 2) | <rc=1> <2s>
+e07-open-pipe.tcl	runtime9.0	error: couldn't open "|echo piped": no such file or directory | <rc=1> <1s>
+e08-quoting.tcl	tclsh8.4	spaces=a  b | semi=x;y | dollar=$HOME | star=* | inject-lt= | inject-gt=1 harmless | inject-bar=0 a | dashdash= | <rc=0> <0s>
+e08-quoting.tcl	tclsh8.5	spaces=a  b | semi=x;y | dollar=$HOME | star=* | inject-lt= | inject-gt=1 harmless | inject-bar=0 a | dashdash= | <rc=0> <0s>
+e08-quoting.tcl	tclsh8.6	spaces=a  b | semi=x;y | dollar=$HOME | star=* | inject-lt= | inject-gt=1 harmless | inject-bar=0 a | dashdash= | <rc=0> <0s>
+e08-quoting.tcl	tclsh9.0	spaces=a  b | semi=x;y | dollar=$HOME | star=* | inject-lt= | inject-gt=1 harmless | inject-bar=0 a | dashdash= | <rc=0> <0s>
+e08-quoting.tcl	tclsh9.1	spaces=a  b | semi=x;y | dollar=$HOME | star=* | inject-lt= | inject-gt=1 harmless | inject-bar=0 a | dashdash= | <rc=0> <0s>
+e08-quoting.tcl	jim	/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/exec-pipes/e08-quoting.tcl:18: Error: couldn't exec "--" | Traceback (most recent call last): |   File "/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/exec-pipes/e08-quoting.tcl", line 18 |     exec -- echo <user.txt | spaces=a  b | semi=x;y | dollar=$HOME | star=* | inject-lt= | inject-gt=1 harmless | inject-bar=0 a | <rc=1> <0s>
+e08-quoting.tcl	vm8.6	spaces=a  b | semi=x;y | dollar=$HOME | star=* | inject-lt=<user.txt | inject-gt=0  | inject-bar=0 a | cat | no such file or directory |     while executing | "exec -- echo $user" |     invoked from within | "puts "dashdash=[exec -- echo $user]"" |     (file "/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/exec-pipes/e08-quoting.tcl" line 18) | <rc=1> <3s>
+e08-quoting.tcl	runtime8.6	error: "exec" is not supported under the WASM runtime | <rc=1> <1s>
+e08-quoting.tcl	vm9.0	spaces=a  b | semi=x;y | dollar=$HOME | star=* | inject-lt=<user.txt | inject-gt=0  | inject-bar=0 a | cat | no such file or directory |     while executing | "exec -- echo $user" |     invoked from within | "puts "dashdash=[exec -- echo $user]"" |     (file "/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/exec-pipes/e08-quoting.tcl" line 18) | <rc=1> <3s>
+e08-quoting.tcl	runtime9.0	error: "exec" is not supported under the WASM runtime | <rc=1> <1s>
+e09-auto-execok.tcl	tclsh8.4	echo=1 | abs=1 | missing=<> | unknown-no-autoexec=1 invalid command name "no-such-program-xyz" | echo-cmd=1 invalid command name "echo" | <rc=0> <0s>
+e09-auto-execok.tcl	tclsh8.5	echo=1 | abs=1 | missing=<> | unknown-no-autoexec=1 invalid command name "no-such-program-xyz" | echo-cmd=1 invalid command name "echo" | <rc=0> <0s>
+e09-auto-execok.tcl	tclsh8.6	echo=1 | abs=1 | missing=<> | unknown-no-autoexec=1 invalid command name "no-such-program-xyz" | echo-cmd=1 invalid command name "echo" | <rc=0> <0s>
+e09-auto-execok.tcl	tclsh9.0	echo=1 | abs=1 | missing=<> | unknown-no-autoexec=1 invalid command name "no-such-program-xyz" | echo-cmd=1 invalid command name "echo" | <rc=0> <0s>
+e09-auto-execok.tcl	tclsh9.1	echo=1 | abs=1 | missing=<> | unknown-no-autoexec=1 invalid command name "no-such-program-xyz" | echo-cmd=1 invalid command name "echo" | <rc=0> <0s>
+e09-auto-execok.tcl	jim	/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/exec-pipes/e09-auto-execok.tcl:2: Error: invalid command name "auto_execok" | Traceback (most recent call last): |   File "/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/exec-pipes/e09-auto-execok.tcl", line 2 | <rc=1> <0s>
+e09-auto-execok.tcl	vm8.6	echo=1 | abs=1 | missing=<> | <rc=124> <20s>
+e09-auto-execok.tcl	vm8.6(timeout120)	echo=1 | abs=1 | missing=<> | unknown-no-autoexec=1 invalid command name "no-such-program-xyz" | echo-cmd=1 invalid command name "echo" | <rc=0> <26s>
+e09-auto-execok.tcl	runtime8.6	error: invalid command name "auto_execok" | <rc=1> <1s>
+e09-auto-execok.tcl	vm9.0	echo=1 | abs=1 | missing=<> | <rc=124> <20s>
+e09-auto-execok.tcl	vm9.0(timeout120)	echo=1 | abs=1 | missing=<> | unknown-no-autoexec=1 invalid command name "no-such-program-xyz" | echo-cmd=1 invalid command name "echo" | <rc=0> <31s>
+e09-auto-execok.tcl	runtime9.0	error: invalid command name "auto_execok" | <rc=1> <1s>
+e10-chan-pipe.tcl	tclsh8.4	invalid command name "chan" |     while executing | "chan pipe" |     invoked from within | "lassign [chan pipe] r w" |     (file "/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/exec-pipes/e10-chan-pipe.tcl" line 2) | <rc=1> <0s>
+e10-chan-pipe.tcl	tclsh8.5	unknown or ambiguous subcommand "pipe": must be blocked, close, configure, copy, create, eof, event, flush, gets, names, pending, postevent, puts, read, seek, tell, or truncate |     while executing | "chan pipe" |     invoked from within | "lassign [chan pipe] r w" |     (file "/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/exec-pipes/e10-chan-pipe.tcl" line 2) | <rc=1> <0s>
+e10-chan-pipe.tcl	tclsh8.6	got=through-pipe | fed=feed | <rc=0> <0s>
+e10-chan-pipe.tcl	tclsh9.0	got=through-pipe | fed=feed | <rc=0> <0s>
+e10-chan-pipe.tcl	tclsh9.1	got=through-pipe | fed=feed | <rc=0> <0s>
+e10-chan-pipe.tcl	jim	/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/exec-pipes/e10-chan-pipe.tcl:2: Error: invalid command name "chan" | Traceback (most recent call last): |   File "/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/exec-pipes/e10-chan-pipe.tcl", line 2 | <rc=1> <0s>
+e10-chan-pipe.tcl	vm8.6	<rc=124> <20s>
+e10-chan-pipe.tcl	vm8.6(timeout120)	invalid command name "chan" |     while executing | "chan pipe" |     invoked from within | "lassign [chan pipe] r w" |     (file "/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/exec-pipes/e10-chan-pipe.tcl" line 2) | <rc=1> <28s>
+e10-chan-pipe.tcl	runtime8.6	error: chan pipe is not supported under the WASM runtime | <rc=1> <1s>
+e10-chan-pipe.tcl	vm9.0	<rc=124> <20s>
+e10-chan-pipe.tcl	vm9.0(timeout120)	invalid command name "chan" |     while executing | "chan pipe" |     invoked from within | "lassign [chan pipe] r w" |     (file "/home/user/tcl-lsp/docs/work/name-handling/handover/oo-dispatch-probe/exec-pipes/e10-chan-pipe.tcl" line 2) | <rc=1> <30s>
+e10-chan-pipe.tcl	runtime9.0	error: chan pipe is not supported under the WASM runtime | <rc=1> <1s>

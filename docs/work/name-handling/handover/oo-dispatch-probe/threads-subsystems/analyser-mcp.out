@@ -1,0 +1,21 @@
+# Analyser and LSP answers for threads-subsystems/ through the tcl-lsp MCP tools (cached build,
+# may lag HEAD afe2f2d8). Dialect tcl9.0 unless stated.
+t01-thread-basic.tcl: (none)
+t02-thread-isolation.tcl: [W211 L5 'shared' set but never used (TRUE: the thread cannot see it)]
+t03-tsv.tcl: (none)
+t04-tcl-process.tcl: [W304 L8 tcl::process status insert --] [W304 L13]
+t05-zipfs.tcl: [W103 L11 open with a dynamic argument (value is //zipfs:/demo/hello.txt; cannot start with |)]
+t06-build-info.tcl: (none)
+t07-unsupported.tcl (tcl8.6): (none)
+t08-timerate.tcl (tcl8.6): [W307 L4 non-literal command name]
+t09-thread-without-require.tcl: (none)
+t10-thread-builtin.tcl, t11-thread-stale-error.tcl: (none)
+
+# Discriminating snippets:
+# tcl9.0: timerate, tcl::unsupported::timerate (absent in 9.0, measured), zipfs root, tcl::process list, tcl::build-info version,
+#   thread::id and tsv::get without package require Thread, tcl::unsupported::corotype -> no diagnostics at all
+#   (false negatives: tcl::unsupported::timerate and thread::id/tsv::get are invalid commands in tclsh 9.0)
+# tcl8.6: zipfs -> W002 and W123 (two codes for one fault); tcl::process, tcl::build-info -> W002 only; thread::id -> nothing;
+#   tcl::unsupported::timerate (present in 8.6) -> nothing (correct)
+# hover tcl9.0: `zipfs mount` -> "Subcommand of zipfs" only; tcl::unsupported::timerate -> null; thread::create -> null
+# the registry has no thread::* or tsv::* specs (grep of rust/tcl-registry, specs/); W120 is therefore never offered for Thread

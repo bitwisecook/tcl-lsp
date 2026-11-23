@@ -1,0 +1,369 @@
+# fixture	interpreter	exit	output (lines joined with " ¶ "). tclshX.Y = C Tcl; jim = jimsh; vmX.Y = target/debug/tclvm --tcl-version X.Y; rtX.Y = target/debug/examples/run_script --quiet --tcl-version X.Y; binaries built 2026-11-21 (no engine commits since, HEAD afe2f2d8); timeout 20 s, exit 124 = timeout
+tr01-write-args.tcl	tclsh8.4	0	cb {x} {} write ¶ cb {a} {k} write ¶ cb {a} {j} write ¶ cb {a} {j} write
+tr01-write-args.tcl	tclsh8.5	0	cb {x} {} write ¶ cb {a} {k} write ¶ cb {a} {j} write ¶ cb {a} {j} write
+tr01-write-args.tcl	tclsh8.6	0	cb {x} {} write ¶ cb {a} {k} write ¶ cb {a} {j} write ¶ cb {a} {j} write
+tr01-write-args.tcl	tclsh9.0	0	cb {x} {} write ¶ cb {a} {k} write ¶ cb {a} {j} write ¶ cb {a} {j} write
+tr01-write-args.tcl	tclsh9.1	0	cb {x} {} write ¶ cb {a} {k} write ¶ cb {a} {j} write ¶ cb {a} {j} write
+tr01-write-args.tcl	jim	1	tr01-write-args.tcl:4: Error: invalid command name "trace" ¶ Traceback (most recent call last): ¶   File "tr01-write-args.tcl", line 4
+tr01-write-args.tcl	vm8.4	0	cb {x} {} write ¶ cb {a} {k} write ¶ cb {a} {j} write ¶ cb {a} {j} write
+tr01-write-args.tcl	vm8.5	0	cb {x} {} write ¶ cb {a} {k} write ¶ cb {a} {j} write ¶ cb {a} {j} write
+tr01-write-args.tcl	vm8.6	0	cb {x} {} write ¶ cb {a} {k} write ¶ cb {a} {j} write ¶ cb {a} {j} write
+tr01-write-args.tcl	vm9.0	0	cb {x} {} write ¶ cb {a} {k} write ¶ cb {a} {j} write ¶ cb {a} {j} write
+tr01-write-args.tcl	vm9.1	0	cb {x} {} write ¶ cb {a} {k} write ¶ cb {a} {j} write ¶ cb {a} {j} write
+tr01-write-args.tcl	rt8.4	0	cb {x} {} write ¶ cb {a} {k} write ¶ cb {a} {j} write ¶ cb {a} {j} write
+tr01-write-args.tcl	rt8.5	0	cb {x} {} write ¶ cb {a} {k} write ¶ cb {a} {j} write ¶ cb {a} {j} write
+tr01-write-args.tcl	rt8.6	0	cb {x} {} write ¶ cb {a} {k} write ¶ cb {a} {j} write ¶ cb {a} {j} write
+tr01-write-args.tcl	rt9.0	0	cb {x} {} write ¶ cb {a} {k} write ¶ cb {a} {j} write ¶ cb {a} {j} write
+tr01-write-args.tcl	rt9.1	0	cb {x} {} write ¶ cb {a} {k} write ¶ cb {a} {j} write ¶ cb {a} {j} write
+tr02-read-changes-value.tcl	tclsh8.4	0	read=42 ¶ expr=43 ¶ proc=84
+tr02-read-changes-value.tcl	tclsh8.5	0	read=42 ¶ expr=43 ¶ proc=84
+tr02-read-changes-value.tcl	tclsh8.6	0	read=42 ¶ expr=43 ¶ proc=84
+tr02-read-changes-value.tcl	tclsh9.0	0	read=42 ¶ expr=43 ¶ proc=84
+tr02-read-changes-value.tcl	tclsh9.1	0	read=42 ¶ expr=43 ¶ proc=84
+tr02-read-changes-value.tcl	jim	1	tr02-read-changes-value.tcl:4: Error: invalid command name "trace" ¶ Traceback (most recent call last): ¶   File "tr02-read-changes-value.tcl", line 4
+tr02-read-changes-value.tcl	vm8.4	0	read=42 ¶ expr=43 ¶ proc=84
+tr02-read-changes-value.tcl	vm8.5	0	read=42 ¶ expr=43 ¶ proc=84
+tr02-read-changes-value.tcl	vm8.6	0	read=42 ¶ expr=43 ¶ proc=84
+tr02-read-changes-value.tcl	vm9.0	0	read=42 ¶ expr=43 ¶ proc=84
+tr02-read-changes-value.tcl	vm9.1	0	read=42 ¶ expr=43 ¶ proc=84
+tr02-read-changes-value.tcl	rt8.4	0	read=42 ¶ expr=43 ¶ proc=84
+tr02-read-changes-value.tcl	rt8.5	0	read=42 ¶ expr=43 ¶ proc=84
+tr02-read-changes-value.tcl	rt8.6	0	read=42 ¶ expr=43 ¶ proc=84
+tr02-read-changes-value.tcl	rt9.0	0	read=42 ¶ expr=43 ¶ proc=84
+tr02-read-changes-value.tcl	rt9.1	0	read=42 ¶ expr=43 ¶ proc=84
+tr03-write-changes-value.tcl	tclsh8.4	0	set-result=10 ¶ after=10 ¶ incr=10
+tr03-write-changes-value.tcl	tclsh8.5	0	set-result=10 ¶ after=10 ¶ incr=10
+tr03-write-changes-value.tcl	tclsh8.6	0	set-result=10 ¶ after=10 ¶ incr=10
+tr03-write-changes-value.tcl	tclsh9.0	0	set-result=10 ¶ after=10 ¶ incr=10
+tr03-write-changes-value.tcl	tclsh9.1	0	set-result=10 ¶ after=10 ¶ incr=10
+tr03-write-changes-value.tcl	jim	1	tr03-write-changes-value.tcl:4: Error: invalid command name "trace" ¶ Traceback (most recent call last): ¶   File "tr03-write-changes-value.tcl", line 4
+tr03-write-changes-value.tcl	vm8.4	0	set-result=10 ¶ after=10 ¶ incr=10
+tr03-write-changes-value.tcl	vm8.5	0	set-result=10 ¶ after=10 ¶ incr=10
+tr03-write-changes-value.tcl	vm8.6	0	set-result=10 ¶ after=10 ¶ incr=10
+tr03-write-changes-value.tcl	vm9.0	0	set-result=10 ¶ after=10 ¶ incr=10
+tr03-write-changes-value.tcl	vm9.1	0	set-result=10 ¶ after=10 ¶ incr=10
+tr03-write-changes-value.tcl	rt8.4	0	set-result=10 ¶ after=10 ¶ incr=10
+tr03-write-changes-value.tcl	rt8.5	0	set-result=10 ¶ after=10 ¶ incr=10
+tr03-write-changes-value.tcl	rt8.6	0	set-result=10 ¶ after=10 ¶ incr=10
+tr03-write-changes-value.tcl	rt9.0	0	set-result=10 ¶ after=10 ¶ incr=10
+tr03-write-changes-value.tcl	rt9.1	0	set-result=10 ¶ after=10 ¶ incr=10
+tr04-trace-error.tcl	tclsh8.4	0	1 {can't set "x": nope-write} ¶ x=2 ¶ 1 {can't read "x": nope-read} ¶ 0
+tr04-trace-error.tcl	tclsh8.5	0	1 {can't set "x": nope-write} ¶ x=2 ¶ 1 {can't read "x": nope-read} ¶ 0
+tr04-trace-error.tcl	tclsh8.6	0	1 {can't set "x": nope-write} ¶ x=2 ¶ 1 {can't read "x": nope-read} ¶ 0
+tr04-trace-error.tcl	tclsh9.0	0	1 {can't set "x": nope-write} ¶ x=2 ¶ 1 {can't read "x": nope-read} ¶ 0
+tr04-trace-error.tcl	tclsh9.1	0	1 {can't set "x": nope-write} ¶ x=2 ¶ 1 {can't read "x": nope-read} ¶ 0
+tr04-trace-error.tcl	jim	1	tr04-trace-error.tcl:4: Error: invalid command name "trace" ¶ Traceback (most recent call last): ¶   File "tr04-trace-error.tcl", line 4
+tr04-trace-error.tcl	vm8.4	1	1 {can't set "x": nope-write} ¶ x=2 ¶ nope-read ¶     while executing ¶ "error "nope-$op" " ¶     (procedure "boom" line 1) ¶     invoked from within ¶ "boom x {} read"
+tr04-trace-error.tcl	vm8.5	0	1 {can't set "x": nope-write} ¶ x=2 ¶ 1 {can't read "x": nope-read} ¶ 0
+tr04-trace-error.tcl	vm8.6	0	1 {can't set "x": nope-write} ¶ x=2 ¶ 1 {can't read "x": nope-read} ¶ 0
+tr04-trace-error.tcl	vm9.0	0	1 {can't set "x": nope-write} ¶ x=2 ¶ 1 {can't read "x": nope-read} ¶ 0
+tr04-trace-error.tcl	vm9.1	0	1 {can't set "x": nope-write} ¶ x=2 ¶ 1 {can't read "x": nope-read} ¶ 0
+tr04-trace-error.tcl	rt8.4	0	1 {can't set "x": nope-write} ¶ x=2 ¶ 1 {can't read "x": nope-read} ¶ 0
+tr04-trace-error.tcl	rt8.5	0	1 {can't set "x": nope-write} ¶ x=2 ¶ 1 {can't read "x": nope-read} ¶ 0
+tr04-trace-error.tcl	rt8.6	0	1 {can't set "x": nope-write} ¶ x=2 ¶ 1 {can't read "x": nope-read} ¶ 0
+tr04-trace-error.tcl	rt9.0	0	1 {can't set "x": nope-write} ¶ x=2 ¶ 1 {can't read "x": nope-read} ¶ 0
+tr04-trace-error.tcl	rt9.1	0	1 {can't set "x": nope-write} ¶ x=2 ¶ 1 {can't read "x": nope-read} ¶ 0
+tr05-unset-trace.tcl	tclsh8.4	0	cb {x} {} unset ¶ in p ¶ cb {loc} {} unset ¶ after p ¶ cb {a} {k} unset ¶ cb {a} {} unset
+tr05-unset-trace.tcl	tclsh8.5	0	cb {x} {} unset ¶ in p ¶ cb {loc} {} unset ¶ after p ¶ cb {a} {k} unset ¶ cb {a} {} unset
+tr05-unset-trace.tcl	tclsh8.6	0	cb {x} {} unset ¶ in p ¶ cb {loc} {} unset ¶ after p ¶ cb {a} {k} unset ¶ cb {a} {} unset
+tr05-unset-trace.tcl	tclsh9.0	0	cb {x} {} unset ¶ in p ¶ cb {loc} {} unset ¶ after p ¶ cb {a(k)} {k} unset ¶ cb {a} {} unset
+tr05-unset-trace.tcl	tclsh9.1	0	cb {x} {} unset ¶ in p ¶ cb {loc} {} unset ¶ after p ¶ cb {a(k)} {k} unset ¶ cb {a} {} unset
+tr05-unset-trace.tcl	jim	1	tr05-unset-trace.tcl:4: Error: invalid command name "trace" ¶ Traceback (most recent call last): ¶   File "tr05-unset-trace.tcl", line 4
+tr05-unset-trace.tcl	vm8.4	0	cb {x} {} unset ¶ in p ¶ cb {loc} {} unset ¶ after p ¶ cb {a} {k} unset ¶ cb {a} {} unset
+tr05-unset-trace.tcl	vm8.5	0	cb {x} {} unset ¶ in p ¶ cb {loc} {} unset ¶ after p ¶ cb {a} {k} unset ¶ cb {a} {} unset
+tr05-unset-trace.tcl	vm8.6	0	cb {x} {} unset ¶ in p ¶ cb {loc} {} unset ¶ after p ¶ cb {a} {k} unset ¶ cb {a} {} unset
+tr05-unset-trace.tcl	vm9.0	0	cb {x} {} unset ¶ in p ¶ cb {loc} {} unset ¶ after p ¶ cb {a(k)} {k} unset ¶ cb {a} {} unset
+tr05-unset-trace.tcl	vm9.1	0	cb {x} {} unset ¶ in p ¶ cb {loc} {} unset ¶ after p ¶ cb {a(k)} {k} unset ¶ cb {a} {} unset
+tr05-unset-trace.tcl	rt8.4	0	cb {x} {} unset ¶ in p ¶ cb {loc} {} unset ¶ after p ¶ cb {a} {k} unset ¶ cb {a} {} unset
+tr05-unset-trace.tcl	rt8.5	0	cb {x} {} unset ¶ in p ¶ cb {loc} {} unset ¶ after p ¶ cb {a} {k} unset ¶ cb {a} {} unset
+tr05-unset-trace.tcl	rt8.6	0	cb {x} {} unset ¶ in p ¶ cb {loc} {} unset ¶ after p ¶ cb {a} {k} unset ¶ cb {a} {} unset
+tr05-unset-trace.tcl	rt9.0	0	cb {x} {} unset ¶ in p ¶ cb {loc} {} unset ¶ after p ¶ cb {a(k)} {k} unset ¶ cb {a} {} unset
+tr05-unset-trace.tcl	rt9.1	0	cb {x} {} unset ¶ in p ¶ cb {loc} {} unset ¶ after p ¶ cb {a(k)} {k} unset ¶ cb {a} {} unset
+tr06-array-op-trace.tcl	tclsh8.4	0	cb {a} {} array ¶ 1 ¶ cb {a} {} array ¶ cb {a} {} array
+tr06-array-op-trace.tcl	tclsh8.5	0	cb {a} {} array ¶ 1 ¶ cb {a} {} array ¶ cb {a} {} array
+tr06-array-op-trace.tcl	tclsh8.6	0	cb {a} {} array ¶ 1 ¶ cb {a} {} array ¶ cb {a} {} array
+tr06-array-op-trace.tcl	tclsh9.0	0	cb {a} {} array ¶ 1 ¶ cb {a} {} array ¶ cb {a} {} array
+tr06-array-op-trace.tcl	tclsh9.1	0	cb {a} {} array ¶ 1 ¶ cb {a} {} array ¶ cb {a} {} array
+tr06-array-op-trace.tcl	jim	1	tr06-array-op-trace.tcl:4: Error: invalid command name "trace" ¶ Traceback (most recent call last): ¶   File "tr06-array-op-trace.tcl", line 4
+tr06-array-op-trace.tcl	vm8.4	0	cb {a} {} array ¶ 1 ¶ cb {a} {} array ¶ cb {a} {} array
+tr06-array-op-trace.tcl	vm8.5	0	cb {a} {} array ¶ 1 ¶ cb {a} {} array ¶ cb {a} {} array
+tr06-array-op-trace.tcl	vm8.6	0	cb {a} {} array ¶ 1 ¶ cb {a} {} array ¶ cb {a} {} array
+tr06-array-op-trace.tcl	vm9.0	0	cb {a} {} array ¶ 1 ¶ cb {a} {} array ¶ cb {a} {} array
+tr06-array-op-trace.tcl	vm9.1	0	cb {a} {} array ¶ 1 ¶ cb {a} {} array ¶ cb {a} {} array
+tr06-array-op-trace.tcl	rt8.4	0	cb {a} {} array ¶ 1 ¶ cb {a} {} array ¶ cb {a} {} array
+tr06-array-op-trace.tcl	rt8.5	0	cb {a} {} array ¶ 1 ¶ cb {a} {} array ¶ cb {a} {} array
+tr06-array-op-trace.tcl	rt8.6	0	cb {a} {} array ¶ 1 ¶ cb {a} {} array ¶ cb {a} {} array
+tr06-array-op-trace.tcl	rt9.0	0	cb {a} {} array ¶ 1 ¶ cb {a} {} array ¶ cb {a} {} array
+tr06-array-op-trace.tcl	rt9.1	0	cb {a} {} array ¶ 1 ¶ cb {a} {} array ¶ cb {a} {} array
+tr07-trace-info-remove.tcl	tclsh8.4	0	{unset cb2} {{read write} cb} ¶ {unset cb2}
+tr07-trace-info-remove.tcl	tclsh8.5	0	{unset cb2} {{read write} cb} ¶ {unset cb2}
+tr07-trace-info-remove.tcl	tclsh8.6	0	{unset cb2} {{read write} cb} ¶ {unset cb2}
+tr07-trace-info-remove.tcl	tclsh9.0	0	{unset cb2} {{read write} cb} ¶ {unset cb2}
+tr07-trace-info-remove.tcl	tclsh9.1	0	{unset cb2} {{read write} cb} ¶ {unset cb2}
+tr07-trace-info-remove.tcl	jim	1	tr07-trace-info-remove.tcl:5: Error: invalid command name "trace" ¶ Traceback (most recent call last): ¶   File "tr07-trace-info-remove.tcl", line 5
+tr07-trace-info-remove.tcl	vm8.4	0	{unset cb2} {{read write} cb} ¶ {unset cb2}
+tr07-trace-info-remove.tcl	vm8.5	0	{unset cb2} {{read write} cb} ¶ {unset cb2}
+tr07-trace-info-remove.tcl	vm8.6	0	{unset cb2} {{read write} cb} ¶ {unset cb2}
+tr07-trace-info-remove.tcl	vm9.0	0	{unset cb2} {{read write} cb} ¶ {unset cb2}
+tr07-trace-info-remove.tcl	vm9.1	0	{unset cb2} {{read write} cb} ¶ {unset cb2}
+tr07-trace-info-remove.tcl	rt8.4	0	{unset cb2} {{read write} cb} ¶ {unset cb2}
+tr07-trace-info-remove.tcl	rt8.5	0	{unset cb2} {{read write} cb} ¶ {unset cb2}
+tr07-trace-info-remove.tcl	rt8.6	0	{unset cb2} {{read write} cb} ¶ {unset cb2}
+tr07-trace-info-remove.tcl	rt9.0	0	{unset cb2} {{read write} cb} ¶ {unset cb2}
+tr07-trace-info-remove.tcl	rt9.1	0	{unset cb2} {{read write} cb} ¶ {unset cb2}
+tr08-legacy-syntax.tcl	tclsh8.4	0	0: ¶ 0:{w cb} ¶ cb {x} {} w ¶ 0:
+tr08-legacy-syntax.tcl	tclsh8.5	0	0: ¶ 0:{w cb} ¶ cb {x} {} w ¶ 0:
+tr08-legacy-syntax.tcl	tclsh8.6	0	0: ¶ 0:{w cb} ¶ cb {x} {} w ¶ 0:
+tr08-legacy-syntax.tcl	tclsh9.0	0	1:bad option "variable": must be add, info, or remove ¶ 1:bad option "vinfo": must be add, info, or remove ¶ 1:bad option "vdelete": must be add, info, or remove
+tr08-legacy-syntax.tcl	tclsh9.1	0	1:bad option "variable": must be add, info, or remove ¶ 1:bad option "vinfo": must be add, info, or remove ¶ 1:bad option "vdelete": must be add, info, or remove
+tr08-legacy-syntax.tcl	jim	1	tr08-legacy-syntax.tcl:8: Error: invalid command name "trace" ¶ Traceback (most recent call last): ¶   File "tr08-legacy-syntax.tcl", line 8 ¶ 1:invalid command name "trace" ¶ 1:invalid command name "trace" ¶ 1:invalid command name "trace"
+tr08-legacy-syntax.tcl	vm8.4	0	0: ¶ 0:{w cb} ¶ cb {x} {} w ¶ 0:
+tr08-legacy-syntax.tcl	vm8.5	0	0: ¶ 0:{w cb} ¶ cb {x} {} w ¶ 0:
+tr08-legacy-syntax.tcl	vm8.6	0	0: ¶ 0:{w cb} ¶ cb {x} {} w ¶ 0:
+tr08-legacy-syntax.tcl	vm9.0	0	1:bad option "variable": must be add, info, or remove ¶ 1:bad option "vinfo": must be add, info, or remove ¶ 1:bad option "vdelete": must be add, info, or remove
+tr08-legacy-syntax.tcl	vm9.1	0	1:bad option "variable": must be add, info, or remove ¶ 1:bad option "vinfo": must be add, info, or remove ¶ 1:bad option "vdelete": must be add, info, or remove
+tr08-legacy-syntax.tcl	rt8.4	0	0: ¶ 0:{w cb} ¶ cb {x} {} w ¶ 0:
+tr08-legacy-syntax.tcl	rt8.5	0	0: ¶ 0:{w cb} ¶ cb {x} {} w ¶ 0:
+tr08-legacy-syntax.tcl	rt8.6	0	0: ¶ 0:{w cb} ¶ cb {x} {} w ¶ 0:
+tr08-legacy-syntax.tcl	rt9.0	0	1:bad option "variable": must be add, info, or remove ¶ 1:bad option "vinfo": must be add, info, or remove ¶ 1:bad option "vdelete": must be add, info, or remove
+tr08-legacy-syntax.tcl	rt9.1	0	1:bad option "variable": must be add, info, or remove ¶ 1:bad option "vinfo": must be add, info, or remove ¶ 1:bad option "vdelete": must be add, info, or remove
+tr09-command-trace.tcl	tclsh8.4	0	cb {::foo} {::bar} rename ¶ {{rename delete} cb} ¶ foo ¶ cb {::bar} {} delete ¶ cb {::baz} {} delete ¶ redefined
+tr09-command-trace.tcl	tclsh8.5	0	cb {::foo} {::bar} rename ¶ {{rename delete} cb} ¶ foo ¶ cb {::bar} {} delete ¶ cb {::baz} {} delete ¶ redefined
+tr09-command-trace.tcl	tclsh8.6	0	cb {::foo} {::bar} rename ¶ {{rename delete} cb} ¶ foo ¶ cb {::bar} {} delete ¶ cb {::baz} {} delete ¶ redefined
+tr09-command-trace.tcl	tclsh9.0	0	cb {::foo} {::bar} rename ¶ {{rename delete} cb} ¶ foo ¶ cb {::bar} {} delete ¶ cb {::baz} {} delete ¶ redefined
+tr09-command-trace.tcl	tclsh9.1	0	cb {::foo} {::bar} rename ¶ {{rename delete} cb} ¶ foo ¶ cb {::bar} {} delete ¶ cb {::baz} {} delete ¶ redefined
+tr09-command-trace.tcl	jim	1	tr09-command-trace.tcl:4: Error: invalid command name "trace" ¶ Traceback (most recent call last): ¶   File "tr09-command-trace.tcl", line 4
+tr09-command-trace.tcl	vm8.4	0	cb {::foo} {::bar} rename ¶ {{rename delete} cb} ¶ foo ¶ cb {::bar} {} delete ¶ cb {::baz} {} delete ¶ redefined
+tr09-command-trace.tcl	vm8.5	0	cb {::foo} {::bar} rename ¶ {{rename delete} cb} ¶ foo ¶ cb {::bar} {} delete ¶ cb {::baz} {} delete ¶ redefined
+tr09-command-trace.tcl	vm8.6	0	cb {::foo} {::bar} rename ¶ {{rename delete} cb} ¶ foo ¶ cb {::bar} {} delete ¶ cb {::baz} {} delete ¶ redefined
+tr09-command-trace.tcl	vm9.0	0	cb {::foo} {::bar} rename ¶ {{rename delete} cb} ¶ foo ¶ cb {::bar} {} delete ¶ cb {::baz} {} delete ¶ redefined
+tr09-command-trace.tcl	vm9.1	0	cb {::foo} {::bar} rename ¶ {{rename delete} cb} ¶ foo ¶ cb {::bar} {} delete ¶ cb {::baz} {} delete ¶ redefined
+tr09-command-trace.tcl	rt8.4	0	cb {::foo} {::bar} rename ¶ {{rename delete} cb} ¶ foo ¶ cb {::bar} {} delete ¶ cb {::baz} {} delete ¶ redefined
+tr09-command-trace.tcl	rt8.5	0	cb {::foo} {::bar} rename ¶ {{rename delete} cb} ¶ foo ¶ cb {::bar} {} delete ¶ cb {::baz} {} delete ¶ redefined
+tr09-command-trace.tcl	rt8.6	0	cb {::foo} {::bar} rename ¶ {{rename delete} cb} ¶ foo ¶ cb {::bar} {} delete ¶ cb {::baz} {} delete ¶ redefined
+tr09-command-trace.tcl	rt9.0	0	cb {::foo} {::bar} rename ¶ {{rename delete} cb} ¶ foo ¶ cb {::bar} {} delete ¶ cb {::baz} {} delete ¶ redefined
+tr09-command-trace.tcl	rt9.1	0	cb {::foo} {::bar} rename ¶ {{rename delete} cb} ¶ foo ¶ cb {::bar} {} delete ¶ cb {::baz} {} delete ¶ redefined
+tr10-execution-enter-leave.tcl	tclsh8.4	0	enter {f x} enter ¶ leave {f x} 0 {X} leave ¶ X ¶ enter {f bad} enter ¶ leave {f bad} 1 {oops} leave ¶ 1:oops ¶ {leave lv} {enter en}
+tr10-execution-enter-leave.tcl	tclsh8.5	0	enter {f x} enter ¶ leave {f x} 0 {X} leave ¶ X ¶ enter {f bad} enter ¶ leave {f bad} 1 {oops} leave ¶ 1:oops ¶ {leave lv} {enter en}
+tr10-execution-enter-leave.tcl	tclsh8.6	0	enter {f x} enter ¶ leave {f x} 0 {X} leave ¶ X ¶ enter {f bad} enter ¶ leave {f bad} 1 {oops} leave ¶ 1:oops ¶ {leave lv} {enter en}
+tr10-execution-enter-leave.tcl	tclsh9.0	0	enter {f x} enter ¶ leave {f x} 0 {X} leave ¶ X ¶ enter {f bad} enter ¶ leave {f bad} 1 {oops} leave ¶ 1:oops ¶ {leave lv} {enter en}
+tr10-execution-enter-leave.tcl	tclsh9.1	0	enter {f x} enter ¶ leave {f x} 0 {X} leave ¶ X ¶ enter {f bad} enter ¶ leave {f bad} 1 {oops} leave ¶ 1:oops ¶ {leave lv} {enter en}
+tr10-execution-enter-leave.tcl	jim	1	tr10-execution-enter-leave.tcl:5: Error: invalid command name "trace" ¶ Traceback (most recent call last): ¶   File "tr10-execution-enter-leave.tcl", line 5
+tr10-execution-enter-leave.tcl	vm8.4	0	enter {f x} enter ¶ leave {f x} 0 {X} leave ¶ X ¶ enter {f bad} enter ¶ leave {f bad} 1 {oops} leave ¶ 1:oops ¶ {leave lv} {enter en}
+tr10-execution-enter-leave.tcl	vm8.5	0	enter {f x} enter ¶ leave {f x} 0 {X} leave ¶ X ¶ enter {f bad} enter ¶ leave {f bad} 1 {oops} leave ¶ 1:oops ¶ {leave lv} {enter en}
+tr10-execution-enter-leave.tcl	vm8.6	0	enter {f x} enter ¶ leave {f x} 0 {X} leave ¶ X ¶ enter {f bad} enter ¶ leave {f bad} 1 {oops} leave ¶ 1:oops ¶ {leave lv} {enter en}
+tr10-execution-enter-leave.tcl	vm9.0	0	enter {f x} enter ¶ leave {f x} 0 {X} leave ¶ X ¶ enter {f bad} enter ¶ leave {f bad} 1 {oops} leave ¶ 1:oops ¶ {leave lv} {enter en}
+tr10-execution-enter-leave.tcl	vm9.1	0	enter {f x} enter ¶ leave {f x} 0 {X} leave ¶ X ¶ enter {f bad} enter ¶ leave {f bad} 1 {oops} leave ¶ 1:oops ¶ {leave lv} {enter en}
+tr10-execution-enter-leave.tcl	rt8.4	0	enter {f x} enter ¶ leave {f x} 0 {X} leave ¶ X ¶ enter {f bad} enter ¶ leave {f bad} 1 {oops} leave ¶ 1:oops ¶ {leave lv} {enter en}
+tr10-execution-enter-leave.tcl	rt8.5	0	enter {f x} enter ¶ leave {f x} 0 {X} leave ¶ X ¶ enter {f bad} enter ¶ leave {f bad} 1 {oops} leave ¶ 1:oops ¶ {leave lv} {enter en}
+tr10-execution-enter-leave.tcl	rt8.6	0	enter {f x} enter ¶ leave {f x} 0 {X} leave ¶ X ¶ enter {f bad} enter ¶ leave {f bad} 1 {oops} leave ¶ 1:oops ¶ {leave lv} {enter en}
+tr10-execution-enter-leave.tcl	rt9.0	0	enter {f x} enter ¶ leave {f x} 0 {X} leave ¶ X ¶ enter {f bad} enter ¶ leave {f bad} 1 {oops} leave ¶ 1:oops ¶ {leave lv} {enter en}
+tr10-execution-enter-leave.tcl	rt9.1	0	enter {f x} enter ¶ leave {f x} 0 {X} leave ¶ X ¶ enter {f bad} enter ¶ leave {f bad} 1 {oops} leave ¶ 1:oops ¶ {leave lv} {enter en}
+tr11-execution-step.tcl	tclsh8.4	0	enterstep {set a 1} ¶ leavestep {set a 1} ¶ enterstep {incr a} ¶ leavestep {incr a} ¶ enterstep {return 2} ¶ leavestep {return 2} ¶ 2
+tr11-execution-step.tcl	tclsh8.5	0	enterstep {set a 1} ¶ leavestep {set a 1} ¶ enterstep {incr a} ¶ leavestep {incr a} ¶ enterstep {return 2} ¶ leavestep {return 2} ¶ 2
+tr11-execution-step.tcl	tclsh8.6	0	enterstep {set a 1} ¶ leavestep {set a 1} ¶ enterstep {incr a} ¶ leavestep {incr a} ¶ enterstep {return 2} ¶ leavestep {return 2} ¶ 2
+tr11-execution-step.tcl	tclsh9.0	0	enterstep {set a 1} ¶ leavestep {set a 1} ¶ enterstep {incr a} ¶ leavestep {incr a} ¶ enterstep {return 2} ¶ leavestep {return 2} ¶ 2
+tr11-execution-step.tcl	tclsh9.1	0	enterstep {set a 1} ¶ leavestep {set a 1} ¶ enterstep {incr a} ¶ leavestep {incr a} ¶ enterstep {return 2} ¶ leavestep {return 2} ¶ 2
+tr11-execution-step.tcl	jim	1	tr11-execution-step.tcl:4: Error: invalid command name "trace" ¶ Traceback (most recent call last): ¶   File "tr11-execution-step.tcl", line 4
+tr11-execution-step.tcl	vm8.4	0	enterstep {set a 1} ¶ leavestep {set a 1} ¶ enterstep {incr a} ¶ leavestep {incr a} ¶ enterstep {return 2} ¶ leavestep {return 2} ¶ 2
+tr11-execution-step.tcl	vm8.5	0	enterstep {set a 1} ¶ leavestep {set a 1} ¶ enterstep {incr a} ¶ leavestep {incr a} ¶ enterstep {return 2} ¶ leavestep {return 2} ¶ 2
+tr11-execution-step.tcl	vm8.6	0	enterstep {set a 1} ¶ leavestep {set a 1} ¶ enterstep {incr a} ¶ leavestep {incr a} ¶ enterstep {return 2} ¶ leavestep {return 2} ¶ 2
+tr11-execution-step.tcl	vm9.0	0	enterstep {set a 1} ¶ leavestep {set a 1} ¶ enterstep {incr a} ¶ leavestep {incr a} ¶ enterstep {return 2} ¶ leavestep {return 2} ¶ 2
+tr11-execution-step.tcl	vm9.1	0	enterstep {set a 1} ¶ leavestep {set a 1} ¶ enterstep {incr a} ¶ leavestep {incr a} ¶ enterstep {return 2} ¶ leavestep {return 2} ¶ 2
+tr11-execution-step.tcl	rt8.4	0	enterstep {set a 1} ¶ leavestep {set a 1} ¶ enterstep {incr a} ¶ leavestep {incr a} ¶ enterstep {return 2} ¶ leavestep {return 2} ¶ 2
+tr11-execution-step.tcl	rt8.5	0	enterstep {set a 1} ¶ leavestep {set a 1} ¶ enterstep {incr a} ¶ leavestep {incr a} ¶ enterstep {return 2} ¶ leavestep {return 2} ¶ 2
+tr11-execution-step.tcl	rt8.6	0	enterstep {set a 1} ¶ leavestep {set a 1} ¶ enterstep {incr a} ¶ leavestep {incr a} ¶ enterstep {return 2} ¶ leavestep {return 2} ¶ 2
+tr11-execution-step.tcl	rt9.0	0	enterstep {set a 1} ¶ leavestep {set a 1} ¶ enterstep {incr a} ¶ leavestep {incr a} ¶ enterstep {return 2} ¶ leavestep {return 2} ¶ 2
+tr11-execution-step.tcl	rt9.1	0	enterstep {set a 1} ¶ leavestep {set a 1} ¶ enterstep {incr a} ¶ leavestep {incr a} ¶ enterstep {return 2} ¶ leavestep {return 2} ¶ 2
+tr12-callback-frame.tcl	tclsh8.4	0	level=2 caller=1 n1=loc ¶ seen=6 ¶ level=1 caller=0 n1=g ¶ seen=2 ¶ level=2 caller=1 n1=alias ¶ seen=3
+tr12-callback-frame.tcl	tclsh8.5	0	level=2 caller=1 n1=loc ¶ seen=6 ¶ level=1 caller=0 n1=g ¶ seen=2 ¶ level=2 caller=1 n1=alias ¶ seen=3
+tr12-callback-frame.tcl	tclsh8.6	0	level=2 caller=1 n1=loc ¶ seen=6 ¶ level=1 caller=0 n1=g ¶ seen=2 ¶ level=2 caller=1 n1=alias ¶ seen=3
+tr12-callback-frame.tcl	tclsh9.0	0	level=2 caller=1 n1=loc ¶ seen=6 ¶ level=1 caller=0 n1=g ¶ seen=2 ¶ level=2 caller=1 n1=alias ¶ seen=3
+tr12-callback-frame.tcl	tclsh9.1	0	level=2 caller=1 n1=loc ¶ seen=6 ¶ level=1 caller=0 n1=g ¶ seen=2 ¶ level=2 caller=1 n1=alias ¶ seen=3
+tr12-callback-frame.tcl	jim	1	tr12-callback-frame.tcl:7: Error: invalid command name "trace" ¶ Traceback (most recent call last): ¶   File "tr12-callback-frame.tcl", line 8 ¶     p ¶   File "tr12-callback-frame.tcl", line 7, in p
+tr12-callback-frame.tcl	vm8.4	0	level=2 caller=1 n1=loc ¶ seen=6 ¶ level=1 caller=0 n1=g ¶ seen=2 ¶ level=2 caller=1 n1=alias ¶ seen=3
+tr12-callback-frame.tcl	vm8.5	0	level=2 caller=1 n1=loc ¶ seen=6 ¶ level=1 caller=0 n1=g ¶ seen=2 ¶ level=2 caller=1 n1=alias ¶ seen=3
+tr12-callback-frame.tcl	vm8.6	0	level=2 caller=1 n1=loc ¶ seen=6 ¶ level=1 caller=0 n1=g ¶ seen=2 ¶ level=2 caller=1 n1=alias ¶ seen=3
+tr12-callback-frame.tcl	vm9.0	0	level=2 caller=1 n1=loc ¶ seen=6 ¶ level=1 caller=0 n1=g ¶ seen=2 ¶ level=2 caller=1 n1=alias ¶ seen=3
+tr12-callback-frame.tcl	vm9.1	0	level=2 caller=1 n1=loc ¶ seen=6 ¶ level=1 caller=0 n1=g ¶ seen=2 ¶ level=2 caller=1 n1=alias ¶ seen=3
+tr12-callback-frame.tcl	rt8.4	0	level=2 caller=1 n1=loc ¶ seen=6 ¶ level=1 caller=0 n1=g ¶ seen=2 ¶ level=2 caller=1 n1=alias ¶ seen=3
+tr12-callback-frame.tcl	rt8.5	0	level=2 caller=1 n1=loc ¶ seen=6 ¶ level=1 caller=0 n1=g ¶ seen=2 ¶ level=2 caller=1 n1=alias ¶ seen=3
+tr12-callback-frame.tcl	rt8.6	0	level=2 caller=1 n1=loc ¶ seen=6 ¶ level=1 caller=0 n1=g ¶ seen=2 ¶ level=2 caller=1 n1=alias ¶ seen=3
+tr12-callback-frame.tcl	rt9.0	0	level=2 caller=1 n1=loc ¶ seen=6 ¶ level=1 caller=0 n1=g ¶ seen=2 ¶ level=2 caller=1 n1=alias ¶ seen=3
+tr12-callback-frame.tcl	rt9.1	0	level=2 caller=1 n1=loc ¶ seen=6 ¶ level=1 caller=0 n1=g ¶ seen=2 ¶ level=2 caller=1 n1=alias ¶ seen=3
+tr13-read-creates.tcl	tclsh8.4	0	exists-before=1 ¶ y=made ¶ p=made
+tr13-read-creates.tcl	tclsh8.5	0	exists-before=1 ¶ y=made ¶ p=made
+tr13-read-creates.tcl	tclsh8.6	0	exists-before=1 ¶ y=made ¶ p=made
+tr13-read-creates.tcl	tclsh9.0	0	exists-before=1 ¶ y=made ¶ p=made
+tr13-read-creates.tcl	tclsh9.1	0	exists-before=1 ¶ y=made ¶ p=made
+tr13-read-creates.tcl	jim	1	tr13-read-creates.tcl:3: Error: invalid command name "trace" ¶ Traceback (most recent call last): ¶   File "tr13-read-creates.tcl", line 3
+tr13-read-creates.tcl	vm8.4	0	exists-before=1 ¶ y=made ¶ p=made
+tr13-read-creates.tcl	vm8.5	0	exists-before=1 ¶ y=made ¶ p=made
+tr13-read-creates.tcl	vm8.6	0	exists-before=1 ¶ y=made ¶ p=made
+tr13-read-creates.tcl	vm9.0	0	exists-before=1 ¶ y=made ¶ p=made
+tr13-read-creates.tcl	vm9.1	0	exists-before=1 ¶ y=made ¶ p=made
+tr13-read-creates.tcl	rt8.4	0	exists-before=1 ¶ y=made ¶ p=made
+tr13-read-creates.tcl	rt8.5	0	exists-before=1 ¶ y=made ¶ p=made
+tr13-read-creates.tcl	rt8.6	0	exists-before=1 ¶ y=made ¶ p=made
+tr13-read-creates.tcl	rt9.0	0	exists-before=1 ¶ y=made ¶ p=made
+tr13-read-creates.tcl	rt9.1	0	exists-before=1 ¶ y=made ¶ p=made
+tr14-dead-store.tcl	tclsh8.4	0	wrote 1 ¶ wrote 2 ¶ done ¶ wrote 7 ¶ 7
+tr14-dead-store.tcl	tclsh8.5	0	wrote 1 ¶ wrote 2 ¶ done ¶ wrote 7 ¶ 7
+tr14-dead-store.tcl	tclsh8.6	0	wrote 1 ¶ wrote 2 ¶ done ¶ wrote 7 ¶ 7
+tr14-dead-store.tcl	tclsh9.0	0	wrote 1 ¶ wrote 2 ¶ done ¶ wrote 7 ¶ 7
+tr14-dead-store.tcl	tclsh9.1	0	wrote 1 ¶ wrote 2 ¶ done ¶ wrote 7 ¶ 7
+tr14-dead-store.tcl	jim	1	tr14-dead-store.tcl:4: Error: invalid command name "trace" ¶ Traceback (most recent call last): ¶   File "tr14-dead-store.tcl", line 9 ¶     p ¶   File "tr14-dead-store.tcl", line 4, in p
+tr14-dead-store.tcl	vm8.4	0	wrote 1 ¶ wrote 2 ¶ done ¶ wrote 7 ¶ 7
+tr14-dead-store.tcl	vm8.5	0	wrote 1 ¶ wrote 2 ¶ done ¶ wrote 7 ¶ 7
+tr14-dead-store.tcl	vm8.6	0	wrote 1 ¶ wrote 2 ¶ done ¶ wrote 7 ¶ 7
+tr14-dead-store.tcl	vm9.0	0	wrote 1 ¶ wrote 2 ¶ done ¶ wrote 7 ¶ 7
+tr14-dead-store.tcl	vm9.1	0	wrote 1 ¶ wrote 2 ¶ done ¶ wrote 7 ¶ 7
+tr14-dead-store.tcl	rt8.4	0	wrote 1 ¶ wrote 2 ¶ done ¶ wrote 7 ¶ 7
+tr14-dead-store.tcl	rt8.5	0	wrote 1 ¶ wrote 2 ¶ done ¶ wrote 7 ¶ 7
+tr14-dead-store.tcl	rt8.6	0	wrote 1 ¶ wrote 2 ¶ done ¶ wrote 7 ¶ 7
+tr14-dead-store.tcl	rt9.0	0	wrote 1 ¶ wrote 2 ¶ done ¶ wrote 7 ¶ 7
+tr14-dead-store.tcl	rt9.1	0	wrote 1 ¶ wrote 2 ¶ done ¶ wrote 7 ¶ 7
+tr15-trace-order-recursion.tcl	tclsh8.4	0	b ¶ a ¶ x=11
+tr15-trace-order-recursion.tcl	tclsh8.5	0	b ¶ a ¶ x=11
+tr15-trace-order-recursion.tcl	tclsh8.6	0	b ¶ a ¶ x=11
+tr15-trace-order-recursion.tcl	tclsh9.0	0	b ¶ a ¶ x=11
+tr15-trace-order-recursion.tcl	tclsh9.1	0	b ¶ a ¶ x=11
+tr15-trace-order-recursion.tcl	jim	1	tr15-trace-order-recursion.tcl:5: Error: invalid command name "trace" ¶ Traceback (most recent call last): ¶   File "tr15-trace-order-recursion.tcl", line 5
+tr15-trace-order-recursion.tcl	vm8.4	0	b ¶ a ¶ x=11
+tr15-trace-order-recursion.tcl	vm8.5	0	b ¶ a ¶ x=11
+tr15-trace-order-recursion.tcl	vm8.6	0	b ¶ a ¶ x=11
+tr15-trace-order-recursion.tcl	vm9.0	0	b ¶ a ¶ x=11
+tr15-trace-order-recursion.tcl	vm9.1	0	b ¶ a ¶ x=11
+tr15-trace-order-recursion.tcl	rt8.4	0	b ¶ a ¶ x=11
+tr15-trace-order-recursion.tcl	rt8.5	0	b ¶ a ¶ x=11
+tr15-trace-order-recursion.tcl	rt8.6	0	b ¶ a ¶ x=11
+tr15-trace-order-recursion.tcl	rt9.0	0	b ¶ a ¶ x=11
+tr15-trace-order-recursion.tcl	rt9.1	0	b ¶ a ¶ x=11
+tr16-trace-on-undefined.tcl	tclsh8.4	0	exists=0 vars=-1 ¶ cb write ¶ exists=1
+tr16-trace-on-undefined.tcl	tclsh8.5	0	exists=0 vars=-1 ¶ cb write ¶ exists=1
+tr16-trace-on-undefined.tcl	tclsh8.6	0	exists=0 vars=-1 ¶ cb write ¶ exists=1
+tr16-trace-on-undefined.tcl	tclsh9.0	0	exists=0 vars=-1 ¶ cb write ¶ exists=1
+tr16-trace-on-undefined.tcl	tclsh9.1	0	exists=0 vars=-1 ¶ cb write ¶ exists=1
+tr16-trace-on-undefined.tcl	jim	1	tr16-trace-on-undefined.tcl:3: Error: invalid command name "trace" ¶ Traceback (most recent call last): ¶   File "tr16-trace-on-undefined.tcl", line 3
+tr16-trace-on-undefined.tcl	vm8.4	0	exists=0 vars=-1 ¶ cb write ¶ exists=1
+tr16-trace-on-undefined.tcl	vm8.5	0	exists=0 vars=-1 ¶ cb write ¶ exists=1
+tr16-trace-on-undefined.tcl	vm8.6	0	exists=0 vars=-1 ¶ cb write ¶ exists=1
+tr16-trace-on-undefined.tcl	vm9.0	0	exists=0 vars=-1 ¶ cb write ¶ exists=1
+tr16-trace-on-undefined.tcl	vm9.1	0	exists=0 vars=-1 ¶ cb write ¶ exists=1
+tr16-trace-on-undefined.tcl	rt8.4	0	exists=0 vars=-1 ¶ cb write ¶ exists=1
+tr16-trace-on-undefined.tcl	rt8.5	0	exists=0 vars=-1 ¶ cb write ¶ exists=1
+tr16-trace-on-undefined.tcl	rt8.6	0	exists=0 vars=-1 ¶ cb write ¶ exists=1
+tr16-trace-on-undefined.tcl	rt9.0	0	exists=0 vars=-1 ¶ cb write ¶ exists=1
+tr16-trace-on-undefined.tcl	rt9.1	0	exists=0 vars=-1 ¶ cb write ¶ exists=1
+tr17-namespace-and-global.tcl	tclsh8.4	0	cb {v} {} write :: ¶ cb {::ns::v} {} write :: ¶ cb {g} {} write ::
+tr17-namespace-and-global.tcl	tclsh8.5	0	cb {v} {} write :: ¶ cb {::ns::v} {} write :: ¶ cb {g} {} write ::
+tr17-namespace-and-global.tcl	tclsh8.6	0	cb {v} {} write :: ¶ cb {::ns::v} {} write :: ¶ cb {g} {} write ::
+tr17-namespace-and-global.tcl	tclsh9.0	0	cb {v} {} write :: ¶ cb {::ns::v} {} write :: ¶ cb {g} {} write ::
+tr17-namespace-and-global.tcl	tclsh9.1	0	cb {v} {} write :: ¶ cb {::ns::v} {} write :: ¶ cb {g} {} write ::
+tr17-namespace-and-global.tcl	jim	1	tr17-namespace-and-global.tcl:4: Error: invalid command name "trace" ¶ Traceback (most recent call last): ¶   File "tr17-namespace-and-global.tcl", line 4
+tr17-namespace-and-global.tcl	vm8.4	0	cb {v} {} write :: ¶ cb {::ns::v} {} write :: ¶ cb {g} {} write ::
+tr17-namespace-and-global.tcl	vm8.5	0	cb {v} {} write :: ¶ cb {::ns::v} {} write :: ¶ cb {g} {} write ::
+tr17-namespace-and-global.tcl	vm8.6	0	cb {v} {} write :: ¶ cb {::ns::v} {} write :: ¶ cb {g} {} write ::
+tr17-namespace-and-global.tcl	vm9.0	0	cb {v} {} write :: ¶ cb {::ns::v} {} write :: ¶ cb {g} {} write ::
+tr17-namespace-and-global.tcl	vm9.1	0	cb {v} {} write :: ¶ cb {::ns::v} {} write :: ¶ cb {g} {} write ::
+tr17-namespace-and-global.tcl	rt8.4	0	cb {v} {} write :: ¶ cb {::ns::v} {} write :: ¶ cb {g} {} write ::
+tr17-namespace-and-global.tcl	rt8.5	0	cb {v} {} write :: ¶ cb {::ns::v} {} write :: ¶ cb {g} {} write ::
+tr17-namespace-and-global.tcl	rt8.6	0	cb {v} {} write :: ¶ cb {::ns::v} {} write :: ¶ cb {g} {} write ::
+tr17-namespace-and-global.tcl	rt9.0	0	cb {v} {} write :: ¶ cb {::ns::v} {} write :: ¶ cb {g} {} write ::
+tr17-namespace-and-global.tcl	rt9.1	0	cb {v} {} write :: ¶ cb {::ns::v} {} write :: ¶ cb {g} {} write ::
+tr18-command-trace-callback-redefines.tcl	tclsh8.4	0	new ¶ new
+tr18-command-trace-callback-redefines.tcl	tclsh8.5	0	new ¶ new
+tr18-command-trace-callback-redefines.tcl	tclsh8.6	0	new ¶ new
+tr18-command-trace-callback-redefines.tcl	tclsh9.0	0	new ¶ new
+tr18-command-trace-callback-redefines.tcl	tclsh9.1	0	new ¶ new
+tr18-command-trace-callback-redefines.tcl	jim	1	tr18-command-trace-callback-redefines.tcl:4: Error: invalid command name "trace" ¶ Traceback (most recent call last): ¶   File "tr18-command-trace-callback-redefines.tcl", line 4
+tr18-command-trace-callback-redefines.tcl	vm8.4	0	new ¶ new
+tr18-command-trace-callback-redefines.tcl	vm8.5	0	new ¶ new
+tr18-command-trace-callback-redefines.tcl	vm8.6	0	new ¶ new
+tr18-command-trace-callback-redefines.tcl	vm9.0	0	new ¶ new
+tr18-command-trace-callback-redefines.tcl	vm9.1	0	new ¶ new
+tr18-command-trace-callback-redefines.tcl	rt8.4	0	new ¶ new
+tr18-command-trace-callback-redefines.tcl	rt8.5	0	new ¶ new
+tr18-command-trace-callback-redefines.tcl	rt8.6	0	new ¶ new
+tr18-command-trace-callback-redefines.tcl	rt9.0	0	new ¶ new
+tr18-command-trace-callback-redefines.tcl	rt9.1	0	new ¶ new
+tr19-leave-cannot-change-result.tcl	tclsh8.4	0	1 ¶ 1:leave failed
+tr19-leave-cannot-change-result.tcl	tclsh8.5	0	1 ¶ 1:leave failed
+tr19-leave-cannot-change-result.tcl	tclsh8.6	0	1 ¶ 1:leave failed
+tr19-leave-cannot-change-result.tcl	tclsh9.0	0	1 ¶ 1:leave failed
+tr19-leave-cannot-change-result.tcl	tclsh9.1	0	1 ¶ 1:leave failed
+tr19-leave-cannot-change-result.tcl	jim	1	tr19-leave-cannot-change-result.tcl:4: Error: invalid command name "trace" ¶ Traceback (most recent call last): ¶   File "tr19-leave-cannot-change-result.tcl", line 4
+tr19-leave-cannot-change-result.tcl	vm8.4	0	1 ¶ 1:leave failed
+tr19-leave-cannot-change-result.tcl	vm8.5	0	1 ¶ 1:leave failed
+tr19-leave-cannot-change-result.tcl	vm8.6	0	1 ¶ 1:leave failed
+tr19-leave-cannot-change-result.tcl	vm9.0	0	1 ¶ 1:leave failed
+tr19-leave-cannot-change-result.tcl	vm9.1	0	1 ¶ 1:leave failed
+tr19-leave-cannot-change-result.tcl	rt8.4	0	1 ¶ 1:leave failed
+tr19-leave-cannot-change-result.tcl	rt8.5	0	1 ¶ 1:leave failed
+tr19-leave-cannot-change-result.tcl	rt8.6	0	1 ¶ 1:leave failed
+tr19-leave-cannot-change-result.tcl	rt9.0	0	1 ¶ 1:leave failed
+tr19-leave-cannot-change-result.tcl	rt9.1	0	1 ¶ 1:leave failed
+tr20-builtin-exec-trace.tcl	tclsh8.4	0	enter {string length abc} ¶ 3 ¶ 4
+tr20-builtin-exec-trace.tcl	tclsh8.5	0	enter {string length abc} ¶ 3 ¶ 4
+tr20-builtin-exec-trace.tcl	tclsh8.6	0	enter {string length abc} ¶ 3 ¶ 4
+tr20-builtin-exec-trace.tcl	tclsh9.0	0	enter {string length abc} ¶ 3 ¶ 4
+tr20-builtin-exec-trace.tcl	tclsh9.1	0	enter {string length abc} ¶ 3 ¶ 4
+tr20-builtin-exec-trace.tcl	jim	1	tr20-builtin-exec-trace.tcl:3: Error: invalid command name "trace" ¶ Traceback (most recent call last): ¶   File "tr20-builtin-exec-trace.tcl", line 3
+tr20-builtin-exec-trace.tcl	vm8.4	0	enter {string length abc} ¶ 3 ¶ 4
+tr20-builtin-exec-trace.tcl	vm8.5	0	enter {string length abc} ¶ 3 ¶ 4
+tr20-builtin-exec-trace.tcl	vm8.6	0	enter {string length abc} ¶ 3 ¶ 4
+tr20-builtin-exec-trace.tcl	vm9.0	0	enter {string length abc} ¶ 3 ¶ 4
+tr20-builtin-exec-trace.tcl	vm9.1	0	enter {string length abc} ¶ 3 ¶ 4
+tr20-builtin-exec-trace.tcl	rt8.4	0	enter {string length abc} ¶ 3 ¶ 4
+tr20-builtin-exec-trace.tcl	rt8.5	0	enter {string length abc} ¶ 3 ¶ 4
+tr20-builtin-exec-trace.tcl	rt8.6	0	enter {string length abc} ¶ 3 ¶ 4
+tr20-builtin-exec-trace.tcl	rt9.0	0	enter {string length abc} ¶ 3 ¶ 4
+tr20-builtin-exec-trace.tcl	rt9.1	0	enter {string length abc} ¶ 3 ¶ 4
+tr21-read-error-top-level.tcl	tclsh8.4	0	proc {1 {can't read "::x": nope-read}} ¶ top 1 {can't read "x": nope-read}
+tr21-read-error-top-level.tcl	tclsh8.5	0	proc {1 {can't read "::x": nope-read}} ¶ top 1 {can't read "x": nope-read}
+tr21-read-error-top-level.tcl	tclsh8.6	0	proc {1 {can't read "::x": nope-read}} ¶ top 1 {can't read "x": nope-read}
+tr21-read-error-top-level.tcl	tclsh9.0	0	proc {1 {can't read "::x": nope-read}} ¶ top 1 {can't read "x": nope-read}
+tr21-read-error-top-level.tcl	tclsh9.1	0	proc {1 {can't read "::x": nope-read}} ¶ top 1 {can't read "x": nope-read}
+tr21-read-error-top-level.tcl	jim	1	tr21-read-error-top-level.tcl:4: Error: invalid command name "trace" ¶ Traceback (most recent call last): ¶   File "tr21-read-error-top-level.tcl", line 4
+tr21-read-error-top-level.tcl	vm8.4	1	nope-read ¶     while executing ¶ "error "nope-$op" " ¶     (procedure "boom" line 1) ¶     invoked from within ¶ "boom ::x {} read"
+tr21-read-error-top-level.tcl	vm8.5	0	proc {1 {can't read "::x": nope-read}} ¶ top 1 {can't read "x": nope-read}
+tr21-read-error-top-level.tcl	vm8.6	0	proc {1 {can't read "::x": nope-read}} ¶ top 1 {can't read "x": nope-read}
+tr21-read-error-top-level.tcl	vm9.0	0	proc {1 {can't read "::x": nope-read}} ¶ top 1 {can't read "x": nope-read}
+tr21-read-error-top-level.tcl	vm9.1	0	proc {1 {can't read "::x": nope-read}} ¶ top 1 {can't read "x": nope-read}
+tr21-read-error-top-level.tcl	rt8.4	0	proc {1 {can't read "::x": nope-read}} ¶ top 1 {can't read "x": nope-read}
+tr21-read-error-top-level.tcl	rt8.5	0	proc {1 {can't read "::x": nope-read}} ¶ top 1 {can't read "x": nope-read}
+tr21-read-error-top-level.tcl	rt8.6	0	proc {1 {can't read "::x": nope-read}} ¶ top 1 {can't read "x": nope-read}
+tr21-read-error-top-level.tcl	rt9.0	0	proc {1 {can't read "::x": nope-read}} ¶ top 1 {can't read "x": nope-read}
+tr21-read-error-top-level.tcl	rt9.1	0	proc {1 {can't read "::x": nope-read}} ¶ top 1 {can't read "x": nope-read}
+tr22-exec-trace-writes-variable.tcl	tclsh8.4	0	after=99 ¶ again=5
+tr22-exec-trace-writes-variable.tcl	tclsh8.5	0	after=99 ¶ again=5
+tr22-exec-trace-writes-variable.tcl	tclsh8.6	0	after=99 ¶ again=5
+tr22-exec-trace-writes-variable.tcl	tclsh9.0	0	after=99 ¶ again=5
+tr22-exec-trace-writes-variable.tcl	tclsh9.1	0	after=99 ¶ again=5
+tr22-exec-trace-writes-variable.tcl	jim	1	tr22-exec-trace-writes-variable.tcl:4: Error: invalid command name "trace" ¶ Traceback (most recent call last): ¶   File "tr22-exec-trace-writes-variable.tcl", line 4
+tr22-exec-trace-writes-variable.tcl	vm8.4	0	after=99 ¶ again=5
+tr22-exec-trace-writes-variable.tcl	vm8.5	0	after=99 ¶ again=5
+tr22-exec-trace-writes-variable.tcl	vm8.6	0	after=99 ¶ again=5
+tr22-exec-trace-writes-variable.tcl	vm9.0	0	after=99 ¶ again=5
+tr22-exec-trace-writes-variable.tcl	vm9.1	0	after=99 ¶ again=5
+tr22-exec-trace-writes-variable.tcl	rt8.4	0	after=99 ¶ again=5
+tr22-exec-trace-writes-variable.tcl	rt8.5	0	after=99 ¶ again=5
+tr22-exec-trace-writes-variable.tcl	rt8.6	0	after=99 ¶ again=5
+tr22-exec-trace-writes-variable.tcl	rt9.0	0	after=99 ¶ again=5
+tr22-exec-trace-writes-variable.tcl	rt9.1	0	after=99 ¶ again=5
+tr23-trace-callback-writes-other.tcl	tclsh8.4	0	z=7
+tr23-trace-callback-writes-other.tcl	tclsh8.5	0	z=7
+tr23-trace-callback-writes-other.tcl	tclsh8.6	0	z=7
+tr23-trace-callback-writes-other.tcl	tclsh9.0	0	z=7
+tr23-trace-callback-writes-other.tcl	tclsh9.1	0	z=7
+tr23-trace-callback-writes-other.tcl	jim	1	tr23-trace-callback-writes-other.tcl:4: Error: invalid command name "trace" ¶ Traceback (most recent call last): ¶   File "tr23-trace-callback-writes-other.tcl", line 4
+tr23-trace-callback-writes-other.tcl	vm8.4	0	z=7
+tr23-trace-callback-writes-other.tcl	vm8.5	0	z=7
+tr23-trace-callback-writes-other.tcl	vm8.6	0	z=7
+tr23-trace-callback-writes-other.tcl	vm9.0	0	z=7
+tr23-trace-callback-writes-other.tcl	vm9.1	0	z=7
+tr23-trace-callback-writes-other.tcl	rt8.4	0	z=7
+tr23-trace-callback-writes-other.tcl	rt8.5	0	z=7
+tr23-trace-callback-writes-other.tcl	rt8.6	0	z=7
+tr23-trace-callback-writes-other.tcl	rt9.0	0	z=7
+tr23-trace-callback-writes-other.tcl	rt9.1	0	z=7
