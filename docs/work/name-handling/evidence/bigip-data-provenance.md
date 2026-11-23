@@ -38,11 +38,12 @@ History references: [#788 profile import](https://github.com/bitwisecook/tcl-lsp
 [recovered profile generator](https://github.com/bitwisecook/tcl-lsp/blob/58633c7049/scripts/registry-audit/gen_profile_defaults.py)
 and [table split](https://github.com/bitwisecook/tcl-lsp/commit/971901ba71).
 
-The separate local `bigip-extract` checkout contains a 21.0.0.1 build 0.0.13
-schema capture, extracted TMSH manpages and a script that generates historical
-Python object specs. This is a recoverable secondary input for checking
-catalogue coverage. Its presence does not establish that any of the tables
-above came from that build. The current native
+Private 21.0.0.1 build 0.0.13 research material includes a schema capture,
+TMSH manuals and a historical Python object-spec generator. It supplies
+version-labelled observations for catalogue coverage and does not establish
+the ancestry of the tables above. Publish independently written findings
+and minimal probes. Keep vendor files and generated tables in private
+storage, with no checkout path or build dependency in tcl-lsp. The current native
 [`bigip-data-schema` gate](../../../../rust/xtask/src/bigip_data_schema.rs)
 checks the curated object specs. The
 [editor grammar generator](../../../../rust/xtask/src/gen_bigip_grammars.rs)

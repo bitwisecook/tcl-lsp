@@ -1244,8 +1244,8 @@ check-c-extension-wasm: ## Hold runtime/rust/include/tcl.h to both its hosts: de
 	@echo "==> Checking the authored C header against both hosts"
 	python3 $(ROOT)scripts/check_c_extension_wasm.py
 
-xtask-registry-oracle: ## Audit the iRules registry against a local BIG-IP extract (IRULES_ORACLE_ROOT=/path/to/bigip-extract)
-	@test -n "$(IRULES_ORACLE_ROOT)" || (echo "Set IRULES_ORACLE_ROOT=/path/to/bigip-extract"; exit 2)
+xtask-registry-oracle: ## Audit the iRules registry against local oracle input (IRULES_ORACLE_ROOT=/path/to/oracle-input)
+	@test -n "$(IRULES_ORACLE_ROOT)" || (echo "Set IRULES_ORACLE_ROOT=/path/to/oracle-input"; exit 2)
 	@echo "==> Auditing the iRules registry against the local BIG-IP source oracle (cargo xtask)"
 	cd $(ROOT) && cargo xtask registry-oracle --irules-root "$(IRULES_ORACLE_ROOT)" --check
 

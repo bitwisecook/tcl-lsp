@@ -28,7 +28,11 @@ test for returned values, effects and event delivery. Test tmsh-hosted Tcl,
 iApp implementation and APL callbacks in their own contexts. Stock Tcl is
 a control for shared language behaviour. The repository's
 [`tcl-irule-test` and fakeCMP](../../../../rust/tcl-irule-test/src/lib.rs) are
-local regression tools.
+local regression tools. The extracted appliance checker is an additional
+offline compile oracle. Its harness supplies stubs for appliance hooks, so
+use it to choose compile probes and check candidate event/profile rules.
+Confirm behavioural claims with TMSH or TMM as appropriate.
+[Offline checker cross-check](../../../../evidence/bigip/tmsh-21.1-name-handling.md#offline-checker-cross-check)
 
 Record the exact TMOS version and build, platform, provisioned module,
 profiles and side, execution context, fixture, warnings or errors and observed
@@ -100,11 +104,13 @@ Answered as a method (versioned rows per command and form; presence, compile and
 
 ### Answer
 
-
-Use [the registry oracle audit](../../../../rust/xtask/src/registry_oracle.rs)
-and the [appliance probe tools](../../../../scripts/dev/bigip-probes/open-questions)
-to inventory the surfaces first. Add a versioned row per command and form,
-with the argument-count bounds, supported subcommands and implicit forms,
+Inventory the shipped schema and checker privately, using the opt-in
+[registry audit](../../../../rust/xtask/src/registry_oracle.rs) and
+[appliance probe tools](../../../../scripts/dev/bigip-probes/open-questions)
+with inputs and outputs outside the repository. Use observations as leads
+for independently authored registry rows and tests. Keep the vendor source,
+raw tables and their storage paths outside the project. Add a versioned row
+per command and form, with the argument-count bounds, supported subcommands and implicit forms,
 event, profile/module, output shape and effect. Organise the checks as follows.
 
 1. Compare presence, spelling, lifecycle and documented signature against

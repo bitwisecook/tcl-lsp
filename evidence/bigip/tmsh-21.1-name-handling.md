@@ -68,6 +68,26 @@ when EVENT {
 `fakeCMP` and no executable with that name was located. In this repository
 `fakeCMP` is implemented by the iRule test harness and MCP.
 
+## Offline checker cross-check
+
+The live 21.1.0.1 build 0.0.26 appliance supplied the 64-bit
+`libtclCheck_tcl.so.1.0` from its matching mcpd package. The transferred
+bytes matched the file on the appliance. Decoding the exported script
+payloads with XOR `0xF5` yielded 17 Tcl files.
+
+The repository's [offline harness](../../scripts/dev/bigip-probes/open-questions/irule-oracle.tcl)
+ran under stock Tcl 8.6.17 with appliance hooks stubbed. It produced
+182,628 event/command checks across 171 events and 1,068 checker entries.
+The `HTTP::header` result was valid in `HTTP_REQUEST` and invalid with a
+warning in `RULE_INIT`, agreeing with the two live compiler checks above.
+The matrix models bare-call constraints. It does not measure arity,
+event delivery or invocation effects in TMM. The harness failed to
+initialise under Tcl 9.0.3 with a namespace lookup error.
+
+The vendor library, decoded source and generated tables are kept privately.
+This receipt retains the build identity, method and observed comparison.
+[Prior checker investigation](../../docs/design/f5/bigip-irule-parser-measurements.md#14-how-the-rule-loader-decides)
+
 ## SSL rule attachment
 
 The rule body was `when EVENT { set x 1 }`, in an otherwise empty rule.

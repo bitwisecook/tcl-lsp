@@ -22,7 +22,7 @@ Measured against a live appliance, not inferred from documentation.
 | **Probed** | 2026-08-26; §12 follow-up 2026-11-20 on the same build (VM 211, 192.168.9.24) |
 | **Probes** | 97 syntax · 41 word-formation · 25 feature-availability · 85 command-availability · 120 event-context · 30 runtime-semantic · 15 proc-semantics · 14 dynamic-code |
 | **Controls** | `tclsh8.4` (8.4.6) and `tclsh8.5` (8.5.13), both on the same host |
-| **Corpora** | 170 public files; ~559 iRule-bearing files in `~/src/tcl-lsp-testsrc`; vendor manpages in `~/src/bigip-extract` |
+| **Corpora** | 170 public files; ~559 iRule-bearing files in `~/src/tcl-lsp-testsrc`; vendor manpages examined privately |
 | **Traffic lab** | `dev` (192.168.9.80) as client and backend, through virtual servers on `bigip1`; torn down afterwards |
 
 Nothing was persisted: `save sys config` was never run and every probe object was
@@ -862,12 +862,11 @@ because production code is written to look normal.
 Worth adopting as regression fixtures (BSD-style upstream; check the licence
 before vendoring).
 
-### `~/src/bigip-extract`
+### Vendor command references for 21.0.0.1
 
-Extracted vendor manpages plus `irule-command-synopisis-21.0.0.1-0.0.13.md`
-(a per-command reference for 21.0.0.1). It is a *command* reference and does not
-document parser behaviour or restricted commands, so the disabled-command list in
-§5 was derived empirically instead.
+Private extracted manuals and a per-command synopsis supplied command syntax.
+The disabled-command list in §5 came from live probes, which also establish
+parser behaviour.
 
 ---
 
@@ -1250,9 +1249,10 @@ loaded from `libtclCheck_tcl.so`. Its sources are embedded as 17 exported
 `*_tcl` data symbols (`checker_tcl`, `jet_tcl`, `f5Cmds_tcl`, `jet_event_tcl`,
 `context_tcl`, …), about 61,000 lines, each XORed with the single byte `0xF5`.
 [`extract-tclcheck.py`](../../../scripts/dev/bigip-probes/open-questions/extract-tclcheck.py)
-recovers them. The output is F5 proprietary source: the 21.1.0.1 copy is kept
-outside this repository (`~/src/bigip-extract/tclcheck-21.1.0.1-0.0.26/`) and must
-not be committed here.
+recovers them. The vendor source and generated tables are kept privately.
+A fresh extraction from the current 21.1.0.1 lab appliance cross-checked two
+live compiler outcomes. See the
+[offline cross-check](../../../evidence/bigip/tmsh-21.1-name-handling.md#offline-checker-cross-check).
 
 What it explains:
 

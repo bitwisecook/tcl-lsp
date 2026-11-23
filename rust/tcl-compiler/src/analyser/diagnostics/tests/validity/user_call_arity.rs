@@ -35,8 +35,7 @@ fn arity_codes(src: &str, dialect: &str) -> Vec<String> {
 
 #[test]
 fn irules_arity_accepts_documented_pool_log_and_class_iteration_forms() {
-    // Oracle: /Users/jimd/src/bigip-extract/man-21.0.0.1-0.0.13/
-    // ltm_rule_command_{pool,log,class}.3.
+    // BIG-IP 21.0.0.1 TMSH rule manuals for pool, log and class.
     for src in [
         "pool /Common/web member 192.0.2.10 443\n",
         "log -noname 192.0.2.20:514 local0.info message\n",
