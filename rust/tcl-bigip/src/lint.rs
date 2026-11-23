@@ -307,7 +307,9 @@ fn rule_orphan_monitor(view: &ModelView<'_>, out: &mut Vec<Finding>) {
         if in_use.contains(path) {
             continue;
         }
-        if path.starts_with("/Common/") && monitor.full_path == path {
+        if crate::object_names::object_path_partition(path) == Some("Common")
+            && monitor.full_path == path
+        {
             out.push(Finding {
                 rule_id: "orphan-monitor".to_owned(),
                 severity: "info",

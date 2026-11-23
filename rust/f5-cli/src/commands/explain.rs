@@ -27,6 +27,7 @@ use std::path::Path;
 
 use serde::Serialize;
 use serde_json::Value;
+use tcl_bigip::object_names::{ObjectNamePolicy, object_name_candidates};
 use tcl_bigip::parser::BigipConfig;
 use tcl_cli_support::{OutputTarget, write_text_output};
 
@@ -136,31 +137,18 @@ impl Model {
 
 /// Resolve a possibly-short name to a full path.
 fn resolve_name(name: &str, inv: &[(String, Value)], default_partition: &str) -> Option<String> {
-    if inv.iter().any(|(p, _)| p == name) {
-        return Some(name.to_owned());
-    }
-    if !name.starts_with('/') {
-        let trimmed = default_partition.trim_matches('/');
-        let partition = if trimmed.is_empty() {
-            "Common"
-        } else {
-            trimmed
-        };
-        let candidate = format!("/{partition}/{name}");
-        if inv.iter().any(|(p, _)| *p == candidate) {
-            return Some(candidate);
-        }
-        if partition != "Common" {
-            let candidate = format!("/Common/{name}");
-            if inv.iter().any(|(p, _)| *p == candidate) {
-                return Some(candidate);
-            }
-        }
-    }
-    let suffix = format!("/{name}");
-    inv.iter()
-        .find(|(p, _)| p.ends_with(&suffix))
-        .map(|(p, _)| p.clone())
+    let policy = if name.starts_with('/') {
+        ObjectNamePolicy::Exact
+    } else {
+        ObjectNamePolicy::Configuration { default_partition }
+    };
+    object_name_candidates(
+        name,
+        inv.iter().map(|(path, _)| (path.as_str(), path)),
+        policy,
+    )
+    .first_in_order()
+    .map(ToOwned::to_owned)
 }
 
 /// The `"v"` payloads of a `BigipList`-shaped canonical field.

@@ -153,7 +153,7 @@ fn render_gantt(
         for cell in state_row.iter_mut().take(width).skip(prev_col) {
             *cell = if cur == "UP" { ' ' } else { '#' };
         }
-        let stripped = strip_common(member);
+        let stripped = tcl_bigip::object_names::strip_common_partition(member);
         let name: String = stripped.chars().take(20).collect();
         let padded = format!("{name:20}");
         out.push(format!(
@@ -163,10 +163,6 @@ fn render_gantt(
     }
 
     Ok(out.join("\n") + "\n")
-}
-
-fn strip_common(member: &str) -> &str {
-    member.strip_prefix("/Common/").unwrap_or(member)
 }
 
 /// Strips trailing ASCII/Unicode whitespace.

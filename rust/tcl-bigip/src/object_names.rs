@@ -21,12 +21,127 @@
 //! Paths remain literal F5 slash-domain keys. Policies describe local tooling
 //! contracts; they do not establish appliance or Tcl interpreter resolution.
 
+use std::fmt;
+
+use crate::value::partition::is_partition_valid_char;
+use crate::value::port::py_repr;
+use crate::value::{Folder, IPAddress, Partition, ValueError};
+
+/// A full BIG-IP object path: `<folder>/<leaf>`.
+///
+/// The leaf is the object's name (`web_pool`, `vs1`, ...) and can contain
+/// a literal IP address with an optional route domain. The containing folder
+/// retains its case and all components, including application folders.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct BigIpName {
+    /// The containing folder.
+    pub folder: Folder,
+    /// The leaf object name.
+    pub name: String,
+}
+
+impl BigIpName {
+    /// Parse `text` as a full BIG-IP object path.
+    ///
+    /// # Errors
+    /// Empty input, input without a leading `/`, fewer than two segments,
+    /// or invalid leaf characters return [`ValueError`].
+    pub fn parse(text: &str) -> Result<Self, ValueError> {
+        if text.is_empty() {
+            return Err(ValueError("BigIpName: empty input".to_owned()));
+        }
+        if !text.starts_with('/') {
+            return Err(ValueError(format!(
+                "BigIpName: must start with '/' (partition prefix), got {}",
+                py_repr(text)
+            )));
+        }
+        if text.trim() != text || text.ends_with('/') || text.contains("//") {
+            return Err(ValueError(format!(
+                "BigIpName: malformed path {}",
+                py_repr(text)
+            )));
+        }
+        let Some((folder_path, leaf)) = text.rsplit_once('/').filter(|(path, _)| !path.is_empty())
+        else {
+            return Err(ValueError(format!(
+                "BigIpName: must have at least partition + leaf, got {}",
+                py_repr(text)
+            )));
+        };
+        if !leaf.chars().all(is_partition_valid_char) && IPAddress::try_parse(leaf).is_none() {
+            return Err(ValueError(format!(
+                "BigIpName: invalid character in leaf {}",
+                py_repr(leaf)
+            )));
+        }
+        let folder = Folder::parse(folder_path)?;
+        if folder.segments.iter().any(|part| {
+            matches!(part.as_str(), "." | "..")
+                || part.as_bytes().first().is_some_and(u8::is_ascii_digit)
+        }) || matches!(leaf, "." | "..")
+        {
+            return Err(ValueError(format!(
+                "BigIpName: invalid path component in {}",
+                py_repr(text)
+            )));
+        }
+        Ok(Self {
+            folder,
+            name: leaf.to_owned(),
+        })
+    }
+
+    /// Like [`BigIpName::parse`] but returns `None` instead of erroring.
+    #[must_use]
+    pub fn try_parse(text: &str) -> Option<Self> {
+        Self::parse(text).ok()
+    }
+
+    /// The partition portion of the folder.
+    #[must_use]
+    pub fn partition(&self) -> &Partition {
+        &self.folder.partition
+    }
+
+    /// Application folders in outermost-to-innermost order.
+    pub fn application_folders(&self) -> impl Iterator<Item = &str> {
+        self.folder
+            .segments
+            .iter()
+            .map(String::as_str)
+            .filter(|name| name.ends_with(".app"))
+    }
+
+    /// `true` when the object lives at the partition root (no folders).
+    #[must_use]
+    pub fn in_root_folder(&self) -> bool {
+        self.folder.is_root()
+    }
+}
+
+impl fmt::Display for BigIpName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.folder.is_root() {
+            write!(f, "{}/{}", self.folder.partition, self.name)
+        } else {
+            write!(f, "{}/{}", self.folder, self.name)
+        }
+    }
+}
+
 /// Read the first component of an absolute authored F5 object path.
 /// Empty components remain empty; this neither validates nor resolves a path.
 #[must_use]
 pub fn object_path_partition(path: &str) -> Option<&str> {
     path.strip_prefix('/')
         .and_then(|rest| rest.split('/').next())
+}
+
+/// Remove the shared partition prefix for compact display.
+#[must_use]
+pub fn strip_common_partition(path: &str) -> &str {
+    path.strip_prefix("/Common/").unwrap_or(path)
 }
 
 /// Matching precedence within a caller-supplied object domain.
@@ -247,6 +362,58 @@ pub fn owner_partition_reference_paths(
 #[cfg(test)]
 mod tests {
     use super::{ObjectNamePolicy, object_name_candidates};
+
+    #[test]
+    fn authored_names_preserve_ip_leaves_and_application_folders() {
+        for name in ["/Common/10.0.0.1%2", "/Common/app.app/2001:db8::1"] {
+            let parsed = super::BigIpName::parse(name).unwrap();
+            assert_eq!(parsed.to_string(), name);
+        }
+        let parsed = super::BigIpName::parse("/Tenant/app.app/sub/node").unwrap();
+        assert_eq!(
+            parsed.application_folders().collect::<Vec<_>>(),
+            ["app.app"]
+        );
+        for malformed in [
+            "/Common//node",
+            "/Common/node/",
+            " /Common/node ",
+            "/Common/3lab/node",
+            "/Common/node:unexpected",
+            "/Common/node%bad",
+        ] {
+            assert!(super::BigIpName::parse(malformed).is_err(), "{malformed}");
+        }
+    }
+
+    #[test]
+    fn address_probe_names_follow_the_authored_path_contract() {
+        const VALID: &[&str] = &[
+            "i001", "i002", "i003", "i004", "i005", "i006", "i007", "i013", "i017", "i018", "i019",
+            "i020", "i021", "i022", "i026", "i027", "i033", "i035", "i036", "i038",
+        ];
+        let inputs = include_str!(
+            "../../../docs/work/name-handling/handover/oo-dispatch-probe/bigip-addresses/inputs.tsv"
+        );
+        let mut count = 0;
+        for line in inputs.lines().skip(1) {
+            let [id, group, input, _] = line.splitn(4, '\t').collect::<Vec<_>>()[..] else {
+                continue;
+            };
+            if group != "names" {
+                continue;
+            }
+            count += 1;
+            match super::BigIpName::try_parse(input) {
+                Some(name) => {
+                    assert!(VALID.contains(&id), "{id}: {input}");
+                    assert_eq!(name.to_string(), input, "{id}");
+                }
+                None => assert!(!VALID.contains(&id), "{id}: {input}"),
+            }
+        }
+        assert_eq!(count, 38);
+    }
 
     fn matches<'a>(
         reference: &str,

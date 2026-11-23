@@ -42,6 +42,7 @@ use tcl_bigip::flow::{
 use tcl_bigip::model::{
     BigipPolicy, BigipProfile, BigipRule, BigipVirtualServer, ModelObject, ProfileType,
 };
+use tcl_bigip::object_names::{ObjectNamePolicy, object_name_candidates};
 use tcl_bigip::parser::BigipConfig;
 use tcl_bigip::policy_eval::{PolicyDecision, evaluate_policy, request_state_from_session};
 use tcl_cli_support::{OutputTarget, write_text_output};
@@ -212,35 +213,20 @@ fn table_keys<'a>(cfg: &'a BigipConfig, table: &str) -> impl Iterator<Item = &'a
 /// Resolve a possibly-short name to a full path in `table`, trying exact,
 /// partition-qualified, `/Common/`, and suffix matches in turn.
 fn resolve_name(cfg: &BigipConfig, name: &str, table: &str) -> Option<String> {
-    if table_keys(cfg, table).any(|k| k == name) {
-        return Some(name.to_owned());
-    }
-    if !name.starts_with('/') {
-        let partition = {
-            let p = if cfg.default_partition.is_empty() {
-                "Common"
-            } else {
-                cfg.default_partition.as_str()
-            };
-            p.trim_matches('/').to_owned()
-        };
-        if !partition.is_empty() {
-            let candidate = format!("/{partition}/{name}");
-            if table_keys(cfg, table).any(|k| k == candidate) {
-                return Some(candidate);
-            }
+    let policy = if name.starts_with('/') {
+        ObjectNamePolicy::Exact
+    } else {
+        ObjectNamePolicy::Configuration {
+            default_partition: &cfg.default_partition,
         }
-        if partition != "Common" {
-            let candidate = format!("/Common/{name}");
-            if table_keys(cfg, table).any(|k| k == candidate) {
-                return Some(candidate);
-            }
-        }
-    }
-    let suffix = format!("/{name}");
-    table_keys(cfg, table)
-        .find(|k| k.ends_with(&suffix))
-        .map(ToOwned::to_owned)
+    };
+    object_name_candidates(
+        name,
+        table_keys(cfg, table).map(|path| (path, path)),
+        policy,
+    )
+    .first_in_order()
+    .map(ToOwned::to_owned)
 }
 
 fn resolve_profile(cfg: &BigipConfig, name: &str) -> Option<String> {

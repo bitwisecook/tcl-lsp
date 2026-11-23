@@ -30,6 +30,7 @@ use std::sync::OnceLock;
 
 use regex::Regex;
 use serde_json::{Map, Value as J};
+use tcl_bigip::object_names::{object_path_partition, owner_partition_reference_paths};
 use tcl_registry::events::EventRegistry;
 use tcl_registry::profile_defaults::BigipVersion;
 
@@ -207,11 +208,9 @@ fn leaf(s: &str) -> &str {
 }
 
 fn partition_of(full_path: &str) -> String {
-    if full_path.starts_with('/') {
-        full_path.split('/').nth(1).unwrap_or("").to_string()
-    } else {
-        String::new()
-    }
+    object_path_partition(full_path)
+        .unwrap_or_default()
+        .to_owned()
 }
 
 /// Decompose a BIG-IP full path `/partition/seg1/…/name` into
@@ -578,11 +577,7 @@ fn default_object_paths(config_text: &str) -> std::collections::HashSet<String> 
             && let Some(brace) = line.find('{')
             && let Some(name) = line[..brace].split_whitespace().last()
         {
-            out.insert(if name.starts_with('/') {
-                name.to_string()
-            } else {
-                format!("/Common/{name}")
-            });
+            out.extend(owner_partition_reference_paths(name, "", "Common"));
         }
     }
     out

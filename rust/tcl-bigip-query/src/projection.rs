@@ -45,6 +45,7 @@ use std::rc::Rc;
 
 use indexmap::IndexMap;
 use tcl_bigip::model::{DataGroupType, ModelObject, ProfileType};
+use tcl_bigip::object_names::{ObjectNamePolicy, object_name_candidates};
 use tcl_bigip::parser::Placed;
 use tcl_bigip::value::{BigipList, ListItemValue, MonitorExpression};
 
@@ -154,14 +155,14 @@ impl Container {
             return Ok(v.clone());
         }
         if self.is_object_kind() && !key.starts_with('/') {
-            let full = format!("/Common/{key}");
-            let suffix = format!("/{key}");
-            let matches: Vec<&String> = ents.keys().filter(|k| k.ends_with(&suffix)).collect();
-            if let Some(v) = ents.get(&full) {
-                return Ok(v.clone());
-            }
-            if matches.len() == 1 {
-                return Ok(ents[matches[0]].clone());
+            let candidates = object_name_candidates(
+                key,
+                ents.keys().map(|path| (path.as_str(), path)),
+                ObjectNamePolicy::CommonThenSuffix,
+            );
+            let matches = candidates.candidates();
+            if let [path] = matches {
+                return Ok(ents[*path].clone());
             }
             if matches.len() > 1 {
                 return Err(QueryError::eval(format!(

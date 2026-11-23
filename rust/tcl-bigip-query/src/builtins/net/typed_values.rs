@@ -23,15 +23,7 @@ use crate::builtins::as_str;
 use crate::errors::QueryError;
 use crate::value::Value;
 use std::net::IpAddr;
-
-// Typed value layer: IPAddress / FQDN, RouteDomain, Port, Partition,
-// Folder, ObjectPath, Destination, Network, IPRange, PortSet.
-
-const PART_VALID: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-.";
-
-fn part_chars_ok(s: &str) -> bool {
-    s.chars().all(|c| PART_VALID.contains(c))
-}
+use tcl_bigip::value::Folder;
 
 /// An IP plus an optional `%rd` route domain.
 #[derive(Clone)]
@@ -162,128 +154,6 @@ impl TypedPort {
             "any".to_string()
         } else {
             self.port.to_string()
-        }
-    }
-}
-
-/// A BIG-IP partition (canonical name with leading slash).
-#[derive(Clone, PartialEq, Eq)]
-pub(super) struct Partition {
-    pub(super) name: String, // canonical with leading slash
-}
-
-impl Partition {
-    pub(super) fn try_parse(text: &str) -> Option<Partition> {
-        let text = text.trim();
-        if text.is_empty() {
-            return None;
-        }
-        let bare = text.trim_start_matches('/');
-        if bare.is_empty() || bare.contains('/') || !part_chars_ok(bare) {
-            return None;
-        }
-        Some(Partition {
-            name: format!("/{bare}"),
-        })
-    }
-
-    fn is_common(&self) -> bool {
-        self.name.trim_start_matches('/') == "Common"
-    }
-
-    pub(super) fn can_see(&self, other: &Partition) -> bool {
-        self == other || other.is_common()
-    }
-}
-
-/// A folder: a partition plus its nested path segments.
-#[derive(Clone, PartialEq, Eq)]
-pub(super) struct Folder {
-    pub(super) partition: Partition,
-    pub(super) segments: Vec<String>,
-}
-
-impl Folder {
-    pub(super) fn try_parse(text: &str) -> Option<Folder> {
-        let text = text.trim();
-        if text.is_empty() || !text.starts_with('/') {
-            return None;
-        }
-        let parts: Vec<&str> = text
-            .trim_matches('/')
-            .split('/')
-            .filter(|p| !p.is_empty())
-            .collect();
-        if parts.is_empty() {
-            return None;
-        }
-        let partition = Partition::try_parse(parts[0])?;
-        let segments: Vec<String> = parts[1..].iter().map(|s| (*s).to_string()).collect();
-        for seg in &segments {
-            if !part_chars_ok(seg) {
-                return None;
-            }
-        }
-        Some(Folder {
-            partition,
-            segments,
-        })
-    }
-
-    fn is_root(&self) -> bool {
-        self.segments.is_empty()
-    }
-
-    pub(super) fn render(&self) -> String {
-        if self.is_root() {
-            self.partition.name.clone()
-        } else {
-            format!("{}/{}", self.partition.name, self.segments.join("/"))
-        }
-    }
-}
-
-/// An object path: a folder plus the object's name.
-pub(super) struct ObjectPath {
-    pub(super) folder: Folder,
-    pub(super) name: String,
-}
-
-impl ObjectPath {
-    pub(super) fn try_parse(text: &str) -> Option<ObjectPath> {
-        let text = text.trim();
-        if text.is_empty() || !text.starts_with('/') {
-            return None;
-        }
-        let parts: Vec<&str> = text
-            .trim_matches('/')
-            .split('/')
-            .filter(|p| !p.is_empty())
-            .collect();
-        if parts.len() < 2 {
-            return None;
-        }
-        let leaf = parts[parts.len() - 1];
-        if !part_chars_ok(leaf) {
-            return None;
-        }
-        let folder_text = format!("/{}", parts[..parts.len() - 1].join("/"));
-        let folder = Folder::try_parse(&folder_text)?;
-        Some(ObjectPath {
-            folder,
-            name: leaf.to_string(),
-        })
-    }
-
-    pub(super) fn partition(&self) -> &Partition {
-        &self.folder.partition
-    }
-
-    pub(super) fn render(&self) -> String {
-        if self.folder.is_root() {
-            format!("{}/{}", self.folder.partition.name, self.name)
-        } else {
-            format!("{}/{}", self.folder.render(), self.name)
         }
     }
 }
@@ -526,7 +396,7 @@ impl Destination {
             out = format!("{out}{}{}", self.port_separator, self.port.render());
         }
         if let Some(folder) = &self.folder {
-            out = format!("{}/{out}", folder.render());
+            out = format!("{folder}/{out}");
         }
         out
     }
@@ -537,7 +407,7 @@ impl Destination {
 pub(super) fn split_destination(value: &str) -> (String, String, String, String) {
     if let Some(dest) = Destination::try_parse(value) {
         let partition_prefix = match &dest.folder {
-            Some(f) => format!("{}/", f.render()),
+            Some(f) => format!("{f}/"),
             None => String::new(),
         };
         let addr_text = dest.address.to_string_canonical();
