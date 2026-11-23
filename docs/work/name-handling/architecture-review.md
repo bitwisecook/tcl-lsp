@@ -54,13 +54,13 @@ The review also found **six contradictions** between the new design and the earl
    - The word-level reference grammar (braces, index, release rules) is `tcl_lexer::word_parts::scan_var_ref`, built on that rule.
    - `tcl-syntax::naming` re-exports both for consumers.
    - The element splitter is one function in the lexer's `variable_names`, taking the selected protocol.
-5. **Migration by catalogue versus the phases (D10).** The [plan.md](plan.md) header still directs execution of 2,158 catalogued changes (1,321 caller migrations), while phases 3–5 delete many of the walkers and heuristics those migrations target. Running both builds adapters that are then thrown away.
+5. **Migration by catalogue versus the phases (D10).** *Decided 23 November 2026: freeze and re-map (plan item 96).* The [plan.md](plan.md) header still directs execution of 2,158 catalogued changes (1,321 caller migrations), while phases 3–5 delete many of the walkers and heuristics those migrations target. Running both builds adapters that are then thrown away.
 
    **Recommended (owner decision):**
    - freeze the catalogue;
    - re-map each unit to *keep*, *delete with phase N* or *re-target to the phase-N owner*;
    - stop migrating callers whose owner is scheduled for deletion.
-6. **Release scope.** [current-state.md](current-state.md) "Scope and publication" limits the release to the LSP and the paths it uses, and defers VM, BIG-IP and ancillary work. The new order schedules engine work alongside phases 3–5, plus the crate split and the licence change.
+6. **Release scope.** *Decided 23 November 2026: no release target; `work` is a long-running design branch (plan item 96).* [current-state.md](current-state.md) "Scope and publication" limits the release to the LSP and the paths it uses, and defers VM, BIG-IP and ancillary work. The new order schedules engine work alongside phases 3–5, plus the crate split and the licence change.
 
    **Recommended (owner decision):**
    - ship the LSP release from the current scope;
