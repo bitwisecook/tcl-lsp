@@ -1,0 +1,264 @@
+# parse_bigip_conf(addresses.conf): typed fields per object
+nodes	/Common/10.0.0.1	address=addr=10.0.0.1 fam=v4 iprd=- fqdn=None
+nodes	/Common/10.0.0.1%2	address=addr=10.0.0.1 fam=v4 iprd=2 fqdn=None
+nodes	/Common/2001:db8::1	address=addr=2001:db8::1 fam=v6 iprd=- fqdn=None
+nodes	/Common/2001:db8::1%2	address=addr=2001:db8::1 fam=v6 iprd=2 fqdn=None
+nodes	/Common/fqdn_node	address=NONE fqdn=Some("example.com")
+nodes	/T1/node_t1	address=addr=10.1.1.1 fam=v4 iprd=- fqdn=None
+nodes	/Common/app.app/app_node	address=addr=10.0.0.3 fam=v4 iprd=- fqdn=None
+pools	/Common/p_v4	members=[name=/Common/10.0.0.1:80 address=addr=10.0.0.1 fam=v4 iprd=- port=0] [name=/Common/10.0.0.1%2:80 address=addr=10.0.0.1 fam=v4 iprd=2 port=0]  monitor=/Common/http
+pools	/Common/p_v6	members=[name=/Common/2001:db8::1.80 address=addr=2001:db8::1 fam=v6 iprd=- port=0] [name=/Common/2001:db8::1%2.443 address=addr=2001:db8::1 fam=v6 iprd=2 port=0]  monitor=/Common/m_v6
+pools	/Common/p_fqdn	members=[name=/Common/example.com:443 address=NONE port=443]  monitor=
+pools	/T1/p_rel	members=[name=node_t1:80 address=addr=10.1.1.1 fam=v4 iprd=- port=0]  monitor=
+pools	/Common/p_http	members=[name=/Common/10.0.0.1:http address=addr=10.0.0.1 fam=v4 iprd=- port=0]  monitor=
+pools	/Common/app.app/app_pool	members=[name=/Common/app.app/app_node:8080 address=addr=10.0.0.3 fam=v4 iprd=- port=0]  monitor=
+virtual_servers	/Common/vs_v4	destination=/Common/10.0.0.10:80 parsed=Some(("addr=10.0.0.10 fam=v4 iprd=-", None, 80, "80")) pool=/Common/p_v4 mask=255.255.255.255 source=0.0.0.0/0
+virtual_servers	/Common/vs_rd	destination=/Common/10.0.0.10%2:443 parsed=Some(("addr=10.0.0.10 fam=v4 iprd=-", Some(2), 443, "443")) pool= mask=255.255.255.255 source=0.0.0.0%2/0
+virtual_servers	/Common/vs_v6	destination=/Common/2001:db8::10.443 parsed=Some(("addr=2001:db8::10 fam=v6 iprd=-", None, 443, "443")) pool=/Common/p_v6 mask=ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff source=::/0
+virtual_servers	/Common/vs_v6rd	destination=/Common/2001:db8::10%2.80 parsed=Some(("addr=2001:db8::10 fam=v6 iprd=-", Some(2), 80, "80")) pool= mask=ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff source=
+virtual_servers	/Common/vs_any	destination=/Common/0.0.0.0:0 parsed=Some(("addr=0.0.0.0 fam=v4 iprd=-", None, 0, "0")) pool= mask=any source=0.0.0.0/0
+virtual_servers	/Common/vs_any6	destination=/Common/any6.any parsed=Some(("fqdn=any6.any", None, 0, "")) pool= mask=any6 source=
+virtual_servers	/Common/vs_http	destination=NONE parsed=None pool= mask=255.255.255.255 source=
+virtual_servers	/Common/vs_net	destination=/Common/10.0.1.0:0 parsed=Some(("addr=10.0.1.0 fam=v4 iprd=-", None, 0, "0")) pool= mask=255.255.255.0 source=
+virtual_servers	/T1/vs_t1	destination=/T1/10.1.1.10:80 parsed=Some(("addr=10.1.1.10 fam=v4 iprd=-", None, 80, "80")) pool=p_rel mask=255.255.255.255 source=
+virtual_servers	/Common/app.app/app_vs	destination=/Common/app.app/10.0.0.12:80 parsed=Some(("addr=10.0.0.12 fam=v4 iprd=-", None, 80, "80")) pool=/Common/app.app/app_pool mask=255.255.255.255 source=
+virtual_servers	/Common/vs_legacy6	destination=/Common/fe80::1:80 parsed=Some(("addr=fe80::1:80 fam=v6 iprd=-", None, 0, "")) pool= mask=ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff source=
+virtual_addresses	/Common/10.0.0.10	address=10.0.0.10 rd=None mask=255.255.255.255
+virtual_addresses	/Common/10.0.0.10%2	address=10.0.0.10 rd=Some(2) mask=255.255.255.255
+virtual_addresses	/Common/0.0.0.0	address=NONE mask=any
+virtual_addresses	/Common/any6	address=NONE mask=any6
+virtual_addresses	/Common/2001:db8::10	address=2001:db8::10 rd=None mask=ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+ltm_snat_translations	/Common/10.0.0.50%2	address=10.0.0.50%2
+net_selves	/Common/self_rd	address=V4 { network: 10.0.0.0, prefix: 24 } show=10.0.0.2/24
+net_selves	/Common/self_v6	address=V6 { network: 2001:db8::, prefix: 64 } show=2001:db8::2/64
+net_routes	/Common/r_default	network=V4 { network: 0.0.0.0, prefix: 0 } show=default default=true gw=10.0.0.254
+net_routes	/Common/r_rd	network=V4 { network: 0.0.0.0, prefix: 0 } show=default default=true gw=10.0.0.254%2
+net_routes	/Common/r_v6	network=V6 { network: ::, prefix: 0 } show=default-inet6 default=true gw=2001:db8::fe
+net_routes	/Common/r_net	network=V4 { network: 172.16.0.0, prefix: 12 } show=172.16.0.0/12 default=false gw=10.0.0.254%2
+
+# object paths (all tables)
+nodes	/Common/10.0.0.1
+nodes	/Common/10.0.0.1%2
+nodes	/Common/2001:db8::1
+nodes	/Common/2001:db8::1%2
+nodes	/Common/fqdn_node
+nodes	/T1/node_t1
+nodes	/Common/app.app/app_node
+pools	/Common/p_v4
+pools	/Common/p_v6
+pools	/Common/p_fqdn
+pools	/T1/p_rel
+pools	/Common/p_http
+pools	/Common/app.app/app_pool
+virtual_servers	/Common/vs_v4
+virtual_servers	/Common/vs_rd
+virtual_servers	/Common/vs_v6
+virtual_servers	/Common/vs_v6rd
+virtual_servers	/Common/vs_any
+virtual_servers	/Common/vs_any6
+virtual_servers	/Common/vs_http
+virtual_servers	/Common/vs_net
+virtual_servers	/T1/vs_t1
+virtual_servers	/Common/app.app/app_vs
+virtual_servers	/Common/vs_legacy6
+virtual_addresses	/Common/10.0.0.10
+virtual_addresses	/Common/10.0.0.10%2
+virtual_addresses	/Common/0.0.0.0
+virtual_addresses	/Common/any6
+virtual_addresses	/Common/2001:db8::10
+ltm_snat_translations	/Common/10.0.0.50%2
+snat_pools	/Common/sp_rd
+monitors	/Common/m_alias
+monitors	/Common/m_any
+monitors	/Common/m_v6
+monitors	/Common/m_v6alias
+data_groups	/Common/dg_ip
+rules	/Common/r_addr
+net_selves	/Common/self_rd
+net_selves	/Common/self_v6
+net_routes	/Common/r_default
+net_routes	/Common/r_rd
+net_routes	/Common/r_v6
+net_routes	/Common/r_net
+gtm_servers	/Common/srv1
+gtm_pools	/Common/gp
+gtm_wideips	/Common/www.example.com
+security_firewall_address_lists	/Common/al
+security_firewall_port_lists	/Common/pl
+
+# run_lint
+orphan-monitor	info	/Common/m_alias	monitor not referenced by any pool in this config
+orphan-monitor	info	/Common/m_any	monitor not referenced by any pool in this config
+orphan-monitor	info	/Common/m_v6alias	monitor not referenced by any pool in this config
+virtual-without-pool	info	/Common/vs_rd	virtual has no default pool and no iRules attached
+virtual-without-pool	info	/Common/vs_v6rd	virtual has no default pool and no iRules attached
+virtual-without-pool	info	/Common/vs_any	virtual has no default pool and no iRules attached
+virtual-without-pool	info	/Common/vs_any6	virtual has no default pool and no iRules attached
+virtual-without-pool	info	/Common/vs_http	virtual has no default pool and no iRules attached
+virtual-without-pool	info	/Common/vs_net	virtual has no default pool and no iRules attached
+virtual-without-pool	info	/Common/vs_legacy6	virtual has no default pool and no iRules attached
+pool-without-monitor	warning	/Common/p_fqdn	pool has no health monitor (pool-level or per-member)
+pool-without-monitor	warning	/T1/p_rel	pool has no health monitor (pool-level or per-member)
+pool-without-monitor	warning	/Common/p_http	pool has no health monitor (pool-level or per-member)
+pool-without-monitor	warning	/Common/app.app/app_pool	pool has no health monitor (pool-level or per-member)
+
+# validate_bigip_source
+ConfigDiagnostic { code: "BIGIP6011", message: "Invalid IP address '10.0.0.0%2/8' in IP-type data-group 'dg_ip'", severity: Warning, subject: DataGroup, range: Range { start: Position { line: 185, character: 38, offset: 4180 }, end: Position { line: 193, character: 1, offset: 4313 } } }
+ConfigDiagnostic { code: "BIGIP6013", message: "pool '/Common/p_v4' has registry-declared reference '/Common/http' in property 'monitor' which could not be resolved; define a compatible target or use a static full path.", severity: Warning, subject: Object, range: Range { start: Position { line: 31, character: 22, offset: 888 }, end: Position { line: 41, character: 1, offset: 1078 } } }
+ConfigDiagnostic { code: "BIGIP6013", message: "pool '/Common/p_v6' has registry-declared reference '/Common/2001:db8::1.80' in property 'members' which could not be resolved; define a compatible target or use a static full path.", severity: Warning, subject: Object, range: Range { start: Position { line: 42, character: 22, offset: 1101 }, end: Position { line: 52, character: 1, offset: 1304 } } }
+ConfigDiagnostic { code: "BIGIP6013", message: "pool '/Common/p_v6' has registry-declared reference '/Common/2001:db8::1%2.443' in property 'members' which could not be resolved; define a compatible target or use a static full path.", severity: Warning, subject: Object, range: Range { start: Position { line: 42, character: 22, offset: 1101 }, end: Position { line: 52, character: 1, offset: 1304 } } }
+ConfigDiagnostic { code: "BIGIP6013", message: "pool '/Common/p_fqdn' has registry-declared reference '/Common/example.com:443' in property 'members' which could not be resolved; define a compatible target or use a static full path.", severity: Warning, subject: Object, range: Range { start: Position { line: 53, character: 24, offset: 1329 }, end: Position { line: 62, character: 1, offset: 1499 } } }
+ConfigDiagnostic { code: "BIGIP6013", message: "pool '/Common/p_http' has registry-declared reference '/Common/10.0.0.1:http' in property 'members' which could not be resolved; define a compatible target or use a static full path.", severity: Warning, subject: Object, range: Range { start: Position { line: 70, character: 24, offset: 1627 }, end: Position { line: 76, character: 1, offset: 1721 } } }
+ConfigDiagnostic { code: "BIGIP6013", message: "virtual '/Common/vs_v6' has registry-declared reference '/Common/2001:db8::10.443' in property 'destination' which could not be resolved; define a compatible target or use a static full path.", severity: Warning, subject: Object, range: Range { start: Position { line: 95, character: 26, offset: 2138 }, end: Position { line: 100, character: 1, offset: 2269 } } }
+ConfigDiagnostic { code: "BIGIP6013", message: "virtual '/Common/vs_v6rd' has registry-declared reference '/Common/2001:db8::10%2.80' in property 'destination' which could not be resolved; define a compatible target or use a static full path.", severity: Warning, subject: Object, range: Range { start: Position { line: 101, character: 28, offset: 2298 }, end: Position { line: 104, character: 1, offset: 2392 } } }
+ConfigDiagnostic { code: "BIGIP6013", message: "virtual '/Common/vs_any6' has registry-declared reference '/Common/any6.any' in property 'destination' which could not be resolved; define a compatible target or use a static full path.", severity: Warning, subject: Object, range: Range { start: Position { line: 111, character: 28, offset: 2535 }, end: Position { line: 115, character: 1, offset: 2600 } } }
+ConfigDiagnostic { code: "BIGIP6013", message: "virtual '/Common/vs_http' has registry-declared reference '/Common/10.0.0.11:http' in property 'destination' which could not be resolved; define a compatible target or use a static full path.", severity: Warning, subject: Object, range: Range { start: Position { line: 116, character: 28, offset: 2629 }, end: Position { line: 119, character: 1, offset: 2696 } } }
+ConfigDiagnostic { code: "BIGIP6013", message: "virtual '/Common/vs_net' has registry-declared reference '/Common/10.0.1.0:0' in property 'destination' which could not be resolved; define a compatible target or use a static full path.", severity: Warning, subject: Object, range: Range { start: Position { line: 120, character: 27, offset: 2724 }, end: Position { line: 123, character: 1, offset: 2785 } } }
+ConfigDiagnostic { code: "BIGIP6013", message: "virtual '/T1/vs_t1' has registry-declared reference '/T1/10.1.1.10:80' in property 'destination' which could not be resolved; define a compatible target or use a static full path.", severity: Warning, subject: Object, range: Range { start: Position { line: 124, character: 22, offset: 2808 }, end: Position { line: 131, character: 1, offset: 2925 } } }
+ConfigDiagnostic { code: "BIGIP6013", message: "virtual '/Common/app.app/app_vs' has registry-declared reference '/Common/app.app/10.0.0.12:80' in property 'destination' which could not be resolved; define a compatible target or use a static full path.", severity: Warning, subject: Object, range: Range { start: Position { line: 132, character: 35, offset: 2961 }, end: Position { line: 136, character: 1, offset: 3068 } } }
+ConfigDiagnostic { code: "BIGIP6013", message: "virtual '/Common/vs_legacy6' has registry-declared reference '/Common/fe80::1:80' in property 'destination' which could not be resolved; define a compatible target or use a static full path.", severity: Warning, subject: Object, range: Range { start: Position { line: 137, character: 31, offset: 3100 }, end: Position { line: 140, character: 1, offset: 3187 } } }
+ConfigDiagnostic { code: "BIGIP6013", message: "monitor http '/Common/m_alias' has registry-declared reference '/Common/http' in property 'defaults-from' which could not be resolved; define a compatible target or use a static full path.", severity: Warning, subject: Object, range: Range { start: Position { line: 169, character: 33, offset: 3807 }, end: Position { line: 172, character: 1, offset: 3869 } } }
+ConfigDiagnostic { code: "BIGIP6013", message: "monitor http '/Common/m_any' has registry-declared reference '/Common/http' in property 'defaults-from' which could not be resolved; define a compatible target or use a static full path.", severity: Warning, subject: Object, range: Range { start: Position { line: 173, character: 31, offset: 3901 }, end: Position { line: 176, character: 1, offset: 3955 } } }
+ConfigDiagnostic { code: "BIGIP6013", message: "monitor http '/Common/m_v6' has registry-declared reference '/Common/http' in property 'defaults-from' which could not be resolved; define a compatible target or use a static full path.", severity: Warning, subject: Object, range: Range { start: Position { line: 177, character: 30, offset: 3986 }, end: Position { line: 180, character: 1, offset: 4040 } } }
+ConfigDiagnostic { code: "BIGIP6013", message: "monitor http '/Common/m_v6alias' has registry-declared reference '/Common/http' in property 'defaults-from' which could not be resolved; define a compatible target or use a static full path.", severity: Warning, subject: Object, range: Range { start: Position { line: 181, character: 35, offset: 4076 }, end: Position { line: 184, character: 1, offset: 4141 } } }
+ConfigDiagnostic { code: "BIGIP6013", message: "self '/Common/self_rd' has registry-declared reference '/Common/internal' in property 'vlan' which could not be resolved; define a compatible target or use a static full path.", severity: Warning, subject: Object, range: Range { start: Position { line: 206, character: 25, offset: 4683 }, end: Position { line: 209, character: 1, offset: 4738 } } }
+ConfigDiagnostic { code: "BIGIP6013", message: "self '/Common/self_v6' has registry-declared reference '/Common/internal' in property 'vlan' which could not be resolved; define a compatible target or use a static full path.", severity: Warning, subject: Object, range: Range { start: Position { line: 210, character: 25, offset: 4764 }, end: Position { line: 213, character: 1, offset: 4820 } } }
+ConfigDiagnostic { code: "BIGIP6013", message: "route '/Common/r_default' has registry-declared reference '10.0.0.254' in property 'gw' which could not be resolved; define a compatible target or use a static full path.", severity: Warning, subject: Object, range: Range { start: Position { line: 214, character: 28, offset: 4849 }, end: Position { line: 217, character: 1, offset: 4890 } } }
+ConfigDiagnostic { code: "BIGIP6013", message: "route '/Common/r_rd' has registry-declared reference '10.0.0.254%2' in property 'gw' which could not be resolved; define a compatible target or use a static full path.", severity: Warning, subject: Object, range: Range { start: Position { line: 218, character: 23, offset: 4914 }, end: Position { line: 221, character: 1, offset: 4959 } } }
+ConfigDiagnostic { code: "BIGIP6013", message: "route '/Common/r_v6' has registry-declared reference '2001:db8::fe' in property 'gw' which could not be resolved; define a compatible target or use a static full path.", severity: Warning, subject: Object, range: Range { start: Position { line: 222, character: 23, offset: 4983 }, end: Position { line: 225, character: 1, offset: 5032 } } }
+ConfigDiagnostic { code: "BIGIP6013", message: "route '/Common/r_net' has registry-declared reference '10.0.0.254%2' in property 'gw' which could not be resolved; define a compatible target or use a static full path.", severity: Warning, subject: Object, range: Range { start: Position { line: 226, character: 24, offset: 5057 }, end: Position { line: 229, character: 1, offset: 5108 } } }
+
+# graph edges
+file:///addresses.conf:31:22:ltm:pool:/Common/p_v4	-> file:///addresses.conf:7:26:ltm:node:/Common/10.0.0.1	via members (ltm_node)
+file:///addresses.conf:31:22:ltm:pool:/Common/p_v4	-> file:///addresses.conf:10:28:ltm:node:/Common/10.0.0.1%2	via members (ltm_node)
+file:///addresses.conf:31:22:ltm:pool:/Common/p_v4	-> file:///addresses.conf:7:26:ltm:node:/Common/10.0.0.1	via members[] (ltm_node)
+file:///addresses.conf:31:22:ltm:pool:/Common/p_v4	-> file:///addresses.conf:10:28:ltm:node:/Common/10.0.0.1%2	via members[] (ltm_node)
+file:///addresses.conf:42:22:ltm:pool:/Common/p_v6	-> file:///addresses.conf:177:30:ltm:monitor http:/Common/m_v6	via monitor (ltm_monitor_http)
+file:///addresses.conf:42:22:ltm:pool:/Common/p_v6	-> file:///addresses.conf:177:30:ltm:monitor http:/Common/m_v6	via monitor[] (ltm_monitor_http)
+file:///addresses.conf:63:19:ltm:pool:/T1/p_rel	-> file:///addresses.conf:25:21:ltm:node:/T1/node_t1	via members (ltm_node)
+file:///addresses.conf:63:19:ltm:pool:/T1/p_rel	-> file:///addresses.conf:25:21:ltm:node:/T1/node_t1	via members[] (ltm_node)
+file:///addresses.conf:77:34:ltm:pool:/Common/app.app/app_pool	-> file:///addresses.conf:28:34:ltm:node:/Common/app.app/app_node	via members (ltm_node)
+file:///addresses.conf:77:34:ltm:pool:/Common/app.app/app_pool	-> file:///addresses.conf:28:34:ltm:node:/Common/app.app/app_node	via members[] (ltm_node)
+file:///addresses.conf:84:26:ltm:virtual:/Common/vs_v4	-> file:///addresses.conf:141:38:ltm:virtual-address:/Common/10.0.0.10	via destination (ltm_virtual_address)
+file:///addresses.conf:84:26:ltm:virtual:/Common/vs_v4	-> file:///addresses.conf:141:38:ltm:virtual-address:/Common/10.0.0.10	via destination[] (ltm_virtual_address)
+file:///addresses.conf:84:26:ltm:virtual:/Common/vs_v4	-> file:///addresses.conf:31:22:ltm:pool:/Common/p_v4	via pool (ltm_pool)
+file:///addresses.conf:84:26:ltm:virtual:/Common/vs_v4	-> file:///addresses.conf:31:22:ltm:pool:/Common/p_v4	via pool[] (ltm_pool)
+file:///addresses.conf:90:26:ltm:virtual:/Common/vs_rd	-> file:///addresses.conf:145:40:ltm:virtual-address:/Common/10.0.0.10%2	via destination (ltm_virtual_address)
+file:///addresses.conf:90:26:ltm:virtual:/Common/vs_rd	-> file:///addresses.conf:145:40:ltm:virtual-address:/Common/10.0.0.10%2	via destination[] (ltm_virtual_address)
+file:///addresses.conf:95:26:ltm:virtual:/Common/vs_v6	-> file:///addresses.conf:42:22:ltm:pool:/Common/p_v6	via pool (ltm_pool)
+file:///addresses.conf:95:26:ltm:virtual:/Common/vs_v6	-> file:///addresses.conf:42:22:ltm:pool:/Common/p_v6	via pool[] (ltm_pool)
+file:///addresses.conf:105:27:ltm:virtual:/Common/vs_any	-> file:///addresses.conf:149:36:ltm:virtual-address:/Common/0.0.0.0	via destination (ltm_virtual_address)
+file:///addresses.conf:105:27:ltm:virtual:/Common/vs_any	-> file:///addresses.conf:149:36:ltm:virtual-address:/Common/0.0.0.0	via destination[] (ltm_virtual_address)
+file:///addresses.conf:124:22:ltm:virtual:/T1/vs_t1	-> file:///addresses.conf:63:19:ltm:pool:/T1/p_rel	via pool (ltm_pool)
+file:///addresses.conf:124:22:ltm:virtual:/T1/vs_t1	-> file:///addresses.conf:63:19:ltm:pool:/T1/p_rel	via pool[] (ltm_pool)
+file:///addresses.conf:124:22:ltm:virtual:/T1/vs_t1	-> file:///addresses.conf:194:24:ltm:rule:/Common/r_addr	via rules (ltm_rule)
+file:///addresses.conf:124:22:ltm:virtual:/T1/vs_t1	-> file:///addresses.conf:194:24:ltm:rule:/Common/r_addr	via rules[] (ltm_rule)
+file:///addresses.conf:132:35:ltm:virtual:/Common/app.app/app_vs	-> file:///addresses.conf:77:34:ltm:pool:/Common/app.app/app_pool	via pool (ltm_pool)
+file:///addresses.conf:132:35:ltm:virtual:/Common/app.app/app_vs	-> file:///addresses.conf:77:34:ltm:pool:/Common/app.app/app_pool	via pool[] (ltm_pool)
+file:///addresses.conf:194:24:ltm:rule:/Common/r_addr	-> file:///addresses.conf:31:22:ltm:pool:/Common/p_v4	via irule:pool (ltm_pool)
+file:///addresses.conf:194:24:ltm:rule:/Common/r_addr	-> file:///addresses.conf:13:29:ltm:node:/Common/2001:db8::1	via irule:node (ltm_node)
+file:///addresses.conf:194:24:ltm:rule:/Common/r_addr	-> file:///addresses.conf:63:19:ltm:pool:/T1/p_rel	via irule:pool (ltm_pool)
+file:///addresses.conf:255:37:gtm:wideip a:/Common/www.example.com	-> file:///addresses.conf:249:22:gtm:pool a:/Common/gp	via pools (gtm_pool_a)
+file:///addresses.conf:255:37:gtm:wideip a:/Common/www.example.com	-> file:///addresses.conf:249:22:gtm:pool a:/Common/gp	via pools[] (gtm_pool_a)
+
+# stats
+{
+  "totalObjects": 79,
+  "objectCounts": {
+    "pool": 6,
+    "virtual": 11,
+    "node": 7,
+    "profile": 0,
+    "monitor": 4,
+    "data-group": 1,
+    "snatpool": 1,
+    "persistence": 0,
+    "rule": 1,
+    "generic": 48
+  },
+  "partitionCounts": {
+    "/Common/": 21,
+    "/T1/": 3
+  },
+  "iruleLoc": {
+    "/Common/r_addr": 10
+  },
+  "iruleEventHistogram": {
+    "CLIENT_ACCEPTED": 1
+  },
+  "topReferenced": [
+    {
+      "identifier": "/Common/p_v4",
+      "incomingEdges": 3
+    },
+    {
+      "identifier": "/T1/p_rel",
+      "incomingEdges": 3
+    },
+    {
+      "identifier": "/Common/10.0.0.1",
+      "incomingEdges": 2
+    },
+    {
+      "identifier": "/Common/10.0.0.1%2",
+      "incomingEdges": 2
+    },
+    {
+      "identifier": "/Common/m_v6",
+      "incomingEdges": 2
+    },
+    {
+      "identifier": "/T1/node_t1",
+      "incomingEdges": 2
+    },
+    {
+      "identifier": "/Common/app.app/app_node",
+      "incomingEdges": 2
+    },
+    {
+      "identifier": "/Common/10.0.0.10",
+      "incomingEdges": 2
+    },
+    {
+      "identifier": "/Common/10.0.0.10%2",
+      "incomingEdges": 2
+    },
+    {
+      "identifier": "/Common/p_v6",
+      "incomingEdges": 2
+    },
+    {
+      "identifier": "/Common/0.0.0.0",
+      "incomingEdges": 2
+    },
+    {
+      "identifier": "/Common/r_addr",
+      "incomingEdges": 2
+    },
+    {
+      "identifier": "/Common/app.app/app_pool",
+      "incomingEdges": 2
+    },
+    {
+      "identifier": "/Common/gp",
+      "incomingEdges": 2
+    },
+    {
+      "identifier": "/Common/2001:db8::1",
+      "incomingEdges": 1
+    }
+  ],
+  "orphanCount": 11
+}
+
+# pcap name index
+v4=[("10.0.0.10", ["vs-common-vs-v4", "wideip-common-www-example-com"]), ("0.0.0.0", ["vs-common-vs-any"]), ("10.0.1.0", ["vs-common-vs-net"]), ("10.1.1.10", ["vs-t1-vs-t1", "irule-common-r-addr"]), ("10.0.0.12", ["vs-common-app-app-app-vs"]), ("10.0.0.1", ["pool-common-10-0-0-1-80", "pool-common-10-0-0-1-http", "node-common-10-0-0-1"]), ("10.1.1.1", ["pool-node-t1-80", "node-t1-node-t1"]), ("10.0.0.3", ["pool-common-app-app-app-node-8080", "node-common-app-app-app-node"]), ("10.0.0.2", ["self-common-self-rd"])]
+v6=[("2001:db8::10", ["vs-common-vs-v6", "wideip-common-www-example-com"]), ("fe80::1", ["vs-common-vs-legacy6"]), ("2001:db8::1", ["pool-common-2001-db8-1-80", "node-common-2001-db8-1"]), ("2001:db8::2", ["self-common-self-v6"])]
+v4_subnets=["IpNetwork { network_addr: 10.0.0.0, prefix: 24, text: \"10.0.0.0/24\" }=net-common-self-rd"]
+v6_subnets=1
+
+# wireshark hosts=[("10.0.0.10", "vs-common-vs-v4"), ("10.0.0.10", "wideip-common-www-example-com"), ("0.0.0.0", "vs-common-vs-any"), ("10.0.1.0", "vs-common-vs-net"), ("10.1.1.10", "vs-t1-vs-t1"), ("10.1.1.10", "irule-common-r-addr"), ("10.0.0.12", "vs-common-app-app-app-vs"), ("10.0.0.1", "pool-common-10-0-0-1-80"), ("10.0.0.1", "pool-common-10-0-0-1-http"), ("10.0.0.1", "node-common-10-0-0-1"), ("10.1.1.1", "pool-node-t1-80"), ("10.1.1.1", "node-t1-node-t1"), ("10.0.0.3", "pool-common-app-app-app-node-8080"), ("10.0.0.3", "node-common-app-app-app-node"), ("10.0.0.2", "self-common-self-rd"), ("2001:db8::10", "vs-common-vs-v6"), ("2001:db8::10", "wideip-common-www-example-com"), ("fe80::1", "vs-common-vs-legacy6"), ("2001:db8::1", "pool-common-2001-db8-1-80"), ("2001:db8::1", "node-common-2001-db8-1"), ("2001:db8::2", "self-common-self-v6")]
+subnets=[("10.0.0.0/24", "net-common-self-rd"), ("2001:db8::/64", "net-common-self-v6")]
+
+# scf_to_as3
+Object([("class", Str("AS3")), ("declaration", Object([("class", Str("ADC")), ("schemaVersion", Str("3.45.0")), ("T", Object([("class", Str("Tenant")), ("A", Object([("class", Str("Application")), ("template", Str("generic")), ("p_v4", Object([("class", Str("Pool")), ("members", Array([Object([("servicePort", Int(80)), ("serverAddresses", Array([Str("10.0.0.1")]))]), Object([("servicePort", Int(80)), ("serverAddresses", Array([Str("10.0.0.1%2")]))])])), ("monitors", Array([Object([("use", Str("http"))])]))])), ("p_v6", Object([("class", Str("Pool")), ("members", Array([Object([("servicePort", Int(80)), ("serverAddresses", Array([Str("2001:db8::1")]))]), Object([("servicePort", Int(0)), ("serverAddresses", Array([Str("2001:db8::1%2")]))])])), ("monitors", Array([Object([("use", Str("m_v6"))])]))])), ("p_fqdn", Object([("class", Str("Pool")), ("members", Array([Object([("servicePort", Int(443)), ("serverAddresses", Array([Str("example.com")]))])]))])), ("p_rel", Object([("class", Str("Pool")), ("members", Array([Object([("servicePort", Int(80)), ("serverAddresses", Array([Str("10.1.1.1")]))])]))])), ("p_http", Object([("class", Str("Pool")), ("members", Array([Object([("servicePort", Int(80)), ("serverAddresses", Array([Str("10.0.0.1")]))])]))])), ("app_pool", Object([("class", Str("Pool")), ("members", Array([Object([("servicePort", Int(8080)), ("serverAddresses", Array([Str("10.0.0.3")]))])]))])), ("vs_v4", Object([("class", Str("Service_L4")), ("virtualAddresses", Array([Str("10.0.0.10")])), ("virtualPort", Int(80)), ("pool", Str("p_v4"))])), ("vs_rd", Object([("class", Str("Service_L4")), ("virtualAddresses", Array([Str("10.0.0.10%2")])), ("virtualPort", Int(443))])), ("vs_v6", Object([("class", Str("Service_L4")), ("virtualAddresses", Array([Str("2001:db8::10")])), ("virtualPort", Int(443)), ("pool", Str("p_v6"))])), ("vs_v6rd", Object([("class", Str("Service_L4")), ("virtualAddresses", Array([Str("2001:db8::10%2.80")]))])), ("vs_any", Object([("class", Str("Service_L4")), ("virtualAddresses", Array([Str("0.0.0.0")])), ("virtualPort", Int(0))])), ("vs_any6", Object([("class", Str("Service_L4")), ("virtualAddresses", Array([Str("any6.any")]))])), ("vs_http", Object([("class", Str("Service_L4")), ("virtualAddresses", Array([]))])), ("vs_net", Object([("class", Str("Service_L4")), ("virtualAddresses", Array([Str("10.0.1.0")])), ("virtualPort", Int(0))])), ("vs_t1", Object([("class", Str("Service_L4")), ("virtualAddresses", Array([Str("10.1.1.10")])), ("virtualPort", Int(80)), ("pool", Str("p_rel")), ("iRules", Array([Str("r_addr")]))])), ("app_vs", Object([("class", Str("Service_L4")), ("virtualAddresses", Array([Str("10.0.0.12")])), ("virtualPort", Int(80)), ("pool", Str("app_pool"))])), ("vs_legacy6", Object([("class", Str("Service_L4")), ("virtualAddresses", Array([Str("fe80::1")])), ("virtualPort", Int(80))])), ("r_addr", Object([("class", Str("iRule")), ("iRule", Str("when CLIENT_ACCEPTED {\n    if { [IP::addr [IP::client_addr] equals 10.0.0.0/8] } {\n        pool /Common/p_v4 member 10.0.0.1%2 80\n    } elseif { [class match [IP::client_addr] equals /Common/dg_ip] } {\n        node 2001:db8::1 80\n    } else {\n        pool p_rel\n    }\n    set rd [getfield [IP::client_addr] \"%\" 2]\n}"))])), ("m_alias", Object([("class", Str("Monitor")), ("monitorType", Str("http"))])), ("m_any", Object([("class", Str("Monitor")), ("monitorType", Str("http"))])), ("m_v6", Object([("class", Str("Monitor")), ("monitorType", Str("http"))])), ("m_v6alias", Object([("class", Str("Monitor")), ("monitorType", Str("http"))]))]))]))]))])

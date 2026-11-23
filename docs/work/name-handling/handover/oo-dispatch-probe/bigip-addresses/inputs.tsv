@@ -1,0 +1,714 @@
+id	group	input	doc
+i001	names	/Common/name	partition=Common name=name
+i002	names	/Common/folder/sub/name	partition=Common folders=folder/sub name=name
+i003	names	/Tenant/name	partition=Tenant name=name
+i004	names	/Tenant_A/app/name	partition=Tenant_A folders=app name=name
+i005	names	/Common/app.app/app_vs	partition=Common folders=app.app(iApp) name=app_vs
+i006	names	/Common/app.app/app_pool	partition=Common folders=app.app(iApp) name=app_pool
+i007	names	/Tenant/Shared/pool1	AS3 Shared folder
+i008	names	name	relative; partition from context
+i009	names	folder/name	relative folder path; ? (Q1)
+i010	names	/Common/my name	space: legal only quoted in tmsh (unverified)
+i011	names	/Common/q"t	bad (quote) (unverified)
+i012	names	/Common/{b}	bad (brace) (unverified)
+i013	names	/Common/a.b	dot legal
+i014	names	/Common/a:b	colon legal in names? ? (Q1); clashes with member:port
+i015	names	/Common/a%b	percent: ? (Q1); clashes with %rd
+i016	names	/Common/a@b	? (Q1)
+i017	names	/Common/a-b	legal
+i018	names	/Common/a_b	legal
+i019	names	/Common/10.0.0.1	node named after its address
+i020	names	/Common/10.0.0.1%2	node named after its RD address
+i021	names	/Common/2001:db8::1	IPv6 node name
+i022	names	/Common/web.example.com	FQDN node name
+i023	names	/Common/	bad
+i024	names	/Common//name	bad (empty segment)
+i025	names	//Common/name	bad
+i026	names	/common/name	partition names case-sensitive (unverified)
+i027	names	/COMMON/name	distinct partition (unverified)
+i028	names	/	bad
+i029	names		bad
+i030	names	Common/name	relative folder Common/name, not /Common (unverified)
+i031	names	/Common	partition alone (folder)
+i032	names	/Common/name/	bad (trailing slash) (unverified)
+i033	names	/Common/a/b/c/d/name	deep folders
+i034	names	/Common/ünïcode	non-ASCII: ? (Q1)
+i035	names	/Common/Drafts/policy1	LTM policy draft folder
+i036	names	/Common/.hidden	? (Q1)
+i037	names	/Common/name 	trailing space
+i038	names	/Tenant/app.app/sub/name	iApp folder with subfolder
+i039	rest	~Common~name	REST /Common/name
+i040	rest	~Common~folder~name	REST /Common/folder/name
+i041	rest	~Common~app.app~app_vs	REST iApp
+i042	rest	~Tenant~name	REST /Tenant/name
+i043	rest	~Common~10.0.0.1%252	REST node 10.0.0.1%2, % URL-encoded
+i044	rest	~Common~10.0.0.1%2	REST node, raw % (broken URL)
+i045	rest	~Common~2001:db8::1	REST IPv6 node
+i046	rest	~Common~my%20name	REST space
+i047	v4	10.0.0.1	v4
+i048	v4	10.0.0.1%2	v4 rd=2
+i049	v4	10.0.0.1%0	v4 rd=0 (default RD; tmsh omits %0)
+i050	v4	10.0.0.1%65534	rd max (unverified)
+i051	v4	10.0.0.1%65535	bad: rd out of range (unverified)
+i052	v4	10.0.0.1%99999999999	bad
+i053	v4	10.0.0.1%-1	bad
+i054	v4	10.0.0.1%	bad
+i055	v4	10.0.0.1%a	bad (rd is numeric in config; name in tmsh cli? unverified)
+i056	v4	10.0.0.1%2%3	bad
+i057	v4	10.0.0.1:80	v4 port 80
+i058	v4	10.0.0.1%2:80	v4 rd=2 port 80
+i059	v4	10.0.0.1:0	port 0 = any
+i060	v4	10.0.0.1:any	port any (tmsh input)
+i061	v4	10.0.0.1:http	service name (tmsh shows names unless numeric)
+i062	v4	10.0.0.1:https	service name
+i063	v4	10.0.0.1:ssh	service name
+i064	v4	10.0.0.1:domain	service name 53
+i065	v4	10.0.0.1:65535	port max
+i066	v4	10.0.0.1:65536	bad
+i067	v4	10.0.0.1:-1	bad
+i068	v4	10.0.0.1:*	monitor wildcard
+i069	v4	0.0.0.0	wildcard address
+i070	v4	0.0.0.0:0	wildcard; real 15.1 sample /Common/0.0.0.0:0
+i071	v4	0.0.0.0:any	wildcard tmsh input
+i072	v4	0.0.0.0%2:0	wildcard rd 2
+i073	v4	any	address any (virtual-address; real sample)
+i074	v4	any:any	registry default of ltm virtual destination
+i075	v4	any:0	?
+i076	v4	*:*	monitor destination (real sample)
+i077	v4	*:80	monitor alias port only
+i078	v4	*	?
+i079	v4	10.0.0.0/8	prefix
+i080	v4	10.0.0.0/255.0.0.0	dotted mask
+i081	v4	10.0.0.0%2/8	rd + prefix (self-ip/route form)
+i082	v4	10.0.0.1%2/24	self-ip form
+i083	v4	10.0.0.0/33	bad
+i084	v4	10.0.0.0/255.0.255.0	bad (non-contiguous)
+i085	v4	10.0.0.1/24	host bits set (self-ip legit)
+i086	v4	010.0.0.1	leading zero: ? (Q1)
+i087	v4	10.0.0.01	leading zero: ? (Q1)
+i088	v4	256.0.0.1	bad
+i089	v4	10.0.0	bad
+i090	v4	10.0.0.1.80	bad (v4 uses :)
+i091	v4	10.0.0.1 255.255.255.0	addr mask (legacy class form)
+i092	v4	default	route network default
+i093	v4	default%2	route default in rd 2
+i094	v4	default-inet6	route v6 default
+i095	v4	0.0.0.0/0	source any (real sample)
+i096	v4	10.0.0.1-10.0.0.9	range (AFM address list)
+i097	v4	255.255.255.255	mask/broadcast (real sample mask)
+i098	v4	none	mask none (real sample)
+i099	v6	2001:db8::1	v6
+i100	v6	2001:0db8:0000:0000:0000:0000:0000:0001	v6 expanded
+i101	v6	2001:DB8::1	v6 upper
+i102	v6	::	v6 unspecified
+i103	v6	::1	loopback
+i104	v6	::ffff:10.0.0.1	v4-mapped
+i105	v6	::ffff:10.0.0.1.80	v4-mapped port 80
+i106	v6	fe80::1%eth0	bad on BIG-IP (zone id is an OS form)
+i107	v6	fe80::1%1	link-local rd 1
+i108	v6	fe80::1%1.80	link-local rd 1 port 80
+i109	v6	2001:db8::1.80	v6 port 80 (tmsh form)
+i110	v6	2001:db8::1%2.80	v6 rd2 port 80
+i111	v6	2001:db8::1:80	a full v6 address (no port)
+i112	v6	fe80::1:80	AMBIGUOUS: address fe80::1:80 | legacy fe80::1 port 80 (user-reported)
+i113	v6	2001:db8::1:443	AMBIGUOUS: address | legacy 2001:db8::1 port 443
+i114	v6	2001:db8::1%2:80	AMBIGUOUS: address%2 | legacy 2001:db8::1%2 port 80; tmsh would be .80
+i115	v6	fe80::1%1:80	AMBIGUOUS legacy colon-port with rd
+i116	v6	::1:80	AMBIGUOUS: ::1:80 address | ::1 port 80
+i117	v6	/Common/fe80::1:80	AMBIGUOUS in a path
+i118	v6	/Common/2001:db8::1%2:80	AMBIGUOUS in a path with rd
+i119	v6	2001:db8:0:0:0:0:1:80	8 groups: only an address (no room for a port)
+i120	v6	2001:db8::1.http	v6 service name
+i121	v6	2001:db8::1.any	v6 port any
+i122	v6	2001:db8::1.0	v6 port 0
+i123	v6	2001:db8::1.65536	bad
+i124	v6	[2001:db8::1]:80	URL/Host form, not tmsh
+i125	v6	[2001:db8::1%2]:80	URL-ish with rd, not tmsh
+i126	v6	[2001:db8::1]%2:80	bad
+i127	v6	[fe80::1]:80	URL form
+i128	v6	[2001:db8::1].80	not tmsh
+i129	v6	[2001:db8::1]	URL host
+i130	v6	any6	v6 wildcard
+i131	v6	any6.any	v6 wildcard listener
+i132	v6	any6.0	v6 wildcard port 0
+i133	v6	::.0	v6 wildcard port 0
+i134	v6	::.any	v6 wildcard port any
+i135	v6	*.*	v6 monitor alias wildcard (unverified)
+i136	v6	2001:db8::/32	v6 prefix
+i137	v6	2001:db8::%2/32	v6 rd prefix
+i138	v6	2001:db8::1/128	host
+i139	v6	::/0	v6 any net
+i140	v6	::1.80	loopback port 80 (ambiguous-looking)
+i141	v6	1::1.80	v6 port 80
+i142	v6	2001:db8:::1	bad
+i143	v6	2001:db8::g	bad
+i144	v6	2001:db8::1::	bad
+i145	v6	2001:db8::1/129	bad
+i146	fqdn	example.com	fqdn
+i147	fqdn	example.com.	fqdn trailing dot: ? (Q1)
+i148	fqdn	www.example.com:443	fqdn member port
+i149	fqdn	xn--bcher-kva.example	IDN a-label
+i150	fqdn	bücher.example	IDN u-label: ? (Q1)
+i151	fqdn	*.example.com	wildcard (GTM wide IP allows; node no)
+i152	fqdn	-bad.example	bad
+i153	fqdn	a..b	bad
+i154	fqdn	localhost	single label: ? (Q1)
+i155	fqdn	host_name.example.com	underscore: ? (Q1)
+i156	fqdn	10.0.0.1.nip.io	fqdn with digits
+i157	fqdn	1.2.3.4.5	bad-ish
+i158	fqdn	example.com%2:80	fqdn with rd: ? (Q1)
+i159	member	/Common/node1:80	node1 port 80 (real sample shape)
+i160	member	/Common/node1:http	service-name member
+i161	member	node1:80	relative member
+i162	member	/Common/10.0.0.1:80	member of address-named node
+i163	member	/Common/10.0.0.1%2:80	member rd2
+i164	member	/Common/2001:db8::1.80	v6 member
+i165	member	/Common/2001:db8::1%2.80	v6 rd member
+i166	member	/Common/app.app/node1:80	iApp member
+i167	member	/Common/www.example.com:443	fqdn member
+i168	member	/Common/node1:0	member port 0
+i169	member	/Common/node1:any	member port any
+i170	member	/Common/node1	snatpool member (no port)
+i171	member	/Common/a:b:80	node named a:b ?
+i172	member	/Common/::ffff:10.0.0.1.80	v4-mapped member
+i173	member	/Tenant/app/10.1.1.1%3:8080	AS3 shape
+i174	gtm	/Common/server1:vs1	gtm pool member server:vs
+i175	gtm	/Common/server1:/Common/vs1	gtm pool member server:/vs path
+i176	gtm	/Common/dc1/server1:vs_name	?
+i177	gtm	www.example.com	wide IP
+i178	gtm	/Common/www.example.com	wide IP full path
+i179	gtm	/Common/*.example.com	wildcard wide IP
+i180	net	10.1.0.0%2/16	route network rd
+i181	net	default%0	default rd0
+i182	net	default-inet6%2	v6 default rd2
+i183	net	10.0.0.0/8 	trailing space
+i184	combo	node1	combo fam=name rd=- port=-
+i185	combo	/Common/app.app/node1	combo fam=name rd=- port=-
+i186	combo	/T1/node1	combo fam=name rd=- port=-
+i187	combo	/T1/node1:80	combo fam=name rd=- port=:80
+i188	combo	node1.80	combo fam=name rd=- port=.80 WRONG-SEPARATOR
+i189	combo	/Common/node1.80	combo fam=name rd=- port=.80 WRONG-SEPARATOR
+i190	combo	/Common/app.app/node1.80	combo fam=name rd=- port=.80 WRONG-SEPARATOR
+i191	combo	/T1/node1.80	combo fam=name rd=- port=.80 WRONG-SEPARATOR
+i192	combo	node1:any	combo fam=name rd=- port=:any
+i193	combo	/Common/app.app/node1:any	combo fam=name rd=- port=:any
+i194	combo	/T1/node1:any	combo fam=name rd=- port=:any
+i195	combo	node1:http	combo fam=name rd=- port=:http
+i196	combo	/Common/app.app/node1:http	combo fam=name rd=- port=:http
+i197	combo	/T1/node1:http	combo fam=name rd=- port=:http
+i198	combo	node1:0	combo fam=name rd=- port=:0
+i199	combo	/Common/app.app/node1:0	combo fam=name rd=- port=:0
+i200	combo	/T1/node1:0	combo fam=name rd=- port=:0
+i201	combo	node1%0	combo fam=name rd=%0 port=-
+i202	combo	/Common/node1%0	combo fam=name rd=%0 port=-
+i203	combo	/Common/app.app/node1%0	combo fam=name rd=%0 port=-
+i204	combo	/T1/node1%0	combo fam=name rd=%0 port=-
+i205	combo	node1%0:80	combo fam=name rd=%0 port=:80
+i206	combo	/Common/node1%0:80	combo fam=name rd=%0 port=:80
+i207	combo	/Common/app.app/node1%0:80	combo fam=name rd=%0 port=:80
+i208	combo	/T1/node1%0:80	combo fam=name rd=%0 port=:80
+i209	combo	node1%0.80	combo fam=name rd=%0 port=.80 WRONG-SEPARATOR
+i210	combo	/Common/node1%0.80	combo fam=name rd=%0 port=.80 WRONG-SEPARATOR
+i211	combo	/Common/app.app/node1%0.80	combo fam=name rd=%0 port=.80 WRONG-SEPARATOR
+i212	combo	/T1/node1%0.80	combo fam=name rd=%0 port=.80 WRONG-SEPARATOR
+i213	combo	node1%0:any	combo fam=name rd=%0 port=:any
+i214	combo	/Common/node1%0:any	combo fam=name rd=%0 port=:any
+i215	combo	/Common/app.app/node1%0:any	combo fam=name rd=%0 port=:any
+i216	combo	/T1/node1%0:any	combo fam=name rd=%0 port=:any
+i217	combo	node1%0:http	combo fam=name rd=%0 port=:http
+i218	combo	/Common/node1%0:http	combo fam=name rd=%0 port=:http
+i219	combo	/Common/app.app/node1%0:http	combo fam=name rd=%0 port=:http
+i220	combo	/T1/node1%0:http	combo fam=name rd=%0 port=:http
+i221	combo	node1%0:0	combo fam=name rd=%0 port=:0
+i222	combo	/Common/node1%0:0	combo fam=name rd=%0 port=:0
+i223	combo	/Common/app.app/node1%0:0	combo fam=name rd=%0 port=:0
+i224	combo	/T1/node1%0:0	combo fam=name rd=%0 port=:0
+i225	combo	node1%2	combo fam=name rd=%2 port=-
+i226	combo	/Common/node1%2	combo fam=name rd=%2 port=-
+i227	combo	/Common/app.app/node1%2	combo fam=name rd=%2 port=-
+i228	combo	/T1/node1%2	combo fam=name rd=%2 port=-
+i229	combo	node1%2:80	combo fam=name rd=%2 port=:80
+i230	combo	/Common/node1%2:80	combo fam=name rd=%2 port=:80
+i231	combo	/Common/app.app/node1%2:80	combo fam=name rd=%2 port=:80
+i232	combo	/T1/node1%2:80	combo fam=name rd=%2 port=:80
+i233	combo	node1%2.80	combo fam=name rd=%2 port=.80 WRONG-SEPARATOR
+i234	combo	/Common/node1%2.80	combo fam=name rd=%2 port=.80 WRONG-SEPARATOR
+i235	combo	/Common/app.app/node1%2.80	combo fam=name rd=%2 port=.80 WRONG-SEPARATOR
+i236	combo	/T1/node1%2.80	combo fam=name rd=%2 port=.80 WRONG-SEPARATOR
+i237	combo	node1%2:any	combo fam=name rd=%2 port=:any
+i238	combo	/Common/node1%2:any	combo fam=name rd=%2 port=:any
+i239	combo	/Common/app.app/node1%2:any	combo fam=name rd=%2 port=:any
+i240	combo	/T1/node1%2:any	combo fam=name rd=%2 port=:any
+i241	combo	node1%2:http	combo fam=name rd=%2 port=:http
+i242	combo	/Common/node1%2:http	combo fam=name rd=%2 port=:http
+i243	combo	/Common/app.app/node1%2:http	combo fam=name rd=%2 port=:http
+i244	combo	/T1/node1%2:http	combo fam=name rd=%2 port=:http
+i245	combo	node1%2:0	combo fam=name rd=%2 port=:0
+i246	combo	/Common/node1%2:0	combo fam=name rd=%2 port=:0
+i247	combo	/Common/app.app/node1%2:0	combo fam=name rd=%2 port=:0
+i248	combo	/T1/node1%2:0	combo fam=name rd=%2 port=:0
+i249	combo	/Common/app.app/www.example.com	combo fam=fqdn rd=- port=-
+i250	combo	/T1/www.example.com	combo fam=fqdn rd=- port=-
+i251	combo	www.example.com:80	combo fam=fqdn rd=- port=:80
+i252	combo	/Common/www.example.com:80	combo fam=fqdn rd=- port=:80
+i253	combo	/Common/app.app/www.example.com:80	combo fam=fqdn rd=- port=:80
+i254	combo	/T1/www.example.com:80	combo fam=fqdn rd=- port=:80
+i255	combo	www.example.com.80	combo fam=fqdn rd=- port=.80 WRONG-SEPARATOR
+i256	combo	/Common/www.example.com.80	combo fam=fqdn rd=- port=.80 WRONG-SEPARATOR
+i257	combo	/Common/app.app/www.example.com.80	combo fam=fqdn rd=- port=.80 WRONG-SEPARATOR
+i258	combo	/T1/www.example.com.80	combo fam=fqdn rd=- port=.80 WRONG-SEPARATOR
+i259	combo	www.example.com:any	combo fam=fqdn rd=- port=:any
+i260	combo	/Common/www.example.com:any	combo fam=fqdn rd=- port=:any
+i261	combo	/Common/app.app/www.example.com:any	combo fam=fqdn rd=- port=:any
+i262	combo	/T1/www.example.com:any	combo fam=fqdn rd=- port=:any
+i263	combo	www.example.com:http	combo fam=fqdn rd=- port=:http
+i264	combo	/Common/www.example.com:http	combo fam=fqdn rd=- port=:http
+i265	combo	/Common/app.app/www.example.com:http	combo fam=fqdn rd=- port=:http
+i266	combo	/T1/www.example.com:http	combo fam=fqdn rd=- port=:http
+i267	combo	www.example.com:0	combo fam=fqdn rd=- port=:0
+i268	combo	/Common/www.example.com:0	combo fam=fqdn rd=- port=:0
+i269	combo	/Common/app.app/www.example.com:0	combo fam=fqdn rd=- port=:0
+i270	combo	/T1/www.example.com:0	combo fam=fqdn rd=- port=:0
+i271	combo	www.example.com%0	combo fam=fqdn rd=%0 port=-
+i272	combo	/Common/www.example.com%0	combo fam=fqdn rd=%0 port=-
+i273	combo	/Common/app.app/www.example.com%0	combo fam=fqdn rd=%0 port=-
+i274	combo	/T1/www.example.com%0	combo fam=fqdn rd=%0 port=-
+i275	combo	www.example.com%0:80	combo fam=fqdn rd=%0 port=:80
+i276	combo	/Common/www.example.com%0:80	combo fam=fqdn rd=%0 port=:80
+i277	combo	/Common/app.app/www.example.com%0:80	combo fam=fqdn rd=%0 port=:80
+i278	combo	/T1/www.example.com%0:80	combo fam=fqdn rd=%0 port=:80
+i279	combo	www.example.com%0.80	combo fam=fqdn rd=%0 port=.80 WRONG-SEPARATOR
+i280	combo	/Common/www.example.com%0.80	combo fam=fqdn rd=%0 port=.80 WRONG-SEPARATOR
+i281	combo	/Common/app.app/www.example.com%0.80	combo fam=fqdn rd=%0 port=.80 WRONG-SEPARATOR
+i282	combo	/T1/www.example.com%0.80	combo fam=fqdn rd=%0 port=.80 WRONG-SEPARATOR
+i283	combo	www.example.com%0:any	combo fam=fqdn rd=%0 port=:any
+i284	combo	/Common/www.example.com%0:any	combo fam=fqdn rd=%0 port=:any
+i285	combo	/Common/app.app/www.example.com%0:any	combo fam=fqdn rd=%0 port=:any
+i286	combo	/T1/www.example.com%0:any	combo fam=fqdn rd=%0 port=:any
+i287	combo	www.example.com%0:http	combo fam=fqdn rd=%0 port=:http
+i288	combo	/Common/www.example.com%0:http	combo fam=fqdn rd=%0 port=:http
+i289	combo	/Common/app.app/www.example.com%0:http	combo fam=fqdn rd=%0 port=:http
+i290	combo	/T1/www.example.com%0:http	combo fam=fqdn rd=%0 port=:http
+i291	combo	www.example.com%0:0	combo fam=fqdn rd=%0 port=:0
+i292	combo	/Common/www.example.com%0:0	combo fam=fqdn rd=%0 port=:0
+i293	combo	/Common/app.app/www.example.com%0:0	combo fam=fqdn rd=%0 port=:0
+i294	combo	/T1/www.example.com%0:0	combo fam=fqdn rd=%0 port=:0
+i295	combo	www.example.com%2	combo fam=fqdn rd=%2 port=-
+i296	combo	/Common/www.example.com%2	combo fam=fqdn rd=%2 port=-
+i297	combo	/Common/app.app/www.example.com%2	combo fam=fqdn rd=%2 port=-
+i298	combo	/T1/www.example.com%2	combo fam=fqdn rd=%2 port=-
+i299	combo	www.example.com%2:80	combo fam=fqdn rd=%2 port=:80
+i300	combo	/Common/www.example.com%2:80	combo fam=fqdn rd=%2 port=:80
+i301	combo	/Common/app.app/www.example.com%2:80	combo fam=fqdn rd=%2 port=:80
+i302	combo	/T1/www.example.com%2:80	combo fam=fqdn rd=%2 port=:80
+i303	combo	www.example.com%2.80	combo fam=fqdn rd=%2 port=.80 WRONG-SEPARATOR
+i304	combo	/Common/www.example.com%2.80	combo fam=fqdn rd=%2 port=.80 WRONG-SEPARATOR
+i305	combo	/Common/app.app/www.example.com%2.80	combo fam=fqdn rd=%2 port=.80 WRONG-SEPARATOR
+i306	combo	/T1/www.example.com%2.80	combo fam=fqdn rd=%2 port=.80 WRONG-SEPARATOR
+i307	combo	www.example.com%2:any	combo fam=fqdn rd=%2 port=:any
+i308	combo	/Common/www.example.com%2:any	combo fam=fqdn rd=%2 port=:any
+i309	combo	/Common/app.app/www.example.com%2:any	combo fam=fqdn rd=%2 port=:any
+i310	combo	/T1/www.example.com%2:any	combo fam=fqdn rd=%2 port=:any
+i311	combo	www.example.com%2:http	combo fam=fqdn rd=%2 port=:http
+i312	combo	/Common/www.example.com%2:http	combo fam=fqdn rd=%2 port=:http
+i313	combo	/Common/app.app/www.example.com%2:http	combo fam=fqdn rd=%2 port=:http
+i314	combo	/T1/www.example.com%2:http	combo fam=fqdn rd=%2 port=:http
+i315	combo	www.example.com%2:0	combo fam=fqdn rd=%2 port=:0
+i316	combo	/Common/www.example.com%2:0	combo fam=fqdn rd=%2 port=:0
+i317	combo	/Common/app.app/www.example.com%2:0	combo fam=fqdn rd=%2 port=:0
+i318	combo	/T1/www.example.com%2:0	combo fam=fqdn rd=%2 port=:0
+i319	combo	/Common/app.app/10.0.0.1	combo fam=v4 rd=- port=-
+i320	combo	/T1/10.0.0.1	combo fam=v4 rd=- port=-
+i321	combo	/Common/app.app/10.0.0.1:80	combo fam=v4 rd=- port=:80
+i322	combo	/T1/10.0.0.1:80	combo fam=v4 rd=- port=:80
+i323	combo	/Common/10.0.0.1.80	combo fam=v4 rd=- port=.80 WRONG-SEPARATOR
+i324	combo	/Common/app.app/10.0.0.1.80	combo fam=v4 rd=- port=.80 WRONG-SEPARATOR
+i325	combo	/T1/10.0.0.1.80	combo fam=v4 rd=- port=.80 WRONG-SEPARATOR
+i326	combo	/Common/10.0.0.1:any	combo fam=v4 rd=- port=:any
+i327	combo	/Common/app.app/10.0.0.1:any	combo fam=v4 rd=- port=:any
+i328	combo	/T1/10.0.0.1:any	combo fam=v4 rd=- port=:any
+i329	combo	/Common/10.0.0.1:http	combo fam=v4 rd=- port=:http
+i330	combo	/Common/app.app/10.0.0.1:http	combo fam=v4 rd=- port=:http
+i331	combo	/T1/10.0.0.1:http	combo fam=v4 rd=- port=:http
+i332	combo	/Common/10.0.0.1:0	combo fam=v4 rd=- port=:0
+i333	combo	/Common/app.app/10.0.0.1:0	combo fam=v4 rd=- port=:0
+i334	combo	/T1/10.0.0.1:0	combo fam=v4 rd=- port=:0
+i335	combo	/Common/10.0.0.1%0	combo fam=v4 rd=%0 port=-
+i336	combo	/Common/app.app/10.0.0.1%0	combo fam=v4 rd=%0 port=-
+i337	combo	/T1/10.0.0.1%0	combo fam=v4 rd=%0 port=-
+i338	combo	10.0.0.1%0:80	combo fam=v4 rd=%0 port=:80
+i339	combo	/Common/10.0.0.1%0:80	combo fam=v4 rd=%0 port=:80
+i340	combo	/Common/app.app/10.0.0.1%0:80	combo fam=v4 rd=%0 port=:80
+i341	combo	/T1/10.0.0.1%0:80	combo fam=v4 rd=%0 port=:80
+i342	combo	10.0.0.1%0.80	combo fam=v4 rd=%0 port=.80 WRONG-SEPARATOR
+i343	combo	/Common/10.0.0.1%0.80	combo fam=v4 rd=%0 port=.80 WRONG-SEPARATOR
+i344	combo	/Common/app.app/10.0.0.1%0.80	combo fam=v4 rd=%0 port=.80 WRONG-SEPARATOR
+i345	combo	/T1/10.0.0.1%0.80	combo fam=v4 rd=%0 port=.80 WRONG-SEPARATOR
+i346	combo	10.0.0.1%0:any	combo fam=v4 rd=%0 port=:any
+i347	combo	/Common/10.0.0.1%0:any	combo fam=v4 rd=%0 port=:any
+i348	combo	/Common/app.app/10.0.0.1%0:any	combo fam=v4 rd=%0 port=:any
+i349	combo	/T1/10.0.0.1%0:any	combo fam=v4 rd=%0 port=:any
+i350	combo	10.0.0.1%0:http	combo fam=v4 rd=%0 port=:http
+i351	combo	/Common/10.0.0.1%0:http	combo fam=v4 rd=%0 port=:http
+i352	combo	/Common/app.app/10.0.0.1%0:http	combo fam=v4 rd=%0 port=:http
+i353	combo	/T1/10.0.0.1%0:http	combo fam=v4 rd=%0 port=:http
+i354	combo	10.0.0.1%0:0	combo fam=v4 rd=%0 port=:0
+i355	combo	/Common/10.0.0.1%0:0	combo fam=v4 rd=%0 port=:0
+i356	combo	/Common/app.app/10.0.0.1%0:0	combo fam=v4 rd=%0 port=:0
+i357	combo	/T1/10.0.0.1%0:0	combo fam=v4 rd=%0 port=:0
+i358	combo	/Common/app.app/10.0.0.1%2	combo fam=v4 rd=%2 port=-
+i359	combo	/T1/10.0.0.1%2	combo fam=v4 rd=%2 port=-
+i360	combo	/Common/app.app/10.0.0.1%2:80	combo fam=v4 rd=%2 port=:80
+i361	combo	/T1/10.0.0.1%2:80	combo fam=v4 rd=%2 port=:80
+i362	combo	10.0.0.1%2.80	combo fam=v4 rd=%2 port=.80 WRONG-SEPARATOR
+i363	combo	/Common/10.0.0.1%2.80	combo fam=v4 rd=%2 port=.80 WRONG-SEPARATOR
+i364	combo	/Common/app.app/10.0.0.1%2.80	combo fam=v4 rd=%2 port=.80 WRONG-SEPARATOR
+i365	combo	/T1/10.0.0.1%2.80	combo fam=v4 rd=%2 port=.80 WRONG-SEPARATOR
+i366	combo	10.0.0.1%2:any	combo fam=v4 rd=%2 port=:any
+i367	combo	/Common/10.0.0.1%2:any	combo fam=v4 rd=%2 port=:any
+i368	combo	/Common/app.app/10.0.0.1%2:any	combo fam=v4 rd=%2 port=:any
+i369	combo	/T1/10.0.0.1%2:any	combo fam=v4 rd=%2 port=:any
+i370	combo	10.0.0.1%2:http	combo fam=v4 rd=%2 port=:http
+i371	combo	/Common/10.0.0.1%2:http	combo fam=v4 rd=%2 port=:http
+i372	combo	/Common/app.app/10.0.0.1%2:http	combo fam=v4 rd=%2 port=:http
+i373	combo	/T1/10.0.0.1%2:http	combo fam=v4 rd=%2 port=:http
+i374	combo	10.0.0.1%2:0	combo fam=v4 rd=%2 port=:0
+i375	combo	/Common/10.0.0.1%2:0	combo fam=v4 rd=%2 port=:0
+i376	combo	/Common/app.app/10.0.0.1%2:0	combo fam=v4 rd=%2 port=:0
+i377	combo	/T1/10.0.0.1%2:0	combo fam=v4 rd=%2 port=:0
+i378	combo	/Common/0.0.0.0	combo fam=v4 rd=- port=-
+i379	combo	/Common/app.app/0.0.0.0	combo fam=v4 rd=- port=-
+i380	combo	/T1/0.0.0.0	combo fam=v4 rd=- port=-
+i381	combo	0.0.0.0:80	combo fam=v4 rd=- port=:80
+i382	combo	/Common/0.0.0.0:80	combo fam=v4 rd=- port=:80
+i383	combo	/Common/app.app/0.0.0.0:80	combo fam=v4 rd=- port=:80
+i384	combo	/T1/0.0.0.0:80	combo fam=v4 rd=- port=:80
+i385	combo	0.0.0.0.80	combo fam=v4 rd=- port=.80 WRONG-SEPARATOR
+i386	combo	/Common/0.0.0.0.80	combo fam=v4 rd=- port=.80 WRONG-SEPARATOR
+i387	combo	/Common/app.app/0.0.0.0.80	combo fam=v4 rd=- port=.80 WRONG-SEPARATOR
+i388	combo	/T1/0.0.0.0.80	combo fam=v4 rd=- port=.80 WRONG-SEPARATOR
+i389	combo	/Common/0.0.0.0:any	combo fam=v4 rd=- port=:any
+i390	combo	/Common/app.app/0.0.0.0:any	combo fam=v4 rd=- port=:any
+i391	combo	/T1/0.0.0.0:any	combo fam=v4 rd=- port=:any
+i392	combo	0.0.0.0:http	combo fam=v4 rd=- port=:http
+i393	combo	/Common/0.0.0.0:http	combo fam=v4 rd=- port=:http
+i394	combo	/Common/app.app/0.0.0.0:http	combo fam=v4 rd=- port=:http
+i395	combo	/T1/0.0.0.0:http	combo fam=v4 rd=- port=:http
+i396	combo	/Common/0.0.0.0:0	combo fam=v4 rd=- port=:0
+i397	combo	/Common/app.app/0.0.0.0:0	combo fam=v4 rd=- port=:0
+i398	combo	/T1/0.0.0.0:0	combo fam=v4 rd=- port=:0
+i399	combo	0.0.0.0%0	combo fam=v4 rd=%0 port=-
+i400	combo	/Common/0.0.0.0%0	combo fam=v4 rd=%0 port=-
+i401	combo	/Common/app.app/0.0.0.0%0	combo fam=v4 rd=%0 port=-
+i402	combo	/T1/0.0.0.0%0	combo fam=v4 rd=%0 port=-
+i403	combo	0.0.0.0%0:80	combo fam=v4 rd=%0 port=:80
+i404	combo	/Common/0.0.0.0%0:80	combo fam=v4 rd=%0 port=:80
+i405	combo	/Common/app.app/0.0.0.0%0:80	combo fam=v4 rd=%0 port=:80
+i406	combo	/T1/0.0.0.0%0:80	combo fam=v4 rd=%0 port=:80
+i407	combo	0.0.0.0%0.80	combo fam=v4 rd=%0 port=.80 WRONG-SEPARATOR
+i408	combo	/Common/0.0.0.0%0.80	combo fam=v4 rd=%0 port=.80 WRONG-SEPARATOR
+i409	combo	/Common/app.app/0.0.0.0%0.80	combo fam=v4 rd=%0 port=.80 WRONG-SEPARATOR
+i410	combo	/T1/0.0.0.0%0.80	combo fam=v4 rd=%0 port=.80 WRONG-SEPARATOR
+i411	combo	0.0.0.0%0:any	combo fam=v4 rd=%0 port=:any
+i412	combo	/Common/0.0.0.0%0:any	combo fam=v4 rd=%0 port=:any
+i413	combo	/Common/app.app/0.0.0.0%0:any	combo fam=v4 rd=%0 port=:any
+i414	combo	/T1/0.0.0.0%0:any	combo fam=v4 rd=%0 port=:any
+i415	combo	0.0.0.0%0:http	combo fam=v4 rd=%0 port=:http
+i416	combo	/Common/0.0.0.0%0:http	combo fam=v4 rd=%0 port=:http
+i417	combo	/Common/app.app/0.0.0.0%0:http	combo fam=v4 rd=%0 port=:http
+i418	combo	/T1/0.0.0.0%0:http	combo fam=v4 rd=%0 port=:http
+i419	combo	0.0.0.0%0:0	combo fam=v4 rd=%0 port=:0
+i420	combo	/Common/0.0.0.0%0:0	combo fam=v4 rd=%0 port=:0
+i421	combo	/Common/app.app/0.0.0.0%0:0	combo fam=v4 rd=%0 port=:0
+i422	combo	/T1/0.0.0.0%0:0	combo fam=v4 rd=%0 port=:0
+i423	combo	0.0.0.0%2	combo fam=v4 rd=%2 port=-
+i424	combo	/Common/0.0.0.0%2	combo fam=v4 rd=%2 port=-
+i425	combo	/Common/app.app/0.0.0.0%2	combo fam=v4 rd=%2 port=-
+i426	combo	/T1/0.0.0.0%2	combo fam=v4 rd=%2 port=-
+i427	combo	0.0.0.0%2:80	combo fam=v4 rd=%2 port=:80
+i428	combo	/Common/0.0.0.0%2:80	combo fam=v4 rd=%2 port=:80
+i429	combo	/Common/app.app/0.0.0.0%2:80	combo fam=v4 rd=%2 port=:80
+i430	combo	/T1/0.0.0.0%2:80	combo fam=v4 rd=%2 port=:80
+i431	combo	0.0.0.0%2.80	combo fam=v4 rd=%2 port=.80 WRONG-SEPARATOR
+i432	combo	/Common/0.0.0.0%2.80	combo fam=v4 rd=%2 port=.80 WRONG-SEPARATOR
+i433	combo	/Common/app.app/0.0.0.0%2.80	combo fam=v4 rd=%2 port=.80 WRONG-SEPARATOR
+i434	combo	/T1/0.0.0.0%2.80	combo fam=v4 rd=%2 port=.80 WRONG-SEPARATOR
+i435	combo	0.0.0.0%2:any	combo fam=v4 rd=%2 port=:any
+i436	combo	/Common/0.0.0.0%2:any	combo fam=v4 rd=%2 port=:any
+i437	combo	/Common/app.app/0.0.0.0%2:any	combo fam=v4 rd=%2 port=:any
+i438	combo	/T1/0.0.0.0%2:any	combo fam=v4 rd=%2 port=:any
+i439	combo	0.0.0.0%2:http	combo fam=v4 rd=%2 port=:http
+i440	combo	/Common/0.0.0.0%2:http	combo fam=v4 rd=%2 port=:http
+i441	combo	/Common/app.app/0.0.0.0%2:http	combo fam=v4 rd=%2 port=:http
+i442	combo	/T1/0.0.0.0%2:http	combo fam=v4 rd=%2 port=:http
+i443	combo	/Common/0.0.0.0%2:0	combo fam=v4 rd=%2 port=:0
+i444	combo	/Common/app.app/0.0.0.0%2:0	combo fam=v4 rd=%2 port=:0
+i445	combo	/T1/0.0.0.0%2:0	combo fam=v4 rd=%2 port=:0
+i446	combo	/Common/app.app/2001:db8::1	combo fam=v6 rd=- port=-
+i447	combo	/T1/2001:db8::1	combo fam=v6 rd=- port=-
+i448	combo	/Common/app.app/2001:db8::1.80	combo fam=v6 rd=- port=.80
+i449	combo	/T1/2001:db8::1.80	combo fam=v6 rd=- port=.80
+i450	combo	/Common/2001:db8::1:80	combo fam=v6 rd=- port=:80 WRONG-SEPARATOR
+i451	combo	/Common/app.app/2001:db8::1:80	combo fam=v6 rd=- port=:80 WRONG-SEPARATOR
+i452	combo	/T1/2001:db8::1:80	combo fam=v6 rd=- port=:80 WRONG-SEPARATOR
+i453	combo	/Common/2001:db8::1.any	combo fam=v6 rd=- port=.any
+i454	combo	/Common/app.app/2001:db8::1.any	combo fam=v6 rd=- port=.any
+i455	combo	/T1/2001:db8::1.any	combo fam=v6 rd=- port=.any
+i456	combo	/Common/2001:db8::1.http	combo fam=v6 rd=- port=.http
+i457	combo	/Common/app.app/2001:db8::1.http	combo fam=v6 rd=- port=.http
+i458	combo	/T1/2001:db8::1.http	combo fam=v6 rd=- port=.http
+i459	combo	/Common/2001:db8::1.0	combo fam=v6 rd=- port=.0
+i460	combo	/Common/app.app/2001:db8::1.0	combo fam=v6 rd=- port=.0
+i461	combo	/T1/2001:db8::1.0	combo fam=v6 rd=- port=.0
+i462	combo	2001:db8::1%0	combo fam=v6 rd=%0 port=-
+i463	combo	/Common/2001:db8::1%0	combo fam=v6 rd=%0 port=-
+i464	combo	/Common/app.app/2001:db8::1%0	combo fam=v6 rd=%0 port=-
+i465	combo	/T1/2001:db8::1%0	combo fam=v6 rd=%0 port=-
+i466	combo	2001:db8::1%0.80	combo fam=v6 rd=%0 port=.80
+i467	combo	/Common/2001:db8::1%0.80	combo fam=v6 rd=%0 port=.80
+i468	combo	/Common/app.app/2001:db8::1%0.80	combo fam=v6 rd=%0 port=.80
+i469	combo	/T1/2001:db8::1%0.80	combo fam=v6 rd=%0 port=.80
+i470	combo	2001:db8::1%0:80	combo fam=v6 rd=%0 port=:80 WRONG-SEPARATOR
+i471	combo	/Common/2001:db8::1%0:80	combo fam=v6 rd=%0 port=:80 WRONG-SEPARATOR
+i472	combo	/Common/app.app/2001:db8::1%0:80	combo fam=v6 rd=%0 port=:80 WRONG-SEPARATOR
+i473	combo	/T1/2001:db8::1%0:80	combo fam=v6 rd=%0 port=:80 WRONG-SEPARATOR
+i474	combo	2001:db8::1%0.any	combo fam=v6 rd=%0 port=.any
+i475	combo	/Common/2001:db8::1%0.any	combo fam=v6 rd=%0 port=.any
+i476	combo	/Common/app.app/2001:db8::1%0.any	combo fam=v6 rd=%0 port=.any
+i477	combo	/T1/2001:db8::1%0.any	combo fam=v6 rd=%0 port=.any
+i478	combo	2001:db8::1%0.http	combo fam=v6 rd=%0 port=.http
+i479	combo	/Common/2001:db8::1%0.http	combo fam=v6 rd=%0 port=.http
+i480	combo	/Common/app.app/2001:db8::1%0.http	combo fam=v6 rd=%0 port=.http
+i481	combo	/T1/2001:db8::1%0.http	combo fam=v6 rd=%0 port=.http
+i482	combo	2001:db8::1%0.0	combo fam=v6 rd=%0 port=.0
+i483	combo	/Common/2001:db8::1%0.0	combo fam=v6 rd=%0 port=.0
+i484	combo	/Common/app.app/2001:db8::1%0.0	combo fam=v6 rd=%0 port=.0
+i485	combo	/T1/2001:db8::1%0.0	combo fam=v6 rd=%0 port=.0
+i486	combo	2001:db8::1%2	combo fam=v6 rd=%2 port=-
+i487	combo	/Common/2001:db8::1%2	combo fam=v6 rd=%2 port=-
+i488	combo	/Common/app.app/2001:db8::1%2	combo fam=v6 rd=%2 port=-
+i489	combo	/T1/2001:db8::1%2	combo fam=v6 rd=%2 port=-
+i490	combo	/Common/app.app/2001:db8::1%2.80	combo fam=v6 rd=%2 port=.80
+i491	combo	/T1/2001:db8::1%2.80	combo fam=v6 rd=%2 port=.80
+i492	combo	/Common/app.app/2001:db8::1%2:80	combo fam=v6 rd=%2 port=:80 WRONG-SEPARATOR
+i493	combo	/T1/2001:db8::1%2:80	combo fam=v6 rd=%2 port=:80 WRONG-SEPARATOR
+i494	combo	2001:db8::1%2.any	combo fam=v6 rd=%2 port=.any
+i495	combo	/Common/2001:db8::1%2.any	combo fam=v6 rd=%2 port=.any
+i496	combo	/Common/app.app/2001:db8::1%2.any	combo fam=v6 rd=%2 port=.any
+i497	combo	/T1/2001:db8::1%2.any	combo fam=v6 rd=%2 port=.any
+i498	combo	2001:db8::1%2.http	combo fam=v6 rd=%2 port=.http
+i499	combo	/Common/2001:db8::1%2.http	combo fam=v6 rd=%2 port=.http
+i500	combo	/Common/app.app/2001:db8::1%2.http	combo fam=v6 rd=%2 port=.http
+i501	combo	/T1/2001:db8::1%2.http	combo fam=v6 rd=%2 port=.http
+i502	combo	2001:db8::1%2.0	combo fam=v6 rd=%2 port=.0
+i503	combo	/Common/2001:db8::1%2.0	combo fam=v6 rd=%2 port=.0
+i504	combo	/Common/app.app/2001:db8::1%2.0	combo fam=v6 rd=%2 port=.0
+i505	combo	/T1/2001:db8::1%2.0	combo fam=v6 rd=%2 port=.0
+i506	combo	/Common/::	combo fam=v6 rd=- port=-
+i507	combo	/Common/app.app/::	combo fam=v6 rd=- port=-
+i508	combo	/T1/::	combo fam=v6 rd=- port=-
+i509	combo	::.80	combo fam=v6 rd=- port=.80
+i510	combo	/Common/::.80	combo fam=v6 rd=- port=.80
+i511	combo	/Common/app.app/::.80	combo fam=v6 rd=- port=.80
+i512	combo	/T1/::.80	combo fam=v6 rd=- port=.80
+i513	combo	:::80	combo fam=v6 rd=- port=:80 WRONG-SEPARATOR
+i514	combo	/Common/:::80	combo fam=v6 rd=- port=:80 WRONG-SEPARATOR
+i515	combo	/Common/app.app/:::80	combo fam=v6 rd=- port=:80 WRONG-SEPARATOR
+i516	combo	/T1/:::80	combo fam=v6 rd=- port=:80 WRONG-SEPARATOR
+i517	combo	/Common/::.any	combo fam=v6 rd=- port=.any
+i518	combo	/Common/app.app/::.any	combo fam=v6 rd=- port=.any
+i519	combo	/T1/::.any	combo fam=v6 rd=- port=.any
+i520	combo	::.http	combo fam=v6 rd=- port=.http
+i521	combo	/Common/::.http	combo fam=v6 rd=- port=.http
+i522	combo	/Common/app.app/::.http	combo fam=v6 rd=- port=.http
+i523	combo	/T1/::.http	combo fam=v6 rd=- port=.http
+i524	combo	/Common/::.0	combo fam=v6 rd=- port=.0
+i525	combo	/Common/app.app/::.0	combo fam=v6 rd=- port=.0
+i526	combo	/T1/::.0	combo fam=v6 rd=- port=.0
+i527	combo	::%0	combo fam=v6 rd=%0 port=-
+i528	combo	/Common/::%0	combo fam=v6 rd=%0 port=-
+i529	combo	/Common/app.app/::%0	combo fam=v6 rd=%0 port=-
+i530	combo	/T1/::%0	combo fam=v6 rd=%0 port=-
+i531	combo	::%0.80	combo fam=v6 rd=%0 port=.80
+i532	combo	/Common/::%0.80	combo fam=v6 rd=%0 port=.80
+i533	combo	/Common/app.app/::%0.80	combo fam=v6 rd=%0 port=.80
+i534	combo	/T1/::%0.80	combo fam=v6 rd=%0 port=.80
+i535	combo	::%0:80	combo fam=v6 rd=%0 port=:80 WRONG-SEPARATOR
+i536	combo	/Common/::%0:80	combo fam=v6 rd=%0 port=:80 WRONG-SEPARATOR
+i537	combo	/Common/app.app/::%0:80	combo fam=v6 rd=%0 port=:80 WRONG-SEPARATOR
+i538	combo	/T1/::%0:80	combo fam=v6 rd=%0 port=:80 WRONG-SEPARATOR
+i539	combo	::%0.any	combo fam=v6 rd=%0 port=.any
+i540	combo	/Common/::%0.any	combo fam=v6 rd=%0 port=.any
+i541	combo	/Common/app.app/::%0.any	combo fam=v6 rd=%0 port=.any
+i542	combo	/T1/::%0.any	combo fam=v6 rd=%0 port=.any
+i543	combo	::%0.http	combo fam=v6 rd=%0 port=.http
+i544	combo	/Common/::%0.http	combo fam=v6 rd=%0 port=.http
+i545	combo	/Common/app.app/::%0.http	combo fam=v6 rd=%0 port=.http
+i546	combo	/T1/::%0.http	combo fam=v6 rd=%0 port=.http
+i547	combo	::%0.0	combo fam=v6 rd=%0 port=.0
+i548	combo	/Common/::%0.0	combo fam=v6 rd=%0 port=.0
+i549	combo	/Common/app.app/::%0.0	combo fam=v6 rd=%0 port=.0
+i550	combo	/T1/::%0.0	combo fam=v6 rd=%0 port=.0
+i551	combo	::%2	combo fam=v6 rd=%2 port=-
+i552	combo	/Common/::%2	combo fam=v6 rd=%2 port=-
+i553	combo	/Common/app.app/::%2	combo fam=v6 rd=%2 port=-
+i554	combo	/T1/::%2	combo fam=v6 rd=%2 port=-
+i555	combo	::%2.80	combo fam=v6 rd=%2 port=.80
+i556	combo	/Common/::%2.80	combo fam=v6 rd=%2 port=.80
+i557	combo	/Common/app.app/::%2.80	combo fam=v6 rd=%2 port=.80
+i558	combo	/T1/::%2.80	combo fam=v6 rd=%2 port=.80
+i559	combo	::%2:80	combo fam=v6 rd=%2 port=:80 WRONG-SEPARATOR
+i560	combo	/Common/::%2:80	combo fam=v6 rd=%2 port=:80 WRONG-SEPARATOR
+i561	combo	/Common/app.app/::%2:80	combo fam=v6 rd=%2 port=:80 WRONG-SEPARATOR
+i562	combo	/T1/::%2:80	combo fam=v6 rd=%2 port=:80 WRONG-SEPARATOR
+i563	combo	::%2.any	combo fam=v6 rd=%2 port=.any
+i564	combo	/Common/::%2.any	combo fam=v6 rd=%2 port=.any
+i565	combo	/Common/app.app/::%2.any	combo fam=v6 rd=%2 port=.any
+i566	combo	/T1/::%2.any	combo fam=v6 rd=%2 port=.any
+i567	combo	::%2.http	combo fam=v6 rd=%2 port=.http
+i568	combo	/Common/::%2.http	combo fam=v6 rd=%2 port=.http
+i569	combo	/Common/app.app/::%2.http	combo fam=v6 rd=%2 port=.http
+i570	combo	/T1/::%2.http	combo fam=v6 rd=%2 port=.http
+i571	combo	::%2.0	combo fam=v6 rd=%2 port=.0
+i572	combo	/Common/::%2.0	combo fam=v6 rd=%2 port=.0
+i573	combo	/Common/app.app/::%2.0	combo fam=v6 rd=%2 port=.0
+i574	combo	/T1/::%2.0	combo fam=v6 rd=%2 port=.0
+i575	combo	/Common/::ffff:10.0.0.1	combo fam=v6 rd=- port=-
+i576	combo	/Common/app.app/::ffff:10.0.0.1	combo fam=v6 rd=- port=-
+i577	combo	/T1/::ffff:10.0.0.1	combo fam=v6 rd=- port=-
+i578	combo	/Common/app.app/::ffff:10.0.0.1.80	combo fam=v6 rd=- port=.80
+i579	combo	/T1/::ffff:10.0.0.1.80	combo fam=v6 rd=- port=.80
+i580	combo	::ffff:10.0.0.1:80	combo fam=v6 rd=- port=:80 WRONG-SEPARATOR
+i581	combo	/Common/::ffff:10.0.0.1:80	combo fam=v6 rd=- port=:80 WRONG-SEPARATOR
+i582	combo	/Common/app.app/::ffff:10.0.0.1:80	combo fam=v6 rd=- port=:80 WRONG-SEPARATOR
+i583	combo	/T1/::ffff:10.0.0.1:80	combo fam=v6 rd=- port=:80 WRONG-SEPARATOR
+i584	combo	::ffff:10.0.0.1.any	combo fam=v6 rd=- port=.any
+i585	combo	/Common/::ffff:10.0.0.1.any	combo fam=v6 rd=- port=.any
+i586	combo	/Common/app.app/::ffff:10.0.0.1.any	combo fam=v6 rd=- port=.any
+i587	combo	/T1/::ffff:10.0.0.1.any	combo fam=v6 rd=- port=.any
+i588	combo	::ffff:10.0.0.1.http	combo fam=v6 rd=- port=.http
+i589	combo	/Common/::ffff:10.0.0.1.http	combo fam=v6 rd=- port=.http
+i590	combo	/Common/app.app/::ffff:10.0.0.1.http	combo fam=v6 rd=- port=.http
+i591	combo	/T1/::ffff:10.0.0.1.http	combo fam=v6 rd=- port=.http
+i592	combo	::ffff:10.0.0.1.0	combo fam=v6 rd=- port=.0
+i593	combo	/Common/::ffff:10.0.0.1.0	combo fam=v6 rd=- port=.0
+i594	combo	/Common/app.app/::ffff:10.0.0.1.0	combo fam=v6 rd=- port=.0
+i595	combo	/T1/::ffff:10.0.0.1.0	combo fam=v6 rd=- port=.0
+i596	combo	::ffff:10.0.0.1%0	combo fam=v6 rd=%0 port=-
+i597	combo	/Common/::ffff:10.0.0.1%0	combo fam=v6 rd=%0 port=-
+i598	combo	/Common/app.app/::ffff:10.0.0.1%0	combo fam=v6 rd=%0 port=-
+i599	combo	/T1/::ffff:10.0.0.1%0	combo fam=v6 rd=%0 port=-
+i600	combo	::ffff:10.0.0.1%0.80	combo fam=v6 rd=%0 port=.80
+i601	combo	/Common/::ffff:10.0.0.1%0.80	combo fam=v6 rd=%0 port=.80
+i602	combo	/Common/app.app/::ffff:10.0.0.1%0.80	combo fam=v6 rd=%0 port=.80
+i603	combo	/T1/::ffff:10.0.0.1%0.80	combo fam=v6 rd=%0 port=.80
+i604	combo	::ffff:10.0.0.1%0:80	combo fam=v6 rd=%0 port=:80 WRONG-SEPARATOR
+i605	combo	/Common/::ffff:10.0.0.1%0:80	combo fam=v6 rd=%0 port=:80 WRONG-SEPARATOR
+i606	combo	/Common/app.app/::ffff:10.0.0.1%0:80	combo fam=v6 rd=%0 port=:80 WRONG-SEPARATOR
+i607	combo	/T1/::ffff:10.0.0.1%0:80	combo fam=v6 rd=%0 port=:80 WRONG-SEPARATOR
+i608	combo	::ffff:10.0.0.1%0.any	combo fam=v6 rd=%0 port=.any
+i609	combo	/Common/::ffff:10.0.0.1%0.any	combo fam=v6 rd=%0 port=.any
+i610	combo	/Common/app.app/::ffff:10.0.0.1%0.any	combo fam=v6 rd=%0 port=.any
+i611	combo	/T1/::ffff:10.0.0.1%0.any	combo fam=v6 rd=%0 port=.any
+i612	combo	::ffff:10.0.0.1%0.http	combo fam=v6 rd=%0 port=.http
+i613	combo	/Common/::ffff:10.0.0.1%0.http	combo fam=v6 rd=%0 port=.http
+i614	combo	/Common/app.app/::ffff:10.0.0.1%0.http	combo fam=v6 rd=%0 port=.http
+i615	combo	/T1/::ffff:10.0.0.1%0.http	combo fam=v6 rd=%0 port=.http
+i616	combo	::ffff:10.0.0.1%0.0	combo fam=v6 rd=%0 port=.0
+i617	combo	/Common/::ffff:10.0.0.1%0.0	combo fam=v6 rd=%0 port=.0
+i618	combo	/Common/app.app/::ffff:10.0.0.1%0.0	combo fam=v6 rd=%0 port=.0
+i619	combo	/T1/::ffff:10.0.0.1%0.0	combo fam=v6 rd=%0 port=.0
+i620	combo	::ffff:10.0.0.1%2	combo fam=v6 rd=%2 port=-
+i621	combo	/Common/::ffff:10.0.0.1%2	combo fam=v6 rd=%2 port=-
+i622	combo	/Common/app.app/::ffff:10.0.0.1%2	combo fam=v6 rd=%2 port=-
+i623	combo	/T1/::ffff:10.0.0.1%2	combo fam=v6 rd=%2 port=-
+i624	combo	::ffff:10.0.0.1%2.80	combo fam=v6 rd=%2 port=.80
+i625	combo	/Common/::ffff:10.0.0.1%2.80	combo fam=v6 rd=%2 port=.80
+i626	combo	/Common/app.app/::ffff:10.0.0.1%2.80	combo fam=v6 rd=%2 port=.80
+i627	combo	/T1/::ffff:10.0.0.1%2.80	combo fam=v6 rd=%2 port=.80
+i628	combo	::ffff:10.0.0.1%2:80	combo fam=v6 rd=%2 port=:80 WRONG-SEPARATOR
+i629	combo	/Common/::ffff:10.0.0.1%2:80	combo fam=v6 rd=%2 port=:80 WRONG-SEPARATOR
+i630	combo	/Common/app.app/::ffff:10.0.0.1%2:80	combo fam=v6 rd=%2 port=:80 WRONG-SEPARATOR
+i631	combo	/T1/::ffff:10.0.0.1%2:80	combo fam=v6 rd=%2 port=:80 WRONG-SEPARATOR
+i632	combo	::ffff:10.0.0.1%2.any	combo fam=v6 rd=%2 port=.any
+i633	combo	/Common/::ffff:10.0.0.1%2.any	combo fam=v6 rd=%2 port=.any
+i634	combo	/Common/app.app/::ffff:10.0.0.1%2.any	combo fam=v6 rd=%2 port=.any
+i635	combo	/T1/::ffff:10.0.0.1%2.any	combo fam=v6 rd=%2 port=.any
+i636	combo	::ffff:10.0.0.1%2.http	combo fam=v6 rd=%2 port=.http
+i637	combo	/Common/::ffff:10.0.0.1%2.http	combo fam=v6 rd=%2 port=.http
+i638	combo	/Common/app.app/::ffff:10.0.0.1%2.http	combo fam=v6 rd=%2 port=.http
+i639	combo	/T1/::ffff:10.0.0.1%2.http	combo fam=v6 rd=%2 port=.http
+i640	combo	::ffff:10.0.0.1%2.0	combo fam=v6 rd=%2 port=.0
+i641	combo	/Common/::ffff:10.0.0.1%2.0	combo fam=v6 rd=%2 port=.0
+i642	combo	/Common/app.app/::ffff:10.0.0.1%2.0	combo fam=v6 rd=%2 port=.0
+i643	combo	/T1/::ffff:10.0.0.1%2.0	combo fam=v6 rd=%2 port=.0
+i644	combo	fe80::1	combo fam=v6 rd=- port=-
+i645	combo	/Common/fe80::1	combo fam=v6 rd=- port=-
+i646	combo	/Common/app.app/fe80::1	combo fam=v6 rd=- port=-
+i647	combo	/T1/fe80::1	combo fam=v6 rd=- port=-
+i648	combo	fe80::1.80	combo fam=v6 rd=- port=.80
+i649	combo	/Common/fe80::1.80	combo fam=v6 rd=- port=.80
+i650	combo	/Common/app.app/fe80::1.80	combo fam=v6 rd=- port=.80
+i651	combo	/T1/fe80::1.80	combo fam=v6 rd=- port=.80
+i652	combo	/Common/app.app/fe80::1:80	combo fam=v6 rd=- port=:80 WRONG-SEPARATOR
+i653	combo	/T1/fe80::1:80	combo fam=v6 rd=- port=:80 WRONG-SEPARATOR
+i654	combo	fe80::1.any	combo fam=v6 rd=- port=.any
+i655	combo	/Common/fe80::1.any	combo fam=v6 rd=- port=.any
+i656	combo	/Common/app.app/fe80::1.any	combo fam=v6 rd=- port=.any
+i657	combo	/T1/fe80::1.any	combo fam=v6 rd=- port=.any
+i658	combo	fe80::1.http	combo fam=v6 rd=- port=.http
+i659	combo	/Common/fe80::1.http	combo fam=v6 rd=- port=.http
+i660	combo	/Common/app.app/fe80::1.http	combo fam=v6 rd=- port=.http
+i661	combo	/T1/fe80::1.http	combo fam=v6 rd=- port=.http
+i662	combo	fe80::1.0	combo fam=v6 rd=- port=.0
+i663	combo	/Common/fe80::1.0	combo fam=v6 rd=- port=.0
+i664	combo	/Common/app.app/fe80::1.0	combo fam=v6 rd=- port=.0
+i665	combo	/T1/fe80::1.0	combo fam=v6 rd=- port=.0
+i666	combo	fe80::1%0	combo fam=v6 rd=%0 port=-
+i667	combo	/Common/fe80::1%0	combo fam=v6 rd=%0 port=-
+i668	combo	/Common/app.app/fe80::1%0	combo fam=v6 rd=%0 port=-
+i669	combo	/T1/fe80::1%0	combo fam=v6 rd=%0 port=-
+i670	combo	fe80::1%0.80	combo fam=v6 rd=%0 port=.80
+i671	combo	/Common/fe80::1%0.80	combo fam=v6 rd=%0 port=.80
+i672	combo	/Common/app.app/fe80::1%0.80	combo fam=v6 rd=%0 port=.80
+i673	combo	/T1/fe80::1%0.80	combo fam=v6 rd=%0 port=.80
+i674	combo	fe80::1%0:80	combo fam=v6 rd=%0 port=:80 WRONG-SEPARATOR
+i675	combo	/Common/fe80::1%0:80	combo fam=v6 rd=%0 port=:80 WRONG-SEPARATOR
+i676	combo	/Common/app.app/fe80::1%0:80	combo fam=v6 rd=%0 port=:80 WRONG-SEPARATOR
+i677	combo	/T1/fe80::1%0:80	combo fam=v6 rd=%0 port=:80 WRONG-SEPARATOR
+i678	combo	fe80::1%0.any	combo fam=v6 rd=%0 port=.any
+i679	combo	/Common/fe80::1%0.any	combo fam=v6 rd=%0 port=.any
+i680	combo	/Common/app.app/fe80::1%0.any	combo fam=v6 rd=%0 port=.any
+i681	combo	/T1/fe80::1%0.any	combo fam=v6 rd=%0 port=.any
+i682	combo	fe80::1%0.http	combo fam=v6 rd=%0 port=.http
+i683	combo	/Common/fe80::1%0.http	combo fam=v6 rd=%0 port=.http
+i684	combo	/Common/app.app/fe80::1%0.http	combo fam=v6 rd=%0 port=.http
+i685	combo	/T1/fe80::1%0.http	combo fam=v6 rd=%0 port=.http
+i686	combo	fe80::1%0.0	combo fam=v6 rd=%0 port=.0
+i687	combo	/Common/fe80::1%0.0	combo fam=v6 rd=%0 port=.0
+i688	combo	/Common/app.app/fe80::1%0.0	combo fam=v6 rd=%0 port=.0
+i689	combo	/T1/fe80::1%0.0	combo fam=v6 rd=%0 port=.0
+i690	combo	fe80::1%2	combo fam=v6 rd=%2 port=-
+i691	combo	/Common/fe80::1%2	combo fam=v6 rd=%2 port=-
+i692	combo	/Common/app.app/fe80::1%2	combo fam=v6 rd=%2 port=-
+i693	combo	/T1/fe80::1%2	combo fam=v6 rd=%2 port=-
+i694	combo	fe80::1%2.80	combo fam=v6 rd=%2 port=.80
+i695	combo	/Common/fe80::1%2.80	combo fam=v6 rd=%2 port=.80
+i696	combo	/Common/app.app/fe80::1%2.80	combo fam=v6 rd=%2 port=.80
+i697	combo	/T1/fe80::1%2.80	combo fam=v6 rd=%2 port=.80
+i698	combo	fe80::1%2:80	combo fam=v6 rd=%2 port=:80 WRONG-SEPARATOR
+i699	combo	/Common/fe80::1%2:80	combo fam=v6 rd=%2 port=:80 WRONG-SEPARATOR
+i700	combo	/Common/app.app/fe80::1%2:80	combo fam=v6 rd=%2 port=:80 WRONG-SEPARATOR
+i701	combo	/T1/fe80::1%2:80	combo fam=v6 rd=%2 port=:80 WRONG-SEPARATOR
+i702	combo	fe80::1%2.any	combo fam=v6 rd=%2 port=.any
+i703	combo	/Common/fe80::1%2.any	combo fam=v6 rd=%2 port=.any
+i704	combo	/Common/app.app/fe80::1%2.any	combo fam=v6 rd=%2 port=.any
+i705	combo	/T1/fe80::1%2.any	combo fam=v6 rd=%2 port=.any
+i706	combo	fe80::1%2.http	combo fam=v6 rd=%2 port=.http
+i707	combo	/Common/fe80::1%2.http	combo fam=v6 rd=%2 port=.http
+i708	combo	/Common/app.app/fe80::1%2.http	combo fam=v6 rd=%2 port=.http
+i709	combo	/T1/fe80::1%2.http	combo fam=v6 rd=%2 port=.http
+i710	combo	fe80::1%2.0	combo fam=v6 rd=%2 port=.0
+i711	combo	/Common/fe80::1%2.0	combo fam=v6 rd=%2 port=.0
+i712	combo	/Common/app.app/fe80::1%2.0	combo fam=v6 rd=%2 port=.0
+i713	combo	/T1/fe80::1%2.0	combo fam=v6 rd=%2 port=.0
