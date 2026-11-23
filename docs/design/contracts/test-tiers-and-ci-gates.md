@@ -13,7 +13,7 @@ behind it.
 | **heavy** — CI with `workflow_dispatch` `test_tier=heavy`, and every release tag | on request; always for `v*` tags | everything the light tier runs plus the heavy-listed shard tests, `rust-tests-doctest`, `rust-tests-heavy`, `runtime-rust-tests`, `lsp-e2e`, `test-ext`, `test-ext-web`, `spectcl-compat` and `wasm-real-link`: the full workspace suite (native `lsp_e2e` included), the VM-sim heavies, the standalone `runtime/rust` unit suite, the VS Code extension on desktop and in a browser host, and the real-toolchain WASM link. Skips only what demonstrably did not change (below). |
 | **exhaustive** — `make test-exhaustive`, `make fuzz`, `make tcltest-sweep[-check]` | only when a human invokes it by name | every `#[ignore]`d corpus sweep over `tmp/tcl*` and tcllib, differential-fuzz gates, privileged bpf/kernel tests, fuzz campaigns. **Never** wired into `prep-pr`, `test`, `check-all`, or CI. |
 
-The native `lsp-e2e` surface is produced once as a nextest 0.9.148 archive,
+The native `lsp-e2e` surface is produced once as a nextest 0.9.152 archive,
 then consumed by three hosted `hash:1/3`, `hash:2/3`, and `hash:3/3` jobs.
 Each consumer remaps the archive to its checkout and receives the relocated server through
 `NEXTEST_BIN_EXE_tcl-lsp-server`; ordinary Cargo tests retain the compile-time

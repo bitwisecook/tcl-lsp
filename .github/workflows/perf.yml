@@ -113,7 +113,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        uses: actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30 # v2.0.1
         with:
           toolchain: stable
           cache-key: perf-interp-instructions
@@ -186,7 +186,7 @@ jobs:
           fetch-depth: 1
 
       - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        uses: actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30 # v2.0.1
         with:
           toolchain: stable
           cache-key: perf-benchmark
@@ -447,7 +447,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up one Rust toolchain for both builds
-        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        uses: actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30 # v2.0.1
         with:
           toolchain: stable
           cache: false
@@ -541,7 +541,7 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
       - name: Install Rust
-        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        uses: actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30 # v2.0.1
         with:
           toolchain: stable
           build-warnings: deny
@@ -590,16 +590,16 @@ jobs:
           persist-credentials: false
       - name: Install Rust
         timeout-minutes: 3
-        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        uses: actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30 # v2.0.1
         with:
           toolchain: stable
           build-warnings: deny
           cache: false
       - name: Install cargo-nextest
         timeout-minutes: 3
-        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
         with:
-          tool: nextest@0.9.148
+          tool: nextest@0.9.152
       - name: Validate revision and record original source
         timeout-minutes: 3
         env:
@@ -964,7 +964,7 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
       - name: Install Rust and Clippy
-        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        uses: actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30 # v2.0.1
         with:
           toolchain: stable
           components: clippy
@@ -1132,7 +1132,7 @@ jobs:
           persist-credentials: false
       - name: Install uncached Rust
         timeout-minutes: 5
-        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        uses: actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30 # v2.0.1
         with:
           toolchain: stable
           build-warnings: deny
@@ -1191,7 +1191,7 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
       - name: Install uncached Rust
-        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        uses: actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30 # v2.0.1
         with:
           toolchain: stable
           build-warnings: deny
@@ -1263,7 +1263,7 @@ jobs:
           persist-credentials: false
       - name: Install uncached Rust
         timeout-minutes: 5
-        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        uses: actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30 # v2.0.1
         with:
           toolchain: stable
           build-warnings: deny
@@ -1334,7 +1334,7 @@ jobs:
           persist-credentials: false
       - name: Install uncached Rust
         timeout-minutes: 5
-        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        uses: actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30 # v2.0.1
         with:
           toolchain: stable
           build-warnings: deny
@@ -1417,7 +1417,7 @@ jobs:
           persist-credentials: false
       - name: Install uncached Rust
         timeout-minutes: 5
-        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        uses: actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30 # v2.0.1
         with:
           toolchain: stable
           build-warnings: deny
@@ -1500,7 +1500,7 @@ jobs:
           persist-credentials: false
       - name: Install uncached Rust
         timeout-minutes: 5
-        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        uses: actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30 # v2.0.1
         with:
           toolchain: stable
           build-warnings: deny
@@ -1583,7 +1583,7 @@ jobs:
           persist-credentials: false
       - name: Install uncached Rust
         timeout-minutes: 5
-        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        uses: actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30 # v2.0.1
         with:
           toolchain: stable
           build-warnings: deny
@@ -1706,7 +1706,7 @@ jobs:
           persist-credentials: false
       - name: Install uncached Rust with original WASI target
         timeout-minutes: 10
-        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        uses: actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30 # v2.0.1
         with:
           toolchain: stable
           target: wasm32-wasip1
@@ -1714,9 +1714,9 @@ jobs:
           cache: false
       - name: Install original pinned Wasmtime CLI
         timeout-minutes: 5
-        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
         with:
-          tool: wasmtime@49.0.3
+          tool: wasmtime@50.0.3
       - name: Install original pinned wasi-sdk
         timeout-minutes: 10
         env:
@@ -1791,7 +1791,7 @@ jobs:
           persist-credentials: false
       - name: Install uncached Rust
         timeout-minutes: 5
-        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        uses: actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30 # v2.0.1
         with:
           toolchain: stable
           build-warnings: deny
@@ -1857,16 +1857,16 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
       - name: Set up uncached original host Rust target
-        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        uses: actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30 # v2.0.1
         with:
           toolchain: stable
           target: wasm32-unknown-unknown
           build-warnings: deny
           cache: false
       - name: Install original wasm-bindgen CLI
-        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
         with:
-          tool: wasm-bindgen-cli@0.2.129
+          tool: wasm-bindgen-cli@0.2.130
       - name: Set up original Node.js host
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -1911,16 +1911,16 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
       - name: Set up uncached original host Rust target
-        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        uses: actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30 # v2.0.1
         with:
           toolchain: stable
           target: wasm32-wasip1
           build-warnings: deny
           cache: false
       - name: Install original wasmtime CLI
-        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
         with:
-          tool: wasmtime@49.0.3
+          tool: wasmtime@50.0.3
       - name: Install original binaryen dependency
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends binaryen
       - name: Set up original Node.js host
@@ -1973,7 +1973,7 @@ jobs:
           persist-credentials: false
       - name: Install uncached Rust
         timeout-minutes: 5
-        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        uses: actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30 # v2.0.1
         with:
           toolchain: stable
           build-warnings: deny
@@ -2037,7 +2037,7 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
       - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        uses: actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30 # v2.0.1
         with:
           toolchain: stable
           components: clippy, rustfmt
@@ -2235,7 +2235,7 @@ jobs:
           printf 'free_kib_before_test=%s\n' "$free_kib" >> "$RUNNER_TEMP/jetbrains-validation/identity.txt"
           (( free_kib >= 2097152 )) || { echo "refusal: less than 2 GiB free before test setup" >&2; exit 125; }
 
-      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           distribution: temurin
           java-version: 17

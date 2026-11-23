@@ -113,10 +113,10 @@ pub fn evaluate_private_key_match(certificate: &Certificate, key: &[u8]) -> KeyM
 }
 
 fn rsa_spki(der: &[u8]) -> Option<Vec<u8>> {
-    let key = rsa::RsaPrivateKey::from_pkcs8_der(der)
-        .or_else(|_| rsa::RsaPrivateKey::from_pkcs1_der(der))
+    let key = rsa::PrivateKey::from_pkcs8_der(der)
+        .or_else(|_| rsa::PrivateKey::from_pkcs1_der(der))
         .ok()?;
-    rsa::RsaPublicKey::from(&key)
+    rsa::PublicKey::from(&key)
         .to_public_key_der()
         .ok()
         .map(|document| document.as_bytes().to_vec())
