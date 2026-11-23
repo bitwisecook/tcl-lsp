@@ -109,3 +109,7 @@ Reading a script file belongs to the engine traits: one reader that applies the 
 - **Messages.** Report "missing close-brace" where tclsh does (c16, E200). Stop W123 suggesting `!` for ordinary words (c11, c20; fault 11). Make the VM's error location for a command spanning a backslash-space line match tclsh (c20: `line 1` and "invoked from within").
 - **Docstrings.** Stop a doc comment at a swallowed line: show the comment text without the continued `proc hidden {} {}` line, or flag it (c25; `tcl-lexer/src/script.rs:230`, `tcl-lsp-core` hover).
 - **Conformance rows.** Move the 27 fixtures into the conformance matrix with columns for tclsh 8.4–9.1, Jim, the VM, the runtime, the analyser codes (MCP and server), folding, and formatter and minifier equivalence (the `bcheck` method here: run the output and compare).
+
+## Status on the current source
+
+Current source: formatting and minifying keep every fixture's output; the E003 on `c01` (a `#` mid-command) is correct. Details: [audit summary](tcl-areas-audit.md) and [`tcl-areas-head/`](handover/oo-dispatch-probe/tcl-areas-head/). Plan items 153–199.

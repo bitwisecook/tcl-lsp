@@ -89,3 +89,7 @@ That is seven readers of UTF-8 for one rule; only the first is release-aware.
 - Make one encoding catalogue: generate the name list from each release's `library/encoding` directory, keep `SystemEncoding`/`ChannelEncoding` as projections of it, share the `encoding` subcommand table between the VM, the runtime and the registry, and say in the engine contract which encodings are implemented; done when `encoding names` matches tclsh or the difference is a documented non-goal, and the runtime has `encoding profiles` on 9.0.
 - Add channel instance values to the instance-value work (creation, destruction, configuration fields) and make W103 consult the value of the `open` argument; done when e11's closed-handle use is reported and e06's W103 is gone.
 - Turn these fixtures into conformance vectors run against tclsh (both locales), Jim, the VM, the runtime, the script reader and the LSP decode, in the probe harness of cross-cutting fault 14.
+
+## Status on the current source
+
+Confirmed on the current source: O116 turns `\x` escapes into raw characters and changes 8.6 `encoding convertfrom` results (`e03`); the VM panic on `scan \uD800 %c`. Details: [audit summary](tcl-areas-audit.md) and [`tcl-areas-head/`](handover/oo-dispatch-probe/tcl-areas-head/). Plan items 153–199.

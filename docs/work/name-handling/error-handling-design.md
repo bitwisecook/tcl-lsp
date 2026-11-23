@@ -93,3 +93,7 @@ About **55 production files** match `Statement::Catch`/`Statement::Try` directly
 - **Retire statement pattern-matching:** move the ~55 `Statement::Catch`/`Try` matchers and the spelling checks (`inline_uplevel.rs:398`, `shimmer/thunking.rs:133`, `execution_regions.rs:1078`, refactor `return` matchers) onto the annotated command's intercepted codes; track the count in the walker manifest with an only-shrinks ratchet.
 - **Correct the `break` documentation** in `tcl-registry/src/commands/tcl/break_.rs:57` (a procedure's top level converts `break` into an error).
 - **Engines' copied factories:** move `known_word`/`manufacture` from both `native_return_merge.rs` files into `tcl-cmd-core::native_return_merge`.
+
+## Status on the current source
+
+Confirmed on the current source: W210 in the `catch`-wrapped `for` (`e25`), on `catch` result variables (`e15`) and on `::errorCode` (`e19`); no diagnostic for `break` leaving a procedure (`e04`). Not reproduced: O107 on `finally` (`e27`), the `return -level 0` rewrite (`e28`) and W210 (`e30`). Details: [audit summary](tcl-areas-audit.md) and [`tcl-areas-head/`](handover/oo-dispatch-probe/tcl-areas-head/). Plan items 153–199.

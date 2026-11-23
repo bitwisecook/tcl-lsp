@@ -74,3 +74,7 @@ Analysis (`analyser-mcp.out`):
 - Rewrite W303 over the `tcl-regex` parse (`rust/tcl-compiler/src/analyser/diagnostics/security.rs:580`) and measure its claim on tclsh 8.6 and 9.0 with a timing fixture; done when `{\(a|b\)+}` is clean and every remaining W303 shape has a measured slow case, or W303 is retired.
 - Name and document the two glob matchers after `Tcl_StringCaseMatch` and the C-unit name matcher, and mark `tcl-cli` `glob_matches` and `dynamic_names::pattern_matches` as non-Tcl; done when the walker manifest lists two Tcl glob owners.
 - Turn the regex and glob fixtures into conformance vectors run against tclsh, Jim, both engines, the folder and the LSP's hover and token parse.
+
+## Status on the current source
+
+Confirmed on the current source: the restart-context folds (`r14`, wrong output; tclsh `XXX`, VM `Xbc`) and W210 on `switch -matchvar` in procedures (`r11`). Not reproduced: the top-level `r06` W210. Details: [audit summary](tcl-areas-audit.md) and [`tcl-areas-head/`](handover/oo-dispatch-probe/tcl-areas-head/). Plan items 153–199.

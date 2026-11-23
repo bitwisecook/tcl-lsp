@@ -80,3 +80,7 @@ A trace is a **deferred body bound to an event**, and the event is an access or 
 - **References include `trace info`.** `find_references` and rename must count `trace info execution f` and `trace info command f` as references to `f`. Done when `tr10` gives six references.
 - **Engine trace contract.** Add script-trace registration, removal, `trace info` order and firing order to `tcl_runtime_api`, implemented by both engines, with the 23 fixtures turned into conformance rows for every release and for Jim (expected: `invalid command name "trace"`). Done when the rows run in both engines' suites; whether the engines share firing code is a separate decision.
 - **Conformance for analysis.** Run the trace fixtures through W210, W211, W214, W220, the optimiser (execute before and after, as the constants study did) and navigation in the probe harness. Done when `analyser-mcp.out` is generated, not hand-written.
+
+## Status on the current source
+
+Confirmed on the current source: W214 on every trace callback and the `tr20` fold of a traced builtin (wrong output). Not reproduced: the `tr22`/`tr23` folds and the `tr08` W211/W220 (cached-build artefacts; kept as regression rows). Details: [audit summary](tcl-areas-audit.md) and [`tcl-areas-head/`](handover/oo-dispatch-probe/tcl-areas-head/). Plan items 153–199.

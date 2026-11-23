@@ -107,3 +107,7 @@ Jim is a family with its own release axis (0.76–0.84). It should fit the targe
 - **Fix the runtime's measured differences** seen on these fixtures: the literal spelling returned by `catch {expr {0o10}}` (j20, j23) and the return-options key order and `-errorstack` content (j14), both against tclsh and the VM.
 - **Tool parity.** Add `jimtcl` to the MCP dialect enum (`tcl-mcp` tool schema) so the MCP tools can be asked what the server already answers.
 - **Conformance rows.** Move `oo-dispatch-probe/jim/` into the conformance matrix with columns jimsh 0.84 (and the 0.76–0.83 builds the pack's windows cite), tclsh, the analyser codes under `jimtcl` and `tcl9.0`, and the navigation answers in `navigation.out`.
+
+## Status on the current source
+
+Not re-run on the current source: there is no `jim` analysis profile reachable from `DialectProfile::find`; the page used the release server's `jimtcl` dialect. Details: [audit summary](tcl-areas-audit.md) and [`tcl-areas-head/`](handover/oo-dispatch-probe/tcl-areas-head/). Plan items 153–199.

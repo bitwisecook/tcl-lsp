@@ -150,6 +150,9 @@ Wrong answers found by these studies, independent of the refactor; each has a fi
 | codegen | `concat` fold strips non-breaking spaces Tcl keeps |
 | contracts | a source rename is documented as removing an import |
 | optimiser | `optimise()` and a `None` dialect silently fold nothing, even `1 + 2` |
+| optimiser | regex restart-context folds, `errorInfo`/`errorCode` forwarded across `catch`, folds of traced builtins, O116 raw characters ([audit summary](tcl-areas-audit.md)) |
+| VM | panics on a lone surrogate; `exec` runs pipelines as plain arguments; no `chan` |
+| both engines | POSIX `errorCode` is `NONE` after filesystem errors; channel reads ignore encoding and translation |
 
 ## Changes to the plan
 

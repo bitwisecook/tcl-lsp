@@ -193,6 +193,7 @@ Foundations, architecture and object systems (the structural work the domain ite
 | Command-definition fixes (Tcl, Tk, packages) | 123–131 |
 | Fixes found in the studies, not yet planned | 132–143 |
 | More sprawl (JSON units, edits, scan policy, versions, MCP failures, docstrings, presentation, interpreters) | 144–152 |
+| Fourteen tricky areas (traces, special variables, coroutines, event loop, errors, unknown, interpreters, exec, threads, encodings, regex, Tcl 9, comments, Jim) | 153–199 |
 | Open questions for BIG-IP and iRules data | Q1–Q10 |
 
 **Order:** the phase order, the structural decisions that make the designs one design (binding and value fixpoint, `Frame` versus name world, one per-site record, identity types, summaries versus contracts, the answer type and receipts, the potential-execution owner, native linearisation recipes) and the dependencies behind them are in [design integration](design-integration.md); it supersedes the order previously given here.
@@ -299,6 +300,103 @@ More sprawl (second survey, [remaining sprawl](remaining-sprawl.md#second-survey
 150. Presentation features read one procedure and symbol inventory (the binding tier of item 101): document and workspace symbols, code lens, both call-hierarchy modules, the call graph, the diagram and folding.
 151. Interpreter discovery through `tcl_test_support::locate_tclsh` (or a production equivalent) everywhere: add `tclsh9.1` to `tcl-pkg`'s `find_tclsh`, route the `find_tclsh9`/`find_tclsh91` helpers and the VM's direct `tclsh…` calls through it, one `which` with exec-bit and `PATHEXT` handling.
 152. Smaller items: one TSV fixture reader with escape decoding and one release key form for oracle data; route the remaining URI bypasses (`tcl-bigip-io` percent encoder, `strip_prefix("file://")` in `f5-cli` and `tcl-bigip`, the server's direct `Uri::from_file_path`) through `uri_norm`; audit the server's mixed `std` and `tokio` mutexes for locks held across `.await`.
+
+Fourteen tricky areas of Tcl (summary, current-source status and cross-cutting themes: [audit summary](tcl-areas-audit.md); fixtures under `oo-dispatch-probe/`):
+
+Wrong rewrites and engine wrong answers first ([audit summary](tcl-areas-audit.md); each confirmed on the current source):
+
+153. Optimiser: the regex folds (O129) decline `regexp`/`regsub` with `-all` or `-start` when the pattern contains `\A`, `\m`, `\M`, `\y`, `\Y` or `\B` until the engine is fixed (`tcl-registry/src/value_transfer/regex.rs`); never forward or fold `errorInfo`/`errorCode` across an edge where a command may raise (`sv14`, `sv17`); never fold a call to a command carrying an execution trace (`tr20`, from the module's traced commands); O116 keeps `\x` escapes as escapes instead of writing raw characters (`e03`); treat `tcl::unsupported::representation` as observing representations so folds of its operand are declined or documented (`t07`). Done when every `DIFF` row in `tcl-areas-head/rewrites-executed.tsv` is gone.
+154. Regex engine: `RegexEngine::exec` (`tcl-cmd-core/src/regex.rs:321`) and `AreEngine` (`tcl-regex/src/cmd_core.rs:74`) match from the restart offset with no left context, keeping `notbol` for `^`; release-keyed REG_* error texts in `tcl-regex/src/defs.rs` with the copies in `tcl-cmd-core/src/regex.rs` and `runtime/rust/src/cmd_switch.rs` deleted; `lsearch -glob` and `string_match_bytes` match non-UTF-8 values by their own units. Done when `r10`, `r13`, `r14`, `r16` match tclsh 8.4–9.1 in both engines and the folder.
+155. VM crashes and silent exits: `scan`/`split` of a lone surrogate (`tcl-vm/src/value/string_rendering.rs:36` panics), `encoding system nosuch` inside `catch` (exit 1, no message), `interp cancel` on an idle child (exit 1), 9.1 `lseq` (exit 1), and the runtime's 9.0 NUL in `scan \x00 %c`. Done when `e05`, `e12`, `e15` (encodings), `i06` and the `lseq` fixture behave as tclsh in both engines.
+156. POSIX and lookup error codes: route `open`, `cd`, `file`, `glob`, `exec` and channel failures through the `HostError` → `POSIX errno msg` mapping (`tcl-cmd-core/src/encoding/original_names.rs:177`) in both engines; the runtime reports `TCL LOOKUP VARNAME name` for failed reads and sets an errorCode for `$x`; `errorCode` survives `interp eval` in the runtime. Done when `e08`, `e19`, `e31`, `e32`, `sv06`, `sv16` and `i12` match tclsh 8.6/9.0.
+157. Other engine wrong answers: VM TclOO `unknown` method dispatch (`tcl-vm/src/cmd_oo/method_resolution.rs:291`, `u10`); runtime `namespace import` calls `auto_import` (`u12`); `tcl_interactive`/`tcl_rcFileName` in file mode in both engines; VM 8.4 read-trace error escaping `catch` (`tr04`, `tr21`); `case` and the legacy `puts ch str nonewline` in 8.x mode; `scan %ld` beyond 64 bits; runtime `expr {0o10}` returning its spelling; 9.1 `cbrt` precision; runtime return-options key order and `-errorstack` frames; VM caught `thread::send` errors resurfacing from `vwait` (`t10`, `t11`); alias wrong-# args wording from 8.5 (`i15`); coroutine resume and `coroutine` usage texts from one owner (`NativeCoroutineResumeArity`). Done when each named fixture matches tclsh.
+
+Traces ([traces](traces-design.md)):
+
+158. One trace fact owner in binding: per-point trace registrations in the name world keyed by place and `CommandRef`, built from `TraceTransition`; `var_observability`'s `TRACED` flag, `variable_observation_names`, `outcome_defs::is_traced`, GVN's check and the four refactor checks become views or go.
+159. Trace firing as a call: each callback lowered as a deferred body unit whose frame-effect summary applies at every access or call that may fire it, so folds decline exactly where a callback may write and proceed elsewhere (`tr02`, `tr03`, `tr14`, `tr15`, `tr20`, `tr22`, `tr23`).
+160. W210 reads the registration's operations (a write-only trace does not make a later read defined; `trace add variable y write cb; puts $y` is reported); W214 reads the registry's appended callback arity for every trace callback (`tr02`–`tr04`, `tr13`); references and rename include `trace info execution|command f` (`tr10`, after a current-source re-check).
+161. Engine trace contract in `tcl-runtime-api` (registration, removal, `trace info` order, firing order) implemented by both engines, with the 23 fixtures as conformance rows for every release and Jim.
+
+Special and global variables ([special variables](special-variables-design.md)):
+
+162. W210 sees the error edge: binding's `materialise_error_storage` (`command_binding/compiled_preflight.rs:362`) defines `errorInfo`/`errorCode` on the error edge of `catch`/`try` bodies in SSA (`sv16`, `e19`); 9.x has no global fallback for unqualified reads in `namespace eval` (`sv10`).
+163. One host start-up for both engines from `NativeBootstrapProtocol` plus a shared init that sets `tcl_interactive`, `tcl_rcFileName`, `argv`/`argc`/`argv0`, `auto_path` and `tcl_library` (delete `set_argv`, fold `set_startup_globals`); release-gated `tcl_platform` keys (no `ebpf`, `runtime`, `wasi*`, `wasm` outside a test overlay; per-release key sets).
+164. One startup-existence query in the registry (`startup_existence(name, release)`), with the pack-blind free functions in `dead_stores.rs`, `unused_bindings.rs` and `existence_branches.rs` removed and a gate against `special_vars::is_*` outside the registry; hover and completion of special variables by the selected release (no `tcl_precision` hover under 9.0; 8.4's seven `tcl_platform` keys); rosters for `tclDefaultLibrary`, Jim and Tk.
+165. Precision as a whole-program fact: the "program writes `tcl_precision`" fact from the name world instead of a byte search, failing closed when absent, and read by O100/O101 as well as value transfer (the case did not reproduce on the current source; keep `sv18` and the Tcl 9 page's case as regression rows).
+
+Coroutines ([coroutines](coroutines-design.md)):
+
+166. Created commands at nested sites: publish the command named by `defines_command_at` for invocations inside command substitutions as for statements (`command_binding`, `resolved_invocation/source_definitions.rs`), so `puts [coroutine c g]; c` is clean (`co01`, `co02`, `co03`, `co05`, `co10`–`co12`); definition and hover on a resume reach the `coroutine` invocation; resume arity (at most one value after `yield`) checked from a coroutine contract.
+167. Generators are not W241: a `SUSPENDS_ACTIVATION` effect on `yield`/`yieldto` leaves the activation for the loop-exit rule (`analyser/bounds_checks.rs`); one registry query for "ends the activation" and one for "suspends" shared by `cfg_builder/flow_facts.rs` and `tcl-lsp-core/src/source_graph/sequence_capture.rs:139`.
+168. A coroutine entry context for the static `Frame` and suspension points in lowering and SSA (locals kept, globals and the name world invalidated across `yield`); one resume-arity owner for both engines; WASM coroutines implemented or refused at compile time as a recorded non-goal.
+
+Event loop and deferred code ([event loop](event-loop-design.md)):
+
+169. One deferral descriptor: `BodyExecutionSpec::DeferredGlobalScript` (entry frame and trigger) as the only stated fact, with `DEFERS_BODY`, `BodyKind::Structural`, `script_timing` and `script_body_flow` derived; `future_bodies.rs` walks `fileevent`, `bind` and trace callbacks as well as `after`; delete the uncompiled `commands/tcl/fileevent_.rs`.
+170. W210 and W220 read `DeferredWrites` at wait points (`vwait`, `update`), and deferred reads of names nothing writes are reported (`ev12`); the false W210/W220 rows did not reproduce on the current source, so `ev02`, `ev03`, `ev08`, `ev10`, `ev11` become regression rows.
+171. One event-loop driver in `tcl-cmd-core/src/event.rs` behind a host trait (`service_ready`, `process_one`, the `vwait` loop, background-error dispatch), shrinking both `cmd_event.rs` files to registration; `chan` and `fileevent` in the VM or a recorded non-goal; profile the debug VM's 35 ms event turn.
+
+Errors and return codes ([error handling](error-handling-design.md)):
+
+172. Completion codes from the registry: intercept and convert sets on the effect descriptors of `catch`, `try`, loops, `switch`, `eval`, `uplevel` and procedure calls, with `CompletionCodeLattice` replacing `flow_facts::Completion` and `try_construct.rs`'s special cases falling out of the model (keeping the #2142 fixtures green).
+173. Diagnostics from that model: `break`/`continue` reaching a procedure or script boundary (`e04`, `e12`, `e22`), custom codes reaching the top level, unreachable commands as a hint sharing O107's facts (`e14`); fix the `catch`-wrapped `for` W210 (`e25`) and the `catch` result-variable W210 (`e15`); 8.4's one-variable `catch`; one W002/W123 policy (8.5 `try`/`throw`/`lmap` give W002 only).
+174. One owner for completion-code words, `trap` prefix matching and the return-option factories in `tcl-cmd-core` (replacing VM `cmd_try.rs:164`, runtime `cmd_error.rs:777`/`:790`/`:1150`, registry `completion.rs:54`/`:128`, `tcl-diagram/src/data.rs:633` and both `native_return_merge.rs` factories); one completion-code type (delete the runtime's `interp::Code`); retire the ~55 `Statement::Catch`/`Try` matchers onto the annotated command's intercepted codes with an only-shrinks ratchet; correct `break_.rs:57`'s documentation.
+
+`unknown` and autoloading ([unknown and autoload](unknown-autoload-design.md)):
+
+175. W123 from one owner: commands defined through `auto_index` and `tclIndex` are present (`u04`, `u14`); `namespace unknown` handlers scoped per namespace from the per-point world, not a file-wide flag; the server's `command_refinement.rs` W123 filter folded into binding as a package-database provider giving `Answer::Unknown` with a reason; a procedure summary for user `unknown` procs (accepts every name, chains, unknown) replacing `analyser/oo/unknown_proc.rs`; "did you mean" from command names only (no `le` for `ls`, no `!`).
+176. One `tclIndex`/`auto_index` reader shared by `package_resolver.rs:452`, `original_names/index_loader.rs` and analysed `set auto_index(…)` rows; navigation and hover through autoload receipts moved from `tcl-lsp-server/src/navigation/` into `tcl-lsp-core` so MCP and the CLI follow them; fixed-signature descriptors for ensemble `-unknown`, `namespace unknown` and the TclOO `unknown` method (W214 on `u09`), with the method name read from the TclOO profile instead of the literal `"unknown"`.
+177. The runtime runner loads the standard library by default (or the harness passes `--init`); measure the VM's `auto_mkindex` and child-interpreter cost (17–20 s and about 1 s per `interp create` in debug).
+
+Multiple interpreters ([interpreters](interps-design.md)):
+
+178. Engines: VM `interp share`/`transfer` implemented or a catchable error; runtime parent→child aliases, command-limit enforcement, `share`/`transfer`/`cancel`; unimplemented subcommands fail as catchable Tcl errors naming the subcommand (no "native handler policy is not selected"); `safe::` available in the runtime runner; an `Interpreters` engine trait in `tcl-runtime-api` with the subcommand table, path resolution and hide/expose code behind it.
+179. Analysis: interpreter selectors on every `interp` word that takes a command, script or variable (`eval`, `alias`, `bgerror`, `hide`, `expose`, `invokehidden`, `limit -command`, `target`, the child-command ensemble) in the registry's evaluation-context descriptors; one `interp create` reader (delete `parse_interp_create_words` and `interp_path_key`; never apply the synopsis quick fix that deletes `-safe`); child bodies as body units in their own interpreter world; `safe::*` auto-loadable without `package require` (`i09` W120); W312 only where injection is possible.
+180. Editor features read the selector: alias target words resolve in the target interpreter, `bgerror` handlers in the child, references and rename stay within one interpreter and refuse with a reason when it is unknown (re-run the navigation table on the current source first; several analyser rows did not reproduce).
+
+`exec` and pipelines ([exec](exec-design.md)):
+
+181. Stop the VM running the wrong program until pipelines exist: `exec` raises a catchable error for operator words, switches and `&`, honours `-keepnewline`/`--`, strips one newline, and raises `child process exited abnormally` with `CHILDSTATUS` on a non-zero exit and an error on unredirected stderr (`tcl-cmd-core/src/platform.rs`).
+182. One pipeline grammar in `tcl-syntax` with per-release operator and switch tables in the registry `exec` spec, pinned by vectors from tclsh 8.4–9.1 and Jim, used by `open_.rs:139`, `source_paths.rs` and `cmd_chan.rs:168` instead of first-byte tests; host pipelines (a `Process` operation returning output, status, stderr and pids) for both engines, or a recorded non-goal with a refusal naming the engine (not "WASM").
+183. Diagnostics: dangling or leading `|`, a redirection without a target, an unknown switch, `&` not last; redirection injection for substituted words not proven free of operator prefixes (hint untainted, warning tainted, `--` noted as not protecting); find why taint reports nothing for `exec sh -c [gets stdin]`, `socket $user 80` and `interp eval $c $user` under 9.0 and add regression tests; re-rank W103 so `open |[list …]` with literal elements is a hint; fold the unsafe-command rosters in `tcl-spec-hooks` and `irules_policy.rs` into registry traits.
+
+Threads and newer subsystems ([threads and subsystems](threads-subsystems-design.md)):
+
+184. VM Thread as a package (`package ifneeded Thread`, commands installed on `package require`, `package provide Thread` answers), with the leaked `thread::send` error fixed; a registry Thread profile (`thread::*`, `tsv::*`, `tpool::*`, `thread::send` scripts as cross-world bodies, `tsv` as shared state) so W120 fires without `package require Thread` (`t09`) and hover works; delete `is_unregistered_thread_command` (`bpf-tcl-ir/src/lower.rs:1216`).
+185. One generated release roster for `tcl::process`, `zipfs`, `tcl::build-info`, `timerate` and `tcl::unsupported::*` (no runtime `::timerate` under 8.6; one diagnostic for `zipfs` under 8.6, not W002 plus W123); `tcl::process` and background pids after host pipelines; `zipfs` or a recorded non-goal; `tcl_platform(threaded)` and `build-info threaded` from one fact; the missing `tcl::unsupported` commands as recorded non-goals with specs; Thread installed for 8.6 in the oracle set.
+
+Encodings and channels ([encodings and channels](encodings-channels-design.md)):
+
+186. A `Channels` trait in `tcl-runtime-api` and one input path in `tcl-cmd-core/src/channel.rs` (translation, eofchar, codec with profile, character counts) used by both engines' reads, deleting their lossy and raw paths; `chan` in the VM and `chan names/pending/pipe` in the runtime, or recorded non-goals (`e07`, `e09`, `e11`, `e13`, `e14`).
+187. One script reader in `tcl-cmd-core` (BOM, CRLF, lone CR, Ctrl-Z, release and system-encoding rules) used by `tcl-vm-cli`, `run_script` and `source`, and by the LSP's `source_decode.rs` with the dialect passed (no pinned `V8_6`/`tcl8`); BOM rule over (release, system encoding) so 8.6 with UTF-8 gives no W123 on a leading BOM; W107 worded by release; Ctrl-Z modelled in the lexer with a hint for text after it.
+188. One encoding catalogue generated from each release's `library/encoding` (names, `SystemEncoding`/`ChannelEncoding` as projections), one `encoding` subcommand table for both engines and the registry (runtime `encoding profiles` on 9.0); checked value grammars with release gates for `-translation`, `-profile`, `-eofchar` and `-encoding`; channel handles as instance values (creation, closure, configuration) with W103 reading the `open` argument's value.
+
+Regular expressions and patterns ([regex and patterns](regex-patterns-design.md)):
+
+189. Lower `switch` with `-matchvar`/`-indexvar` as writes of those variables before each selected body from the registry's selection effects (`lowering/structured.rs:204`, `value_transfer/selection.rs:588`), so `r11` gives no W210 and rename, references and definition work on them; an invalid-pattern diagnostic over the shared `tcl-regex` parse for literal patterns and argument-shape errors (`-inline` with match variables, `-matchvar` without `-regexp`).
+190. Rewrite W303 over the `tcl-regex` parse with measured slow cases (or retire it), so `{\(a|b\)+}` is clean; name and document the two Tcl glob matchers (`Tcl_StringCaseMatch` and the C-unit name matcher) and mark `tcl-cli`'s `glob_matches` and `dynamic_names::pattern_matches` as non-Tcl in the walker manifest.
+
+Tcl 8.6 → 9.0/9.1 changes ([Tcl 9 changes](tcl9-changes-design.md)):
+
+191. One TIP 278 fact (`tcl-dialect/src/version/release_behaviour.rs:35` and `profile/engine_policy.rs:35` disagree for profiles with no base release), used by references and rename so renaming `::x` under 8.6 includes `namespace eval ns {set x …}` writes (re-run the rename row on the current source first).
+192. Meaning-change diagnostics from release facts: `08` and `#` inside `expr` before 9.0, a leading `~` in paths under 9.0, the removed `binary` encoding name, writes to a `const`, `lseq 0 {1+2}`, `regexp \z` before 9.1 (`TclVersion::regex_z_anchor`); effect descriptors for the new mutators (`encoding -failindex` writes its variable, `ledit`, `lremove`, `lseq`); release-aware hover prose (`file_.rs:1007` still describes tilde expansion).
+193. Fill the engine rosters or record non-goals: `lfilter` and `unicode` (9.1) in both, and `chan`, `zipfs`, `tcl::process`, `oo::singleton` (VM), `fpclassify`, `zipfs`, `tcl::process`, `oo::define::classmethod` (runtime); conformance rows for every change in the page's table.
+
+Comments and continuations ([comments and continuations](comments-continuations-design.md)):
+
+194. Runtime CRLF: translate CRLF when reading scripts and in `source`, so a backslash before CRLF continues as in tclsh and the VM (with the script reader above); W115 from the lexer instead of `ends_with('\\')` (`tcl-lsp-core/src/source_style.rs:406`/`:422`); delete the text-level comment scanners (`inert_text.rs:89`, `nested_invocations.rs:925`, `source_style.rs`) in favour of the lexer-based `script_comments.rs`, with a gate; one "switch body has a comment" rule for both engines.
+195. Diagnostics: an odd-length `switch` body caused by a `#` line, a `#` line inside `switch`, `array set`, `dict create` or `foreach` data (it is data, not a comment), `#` in `expr` before 9.0; message fixes ("close-brace", no `!` suggestion); docstrings that exclude a swallowed `proc` line; the VM's error line for `c20`; the MCP analyse tool runs the same style checks as the server.
+
+Jim ([Jim](jim-design.md)):
+
+196. Decide Jim execution: expose a Jim mode in `tclvm`/`run_script` and share the ~10 parallel engine Jim modules, or record Jim execution as a non-goal and keep Jim as an analysis dialect only; implement references and GC as one kernel feature only if execution is kept; add a `jim` analysis profile reachable from `DialectProfile::find` and the MCP dialect list.
+197. Jim analysis: effect descriptors for `local`, `upcall`, `alias`, `curry`, `defer` and procedure statics so navigation follows them; fix the false W210 on statics (and its Rust `Debug` message), W001 on Jim `string` subcommands, W214 on finalizer parameters and W211 on `exists`-tested variables; one declaration route for Jim commands (`alias_.rs`, `exists_.rs` versus the tclspec pack).
+
+Across the fourteen areas:
+
+198. Conformance: turn every area's fixtures and `engines.tsv` into rows run by both engines (8.4–9.1 pins where relevant, Jim where relevant) and by the analyser, optimiser (executed before and after) and LSP features, regenerating `tcl-areas-head/` instead of hand-written `analyser-mcp.out` files.
+199. MCP freshness: the MCP server reports its build stamp and source revision in every result, and the repository's MCP configuration rebuilds it from source (or refuses when stale), so tool results are current (the audits' cached build was three days behind).
 
 Open questions for the BIG-IP and iRules data (to settle in a separate session, before items 107, 111, 118 and 119 are implemented and before the iRules definitions are checked like items 123–131):
 

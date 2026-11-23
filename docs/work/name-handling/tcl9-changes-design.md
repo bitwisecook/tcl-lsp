@@ -96,3 +96,7 @@ Conformance: `engines.tsv` is a vector table. Its rows become conformance-matrix
 - **Effect descriptors for the new mutators.** Declare in the registry that `const` makes a read-only cell, that `array default` changes missing-key reads, that `lpop`/`ledit`/`lremove` and `encoding -failindex` write their variable argument, and that `info constant` reads. Then W210 stops firing on t08 and a write to a constant is reported. Owner: `tcl-registry` effect data (decision 6).
 - **Release-aware hover prose.** Make `file`'s hover (`tcl-registry/src/commands/tcl/file_.rs:1007`) and any other hover that states a release-specific behaviour come from a release-keyed snippet, as `filename.rs:63` already does.
 - **Conformance rows.** Move `oo-dispatch-probe/tcl9-changes/` into the conformance matrix (fault 5) with columns tclsh 8.4–9.1, the VM, the runtime, the analyser's codes per dialect and the optimiser's rewrite. Add a lint that every `TclVersion`/`DialectProfile` release fact is named by at least one row.
+
+## Status on the current source
+
+Not reproduced on the current source: the 8.6 `tcl_precision` rewrite. Navigation and rename rows were not re-run. Details: [audit summary](tcl-areas-audit.md) and [`tcl-areas-head/`](handover/oo-dispatch-probe/tcl-areas-head/). Plan items 153–199.

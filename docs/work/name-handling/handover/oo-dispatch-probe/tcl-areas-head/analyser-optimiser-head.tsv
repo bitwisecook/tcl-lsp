@@ -1,0 +1,1012 @@
+D	traces	tr01-write-args.tcl	tcl8.6	
+O	traces	tr01-write-args.tcl	tcl8.6	
+D	traces	tr01-write-args.tcl	tcl9.0	
+O	traces	tr01-write-args.tcl	tcl9.0	
+D	traces	tr02-read-changes-value.tcl	tcl8.6	W214@2:Parameter 'n2' of proc '::bump' is unused | W214@2:Parameter 'op' of proc '::bump' is unused
+O	traces	tr02-read-changes-value.tcl	tcl8.6	
+D	traces	tr02-read-changes-value.tcl	tcl9.0	W214@2:Parameter 'n2' of proc '::bump' is unused | W214@2:Parameter 'op' of proc '::bump' is unused
+O	traces	tr02-read-changes-value.tcl	tcl9.0	
+D	traces	tr03-write-changes-value.tcl	tcl8.6	W214@2:Parameter 'n2' of proc '::clamp' is unused | W214@2:Parameter 'op' of proc '::clamp' is unused
+O	traces	tr03-write-changes-value.tcl	tcl8.6	
+D	traces	tr03-write-changes-value.tcl	tcl9.0	W214@2:Parameter 'n2' of proc '::clamp' is unused | W214@2:Parameter 'op' of proc '::clamp' is unused
+O	traces	tr03-write-changes-value.tcl	tcl9.0	
+D	traces	tr04-trace-error.tcl	tcl8.6	W214@2:Parameter 'n1' of proc '::boom' is unused | W214@2:Parameter 'n2' of proc '::boom' is unused
+O	traces	tr04-trace-error.tcl	tcl8.6	
+D	traces	tr04-trace-error.tcl	tcl9.0	W214@2:Parameter 'n1' of proc '::boom' is unused | W214@2:Parameter 'n2' of proc '::boom' is unused
+O	traces	tr04-trace-error.tcl	tcl9.0	
+D	traces	tr05-unset-trace.tcl	tcl8.6	
+O	traces	tr05-unset-trace.tcl	tcl8.6	
+D	traces	tr05-unset-trace.tcl	tcl9.0	
+O	traces	tr05-unset-trace.tcl	tcl9.0	
+D	traces	tr06-array-op-trace.tcl	tcl8.6	
+O	traces	tr06-array-op-trace.tcl	tcl8.6	
+D	traces	tr06-array-op-trace.tcl	tcl9.0	
+O	traces	tr06-array-op-trace.tcl	tcl9.0	
+D	traces	tr07-trace-info-remove.tcl	tcl8.6	
+O	traces	tr07-trace-info-remove.tcl	tcl8.6	
+D	traces	tr07-trace-info-remove.tcl	tcl9.0	
+O	traces	tr07-trace-info-remove.tcl	tcl9.0	
+D	traces	tr08-legacy-syntax.tcl	tcl8.6	W144@4:Subcommand 'variable' on 'trace' is deprecated as  | W144@5:Subcommand 'vinfo' on 'trace' is deprecated as of  | W144@7:Subcommand 'vdelete' on 'trace' is deprecated as o
+O	traces	tr08-legacy-syntax.tcl	tcl8.6	
+D	traces	tr08-legacy-syntax.tcl	tcl9.0	W002@4:'trace variable' is disabled in the active dialect | W002@5:'trace vinfo' is disabled in the active dialect pr | W002@7:'trace vdelete' is disabled in the active dialect 
+O	traces	tr08-legacy-syntax.tcl	tcl9.0	
+D	traces	tr09-command-trace.tcl	tcl8.6	
+O	traces	tr09-command-trace.tcl	tcl8.6	
+D	traces	tr09-command-trace.tcl	tcl9.0	
+O	traces	tr09-command-trace.tcl	tcl9.0	
+D	traces	tr10-execution-enter-leave.tcl	tcl8.6	
+O	traces	tr10-execution-enter-leave.tcl	tcl8.6	
+D	traces	tr10-execution-enter-leave.tcl	tcl9.0	
+O	traces	tr10-execution-enter-leave.tcl	tcl9.0	
+D	traces	tr11-execution-step.tcl	tcl8.6	
+O	traces	tr11-execution-step.tcl	tcl8.6	
+D	traces	tr11-execution-step.tcl	tcl9.0	
+O	traces	tr11-execution-step.tcl	tcl9.0	
+D	traces	tr12-callback-frame.tcl	tcl8.6	W214@2:Parameter 'n2' of proc '::cb' is unused | W214@2:Parameter 'op' of proc '::cb' is unused
+O	traces	tr12-callback-frame.tcl	tcl8.6	
+D	traces	tr12-callback-frame.tcl	tcl9.0	W214@2:Parameter 'n2' of proc '::cb' is unused | W214@2:Parameter 'op' of proc '::cb' is unused
+O	traces	tr12-callback-frame.tcl	tcl9.0	
+D	traces	tr13-read-creates.tcl	tcl8.6	W214@2:Parameter 'n2' of proc '::mk' is unused | W214@2:Parameter 'op' of proc '::mk' is unused
+O	traces	tr13-read-creates.tcl	tcl8.6	
+D	traces	tr13-read-creates.tcl	tcl9.0	W214@2:Parameter 'n2' of proc '::mk' is unused | W214@2:Parameter 'op' of proc '::mk' is unused
+O	traces	tr13-read-creates.tcl	tcl9.0	
+D	traces	tr14-dead-store.tcl	tcl8.6	W214@2:Parameter 'n2' of proc '::log' is unused | W214@2:Parameter 'op' of proc '::log' is unused
+O	traces	tr14-dead-store.tcl	tcl8.6	
+D	traces	tr14-dead-store.tcl	tcl9.0	W214@2:Parameter 'n2' of proc '::log' is unused | W214@2:Parameter 'op' of proc '::log' is unused
+O	traces	tr14-dead-store.tcl	tcl9.0	
+D	traces	tr15-trace-order-recursion.tcl	tcl8.6	W214@2:Parameter 'n2' of proc '::a' is unused | W214@2:Parameter 'op' of proc '::a' is unused | W214@3:Parameter 'n1' of proc '::b' is unused | W214@3:Parameter 'n2' of proc '::b' is unused | W214@3:Parameter 'op' of proc '::b' is unused
+O	traces	tr15-trace-order-recursion.tcl	tcl8.6	
+D	traces	tr15-trace-order-recursion.tcl	tcl9.0	W214@2:Parameter 'n2' of proc '::a' is unused | W214@2:Parameter 'op' of proc '::a' is unused | W214@3:Parameter 'n1' of proc '::b' is unused | W214@3:Parameter 'n2' of proc '::b' is unused | W214@3:Parameter 'op' of proc '::b' is unused
+O	traces	tr15-trace-order-recursion.tcl	tcl9.0	
+D	traces	tr16-trace-on-undefined.tcl	tcl8.6	W214@2:Parameter 'n1' of proc '::cb' is unused | W214@2:Parameter 'n2' of proc '::cb' is unused
+O	traces	tr16-trace-on-undefined.tcl	tcl8.6	
+D	traces	tr16-trace-on-undefined.tcl	tcl9.0	W214@2:Parameter 'n1' of proc '::cb' is unused | W214@2:Parameter 'n2' of proc '::cb' is unused
+O	traces	tr16-trace-on-undefined.tcl	tcl9.0	
+D	traces	tr17-namespace-and-global.tcl	tcl8.6	
+O	traces	tr17-namespace-and-global.tcl	tcl8.6	
+D	traces	tr17-namespace-and-global.tcl	tcl9.0	
+O	traces	tr17-namespace-and-global.tcl	tcl9.0	
+D	traces	tr18-command-trace-callback-redefines.tcl	tcl8.6	W214@3:Parameter 'cmd' of proc '::swap' is unused | W214@3:Parameter 'op' of proc '::swap' is unused
+O	traces	tr18-command-trace-callback-redefines.tcl	tcl8.6	
+D	traces	tr18-command-trace-callback-redefines.tcl	tcl9.0	W214@3:Parameter 'cmd' of proc '::swap' is unused | W214@3:Parameter 'op' of proc '::swap' is unused
+O	traces	tr18-command-trace-callback-redefines.tcl	tcl9.0	
+D	traces	tr19-leave-cannot-change-result.tcl	tcl8.6	W214@3:Parameter 'cmd' of proc '::lv' is unused | W214@3:Parameter 'code' of proc '::lv' is unused | W214@3:Parameter 'op' of proc '::lv' is unused | W214@3:Parameter 'res' of proc '::lv' is unused
+O	traces	tr19-leave-cannot-change-result.tcl	tcl8.6	
+D	traces	tr19-leave-cannot-change-result.tcl	tcl9.0	W214@3:Parameter 'cmd' of proc '::lv' is unused | W214@3:Parameter 'code' of proc '::lv' is unused | W214@3:Parameter 'op' of proc '::lv' is unused | W214@3:Parameter 'res' of proc '::lv' is unused
+O	traces	tr19-leave-cannot-change-result.tcl	tcl9.0	
+D	traces	tr20-builtin-exec-trace.tcl	tcl8.6	W214@2:Parameter 'op' of proc '::en' is unused
+O	traces	tr20-builtin-exec-trace.tcl	tcl8.6	O129,O129
+D	traces	tr20-builtin-exec-trace.tcl	tcl9.0	W214@2:Parameter 'op' of proc '::en' is unused
+O	traces	tr20-builtin-exec-trace.tcl	tcl9.0	O129,O129
+D	traces	tr21-read-error-top-level.tcl	tcl8.6	W210@5:Variable 'q' is read before it is set | W214@2:Parameter 'n1' of proc '::boom' is unused | W214@2:Parameter 'n2' of proc '::boom' is unused
+O	traces	tr21-read-error-top-level.tcl	tcl8.6	
+D	traces	tr21-read-error-top-level.tcl	tcl9.0	W210@5:Variable 'q' is read before it is set | W214@2:Parameter 'n1' of proc '::boom' is unused | W214@2:Parameter 'n2' of proc '::boom' is unused
+O	traces	tr21-read-error-top-level.tcl	tcl9.0	
+D	traces	tr22-exec-trace-writes-variable.tcl	tcl8.6	W214@2:Parameter 'cmd' of proc '::cb' is unused | W214@2:Parameter 'op' of proc '::cb' is unused
+O	traces	tr22-exec-trace-writes-variable.tcl	tcl8.6	
+D	traces	tr22-exec-trace-writes-variable.tcl	tcl9.0	W214@2:Parameter 'cmd' of proc '::cb' is unused | W214@2:Parameter 'op' of proc '::cb' is unused
+O	traces	tr22-exec-trace-writes-variable.tcl	tcl9.0	
+D	traces	tr23-trace-callback-writes-other.tcl	tcl8.6	
+O	traces	tr23-trace-callback-writes-other.tcl	tcl8.6	
+D	traces	tr23-trace-callback-writes-other.tcl	tcl9.0	
+O	traces	tr23-trace-callback-writes-other.tcl	tcl9.0	
+D	special-variables	sv01-startup-roster.tcl	tcl8.6	
+O	special-variables	sv01-startup-roster.tcl	tcl8.6	
+D	special-variables	sv01-startup-roster.tcl	tcl9.0	
+O	special-variables	sv01-startup-roster.tcl	tcl9.0	
+D	special-variables	sv02-info-globals.tcl	tcl8.6	
+O	special-variables	sv02-info-globals.tcl	tcl8.6	
+D	special-variables	sv02-info-globals.tcl	tcl9.0	
+O	special-variables	sv02-info-globals.tcl	tcl9.0	
+D	special-variables	sv03-values.tcl	tcl8.6	
+O	special-variables	sv03-values.tcl	tcl8.6	
+D	special-variables	sv03-values.tcl	tcl9.0	
+O	special-variables	sv03-values.tcl	tcl9.0	
+D	special-variables	sv04-platform-keys.tcl	tcl8.6	
+O	special-variables	sv04-platform-keys.tcl	tcl8.6	
+D	special-variables	sv04-platform-keys.tcl	tcl9.0	
+O	special-variables	sv04-platform-keys.tcl	tcl9.0	
+D	special-variables	sv05-precision.tcl	tcl8.6	
+O	special-variables	sv05-precision.tcl	tcl8.6	
+D	special-variables	sv05-precision.tcl	tcl9.0	
+O	special-variables	sv05-precision.tcl	tcl9.0	
+D	special-variables	sv06-errorinfo.tcl	tcl8.6	W233@6:Division by a provably-zero divisor — raises 'divi | W302@10:catch without a result variable silently swallows  | W302@12:catch without a result variable silently swallows  | W302@3:catch without a result variable silently swallows  | W302@6:catch without a result variable silently swallows  | W302@8:catch without a result variable silently swallows 
+O	special-variables	sv06-errorinfo.tcl	tcl8.6	
+D	special-variables	sv06-errorinfo.tcl	tcl9.0	W233@6:Division by a provably-zero divisor — raises 'divi | W302@10:catch without a result variable silently swallows  | W302@12:catch without a result variable silently swallows  | W302@3:catch without a result variable silently swallows  | W302@6:catch without a result variable silently swallows  | W302@8:catch without a result variable silently swallows 
+O	special-variables	sv06-errorinfo.tcl	tcl9.0	
+D	special-variables	sv07-env.tcl	tcl8.6	W210@7:Variable 'env(TCL_LSP_PROBE)' is read before it is
+O	special-variables	sv07-env.tcl	tcl8.6	
+D	special-variables	sv07-env.tcl	tcl9.0	W210@7:Variable 'env(TCL_LSP_PROBE)' is read before it is
+O	special-variables	sv07-env.tcl	tcl9.0	
+D	special-variables	sv08-wordchars.tcl	tcl8.6	
+O	special-variables	sv08-wordchars.tcl	tcl8.6	
+D	special-variables	sv08-wordchars.tcl	tcl9.0	
+O	special-variables	sv08-wordchars.tcl	tcl9.0	
+D	special-variables	sv09-proc-shadow.tcl	tcl8.6	
+O	special-variables	sv09-proc-shadow.tcl	tcl8.6	
+D	special-variables	sv09-proc-shadow.tcl	tcl9.0	
+O	special-variables	sv09-proc-shadow.tcl	tcl9.0	
+D	special-variables	sv10-namespace-eval-read.tcl	tcl8.6	
+O	special-variables	sv10-namespace-eval-read.tcl	tcl8.6	
+D	special-variables	sv10-namespace-eval-read.tcl	tcl9.0	
+O	special-variables	sv10-namespace-eval-read.tcl	tcl9.0	
+D	special-variables	sv11-unset-special.tcl	tcl8.6	
+O	special-variables	sv11-unset-special.tcl	tcl8.6	
+D	special-variables	sv11-unset-special.tcl	tcl9.0	
+O	special-variables	sv11-unset-special.tcl	tcl9.0	
+D	special-variables	sv12-write-only.tcl	tcl8.6	
+O	special-variables	sv12-write-only.tcl	tcl8.6	
+D	special-variables	sv12-write-only.tcl	tcl9.0	
+O	special-variables	sv12-write-only.tcl	tcl9.0	
+D	special-variables	sv13-argv-argc.tcl	tcl8.6	
+O	special-variables	sv13-argv-argc.tcl	tcl8.6	
+D	special-variables	sv13-argv-argc.tcl	tcl9.0	
+O	special-variables	sv13-argv-argc.tcl	tcl9.0	
+D	special-variables	sv14-errorinfo-write-before-error.tcl	tcl8.6	W302@3:catch without a result variable silently swallows  | W302@6:catch without a result variable silently swallows 
+O	special-variables	sv14-errorinfo-write-before-error.tcl	tcl8.6	O102,O118
+D	special-variables	sv14-errorinfo-write-before-error.tcl	tcl9.0	W302@3:catch without a result variable silently swallows  | W302@6:catch without a result variable silently swallows 
+O	special-variables	sv14-errorinfo-write-before-error.tcl	tcl9.0	O102,O118
+D	special-variables	sv15-tk-globals.tcl	tcl8.6	
+O	special-variables	sv15-tk-globals.tcl	tcl8.6	
+D	special-variables	sv15-tk-globals.tcl	tcl9.0	
+O	special-variables	sv15-tk-globals.tcl	tcl9.0	
+D	special-variables	sv16-lookup-errorcode.tcl	tcl8.6	W210@2:Variable 'errorCode' is read before it is set | W302@2:catch without a result variable silently swallows  | W302@3:catch without a result variable silently swallows 
+O	special-variables	sv16-lookup-errorcode.tcl	tcl8.6	
+D	special-variables	sv16-lookup-errorcode.tcl	tcl9.0	W210@2:Variable 'errorCode' is read before it is set | W302@2:catch without a result variable silently swallows  | W302@3:catch without a result variable silently swallows 
+O	special-variables	sv16-lookup-errorcode.tcl	tcl9.0	
+D	special-variables	sv17-error-vars-across-catch.tcl	tcl8.6	W302@3:catch without a result variable silently swallows  | W302@6:catch without a result variable silently swallows 
+O	special-variables	sv17-error-vars-across-catch.tcl	tcl8.6	O102,O118
+D	special-variables	sv17-error-vars-across-catch.tcl	tcl9.0	W302@3:catch without a result variable silently swallows  | W302@6:catch without a result variable silently swallows 
+O	special-variables	sv17-error-vars-across-catch.tcl	tcl9.0	O102,O118
+D	special-variables	sv18-precision-write.tcl	tcl8.6	
+O	special-variables	sv18-precision-write.tcl	tcl8.6	
+D	special-variables	sv18-precision-write.tcl	tcl9.0	
+O	special-variables	sv18-precision-write.tcl	tcl9.0	O102,O101
+D	special-variables	sv19-auto-path-write.tcl	tcl8.6	
+O	special-variables	sv19-auto-path-write.tcl	tcl8.6	
+D	special-variables	sv19-auto-path-write.tcl	tcl9.0	
+O	special-variables	sv19-auto-path-write.tcl	tcl9.0	
+D	coroutines	co01-generator.tcl	tcl8.6	W123@12:Unresolved command 'c' at this source point; did y | W241@5:while is provably infinite: condition is constant 
+O	coroutines	co01-generator.tcl	tcl8.6	
+D	coroutines	co01-generator.tcl	tcl9.0	W123@12:Unresolved command 'c' at this source point; did y | W241@5:while is provably infinite: condition is constant 
+O	coroutines	co01-generator.tcl	tcl9.0	
+D	coroutines	co02-coro-arity.tcl	tcl8.6	
+O	coroutines	co02-coro-arity.tcl	tcl8.6	
+D	coroutines	co02-coro-arity.tcl	tcl9.0	
+O	coroutines	co02-coro-arity.tcl	tcl9.0	
+D	coroutines	co03-info-coroutine.tcl	tcl8.6	
+O	coroutines	co03-info-coroutine.tcl	tcl8.6	
+D	coroutines	co03-info-coroutine.tcl	tcl9.0	
+O	coroutines	co03-info-coroutine.tcl	tcl9.0	
+D	coroutines	co04-coro-frame.tcl	tcl8.6	
+O	coroutines	co04-coro-frame.tcl	tcl8.6	
+D	coroutines	co04-coro-frame.tcl	tcl9.0	
+O	coroutines	co04-coro-frame.tcl	tcl9.0	
+D	coroutines	co05-rename-coro.tcl	tcl8.6	W123@4:Unresolved command 'a' at this source point; did y | W241@2:while is provably infinite: condition is constant 
+O	coroutines	co05-rename-coro.tcl	tcl8.6	
+D	coroutines	co05-rename-coro.tcl	tcl9.0	W123@4:Unresolved command 'a' at this source point; did y | W241@2:while is provably infinite: condition is constant 
+O	coroutines	co05-rename-coro.tcl	tcl9.0	
+D	coroutines	co06-yield-outside.tcl	tcl8.6	
+O	coroutines	co06-yield-outside.tcl	tcl8.6	
+D	coroutines	co06-yield-outside.tcl	tcl9.0	
+O	coroutines	co06-yield-outside.tcl	tcl9.0	
+D	coroutines	co07-coroinject.tcl	tcl8.6	W002@4:'coroprobe' is disabled in the active dialect prof
+O	coroutines	co07-coroinject.tcl	tcl8.6	
+D	coroutines	co07-coroinject.tcl	tcl9.0	
+O	coroutines	co07-coroinject.tcl	tcl9.0	
+D	coroutines	co08-tailcall.tcl	tcl8.6	W302@10:catch without a result variable silently swallows 
+O	coroutines	co08-tailcall.tcl	tcl8.6	
+D	coroutines	co08-tailcall.tcl	tcl9.0	W302@10:catch without a result variable silently swallows 
+O	coroutines	co08-tailcall.tcl	tcl9.0	
+D	coroutines	co09-tailcall-catch.tcl	tcl8.6	
+O	coroutines	co09-tailcall-catch.tcl	tcl8.6	O107
+D	coroutines	co09-tailcall-catch.tcl	tcl9.0	
+O	coroutines	co09-tailcall-catch.tcl	tcl9.0	O107
+D	coroutines	co10-coro-finish.tcl	tcl8.6	
+O	coroutines	co10-coro-finish.tcl	tcl8.6	
+D	coroutines	co10-coro-finish.tcl	tcl9.0	
+O	coroutines	co10-coro-finish.tcl	tcl9.0	
+D	coroutines	co11-coro-lambda.tcl	tcl8.6	E002@4:Too few arguments for 'coroutine': expected at lea | E002@5:Too few arguments for 'coroutine': expected at lea
+O	coroutines	co11-coro-lambda.tcl	tcl8.6	
+D	coroutines	co11-coro-lambda.tcl	tcl9.0	E002@4:Too few arguments for 'coroutine': expected at lea | E002@5:Too few arguments for 'coroutine': expected at lea
+O	coroutines	co11-coro-lambda.tcl	tcl9.0	
+D	coroutines	co12-coro-tailcall.tcl	tcl8.6	
+O	coroutines	co12-coro-tailcall.tcl	tcl8.6	
+D	coroutines	co12-coro-tailcall.tcl	tcl9.0	
+O	coroutines	co12-coro-tailcall.tcl	tcl9.0	
+D	coroutines	co13-coro-delete-from-inside.tcl	tcl8.6	
+O	coroutines	co13-coro-delete-from-inside.tcl	tcl8.6	
+D	coroutines	co13-coro-delete-from-inside.tcl	tcl9.0	
+O	coroutines	co13-coro-delete-from-inside.tcl	tcl9.0	
+D	event-loop	ev01-timer-order.tcl	tcl8.6	
+O	event-loop	ev01-timer-order.tcl	tcl8.6	
+D	event-loop	ev01-timer-order.tcl	tcl9.0	
+O	event-loop	ev01-timer-order.tcl	tcl9.0	
+D	event-loop	ev02-after-frame.tcl	tcl8.6	
+O	event-loop	ev02-after-frame.tcl	tcl8.6	
+D	event-loop	ev02-after-frame.tcl	tcl9.0	
+O	event-loop	ev02-after-frame.tcl	tcl9.0	
+D	event-loop	ev03-after-info-cancel.tcl	tcl8.6	
+O	event-loop	ev03-after-info-cancel.tcl	tcl8.6	
+D	event-loop	ev03-after-info-cancel.tcl	tcl9.0	
+O	event-loop	ev03-after-info-cancel.tcl	tcl9.0	
+D	event-loop	ev04-update-idletasks.tcl	tcl8.6	
+O	event-loop	ev04-update-idletasks.tcl	tcl8.6	
+D	event-loop	ev04-update-idletasks.tcl	tcl9.0	
+O	event-loop	ev04-update-idletasks.tcl	tcl9.0	
+D	event-loop	ev05-bgerror-proc.tcl	tcl8.6	
+O	event-loop	ev05-bgerror-proc.tcl	tcl8.6	
+D	event-loop	ev05-bgerror-proc.tcl	tcl9.0	
+O	event-loop	ev05-bgerror-proc.tcl	tcl9.0	
+D	event-loop	ev06-interp-bgerror.tcl	tcl8.6	
+O	event-loop	ev06-interp-bgerror.tcl	tcl8.6	
+D	event-loop	ev06-interp-bgerror.tcl	tcl9.0	
+O	event-loop	ev06-interp-bgerror.tcl	tcl9.0	
+D	event-loop	ev07-late-definition.tcl	tcl8.6	
+O	event-loop	ev07-late-definition.tcl	tcl8.6	
+D	event-loop	ev07-late-definition.tcl	tcl9.0	
+O	event-loop	ev07-late-definition.tcl	tcl9.0	
+D	event-loop	ev08-deferred-variable.tcl	tcl8.6	
+O	event-loop	ev08-deferred-variable.tcl	tcl8.6	O116
+D	event-loop	ev08-deferred-variable.tcl	tcl9.0	
+O	event-loop	ev08-deferred-variable.tcl	tcl9.0	O116
+D	event-loop	ev09-fileevent.tcl	tcl8.6	W103@2:open with a pipeline containing variable/command s
+O	event-loop	ev09-fileevent.tcl	tcl8.6	
+D	event-loop	ev09-fileevent.tcl	tcl9.0	W103@2:open with a pipeline containing variable/command s
+O	event-loop	ev09-fileevent.tcl	tcl9.0	
+D	event-loop	ev09b-chan-pipe.tcl	tcl8.6	
+O	event-loop	ev09b-chan-pipe.tcl	tcl8.6	
+D	event-loop	ev09b-chan-pipe.tcl	tcl9.0	
+O	event-loop	ev09b-chan-pipe.tcl	tcl9.0	
+D	event-loop	ev10-vwait-name.tcl	tcl8.6	
+O	event-loop	ev10-vwait-name.tcl	tcl8.6	
+D	event-loop	ev10-vwait-name.tcl	tcl9.0	
+O	event-loop	ev10-vwait-name.tcl	tcl9.0	
+D	event-loop	ev11-idle-reentry.tcl	tcl8.6	
+O	event-loop	ev11-idle-reentry.tcl	tcl8.6	
+D	event-loop	ev11-idle-reentry.tcl	tcl9.0	
+O	event-loop	ev11-idle-reentry.tcl	tcl9.0	
+D	event-loop	ev12-callback-in-proc-local.tcl	tcl8.6	W211@3:Variable 'local' is set but never used
+O	event-loop	ev12-callback-in-proc-local.tcl	tcl8.6	
+D	event-loop	ev12-callback-in-proc-local.tcl	tcl9.0	W211@3:Variable 'local' is set but never used
+O	event-loop	ev12-callback-in-proc-local.tcl	tcl9.0	
+D	event-loop	ev13-tk-bind.tcl	tcl8.6	
+O	event-loop	ev13-tk-bind.tcl	tcl8.6	
+D	event-loop	ev13-tk-bind.tcl	tcl9.0	
+O	event-loop	ev13-tk-bind.tcl	tcl9.0	
+D	event-loop	ev14-vwait-idle.tcl	tcl8.6	
+O	event-loop	ev14-vwait-idle.tcl	tcl8.6	
+D	event-loop	ev14-vwait-idle.tcl	tcl9.0	
+O	event-loop	ev14-vwait-idle.tcl	tcl9.0	
+D	event-loop	ev15-update-not-due.tcl	tcl8.6	W155@5:'-' binds tighter than '<', so this parses as `([c
+O	event-loop	ev15-update-not-due.tcl	tcl8.6	
+D	event-loop	ev15-update-not-due.tcl	tcl9.0	W155@5:'-' binds tighter than '<', so this parses as `([c
+O	event-loop	ev15-update-not-due.tcl	tcl9.0	
+D	event-loop	ev16-debug-vm-turn.tcl	tcl8.6	W211@2:Variable 't0' is set but never used
+O	event-loop	ev16-debug-vm-turn.tcl	tcl8.6	
+D	event-loop	ev16-debug-vm-turn.tcl	tcl9.0	W211@2:Variable 't0' is set but never used
+O	event-loop	ev16-debug-vm-turn.tcl	tcl9.0	
+D	errors-returns	e01-catch-codes.tcl	tcl8.6	
+O	errors-returns	e01-catch-codes.tcl	tcl8.6	
+D	errors-returns	e01-catch-codes.tcl	tcl9.0	
+O	errors-returns	e01-catch-codes.tcl	tcl9.0	
+D	errors-returns	e02-catch-options.tcl	tcl8.6	W155@2:'ne' binds tighter than '&&', so this parses as `$ | W155@2:'ne' binds tighter than '&&', so this parses as `(
+O	errors-returns	e02-catch-options.tcl	tcl8.6	
+D	errors-returns	e02-catch-options.tcl	tcl9.0	W155@2:'ne' binds tighter than '&&', so this parses as `$ | W155@2:'ne' binds tighter than '&&', so this parses as `(
+O	errors-returns	e02-catch-options.tcl	tcl9.0	
+D	errors-returns	e03-return-code-break-from-proc.tcl	tcl8.6	
+O	errors-returns	e03-return-code-break-from-proc.tcl	tcl8.6	
+D	errors-returns	e03-return-code-break-from-proc.tcl	tcl9.0	
+O	errors-returns	e03-return-code-break-from-proc.tcl	tcl9.0	
+D	errors-returns	e04-bare-break-in-proc.tcl	tcl8.6	W302@9:catch without a result variable silently swallows 
+O	errors-returns	e04-bare-break-in-proc.tcl	tcl8.6	
+D	errors-returns	e04-bare-break-in-proc.tcl	tcl9.0	W302@9:catch without a result variable silently swallows 
+O	errors-returns	e04-bare-break-in-proc.tcl	tcl9.0	
+D	errors-returns	e05-try-on-trap.tcl	tcl8.6	
+O	errors-returns	e05-try-on-trap.tcl	tcl8.6	
+D	errors-returns	e05-try-on-trap.tcl	tcl9.0	
+O	errors-returns	e05-try-on-trap.tcl	tcl9.0	
+D	errors-returns	e06-try-finally-overrides.tcl	tcl8.6	W307@8:Non-literal command name — cannot statically analy
+O	errors-returns	e06-try-finally-overrides.tcl	tcl8.6	
+D	errors-returns	e06-try-finally-overrides.tcl	tcl9.0	W307@8:Non-literal command name — cannot statically analy
+O	errors-returns	e06-try-finally-overrides.tcl	tcl9.0	
+D	errors-returns	e07-throw.tcl	tcl8.6	E002@4:Too few arguments for 'throw': expected at least 2
+O	errors-returns	e07-throw.tcl	tcl8.6	
+D	errors-returns	e07-throw.tcl	tcl9.0	E002@4:Too few arguments for 'throw': expected at least 2
+O	errors-returns	e07-throw.tcl	tcl9.0	
+D	errors-returns	e08-error-info-code.tcl	tcl8.6	W233@12:Division by a provably-zero divisor — raises 'divi
+O	errors-returns	e08-error-info-code.tcl	tcl8.6	
+D	errors-returns	e08-error-info-code.tcl	tcl9.0	W233@12:Division by a provably-zero divisor — raises 'divi
+O	errors-returns	e08-error-info-code.tcl	tcl9.0	
+D	errors-returns	e09-errorstack.tcl	tcl8.6	
+O	errors-returns	e09-errorstack.tcl	tcl8.6	
+D	errors-returns	e09-errorstack.tcl	tcl9.0	
+O	errors-returns	e09-errorstack.tcl	tcl9.0	
+D	errors-returns	e10-errorline.tcl	tcl8.6	
+O	errors-returns	e10-errorline.tcl	tcl8.6	
+D	errors-returns	e10-errorline.tcl	tcl9.0	
+O	errors-returns	e10-errorline.tcl	tcl9.0	
+D	errors-returns	e11-custom-codes.tcl	tcl8.6	
+O	errors-returns	e11-custom-codes.tcl	tcl8.6	
+D	errors-returns	e11-custom-codes.tcl	tcl9.0	
+O	errors-returns	e11-custom-codes.tcl	tcl9.0	
+D	errors-returns	e12-break-through-eval-uplevel.tcl	tcl8.6	W302@10:catch without a result variable silently swallows 
+O	errors-returns	e12-break-through-eval-uplevel.tcl	tcl8.6	
+D	errors-returns	e12-break-through-eval-uplevel.tcl	tcl9.0	W302@10:catch without a result variable silently swallows 
+O	errors-returns	e12-break-through-eval-uplevel.tcl	tcl9.0	
+D	errors-returns	e13-return-options.tcl	tcl8.6	
+O	errors-returns	e13-return-options.tcl	tcl8.6	
+D	errors-returns	e13-return-options.tcl	tcl9.0	
+O	errors-returns	e13-return-options.tcl	tcl9.0	
+D	errors-returns	e14-dead-after-control.tcl	tcl8.6	I230@6:Condition '1' is always true; the alternate branch | W302@7:catch without a result variable silently swallows  | W302@8:catch without a result variable silently swallows  | W302@8:catch without a result variable silently swallows 
+O	errors-returns	e14-dead-after-control.tcl	tcl8.6	O107,O112,O107,O107,O107,O107
+D	errors-returns	e14-dead-after-control.tcl	tcl9.0	I230@6:Condition '1' is always true; the alternate branch | W302@7:catch without a result variable silently swallows  | W302@8:catch without a result variable silently swallows  | W302@8:catch without a result variable silently swallows 
+O	errors-returns	e14-dead-after-control.tcl	tcl9.0	O107,O112,O107,O107,O107,O107
+D	errors-returns	e15-catch-defines-vars.tcl	tcl8.6	W210@2:Variable 'v' is read before it is set | W302@2:catch without a result variable silently swallows 
+O	errors-returns	e15-catch-defines-vars.tcl	tcl8.6	
+D	errors-returns	e15-catch-defines-vars.tcl	tcl9.0	W210@2:Variable 'v' is read before it is set | W302@2:catch without a result variable silently swallows 
+O	errors-returns	e15-catch-defines-vars.tcl	tcl9.0	
+D	errors-returns	e16-errorinfo-accumulation.tcl	tcl8.6	
+O	errors-returns	e16-errorinfo-accumulation.tcl	tcl8.6	
+D	errors-returns	e16-errorinfo-accumulation.tcl	tcl9.0	
+O	errors-returns	e16-errorinfo-accumulation.tcl	tcl9.0	
+D	errors-returns	e17-loop-body-codes.tcl	tcl8.6	
+O	errors-returns	e17-loop-body-codes.tcl	tcl8.6	
+D	errors-returns	e17-loop-body-codes.tcl	tcl9.0	
+O	errors-returns	e17-loop-body-codes.tcl	tcl9.0	
+D	errors-returns	e18-try-in-proc-return.tcl	tcl8.6	
+O	errors-returns	e18-try-in-proc-return.tcl	tcl8.6	
+D	errors-returns	e18-try-in-proc-return.tcl	tcl9.0	
+O	errors-returns	e18-try-in-proc-return.tcl	tcl9.0	
+D	errors-returns	e19-native-errorcodes.tcl	tcl8.6	W210@3:Variable '::errorCode' is read before it is set | W233@1:Division by a provably-zero divisor — raises 'divi
+O	errors-returns	e19-native-errorcodes.tcl	tcl8.6	
+D	errors-returns	e19-native-errorcodes.tcl	tcl9.0	W210@3:Variable '::errorCode' is read before it is set | W233@1:Division by a provably-zero divisor — raises 'divi
+O	errors-returns	e19-native-errorcodes.tcl	tcl9.0	
+D	errors-returns	e20-toplevel-return-source.tcl	tcl8.6	
+O	errors-returns	e20-toplevel-return-source.tcl	tcl8.6	
+D	errors-returns	e20-toplevel-return-source.tcl	tcl9.0	
+O	errors-returns	e20-toplevel-return-source.tcl	tcl9.0	
+D	errors-returns	e21-handler-options.tcl	tcl8.6	
+O	errors-returns	e21-handler-options.tcl	tcl8.6	
+D	errors-returns	e21-handler-options.tcl	tcl9.0	
+O	errors-returns	e21-handler-options.tcl	tcl9.0	
+D	errors-returns	e22-uncaught-toplevel-break.tcl	tcl8.6	
+O	errors-returns	e22-uncaught-toplevel-break.tcl	tcl8.6	O107
+D	errors-returns	e22-uncaught-toplevel-break.tcl	tcl9.0	
+O	errors-returns	e22-uncaught-toplevel-break.tcl	tcl9.0	O107
+D	errors-returns	e23-uncaught-toplevel-custom.tcl	tcl8.6	
+O	errors-returns	e23-uncaught-toplevel-custom.tcl	tcl8.6	
+D	errors-returns	e23-uncaught-toplevel-custom.tcl	tcl9.0	
+O	errors-returns	e23-uncaught-toplevel-custom.tcl	tcl9.0	
+D	errors-returns	e24-uncaught-error-trace.tcl	tcl8.6	
+O	errors-returns	e24-uncaught-error-trace.tcl	tcl8.6	
+D	errors-returns	e24-uncaught-error-trace.tcl	tcl9.0	
+O	errors-returns	e24-uncaught-error-trace.tcl	tcl9.0	
+D	errors-returns	e25-catch-for-loop-var.tcl	tcl8.6	W210@2:Variable 'i' is read before it is set | W210@2:Variable 'i' may be read before it is set in the d | W210@4:Variable 'z' is read before it is set | W302@4:catch without a result variable silently swallows 
+O	errors-returns	e25-catch-for-loop-var.tcl	tcl8.6	
+D	errors-returns	e25-catch-for-loop-var.tcl	tcl9.0	W210@2:Variable 'i' is read before it is set | W210@2:Variable 'i' may be read before it is set in the d | W210@4:Variable 'z' is read before it is set | W302@4:catch without a result variable silently swallows 
+O	errors-returns	e25-catch-for-loop-var.tcl	tcl9.0	
+D	errors-returns	e26-for-break-step.tcl	tcl8.6	W220@2:Assignment to 'z' is never read
+O	errors-returns	e26-for-break-step.tcl	tcl8.6	
+D	errors-returns	e26-for-break-step.tcl	tcl9.0	W220@2:Assignment to 'z' is never read
+O	errors-returns	e26-for-break-step.tcl	tcl9.0	
+D	errors-returns	e27-optimiser-try-finally.tcl	tcl8.6	
+O	errors-returns	e27-optimiser-try-finally.tcl	tcl8.6	
+D	errors-returns	e27-optimiser-try-finally.tcl	tcl9.0	
+O	errors-returns	e27-optimiser-try-finally.tcl	tcl9.0	
+D	errors-returns	e28-optimiser-return-level0.tcl	tcl8.6	
+O	errors-returns	e28-optimiser-return-level0.tcl	tcl8.6	
+D	errors-returns	e28-optimiser-return-level0.tcl	tcl9.0	
+O	errors-returns	e28-optimiser-return-level0.tcl	tcl9.0	
+D	errors-returns	e29-finally-reads-body-var.tcl	tcl8.6	W210@2:Variable 'a' is read before it is set
+O	errors-returns	e29-finally-reads-body-var.tcl	tcl8.6	
+D	errors-returns	e29-finally-reads-body-var.tcl	tcl9.0	W210@2:Variable 'a' is read before it is set
+O	errors-returns	e29-finally-reads-body-var.tcl	tcl9.0	
+D	errors-returns	e30-after-return-level0.tcl	tcl8.6	
+O	errors-returns	e30-after-return-level0.tcl	tcl8.6	O100
+D	errors-returns	e30-after-return-level0.tcl	tcl9.0	
+O	errors-returns	e30-after-return-level0.tcl	tcl9.0	O100
+D	errors-returns	e31-missing-variable-errorcode.tcl	tcl8.6	W210@2:Variable '::errorCode' is read before it is set | W210@2:Variable 'nosuch' may be read before it is set in 
+O	errors-returns	e31-missing-variable-errorcode.tcl	tcl8.6	
+D	errors-returns	e31-missing-variable-errorcode.tcl	tcl9.0	W210@2:Variable '::errorCode' is read before it is set | W210@2:Variable 'nosuch' may be read before it is set in 
+O	errors-returns	e31-missing-variable-errorcode.tcl	tcl9.0	
+D	errors-returns	e32-posix-errorcode.tcl	tcl8.6	
+O	errors-returns	e32-posix-errorcode.tcl	tcl8.6	
+D	errors-returns	e32-posix-errorcode.tcl	tcl9.0	
+O	errors-returns	e32-posix-errorcode.tcl	tcl9.0	
+D	unknown-autoload	u01-unknown-override.tcl	tcl8.6	
+O	unknown-autoload	u01-unknown-override.tcl	tcl8.6	
+D	unknown-autoload	u01-unknown-override.tcl	tcl9.0	
+O	unknown-autoload	u01-unknown-override.tcl	tcl9.0	
+D	unknown-autoload	u02-namespace-unknown.tcl	tcl8.6	
+O	unknown-autoload	u02-namespace-unknown.tcl	tcl8.6	
+D	unknown-autoload	u02-namespace-unknown.tcl	tcl9.0	
+O	unknown-autoload	u02-namespace-unknown.tcl	tcl9.0	
+D	unknown-autoload	u03-unknown-rewrites.tcl	tcl8.6	
+O	unknown-autoload	u03-unknown-rewrites.tcl	tcl8.6	
+D	unknown-autoload	u03-unknown-rewrites.tcl	tcl9.0	
+O	unknown-autoload	u03-unknown-rewrites.tcl	tcl9.0	
+D	unknown-autoload	u04-auto-index.tcl	tcl8.6	W123@4:Unresolved command 'autofoo' at this source point
+O	unknown-autoload	u04-auto-index.tcl	tcl8.6	
+D	unknown-autoload	u04-auto-index.tcl	tcl9.0	W123@4:Unresolved command 'autofoo' at this source point
+O	unknown-autoload	u04-auto-index.tcl	tcl9.0	
+D	unknown-autoload	u05-tclindex-mkindex.tcl	tcl8.6	
+O	unknown-autoload	u05-tclindex-mkindex.tcl	tcl8.6	
+D	unknown-autoload	u05-tclindex-mkindex.tcl	tcl9.0	
+O	unknown-autoload	u05-tclindex-mkindex.tcl	tcl9.0	
+D	unknown-autoload	u06-auto-execok.tcl	tcl8.6	W155@2:'ne' binds tighter than '?:', so this parses as `(
+O	unknown-autoload	u06-auto-execok.tcl	tcl8.6	
+D	unknown-autoload	u06-auto-execok.tcl	tcl9.0	W155@2:'ne' binds tighter than '?:', so this parses as `(
+O	unknown-autoload	u06-auto-execok.tcl	tcl9.0	
+D	unknown-autoload	u07-interactive-exec.tcl	tcl8.6	
+O	unknown-autoload	u07-interactive-exec.tcl	tcl8.6	
+D	unknown-autoload	u07-interactive-exec.tcl	tcl9.0	
+O	unknown-autoload	u07-interactive-exec.tcl	tcl9.0	
+D	unknown-autoload	u08-tclpkgsetup-lazy.tcl	tcl8.6	
+O	unknown-autoload	u08-tclpkgsetup-lazy.tcl	tcl8.6	
+D	unknown-autoload	u08-tclpkgsetup-lazy.tcl	tcl9.0	
+O	unknown-autoload	u08-tclpkgsetup-lazy.tcl	tcl9.0	
+D	unknown-autoload	u09-ensemble-unknown.tcl	tcl8.6	W214@4:Parameter 'ens' of proc '::ens::fallback' is unuse
+O	unknown-autoload	u09-ensemble-unknown.tcl	tcl8.6	
+D	unknown-autoload	u09-ensemble-unknown.tcl	tcl9.0	W214@4:Parameter 'ens' of proc '::ens::fallback' is unuse
+O	unknown-autoload	u09-ensemble-unknown.tcl	tcl9.0	
+D	unknown-autoload	u10-oo-unknown-method.tcl	tcl8.6	W307@10:Non-literal command name — cannot statically analy
+O	unknown-autoload	u10-oo-unknown-method.tcl	tcl8.6	
+D	unknown-autoload	u10-oo-unknown-method.tcl	tcl9.0	W307@10:Non-literal command name — cannot statically analy
+O	unknown-autoload	u10-oo-unknown-method.tcl	tcl9.0	
+D	unknown-autoload	u11-auto-qualify.tcl	tcl8.6	
+O	unknown-autoload	u11-auto-qualify.tcl	tcl8.6	
+D	unknown-autoload	u11-auto-qualify.tcl	tcl9.0	
+O	unknown-autoload	u11-auto-qualify.tcl	tcl9.0	
+D	unknown-autoload	u12-auto-import.tcl	tcl8.6	
+O	unknown-autoload	u12-auto-import.tcl	tcl8.6	
+D	unknown-autoload	u12-auto-import.tcl	tcl9.0	
+O	unknown-autoload	u12-auto-import.tcl	tcl9.0	
+D	unknown-autoload	u13-unknown-errorcode.tcl	tcl8.6	W123@2:Unresolved command 'no_such_command_q' at this sou
+O	unknown-autoload	u13-unknown-errorcode.tcl	tcl8.6	
+D	unknown-autoload	u13-unknown-errorcode.tcl	tcl9.0	W123@2:Unresolved command 'no_such_command_q' at this sou
+O	unknown-autoload	u13-unknown-errorcode.tcl	tcl9.0	
+D	unknown-autoload	u14-auto-reset.tcl	tcl8.6	W123@3:Unresolved command 'rp' at this source point
+O	unknown-autoload	u14-auto-reset.tcl	tcl8.6	
+D	unknown-autoload	u14-auto-reset.tcl	tcl9.0	W123@3:Unresolved command 'rp' at this source point
+O	unknown-autoload	u14-auto-reset.tcl	tcl9.0	
+D	unknown-autoload	u15-unknown-recursion.tcl	tcl8.6	
+O	unknown-autoload	u15-unknown-recursion.tcl	tcl8.6	
+D	unknown-autoload	u15-unknown-recursion.tcl	tcl9.0	
+O	unknown-autoload	u15-unknown-recursion.tcl	tcl9.0	
+D	unknown-autoload	u16-namespace-unknown-errors.tcl	tcl8.6	
+O	unknown-autoload	u16-namespace-unknown-errors.tcl	tcl8.6	
+D	unknown-autoload	u16-namespace-unknown-errors.tcl	tcl9.0	
+O	unknown-autoload	u16-namespace-unknown-errors.tcl	tcl9.0	
+D	interps	i01-create-eval.tcl	tcl8.6	
+O	interps	i01-create-eval.tcl	tcl8.6	
+D	interps	i01-create-eval.tcl	tcl9.0	
+O	interps	i01-create-eval.tcl	tcl9.0	
+D	interps	i02-alias.tcl	tcl8.6	
+O	interps	i02-alias.tcl	tcl8.6	
+D	interps	i02-alias.tcl	tcl9.0	
+O	interps	i02-alias.tcl	tcl9.0	
+D	interps	i03-child-object.tcl	tcl8.6	
+O	interps	i03-child-object.tcl	tcl8.6	
+D	interps	i03-child-object.tcl	tcl9.0	
+O	interps	i03-child-object.tcl	tcl9.0	
+D	interps	i04-safe.tcl	tcl8.6	
+O	interps	i04-safe.tcl	tcl8.6	
+D	interps	i04-safe.tcl	tcl9.0	
+O	interps	i04-safe.tcl	tcl9.0	
+D	interps	i05-hide-expose.tcl	tcl8.6	
+O	interps	i05-hide-expose.tcl	tcl8.6	
+D	interps	i05-hide-expose.tcl	tcl9.0	
+O	interps	i05-hide-expose.tcl	tcl9.0	
+D	interps	i06-share-transfer.tcl	tcl8.6	
+O	interps	i06-share-transfer.tcl	tcl8.6	
+D	interps	i06-share-transfer.tcl	tcl9.0	
+O	interps	i06-share-transfer.tcl	tcl9.0	
+D	interps	i07-limits.tcl	tcl8.6	
+O	interps	i07-limits.tcl	tcl8.6	
+D	interps	i07-limits.tcl	tcl9.0	
+O	interps	i07-limits.tcl	tcl9.0	
+D	interps	i08-marktrusted-debug.tcl	tcl8.6	
+O	interps	i08-marktrusted-debug.tcl	tcl8.6	
+D	interps	i08-marktrusted-debug.tcl	tcl9.0	
+O	interps	i08-marktrusted-debug.tcl	tcl9.0	
+D	interps	i09-safe-package.tcl	tcl8.6	W120@10:"safe::interpDelete" requires `package require saf | W120@2:"safe::interpCreate" requires `package require saf | W120@4:"safe::interpConfigure" requires `package require 
+O	interps	i09-safe-package.tcl	tcl8.6	
+D	interps	i09-safe-package.tcl	tcl9.0	W120@10:"safe::interpDelete" requires `package require saf | W120@2:"safe::interpCreate" requires `package require saf | W120@4:"safe::interpConfigure" requires `package require 
+O	interps	i09-safe-package.tcl	tcl9.0	
+D	interps	i10-errors-bgerror.tcl	tcl8.6	
+O	interps	i10-errors-bgerror.tcl	tcl8.6	
+D	interps	i10-errors-bgerror.tcl	tcl9.0	
+O	interps	i10-errors-bgerror.tcl	tcl9.0	
+D	interps	i11-body-world.tcl	tcl8.6	
+O	interps	i11-body-world.tcl	tcl8.6	
+D	interps	i11-body-world.tcl	tcl9.0	
+O	interps	i11-body-world.tcl	tcl9.0	
+D	interps	i12-alias-into-child-world.tcl	tcl8.6	
+O	interps	i12-alias-into-child-world.tcl	tcl8.6	
+D	interps	i12-alias-into-child-world.tcl	tcl9.0	
+O	interps	i12-alias-into-child-world.tcl	tcl9.0	
+D	interps	i13-subcommand-prefix.tcl	tcl8.6	W145@4:Ambiguous abbreviation 'ex' for 'interp': matches  | W307@5:Non-literal command name — cannot statically analy
+O	interps	i13-subcommand-prefix.tcl	tcl8.6	
+D	interps	i13-subcommand-prefix.tcl	tcl9.0	W145@4:Ambiguous abbreviation 'ex' for 'interp': matches  | W307@5:Non-literal command name — cannot statically analy
+O	interps	i13-subcommand-prefix.tcl	tcl9.0	
+D	interps	i14-cancel-stale-error.tcl	tcl8.6	W302@4:catch without a result variable silently swallows  | W304@3:'interp cancel' parses leading '-' as options. Ins | W304@5:'interp cancel' parses leading '-' as options. Ins
+O	interps	i14-cancel-stale-error.tcl	tcl8.6	
+D	interps	i14-cancel-stale-error.tcl	tcl9.0	W302@4:catch without a result variable silently swallows  | W304@3:'interp cancel' parses leading '-' as options. Ins | W304@5:'interp cancel' parses leading '-' as options. Ins
+O	interps	i14-cancel-stale-error.tcl	tcl9.0	
+D	interps	i15-alias-wrongargs.tcl	tcl8.6	E003@4:Too many arguments for 'viaAlias': expected at mos
+O	interps	i15-alias-wrongargs.tcl	tcl8.6	
+D	interps	i15-alias-wrongargs.tcl	tcl9.0	E003@4:Too many arguments for 'viaAlias': expected at mos
+O	interps	i15-alias-wrongargs.tcl	tcl9.0	
+D	interps	i16-create-options.tcl	tcl8.6	
+O	interps	i16-create-options.tcl	tcl8.6	
+D	interps	i16-create-options.tcl	tcl9.0	
+O	interps	i16-create-options.tcl	tcl9.0	
+D	exec-pipes	e01-basic.tcl	tcl8.6	
+O	exec-pipes	e01-basic.tcl	tcl8.6	
+D	exec-pipes	e01-basic.tcl	tcl9.0	
+O	exec-pipes	e01-basic.tcl	tcl9.0	
+D	exec-pipes	e02-pipeline.tcl	tcl8.6	
+O	exec-pipes	e02-pipeline.tcl	tcl8.6	
+D	exec-pipes	e02-pipeline.tcl	tcl9.0	
+O	exec-pipes	e02-pipeline.tcl	tcl9.0	
+D	exec-pipes	e03-redirect-in.tcl	tcl8.6	
+O	exec-pipes	e03-redirect-in.tcl	tcl8.6	
+D	exec-pipes	e03-redirect-in.tcl	tcl9.0	
+O	exec-pipes	e03-redirect-in.tcl	tcl9.0	
+D	exec-pipes	e04-redirect-out.tcl	tcl8.6	W302@7:catch without a result variable silently swallows 
+O	exec-pipes	e04-redirect-out.tcl	tcl8.6	
+D	exec-pipes	e04-redirect-out.tcl	tcl9.0	W302@7:catch without a result variable silently swallows 
+O	exec-pipes	e04-redirect-out.tcl	tcl9.0	
+D	exec-pipes	e05-ignorestderr.tcl	tcl8.6	
+O	exec-pipes	e05-ignorestderr.tcl	tcl8.6	
+D	exec-pipes	e05-ignorestderr.tcl	tcl9.0	
+O	exec-pipes	e05-ignorestderr.tcl	tcl9.0	
+D	exec-pipes	e06-background.tcl	tcl8.6	
+O	exec-pipes	e06-background.tcl	tcl8.6	
+D	exec-pipes	e06-background.tcl	tcl9.0	
+O	exec-pipes	e06-background.tcl	tcl9.0	
+D	exec-pipes	e07-open-pipe.tcl	tcl8.6	W103@12:open with a pipeline containing variable/command s | W103@15:open with a pipeline ("|") executes an external co | W103@2:open with a pipeline ("|") executes an external co | W103@6:open with a pipeline containing variable/command s
+O	exec-pipes	e07-open-pipe.tcl	tcl8.6	
+D	exec-pipes	e07-open-pipe.tcl	tcl9.0	W103@12:open with a pipeline containing variable/command s | W103@15:open with a pipeline ("|") executes an external co | W103@2:open with a pipeline ("|") executes an external co | W103@6:open with a pipeline containing variable/command s
+O	exec-pipes	e07-open-pipe.tcl	tcl9.0	
+D	exec-pipes	e08-quoting.tcl	tcl8.6	
+O	exec-pipes	e08-quoting.tcl	tcl8.6	
+D	exec-pipes	e08-quoting.tcl	tcl9.0	
+O	exec-pipes	e08-quoting.tcl	tcl9.0	
+D	exec-pipes	e09-auto-execok.tcl	tcl8.6	
+O	exec-pipes	e09-auto-execok.tcl	tcl8.6	
+D	exec-pipes	e09-auto-execok.tcl	tcl9.0	
+O	exec-pipes	e09-auto-execok.tcl	tcl9.0	
+D	exec-pipes	e10-chan-pipe.tcl	tcl8.6	
+O	exec-pipes	e10-chan-pipe.tcl	tcl8.6	
+D	exec-pipes	e10-chan-pipe.tcl	tcl9.0	
+O	exec-pipes	e10-chan-pipe.tcl	tcl9.0	
+D	threads-subsystems	t01-thread-basic.tcl	tcl8.6	
+O	threads-subsystems	t01-thread-basic.tcl	tcl8.6	
+D	threads-subsystems	t01-thread-basic.tcl	tcl9.0	
+O	threads-subsystems	t01-thread-basic.tcl	tcl9.0	
+D	threads-subsystems	t02-thread-isolation.tcl	tcl8.6	
+O	threads-subsystems	t02-thread-isolation.tcl	tcl8.6	
+D	threads-subsystems	t02-thread-isolation.tcl	tcl9.0	
+O	threads-subsystems	t02-thread-isolation.tcl	tcl9.0	
+D	threads-subsystems	t03-tsv.tcl	tcl8.6	
+O	threads-subsystems	t03-tsv.tcl	tcl8.6	
+D	threads-subsystems	t03-tsv.tcl	tcl9.0	
+O	threads-subsystems	t03-tsv.tcl	tcl9.0	
+D	threads-subsystems	t04-tcl-process.tcl	tcl8.6	W002@10:'tcl::process' is disabled in the active dialect p | W002@13:'tcl::process' is disabled in the active dialect p | W002@14:'tcl::process' is disabled in the active dialect p | W002@2:'tcl::process' is disabled in the active dialect p | W002@3:'tcl::process' is disabled in the active dialect p | W002@4:'tcl::process' is disabled in the active dialect p | W002@8:'tcl::process' is disabled in the active dialect p | W123@2:Unresolved command 'tcl::process' at this source p
+O	threads-subsystems	t04-tcl-process.tcl	tcl8.6	
+D	threads-subsystems	t04-tcl-process.tcl	tcl9.0	
+O	threads-subsystems	t04-tcl-process.tcl	tcl9.0	
+D	threads-subsystems	t05-zipfs.tcl	tcl8.6	W002@10:'zipfs' is disabled in the active dialect profile  | W002@13:'zipfs' is disabled in the active dialect profile  | W002@14:'zipfs' is disabled in the active dialect profile  | W002@15:'zipfs' is disabled in the active dialect profile  | W002@2:'zipfs' is disabled in the active dialect profile  | W002@6:'zipfs' is disabled in the active dialect profile  | W002@7:'zipfs' is disabled in the active dialect profile  | W103@11:open with a dynamic argument (variable or command  | W123@2:Unresolved command 'zipfs' at this source point. T
+O	threads-subsystems	t05-zipfs.tcl	tcl8.6	
+D	threads-subsystems	t05-zipfs.tcl	tcl9.0	W103@11:open with a dynamic argument (variable or command 
+O	threads-subsystems	t05-zipfs.tcl	tcl9.0	
+D	threads-subsystems	t06-build-info.tcl	tcl8.6	W123@8:Unresolved command 'tcl::build-info' at this sourc
+O	threads-subsystems	t06-build-info.tcl	tcl8.6	
+D	threads-subsystems	t06-build-info.tcl	tcl9.0	
+O	threads-subsystems	t06-build-info.tcl	tcl9.0	
+D	threads-subsystems	t07-unsupported.tcl	tcl8.6	W123@6:Unresolved command 'tcl::unsupported::disassemble' | W123@7:Unresolved command 'tcl::unsupported::assemble' at
+O	threads-subsystems	t07-unsupported.tcl	tcl8.6	O101
+D	threads-subsystems	t07-unsupported.tcl	tcl9.0	W123@6:Unresolved command 'tcl::unsupported::disassemble' | W123@7:Unresolved command 'tcl::unsupported::assemble' at
+O	threads-subsystems	t07-unsupported.tcl	tcl9.0	O101
+D	threads-subsystems	t08-timerate.tcl	tcl8.6	W307@4:Non-literal command name — cannot statically analy
+O	threads-subsystems	t08-timerate.tcl	tcl8.6	
+D	threads-subsystems	t08-timerate.tcl	tcl9.0	W307@4:Non-literal command name — cannot statically analy
+O	threads-subsystems	t08-timerate.tcl	tcl9.0	
+D	threads-subsystems	t09-thread-without-require.tcl	tcl8.6	
+O	threads-subsystems	t09-thread-without-require.tcl	tcl8.6	
+D	threads-subsystems	t09-thread-without-require.tcl	tcl9.0	
+O	threads-subsystems	t09-thread-without-require.tcl	tcl9.0	
+D	threads-subsystems	t10-thread-builtin.tcl	tcl8.6	
+O	threads-subsystems	t10-thread-builtin.tcl	tcl8.6	
+D	threads-subsystems	t10-thread-builtin.tcl	tcl9.0	
+O	threads-subsystems	t10-thread-builtin.tcl	tcl9.0	
+D	threads-subsystems	t11-thread-stale-error.tcl	tcl8.6	
+O	threads-subsystems	t11-thread-stale-error.tcl	tcl8.6	
+D	threads-subsystems	t11-thread-stale-error.tcl	tcl9.0	
+O	threads-subsystems	t11-thread-stale-error.tcl	tcl9.0	
+D	encodings-channels	e01-convert-basic.tcl	tcl8.6	
+O	encodings-channels	e01-convert-basic.tcl	tcl8.6	
+D	encodings-channels	e01-convert-basic.tcl	tcl9.0	
+O	encodings-channels	e01-convert-basic.tcl	tcl9.0	
+D	encodings-channels	e02-unrepresentable.tcl	tcl8.6	W155@3:'<' binds tighter than '?:', so this parses as `([ | W155@4:'<' binds tighter than '?:', so this parses as `([
+O	encodings-channels	e02-unrepresentable.tcl	tcl8.6	
+D	encodings-channels	e02-unrepresentable.tcl	tcl9.0	W155@3:'<' binds tighter than '?:', so this parses as `([ | W155@4:'<' binds tighter than '?:', so this parses as `([
+O	encodings-channels	e02-unrepresentable.tcl	tcl9.0	
+D	encodings-channels	e03-invalid-utf8-from.tcl	tcl8.6	
+O	encodings-channels	e03-invalid-utf8-from.tcl	tcl8.6	O116
+D	encodings-channels	e03-invalid-utf8-from.tcl	tcl9.0	
+O	encodings-channels	e03-invalid-utf8-from.tcl	tcl9.0	O116
+D	encodings-channels	e04-profiles-90.tcl	tcl8.6	W002@2:'encoding profiles' is disabled in the active dial | W004@13:Option '-failindex' on 'encoding' convertfrom is n | W004@15:Option '-failindex' on 'encoding' convertto is not | W004@17:Option '-failindex' on 'encoding' convertfrom is n | W004@5:Option '-profile' on 'encoding' convertfrom is not | W004@9:Option '-profile' on 'encoding' convertto is not a
+O	encodings-channels	e04-profiles-90.tcl	tcl8.6	
+D	encodings-channels	e04-profiles-90.tcl	tcl9.0	
+O	encodings-channels	e04-profiles-90.tcl	tcl9.0	
+D	encodings-channels	e05-escapes.tcl	tcl8.6	
+O	encodings-channels	e05-escapes.tcl	tcl8.6	
+D	encodings-channels	e05-escapes.tcl	tcl9.0	W002@13:'string bytelength' is disabled in the active dial
+O	encodings-channels	e05-escapes.tcl	tcl9.0	
+D	encodings-channels	e06-fconfigure-defaults.tcl	tcl8.6	W004@7:Option '-profile' on 'fconfigure' is not available | W103@3:open with a dynamic argument (variable or command  | W103@9:open with a dynamic argument (variable or command  | W304@18:'file delete' parses leading '-' as options. Inser
+O	encodings-channels	e06-fconfigure-defaults.tcl	tcl8.6	
+D	encodings-channels	e06-fconfigure-defaults.tcl	tcl9.0	W103@3:open with a dynamic argument (variable or command  | W103@9:open with a dynamic argument (variable or command  | W304@18:'file delete' parses leading '-' as options. Inser
+O	encodings-channels	e06-fconfigure-defaults.tcl	tcl9.0	
+D	encodings-channels	e07-translation.tcl	tcl8.6	W103@10:open with a dynamic argument (variable or command  | W103@4:open with a dynamic argument (variable or command  | W103@5:open with a dynamic argument (variable or command  | W103@8:open with a dynamic argument (variable or command  | W304@13:'file delete' parses leading '-' as options. Inser
+O	encodings-channels	e07-translation.tcl	tcl8.6	
+D	encodings-channels	e07-translation.tcl	tcl9.0	W103@10:open with a dynamic argument (variable or command  | W103@4:open with a dynamic argument (variable or command  | W103@5:open with a dynamic argument (variable or command  | W103@8:open with a dynamic argument (variable or command  | W304@13:'file delete' parses leading '-' as options. Inser
+O	encodings-channels	e07-translation.tcl	tcl9.0	
+D	encodings-channels	e08-binary-channel-wide.tcl	tcl8.6	W103@11:open with a dynamic argument (variable or command  | W103@3:open with a dynamic argument (variable or command  | W103@6:open with a dynamic argument (variable or command  | W103@8:open with a dynamic argument (variable or command  | W304@13:'file delete' parses leading '-' as options. Inser
+O	encodings-channels	e08-binary-channel-wide.tcl	tcl8.6	
+D	encodings-channels	e08-binary-channel-wide.tcl	tcl9.0	W103@11:open with a dynamic argument (variable or command  | W103@3:open with a dynamic argument (variable or command  | W103@6:open with a dynamic argument (variable or command  | W103@8:open with a dynamic argument (variable or command  | W304@13:'file delete' parses leading '-' as options. Inser
+O	encodings-channels	e08-binary-channel-wide.tcl	tcl9.0	
+D	encodings-channels	e09-read-invalid-utf8.tcl	tcl8.6	W002@10:'encoding profiles' is disabled in the active dial | W103@3:open with a dynamic argument (variable or command  | W103@4:open with a dynamic argument (variable or command  | W302@10:catch without a result variable silently swallows  | W304@19:'file delete' parses leading '-' as options. Inser
+O	encodings-channels	e09-read-invalid-utf8.tcl	tcl8.6	
+D	encodings-channels	e09-read-invalid-utf8.tcl	tcl9.0	W103@3:open with a dynamic argument (variable or command  | W103@4:open with a dynamic argument (variable or command  | W302@10:catch without a result variable silently swallows  | W304@19:'file delete' parses leading '-' as options. Inser
+O	encodings-channels	e09-read-invalid-utf8.tcl	tcl9.0	
+D	encodings-channels	e10-source-encoding.tcl	tcl8.6	W103@3:open with a dynamic argument (variable or command  | W304@28:'file delete' parses leading '-' as options. Inser
+O	encodings-channels	e10-source-encoding.tcl	tcl8.6	
+D	encodings-channels	e10-source-encoding.tcl	tcl9.0	W103@3:open with a dynamic argument (variable or command  | W304@28:'file delete' parses leading '-' as options. Inser
+O	encodings-channels	e10-source-encoding.tcl	tcl9.0	
+D	encodings-channels	e11-channel-value.tcl	tcl8.6	W103@15:open with a dynamic argument (variable or command  | W103@3:open with a dynamic argument (variable or command  | W304@17:'file delete' parses leading '-' as options. Inser
+O	encodings-channels	e11-channel-value.tcl	tcl8.6	
+D	encodings-channels	e11-channel-value.tcl	tcl9.0	W103@15:open with a dynamic argument (variable or command  | W103@3:open with a dynamic argument (variable or command  | W304@17:'file delete' parses leading '-' as options. Inser
+O	encodings-channels	e11-channel-value.tcl	tcl9.0	
+D	encodings-channels	e12-encoding-system-set.tcl	tcl8.6	
+O	encodings-channels	e12-encoding-system-set.tcl	tcl8.6	
+D	encodings-channels	e12-encoding-system-set.tcl	tcl9.0	
+O	encodings-channels	e12-encoding-system-set.tcl	tcl9.0	
+D	encodings-channels	e13-eofchar.tcl	tcl8.6	W103@3:open with a dynamic argument (variable or command  | W103@4:open with a dynamic argument (variable or command  | W103@5:open with a dynamic argument (variable or command  | W103@6:open with a dynamic argument (variable or command  | W103@7:open with a dynamic argument (variable or command  | W304@10:'file delete' parses leading '-' as options. Inser
+O	encodings-channels	e13-eofchar.tcl	tcl8.6	
+D	encodings-channels	e13-eofchar.tcl	tcl9.0	W103@3:open with a dynamic argument (variable or command  | W103@4:open with a dynamic argument (variable or command  | W103@5:open with a dynamic argument (variable or command  | W103@6:open with a dynamic argument (variable or command  | W103@7:open with a dynamic argument (variable or command  | W304@10:'file delete' parses leading '-' as options. Inser
+O	encodings-channels	e13-eofchar.tcl	tcl9.0	
+D	encodings-channels	e14-read-encoding-count.tcl	tcl8.6	
+O	encodings-channels	e14-read-encoding-count.tcl	tcl8.6	
+D	encodings-channels	e14-read-encoding-count.tcl	tcl9.0	
+O	encodings-channels	e14-read-encoding-count.tcl	tcl9.0	
+D	encodings-channels	e15-lone-surrogate-scan.tcl	tcl8.6	
+O	encodings-channels	e15-lone-surrogate-scan.tcl	tcl8.6	O129
+D	encodings-channels	e15-lone-surrogate-scan.tcl	tcl9.0	
+O	encodings-channels	e15-lone-surrogate-scan.tcl	tcl9.0	O129,O129
+D	regex-patterns	r01-are-syntax.tcl	tcl8.6	
+O	regex-patterns	r01-are-syntax.tcl	tcl8.6	
+D	regex-patterns	r01-are-syntax.tcl	tcl9.0	
+O	regex-patterns	r01-are-syntax.tcl	tcl9.0	
+D	regex-patterns	r02-regexp-options.tcl	tcl8.6	
+O	regex-patterns	r02-regexp-options.tcl	tcl8.6	
+D	regex-patterns	r02-regexp-options.tcl	tcl9.0	
+O	regex-patterns	r02-regexp-options.tcl	tcl9.0	
+D	regex-patterns	r03-match-vars.tcl	tcl8.6	W147@15:regexp match variables not allowed when using -inl | W210@13:Variable 'hi' is read before it is set | W210@13:Variable 'lo' is read before it is set
+O	regex-patterns	r03-match-vars.tcl	tcl8.6	O116
+D	regex-patterns	r03-match-vars.tcl	tcl9.0	W147@15:regexp match variables not allowed when using -inl | W210@13:Variable 'hi' is read before it is set | W210@13:Variable 'lo' is read before it is set
+O	regex-patterns	r03-match-vars.tcl	tcl9.0	O116
+D	regex-patterns	r04-regsub.tcl	tcl8.6	
+O	regex-patterns	r04-regsub.tcl	tcl8.6	O129,O129,O129,O129,O129,O129,O129,O129,O129,O129,O129,O129
+D	regex-patterns	r04-regsub.tcl	tcl9.0	
+O	regex-patterns	r04-regsub.tcl	tcl9.0	O129,O129,O129,O129,O129,O129,O129,O129,O129,O129,O129,O129
+D	regex-patterns	r05-regsub-command.tcl	tcl8.6	W004@3:Option '-command' on 'regsub' is not available in  | W004@4:Option '-command' on 'regsub' is not available in  | W004@5:Option '-command' on 'regsub' is not available in  | W004@6:Option '-command' on 'regsub' is not available in  | W004@7:Option '-command' on 'regsub' is not available in 
+O	regex-patterns	r05-regsub-command.tcl	tcl8.6	
+D	regex-patterns	r05-regsub-command.tcl	tcl9.0	
+O	regex-patterns	r05-regsub-command.tcl	tcl9.0	
+D	regex-patterns	r06-switch.tcl	tcl8.6	
+O	regex-patterns	r06-switch.tcl	tcl8.6	
+D	regex-patterns	r06-switch.tcl	tcl9.0	
+O	regex-patterns	r06-switch.tcl	tcl9.0	
+D	regex-patterns	r07-string-match.tcl	tcl8.6	
+O	regex-patterns	r07-string-match.tcl	tcl8.6	O129,O129
+D	regex-patterns	r07-string-match.tcl	tcl9.0	
+O	regex-patterns	r07-string-match.tcl	tcl9.0	O129,O129,O129
+D	regex-patterns	r08-glob.tcl	tcl8.6	W101@5:eval with substituted arguments risks code injecti | W103@4:open with a dynamic argument (variable or command  | W304@18:'file delete' parses leading '-' as options. Inser
+O	regex-patterns	r08-glob.tcl	tcl8.6	
+D	regex-patterns	r08-glob.tcl	tcl9.0	W101@5:eval with substituted arguments risks code injecti | W103@4:open with a dynamic argument (variable or command  | W304@18:'file delete' parses leading '-' as options. Inser
+O	regex-patterns	r08-glob.tcl	tcl9.0	
+D	regex-patterns	r09-lsearch.tcl	tcl8.6	
+O	regex-patterns	r09-lsearch.tcl	tcl8.6	
+D	regex-patterns	r09-lsearch.tcl	tcl9.0	
+O	regex-patterns	r09-lsearch.tcl	tcl9.0	
+D	regex-patterns	r10-regex-errors.tcl	tcl8.6	W304@3:'regexp' parses leading '-' as options. Insert '--
+O	regex-patterns	r10-regex-errors.tcl	tcl8.6	
+D	regex-patterns	r10-regex-errors.tcl	tcl9.0	W304@3:'regexp' parses leading '-' as options. Insert '--
+O	regex-patterns	r10-regex-errors.tcl	tcl9.0	
+D	regex-patterns	r11-analyser-matchvars.tcl	tcl8.6	W210@15:Variable 'mv' is read before it is set | W210@16:Variable 'mv' is read before it is set | W210@22:Variable 'where' is read before it is set | W210@26:Variable 'out' is read before it is set | W210@3:Variable 'k' is read before it is set | W210@3:Variable 'v' is read before it is set | W210@8:Variable 'num' is read before it is set
+O	regex-patterns	r11-analyser-matchvars.tcl	tcl8.6	
+D	regex-patterns	r11-analyser-matchvars.tcl	tcl9.0	W210@15:Variable 'mv' is read before it is set | W210@16:Variable 'mv' is read before it is set | W210@22:Variable 'where' is read before it is set | W210@26:Variable 'out' is read before it is set | W210@3:Variable 'k' is read before it is set | W210@3:Variable 'v' is read before it is set | W210@8:Variable 'num' is read before it is set
+O	regex-patterns	r11-analyser-matchvars.tcl	tcl9.0	
+D	regex-patterns	r12-unicode-regex.tcl	tcl8.6	
+O	regex-patterns	r12-unicode-regex.tcl	tcl8.6	
+D	regex-patterns	r12-unicode-regex.tcl	tcl9.0	
+O	regex-patterns	r12-unicode-regex.tcl	tcl9.0	O129,O129
+D	regex-patterns	r13-are-edges.tcl	tcl8.6	
+O	regex-patterns	r13-are-edges.tcl	tcl8.6	
+D	regex-patterns	r13-are-edges.tcl	tcl9.0	
+O	regex-patterns	r13-are-edges.tcl	tcl9.0	
+D	regex-patterns	r14-all-restart-context.tcl	tcl8.6	
+O	regex-patterns	r14-all-restart-context.tcl	tcl8.6	O129,O129,O129,O129
+D	regex-patterns	r14-all-restart-context.tcl	tcl9.0	
+O	regex-patterns	r14-all-restart-context.tcl	tcl9.0	O129,O129,O129,O129
+D	regex-patterns	r15-glob-matchers-nonbmp.tcl	tcl8.6	W106@3:switch body is not braced — contains substitutions | W106@4:switch body is not braced — contains substitutions | W108@2:Non-ASCII character U+1F600 '😀' — outside the stan | W108@5:Non-ASCII character U+1F600 '😀' — outside the stan | W108@5:Non-ASCII character U+1F600 '😀' — outside the stan | W108@5:Non-ASCII character U+1F600 '😀' — outside the stan | W212@11:'set' expects a variable name, got substitution ($
+O	regex-patterns	r15-glob-matchers-nonbmp.tcl	tcl8.6	
+D	regex-patterns	r15-glob-matchers-nonbmp.tcl	tcl9.0	W106@3:switch body is not braced — contains substitutions | W106@4:switch body is not braced — contains substitutions | W108@2:Non-ASCII character U+1F600 '😀' — outside the stan | W108@5:Non-ASCII character U+1F600 '😀' — outside the stan | W108@5:Non-ASCII character U+1F600 '😀' — outside the stan | W108@5:Non-ASCII character U+1F600 '😀' — outside the stan | W212@11:'set' expects a variable name, got substitution ($
+O	regex-patterns	r15-glob-matchers-nonbmp.tcl	tcl9.0	
+D	regex-patterns	r16-lsearch-glob-nonbmp-element.tcl	tcl8.6	W108@2:Non-ASCII character U+1F600 '😀' — outside the stan | W108@3:Non-ASCII character U+1F600 '😀' — outside the stan | W108@4:Non-ASCII character U+1F600 '😀' — outside the stan | W108@5:Non-ASCII character U+1F600 '😀' — outside the stan | W108@6:Non-ASCII character U+1F600 '😀' — outside the stan
+O	regex-patterns	r16-lsearch-glob-nonbmp-element.tcl	tcl8.6	
+D	regex-patterns	r16-lsearch-glob-nonbmp-element.tcl	tcl9.0	W108@2:Non-ASCII character U+1F600 '😀' — outside the stan | W108@3:Non-ASCII character U+1F600 '😀' — outside the stan | W108@4:Non-ASCII character U+1F600 '😀' — outside the stan | W108@5:Non-ASCII character U+1F600 '😀' — outside the stan | W108@6:Non-ASCII character U+1F600 '😀' — outside the stan
+O	regex-patterns	r16-lsearch-glob-nonbmp-element.tcl	tcl9.0	
+D	tcl9-changes	t01-octal-literals.tcl	tcl8.6	W148@7:Numeral '0d10' is not accepted by the resolved Tcl
+O	tcl9-changes	t01-octal-literals.tcl	tcl8.6	O129
+D	tcl9-changes	t01-octal-literals.tcl	tcl9.0	W230@4:Index '010' resolves to 10 (list has 10 elements);
+O	tcl9-changes	t01-octal-literals.tcl	tcl9.0	O129
+D	tcl9-changes	t02-number-underscores.tcl	tcl8.6	W148@3:Numeral '1_000' is not accepted by the resolved Tc | W148@4:Numeral '1_0' is not accepted by the resolved Tcl 
+O	tcl9-changes	t02-number-underscores.tcl	tcl8.6	
+D	tcl9-changes	t02-number-underscores.tcl	tcl9.0	
+O	tcl9-changes	t02-number-underscores.tcl	tcl9.0	
+D	tcl9-changes	t03-tilde.tcl	tcl8.6	W002@5:'file tildeexpand' is disabled in the active diale
+O	tcl9-changes	t03-tilde.tcl	tcl8.6	
+D	tcl9-changes	t03-tilde.tcl	tcl9.0	
+O	tcl9-changes	t03-tilde.tcl	tcl9.0	
+D	tcl9-changes	t04-case-removed.tcl	tcl8.6	
+O	tcl9-changes	t04-case-removed.tcl	tcl8.6	
+D	tcl9-changes	t04-case-removed.tcl	tcl9.0	W002@2:'case' is disabled in the active dialect profile ( | W123@2:Unresolved command 'case' at this source point. Th
+O	tcl9-changes	t04-case-removed.tcl	tcl9.0	
+D	tcl9-changes	t05-trace-variable.tcl	tcl8.6	W144@3:Subcommand 'variable' on 'trace' is deprecated as  | W144@4:Subcommand 'vinfo' on 'trace' is deprecated as of 
+O	tcl9-changes	t05-trace-variable.tcl	tcl8.6	
+D	tcl9-changes	t05-trace-variable.tcl	tcl9.0	W002@3:'trace variable' is disabled in the active dialect | W002@4:'trace vinfo' is disabled in the active dialect pr
+O	tcl9-changes	t05-trace-variable.tcl	tcl9.0	
+D	tcl9-changes	t06-string-bytelength.tcl	tcl8.6	
+O	tcl9-changes	t06-string-bytelength.tcl	tcl8.6	
+D	tcl9-changes	t06-string-bytelength.tcl	tcl9.0	W002@2:'string bytelength' is disabled in the active dial
+O	tcl9-changes	t06-string-bytelength.tcl	tcl9.0	
+D	tcl9-changes	t07-tcl-precision.tcl	tcl8.6	
+O	tcl9-changes	t07-tcl-precision.tcl	tcl8.6	
+D	tcl9-changes	t07-tcl-precision.tcl	tcl9.0	W211@2:Variable 'tcl_precision' is set but never used | W220@4:Assignment to 'tcl_precision' is never read
+O	tcl9-changes	t07-tcl-precision.tcl	tcl9.0	O101,O101
+D	tcl9-changes	t08-encoding-profiles.tcl	tcl8.6	W004@4:Option '-profile' on 'encoding' convertfrom is not
+O	tcl9-changes	t08-encoding-profiles.tcl	tcl8.6	
+D	tcl9-changes	t08-encoding-profiles.tcl	tcl9.0	
+O	tcl9-changes	t08-encoding-profiles.tcl	tcl9.0	
+D	tcl9-changes	t09-io-strict-read.tcl	tcl8.6	
+O	tcl9-changes	t09-io-strict-read.tcl	tcl8.6	
+D	tcl9-changes	t09-io-strict-read.tcl	tcl9.0	
+O	tcl9-changes	t09-io-strict-read.tcl	tcl9.0	
+D	tcl9-changes	t10-source-utf8.tcl	tcl8.6	
+O	tcl9-changes	t10-source-utf8.tcl	tcl8.6	
+D	tcl9-changes	t10-source-utf8.tcl	tcl9.0	
+O	tcl9-changes	t10-source-utf8.tcl	tcl9.0	
+D	tcl9-changes	t11-array-default.tcl	tcl8.6	W002@2:'array default' is disabled in the active dialect 
+O	tcl9-changes	t11-array-default.tcl	tcl8.6	
+D	tcl9-changes	t11-array-default.tcl	tcl9.0	
+O	tcl9-changes	t11-array-default.tcl	tcl9.0	
+D	tcl9-changes	t12-array-for.tcl	tcl8.6	W002@2:'array for' is disabled in the active dialect prof
+O	tcl9-changes	t12-array-for.tcl	tcl8.6	
+D	tcl9-changes	t12-array-for.tcl	tcl9.0	
+O	tcl9-changes	t12-array-for.tcl	tcl9.0	
+D	tcl9-changes	t13-const.tcl	tcl8.6	W002@2:'const' is disabled in the active dialect profile  | W123@2:Unresolved command 'const' at this source point. T
+O	tcl9-changes	t13-const.tcl	tcl8.6	
+D	tcl9-changes	t13-const.tcl	tcl9.0	
+O	tcl9-changes	t13-const.tcl	tcl9.0	
+D	tcl9-changes	t14-lseq.tcl	tcl8.6	W002@2:'lseq' is disabled in the active dialect profile ( | W123@2:Unresolved command 'lseq' at this source point; di
+O	tcl9-changes	t14-lseq.tcl	tcl8.6	
+D	tcl9-changes	t14-lseq.tcl	tcl9.0	
+O	tcl9-changes	t14-lseq.tcl	tcl9.0	
+D	tcl9-changes	t15-string-insert.tcl	tcl8.6	W002@1:'string insert' is disabled in the active dialect 
+O	tcl9-changes	t15-string-insert.tcl	tcl8.6	
+D	tcl9-changes	t15-string-insert.tcl	tcl9.0	
+O	tcl9-changes	t15-string-insert.tcl	tcl9.0	
+D	tcl9-changes	t16-list-mutators.tcl	tcl8.6	W002@3:'lpop' is disabled in the active dialect profile ( | W123@3:Unresolved command 'lpop' at this source point. Th
+O	tcl9-changes	t16-list-mutators.tcl	tcl8.6	
+D	tcl9-changes	t16-list-mutators.tcl	tcl9.0	
+O	tcl9-changes	t16-list-mutators.tcl	tcl9.0	
+D	tcl9-changes	t17-dict-getwithdefault.tcl	tcl8.6	W002@1:'dict getwithdefault' is disabled in the active di
+O	tcl9-changes	t17-dict-getwithdefault.tcl	tcl8.6	
+D	tcl9-changes	t17-dict-getwithdefault.tcl	tcl9.0	
+O	tcl9-changes	t17-dict-getwithdefault.tcl	tcl9.0	
+D	tcl9-changes	t18-unqualified-var-ns.tcl	tcl8.6	W210@4:Variable 'ns::x' is read before it is set
+O	tcl9-changes	t18-unqualified-var-ns.tcl	tcl8.6	
+D	tcl9-changes	t18-unqualified-var-ns.tcl	tcl9.0	
+O	tcl9-changes	t18-unqualified-var-ns.tcl	tcl9.0	
+D	tcl9-changes	t19-expr-string-cmp.tcl	tcl8.6	W003@2:Expression operator 'lt' is not available in diale | W003@3:Expression operator 'le' is not available in diale
+O	tcl9-changes	t19-expr-string-cmp.tcl	tcl8.6	
+D	tcl9-changes	t19-expr-string-cmp.tcl	tcl9.0	
+O	tcl9-changes	t19-expr-string-cmp.tcl	tcl9.0	
+D	tcl9-changes	t20-expr-comments.tcl	tcl8.6	
+O	tcl9-changes	t20-expr-comments.tcl	tcl8.6	
+D	tcl9-changes	t20-expr-comments.tcl	tcl9.0	
+O	tcl9-changes	t20-expr-comments.tcl	tcl9.0	
+D	tcl9-changes	t21-mathfuncs-9.tcl	tcl8.6	W002@1:'::tcl::mathfunc::isinf' is disabled in the active | W123@1:Unresolved command 'isinf' at this source point
+O	tcl9-changes	t21-mathfuncs-9.tcl	tcl8.6	
+D	tcl9-changes	t21-mathfuncs-9.tcl	tcl9.0	W002@5:'::tcl::mathfunc::cbrt' is disabled in the active  | W123@5:Unresolved command 'cbrt' at this source point
+O	tcl9-changes	t21-mathfuncs-9.tcl	tcl9.0	
+D	tcl9-changes	t22-format-32bit.tcl	tcl8.6	
+O	tcl9-changes	t22-format-32bit.tcl	tcl8.6	O129
+D	tcl9-changes	t22-format-32bit.tcl	tcl9.0	
+O	tcl9-changes	t22-format-32bit.tcl	tcl9.0	O129
+D	tcl9-changes	t23-puts-read-legacy.tcl	tcl8.6	E003@2:Too many arguments for 'puts': expected at most 2,
+O	tcl9-changes	t23-puts-read-legacy.tcl	tcl8.6	
+D	tcl9-changes	t23-puts-read-legacy.tcl	tcl9.0	E003@2:Too many arguments for 'puts': expected at most 2,
+O	tcl9-changes	t23-puts-read-legacy.tcl	tcl9.0	
+D	tcl9-changes	t24-new-commands-9.tcl	tcl8.6	
+O	tcl9-changes	t24-new-commands-9.tcl	tcl8.6	
+D	tcl9-changes	t24-new-commands-9.tcl	tcl9.0	
+O	tcl9-changes	t24-new-commands-9.tcl	tcl9.0	
+D	tcl9-changes	t25-info-cmdtype.tcl	tcl8.6	W002@3:'info cmdtype' is disabled in the active dialect p
+O	tcl9-changes	t25-info-cmdtype.tcl	tcl8.6	
+D	tcl9-changes	t25-info-cmdtype.tcl	tcl9.0	
+O	tcl9-changes	t25-info-cmdtype.tcl	tcl9.0	
+D	tcl9-changes	t26-lsearch-stride-regsub-command.tcl	tcl8.6	W004@1:Option '-stride' on 'lsearch' is not available in  | W004@2:Option '-command' on 'regsub' is not available in 
+O	tcl9-changes	t26-lsearch-stride-regsub-command.tcl	tcl8.6	
+D	tcl9-changes	t26-lsearch-stride-regsub-command.tcl	tcl9.0	
+O	tcl9-changes	t26-lsearch-stride-regsub-command.tcl	tcl9.0	
+D	tcl9-changes	t27-tcl-process-zipfs.tcl	tcl8.6	W002@1:'tcl::process' is disabled in the active dialect p | W123@1:Unresolved command 'tcl::process' at this source p | W155@1:'eq' binds tighter than '?:', so this parses as `(
+O	tcl9-changes	t27-tcl-process-zipfs.tcl	tcl8.6	
+D	tcl9-changes	t27-tcl-process-zipfs.tcl	tcl9.0	W155@1:'eq' binds tighter than '?:', so this parses as `(
+O	tcl9-changes	t27-tcl-process-zipfs.tcl	tcl9.0	
+D	tcl9-changes	t28-91-subst-options.tcl	tcl8.6	W004@3:Option '-variables' on 'subst' is not available in
+O	tcl9-changes	t28-91-subst-options.tcl	tcl8.6	
+D	tcl9-changes	t28-91-subst-options.tcl	tcl9.0	W004@3:Option '-variables' on 'subst' is not available in
+O	tcl9-changes	t28-91-subst-options.tcl	tcl9.0	
+D	tcl9-changes	t29-91-switch-integer.tcl	tcl8.6	W004@2:Option '-integer' on 'switch' is not available in 
+O	tcl9-changes	t29-91-switch-integer.tcl	tcl8.6	
+D	tcl9-changes	t29-91-switch-integer.tcl	tcl9.0	W004@2:Option '-integer' on 'switch' is not available in 
+O	tcl9-changes	t29-91-switch-integer.tcl	tcl9.0	
+D	tcl9-changes	t30-91-lfilter-unicode.tcl	tcl8.6	W002@2:'lfilter' is disabled in the active dialect profil | W123@2:Unresolved command 'lfilter' at this source point.
+O	tcl9-changes	t30-91-lfilter-unicode.tcl	tcl8.6	
+D	tcl9-changes	t30-91-lfilter-unicode.tcl	tcl9.0	W002@2:'lfilter' is disabled in the active dialect profil | W123@2:Unresolved command 'lfilter' at this source point.
+O	tcl9-changes	t30-91-lfilter-unicode.tcl	tcl9.0	
+D	tcl9-changes	t31-91-regexp-z.tcl	tcl8.6	
+O	tcl9-changes	t31-91-regexp-z.tcl	tcl8.6	
+D	tcl9-changes	t31-91-regexp-z.tcl	tcl9.0	
+O	tcl9-changes	t31-91-regexp-z.tcl	tcl9.0	
+D	tcl9-changes	t32-91-lseq-expr.tcl	tcl8.6	W002@2:'lseq' is disabled in the active dialect profile ( | W123@2:Unresolved command 'lseq' at this source point; di
+O	tcl9-changes	t32-91-lseq-expr.tcl	tcl8.6	
+D	tcl9-changes	t32-91-lseq-expr.tcl	tcl9.0	
+O	tcl9-changes	t32-91-lseq-expr.tcl	tcl9.0	
+D	tcl9-changes	t33-tcloo-9.tcl	tcl8.6	
+O	tcl9-changes	t33-tcloo-9.tcl	tcl8.6	
+D	tcl9-changes	t33-tcloo-9.tcl	tcl9.0	
+O	tcl9-changes	t33-tcloo-9.tcl	tcl9.0	
+D	tcl9-changes	t34-scan-format-L.tcl	tcl8.6	
+O	tcl9-changes	t34-scan-format-L.tcl	tcl8.6	
+D	tcl9-changes	t34-scan-format-L.tcl	tcl9.0	
+O	tcl9-changes	t34-scan-format-L.tcl	tcl9.0	
+D	tcl9-changes	t35-eofchar-write.tcl	tcl8.6	
+O	tcl9-changes	t35-eofchar-write.tcl	tcl8.6	
+D	tcl9-changes	t35-eofchar-write.tcl	tcl9.0	
+O	tcl9-changes	t35-eofchar-write.tcl	tcl9.0	
+D	tcl9-changes	t36-chan-isbinary.tcl	tcl8.6	W002@1:'chan isbinary' is disabled in the active dialect 
+O	tcl9-changes	t36-chan-isbinary.tcl	tcl8.6	
+D	tcl9-changes	t36-chan-isbinary.tcl	tcl9.0	
+O	tcl9-changes	t36-chan-isbinary.tcl	tcl9.0	
+D	tcl9-changes	t37-cbrt-91.tcl	tcl8.6	W002@1:'::tcl::mathfunc::cbrt' is disabled in the active  | W123@1:Unresolved command 'cbrt' at this source point
+O	tcl9-changes	t37-cbrt-91.tcl	tcl8.6	
+D	tcl9-changes	t37-cbrt-91.tcl	tcl9.0	W002@1:'::tcl::mathfunc::cbrt' is disabled in the active  | W123@1:Unresolved command 'cbrt' at this source point
+O	tcl9-changes	t37-cbrt-91.tcl	tcl9.0	
+D	tcl9-changes	t38-vm91-lseq-exit.tcl	tcl8.6	W002@2:'lseq' is disabled in the active dialect profile ( | W123@2:Unresolved command 'lseq' at this source point; di
+O	tcl9-changes	t38-vm91-lseq-exit.tcl	tcl8.6	
+D	tcl9-changes	t38-vm91-lseq-exit.tcl	tcl9.0	
+O	tcl9-changes	t38-vm91-lseq-exit.tcl	tcl9.0	
+D	comments-continuations	c01-hash-mid-command.tcl	tcl8.6	E003@2:Too many arguments for 'set': expected at most 2, 
+O	comments-continuations	c01-hash-mid-command.tcl	tcl8.6	
+D	comments-continuations	c01-hash-mid-command.tcl	tcl9.0	E003@2:Too many arguments for 'set': expected at most 2, 
+O	comments-continuations	c01-hash-mid-command.tcl	tcl9.0	
+D	comments-continuations	c02-semicolon-hash-forms.tcl	tcl8.6	
+O	comments-continuations	c02-semicolon-hash-forms.tcl	tcl8.6	
+D	comments-continuations	c02-semicolon-hash-forms.tcl	tcl9.0	
+O	comments-continuations	c02-semicolon-hash-forms.tcl	tcl9.0	
+D	comments-continuations	c03-switch-body-comment-odd.tcl	tcl8.6	
+O	comments-continuations	c03-switch-body-comment-odd.tcl	tcl8.6	
+D	comments-continuations	c03-switch-body-comment-odd.tcl	tcl9.0	
+O	comments-continuations	c03-switch-body-comment-odd.tcl	tcl9.0	
+D	comments-continuations	c04-switch-body-comment-even.tcl	tcl8.6	E002@4:Too few arguments for 'puts': expected at least 1,
+O	comments-continuations	c04-switch-body-comment-even.tcl	tcl8.6	
+D	comments-continuations	c04-switch-body-comment-even.tcl	tcl9.0	E002@4:Too few arguments for 'puts': expected at least 1,
+O	comments-continuations	c04-switch-body-comment-even.tcl	tcl9.0	
+D	comments-continuations	c05-unbalanced-brace-in-comment.tcl	tcl8.6	E204@5:extra characters after close-brace
+O	comments-continuations	c05-unbalanced-brace-in-comment.tcl	tcl8.6	
+D	comments-continuations	c05-unbalanced-brace-in-comment.tcl	tcl9.0	E204@5:extra characters after close-brace
+O	comments-continuations	c05-unbalanced-brace-in-comment.tcl	tcl9.0	
+D	comments-continuations	c06-balanced-braces-in-comment.tcl	tcl8.6	
+O	comments-continuations	c06-balanced-braces-in-comment.tcl	tcl8.6	O103
+D	comments-continuations	c06-balanced-braces-in-comment.tcl	tcl9.0	
+O	comments-continuations	c06-balanced-braces-in-comment.tcl	tcl9.0	O103
+D	comments-continuations	c07-comment-backslash-continuation.tcl	tcl8.6	
+O	comments-continuations	c07-comment-backslash-continuation.tcl	tcl8.6	
+D	comments-continuations	c07-comment-backslash-continuation.tcl	tcl9.0	
+O	comments-continuations	c07-comment-backslash-continuation.tcl	tcl9.0	
+D	comments-continuations	c08-continuation-in-braces.tcl	tcl8.6	
+O	comments-continuations	c08-continuation-in-braces.tcl	tcl8.6	O129
+D	comments-continuations	c08-continuation-in-braces.tcl	tcl9.0	
+O	comments-continuations	c08-continuation-in-braces.tcl	tcl9.0	O129
+D	comments-continuations	c09-continuation-in-quotes.tcl	tcl8.6	
+O	comments-continuations	c09-continuation-in-quotes.tcl	tcl8.6	
+D	comments-continuations	c09-continuation-in-quotes.tcl	tcl9.0	
+O	comments-continuations	c09-continuation-in-quotes.tcl	tcl9.0	
+D	comments-continuations	c10-continuation-bare.tcl	tcl8.6	E003@2:Too many arguments for 'set': expected at most 2, 
+O	comments-continuations	c10-continuation-bare.tcl	tcl8.6	O116
+D	comments-continuations	c10-continuation-bare.tcl	tcl9.0	E003@2:Too many arguments for 'set': expected at most 2, 
+O	comments-continuations	c10-continuation-bare.tcl	tcl9.0	O116
+D	comments-continuations	c11-semicolon-in-quotes-braces.tcl	tcl8.6	W123@2:Unresolved command 'y' at this source point; did y
+O	comments-continuations	c11-semicolon-in-quotes-braces.tcl	tcl8.6	
+D	comments-continuations	c11-semicolon-in-quotes-braces.tcl	tcl9.0	W123@2:Unresolved command 'y' at this source point; did y
+O	comments-continuations	c11-semicolon-in-quotes-braces.tcl	tcl9.0	
+D	comments-continuations	c12-if-implicit-else-comment.tcl	tcl8.6	E004@2:Extra words after "else" clause in "if" command
+O	comments-continuations	c12-if-implicit-else-comment.tcl	tcl8.6	
+D	comments-continuations	c12-if-implicit-else-comment.tcl	tcl9.0	E004@2:Extra words after "else" clause in "if" command
+O	comments-continuations	c12-if-implicit-else-comment.tcl	tcl9.0	
+D	comments-continuations	c13-comment-in-if-proc-bodies.tcl	tcl8.6	
+O	comments-continuations	c13-comment-in-if-proc-bodies.tcl	tcl8.6	
+D	comments-continuations	c13-comment-in-if-proc-bodies.tcl	tcl9.0	
+O	comments-continuations	c13-comment-in-if-proc-bodies.tcl	tcl9.0	
+D	comments-continuations	c14-expand-with-comment.tcl	tcl8.6	
+O	comments-continuations	c14-expand-with-comment.tcl	tcl8.6	
+D	comments-continuations	c14-expand-with-comment.tcl	tcl9.0	
+O	comments-continuations	c14-expand-with-comment.tcl	tcl9.0	
+D	comments-continuations	c15-hash-in-data-lists.tcl	tcl8.6	
+O	comments-continuations	c15-hash-in-data-lists.tcl	tcl8.6	
+D	comments-continuations	c15-hash-in-data-lists.tcl	tcl9.0	
+O	comments-continuations	c15-hash-in-data-lists.tcl	tcl9.0	
+D	comments-continuations	c16-quote-brace-in-body.tcl	tcl8.6	E200@2:missing close-bracket
+O	comments-continuations	c16-quote-brace-in-body.tcl	tcl8.6	
+D	comments-continuations	c16-quote-brace-in-body.tcl	tcl9.0	E200@2:missing close-bracket
+O	comments-continuations	c16-quote-brace-in-body.tcl	tcl9.0	
+D	comments-continuations	c17-hash-in-quoted-string.tcl	tcl8.6	
+O	comments-continuations	c17-hash-in-quoted-string.tcl	tcl8.6	
+D	comments-continuations	c17-hash-in-quoted-string.tcl	tcl9.0	
+O	comments-continuations	c17-hash-in-quoted-string.tcl	tcl9.0	
+D	comments-continuations	c18-expr-continuation-and-comment.tcl	tcl8.6	
+O	comments-continuations	c18-expr-continuation-and-comment.tcl	tcl8.6	
+D	comments-continuations	c18-expr-continuation-and-comment.tcl	tcl9.0	
+O	comments-continuations	c18-expr-continuation-and-comment.tcl	tcl9.0	
+D	comments-continuations	c19-comment-body-continuation.tcl	tcl8.6	
+O	comments-continuations	c19-comment-body-continuation.tcl	tcl8.6	O103,O100
+D	comments-continuations	c19-comment-body-continuation.tcl	tcl9.0	
+O	comments-continuations	c19-comment-body-continuation.tcl	tcl9.0	O103,O100
+D	comments-continuations	c20-backslash-space-vs-newline.tcl	tcl8.6	W123@2:Unresolved command 'b' at this source point; did y | W123@4:Unresolved command 'd' at this source point; did y
+O	comments-continuations	c20-backslash-space-vs-newline.tcl	tcl8.6	
+D	comments-continuations	c20-backslash-space-vs-newline.tcl	tcl9.0	W123@2:Unresolved command 'b' at this source point; did y | W123@4:Unresolved command 'd' at this source point; did y
+O	comments-continuations	c20-backslash-space-vs-newline.tcl	tcl9.0	
+D	comments-continuations	c21-crlf-continuation.tcl	tcl8.6	E003@2:Too many arguments for 'set': expected at most 2, 
+O	comments-continuations	c21-crlf-continuation.tcl	tcl8.6	O107
+D	comments-continuations	c21-crlf-continuation.tcl	tcl9.0	E003@2:Too many arguments for 'set': expected at most 2, 
+O	comments-continuations	c21-crlf-continuation.tcl	tcl9.0	O107
+D	comments-continuations	c22-trailing-hash-in-namespace-eval.tcl	tcl8.6	
+O	comments-continuations	c22-trailing-hash-in-namespace-eval.tcl	tcl8.6	
+D	comments-continuations	c22-trailing-hash-in-namespace-eval.tcl	tcl9.0	
+O	comments-continuations	c22-trailing-hash-in-namespace-eval.tcl	tcl9.0	
+D	comments-continuations	c23-hash-word-in-list.tcl	tcl8.6	
+O	comments-continuations	c23-hash-word-in-list.tcl	tcl8.6	O118
+D	comments-continuations	c23-hash-word-in-list.tcl	tcl9.0	
+O	comments-continuations	c23-hash-word-in-list.tcl	tcl9.0	O118
+D	comments-continuations	c24-comment-in-dict-for-and-foreach.tcl	tcl8.6	
+O	comments-continuations	c24-comment-in-dict-for-and-foreach.tcl	tcl8.6	
+D	comments-continuations	c24-comment-in-dict-for-and-foreach.tcl	tcl9.0	
+O	comments-continuations	c24-comment-in-dict-for-and-foreach.tcl	tcl9.0	
+D	comments-continuations	c25-docstring-continuation.tcl	tcl8.6	
+O	comments-continuations	c25-docstring-continuation.tcl	tcl8.6	
+D	comments-continuations	c25-docstring-continuation.tcl	tcl9.0	
+O	comments-continuations	c25-docstring-continuation.tcl	tcl9.0	
+D	comments-continuations	c26-switch-body-comment-words.tcl	tcl8.6	W123@4:Unresolved command 'comment' at this source point | W123@4:Unresolved command 'not' at this source point | W123@4:Unresolved command 'this' at this source point
+O	comments-continuations	c26-switch-body-comment-words.tcl	tcl8.6	
+D	comments-continuations	c26-switch-body-comment-words.tcl	tcl9.0	W123@4:Unresolved command 'comment' at this source point | W123@4:Unresolved command 'not' at this source point | W123@4:Unresolved command 'this' at this source point
+O	comments-continuations	c26-switch-body-comment-words.tcl	tcl9.0	
+D	comments-continuations	c27-comment-even-backslashes.tcl	tcl8.6	
+O	comments-continuations	c27-comment-even-backslashes.tcl	tcl8.6	
+D	comments-continuations	c27-comment-even-backslashes.tcl	tcl9.0	
+O	comments-continuations	c27-comment-even-backslashes.tcl	tcl9.0	

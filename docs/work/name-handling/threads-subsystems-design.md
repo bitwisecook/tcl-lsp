@@ -72,3 +72,7 @@ Duplicates are few because there is little implementation: the one real duplicat
 - **The missing `tcl::unsupported` commands** (`assemble`, `disassemble`, `getbytecode`, `inject`, `loadIcu`): record them as non-goals in the engines' command inventories with a refusal naming the engine, and add registry specs so analysis knows the per-release set. Done when `t07` lists the same names or a documented refusal for each.
 - **Startup and `unknown` cost in the debug VM:** measure why a VM run takes 7–11 s and each unknown command about 10 s (the auto-load path), and fix or document it; the fixture harness should not need 120 s timeouts.
 - **Oracle environment:** install Thread for 8.6 (and keep the SDK's 3.0.4 for 9.x) in the reference set, so Thread rows have every release.
+
+## Status on the current source
+
+Confirmed on the current source: no diagnostic for `thread::*` without `package require Thread` (`t09`); the `t07` fold changes what `tcl::unsupported::representation` reports. Details: [audit summary](tcl-areas-audit.md) and [`tcl-areas-head/`](handover/oo-dispatch-probe/tcl-areas-head/). Plan items 153–199.

@@ -109,3 +109,7 @@ The debug VM spends about 10 s on each unknown command and 26 s in `safe::interp
 - **W312 only where injection is possible:** a single literal word with no substitution is not an injection site, and `invokehidden`'s command word is not a script. Done when `i01`, `i02`, `i04`, `i05` lose those W312s and `interp eval $c $user` keeps it.
 - **An `Interpreters` engine trait** in `tcl-runtime-api`, with both engines implementing it and the copied subcommand dispatch, path resolution and hide/expose code moved behind it. Done when the subcommand table exists once and the interps rows run through the trait in both engines.
 - **Interps vectors in the conformance matrix:** the sixteen fixtures as rows for tclsh 8.4–9.1, both engines, the analyser and go to definition, references and rename.
+
+## Status on the current source
+
+Confirmed on the current source: W120 on auto-loaded `safe::` commands (`i09`). Not reproduced: W123 on `kid` (`i03`), E003 on `interp create -safe` (`i16`) and W210 in child bodies (`i05`). Navigation and rename rows were not re-run. Details: [audit summary](tcl-areas-audit.md) and [`tcl-areas-head/`](handover/oo-dispatch-probe/tcl-areas-head/). Plan items 153–199.

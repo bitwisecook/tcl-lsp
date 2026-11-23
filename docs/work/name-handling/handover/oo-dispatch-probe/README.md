@@ -47,3 +47,7 @@ fn oo_body_probe() {
 ## Name-resolution validation
 
 `name-validation/` holds the cases the code inventories flagged as likely disagreements ([name-resolution validation](../../name-resolution-validation.md)): `p01` relative `namespace path`, `p02` a namespace procedure shadowing `lindex`, `p03` an empty ensemble subcommand, `v01`–`v04` variable names (`a(b` as a scalar, `global ::x`, a non-ASCII byte ending `$name`, `upvar #0 ::g`), and `m01` TclOO linearisation. Run each under tclsh 8.6/9.0, `target/debug/tclvm` and `target/debug/examples/run_script` (with `TCL_LIBRARY` set), and through LSP definition and hover with a temporary `#[cfg(test)]` probe in `tcl-lsp-core/src/lib.rs` calling `crate::definition::definition` and `crate::hover::hover`. All agreed with tclsh on `d0e48391`.
+
+## Fourteen Tcl areas
+
+`traces/`, `special-variables/`, `coroutines/`, `event-loop/`, `errors-returns/`, `unknown-autoload/`, `interps/`, `exec-pipes/`, `threads-subsystems/`, `encodings-channels/`, `regex-patterns/`, `tcl9-changes/`, `comments-continuations/` and `jim/` each hold fixtures, `engines.tsv` (tclsh 8.4–9.1, Jim, VM, runtime) and the audit's `analyser-mcp.out` (cached MCP build). `tcl-areas-head/` re-runs the analyser and optimiser on the current source and executes every rewrite; see [the audit summary](../../tcl-areas-audit.md).

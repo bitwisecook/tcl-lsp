@@ -80,3 +80,7 @@ Navigation: definition on an `auto_index`-defined call returns nothing; definiti
 - **Navigation follows autoload receipts in `tcl-lsp-core`:** move `tclIndex`/`auto_index` definition and hover from `tcl-lsp-server/src/navigation/` into `tcl-lsp-core::definition` and `hover`. Done when MCP `goto_definition` on an `auto_index`-defined call returns the defining location.
 - **Profile facts for handler signatures:** ensemble `-unknown` handlers, `namespace unknown` handlers and the TclOO `unknown` method get fixed-signature callback descriptors so W214 abstains (`u09`), and `source_class.rs:529`/`:549` read the method name from the TclOO profile instead of the literal `"unknown"`.
 - **Stop suggesting operators:** W123's "did you mean" draws only from command names (`ls` → `le`).
+
+## Status on the current source
+
+Confirmed on the current source: W123 on `auto_index` commands (`u04`, `u14`) and W214 on the ensemble `-unknown` handler (`u09`). Details: [audit summary](tcl-areas-audit.md) and [`tcl-areas-head/`](handover/oo-dispatch-probe/tcl-areas-head/). Plan items 153–199.

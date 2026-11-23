@@ -129,3 +129,7 @@ Only (1) states the frame, and only `after` and `package ifneeded` carry it, alt
 - **Debug VM event-turn cost.** Owner: `rust/tcl-vm/src/cmd_event.rs` and `eval_original_event` (`interp/native_event_context.rs:28`). Profile why one `after 0` plus `update` costs about 35 ms in the debug VM against 2 ms in the debug runtime. Done when ev16 matches tclsh in the debug VM, or the cost is explained and accepted in the VM's performance notes.
 - **Nested `info exists` is not a read.** Owner: W210's read collection (`read_before_set.rs`) and the nested-substitution walker it uses. Done when `puts [list [info exists zz] 1]` reports nothing (ev03, ev04, ev15 lose their `info exists` W210s).
 - **Conformance vectors.** Owner: engine end-to-end suites and an analyser vector runner. Turn the 17 fixtures and `engines.tsv` into vectors for both engines (8.6 and 9.0) and for W210, W220, references and rename, including the Tk row through `tk/run_tk.py`. Done when a regression in any measured row fails a test.
+
+## Status on the current source
+
+Not reproduced on the current source: the W210s and W220 on globals written by `after` scripts (`ev02`, `ev08` and the rest); they stay as regression rows. `ev12`'s missed read stands. Details: [audit summary](tcl-areas-audit.md) and [`tcl-areas-head/`](handover/oo-dispatch-probe/tcl-areas-head/). Plan items 153–199.

@@ -78,3 +78,7 @@ The VM's `auto_path` ends in a cwd-relative `./lib` where tclsh has `<prefix>/li
 - **9.x namespace resolution.** Teach variable lookup that 9.0+ has no global fallback for unqualified names in `namespace eval` (shared with the [namespace page](namespace-design.md)). Done when `sv10` reports W210 under `tcl9.0` and not under `tcl8.6`.
 - **`info exists` is not a read.** Fix the analyser so `info exists` inside a quoted word is an existence test, as it already is at top level. Done when every W210 marked false in `special-variables/analyser-mcp.out` is gone.
 - **VM package scan time.** Profile `package require` of an unknown package in the VM (9–17 s in a debug build against the source tree's `auto_path`), and fix the 8.5 `tm.tcl` `path add` failure with the package owner. Done when `sv08`, `sv15` and `sv19` finish within the 20 s budget and `sv19` passes under 8.5.
+
+## Status on the current source
+
+Confirmed on the current source: W210 on `errorCode` after `catch` (`sv16`), the missed 9.0 `namespace eval` read (`sv10`), and the `sv14`/`sv17` forwarding of seeded `errorInfo`/`errorCode` (wrong output). Not reproduced: the `sv18` precision and `sv19` `auto_path` rewrites (cached-build artefacts). Details: [audit summary](tcl-areas-audit.md) and [`tcl-areas-head/`](handover/oo-dispatch-probe/tcl-areas-head/). Plan items 153–199.

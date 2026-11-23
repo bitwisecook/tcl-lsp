@@ -80,3 +80,7 @@ Duplicates of one rule: the "this word starts a pipeline" test is written three 
 - **Re-rank W103** (`source_paths.rs`): the `|[list …]` form with literal list elements is a hint, the same as the literal string; a string `"|cmd $x"` stays a warning. Done when `e07` gives hints only.
 - **Fold the unsafe-command rosters** in `tcl-spec-hooks/src/pack_eval.rs` and `irules_policy.rs` into registry traits, so `exec`'s classification has one owner.
 - **Exec vectors in the conformance matrix:** the ten fixtures as rows for tclsh 8.4–9.1, Jim, both engines, the grammar classifier and the analyser.
+
+## Status on the current source
+
+Confirmed on the current source: no diagnostic for redirection injection (`e08`); the VM's `exec echo a | cat` prints `a | cat` and `exec false` succeeds. Details: [audit summary](tcl-areas-audit.md) and [`tcl-areas-head/`](handover/oo-dispatch-probe/tcl-areas-head/). Plan items 153–199.
