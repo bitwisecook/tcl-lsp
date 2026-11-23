@@ -367,7 +367,7 @@ impl Analyser {
 
             // IPv6 candidates.
             for candidate in find_ipv6_candidates(text) {
-                if Ipv6Addr::from_str(candidate).is_err() {
+                if Ipv6Addr::from_str(candidate).is_err() && !time_or_mac(candidate) {
                     let msg = format!("Invalid IPv6 address '{candidate}'.");
                     self.emit_ip_diag_at_def(
                         fu,
@@ -502,6 +502,24 @@ fn collect_expr_command_texts_at(node: &ExprNode, out: &mut Vec<String>, depth: 
         | ExprNode::CompiledWord { .. }
         | ExprNode::Var { .. }
         | ExprNode::Raw { .. } => {}
+    }
+}
+
+fn time_or_mac(candidate: &str) -> bool {
+    let parts: Vec<_> = candidate.split(':').collect();
+    if parts.iter().any(|part| part.len() != 2) {
+        return false;
+    }
+    match parts.as_slice() {
+        [hours, minutes, seconds] => {
+            hours.parse::<u8>().is_ok_and(|value| value < 24)
+                && minutes.parse::<u8>().is_ok_and(|value| value < 60)
+                && seconds.parse::<u8>().is_ok_and(|value| value <= 60)
+        }
+        [_, _, _, _, _, _] => parts
+            .iter()
+            .all(|part| part.bytes().all(|byte| byte.is_ascii_hexdigit())),
+        _ => false,
     }
 }
 

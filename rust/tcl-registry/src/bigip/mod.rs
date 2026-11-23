@@ -120,6 +120,62 @@ impl ValueKind {
     }
 }
 
+/// Address syntax admitted by an authored BIG-IP configuration property.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum AddressGrammar {
+    /// Literal address with an optional route domain.
+    Address,
+    /// Literal or wildcard address.
+    AddressOrWildcard,
+    /// Address and prefix, or a default route.
+    Network,
+    /// Virtual-address reference and service.
+    Destination,
+    /// Pool member keys of node references and services.
+    MemberKey,
+    /// LTM monitor alias or endpoint.
+    MonitorDestination,
+    /// An address with an optional service, retaining both when present.
+    Endpoint,
+    /// A list of literal addresses with optional route domains.
+    AddressList,
+    /// A list of hosts with optional services.
+    EndpointList,
+    /// A contiguous IP mask or prefix.
+    Mask,
+    /// An ASCII DNS name.
+    Fqdn,
+    /// A numeric, named or wildcard transport service.
+    Service,
+    /// A GTM server and virtual-server key.
+    GtmMemberKey,
+}
+
+/// Appliance coverage for an authored address property.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum AddressValidation {
+    /// The registry has no matching appliance verdict for the local reader.
+    Unmeasured,
+    /// Validate syntax on SCF input identifying 21.1.
+    Syntax21_1,
+    /// Validate 21.1 syntax and resolve every explicit nonzero route domain.
+    RouteDomain21_1,
+}
+
+impl AddressValidation {
+    /// Whether the 21.1 reader can diagnose an invalid literal.
+    #[must_use]
+    pub const fn checks_syntax(self) -> bool {
+        !matches!(self, Self::Unmeasured)
+    }
+
+    /// Whether the property requires a defined route domain.
+    #[must_use]
+    pub const fn requires_route_domain(self) -> bool {
+        matches!(self, Self::RouteDomain21_1)
+    }
+}
+
 /// Resolution metadata for one BIG-IP object kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BigipObjectKindSpec {
@@ -165,6 +221,10 @@ pub struct BigipPropertySpec {
     /// Richer shape kind when `value_type` collapses the scalar.
     /// `None` when unset.
     pub shape_kind: Option<ValueKind>,
+    /// Reader for an address-bearing scalar or keyed block.
+    pub address_grammar: Option<AddressGrammar>,
+    /// Appliance-backed validation for the property's reader.
+    pub address_validation: AddressValidation,
     /// Documented default value.
     pub default: Option<&'static str>,
     /// Lifecycle flags (`deprecated`, `read_only`, `not_synced`, …).
@@ -223,6 +283,8 @@ impl BigipPropertySpec {
         references: &[],
         description: "",
         shape_kind: None,
+        address_grammar: None,
+        address_validation: AddressValidation::Unmeasured,
         default: None,
         usage_flags: &[],
         list_operators: &[],
@@ -323,6 +385,41 @@ impl BigipRegistry {
         self.by_header
             .get(&(module, object_type))
             .map(|&i| self.specs[i])
+    }
+
+    /// Find a property descriptor, descending through named sections.
+    #[must_use]
+    pub fn property(
+        &self,
+        module: &str,
+        object_type: &str,
+        path: &[&str],
+    ) -> Option<&'static BigipPropertySpec> {
+        let (leaf, sections) = path.split_last()?;
+        let properties = sections.iter().try_fold(
+            self.get_by_header(module, object_type)?.properties,
+            |properties, section| {
+                Some(
+                    properties
+                        .iter()
+                        .find(|field| field.name == *section)?
+                        .block,
+                )
+            },
+        )?;
+        properties.iter().find(|field| field.name == *leaf)
+    }
+
+    /// Return the explicitly chosen grammar for a top-level TMSH property.
+    #[must_use]
+    pub fn address_grammar(
+        &self,
+        module: &str,
+        object_type: &str,
+        property: &str,
+    ) -> Option<AddressGrammar> {
+        self.property(module, object_type, &[property])?
+            .address_grammar
     }
 
     /// All registered kind names, sorted.
@@ -659,5 +756,30 @@ mod tests {
             "expected ≥80% of edge source kinds to resolve, got {resolved}/{}",
             sources.len()
         );
+    }
+}
+
+#[cfg(test)]
+mod address_grammar_coverage {
+    use super::{BigipPropertySpec, ValueKind, default_registry};
+
+    fn check_fields(kind: &str, fields: &[BigipPropertySpec]) {
+        for field in fields {
+            if matches!(
+                field.shape_kind,
+                Some(ValueKind::IpAddress | ValueKind::Endpoint)
+            ) || field.address_validation.checks_syntax()
+            {
+                assert!(field.address_grammar.is_some(), "{kind} {}", field.name);
+            }
+            check_fields(kind, field.block);
+        }
+    }
+
+    #[test]
+    fn address_shaped_registry_properties_declare_readers() {
+        for spec in default_registry().specs() {
+            check_fields(spec.kind_spec.kind, spec.properties);
+        }
     }
 }

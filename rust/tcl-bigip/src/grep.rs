@@ -24,15 +24,13 @@
 //! both to `max_depth` (bounded by `max_nodes`), and renders a text or JSON
 //! report.
 
-use std::collections::{HashMap, HashSet, VecDeque};
-use std::net::IpAddr;
-
-use ipnet::{IpNet, Ipv4Net, Ipv6Net};
 use regex::Regex;
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::error::BigipError;
 use crate::graph::{ObjectEdge, ObjectGraph, ObjectNode};
 use crate::range::Range;
+use crate::value::Network;
 
 /// The accepted traversal directions.
 pub const DIRECTIONS: [&str; 3] = ["both", "forward", "reverse"];
@@ -140,50 +138,9 @@ pub struct GrepReport {
     pub text_report: String,
 }
 
-/// A parsed IP network (host bits cleared / non-strict).
-#[derive(Clone, Copy)]
-enum Net {
-    V4(Ipv4Net),
-    V6(Ipv6Net),
-}
-
-impl Net {
-    fn version(self) -> u8 {
-        match self {
-            Net::V4(_) => 4,
-            Net::V6(_) => 6,
-        }
-    }
-
-    /// `self.overlaps(other)` — network overlap (same version only; the caller
-    /// guards the version match).
-    fn overlaps(self, other: Net) -> bool {
-        match (self, other) {
-            (Net::V4(a), Net::V4(b)) => a.contains(&b) || b.contains(&a),
-            (Net::V6(a), Net::V6(b)) => a.contains(&b) || b.contains(&a),
-            _ => false,
-        }
-    }
-}
-
-/// Parse one token as `ipaddress.ip_network(token, strict=False)` — a bare
-/// address becomes a host network (`/32` or `/128`); a `addr/prefix` form is
-/// masked to its network. Returns `None` on anything the stdlib would reject.
-fn parse_ip_network(token: &str) -> Option<Net> {
-    match token.parse::<IpNet>() {
-        Ok(IpNet::V4(n)) => Some(Net::V4(n.trunc())),
-        Ok(IpNet::V6(n)) => Some(Net::V6(n.trunc())),
-        Err(_) => match token.parse::<IpAddr>() {
-            Ok(IpAddr::V4(a)) => Ipv4Net::new(a, 32).ok().map(Net::V4),
-            Ok(IpAddr::V6(a)) => Ipv6Net::new(a, 128).ok().map(Net::V6),
-            Err(_) => None,
-        },
-    }
-}
-
 /// Parse one or more whitespace / comma-separated IPs or CIDRs. Returns `Err`
 /// when the pattern is empty or any token is not a valid IP / network.
-fn parse_cidr_pattern(pattern: &str) -> Result<Vec<Net>, BigipError> {
+fn parse_cidr_pattern(pattern: &str) -> Result<Vec<Network>, BigipError> {
     let tokens: Vec<&str> = pattern
         .trim()
         .split(|c: char| c == ',' || c.is_whitespace())
@@ -196,7 +153,7 @@ fn parse_cidr_pattern(pattern: &str) -> Result<Vec<Net>, BigipError> {
     }
     let mut networks = Vec::with_capacity(tokens.len());
     for token in tokens {
-        match parse_ip_network(token) {
+        match Network::try_parse(token) {
             Some(net) => networks.push(net),
             None => return Err(BigipError::grep(format!("invalid CIDR pattern {token:?}"))),
         }
@@ -211,13 +168,15 @@ fn ip_regexes() -> &'static (Regex, Regex) {
     use std::sync::OnceLock;
     static RE: OnceLock<(Regex, Regex)> = OnceLock::new();
     RE.get_or_init(|| {
-        let ipv4 = Regex::new(r"\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})(?:/(\d{1,2}))?\b")
+        let ipv4 = Regex::new(r"\b(?:\d{1,3}\.){3}\d{1,3}(?:%[0-9]+)?(?:/[0-9]{1,2})?\b")
             .expect("valid IPv4 regex");
         // The IPv6 core alternation, minus the `(?<![:\w])` /
         // `(?![:\w])` boundary lookarounds (handled manually below).
         let ipv6 = Regex::new(concat!(
             r"(",
-            r"(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}",
+            r"::(?:ffff(?::0{1,4})?:)?(?:\d{1,3}\.){3}\d{1,3}",
+            r"|(?:[0-9a-fA-F]{1,4}:){1,4}:(?:\d{1,3}\.){3}\d{1,3}",
+            r"|(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}",
             r"|(?:[0-9a-fA-F]{1,4}:){1,7}:",
             r"|:(?::[0-9a-fA-F]{1,4}){1,7}",
             r"|(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}",
@@ -226,11 +185,9 @@ fn ip_regexes() -> &'static (Regex, Regex) {
             r"|(?:[0-9a-fA-F]{1,4}:){1,3}(?::[0-9a-fA-F]{1,4}){1,4}",
             r"|(?:[0-9a-fA-F]{1,4}:){1,2}(?::[0-9a-fA-F]{1,4}){1,5}",
             r"|[0-9a-fA-F]{1,4}:(?::[0-9a-fA-F]{1,4}){1,6}",
-            r"|::(?:ffff(?::0{1,4})?:)?(?:\d{1,3}\.){3}\d{1,3}",
-            r"|(?:[0-9a-fA-F]{1,4}:){1,4}:(?:\d{1,3}\.){3}\d{1,3}",
             r"|::",
             r")",
-            r"(?:/(\d{1,3}))?",
+            r"(?:%[0-9]+)?(?:/[0-9]{1,3})?",
         ))
         .expect("valid IPv6 regex");
         (ipv4, ipv6)
@@ -239,17 +196,19 @@ fn ip_regexes() -> &'static (Regex, Regex) {
 
 /// `c` is in the `[:\w]` boundary class the IPv6 lookarounds exclude.
 fn is_ipv6_boundary_char(c: char) -> bool {
-    c == ':' || c == '_' || c.is_alphanumeric()
+    matches!(c, ':' | '_' | '%') || c.is_alphanumeric()
 }
 
 /// Yield every IP / CIDR token in `text` as a network: scan IPv4 then IPv6
-/// literals and validate each via the stdlib parser, silently skipping
+/// literals and validate each via the typed network reader, silently skipping
 /// anything it rejects.
-fn extract_ip_networks(text: &str) -> Vec<Net> {
+fn extract_ip_networks(text: &str) -> Vec<Network> {
     let (ipv4_re, ipv6_re) = ip_regexes();
     let mut out = Vec::new();
     for m in ipv4_re.find_iter(text) {
-        if let Some(net) = parse_ip_network(m.as_str()) {
+        if !text[m.end()..].starts_with('%')
+            && let Some(net) = Network::try_parse(m.as_str())
+        {
             out.push(net);
         }
     }
@@ -269,7 +228,7 @@ fn extract_ip_networks(text: &str) -> Vec<Net> {
                 .is_none_or(|c| !is_ipv6_boundary_char(c));
         if before_ok
             && after_ok
-            && let Some(net) = parse_ip_network(m.as_str())
+            && let Some(net) = Network::try_parse(m.as_str())
         {
             out.push(net);
         }
@@ -277,16 +236,19 @@ fn extract_ip_networks(text: &str) -> Vec<Net> {
     out
 }
 
+fn cidrs_overlap(seed: &Network, found: &Network) -> bool {
+    seed.route_domain
+        .is_none_or(|domain| domain == found.route_domain.unwrap_or(0))
+        && (seed.contains_addr(found.network_addr()) || found.contains_addr(seed.network_addr()))
+}
+
 /// Whether any IP / CIDR mentioned by `node` overlaps a seed network:
 /// identifier + header + body are searched together.
-fn node_matches_cidrs(node: &ObjectNode, seed_networks: &[Net]) -> bool {
+fn node_matches_cidrs(node: &ObjectNode, seed_networks: &[Network]) -> bool {
     let haystack = format!("{}\n{}\n{}", node.identifier, node.header, node.body);
     for found in extract_ip_networks(&haystack) {
         for seed in seed_networks {
-            if found.version() != seed.version() {
-                continue;
-            }
-            if seed.overlaps(found) {
+            if cidrs_overlap(seed, &found) {
                 return true;
             }
         }
@@ -298,7 +260,7 @@ fn node_matches_cidrs(node: &ObjectNode, seed_networks: &[Net]) -> bool {
 enum Matcher {
     Substring(String),
     Regex(Regex),
-    Cidr(Vec<Net>),
+    Cidr(Vec<Network>),
     Exact(String),
 }
 
@@ -913,4 +875,26 @@ pub fn report_to_json(report: &GrepReport, include_body: bool) -> String {
     let _ = write!(out, "  \"textReport\": {}", q(&report.text_report));
     out.push_str("\n}\n");
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cidr_search_preserves_explicit_route_domains() {
+        let networks = extract_ip_networks("address 192.0.2.53%2/24");
+        assert_eq!(networks.len(), 1);
+        let found = &networks[0];
+        for (seed, expected) in [
+            ("192.0.2.1", true),
+            ("192.0.2.1%2", true),
+            ("192.0.2.1%0", false),
+            ("192.0.2.1%3", false),
+            ("192.0.3.1%2", false),
+        ] {
+            let seed = Network::try_parse(seed).unwrap();
+            assert_eq!(cidrs_overlap(&seed, found), expected, "{seed}");
+        }
+    }
 }

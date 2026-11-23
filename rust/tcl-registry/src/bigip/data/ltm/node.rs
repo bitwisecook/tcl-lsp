@@ -34,6 +34,8 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             name: "address",
             value_type: ValueKind::String,
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Address),
+            address_validation: crate::bigip::AddressValidation::RouteDomain21_1,
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {
@@ -65,11 +67,18 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             shape_kind: Some(ValueKind::Object),
             block: &[
                 BigipPropertySpec {
+                    name: "name",
+                    value_type: ValueKind::String,
+                    in_sections: &["fqdn"],
+                    address_grammar: Some(crate::bigip::AddressGrammar::Fqdn),
+                    address_validation: crate::bigip::AddressValidation::Syntax21_1,
+                    ..BigipPropertySpec::DEFAULT
+                },
+                BigipPropertySpec {
                     name: "address-family",
                     value_type: ValueKind::Enum,
                     in_sections: &["fqdn"],
                     enum_values: &["ipv4", "ipv6"],
-                    shape_kind: Some(ValueKind::IpAddress),
                     ..BigipPropertySpec::DEFAULT
                 },
                 BigipPropertySpec {
@@ -103,7 +112,6 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             value_type: ValueKind::Enum,
             in_sections: &["fqdn"],
             enum_values: &["ipv4", "ipv6"],
-            shape_kind: Some(ValueKind::IpAddress),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {

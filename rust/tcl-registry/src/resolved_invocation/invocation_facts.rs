@@ -679,6 +679,14 @@ impl ResolvedInvocation<'_, '_> {
 
     fn normal_source_colour(&self) -> Option<crate::taint::TaintColour> {
         use crate::taint::{TaintColour, augment_source_colours};
+        if self
+            .selected
+            .form
+            .and_then(|form| form.header_write)
+            .is_some_and(|write| write.returns_empty)
+        {
+            return None;
+        }
         let argc = self.words.arguments().exact_argv_len();
         let source = self.semantics.taint_source;
         let traits = self.semantics.traits;

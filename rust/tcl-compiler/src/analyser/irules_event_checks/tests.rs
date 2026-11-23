@@ -910,6 +910,31 @@ fn irule1001_quiet_for_legal_command_with_inferred_profile() {
 }
 
 #[test]
+fn http_header_analyser_accepts_both_measured_setters() {
+    let mut analyser = Analyser::new();
+    let result = analyser.analyse(
+        "when HTTP_REQUEST { HTTP::header X-Probe Host; HTTP::header value Host Extra }",
+        "f5-irules",
+    );
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .all(|diagnostic| !matches!(diagnostic.code, DiagCode::W001 | DiagCode::E003)),
+        "{:?}",
+        result.diagnostics
+    );
+}
+
+#[test]
+fn irule1001_warns_for_http_header_in_rule_init() {
+    let diags = irule1001("when RULE_INIT { HTTP::header Host }");
+    assert_eq!(diags.len(), 1);
+    assert_eq!(diags[0].0, Severity::Warning);
+    assert!(irule1001("when HTTP_REQUEST { HTTP::header Host }").is_empty());
+}
+
+#[test]
 fn irule1001_warns_command_unmet_requirements() {
     // HTTP::respond in CLIENT_ACCEPTED: the L4 event provides no HTTP
     // profile, so it "may not work" with the missing-requirement reason.

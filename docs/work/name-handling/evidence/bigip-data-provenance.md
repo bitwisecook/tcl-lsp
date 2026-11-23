@@ -61,19 +61,18 @@ The same review found the base-object data to be a single 17.1 snapshot, with pr
 
 ### Coverage of the answer
 
-Answered: 17.1 is the only snapshot; add complete per-build captures with deterministic deltas or computed intervals; absence is distinct from unknown. The 21.1 appliance refutes carrying the 17.1 SSL `options` override forward. Not yet located: the first build on which each SSL flag changed.
+Answered: 17.1 is the only snapshot; add complete per-build captures with deterministic deltas or computed intervals; absence is distinct from unknown. The 21.1 appliance confirms the registry’s existing 21.1 SSL `options` band. Not yet located: the first build on which each SSL flag changed.
 
 ### Answer
 
 
-17.1 is the only embedded base-object snapshot. The 21.1.0.1 appliance
-supplied a second measured release point for the client and server SSL
-`options` fields. The shipped stanzas and the effective default profiles both
-list `dont-insert-empty-fragments`, `no-ssl`, `no-tlsv1.1` and
-`no-tlsv1`. The current registry's open-ended 17.1 override contains
-`no-tlsv1.3` and `no-dtlsv1.2` instead of those three protocol flags.
-This refutes carrying the 17.1 row forward indefinitely. It does not locate
-the first build on which each flag changed.
+17.1 is the only embedded base-object snapshot. Profile field defaults
+follow a separate version history. The current registry already gives the
+canonical Client SSL and Server SSL `options` their own band from 21.1.
+The shipped stanzas and effective defaults on 21.1.0.1 confirm its
+`dont-insert-empty-fragments`, `no-ssl`, `no-tlsv1.1` and `no-tlsv1` values.
+The older 17.1–21.0 band contains `no-tlsv1.3` and `no-dtlsv1.2`.
+This run checked two fields and supports no wider base-object inventory.
 [Shipped and effective results](../../../../evidence/bigip/tmsh-21.1-name-handling.md#shipped-and-effective-defaults) ·
 [Current field overrides](../../../../rust/tcl-registry/src/profile_defaults/mod.rs)
 

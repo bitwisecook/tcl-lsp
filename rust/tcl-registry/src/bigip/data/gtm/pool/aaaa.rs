@@ -81,6 +81,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             name: "fallback-ip",
             value_type: ValueKind::String,
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Address),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {
@@ -200,6 +201,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             value_type: ValueKind::Unknown,
             allow_none: true,
             default: Some("none"),
+            address_grammar: Some(crate::bigip::AddressGrammar::GtmMemberKey),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {

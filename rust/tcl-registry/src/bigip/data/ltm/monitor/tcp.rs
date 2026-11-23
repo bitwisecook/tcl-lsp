@@ -82,6 +82,8 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             value_type: ValueKind::String,
             shape_kind: Some(ValueKind::Endpoint),
             default: Some("*:*"),
+            address_grammar: Some(crate::bigip::AddressGrammar::MonitorDestination),
+            address_validation: crate::bigip::AddressValidation::RouteDomain21_1,
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {

@@ -34,7 +34,7 @@ Measured against the 21.1 oracle:
 - `with_route_domain` writes an IPv6 destination with a colon port, which reads back as a different address.
 - None of our readers rejects either form the appliance rejected.
 
-The registry already declares an address shape on 244 properties (188 `IpAddress`, 56 `Endpoint`), but nothing reads it. The rule this page proposes is: **the property's value grammar, from the registry, selects the reader; the string never does.** It follows the decision recorded for Q8: `tcl-bigip::object_names` owns paths, `tcl-bigip::value` owns typed addresses and services, and REST tilde encoding stays at the iControl boundary.
+The original registry declared 244 address shapes. Seven were protocol or address-family selectors. Each of the other 237 fields now declares an address grammar, including nested fields. The property descriptor selects the reader. As agreed in Q8, `tcl-bigip::object_names` owns paths, `tcl-bigip::value` owns typed addresses and services, and REST tilde encoding stays at the iControl boundary.
 
 ## Measured
 
@@ -161,10 +161,10 @@ Each snippet ran in `when HTTP_REQUEST` under `f5-irules`. Every report that W21
 | `MemberKey` | node reference **or** address literal, plus service | `ltm pool members`, `snatpool members` (no service) |
 | `MonitorDestination` | `*`, address, service | monitor `destination` |
 | `GtmMemberKey` | server path `:` virtual-server name | `gtm pool members` |
-| `Fqdn` | name, trailing dot kept as spelled | node `fqdn name` |
+| `Fqdn` | ASCII DNS name | node `fqdn name` |
 | `Service` | number, `any`, `*`, name | port fields |
 
-A `MemberKey` reader knows that `/P/f/v6:443` is node `v6` with service 443 and that `2001:db8::54%0.443` is a literal with service 443. An `Address` reader takes `fe80::1:80` as one address. Neither guesses. A string with no declared grammar, such as a search box, a pcap token or an iRules literal of unknown role, goes to an explicit `Endpoint::read_any`. It returns every reading that the active release's separator rules allow (two for `fe80::1:80`: the address alone, or `fe80::1` with service 80 where colon service is in force), and callers must choose.
+A `MemberKey` reader reads `/P/f/v6:443` as node `v6` with service 443 and `2001:db8::54%0.443` as a literal with service 443. An `Address` reader takes `fe80::1:80` as one address. A caller without a property descriptor can use `address_readings` to enumerate distinct readings. A caller that needs only an IP gets a value when those readings agree on the host. The legacy IPv6 colon-port variant awaits a measured release window.
 
 **Types** (in `tcl-bigip::value`, the owner the Q8 decision names):
 
@@ -195,13 +195,13 @@ A `MemberKey` reader knows that `/P/f/v6:443` is node `v6` with service 443 and 
 - Lint, the validator (BIGIP6011/6013), graph edges (member→node, virtual→virtual-address for every family and RD), stats, the pcap index, the Wireshark profile, AS3 and `explain_flow` match on `(host, rd, service)`.
 - f5-query drops `typed_values` and projects `Endpoint` fields (`host`, `route_domain` and `port` become accessors).
 - `bigip-report-gen` consumes the projected fields and stops re-splitting.
-- The front end receives `family/address/rd/port` from the model and keeps only a query parser that calls `read_any` (via WASM, or a generated table).
+- The report front end receives family, address, route domain and port from the model. Its listener and CIDR search use the shared Rust address reader through the report's standalone WebAssembly module.
 - `f5-xc` takes `BigIpName` for names and `Endpoint` for origin pools.
 - The iRules analyser reads iRules address arguments with the registry's argument roles and the iRules context reader. The invalid-IP check uses the same parser.
 
 ## Plan
 
-1. **Pool member port.** Owner: `tcl-bigip` parser. Read the service from the member key with the `MemberKey` grammar, whether or not `address` is present; replace the pinning test with oracle forms. *Done when* every member in `addresses.conf` and in `device-01.bigip.conf` has its port, and AS3 no longer re-splits. (Quick fix; with plan 107.)
+1. **Complete. Pool member port.** The parser reads the service from the `MemberKey` whether or not `address` is present. The public SCF-to-AS3 regression checks every member in `addresses.conf` and `device-01.bigip.conf`. See [plan item 227](plan.md#big-ip-names-and-addresses).
 2. **One `Endpoint` and `BigIpName` in `tcl-bigip::value`.** Owner: `tcl-bigip`. RD on `Network`, `%0` kept distinct, wildcards `any`/`any6`/`*` typed, service names from one table, mapped IPv4 without a port. *Done when* the 713-input matrix has one row of answers per grammar and every oracle form gives the oracle's verdict (accepts parse, rejects are diagnostics). (Plan 111, 118.)
 3. **Registry grammar drives readers.** Owner: `tcl-registry` plus `tcl-bigip`. Turn the 244 `shape_kind` declarations into the grammar table above (adding `MemberKey`, `MonitorDestination`, `GtmMemberKey` and `Mask`, which are missing today), and make the model's property parse dispatch on it. *Done when* no model field is parsed by a string-shape heuristic and a test fails if a property has an address-shaped value with no grammar. (Plan 118, Q7.)
 4. **Delete the copies.** Owners: `tcl-bigip-query`, `bigip-report-gen`, `f5-cli`, front end. Remove `typed_values`, the report `split_dest`/`split_rd`/`to_ip`/`normalise_cidr`, the pcap and AS3 splitters, the `explain_flow` regex, `irule_context`'s `rsplit_once`, `bare_ip` and the front end's IPv4/IPv6 helpers. Fix `with_route_domain` through the tmsh writer. *Done when* `grep` for `split_once('%')`, `rsplit_once(':')` on addresses, and `parse::<IpAddr>` on configuration values returns only `tcl-bigip::value`. (Plan 111.)
@@ -211,6 +211,31 @@ A `MemberKey` reader knows that `/P/f/v6:443` is node `v6` with service 443 and 
 8. **Oracle coverage.** Owner: whoever runs the Q1 matrix. Measure the *Unmeasured* list on 21.1, 17.5, 17.1 and the legacy releases, and record each verdict in `evidence/bigip/`. (Q1, Q3.)
 
 Overlaps: item 1 is a 107-style quick fix. Items 2 to 6 are the address and path half of 111 and the value-grammar half of 118. Positions are not affected (110). Q4 is answered for this slice by the Q8 decision. Q7 shares item 3's grammar table. Q10: items 1 and 5 are wrong answers suitable for the current release; the rest wait for the data crate.
+
+## Synthetic matrix rerun
+
+The local probe read all 713 rows of [the original input
+matrix](handover/oo-dispatch-probe/bigip-addresses/inputs.tsv) through nine
+public readers after the endpoint and name migrations. Some inputs are
+valid in several grammars. Each count is the number of rows accepted by
+that reader.
+
+| Reader | Accepted |
+| --- | ---: |
+| Authored `BigIpName` | 95 |
+| Literal `IPAddress` | 29 |
+| `Network` | 47 |
+| General `Endpoint` | 585 |
+| TMSH virtual destination | 404 |
+| TMSH HTTP monitor destination | 171 |
+| `MemberKey` | 400 |
+| `FQDN` | 13 |
+| `Port` with named services | 2 |
+
+The [21.1 verification evidence](../../../evidence/bigip/tmsh-21.1-address-grammars.md)
+pins the measured property-specific cases, including monitor and virtual
+differences. The matrix counts are local reader results. Each appliance
+release still needs its own validation rows.
 
 ## Unmeasured on a real BIG-IP
 

@@ -535,6 +535,13 @@ pub(super) fn command_form_expr(entry: &Value, indent: &str) -> String {
     if let Some(mutator) = entry["mutator"].as_bool() {
         parts.push(format!("{inner}mutator: Some({mutator}),"));
     }
+    if entry["header_write"].is_object() {
+        let write = &entry["header_write"];
+        parts.push(format!(
+            "{inner}header_write: Some(tcl_registry::forms::HeaderWrite {{ name: {}, value: {}, returns_empty: {} }}),",
+            write["name"], write["value"], write["returns_empty"].as_bool().unwrap_or(false)
+        ));
+    }
     if let Some(effects) = entry["side_effects"].as_array() {
         let rows = list_expr(effects, &inner, side_effect_expr);
         let knowledge = &entry["side_effects_knowledge"];

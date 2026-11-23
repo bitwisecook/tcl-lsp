@@ -189,6 +189,7 @@ object DiagnosticCatalog {
         DiagnosticDef("BIGIP6012", "bigip", "BIGIP6012: Attached iRules handle the same event at the same ef...", true),
         DiagnosticDef("BIGIP6013", "bigip", "BIGIP6013: A registry-declared BIG-IP object reference could no...", true),
         DiagnosticDef("BIGIP6014", "bigip", "BIGIP6014: A BIG-IP object declaration duplicates another objec...", true),
+        DiagnosticDef("BIGIP6015", "bigip", "BIGIP6015: A literal address is invalid for its BIG-IP configur...", true),
         DiagnosticDef("BIGIP6038", "bigip", "BIGIP6038: An iRule event requires a profile that is not active...", true),
         DiagnosticDef("BIGIP6039", "bigip", "BIGIP6039: A virtual server attaches incompatible profile types", true),
         DiagnosticDef("IAPP7001", "bigip", "IAPP7001: iApp implementation references a presentation field ...", true),

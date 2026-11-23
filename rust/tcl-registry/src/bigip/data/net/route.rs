@@ -42,6 +42,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
         },
         BigipPropertySpec {
             name: "gw",
+            address_grammar: Some(crate::bigip::AddressGrammar::Address),
             value_type: ValueKind::String,
             references: &["net_self"],
             shape_kind: Some(ValueKind::IpAddress),
@@ -60,8 +61,10 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
         },
         BigipPropertySpec {
             name: "network",
+            address_grammar: Some(crate::bigip::AddressGrammar::Network),
             value_type: ValueKind::String,
             shape_kind: Some(ValueKind::IpAddress),
+            address_validation: crate::bigip::AddressValidation::RouteDomain21_1,
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {

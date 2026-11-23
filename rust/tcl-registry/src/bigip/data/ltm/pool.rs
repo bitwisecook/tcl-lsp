@@ -134,16 +134,19 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
         },
         BigipPropertySpec {
             name: "members",
+            address_grammar: Some(crate::bigip::AddressGrammar::MemberKey),
             value_type: ValueKind::List,
             allow_none: true,
             references: &["ltm_node"],
             list_operators: &["add", "delete", "modify", "replace-all-with"],
+            address_validation: crate::bigip::AddressValidation::Syntax21_1,
             block: &[
                 BigipPropertySpec {
                     name: "address",
                     value_type: ValueKind::String,
                     in_sections: &["members"],
                     shape_kind: Some(ValueKind::IpAddress),
+                    address_grammar: Some(crate::bigip::AddressGrammar::Address),
                     ..BigipPropertySpec::DEFAULT
                 },
                 BigipPropertySpec {
@@ -389,6 +392,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             in_sections: &["members"],
             references: &["ltm_node"],
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Address),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {

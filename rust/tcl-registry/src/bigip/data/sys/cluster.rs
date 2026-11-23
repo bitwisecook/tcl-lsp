@@ -36,6 +36,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             allow_none: true,
             enum_values: &["none"],
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Address),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {
@@ -44,6 +45,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             allow_none: true,
             enum_values: &["none"],
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Address),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {
@@ -58,6 +60,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
                     allow_none: true,
                     enum_values: &["none"],
                     shape_kind: Some(ValueKind::IpAddress),
+                    address_grammar: Some(crate::bigip::AddressGrammar::Address),
                     ..BigipPropertySpec::DEFAULT
                 },
                 BigipPropertySpec {
@@ -67,6 +70,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
                     allow_none: true,
                     enum_values: &["none"],
                     shape_kind: Some(ValueKind::IpAddress),
+                    address_grammar: Some(crate::bigip::AddressGrammar::Address),
                     ..BigipPropertySpec::DEFAULT
                 },
                 BigipPropertySpec {
@@ -87,6 +91,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             allow_none: true,
             enum_values: &["none"],
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Address),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {
@@ -96,6 +101,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             allow_none: true,
             enum_values: &["none"],
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Address),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {

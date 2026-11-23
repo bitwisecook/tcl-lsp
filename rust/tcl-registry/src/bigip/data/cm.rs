@@ -54,6 +54,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 allow_none: true,
                 enum_values: &["none"],
                 shape_kind: Some(ValueKind::IpAddress),
+                address_grammar: Some(crate::bigip::AddressGrammar::Address),
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -87,6 +88,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 value_type: ValueKind::Enum,
                 enum_values: &["any6"],
                 shape_kind: Some(ValueKind::IpAddress),
+                address_grammar: Some(crate::bigip::AddressGrammar::AddressOrWildcard),
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -94,6 +96,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 value_type: ValueKind::Enum,
                 enum_values: &["any6"],
                 shape_kind: Some(ValueKind::IpAddress),
+                address_grammar: Some(crate::bigip::AddressGrammar::AddressOrWildcard),
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -105,6 +108,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 name: "multicast-ip",
                 value_type: ValueKind::String,
                 shape_kind: Some(ValueKind::IpAddress),
+                address_grammar: Some(crate::bigip::AddressGrammar::Address),
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -122,6 +126,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         value_type: ValueKind::String,
                         in_sections: &["unicast-address"],
                         shape_kind: Some(ValueKind::IpAddress),
+                        address_grammar: Some(crate::bigip::AddressGrammar::Address),
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -135,6 +140,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
                         value_type: ValueKind::String,
                         in_sections: &["unicast-address"],
                         shape_kind: Some(ValueKind::IpAddress),
+                        address_grammar: Some(crate::bigip::AddressGrammar::Address),
                         ..BigipPropertySpec::DEFAULT
                     },
                     BigipPropertySpec {
@@ -151,6 +157,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 value_type: ValueKind::String,
                 in_sections: &["unicast-address"],
                 shape_kind: Some(ValueKind::IpAddress),
+                address_grammar: Some(crate::bigip::AddressGrammar::Address),
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {
@@ -164,6 +171,7 @@ pub static SPECS: &[BigipObjectSpec] = &[
                 value_type: ValueKind::String,
                 in_sections: &["unicast-address"],
                 shape_kind: Some(ValueKind::IpAddress),
+                address_grammar: Some(crate::bigip::AddressGrammar::Address),
                 ..BigipPropertySpec::DEFAULT
             },
             BigipPropertySpec {

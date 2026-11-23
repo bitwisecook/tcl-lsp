@@ -32,9 +32,11 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
     properties: &[
         BigipPropertySpec {
             name: "address",
+            address_grammar: Some(crate::bigip::AddressGrammar::Network),
             value_type: ValueKind::String,
             shape_kind: Some(ValueKind::IpAddress),
             usage_flags: &["optional"],
+            address_validation: crate::bigip::AddressValidation::Syntax21_1,
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {

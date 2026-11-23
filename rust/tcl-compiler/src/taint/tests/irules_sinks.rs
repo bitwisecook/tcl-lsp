@@ -24,29 +24,13 @@ use super::*;
 
 fn irules_warnings_for(source: &str) -> Vec<TaintWarning> {
     use crate::compilation_unit::CompilationUnit;
-    // Mirror production (tcl-lsp-db): build_default + load the iRules
-    // dialect, so the iRules command *specs* (with their subcommands and
-    // taint_output_sink_subcommands) are present for the registry-driven,
-    // prefix-aware sink classification.
     let mut registry = CommandRegistry::build_default();
     registry.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
     let profile = tcl_dialect::DialectProfile::irules();
     let registry = registry.project_for_profile(profile);
     let cu = CompilationUnit::build_for_profile(source, &registry, false, profile)
         .with_interprocedural(&registry, Some(profile));
-    let mut out: Vec<TaintWarning> = Vec::new();
-    for fu in cu.analysable_functions() {
-        out.extend(find_taint_warnings(
-            &fu.cfg,
-            &fu.ssa,
-            &fu.taints,
-            &fu.sccp.executable_blocks,
-            &registry,
-            Some(tcl_dialect::DialectProfile::irules()),
-            &HashSet::new(),
-        ));
-    }
-    out
+    crate::taint::find_taint_warnings_for_cu(&cu, &registry, Some(profile))
 }
 
 #[test]
@@ -188,6 +172,23 @@ fn sink_colour_mitigated_html_escaped_only_mitigates_3001() {
         DiagCode::Irule3003,
         tainted_crlf_free
     ));
+}
+
+#[test]
+fn irule3002_detects_the_measured_header_setter_forms() {
+    for call in [
+        "HTTP::header X-Echo $value",
+        "HTTP::header value X-Echo $value",
+        "HTTP::header insert X-Echo $value",
+    ] {
+        let warnings = irules_warnings_for(&format!("set value [HTTP::header X-Input]\n{call}"));
+        assert!(
+            warnings
+                .iter()
+                .any(|warning| warning.code == DiagCode::Irule3002),
+            "{call}"
+        );
+    }
 }
 
 #[test]

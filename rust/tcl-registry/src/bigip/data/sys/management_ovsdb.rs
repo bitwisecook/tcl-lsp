@@ -64,6 +64,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             name: "controller-addresses",
             value_type: ValueKind::String,
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::AddressList),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {
@@ -108,6 +109,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             name: "tunnel-floating-addresses",
             value_type: ValueKind::String,
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::AddressList),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {
@@ -115,6 +117,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             value_type: ValueKind::String,
             required: true,
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Address),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {

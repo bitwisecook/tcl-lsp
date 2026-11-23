@@ -1410,6 +1410,7 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
           surface: null,
           traits: null,
           mutator: null,
+          header_write: null,
           side_effects: null,
         }),
         (item, _i, update, remove) => {
@@ -1443,6 +1444,11 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
             labelled("min", bound("min")),
             labelled("max", bound("max", "∞")),
             labelled("mutator", mutator),
+            ...(row.header_write && typeof row.header_write === "object"
+              ? [el("span", {
+                  text: `HTTP header write · name operand ${asRecord(row.header_write).name} · value operand ${asRecord(row.header_write).value}`,
+                })]
+              : []),
             labelled(
               "variable receivers",
               editors.variableReceivers(

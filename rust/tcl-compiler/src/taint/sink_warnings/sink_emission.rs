@@ -71,24 +71,17 @@ pub(in super::super) fn irule3002_name_position_safe(
     if !lat.colours.contains(TaintColour::HEADER_TOKEN_SAFE) {
         return false;
     }
-    // Registry-driven + prefix-aware: an output-sink subcommand
-    // (`taint_output_sink_subcommands`, e.g. `insert`/`replace`) resolved from
-    // whatever the caller wrote (`ins` ⇒ `insert`), so the name-position
-    // safety check matches the same set the sink classifier uses.
-    let Some(spec) = registry.get(command) else {
+    let Some(position) = header_name_position(registry, command, args) else {
         return false;
     };
-    let Some(sub_word) = args.first() else {
-        return false;
-    };
-    let is_output_sink_sub = !spec.taint_output_sink_subcommands.is_empty()
-        && spec
-            .resolve_subcommand(sub_word)
-            .is_some_and(|sub| spec.taint_output_sink_subcommands.contains(&sub.name));
-    if !is_output_sink_sub {
+    if args.iter().enumerate().any(|(index, arg)| {
+        index != position && arg_var_names_with_config(arg, config).may_contain(var_name)
+    }) {
         return false;
     }
-    let Some(arg) = args.get(1) else { return false };
+    let Some(arg) = args.get(position) else {
+        return false;
+    };
     let Some(original) = original else {
         return false;
     };
@@ -97,6 +90,24 @@ pub(in super::super) fn irule3002_name_position_safe(
     };
     // The current operand must still correspond to the call's argument data.
     reference == arg.trim() && reference_root_with_config(reference, config) == Some(var_name)
+}
+
+fn header_name_position(
+    registry: &CommandRegistry,
+    command: &str,
+    args: &[String],
+) -> Option<usize> {
+    let arg_refs: Vec<_> = args.iter().map(String::as_str).collect();
+    if let Some((position, _)) =
+        tcl_registry::taint::header_write_arguments(registry, command, &arg_refs)
+    {
+        return Some(position);
+    }
+    let spec = registry.get(command)?;
+    let sub = spec.resolve_subcommand(args.first()?)?;
+    spec.taint_output_sink_subcommands
+        .contains(&sub.name)
+        .then_some(1)
 }
 
 /// The tight span of the argument word that carries `name`, using the
@@ -395,7 +406,8 @@ pub(in super::super) fn emit_sink_warnings<S: std::hash::BuildHasher>(
                 call.args,
                 name,
                 t,
-                original_sink_argument(call, 1),
+                header_name_position(call.registry, call.command, call.args)
+                    .and_then(|index| original_sink_argument(call, index)),
                 call.source.config,
             )
         {

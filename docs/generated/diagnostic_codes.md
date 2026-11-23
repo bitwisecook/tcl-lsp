@@ -179,6 +179,7 @@
 | BIGIP6012 | bigip | Attached iRules handle the same event at the same effective priority. | ✓ |
 | BIGIP6013 | bigip | A registry-declared BIG-IP object reference could not be resolved. | ✓ |
 | BIGIP6014 | bigip | A BIG-IP object declaration duplicates another object of the same kind and path. | ✓ |
+| BIGIP6015 | bigip | A literal address is invalid for its BIG-IP configuration or iRules grammar. | ✓ |
 | BIGIP6038 | bigip | An iRule event requires a profile that is not active on its virtual server. | ✓ |
 | BIGIP6039 | bigip | A virtual server attaches incompatible profile types. | ✓ |
 | IAPP7001 | bigip | iApp implementation references a presentation field that is not defined. | ✓ |

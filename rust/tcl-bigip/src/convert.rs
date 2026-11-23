@@ -27,9 +27,6 @@
 //! The declaration is built as an insertion-ordered [`Json`] tree and rendered
 //! with [`crate::jsonfmt::json_string`] for byte-exact 2-space-indented JSON.
 
-use std::net::IpAddr;
-use std::str::FromStr;
-
 use crate::jsonfmt::json_string;
 use crate::model::{ModelObject, ProfileType};
 use crate::parser::BigipConfig;
@@ -128,48 +125,6 @@ fn short_name(full_path: &str) -> &str {
     }
 }
 
-/// Parse `/Common/ADDR[:.]PORT` -> `(addr, port)`.
-///
-/// BIG-IP separates address and port with `:` for IPv4 and `.` for IPv6. The
-/// port half may be a decimal port or a service name. The IPv6 form is checked
-/// first and only accepted when the prefix parses as an IPv6 address.
-fn split_destination(dest: &str) -> (String, Option<i64>) {
-    if dest.is_empty() {
-        return (String::new(), None);
-    }
-    let base = dest.rsplit_once('/').map_or(dest, |(_, b)| b);
-    if base.contains('.') {
-        let (host, port) = base.rsplit_once('.').unwrap_or((base, ""));
-        if let Some(resolved) = resolve_port(port)
-            && !host.is_empty()
-            && matches!(IpAddr::from_str(host), Ok(IpAddr::V6(_)))
-        {
-            return (host.to_owned(), Some(resolved));
-        }
-    }
-    if base.contains(':') {
-        let (host, port) = base.rsplit_once(':').unwrap_or((base, ""));
-        if let Some(resolved) = resolve_port(port)
-            && !host.is_empty()
-        {
-            return (host.to_owned(), Some(resolved));
-        }
-    }
-    (base.to_owned(), None)
-}
-
-/// Resolve a port token to an integer (decimal string or BIG-IP service name).
-fn resolve_port(value: &str) -> Option<i64> {
-    if value.is_empty() {
-        return None;
-    }
-    if value.bytes().all(|b| b.is_ascii_digit()) {
-        let num: i64 = value.parse().ok()?;
-        return (0..=65535).contains(&num).then_some(num);
-    }
-    crate::model::port_names::name_to_port(&value.to_ascii_lowercase())
-}
-
 /// Look up a typed object by table and full-path.
 fn find<'a>(cfg: &'a BigipConfig, table: &str, full_path: &str) -> Option<&'a ModelObject> {
     crate::object_names::object_name_candidates(
@@ -249,14 +204,11 @@ fn convert_pool(pool: &crate::model::BigipPool) -> Json {
         };
         let addr_text = member.address.as_ref().map_or_default(ToString::to_string);
         let addr = if addr_text.is_empty() {
-            split_destination(&member.name).0
+            let node = crate::value::MemberKey::try_parse(&member.name)
+                .map_or(member.name.as_str(), |key| key.node);
+            short_name(node).to_owned()
         } else {
             addr_text
-        };
-        let port = if member.port != 0 {
-            member.port
-        } else {
-            split_destination(&member.name).1.unwrap_or(0)
         };
         let server_addresses = if addr.is_empty() {
             Json::Array(vec![])
@@ -264,7 +216,7 @@ fn convert_pool(pool: &crate::model::BigipPool) -> Json {
             Json::Array(vec![Json::Str(addr)])
         };
         members.push(Json::Object(vec![
-            ("servicePort".to_owned(), Json::Int(port)),
+            ("servicePort".to_owned(), Json::Int(member.port)),
             ("serverAddresses".to_owned(), server_addresses),
         ]));
     }
@@ -295,22 +247,25 @@ fn convert_pool(pool: &crate::model::BigipPool) -> Json {
 }
 
 fn convert_virtual(cfg: &BigipConfig, vs: &crate::model::BigipVirtualServer) -> Json {
-    let dest_text = vs.destination.as_ref().map_or_default(ToString::to_string);
-    let (addr, port) = split_destination(&dest_text);
-    let virtual_addresses = if addr.is_empty() {
-        Json::Array(vec![])
-    } else {
-        Json::Array(vec![Json::Str(addr)])
-    };
+    let dest = vs.destination.as_ref();
+    let virtual_addresses = cfg
+        .virtual_destination_address(vs)
+        .map_or_else(Vec::new, |address| vec![Json::Str(address.to_string())]);
     let mut out = vec![
         (
             "class".to_owned(),
             Json::Str(classify_virtual_class(cfg, vs).to_owned()),
         ),
-        ("virtualAddresses".to_owned(), virtual_addresses),
+        (
+            "virtualAddresses".to_owned(),
+            Json::Array(virtual_addresses),
+        ),
     ];
-    if let Some(port) = port {
-        out.push(("virtualPort".to_owned(), Json::Int(port)));
+    if let Some(destination) = dest.filter(|destination| !destination.port.spelling.is_empty()) {
+        out.push((
+            "virtualPort".to_owned(),
+            Json::Int(i64::from(destination.port.port)),
+        ));
     }
     if !vs.pool.is_empty() {
         let resolved = resolve_name(cfg, &vs.pool, "pools").unwrap_or_else(|| vs.pool.clone());
@@ -486,30 +441,82 @@ mod tests {
     use super::*;
 
     #[test]
-    fn split_destination_ipv4_named_and_numeric() {
-        assert_eq!(
-            split_destination("/Common/10.5.5.5:443"),
-            ("10.5.5.5".to_owned(), Some(443))
+    fn pool_member_ports_survive_scf_parsing_and_as3_conversion() {
+        let probe = include_str!(
+            "../../../docs/work/name-handling/handover/oo-dispatch-probe/bigip-addresses/addresses.conf"
         );
-        // BIG-IP service-name ports resolve via the mcpd name table.
-        assert_eq!(
-            split_destination("/Common/10.5.5.5:https"),
-            ("10.5.5.5".to_owned(), Some(443))
-        );
-        // No port half → address only.
-        assert_eq!(
-            split_destination("/Common/10.5.5.5"),
-            ("10.5.5.5".to_owned(), None)
-        );
+        let device = include_str!("../../bigip-report-gen/python/tests/data/device-01.bigip.conf");
+        let probe_ports: &[(&str, &[i64])] = &[
+            ("p_v4", &[80, 80]),
+            ("p_v6", &[80, 443]),
+            ("p_fqdn", &[443]),
+            ("p_rel", &[80]),
+            ("p_http", &[80]),
+            ("app_pool", &[8080]),
+        ];
+        let device_ports: &[(&str, &[i64])] = &[
+            ("app1_t80_pool", &[80, 80]),
+            ("app2_t80_pool", &[80, 80]),
+            ("app3_t8443_pool", &[8443, 8443]),
+            ("manyOptions_pool", &[80, 443, 8443, 8443, 443]),
+            ("app4_pool", &[443]),
+            ("css_pool", &[]),
+            ("jpg.pool", &[]),
+            ("js.io_t80_pool", &[]),
+            ("bigiq.benlab.io_t443_pool", &[443]),
+        ];
+        for (source, expected) in [(probe, probe_ports), (device, device_ports)] {
+            let config = crate::parser::parse_bigip_conf(source, "Common");
+            let report = scf_to_as3(&config, "tenant", "app");
+            let declaration: serde_json::Value =
+                serde_json::from_str(&report.declaration.dumps_indent2()).unwrap();
+            let app = &declaration["declaration"]["tenant"]["app"];
+            let pools = config.objects.iter().filter_map(|placed| {
+                if let ModelObject::Pool(pool) = &placed.object {
+                    Some((short_name(&placed.full_path), pool))
+                } else {
+                    None
+                }
+            });
+            assert_eq!(pools.clone().count(), expected.len());
+            for (name, pool) in pools {
+                let (_, expected_ports) = expected.iter().find(|entry| entry.0 == name).unwrap();
+                let parsed: Vec<i64> = pool
+                    .members
+                    .items
+                    .iter()
+                    .map(|item| match &item.value {
+                        ListItemValue::PoolMember(member) => member.port,
+                        other => panic!("unexpected member value: {other:?}"),
+                    })
+                    .collect();
+                assert_eq!(&parsed, expected_ports, "{name}");
+                let converted: Vec<i64> = app[name]["members"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|member| member["servicePort"].as_i64().unwrap())
+                    .collect();
+                assert_eq!(&converted, expected_ports, "{name}");
+            }
+        }
     }
 
     #[test]
-    fn split_destination_ipv6_dot_port() {
-        // IPv6 uses `.` to separate the port; the prefix must parse as IPv6.
-        assert_eq!(
-            split_destination("/Common/2001:db8::1.443"),
-            ("2001:db8::1".to_owned(), Some(443))
+    fn as3_virtual_uses_the_configured_ipv6_address_and_named_service() {
+        let config = crate::parser::parse_bigip_conf(
+            "ltm virtual /Common/v6 { destination /Common/2001:db8::53%2.http }",
+            "Common",
         );
+        let report = scf_to_as3(&config, "tenant", "app");
+        let value: serde_json::Value =
+            serde_json::from_str(&report.declaration.dumps_indent2()).unwrap();
+        let virtual_server = &value["declaration"]["tenant"]["app"]["v6"];
+        assert_eq!(
+            virtual_server["virtualAddresses"],
+            serde_json::json!(["2001:db8::53%2"])
+        );
+        assert_eq!(virtual_server["virtualPort"], 80);
     }
 
     #[test]
@@ -523,15 +530,5 @@ mod tests {
             v.dumps_indent2(),
             "{\n  \"class\": \"Pool\",\n  \"members\": [],\n  \"port\": 80\n}"
         );
-    }
-
-    #[test]
-    fn resolve_port_bounds() {
-        assert_eq!(resolve_port("0"), Some(0));
-        assert_eq!(resolve_port("65535"), Some(65535));
-        assert_eq!(resolve_port("65536"), None);
-        assert_eq!(resolve_port(""), None);
-        assert_eq!(resolve_port("https"), Some(443));
-        assert_eq!(resolve_port("not-a-port"), None);
     }
 }

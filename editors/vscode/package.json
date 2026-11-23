@@ -8900,12 +8900,40 @@
             "markdownDescription": "Display severity for **BIGIP6014:** A BIG-IP object declaration duplicates another object of the same kind and path.",
             "order": 13
           },
+          "tclLsp.diagnostics.BIGIP6015": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**BIGIP6015:** A literal address is invalid for its BIG-IP configuration or iRules grammar.",
+            "order": 14
+          },
+          "tclLsp.diagnosticSeverity.BIGIP6015": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **BIGIP6015:** A literal address is invalid for its BIG-IP configuration or iRules grammar.",
+            "order": 14
+          },
           "tclLsp.diagnostics.BIGIP6038": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**BIGIP6038:** An iRule event requires a profile that is not active on its virtual server.",
-            "order": 14
+            "order": 15
           },
           "tclLsp.diagnosticSeverity.BIGIP6038": {
             "scope": "resource",
@@ -8926,14 +8954,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **BIGIP6038:** An iRule event requires a profile that is not active on its virtual server.",
-            "order": 14
+            "order": 15
           },
           "tclLsp.diagnostics.BIGIP6039": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**BIGIP6039:** A virtual server attaches incompatible profile types.",
-            "order": 15
+            "order": 16
           },
           "tclLsp.diagnosticSeverity.BIGIP6039": {
             "scope": "resource",
@@ -8954,14 +8982,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **BIGIP6039:** A virtual server attaches incompatible profile types.",
-            "order": 15
+            "order": 16
           },
           "tclLsp.diagnostics.IAPP7001": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IAPP7001:** iApp implementation references a presentation field that is not defined.",
-            "order": 16
+            "order": 17
           },
           "tclLsp.diagnosticSeverity.IAPP7001": {
             "scope": "resource",
@@ -8982,14 +9010,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IAPP7001:** iApp implementation references a presentation field that is not defined.",
-            "order": 16
+            "order": 17
           },
           "tclLsp.diagnostics.IAPP7002": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IAPP7002:** iApp presentation field is never referenced by the implementation.",
-            "order": 17
+            "order": 18
           },
           "tclLsp.diagnosticSeverity.IAPP7002": {
             "scope": "resource",
@@ -9010,14 +9038,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IAPP7002:** iApp presentation field is never referenced by the implementation.",
-            "order": 17
+            "order": 18
           },
           "tclLsp.diagnostics.IAPP7003": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IAPP7003:** iApp presentation `#include` file could not be resolved.",
-            "order": 18
+            "order": 19
           },
           "tclLsp.diagnosticSeverity.IAPP7003": {
             "scope": "resource",
@@ -9038,7 +9066,7 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IAPP7003:** iApp presentation `#include` file could not be resolved.",
-            "order": 18
+            "order": 19
           }
         }
       },

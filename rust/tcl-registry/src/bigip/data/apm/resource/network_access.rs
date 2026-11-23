@@ -438,7 +438,6 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             name: "supported-ip-version",
             value_type: ValueKind::Enum,
             enum_values: &["ipv4", "ipv4-ipv6"],
-            shape_kind: Some(ValueKind::IpAddress),
             default: Some("ipv4"),
             ..BigipPropertySpec::DEFAULT
         },

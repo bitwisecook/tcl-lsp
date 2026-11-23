@@ -23,15 +23,13 @@
 //! `dfilters` / `services` / `ethers` / `colorfilters` / `preferences`
 //! files plus a `README.md`, and render each.
 
-use std::net::IpAddr;
-
 use crate::model::{ModelObject, ProfileType};
 use crate::parser::BigipConfig;
 use crate::parser::helpers::{extract_blocks, parse_properties};
 use crate::pcap_enrich::{
-    NameIndex, build_merged_name_index, extract_self_ips, label, parse_named_subblocks,
-    resolve_port, split_destination,
+    NameIndex, build_merged_name_index, extract_self_ips, label, parse_named_subblocks, wire_ip,
 };
+use crate::value::{Destination, IPAddress};
 
 /// One coloring rule with 16-bit RGB foreground/background.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -285,10 +283,9 @@ fn extract_arp_entries(source: &str) -> Vec<(String, String, String)> {
         if ip_value.is_empty() || mac_value.is_empty() {
             continue;
         }
-        let ip_str = ip_value
-            .split_once('%')
-            .map_or(ip_value.as_str(), |(a, _)| a);
-        entries.push((mac_value.to_lowercase(), ip_str.to_owned(), full_path));
+        if let Some(address) = IPAddress::try_parse(&ip_value) {
+            entries.push((mac_value.to_lowercase(), address.to_string(), full_path));
+        }
     }
     entries
 }
@@ -387,29 +384,39 @@ fn profile_types_for_virtual(
 // Index → file rows
 
 fn hosts_from_index(index: &NameIndex) -> Vec<(String, String)> {
-    let mut pairs = Vec::new();
-    for (addr, names) in &index.v4 {
-        for name in names {
-            pairs.push((addr.clone(), name.clone()));
-        }
-    }
-    for (addr, names) in &index.v6 {
-        for name in names {
-            pairs.push((addr.clone(), name.clone()));
-        }
-    }
-    pairs
+    index
+        .v4
+        .iter()
+        .chain(&index.v6)
+        .filter_map(|(address, names)| Some((wire_ip(address)?.to_string(), names)))
+        .flat_map(|(address, names)| {
+            names
+                .iter()
+                .map(move |name| (address.clone(), name.clone()))
+        })
+        .collect()
 }
 
 fn subnets_from_index(index: &NameIndex) -> Vec<(String, String)> {
-    let mut pairs = Vec::new();
-    for (net, name) in &index.v4_subnets {
-        pairs.push((net.text().to_owned(), name.clone()));
+    index
+        .v4_subnets
+        .iter()
+        .chain(&index.v6_subnets)
+        .filter(|(net, _)| net.route_domain().unwrap_or(0) == 0)
+        .map(|(net, name)| (net.text().to_owned(), name.clone()))
+        .collect()
+}
+
+fn address_filter(address: &str, is_ipv6: bool, route_domain: u32) -> String {
+    let suffix = if is_ipv6 { "6" } else { "" };
+    if route_domain != 0 {
+        return format!(
+            "(f5ethtrailer.peerlocaladdr{suffix} == {address} && f5ethtrailer.peerlocalrtdom == {route_domain}) || \
+             (f5ethtrailer.peerremoteaddr{suffix} == {address} && f5ethtrailer.peerremotertdom == {route_domain})"
+        );
     }
-    for (net, name) in &index.v6_subnets {
-        pairs.push((net.text().to_owned(), name.clone()));
-    }
-    pairs
+    let plain = if is_ipv6 { "ipv6.addr" } else { "ip.addr" };
+    format!("{plain} == {address}")
 }
 
 fn dfilters_for_virtual_servers(config: &BigipConfig) -> Vec<(String, String)> {
@@ -418,53 +425,31 @@ fn dfilters_for_virtual_servers(config: &BigipConfig) -> Vec<(String, String)> {
         let ModelObject::VirtualServer(vs) = obj else {
             continue;
         };
-        let dest_text = vs.destination.as_ref().map_or_default(ToString::to_string);
-        let addr = split_destination(&dest_text);
-        if addr.is_empty() {
-            continue;
-        }
-        let Ok(ip) = addr.parse::<IpAddr>() else {
+        let Some(address) = config.virtual_destination_address(vs) else {
             continue;
         };
-        let field_name = if ip.is_ipv6() { "ipv6.addr" } else { "ip.addr" };
-        out.push((label("vs", &[full_path]), format!("{field_name} == {addr}")));
+        let domain = address
+            .route_domain
+            .unwrap_or_else(|| config.default_route_domain_for(full_path));
+        let filter = address_filter(&address.addr.to_string(), address.is_ipv6(), domain);
+        out.push((label("vs", &[full_path]), filter));
     }
     out
 }
 
 fn dfilters_for_self_ips(source: &str) -> Vec<(String, String)> {
-    let mut out = Vec::new();
-    for self_ip in extract_self_ips(source) {
-        let Some(net) = self_ip.network else {
-            continue;
-        };
-        let field_name = if net.is_v4() { "ip.addr" } else { "ipv6.addr" };
-        out.push((
-            label("net", &[&self_ip.full_path]),
-            format!("{field_name} == {}", net.text()),
-        ));
-    }
-    out
+    extract_self_ips(source)
+        .into_iter()
+        .filter_map(|self_ip| {
+            let net = self_ip.network?;
+            let filter = address_filter(net.text(), !net.is_v4(), net.route_domain().unwrap_or(0));
+            Some((label("net", &[&self_ip.full_path]), filter))
+        })
+        .collect()
 }
 
-/// Extract `(port, "tcp")` from a BIG-IP destination string.
-fn vs_port_proto(dest: &str) -> Option<(i64, &'static str)> {
-    if dest.is_empty() {
-        return None;
-    }
-    let base = dest.rsplit('/').next().unwrap_or(dest);
-    for sep in [':', '.'] {
-        if let Some(idx) = base.rfind(sep) {
-            let port_str = &base[idx + sep.len_utf8()..];
-            if let Some(port) = resolve_port(port_str)
-                && 0 < port
-                && port < 65536
-            {
-                return Some((port, "tcp"));
-            }
-        }
-    }
-    None
+fn destination_port(destination: &Destination) -> Option<i64> {
+    (!destination.port.is_any()).then(|| i64::from(destination.port.port))
 }
 
 fn virtual_server_protocol(config: &BigipConfig, vs: &crate::model::BigipVirtualServer) -> String {
@@ -482,10 +467,10 @@ fn services_from_virtuals(config: &BigipConfig) -> Vec<(String, i64, String)> {
         let ModelObject::VirtualServer(vs) = obj else {
             continue;
         };
-        let dest_text = vs.destination.as_ref().map_or_default(ToString::to_string);
-        let Some((port, _default_proto)) = vs_port_proto(&dest_text) else {
+        let Some(destination) = vs.destination.as_ref().filter(|dest| !dest.port.is_any()) else {
             continue;
         };
+        let port = i64::from(destination.port.port);
         let proto = virtual_server_protocol(config, vs);
         out.push((label("vs", &[full_path]), port, proto));
     }
@@ -538,7 +523,12 @@ fn services_from_monitors(source: &str) -> Vec<(String, i64, String)> {
         let Some(dest) = find_destination_line(&block.body) else {
             continue;
         };
-        let Some((port, _)) = vs_port_proto(&dest) else {
+        let parsed = if parts[0] == "ltm" && monitor_type == "http" {
+            Destination::try_parse_tmsh_monitor(&dest)
+        } else {
+            Destination::try_parse(&dest)
+        };
+        let Some(port) = parsed.as_ref().and_then(destination_port) else {
             continue;
         };
         let proto = if monitor_is_udp(&monitor_type) {
@@ -657,7 +647,10 @@ fn services_from_gtm_servers(source: &str) -> Vec<(String, i64, String)> {
         for (vs_name, body) in parse_named_subblocks(&format!("{{{vs_inner}}}")) {
             let inner = parse_properties(&body);
             let dest = property(&inner, "destination").unwrap_or_default();
-            let Some((port, _)) = vs_port_proto(&dest) else {
+            let Some(port) = Destination::try_parse(&dest)
+                .as_ref()
+                .and_then(destination_port)
+            else {
                 continue;
             };
             out.push((
@@ -701,10 +694,13 @@ fn services_from_pool_members(config: &BigipConfig) -> Vec<(String, i64, String)
             let crate::value::ListItemValue::PoolMember(member) = &item.value else {
                 continue;
             };
-            let Some((port, _)) = vs_port_proto(&member.name) else {
-                continue;
-            };
-            out.push((label("pool", &[&member.name]), port, "tcp".to_owned()));
+            if member.port != 0 {
+                out.push((
+                    label("pool", &[&member.name]),
+                    member.port,
+                    "tcp".to_owned(),
+                ));
+            }
         }
     }
     out
@@ -761,28 +757,36 @@ fn ethers_from_arp(source: &str) -> Vec<(String, String)> {
 
 // iRule / policy port regex ports
 
-/// `\b(?:node|connect)\s+\S+\s+(\d{1,5})\b | \bpool\s+\S+\s+member\s+\S+\s+(\d{1,5})\b`.
 fn irule_host_port(body: &str) -> Vec<i64> {
-    let mut out = Vec::new();
-    let toks: Vec<&str> = body.split_whitespace().collect();
-    let mut i = 0;
-    while i < toks.len() {
-        if matches!(toks[i], "node" | "connect")
-            && i + 2 < toks.len()
-            && let Some(p) = parse_trailing_digits(toks[i + 2])
-        {
-            out.push(p);
+    use tcl_registry::hover::IntegerDomain;
+    use tcl_registry::model::ingress::static_context_for;
+
+    let registry = static_context_for("f5-irules").commands();
+    let mut ports = Vec::new();
+    for call in tcl_irules::irules_executable_commands(body, registry) {
+        let Some(spec) = registry.get(&call.command) else {
+            continue;
+        };
+        for &(port_slot, domain) in spec.arg_domains {
+            if domain != IntegerDomain::Port {
+                continue;
+            }
+            let service = call.args.get(usize::from(port_slot)).map(String::as_str);
+            let Some(address_slot) = port_slot.checked_sub(1) else {
+                continue;
+            };
+            let Some(address) = call.args.get(usize::from(address_slot)) else {
+                continue;
+            };
+            if let Some(port) = Destination::try_parse_irule(address, service)
+                .as_ref()
+                .and_then(destination_port)
+            {
+                ports.push(port);
+            }
         }
-        if toks[i] == "pool"
-            && i + 4 < toks.len()
-            && toks[i + 2] == "member"
-            && let Some(p) = parse_trailing_digits(toks[i + 4])
-        {
-            out.push(p);
-        }
-        i += 1;
     }
-    out
+    ports
 }
 
 /// `://[^/"\s]+:(\d{1,5})\b`.
@@ -875,26 +879,6 @@ fn parse_leading_digits(tok: &str) -> Option<i64> {
     digits.parse::<i64>().ok()
 }
 
-/// Parse 1–5 trailing digits of `tok` matched by `(\d{1,5})\b` at token end.
-fn parse_trailing_digits(tok: &str) -> Option<i64> {
-    let chars: Vec<char> = tok.chars().collect();
-    let mut end = chars.len();
-    let mut start = end;
-    while start > 0 && chars[start - 1].is_ascii_digit() {
-        start -= 1;
-    }
-    if start == end {
-        return None;
-    }
-    // Keep at most 5 digits from the right (the regex matches up to 5 then \b).
-    if end - start > 5 {
-        start = end - 5;
-    }
-    let _ = &mut end;
-    let s: String = chars[start..].iter().collect();
-    s.parse::<i64>().ok()
-}
-
 // Color rules + proxy-side filters
 
 fn addresses_for_label_prefix(index: &NameIndex, prefix: &str) -> (Vec<String>, Vec<String>) {
@@ -902,13 +886,17 @@ fn addresses_for_label_prefix(index: &NameIndex, prefix: &str) -> (Vec<String>, 
     let mut v4 = Vec::new();
     let mut v6 = Vec::new();
     for (addr, names) in &index.v4 {
-        if names.iter().any(|n| n.starts_with(&needle)) {
-            v4.push(addr.clone());
+        if names.iter().any(|n| n.starts_with(&needle))
+            && let Some(ip) = wire_ip(addr)
+        {
+            v4.push(ip.to_string());
         }
     }
     for (addr, names) in &index.v6 {
-        if names.iter().any(|n| n.starts_with(&needle)) {
-            v6.push(addr.clone());
+        if names.iter().any(|n| n.starts_with(&needle))
+            && let Some(ip) = wire_ip(addr)
+        {
+            v6.push(ip.to_string());
         }
     }
     (v4, v6)
@@ -1083,4 +1071,36 @@ pub fn build_wireshark_profile(configs_with_sources: &[(BigipConfig, String)]) -
 
     profile.deduplicate();
     profile
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn irule_services_read_literal_endpoints_with_route_domains() {
+        let rule = r"
+            when CLIENT_ACCEPTED {
+                node 192.0.2.53:80
+                pool /Common/probe member 2001:db8::53%2 443
+                snat 192.0.2.54%2 8080
+            }
+        ";
+        assert_eq!(irule_host_port(rule), [80, 443, 8080]);
+    }
+
+    #[test]
+    fn wireshark_filter_keeps_address_and_route_domain_on_the_same_peer() {
+        let filter = address_filter("2001:db8::53", true, 2);
+        assert!(
+            filter.contains("peerlocaladdr6 == 2001:db8::53 && f5ethtrailer.peerlocalrtdom == 2")
+        );
+        assert!(
+            filter.contains("peerremoteaddr6 == 2001:db8::53 && f5ethtrailer.peerremotertdom == 2")
+        );
+        assert_eq!(
+            address_filter("192.0.2.53", false, 0),
+            "ip.addr == 192.0.2.53"
+        );
+    }
 }

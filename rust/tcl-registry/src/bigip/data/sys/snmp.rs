@@ -116,6 +116,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
                     value_type: ValueKind::String,
                     in_sections: &["communities"],
                     shape_kind: Some(ValueKind::IpAddress),
+                    address_grammar: Some(crate::bigip::AddressGrammar::Network),
                     default: Some(
                         "default, which means allow any source address to access the MIB",
                     ),
@@ -165,6 +166,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             value_type: ValueKind::String,
             in_sections: &["communities"],
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Network),
             default: Some("default, which means allow any source address to access the MIB"),
             ..BigipPropertySpec::DEFAULT
         },
@@ -369,6 +371,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             name: "trap-source",
             value_type: ValueKind::String,
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Address),
             default: Some("none"),
             ..BigipPropertySpec::DEFAULT
         },
@@ -419,6 +422,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
                     in_sections: &["traps"],
                     required: true,
                     shape_kind: Some(ValueKind::IpAddress),
+                    address_grammar: Some(crate::bigip::AddressGrammar::Endpoint),
                     ..BigipPropertySpec::DEFAULT
                 },
                 BigipPropertySpec {
@@ -511,6 +515,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             in_sections: &["traps"],
             required: true,
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Endpoint),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {
@@ -723,6 +728,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
                     in_sections: &["v1-traps"],
                     required: true,
                     shape_kind: Some(ValueKind::IpAddress),
+                    address_grammar: Some(crate::bigip::AddressGrammar::Endpoint),
                     ..BigipPropertySpec::DEFAULT
                 },
                 BigipPropertySpec {
@@ -753,6 +759,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             in_sections: &["v1-traps"],
             required: true,
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Endpoint),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {
@@ -786,6 +793,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
                     in_sections: &["v2-traps"],
                     required: true,
                     shape_kind: Some(ValueKind::IpAddress),
+                    address_grammar: Some(crate::bigip::AddressGrammar::Endpoint),
                     ..BigipPropertySpec::DEFAULT
                 },
                 BigipPropertySpec {
@@ -816,6 +824,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             in_sections: &["v2-traps"],
             required: true,
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Endpoint),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {

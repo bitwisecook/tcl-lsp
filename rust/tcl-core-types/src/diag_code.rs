@@ -452,6 +452,7 @@ diagnostic_codes! {
     Bigip6012 => "BIGIP6012", diag(Bigip, true, "Attached iRules handle the same event at the same effective priority.");
     Bigip6013 => "BIGIP6013", diag(Bigip, true, "A registry-declared BIG-IP object reference could not be resolved.");
     Bigip6014 => "BIGIP6014", diag(Bigip, true, "A BIG-IP object declaration duplicates another object of the same kind and path.");
+    Bigip6015 => "BIGIP6015", diag(Bigip, true, "A literal address is invalid for its BIG-IP configuration or iRules grammar.");
     Bigip6038 => "BIGIP6038", diag(Bigip, true, "An iRule event requires a profile that is not active on its virtual server.");
     Bigip6039 => "BIGIP6039", diag(Bigip, true, "A virtual server attaches incompatible profile types.");
     Iapp7001 => "IAPP7001", diag(Bigip, true, "iApp implementation references a presentation field that is not defined.");

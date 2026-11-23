@@ -83,7 +83,6 @@ pub static SPECS: &[BigipObjectSpec] = &[
             BigipPropertySpec {
                 name: "dns-mode",
                 value_type: ValueKind::String,
-                shape_kind: Some(ValueKind::IpAddress),
                 default: Some("ipv4-only"),
                 ..BigipPropertySpec::DEFAULT
             },

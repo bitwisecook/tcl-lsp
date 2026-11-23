@@ -30,6 +30,33 @@ const HEADER_READ: &[SideEffect] = &[SideEffect {
     ..SideEffect::DEFAULT
 }];
 
+const HEADER_WRITE: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::HttpHeader,
+    writes: true,
+    connection_side: ConnectionSide::Both,
+    ..SideEffect::DEFAULT
+}];
+
+const HEADER_GETTER: CommandForm = CommandForm {
+    name: "getter",
+    arity: Arity::exact(1),
+    side_effects: Some(crate::knowledge::Knowledge::Partial(HEADER_READ)),
+    ..CommandForm::DEFAULT
+};
+
+const HEADER_SETTER: CommandForm = CommandForm {
+    name: "setter",
+    arity: Arity::exact(2),
+    mutator: Some(true),
+    header_write: Some(crate::forms::HeaderWrite {
+        name: 0,
+        value: 1,
+        returns_empty: true,
+    }),
+    side_effects: Some(crate::knowledge::Knowledge::Partial(HEADER_WRITE)),
+    ..CommandForm::DEFAULT
+};
+
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
@@ -65,14 +92,16 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Insert header/value pair.",
         synopsis: "HTTP::header insert <name> <value>",
         mutator: true,
-        credential_arg: Some(2),
-        sensitive_headers: &[
-            "authorization",
-            "proxy-authorization",
-            "x-api-key",
-            "x-auth-token",
-            "x-secret",
-        ],
+        subcommand_forms: &[CommandForm {
+            name: "insert",
+            arity: Arity::at_least(2),
+            header_write: Some(crate::forms::HeaderWrite {
+                name: 0,
+                value: 1,
+                returns_empty: false,
+            }),
+            ..HEADER_SETTER
+        }],
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -136,14 +165,16 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Replace header value.",
         synopsis: "HTTP::header replace <name> ?<string>?",
         mutator: true,
-        credential_arg: Some(2),
-        sensitive_headers: &[
-            "authorization",
-            "proxy-authorization",
-            "x-api-key",
-            "x-auth-token",
-            "x-secret",
-        ],
+        subcommand_forms: &[CommandForm {
+            name: "replace",
+            arity: Arity::new(1, 2),
+            header_write: Some(crate::forms::HeaderWrite {
+                name: 0,
+                value: 1,
+                returns_empty: false,
+            }),
+            ..HEADER_SETTER
+        }],
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         ..SubCommand::DEFAULT
     },
@@ -158,13 +189,17 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "value",
-        // Published header getter returns a value without Tcl callbacks or cell writes.
-        successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf),
-        arity: Arity::exact(1),
-        detail: "Get first header value.",
-        synopsis: "HTTP::header value <name>",
+        arity: Arity::new(1, 2),
+        detail: "Read the last header value or set the header.",
+        synopsis: "HTTP::header value <name> ?value?",
+        subcommand_forms: &[
+            CommandForm {
+                successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf),
+                ..HEADER_GETTER
+            },
+            HEADER_SETTER,
+        ],
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
-        side_effects: crate::knowledge::Knowledge::Partial(HEADER_READ),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -186,6 +221,9 @@ pub const fn spec() -> CommandSpec {
         traits: Traits::CSE_CANDIDATE.union(Traits::DIAGRAM_ACTION),
         surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(1),
+        prefix_matching: PrefixMatching::Strict,
+        allow_unknown_subcommands: true,
+        command_forms: &[HEADER_GETTER, HEADER_SETTER],
         options: const {
             &[OptionSpec {
                 name: "-noupdate",
@@ -200,18 +238,16 @@ pub const fn spec() -> CommandSpec {
         },
         hover: Some(HoverSnippet {
             summary: "Inspect or mutate HTTP headers in an iRule event.",
-            synopsis: &["HTTP::header <subcommand> ?arg ...?"],
-            snippet: "Use subcommands like `value`, `insert`, `replace`, and `remove`.",
+            synopsis: &[
+                "HTTP::header <name> ?value?",
+                "HTTP::header <subcommand> ?arg ...?",
+            ],
+            snippet: "Use an exact subcommand or supply a header name. A header name alone reads the last value. A name followed by a value writes the header.",
             source: "https://clouddocs.f5.com/api/irules/HTTP__header.html",
             examples: "",
             return_value: "",
         }),
-        // `HTTP::header insert|replace` with tainted data →
-        // header injection (IRULE3002).
-        // (`credential_arg` + `sensitive_headers` now live on the
-        // `insert` / `replace` SubCommand specs above.)
-        taint_output_sink: Some("IRULE3002"),
-        taint_output_sink_subcommands: &["insert", "replace"],
+        excluded_events: &["RULE_INIT"],
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,
@@ -220,10 +256,16 @@ pub const fn spec() -> CommandSpec {
             also_in: &["MR_EGRESS", "MR_INGRESS", "SERVER_CONNECTED"],
             flow: false,
         }),
-        forms: &[FormSpec {
-            synopsis: "HTTP::header <subcommand> ?arg ...?",
-            ..FormSpec::DEFAULT
-        }],
+        forms: &[
+            FormSpec {
+                synopsis: "HTTP::header <name> ?value?",
+                ..FormSpec::DEFAULT
+            },
+            FormSpec {
+                synopsis: "HTTP::header <subcommand> ?arg ...?",
+                ..FormSpec::DEFAULT
+            },
+        ],
         subcommands: SUBCOMMANDS,
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {
             target: SideEffectTarget::HttpHeader,

@@ -147,85 +147,7 @@ impl fmt::Display for Folder {
     }
 }
 
-/// A full BIG-IP object path: `<folder>/<leaf>`.
-///
-/// The leaf is the object's name (`web_pool`, `vs1`, ...) and can contain
-/// the same characters folder segments do. Together the folder + leaf
-/// form what the rest of the codebase calls the object's `full_path`.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ObjectPath {
-    /// The containing folder.
-    pub folder: Folder,
-    /// The leaf object name.
-    pub name: String,
-}
-
-impl ObjectPath {
-    /// Parse `text` as a full BIG-IP object path.
-    ///
-    /// # Errors
-    /// Empty input, input without a leading `/`, fewer than two segments,
-    /// or invalid leaf characters return [`ValueError`].
-    pub fn parse(text: &str) -> Result<Self, ValueError> {
-        let text = text.trim();
-        if text.is_empty() {
-            return Err(ValueError("ObjectPath: empty input".to_owned()));
-        }
-        if !text.starts_with('/') {
-            return Err(ValueError(format!(
-                "ObjectPath: must start with '/' (partition prefix), got {}",
-                py_repr(text)
-            )));
-        }
-        let parts = split_path_segments(text);
-        if parts.len() < 2 {
-            return Err(ValueError(format!(
-                "ObjectPath: must have at least partition + leaf, got {}",
-                py_repr(text)
-            )));
-        }
-        let leaf = parts[parts.len() - 1];
-        if !leaf.chars().all(is_folder_segment_valid_char) {
-            return Err(ValueError(format!(
-                "ObjectPath: invalid character in leaf {}",
-                py_repr(leaf)
-            )));
-        }
-        let folder_text = format!("/{}", parts[..parts.len() - 1].join("/"));
-        Ok(Self {
-            folder: Folder::parse(&folder_text)?,
-            name: leaf.to_owned(),
-        })
-    }
-
-    /// Like [`ObjectPath::parse`] but returns `None` instead of erroring.
-    #[must_use]
-    pub fn try_parse(text: &str) -> Option<Self> {
-        Self::parse(text).ok()
-    }
-
-    /// The partition portion of the folder.
-    #[must_use]
-    pub fn partition(&self) -> &Partition {
-        &self.folder.partition
-    }
-
-    /// `true` when the object lives at the partition root (no folders).
-    #[must_use]
-    pub fn in_root_folder(&self) -> bool {
-        self.folder.is_root()
-    }
-}
-
-impl fmt::Display for ObjectPath {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.folder.is_root() {
-            write!(f, "{}/{}", self.folder.partition, self.name)
-        } else {
-            write!(f, "{}/{}", self.folder, self.name)
-        }
-    }
-}
+pub use crate::object_names::BigIpName as ObjectPath;
 
 #[cfg(test)]
 mod tests {
@@ -286,7 +208,7 @@ mod tests {
     fn object_path_rejects() {
         assert_eq!(
             ObjectPath::parse("/Common").unwrap_err().0,
-            "ObjectPath: must have at least partition + leaf, got '/Common'"
+            "BigIpName: must have at least partition + leaf, got '/Common'"
         );
     }
 }

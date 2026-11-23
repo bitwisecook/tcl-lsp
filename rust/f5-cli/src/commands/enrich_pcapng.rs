@@ -172,10 +172,10 @@ fn print_dry_run(name_index: &NameIndex) {
         }
     }
     for (net, name) in &name_index.v4_subnets {
-        println!("{}\t{name}", net.text());
+        println!("{}\t{name}", net.configured_cidr());
     }
     for (net, name) in &name_index.v6_subnets {
-        println!("{}\t{name}", net.text());
+        println!("{}\t{name}", net.configured_cidr());
     }
     eprintln!(
         "enrich-pcapng (dry-run): {} v4 / {} v6 address(es), {} subnet(s), {} label(s)",

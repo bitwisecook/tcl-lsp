@@ -48,6 +48,12 @@ mod generated_objects;
 pub use generated_names::BASE_OBJECT_NAMES;
 pub use generated_objects::BASE_OBJECTS;
 
+// Factory monitor identities verified on 21.1.0.1 build 0.0.26.
+const VERIFIED_MONITORS: &[(&str, &str, &str)] = &[
+    ("ltm", "monitor http", "/Common/http"),
+    ("ltm", "monitor https", "/Common/https"),
+];
+
 /// The BIG-IP version these base objects were captured at. Field values reflect
 /// this release; a report for an older release uses them as its best-available
 /// fallback (there is only this one snapshot). See [`crate::profile_defaults`]
@@ -113,6 +119,7 @@ pub fn is_base_object(module: &str, object_type: &str, name: &str) -> bool {
         .any(|o| o.module == module && o.object_type == object_type && o.name == name)
         || BASE_OBJECT_NAMES
             .iter()
+            .chain(VERIFIED_MONITORS)
             .any(|&(m, t, n)| m == module && t == object_type && n == name)
 }
 
@@ -123,13 +130,13 @@ pub fn base_object_identities() -> impl Iterator<Item = (&'static str, &'static 
     BASE_OBJECTS
         .iter()
         .map(|o| (o.module, o.object_type, o.name))
-        .chain(BASE_OBJECT_NAMES.iter().copied())
+        .chain(BASE_OBJECT_NAMES.iter().chain(VERIFIED_MONITORS).copied())
 }
 
 /// Total number of tracked base objects (field-bearing plus name-only).
 #[must_use]
 pub fn base_object_count() -> usize {
-    BASE_OBJECTS.len() + BASE_OBJECT_NAMES.len()
+    BASE_OBJECTS.len() + BASE_OBJECT_NAMES.len() + VERIFIED_MONITORS.len()
 }
 
 #[cfg(test)]

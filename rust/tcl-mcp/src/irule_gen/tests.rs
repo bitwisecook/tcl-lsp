@@ -53,6 +53,25 @@ fn if_cond(condition: &str) -> Value {
 }
 
 #[test]
+fn scaffold_ssl_profiles_follow_the_side_of_the_requested_events() {
+    let registry = EventRegistry::build();
+    let server_events = ["SERVERSSL_CLIENTHELLO_SEND".to_owned()];
+    assert_eq!(
+        infer_profiles(&registry, &server_events),
+        ["TCP", "SERVERSSL"]
+    );
+    let both_events = [
+        "CLIENTSSL_HANDSHAKE".to_owned(),
+        "HTTP_REQUEST".to_owned(),
+        "SERVERSSL_HANDSHAKE".to_owned(),
+    ];
+    assert_eq!(
+        infer_profiles(&registry, &both_events),
+        ["TCP", "CLIENTSSL", "SERVERSSL", "HTTP"]
+    );
+}
+
+#[test]
 fn generated_description_is_one_inert_tcl_word() {
     for description in [
         "$suspicious",

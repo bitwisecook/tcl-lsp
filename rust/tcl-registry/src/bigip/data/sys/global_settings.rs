@@ -58,6 +58,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             name: "custom-addr",
             value_type: ValueKind::String,
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Address),
             default: Some("::"),
             ..BigipPropertySpec::DEFAULT
         },
@@ -205,6 +206,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
                     value_type: ValueKind::String,
                     in_sections: &["remote-host"],
                     shape_kind: Some(ValueKind::IpAddress),
+                    address_grammar: Some(crate::bigip::AddressGrammar::Address),
                     ..BigipPropertySpec::DEFAULT
                 },
                 BigipPropertySpec {
@@ -222,6 +224,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             value_type: ValueKind::String,
             in_sections: &["remote-host"],
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Address),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {

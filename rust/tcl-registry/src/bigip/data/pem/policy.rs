@@ -598,6 +598,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
                     value_type: ValueKind::String,
                     in_sections: &["rules", "flow-info-filters"],
                     shape_kind: Some(ValueKind::IpAddress),
+                    address_grammar: Some(crate::bigip::AddressGrammar::Network),
                     default: Some("0"),
                     ..BigipPropertySpec::DEFAULT
                 },
@@ -638,7 +639,6 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
                     value_type: ValueKind::Enum,
                     in_sections: &["rules", "flow-info-filters"],
                     enum_values: &["IPv4", "IPv6", "any"],
-                    shape_kind: Some(ValueKind::IpAddress),
                     ..BigipPropertySpec::DEFAULT
                 },
                 BigipPropertySpec {
@@ -672,6 +672,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
                     value_type: ValueKind::String,
                     in_sections: &["rules", "flow-info-filters"],
                     shape_kind: Some(ValueKind::IpAddress),
+                    address_grammar: Some(crate::bigip::AddressGrammar::Network),
                     default: Some("0"),
                     ..BigipPropertySpec::DEFAULT
                 },
@@ -707,6 +708,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             value_type: ValueKind::String,
             in_sections: &["rules", "flow-info-filters"],
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Network),
             default: Some("0"),
             ..BigipPropertySpec::DEFAULT
         },
@@ -747,7 +749,6 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             value_type: ValueKind::Enum,
             in_sections: &["rules", "flow-info-filters"],
             enum_values: &["IPv4", "IPv6", "any"],
-            shape_kind: Some(ValueKind::IpAddress),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {
@@ -781,6 +782,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             value_type: ValueKind::String,
             in_sections: &["rules", "flow-info-filters"],
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Network),
             default: Some("0"),
             ..BigipPropertySpec::DEFAULT
         },

@@ -18,9 +18,9 @@
 
 //! Builtins that edit a destination or an object path: port, host, folder, name and partition.
 
-use super::typed_values::{
-    Destination, Folder, ObjectPath, Partition, TypedAddress, TypedPort, parse_address,
-};
+use tcl_bigip::object_names::BigIpName;
+use tcl_bigip::value::{Address, Destination, Folder, Partition, Port, try_parse_address};
+
 use super::{coerce_pathlike, py_str_repr};
 use crate::builtins::{as_str, type_name};
 use crate::errors::QueryError;
@@ -37,11 +37,11 @@ pub(super) fn bi_with_port(args: &[Value]) -> Result<Value, QueryError> {
         ))
     })?;
     let new_port = match &args[1] {
-        Value::Null => TypedPort {
+        Value::Null => Port {
             port: 0,
             spelling: String::new(),
         },
-        Value::Str(p) if p.is_empty() => TypedPort {
+        Value::Str(p) if p.is_empty() => Port {
             port: 0,
             spelling: String::new(),
         },
@@ -54,17 +54,17 @@ pub(super) fn bi_with_port(args: &[Value]) -> Result<Value, QueryError> {
                     "with_port: port out of range ({i})"
                 )));
             }
-            TypedPort {
+            Port {
                 port: *i as u16,
                 spelling: i.to_string(),
             }
         }
-        Value::Str(p) => TypedPort::try_parse(p).ok_or_else(|| {
+        Value::Str(p) => Port::try_parse(p).ok_or_else(|| {
             // Port.parse raised ValueError — surfaced as the raw message.
             port_parse_error(p)
         })?,
         Value::PathRef(p) => {
-            TypedPort::try_parse(&p.full_path).ok_or_else(|| port_parse_error(&p.full_path))?
+            Port::try_parse(&p.full_path).ok_or_else(|| port_parse_error(&p.full_path))?
         }
         other => {
             return Err(QueryError::builtin(format!(
@@ -80,8 +80,9 @@ pub(super) fn bi_with_port(args: &[Value]) -> Result<Value, QueryError> {
         route_domain: parsed.route_domain,
         ipv6_brackets: parsed.ipv6_brackets,
         port_separator: parsed.port_separator,
+        original: parsed.original,
     };
-    Ok(Value::Str(dest.render()))
+    Ok(Value::Str(dest.to_string()))
 }
 
 /// `Port.parse` `ValueError` text, surfaced verbatim when `with_port` is given
@@ -111,7 +112,7 @@ pub(super) fn bi_with_host(args: &[Value]) -> Result<Value, QueryError> {
             py_str_repr(&s)
         ))
     })?;
-    let new_addr = parse_address(&h).ok_or_else(|| {
+    let new_addr = try_parse_address(&h).ok_or_else(|| {
         QueryError::builtin(format!(
             "with_host: cannot parse host {}: {}",
             py_str_repr(&h),
@@ -121,11 +122,11 @@ pub(super) fn bi_with_host(args: &[Value]) -> Result<Value, QueryError> {
             fqdn_value_error(&h)
         ))
     })?;
-    let new_is_v6 = matches!(&new_addr, TypedAddress::Ip(ip) if ip.addr.is_ipv6());
+    let new_is_v6 = matches!(&new_addr, Address::Ip(ip) if ip.addr.is_ipv6());
     let (new_brackets, new_separator) = if new_is_v6 {
         (parsed.ipv6_brackets, parsed.port_separator)
     } else {
-        (false, ':')
+        (false, ":".to_owned())
     };
     let dest = Destination {
         address: new_addr,
@@ -134,8 +135,9 @@ pub(super) fn bi_with_host(args: &[Value]) -> Result<Value, QueryError> {
         route_domain: parsed.route_domain,
         ipv6_brackets: new_brackets,
         port_separator: new_separator,
+        original: parsed.original,
     };
-    Ok(Value::Str(dest.render()))
+    Ok(Value::Str(dest.to_string()))
 }
 
 /// FQDN parse `ValueError` text (best-effort).
@@ -172,16 +174,16 @@ fn fqdn_value_error(text: &str) -> String {
 
 pub(super) fn bi_folder(args: &[Value]) -> Result<Value, QueryError> {
     let s = as_str(&args[0], "folder", 1)?;
-    match ObjectPath::try_parse(&s) {
+    match BigIpName::try_parse(&s) {
         None => Ok(Value::Str(String::new())),
-        Some(obj) => Ok(Value::Str(obj.folder.render())),
+        Some(obj) => Ok(Value::Str(obj.folder.to_string())),
     }
 }
 
 pub(super) fn bi_with_folder(args: &[Value]) -> Result<Value, QueryError> {
     let p = as_str(&args[0], "with_folder", 1)?;
     let f = as_str(&args[1], "with_folder", 2)?;
-    let obj = ObjectPath::try_parse(&p).ok_or_else(|| {
+    let obj = BigIpName::try_parse(&p).ok_or_else(|| {
         QueryError::builtin(format!(
             "with_folder: cannot parse path {}",
             py_str_repr(&p)
@@ -193,11 +195,11 @@ pub(super) fn bi_with_folder(args: &[Value]) -> Result<Value, QueryError> {
             py_str_repr(&f)
         ))
     })?;
-    let result = ObjectPath {
+    let result = BigIpName {
         folder: new_folder,
         name: obj.name,
     };
-    Ok(Value::Str(result.render()))
+    Ok(Value::Str(result.to_string()))
 }
 
 pub(super) fn bi_with_name(args: &[Value]) -> Result<Value, QueryError> {
@@ -206,13 +208,13 @@ pub(super) fn bi_with_name(args: &[Value]) -> Result<Value, QueryError> {
     if n.is_empty() {
         return Err(QueryError::builtin("with_name: new name must not be empty"));
     }
-    match ObjectPath::try_parse(&p) {
+    match BigIpName::try_parse(&p) {
         Some(obj) => {
-            let result = ObjectPath {
+            let result = BigIpName {
                 folder: obj.folder,
                 name: n,
             };
-            Ok(Value::Str(result.render()))
+            Ok(Value::Str(result.to_string()))
         }
         None => {
             if !p.is_empty() && !p.contains('/') {
@@ -230,7 +232,7 @@ pub(super) fn bi_with_name(args: &[Value]) -> Result<Value, QueryError> {
 pub(super) fn bi_in_partition(args: &[Value]) -> Result<Value, QueryError> {
     let p = coerce_pathlike(&args[0], "in_partition", 1)?;
     let part_text = as_str(&args[1], "in_partition", 2)?;
-    let Some(obj) = ObjectPath::try_parse(&p) else {
+    let Some(obj) = BigIpName::try_parse(&p) else {
         return Ok(Value::Bool(false));
     };
     let Some(target) = Partition::try_parse(&part_text) else {
@@ -242,7 +244,7 @@ pub(super) fn bi_in_partition(args: &[Value]) -> Result<Value, QueryError> {
 pub(super) fn bi_in_folder(args: &[Value]) -> Result<Value, QueryError> {
     let p = coerce_pathlike(&args[0], "in_folder", 1)?;
     let f = as_str(&args[1], "in_folder", 2)?;
-    let obj = ObjectPath::try_parse(&p);
+    let obj = BigIpName::try_parse(&p);
     let target_folder = Folder::try_parse(&f);
     let (Some(obj), Some(target)) = (obj, target_folder) else {
         return Ok(Value::Bool(false));
@@ -261,8 +263,8 @@ pub(super) fn bi_in_folder(args: &[Value]) -> Result<Value, QueryError> {
 pub(super) fn bi_can_see(args: &[Value]) -> Result<Value, QueryError> {
     let r_text = as_str(&args[0], "can_see", 1)?;
     let t_text = as_str(&args[1], "can_see", 2)?;
-    let r = ObjectPath::try_parse(&r_text);
-    let t = ObjectPath::try_parse(&t_text);
+    let r = BigIpName::try_parse(&r_text);
+    let t = BigIpName::try_parse(&t_text);
     let (Some(r), Some(t)) = (r, t) else {
         return Ok(Value::Bool(false));
     };

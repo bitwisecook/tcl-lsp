@@ -22,6 +22,8 @@ use super::error::ValueError;
 use super::port::{parse_decimal_int, py_repr};
 use std::fmt;
 
+use tcl_syntax::irules_address::{MAX_ROUTE_DOMAIN, RouteDomainError, split_route_domain};
+
 /// An F5 route-domain identifier (the `%N` suffix on addresses).
 ///
 /// Route-domain 0 is the default (no segregation); higher numbers select
@@ -60,10 +62,10 @@ impl RouteDomain {
         if value < 0 {
             return Err(ValueError(format!("RouteDomain: negative ({value})")));
         }
-        // Route-domain ids are stored as a u32; reject values that would not
-        // round-trip (real route domains are 0..=65534, far below u32::MAX).
         let id = u32::try_from(value)
-            .map_err(|_| ValueError(format!("RouteDomain: out of range ({value})")))?;
+            .ok()
+            .filter(|&id| id <= MAX_ROUTE_DOMAIN)
+            .ok_or_else(|| ValueError(format!("RouteDomain: out of range ({value})")))?;
         Ok(Self { id })
     }
 
@@ -71,6 +73,17 @@ impl RouteDomain {
     #[must_use]
     pub fn try_parse(text: &str) -> Option<Self> {
         Self::parse(text).ok()
+    }
+
+    pub(super) fn split_suffix(text: &str) -> Result<(&str, Option<u32>), ValueError> {
+        split_route_domain(text).map_err(|error| match error {
+            RouteDomainError::Invalid(digits) => {
+                ValueError(format!("invalid route-domain suffix %{digits}"))
+            }
+            RouteDomainError::OutOfRange(digits) => {
+                ValueError(format!("route domain out of range: {digits}"))
+            }
+        })
     }
 
     /// `true` when this is route-domain 0 (no segregation).
@@ -120,5 +133,7 @@ mod tests {
             "RouteDomain: not numeric ('abc')"
         );
         assert!(RouteDomain::try_parse("xx").is_none());
+        assert!(RouteDomain::try_parse("65534").is_some());
+        assert!(RouteDomain::try_parse("65535").is_none());
     }
 }

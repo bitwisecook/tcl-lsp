@@ -108,6 +108,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
                     value_type: ValueKind::String,
                     in_sections: &["scrubber-categories"],
                     shape_kind: Some(ValueKind::IpAddress),
+                    address_grammar: Some(crate::bigip::AddressGrammar::Address),
                     ..BigipPropertySpec::DEFAULT
                 },
                 BigipPropertySpec {
@@ -115,6 +116,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
                     value_type: ValueKind::String,
                     in_sections: &["scrubber-categories"],
                     shape_kind: Some(ValueKind::IpAddress),
+                    address_grammar: Some(crate::bigip::AddressGrammar::Address),
                     ..BigipPropertySpec::DEFAULT
                 },
                 BigipPropertySpec {
@@ -182,6 +184,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             value_type: ValueKind::String,
             in_sections: &["scrubber-categories"],
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Address),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {
@@ -189,6 +192,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             value_type: ValueKind::String,
             in_sections: &["scrubber-categories"],
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Address),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {
@@ -259,6 +263,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
                     value_type: ValueKind::String,
                     in_sections: &["scrubber-netflow-protected-server"],
                     shape_kind: Some(ValueKind::IpAddress),
+                    address_grammar: Some(crate::bigip::AddressGrammar::Address),
                     ..BigipPropertySpec::DEFAULT
                 },
                 BigipPropertySpec {
@@ -266,6 +271,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
                     value_type: ValueKind::String,
                     in_sections: &["scrubber-netflow-protected-server"],
                     shape_kind: Some(ValueKind::IpAddress),
+                    address_grammar: Some(crate::bigip::AddressGrammar::Address),
                     ..BigipPropertySpec::DEFAULT
                 },
                 BigipPropertySpec {
@@ -333,6 +339,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             value_type: ValueKind::String,
             in_sections: &["scrubber-netflow-protected-server"],
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Address),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {
@@ -340,6 +347,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             value_type: ValueKind::String,
             in_sections: &["scrubber-netflow-protected-server"],
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Address),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {
@@ -411,6 +419,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
                     value_type: ValueKind::String,
                     in_sections: &["scrubber-rt-domain"],
                     shape_kind: Some(ValueKind::IpAddress),
+                    address_grammar: Some(crate::bigip::AddressGrammar::Address),
                     ..BigipPropertySpec::DEFAULT
                 },
                 BigipPropertySpec {
@@ -418,6 +427,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
                     value_type: ValueKind::String,
                     in_sections: &["scrubber-rt-domain"],
                     shape_kind: Some(ValueKind::IpAddress),
+                    address_grammar: Some(crate::bigip::AddressGrammar::Address),
                     ..BigipPropertySpec::DEFAULT
                 },
                 BigipPropertySpec {
@@ -500,6 +510,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             value_type: ValueKind::String,
             in_sections: &["scrubber-rt-domain"],
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Address),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {
@@ -507,6 +518,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             value_type: ValueKind::String,
             in_sections: &["scrubber-rt-domain"],
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Address),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {
@@ -566,6 +578,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
                     value_type: ValueKind::String,
                     in_sections: &["scrubber-rt-domain", "scrubber-rd-network-prefix"],
                     shape_kind: Some(ValueKind::IpAddress),
+                    address_grammar: Some(crate::bigip::AddressGrammar::Network),
                     ..BigipPropertySpec::DEFAULT
                 },
                 BigipPropertySpec {
@@ -579,6 +592,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
                     value_type: ValueKind::String,
                     in_sections: &["scrubber-rt-domain", "scrubber-rd-network-prefix"],
                     shape_kind: Some(ValueKind::IpAddress),
+                    address_grammar: Some(crate::bigip::AddressGrammar::Address),
                     ..BigipPropertySpec::DEFAULT
                 },
             ],
@@ -621,6 +635,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             value_type: ValueKind::String,
             in_sections: &["scrubber-rt-domain", "scrubber-rd-network-prefix"],
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Network),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {
@@ -634,6 +649,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             value_type: ValueKind::String,
             in_sections: &["scrubber-rt-domain", "scrubber-rd-network-prefix"],
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Address),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {
@@ -698,6 +714,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
                     value_type: ValueKind::String,
                     in_sections: &["scrubber-virtual-server"],
                     shape_kind: Some(ValueKind::IpAddress),
+                    address_grammar: Some(crate::bigip::AddressGrammar::Address),
                     ..BigipPropertySpec::DEFAULT
                 },
                 BigipPropertySpec {
@@ -705,6 +722,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
                     value_type: ValueKind::String,
                     in_sections: &["scrubber-virtual-server"],
                     shape_kind: Some(ValueKind::IpAddress),
+                    address_grammar: Some(crate::bigip::AddressGrammar::Address),
                     ..BigipPropertySpec::DEFAULT
                 },
                 BigipPropertySpec {
@@ -778,6 +796,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             value_type: ValueKind::String,
             in_sections: &["scrubber-virtual-server"],
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Address),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {
@@ -785,6 +804,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             value_type: ValueKind::String,
             in_sections: &["scrubber-virtual-server"],
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Address),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {

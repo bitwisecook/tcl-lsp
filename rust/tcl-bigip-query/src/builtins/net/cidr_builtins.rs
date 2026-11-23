@@ -18,7 +18,9 @@
 
 //! Network facts and CIDR algebra: host ranges, `collapse_cidrs`, `supernet_of`, `subnet_of` and `overlaps`.
 
-use super::typed_values::{TypedAddress, typed_address, typed_network};
+use tcl_bigip::value::Address;
+
+use super::value_arguments::{typed_address, typed_network};
 use super::{Net, parse_network};
 use crate::errors::QueryError;
 use crate::value::Value;
@@ -253,7 +255,7 @@ pub(super) fn bi_supernet_of(args: &[Value]) -> Result<Value, QueryError> {
             nets.push(net);
             continue;
         }
-        if let Some(TypedAddress::Ip(ip)) = typed_address(item, "supernet_of")? {
+        if let Some(Address::Ip(ip)) = typed_address(item, "supernet_of")? {
             let prefix = if ip.addr.is_ipv4() { 32 } else { 128 };
             let cidr = format!("{}/{}", ip.addr, prefix);
             if let Ok(net) = parse_network(&cidr) {

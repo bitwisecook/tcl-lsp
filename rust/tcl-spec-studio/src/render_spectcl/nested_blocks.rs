@@ -129,6 +129,18 @@ pub(super) fn refine_blocks(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft, key
             if let Some(mutator) = form["mutator"].as_bool() {
                 out.line(&format!("mutator {}", if mutator { "yes" } else { "no" }));
             }
+            if form["header_write"].is_object() {
+                let write = &form["header_write"];
+                let suffix = if write["returns_empty"].as_bool() == Some(true) {
+                    " empty-result"
+                } else {
+                    ""
+                };
+                out.line(&format!(
+                    "header_write {} {}{suffix}",
+                    write["name"], write["value"]
+                ));
+            }
             form_side_effect_rows(out, &form, ctx.availability);
             if let Some(expr) = form["representation_effect"].as_str() {
                 match representation_effect_word(expr) {

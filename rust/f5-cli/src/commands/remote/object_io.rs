@@ -30,34 +30,10 @@
 //! tildes).
 
 use serde_json::Value;
+use tcl_bigip_io::icontrol_path::checked_resource_id;
 
 use super::auth::Credentials;
 use super::rest;
-
-/// Convert `/Common/foo` -> `~Common~foo` (iControl REST format).
-fn encode_path(full_path: &str) -> String {
-    if full_path.starts_with('/') {
-        full_path.replace('/', "~")
-    } else {
-        // Percent-encode everything but the RFC 3986 unreserved set.
-        percent_encode(full_path)
-    }
-}
-
-/// Percent-encode every byte that is not an unreserved character
-/// (`A-Z a-z 0-9 _ . - ~`), encoding all others including `/`.
-fn percent_encode(s: &str) -> String {
-    use std::fmt::Write as _;
-    let mut out = String::with_capacity(s.len());
-    for &b in s.as_bytes() {
-        if b.is_ascii_alphanumeric() || matches!(b, b'_' | b'.' | b'-' | b'~') {
-            out.push(b as char);
-        } else {
-            let _ = write!(out, "%{b:02X}");
-        }
-    }
-    out
-}
 
 /// Every object kind `push` and `pull` handle, with the `(module, type)` URI
 /// segments each maps to.
@@ -140,7 +116,8 @@ pub fn pull_object(
     timeout: f64,
 ) -> Result<Value, String> {
     let (module, otype) = kind_to_endpoint(kind)?;
-    let encoded = encode_path(full_path);
+    let encoded = checked_resource_id(full_path)
+        .ok_or_else(|| format!("invalid BIG-IP resource name: {full_path}"))?;
     let path = format!("/mgmt/tm/{module}/{otype}/{encoded}");
     let resp = rest::request(credentials, "GET", &path, None, insecure, timeout)?;
     if resp.status >= 400 {
@@ -179,10 +156,9 @@ pub fn push_object(
         let Some(full_path) = full_path else {
             return Err("payload must include fullPath or name".to_owned());
         };
-        (
-            "PUT",
-            format!("/mgmt/tm/{module}/{otype}/{}", encode_path(full_path)),
-        )
+        let encoded = checked_resource_id(full_path)
+            .ok_or_else(|| format!("invalid BIG-IP resource name: {full_path}"))?;
+        ("PUT", format!("/mgmt/tm/{module}/{otype}/{encoded}"))
     };
     // Compact body, using the default `(',', ':')`-style separators (no spaces).
     let body = serde_json::to_vec(payload).map_err(|e| e.to_string())?;

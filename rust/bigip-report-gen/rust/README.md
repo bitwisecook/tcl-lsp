@@ -46,3 +46,11 @@ The Python package is kept intact as the demonstration of using the query engine
 as a **library** (PyO3). This crate is the equivalent generator in Rust, so it
 can be compiled to WebAssembly and run client-side. The two are feature-parity
 (both grew the certificate tab and `f5mku` support together).
+
+
+The listener and CIDR search use the shared Rust address reader even in
+reports built without the query console. After changing the reader, rebuild
+the small embedded WASM module with
+`bash rust/bigip-report-gen/frontend/build-network-wasm.sh` and rebuild the
+frontend bundle. The frontend's `test:network` script exercises the embedded
+module directly.

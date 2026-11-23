@@ -53,6 +53,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             value_type: ValueKind::String,
             allow_none: true,
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Address),
             default: Some("none"),
             ..BigipPropertySpec::DEFAULT
         },
@@ -62,6 +63,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             allow_none: true,
             shape_kind: Some(ValueKind::IpAddress),
             default: Some("none"),
+            address_grammar: Some(crate::bigip::AddressGrammar::Mask),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {
@@ -81,6 +83,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             value_type: ValueKind::String,
             allow_none: true,
             shape_kind: Some(ValueKind::IpAddress),
+            address_grammar: Some(crate::bigip::AddressGrammar::Address),
             default: Some("none"),
             ..BigipPropertySpec::DEFAULT
         },
@@ -90,6 +93,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             allow_none: true,
             shape_kind: Some(ValueKind::IpAddress),
             default: Some("none"),
+            address_grammar: Some(crate::bigip::AddressGrammar::Mask),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {

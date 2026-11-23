@@ -364,6 +364,7 @@ const ROW_WORDS: &[&str] = &[
     "synopsis",
     "pure",
     "mutator",
+    "header_write",
     "destructive",
     "returns_path",
     "source_index_bounds",

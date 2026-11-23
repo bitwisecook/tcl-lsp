@@ -205,6 +205,7 @@ pub(super) const SPECTCL_COMMAND_MEMBERS: &[MemberSpec] = &[
     setting_word("channel_configuration"),
     setting_word("credential_options"),
     setting_word("credential_arg"),
+    setting_word("header_write"),
     setting_word("sensitive_headers"),
     setting_word("pattern_type"),
     setting_word("format_string_type"),

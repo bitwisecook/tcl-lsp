@@ -592,10 +592,8 @@ impl<'a> ContextBuilder<'a> {
         let part = view.default_partition;
         for pool in &referenced_pools {
             for member in member_iter(pool) {
-                let node_name = member
-                    .name
-                    .rsplit_once(':')
-                    .map_or(member.name.as_str(), |(n, _)| n);
+                let node_name = crate::value::MemberKey::try_parse(&member.name)
+                    .map_or(member.name.as_str(), |key| key.node);
                 let mut m = std::mem::take(&mut self.nodes);
                 let _ = self.resolve_into(&mut m, &view.nodes, node_name, part);
                 self.nodes = m;

@@ -56,6 +56,7 @@ pub const fn spec() -> CommandSpec {
             connection_side: ConnectionSide::Server,
             ..SideEffect::DEFAULT
         }]),
+        arg_domains: &[(1, IntegerDomain::Port)],
         ..CommandSpec::DEFAULT
     }
 }

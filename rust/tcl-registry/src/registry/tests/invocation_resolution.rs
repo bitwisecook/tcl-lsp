@@ -633,6 +633,73 @@ fn resolve_invocation_exposes_subcommand_effects_through_one_semantic_view() {
 }
 
 #[test]
+fn http_header_uses_exact_keywords_and_resolves_both_write_forms() {
+    let mut registry = CommandRegistry::build_default();
+    registry.load_irules();
+    let query = Some(SurfaceQuery::any_release(Family::F5Irules));
+    for (args, subcommand, writes) in [
+        (&["X-Probe"][..], None, false),
+        (&["value", "X-Probe"][..], Some("value"), false),
+        (&["va", "Host"][..], None, true),
+        (&["VALUE", "Host"][..], None, true),
+        (&["X-Probe", "new"][..], None, true),
+        (&["value", "Host", "new"][..], Some("value"), true),
+    ] {
+        let invocation = registry
+            .resolve_invocation("HTTP::header", args, query)
+            .unwrap();
+        assert_eq!(
+            invocation
+                .authored_source_descriptors()
+                .subcommand
+                .map(|sub| sub.name),
+            subcommand,
+            "{args:?}"
+        );
+        assert!(invocation.authored_source_subcommand_diagnostic().is_none());
+        assert!(invocation.authored_source_arity().is_some());
+        let effects = invocation.semantics.side_effects.lower_bound();
+        assert_eq!(effects.len(), 1);
+        let effect = effects[0];
+        assert_eq!(
+            effect.target,
+            crate::side_effects::SideEffectTarget::HttpHeader
+        );
+        assert_eq!(effect.writes, writes, "{args:?}");
+        assert_eq!(invocation.semantics.mutator, writes, "{args:?}");
+        assert_eq!(effect.reads, !writes, "{args:?}");
+    }
+
+    for args in [
+        &["Authorization", "opaque"][..],
+        &["value", "Authorization", "opaque"][..],
+        &["insert", "Authorization", "opaque"][..],
+    ] {
+        let write_secret = registry
+            .resolve_invocation("HTTP::header", args, query)
+            .unwrap();
+        assert_eq!(write_secret.authored_source_credential_arguments().len(), 1);
+        assert!(write_secret.header_write_arguments().is_some());
+        if args.first() != Some(&"insert") {
+            assert!(write_secret.facts().taint_source.is_none());
+        }
+    }
+}
+
+#[test]
+fn matchclass_retains_the_deprecated_three_operand_form() {
+    let mut registry = CommandRegistry::build_default();
+    registry.load_irules();
+    let query = Some(SurfaceQuery::any_release(Family::F5Irules));
+    let invocation = registry
+        .resolve_invocation("matchclass", &["probe", "equals", "/Common/example"], query)
+        .unwrap();
+    let signature = invocation.authored_source_arity().unwrap();
+    assert_eq!(signature.arity, Arity::exact(3));
+    assert_eq!(signature.command.deprecated_replacement, Some("class"));
+}
+
+#[test]
 fn resolved_call_and_resolved_invocation_share_selection() {
     let reg = CommandRegistry::build_default();
     let args = ["counter", "5"];

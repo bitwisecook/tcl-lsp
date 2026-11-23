@@ -75,6 +75,19 @@ pub(in super::super) fn classify_sink(
         }
     }
 
+    let arg_refs: Vec<_> = args.iter().map(String::as_str).collect();
+    if is_irules_dialect(dialect)
+        && let Some((name, _)) =
+            tcl_registry::taint::header_write_arguments(registry, command, &arg_refs)
+    {
+        let label = if name == 0 {
+            canonical_command.to_owned()
+        } else {
+            format!("{canonical_command} {}", args[0])
+        };
+        return Some((DiagCode::Irule3002, label));
+    }
+
     let subcommand = args.first().map(String::as_str);
     let info = tcl_registry::taint::classify_taint_sinks(registry, command, subcommand, None);
 

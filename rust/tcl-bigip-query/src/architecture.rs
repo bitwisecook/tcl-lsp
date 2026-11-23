@@ -40,8 +40,6 @@
 //! the object pairs that evidence them, and a ready-to-render Mermaid diagram.
 
 use std::collections::BTreeMap;
-use std::net::IpAddr;
-use std::str::FromStr;
 
 use serde_json::{Map, Value as J};
 
@@ -136,51 +134,17 @@ struct Via {
     port: String,
 }
 
-/// Normalise an address to a canonical IP string, or `None` when it is not a
-/// concrete IP (a hostname, `any`, a route-domain-only token, empty).
-///
-/// Strips a `%route-domain` suffix and a `/prefix` (or `:port` on IPv4) so a
-/// pool member `10.0.0.5%2:443` and a virtual-address `10.0.0.5` compare equal.
-fn bare_ip(addr: &str) -> Option<String> {
-    let addr = addr.trim();
-    if addr.is_empty() {
-        return None;
+/// Compare the numeric host across devices using their independent domain IDs.
+fn peer_address_key(text: &str) -> Option<String> {
+    tcl_bigip::value::IPAddress::try_parse(text).map(|address| address.addr.to_string())
+}
+
+fn peer_endpoint_key(text: &str) -> Option<String> {
+    let endpoint = tcl_bigip::value::Endpoint::try_parse(text)?;
+    match endpoint.address {
+        tcl_bigip::value::Address::Ip(address) => Some(address.addr.to_string()),
+        _ => None,
     }
-    // Drop a route-domain qualifier first (`10.0.0.5%2` -> `10.0.0.5`).
-    let addr = addr.split('%').next().unwrap_or(addr);
-    // Drop a CIDR prefix (`10.0.0.0/24` -> `10.0.0.0`).
-    let addr = addr.split('/').next().unwrap_or(addr);
-    // A direct parse handles bare IPv4 and full IPv6.
-    if let Ok(ip) = IpAddr::from_str(addr) {
-        return Some(ip.to_string());
-    }
-    // IPv4 with a trailing `:port` (`10.0.0.5:443`). IPv6 with a port is
-    // bracketed (`[::1]:443`) and is handled below.
-    if let Some((host, _port)) = addr.rsplit_once(':')
-        && !host.contains(':')
-        && let Ok(ip) = IpAddr::from_str(host)
-    {
-        return Some(ip.to_string());
-    }
-    // Bracketed IPv6 literal, optionally with a port.
-    if let Some(rest) = addr.strip_prefix('[') {
-        let host = rest.split(']').next().unwrap_or(rest);
-        if let Ok(ip) = IpAddr::from_str(host) {
-            return Some(ip.to_string());
-        }
-    }
-    // BIG-IP spells an IPv6 destination's port with a `.` (the `:` is taken by
-    // the address), e.g. `2001:db8::10.443`. Strip a trailing `.<digits>` from a
-    // colon-bearing address and re-parse the host.
-    if addr.contains(':')
-        && let Some((host, port)) = addr.rsplit_once('.')
-        && !port.is_empty()
-        && port.bytes().all(|b| b.is_ascii_digit())
-        && let Ok(ip) = IpAddr::from_str(host)
-    {
-        return Some(ip.to_string());
-    }
-    None
 }
 
 /// The set of IP addresses a device *serves* — the concrete listener addresses
@@ -191,7 +155,7 @@ fn served_addresses(device: &Map<String, J>) -> BTreeMap<String, String> {
     let mut out: BTreeMap<String, String> = BTreeMap::new();
     for v in barr(device, "virtuals") {
         let Some(vm) = v.as_object() else { continue };
-        if let Some(ip) = bare_ip(bstr(vm, "destAddr")) {
+        if let Some(ip) = peer_address_key(bstr(vm, "destAddr")) {
             out.entry(ip)
                 .or_insert_with(|| bstr(vm, "fullPath").to_string());
         }
@@ -200,7 +164,10 @@ fn served_addresses(device: &Map<String, J>) -> BTreeMap<String, String> {
     for va in barr(device, "virtualAddresses") {
         let Some(am) = va.as_object() else { continue };
         let fp = bstr(am, "fullPath");
-        if let Some(ip) = bare_ip(bstr(am, "name")).or_else(|| bare_ip(fp)) {
+        if let Some(ip) = peer_address_key(bstr(am, "name")).or_else(|| {
+            let name = tcl_bigip::value::BigIpName::try_parse(fp)?;
+            peer_address_key(&name.name)
+        }) {
             out.entry(ip).or_insert_with(|| fp.to_string());
         }
     }
@@ -209,7 +176,7 @@ fn served_addresses(device: &Map<String, J>) -> BTreeMap<String, String> {
     // address (an upstream resolver could point at it).
     for l in barr(device, "gtmListeners") {
         let Some(lm) = l.as_object() else { continue };
-        if let Some(ip) = bare_ip(bstr(lm, "address")) {
+        if let Some(ip) = peer_endpoint_key(bstr(lm, "address")) {
             out.entry(ip)
                 .or_insert_with(|| bstr(lm, "fullPath").to_string());
         }
@@ -236,9 +203,11 @@ fn outbound_targets(device: &Map<String, J>) -> Vec<Target> {
             // Prefer the explicit `address`; fall back to the member name, which
             // carries the IP for members declared only by keyed name
             // (`/Common/10.2.0.20:443 { ... }` with no `address` property).
-            let ip = bare_ip(bstr(mm, "address")).or_else(|| {
+            let ip = peer_address_key(bstr(mm, "address")).or_else(|| {
                 let name = bstr(mm, "name");
-                bare_ip(name.rsplit('/').next().unwrap_or(name))
+                let node =
+                    tcl_bigip::value::MemberKey::try_parse(name).map_or(name, |key| key.node);
+                peer_address_key(node.rsplit('/').next().unwrap_or(node))
             });
             if let Some(ip) = ip {
                 out.push(Target {
@@ -256,7 +225,7 @@ fn outbound_targets(device: &Map<String, J>) -> Vec<Target> {
         let Some(sm) = s.as_object() else { continue };
         let server_fp = bstr(sm, "fullPath").to_string();
         for a in barr(sm, "virtualServers") {
-            if let Some(ip) = a.as_str().and_then(bare_ip) {
+            if let Some(ip) = a.as_str().and_then(peer_endpoint_key) {
                 out.push(Target {
                     address: ip,
                     from_obj: server_fp.clone(),
@@ -271,7 +240,7 @@ fn outbound_targets(device: &Map<String, J>) -> Vec<Target> {
         let pool_fp = bstr(pm, "fullPath").to_string();
         for m in barr(pm, "members") {
             let Some(mm) = m.as_object() else { continue };
-            if let Some(ip) = bare_ip(bstr(mm, "staticTarget")) {
+            if let Some(ip) = peer_address_key(bstr(mm, "staticTarget")) {
                 out.push(Target {
                     address: ip,
                     from_obj: pool_fp.clone(),
@@ -877,18 +846,34 @@ mod tests {
     use super::*;
 
     #[test]
-    fn bare_ip_normalises() {
-        assert_eq!(bare_ip("10.0.0.5%2:443").as_deref(), Some("10.0.0.5"));
-        assert_eq!(bare_ip("10.0.0.0/24").as_deref(), Some("10.0.0.0"));
-        assert_eq!(bare_ip("10.0.0.5").as_deref(), Some("10.0.0.5"));
-        assert_eq!(bare_ip("[::1]:443").as_deref(), Some("::1"));
-        assert_eq!(bare_ip("2001:db8::1%3").as_deref(), Some("2001:db8::1"));
+    fn peer_keys_read_the_declared_value_kind() {
+        assert_eq!(
+            peer_endpoint_key("10.0.0.5%2:443").as_deref(),
+            Some("10.0.0.5")
+        );
+        assert_eq!(peer_address_key("10.0.0.0/24"), None);
+        assert_eq!(
+            peer_address_key("fe80::1:80").as_deref(),
+            Some("fe80::1:80")
+        );
+        assert_eq!(peer_address_key("10.0.0.5").as_deref(), Some("10.0.0.5"));
+        assert_eq!(peer_endpoint_key("[::1]:443").as_deref(), Some("::1"));
+        assert_eq!(
+            peer_address_key("2001:db8::1%3").as_deref(),
+            Some("2001:db8::1")
+        );
         // BIG-IP's unbracketed IPv6 destination-port form (`.port`).
-        assert_eq!(bare_ip("2001:db8::10.443").as_deref(), Some("2001:db8::10"));
-        assert_eq!(bare_ip("2001:db8::1").as_deref(), Some("2001:db8::1"));
-        assert_eq!(bare_ip("api.example.com"), None);
-        assert_eq!(bare_ip("any"), None);
-        assert_eq!(bare_ip(""), None);
+        assert_eq!(
+            peer_endpoint_key("2001:db8::10.443").as_deref(),
+            Some("2001:db8::10")
+        );
+        assert_eq!(
+            peer_address_key("2001:db8::1").as_deref(),
+            Some("2001:db8::1")
+        );
+        assert_eq!(peer_address_key("api.example.com"), None);
+        assert_eq!(peer_address_key("any"), None);
+        assert_eq!(peer_address_key(""), None);
     }
 
     #[test]

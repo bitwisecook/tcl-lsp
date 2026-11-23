@@ -247,6 +247,33 @@ fn apply_refine_stmt(
         }
         "traits" => form.traits = Some(parse_traits(&value, stmt.line, log)),
         "mutator" => form.mutator = Some(parse_flag(stmt.tail())),
+        "header_write" => {
+            match (
+                value.parse::<u8>(),
+                stmt.word_text(2).parse::<u8>(),
+                stmt.tail().len(),
+                stmt.word_text(3),
+            ) {
+                (Ok(name), Ok(value), 2, _) if name != value => {
+                    form.header_write = Some(tcl_registry::forms::HeaderWrite {
+                        name,
+                        value,
+                        returns_empty: false,
+                    });
+                }
+                (Ok(name), Ok(value), 3, "empty-result") if name != value => {
+                    form.header_write = Some(tcl_registry::forms::HeaderWrite {
+                        name,
+                        value,
+                        returns_empty: true,
+                    });
+                }
+                _ => log.say(
+                    stmt.line,
+                    "expected header_write NAME_INDEX VALUE_INDEX ?empty-result?",
+                ),
+            }
+        }
         "side_effect" => {
             if let Some(effect) = side_effect_row(stmt, log) {
                 acc.side_effects.push(effect);

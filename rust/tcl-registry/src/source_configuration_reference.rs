@@ -56,6 +56,8 @@ pub enum ConfigurationObjectFamily {
 pub struct AuthoredSourceConfigurationReference {
     /// Effective post-head ordinal; original source geometry remains separate.
     pub argument: usize,
+    /// Item ordinal for a comparison, when the selected layout provides one.
+    pub comparison_item: Option<usize>,
     /// Configuration family supplied by the selected descriptor.
     pub family: ConfigurationObjectFamily,
     /// The unknown item value can still be an option rather than data.
@@ -140,6 +142,7 @@ impl ResolvedInvocation<'_, '_> {
                 };
                 Some(AuthoredSourceConfigurationReference {
                     argument,
+                    comparison_item: Some(item),
                     family: ConfigurationObjectFamily::DataGroup,
                     selection_unknown,
                 })
@@ -163,6 +166,7 @@ impl ResolvedInvocation<'_, '_> {
                 }
                 Some(AuthoredSourceConfigurationReference {
                     argument,
+                    comparison_item: None,
                     family: ConfigurationObjectFamily::DataGroup,
                     selection_unknown: false,
                 })
@@ -234,6 +238,7 @@ mod tests {
                 project(&args),
                 Some(AuthoredSourceConfigurationReference {
                     argument,
+                    comparison_item: Some(argument - 2),
                     family: ConfigurationObjectFamily::DataGroup,
                     selection_unknown,
                 })
@@ -262,6 +267,7 @@ mod tests {
             project(&[Literal("lookup"), Dynamic, Literal("uri_redirect_map")]),
             Some(AuthoredSourceConfigurationReference {
                 argument: 2,
+                comparison_item: None,
                 family: ConfigurationObjectFamily::DataGroup,
                 selection_unknown: false,
             })

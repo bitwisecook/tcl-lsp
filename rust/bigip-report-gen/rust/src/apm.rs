@@ -42,6 +42,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::{Map, Value as J};
+use tcl_bigip::object_names::{object_path_partition, owner_partition_reference_paths};
 use tcl_bigip::parser::{ShellTokenKind, shell_tokens};
 
 use crate::jutil::bstr;
@@ -157,11 +158,7 @@ fn leaf(path: &str) -> &str {
 }
 
 fn partition_of(path: &str) -> String {
-    if path.starts_with('/') {
-        path.split('/').nth(1).unwrap_or("").to_string()
-    } else {
-        String::new()
-    }
+    object_path_partition(path).unwrap_or_default().to_owned()
 }
 
 /// The full paths a virtual's profile reference could resolve to. A reference is
@@ -170,15 +167,9 @@ fn partition_of(path: &str) -> String {
 /// profiles by bare name, so resolve those against the virtual's own partition
 /// and the shared `/Common` fallback.
 fn profile_candidates(profile_ref: &str, virtual_full_path: &str) -> Vec<String> {
-    if profile_ref.starts_with('/') {
-        return vec![profile_ref.to_string()];
-    }
-    let mut out = vec![format!("/Common/{profile_ref}")];
-    let part = partition_of(virtual_full_path);
-    if !part.is_empty() && part != "Common" {
-        out.push(format!("/{part}/{profile_ref}"));
-    }
-    out
+    let mut candidates = owner_partition_reference_paths(profile_ref, virtual_full_path, "Common");
+    candidates.reverse();
+    candidates
 }
 
 /// Whether `virtual`'s profile list attaches the object at `target_full_path`.

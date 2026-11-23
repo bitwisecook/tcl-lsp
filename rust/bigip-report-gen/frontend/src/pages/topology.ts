@@ -24,6 +24,7 @@
 // diagram, and the listener-matching table. No dependencies beyond the vendored
 // elkjs (already loaded), no network.
 import { initGlobalSearch } from "../search/results";
+import { networkMatches, readNetwork } from "../network/address";
 import { initArchEditor } from "../arch/editor";
 
 (function () {
@@ -1078,68 +1079,19 @@ import { initArchEditor } from "../arch/editor";
     return true;
   }
 
-  // ---- IP helpers (IPv4 + IPv6, BigInt-based) ----------------------------
-  function ipVer(ip) {
-    if (!ip) return null;
-    if (ip.indexOf(":") >= 0) return 6;
-    if (/^\d+\.\d+\.\d+\.\d+$/.test(ip)) return 4;
-    return null;
-  }
-  function v6ToBig(ip) {
-    ip = ip.split("%")[0];
-    var halves = ip.split("::");
-    if (halves.length > 2) return null;
-    var head = halves[0] ? halves[0].split(":") : [];
-    var groups;
-    if (halves.length === 2) {
-      var tail = halves[1] ? halves[1].split(":") : [];
-      var mid = 8 - head.length - tail.length;
-      if (mid < 0) return null;
-      groups = head.concat(new Array(mid).fill("0"), tail);
-    } else {
-      groups = head;
-      if (groups.length !== 8) return null;
-    }
-    var big = 0n;
-    for (var i = 0; i < 8; i++) {
-      var g = groups[i] || "0";
-      if (!/^[0-9a-fA-F]{1,4}$/.test(g)) return null;
-      big = (big << 16n) + BigInt(parseInt(g, 16));
-    }
-    return big;
-  }
-  function ipToBig(ip) {
-    var v = ipVer(ip);
-    if (v === 4) {
-      var p = ip.split("%")[0].split(".").map(Number);
-      if (p.some(function (x) { return isNaN(x) || x < 0 || x > 255; })) return null;
-      return (BigInt(p[0]) << 24n) + (BigInt(p[1]) << 16n) + (BigInt(p[2]) << 8n) + BigInt(p[3]);
-    }
-    if (v === 6) return v6ToBig(ip);
-    return null;
-  }
-  function inNet(ipBig, ver, netIp, prefix) {
-    if (ipBig == null) return true;
-    if (ipVer(netIp) !== ver) return false;
-    var netBig = ipToBig(netIp);
-    if (netBig == null) return true;
-    var bits = ver === 6 ? 128 : 32;
-    if (prefix <= 0) return true;
-    if (prefix > bits) prefix = bits;
-    var mask = ((1n << BigInt(prefix)) - 1n) << BigInt(bits - prefix);
-    return (ipBig & mask) === (netBig & mask);
-  }
-
   function matchListeners(ix, q) {
-    var qVer = ipVer(q.dst) || ipVer(q.src.split("/")[0]);
-    var dstBig = ipToBig(q.dst);
+    var destination = q.dst && readNetwork(q.dst);
+    var source = q.src && readNetwork(q.src);
+    if ((q.dst && !destination) || (q.src && !source)) return [];
+    var qVer = destination?.family || source?.family;
+    var domain = q.rd || (destination?.routeDomain ?? source?.routeDomain ?? "");
     var out = [];
     ix.d.virtuals.forEach(function (v) {
       var L = v.listener || {}; if (v.disabled) return;
       var lVer = L.family === "IPv6" ? 6 : 4;
       if (qVer && !L.anyAddr && lVer !== qVer) return; // family must agree
-      if (q.rd !== "" && String(L.routeDomain) !== String(q.rd)) return;
-      if (!L.anyAddr && q.dst && !inNet(dstBig, lVer, L.address, L.prefix)) return;
+      if (domain !== "" && String(L.routeDomain) !== String(domain)) return;
+      if (!L.anyAddr && destination && !networkMatches(destination, L.address + "/" + L.prefix)) return;
       if (q.port !== "" && L.port !== 0 && String(L.port) !== String(q.port)) return;
       if (q.proto && q.proto !== "any" && L.protocol && L.protocol !== "any" &&
         L.protocol !== q.proto) return;
@@ -1150,10 +1102,7 @@ import { initArchEditor } from "../arch/editor";
       }
       if (q.src && q.src !== "0.0.0.0/0" && q.src !== "::/0" && L.source &&
         L.source !== "0.0.0.0/0" && L.source !== "::/0") {
-        var sp = q.src.split("/"); var ls = L.source.split("/");
-        var sver = ipVer(sp[0]);
-        if (sver && ipVer(ls[0]) === sver &&
-          !inNet(ipToBig(sp[0]), sver, ls[0], parseInt(ls[1] || String(sver === 6 ? 128 : 32), 10))) return;
+        if (!source || !networkMatches(source, L.source)) return;
       }
       out.push(v);
     });
@@ -1603,56 +1552,35 @@ import { initArchEditor } from "../arch/editor";
     var search = document.getElementById("globalSearch");
     if (!search) return;
 
-    // Parse "ip" or "ip/prefix" (v4/v6) into a network, else null.
-    function toNet(s) {
-      var m = /^([0-9a-fA-F:.]+)(?:\/(\d+))?$/.exec(s);
-      if (!m) return null;
-      var ver = ipVer(m[1]); if (!ver) return null;
-      var big = ipToBig(m[1]); if (big == null) return null;
-      var full = ver === 6 ? 128 : 32;
-      var pfx = m[2] !== undefined ? parseInt(m[2], 10) : full;
-      if (pfx > full) return null;
-      return { ver: ver, big: big, prefix: pfx, full: full };
-    }
-    // Does `outer` (the less-specific network) contain `inner`?
-    function contains(outer, inner) {
-      if (outer.ver !== inner.ver || inner.prefix < outer.prefix) return false;
-      var mask = ((1n << BigInt(outer.prefix)) - 1n) << BigInt(outer.full - outer.prefix);
-      return (outer.big & mask) === (inner.big & mask);
-    }
-    function ipOverlap(a, b) { return contains(a, b) || contains(b, a); }
-    var IP_TOKEN = /[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(?:\/[0-9]+)?|[0-9a-fA-F:]{2,}:[0-9a-fA-F:]*(?:\/[0-9]+)?/g;
+    var IP_TOKEN = /(::ffff:)?(?:[0-9]+\.){3}[0-9]+(?:%[0-9]+)?(?:\/[0-9]+)?|[0-9a-fA-F:]*:[0-9a-fA-F:]+(?:%[0-9]+)?(?:\/[0-9]+)?/gi;
 
-    // Parse a search query as an address, honouring BIG-IP `%route-domain` and
-    // an optional `:port` — e.g. `10.0.0.1%2:8443`, `192.168.1.0/24`, `::1`.
-    function parseIpQuery(raw) {
-      var s = raw.trim();
-      if (!s) return null;
-      var rd = null, port = null;
-      // trailing :port only for IPv4 (or bracketed IPv6) to avoid eating v6 colons
-      var pm = /^(.*?):(\d+)$/.exec(s);
-      if (pm && pm[1].indexOf(".") >= 0) { s = pm[1]; port = pm[2]; }
-      var rm = /^([^%]*)%(\d+)(.*)$/.exec(s);
-      if (rm) { rd = parseInt(rm[2], 10); s = rm[1] + rm[3]; }
-      var net = toNet(s);
-      if (!net) return null;
-      return { net: net, rd: rd, port: port, base: s.split("/")[0] };
+    function searchNetwork(raw) {
+      var text = raw.trim();
+      var value = readNetwork(text);
+      if (value) return value;
+      var endpoint = /^\[([^\]]+)\](?::(\d+))?$/.exec(text)
+        || /^((?:\d+\.){3}\d+(?:%\d+)?):(\d+)$/.exec(text)
+        || /^(.*:.*)\.(\d+)$/.exec(text);
+      if (!endpoint || (endpoint[2] && Number(endpoint[2]) > 65535)) return null;
+      return readNetwork(endpoint[1]);
     }
+
     // Build a predicate that tests a row's indexed text for overlap with an IP
     // / CIDR query (honouring BIG-IP `%route-domain` and an optional `:port`).
     // Returns null when the query is not an address, so the search falls back to
     // text / fuzzy / phonetic matching. Wildcard tokens (e.g. a virtual's
     // `source 0.0.0.0/0`) are skipped so they don't "contain" every address.
     function ipMatcher(raw) {
-      var qParsed = parseIpQuery(raw);
-      if (!qParsed) return null;
-      var qNet = qParsed.net;
+      var qNet = searchNetwork(raw);
+      if (!qNet) return null;
       return function (hay) {
         var toks = hay.match(IP_TOKEN);
         if (!toks) return false;
         for (var i = 0; i < toks.length; i++) {
-          var tn = toNet(toks[i]);
-          if (tn && tn.prefix > 0 && ipOverlap(qNet, tn)) return true;
+          var tn = readNetwork(toks[i]);
+          if (tn && tn.prefix > 0
+              && (qNet.routeDomain === null || qNet.routeDomain === (tn.routeDomain ?? 0))
+              && networkMatches(qNet, tn.text, true)) return true;
         }
         return false;
       };

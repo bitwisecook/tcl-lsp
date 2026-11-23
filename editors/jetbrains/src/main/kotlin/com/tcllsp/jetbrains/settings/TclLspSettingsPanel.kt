@@ -381,6 +381,7 @@ class TclLspSettingsPanel {
     private val diagBIGIP6012 = JBCheckBox("BIGIP6012: Attached iRules handle the same event at the same ef...")
     private val diagBIGIP6013 = JBCheckBox("BIGIP6013: A registry-declared BIG-IP object reference could no...")
     private val diagBIGIP6014 = JBCheckBox("BIGIP6014: A BIG-IP object declaration duplicates another objec...")
+    private val diagBIGIP6015 = JBCheckBox("BIGIP6015: A literal address is invalid for its BIG-IP configur...")
     private val diagBIGIP6038 = JBCheckBox("BIGIP6038: An iRule event requires a profile that is not active...")
     private val diagBIGIP6039 = JBCheckBox("BIGIP6039: A virtual server attaches incompatible profile types")
     private val diagIAPP7001 = JBCheckBox("IAPP7001: iApp implementation references a presentation field ...")
@@ -670,8 +671,8 @@ class TclLspSettingsPanel {
                 listOf(
                     diagBIGIP6001, diagBIGIP6002, diagBIGIP6003, diagBIGIP6004, diagBIGIP6005, diagBIGIP6006,
                     diagBIGIP6007, diagBIGIP6008, diagBIGIP6009, diagBIGIP6010, diagBIGIP6011, diagBIGIP6012,
-                    diagBIGIP6013, diagBIGIP6014, diagBIGIP6038, diagBIGIP6039, diagIAPP7001, diagIAPP7002,
-                    diagIAPP7003,
+                    diagBIGIP6013, diagBIGIP6014, diagBIGIP6015, diagBIGIP6038, diagBIGIP6039, diagIAPP7001,
+                    diagIAPP7002, diagIAPP7003,
                 ),
             ),
         )
@@ -982,6 +983,7 @@ class TclLspSettingsPanel {
             diagBIGIP6012.isSelected != s.diagnosticBIGIP6012 ||
             diagBIGIP6013.isSelected != s.diagnosticBIGIP6013 ||
             diagBIGIP6014.isSelected != s.diagnosticBIGIP6014 ||
+            diagBIGIP6015.isSelected != s.diagnosticBIGIP6015 ||
             diagBIGIP6038.isSelected != s.diagnosticBIGIP6038 ||
             diagBIGIP6039.isSelected != s.diagnosticBIGIP6039 ||
             diagIAPP7001.isSelected != s.diagnosticIAPP7001 ||
@@ -1295,6 +1297,7 @@ class TclLspSettingsPanel {
         s.diagnosticBIGIP6012 = diagBIGIP6012.isSelected
         s.diagnosticBIGIP6013 = diagBIGIP6013.isSelected
         s.diagnosticBIGIP6014 = diagBIGIP6014.isSelected
+        s.diagnosticBIGIP6015 = diagBIGIP6015.isSelected
         s.diagnosticBIGIP6038 = diagBIGIP6038.isSelected
         s.diagnosticBIGIP6039 = diagBIGIP6039.isSelected
         s.diagnosticIAPP7001 = diagIAPP7001.isSelected
@@ -1655,6 +1658,7 @@ class TclLspSettingsPanel {
         diagBIGIP6012.isSelected = s.diagnosticBIGIP6012
         diagBIGIP6013.isSelected = s.diagnosticBIGIP6013
         diagBIGIP6014.isSelected = s.diagnosticBIGIP6014
+        diagBIGIP6015.isSelected = s.diagnosticBIGIP6015
         diagBIGIP6038.isSelected = s.diagnosticBIGIP6038
         diagBIGIP6039.isSelected = s.diagnosticBIGIP6039
         diagIAPP7001.isSelected = s.diagnosticIAPP7001

@@ -84,6 +84,15 @@ impl Port {
         Self::parse(text).ok()
     }
 
+    /// Parse a service field, which also accepts names from the BIG-IP service catalogue.
+    #[must_use]
+    pub fn try_parse_service(text: &str) -> Option<Self> {
+        Self::try_parse(text).or_else(|| {
+            let port = crate::model::port_names::name_to_port(&text.to_ascii_lowercase())?;
+            Some(Self::new(u16::try_from(port).ok()?, text))
+        })
+    }
+
     /// `true` when this port matches every port (wildcard).
     #[must_use]
     pub fn is_any(&self) -> bool {

@@ -539,7 +539,8 @@ pub struct CommandSpec {
     /// script-level ensemble it saw configured with `-prefixes 0`.
     pub prefix_matching: PrefixMatching,
 
-    /// Whether unknown subcommands are accepted (for dialect packs).
+    /// Whether unknown subcommands are accepted. With top-level invocation
+    /// forms, an unmatched literal first word selects from those forms.
     pub allow_unknown_subcommands: bool,
 
     /// For a subcommand-dispatching command whose first word may instead be

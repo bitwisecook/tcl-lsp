@@ -29,6 +29,8 @@ interface GeneratedEvent {
   description?: string;
   common?: boolean;
   hot?: boolean;
+  flowOrder?: number;
+  attachmentProfiles?: readonly string[];
   // Lifecycle releases on the BIG-IP axis. Absent means the event never
   // reached that state; `retiredVersion` is the exclusive first release
   // without the event.
@@ -44,8 +46,6 @@ const CATALOGUE_BY_NAME = new Map(CATALOGUE.map((event) => [event.name, event]))
 export const COMMON_IRULE_EVENTS: readonly IruleEventTemplate[] = CATALOGUE.filter(
   (e) => e.common,
 ).map((e) => ({ name: e.name, description: e.description ?? "" }));
-
-const EVENT_ORDER = new Map(COMMON_IRULE_EVENTS.map((entry, idx) => [entry.name, idx]));
 
 /**
  * The release a new skeleton is written for. `bigipVersion` is the
@@ -104,8 +104,8 @@ export function catalogueEventName(value: string): string | undefined {
 
 function sortEvents(events: readonly string[]): string[] {
   return [...events].sort((left, right) => {
-    const leftOrder = EVENT_ORDER.get(left);
-    const rightOrder = EVENT_ORDER.get(right);
+    const leftOrder = CATALOGUE_BY_NAME.get(left)?.flowOrder;
+    const rightOrder = CATALOGUE_BY_NAME.get(right)?.flowOrder;
     if (leftOrder !== undefined && rightOrder !== undefined) {
       return leftOrder - rightOrder;
     }

@@ -107,9 +107,11 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
         },
         BigipPropertySpec {
             name: "destination",
+            address_grammar: Some(crate::bigip::AddressGrammar::Destination),
             value_type: ValueKind::Reference,
             references: &["ltm_virtual_address"],
             default: Some("any:any"),
+            address_validation: crate::bigip::AddressValidation::RouteDomain21_1,
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {
@@ -211,6 +213,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             required: true,
             shape_kind: Some(ValueKind::Object),
             default: Some("255"),
+            address_grammar: Some(crate::bigip::AddressGrammar::Mask),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {
@@ -570,6 +573,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             name: "source",
             value_type: ValueKind::Unknown,
             shape_kind: Some(ValueKind::Object),
+            address_grammar: Some(crate::bigip::AddressGrammar::Network),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {

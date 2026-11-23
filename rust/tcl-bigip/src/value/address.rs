@@ -23,7 +23,7 @@ use super::error::ValueError;
 use super::ip_class;
 use super::port::py_repr;
 use std::fmt;
-use std::net::IpAddr;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 /// An IPv4 or IPv6 address with an optional route-domain id.
 ///
@@ -54,20 +54,7 @@ impl IPAddress {
     /// Returns [`ValueError`] for input the stdlib IP parser rejects.
     pub fn parse(text: &str) -> Result<Self, ValueError> {
         let text = text.trim();
-        let mut rd: Option<u32> = None;
-        let mut host = text;
-        if text.contains('%') {
-            // Split on the LAST '%'.
-            let idx = text.rfind('%').unwrap();
-            let rd_text = &text[idx + 1..];
-            // A non-empty run of ASCII digits qualifies as a route domain.
-            if !rd_text.is_empty() && rd_text.bytes().all(|b| b.is_ascii_digit()) {
-                rd = rd_text.parse::<u32>().ok();
-                host = &text[..idx];
-            }
-            // Non-numeric (`fe80::1%eth0`) — leave host intact and let the
-            // IP parser reject it naturally.
-        }
+        let (host, rd) = super::RouteDomain::split_suffix(text)?;
         let addr: IpAddr = host.parse().map_err(|_| {
             ValueError(format!(
                 "{} does not appear to be an IPv4 or IPv6 address",
@@ -84,6 +71,28 @@ impl IPAddress {
     #[must_use]
     pub fn try_parse(text: &str) -> Option<Self> {
         Self::parse(text).ok()
+    }
+
+    /// Project a concrete IP when the legal address, network and endpoint
+    /// readings agree on the host.
+    ///
+    /// Use the configured property's grammar when its type is available.
+    #[must_use]
+    pub fn from_address_value(text: &str) -> Option<Self> {
+        let mut addresses = super::address_readings(text)
+            .into_iter()
+            .filter_map(|reading| match reading {
+                super::ConfigurationAddress::Address(Address::Ip(address)) => Some(address),
+                super::ConfigurationAddress::Network(network) => network.host_address(),
+                super::ConfigurationAddress::Destination(endpoint)
+                    if matches!(endpoint.address, Address::Ip(_)) =>
+                {
+                    endpoint.ip_address()
+                }
+                _ => None,
+            });
+        let address = addresses.next()?;
+        addresses.all(|other| other == address).then_some(address)
     }
 
     /// `true` when the address is IPv4.
@@ -221,7 +230,7 @@ impl FQDN {
                     py_repr(text)
                 )));
             }
-            if !label.chars().all(|c| is_label_alnum(c) || c == '-') {
+            if !label.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
                 return Err(ValueError(format!(
                     "FQDN: invalid char in label of {}",
                     py_repr(text)
@@ -254,27 +263,68 @@ impl fmt::Display for FQDN {
     }
 }
 
-/// F5 FQDN labels are ASCII in practice, but this permits the full
-/// permissive Unicode-alphanumeric set so label classification stays
-/// lenient.
-fn is_label_alnum(c: char) -> bool {
-    c.is_alphanumeric() || c.is_numeric()
-}
-
 /// `true` for a non-empty ASCII digit run, used by the IPv4-shape guard
 /// (all labels being ASCII digit runs).
 fn is_ascii_digits(s: &str) -> bool {
     !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit())
 }
 
-/// The host part of a pool member or other address-bearing field: either
-/// an [`IPAddress`] or an [`FQDN`].
+/// A TMSH wildcard host spelling.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum WildcardAddress {
+    /// IPv4 wildcard.
+    Any,
+    /// IPv6 wildcard.
+    Any6,
+    /// An unspecified address family.
+    Star,
+}
+
+impl WildcardAddress {
+    /// Recognise a literal wildcard in an address grammar that permits it.
+    #[must_use]
+    pub fn try_parse(text: &str) -> Option<Self> {
+        match text {
+            "any" => Some(Self::Any),
+            "any6" => Some(Self::Any6),
+            "*" => Some(Self::Star),
+            _ => None,
+        }
+    }
+
+    /// An unspecified IP address when the wildcard fixes the address family.
+    #[must_use]
+    pub fn unspecified_ip(self) -> Option<IPAddress> {
+        let addr = match self {
+            Self::Any => IpAddr::V4(Ipv4Addr::UNSPECIFIED),
+            Self::Any6 => IpAddr::V6(Ipv6Addr::UNSPECIFIED),
+            Self::Star => return None,
+        };
+        Some(IPAddress::new(addr, None))
+    }
+}
+
+impl fmt::Display for WildcardAddress {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Any => "any",
+            Self::Any6 => "any6",
+            Self::Star => "*",
+        })
+    }
+}
+
+/// The host part of a pool member or other address-bearing field.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Address {
     /// An IP address host.
     Ip(IPAddress),
     /// A fully-qualified domain name host.
     Fqdn(FQDN),
+    /// A wildcard admitted by a specific configuration grammar.
+    Wildcard(WildcardAddress),
+    /// The leaf of a named destination in its separate folder scope.
+    Named(String),
 }
 
 impl fmt::Display for Address {
@@ -282,6 +332,8 @@ impl fmt::Display for Address {
         match self {
             Address::Ip(ip) => write!(f, "{ip}"),
             Address::Fqdn(fqdn) => write!(f, "{fqdn}"),
+            Address::Wildcard(wildcard) => write!(f, "{wildcard}"),
+            Address::Named(name) => f.write_str(name),
         }
     }
 }
@@ -359,11 +411,11 @@ mod tests {
     fn address_sum_type() {
         match parse_address("10.0.0.1").unwrap() {
             Address::Ip(_) => {}
-            Address::Fqdn(_) => panic!("expected IP"),
+            _ => panic!("expected IP"),
         }
         match parse_address("host.example.com").unwrap() {
             Address::Fqdn(f) => assert_eq!(f.name, "host.example.com"),
-            Address::Ip(_) => panic!("expected FQDN"),
+            _ => panic!("expected FQDN"),
         }
         assert!(try_parse_address("!!!").is_none());
     }

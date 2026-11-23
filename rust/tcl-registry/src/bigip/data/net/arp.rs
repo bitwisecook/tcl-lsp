@@ -41,6 +41,7 @@ pub(super) static SPECS: &[BigipObjectSpec] = &[BigipObjectSpec {
             repeated: true,
             shape_kind: Some(ValueKind::IpAddress),
             usage_flags: &["optional"],
+            address_grammar: Some(crate::bigip::AddressGrammar::Address),
             ..BigipPropertySpec::DEFAULT
         },
         BigipPropertySpec {

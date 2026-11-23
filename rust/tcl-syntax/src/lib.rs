@@ -67,6 +67,7 @@ pub mod formal_params;
 pub mod format;
 pub mod frame_level;
 pub mod glob;
+pub mod irules_address;
 pub mod jim_script_layout;
 pub mod jim_script_objects;
 pub use tcl_value_syntax::list;

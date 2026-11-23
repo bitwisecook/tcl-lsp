@@ -63,7 +63,8 @@ use crate::parser::helpers::{
     parse_keyed_block_entries, parse_list_block, parse_properties_with_spans,
 };
 use crate::range::Range;
-use crate::value::MonitorExpression;
+use crate::value::grammar::{ConfigurationAddress, read_address_property};
+use crate::value::{Address, FQDN, IPAddress, MonitorExpression};
 
 static FACTORY_OBJECT_IDENTITIES: LazyLock<HashSet<String>> = LazyLock::new(|| {
     base_object_identities()
@@ -87,6 +88,7 @@ pub const BIGIP_DIAGNOSTIC_CODES: &[DiagCode] = &[
     DiagCode::Bigip6012,
     DiagCode::Bigip6013,
     DiagCode::Bigip6014,
+    DiagCode::Bigip6015,
     DiagCode::Bigip6038,
     DiagCode::Bigip6039,
 ];
@@ -340,6 +342,71 @@ fn check_irule_data_groups(
                 range: range_from_capture(&rule.source, &line_index, start, end),
             });
         }
+    }
+}
+
+fn check_irule_ip_group_items(
+    rule: &crate::model::BigipRule,
+    view: &ModelView<'_>,
+    context: &OriginalIrulesSourceContext,
+    out: &mut Vec<ConfigDiagnostic>,
+) {
+    use tcl_syntax::irules_address::AddressOperand;
+
+    let line_index = LineIndex::new(&rule.source);
+    for (_, words) in context.source_vectors() {
+        let Some(reference) = words
+            .with_source_schema(context.context_registry(), |selected| {
+                selected.authored_source_configuration_reference_operand()
+            })
+            .flatten()
+            .filter(|reference| !reference.selection_unknown)
+        else {
+            continue;
+        };
+        let Some(item) = reference.comparison_item else {
+            continue;
+        };
+        let literal_at =
+            |index: usize| std::str::from_utf8(words.arguments().get(index)?.literal_bytes()?).ok();
+        let Some(name) = literal_at(reference.argument) else {
+            continue;
+        };
+        let Some(group) = crate::object_names::owner_partition_reference_paths(
+            name,
+            &rule.full_path,
+            view.default_partition,
+        )
+        .into_iter()
+        .find_map(|path| view.data_groups.get(&path))
+        .filter(|group| group.value_type == "ip") else {
+            continue;
+        };
+        let Some(value) = literal_at(item) else {
+            continue;
+        };
+        if AddressOperand::parse(value).is_some() {
+            continue;
+        }
+        let Some(operand) = words.operands().get(item).and_then(Option::as_ref) else {
+            continue;
+        };
+        let span = operand.span();
+        out.push(ConfigDiagnostic {
+            code: DiagCode::Bigip6015.as_str().to_owned(),
+            message: format!(
+                "Invalid literal IP match item '{value}' for IP-type data-group '{}'.",
+                group.full_path
+            ),
+            severity: DiagSeverity::Warning,
+            subject: ConfigDiagnosticSubject::IRule,
+            range: range_from_capture(
+                &rule.source,
+                &line_index,
+                span.start() as usize,
+                span.end() as usize,
+            ),
+        });
     }
 }
 
@@ -788,19 +855,13 @@ fn check_ip_data_group_records(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnos
             continue;
         }
         for record in &dg.records {
-            let addr_text = if record.contains('/') {
-                record.split('/').next().unwrap_or("").trim()
-            } else {
-                record.trim()
-            };
-            if addr_text.is_empty() {
+            let record = record.trim();
+            if record.is_empty() {
                 continue;
             }
-            let addr_ok = addr_text.parse::<std::net::IpAddr>().is_ok();
-            // Fall back to a network form ("10.0.0.0/8"), parsed non-strictly
-            // (host bits need not be zero).
-            let net_ok = record.trim().parse::<ipnet::IpNet>().is_ok();
-            if !addr_ok && !net_ok {
+            if crate::value::IPAddress::try_parse(record).is_none()
+                && crate::value::Network::try_parse(record).is_none()
+            {
                 out.push(ConfigDiagnostic {
                     code: DiagCode::Bigip6011.as_str().to_owned(),
                     message: format!(
@@ -871,12 +932,142 @@ fn property_reference_values(property: &str, raw: &str) -> Vec<String> {
     reference_values(raw)
 }
 
-fn reference_candidates(reference: &str, owner: &str, default_partition: &str) -> Vec<String> {
-    let reference = crate::object_names::reference_without_numeric_service(
-        clean_name(reference).trim(),
-        crate::object_names::EmptyServiceSuffix::Strip,
-    );
-    crate::object_names::owner_partition_reference_paths(reference, owner, default_partition)
+fn reference_candidates(
+    reference: &str,
+    owner: &str,
+    default_partition: &str,
+    kinds: &[&str],
+) -> Vec<String> {
+    let reference = clean_name(reference);
+    let mut paths = Vec::new();
+    for kind in kinds {
+        let reference = crate::graph::normalise_reference_for_kind(kind, reference.trim());
+        paths.extend(crate::object_names::owner_partition_reference_paths(
+            &reference,
+            owner,
+            default_partition,
+        ));
+    }
+    paths.sort_unstable();
+    paths.dedup();
+    paths
+}
+
+fn reference_supplied_by_property(
+    module: &str,
+    object_type: &str,
+    property: &str,
+    raw: &str,
+    value: &str,
+) -> bool {
+    match read_address_property(module, object_type, property, value) {
+        Some(ConfigurationAddress::Address(_)) => true,
+        Some(ConfigurationAddress::Destination(destination)) => {
+            matches!(destination.address, Address::Ip(_) | Address::Wildcard(_))
+        }
+        Some(ConfigurationAddress::Member(_)) => parse_keyed_block_entries(raw)
+            .into_iter()
+            .find(|(key, _)| key == value)
+            .is_some_and(|(_, body)| {
+                parse_properties_with_spans(&body)
+                    .into_iter()
+                    .any(|(property, field)| match property.as_str() {
+                        "address" => IPAddress::try_parse(&field.value).is_some(),
+                        "fqdn" => parse_properties_with_spans(field.value.trim_matches(['{', '}']))
+                            .into_iter()
+                            .any(|(name, field)| {
+                                name == "name" && FQDN::try_parse(&field.value).is_some()
+                            }),
+                        _ => false,
+                    })
+            }),
+        _ => false,
+    }
+}
+
+fn check_measured_address_syntax(
+    object: &crate::model::BigipGenericObject,
+    field: &tcl_registry::bigip::BigipPropertySpec,
+    raw: &str,
+    out: &mut Vec<ConfigDiagnostic>,
+) -> bool {
+    use tcl_registry::bigip::AddressGrammar;
+
+    if !object
+        .tmos_version
+        .is_some_and(|version| (version.major, version.minor) == (21, 1))
+    {
+        return true;
+    }
+    let mut valid = true;
+    let mut check = |field: &tcl_registry::bigip::BigipPropertySpec, path: &[&str], value: &str| {
+        let value = crate::parser::helpers::unquote(value);
+        if !field.address_validation.checks_syntax() || (field.allow_none && value == "none") {
+            return;
+        }
+        if crate::value::read_address_field(&object.module, &object.object_type, path, value)
+            .is_none()
+        {
+            valid = false;
+            out.push(ConfigDiagnostic {
+                code: DiagCode::Bigip6015.as_str().to_owned(),
+                message: format!(
+                    "{} '{}' has invalid address value '{}' in property '{}' for BIG-IP 21.1.",
+                    object.object_type,
+                    object.identifier,
+                    value,
+                    path.join(" ")
+                ),
+                severity: DiagSeverity::Warning,
+                subject: ConfigDiagnosticSubject::Object,
+                range: object_range(object.range),
+            });
+        }
+    };
+    if field.address_grammar == Some(AddressGrammar::MemberKey) {
+        for (key, _) in parse_keyed_block_entries(raw) {
+            check(field, &[field.name], &key);
+        }
+    } else if field.address_grammar.is_some() {
+        check(field, &[field.name], raw);
+    } else if field
+        .block
+        .iter()
+        .any(|child| child.address_validation.checks_syntax())
+    {
+        for (property, value) in parse_properties_with_spans(raw.trim_matches(['{', '}'])) {
+            if let Some(child) = field.block.iter().find(|child| child.name == property) {
+                check(child, &[field.name, child.name], &value.value);
+            }
+        }
+    }
+    valid
+}
+
+fn check_address_route_domain(
+    object: &crate::model::BigipGenericObject,
+    property: &str,
+    value: &str,
+    route_domains: &HashSet<u32>,
+    out: &mut Vec<ConfigDiagnostic>,
+) {
+    let value = crate::parser::helpers::unquote(value);
+    let Some(domain) = read_address_property(&object.module, &object.object_type, property, value)
+        .and_then(|value| value.route_domain())
+        .filter(|domain| *domain != 0 && !route_domains.contains(domain))
+    else {
+        return;
+    };
+    out.push(ConfigDiagnostic {
+        code: DiagCode::Bigip6013.as_str().to_owned(),
+        message: format!(
+            "{} '{}' uses route domain {domain} in property '{property}', but it could not be resolved in the supplied configuration.",
+            object.object_type, object.identifier
+        ),
+        severity: DiagSeverity::Warning,
+        subject: ConfigDiagnosticSubject::Object,
+        range: object_range(object.range),
+    });
 }
 
 /// BIGIP6013: validate every static registry-declared outbound edge that is
@@ -894,8 +1085,35 @@ fn check_registry_references(config: &BigipConfig, out: &mut Vec<ConfigDiagnosti
         })
         .collect();
 
+    let route_domains = config
+        .objects
+        .iter()
+        .filter_map(|placed| {
+            let crate::model::ModelObject::NetRouteDomain(domain) = &placed.object else {
+                return None;
+            };
+            u32::try_from(domain.id).ok()
+        })
+        .collect::<HashSet<_>>();
+
     for (object, from_kind) in &objects {
         for (property, parsed) in parse_properties_with_spans(&object.body) {
+            if let Some(field) =
+                registry.property(&object.module, &object.object_type, &[&property])
+            {
+                if !check_measured_address_syntax(object, field, &parsed.value, out) {
+                    continue;
+                }
+                if field.address_validation.requires_route_domain() {
+                    check_address_route_domain(
+                        object,
+                        field.name,
+                        &parsed.value,
+                        &route_domains,
+                        out,
+                    );
+                }
+            }
             // BIGIP6003 and BIGIP6005 already own these two virtual-server
             // links. All other registry edges, including monitors, members,
             // profile attachments, policies and tenant-local objects, converge
@@ -907,8 +1125,21 @@ fn check_registry_references(config: &BigipConfig, out: &mut Vec<ConfigDiagnosti
                 .filter(|edge| edge.section.is_none() && edge.property == property)
             {
                 for value in property_reference_values(&property, &parsed.value) {
-                    let candidates =
-                        reference_candidates(&value, &object.identifier, &config.default_partition);
+                    if reference_supplied_by_property(
+                        &object.module,
+                        &object.object_type,
+                        &property,
+                        &parsed.value,
+                        &value,
+                    ) {
+                        continue;
+                    }
+                    let candidates = reference_candidates(
+                        &value,
+                        &object.identifier,
+                        &config.default_partition,
+                        edge.to_kinds,
+                    );
                     let resolved =
                         objects.iter().any(|(target, target_kind)| {
                             edge.to_kinds.contains(target_kind)
@@ -1108,23 +1339,20 @@ pub fn validate_bigip_config(config: &BigipConfig) -> Vec<ConfigDiagnostic> {
     let view = ModelView::build(config);
     let mut out: Vec<ConfigDiagnostic> = Vec::new();
     let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
-    let event_handlers = view
-        .rules
-        .iter()
-        .map(|(path, rule)| {
-            let handlers = OriginalIrulesSourceContext::capture(&rule.source, registry)
-                .map_or_else(Vec::new, |context| {
-                    extract_original_irules_event_handlers(&rule.source, &context)
-                });
-            (path.to_owned(), handlers)
-        })
-        .collect::<BTreeMap<_, _>>();
+    let mut event_handlers = BTreeMap::new();
 
     // Per-iRule checks.
-    for (_path, rule) in view.rules.iter() {
+    for (path, rule) in view.rules.iter() {
         check_irule_data_groups(rule, &view, &mut out);
         check_irule_pools(rule, &view, &mut out);
         check_irule_snatpools(rule, &view, &mut out);
+        if let Some(context) = OriginalIrulesSourceContext::capture(&rule.source, registry) {
+            check_irule_ip_group_items(rule, &view, &context, &mut out);
+            event_handlers.insert(
+                path.to_owned(),
+                extract_original_irules_event_handlers(&rule.source, &context),
+            );
+        }
     }
 
     // Virtual-server reference checks.
@@ -1157,6 +1385,104 @@ mod tests {
     use super::*;
 
     #[test]
+    fn address_fixture_has_no_false_reference_or_ip_data_group_warnings() {
+        let source = include_str!(
+            "../../../docs/work/name-handling/handover/oo-dispatch-probe/bigip-addresses/addresses.conf"
+        );
+        let diagnostics: Vec<_> = validate_bigip_source(source, "Common")
+            .into_iter()
+            .filter(|diagnostic| matches!(diagnostic.code.as_str(), "BIGIP6011" | "BIGIP6013"))
+            .collect();
+        let (route_domains, diagnostics): (Vec<_>, Vec<_>) = diagnostics
+            .into_iter()
+            .partition(|diagnostic| diagnostic.message.contains("uses route domain 2"));
+        assert_eq!(route_domains.len(), 7, "{route_domains:#?}");
+        assert_eq!(diagnostics.len(), 3, "{diagnostics:#?}");
+        assert!(
+            diagnostics.iter().all(|diagnostic| {
+                diagnostic.code == "BIGIP6013"
+                    && ["/Common/internal", "/Common/fe80::1:80"]
+                        .iter()
+                        .any(|name| diagnostic.message.contains(name))
+            }),
+            "{diagnostics:#?}"
+        );
+    }
+
+    #[test]
+    fn class_match_validates_only_static_items_of_ip_data_groups() {
+        let source = r"
+ltm data-group internal /Common/addresses {
+    type ip
+    records { 192.0.2.0%0/24 { } }
+}
+ltm data-group internal /Common/words {
+    type string
+    records { invalid { } }
+}
+ltm rule /Common/probe {
+    when CLIENT_ACCEPTED {
+        class match -value 192.0.2.53%2 equals /Common/addresses
+        class match 192.0.2.53/24 equals /Common/addresses
+        class match invalid equals /Common/addresses
+        class match invalid equals /Common/words
+        class match $dynamic equals /Common/addresses
+        class match invalid equals $dynamic
+        # class match comment equals /Common/addresses
+    }
+}
+";
+        let diagnostics: Vec<_> = validate_bigip_source(source, "Common")
+            .into_iter()
+            .filter(|diagnostic| diagnostic.code == "BIGIP6015")
+            .collect();
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:#?}");
+        assert!(diagnostics[0].message.contains("'invalid'"));
+        assert!(diagnostics[0].message.contains("/Common/addresses"));
+    }
+
+    #[test]
+    fn measured_21_1_address_rejections_have_diagnostics() {
+        let source = r"#TMSH-VERSION: 21.1.0.1
+ltm virtual /Common/invalid_port { destination 192.0.2.53:65536 }
+ltm virtual /Common/invalid_service { destination 192.0.2.53:nh234_unknown }
+ltm virtual /Common/bad_colon { destination 2001:db8::53%0:80 }
+ltm virtual /Common/good_v6 { destination 2001:db8::53%0.http }
+ltm monitor tcp /Common/bad_wildcard { destination 2001:db8::53.* }
+ltm monitor tcp /Common/good_colon { destination 2001:db8::53%0:80 }
+ltm node /Common/bad_fqdn { fqdn { name example.com. } }
+ltm node /Common/good_fqdn { fqdn { name xn--caf-dma.example } }
+";
+        let diagnostics: Vec<_> = validate_bigip_source(source, "Common")
+            .into_iter()
+            .filter(|diagnostic| diagnostic.code == "BIGIP6015")
+            .collect();
+        assert_eq!(diagnostics.len(), 5, "{diagnostics:#?}");
+        assert!(!has(&source.replace("21.1.0.1", "17.1.0"), "BIGIP6015"));
+    }
+
+    #[test]
+    fn route_domain_requirements_are_selected_by_registry_property() {
+        let source = r"
+ltm node /Common/missing { address 192.0.2.1%65432 }
+ltm node /Common/explicit_zero { address 192.0.2.2%0 }
+ltm node /Common/defined { address 192.0.2.3%11 }
+ltm monitor tcp /Common/missing { destination 192.0.2.1%65432:80 }
+ltm monitor https /Common/defined { destination 2001:db8::53%11:80 }
+ltm data-group internal /Common/ip { type ip records { 192.0.2.1%65432 { } } }
+net route-domain /Common/example { id 11 }
+";
+        let diagnostics: Vec<_> = validate_bigip_source(source, "Common")
+            .into_iter()
+            .filter(|diagnostic| diagnostic.message.contains("uses route domain"))
+            .collect();
+        assert_eq!(diagnostics.len(), 2, "{diagnostics:#?}");
+        assert!(diagnostics.iter().all(|diagnostic| {
+            diagnostic.code == "BIGIP6013" && diagnostic.message.contains("65432")
+        }));
+    }
+
+    #[test]
     fn published_metadata_describes_each_bigip_validator_rule() {
         let expected = [
             (DiagCode::Bigip6001, "data group not found"),
@@ -1176,6 +1502,7 @@ mod tests {
             ),
             (DiagCode::Bigip6013, "reference could not be resolved"),
             (DiagCode::Bigip6014, "duplicates another object"),
+            (DiagCode::Bigip6015, "literal address is invalid"),
             (DiagCode::Bigip6038, "event requires a profile"),
             (DiagCode::Bigip6039, "incompatible profile types"),
         ];
@@ -1552,6 +1879,7 @@ ltm pool /Common/quorum {
             "BIGIP6012",
             "BIGIP6013",
             "BIGIP6014",
+            "BIGIP6015",
             "BIGIP6038",
             "BIGIP6039",
         ]

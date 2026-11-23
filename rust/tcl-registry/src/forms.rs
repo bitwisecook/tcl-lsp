@@ -89,6 +89,17 @@ impl LiteralArgumentPrefix {
     }
 }
 
+/// An HTTP header-name and value pair written by a resolved form.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HeaderWrite {
+    /// First argument of the pair, after the selected command or subcommand.
+    pub name: u8,
+    /// Second argument of the pair, in the same coordinates as the name.
+    pub value: u8,
+    /// Whether the handler is known to return an empty result.
+    pub returns_empty: bool,
+}
+
 /// Self-contained metadata for one invocation form of a top-level
 /// command.
 ///
@@ -195,6 +206,9 @@ pub struct CommandForm {
     /// `false`.
     pub mutator: Option<bool>,
 
+    /// Header-name and value operands for a form that writes an HTTP header.
+    pub header_write: Option<HeaderWrite>,
+
     /// Legacy structured side effects for this concrete invocation shape.
     ///
     /// `Some` replaces the inherited knowledge, including
@@ -266,6 +280,7 @@ impl CommandForm {
         representation_effect: None,
         traits: None,
         mutator: None,
+        header_write: None,
         side_effects: None,
         world_effects: crate::knowledge::Knowledge::Unknown,
         state_transitions: crate::knowledge::Knowledge::Unknown,

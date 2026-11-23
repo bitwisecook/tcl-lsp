@@ -61,6 +61,60 @@ pub struct BigipConfig {
     pub objects: Vec<Placed>,
 }
 
+impl BigipConfig {
+    /// Resolve a virtual's literal, wildcard, or named destination address.
+    #[must_use]
+    pub fn virtual_destination_address(
+        &self,
+        virtual_server: &crate::model::BigipVirtualServer,
+    ) -> Option<crate::value::IPAddress> {
+        let destination = virtual_server.destination.as_ref()?;
+        if let Some(address) = destination.ip_address() {
+            return Some(address);
+        }
+        let leaf = destination.address.to_string();
+        let reference = if let Some(folder) = &destination.folder {
+            format!("{folder}/{leaf}")
+        } else {
+            leaf
+        };
+        let candidates = crate::object_names::owner_partition_reference_paths(
+            &reference,
+            &virtual_server.full_path,
+            &self.default_partition,
+        );
+        for candidate in candidates {
+            let address = self.objects.iter().find_map(|placed| match &placed.object {
+                ModelObject::VirtualAddress(address) if placed.full_path == candidate => {
+                    address.address.clone()
+                }
+                _ => None,
+            });
+            if address.is_some() {
+                return address;
+            }
+        }
+        None
+    }
+
+    /// Route domain inherited by an object with no explicit address suffix.
+    #[must_use]
+    pub fn default_route_domain_for(&self, object_path: &str) -> u32 {
+        let owner = crate::object_names::object_path_partition(object_path)
+            .unwrap_or(&self.default_partition);
+        self.objects
+            .iter()
+            .find_map(|placed| match &placed.object {
+                ModelObject::AuthPartition(partition) if placed.full_path == owner => {
+                    crate::value::RouteDomain::try_parse(&partition.default_route_domain)
+                        .map(|domain| domain.id)
+                }
+                _ => None,
+            })
+            .unwrap_or(0)
+    }
+}
+
 /// `(module, object_type)` pairs whose identifier is inherently
 /// *unpartitioned* — a hardware, system-wide, or cluster-wide name that lives
 /// outside any partition — so a `/Common/` prefix would be bogus and break
@@ -91,6 +145,15 @@ pub fn parse_bigip_conf(source: &str, default_partition: &str) -> BigipConfig {
     let registry = BigipRegistry::build();
     let index = ObjectTypeIndex::build(&registry);
     let line_index = LineIndex::new(source);
+
+    let tmos_version = source
+        .lines()
+        .map(str::trim)
+        .take_while(|line| line.is_empty() || line.starts_with('#'))
+        .find_map(|line| {
+            let version = line.strip_prefix("#TMSH-VERSION:")?;
+            tcl_registry::profile_defaults::BigipVersion::parse(version)
+        });
 
     let mut config = BigipConfig {
         default_partition: default_partition.to_owned(),
@@ -142,6 +205,7 @@ pub fn parse_bigip_conf(source: &str, default_partition: &str) -> BigipConfig {
                 identifier: identifier.clone(),
                 header: block.header.clone(),
                 body: block.body.clone(),
+                tmos_version,
                 range: Some(range),
             },
         ));

@@ -30,6 +30,7 @@ use std::sync::OnceLock;
 
 use regex::Regex;
 use serde_json::{Map, Value as J};
+use tcl_bigip::object_names::{object_path_partition, owner_partition_reference_paths};
 use tcl_registry::events::EventRegistry;
 use tcl_registry::profile_defaults::BigipVersion;
 
@@ -207,11 +208,9 @@ fn leaf(s: &str) -> &str {
 }
 
 fn partition_of(full_path: &str) -> String {
-    if full_path.starts_with('/') {
-        full_path.split('/').nth(1).unwrap_or("").to_string()
-    } else {
-        String::new()
-    }
+    object_path_partition(full_path)
+        .unwrap_or_default()
+        .to_owned()
 }
 
 /// Decompose a BIG-IP full path `/partition/seg1/…/name` into
@@ -341,26 +340,6 @@ fn build_apps(device: &Map<String, J>) -> J {
         .collect();
 
     J::Array(out)
-}
-
-/// Split a BIG-IP destination into `(address, port)`.
-fn split_dest(dest: &str) -> (String, String) {
-    if dest.is_empty() {
-        return (String::new(), String::new());
-    }
-    let leaf = dest.rsplit('/').next().unwrap_or(dest);
-    let colons = leaf.matches(':').count();
-    if colons >= 2 {
-        // IPv6: address holds the colons, port after a dot.
-        if let Some(idx) = leaf.rfind('.') {
-            return (leaf[..idx].to_string(), leaf[idx + 1..].to_string());
-        }
-        return (leaf.to_string(), String::new());
-    }
-    if let Some(idx) = leaf.rfind(':') {
-        return (leaf[..idx].to_string(), leaf[idx + 1..].to_string());
-    }
-    (leaf.to_string(), String::new())
 }
 
 /// A string array field, cleaned per element.
@@ -578,11 +557,7 @@ fn default_object_paths(config_text: &str) -> std::collections::HashSet<String> 
             && let Some(brace) = line.find('{')
             && let Some(name) = line[..brace].split_whitespace().last()
         {
-            out.insert(if name.starts_with('/') {
-                name.to_string()
-            } else {
-                format!("/Common/{name}")
-            });
+            out.extend(owner_partition_reference_paths(name, "", "Common"));
         }
     }
     out
