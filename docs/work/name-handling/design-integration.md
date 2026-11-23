@@ -111,6 +111,50 @@ The dependencies the pages state, applied to the plan:
 - **Phase 8:** new object systems, SpecTcl profiles and value grammars (86, Order 5–7; 87; 6–10; 15–17).
 - **Alongside phases 3–5:** engine work (18, 20, 30, 34, 38, 42, 72, 88).
 
+**Items 107–199** (added after this order was written), by the same phases:
+
+- **Phase 0:**
+  - the definitions harness as a gate before the definition fixes (131 and 116, then 123–130 as its rows);
+  - wrong answers and wrong rewrites: 107, 137, 138, 139, 153–157, 181;
+  - tclsh discovery (151);
+  - MCP freshness (199);
+  - conformance rows (198);
+  - decisions: 96, 196.
+- **Phase 0b:**
+  - release facts and rosters: 147, 185, 188, 191, 192;
+  - registry descriptors for traces, deferral, completion codes, interpreter selectors and Thread: the descriptor parts of 158, 169, 172, 179, 184.
+- **Phase 1:**
+  - owners that already exist: 132, 142, 164, 190, 192;
+  - the completion-code owner and return-option factories: 174's first part;
+  - one checked edit applier, scan policy and range JSON: 144, 145, 146;
+  - MCP failure shape: 148;
+  - fixture reader and URIs: 152;
+  - small cleanups: 143.
+- **Phase 2:**
+  - script reader: 187;
+  - pipeline grammar: 182;
+  - comment scanners and runtime CRLF: 194;
+  - `#`-line and message diagnostics that read the lexer: 195.
+- **Phase 3:**
+  - lookup and name world: 133, 136, 140, 158, 162, 166, 175, 179, 183;
+  - the W123 owner and autoload reader: 176;
+  - the TIP 278 fact in references and rename: 191.
+- **Phase 4 (body units and the potential-execution owner):**
+  - trace callbacks as deferred bodies: 159;
+  - the error edge and implicit writes: 162, 170, 173, 189;
+  - coroutine frames and suspension: 167, 168;
+  - deferred reads: 169, 170;
+  - child-interpreter bodies: 180;
+  - precision as a whole-program fact: 165.
+- **Phase 5:** one class fact and one instance-variable collector (134); retiring the statement matchers (174's second part).
+- **Phase 6:**
+  - surfaces on the semantic model: 149, 150;
+  - navigation through autoload receipts and interpreter selectors: 176's second part, 180.
+- **Phase 8:** Thread profile and Jim profiles: 184, 197.
+- **Alongside phases 3–5 (engine work):**
+  - 135, 141, 156, 157, 161, 163, 168, 171, 177, 178, 181, 183;
+  - the engine parts of 186 and 193.
+
 ## Remaining wording differences, now fixed
 
 - **Effect descriptors and transitions are one vocabulary.** The registry's existing transitions are extended, and nothing parallel is added.
