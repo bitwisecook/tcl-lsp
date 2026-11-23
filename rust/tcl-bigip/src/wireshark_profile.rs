@@ -29,7 +29,7 @@ use crate::parser::helpers::{extract_blocks, parse_properties};
 use crate::pcap_enrich::{
     NameIndex, build_merged_name_index, extract_self_ips, label, parse_named_subblocks, wire_ip,
 };
-use crate::value::Destination;
+use crate::value::{Destination, IPAddress};
 
 /// One coloring rule with 16-bit RGB foreground/background.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -283,10 +283,9 @@ fn extract_arp_entries(source: &str) -> Vec<(String, String, String)> {
         if ip_value.is_empty() || mac_value.is_empty() {
             continue;
         }
-        let ip_str = ip_value
-            .split_once('%')
-            .map_or(ip_value.as_str(), |(a, _)| a);
-        entries.push((mac_value.to_lowercase(), ip_str.to_owned(), full_path));
+        if let Some(address) = IPAddress::try_parse(&ip_value) {
+            entries.push((mac_value.to_lowercase(), address.to_string(), full_path));
+        }
     }
     entries
 }
@@ -878,26 +877,6 @@ fn parse_leading_digits(tok: &str) -> Option<i64> {
     }
     // `\b` after the digit run: the next char (if any) must be a non-word char.
     digits.parse::<i64>().ok()
-}
-
-/// Parse 1–5 trailing digits of `tok` matched by `(\d{1,5})\b` at token end.
-fn parse_trailing_digits(tok: &str) -> Option<i64> {
-    let chars: Vec<char> = tok.chars().collect();
-    let mut end = chars.len();
-    let mut start = end;
-    while start > 0 && chars[start - 1].is_ascii_digit() {
-        start -= 1;
-    }
-    if start == end {
-        return None;
-    }
-    // Keep at most 5 digits from the right (the regex matches up to 5 then \b).
-    if end - start > 5 {
-        start = end - 5;
-    }
-    let _ = &mut end;
-    let s: String = chars[start..].iter().collect();
-    s.parse::<i64>().ok()
 }
 
 // Color rules + proxy-side filters

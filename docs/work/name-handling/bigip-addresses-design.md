@@ -212,6 +212,31 @@ A `MemberKey` reader knows that `/P/f/v6:443` is node `v6` with service 443 and 
 
 Overlaps: item 1 is a 107-style quick fix. Items 2 to 6 are the address and path half of 111 and the value-grammar half of 118. Positions are not affected (110). Q4 is answered for this slice by the Q8 decision. Q7 shares item 3's grammar table. Q10: items 1 and 5 are wrong answers suitable for the current release; the rest wait for the data crate.
 
+## Synthetic matrix rerun
+
+The local probe read all 713 rows of [the original input
+matrix](handover/oo-dispatch-probe/bigip-addresses/inputs.tsv) through nine
+public readers after the endpoint and name migrations. Some inputs are
+valid in several grammars. Each count is the number of rows accepted by
+that reader.
+
+| Reader | Accepted |
+| --- | ---: |
+| Authored `BigIpName` | 95 |
+| Literal `IPAddress` | 29 |
+| `Network` | 47 |
+| General `Endpoint` | 585 |
+| TMSH virtual destination | 404 |
+| TMSH HTTP monitor destination | 171 |
+| `MemberKey` | 400 |
+| `FQDN` | 13 |
+| `Port` with named services | 2 |
+
+The [21.1 verification evidence](../../../evidence/bigip/tmsh-21.1-address-grammars.md)
+pins the measured property-specific cases, including monitor and virtual
+differences. The matrix counts are local reader results. Each appliance
+release still needs its own validation rows.
+
 ## Unmeasured on a real BIG-IP
 
 Measured: 21.1.0.1 for the six oracle rows above; 15.1.8.2 saved-config spellings for IPv4, `any`, `*:*` and numeric services. Not measured on any release:

@@ -454,7 +454,7 @@ fn extract_gtm_servers(source: &str) -> BTreeMap<String, GtmServer> {
         if let Some(addresses_block) = property(&props, "addresses") {
             for (raw, _body) in parse_named_subblocks(&addresses_block) {
                 let addr = addr_only(&raw);
-                if addr.parse::<IpAddr>().is_ok() {
+                if IPAddress::try_parse(&addr).is_some() {
                     addresses.push(addr);
                 }
             }
@@ -466,7 +466,7 @@ fn extract_gtm_servers(source: &str) -> BTreeMap<String, GtmServer> {
                 let inner = parse_properties(&body);
                 let dest = property(&inner, "destination").unwrap_or_default();
                 let addr = addr_only(&dest);
-                if addr.parse::<IpAddr>().is_ok() {
+                if IPAddress::try_parse(&addr).is_some() {
                     vs_addrs.insert(vs_name, addr);
                 }
             }
