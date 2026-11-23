@@ -8,8 +8,7 @@ jet_event_tcl, ...), each NUL-terminated and XORed with a single byte, 0xF5.
 
 Usage: extract-tclcheck.py <libtclCheck_tcl.so.1.0 (64-bit)> <outdir>
 
-The output is F5 proprietary source: keep it outside this repository
-(for example under ~/src/bigip-extract) and never commit it here.
+Keep the extracted vendor source in private storage outside this repository.
 Requires `nm` (binutils or llvm) on PATH.
 """
 import pathlib

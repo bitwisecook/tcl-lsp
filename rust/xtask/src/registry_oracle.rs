@@ -28,7 +28,7 @@
 //!
 //! This is deliberately an on-demand gate: the proprietary/local BIG-IP
 //! extract is not part of the repository or CI checkout.  Run it with
-//! `cargo xtask registry-oracle --irules-root /path/to/bigip-extract`; pass
+//! `cargo xtask registry-oracle --irules-root /path/to/oracle-input`; pass
 //! `--check --output ...` to verify a checked-in or CI-produced report.
 
 use std::collections::BTreeSet;
