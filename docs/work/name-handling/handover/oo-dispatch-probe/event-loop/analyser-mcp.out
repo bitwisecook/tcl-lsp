@@ -1,0 +1,23 @@
+# Analyser diagnostics through the tcl-lsp MCP `analyze` tool (cached build, may lag HEAD afe2f2d8 slightly).
+# Format: fixture dialect: [CODE Lline message-prefix]; lines are 1-based. ev01/ev04 were analysed in their first form (10/20 ms delays); the change of delays does not affect the report.
+ev01-timer-order.tcl tcl9.0: (none)
+ev02-after-frame.tcl tcl9.0: [W210 L7 Variable 'r1' is read before it is set] [W210 L8 'r2']
+ev03-after-info-cancel.tcl tcl9.0: [W210 L12 'never' (on `info exists never`)] [W210 L12 'joined']
+ev04-update-idletasks.tcl tcl9.0: [W210 L5 'i' (info exists)] [W210 L5 't' (info exists)] [W210 L9 'late' (info exists)]
+ev05-bgerror-proc.tcl tcl9.0: (none)
+ev06-interp-bgerror.tcl tcl9.0: (none)
+ev07-late-definition.tcl tcl9.0: (none)   (no W123 for `after 0 late` before `proc late`)
+ev08-deferred-variable.tcl tcl9.0: [W220 L4 Assignment to 'g' is never read] [W210 L8 'cap'] [W210 L8 'err'] [W210 L8 'msg'] [W210 L8 'seen']
+ev09-fileevent.tcl tcl9.0: [W103 L2 open with a pipeline ... command injection]
+ev09b-chan-pipe.tcl tcl9.0: (none)
+ev10-vwait-name.tcl tcl9.0: [W210 L10 'order']
+ev11-idle-reentry.tcl tcl9.0: [W210 L4 'o']
+ev12-callback-in-proc-local.tcl tcl9.0: [W220 L3 Assignment to 'local' is never read]   (nothing on the deferred `puts $local`, which fails at run time)
+ev13-tk-bind.tcl tcl9.0: (none)
+ev14-vwait-idle.tcl tcl9.0: (none)
+ev15-update-not-due.tcl tcl9.0: [W210 L5 'late' (info exists)]
+# Pattern: a global written by an inline callback script and read after vwait/update is W210; the same write made by a procedure the callback names (ev05, ev06, ev09, ev13) is not.
+# Navigation: references of `late` include `after 0 late`, `after 0 {late}`, `after 0 [list late]` and `interp bgerror {} late` (5 with the declaration); rename edits all five.
+#   references of `onread` include `fileevent stdin readable [list onread stdin]`; definition from `bind .b <Button-1> {handler %W}` and `-command {handler .b}` reaches `proc handler`.
+# The W210s marked (info exists) are not event-loop specific: `puts [list [info exists zz] 1]` alone is W210 (whole-statement range), while `puts [info exists zz]` is not;
+#   an `info exists` nested two substitutions deep is read as a variable read. Same shape in ev03, ev04, ev15.

@@ -1,0 +1,23 @@
+# Analyser diagnostics through the tcl-lsp MCP `analyze` tool (cached build, may lag HEAD afe2f2d8 slightly).
+# Format: fixture dialect: [CODE Lline message-prefix]; lines are 1-based. Dialect tcl9.0 unless stated.
+co01-generator.tcl tcl9.0: [W241 L5 while is provably infinite ... (no break/return/error/exit/throw/tailcall)] [W123 L11 Unknown command 'c' x3] [W123 L12 Unknown command 'c']
+co01-generator.tcl tcl8.5 (variant with top-level tailcall): [W002+W123 yield x2] [W002 info coroutine] [W241 L4] [W002+W123 coroutine] [W002+W123 tailcall] [W123 foo]
+co02-coro-arity.tcl tcl9.0: [W123 L4 Unknown command 'c'] [W123 L5 'c'] [W123 L6 'c']   (no arity diagnostic for `c a b`)
+co03-info-coroutine.tcl tcl9.0: [W123 L8 Unknown command 'c1']   (ns::c2 not reported)
+co04-coro-frame.tcl tcl9.0: [W211 L12 Variable 'outer' is set but never used]   (read by `info exists ::outer` in the coroutine body)
+co05-rename-coro.tcl tcl9.0: [W241 L2 while is provably infinite]
+co06-yield-outside.tcl tcl9.0: (none)
+co07-coroinject.tcl tcl9.0: (none)
+co07-coroinject.tcl tcl8.6: [W002+W123 L4 coroprobe] [W002+W123 L6 coroinject]
+co08-tailcall.tcl tcl9.0: [W302 L10 catch without a result variable]   (top-level `tailcall` inside catch: nothing)
+co09-tailcall-catch.tcl tcl9.0: (none)   (no unreachable-code report after tailcall; bare `tailcall` accepted, as in tclsh)
+co10-coro-finish.tcl tcl9.0: [W123 L4 Unknown command 'c']
+co11-coro-lambda.tcl tcl9.0: [W123 L3 Unknown command 'g'] [E002 L4 coroutine: expected at least 2, got 0] [E002 L5 got 1]
+co12-coro-tailcall.tcl tcl9.0: [W123 L5 'c'] [W123 L6 'c']
+co13-coro-delete-from-inside.tcl tcl9.0: (none)
+# Discriminating pair (not a fixture file):
+#   proc g {} {yield 1; return 2}; coroutine top g; top; puts [coroutine nested g]; nested; set r [coroutine nested2 g]; nested2; set z [proc made {} {return 1}]; made
+#   -> [W123 'nested'] [W123 'nested2'] only: a coroutine created inside a command substitution publishes no command; a proc created there does.
+# Navigation on co01 shape: definition on `c` -> []; hover on `c` -> null; references/rename of `counter` include the `coroutine c counter 5` word (2 edits).
+# Navigation on co08: definition on `target` in `tailcall target p` inside ns::p -> ::ns::target (correct).
+# Optimiser (aggressive) on a generator plus deferred read: no rewrite of `set g` (deferred read honoured); only a no-op O101 on `while 1`.
