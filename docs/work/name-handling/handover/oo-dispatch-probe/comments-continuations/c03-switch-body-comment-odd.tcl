@@ -1,7 +1,7 @@
-# The switch-body trap: '#' lines are list words, not comments
+# The switch-body trap: an odd word count from a '#' line is a hard error
 proc f {v} {
     switch $v {
-        # this is not a comment
+        # a comment
         a {return A}
         default {return D}
     }

@@ -1,0 +1,42 @@
+# Analyser and LSP results through the tcl-lsp MCP tools (cached build; sources at afe2f2d8).
+# Format: fixture <TAB> dialect <TAB> codes as CODE@line (1-based) <TAB> verdict.  "-" = no diagnostics.
+sv01-startup-roster.tcl	tcl8.6	-	correct
+sv02-info-globals.tcl	tcl8.6	-	correct
+sv03-values.tcl	tcl8.6	-	correct
+sv04-platform-keys.tcl	tcl8.4	-	correct (the engine read is guarded by info exists)
+sv05-precision.tcl	tcl8.6	-	correct
+sv05-precision.tcl	tcl9.0	W210@2(tcl_precision)	FALSE: the read is 'info exists tcl_precision' inside a quoted word (generic info-exists fault, see sv08)
+sv06-errorinfo.tcl	tcl8.6	W210@2(errorCode) W210@2(errorInfo) W302x5 W210@8(nosuch)	W210@2 false (info exists in a quoted word); W210 nosuch intended; W302 correct
+sv07-env.tcl	tcl8.6	-	correct
+sv08-wordchars.tcl	tcl8.6	W210@2(tcl_wordchars) W210@2(tcl_nonwordchars)	FALSE: 'info exists' in a quoted word is not a read; plain 'puts "a=[info exists v]"' does the same
+sv09-proc-shadow.tcl (+ proc e {} {return $tcl_version})	tcl8.6	W210 in e	correct; a, b, c, d silent (correct)
+sv10-namespace-eval-read.tcl	tcl8.6	-	correct; but document symbols list a namespace variable ns::auto_path that tclsh never creates
+sv10-namespace-eval-read.tcl	tcl9.0	-	FALSE NEGATIVE: tclsh 9.0/9.1 fail "can't read tcl_version" inside namespace eval
+sv11-unset-special.tcl	tcl8.6	-	correct
+sv12-write-only.tcl	tcl8.6	-	correct (no W211/W220 on auto_path, env, tcl_interactive, errorInfo, argv)
+sv13-argv-argc.tcl	tcl8.6	-	correct
+sv14-errorinfo-write-before-error.tcl	tcl8.6	W302x2	correct
+sv15-tk-globals.tcl	tcl8.6	W210@2(tk_version) W210@2(tk_library)	FALSE (info exists in a quoted word); Tk globals have no registry rows
+sv16-lookup-errorcode.tcl	tcl8.6	W210@2(errorCode) W210(nosuch)x2 W210(a(1)) W212 W302x6	W210 errorCode FALSE: the failed read inside catch sets errorCode
+sv17-error-vars-across-catch.tcl	tcl8.6	W302x2	correct
+sv18-precision-write.tcl	tcl8.6	-	correct
+sv19-auto-path-write.tcl	tcl8.6	-	correct (no W220 on the auto_path write)
+
+# W210 probes (inline sources)
+'catch {error boom}; puts "ec=$errorCode"; puts $errorInfo'	tcl8.6	W210 errorCode, W210 errorInfo	FALSE: error sets both (8.5+ they do not exist before the first error, so the analyser needs the catch edge)
+'puts $auto_index(foo)' after 'puts [info exists auto_index]'	tcl8.6	W210 reported at line 2 (the info exists line), not at the read	position fault
+
+# Optimiser (MCP optimize, profile full)
+sv17-error-vars-across-catch.tcl	tcl8.6	O118 lindex -> seeded; O102 errorCode -> seeded	WRONG: tclsh prints x / NONE; optimised prints seeded / seeded
+sv18-precision-write.tcl	tcl8.6	O109 removes 'set tcl_precision 3'; O101 expr -> 0.3333333333333333; O102 -> 3	WRONG on 8.4-8.6: tclsh prints 0.333
+'set tcl_precision 3; puts [expr {1/3.0}]'	tcl8.6	O101 -> 0.3333333333333333	WRONG (the precision-write whole-program fact does not reach O101)
+'puts [expr {1/3.0}]' alone	tcl8.6	O101 -> 0.3333333333333333	correct for default precision 0 (contradicts the constant-folding page, which says 8.x float folds decline)
+sv19-auto-path-write.tcl	tcl8.6	O109 removes 'set auto_path [linsert $auto_path 0 sv19-pkg]'	WRONG: package require then fails (sv19-...optimised.tcl)
+'set auto_path /tmp/x; puts done'	tcl8.6	no rewrite	correct (only the read-modify-write form is removed)
+info exists tcl_platform / tcl_precision / errorInfo / tcl_interactive	tcl8.4, tcl8.6	no folds	correct (conservative)
+
+# Hover and completion
+hover $tcl_precision	tcl9.0	"special variable (read/write) ... significant digits"	WRONG: no such variable in 9.0 (W210 uses the release; hover uses the authoring surface)
+hover $tcl_platform(pointerSize)	tcl8.4	lists pointerSize, engine, pathSeparator	WRONG: 8.5+/8.6+ keys shown for 8.4
+hover $tk_version	tcl8.6	null	gap: no Tk rows
+complete '$tcl_' / '$' / '$tcl_platform('	tcl8.4, tcl8.6	nothing special offered ('$' offers only user variables)	gap: completion does not read the registry

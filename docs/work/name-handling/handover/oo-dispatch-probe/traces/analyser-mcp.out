@@ -1,0 +1,51 @@
+# Analyser and LSP results through the tcl-lsp MCP tools (cached build; engines and sources at afe2f2d8).
+# Format: fixture <TAB> dialect <TAB> codes as CODE@line (1-based) <TAB> verdict.  "-" = no diagnostics.
+tr01-write-args.tcl	tcl8.6	-	correct
+tr02-read-changes-value.tcl	tcl8.6	W214@2(n2,op)	W214 false: fixed trace-callback signature
+tr03-write-changes-value.tcl	tcl8.6	W214@2(n2,op)	W214 false
+tr04-trace-error.tcl	tcl8.6	W214@2(n1,n2) W210@10(y)	W214 false; W210 false (it is 'info exists y' inside [...]; same without any trace, see note 1)
+tr05-unset-trace.tcl	tcl8.6	-	correct
+tr06-array-op-trace.tcl	tcl8.6	-	correct
+tr07-trace-info-remove.tcl	tcl8.6	-	correct
+tr08-legacy-syntax.tcl	tcl8.6	W211@3(x) W144@4 W144@5 W220@6(x) W144@7	W211/W220 false: 'trace variable x w cb' observes both writes; W144 correct
+tr08-legacy-syntax.tcl	tcl9.0	W211@3 W002@4 W002@5 W220@6 W002@7	W002 correct (removed in 9.0); W211/W220 false as above
+tr09-command-trace.tcl	tcl8.6	-	correct
+tr10-execution-enter-leave.tcl	tcl8.6	-	correct
+tr11-execution-step.tcl	tcl8.6	-	correct
+tr12-callback-frame.tcl	tcl8.6	W214@2(n2,op)	W214 false
+tr13-read-creates.tcl	tcl8.6	W214@2(n2,op)	W214 false; no W210 for $y/$z (correct)
+tr14-dead-store.tcl	tcl8.6	W214@2(n2,op)	W214 false; no W220 (correct)
+tr15-trace-order-recursion.tcl	tcl8.6	W214@2 W214@3	W214 false
+tr16-trace-on-undefined.tcl	tcl8.6	W214@2(n1,n2)	W214 false
+tr17-namespace-and-global.tcl	tcl8.6	-	correct
+tr18-command-trace-callback-redefines.tcl	tcl8.6	W214@3(cmd,op)	W214 false
+tr19-leave-cannot-change-result.tcl	tcl8.6	W214@3 W214@6 (all four formals each)	W214 false
+tr20-builtin-exec-trace.tcl	tcl8.6	W214@2(op)	W214 false
+tr21-read-error-top-level.tcl	tcl8.6	W214@2(n1,n2)	W214 false
+tr22-exec-trace-writes-variable.tcl	tcl8.6	W214@2(cmd,op)	W214 false
+tr23-trace-callback-writes-other.tcl	tcl8.6	-	correct
+
+# W210 probes (inline sources)
+'trace add variable y write cb; puts $y' (top level)	tcl8.6	-	FALSE NEGATIVE: tclsh errors "can't read y"; any trace registration suppresses W210 whatever its operations
+'proc p {} {trace add variable y write cb; return $y}'	tcl8.6	-	FALSE NEGATIVE as above
+'proc setup {} {trace add variable ::g read mk}; setup; puts $g'	tcl8.6	-	correct (abstains after an unproven call)
+note 1: 'set x 1; puts [list [catch {set y $x} m] $m]; puts [list [info exists y]]' gives W210(y) with no trace at all; 'puts "a=[info exists v]"' also gives W210 -- info exists nested in a quoted word is counted as a read.
+
+# Optimiser (MCP optimize, profile full unless stated)
+tr02, tr03, tr14, tr15	tcl8.6	no rewrites	correct (declines on traced names)
+'trace variable x w clamp' (legacy) then 'set x 99; puts $x'	tcl8.6	no rewrites	correct (optimiser sees legacy traces; W220 does not)
+trace registered by 'setup x' via uplevel, by a proc on ::x, via $name, via eval, on an upvar alias	tcl8.6	no rewrites	correct
+tr22-exec-trace-writes-variable.tcl	tcl8.6	O109 set x 99; O100 "after=99"; O100 "again=99"	WRONG: tclsh prints again=5, optimised source prints again=99 (tr22-...optimised.tcl)
+tr23-trace-callback-writes-other.tcl	tcl8.6	O109 set z 1; O100 "z=1"	WRONG: tclsh prints z=7, optimised prints z=1 (tr23-...optimised.tcl)
+tr23-trace-callback-writes-other.tcl	tcl8.6 readability	no rewrites	(LSP default profile does not propagate)
+'set ops {read write}; trace add variable z $ops clamp'	tcl8.6	O100 propagates {read write} into the op list; no fold of z	correct
+
+# Navigation (tr01, tr09, tr10)
+goto_definition on callback word 'cb' in 'trace add variable x write cb'	-> proc cb	correct
+find_references on proc cb	4 (definition + three trace registrations)	correct
+rename proc cb -> cb2	renames all three callback words	correct
+rename variable x -> xx	renames 'set x', 'trace add variable x', 'set x'	correct
+find_references on proc cb with legacy 'trace variable x w cb' / 'trace vdelete x w cb'	3	correct
+find_references on proc f (tr10)	5; misses 'trace info execution f'	false negative (minor)
+find_references on proc foo (tr09)	includes 'rename foo bar' and later 'bar' calls	correct
+hover on $x after 'trace add variable x write cb'	"2 reference(s)"	inconsistent: three references in the source (set, trace target, read)

@@ -30,6 +30,8 @@ e27-optimiser-try-finally.tcl: none
 e28-optimiser-return-level0.tcl: none
 e29-finally-reads-body-var.tcl: [W220 L2 Assignment to 'a' is never read] FALSE (the finally clause reads it)
 e30-after-return-level0.tcl: [W210 L2 Variable 'y' is read before it is set] FALSE (return -level 0 does not leave the procedure)
+e31-missing-variable-errorcode.tcl: [W210 L2 'nosuch'] [W210 L5 'nosuch3'] [W210 L6 'nosuch4'] (true; deliberate reads inside catch) [W210 L7 Variable 'nosuch5' is read before it is set] FALSE (array get of a missing variable returns {} without error)
+e32-posix-errorcode.tcl: none
 
 # Discriminating variants (not fixture files), tcl9.0:
 # proc a {} { catch {for {set i 0} {$i < 3} {incr i} {}} r ; return $r }          -> W210 'i' FALSE
@@ -52,3 +54,10 @@ e30-after-return-level0.tcl: [W210 L2 Variable 'y' is read before it is set] FAL
 # try { error x } on error {m} { return h } finally { puts fin }: O107 deletes `puts fin`. WRONG.
 # Profile readability (the LSP default): no rewrites.
 # Correct O107: code after return, error, throw, return -code error, return -code ok (level 1), continue in foreach; return -code break/continue procs are not inlined.
+
+# Build staleness: the MCP binary (/root/.cache/tcl-lsp/tcl-mcp, 19 Nov 16:43) also reproduces #2142
+# (proc p {} {global g; try {error boom} finally {set g 1}} -> O107 empties the finally), which the source at HEAD
+# documents as fixed (rust/tcl-compiler/src/cfg_builder/cfg_lower/try_construct.rs:401-420), and HEAD's
+# rust/tcl-compiler/src/lowering/hooks/control.rs:117-159 lowers return -level 0 -code ok/error/break/continue as an ordinary command.
+# So the e27/e28 optimiser faults, and probably the e29/e30 W220/W210 faults, are faults of the cached build;
+# they were not re-run at HEAD because building is not allowed in this audit.
