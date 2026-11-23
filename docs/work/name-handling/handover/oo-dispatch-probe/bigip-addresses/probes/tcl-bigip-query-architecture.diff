@@ -1,0 +1,24 @@
+diff --git a/rust/tcl-bigip-query/src/architecture.rs b/rust/tcl-bigip-query/src/architecture.rs
+index 2e413183..95c84586 100644
+--- a/rust/tcl-bigip-query/src/architecture.rs
++++ b/rust/tcl-bigip-query/src/architecture.rs
+@@ -949,4 +949,19 @@ nat-map -file nat.csv
+         assert_eq!(maps["serviceMap"], "services.csv");
+         assert_eq!(maps["natMap"], "nat.csv");
+     }
++
++    #[test]
++    #[ignore = "Q8 probe"]
++    fn q8_probe_bare_ip() {
++        let d = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
++            .join("../../docs/work/name-handling/handover/oo-dispatch-probe/bigip-addresses");
++        let text = std::fs::read_to_string(d.join("inputs.tsv")).unwrap();
++        let mut out = String::from("id\tinput\tfunction\tverdict\tparts\n");
++        for l in text.lines().skip(1) {
++            let f: Vec<&str> = l.split('\t').collect();
++            let r = bare_ip(f[2]);
++            out.push_str(&format!("{}\t{}\ttcl_bigip_query::architecture::bare_ip\t{}\taddr={:?}\n", f[0], f[2], if r.is_some() {"ok"} else {"err"}, r));
++        }
++        std::fs::write(d.join("matrix-tcl-bigip-query-arch.tsv"), out).unwrap();
++    }
+ }

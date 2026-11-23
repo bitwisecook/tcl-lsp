@@ -10,6 +10,16 @@ and errors below are the pertinent output excerpts. The verification cases had
 no configuration writes. Post-check lookups reported the test rule, pool,
 virtual and partition absent.
 
+## Questions this answers
+
+These TMSH checks answer the BIG-IP and iRules questions in [the name-handling plan](../../docs/work/name-handling/plan.md#big-ip-and-irules-questions), with the reasons and full question text in [language and release](../../docs/work/name-handling/evidence/bigip-language-and-release.md) and [data provenance](../../docs/work/name-handling/evidence/bigip-data-provenance.md):
+
+- **Shipped and effective defaults** (Q3): whether the registry's open-ended 17.1 SSL profile `options` override still holds on a later release.
+- **Rule compiler** (Q5, Q6): which commands and forms the iRule compiler accepts, warns on or disables in which events, as evidence for per-event availability and for the iRules definition audit (the analysis container had no BIG-IP to play tclsh's role).
+- **SSL rule attachment** (Q5): which profiles make the client- and server-side SSL events attachable, because `tcl-mcp`'s `irule_gen` adds a CLIENTSSL profile for SERVERSSL events and the registry lists PERSIST as an alternative.
+- **Monitor rules** (Q7): the accepted LTM pool monitor grammar, because `orphan-monitor`, conversion and iRule context take only the first word of a monitor rule and the typed `MonitorExpression::try_parse` was untested against an appliance.
+- **Names, route domains and services** (Q8): which path, route-domain and service-separator forms TMSH accepts, because path and address rules are implemented several times with different outputs, and IPv6 uses `.port` in tmsh but `[addr]:port` in URLs.
+
 ## Shipped and effective defaults
 
 `rpm -qf /defaults/config_base.conf.virtual /defaults/profile_base.conf`

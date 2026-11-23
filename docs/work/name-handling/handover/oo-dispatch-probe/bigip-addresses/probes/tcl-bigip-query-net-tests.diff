@@ -1,0 +1,55 @@
+diff --git a/rust/tcl-bigip-query/src/builtins/net/tests.rs b/rust/tcl-bigip-query/src/builtins/net/tests.rs
+index 846d1028..6f8e5800 100644
+--- a/rust/tcl-bigip-query/src/builtins/net/tests.rs
++++ b/rust/tcl-bigip-query/src/builtins/net/tests.rs
+@@ -107,3 +107,50 @@ fn ip_range_count_large_span_is_not_negative() {
+         Value::Int(10)
+     ));
+ }
++
++#[test]
++#[ignore = "Q8 probe"]
++fn q8_probe_query() {
++    use super::typed_values::{self as tv, TypedAddress};
++    let d = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
++        .join("../../docs/work/name-handling/handover/oo-dispatch-probe/bigip-addresses");
++    let text = std::fs::read_to_string(d.join("inputs.tsv")).unwrap();
++    let mut out = String::from("id\tinput\tfunction\tverdict\tparts\n");
++    let ta = |a: &TypedAddress| match a {
++        TypedAddress::Ip(ip) => format!("addr={} fam={} iprd={:?}", ip.addr, if ip.addr.is_ipv4() {"v4"} else {"v6"}, ip.route_domain),
++        TypedAddress::Fqdn(f) => format!("fqdn={f}"),
++    };
++    for l in text.lines().skip(1) {
++        let f: Vec<&str> = l.split('\t').collect();
++        let (id, s) = (f[0], f[2]);
++        let mut row = |func: &str, ok: bool, parts: String| {
++            out.push_str(&format!("{id}\t{s}\t{func}\t{}\t{}\n", if ok {"ok"} else {"err"}, parts.replace('\t', " ")));
++        };
++        match tv::Destination::try_parse(s) {
++            Some(dd) => row("tcl_bigip_query::typed_values::Destination::try_parse", true, format!(
++                "folder={} {} destrd={:?} port={} spelling={:?} sep={:?} brackets={} show={}",
++                dd.folder.as_ref().map_or("-".into(), |f| f.render()), ta(&dd.address), dd.route_domain,
++                dd.port.port, dd.port.spelling, dd.port_separator, dd.ipv6_brackets, dd.render())),
++            None => row("tcl_bigip_query::typed_values::Destination::try_parse", false, "none".into()),
++        }
++        match tv::parse_address(s) {
++            Some(a) => row("tcl_bigip_query::typed_values::parse_address", true, ta(&a)),
++            None => row("tcl_bigip_query::typed_values::parse_address", false, "none".into()),
++        }
++        let (p, a, r, po) = tv::split_destination(s);
++        row("tcl_bigip_query::typed_values::split_destination", true, format!("partition={p:?} addr={a:?} rd={r:?} port={po:?} rebuilt={:?}", tv::rebuild_destination(&p, &a, &r, &po)));
++        match tv::ObjectPath::try_parse(s) {
++            Some(o) => row("tcl_bigip_query::typed_values::ObjectPath::try_parse", true, format!("partition={} folders={} name={} show={}", o.partition().name, o.folder.segments.join("/"), o.name, o.render())),
++            None => row("tcl_bigip_query::typed_values::ObjectPath::try_parse", false, "none".into()),
++        }
++        let v = || vec![Value::Str(s.to_owned())];
++        row("f5-query host()", true, format!("{:?}", bi_host(&v())));
++        row("f5-query port()", true, format!("{:?}", bi_port(&v())));
++        row("f5-query route_domain()", true, format!("{:?}", bi_route_domain(&v())));
++        row("f5-query net()", true, format!("{:?}", bi_net(&v())));
++        row("f5-query ip()", true, format!("{:?}", bi_ip(&v())));
++        row("f5-query with_route_domain(x,5)", true, format!("{:?}", bi_with_route_domain(&[Value::Str(s.to_owned()), Value::Int(5)])));
++        row("f5-query with_port(x,8443)", true, format!("{:?}", bi_with_port(&[Value::Str(s.to_owned()), Value::Int(8443)])));
++    }
++    std::fs::write(d.join("matrix-tcl-bigip-query.tsv"), out).unwrap();
++}

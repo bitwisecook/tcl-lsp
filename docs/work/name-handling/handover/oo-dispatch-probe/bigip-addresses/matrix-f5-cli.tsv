@@ -1,0 +1,714 @@
+id	input	function	verdict	parts
+i001	/Common/name	f5-cli::explain_flow::parse_destination	err	None
+i002	/Common/folder/sub/name	f5-cli::explain_flow::parse_destination	err	None
+i003	/Tenant/name	f5-cli::explain_flow::parse_destination	err	None
+i004	/Tenant_A/app/name	f5-cli::explain_flow::parse_destination	err	None
+i005	/Common/app.app/app_vs	f5-cli::explain_flow::parse_destination	err	None
+i006	/Common/app.app/app_pool	f5-cli::explain_flow::parse_destination	err	None
+i007	/Tenant/Shared/pool1	f5-cli::explain_flow::parse_destination	err	None
+i008	name	f5-cli::explain_flow::parse_destination	err	None
+i009	folder/name	f5-cli::explain_flow::parse_destination	err	None
+i010	/Common/my name	f5-cli::explain_flow::parse_destination	err	None
+i011	/Common/q"t	f5-cli::explain_flow::parse_destination	err	None
+i012	/Common/{b}	f5-cli::explain_flow::parse_destination	err	None
+i013	/Common/a.b	f5-cli::explain_flow::parse_destination	err	None
+i014	/Common/a:b	f5-cli::explain_flow::parse_destination	err	None
+i015	/Common/a%b	f5-cli::explain_flow::parse_destination	err	None
+i016	/Common/a@b	f5-cli::explain_flow::parse_destination	err	None
+i017	/Common/a-b	f5-cli::explain_flow::parse_destination	err	None
+i018	/Common/a_b	f5-cli::explain_flow::parse_destination	err	None
+i019	/Common/10.0.0.1	f5-cli::explain_flow::parse_destination	err	None
+i020	/Common/10.0.0.1%2	f5-cli::explain_flow::parse_destination	err	None
+i021	/Common/2001:db8::1	f5-cli::explain_flow::parse_destination	err	None
+i022	/Common/web.example.com	f5-cli::explain_flow::parse_destination	err	None
+i023	/Common/	f5-cli::explain_flow::parse_destination	err	None
+i024	/Common//name	f5-cli::explain_flow::parse_destination	err	None
+i025	//Common/name	f5-cli::explain_flow::parse_destination	err	None
+i026	/common/name	f5-cli::explain_flow::parse_destination	err	None
+i027	/COMMON/name	f5-cli::explain_flow::parse_destination	err	None
+i028	/	f5-cli::explain_flow::parse_destination	err	None
+i029		f5-cli::explain_flow::parse_destination	err	None
+i030	Common/name	f5-cli::explain_flow::parse_destination	err	None
+i031	/Common	f5-cli::explain_flow::parse_destination	err	None
+i032	/Common/name/	f5-cli::explain_flow::parse_destination	err	None
+i033	/Common/a/b/c/d/name	f5-cli::explain_flow::parse_destination	err	None
+i034	/Common/ünïcode	f5-cli::explain_flow::parse_destination	err	None
+i035	/Common/Drafts/policy1	f5-cli::explain_flow::parse_destination	err	None
+i036	/Common/.hidden	f5-cli::explain_flow::parse_destination	err	None
+i037	/Common/name 	f5-cli::explain_flow::parse_destination	err	None
+i038	/Tenant/app.app/sub/name	f5-cli::explain_flow::parse_destination	err	None
+i039	~Common~name	f5-cli::explain_flow::parse_destination	err	None
+i040	~Common~folder~name	f5-cli::explain_flow::parse_destination	err	None
+i041	~Common~app.app~app_vs	f5-cli::explain_flow::parse_destination	err	None
+i042	~Tenant~name	f5-cli::explain_flow::parse_destination	err	None
+i043	~Common~10.0.0.1%252	f5-cli::explain_flow::parse_destination	err	None
+i044	~Common~10.0.0.1%2	f5-cli::explain_flow::parse_destination	err	None
+i045	~Common~2001:db8::1	f5-cli::explain_flow::parse_destination	err	None
+i046	~Common~my%20name	f5-cli::explain_flow::parse_destination	err	None
+i047	10.0.0.1	f5-cli::explain_flow::parse_destination	err	None
+i048	10.0.0.1%2	f5-cli::explain_flow::parse_destination	err	None
+i049	10.0.0.1%0	f5-cli::explain_flow::parse_destination	err	None
+i050	10.0.0.1%65534	f5-cli::explain_flow::parse_destination	err	None
+i051	10.0.0.1%65535	f5-cli::explain_flow::parse_destination	err	None
+i052	10.0.0.1%99999999999	f5-cli::explain_flow::parse_destination	err	None
+i053	10.0.0.1%-1	f5-cli::explain_flow::parse_destination	err	None
+i054	10.0.0.1%	f5-cli::explain_flow::parse_destination	err	None
+i055	10.0.0.1%a	f5-cli::explain_flow::parse_destination	err	None
+i056	10.0.0.1%2%3	f5-cli::explain_flow::parse_destination	err	None
+i057	10.0.0.1:80	f5-cli::explain_flow::parse_destination	ok	Some(("10.0.0.1", 80))
+i058	10.0.0.1%2:80	f5-cli::explain_flow::parse_destination	ok	Some(("10.0.0.1", 80))
+i059	10.0.0.1:0	f5-cli::explain_flow::parse_destination	ok	Some(("10.0.0.1", 0))
+i060	10.0.0.1:any	f5-cli::explain_flow::parse_destination	ok	Some(("10.0.0.1", 0))
+i061	10.0.0.1:http	f5-cli::explain_flow::parse_destination	err	None
+i062	10.0.0.1:https	f5-cli::explain_flow::parse_destination	err	None
+i063	10.0.0.1:ssh	f5-cli::explain_flow::parse_destination	err	None
+i064	10.0.0.1:domain	f5-cli::explain_flow::parse_destination	err	None
+i065	10.0.0.1:65535	f5-cli::explain_flow::parse_destination	ok	Some(("10.0.0.1", 65535))
+i066	10.0.0.1:65536	f5-cli::explain_flow::parse_destination	ok	Some(("10.0.0.1", 65536))
+i067	10.0.0.1:-1	f5-cli::explain_flow::parse_destination	err	None
+i068	10.0.0.1:*	f5-cli::explain_flow::parse_destination	err	None
+i069	0.0.0.0	f5-cli::explain_flow::parse_destination	err	None
+i070	0.0.0.0:0	f5-cli::explain_flow::parse_destination	ok	Some(("0.0.0.0", 0))
+i071	0.0.0.0:any	f5-cli::explain_flow::parse_destination	ok	Some(("0.0.0.0", 0))
+i072	0.0.0.0%2:0	f5-cli::explain_flow::parse_destination	ok	Some(("0.0.0.0", 0))
+i073	any	f5-cli::explain_flow::parse_destination	err	None
+i074	any:any	f5-cli::explain_flow::parse_destination	err	None
+i075	any:0	f5-cli::explain_flow::parse_destination	err	None
+i076	*:*	f5-cli::explain_flow::parse_destination	err	None
+i077	*:80	f5-cli::explain_flow::parse_destination	err	None
+i078	*	f5-cli::explain_flow::parse_destination	err	None
+i079	10.0.0.0/8	f5-cli::explain_flow::parse_destination	err	None
+i080	10.0.0.0/255.0.0.0	f5-cli::explain_flow::parse_destination	err	None
+i081	10.0.0.0%2/8	f5-cli::explain_flow::parse_destination	err	None
+i082	10.0.0.1%2/24	f5-cli::explain_flow::parse_destination	err	None
+i083	10.0.0.0/33	f5-cli::explain_flow::parse_destination	err	None
+i084	10.0.0.0/255.0.255.0	f5-cli::explain_flow::parse_destination	err	None
+i085	10.0.0.1/24	f5-cli::explain_flow::parse_destination	err	None
+i086	010.0.0.1	f5-cli::explain_flow::parse_destination	err	None
+i087	10.0.0.01	f5-cli::explain_flow::parse_destination	err	None
+i088	256.0.0.1	f5-cli::explain_flow::parse_destination	err	None
+i089	10.0.0	f5-cli::explain_flow::parse_destination	err	None
+i090	10.0.0.1.80	f5-cli::explain_flow::parse_destination	err	None
+i091	10.0.0.1 255.255.255.0	f5-cli::explain_flow::parse_destination	err	None
+i092	default	f5-cli::explain_flow::parse_destination	err	None
+i093	default%2	f5-cli::explain_flow::parse_destination	err	None
+i094	default-inet6	f5-cli::explain_flow::parse_destination	err	None
+i095	0.0.0.0/0	f5-cli::explain_flow::parse_destination	err	None
+i096	10.0.0.1-10.0.0.9	f5-cli::explain_flow::parse_destination	err	None
+i097	255.255.255.255	f5-cli::explain_flow::parse_destination	err	None
+i098	none	f5-cli::explain_flow::parse_destination	err	None
+i099	2001:db8::1	f5-cli::explain_flow::parse_destination	err	None
+i100	2001:0db8:0000:0000:0000:0000:0000:0001	f5-cli::explain_flow::parse_destination	err	None
+i101	2001:DB8::1	f5-cli::explain_flow::parse_destination	err	None
+i102	::	f5-cli::explain_flow::parse_destination	err	None
+i103	::1	f5-cli::explain_flow::parse_destination	err	None
+i104	::ffff:10.0.0.1	f5-cli::explain_flow::parse_destination	err	None
+i105	::ffff:10.0.0.1.80	f5-cli::explain_flow::parse_destination	err	None
+i106	fe80::1%eth0	f5-cli::explain_flow::parse_destination	err	None
+i107	fe80::1%1	f5-cli::explain_flow::parse_destination	err	None
+i108	fe80::1%1.80	f5-cli::explain_flow::parse_destination	err	None
+i109	2001:db8::1.80	f5-cli::explain_flow::parse_destination	err	None
+i110	2001:db8::1%2.80	f5-cli::explain_flow::parse_destination	err	None
+i111	2001:db8::1:80	f5-cli::explain_flow::parse_destination	ok	Some(("2001:db8::1", 80))
+i112	fe80::1:80	f5-cli::explain_flow::parse_destination	ok	Some(("fe80::1", 80))
+i113	2001:db8::1:443	f5-cli::explain_flow::parse_destination	ok	Some(("2001:db8::1", 443))
+i114	2001:db8::1%2:80	f5-cli::explain_flow::parse_destination	ok	Some(("2001:db8::1", 80))
+i115	fe80::1%1:80	f5-cli::explain_flow::parse_destination	ok	Some(("fe80::1", 80))
+i116	::1:80	f5-cli::explain_flow::parse_destination	ok	Some(("::1", 80))
+i117	/Common/fe80::1:80	f5-cli::explain_flow::parse_destination	ok	Some(("fe80::1", 80))
+i118	/Common/2001:db8::1%2:80	f5-cli::explain_flow::parse_destination	ok	Some(("2001:db8::1", 80))
+i119	2001:db8:0:0:0:0:1:80	f5-cli::explain_flow::parse_destination	err	None
+i120	2001:db8::1.http	f5-cli::explain_flow::parse_destination	err	None
+i121	2001:db8::1.any	f5-cli::explain_flow::parse_destination	err	None
+i122	2001:db8::1.0	f5-cli::explain_flow::parse_destination	err	None
+i123	2001:db8::1.65536	f5-cli::explain_flow::parse_destination	err	None
+i124	[2001:db8::1]:80	f5-cli::explain_flow::parse_destination	ok	Some(("2001:db8::1", 80))
+i125	[2001:db8::1%2]:80	f5-cli::explain_flow::parse_destination	err	None
+i126	[2001:db8::1]%2:80	f5-cli::explain_flow::parse_destination	ok	Some(("2001:db8::1", 80))
+i127	[fe80::1]:80	f5-cli::explain_flow::parse_destination	ok	Some(("fe80::1", 80))
+i128	[2001:db8::1].80	f5-cli::explain_flow::parse_destination	err	None
+i129	[2001:db8::1]	f5-cli::explain_flow::parse_destination	err	None
+i130	any6	f5-cli::explain_flow::parse_destination	err	None
+i131	any6.any	f5-cli::explain_flow::parse_destination	err	None
+i132	any6.0	f5-cli::explain_flow::parse_destination	err	None
+i133	::.0	f5-cli::explain_flow::parse_destination	err	None
+i134	::.any	f5-cli::explain_flow::parse_destination	err	None
+i135	*.*	f5-cli::explain_flow::parse_destination	err	None
+i136	2001:db8::/32	f5-cli::explain_flow::parse_destination	err	None
+i137	2001:db8::%2/32	f5-cli::explain_flow::parse_destination	err	None
+i138	2001:db8::1/128	f5-cli::explain_flow::parse_destination	err	None
+i139	::/0	f5-cli::explain_flow::parse_destination	err	None
+i140	::1.80	f5-cli::explain_flow::parse_destination	err	None
+i141	1::1.80	f5-cli::explain_flow::parse_destination	err	None
+i142	2001:db8:::1	f5-cli::explain_flow::parse_destination	ok	Some(("2001:db8::", 1))
+i143	2001:db8::g	f5-cli::explain_flow::parse_destination	err	None
+i144	2001:db8::1::	f5-cli::explain_flow::parse_destination	err	None
+i145	2001:db8::1/129	f5-cli::explain_flow::parse_destination	err	None
+i146	example.com	f5-cli::explain_flow::parse_destination	err	None
+i147	example.com.	f5-cli::explain_flow::parse_destination	err	None
+i148	www.example.com:443	f5-cli::explain_flow::parse_destination	err	None
+i149	xn--bcher-kva.example	f5-cli::explain_flow::parse_destination	err	None
+i150	bücher.example	f5-cli::explain_flow::parse_destination	err	None
+i151	*.example.com	f5-cli::explain_flow::parse_destination	err	None
+i152	-bad.example	f5-cli::explain_flow::parse_destination	err	None
+i153	a..b	f5-cli::explain_flow::parse_destination	err	None
+i154	localhost	f5-cli::explain_flow::parse_destination	err	None
+i155	host_name.example.com	f5-cli::explain_flow::parse_destination	err	None
+i156	10.0.0.1.nip.io	f5-cli::explain_flow::parse_destination	err	None
+i157	1.2.3.4.5	f5-cli::explain_flow::parse_destination	err	None
+i158	example.com%2:80	f5-cli::explain_flow::parse_destination	err	None
+i159	/Common/node1:80	f5-cli::explain_flow::parse_destination	err	None
+i160	/Common/node1:http	f5-cli::explain_flow::parse_destination	err	None
+i161	node1:80	f5-cli::explain_flow::parse_destination	err	None
+i162	/Common/10.0.0.1:80	f5-cli::explain_flow::parse_destination	ok	Some(("10.0.0.1", 80))
+i163	/Common/10.0.0.1%2:80	f5-cli::explain_flow::parse_destination	ok	Some(("10.0.0.1", 80))
+i164	/Common/2001:db8::1.80	f5-cli::explain_flow::parse_destination	err	None
+i165	/Common/2001:db8::1%2.80	f5-cli::explain_flow::parse_destination	err	None
+i166	/Common/app.app/node1:80	f5-cli::explain_flow::parse_destination	err	None
+i167	/Common/www.example.com:443	f5-cli::explain_flow::parse_destination	err	None
+i168	/Common/node1:0	f5-cli::explain_flow::parse_destination	err	None
+i169	/Common/node1:any	f5-cli::explain_flow::parse_destination	err	None
+i170	/Common/node1	f5-cli::explain_flow::parse_destination	err	None
+i171	/Common/a:b:80	f5-cli::explain_flow::parse_destination	err	None
+i172	/Common/::ffff:10.0.0.1.80	f5-cli::explain_flow::parse_destination	err	None
+i173	/Tenant/app/10.1.1.1%3:8080	f5-cli::explain_flow::parse_destination	err	None
+i174	/Common/server1:vs1	f5-cli::explain_flow::parse_destination	err	None
+i175	/Common/server1:/Common/vs1	f5-cli::explain_flow::parse_destination	err	None
+i176	/Common/dc1/server1:vs_name	f5-cli::explain_flow::parse_destination	err	None
+i177	www.example.com	f5-cli::explain_flow::parse_destination	err	None
+i178	/Common/www.example.com	f5-cli::explain_flow::parse_destination	err	None
+i179	/Common/*.example.com	f5-cli::explain_flow::parse_destination	err	None
+i180	10.1.0.0%2/16	f5-cli::explain_flow::parse_destination	err	None
+i181	default%0	f5-cli::explain_flow::parse_destination	err	None
+i182	default-inet6%2	f5-cli::explain_flow::parse_destination	err	None
+i183	10.0.0.0/8 	f5-cli::explain_flow::parse_destination	err	None
+i184	node1	f5-cli::explain_flow::parse_destination	err	None
+i185	/Common/app.app/node1	f5-cli::explain_flow::parse_destination	err	None
+i186	/T1/node1	f5-cli::explain_flow::parse_destination	err	None
+i187	/T1/node1:80	f5-cli::explain_flow::parse_destination	err	None
+i188	node1.80	f5-cli::explain_flow::parse_destination	err	None
+i189	/Common/node1.80	f5-cli::explain_flow::parse_destination	err	None
+i190	/Common/app.app/node1.80	f5-cli::explain_flow::parse_destination	err	None
+i191	/T1/node1.80	f5-cli::explain_flow::parse_destination	err	None
+i192	node1:any	f5-cli::explain_flow::parse_destination	err	None
+i193	/Common/app.app/node1:any	f5-cli::explain_flow::parse_destination	err	None
+i194	/T1/node1:any	f5-cli::explain_flow::parse_destination	err	None
+i195	node1:http	f5-cli::explain_flow::parse_destination	err	None
+i196	/Common/app.app/node1:http	f5-cli::explain_flow::parse_destination	err	None
+i197	/T1/node1:http	f5-cli::explain_flow::parse_destination	err	None
+i198	node1:0	f5-cli::explain_flow::parse_destination	err	None
+i199	/Common/app.app/node1:0	f5-cli::explain_flow::parse_destination	err	None
+i200	/T1/node1:0	f5-cli::explain_flow::parse_destination	err	None
+i201	node1%0	f5-cli::explain_flow::parse_destination	err	None
+i202	/Common/node1%0	f5-cli::explain_flow::parse_destination	err	None
+i203	/Common/app.app/node1%0	f5-cli::explain_flow::parse_destination	err	None
+i204	/T1/node1%0	f5-cli::explain_flow::parse_destination	err	None
+i205	node1%0:80	f5-cli::explain_flow::parse_destination	err	None
+i206	/Common/node1%0:80	f5-cli::explain_flow::parse_destination	err	None
+i207	/Common/app.app/node1%0:80	f5-cli::explain_flow::parse_destination	err	None
+i208	/T1/node1%0:80	f5-cli::explain_flow::parse_destination	err	None
+i209	node1%0.80	f5-cli::explain_flow::parse_destination	err	None
+i210	/Common/node1%0.80	f5-cli::explain_flow::parse_destination	err	None
+i211	/Common/app.app/node1%0.80	f5-cli::explain_flow::parse_destination	err	None
+i212	/T1/node1%0.80	f5-cli::explain_flow::parse_destination	err	None
+i213	node1%0:any	f5-cli::explain_flow::parse_destination	err	None
+i214	/Common/node1%0:any	f5-cli::explain_flow::parse_destination	err	None
+i215	/Common/app.app/node1%0:any	f5-cli::explain_flow::parse_destination	err	None
+i216	/T1/node1%0:any	f5-cli::explain_flow::parse_destination	err	None
+i217	node1%0:http	f5-cli::explain_flow::parse_destination	err	None
+i218	/Common/node1%0:http	f5-cli::explain_flow::parse_destination	err	None
+i219	/Common/app.app/node1%0:http	f5-cli::explain_flow::parse_destination	err	None
+i220	/T1/node1%0:http	f5-cli::explain_flow::parse_destination	err	None
+i221	node1%0:0	f5-cli::explain_flow::parse_destination	err	None
+i222	/Common/node1%0:0	f5-cli::explain_flow::parse_destination	err	None
+i223	/Common/app.app/node1%0:0	f5-cli::explain_flow::parse_destination	err	None
+i224	/T1/node1%0:0	f5-cli::explain_flow::parse_destination	err	None
+i225	node1%2	f5-cli::explain_flow::parse_destination	err	None
+i226	/Common/node1%2	f5-cli::explain_flow::parse_destination	err	None
+i227	/Common/app.app/node1%2	f5-cli::explain_flow::parse_destination	err	None
+i228	/T1/node1%2	f5-cli::explain_flow::parse_destination	err	None
+i229	node1%2:80	f5-cli::explain_flow::parse_destination	err	None
+i230	/Common/node1%2:80	f5-cli::explain_flow::parse_destination	err	None
+i231	/Common/app.app/node1%2:80	f5-cli::explain_flow::parse_destination	err	None
+i232	/T1/node1%2:80	f5-cli::explain_flow::parse_destination	err	None
+i233	node1%2.80	f5-cli::explain_flow::parse_destination	err	None
+i234	/Common/node1%2.80	f5-cli::explain_flow::parse_destination	err	None
+i235	/Common/app.app/node1%2.80	f5-cli::explain_flow::parse_destination	err	None
+i236	/T1/node1%2.80	f5-cli::explain_flow::parse_destination	err	None
+i237	node1%2:any	f5-cli::explain_flow::parse_destination	err	None
+i238	/Common/node1%2:any	f5-cli::explain_flow::parse_destination	err	None
+i239	/Common/app.app/node1%2:any	f5-cli::explain_flow::parse_destination	err	None
+i240	/T1/node1%2:any	f5-cli::explain_flow::parse_destination	err	None
+i241	node1%2:http	f5-cli::explain_flow::parse_destination	err	None
+i242	/Common/node1%2:http	f5-cli::explain_flow::parse_destination	err	None
+i243	/Common/app.app/node1%2:http	f5-cli::explain_flow::parse_destination	err	None
+i244	/T1/node1%2:http	f5-cli::explain_flow::parse_destination	err	None
+i245	node1%2:0	f5-cli::explain_flow::parse_destination	err	None
+i246	/Common/node1%2:0	f5-cli::explain_flow::parse_destination	err	None
+i247	/Common/app.app/node1%2:0	f5-cli::explain_flow::parse_destination	err	None
+i248	/T1/node1%2:0	f5-cli::explain_flow::parse_destination	err	None
+i249	/Common/app.app/www.example.com	f5-cli::explain_flow::parse_destination	err	None
+i250	/T1/www.example.com	f5-cli::explain_flow::parse_destination	err	None
+i251	www.example.com:80	f5-cli::explain_flow::parse_destination	err	None
+i252	/Common/www.example.com:80	f5-cli::explain_flow::parse_destination	err	None
+i253	/Common/app.app/www.example.com:80	f5-cli::explain_flow::parse_destination	err	None
+i254	/T1/www.example.com:80	f5-cli::explain_flow::parse_destination	err	None
+i255	www.example.com.80	f5-cli::explain_flow::parse_destination	err	None
+i256	/Common/www.example.com.80	f5-cli::explain_flow::parse_destination	err	None
+i257	/Common/app.app/www.example.com.80	f5-cli::explain_flow::parse_destination	err	None
+i258	/T1/www.example.com.80	f5-cli::explain_flow::parse_destination	err	None
+i259	www.example.com:any	f5-cli::explain_flow::parse_destination	err	None
+i260	/Common/www.example.com:any	f5-cli::explain_flow::parse_destination	err	None
+i261	/Common/app.app/www.example.com:any	f5-cli::explain_flow::parse_destination	err	None
+i262	/T1/www.example.com:any	f5-cli::explain_flow::parse_destination	err	None
+i263	www.example.com:http	f5-cli::explain_flow::parse_destination	err	None
+i264	/Common/www.example.com:http	f5-cli::explain_flow::parse_destination	err	None
+i265	/Common/app.app/www.example.com:http	f5-cli::explain_flow::parse_destination	err	None
+i266	/T1/www.example.com:http	f5-cli::explain_flow::parse_destination	err	None
+i267	www.example.com:0	f5-cli::explain_flow::parse_destination	err	None
+i268	/Common/www.example.com:0	f5-cli::explain_flow::parse_destination	err	None
+i269	/Common/app.app/www.example.com:0	f5-cli::explain_flow::parse_destination	err	None
+i270	/T1/www.example.com:0	f5-cli::explain_flow::parse_destination	err	None
+i271	www.example.com%0	f5-cli::explain_flow::parse_destination	err	None
+i272	/Common/www.example.com%0	f5-cli::explain_flow::parse_destination	err	None
+i273	/Common/app.app/www.example.com%0	f5-cli::explain_flow::parse_destination	err	None
+i274	/T1/www.example.com%0	f5-cli::explain_flow::parse_destination	err	None
+i275	www.example.com%0:80	f5-cli::explain_flow::parse_destination	err	None
+i276	/Common/www.example.com%0:80	f5-cli::explain_flow::parse_destination	err	None
+i277	/Common/app.app/www.example.com%0:80	f5-cli::explain_flow::parse_destination	err	None
+i278	/T1/www.example.com%0:80	f5-cli::explain_flow::parse_destination	err	None
+i279	www.example.com%0.80	f5-cli::explain_flow::parse_destination	err	None
+i280	/Common/www.example.com%0.80	f5-cli::explain_flow::parse_destination	err	None
+i281	/Common/app.app/www.example.com%0.80	f5-cli::explain_flow::parse_destination	err	None
+i282	/T1/www.example.com%0.80	f5-cli::explain_flow::parse_destination	err	None
+i283	www.example.com%0:any	f5-cli::explain_flow::parse_destination	err	None
+i284	/Common/www.example.com%0:any	f5-cli::explain_flow::parse_destination	err	None
+i285	/Common/app.app/www.example.com%0:any	f5-cli::explain_flow::parse_destination	err	None
+i286	/T1/www.example.com%0:any	f5-cli::explain_flow::parse_destination	err	None
+i287	www.example.com%0:http	f5-cli::explain_flow::parse_destination	err	None
+i288	/Common/www.example.com%0:http	f5-cli::explain_flow::parse_destination	err	None
+i289	/Common/app.app/www.example.com%0:http	f5-cli::explain_flow::parse_destination	err	None
+i290	/T1/www.example.com%0:http	f5-cli::explain_flow::parse_destination	err	None
+i291	www.example.com%0:0	f5-cli::explain_flow::parse_destination	err	None
+i292	/Common/www.example.com%0:0	f5-cli::explain_flow::parse_destination	err	None
+i293	/Common/app.app/www.example.com%0:0	f5-cli::explain_flow::parse_destination	err	None
+i294	/T1/www.example.com%0:0	f5-cli::explain_flow::parse_destination	err	None
+i295	www.example.com%2	f5-cli::explain_flow::parse_destination	err	None
+i296	/Common/www.example.com%2	f5-cli::explain_flow::parse_destination	err	None
+i297	/Common/app.app/www.example.com%2	f5-cli::explain_flow::parse_destination	err	None
+i298	/T1/www.example.com%2	f5-cli::explain_flow::parse_destination	err	None
+i299	www.example.com%2:80	f5-cli::explain_flow::parse_destination	err	None
+i300	/Common/www.example.com%2:80	f5-cli::explain_flow::parse_destination	err	None
+i301	/Common/app.app/www.example.com%2:80	f5-cli::explain_flow::parse_destination	err	None
+i302	/T1/www.example.com%2:80	f5-cli::explain_flow::parse_destination	err	None
+i303	www.example.com%2.80	f5-cli::explain_flow::parse_destination	err	None
+i304	/Common/www.example.com%2.80	f5-cli::explain_flow::parse_destination	err	None
+i305	/Common/app.app/www.example.com%2.80	f5-cli::explain_flow::parse_destination	err	None
+i306	/T1/www.example.com%2.80	f5-cli::explain_flow::parse_destination	err	None
+i307	www.example.com%2:any	f5-cli::explain_flow::parse_destination	err	None
+i308	/Common/www.example.com%2:any	f5-cli::explain_flow::parse_destination	err	None
+i309	/Common/app.app/www.example.com%2:any	f5-cli::explain_flow::parse_destination	err	None
+i310	/T1/www.example.com%2:any	f5-cli::explain_flow::parse_destination	err	None
+i311	www.example.com%2:http	f5-cli::explain_flow::parse_destination	err	None
+i312	/Common/www.example.com%2:http	f5-cli::explain_flow::parse_destination	err	None
+i313	/Common/app.app/www.example.com%2:http	f5-cli::explain_flow::parse_destination	err	None
+i314	/T1/www.example.com%2:http	f5-cli::explain_flow::parse_destination	err	None
+i315	www.example.com%2:0	f5-cli::explain_flow::parse_destination	err	None
+i316	/Common/www.example.com%2:0	f5-cli::explain_flow::parse_destination	err	None
+i317	/Common/app.app/www.example.com%2:0	f5-cli::explain_flow::parse_destination	err	None
+i318	/T1/www.example.com%2:0	f5-cli::explain_flow::parse_destination	err	None
+i319	/Common/app.app/10.0.0.1	f5-cli::explain_flow::parse_destination	err	None
+i320	/T1/10.0.0.1	f5-cli::explain_flow::parse_destination	err	None
+i321	/Common/app.app/10.0.0.1:80	f5-cli::explain_flow::parse_destination	err	None
+i322	/T1/10.0.0.1:80	f5-cli::explain_flow::parse_destination	ok	Some(("10.0.0.1", 80))
+i323	/Common/10.0.0.1.80	f5-cli::explain_flow::parse_destination	err	None
+i324	/Common/app.app/10.0.0.1.80	f5-cli::explain_flow::parse_destination	err	None
+i325	/T1/10.0.0.1.80	f5-cli::explain_flow::parse_destination	err	None
+i326	/Common/10.0.0.1:any	f5-cli::explain_flow::parse_destination	ok	Some(("10.0.0.1", 0))
+i327	/Common/app.app/10.0.0.1:any	f5-cli::explain_flow::parse_destination	err	None
+i328	/T1/10.0.0.1:any	f5-cli::explain_flow::parse_destination	ok	Some(("10.0.0.1", 0))
+i329	/Common/10.0.0.1:http	f5-cli::explain_flow::parse_destination	err	None
+i330	/Common/app.app/10.0.0.1:http	f5-cli::explain_flow::parse_destination	err	None
+i331	/T1/10.0.0.1:http	f5-cli::explain_flow::parse_destination	err	None
+i332	/Common/10.0.0.1:0	f5-cli::explain_flow::parse_destination	ok	Some(("10.0.0.1", 0))
+i333	/Common/app.app/10.0.0.1:0	f5-cli::explain_flow::parse_destination	err	None
+i334	/T1/10.0.0.1:0	f5-cli::explain_flow::parse_destination	ok	Some(("10.0.0.1", 0))
+i335	/Common/10.0.0.1%0	f5-cli::explain_flow::parse_destination	err	None
+i336	/Common/app.app/10.0.0.1%0	f5-cli::explain_flow::parse_destination	err	None
+i337	/T1/10.0.0.1%0	f5-cli::explain_flow::parse_destination	err	None
+i338	10.0.0.1%0:80	f5-cli::explain_flow::parse_destination	ok	Some(("10.0.0.1", 80))
+i339	/Common/10.0.0.1%0:80	f5-cli::explain_flow::parse_destination	ok	Some(("10.0.0.1", 80))
+i340	/Common/app.app/10.0.0.1%0:80	f5-cli::explain_flow::parse_destination	err	None
+i341	/T1/10.0.0.1%0:80	f5-cli::explain_flow::parse_destination	ok	Some(("10.0.0.1", 80))
+i342	10.0.0.1%0.80	f5-cli::explain_flow::parse_destination	err	None
+i343	/Common/10.0.0.1%0.80	f5-cli::explain_flow::parse_destination	err	None
+i344	/Common/app.app/10.0.0.1%0.80	f5-cli::explain_flow::parse_destination	err	None
+i345	/T1/10.0.0.1%0.80	f5-cli::explain_flow::parse_destination	err	None
+i346	10.0.0.1%0:any	f5-cli::explain_flow::parse_destination	ok	Some(("10.0.0.1", 0))
+i347	/Common/10.0.0.1%0:any	f5-cli::explain_flow::parse_destination	ok	Some(("10.0.0.1", 0))
+i348	/Common/app.app/10.0.0.1%0:any	f5-cli::explain_flow::parse_destination	err	None
+i349	/T1/10.0.0.1%0:any	f5-cli::explain_flow::parse_destination	ok	Some(("10.0.0.1", 0))
+i350	10.0.0.1%0:http	f5-cli::explain_flow::parse_destination	err	None
+i351	/Common/10.0.0.1%0:http	f5-cli::explain_flow::parse_destination	err	None
+i352	/Common/app.app/10.0.0.1%0:http	f5-cli::explain_flow::parse_destination	err	None
+i353	/T1/10.0.0.1%0:http	f5-cli::explain_flow::parse_destination	err	None
+i354	10.0.0.1%0:0	f5-cli::explain_flow::parse_destination	ok	Some(("10.0.0.1", 0))
+i355	/Common/10.0.0.1%0:0	f5-cli::explain_flow::parse_destination	ok	Some(("10.0.0.1", 0))
+i356	/Common/app.app/10.0.0.1%0:0	f5-cli::explain_flow::parse_destination	err	None
+i357	/T1/10.0.0.1%0:0	f5-cli::explain_flow::parse_destination	ok	Some(("10.0.0.1", 0))
+i358	/Common/app.app/10.0.0.1%2	f5-cli::explain_flow::parse_destination	err	None
+i359	/T1/10.0.0.1%2	f5-cli::explain_flow::parse_destination	err	None
+i360	/Common/app.app/10.0.0.1%2:80	f5-cli::explain_flow::parse_destination	err	None
+i361	/T1/10.0.0.1%2:80	f5-cli::explain_flow::parse_destination	ok	Some(("10.0.0.1", 80))
+i362	10.0.0.1%2.80	f5-cli::explain_flow::parse_destination	err	None
+i363	/Common/10.0.0.1%2.80	f5-cli::explain_flow::parse_destination	err	None
+i364	/Common/app.app/10.0.0.1%2.80	f5-cli::explain_flow::parse_destination	err	None
+i365	/T1/10.0.0.1%2.80	f5-cli::explain_flow::parse_destination	err	None
+i366	10.0.0.1%2:any	f5-cli::explain_flow::parse_destination	ok	Some(("10.0.0.1", 0))
+i367	/Common/10.0.0.1%2:any	f5-cli::explain_flow::parse_destination	ok	Some(("10.0.0.1", 0))
+i368	/Common/app.app/10.0.0.1%2:any	f5-cli::explain_flow::parse_destination	err	None
+i369	/T1/10.0.0.1%2:any	f5-cli::explain_flow::parse_destination	ok	Some(("10.0.0.1", 0))
+i370	10.0.0.1%2:http	f5-cli::explain_flow::parse_destination	err	None
+i371	/Common/10.0.0.1%2:http	f5-cli::explain_flow::parse_destination	err	None
+i372	/Common/app.app/10.0.0.1%2:http	f5-cli::explain_flow::parse_destination	err	None
+i373	/T1/10.0.0.1%2:http	f5-cli::explain_flow::parse_destination	err	None
+i374	10.0.0.1%2:0	f5-cli::explain_flow::parse_destination	ok	Some(("10.0.0.1", 0))
+i375	/Common/10.0.0.1%2:0	f5-cli::explain_flow::parse_destination	ok	Some(("10.0.0.1", 0))
+i376	/Common/app.app/10.0.0.1%2:0	f5-cli::explain_flow::parse_destination	err	None
+i377	/T1/10.0.0.1%2:0	f5-cli::explain_flow::parse_destination	ok	Some(("10.0.0.1", 0))
+i378	/Common/0.0.0.0	f5-cli::explain_flow::parse_destination	err	None
+i379	/Common/app.app/0.0.0.0	f5-cli::explain_flow::parse_destination	err	None
+i380	/T1/0.0.0.0	f5-cli::explain_flow::parse_destination	err	None
+i381	0.0.0.0:80	f5-cli::explain_flow::parse_destination	ok	Some(("0.0.0.0", 80))
+i382	/Common/0.0.0.0:80	f5-cli::explain_flow::parse_destination	ok	Some(("0.0.0.0", 80))
+i383	/Common/app.app/0.0.0.0:80	f5-cli::explain_flow::parse_destination	err	None
+i384	/T1/0.0.0.0:80	f5-cli::explain_flow::parse_destination	ok	Some(("0.0.0.0", 80))
+i385	0.0.0.0.80	f5-cli::explain_flow::parse_destination	err	None
+i386	/Common/0.0.0.0.80	f5-cli::explain_flow::parse_destination	err	None
+i387	/Common/app.app/0.0.0.0.80	f5-cli::explain_flow::parse_destination	err	None
+i388	/T1/0.0.0.0.80	f5-cli::explain_flow::parse_destination	err	None
+i389	/Common/0.0.0.0:any	f5-cli::explain_flow::parse_destination	ok	Some(("0.0.0.0", 0))
+i390	/Common/app.app/0.0.0.0:any	f5-cli::explain_flow::parse_destination	err	None
+i391	/T1/0.0.0.0:any	f5-cli::explain_flow::parse_destination	ok	Some(("0.0.0.0", 0))
+i392	0.0.0.0:http	f5-cli::explain_flow::parse_destination	err	None
+i393	/Common/0.0.0.0:http	f5-cli::explain_flow::parse_destination	err	None
+i394	/Common/app.app/0.0.0.0:http	f5-cli::explain_flow::parse_destination	err	None
+i395	/T1/0.0.0.0:http	f5-cli::explain_flow::parse_destination	err	None
+i396	/Common/0.0.0.0:0	f5-cli::explain_flow::parse_destination	ok	Some(("0.0.0.0", 0))
+i397	/Common/app.app/0.0.0.0:0	f5-cli::explain_flow::parse_destination	err	None
+i398	/T1/0.0.0.0:0	f5-cli::explain_flow::parse_destination	ok	Some(("0.0.0.0", 0))
+i399	0.0.0.0%0	f5-cli::explain_flow::parse_destination	err	None
+i400	/Common/0.0.0.0%0	f5-cli::explain_flow::parse_destination	err	None
+i401	/Common/app.app/0.0.0.0%0	f5-cli::explain_flow::parse_destination	err	None
+i402	/T1/0.0.0.0%0	f5-cli::explain_flow::parse_destination	err	None
+i403	0.0.0.0%0:80	f5-cli::explain_flow::parse_destination	ok	Some(("0.0.0.0", 80))
+i404	/Common/0.0.0.0%0:80	f5-cli::explain_flow::parse_destination	ok	Some(("0.0.0.0", 80))
+i405	/Common/app.app/0.0.0.0%0:80	f5-cli::explain_flow::parse_destination	err	None
+i406	/T1/0.0.0.0%0:80	f5-cli::explain_flow::parse_destination	ok	Some(("0.0.0.0", 80))
+i407	0.0.0.0%0.80	f5-cli::explain_flow::parse_destination	err	None
+i408	/Common/0.0.0.0%0.80	f5-cli::explain_flow::parse_destination	err	None
+i409	/Common/app.app/0.0.0.0%0.80	f5-cli::explain_flow::parse_destination	err	None
+i410	/T1/0.0.0.0%0.80	f5-cli::explain_flow::parse_destination	err	None
+i411	0.0.0.0%0:any	f5-cli::explain_flow::parse_destination	ok	Some(("0.0.0.0", 0))
+i412	/Common/0.0.0.0%0:any	f5-cli::explain_flow::parse_destination	ok	Some(("0.0.0.0", 0))
+i413	/Common/app.app/0.0.0.0%0:any	f5-cli::explain_flow::parse_destination	err	None
+i414	/T1/0.0.0.0%0:any	f5-cli::explain_flow::parse_destination	ok	Some(("0.0.0.0", 0))
+i415	0.0.0.0%0:http	f5-cli::explain_flow::parse_destination	err	None
+i416	/Common/0.0.0.0%0:http	f5-cli::explain_flow::parse_destination	err	None
+i417	/Common/app.app/0.0.0.0%0:http	f5-cli::explain_flow::parse_destination	err	None
+i418	/T1/0.0.0.0%0:http	f5-cli::explain_flow::parse_destination	err	None
+i419	0.0.0.0%0:0	f5-cli::explain_flow::parse_destination	ok	Some(("0.0.0.0", 0))
+i420	/Common/0.0.0.0%0:0	f5-cli::explain_flow::parse_destination	ok	Some(("0.0.0.0", 0))
+i421	/Common/app.app/0.0.0.0%0:0	f5-cli::explain_flow::parse_destination	err	None
+i422	/T1/0.0.0.0%0:0	f5-cli::explain_flow::parse_destination	ok	Some(("0.0.0.0", 0))
+i423	0.0.0.0%2	f5-cli::explain_flow::parse_destination	err	None
+i424	/Common/0.0.0.0%2	f5-cli::explain_flow::parse_destination	err	None
+i425	/Common/app.app/0.0.0.0%2	f5-cli::explain_flow::parse_destination	err	None
+i426	/T1/0.0.0.0%2	f5-cli::explain_flow::parse_destination	err	None
+i427	0.0.0.0%2:80	f5-cli::explain_flow::parse_destination	ok	Some(("0.0.0.0", 80))
+i428	/Common/0.0.0.0%2:80	f5-cli::explain_flow::parse_destination	ok	Some(("0.0.0.0", 80))
+i429	/Common/app.app/0.0.0.0%2:80	f5-cli::explain_flow::parse_destination	err	None
+i430	/T1/0.0.0.0%2:80	f5-cli::explain_flow::parse_destination	ok	Some(("0.0.0.0", 80))
+i431	0.0.0.0%2.80	f5-cli::explain_flow::parse_destination	err	None
+i432	/Common/0.0.0.0%2.80	f5-cli::explain_flow::parse_destination	err	None
+i433	/Common/app.app/0.0.0.0%2.80	f5-cli::explain_flow::parse_destination	err	None
+i434	/T1/0.0.0.0%2.80	f5-cli::explain_flow::parse_destination	err	None
+i435	0.0.0.0%2:any	f5-cli::explain_flow::parse_destination	ok	Some(("0.0.0.0", 0))
+i436	/Common/0.0.0.0%2:any	f5-cli::explain_flow::parse_destination	ok	Some(("0.0.0.0", 0))
+i437	/Common/app.app/0.0.0.0%2:any	f5-cli::explain_flow::parse_destination	err	None
+i438	/T1/0.0.0.0%2:any	f5-cli::explain_flow::parse_destination	ok	Some(("0.0.0.0", 0))
+i439	0.0.0.0%2:http	f5-cli::explain_flow::parse_destination	err	None
+i440	/Common/0.0.0.0%2:http	f5-cli::explain_flow::parse_destination	err	None
+i441	/Common/app.app/0.0.0.0%2:http	f5-cli::explain_flow::parse_destination	err	None
+i442	/T1/0.0.0.0%2:http	f5-cli::explain_flow::parse_destination	err	None
+i443	/Common/0.0.0.0%2:0	f5-cli::explain_flow::parse_destination	ok	Some(("0.0.0.0", 0))
+i444	/Common/app.app/0.0.0.0%2:0	f5-cli::explain_flow::parse_destination	err	None
+i445	/T1/0.0.0.0%2:0	f5-cli::explain_flow::parse_destination	ok	Some(("0.0.0.0", 0))
+i446	/Common/app.app/2001:db8::1	f5-cli::explain_flow::parse_destination	err	None
+i447	/T1/2001:db8::1	f5-cli::explain_flow::parse_destination	err	None
+i448	/Common/app.app/2001:db8::1.80	f5-cli::explain_flow::parse_destination	err	None
+i449	/T1/2001:db8::1.80	f5-cli::explain_flow::parse_destination	err	None
+i450	/Common/2001:db8::1:80	f5-cli::explain_flow::parse_destination	ok	Some(("2001:db8::1", 80))
+i451	/Common/app.app/2001:db8::1:80	f5-cli::explain_flow::parse_destination	err	None
+i452	/T1/2001:db8::1:80	f5-cli::explain_flow::parse_destination	ok	Some(("2001:db8::1", 80))
+i453	/Common/2001:db8::1.any	f5-cli::explain_flow::parse_destination	err	None
+i454	/Common/app.app/2001:db8::1.any	f5-cli::explain_flow::parse_destination	err	None
+i455	/T1/2001:db8::1.any	f5-cli::explain_flow::parse_destination	err	None
+i456	/Common/2001:db8::1.http	f5-cli::explain_flow::parse_destination	err	None
+i457	/Common/app.app/2001:db8::1.http	f5-cli::explain_flow::parse_destination	err	None
+i458	/T1/2001:db8::1.http	f5-cli::explain_flow::parse_destination	err	None
+i459	/Common/2001:db8::1.0	f5-cli::explain_flow::parse_destination	err	None
+i460	/Common/app.app/2001:db8::1.0	f5-cli::explain_flow::parse_destination	err	None
+i461	/T1/2001:db8::1.0	f5-cli::explain_flow::parse_destination	err	None
+i462	2001:db8::1%0	f5-cli::explain_flow::parse_destination	err	None
+i463	/Common/2001:db8::1%0	f5-cli::explain_flow::parse_destination	err	None
+i464	/Common/app.app/2001:db8::1%0	f5-cli::explain_flow::parse_destination	err	None
+i465	/T1/2001:db8::1%0	f5-cli::explain_flow::parse_destination	err	None
+i466	2001:db8::1%0.80	f5-cli::explain_flow::parse_destination	err	None
+i467	/Common/2001:db8::1%0.80	f5-cli::explain_flow::parse_destination	err	None
+i468	/Common/app.app/2001:db8::1%0.80	f5-cli::explain_flow::parse_destination	err	None
+i469	/T1/2001:db8::1%0.80	f5-cli::explain_flow::parse_destination	err	None
+i470	2001:db8::1%0:80	f5-cli::explain_flow::parse_destination	ok	Some(("2001:db8::1", 80))
+i471	/Common/2001:db8::1%0:80	f5-cli::explain_flow::parse_destination	ok	Some(("2001:db8::1", 80))
+i472	/Common/app.app/2001:db8::1%0:80	f5-cli::explain_flow::parse_destination	err	None
+i473	/T1/2001:db8::1%0:80	f5-cli::explain_flow::parse_destination	ok	Some(("2001:db8::1", 80))
+i474	2001:db8::1%0.any	f5-cli::explain_flow::parse_destination	err	None
+i475	/Common/2001:db8::1%0.any	f5-cli::explain_flow::parse_destination	err	None
+i476	/Common/app.app/2001:db8::1%0.any	f5-cli::explain_flow::parse_destination	err	None
+i477	/T1/2001:db8::1%0.any	f5-cli::explain_flow::parse_destination	err	None
+i478	2001:db8::1%0.http	f5-cli::explain_flow::parse_destination	err	None
+i479	/Common/2001:db8::1%0.http	f5-cli::explain_flow::parse_destination	err	None
+i480	/Common/app.app/2001:db8::1%0.http	f5-cli::explain_flow::parse_destination	err	None
+i481	/T1/2001:db8::1%0.http	f5-cli::explain_flow::parse_destination	err	None
+i482	2001:db8::1%0.0	f5-cli::explain_flow::parse_destination	err	None
+i483	/Common/2001:db8::1%0.0	f5-cli::explain_flow::parse_destination	err	None
+i484	/Common/app.app/2001:db8::1%0.0	f5-cli::explain_flow::parse_destination	err	None
+i485	/T1/2001:db8::1%0.0	f5-cli::explain_flow::parse_destination	err	None
+i486	2001:db8::1%2	f5-cli::explain_flow::parse_destination	err	None
+i487	/Common/2001:db8::1%2	f5-cli::explain_flow::parse_destination	err	None
+i488	/Common/app.app/2001:db8::1%2	f5-cli::explain_flow::parse_destination	err	None
+i489	/T1/2001:db8::1%2	f5-cli::explain_flow::parse_destination	err	None
+i490	/Common/app.app/2001:db8::1%2.80	f5-cli::explain_flow::parse_destination	err	None
+i491	/T1/2001:db8::1%2.80	f5-cli::explain_flow::parse_destination	err	None
+i492	/Common/app.app/2001:db8::1%2:80	f5-cli::explain_flow::parse_destination	err	None
+i493	/T1/2001:db8::1%2:80	f5-cli::explain_flow::parse_destination	ok	Some(("2001:db8::1", 80))
+i494	2001:db8::1%2.any	f5-cli::explain_flow::parse_destination	err	None
+i495	/Common/2001:db8::1%2.any	f5-cli::explain_flow::parse_destination	err	None
+i496	/Common/app.app/2001:db8::1%2.any	f5-cli::explain_flow::parse_destination	err	None
+i497	/T1/2001:db8::1%2.any	f5-cli::explain_flow::parse_destination	err	None
+i498	2001:db8::1%2.http	f5-cli::explain_flow::parse_destination	err	None
+i499	/Common/2001:db8::1%2.http	f5-cli::explain_flow::parse_destination	err	None
+i500	/Common/app.app/2001:db8::1%2.http	f5-cli::explain_flow::parse_destination	err	None
+i501	/T1/2001:db8::1%2.http	f5-cli::explain_flow::parse_destination	err	None
+i502	2001:db8::1%2.0	f5-cli::explain_flow::parse_destination	err	None
+i503	/Common/2001:db8::1%2.0	f5-cli::explain_flow::parse_destination	err	None
+i504	/Common/app.app/2001:db8::1%2.0	f5-cli::explain_flow::parse_destination	err	None
+i505	/T1/2001:db8::1%2.0	f5-cli::explain_flow::parse_destination	err	None
+i506	/Common/::	f5-cli::explain_flow::parse_destination	err	None
+i507	/Common/app.app/::	f5-cli::explain_flow::parse_destination	err	None
+i508	/T1/::	f5-cli::explain_flow::parse_destination	err	None
+i509	::.80	f5-cli::explain_flow::parse_destination	err	None
+i510	/Common/::.80	f5-cli::explain_flow::parse_destination	err	None
+i511	/Common/app.app/::.80	f5-cli::explain_flow::parse_destination	err	None
+i512	/T1/::.80	f5-cli::explain_flow::parse_destination	err	None
+i513	:::80	f5-cli::explain_flow::parse_destination	ok	Some(("::", 80))
+i514	/Common/:::80	f5-cli::explain_flow::parse_destination	ok	Some(("::", 80))
+i515	/Common/app.app/:::80	f5-cli::explain_flow::parse_destination	err	None
+i516	/T1/:::80	f5-cli::explain_flow::parse_destination	ok	Some(("::", 80))
+i517	/Common/::.any	f5-cli::explain_flow::parse_destination	err	None
+i518	/Common/app.app/::.any	f5-cli::explain_flow::parse_destination	err	None
+i519	/T1/::.any	f5-cli::explain_flow::parse_destination	err	None
+i520	::.http	f5-cli::explain_flow::parse_destination	err	None
+i521	/Common/::.http	f5-cli::explain_flow::parse_destination	err	None
+i522	/Common/app.app/::.http	f5-cli::explain_flow::parse_destination	err	None
+i523	/T1/::.http	f5-cli::explain_flow::parse_destination	err	None
+i524	/Common/::.0	f5-cli::explain_flow::parse_destination	err	None
+i525	/Common/app.app/::.0	f5-cli::explain_flow::parse_destination	err	None
+i526	/T1/::.0	f5-cli::explain_flow::parse_destination	err	None
+i527	::%0	f5-cli::explain_flow::parse_destination	err	None
+i528	/Common/::%0	f5-cli::explain_flow::parse_destination	err	None
+i529	/Common/app.app/::%0	f5-cli::explain_flow::parse_destination	err	None
+i530	/T1/::%0	f5-cli::explain_flow::parse_destination	err	None
+i531	::%0.80	f5-cli::explain_flow::parse_destination	err	None
+i532	/Common/::%0.80	f5-cli::explain_flow::parse_destination	err	None
+i533	/Common/app.app/::%0.80	f5-cli::explain_flow::parse_destination	err	None
+i534	/T1/::%0.80	f5-cli::explain_flow::parse_destination	err	None
+i535	::%0:80	f5-cli::explain_flow::parse_destination	ok	Some(("::", 80))
+i536	/Common/::%0:80	f5-cli::explain_flow::parse_destination	ok	Some(("::", 80))
+i537	/Common/app.app/::%0:80	f5-cli::explain_flow::parse_destination	err	None
+i538	/T1/::%0:80	f5-cli::explain_flow::parse_destination	ok	Some(("::", 80))
+i539	::%0.any	f5-cli::explain_flow::parse_destination	err	None
+i540	/Common/::%0.any	f5-cli::explain_flow::parse_destination	err	None
+i541	/Common/app.app/::%0.any	f5-cli::explain_flow::parse_destination	err	None
+i542	/T1/::%0.any	f5-cli::explain_flow::parse_destination	err	None
+i543	::%0.http	f5-cli::explain_flow::parse_destination	err	None
+i544	/Common/::%0.http	f5-cli::explain_flow::parse_destination	err	None
+i545	/Common/app.app/::%0.http	f5-cli::explain_flow::parse_destination	err	None
+i546	/T1/::%0.http	f5-cli::explain_flow::parse_destination	err	None
+i547	::%0.0	f5-cli::explain_flow::parse_destination	err	None
+i548	/Common/::%0.0	f5-cli::explain_flow::parse_destination	err	None
+i549	/Common/app.app/::%0.0	f5-cli::explain_flow::parse_destination	err	None
+i550	/T1/::%0.0	f5-cli::explain_flow::parse_destination	err	None
+i551	::%2	f5-cli::explain_flow::parse_destination	err	None
+i552	/Common/::%2	f5-cli::explain_flow::parse_destination	err	None
+i553	/Common/app.app/::%2	f5-cli::explain_flow::parse_destination	err	None
+i554	/T1/::%2	f5-cli::explain_flow::parse_destination	err	None
+i555	::%2.80	f5-cli::explain_flow::parse_destination	err	None
+i556	/Common/::%2.80	f5-cli::explain_flow::parse_destination	err	None
+i557	/Common/app.app/::%2.80	f5-cli::explain_flow::parse_destination	err	None
+i558	/T1/::%2.80	f5-cli::explain_flow::parse_destination	err	None
+i559	::%2:80	f5-cli::explain_flow::parse_destination	ok	Some(("::", 80))
+i560	/Common/::%2:80	f5-cli::explain_flow::parse_destination	ok	Some(("::", 80))
+i561	/Common/app.app/::%2:80	f5-cli::explain_flow::parse_destination	err	None
+i562	/T1/::%2:80	f5-cli::explain_flow::parse_destination	ok	Some(("::", 80))
+i563	::%2.any	f5-cli::explain_flow::parse_destination	err	None
+i564	/Common/::%2.any	f5-cli::explain_flow::parse_destination	err	None
+i565	/Common/app.app/::%2.any	f5-cli::explain_flow::parse_destination	err	None
+i566	/T1/::%2.any	f5-cli::explain_flow::parse_destination	err	None
+i567	::%2.http	f5-cli::explain_flow::parse_destination	err	None
+i568	/Common/::%2.http	f5-cli::explain_flow::parse_destination	err	None
+i569	/Common/app.app/::%2.http	f5-cli::explain_flow::parse_destination	err	None
+i570	/T1/::%2.http	f5-cli::explain_flow::parse_destination	err	None
+i571	::%2.0	f5-cli::explain_flow::parse_destination	err	None
+i572	/Common/::%2.0	f5-cli::explain_flow::parse_destination	err	None
+i573	/Common/app.app/::%2.0	f5-cli::explain_flow::parse_destination	err	None
+i574	/T1/::%2.0	f5-cli::explain_flow::parse_destination	err	None
+i575	/Common/::ffff:10.0.0.1	f5-cli::explain_flow::parse_destination	err	None
+i576	/Common/app.app/::ffff:10.0.0.1	f5-cli::explain_flow::parse_destination	err	None
+i577	/T1/::ffff:10.0.0.1	f5-cli::explain_flow::parse_destination	err	None
+i578	/Common/app.app/::ffff:10.0.0.1.80	f5-cli::explain_flow::parse_destination	err	None
+i579	/T1/::ffff:10.0.0.1.80	f5-cli::explain_flow::parse_destination	err	None
+i580	::ffff:10.0.0.1:80	f5-cli::explain_flow::parse_destination	ok	Some(("::ffff:10.0.0.1", 80))
+i581	/Common/::ffff:10.0.0.1:80	f5-cli::explain_flow::parse_destination	ok	Some(("::ffff:10.0.0.1", 80))
+i582	/Common/app.app/::ffff:10.0.0.1:80	f5-cli::explain_flow::parse_destination	err	None
+i583	/T1/::ffff:10.0.0.1:80	f5-cli::explain_flow::parse_destination	ok	Some(("::ffff:10.0.0.1", 80))
+i584	::ffff:10.0.0.1.any	f5-cli::explain_flow::parse_destination	err	None
+i585	/Common/::ffff:10.0.0.1.any	f5-cli::explain_flow::parse_destination	err	None
+i586	/Common/app.app/::ffff:10.0.0.1.any	f5-cli::explain_flow::parse_destination	err	None
+i587	/T1/::ffff:10.0.0.1.any	f5-cli::explain_flow::parse_destination	err	None
+i588	::ffff:10.0.0.1.http	f5-cli::explain_flow::parse_destination	err	None
+i589	/Common/::ffff:10.0.0.1.http	f5-cli::explain_flow::parse_destination	err	None
+i590	/Common/app.app/::ffff:10.0.0.1.http	f5-cli::explain_flow::parse_destination	err	None
+i591	/T1/::ffff:10.0.0.1.http	f5-cli::explain_flow::parse_destination	err	None
+i592	::ffff:10.0.0.1.0	f5-cli::explain_flow::parse_destination	err	None
+i593	/Common/::ffff:10.0.0.1.0	f5-cli::explain_flow::parse_destination	err	None
+i594	/Common/app.app/::ffff:10.0.0.1.0	f5-cli::explain_flow::parse_destination	err	None
+i595	/T1/::ffff:10.0.0.1.0	f5-cli::explain_flow::parse_destination	err	None
+i596	::ffff:10.0.0.1%0	f5-cli::explain_flow::parse_destination	err	None
+i597	/Common/::ffff:10.0.0.1%0	f5-cli::explain_flow::parse_destination	err	None
+i598	/Common/app.app/::ffff:10.0.0.1%0	f5-cli::explain_flow::parse_destination	err	None
+i599	/T1/::ffff:10.0.0.1%0	f5-cli::explain_flow::parse_destination	err	None
+i600	::ffff:10.0.0.1%0.80	f5-cli::explain_flow::parse_destination	err	None
+i601	/Common/::ffff:10.0.0.1%0.80	f5-cli::explain_flow::parse_destination	err	None
+i602	/Common/app.app/::ffff:10.0.0.1%0.80	f5-cli::explain_flow::parse_destination	err	None
+i603	/T1/::ffff:10.0.0.1%0.80	f5-cli::explain_flow::parse_destination	err	None
+i604	::ffff:10.0.0.1%0:80	f5-cli::explain_flow::parse_destination	ok	Some(("::ffff:10.0.0.1", 80))
+i605	/Common/::ffff:10.0.0.1%0:80	f5-cli::explain_flow::parse_destination	ok	Some(("::ffff:10.0.0.1", 80))
+i606	/Common/app.app/::ffff:10.0.0.1%0:80	f5-cli::explain_flow::parse_destination	err	None
+i607	/T1/::ffff:10.0.0.1%0:80	f5-cli::explain_flow::parse_destination	ok	Some(("::ffff:10.0.0.1", 80))
+i608	::ffff:10.0.0.1%0.any	f5-cli::explain_flow::parse_destination	err	None
+i609	/Common/::ffff:10.0.0.1%0.any	f5-cli::explain_flow::parse_destination	err	None
+i610	/Common/app.app/::ffff:10.0.0.1%0.any	f5-cli::explain_flow::parse_destination	err	None
+i611	/T1/::ffff:10.0.0.1%0.any	f5-cli::explain_flow::parse_destination	err	None
+i612	::ffff:10.0.0.1%0.http	f5-cli::explain_flow::parse_destination	err	None
+i613	/Common/::ffff:10.0.0.1%0.http	f5-cli::explain_flow::parse_destination	err	None
+i614	/Common/app.app/::ffff:10.0.0.1%0.http	f5-cli::explain_flow::parse_destination	err	None
+i615	/T1/::ffff:10.0.0.1%0.http	f5-cli::explain_flow::parse_destination	err	None
+i616	::ffff:10.0.0.1%0.0	f5-cli::explain_flow::parse_destination	err	None
+i617	/Common/::ffff:10.0.0.1%0.0	f5-cli::explain_flow::parse_destination	err	None
+i618	/Common/app.app/::ffff:10.0.0.1%0.0	f5-cli::explain_flow::parse_destination	err	None
+i619	/T1/::ffff:10.0.0.1%0.0	f5-cli::explain_flow::parse_destination	err	None
+i620	::ffff:10.0.0.1%2	f5-cli::explain_flow::parse_destination	err	None
+i621	/Common/::ffff:10.0.0.1%2	f5-cli::explain_flow::parse_destination	err	None
+i622	/Common/app.app/::ffff:10.0.0.1%2	f5-cli::explain_flow::parse_destination	err	None
+i623	/T1/::ffff:10.0.0.1%2	f5-cli::explain_flow::parse_destination	err	None
+i624	::ffff:10.0.0.1%2.80	f5-cli::explain_flow::parse_destination	err	None
+i625	/Common/::ffff:10.0.0.1%2.80	f5-cli::explain_flow::parse_destination	err	None
+i626	/Common/app.app/::ffff:10.0.0.1%2.80	f5-cli::explain_flow::parse_destination	err	None
+i627	/T1/::ffff:10.0.0.1%2.80	f5-cli::explain_flow::parse_destination	err	None
+i628	::ffff:10.0.0.1%2:80	f5-cli::explain_flow::parse_destination	ok	Some(("::ffff:10.0.0.1", 80))
+i629	/Common/::ffff:10.0.0.1%2:80	f5-cli::explain_flow::parse_destination	ok	Some(("::ffff:10.0.0.1", 80))
+i630	/Common/app.app/::ffff:10.0.0.1%2:80	f5-cli::explain_flow::parse_destination	err	None
+i631	/T1/::ffff:10.0.0.1%2:80	f5-cli::explain_flow::parse_destination	ok	Some(("::ffff:10.0.0.1", 80))
+i632	::ffff:10.0.0.1%2.any	f5-cli::explain_flow::parse_destination	err	None
+i633	/Common/::ffff:10.0.0.1%2.any	f5-cli::explain_flow::parse_destination	err	None
+i634	/Common/app.app/::ffff:10.0.0.1%2.any	f5-cli::explain_flow::parse_destination	err	None
+i635	/T1/::ffff:10.0.0.1%2.any	f5-cli::explain_flow::parse_destination	err	None
+i636	::ffff:10.0.0.1%2.http	f5-cli::explain_flow::parse_destination	err	None
+i637	/Common/::ffff:10.0.0.1%2.http	f5-cli::explain_flow::parse_destination	err	None
+i638	/Common/app.app/::ffff:10.0.0.1%2.http	f5-cli::explain_flow::parse_destination	err	None
+i639	/T1/::ffff:10.0.0.1%2.http	f5-cli::explain_flow::parse_destination	err	None
+i640	::ffff:10.0.0.1%2.0	f5-cli::explain_flow::parse_destination	err	None
+i641	/Common/::ffff:10.0.0.1%2.0	f5-cli::explain_flow::parse_destination	err	None
+i642	/Common/app.app/::ffff:10.0.0.1%2.0	f5-cli::explain_flow::parse_destination	err	None
+i643	/T1/::ffff:10.0.0.1%2.0	f5-cli::explain_flow::parse_destination	err	None
+i644	fe80::1	f5-cli::explain_flow::parse_destination	err	None
+i645	/Common/fe80::1	f5-cli::explain_flow::parse_destination	err	None
+i646	/Common/app.app/fe80::1	f5-cli::explain_flow::parse_destination	err	None
+i647	/T1/fe80::1	f5-cli::explain_flow::parse_destination	err	None
+i648	fe80::1.80	f5-cli::explain_flow::parse_destination	err	None
+i649	/Common/fe80::1.80	f5-cli::explain_flow::parse_destination	err	None
+i650	/Common/app.app/fe80::1.80	f5-cli::explain_flow::parse_destination	err	None
+i651	/T1/fe80::1.80	f5-cli::explain_flow::parse_destination	err	None
+i652	/Common/app.app/fe80::1:80	f5-cli::explain_flow::parse_destination	err	None
+i653	/T1/fe80::1:80	f5-cli::explain_flow::parse_destination	ok	Some(("fe80::1", 80))
+i654	fe80::1.any	f5-cli::explain_flow::parse_destination	err	None
+i655	/Common/fe80::1.any	f5-cli::explain_flow::parse_destination	err	None
+i656	/Common/app.app/fe80::1.any	f5-cli::explain_flow::parse_destination	err	None
+i657	/T1/fe80::1.any	f5-cli::explain_flow::parse_destination	err	None
+i658	fe80::1.http	f5-cli::explain_flow::parse_destination	err	None
+i659	/Common/fe80::1.http	f5-cli::explain_flow::parse_destination	err	None
+i660	/Common/app.app/fe80::1.http	f5-cli::explain_flow::parse_destination	err	None
+i661	/T1/fe80::1.http	f5-cli::explain_flow::parse_destination	err	None
+i662	fe80::1.0	f5-cli::explain_flow::parse_destination	err	None
+i663	/Common/fe80::1.0	f5-cli::explain_flow::parse_destination	err	None
+i664	/Common/app.app/fe80::1.0	f5-cli::explain_flow::parse_destination	err	None
+i665	/T1/fe80::1.0	f5-cli::explain_flow::parse_destination	err	None
+i666	fe80::1%0	f5-cli::explain_flow::parse_destination	err	None
+i667	/Common/fe80::1%0	f5-cli::explain_flow::parse_destination	err	None
+i668	/Common/app.app/fe80::1%0	f5-cli::explain_flow::parse_destination	err	None
+i669	/T1/fe80::1%0	f5-cli::explain_flow::parse_destination	err	None
+i670	fe80::1%0.80	f5-cli::explain_flow::parse_destination	err	None
+i671	/Common/fe80::1%0.80	f5-cli::explain_flow::parse_destination	err	None
+i672	/Common/app.app/fe80::1%0.80	f5-cli::explain_flow::parse_destination	err	None
+i673	/T1/fe80::1%0.80	f5-cli::explain_flow::parse_destination	err	None
+i674	fe80::1%0:80	f5-cli::explain_flow::parse_destination	ok	Some(("fe80::1", 80))
+i675	/Common/fe80::1%0:80	f5-cli::explain_flow::parse_destination	ok	Some(("fe80::1", 80))
+i676	/Common/app.app/fe80::1%0:80	f5-cli::explain_flow::parse_destination	err	None
+i677	/T1/fe80::1%0:80	f5-cli::explain_flow::parse_destination	ok	Some(("fe80::1", 80))
+i678	fe80::1%0.any	f5-cli::explain_flow::parse_destination	err	None
+i679	/Common/fe80::1%0.any	f5-cli::explain_flow::parse_destination	err	None
+i680	/Common/app.app/fe80::1%0.any	f5-cli::explain_flow::parse_destination	err	None
+i681	/T1/fe80::1%0.any	f5-cli::explain_flow::parse_destination	err	None
+i682	fe80::1%0.http	f5-cli::explain_flow::parse_destination	err	None
+i683	/Common/fe80::1%0.http	f5-cli::explain_flow::parse_destination	err	None
+i684	/Common/app.app/fe80::1%0.http	f5-cli::explain_flow::parse_destination	err	None
+i685	/T1/fe80::1%0.http	f5-cli::explain_flow::parse_destination	err	None
+i686	fe80::1%0.0	f5-cli::explain_flow::parse_destination	err	None
+i687	/Common/fe80::1%0.0	f5-cli::explain_flow::parse_destination	err	None
+i688	/Common/app.app/fe80::1%0.0	f5-cli::explain_flow::parse_destination	err	None
+i689	/T1/fe80::1%0.0	f5-cli::explain_flow::parse_destination	err	None
+i690	fe80::1%2	f5-cli::explain_flow::parse_destination	err	None
+i691	/Common/fe80::1%2	f5-cli::explain_flow::parse_destination	err	None
+i692	/Common/app.app/fe80::1%2	f5-cli::explain_flow::parse_destination	err	None
+i693	/T1/fe80::1%2	f5-cli::explain_flow::parse_destination	err	None
+i694	fe80::1%2.80	f5-cli::explain_flow::parse_destination	err	None
+i695	/Common/fe80::1%2.80	f5-cli::explain_flow::parse_destination	err	None
+i696	/Common/app.app/fe80::1%2.80	f5-cli::explain_flow::parse_destination	err	None
+i697	/T1/fe80::1%2.80	f5-cli::explain_flow::parse_destination	err	None
+i698	fe80::1%2:80	f5-cli::explain_flow::parse_destination	ok	Some(("fe80::1", 80))
+i699	/Common/fe80::1%2:80	f5-cli::explain_flow::parse_destination	ok	Some(("fe80::1", 80))
+i700	/Common/app.app/fe80::1%2:80	f5-cli::explain_flow::parse_destination	err	None
+i701	/T1/fe80::1%2:80	f5-cli::explain_flow::parse_destination	ok	Some(("fe80::1", 80))
+i702	fe80::1%2.any	f5-cli::explain_flow::parse_destination	err	None
+i703	/Common/fe80::1%2.any	f5-cli::explain_flow::parse_destination	err	None
+i704	/Common/app.app/fe80::1%2.any	f5-cli::explain_flow::parse_destination	err	None
+i705	/T1/fe80::1%2.any	f5-cli::explain_flow::parse_destination	err	None
+i706	fe80::1%2.http	f5-cli::explain_flow::parse_destination	err	None
+i707	/Common/fe80::1%2.http	f5-cli::explain_flow::parse_destination	err	None
+i708	/Common/app.app/fe80::1%2.http	f5-cli::explain_flow::parse_destination	err	None
+i709	/T1/fe80::1%2.http	f5-cli::explain_flow::parse_destination	err	None
+i710	fe80::1%2.0	f5-cli::explain_flow::parse_destination	err	None
+i711	/Common/fe80::1%2.0	f5-cli::explain_flow::parse_destination	err	None
+i712	/Common/app.app/fe80::1%2.0	f5-cli::explain_flow::parse_destination	err	None
+i713	/T1/fe80::1%2.0	f5-cli::explain_flow::parse_destination	err	None

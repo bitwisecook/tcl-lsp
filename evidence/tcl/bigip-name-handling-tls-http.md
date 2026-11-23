@@ -8,6 +8,8 @@ and what does the iRule runtime do with the apparent extra arguments in
 scaffolds. The observed header writes distinguish a mutating form from a
 getter for arity checking, side-effect analysis and taint.
 
+This run answers parts of Q5 (event order and profiles), Q6 (runtime behaviour of disputed command forms) and Q9 (why form resolution must precede taint) in [the name-handling plan](../../docs/work/name-handling/plan.md#big-ip-and-irules-questions); the reasons each was asked are in [language and release](../../docs/work/name-handling/evidence/bigip-language-and-release.md).
+
 ## Assumptions
 
 - Two fresh connections entered the same lab HTTP virtual with TCP, HTTP,

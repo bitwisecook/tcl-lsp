@@ -1,0 +1,23 @@
+diff --git a/rust/f5-cli/src/commands/remote/object_io.rs b/rust/f5-cli/src/commands/remote/object_io.rs
+index 8514f498..643aeb64 100644
+--- a/rust/f5-cli/src/commands/remote/object_io.rs
++++ b/rust/f5-cli/src/commands/remote/object_io.rs
+@@ -381,4 +381,18 @@ mod tests {
+             assert!(message.contains(kind), "{message} must name `{kind}`");
+         }
+     }
++
++    #[test]
++    #[ignore = "Q8 probe"]
++    fn q8_probe_encode_path() {
++        let d = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
++            .join("../../docs/work/name-handling/handover/oo-dispatch-probe/bigip-addresses");
++        let text = std::fs::read_to_string(d.join("inputs.tsv")).unwrap();
++        let mut out = String::from("id\tinput\tfunction\tverdict\tparts\n");
++        for l in text.lines().skip(1) {
++            let f: Vec<&str> = l.split('\t').collect();
++            out.push_str(&format!("{}\t{}\tf5-cli::remote::object_io::encode_path\tok\t{:?}\n", f[0], f[2], super::encode_path(f[2])));
++        }
++        std::fs::write(d.join("matrix-f5-cli-rest.tsv"), out).unwrap();
++    }
+ }

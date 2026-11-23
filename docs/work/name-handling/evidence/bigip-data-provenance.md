@@ -6,6 +6,21 @@ recovered and which original inputs are still missing.
 
 ## Q2. Table and generator provenance
 
+### Why this was asked
+
+The [registry review](../registry-review.md) (plan items 117–119) found about 52,700 lines carrying an `@generated — DO NOT EDIT. Regenerate to refresh` header with no generator anywhere in the repository (`grep` over `scripts/`, `xtask` and the Makefile found none): `base_objects/generated_{objects,names}.rs`, `bigip/references.rs`, `profile_defaults/generated.rs`, `events/event_props_table.rs`, `profiles/profile_table.rs`, `event_facts/generated.rs`, and `tcl-bigip/src/model/gen/` (17,000 lines with no gate against the registry schema). A new BIG-IP release would therefore mean hand-editing files that say they must not be hand-edited.
+
+### The question in full
+
+> **Q2. Generated data with no generator.** Where did `base_objects/generated_{objects,names}.rs` (a 17.1 base-configuration snapshot), `bigip/references.rs`, `profile_defaults/generated.rs`, `events/event_props_table.rs`, `profiles/profile_table.rs`, `event_facts/generated.rs` and `tcl-bigip/src/model/gen/` come from (tool, inputs, BIG-IP version)? Can the generators be recovered or rewritten, or should these become hand-maintained data with schema checks?
+
+### Coverage of the answer
+
+Answered per artifact: origin commits and pull requests, the two recovered generators (`gen_bigip_model_rust.py`, `gen_profile_defaults.py`), and a recovery decision for each. Still unrecovered: the base-object extractor and its file manifest, the reference-edge emitter, the event-property and profile-table emitters, and the exact schema release of `event_facts/generated.rs`.
+
+### Answer
+
+
 | Current data | Recovered origin | Recovery decision |
 | --- | --- | --- |
 | `tcl-registry/src/base_objects/generated_{objects,names}.rs` | Added in `671227f905` (#796). `BASE_OBJECTS_VERSION` identifies the one base configuration snapshot as 17.1. The companion module explains which object identities and fields are required for SCF fallback. The original extractor and its exact file manifest/build were not located. | Rebuild the extraction from a versioned manifest of shipped base files. Emit identities separately from selected field defaults. Use the current 17.1 output as a historical comparison fixture until the original input can be recovered. |
@@ -35,6 +50,21 @@ projects vocabulary and has its own check.
 
 ## Q3. Release snapshots
 
+### Why this was asked
+
+The same review found the base-object data to be a single 17.1 snapshot, with profile-default overrides in `profile_defaults/mod.rs` stated without an end release. Plan items 118, 119 and 122 (per-release facts in release-keyed tables) needed to know whether further BIG-IP releases should be added as complete tables, deltas or a version column, and which releases matter.
+
+### The question in full
+
+> **Q3. Versions.** Is 17.1 the only base-configuration version, and how should other versions (15.x, 16.x, 17.5, 21.x) be added: per-version tables, deltas, or a version column?
+
+### Coverage of the answer
+
+Answered: 17.1 is the only snapshot; add complete per-build captures with deterministic deltas or computed intervals; absence is distinct from unknown. The 21.1 appliance refutes carrying the 17.1 SSL `options` override forward. Not yet located: the first build on which each SSL flag changed.
+
+### Answer
+
+
 17.1 is the only embedded base-object snapshot. The 21.1.0.1 appliance
 supplied a second measured release point for the client and server SSL
 `options` fields. The shipped stanzas and the effective default profiles both
@@ -57,6 +87,21 @@ configuration values remain authoritative for that archive.
 [F5 support policy](https://my.f5.com/manage/s/article/K5903)
 
 ## Q4. Ownership
+
+### Why this was asked
+
+The [registry review](../registry-review.md) measured about 176,000 lines of BIG-IP configuration schema (`bigip/`, `base_objects/`, `profile_defaults/`, `f5/`) inside the Tcl command registry, used only by `tcl-bigip`, `tcl-bigip-query` and `bigip-report-gen`, restated by `tcl-bigip`'s generated model with no gate between them, and compared against in 219 places by `tcl-bigip` (the `registry-axes` ratchet). The [remaining-sprawl survey](../remaining-sprawl.md) found the BIG-IP object graph built three times (`tcl-bigip/src/graph.rs`, `bigip-report-gen/rust/src/graph.rs`, `tcl-bigip-query/src/architecture.rs`). Plan items 111 and 118 could not be designed without deciding where each fact lives and which way generation runs.
+
+### The question in full
+
+> **Q4. Ownership and placement.** Should the BIG-IP configuration schema (about 176,000 lines in `bigip/`, `base_objects/`, `profile_defaults/`, `f5/`) become its own data crate, and is `tcl-bigip`'s model generated from it or is the registry generated from `tcl-bigip`? Which of `tcl-bigip`, `tcl-bigip-query`, `bigip-report-gen` and `f5-xc` own which facts (object graph, partition rules, monitor expressions, event order, profile requirements)?
+
+### Coverage of the answer
+
+Answered: a dedicated configuration-schema crate consumed by both `tcl-registry` and `tcl-bigip`; `tcl-bigip`'s generic model generated from it; per-component ownership of the graph, query, report and XC projections; event order, phases and profile requirements stay in the registry.
+
+### Answer
+
 
 Extract the configuration vocabulary and versioned data into the dedicated
 data crate proposed in item 118. It owns TMSH kind/property and section

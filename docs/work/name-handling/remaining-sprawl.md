@@ -59,6 +59,14 @@
    - extension maps in the Neovim, Emacs and Helix READMEs (Neovim maps `irul` to `tcl`).
 10. **Already well owned:** call, symbol and dataflow graphs (`tcl-lsp-core/src/graphs.rs`, used by the CLI and MCP); clock (`tcl_cmd_core::clock`). The per-crate dialect environment modules (`profile_for_dialect` in seven crates) are thin faces of the shared `tcl_registry::model::ingress` and are fine.
 
+### BIG-IP findings after the lab answers
+
+The BIG-IP questions were answered with lab evidence ([language and release](evidence/bigip-language-and-release.md)):
+
+- **Event order and profiles (Q5).** The registry was right: `CLIENTSSL_CLIENTHELLO` precedes `CLIENTSSL_HANDSHAKE`; the server leg runs `SERVERSSL_CLIENTHELLO_SEND`, `SERVERSSL_SERVERHELLO`, `SERVERSSL_HANDSHAKE`; SSL events attach with the side's SSL profile or a PERSIST profile (`event_order.rs:52`, `:60`, `:226`, `:234`). `explain_flow`'s order and `irule_gen`'s CLIENTSSL-for-SERVERSSL mapping are consumer faults, and the other event tables become projections of the registry.
+- **Monitor rules (Q7).** The appliance accepts `none`, `default`, one reference, an `and` chain, and `min N of { … }` with 1 ≤ N ≤ list length, with quoted tokens or a quoted whole expression. The shared `MonitorExpression::try_parse` keeps quote characters, accepts `and` inside a `min` list, accepts thresholds 0 and over the list length, and accepts a trailing `and`. So the first-word consumers are wrong and the typed parser they should use also needs fixing first.
+- **Names (Q8).** `tcl-bigip::object_names` owns paths and partitions, `tcl-bigip::value` typed addresses and services, and the REST layer `~` encoding. TMSH accepted a colon service on qualified node names (both families) and a dot service on an IPv6 literal with a route domain, rejected the inverse forms, and rejected `~Common~name` in configuration; see [BIG-IP names and addresses](bigip-addresses-design.md).
+
 ## How these fit the architecture
 
 The same pattern as elsewhere: an owner exists, but its *policy* (severity, precedence, line rule, layer stack, waiver syntax) is applied by each caller. The fixes follow the architecture plan's rules:

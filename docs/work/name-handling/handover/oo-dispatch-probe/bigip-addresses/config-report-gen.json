@@ -1,0 +1,2400 @@
+{
+  "title": "Q8",
+  "engine_version": "0.1.0+gc0980e63.dirty",
+  "git_hash": "c0980e63",
+  "version": "c0980e63",
+  "backend": "rust",
+  "devices": [
+    {
+      "uri": "addresses.conf",
+      "name": "addresses",
+      "tmshVersion": "17.1.0",
+      "releaseLifecycle": {
+        "branch": "17.1.x",
+        "releaseDate": "2023-03-14",
+        "eosdDate": "2027-03-31",
+        "eotsDate": "2027-03-31",
+        "eolDate": "2027-03-31",
+        "status": "nearing-eosd",
+        "level": "warn",
+        "text": "This BIG-IP branch reaches EoSD/EoTS/EoL in 128 days. Plan an upgrade.",
+        "daysUntilEosd": 128,
+        "daysUntilEots": 128,
+        "policyUpdated": "2026-07-01",
+        "sourceUrl": "https://my.f5.com/manage/s/article/K5903",
+        "scopeNote": "Software lifecycle only; hardware and FIPS exceptions have independent dates."
+      },
+      "ruleDiagnostics": [],
+      "virtualDiagnostics": [],
+      "poolDiagnostics": [],
+      "dataGroupDiagnostics": [
+        {
+          "code": "BIGIP6011",
+          "message": "Invalid IP address '10.0.0.0%2/8' in IP-type data-group 'dg_ip'",
+          "severity": "warning",
+          "line": 186,
+          "column": 39,
+          "tab": "dataGroups"
+        }
+      ],
+      "appDiagnostics": [],
+      "objectDiagnostics": [
+        {
+          "code": "BIGIP6013",
+          "message": "pool '/Common/p_v4' has registry-declared reference '/Common/http' in property 'monitor' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 32,
+          "column": 23,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "pool '/Common/p_v6' has registry-declared reference '/Common/2001:db8::1.80' in property 'members' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 43,
+          "column": 23,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "pool '/Common/p_v6' has registry-declared reference '/Common/2001:db8::1%2.443' in property 'members' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 43,
+          "column": 23,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "pool '/Common/p_fqdn' has registry-declared reference '/Common/example.com:443' in property 'members' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 54,
+          "column": 25,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "pool '/Common/p_http' has registry-declared reference '/Common/10.0.0.1:http' in property 'members' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 71,
+          "column": 25,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "virtual '/Common/vs_v6' has registry-declared reference '/Common/2001:db8::10.443' in property 'destination' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 96,
+          "column": 27,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "virtual '/Common/vs_v6rd' has registry-declared reference '/Common/2001:db8::10%2.80' in property 'destination' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 102,
+          "column": 29,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "virtual '/Common/vs_any6' has registry-declared reference '/Common/any6.any' in property 'destination' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 112,
+          "column": 29,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "virtual '/Common/vs_http' has registry-declared reference '/Common/10.0.0.11:http' in property 'destination' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 117,
+          "column": 29,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "virtual '/Common/vs_net' has registry-declared reference '/Common/10.0.1.0:0' in property 'destination' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 121,
+          "column": 28,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "virtual '/T1/vs_t1' has registry-declared reference '/T1/10.1.1.10:80' in property 'destination' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 125,
+          "column": 23,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "virtual '/Common/app.app/app_vs' has registry-declared reference '/Common/app.app/10.0.0.12:80' in property 'destination' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 133,
+          "column": 36,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "virtual '/Common/vs_legacy6' has registry-declared reference '/Common/fe80::1:80' in property 'destination' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 138,
+          "column": 32,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "monitor http '/Common/m_alias' has registry-declared reference '/Common/http' in property 'defaults-from' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 170,
+          "column": 34,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "monitor http '/Common/m_any' has registry-declared reference '/Common/http' in property 'defaults-from' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 174,
+          "column": 32,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "monitor http '/Common/m_v6' has registry-declared reference '/Common/http' in property 'defaults-from' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 178,
+          "column": 31,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "monitor http '/Common/m_v6alias' has registry-declared reference '/Common/http' in property 'defaults-from' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 182,
+          "column": 36,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "self '/Common/self_rd' has registry-declared reference '/Common/internal' in property 'vlan' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 207,
+          "column": 26,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "self '/Common/self_v6' has registry-declared reference '/Common/internal' in property 'vlan' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 211,
+          "column": 26,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "route '/Common/r_default' has registry-declared reference '10.0.0.254' in property 'gw' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 215,
+          "column": 29,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "route '/Common/r_rd' has registry-declared reference '10.0.0.254%2' in property 'gw' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 219,
+          "column": 24,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "route '/Common/r_v6' has registry-declared reference '2001:db8::fe' in property 'gw' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 223,
+          "column": 24,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "route '/Common/r_net' has registry-declared reference '10.0.0.254%2' in property 'gw' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 227,
+          "column": 25,
+          "tab": "objectIndex"
+        }
+      ],
+      "configDiagnostics": [
+        {
+          "code": "BIGIP6011",
+          "message": "Invalid IP address '10.0.0.0%2/8' in IP-type data-group 'dg_ip'",
+          "severity": "warning",
+          "line": 186,
+          "column": 39,
+          "tab": "dataGroups"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "pool '/Common/p_v4' has registry-declared reference '/Common/http' in property 'monitor' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 32,
+          "column": 23,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "pool '/Common/p_v6' has registry-declared reference '/Common/2001:db8::1.80' in property 'members' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 43,
+          "column": 23,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "pool '/Common/p_v6' has registry-declared reference '/Common/2001:db8::1%2.443' in property 'members' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 43,
+          "column": 23,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "pool '/Common/p_fqdn' has registry-declared reference '/Common/example.com:443' in property 'members' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 54,
+          "column": 25,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "pool '/Common/p_http' has registry-declared reference '/Common/10.0.0.1:http' in property 'members' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 71,
+          "column": 25,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "virtual '/Common/vs_v6' has registry-declared reference '/Common/2001:db8::10.443' in property 'destination' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 96,
+          "column": 27,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "virtual '/Common/vs_v6rd' has registry-declared reference '/Common/2001:db8::10%2.80' in property 'destination' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 102,
+          "column": 29,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "virtual '/Common/vs_any6' has registry-declared reference '/Common/any6.any' in property 'destination' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 112,
+          "column": 29,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "virtual '/Common/vs_http' has registry-declared reference '/Common/10.0.0.11:http' in property 'destination' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 117,
+          "column": 29,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "virtual '/Common/vs_net' has registry-declared reference '/Common/10.0.1.0:0' in property 'destination' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 121,
+          "column": 28,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "virtual '/T1/vs_t1' has registry-declared reference '/T1/10.1.1.10:80' in property 'destination' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 125,
+          "column": 23,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "virtual '/Common/app.app/app_vs' has registry-declared reference '/Common/app.app/10.0.0.12:80' in property 'destination' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 133,
+          "column": 36,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "virtual '/Common/vs_legacy6' has registry-declared reference '/Common/fe80::1:80' in property 'destination' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 138,
+          "column": 32,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "monitor http '/Common/m_alias' has registry-declared reference '/Common/http' in property 'defaults-from' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 170,
+          "column": 34,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "monitor http '/Common/m_any' has registry-declared reference '/Common/http' in property 'defaults-from' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 174,
+          "column": 32,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "monitor http '/Common/m_v6' has registry-declared reference '/Common/http' in property 'defaults-from' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 178,
+          "column": 31,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "monitor http '/Common/m_v6alias' has registry-declared reference '/Common/http' in property 'defaults-from' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 182,
+          "column": 36,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "self '/Common/self_rd' has registry-declared reference '/Common/internal' in property 'vlan' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 207,
+          "column": 26,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "self '/Common/self_v6' has registry-declared reference '/Common/internal' in property 'vlan' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 211,
+          "column": 26,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "route '/Common/r_default' has registry-declared reference '10.0.0.254' in property 'gw' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 215,
+          "column": 29,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "route '/Common/r_rd' has registry-declared reference '10.0.0.254%2' in property 'gw' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 219,
+          "column": 24,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "route '/Common/r_v6' has registry-declared reference '2001:db8::fe' in property 'gw' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 223,
+          "column": 24,
+          "tab": "objectIndex"
+        },
+        {
+          "code": "BIGIP6013",
+          "message": "route '/Common/r_net' has registry-declared reference '10.0.0.254%2' in property 'gw' which could not be resolved; define a compatible target or use a static full path.",
+          "severity": "warning",
+          "line": 227,
+          "column": 25,
+          "tab": "objectIndex"
+        }
+      ],
+      "iappDiagnosticEvidence": null,
+      "virtuals": [
+        {
+          "name": "vs_v4",
+          "fullPath": "/Common/vs_v4",
+          "partition": "Common",
+          "destination": "/Common/10.0.0.10:80",
+          "destAddr": "10.0.0.10",
+          "destPort": "80",
+          "mask": "255.255.255.255",
+          "pool": "/Common/p_v4",
+          "profiles": [],
+          "rules": [],
+          "persist": [],
+          "policies": [],
+          "snatpool": "",
+          "sourceXlate": "",
+          "ipProtocol": "",
+          "source": "0.0.0.0/0",
+          "vlans": [],
+          "vlansEnabled": false,
+          "vlansDisabled": false,
+          "description": "",
+          "disabled": false,
+          "listener": {
+            "family": "IPv4",
+            "address": "10.0.0.10",
+            "anyAddr": false,
+            "prefix": 32,
+            "maxPrefix": 32,
+            "port": 80,
+            "portRaw": "80",
+            "protocol": "any",
+            "routeDomain": 0,
+            "source": "0.0.0.0/0",
+            "sourcePrefix": 0,
+            "vlans": [],
+            "vlansEnabled": false,
+            "vlansDisabled": false
+          },
+          "isDefault": false,
+          "dynamicProfiles": [],
+          "folder": ""
+        },
+        {
+          "name": "vs_rd",
+          "fullPath": "/Common/vs_rd",
+          "partition": "Common",
+          "destination": "/Common/10.0.0.10%2:443",
+          "destAddr": "10.0.0.10%2",
+          "destPort": "443",
+          "mask": "255.255.255.255",
+          "pool": "",
+          "profiles": [],
+          "rules": [],
+          "persist": [],
+          "policies": [],
+          "snatpool": "",
+          "sourceXlate": "",
+          "ipProtocol": "",
+          "source": "0.0.0.0%2/0",
+          "vlans": [],
+          "vlansEnabled": false,
+          "vlansDisabled": false,
+          "description": "",
+          "disabled": false,
+          "listener": {
+            "family": "IPv4",
+            "address": "10.0.0.10",
+            "anyAddr": false,
+            "prefix": 32,
+            "maxPrefix": 32,
+            "port": 443,
+            "portRaw": "443",
+            "protocol": "any",
+            "routeDomain": 2,
+            "source": "0.0.0.0%2/0",
+            "sourcePrefix": 32,
+            "vlans": [],
+            "vlansEnabled": false,
+            "vlansDisabled": false
+          },
+          "isDefault": false,
+          "dynamicProfiles": [],
+          "folder": ""
+        },
+        {
+          "name": "vs_v6",
+          "fullPath": "/Common/vs_v6",
+          "partition": "Common",
+          "destination": "/Common/2001:db8::10.443",
+          "destAddr": "2001:db8::10",
+          "destPort": "443",
+          "mask": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+          "pool": "/Common/p_v6",
+          "profiles": [],
+          "rules": [],
+          "persist": [],
+          "policies": [],
+          "snatpool": "",
+          "sourceXlate": "",
+          "ipProtocol": "",
+          "source": "::/0",
+          "vlans": [],
+          "vlansEnabled": false,
+          "vlansDisabled": false,
+          "description": "",
+          "disabled": false,
+          "listener": {
+            "family": "IPv6",
+            "address": "2001:db8::10",
+            "anyAddr": false,
+            "prefix": 128,
+            "maxPrefix": 128,
+            "port": 443,
+            "portRaw": "443",
+            "protocol": "any",
+            "routeDomain": 0,
+            "source": "::/0",
+            "sourcePrefix": 0,
+            "vlans": [],
+            "vlansEnabled": false,
+            "vlansDisabled": false
+          },
+          "isDefault": false,
+          "dynamicProfiles": [],
+          "folder": ""
+        },
+        {
+          "name": "vs_v6rd",
+          "fullPath": "/Common/vs_v6rd",
+          "partition": "Common",
+          "destination": "/Common/2001:db8::10%2.80",
+          "destAddr": "2001:db8::10%2",
+          "destPort": "80",
+          "mask": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+          "pool": "",
+          "profiles": [],
+          "rules": [],
+          "persist": [],
+          "policies": [],
+          "snatpool": "",
+          "sourceXlate": "",
+          "ipProtocol": "",
+          "source": "",
+          "vlans": [],
+          "vlansEnabled": false,
+          "vlansDisabled": false,
+          "description": "",
+          "disabled": false,
+          "listener": {
+            "family": "IPv6",
+            "address": "2001:db8::10",
+            "anyAddr": false,
+            "prefix": 128,
+            "maxPrefix": 128,
+            "port": 80,
+            "portRaw": "80",
+            "protocol": "any",
+            "routeDomain": 2,
+            "source": "::/0",
+            "sourcePrefix": 0,
+            "vlans": [],
+            "vlansEnabled": false,
+            "vlansDisabled": false
+          },
+          "isDefault": false,
+          "dynamicProfiles": [],
+          "folder": ""
+        },
+        {
+          "name": "vs_any",
+          "fullPath": "/Common/vs_any",
+          "partition": "Common",
+          "destination": "/Common/0.0.0.0:0",
+          "destAddr": "0.0.0.0",
+          "destPort": "0",
+          "mask": "any",
+          "pool": "",
+          "profiles": [],
+          "rules": [],
+          "persist": [],
+          "policies": [],
+          "snatpool": "",
+          "sourceXlate": "",
+          "ipProtocol": "",
+          "source": "0.0.0.0/0",
+          "vlans": [],
+          "vlansEnabled": false,
+          "vlansDisabled": false,
+          "description": "",
+          "disabled": false,
+          "listener": {
+            "family": "IPv4",
+            "address": "0.0.0.0",
+            "anyAddr": true,
+            "prefix": 0,
+            "maxPrefix": 32,
+            "port": 0,
+            "portRaw": "any",
+            "protocol": "any",
+            "routeDomain": 0,
+            "source": "0.0.0.0/0",
+            "sourcePrefix": 0,
+            "vlans": [],
+            "vlansEnabled": false,
+            "vlansDisabled": false
+          },
+          "isDefault": false,
+          "dynamicProfiles": [],
+          "folder": ""
+        },
+        {
+          "name": "vs_any6",
+          "fullPath": "/Common/vs_any6",
+          "partition": "Common",
+          "destination": "/Common/any6.any",
+          "destAddr": "any6.any",
+          "destPort": "",
+          "mask": "any6",
+          "pool": "",
+          "profiles": [],
+          "rules": [],
+          "persist": [],
+          "policies": [],
+          "snatpool": "",
+          "sourceXlate": "",
+          "ipProtocol": "",
+          "source": "",
+          "vlans": [],
+          "vlansEnabled": false,
+          "vlansDisabled": false,
+          "description": "",
+          "disabled": false,
+          "listener": {
+            "family": "IPv4",
+            "address": "any6.any",
+            "anyAddr": false,
+            "prefix": 32,
+            "maxPrefix": 32,
+            "port": 0,
+            "portRaw": "any",
+            "protocol": "any",
+            "routeDomain": 0,
+            "source": "0.0.0.0/0",
+            "sourcePrefix": 0,
+            "vlans": [],
+            "vlansEnabled": false,
+            "vlansDisabled": false
+          },
+          "isDefault": false,
+          "dynamicProfiles": [],
+          "folder": ""
+        },
+        {
+          "name": "vs_http",
+          "fullPath": "/Common/vs_http",
+          "partition": "Common",
+          "destination": "",
+          "destAddr": "",
+          "destPort": "",
+          "mask": "255.255.255.255",
+          "pool": "",
+          "profiles": [],
+          "rules": [],
+          "persist": [],
+          "policies": [],
+          "snatpool": "",
+          "sourceXlate": "",
+          "ipProtocol": "",
+          "source": "",
+          "vlans": [],
+          "vlansEnabled": false,
+          "vlansDisabled": false,
+          "description": "",
+          "disabled": false,
+          "listener": {
+            "family": "IPv4",
+            "address": "",
+            "anyAddr": true,
+            "prefix": 0,
+            "maxPrefix": 32,
+            "port": 0,
+            "portRaw": "any",
+            "protocol": "any",
+            "routeDomain": 0,
+            "source": "0.0.0.0/0",
+            "sourcePrefix": 0,
+            "vlans": [],
+            "vlansEnabled": false,
+            "vlansDisabled": false
+          },
+          "isDefault": false,
+          "dynamicProfiles": [],
+          "folder": ""
+        },
+        {
+          "name": "vs_net",
+          "fullPath": "/Common/vs_net",
+          "partition": "Common",
+          "destination": "/Common/10.0.1.0:0",
+          "destAddr": "10.0.1.0",
+          "destPort": "0",
+          "mask": "255.255.255.0",
+          "pool": "",
+          "profiles": [],
+          "rules": [],
+          "persist": [],
+          "policies": [],
+          "snatpool": "",
+          "sourceXlate": "",
+          "ipProtocol": "",
+          "source": "",
+          "vlans": [],
+          "vlansEnabled": false,
+          "vlansDisabled": false,
+          "description": "",
+          "disabled": false,
+          "listener": {
+            "family": "IPv4",
+            "address": "10.0.1.0",
+            "anyAddr": false,
+            "prefix": 24,
+            "maxPrefix": 32,
+            "port": 0,
+            "portRaw": "any",
+            "protocol": "any",
+            "routeDomain": 0,
+            "source": "0.0.0.0/0",
+            "sourcePrefix": 0,
+            "vlans": [],
+            "vlansEnabled": false,
+            "vlansDisabled": false
+          },
+          "isDefault": false,
+          "dynamicProfiles": [],
+          "folder": ""
+        },
+        {
+          "name": "vs_t1",
+          "fullPath": "/T1/vs_t1",
+          "partition": "T1",
+          "destination": "/T1/10.1.1.10:80",
+          "destAddr": "10.1.1.10",
+          "destPort": "80",
+          "mask": "255.255.255.255",
+          "pool": "p_rel",
+          "profiles": [],
+          "rules": [
+            "/Common/r_addr"
+          ],
+          "persist": [],
+          "policies": [],
+          "snatpool": "",
+          "sourceXlate": "",
+          "ipProtocol": "",
+          "source": "",
+          "vlans": [],
+          "vlansEnabled": false,
+          "vlansDisabled": false,
+          "description": "",
+          "disabled": false,
+          "listener": {
+            "family": "IPv4",
+            "address": "10.1.1.10",
+            "anyAddr": false,
+            "prefix": 32,
+            "maxPrefix": 32,
+            "port": 80,
+            "portRaw": "80",
+            "protocol": "any",
+            "routeDomain": 0,
+            "source": "0.0.0.0/0",
+            "sourcePrefix": 0,
+            "vlans": [],
+            "vlansEnabled": false,
+            "vlansDisabled": false
+          },
+          "isDefault": false,
+          "dynamicProfiles": [
+            {
+              "category": "Node",
+              "effect": "node override",
+              "arg": "2001:db8::1",
+              "rule": "r_addr"
+            }
+          ],
+          "folder": ""
+        },
+        {
+          "name": "app_vs",
+          "fullPath": "/Common/app.app/app_vs",
+          "partition": "Common",
+          "destination": "/Common/app.app/10.0.0.12:80",
+          "destAddr": "10.0.0.12",
+          "destPort": "80",
+          "mask": "255.255.255.255",
+          "pool": "/Common/app.app/app_pool",
+          "profiles": [],
+          "rules": [],
+          "persist": [],
+          "policies": [],
+          "snatpool": "",
+          "sourceXlate": "",
+          "ipProtocol": "",
+          "source": "",
+          "vlans": [],
+          "vlansEnabled": false,
+          "vlansDisabled": false,
+          "description": "",
+          "disabled": false,
+          "listener": {
+            "family": "IPv4",
+            "address": "10.0.0.12",
+            "anyAddr": false,
+            "prefix": 32,
+            "maxPrefix": 32,
+            "port": 80,
+            "portRaw": "80",
+            "protocol": "any",
+            "routeDomain": 0,
+            "source": "0.0.0.0/0",
+            "sourcePrefix": 0,
+            "vlans": [],
+            "vlansEnabled": false,
+            "vlansDisabled": false
+          },
+          "isDefault": false,
+          "dynamicProfiles": [],
+          "folder": "/Common/app.app"
+        },
+        {
+          "name": "vs_legacy6",
+          "fullPath": "/Common/vs_legacy6",
+          "partition": "Common",
+          "destination": "/Common/fe80::1:80",
+          "destAddr": "fe80::1:80",
+          "destPort": "",
+          "mask": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+          "pool": "",
+          "profiles": [],
+          "rules": [],
+          "persist": [],
+          "policies": [],
+          "snatpool": "",
+          "sourceXlate": "",
+          "ipProtocol": "",
+          "source": "",
+          "vlans": [],
+          "vlansEnabled": false,
+          "vlansDisabled": false,
+          "description": "",
+          "disabled": false,
+          "listener": {
+            "family": "IPv6",
+            "address": "fe80::1:80",
+            "anyAddr": false,
+            "prefix": 128,
+            "maxPrefix": 128,
+            "port": 0,
+            "portRaw": "any",
+            "protocol": "any",
+            "routeDomain": 0,
+            "source": "::/0",
+            "sourcePrefix": 0,
+            "vlans": [],
+            "vlansEnabled": false,
+            "vlansDisabled": false
+          },
+          "isDefault": false,
+          "dynamicProfiles": [],
+          "folder": ""
+        }
+      ],
+      "pools": [
+        {
+          "name": "p_v4",
+          "fullPath": "/Common/p_v4",
+          "monitor": "/Common/http",
+          "lbMode": "",
+          "members": [
+            {
+              "name": "/Common/10.0.0.1:80",
+              "address": "10.0.0.1",
+              "port": "80",
+              "monitor": "",
+              "ratio": "",
+              "priorityGroup": "",
+              "connectionLimit": "",
+              "state": "",
+              "description": ""
+            },
+            {
+              "name": "/Common/10.0.0.1%2:80",
+              "address": "10.0.0.1%2",
+              "port": "80",
+              "monitor": "",
+              "ratio": "",
+              "priorityGroup": "",
+              "connectionLimit": "",
+              "state": "",
+              "description": ""
+            }
+          ],
+          "memberCount": 2,
+          "usedBy": [
+            "/Common/r_addr",
+            "/Common/vs_v4"
+          ],
+          "isDefault": false,
+          "orphanStatus": "",
+          "partition": "Common",
+          "folder": ""
+        },
+        {
+          "name": "p_v6",
+          "fullPath": "/Common/p_v6",
+          "monitor": "/Common/m_v6",
+          "lbMode": "",
+          "members": [
+            {
+              "name": "/Common/2001:db8::1.80",
+              "address": "2001:db8::1",
+              "port": "1.80",
+              "monitor": "",
+              "ratio": "",
+              "priorityGroup": "",
+              "connectionLimit": "",
+              "state": "",
+              "description": ""
+            },
+            {
+              "name": "/Common/2001:db8::1%2.443",
+              "address": "2001:db8::1%2",
+              "port": "1%2.443",
+              "monitor": "",
+              "ratio": "",
+              "priorityGroup": "",
+              "connectionLimit": "",
+              "state": "",
+              "description": ""
+            }
+          ],
+          "memberCount": 2,
+          "usedBy": [
+            "/Common/vs_v6"
+          ],
+          "isDefault": false,
+          "orphanStatus": "",
+          "partition": "Common",
+          "folder": ""
+        },
+        {
+          "name": "p_fqdn",
+          "fullPath": "/Common/p_fqdn",
+          "monitor": "",
+          "lbMode": "",
+          "members": [
+            {
+              "name": "/Common/example.com:443",
+              "address": "",
+              "port": "443",
+              "monitor": "",
+              "ratio": "",
+              "priorityGroup": "",
+              "connectionLimit": "",
+              "state": "",
+              "description": ""
+            }
+          ],
+          "memberCount": 1,
+          "usedBy": [],
+          "isDefault": false,
+          "orphanStatus": "orphan",
+          "partition": "Common",
+          "folder": ""
+        },
+        {
+          "name": "p_rel",
+          "fullPath": "/T1/p_rel",
+          "monitor": "",
+          "lbMode": "",
+          "members": [
+            {
+              "name": "node_t1:80",
+              "address": "10.1.1.1",
+              "port": "80",
+              "monitor": "",
+              "ratio": "",
+              "priorityGroup": "",
+              "connectionLimit": "",
+              "state": "",
+              "description": ""
+            }
+          ],
+          "memberCount": 1,
+          "usedBy": [
+            "/Common/r_addr",
+            "/T1/vs_t1"
+          ],
+          "isDefault": false,
+          "orphanStatus": "",
+          "partition": "T1",
+          "folder": ""
+        },
+        {
+          "name": "p_http",
+          "fullPath": "/Common/p_http",
+          "monitor": "",
+          "lbMode": "",
+          "members": [
+            {
+              "name": "/Common/10.0.0.1:http",
+              "address": "10.0.0.1",
+              "port": "http",
+              "monitor": "",
+              "ratio": "",
+              "priorityGroup": "",
+              "connectionLimit": "",
+              "state": "",
+              "description": ""
+            }
+          ],
+          "memberCount": 1,
+          "usedBy": [],
+          "isDefault": false,
+          "orphanStatus": "orphan",
+          "partition": "Common",
+          "folder": ""
+        },
+        {
+          "name": "app_pool",
+          "fullPath": "/Common/app.app/app_pool",
+          "monitor": "",
+          "lbMode": "",
+          "members": [
+            {
+              "name": "/Common/app.app/app_node:8080",
+              "address": "10.0.0.3",
+              "port": "8080",
+              "monitor": "",
+              "ratio": "",
+              "priorityGroup": "",
+              "connectionLimit": "",
+              "state": "",
+              "description": ""
+            }
+          ],
+          "memberCount": 1,
+          "usedBy": [
+            "/Common/app.app/app_vs"
+          ],
+          "isDefault": false,
+          "orphanStatus": "",
+          "partition": "Common",
+          "folder": "/Common/app.app"
+        }
+      ],
+      "nodes": [
+        {
+          "name": "10.0.0.1",
+          "fullPath": "/Common/10.0.0.1",
+          "address": "10.0.0.1",
+          "monitor": "",
+          "usedBy": [
+            "/Common/p_v4"
+          ],
+          "isDefault": false,
+          "orphanStatus": "",
+          "partition": "Common",
+          "folder": ""
+        },
+        {
+          "name": "10.0.0.1%2",
+          "fullPath": "/Common/10.0.0.1%2",
+          "address": "10.0.0.1%2",
+          "monitor": "",
+          "usedBy": [
+            "/Common/p_v4"
+          ],
+          "isDefault": false,
+          "orphanStatus": "",
+          "partition": "Common",
+          "folder": ""
+        },
+        {
+          "name": "2001:db8::1",
+          "fullPath": "/Common/2001:db8::1",
+          "address": "2001:db8::1",
+          "monitor": "",
+          "usedBy": [
+            "/Common/r_addr"
+          ],
+          "isDefault": false,
+          "orphanStatus": "",
+          "partition": "Common",
+          "folder": ""
+        },
+        {
+          "name": "2001:db8::1%2",
+          "fullPath": "/Common/2001:db8::1%2",
+          "address": "2001:db8::1%2",
+          "monitor": "",
+          "usedBy": [],
+          "isDefault": false,
+          "orphanStatus": "orphan",
+          "partition": "Common",
+          "folder": ""
+        },
+        {
+          "name": "fqdn_node",
+          "fullPath": "/Common/fqdn_node",
+          "address": "",
+          "monitor": "",
+          "usedBy": [],
+          "isDefault": false,
+          "orphanStatus": "orphan",
+          "partition": "Common",
+          "folder": ""
+        },
+        {
+          "name": "node_t1",
+          "fullPath": "/T1/node_t1",
+          "address": "10.1.1.1",
+          "monitor": "",
+          "usedBy": [
+            "/T1/p_rel"
+          ],
+          "isDefault": false,
+          "orphanStatus": "",
+          "partition": "T1",
+          "folder": ""
+        },
+        {
+          "name": "app_node",
+          "fullPath": "/Common/app.app/app_node",
+          "address": "10.0.0.3",
+          "monitor": "",
+          "usedBy": [
+            "/Common/app.app/app_pool"
+          ],
+          "isDefault": false,
+          "orphanStatus": "",
+          "partition": "Common",
+          "folder": "/Common/app.app"
+        }
+      ],
+      "monitors": [
+        {
+          "name": "m_alias",
+          "fullPath": "/Common/m_alias",
+          "type": "http",
+          "interval": "",
+          "timeout": "",
+          "send": "",
+          "recv": "",
+          "usedBy": [],
+          "isDefault": false,
+          "orphanStatus": "orphan",
+          "partition": "Common",
+          "folder": ""
+        },
+        {
+          "name": "m_any",
+          "fullPath": "/Common/m_any",
+          "type": "http",
+          "interval": "",
+          "timeout": "",
+          "send": "",
+          "recv": "",
+          "usedBy": [],
+          "isDefault": false,
+          "orphanStatus": "orphan",
+          "partition": "Common",
+          "folder": ""
+        },
+        {
+          "name": "m_v6",
+          "fullPath": "/Common/m_v6",
+          "type": "http",
+          "interval": "",
+          "timeout": "",
+          "send": "",
+          "recv": "",
+          "usedBy": [
+            "/Common/p_v6"
+          ],
+          "isDefault": false,
+          "orphanStatus": "",
+          "partition": "Common",
+          "folder": ""
+        },
+        {
+          "name": "m_v6alias",
+          "fullPath": "/Common/m_v6alias",
+          "type": "http",
+          "interval": "",
+          "timeout": "",
+          "send": "",
+          "recv": "",
+          "usedBy": [],
+          "isDefault": false,
+          "orphanStatus": "orphan",
+          "partition": "Common",
+          "folder": ""
+        }
+      ],
+      "rules": [
+        {
+          "name": "r_addr",
+          "fullPath": "/Common/r_addr",
+          "lineCount": 10,
+          "events": [
+            "CLIENT_ACCEPTED"
+          ],
+          "body": "when CLIENT_ACCEPTED {\n    if { [IP::addr [IP::client_addr] equals 10.0.0.0/8] } {\n        pool /Common/p_v4 member 10.0.0.1%2 80\n    } elseif { [class match [IP::client_addr] equals /Common/dg_ip] } {\n        node 2001:db8::1 80\n    } else {\n        pool p_rel\n    }\n    set rd [getfield [IP::client_addr] \"%\" 2]\n}",
+          "bodyHtml": "<span class=\"tk-cmd\">when</span> <span class=\"tk-event\">CLIENT_ACCEPTED</span> {\n    <span class=\"tk-cmd\">if</span> { [<span class=\"tk-ns\">IP::addr</span> [<span class=\"tk-ns\">IP::client_addr</span>] equals 10.0.0.0/8] } {\n        <span class=\"tk-cmd\">pool</span> /Common/p_v4 member 10.0.0.1%2 80\n    } elseif { [<span class=\"tk-cmd\">class</span> match [<span class=\"tk-ns\">IP::client_addr</span>] equals /Common/dg_ip] } {\n        <span class=\"tk-cmd\">node</span> <span class=\"tk-ns\">2001:db8::1</span> 80\n    } else {\n        <span class=\"tk-cmd\">pool</span> p_rel\n    }\n    <span class=\"tk-cmd\">set</span> rd [<span class=\"tk-cmd\">getfield</span> [<span class=\"tk-ns\">IP::client_addr</span>] &quot;%&quot; 2]\n}",
+          "flowchart": "{\"nodes\":[{\"id\":\"n0\",\"label\":\"CLIENT_ACCEPTED\",\"cls\":\"event\"},{\"id\":\"n1\",\"label\":\"if [IP::addr [IP::client_addr] equals 10.0.0.0/8]\",\"cls\":\"decision\"},{\"id\":\"n2\",\"label\":\"pool /Common/p_v4 member 10.0.0.1%2 80\",\"cls\":\"action\"},{\"id\":\"n3\",\"label\":\"if [class match [IP::client_addr] equals /Common/dg_ip]\",\"cls\":\"decision\"},{\"id\":\"n4\",\"label\":\"node 2001:db8::1 80\",\"cls\":\"action\"},{\"id\":\"n5\",\"label\":\"pool p_rel\",\"cls\":\"action\"},{\"id\":\"n6\",\"label\":\"set rd = [getfield [IP::client_addr] \\\"%\\\" 2]\",\"cls\":\"action\"}],\"edges\":[{\"from\":\"n0\",\"to\":\"n1\",\"label\":\"\"},{\"from\":\"n1\",\"to\":\"n2\",\"label\":\"yes\"},{\"from\":\"n1\",\"to\":\"n3\",\"label\":\"no\"},{\"from\":\"n3\",\"to\":\"n4\",\"label\":\"yes\"},{\"from\":\"n3\",\"to\":\"n5\",\"label\":\"no\"},{\"from\":\"n2\",\"to\":\"n6\",\"label\":\"\"},{\"from\":\"n4\",\"to\":\"n6\",\"label\":\"\"},{\"from\":\"n5\",\"to\":\"n6\",\"label\":\"\"}]}",
+          "usedBy": [
+            "/T1/vs_t1"
+          ],
+          "refPools": [
+            "/Common/p_v4",
+            "/T1/p_rel"
+          ],
+          "refDataGroups": [],
+          "dynamicActions": [
+            {
+              "category": "Node",
+              "effect": "node override",
+              "arg": "2001:db8::1"
+            }
+          ],
+          "isDefault": false,
+          "orphanStatus": "",
+          "referencedObjects": {
+            "static": [
+              {
+                "type": "pool",
+                "name": "p_v4",
+                "fullPath": "/Common/p_v4",
+                "oid": "pool:/Common/p_v4"
+              },
+              {
+                "type": "pool",
+                "name": "p_rel",
+                "fullPath": "/T1/p_rel",
+                "oid": "pool:/T1/p_rel"
+              }
+            ],
+            "dynamic": [
+              {
+                "partition": "T1",
+                "virtuals": [
+                  "vs_t1"
+                ],
+                "attached": true,
+                "filters": [
+                  {
+                    "raw": "/Common/p_v4",
+                    "prefix": "/Common/p_v4",
+                    "contains": [],
+                    "suffix": "",
+                    "glob": "/Common/p_v4",
+                    "exact": true,
+                    "unconstrained": false,
+                    "type": "pool",
+                    "objects": [
+                      {
+                        "type": "pool",
+                        "name": "p_v4",
+                        "fullPath": "/Common/p_v4",
+                        "oid": "pool:/Common/p_v4"
+                      }
+                    ]
+                  },
+                  {
+                    "raw": "p_rel",
+                    "prefix": "p_rel",
+                    "contains": [],
+                    "suffix": "",
+                    "glob": "p_rel",
+                    "exact": true,
+                    "unconstrained": false,
+                    "type": "pool",
+                    "objects": [
+                      {
+                        "type": "pool",
+                        "name": "p_rel",
+                        "fullPath": "/T1/p_rel",
+                        "oid": "pool:/T1/p_rel"
+                      }
+                    ]
+                  },
+                  {
+                    "raw": "2001:db8::1",
+                    "prefix": "2001:db8::1",
+                    "contains": [],
+                    "suffix": "",
+                    "glob": "2001:db8::1",
+                    "exact": true,
+                    "unconstrained": false,
+                    "type": "node",
+                    "objects": [
+                      {
+                        "type": "node",
+                        "name": "2001:db8::1",
+                        "fullPath": "/Common/2001:db8::1",
+                        "oid": "node:/Common/2001:db8::1"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "partition": "Common",
+          "folder": ""
+        }
+      ],
+      "dataGroups": [
+        {
+          "name": "dg_ip",
+          "fullPath": "/Common/dg_ip",
+          "type": "ip",
+          "recordCount": 4,
+          "records": [
+            "10.0.0.0/8",
+            "10.0.0.0%2/8",
+            "2001:db8::/32",
+            "192.168.1.1"
+          ],
+          "usedBy": [],
+          "isDefault": false,
+          "orphanStatus": "orphan",
+          "partition": "Common",
+          "folder": ""
+        }
+      ],
+      "profiles": [],
+      "snatpools": [
+        {
+          "name": "sp_rd",
+          "fullPath": "/Common/sp_rd",
+          "usedBy": [],
+          "fields": {
+            "name": "sp_rd",
+            "full-path": "/Common/sp_rd",
+            "members": [
+              "/Common/10.0.0.50%2"
+            ],
+            "description": ""
+          },
+          "isDefault": false,
+          "orphanStatus": "orphan",
+          "partition": "Common",
+          "folder": ""
+        }
+      ],
+      "persistence": [],
+      "policies": [],
+      "virtualAddresses": [
+        {
+          "name": "10.0.0.10",
+          "fullPath": "/Common/10.0.0.10",
+          "usedBy": [],
+          "fields": {
+            "name": "10.0.0.10",
+            "full-path": "/Common/10.0.0.10",
+            "address": "10.0.0.10",
+            "mask": "255.255.255.255",
+            "arp": "",
+            "icmp-echo": "",
+            "auto-delete": "",
+            "connection-limit": "",
+            "traffic-group": "",
+            "inherited-traffic-group": "",
+            "route-advertisement": "",
+            "server-scope": "",
+            "spanning": "",
+            "unit": "",
+            "description": "",
+            "state": "",
+            "floating": "",
+            "traffic-group-restored": ""
+          }
+        },
+        {
+          "name": "10.0.0.10%2",
+          "fullPath": "/Common/10.0.0.10%2",
+          "usedBy": [],
+          "fields": {
+            "name": "10.0.0.10%2",
+            "full-path": "/Common/10.0.0.10%2",
+            "address": "10.0.0.10%2",
+            "mask": "255.255.255.255",
+            "arp": "",
+            "icmp-echo": "",
+            "auto-delete": "",
+            "connection-limit": "",
+            "traffic-group": "",
+            "inherited-traffic-group": "",
+            "route-advertisement": "",
+            "server-scope": "",
+            "spanning": "",
+            "unit": "",
+            "description": "",
+            "state": "",
+            "floating": "",
+            "traffic-group-restored": ""
+          }
+        },
+        {
+          "name": "0.0.0.0",
+          "fullPath": "/Common/0.0.0.0",
+          "usedBy": [],
+          "fields": {
+            "name": "0.0.0.0",
+            "full-path": "/Common/0.0.0.0",
+            "address": "",
+            "mask": "any",
+            "arp": "",
+            "icmp-echo": "",
+            "auto-delete": "",
+            "connection-limit": "",
+            "traffic-group": "",
+            "inherited-traffic-group": "",
+            "route-advertisement": "",
+            "server-scope": "",
+            "spanning": "",
+            "unit": "",
+            "description": "",
+            "state": "",
+            "floating": "",
+            "traffic-group-restored": ""
+          }
+        },
+        {
+          "name": "any6",
+          "fullPath": "/Common/any6",
+          "usedBy": [],
+          "fields": {
+            "name": "any6",
+            "full-path": "/Common/any6",
+            "address": "",
+            "mask": "any6",
+            "arp": "",
+            "icmp-echo": "",
+            "auto-delete": "",
+            "connection-limit": "",
+            "traffic-group": "",
+            "inherited-traffic-group": "",
+            "route-advertisement": "",
+            "server-scope": "",
+            "spanning": "",
+            "unit": "",
+            "description": "",
+            "state": "",
+            "floating": "",
+            "traffic-group-restored": ""
+          }
+        },
+        {
+          "name": "2001:db8::10",
+          "fullPath": "/Common/2001:db8::10",
+          "usedBy": [],
+          "fields": {
+            "name": "2001:db8::10",
+            "full-path": "/Common/2001:db8::10",
+            "address": "2001:db8::10",
+            "mask": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+            "arp": "",
+            "icmp-echo": "",
+            "auto-delete": "",
+            "connection-limit": "",
+            "traffic-group": "",
+            "inherited-traffic-group": "",
+            "route-advertisement": "",
+            "server-scope": "",
+            "spanning": "",
+            "unit": "",
+            "description": "",
+            "state": "",
+            "floating": "",
+            "traffic-group-restored": ""
+          }
+        }
+      ],
+      "gtmWideips": [
+        {
+          "name": "www.example.com",
+          "fullPath": "/Common/www.example.com",
+          "recordType": "a",
+          "pools": [
+            "/Common/gp"
+          ],
+          "aliases": [],
+          "poolLbMode": "",
+          "state": "",
+          "description": "",
+          "usedBy": []
+        }
+      ],
+      "gtmPools": [
+        {
+          "name": "gp",
+          "fullPath": "/Common/gp",
+          "recordType": "a",
+          "lbMode": "",
+          "monitor": "",
+          "members": [
+            {
+              "name": "/Common/srv1:vs1",
+              "servicePort": "",
+              "ratio": "",
+              "staticTarget": "",
+              "state": ""
+            },
+            {
+              "name": "/Common/srv1:vs6",
+              "servicePort": "",
+              "ratio": "",
+              "staticTarget": "",
+              "state": ""
+            }
+          ],
+          "memberCount": 2,
+          "state": "",
+          "usedBy": []
+        }
+      ],
+      "gtmServers": [
+        {
+          "name": "srv1",
+          "fullPath": "/Common/srv1",
+          "datacenter": "/Common/dc1",
+          "product": "",
+          "monitor": "",
+          "addresses": [],
+          "virtualServers": [
+            "10.0.0.10:80",
+            "2001:db8::10.443",
+            "10.0.0.10%2:443"
+          ],
+          "state": "",
+          "usedBy": []
+        }
+      ],
+      "gtmDatacenters": [],
+      "gtmListeners": [],
+      "firewallPolicies": [],
+      "firewallRuleLists": [],
+      "firewallAddressLists": [
+        {
+          "name": "al",
+          "fullPath": "/Common/al",
+          "addresses": [
+            "10.0.0.0/8",
+            "10.0.0.1-10.0.0.9",
+            "2001:db8::/32"
+          ],
+          "addressLists": [],
+          "fqdns": [],
+          "description": ""
+        }
+      ],
+      "firewallPortLists": [
+        {
+          "name": "pl",
+          "fullPath": "/Common/pl",
+          "ports": [
+            "80",
+            "8000-8080"
+          ],
+          "description": ""
+        }
+      ],
+      "natPolicies": [],
+      "natSourceTranslations": [],
+      "natDestinationTranslations": [],
+      "orphanRisk": [
+        "nodes",
+        "pools"
+      ],
+      "attachPatterns": {
+        "nodes": [
+          {
+            "raw": "2001:db8::1",
+            "prefix": "2001:db8::1",
+            "contains": [],
+            "suffix": "",
+            "glob": "2001:db8::1",
+            "exact": true,
+            "unconstrained": false,
+            "rule": "r_addr"
+          }
+        ],
+        "pools": [
+          {
+            "raw": "/Common/p_v4",
+            "prefix": "/Common/p_v4",
+            "contains": [],
+            "suffix": "",
+            "glob": "/Common/p_v4",
+            "exact": true,
+            "unconstrained": false,
+            "rule": "r_addr"
+          },
+          {
+            "raw": "p_rel",
+            "prefix": "p_rel",
+            "contains": [],
+            "suffix": "",
+            "glob": "p_rel",
+            "exact": true,
+            "unconstrained": false,
+            "rule": "r_addr"
+          }
+        ]
+      },
+      "orphans": {
+        "pools": [
+          "p_fqdn",
+          "p_http"
+        ],
+        "nodes": [
+          "2001:db8::1%2",
+          "fqdn_node"
+        ],
+        "monitors": [
+          "m_alias",
+          "m_any",
+          "m_v6alias"
+        ],
+        "rules": [],
+        "profiles": [],
+        "dataGroups": [
+          "dg_ip"
+        ],
+        "snatpools": [
+          "sp_rd"
+        ]
+      },
+      "possibleOrphans": {
+        "pools": [],
+        "nodes": [],
+        "monitors": [],
+        "rules": [],
+        "profiles": [],
+        "dataGroups": [],
+        "snatpools": []
+      },
+      "graph": {
+        "nodes": [
+          {
+            "oid": "vs:/Common/vs_v4",
+            "type": "vs",
+            "name": "vs_v4",
+            "fullPath": "/Common/vs_v4",
+            "partition": "Common"
+          },
+          {
+            "oid": "vs:/Common/vs_rd",
+            "type": "vs",
+            "name": "vs_rd",
+            "fullPath": "/Common/vs_rd",
+            "partition": "Common"
+          },
+          {
+            "oid": "vs:/Common/vs_v6",
+            "type": "vs",
+            "name": "vs_v6",
+            "fullPath": "/Common/vs_v6",
+            "partition": "Common"
+          },
+          {
+            "oid": "vs:/Common/vs_v6rd",
+            "type": "vs",
+            "name": "vs_v6rd",
+            "fullPath": "/Common/vs_v6rd",
+            "partition": "Common"
+          },
+          {
+            "oid": "vs:/Common/vs_any",
+            "type": "vs",
+            "name": "vs_any",
+            "fullPath": "/Common/vs_any",
+            "partition": "Common"
+          },
+          {
+            "oid": "vs:/Common/vs_any6",
+            "type": "vs",
+            "name": "vs_any6",
+            "fullPath": "/Common/vs_any6",
+            "partition": "Common"
+          },
+          {
+            "oid": "vs:/Common/vs_http",
+            "type": "vs",
+            "name": "vs_http",
+            "fullPath": "/Common/vs_http",
+            "partition": "Common"
+          },
+          {
+            "oid": "vs:/Common/vs_net",
+            "type": "vs",
+            "name": "vs_net",
+            "fullPath": "/Common/vs_net",
+            "partition": "Common"
+          },
+          {
+            "oid": "vs:/T1/vs_t1",
+            "type": "vs",
+            "name": "vs_t1",
+            "fullPath": "/T1/vs_t1",
+            "partition": "T1"
+          },
+          {
+            "oid": "vs:/Common/app.app/app_vs",
+            "type": "vs",
+            "name": "app_vs",
+            "fullPath": "/Common/app.app/app_vs",
+            "partition": "Common"
+          },
+          {
+            "oid": "vs:/Common/vs_legacy6",
+            "type": "vs",
+            "name": "vs_legacy6",
+            "fullPath": "/Common/vs_legacy6",
+            "partition": "Common"
+          },
+          {
+            "oid": "pool:/Common/p_v4",
+            "type": "pool",
+            "name": "p_v4",
+            "fullPath": "/Common/p_v4",
+            "partition": "Common",
+            "orphan": false
+          },
+          {
+            "oid": "pool:/Common/p_v6",
+            "type": "pool",
+            "name": "p_v6",
+            "fullPath": "/Common/p_v6",
+            "partition": "Common",
+            "orphan": false
+          },
+          {
+            "oid": "pool:/Common/p_fqdn",
+            "type": "pool",
+            "name": "p_fqdn",
+            "fullPath": "/Common/p_fqdn",
+            "partition": "Common",
+            "orphan": true
+          },
+          {
+            "oid": "pool:/T1/p_rel",
+            "type": "pool",
+            "name": "p_rel",
+            "fullPath": "/T1/p_rel",
+            "partition": "T1",
+            "orphan": false
+          },
+          {
+            "oid": "pool:/Common/p_http",
+            "type": "pool",
+            "name": "p_http",
+            "fullPath": "/Common/p_http",
+            "partition": "Common",
+            "orphan": true
+          },
+          {
+            "oid": "pool:/Common/app.app/app_pool",
+            "type": "pool",
+            "name": "app_pool",
+            "fullPath": "/Common/app.app/app_pool",
+            "partition": "Common",
+            "orphan": false
+          },
+          {
+            "oid": "node:/Common/10.0.0.1",
+            "type": "node",
+            "name": "10.0.0.1",
+            "fullPath": "/Common/10.0.0.1",
+            "partition": "Common",
+            "orphan": false
+          },
+          {
+            "oid": "node:/Common/10.0.0.1%2",
+            "type": "node",
+            "name": "10.0.0.1%2",
+            "fullPath": "/Common/10.0.0.1%2",
+            "partition": "Common",
+            "orphan": false
+          },
+          {
+            "oid": "node:/Common/2001:db8::1",
+            "type": "node",
+            "name": "2001:db8::1",
+            "fullPath": "/Common/2001:db8::1",
+            "partition": "Common",
+            "orphan": false
+          },
+          {
+            "oid": "node:/Common/2001:db8::1%2",
+            "type": "node",
+            "name": "2001:db8::1%2",
+            "fullPath": "/Common/2001:db8::1%2",
+            "partition": "Common",
+            "orphan": true
+          },
+          {
+            "oid": "node:/Common/fqdn_node",
+            "type": "node",
+            "name": "fqdn_node",
+            "fullPath": "/Common/fqdn_node",
+            "partition": "Common",
+            "orphan": true
+          },
+          {
+            "oid": "node:/T1/node_t1",
+            "type": "node",
+            "name": "node_t1",
+            "fullPath": "/T1/node_t1",
+            "partition": "T1",
+            "orphan": false
+          },
+          {
+            "oid": "node:/Common/app.app/app_node",
+            "type": "node",
+            "name": "app_node",
+            "fullPath": "/Common/app.app/app_node",
+            "partition": "Common",
+            "orphan": false
+          },
+          {
+            "oid": "mon:/Common/m_alias",
+            "type": "mon",
+            "name": "m_alias",
+            "fullPath": "/Common/m_alias",
+            "partition": "Common",
+            "orphan": true
+          },
+          {
+            "oid": "mon:/Common/m_any",
+            "type": "mon",
+            "name": "m_any",
+            "fullPath": "/Common/m_any",
+            "partition": "Common",
+            "orphan": true
+          },
+          {
+            "oid": "mon:/Common/m_v6",
+            "type": "mon",
+            "name": "m_v6",
+            "fullPath": "/Common/m_v6",
+            "partition": "Common",
+            "orphan": false
+          },
+          {
+            "oid": "mon:/Common/m_v6alias",
+            "type": "mon",
+            "name": "m_v6alias",
+            "fullPath": "/Common/m_v6alias",
+            "partition": "Common",
+            "orphan": true
+          },
+          {
+            "oid": "rule:/Common/r_addr",
+            "type": "rule",
+            "name": "r_addr",
+            "fullPath": "/Common/r_addr",
+            "partition": "Common",
+            "orphan": false
+          },
+          {
+            "oid": "snat:/Common/sp_rd",
+            "type": "snat",
+            "name": "sp_rd",
+            "fullPath": "/Common/sp_rd",
+            "partition": "Common",
+            "orphan": true
+          },
+          {
+            "oid": "dg:/Common/dg_ip",
+            "type": "dg",
+            "name": "dg_ip",
+            "fullPath": "/Common/dg_ip",
+            "partition": "Common",
+            "orphan": true
+          }
+        ],
+        "edges": [
+          {
+            "from": "vs:/Common/vs_v4",
+            "to": "pool:/Common/p_v4",
+            "kind": "pool",
+            "label": "pool"
+          },
+          {
+            "from": "vs:/Common/vs_v6",
+            "to": "pool:/Common/p_v6",
+            "kind": "pool",
+            "label": "pool"
+          },
+          {
+            "from": "vs:/T1/vs_t1",
+            "to": "rule:/Common/r_addr",
+            "kind": "rule",
+            "label": "irule"
+          },
+          {
+            "from": "vs:/Common/app.app/app_vs",
+            "to": "pool:/Common/app.app/app_pool",
+            "kind": "pool",
+            "label": "pool"
+          },
+          {
+            "from": "pool:/Common/p_v4",
+            "to": "node:/Common/10.0.0.1",
+            "kind": "member",
+            "label": "80"
+          },
+          {
+            "from": "pool:/Common/p_v4",
+            "to": "node:/Common/10.0.0.1%2",
+            "kind": "member",
+            "label": "80"
+          },
+          {
+            "from": "pool:/Common/p_v6",
+            "to": "node:/Common/2001:db8::1",
+            "kind": "member",
+            "label": "1.80"
+          },
+          {
+            "from": "pool:/Common/p_v6",
+            "to": "node:/Common/2001:db8::1%2",
+            "kind": "member",
+            "label": "1%2.443"
+          },
+          {
+            "from": "pool:/Common/p_v6",
+            "to": "mon:/Common/m_v6",
+            "kind": "monitor",
+            "label": "monitor"
+          },
+          {
+            "from": "pool:/T1/p_rel",
+            "to": "node:/T1/node_t1",
+            "kind": "member",
+            "label": "80"
+          },
+          {
+            "from": "pool:/Common/p_http",
+            "to": "node:/Common/10.0.0.1",
+            "kind": "member",
+            "label": "http"
+          },
+          {
+            "from": "pool:/Common/app.app/app_pool",
+            "to": "node:/Common/app.app/app_node",
+            "kind": "member",
+            "label": "8080"
+          },
+          {
+            "from": "rule:/Common/r_addr",
+            "to": "pool:/Common/p_v4",
+            "kind": "pool-irule",
+            "label": "pool (iRule)"
+          },
+          {
+            "from": "rule:/Common/r_addr",
+            "to": "pool:/T1/p_rel",
+            "kind": "pool-irule",
+            "label": "pool (iRule)"
+          }
+        ]
+      },
+      "configText": "#TMSH-VERSION: 17.1.0\n# Q8 probe fixture: one object per address/name form. Synthetic; the forms\n# follow F5 documentation and the real 15.1.8.2 sample in\n# rust/bigip-report-gen/python/tests/data/device-01.bigip.conf where it has\n# them (IPv4 /Common/a.b.c.d:port, `address any`, `mask any`, `*:*`,\n# `source 0.0.0.0/0`, numeric ports). IPv6, route-domain and service-name\n# spellings are from documentation (unverified on a device).\nltm node /Common/10.0.0.1 {\n    address 10.0.0.1\n}\nltm node /Common/10.0.0.1%2 {\n    address 10.0.0.1%2\n}\nltm node /Common/2001:db8::1 {\n    address 2001:db8::1\n}\nltm node /Common/2001:db8::1%2 {\n    address 2001:db8::1%2\n}\nltm node /Common/fqdn_node {\n    fqdn {\n        autopopulate enabled\n        name example.com\n    }\n}\nltm node /T1/node_t1 {\n    address 10.1.1.1\n}\nltm node /Common/app.app/app_node {\n    address 10.0.0.3\n}\nltm pool /Common/p_v4 {\n    members {\n        /Common/10.0.0.1:80 {\n            address 10.0.0.1\n        }\n        /Common/10.0.0.1%2:80 {\n            address 10.0.0.1%2\n        }\n    }\n    monitor /Common/http\n}\nltm pool /Common/p_v6 {\n    members {\n        /Common/2001:db8::1.80 {\n            address 2001:db8::1\n        }\n        /Common/2001:db8::1%2.443 {\n            address 2001:db8::1%2\n        }\n    }\n    monitor /Common/m_v6\n}\nltm pool /Common/p_fqdn {\n    members {\n        /Common/example.com:443 {\n            fqdn {\n                autopopulate enabled\n                name example.com\n            }\n        }\n    }\n}\nltm pool /T1/p_rel {\n    members {\n        node_t1:80 {\n            address 10.1.1.1\n        }\n    }\n}\nltm pool /Common/p_http {\n    members {\n        /Common/10.0.0.1:http {\n            address 10.0.0.1\n        }\n    }\n}\nltm pool /Common/app.app/app_pool {\n    members {\n        /Common/app.app/app_node:8080 {\n            address 10.0.0.3\n        }\n    }\n}\nltm virtual /Common/vs_v4 {\n    destination /Common/10.0.0.10:80\n    mask 255.255.255.255\n    pool /Common/p_v4\n    source 0.0.0.0/0\n}\nltm virtual /Common/vs_rd {\n    destination /Common/10.0.0.10%2:443\n    mask 255.255.255.255\n    source 0.0.0.0%2/0\n}\nltm virtual /Common/vs_v6 {\n    destination /Common/2001:db8::10.443\n    mask ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff\n    pool /Common/p_v6\n    source ::/0\n}\nltm virtual /Common/vs_v6rd {\n    destination /Common/2001:db8::10%2.80\n    mask ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff\n}\nltm virtual /Common/vs_any {\n    destination /Common/0.0.0.0:0\n    ip-forward\n    mask any\n    source 0.0.0.0/0\n}\nltm virtual /Common/vs_any6 {\n    destination /Common/any6.any\n    ip-forward\n    mask any6\n}\nltm virtual /Common/vs_http {\n    destination /Common/10.0.0.11:http\n    mask 255.255.255.255\n}\nltm virtual /Common/vs_net {\n    destination /Common/10.0.1.0:0\n    mask 255.255.255.0\n}\nltm virtual /T1/vs_t1 {\n    destination /T1/10.1.1.10:80\n    mask 255.255.255.255\n    pool p_rel\n    rules {\n        /Common/r_addr\n    }\n}\nltm virtual /Common/app.app/app_vs {\n    destination /Common/app.app/10.0.0.12:80\n    mask 255.255.255.255\n    pool /Common/app.app/app_pool\n}\nltm virtual /Common/vs_legacy6 {\n    destination /Common/fe80::1:80\n    mask ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff\n}\nltm virtual-address /Common/10.0.0.10 {\n    address 10.0.0.10\n    mask 255.255.255.255\n}\nltm virtual-address /Common/10.0.0.10%2 {\n    address 10.0.0.10%2\n    mask 255.255.255.255\n}\nltm virtual-address /Common/0.0.0.0 {\n    address any\n    mask any\n}\nltm virtual-address /Common/any6 {\n    address any6\n    mask any6\n}\nltm virtual-address /Common/2001:db8::10 {\n    address 2001:db8::10\n    mask ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff\n}\nltm snat-translation /Common/10.0.0.50%2 {\n    address 10.0.0.50%2\n}\nltm snatpool /Common/sp_rd {\n    members {\n        /Common/10.0.0.50%2\n    }\n}\nltm monitor http /Common/m_alias {\n    defaults-from /Common/http\n    destination 10.0.0.1:80\n}\nltm monitor http /Common/m_any {\n    defaults-from /Common/http\n    destination *:*\n}\nltm monitor http /Common/m_v6 {\n    defaults-from /Common/http\n    destination *.*\n}\nltm monitor http /Common/m_v6alias {\n    defaults-from /Common/http\n    destination 2001:db8::1.80\n}\nltm data-group internal /Common/dg_ip {\n    records {\n        10.0.0.0/8 { }\n        10.0.0.0%2/8 { }\n        2001:db8::/32 { }\n        192.168.1.1 { }\n    }\n    type ip\n}\nltm rule /Common/r_addr {\nwhen CLIENT_ACCEPTED {\n    if { [IP::addr [IP::client_addr] equals 10.0.0.0/8] } {\n        pool /Common/p_v4 member 10.0.0.1%2 80\n    } elseif { [class match [IP::client_addr] equals /Common/dg_ip] } {\n        node 2001:db8::1 80\n    } else {\n        pool p_rel\n    }\n    set rd [getfield [IP::client_addr] \"%\" 2]\n}\n}\nnet self /Common/self_rd {\n    address 10.0.0.2%2/24\n    vlan /Common/internal\n}\nnet self /Common/self_v6 {\n    address 2001:db8::2/64\n    vlan /Common/internal\n}\nnet route /Common/r_default {\n    gw 10.0.0.254\n    network default\n}\nnet route /Common/r_rd {\n    gw 10.0.0.254%2\n    network default%2\n}\nnet route /Common/r_v6 {\n    gw 2001:db8::fe\n    network default-inet6\n}\nnet route /Common/r_net {\n    gw 10.0.0.254%2\n    network 172.16.0.0%2/12\n}\ngtm server /Common/srv1 {\n    addresses {\n        10.0.0.20 {\n            device-name d1\n        }\n    }\n    datacenter /Common/dc1\n    virtual-servers {\n        vs1 {\n            destination 10.0.0.10:80\n        }\n        vs6 {\n            destination 2001:db8::10.443\n        }\n        vsrd {\n            destination 10.0.0.10%2:443\n        }\n    }\n}\ngtm pool a /Common/gp {\n    members {\n        /Common/srv1:vs1 { }\n        /Common/srv1:vs6 { }\n    }\n}\ngtm wideip a /Common/www.example.com {\n    pools {\n        /Common/gp { }\n    }\n}\nsecurity firewall address-list /Common/al {\n    addresses {\n        10.0.0.0/8 { }\n        10.0.0.1-10.0.0.9 { }\n        2001:db8::/32 { }\n    }\n}\nsecurity firewall port-list /Common/pl {\n    ports {\n        80 { }\n        8000-8080 { }\n    }\n}\n",
+      "certificates": [],
+      "tls": {
+        "profiles": [],
+        "endpoints": [],
+        "findings": [],
+        "notices": [],
+        "analysisTime": 1795432983,
+        "profileDefaultEvidence": [],
+        "provenance": {
+          "schema": 1,
+          "generated_at": "2026-07-19T00:00:00Z",
+          "bootstrap_seed": false,
+          "notice": "Generated from a pinned Trust Stores Observatory snapshot. Membership is presence in the represented root-program snapshot; absence is Unknown, not proof of distrust. Certificate material is omitted; all material gaps are explicit in trust-material-exceptions.json.",
+          "sources": [
+            {
+              "name": "Trust Stores Observatory / Apple",
+              "url": "https://raw.githubusercontent.com/nabla-c0d3/trust_stores_observatory/4497c0a43a810c9ddd2c249ae61fecc10ce4c7a6/trust_stores/apple.yaml",
+              "revision": "4497c0a43a810c9ddd2c249ae61fecc10ce4c7a6",
+              "license": "MIT"
+            },
+            {
+              "name": "Trust Stores Observatory / Android AOSP",
+              "url": "https://raw.githubusercontent.com/nabla-c0d3/trust_stores_observatory/4497c0a43a810c9ddd2c249ae61fecc10ce4c7a6/trust_stores/google_aosp.yaml",
+              "revision": "4497c0a43a810c9ddd2c249ae61fecc10ce4c7a6",
+              "license": "MIT"
+            },
+            {
+              "name": "Trust Stores Observatory / Microsoft Windows",
+              "url": "https://raw.githubusercontent.com/nabla-c0d3/trust_stores_observatory/4497c0a43a810c9ddd2c249ae61fecc10ce4c7a6/trust_stores/microsoft_windows.yaml",
+              "revision": "4497c0a43a810c9ddd2c249ae61fecc10ce4c7a6",
+              "license": "MIT"
+            },
+            {
+              "name": "Trust Stores Observatory / Mozilla NSS",
+              "url": "https://raw.githubusercontent.com/nabla-c0d3/trust_stores_observatory/4497c0a43a810c9ddd2c249ae61fecc10ce4c7a6/trust_stores/mozilla_nss.yaml",
+              "revision": "4497c0a43a810c9ddd2c249ae61fecc10ce4c7a6",
+              "license": "MIT"
+            },
+            {
+              "name": "Trust Stores Observatory / OpenJDK",
+              "url": "https://raw.githubusercontent.com/nabla-c0d3/trust_stores_observatory/4497c0a43a810c9ddd2c249ae61fecc10ce4c7a6/trust_stores/openjdk.yaml",
+              "revision": "4497c0a43a810c9ddd2c249ae61fecc10ce4c7a6",
+              "license": "MIT"
+            },
+            {
+              "name": "Trust Stores Observatory / Oracle Java",
+              "url": "https://raw.githubusercontent.com/nabla-c0d3/trust_stores_observatory/4497c0a43a810c9ddd2c249ae61fecc10ce4c7a6/trust_stores/oracle_java.yaml",
+              "revision": "4497c0a43a810c9ddd2c249ae61fecc10ce4c7a6",
+              "license": "MIT"
+            },
+            {
+              "name": "Chromium Chrome Root Store",
+              "url": "https://chromium.googlesource.com/chromium/src/+/4366388b6743538e4ec9ac211acbe2b9cb4d6ca8/net/data/ssl/chrome_root_store/root_store.textproto",
+              "revision": "4366388b6743538e4ec9ac211acbe2b9cb4d6ca8",
+              "license": "BSD-3-Clause"
+            }
+          ]
+        },
+        "trustDerCoverage": {
+          "complete": 0,
+          "total": 629
+        },
+        "trustCoverage": {
+          "anchors": 629,
+          "der": {
+            "complete": 0,
+            "total": 629
+          },
+          "serverAuthPolicy": {
+            "complete": 121,
+            "total": 1314
+          },
+          "purposes": {
+            "server-auth": 123
+          },
+          "clients": {
+            "android": {
+              "anchors": 145,
+              "productRanges": 0
+            },
+            "apple": {
+              "anchors": 156,
+              "productRanges": 0
+            },
+            "chrome": {
+              "anchors": 104,
+              "productRanges": 0
+            },
+            "microsoft": {
+              "anchors": 549,
+              "productRanges": 0
+            },
+            "mozilla": {
+              "anchors": 121,
+              "productRanges": 0
+            },
+            "open-jdk": {
+              "anchors": 137,
+              "productRanges": 0
+            }
+          }
+        }
+      },
+      "secrets": [],
+      "apmProfiles": [],
+      "forensics": {
+        "files": [],
+        "checklist": [
+          {
+            "id": "ssh-authorized-keys",
+            "label": "SSH authorized_keys",
+            "attack": "T1098.004",
+            "verdict": "absent",
+            "detail": "no authorized_keys in the archive",
+            "evidence": []
+          },
+          {
+            "id": "local-accounts",
+            "label": "Local accounts (passwd / shadow)",
+            "attack": "T1136 / T1078",
+            "verdict": "absent",
+            "detail": "etc/passwd not in the archive",
+            "evidence": []
+          },
+          {
+            "id": "shell-dotfiles",
+            "label": "Shell dotfiles",
+            "attack": "T1546.004",
+            "verdict": "absent",
+            "detail": "no user dotfiles in the archive",
+            "evidence": []
+          },
+          {
+            "id": "logging-config",
+            "label": "syslog-ng config",
+            "attack": "T1562.006",
+            "verdict": "absent",
+            "detail": "no syslog-ng config in the archive",
+            "evidence": []
+          },
+          {
+            "id": "irule-backdoor",
+            "label": "iRule web shell / C2",
+            "attack": "T1505.003",
+            "verdict": "clear",
+            "detail": "no known signature matched the non-default iRule bodies with text available for this scan; this heuristic does not prove that code-execution or off-box flows are absent (default rules and missing or empty bodies are not assessed)",
+            "evidence": []
+          }
+        ],
+        "flagged": 0
+      },
+      "security": {
+        "findings": [
+          {
+            "id": "BIGIP-SEC-001",
+            "severity": "info",
+            "status": "not_applicable",
+            "title": "Default credential check has no material to inspect",
+            "evidence": "no `root` account (an `auth user` stanza or `/etc/shadow` entry) is present in this source",
+            "remediation": "Supply a full config export or UCS if this device does carry a local `root`/`admin` account.",
+            "source": "root",
+            "reference": null
+          },
+          {
+            "id": "BIGIP-SEC-001",
+            "severity": "info",
+            "status": "not_applicable",
+            "title": "Default credential check has no material to inspect",
+            "evidence": "no `admin` account (an `auth user` stanza or `/etc/shadow` entry) is present in this source",
+            "remediation": "Supply a full config export or UCS if this device does carry a local `root`/`admin` account.",
+            "source": "admin",
+            "reference": null
+          },
+          {
+            "id": "BIGIP-SEC-002",
+            "severity": "info",
+            "status": "clear",
+            "title": "SNMP is not configured",
+            "evidence": "no `sys snmp` stanza in this source",
+            "remediation": "No action required.",
+            "source": "sys snmp",
+            "reference": null
+          },
+          {
+            "id": "BIGIP-SEC-003",
+            "severity": "medium",
+            "status": "could_not_inspect",
+            "title": "Password policy could not be inspected",
+            "evidence": "no `auth password-policy` stanza is present in this source",
+            "remediation": "Supply a full config export or UCS to check password-complexity enforcement.",
+            "source": "auth password-policy",
+            "reference": null
+          },
+          {
+            "id": "BIGIP-SEC-004",
+            "severity": "info",
+            "status": "clear",
+            "title": "No plaintext credential-bearing fields found",
+            "evidence": "every secret-bearing field in this source is stored under the unit master key (or none are present)",
+            "remediation": "No action required.",
+            "source": "config",
+            "reference": null
+          },
+          {
+            "id": "BIGIP-SEC-005",
+            "severity": "info",
+            "status": "not_applicable",
+            "title": "Private-key material could not be inspected",
+            "evidence": "no UCS filestore was supplied (a bare config export carries no key files)",
+            "remediation": "Supply a UCS backup to check for unprotected private-key material.",
+            "source": "UCS filestore",
+            "reference": null
+          },
+          {
+            "id": "BIGIP-SEC-006",
+            "severity": "info",
+            "status": "clear",
+            "title": "No non-administrative account has shell access",
+            "evidence": "every `auth user` with `shell bash` also carries an admin role",
+            "remediation": "No action required.",
+            "source": "auth user",
+            "reference": null
+          }
+        ],
+        "counts": {
+          "critical": 0,
+          "high": 0,
+          "medium": 1,
+          "low": 0,
+          "info": 6
+        },
+        "actionable": 1
+      },
+      "partitions": [
+        "Common",
+        "T1"
+      ],
+      "apps": [
+        {
+          "name": "app",
+          "partition": "Common",
+          "folder": "/Common/app.app",
+          "source": "iapp",
+          "memberCount": 3,
+          "entryPoints": [
+            "/Common/app.app/app_vs"
+          ],
+          "members": [
+            {
+              "kind": "virtual",
+              "name": "app_vs",
+              "fullPath": "/Common/app.app/app_vs",
+              "partition": "Common"
+            },
+            {
+              "kind": "pool",
+              "name": "app_pool",
+              "fullPath": "/Common/app.app/app_pool",
+              "partition": "Common"
+            },
+            {
+              "kind": "node",
+              "name": "app_node",
+              "fullPath": "/Common/app.app/app_node",
+              "partition": "Common"
+            }
+          ]
+        }
+      ],
+      "counts": {
+        "virtuals": 11,
+        "pools": 6,
+        "nodes": 7,
+        "monitors": 4,
+        "rules": 1,
+        "dataGroups": 1,
+        "profiles": 0,
+        "snatpools": 1,
+        "persistence": 0,
+        "policies": 0,
+        "virtualAddresses": 5,
+        "poolMembers": 8,
+        "orphans": 9,
+        "configDiagnostics": 24,
+        "apps": 1,
+        "certificates": 0,
+        "tls": 0,
+        "secrets": 0,
+        "security": 1,
+        "apmProfiles": 0,
+        "gtm": 3,
+        "firewall": 2,
+        "files": 0
+      },
+      "insights": [
+        {
+          "level": "warn",
+          "text": "This BIG-IP branch reaches EoSD/EoTS/EoL in 128 days. Plan an upgrade."
+        },
+        {
+          "level": "warn",
+          "text": "2 orphaned pools (defined, referenced by nothing — no iRule can attach them either)"
+        },
+        {
+          "level": "warn",
+          "text": "2 orphaned nodes (defined, referenced by nothing — no iRule can attach them either)"
+        },
+        {
+          "level": "warn",
+          "text": "3 orphaned monitors (defined, referenced by nothing — no iRule can attach them either)"
+        },
+        {
+          "level": "info",
+          "text": "7 virtual server(s) with no default pool (forwarding / policy-driven)"
+        }
+      ]
+    }
+  ],
+  "totals": {
+    "virtuals": 11,
+    "pools": 6,
+    "nodes": 7,
+    "monitors": 4,
+    "rules": 1,
+    "dataGroups": 1,
+    "profiles": 0,
+    "snatpools": 1,
+    "persistence": 0,
+    "policies": 0,
+    "virtualAddresses": 5,
+    "poolMembers": 8,
+    "orphans": 9,
+    "configDiagnostics": 24,
+    "apps": 1,
+    "certificates": 0,
+    "tls": 0,
+    "secrets": 0,
+    "security": 1,
+    "apmProfiles": 0,
+    "gtm": 3,
+    "firewall": 2,
+    "files": 0
+  },
+  "container_order": [
+    "virtuals",
+    "pools",
+    "nodes",
+    "monitors",
+    "rules",
+    "dataGroups",
+    "profiles",
+    "snatpools",
+    "persistence",
+    "policies",
+    "virtualAddresses"
+  ],
+  "architecture": {
+    "defined": false,
+    "deviceCount": 1,
+    "devices": [
+      {
+        "index": 0,
+        "uri": "addresses.conf",
+        "name": "addresses",
+        "label": "addresses",
+        "role": "gtm",
+        "tier": 0
+      }
+    ],
+    "tiers": [
+      {
+        "tier": 0,
+        "devices": [
+          {
+            "index": 0,
+            "uri": "addresses.conf",
+            "name": "addresses",
+            "label": "addresses",
+            "role": "gtm",
+            "tier": 0
+          }
+        ]
+      }
+    ],
+    "links": [],
+    "graph": "{\"nodes\":[{\"id\":\"d0\",\"label\":\"addresses\\ngtm · tier 0\",\"cls\":\"device\"}],\"edges\":[]}",
+    "zones": [],
+    "interfaces": [],
+    "dnsZones": [],
+    "maps": {}
+  },
+  "enrichment": {
+    "addresses": {},
+    "ports": {
+      "80": "http",
+      "443": "https",
+      "8080": "http-alt"
+    }
+  }
+}
