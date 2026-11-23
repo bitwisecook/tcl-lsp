@@ -57,17 +57,6 @@ const HTTP_EVENTS: &[&str] = &[
     "HTTP_REQUEST_SEND",
 ];
 
-/// Events implying a CLIENTSSL profile (`_infer_profiles`).
-const SSL_EVENTS: &[&str] = &[
-    "CLIENTSSL_HANDSHAKE",
-    "CLIENTSSL_DATA",
-    "CLIENTSSL_CLIENTCERT",
-    "CLIENTSSL_CLIENTHELLO",
-    "SERVERSSL_HANDSHAKE",
-    "SERVERSSL_DATA",
-    "SERVERSSL_SERVERHELLO",
-];
-
 /// Events implying DNS (`_infer_profiles`).
 const DNS_EVENTS: &[&str] = &["DNS_REQUEST", "DNS_RESPONSE"];
 
@@ -147,7 +136,7 @@ pub fn generate_irule_test(args: &Value) -> Value {
             .collect::<Vec<_>>()
     });
     let ordered_events = event_registry.order_events(&event_names);
-    let profiles = infer_profiles(&ordered_events);
+    let profiles = infer_profiles(&event_registry, &ordered_events);
     let closure = &inventory.commands;
     let commands_used = extract_irule_commands(closure);
     let objects = source_context.map_or_else(ObjectRefs::default, |context| {
@@ -281,16 +270,22 @@ fn extract_variables(commands: &SourceInventory) -> Variables {
 }
 
 /// Infer the required profiles from the events present (`_infer_profiles`).
-fn infer_profiles(events: &[String]) -> Vec<String> {
+fn infer_profiles(registry: &EventRegistry, events: &[String]) -> Vec<String> {
     let mut profiles = vec!["TCP".to_owned()];
     let has = |set: &[&str]| events.iter().any(|e| set.contains(&e.as_str()));
 
     let has_http = has(HTTP_EVENTS);
+    for profile in ["CLIENTSSL", "SERVERSSL"] {
+        if events.iter().any(|event| {
+            registry
+                .get_props(event)
+                .is_some_and(|props| props.implied_profiles.contains(&profile))
+        }) {
+            profiles.push(profile.to_owned());
+        }
+    }
     if has_http {
         profiles.push("HTTP".to_owned());
-    }
-    if has(SSL_EVENTS) {
-        profiles.insert(1, "CLIENTSSL".to_owned());
     }
     if has(DNS_EVENTS) {
         return vec!["UDP".to_owned(), "DNS".to_owned()];

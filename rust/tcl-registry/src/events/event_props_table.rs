@@ -444,7 +444,7 @@ fn event_props_table_4() -> Vec<(&'static str, EventProps)> {
             EventProps {
                 client_side: true,
                 transport: &["tcp"],
-                implied_profiles: &["CLIENTSSL", "PERSIST", "SSL_PERSISTENCE"],
+                implied_profiles: &["CLIENTSSL"],
                 common: true,
                 ..EventProps::DEFAULT
             },
@@ -1444,7 +1444,7 @@ fn event_props_table_15() -> Vec<(&'static str, EventProps)> {
                 client_side: true,
                 server_side: true,
                 transport: &["tcp"],
-                implied_profiles: &["PERSIST", "SERVERSSL", "SSL_PERSISTENCE"],
+                implied_profiles: &["SERVERSSL"],
                 ..EventProps::DEFAULT
             },
         ),

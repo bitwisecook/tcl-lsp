@@ -74,9 +74,9 @@ restrictions may apply to an invocation form or subcommand within an event.
 
 | Verified result | Consumer consequence |
 | --- | --- |
-| `CLIENTSSL_CLIENTHELLO` preceded `CLIENTSSL_HANDSHAKE` on both TLS 1.2 requests. | Fix the reversed order in [CLI explain flow](../../../../rust/f5-cli/src/commands/explain_flow.rs). Use the registry's order for the matching flow. |
+| `CLIENTSSL_CLIENTHELLO` preceded `CLIENTSSL_HANDSHAKE` on both TLS 1.2 requests. | The CLI candidate sequence already gives this order. Its separate lifecycle list reverses the labels and currently serves as a membership filter. Use registry facts when consolidating the CLI event tables. [CLI explain flow](../../../../rust/f5-cli/src/commands/explain_flow.rs) |
 | The proxied flow fired `SERVERSSL_CLIENTHELLO_SEND`, then `SERVERSSL_SERVERHELLO`, then `SERVERSSL_HANDSHAKE` on its TLS 1.3 backend leg. TMSH rejects the spelling `SERVERSSL_CLIENTHELLO`. | Use the measured spelling and server-side order. Leave optional events conditional. |
-| TMSH rejected attaching ClientHello without CLIENTSSL/PERSIST, and rejected server handshake with CLIENTSSL alone. The corresponding SSL profile, or either tested persistence profile, allowed attachment. | Have [MCP scaffolding](../../../../rust/tcl-mcp/src/irule_gen.rs) add Client SSL or Server SSL on the proper side to cause the requested TLS flow. Keep PERSIST as an attachment alternative. |
+| TMSH rejected attaching ClientHello without CLIENTSSL/PERSIST, and rejected server handshake with CLIENTSSL alone. Persistence admitted client ClientHello, server ServerHello and server handshake, but did not admit client handshake or server ClientHello send. | Have [MCP scaffolding](../../../../rust/tcl-mcp/src/irule_gen.rs) add Client SSL or Server SSL on the proper side to cause the requested TLS flow. Keep PERSIST as an attachment alternative. |
 | TMSH warned on a literal `HTTP::header` in `RULE_INIT` but returned success. The same command ran under a configured HTTP event. | Store severity as well as eligibility. Keep compiler acceptance and runtime delivery separate. |
 
 Publish the shared event and profile facts to MCP, the report front end and
@@ -125,12 +125,20 @@ event, profile/module, output shape and effect. Organise the checks as follows.
    and relevant state reads or writes. Keep module-gated rows observationally
    unknown until the module and event can be exercised.
 
-The sample above checked only a few forms. The compiler rejected `exec` and
+The name-coverage audit against the 21.0.0.1 schema found all 933 commands,
+158 events and 33 profiles in the registry. All 974 command man pages
+resolved to a registry command. The synopsis scan left 370 advisory literals
+for review, which include values and placeholders. Coverage gives a
+starting inventory for the form-by-form audit.
+
+The live sample checked a few forms. The compiler rejected `exec` and
 `open` as disabled and accepted `clock seconds`. The deprecated `matchclass`
 still resolved and returned the matching index at runtime. TMM treated
 `HTTP::header nhq_no_such_subcommand Host` as a write, and
 `HTTP::header value Host Extra` also wrote to the named header. Both returned
-empty results. A checker that assumes every first word is a closed
+empty results. The follow-up confirmed exact, case-sensitive keyword
+selection and exactly three operands for `matchclass`. A checker that
+assumes every first word is a closed
 subcommand or derives runtime arity from compile exit status would miss those
 forms. For return shapes distinguish a Tcl value's documented meaning and
 the observed output from any unmeasured internal representation.
@@ -142,7 +150,8 @@ local parity checks. Treat a docs disagreement as unresolved until adjudicated.
 [TMSH compiler results](../../../../evidence/bigip/tmsh-21.1-name-handling.md#rule-compiler) ·
 [TMM runtime results](../../../../evidence/tcl/bigip-name-handling-tls-http.md) ·
 [F5 HTTP::header reference](https://clouddocs.f5.com/api/irules/HTTP__header.html) ·
-[F5 matchclass reference](https://clouddocs.f5.com/api/irules/matchclass.html)
+[F5 matchclass reference](https://clouddocs.f5.com/api/irules/matchclass.html) ·
+[Header dispatch and matchclass follow-up](../../../../evidence/tcl/bigip-header-dispatch-matchclass-arity.md)
 
 ## Q7. Configuration value grammars
 
@@ -265,9 +274,10 @@ observed two different implicit mutating call forms. It establishes why
 the form resolution has to precede taint and credential checks. Classifying
 the value as a secret and deciding diagnostic severity are policy decisions.
 The checked-out `HTTP::header` spec lists only `insert` and `replace` as
-header output sink subcommands. The measured mutation needs a descriptor
-that makes the selected header name and value available to the same sink
-logic; verify the rest of the family before extending the fact globally.
+header output sink subcommands. The selected invocation now exposes the measured getter and setter
+effects. The explicit `value` setter also exposes its credential operand.
+The taint sink still uses the subcommand list. It needs form-specific
+name and value positions to cover both setter spellings.
 [TMM header evidence](../../../../evidence/tcl/bigip-name-handling-tls-http.md) ·
 [Current header spec](../../../../rust/tcl-registry/src/commands/irules/http__header.rs) ·
 [Resolved credential arguments](../../../../rust/tcl-registry/src/resolved_invocation/source_options.rs)
@@ -298,8 +308,8 @@ Answered: item 107's bounded fixes ship in the current release with focused regr
   bad outputs where a focused regression covers the change.
 - Include corrections to an individual iRules descriptor only where a
   focused test establishes the affected form and downstream effect. The
-  `HTTP::header` observation is a candidate for such a fix. Give the 21.1 SSL
-  defaults a versioned evidence row before extending the existing fallback.
+  Registry invocation and attachment regressions cover the measured forms.
+  The live 21.1 SSL defaults confirm the registry’s existing version band.
 - Keep the data-crate extraction, full graph and consumer migration,
   historical snapshot/generator recovery and catalogue-wide audit in
   items 111, 118 and 119 and the subsequent definition audit. The release

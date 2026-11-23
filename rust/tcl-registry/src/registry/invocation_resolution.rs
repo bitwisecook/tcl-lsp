@@ -757,6 +757,11 @@ pub(super) fn resolve_semantic_subcommand<'r, 'w>(
         crate::abbrev::KeywordMatch::Ambiguous(_) => {
             (SubcommandResolution::Ambiguous { spelling }, None)
         }
+        crate::abbrev::KeywordMatch::Unknown
+            if spec.allow_unknown_subcommands && !spec.command_forms.is_empty() =>
+        {
+            (SubcommandResolution::NotApplicable, None)
+        }
         crate::abbrev::KeywordMatch::Unknown => (SubcommandResolution::Unknown { spelling }, None),
     }
 }

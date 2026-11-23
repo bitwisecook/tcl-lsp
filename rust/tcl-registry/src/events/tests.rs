@@ -87,6 +87,23 @@ fn event_props_lookup() {
 }
 
 #[test]
+fn ssl_handshake_attachment_profiles_keep_event_specific_persistence() {
+    let registry = EventRegistry::build();
+    for (event, ssl, persist) in [
+        ("CLIENTSSL_CLIENTHELLO", "CLIENTSSL", true),
+        ("CLIENTSSL_HANDSHAKE", "CLIENTSSL", false),
+        ("SERVERSSL_CLIENTHELLO_SEND", "SERVERSSL", false),
+        ("SERVERSSL_SERVERHELLO", "SERVERSSL", true),
+        ("SERVERSSL_HANDSHAKE", "SERVERSSL", true),
+    ] {
+        let profiles = registry.get_props(event).unwrap().implied_profiles;
+        assert!(profiles.contains(&ssl), "{event}");
+        assert_eq!(profiles.contains(&"PERSIST"), persist, "{event}");
+        assert_eq!(profiles.contains(&"SSL_PERSISTENCE"), persist, "{event}");
+    }
+}
+
+#[test]
 fn command_side_distinguishes_ambiguous_response_events() {
     let reg = EventRegistry::build();
     assert_eq!(

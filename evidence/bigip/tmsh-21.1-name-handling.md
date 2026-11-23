@@ -106,6 +106,18 @@ variant, it had only the TCP transport profile plus
 | `CLIENTSSL_CLIENTHELLO` | `/Common/source_addr`, then `/Common/ssl` | 0 each | No warning |
 | `SERVERSSL_HANDSHAKE` | `/Common/source_addr`, then `/Common/ssl` | 0 each | No warning |
 
+A second verify-only run used the same template with `/Common/source_addr`
+for the persistence-only virtual. Each event also verified with its
+corresponding SSL profile on the correct side.
+
+| Event | Persistence only | Required profile when refused |
+| --- | --- | --- |
+| `CLIENTSSL_CLIENTHELLO` | Accepted | |
+| `CLIENTSSL_HANDSHAKE` | Rejected | CLIENTSSL |
+| `SERVERSSL_CLIENTHELLO_SEND` | Rejected | SERVERSSL |
+| `SERVERSSL_SERVERHELLO` | Accepted | |
+| `SERVERSSL_HANDSHAKE` | Accepted | |
+
 The persistence-only cases measured attachment eligibility. The
 [live TLS flow](../tcl/bigip-name-handling-tls-http.md) exercised actual event
 delivery with the two SSL profiles attached.

@@ -3,7 +3,7 @@
 # The native `f5-irules` command surface (1062 commands) as SpecTcl, for
 # like-for-like comparison with the compiled-in specs. Not loaded by any
 # product; see docs/design/registry/spectcl-compiled-surface-plan.md.
-# Fields the renderer cannot carry: 990.
+# Fields the renderer cannot carry: 989.
 
 # Rendered from the tcl-lsp command registry by the spec studio's SpecTcl
 #   renderer (rust/tcl-spec-studio/src/render_spectcl.rs).
@@ -11433,8 +11433,11 @@ command HTTP::has_responded {
 
 command HTTP::header {
     available {f5-irules}
-    traits {PURE CSE_CANDIDATE REQUIRES_HTTP_CONTEXT DIAGRAM_ACTION}
+    traits {CSE_CANDIDATE REQUIRES_HTTP_CONTEXT DIAGRAM_ACTION}
     arity 1..
+
+    allow_unknown_subcommands
+    prefix_matching Strict
 
     side_effect HttpHeader -reads -writes -side Both
 
@@ -11448,18 +11451,48 @@ command HTTP::header {
     option -noupdate \
         -detail {Do not propagate the header mutation to subsequent BIG-IP filters.}
 
+    form Default {HTTP::header <name> ?value?}
     form Default {HTTP::header <subcommand> ?arg ...?}
 
     hover {
         summary {Inspect or mutate HTTP headers in an iRule event.}
+        synopsis {HTTP::header <name> ?value?}
         synopsis {HTTP::header <subcommand> ?arg ...?}
-        description {Use subcommands like `value`, `insert`, `replace`, and `remove`.}
+        description {Use an exact subcommand or supply a header name. A header name alone reads the last value. A name followed by a value writes the header.}
         source {https://clouddocs.f5.com/api/irules/HTTP__header.html}
     }
 
-    subcommand at { arity 1 ; detail {Get header name by index.} ; synopsis {HTTP::header at <index>} }
-    subcommand count { arity ..1 ; detail {Count headers.} ; synopsis {HTTP::header count ?<name>?} }
-    subcommand exists { arity 1 ; detail {Check if header exists.} ; synopsis {HTTP::header exists <name>} }
+    refine getter {
+        arity 1
+        side_effect HttpHeader -reads -side Both
+    }
+
+    refine setter {
+        arity 2
+        mutator yes
+        side_effect HttpHeader -writes -side Both
+    }
+
+    subcommand at {
+        arity 1
+        detail {Get header name by index.}
+        synopsis {HTTP::header at <index>}
+        side_effect HttpHeader -reads -side Both
+    }
+
+    subcommand count {
+        arity ..1
+        detail {Count headers.}
+        synopsis {HTTP::header count ?<name>?}
+        side_effect HttpHeader -reads -side Both
+    }
+
+    subcommand exists {
+        arity 1
+        detail {Check if header exists.}
+        synopsis {HTTP::header exists <name>}
+        side_effect HttpHeader -reads -side Both
+    }
 
     subcommand insert {
         arity 2..
@@ -11477,10 +11510,33 @@ command HTTP::header {
         mutator
     }
 
-    subcommand is_keepalive { arity 0 ; detail {Check if connection is keep-alive.} ; synopsis {HTTP::header is_keepalive} }
-    subcommand is_redirect { arity 0 ; detail {Check if response is a redirect.} ; synopsis {HTTP::header is_redirect} }
-    subcommand lws { arity 0 ; detail {Returns 1 if a header with linear white space was encountered.} ; synopsis {HTTP::header lws} }
-    subcommand names { arity 0 ; detail {List all header names.} ; synopsis {HTTP::header names} }
+    subcommand is_keepalive {
+        arity 0
+        detail {Check if connection is keep-alive.}
+        synopsis {HTTP::header is_keepalive}
+        side_effect HttpHeader -reads -side Both
+    }
+
+    subcommand is_redirect {
+        arity 0
+        detail {Check if response is a redirect.}
+        synopsis {HTTP::header is_redirect}
+        side_effect HttpHeader -reads -side Both
+    }
+
+    subcommand lws {
+        arity 0
+        detail {Returns 1 if a header with linear white space was encountered.}
+        synopsis {HTTP::header lws}
+        side_effect HttpHeader -reads -side Both
+    }
+
+    subcommand names {
+        arity 0
+        detail {List all header names.}
+        synopsis {HTTP::header names}
+        side_effect HttpHeader -reads -side Both
+    }
 
     subcommand remove {
         arity 1
@@ -11506,15 +11562,22 @@ command HTTP::header {
     }
 
     subcommand value {
-        arity 1
-        detail {Get first header value.}
-        synopsis {HTTP::header value <name>}
-        # TODO(spectcl): `successful_handler` is set on the source spec. The DSL
-        #   spells it `successful_handler -native
-        #   Leaf|ExpressionArguments|DictionaryConstructor|EnsembleLeaf|EnsemblePathLeaf
-        #   -direct-provider
-        #   F5String|F5Binary|VariableOperands|InitialiseEmptyVariable|CatchOutputs|PossibleBodies|CommandBindingTransition`,
-        #   but a pack may not author this field.
+        arity 1..2
+        detail {Read the last header value or set the header.}
+        synopsis {HTTP::header value <name> ?value?}
+
+        refine getter {
+            arity 1
+            side_effect HttpHeader -reads -side Both
+        }
+
+        refine setter {
+            arity 2
+            mutator yes
+            side_effect HttpHeader -writes -side Both
+        }
+        credential_arg 2
+        sensitive_headers {authorization proxy-authorization x-api-key x-auth-token x-secret}
     }
 
     subcommand values {
@@ -11527,6 +11590,7 @@ command HTTP::header {
         #   -direct-provider
         #   F5String|F5Binary|VariableOperands|InitialiseEmptyVariable|CatchOutputs|PossibleBodies|CommandBindingTransition`,
         #   but a pack may not author this field.
+        side_effect HttpHeader -reads -side Both
     }
 }
 
@@ -29260,6 +29324,7 @@ lsort -stride 2 -index 1 -integer {carrot 10 apple 50 banana 25}}
 
 command matchclass {
     available {f5-irules}
+    arity 3
 
     side_effect DataGroup -reads -side Global
 
@@ -29293,6 +29358,7 @@ compatibility page.}
      pool all_pool
  }
 }}
+        returns {The one-based index of the first match, or 0.}
     }
 }
 
