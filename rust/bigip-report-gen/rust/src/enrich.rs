@@ -29,44 +29,46 @@
 
 use std::collections::BTreeSet;
 use std::net::IpAddr;
-use std::str::FromStr;
 
-use ipnet::IpNet;
 use serde_json::{Map, Value as J};
-use tcl_bigip::value::IPAddress;
+use tcl_bigip::value::{IPAddress, Network};
 
 use crate::jutil::{barr, bstr};
 use crate::services::getservbyport;
 
 /// Does `net` contain `ip`, honouring IPv4-in-IPv6 (an IPv4 address is inside an
 /// IPv6 zone covering its `::ffff:0:0/96`-mapped form).
-fn net_contains(net: &IpNet, ip: IpAddr) -> bool {
-    if net.contains(&ip) {
+fn net_contains(net: &Network, ip: &IPAddress) -> bool {
+    if net
+        .route_domain
+        .is_some_and(|domain| domain != ip.route_domain.unwrap_or(0))
+    {
+        return false;
+    }
+    if net.contains_addr(ip.addr) {
         return true;
     }
-    match (net, ip) {
-        (IpNet::V6(_), IpAddr::V4(v4)) => net.contains(&IpAddr::V6(v4.to_ipv6_mapped())),
-        (IpNet::V4(_), IpAddr::V6(v6)) => {
+    match (net.is_ipv6(), ip.addr) {
+        (true, IpAddr::V4(v4)) => net.contains_addr(IpAddr::V6(v4.to_ipv6_mapped())),
+        (false, IpAddr::V6(v6)) => {
             // A v4-mapped v6 address vs a v4 zone.
             v6.to_ipv4_mapped()
-                .is_some_and(|v4| net.contains(&IpAddr::V4(v4)))
+                .is_some_and(|v4| net.contains_addr(IpAddr::V4(v4)))
         }
         _ => false,
     }
 }
 
 /// `[(net, label)]` pairs, most-specific first (longer prefix wins).
-fn parse_nets(items: &[(String, String)]) -> Vec<(IpNet, String)> {
-    let mut out: Vec<(IpNet, String)> = items
+fn parse_nets(items: &[(String, String)]) -> Vec<(Network, String)> {
+    let mut out: Vec<(Network, String)> = items
         .iter()
         .filter_map(|(cidr, label)| {
-            let net = IpNet::from_str(cidr)
-                .ok()
-                .or_else(|| IpAddr::from_str(cidr).ok().map(IpNet::from))?;
+            let net = Network::try_parse(cidr)?;
             Some((net, label.clone()))
         })
         .collect();
-    out.sort_by_key(|b| std::cmp::Reverse(b.0.prefix_len()));
+    out.sort_by_key(|b| std::cmp::Reverse(b.0.prefix_length()));
     out
 }
 
@@ -76,7 +78,7 @@ fn collect_addrs_ports(devices: &[J]) -> (Vec<String>, Vec<i64>) {
     let mut ports: BTreeSet<i64> = BTreeSet::new();
     {
         let mut add_addr = |s: &str| {
-            if IPAddress::from_address_value(s).is_some() {
+            if IPAddress::try_parse(s).is_some() {
                 addrs.insert(s.trim().to_string());
             }
         };
@@ -118,23 +120,21 @@ fn collect_addrs_ports(devices: &[J]) -> (Vec<String>, Vec<i64>) {
 pub fn build_enrichment(devices: &[J], architecture: &J) -> J {
     // Zones → nets.
     let arch = architecture.as_object();
-    let mut zone_nets: Vec<(IpNet, String)> = Vec::new();
+    let mut zone_nets: Vec<(Network, String)> = Vec::new();
     if let Some(zones) = arch.and_then(|a| a.get("zones")).and_then(J::as_array) {
         for z in zones {
             let Some(zm) = z.as_object() else { continue };
             let name = bstr(zm, "name").to_string();
             for c in barr(zm, "cidrs") {
                 if let Some(cs) = c.as_str()
-                    && let Some(net) = IpNet::from_str(cs)
-                        .ok()
-                        .or_else(|| IpAddr::from_str(cs).ok().map(IpNet::from))
+                    && let Some(net) = Network::try_parse(cs)
                 {
                     zone_nets.push((net, name.clone()));
                 }
             }
         }
     }
-    zone_nets.sort_by_key(|b| std::cmp::Reverse(b.0.prefix_len()));
+    zone_nets.sort_by_key(|b| std::cmp::Reverse(b.0.prefix_length()));
 
     // cidr-name entries.
     let cidr_pairs: Vec<(String, String)> = arch
@@ -156,16 +156,16 @@ pub fn build_enrichment(devices: &[J], architecture: &J) -> J {
 
     let mut addr_map = Map::new();
     for a in addrs {
-        let Some(ip) = IPAddress::from_address_value(&a).map(|address| address.addr) else {
+        let Some(ip) = IPAddress::try_parse(&a) else {
             continue;
         };
         let zone = zone_nets
             .iter()
-            .find(|(n, _)| net_contains(n, ip))
+            .find(|(n, _)| net_contains(n, &ip))
             .map(|(_, l)| l);
         let cidr_name = cidr_nets
             .iter()
-            .find(|(n, _)| net_contains(n, ip))
+            .find(|(n, _)| net_contains(n, &ip))
             .map(|(_, l)| l);
         if zone.is_none() && cidr_name.is_none() {
             continue;

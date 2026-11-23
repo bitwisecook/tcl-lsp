@@ -136,7 +136,15 @@ struct Via {
 
 /// Compare the numeric host across devices using their independent domain IDs.
 fn peer_address_key(text: &str) -> Option<String> {
-    tcl_bigip::value::IPAddress::from_address_value(text).map(|address| address.addr.to_string())
+    tcl_bigip::value::IPAddress::try_parse(text).map(|address| address.addr.to_string())
+}
+
+fn peer_endpoint_key(text: &str) -> Option<String> {
+    let endpoint = tcl_bigip::value::Endpoint::try_parse(text)?;
+    match endpoint.address {
+        tcl_bigip::value::Address::Ip(address) => Some(address.addr.to_string()),
+        _ => None,
+    }
 }
 
 /// The set of IP addresses a device *serves* — the concrete listener addresses
@@ -156,7 +164,10 @@ fn served_addresses(device: &Map<String, J>) -> BTreeMap<String, String> {
     for va in barr(device, "virtualAddresses") {
         let Some(am) = va.as_object() else { continue };
         let fp = bstr(am, "fullPath");
-        if let Some(ip) = peer_address_key(bstr(am, "name")).or_else(|| peer_address_key(fp)) {
+        if let Some(ip) = peer_address_key(bstr(am, "name")).or_else(|| {
+            let name = tcl_bigip::value::BigIpName::try_parse(fp)?;
+            peer_address_key(&name.name)
+        }) {
             out.entry(ip).or_insert_with(|| fp.to_string());
         }
     }
@@ -165,7 +176,7 @@ fn served_addresses(device: &Map<String, J>) -> BTreeMap<String, String> {
     // address (an upstream resolver could point at it).
     for l in barr(device, "gtmListeners") {
         let Some(lm) = l.as_object() else { continue };
-        if let Some(ip) = peer_address_key(bstr(lm, "address")) {
+        if let Some(ip) = peer_endpoint_key(bstr(lm, "address")) {
             out.entry(ip)
                 .or_insert_with(|| bstr(lm, "fullPath").to_string());
         }
@@ -214,7 +225,7 @@ fn outbound_targets(device: &Map<String, J>) -> Vec<Target> {
         let Some(sm) = s.as_object() else { continue };
         let server_fp = bstr(sm, "fullPath").to_string();
         for a in barr(sm, "virtualServers") {
-            if let Some(ip) = a.as_str().and_then(peer_address_key) {
+            if let Some(ip) = a.as_str().and_then(peer_endpoint_key) {
                 out.push(Target {
                     address: ip,
                     from_obj: server_fp.clone(),
@@ -835,21 +846,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn peer_address_key_normalises() {
+    fn peer_keys_read_the_declared_value_kind() {
         assert_eq!(
-            peer_address_key("10.0.0.5%2:443").as_deref(),
+            peer_endpoint_key("10.0.0.5%2:443").as_deref(),
             Some("10.0.0.5")
         );
-        assert_eq!(peer_address_key("10.0.0.0/24").as_deref(), Some("10.0.0.0"));
+        assert_eq!(peer_address_key("10.0.0.0/24"), None);
+        assert_eq!(
+            peer_address_key("fe80::1:80").as_deref(),
+            Some("fe80::1:80")
+        );
         assert_eq!(peer_address_key("10.0.0.5").as_deref(), Some("10.0.0.5"));
-        assert_eq!(peer_address_key("[::1]:443").as_deref(), Some("::1"));
+        assert_eq!(peer_endpoint_key("[::1]:443").as_deref(), Some("::1"));
         assert_eq!(
             peer_address_key("2001:db8::1%3").as_deref(),
             Some("2001:db8::1")
         );
         // BIG-IP's unbracketed IPv6 destination-port form (`.port`).
         assert_eq!(
-            peer_address_key("2001:db8::10.443").as_deref(),
+            peer_endpoint_key("2001:db8::10.443").as_deref(),
             Some("2001:db8::10")
         );
         assert_eq!(

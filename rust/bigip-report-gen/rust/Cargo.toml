@@ -68,7 +68,6 @@ sha-crypt = "0.6"
 # unit-tested against real `crypt(3)` output.
 md-5 = "0.11"
 regex = "1"
-ipnet = "2"
 base64 = "0.23"
 # CommonMark + GFM for the user-supplied report front-matter, rendered to HTML at
 # generation time (shared by the Python, Rust and wasm backends via one impl).

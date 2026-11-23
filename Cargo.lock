@@ -330,7 +330,6 @@ version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
  "chrono",
- "ipnet",
  "js-sys",
  "md-5",
  "minijinja",
