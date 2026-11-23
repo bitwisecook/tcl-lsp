@@ -77,3 +77,23 @@ comparisons in TMM, including explicit and omitted route domains.
 [Runtime evidence](../tcl/bigip-ip-addr-route-domains.md)
 AFM and GTM were outside the provisioned module set. The only populated boot
 slot contained 21.1.0.1, so 17.5, 17.1 and the legacy releases remain open.
+
+
+## Follow-up verification
+
+The same 21.1.0.1 build ran each fixture separately with
+`tmsh load sys config merge file <fixture> verify`. The fixtures used
+documentation addresses and were removed after verification.
+
+| Fixture property | Exit | Result |
+| --- | --- | --- |
+| Node `address`, virtual `destination` with port 80, TCP monitor `destination` with port 80, and SNAT translation `address`, all with `192.0.2.53%65432` | 1 each | Each required a defined route domain and emitted `01070973:3` |
+| TCP and HTTPS monitor `destination *.*` or `destination 2001:db8::53%0:80` | 0 each | Wildcard and colon-separated IPv6 forms accepted |
+| TCP and HTTPS monitor `destination 2001:db8::53.*` | 1 each | Monitor address type requires a port |
+| Virtual IPv4 destination with service `http`, `https`, `domain`, `ssh` or `65535` | 0 each | Services accepted |
+| Virtual IPv4 destination with service `65536` or `nh234_unknown` | 1 each | Invalid or ambiguous service |
+| AFM IP address list with a domain on an IPv4 network or IPv4 range | 1 each | The unprovisioned module rejected the component before reading either field |
+
+The internal IP data-group result in the route-domain table still applies.
+The four component checks above and the data-group check establish different
+requirements for explicit references to the same absent route domain.
