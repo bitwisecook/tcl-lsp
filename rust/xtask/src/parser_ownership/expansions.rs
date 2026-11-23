@@ -32,7 +32,7 @@ pub(super) struct Expansions {
 }
 
 impl Expansions {
-    fn add(&mut self, kind: &'static str, target: String) {
+    fn add(&mut self, kind: &'static str, target: &str) {
         self.rows.push((
             self.scope.join("::"),
             kind,
@@ -77,12 +77,12 @@ impl MacroFacts {
                     syn::Lit::Byte(b)
                         if b.value().is_ascii_punctuation() || b.value().is_ascii_whitespace() =>
                     {
-                        self.delimiter.push(format!("byte {:#04x}", b.value()))
+                        self.delimiter.push(format!("byte {:#04x}", b.value()));
                     }
                     syn::Lit::Char(c)
                         if c.value().is_ascii_punctuation() || c.value().is_ascii_whitespace() =>
                     {
-                        self.delimiter.push(format!("char {:?}", c.value()))
+                        self.delimiter.push(format!("char {:?}", c.value()));
                     }
                     _ => {}
                 }
@@ -120,7 +120,7 @@ impl<'ast> Visit<'ast> for Expansions {
             .iter()
             .any(|a| a.path().is_ident("proc_macro") || a.path().is_ident("proc_macro_attribute"))
         {
-            self.add("proc-macro definition", name);
+            self.add("proc-macro definition", &name);
         }
         for attr in &item.attrs {
             if attr.path().is_ident("proc_macro_derive")
@@ -133,8 +133,7 @@ impl<'ast> Visit<'ast> for Expansions {
                         .split(',')
                         .next()
                         .unwrap_or_default()
-                        .trim()
-                        .to_owned(),
+                        .trim(),
                 );
             }
         }
@@ -152,7 +151,7 @@ impl<'ast> Visit<'ast> for Expansions {
         if item.mac.path.is_ident("macro_rules")
             && let Some(name) = &item.ident
         {
-            self.add("macro_rules definition", name.to_string());
+            self.add("macro_rules definition", &name.to_string());
         }
         visit::visit_item_macro(self, item);
     }
@@ -160,9 +159,9 @@ impl<'ast> Visit<'ast> for Expansions {
     fn visit_attribute(&mut self, attr: &'ast syn::Attribute) {
         if let syn::Meta::List(list) = &attr.meta {
             if attr.path().is_ident("cfg") || attr.path().is_ident("cfg_attr") {
-                self.add("conditional compilation", list.tokens.to_string());
+                self.add("conditional compilation", &list.tokens.to_string());
             } else if attr.path().is_ident("derive") {
-                self.add("derive expansion", list.tokens.to_string());
+                self.add("derive expansion", &list.tokens.to_string());
             }
         }
         if attr.path().is_ident("path")
@@ -170,7 +169,7 @@ impl<'ast> Visit<'ast> for Expansions {
             && let syn::Expr::Lit(lit) = &nv.value
             && let syn::Lit::Str(value) = &lit.lit
         {
-            self.add("path module", value.value());
+            self.add("path module", &value.value());
         }
         let path = super::path_text(attr.path());
         if !matches!(
@@ -198,7 +197,7 @@ impl<'ast> Visit<'ast> for Expansions {
                 | "proc_macro_attribute"
                 | "proc_macro_derive"
         ) {
-            self.add("attribute expansion candidate", path);
+            self.add("attribute expansion candidate", &path);
         }
         visit::visit_attribute(self, attr);
     }
@@ -208,16 +207,16 @@ impl<'ast> Visit<'ast> for Expansions {
         let mut facts = MacroFacts::default();
         facts.scan(syn::buffer::TokenBuffer::new2(mac.tokens.clone()).begin());
         for operation in facts.structural() {
-            self.add("macro token operation", format!("{name}: {operation}"));
+            self.add("macro token operation", &format!("{name}: {operation}"));
         }
         if matches!(name.as_str(), "include" | "include_bytes" | "include_str") {
             if let Ok(path) = syn::parse2::<syn::LitStr>(mac.tokens.clone()) {
-                self.add("literal include", path.value());
+                self.add("literal include", &path.value());
             } else {
-                self.add("computed include", mac.tokens.to_string());
+                self.add("computed include", &mac.tokens.to_string());
             }
         } else if name != "macro_rules" {
-            self.add("macro invocation", name);
+            self.add("macro invocation", &name);
         }
         // Token trees may contain Rust, a literal or a separate domain language.
         // Its entire root remains visible even when Syn cannot expand it.

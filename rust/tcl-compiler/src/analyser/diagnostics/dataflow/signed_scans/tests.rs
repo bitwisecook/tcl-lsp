@@ -156,9 +156,8 @@ fn a_short_size_becomes_the_long_size() {
 
 #[test]
 fn procedures_are_followed() {
-    for source in ["proc p {data} { binary scan $data S len\n if {$len > 40000} { return big } }"] {
-        assert_eq!(w156("tcl8.6", source).len(), 1, "{source}");
-    }
+    let source = "proc p {data} { binary scan $data S len\n if {$len > 40000} { return big } }";
+    assert_eq!(w156("tcl8.6", source).len(), 1, "{source}");
 }
 
 #[test]

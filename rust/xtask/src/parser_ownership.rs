@@ -34,7 +34,7 @@ const CENSUS: &str = "docs/work/name-handling/validation-tools/parser_census.py"
 
 /// Production function, exact owner path it calls, and any required argument
 /// carrying the selected configuration. Scope defaults are deliberate only
-/// for the two fixed SpecTcl descriptor list fields.
+/// for the two fixed `SpecTcl` descriptor list fields.
 struct Route {
     file: &'static str,
     function: &'static str,
@@ -195,21 +195,26 @@ fn argument_identity(arg: &syn::Expr) -> Option<String> {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum ReaderFact {
+    LibraryList,
+    WhitespaceSplit,
+    BracketOpen,
+    BracketClose,
+    Increment,
+    Decrement,
+    Delimiter,
+    Branch,
+    IndexedInput,
+    Iteration,
+}
+
 #[derive(Default)]
 struct Facts {
     calls: BTreeMap<String, Vec<Vec<Option<String>>>>,
     scope: String,
     leads: Vec<String>,
-    library_list: bool,
-    whitespace: bool,
-    bracket_open: bool,
-    bracket_close: bool,
-    increments: bool,
-    decrements: bool,
-    delimiter: bool,
-    branching: bool,
-    indexed_input: bool,
-    iteration: bool,
+    reader: BTreeSet<ReaderFact>,
     host_readers: BTreeSet<String>,
     operations: Vec<String>,
 }
@@ -235,16 +240,18 @@ impl<'ast> Visit<'ast> for Facts {
 
     fn visit_expr_method_call(&mut self, call: &'ast syn::ExprMethodCall) {
         let method = call.method.to_string();
-        self.indexed_input |= matches!(
+        if matches!(
             method.as_str(),
             "bytes" | "as_bytes" | "chars" | "char_indices"
-        );
+        ) {
+            self.reader.insert(ReaderFact::IndexedInput);
+        }
 
         if matches!(
             method.as_str(),
             "split_whitespace" | "split_ascii_whitespace"
         ) {
-            self.whitespace = true;
+            self.reader.insert(ReaderFact::WhitespaceSplit);
         }
         if matches!(
             method.as_str(),
@@ -262,7 +269,7 @@ impl<'ast> Visit<'ast> for Facts {
             self.host_readers.insert(method.clone());
             self.operations.push(format!("host {method}"));
         }
-        self.iteration |= matches!(
+        if matches!(
             method.as_str(),
             "iter"
                 | "bytes"
@@ -274,54 +281,68 @@ impl<'ast> Visit<'ast> for Facts {
                 | "skip_while"
                 | "split"
                 | "find"
-        );
+        ) {
+            self.reader.insert(ReaderFact::Iteration);
+        }
         visit::visit_expr_method_call(self, call);
     }
 
     fn visit_lit_str(&mut self, lit: &'ast syn::LitStr) {
-        self.library_list |= lit.value() == "TCLLIBPATH";
+        if lit.value() == "TCLLIBPATH" {
+            self.reader.insert(ReaderFact::LibraryList);
+        }
     }
 
     fn visit_lit_byte(&mut self, lit: &'ast syn::LitByte) {
-        self.delimiter |= lit.value().is_ascii_punctuation() || lit.value().is_ascii_whitespace();
         if lit.value().is_ascii_punctuation() || lit.value().is_ascii_whitespace() {
+            self.reader.insert(ReaderFact::Delimiter);
             self.operations.push(format!("byte {:#04x}", lit.value()));
         }
-        self.bracket_open |= lit.value() == b'[';
-        self.bracket_close |= lit.value() == b']';
+        if lit.value() == b'[' {
+            self.reader.insert(ReaderFact::BracketOpen);
+        }
+        if lit.value() == b']' {
+            self.reader.insert(ReaderFact::BracketClose);
+        }
     }
 
     fn visit_lit_char(&mut self, lit: &'ast syn::LitChar) {
-        self.delimiter |= lit.value().is_ascii_punctuation() || lit.value().is_ascii_whitespace();
         if lit.value().is_ascii_punctuation() || lit.value().is_ascii_whitespace() {
+            self.reader.insert(ReaderFact::Delimiter);
             self.operations.push(format!("character {:?}", lit.value()));
         }
     }
     fn visit_expr(&mut self, expr: &'ast syn::Expr) {
-        self.indexed_input |= matches!(expr, syn::Expr::Index(_));
+        if matches!(expr, syn::Expr::Index(_)) {
+            self.reader.insert(ReaderFact::IndexedInput);
+        }
         match expr {
             syn::Expr::ForLoop(_) => self.operations.push("for".into()),
             syn::Expr::While(_) => self.operations.push("while".into()),
             syn::Expr::Loop(_) => self.operations.push("loop".into()),
             _ => {}
         }
-        self.iteration |= matches!(
+        if matches!(
             expr,
             syn::Expr::ForLoop(_) | syn::Expr::While(_) | syn::Expr::Loop(_)
-        );
-        self.branching |= matches!(
+        ) {
+            self.reader.insert(ReaderFact::Iteration);
+        }
+        if matches!(
             expr,
             syn::Expr::Binary(_) | syn::Expr::Match(_) | syn::Expr::If(_)
-        );
+        ) {
+            self.reader.insert(ReaderFact::Branch);
+        }
         visit::visit_expr(self, expr);
     }
     fn visit_macro(&mut self, item: &'ast syn::Macro) {
         if item.path.is_ident("matches") {
-            self.branching = true;
+            self.reader.insert(ReaderFact::Branch);
             // Rust macro arguments are opaque to syn's expression visitor.
             // Preserve the potential boundary for review even if it is not
             // written as one of the known Tcl parser spellings.
-            self.delimiter = true;
+            self.reader.insert(ReaderFact::Delimiter);
         }
         visit::visit_macro(self, item);
     }
@@ -349,8 +370,12 @@ impl<'ast> Visit<'ast> for Facts {
         visit::visit_expr_binary(self, item);
     }
     fn visit_bin_op(&mut self, op: &'ast syn::BinOp) {
-        self.increments |= matches!(op, syn::BinOp::AddAssign(_));
-        self.decrements |= matches!(op, syn::BinOp::SubAssign(_));
+        if matches!(op, syn::BinOp::AddAssign(_)) {
+            self.reader.insert(ReaderFact::Increment);
+        }
+        if matches!(op, syn::BinOp::SubAssign(_)) {
+            self.reader.insert(ReaderFact::Decrement);
+        }
     }
 }
 
@@ -366,8 +391,12 @@ struct Source {
 
 impl Facts {
     fn structural(&self) -> bool {
-        (self.delimiter && (self.iteration || self.branching))
-            || (self.indexed_input && self.iteration && self.branching)
+        (self.reader.contains(&ReaderFact::Delimiter)
+            && (self.reader.contains(&ReaderFact::Iteration)
+                || self.reader.contains(&ReaderFact::Branch)))
+            || (self.reader.contains(&ReaderFact::IndexedInput)
+                && self.reader.contains(&ReaderFact::Iteration)
+                && self.reader.contains(&ReaderFact::Branch))
     }
 }
 
@@ -497,7 +526,9 @@ impl Source {
                 ));
             }
             if matches!(route.file, PACK | STUDIO)
-                && self.reachable(route.function, |f| f.whitespace)
+                && self.reachable(route.function, |f| {
+                    f.reader.contains(&ReaderFact::WhitespaceSplit)
+                })
             {
                 errors.push(format!(
                     "{file}::{} reaches a host whitespace splitter for a Tcl operand",
@@ -506,7 +537,10 @@ impl Source {
             }
             if route.file == APL
                 && self.reachable(route.function, |f| {
-                    f.bracket_open && f.bracket_close && f.increments && f.decrements
+                    f.reader.contains(&ReaderFact::BracketOpen)
+                        && f.reader.contains(&ReaderFact::BracketClose)
+                        && f.reader.contains(&ReaderFact::Increment)
+                        && f.reader.contains(&ReaderFact::Decrement)
                 })
             {
                 errors.push(format!(
@@ -527,7 +561,11 @@ impl Source {
             }
         }
         for (name, items) in &self.functions {
-            if items.iter().any(|f| f.library_list) && self.reachable(name, |f| f.whitespace) {
+            if items
+                .iter()
+                .any(|f| f.reader.contains(&ReaderFact::LibraryList))
+                && self.reachable(name, |f| f.reader.contains(&ReaderFact::WhitespaceSplit))
+            {
                 errors.push(format!(
                     "{file}::{name} reaches a host whitespace splitter while reading TCLLIBPATH"
                 ));
@@ -563,82 +601,95 @@ fn foreign_review(surface: &str) -> &'static str {
     }
 }
 
-pub fn run(report: bool) -> Result<ExitCode> {
-    let root = crate::util::repo_root();
-    let inventory = census(&root, "--files")?;
-    let signed = reviewed::Reviewed::parse(&std::fs::read_to_string(root.join(reviewed::INDEX))?)?;
-    let mut errors = Vec::new();
-    let targets = census(&root, "--cargo-targets")?;
-    let mut shipping = source_routes::Sources::from_targets(&targets);
-    let mut fragments = BTreeSet::new();
-    let mut expansions = expansions::Inventory::default();
-    let mut seen = BTreeSet::new();
-    let mut unreviewed = 0;
-    let mut structural = 0;
-    let mut ast_sources = 0;
-    let mut foreign = BTreeMap::<&str, usize>::new();
-    for line in inventory.lines().skip(1) {
-        let mut fields = line.splitn(3, '\t');
-        let (_component, surface, file) = (fields.next(), fields.next(), fields.next());
-        let (Some(surface), Some(file)) = (surface, file) else {
-            anyhow::bail!("invalid tracked-file inventory row: {line}")
-        };
-        seen.insert(file);
-        if !file.ends_with(".rs") {
-            *foreign.entry(surface).or_default() += 1;
-            if surface != "documentation" {
-                signed.check_file(file, None, &mut errors);
-            }
-            if report {
-                println!("{file}\t{surface}\t{}", foreign_review(surface));
-            }
-            continue;
-        }
-        let scoped = signed.covers(file)
-            || ROUTES.iter().any(|r| r.file == file)
-            || CONTROLS.iter().any(|(path, ..)| *path == file);
-        let text = std::fs::read_to_string(root.join(file)).with_context(|| file.to_owned())?;
-        let mut source = Source::default();
-        match syn::parse_file(&text) {
-            Ok(tree) => {
-                shipping.add(file, &tree);
-                source.expansion_operations = expansions.add(file, &tree);
-                source.visit_file(&tree);
-                ast_sources += 1;
-            }
-            Err(err)
-                if !scoped
-                    && matches!(
-                        surface,
-                        "test-or-example"
-                            | "corpus-or-oracle"
-                            | "vendored"
-                            | "generated"
-                            | "other-review"
-                    ) =>
-            {
-                if report {
-                    println!("{file}\t{surface}\tRust fragment/Syn parse unavailable: {err}");
+#[derive(Default)]
+struct FileCensus<'a> {
+    shipping: source_routes::Sources,
+    fragments: BTreeSet<String>,
+    expansions: expansions::Inventory,
+    seen: BTreeSet<&'a str>,
+    unreviewed: usize,
+    structural: usize,
+    ast_sources: usize,
+    foreign: BTreeMap<&'a str, usize>,
+}
+
+impl<'a> FileCensus<'a> {
+    fn scan(
+        &mut self,
+        root: &Path,
+        inventory: &'a str,
+        signed: &reviewed::Reviewed,
+        report: bool,
+        errors: &mut Vec<String>,
+    ) -> Result<()> {
+        for line in inventory.lines().skip(1) {
+            let mut fields = line.splitn(3, '\t');
+            let (_component, surface, file) = (fields.next(), fields.next(), fields.next());
+            let (Some(surface), Some(file)) = (surface, file) else {
+                anyhow::bail!("invalid tracked-file inventory row: {line}")
+            };
+            self.seen.insert(file);
+            if Path::new(file).extension().is_none_or(|ext| ext != "rs") {
+                *self.foreign.entry(surface).or_default() += 1;
+                if surface != "documentation" {
+                    signed.check_file(file, None, errors);
                 }
-                fragments.insert(file.to_owned());
+                if report {
+                    println!("{file}\t{surface}\t{}", foreign_review(surface));
+                }
                 continue;
             }
-            Err(err) => return Err(anyhow::anyhow!("parse tracked Rust source {file}: {err}")),
-        }
-        errors.extend(source.drift(file));
-        signed.check_file(file, Some(&source), &mut errors);
-        if report && signed.covers(file) {
-            for op in reviewed::operations(&source)
-                .into_iter()
-                .filter(|op| signed.reports(file, op))
-            {
-                println!("{file}\t{op}\tsigned-scope operation");
+            let scoped = signed.covers(file)
+                || ROUTES.iter().any(|r| r.file == file)
+                || CONTROLS.iter().any(|(path, ..)| *path == file);
+            let text = std::fs::read_to_string(root.join(file)).with_context(|| file.to_owned())?;
+            let mut source = Source::default();
+            match syn::parse_file(&text) {
+                Ok(tree) => {
+                    self.shipping.add(file, &tree);
+                    source.expansion_operations = self.expansions.add(file, &tree);
+                    source.visit_file(&tree);
+                    self.ast_sources += 1;
+                }
+                Err(err)
+                    if !scoped
+                        && matches!(
+                            surface,
+                            "test-or-example"
+                                | "corpus-or-oracle"
+                                | "vendored"
+                                | "generated"
+                                | "other-review"
+                        ) =>
+                {
+                    if report {
+                        println!("{file}\t{surface}\tRust fragment/Syn parse unavailable: {err}");
+                    }
+                    self.fragments.insert(file.to_owned());
+                    continue;
+                }
+                Err(err) => return Err(anyhow::anyhow!("parse tracked Rust source {file}: {err}")),
             }
+            errors.extend(source.drift(file));
+            signed.check_file(file, Some(&source), errors);
+            if report && signed.covers(file) {
+                for op in reviewed::operations(&source)
+                    .into_iter()
+                    .filter(|op| signed.reports(file, op))
+                {
+                    println!("{file}\t{op}\tsigned-scope operation");
+                }
+            }
+            self.record_leads(file, &source, report);
         }
+        Ok(())
+    }
+
+    fn record_leads(&mut self, file: &str, source: &Source, report: bool) {
         for (name, functions) in &source.functions {
             for facts in functions {
                 if facts.structural() {
-                    structural += 1;
+                    self.structural += 1;
                     if report {
                         println!(
                             "{file}::{}\tinput traversal or delimiter control flow\treview structural reader",
@@ -647,7 +698,7 @@ pub fn run(report: bool) -> Result<ExitCode> {
                     }
                 }
                 for method in &facts.host_readers {
-                    structural += 1;
+                    self.structural += 1;
                     if report {
                         println!("{file}::{}\t{method}\treview host operation", facts.scope);
                     }
@@ -661,7 +712,7 @@ pub fn run(report: bool) -> Result<ExitCode> {
                     }) {
                         continue;
                     }
-                    unreviewed += 1;
+                    self.unreviewed += 1;
                     if report {
                         println!(
                             "{file}::{} [call {occurrence}]\t{lead}\treview grammar selection",
@@ -672,24 +723,14 @@ pub fn run(report: bool) -> Result<ExitCode> {
             }
         }
     }
-    for path in ROUTES
-        .iter()
-        .map(|route| route.file)
-        .chain(CONTROLS.iter().map(|row| row.0))
-        .chain([
-            "runtime/rust/Cargo.toml",
-            "rust/tcl-vm-wasm/Cargo.toml",
-            "grammars/tree-sitter-apl/grammar.js",
-            "editors/zed/languages/apl/injections.scm",
-        ])
-    {
-        if !seen.contains(path) {
-            errors.push(format!("missing tracked parser surface {path}"));
-        }
-    }
-    signed.missing(&seen, &mut errors);
-    shipping.report(&seen, &fragments, report);
-    expansions.report(&root, &seen, &targets, report);
+}
+
+fn check_target_inventory(
+    root: &Path,
+    seen: &BTreeSet<&str>,
+    targets: &str,
+    errors: &mut Vec<String>,
+) -> Result<usize> {
     let mut manifests = BTreeSet::new();
     let mut target_count = 0;
     for line in targets.lines().skip(1) {
@@ -708,7 +749,7 @@ pub fn run(report: bool) -> Result<ExitCode> {
     }
     // Cargo accepts virtual workspace manifests with no package of their own.
     // Every tracked package manifest must appear, including an excluded crate.
-    for &file in &seen {
+    for &file in seen {
         if Path::new(file)
             .file_name()
             .is_some_and(|n| n == "Cargo.toml")
@@ -720,16 +761,54 @@ pub fn run(report: bool) -> Result<ExitCode> {
             errors.push(format!("unmeasured Cargo package {file}"));
         }
     }
+    Ok(target_count)
+}
+
+pub fn run(report: bool) -> Result<ExitCode> {
+    let root = crate::util::repo_root();
+    let inventory = census(&root, "--files")?;
+    let signed = reviewed::Reviewed::parse(&std::fs::read_to_string(root.join(reviewed::INDEX))?)?;
+    let mut errors = Vec::new();
+    let targets = census(&root, "--cargo-targets")?;
+    let mut files = FileCensus {
+        shipping: source_routes::Sources::from_targets(&targets),
+        ..FileCensus::default()
+    };
+    files.scan(&root, &inventory, &signed, report, &mut errors)?;
+    for path in ROUTES
+        .iter()
+        .map(|route| route.file)
+        .chain(CONTROLS.iter().map(|row| row.0))
+        .chain([
+            "runtime/rust/Cargo.toml",
+            "rust/tcl-vm-wasm/Cargo.toml",
+            "grammars/tree-sitter-apl/grammar.js",
+            "editors/zed/languages/apl/injections.scm",
+        ])
+    {
+        if !files.seen.contains(path) {
+            errors.push(format!("missing tracked parser surface {path}"));
+        }
+    }
+    signed.missing(&files.seen, &mut errors);
+    files.shipping.report(&files.seen, &files.fragments, report);
+    files
+        .expansions
+        .report(&root, &files.seen, &targets, report);
+    let target_count = check_target_inventory(&root, &files.seen, &targets, &mut errors)?;
     if report {
         print!("{targets}");
         print!("{}", census(&root, "--sites")?);
     }
-    for (surface, count) in &foreign {
+    for (surface, count) in &files.foreign {
         println!("parser-ownership: {count} tracked {surface} boundaries");
     }
     println!(
         "parser-ownership: {} tracked paths, {target_count} Cargo targets, {ast_sources} AST-scanned Rust files, {structural} structural/host leads, {unreviewed} Rust entry/default review leads. Run cargo xtask parser-ownership --report for sites, including host grammars.",
-        seen.len()
+        files.seen.len(),
+        ast_sources = files.ast_sources,
+        structural = files.structural,
+        unreviewed = files.unreviewed
     );
     for error in &errors {
         eprintln!("{error}");
@@ -808,7 +887,11 @@ mod tests {
     fn newly_named_byte_scanner_and_foreign_adapter_remain_reviewable() {
         let parsed = source("fn field(image: &[u8]) { for &v in image { if v == b']' {break;} } }");
         let facts = &parsed.functions["field"][0];
-        assert!(facts.delimiter && facts.iteration && facts.branching);
+        assert!(
+            facts.reader.contains(&ReaderFact::Delimiter)
+                && facts.reader.contains(&ReaderFact::Iteration)
+                && facts.reader.contains(&ReaderFact::Branch)
+        );
         assert_ne!(foreign_review("source"), foreign_review("generated"));
         assert_eq!(
             foreign_review("source"),

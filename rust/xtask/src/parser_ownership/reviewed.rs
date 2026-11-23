@@ -254,6 +254,7 @@ pub(super) fn operations(source: &Source) -> BTreeSet<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fmt::Write as _;
     use syn::visit::Visit;
 
     fn parse(text: &str) -> Source {
@@ -274,9 +275,11 @@ mod tests {
             "record\tpath\toperation\tevidence\nscope\t{file}#{entry}\t-\tcallback source extent\nsource\t{file}#{entry}\t-\tpublic callback differential\n"
         );
         for fact in operations(&original) {
-            index.push_str(&format!(
-                "operation\t{file}#{entry}\t{fact}\tselected Tcl delegate\n"
-            ));
+            writeln!(
+                index,
+                "operation\t{file}#{entry}\t{fact}\tselected Tcl delegate"
+            )
+            .unwrap();
         }
         let signed = Reviewed::parse(&index).unwrap();
         let check = |code: &str| {
@@ -315,9 +318,11 @@ mod tests {
             "record\tpath\toperation\tevidence\nscope\truntime/rust/src/\t-\tchecked parser component\nsource\t{file}\t-\tchecked public reader\n"
         );
         for fact in operations(&original) {
-            index.push_str(&format!(
-                "operation\t{file}\t{fact}\tshared command grouper and public differential\n"
-            ));
+            writeln!(
+                index,
+                "operation\t{file}\t{fact}\tshared command grouper and public differential"
+            )
+            .unwrap();
         }
         let signed = Reviewed::parse(&index).unwrap();
         let errors = |path, text| {
