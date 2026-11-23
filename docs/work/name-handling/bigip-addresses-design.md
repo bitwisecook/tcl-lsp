@@ -119,7 +119,18 @@ Wrong answers first. "Oracle" is the 21.1 run; an input differing only in digits
 
 ### iRules (`analyser-irules.tsv`)
 
-See the table filled from the run below the census. Read from code: `IP::addr … equals …` is folded only for IPv4 without a route domain or dotted mask (`tcl-cmd-core/src/irules.rs:681`, everything else "unmodelled", which is right). The analyser's invalid-IP check (`analyser/diagnostics/dataflow/value_domains.rs:313–383`) reports any `hex(:hex){2,7}` run that `Ipv6Addr` rejects.
+Each snippet ran in `when HTTP_REQUEST` under `f5-irules`. Every report that W211 (unused variable) is the only one for is left out.
+
+| Snippet | Report |
+| --- | --- |
+| `set t "12:30:45"`, `set m "00:11:22:33:44:55"` | **W124 "Invalid IPv6 address"**, false: a time and a MAC address (`value_domains.rs:369` flags any `hex(:hex){2,7}` run that `Ipv6Addr` rejects, in any string constant) |
+| `set a "2001:0db8:…:00001"` | W124, but it quotes `'2001:0db8:0000:0000:0000:0000:0000'`, which is not the text written (the candidate scan stops at four hex digits) |
+| `set a 256.1.1.1`, `set a 010.0.0.1` | W124 (octet, leading zero) on a plain string that is never used as an address |
+| `node 999.0.0.1 80`, `set x "10.0.0.1/33"` | nothing: address arguments are not checked, only string constants |
+| `pool p1 member 2001:db8::1.80` (one word where the command takes address and port as two) | nothing |
+| `IP::addr … equals 10.0.0.0%2/8`, `… 2001:db8::/32`, `… mask 255.255.255.0`, `… equals 10.0.0.1%2` | nothing, and not folded: `tcl-cmd-core/src/irules.rs:681` models IPv4 without RD or dotted mask only and declines the rest (right) |
+| `node 10.0.0.1%2 80`, `snat 10.0.0.50%2`, `getfield [IP::client_addr] "%" 2`, `getfield [HTTP::host] ":" 2` (breaks on `[v6]:port`) | nothing (no address model for iRules arguments) |
+| `pool /Common/app.app/app_pool`, `pool "/Common/my pool"`, `pool $p` from `LB::server pool` | nothing (right) |
 
 ## Census
 
