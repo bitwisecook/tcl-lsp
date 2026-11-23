@@ -144,3 +144,5 @@ Plan items 200–207 add the structural work that retires these classes:
 - conformance before migration;
 - a completion test on every item;
 - a merge pass over the overlaps above that keeps item numbers stable.
+
+The [chan design](chan-design.md) (plan items 208–216) is an instance of root causes 1, 3 and 5: three option tables, two engine channel tables with different naming, a shared setter that discards options, and handler protocols described only as "at least two appended words".

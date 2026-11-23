@@ -1,0 +1,1 @@
+vwait-none.tcl (ad hoc: puts [catch {vwait ::nothing} m])	tclsh8.6/9.0: blocks (timeout 124); vm-9.0: prints empty line, exit 1 from inside catch; rt-9.0: 'execution refused: host event-source inventory native handler policy is not selected', exit 2
