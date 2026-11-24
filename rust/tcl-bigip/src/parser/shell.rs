@@ -90,6 +90,8 @@ enum Mode {
     Stanza,
     /// A standalone header has already had its body brace removed.
     Header,
+    /// Property expressions use braces and treat line breaks as spacing.
+    Expression,
     /// Decode a complete previously delimited word.
     Value,
 }
@@ -98,6 +100,7 @@ fn delimiter(c: char, mode: Mode) -> bool {
     match mode {
         Mode::Stanza => matches!(c, ' ' | '\t' | '\r' | '\n' | '{' | '}'),
         Mode::Header => c.is_whitespace(),
+        Mode::Expression => c.is_whitespace() || matches!(c, '{' | '}'),
         Mode::Value => false,
     }
 }
@@ -134,6 +137,10 @@ pub fn shell_tokens(source: &str) -> impl Iterator<Item = ShellToken<'_>> {
     tokenize(source, Mode::Stanza)
 }
 
+pub(crate) fn expression_tokens(source: &str) -> impl Iterator<Item = ShellToken<'_>> {
+    tokenize(source, Mode::Expression)
+}
+
 pub(super) fn header_words(header: &str) -> impl Iterator<Item = ShellToken<'_>> {
     tokenize(header, Mode::Header)
 }
@@ -150,7 +157,10 @@ fn tokenize(source: &str, mode: Mode) -> impl Iterator<Item = ShellToken<'_>> {
                 pos += text.find('\n').unwrap_or(text.len());
                 continue;
             }
-            let (kind, complete) = if mode == Mode::Stanza && matches!(c, '{' | '}' | '\n') {
+            let (kind, complete) = if (matches!(mode, Mode::Stanza | Mode::Expression)
+                && matches!(c, '{' | '}'))
+                || (mode == Mode::Stanza && c == '\n')
+            {
                 pos += 1;
                 blank = c == '\n';
                 (

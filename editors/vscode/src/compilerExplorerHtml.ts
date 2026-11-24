@@ -452,8 +452,10 @@ body {
 .shimmer-item:hover { background: var(--highlight); }
 .shimmer-item.highlighted { background: var(--highlight-strong); }
 .shimmer-item .shimmer-code { font-weight: 600; min-width: 32px; display: inline-block; }
-.shimmer-S100 .shimmer-code, .shimmer-S101 .shimmer-code { color: var(--yellow); }
-.shimmer-S102 .shimmer-code, .shimmer-S110 .shimmer-code { color: var(--red); }
+.shimmer-warning .shimmer-code { color: var(--yellow); }
+.shimmer-error .shimmer-code { color: var(--red); }
+.shimmer-info .shimmer-code { color: var(--blue); }
+.shimmer-hint .shimmer-code { color: var(--text-dim); }
 .gvn-item {
   padding: 4px 6px;
   border-radius: 4px;
@@ -474,8 +476,8 @@ body {
 .taint-item:hover { background: var(--highlight); }
 .taint-item.highlighted { background: var(--highlight-strong); }
 .taint-item .taint-code { font-weight: 600; min-width: 52px; display: inline-block; }
-.taint-item.taint-danger .taint-code { color: var(--red); }
-.taint-item.taint-warn .taint-code { color: var(--yellow); }
+.taint-item.taint-error .taint-code { color: var(--red); }
+.taint-item.taint-warning .taint-code { color: var(--yellow); }
 .taint-item.taint-info .taint-code { color: var(--blue); }
 .taint-tracking-var {
   font-size: 11px;
@@ -1558,7 +1560,7 @@ function renderShimmer() {
   const pane=$('#pane-shimmer');
   if(!Array.isArray(data.shimmer)){pane.innerHTML=explorerViewUnavailableHtml();return;}
   if(!data.shimmer.length){pane.innerHTML='<div class="empty-state">No shimmer warnings</div>';return;}
-  pane.replaceChildren(...data.shimmer.map(w=>warningRow(w,'shimmer-item shimmer-'+w.code,'shimmer-code')));
+  pane.replaceChildren(...data.shimmer.map(w=>warningRow(w,'shimmer-item shimmer-'+esc(w.severity||'warning'),'shimmer-code')));
   setupHoverHighlighting(pane);
 }
 

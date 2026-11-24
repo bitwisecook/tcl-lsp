@@ -99,6 +99,13 @@ new sub-groups follow the same nested-`Subcommand` shape. `pgo`
 (profile-guided branch-reorder suggestions) is deliberately not a
 sub-verb here — the module doc on `commands::irule` says why.
 
+`explain-flow` picks candidate events from capture observations and the
+virtual server's profiles, then orders the selected events through
+`EventRegistry::order_events`. Pool monitor linting, transitive iRule context
+and AS3 conversion parse LTM pool and member rules with `MonitorExpression`.
+AS3 conversion emits the monitor list and threshold together and reports a
+warning when either cannot be represented.
+
 ## Query DSL
 
 `rust/tcl-bigip-query` is the largest single core-analysis crate.  It

@@ -34,6 +34,7 @@ use tcl_registry::events::EventRegistry;
 
 use crate::model::ModelObject;
 use crate::parser::driver::{BigipConfig, Placed};
+use crate::value::MonitorExpression;
 
 /// The lint rule categories, in fixed order.
 pub const CATEGORIES: [&str; 2] = [LintCategory::Config.as_str(), LintCategory::Irule.as_str()];
@@ -286,22 +287,17 @@ fn py_repr(s: &str) -> String {
 /// pool-member; `/Common/<factory monitor>` downgrades to `info`.
 fn rule_orphan_monitor(view: &ModelView<'_>, out: &mut Vec<Finding>) {
     let mut in_use: HashSet<String> = HashSet::new();
-    for (_path, pool) in view.pools.iter() {
-        if !pool.monitor.is_empty() {
-            let first = pool.monitor.split(' ').next().unwrap_or("");
-            if let Some(resolved) = resolve_name(first, &view.monitors, view.default_partition) {
-                in_use.insert(resolved);
-            }
-        }
-        for member in member_iter(pool) {
-            if !member.monitor.is_empty() {
-                let first = member.monitor.split(' ').next().unwrap_or("");
-                if let Some(resolved) = resolve_name(first, &view.monitors, view.default_partition)
-                {
-                    in_use.insert(resolved);
-                }
-            }
-        }
+    for (path, pool) in view.pools.iter() {
+        let partition =
+            crate::object_names::object_path_partition(path).unwrap_or(view.default_partition);
+        let rules = std::iter::once(pool.monitor.as_str())
+            .chain(member_iter(pool).map(|member| member.monitor.as_str()));
+        in_use.extend(
+            rules
+                .filter_map(MonitorExpression::try_parse)
+                .flat_map(|expression| expression.monitors)
+                .filter_map(|name| resolve_name(&name, &view.monitors, partition)),
+        );
     }
     for (path, monitor) in view.monitors.iter() {
         if in_use.contains(path) {
@@ -690,6 +686,33 @@ ltm node /Common/n1 { address 10.0.0.1 }
                 .iter()
                 .any(|f| f.rule_id == "pool-without-monitor" && f.full_path == "/Common/empty")
         );
+    }
+
+    #[test]
+    fn orphan_monitor_checks_every_pool_and_member_reference() {
+        let findings = lint(
+            r#"
+ltm monitor http /Common/a { }
+ltm monitor http /Tenant/a { }
+ltm monitor http /Tenant/b { }
+ltm monitor http /Tenant/c { }
+ltm monitor http /Tenant/d { }
+ltm monitor http /Tenant/unreferenced { }
+ltm pool /Tenant/web {
+    monitor "a and /Tenant/b"
+    members {
+        /Tenant/node:80 { monitor min 1 of { /Tenant/c "/Tenant/d" } }
+    }
+}
+"#,
+        );
+        let mut orphans: Vec<_> = findings
+            .iter()
+            .filter(|finding| finding.rule_id == "orphan-monitor")
+            .map(|finding| finding.full_path.as_str())
+            .collect();
+        orphans.sort_unstable();
+        assert_eq!(orphans, ["/Common/a", "/Tenant/unreferenced"]);
     }
 
     #[test]

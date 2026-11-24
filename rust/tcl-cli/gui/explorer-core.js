@@ -751,11 +751,8 @@ function renderTaint() {
   if(hasWarnings){
     html+='<div class="section-header">Warnings</div>';
     for(var w of data.taintWarnings){
-      // ``severity`` is set by the backend (tooling/explorer/annotations.taint_severity);
-      // the renderer just maps it to a CSS class.  Falls back to "warning"
-      // when the backend didn't classify (older payloads / unit tests).
       var severity = w.severity || 'warning';
-      var head='<div class="taint-item taint-'+severity+'"'+sourceRangeAttrs(w.range)+'><span class="taint-code">'+esc(w.code)+'</span> '+esc(w.message)+' ';
+      var head='<div class="taint-item taint-'+esc(severity)+'"'+sourceRangeAttrs(w.range)+'><span class="taint-code">'+esc(w.code)+'</span> '+esc(w.message)+' ';
       if(w.variable)head+='<span style="color:var(--orange)">'+esc(w.variable)+'</span> ';
       if(w.sinkCommand)head+='<span style="color:var(--red)">\u2192 '+esc(w.sinkCommand)+'</span> ';
       head+='<span style="color:var(--text-dim); font-size:10px">['+spanLabel(w.range)+']</span></div>';

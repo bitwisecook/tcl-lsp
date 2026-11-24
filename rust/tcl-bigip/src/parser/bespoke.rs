@@ -77,6 +77,7 @@ use crate::value::{
     ProfileAttachment,
 };
 
+use super::helpers::parse_pool_properties_with_spans;
 use super::helpers::{
     Property, parse_keyed_block_entries, parse_keyed_block_entries_with_offsets, parse_list_block,
     parse_properties, parse_properties_with_spans, unquote,
@@ -526,7 +527,7 @@ fn parse_pool_member_body_with_spans(
     if let Some(stripped) = inner.strip_suffix('}') {
         inner = stripped;
     }
-    let props_with_spans = parse_properties_with_spans(inner);
+    let props_with_spans = parse_pool_properties_with_spans(inner);
     let mut values = HashMap::new();
     let mut spans = HashMap::new();
     for (key, prop) in &props_with_spans {
@@ -634,7 +635,10 @@ fn parse_pool_members(braced: &str, base_offset: usize) -> Vec<BigipPoolMember> 
 #[must_use]
 pub fn parse_pool(full_path: &str, body: &str, range: Range, ctx: BespokeCtx) -> BigipPool {
     let mut obj = parse_bigip_pool(full_path, body, range);
-    let props_with_spans = parse_properties_with_spans(body);
+    let props_with_spans = parse_pool_properties_with_spans(body);
+    if let Some((_, monitor)) = props_with_spans.iter().find(|(k, _)| k == "monitor") {
+        obj.monitor.clone_from(&monitor.value);
+    }
     let members_prop = props_with_spans.iter().find(|(k, _)| k == "members");
     let mut members: Vec<BigipPoolMember> = Vec::new();
     if let Some((_, prop)) = members_prop

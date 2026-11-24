@@ -180,10 +180,31 @@ fn scan_property_value(bytes: &[u8], length: usize, mut pos: usize) -> (usize, u
     (val_start, pos.min(length), pos)
 }
 
+fn pool_monitor_value_end(value: &str) -> usize {
+    let mut depth = 0usize;
+    for token in shell_tokens(value) {
+        match token.kind {
+            ShellTokenKind::Open => depth += 1,
+            ShellTokenKind::Close => depth = depth.saturating_sub(1),
+            ShellTokenKind::Newline if depth == 0 => return token.range.start,
+            _ => {}
+        }
+    }
+    value.len()
+}
+
 /// Parse top-level `key value` properties from a block body, capturing
 /// each value's span relative to the body.
 #[must_use]
 pub fn parse_properties_with_spans(body: &str) -> Vec<(String, Property)> {
+    properties_with_spans(body, false)
+}
+
+pub(super) fn parse_pool_properties_with_spans(body: &str) -> Vec<(String, Property)> {
+    properties_with_spans(body, true)
+}
+
+fn properties_with_spans(body: &str, ltm_pool: bool) -> Vec<(String, Property)> {
     let bytes = body.as_bytes();
     let length = bytes.len();
     // Preserve insertion order with last-wins semantics on duplicate keys.
@@ -233,7 +254,12 @@ pub fn parse_properties_with_spans(body: &str) -> Vec<(String, Property)> {
             continue;
         }
 
-        let (val_start, val_end, new_pos) = scan_property_value(bytes, length, pos);
+        let (val_start, val_end, new_pos) = if ltm_pool && key == "monitor" {
+            let end = pos + pool_monitor_value_end(&body[pos..]);
+            (pos, end, end)
+        } else {
+            scan_property_value(bytes, length, pos)
+        };
         pos = new_pos;
         insert_prop(
             &mut props,

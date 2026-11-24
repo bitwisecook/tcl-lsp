@@ -37,6 +37,9 @@ The compiler explorer runs the full compilation pipeline (parse, lower, optimise
 
 The pipeline is native Rust. The browser GUI and the in-editor panels compile via a Rust → WebAssembly module (`tcl-explorer-wasm`, built by `make explorer-wasm`): the standalone GUI's `worker.js` loads the wasm module directly, and the VS Code webview / JetBrains JCEF panel bundle the `.wasm` and call `compile()` **in the webview itself** — no LSP `executeCommand` roundtrip. When the wasm module is absent (e.g. a dev build without `make explorer-wasm`), the editor panels degrade gracefully to host-brokered compilation through the LSP server. A native `tcl explore` CLI verb (`--json`, a feature-gated `--tui` ratatui shell, and `--serve` to serve the embedded GUI bundle) renders the same serialised contract.
 
+The Shimmer and Taint panes use the compiler's diagnostic severities.
+For example, S102 and T100 appear as warnings, and S100 is informational.
+
 ### WASM disassembly view
 
 The **WASM** and **WASM (Opt)** tabs show a structured per-instruction disassembly. Each instruction carries:

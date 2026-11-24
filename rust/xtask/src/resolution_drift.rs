@@ -30,7 +30,7 @@
 //! - the contract's own implementation files are exempt (see
 //!   [`SANCTIONED_FILES`]);
 //! - a deliberate, reviewed scan carries a `// drift-ok: <reason>` comment on
-//!   the flagged line or one of the four lines above it.
+//!   the flagged line or in the attached line-comment block.
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -191,14 +191,36 @@ fn has_simple_name_compare(window: &str) -> bool {
     false
 }
 
-/// Whether the flagged line (or one of the four lines above it — room for a
-/// multi-line justification comment) carries a `drift-ok:` waiver.
+/// Whether the flagged line (or its attached comment block) carries a `drift-ok:` waiver.
 fn window_is_waived(text: &str, line_no: usize) -> bool {
-    let lines: Vec<&str> = text.lines().collect();
-    let idx = line_no.saturating_sub(1);
-    (idx.saturating_sub(4)..=idx)
-        .filter_map(|i| lines.get(i))
-        .any(|l| l.contains("drift-ok:"))
+    let lines: Vec<_> = text.lines().take(line_no).collect();
+    if lines.len() != line_no || line_no == 0 {
+        return false;
+    }
+    let attached = lines[..line_no - 1]
+        .iter()
+        .rev()
+        .take_while(|line| line.trim_start().starts_with("//"))
+        .count();
+    let first_line = line_no - attached;
+
+    let mut offset = 0;
+    let mut line = 1;
+    for token in rustc_lexer::tokenize(text) {
+        let spelling = &text[offset..offset + token.len];
+        if line >= first_line
+            && token.kind == rustc_lexer::TokenKind::LineComment
+            && spelling[2..].trim_start().starts_with("drift-ok:")
+        {
+            return true;
+        }
+        offset += token.len;
+        line += spelling.bytes().filter(|&byte| byte == b'\n').count();
+        if line > line_no {
+            break;
+        }
+    }
+    false
 }
 
 #[cfg(test)]
@@ -250,5 +272,25 @@ mod tests {
         let hits = scan_windows(src);
         assert_eq!(hits.len(), 1);
         assert!(window_is_waived(src, hits[0].0));
+    }
+    #[test]
+    fn waivers_are_exact_tags_in_attached_comments() {
+        let scan = "let p = all_procs.values().find(|p| p.name == w);";
+        for source in [
+            format!("// number-drift-ok: another gate\n{scan}"),
+            format!("// dialect-drift-ok: another gate\n{scan}"),
+            format!("// The text says drift-ok: here.\n{scan}"),
+            format!("// drift-ok: unrelated\n\n{scan}"),
+            format!("let prev = 1; // drift-ok: unrelated\n{scan}"),
+            format!("{scan} let source = \"// drift-ok: string\";"),
+        ] {
+            let [(line, _)] = scan_windows(&source)
+                .try_into()
+                .unwrap_or_else(|_| panic!("{source}"));
+            assert!(!window_is_waived(&source, line), "{source}");
+        }
+        let source = format!("// drift-ok: start\n// one\n// two\n// three\n// four\n{scan}");
+        assert!(window_is_waived(&source, source.lines().count()));
+        assert!(window_is_waived(&format!("{scan} // drift-ok: inline"), 1));
     }
 }

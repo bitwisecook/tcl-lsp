@@ -672,6 +672,16 @@ diagnostic_codes! {
 }
 
 impl DiagCode {
+    /// Default severity for a report from the shimmer or taint analysis.
+    #[must_use]
+    pub const fn shimmer_taint_severity(self) -> crate::Severity {
+        match self {
+            Self::S103 => crate::Severity::Hint,
+            Self::S100 | Self::T106 | Self::Irule3103 => crate::Severity::Info,
+            _ => crate::Severity::Warning,
+        }
+    }
+
     /// The family this code belongs to, from its letter prefix.
     #[must_use]
     pub const fn family(self) -> DiagFamily {

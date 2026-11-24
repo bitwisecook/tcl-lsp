@@ -33,12 +33,6 @@ use tcl_compiler::shimmer::{
 use tcl_compiler::taint::{TaintReplayAnalysis, taint_warning_report_for_cu};
 use tcl_lexer::LineIndex;
 
-/// Renderer severity for a shimmer/thunking code. `S102` is the sole
-/// danger-level code (rendered as `error`); all others are `warning`.
-pub(super) fn shimmer_severity(code: &str) -> &'static str {
-    if code == "S102" { "error" } else { "warning" }
-}
-
 /// Serialise the `shimmer` view: intrep-shimmer (S100/S101), loop-thunking
 /// (S102), and shared-value copy-on-write (S103) warnings, combining
 /// the warning kinds into one list. This view is strictly gated by the
@@ -55,7 +49,7 @@ pub fn serialise_shimmer(result: &ExplorerResult, li: &LineIndex, source: &str) 
             "code": w.code.as_str(),
             "message": w.message,
             "range": range_dict(w.span, li, source),
-            "severity": shimmer_severity(w.code.as_str()),
+            "severity": w.code.shimmer_taint_severity().as_str(),
             "variable": w.variable,
             "fromType": type_name(w.from_type),
             "toType": type_name(w.to_type),
@@ -68,7 +62,7 @@ pub fn serialise_shimmer(result: &ExplorerResult, li: &LineIndex, source: &str) 
             "code": w.code.as_str(),
             "message": w.message,
             "range": range_dict(w.span, li, source),
-            "severity": shimmer_severity(w.code.as_str()),
+            "severity": w.code.shimmer_taint_severity().as_str(),
             "variable": w.variable,
             "typeA": type_name(w.type_a),
             "typeB": type_name(w.type_b),
@@ -81,7 +75,7 @@ pub fn serialise_shimmer(result: &ExplorerResult, li: &LineIndex, source: &str) 
             "code": w.code.as_str(),
             "message": w.message,
             "range": range_dict(w.span, li, source),
-            "severity": shimmer_severity(w.code.as_str()),
+            "severity": w.code.shimmer_taint_severity().as_str(),
             "variable": w.variable,
             "sharedWith": w.shared_with,
             "command": w.command,
@@ -94,7 +88,7 @@ pub fn serialise_shimmer(result: &ExplorerResult, li: &LineIndex, source: &str) 
             "code": w.code.as_str(),
             "message": w.message,
             "range": range_dict(w.span, li, source),
-            "severity": shimmer_severity(w.code.as_str()),
+            "severity": w.code.shimmer_taint_severity().as_str(),
             "variable": w.variable,
             "fromType": type_name(w.from_type),
             "toType": type_name(w.to_type),
@@ -103,16 +97,6 @@ pub fn serialise_shimmer(result: &ExplorerResult, li: &LineIndex, source: &str) 
         }));
     }
     Value::Array(out)
-}
-
-/// Renderer severity for a taint code.
-/// (`T1*` prefix or `T3001`-`T3004` → error, else warning).
-pub(super) fn taint_severity(code: &str) -> &'static str {
-    if code.starts_with("T1") || matches!(code, "T3001" | "T3002" | "T3003" | "T3004") {
-        "error"
-    } else {
-        "warning"
-    }
 }
 
 /// Serialise proven information-flow sink warnings from the shared report.
@@ -132,7 +116,7 @@ pub fn serialise_taint(result: &ExplorerResult, li: &LineIndex, source: &str) ->
                 "code": w.code.as_str(),
                 "message": w.message,
                 "range": range_dict(w.span, li, source),
-                "severity": taint_severity(w.code.as_str()),
+                "severity": w.code.shimmer_taint_severity().as_str(),
                 "variable": w.variable,
                 "sinkCommand": w.sink_command,
             })

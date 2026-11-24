@@ -24,6 +24,7 @@ pub mod header;
 pub mod helpers;
 pub mod scalar;
 mod shell;
+pub(crate) use shell::expression_tokens;
 pub use shell::{ShellToken, ShellTokenKind, shell_tokens};
 
 pub use driver::{BigipConfig, Placed, parse_bigip_conf};

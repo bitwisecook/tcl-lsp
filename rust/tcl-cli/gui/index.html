@@ -489,6 +489,7 @@ textarea#source::placeholder { color: var(--text-dim); }
 .shimmer-item.shimmer-error .shimmer-code { color: var(--red); }
 .shimmer-item.shimmer-warning .shimmer-code { color: var(--yellow); }
 .shimmer-item.shimmer-info .shimmer-code { color: var(--blue); }
+.shimmer-item.shimmer-hint .shimmer-code { color: var(--text-dim); }
 .shimmer-lines-container { position: relative; padding-left: 40px; font-size: 12px; }
 .shimmer-involved { border-left: 2px solid var(--yellow); }
 .shimmer-involved:hover { background: var(--highlight); }
@@ -524,6 +525,7 @@ textarea#source::placeholder { color: var(--text-dim); }
    client-side warning-code classification. */
 .taint-item.taint-error .taint-code { color: var(--red); }
 .taint-item.taint-warning .taint-code { color: var(--yellow); }
+.taint-item.taint-info .taint-code { color: var(--blue); }
 .taint-item.taint-info .taint-code { color: var(--blue); }
 .taint-tracking-var {
   font-size: 11px;
@@ -1809,10 +1811,6 @@ function setupOptDiffHover(pane) {
 }
 
 // Consumer hook: renderShimmer
-//
-// Severity comes from the backend (tooling/explorer/annotations.shimmer_severity);
-// the CSS only needs ``shimmer-error`` / ``shimmer-warning`` classes —
-// no per-warning-code colour rules.
 function renderShimmer() {
   const pane=$('#pane-shimmer');
   if(!Array.isArray(data.shimmer)){pane.innerHTML=explorerViewUnavailableHtml();return;}
@@ -1820,7 +1818,7 @@ function renderShimmer() {
   let html='<div class="section-header">Warnings</div>';
   for(const w of data.shimmer){
     const sev = w.severity || 'warning';
-    const head=`<div class="shimmer-item shimmer-${sev}"${sourceRangeAttrs(w.range)}><span class="shimmer-code">${esc(w.code)}</span> ${esc(w.message)} <span style="color:var(--text-dim); font-size:10px">[${spanLabel(w.range)}]</span></div>`;
+    const head=`<div class="shimmer-item shimmer-${esc(sev)}"${sourceRangeAttrs(w.range)}><span class="shimmer-code">${esc(w.code)}</span> ${esc(w.message)} <span style="color:var(--text-dim); font-size:10px">[${spanLabel(w.range)}]</span></div>`;
     const detail=detailRow('code',w.code)+detailRow('severity',sev)+detailRow('message',w.message)+rangeDetail(w.range);
     html+=xpand(head,detail);
   }

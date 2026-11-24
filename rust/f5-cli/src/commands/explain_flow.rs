@@ -28,7 +28,6 @@
 //! `tcl_bigip::flow::tshark`. The `--simulate` (iRule VM) path is not yet
 //! implemented.
 
-use std::collections::HashSet;
 use std::path::Path;
 use std::sync::LazyLock;
 
@@ -49,32 +48,8 @@ use tcl_cli_support::{OutputTarget, write_text_output};
 
 use crate::commands::explain;
 
-/// Canonical lifecycle order for L4/SSL/HTTP events on one request/response
-/// cycle.
-const EVENT_ORDER: &[&str] = &[
-    "RULE_INIT",
-    "CLIENT_ACCEPTED",
-    "CLIENTSSL_HANDSHAKE",
-    "CLIENTSSL_CLIENTHELLO",
-    "CLIENTSSL_SERVERHELLO_SEND",
-    "CLIENTSSL_DATA",
-    "HTTP_REQUEST",
-    "HTTP_REQUEST_DATA",
-    "HTTP_REQUEST_SEND",
-    "LB_SELECTED",
-    "LB_FAILED",
-    "SERVER_CONNECTED",
-    "SERVERSSL_HANDSHAKE",
-    "SERVERSSL_DATA",
-    "HTTP_RESPONSE",
-    "HTTP_RESPONSE_CONTINUE",
-    "HTTP_RESPONSE_DATA",
-    "CLIENT_DATA",
-    "SERVER_DATA",
-    "HTTP_DISCONNECT",
-    "CLIENT_CLOSED",
-    "SERVER_CLOSED",
-];
+static EVENTS: LazyLock<tcl_registry::events::EventRegistry> =
+    LazyLock::new(tcl_registry::events::EventRegistry::build);
 
 /// iRule command invocation inside `[ ... ]`.
 static HUD_TOKEN_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -396,43 +371,32 @@ fn expected_event_sequence(
     let saw_close =
         client.tcp_fin || client.tcp_rst || server.is_some_and(|s| s.tcp_fin || s.tcp_rst);
 
-    let mut candidate: Vec<&str> = vec!["RULE_INIT", "CLIENT_ACCEPTED"];
-    if saw_tls {
-        candidate.extend(["CLIENTSSL_CLIENTHELLO", "CLIENTSSL_HANDSHAKE"]);
-    }
-    if saw_http_req {
-        candidate.extend(["HTTP_REQUEST", "HTTP_REQUEST_DATA"]);
-    }
-    candidate.extend(["LB_SELECTED", "SERVER_CONNECTED"]);
-    if has_server_ssl {
-        candidate.push("SERVERSSL_HANDSHAKE");
-    }
-    if saw_http_req {
-        candidate.push("HTTP_REQUEST_SEND");
-    }
-    if saw_http_resp {
-        candidate.extend(["HTTP_RESPONSE", "HTTP_RESPONSE_DATA"]);
-    }
-    if saw_close {
-        candidate.extend(["CLIENT_CLOSED", "SERVER_CLOSED"]);
-    }
-
-    let rule_set: HashSet<&str> = rule_events.iter().copied().collect();
-    let selected: Vec<String> = candidate
+    let selected: Vec<String> = rule_events
         .iter()
-        .filter(|ev| rule_set.contains(**ev))
-        .map(|ev| (*ev).to_owned())
+        .copied()
+        .filter(|event| match *event {
+            "CLIENTSSL_CLIENTHELLO" | "CLIENTSSL_SERVERHELLO_SEND" | "CLIENTSSL_HANDSHAKE" => {
+                saw_tls
+            }
+            "SERVERSSL_CLIENTHELLO_SEND" | "SERVERSSL_SERVERHELLO" | "SERVERSSL_HANDSHAKE" => {
+                has_server_ssl
+            }
+            "HTTP_REQUEST" | "HTTP_REQUEST_DATA" | "HTTP_REQUEST_SEND" => saw_http_req,
+            "HTTP_RESPONSE" | "HTTP_RESPONSE_DATA" => saw_http_resp,
+            "CLIENT_CLOSED" | "SERVER_CLOSED" => saw_close,
+            // The static walk has no evidence for these more specific events.
+            "CLIENTSSL_DATA"
+            | "SERVERSSL_DATA"
+            | "CLIENT_DATA"
+            | "SERVER_DATA"
+            | "LB_FAILED"
+            | "HTTP_RESPONSE_CONTINUE"
+            | "HTTP_DISCONNECT" => false,
+            _ => true,
+        })
+        .map(str::to_owned)
         .collect();
-    let selected_set: HashSet<&str> = selected.iter().map(String::as_str).collect();
-    let mut extra: Vec<String> = rule_events
-        .iter()
-        .filter(|ev| !selected_set.contains(**ev) && !EVENT_ORDER.contains(*ev))
-        .map(|ev| (*ev).to_owned())
-        .collect();
-    extra.sort();
-    let mut out = selected;
-    out.extend(extra);
-    out
+    EVENTS.order_events(&selected)
 }
 
 /// Resolve an iRule command token like `HTTP::host` against *conn*.
@@ -1759,7 +1723,7 @@ pub fn run_explain_flow(
 }
 
 #[cfg(test)]
-mod destination_tests {
+mod tests {
     use super::*;
 
     #[test]
@@ -1783,6 +1747,64 @@ mod destination_tests {
         assert_eq!(
             match_virtual(&config, "192.0.2.53%2", 443).as_deref(),
             Some("/Common/routed")
+        );
+    }
+    #[test]
+    fn expected_events_follow_registry_tls_and_request_order() {
+        let cfg = tcl_bigip::parser::parse_bigip_conf(
+            r"
+ltm profile server-ssl /Common/serverssl { }
+ltm virtual /Common/web {
+    profiles { /Common/serverssl { context serverside } }
+}
+",
+            "Common",
+        );
+        let vs = cfg
+            .objects
+            .iter()
+            .find_map(|placed| match &placed.object {
+                ModelObject::VirtualServer(vs) => Some(vs),
+                _ => None,
+            })
+            .unwrap();
+        let conn = Connection {
+            client: Flow {
+                tls_clienthello: true,
+                http_request_seen: true,
+                ..Flow::default()
+            },
+            server: None,
+        };
+        assert_eq!(
+            expected_event_sequence(
+                &cfg,
+                vs,
+                &conn,
+                &[
+                    "HTTP_REQUEST_RELEASE",
+                    "HTTP_REQUEST_SEND",
+                    "SERVERSSL_HANDSHAKE",
+                    "HTTP_RESPONSE",
+                    "SERVERSSL_CLIENTHELLO_SEND",
+                    "CLIENTSSL_HANDSHAKE",
+                    "CLIENTSSL_CLIENTHELLO",
+                    "CLIENTSSL_SERVERHELLO_SEND",
+                    "SERVER_CONNECTED",
+                    "HTTP_REQUEST",
+                ]
+            ),
+            [
+                "CLIENTSSL_CLIENTHELLO",
+                "CLIENTSSL_SERVERHELLO_SEND",
+                "CLIENTSSL_HANDSHAKE",
+                "HTTP_REQUEST",
+                "SERVER_CONNECTED",
+                "SERVERSSL_CLIENTHELLO_SEND",
+                "SERVERSSL_HANDSHAKE",
+                "HTTP_REQUEST_SEND",
+                "HTTP_REQUEST_RELEASE",
+            ]
         );
     }
 }

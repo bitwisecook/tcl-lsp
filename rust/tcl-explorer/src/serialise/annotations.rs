@@ -19,7 +19,6 @@
 //! The `annotations` source-callout views, with the compiler barriers they mark.
 
 use super::retained_explorer_source;
-use super::warnings::{shimmer_severity, taint_severity};
 use crate::formatters::{preview, range_dict};
 use crate::{ExplorerResult, FunctionSnapshotKind};
 use serde_json::{Map, Value, json};
@@ -215,7 +214,7 @@ pub(super) fn serialise_annotations(
     }
     // Shimmer + thunking.
     for w in find_shimmer_warnings_for_cu(&result.unit, registry) {
-        let sev = shimmer_severity(w.code.as_str());
+        let sev = w.code.shimmer_taint_severity().as_str();
         anns.push(Ann {
             span: w.span,
             label: format!("{}: {}", w.code, w.message),
@@ -225,7 +224,7 @@ pub(super) fn serialise_annotations(
         });
     }
     for w in find_thunking_warnings_for_cu(&result.unit, registry) {
-        let sev = shimmer_severity(w.code.as_str());
+        let sev = w.code.shimmer_taint_severity().as_str();
         anns.push(Ann {
             span: w.span,
             label: format!("{}: {}", w.code, w.message),
@@ -235,7 +234,7 @@ pub(super) fn serialise_annotations(
         });
     }
     for w in find_byte_array_warnings_for_cu(&result.unit, registry) {
-        let sev = shimmer_severity(w.code.as_str());
+        let sev = w.code.shimmer_taint_severity().as_str();
         anns.push(Ann {
             span: w.span,
             label: format!("{}: {}", w.code, w.message),
@@ -272,7 +271,7 @@ pub(super) fn serialise_annotations(
             span: w.span,
             label: format!("{}: {}", w.code, w.message),
             kind: "taint",
-            severity: taint_severity(w.code.as_str()),
+            severity: w.code.shimmer_taint_severity().as_str(),
             priority: 0,
         });
     }

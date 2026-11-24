@@ -76,7 +76,11 @@ f5 validate bigip.conf --format sarif > findings.sarif
 
 `f5 validate` exits 0 on no findings or info-only, 1 on warning, 2 on
 error.  Multi-file inputs are merged before rules run, so cross-file
-references do not trigger false-positive orphan findings.
+references do not trigger false-positive orphan findings. The orphan-monitor
+check counts every monitor named in a pool or pool-member rule.
+
+`f5 explain-flow` orders the inferred events using the iRules registry. For
+example, it lists `CLIENTSSL_CLIENTHELLO` before `CLIENTSSL_HANDSHAKE`.
 
 Every config-producing verb accepts a shared `--format scf|tmsh|tmsh-delta`
 flag.  `scf` (default) emits bigip.conf-style output; `tmsh` re-renders the
@@ -102,6 +106,10 @@ Extractive verbs emit `tmsh create`; in-place rewriters (`rename`, `redact`,
 | `f5 merge` | Concatenate per-partition `.conf`s back into one SCF. |
 | `f5 convert` | UCS↔SCF and SCF→AS3 declaration. |
 | `f5 tmsh` (alias `scf2tmsh`) | Emit `tmsh create` / `--modify` commands in dependency order. |
+
+`f5 convert scf2as3` carries over the monitor list and required count for
+compound pool rules. It prints a warning to stderr if it cannot preserve a
+monitor rule, even when `--report` is omitted.
 
 ```sh
 f5 rename /Common/old_pool /Common/new_pool bigip.conf --in-place

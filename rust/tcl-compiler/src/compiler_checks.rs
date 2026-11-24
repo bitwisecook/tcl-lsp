@@ -266,13 +266,7 @@ impl Diagnostic {
             span: w.span,
             code: w.code,
             category: "shimmer".into(),
-            // S100 (single shimmer outside a loop) is informational; S101
-            // (per-iteration loop shimmer) is a warning.
-            severity: if w.code == DiagCode::S100 {
-                Severity::Info
-            } else {
-                Severity::Warning
-            },
+            severity: w.code.shimmer_taint_severity(),
             message: w.message.clone(),
             replacement: None,
             fixes: Vec::new(),
@@ -292,7 +286,7 @@ impl Diagnostic {
             span: w.span,
             code: w.code,
             category: "shimmer".into(),
-            severity: Severity::Warning,
+            severity: w.code.shimmer_taint_severity(),
             message: w.message.clone(),
             replacement: None,
             fixes: Vec::new(),
@@ -310,11 +304,7 @@ impl Diagnostic {
             span: w.span,
             code: w.code,
             category: "shimmer".into(),
-            // S103 (mutation of a potentially shared value copies it) is a
-            // hint: the duplicate is correct behaviour with a real but
-            // situational cost, one notch below the S100 representation
-            // conversions.
-            severity: Severity::Hint,
+            severity: w.code.shimmer_taint_severity(),
             message: w.message.clone(),
             replacement: None,
             fixes: Vec::new(),
@@ -332,12 +322,7 @@ impl Diagnostic {
             span: w.span,
             code: w.code,
             category: "taint".into(),
-            // The taint family is a Warning by default (not an Error); T106
-            // and IRULE3103 are informational.
-            severity: match w.code.as_str() {
-                "T106" | "IRULE3103" => Severity::Info,
-                _ => Severity::Warning,
-            },
+            severity: w.code.shimmer_taint_severity(),
             message: w.message.clone(),
             replacement: w.replacement.clone(),
             fixes: w.fixes.clone(),

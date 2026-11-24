@@ -27,10 +27,13 @@
 //! The declaration is built as an insertion-ordered [`Json`] tree and rendered
 //! with [`crate::jsonfmt::json_string`] for byte-exact 2-space-indented JSON.
 
+use std::collections::HashSet;
+
 use crate::jsonfmt::json_string;
 use crate::model::{ModelObject, ProfileType};
 use crate::parser::BigipConfig;
 use crate::value::bigip_list::ListItemValue;
+use crate::value::{MonitorExpression, MonitorMode};
 
 /// A minimal insertion-ordered JSON value. Object keys preserve insertion
 /// order.
@@ -115,6 +118,8 @@ pub struct AS3ConversionReport {
     pub mapped: usize,
     /// `kind:full-path` tags for every object with no AS3 mapping.
     pub unmapped: Vec<String>,
+    /// Pool or member settings omitted because their semantics could not be preserved.
+    pub warnings: Vec<String>,
 }
 
 fn short_name(full_path: &str) -> &str {
@@ -196,7 +201,71 @@ fn classify_virtual_class(
     "Service_L4"
 }
 
-fn convert_pool(pool: &crate::model::BigipPool) -> Json {
+fn monitor_fields(
+    monitor_paths: &HashSet<&str>,
+    default_partition: &str,
+    owner: &str,
+    raw: &str,
+    member: bool,
+) -> Result<Vec<(String, Json)>, &'static str> {
+    if raw.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+    let expression = MonitorExpression::try_parse(raw).ok_or("invalid monitor expression")?;
+    let threshold = match expression.mode {
+        MonitorMode::Default => return Ok(Vec::new()),
+        MonitorMode::None if member => {
+            return Err("member `monitor none` cannot be preserved");
+        }
+        MonitorMode::None | MonitorMode::Single => None,
+        MonitorMode::All if !member => Some(Json::Str("all".to_owned())),
+        MonitorMode::All => Some(Json::Int(
+            i64::try_from(expression.len()).unwrap_or(i64::MAX),
+        )),
+        MonitorMode::MinOf => expression.minimum.map(Json::Int),
+    };
+    if member && matches!(threshold, Some(Json::Int(n)) if n > 63) {
+        return Err("AS3 member minimumMonitors is limited to 63");
+    }
+
+    let monitors = expression
+        .references()
+        .iter()
+        .map(|name| {
+            let candidates = crate::object_names::owner_partition_reference_paths(
+                name,
+                owner,
+                default_partition,
+            );
+            let (key, reference) = if let Some(path) = candidates
+                .iter()
+                .find(|path| monitor_paths.contains(path.as_str()))
+            {
+                ("use", short_name(path))
+            } else if name.starts_with('/') {
+                ("bigip", name.as_str())
+            } else {
+                return Err("monitor path could not be resolved");
+            };
+            Ok(Json::Object(vec![(
+                key.to_owned(),
+                Json::Str(reference.to_owned()),
+            )]))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut fields = vec![("monitors".to_owned(), Json::Array(monitors))];
+    if let Some(threshold) = threshold {
+        fields.push(("minimumMonitors".to_owned(), threshold));
+    }
+    Ok(fields)
+}
+
+fn convert_pool(
+    monitor_paths: &HashSet<&str>,
+    default_partition: &str,
+    pool: &crate::model::BigipPool,
+    warnings: &mut Vec<String>,
+) -> Json {
     let mut members = Vec::new();
     for item in &pool.members.items {
         let ListItemValue::PoolMember(member) = &item.value else {
@@ -215,10 +284,24 @@ fn convert_pool(pool: &crate::model::BigipPool) -> Json {
         } else {
             Json::Array(vec![Json::Str(addr)])
         };
-        members.push(Json::Object(vec![
+        let mut fields = vec![
             ("servicePort".to_owned(), Json::Int(member.port)),
             ("serverAddresses".to_owned(), server_addresses),
-        ]));
+        ];
+        match monitor_fields(
+            monitor_paths,
+            default_partition,
+            &pool.full_path,
+            &member.monitor,
+            true,
+        ) {
+            Ok(monitor) => fields.extend(monitor),
+            Err(reason) => warnings.push(format!(
+                "pool {} member {} monitor {:?}: {reason}",
+                pool.full_path, member.name, member.monitor
+            )),
+        }
+        members.push(Json::Object(fields));
     }
     let mut out = vec![
         ("class".to_owned(), Json::Str("Pool".to_owned())),
@@ -230,18 +313,18 @@ fn convert_pool(pool: &crate::model::BigipPool) -> Json {
             Json::Str(pool.load_balancing_mode.clone()),
         ));
     }
-    if !pool.monitor.is_empty() {
-        let first = pool.monitor.split(' ').next().unwrap_or("");
-        let monitor_name = short_name(first);
-        if !monitor_name.is_empty() {
-            out.push((
-                "monitors".to_owned(),
-                Json::Array(vec![Json::Object(vec![(
-                    "use".to_owned(),
-                    Json::Str(monitor_name.to_owned()),
-                )])]),
-            ));
-        }
+    match monitor_fields(
+        monitor_paths,
+        default_partition,
+        &pool.full_path,
+        &pool.monitor,
+        false,
+    ) {
+        Ok(monitor) => out.extend(monitor),
+        Err(reason) => warnings.push(format!(
+            "pool {} monitor {:?}: {reason}",
+            pool.full_path, pool.monitor
+        )),
     }
     Json::Object(out)
 }
@@ -346,13 +429,18 @@ pub fn scf_to_as3(cfg: &BigipConfig, tenant: &str, application: &str) -> AS3Conv
     ];
     let mut mapped = 0usize;
     let mut unmapped: Vec<String> = Vec::new();
+    let mut warnings = Vec::new();
+    let monitor_paths = table_paths(cfg, "monitors").collect();
 
     for placed in &cfg.objects {
         if placed.table_name != "pools" {
             continue;
         }
         if let ModelObject::Pool(p) = &placed.object {
-            app.push((short_name(&placed.full_path).to_owned(), convert_pool(p)));
+            app.push((
+                short_name(&placed.full_path).to_owned(),
+                convert_pool(&monitor_paths, &cfg.default_partition, p, &mut warnings),
+            ));
             mapped += 1;
         }
     }
@@ -433,12 +521,79 @@ pub fn scf_to_as3(cfg: &BigipConfig, tenant: &str, application: &str) -> AS3Conv
         declaration,
         mapped,
         unmapped,
+        warnings,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn as3_preserves_compound_monitors_and_reports_loss() {
+        let config = crate::parser::parse_bigip_conf(
+            r#"
+ltm monitor https /Tenant/custom { }
+ltm pool /Tenant/web {
+    monitor "/Common/http" and custom
+    members {
+        /Tenant/192.0.2.1:80 {
+            monitor min 1 of {
+                /Common/http
+                custom
+            }
+        }
+        /Tenant/192.0.2.2:80 { monitor none }
+    }
+}
+ltm pool /Tenant/quorum { monitor "min 1 of { /Common/http /Tenant/custom }" }
+ltm pool /Tenant/invalid { monitor /Common/http and }
+"#,
+            "Common",
+        );
+        let report = scf_to_as3(&config, "tenant", "app");
+        let declaration: serde_json::Value =
+            serde_json::from_str(&report.declaration.dumps_indent2()).unwrap();
+        let app = &declaration["declaration"]["tenant"]["app"];
+        let monitors = serde_json::json!([{"bigip": "/Common/http"}, {"use": "custom"}]);
+        assert_eq!(app["web"]["monitors"], monitors);
+        assert_eq!(app["web"]["minimumMonitors"], "all");
+        assert_eq!(app["web"]["members"][0]["monitors"], monitors);
+        assert_eq!(app["web"]["members"][0]["minimumMonitors"], 1);
+        assert_eq!(app["quorum"]["monitors"], monitors);
+        assert_eq!(app["quorum"]["minimumMonitors"], 1);
+        assert!(app["invalid"]["monitors"].is_null());
+        assert!(
+            report
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("/Tenant/invalid"))
+        );
+        assert!(
+            report
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("/Tenant/192.0.2.2:80"))
+        );
+    }
+
+    #[test]
+    fn as3_does_not_weaken_a_member_threshold_above_its_limit() {
+        let monitors = ["/Common/http"; 64].join(" ");
+        let source = format!(
+            "ltm pool /Common/web {{ members {{ /Common/192.0.2.1:80 {{ monitor min 64 of {{ {monitors} }} }} }} }}"
+        );
+        let config = crate::parser::parse_bigip_conf(&source, "Common");
+        let report = scf_to_as3(&config, "tenant", "app");
+        let declaration: serde_json::Value =
+            serde_json::from_str(&report.declaration.dumps_indent2()).unwrap();
+        let member = &declaration["declaration"]["tenant"]["app"]["web"]["members"][0];
+        assert_eq!(member["servicePort"], 80);
+        assert!(member["monitors"].is_null());
+        assert!(member["minimumMonitors"].is_null());
+        assert_eq!(report.warnings.len(), 1);
+        assert!(report.warnings[0].contains("minimumMonitors is limited to 63"));
+    }
 
     #[test]
     fn pool_member_ports_survive_scf_parsing_and_as3_conversion() {

@@ -114,6 +114,9 @@ fn run_scf2as3(
 
     write_text_output(&OutputTarget::from_arg(output), &output_text)?;
 
+    for warning in &report_data.warnings {
+        eprintln!("warning: {warning}");
+    }
     if report {
         eprintln!(
             "as3: mapped {} object(s); {} unmapped",

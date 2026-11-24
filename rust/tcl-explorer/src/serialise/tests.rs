@@ -1375,15 +1375,26 @@ fn taint_tracking_marks_exec_tainted_vars() {
 #[test]
 fn taint_reports_eval_sink() {
     let result = run_pipeline("set x [gets stdin]\neval $x", "tcl8.6");
-    let taint = serialise_result(&result)["taintWarnings"].clone();
-    let arr = taint.as_array().unwrap();
+    let output = serialise_result(&result);
+    let arr = output["taintWarnings"].as_array().unwrap();
     let t = arr
         .iter()
         .find(|w| w["code"] == "T100")
         .expect("T100 warning");
     assert_eq!(t["variable"], "x");
     assert_eq!(t["sinkCommand"], "eval");
-    assert_eq!(t["severity"], "error");
+    assert_eq!(t["severity"], "warning");
+    let annotation = output["annotations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|a| {
+            a["label"]
+                .as_str()
+                .is_some_and(|label| label.starts_with("T100:"))
+        })
+        .expect("T100 annotation");
+    assert_eq!(annotation["severity"], "warning");
 }
 
 #[test]
@@ -1399,7 +1410,41 @@ fn shimmer_reports_intrep_conversion() {
     assert_eq!(s100["fromType"], "list");
     assert_eq!(s100["toType"], "int");
     assert_eq!(s100["command"], "incr");
-    assert_eq!(s100["severity"], "warning");
+    assert_eq!(s100["severity"], "info");
+}
+
+#[test]
+fn shimmer_reports_loop_oscillation_as_warning_in_both_views() {
+    let result = run_pipeline(
+        r"
+set total 0
+foreach item {1 2 3} {
+    incr total
+    lindex $total 0
+}
+puts $total
+",
+        "tcl8.6",
+    );
+    let output = serialise_result(&result);
+    let warning = output["shimmer"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|w| w["code"] == "S102")
+        .expect("S102 warning");
+    assert_eq!(warning["severity"], "warning");
+    let annotation = output["annotations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|a| {
+            a["label"]
+                .as_str()
+                .is_some_and(|label| label.starts_with("S102:"))
+        })
+        .expect("S102 annotation");
+    assert_eq!(annotation["severity"], "warning");
 }
 
 #[test]
