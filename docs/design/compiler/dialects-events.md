@@ -154,6 +154,9 @@ does not require a compiler command-name branch.
 Finally, `EventHandlerPriority` records whether an event handler has a runtime
 default. BIG-IP's `when` default is priority 500; omitting `priority` is valid
 and only an explicitly stricter dialect policy can request IRULE1004.
+The registry's declaration reader reports the operand of a rejected priority
+to IRULE1009. BIG-IP accepts 0 through 1000 inclusive. IRULE1002 checks a
+literal event against the event catalogue and the target BIG-IP release.
 
 ### How dialects feed the compiler
 

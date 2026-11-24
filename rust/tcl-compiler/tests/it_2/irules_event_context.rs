@@ -26,6 +26,7 @@
 //! must not duplicate/corrupt (that's `Irule5006`'s job).
 
 use tcl_compiler::analyser::Analyser;
+use tcl_core_types::DiagCode;
 
 fn codes(source: &str, dialect: &str) -> Vec<String> {
     let mut a = Analyser::new();
@@ -93,4 +94,62 @@ fn return_inside_a_proc_nested_in_an_event_body_never_warns() {
         !got.iter().any(|c| c == "W142"),
         "`return` inside a proc's own body must never draw W142, however that proc is placed; got {got:?}"
     );
+}
+
+#[test]
+fn measured_rule_loader_disabled_commands_have_a_single_diagnostic() {
+    for command in ["exec", "open"] {
+        let source = format!("when RULE_INIT {{ {command} }}");
+        let result = Analyser::new().analyse(&source, "f5-irules");
+        let diagnostics = &result.diagnostics;
+        assert_eq!(diagnostics.len(), 1, "{command}: {diagnostics:?}");
+        assert_eq!(diagnostics[0].code, DiagCode::W002);
+        assert_eq!(
+            diagnostics[0].message,
+            format!("command is disabled: \"{command}\"")
+        );
+        assert_eq!(&source[diagnostics[0].span.as_range()], command);
+    }
+}
+
+#[test]
+fn measured_server_ssl_event_spelling_matches_the_catalogue() {
+    let invalid = "when SERVERSSL_CLIENTHELLO {}";
+    let result = Analyser::new().analyse(invalid, "f5-irules");
+    let [diagnostic] = result.diagnostics.as_slice() else {
+        panic!("Expected one diagnostic, got {:?}", result.diagnostics);
+    };
+    assert_eq!(diagnostic.code, DiagCode::Irule1002);
+    assert_eq!(
+        &invalid[diagnostic.span.as_range()],
+        "SERVERSSL_CLIENTHELLO"
+    );
+    assert!(codes("when SERVERSSL_CLIENTHELLO_SEND {}", "f5-irules").is_empty());
+}
+
+#[test]
+fn measured_event_priority_bounds_are_reported_on_the_operand() {
+    for (clause, invalid) in [
+        ("priority -1", Some("-1")),
+        ("priority 1001", Some("1001")),
+        ("priority 1001 timing on", Some("1001")),
+        ("timing off priority -1", Some("-1")),
+        ("priority 0", None),
+        ("priority 1000", None),
+        ("priority $value", None),
+    ] {
+        let source = format!("when HTTP_REQUEST {clause} {{}}");
+        let result = Analyser::new().analyse(&source, "f5-irules");
+        let findings = result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::Irule1009)
+            .map(|d| &source[d.span.as_range()])
+            .collect::<Vec<_>>();
+        assert_eq!(
+            findings,
+            invalid.into_iter().collect::<Vec<_>>(),
+            "{source}"
+        );
+    }
 }

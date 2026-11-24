@@ -499,6 +499,14 @@ fn unavailable_command_transport_retains_the_original_purpose_without_messages()
             "native",
         ),
         (
+            "when RULE_INIT {open}",
+            "f5-irules",
+            DiagCode::W002,
+            "open",
+            "ruleLoaderDisabled",
+            "hosted",
+        ),
+        (
             "when RULE_INIT {rename a b}",
             "f5-irules",
             DiagCode::Irule2004,
@@ -557,7 +565,7 @@ fn unavailable_command_transport_retains_the_original_purpose_without_messages()
             assert!(DiagnosticSubjectData::from_value(&unsupported, &code.to_string()).is_none());
         }
         let mut incorrect_purpose = payload;
-        incorrect_purpose["subject"]["classification"] = Value::from(if class == "unavailable" {
+        incorrect_purpose["subject"]["classification"] = Value::from(if code == DiagCode::W002 {
             "ruleLoaderRefused"
         } else {
             "unavailable"

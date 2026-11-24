@@ -506,38 +506,53 @@ impl CommandRegistry {
         &self,
         arguments: crate::events::IrulesDeclarationArguments<'_>,
     ) -> Option<crate::events::IrulesTopLevelDeclaration> {
+        self.read_irules_event_declaration(arguments)?.ok()
+    }
+
+    /// Read the event declaration, preserving the argument index of a rejected
+    /// priority. Other incomplete or malformed declarations return `None`.
+    ///
+    /// # Errors
+    /// The error is the index of an explicit priority outside the policy.
+    #[must_use]
+    pub fn read_irules_event_declaration(
+        &self,
+        arguments: crate::events::IrulesDeclarationArguments<'_>,
+    ) -> Option<Result<crate::events::IrulesTopLevelDeclaration, usize>> {
         use crate::events::{
             IRULES_PRIORITY_CLAUSE as PRIORITY, IRULES_TIMING_CLAUSE as TIMING,
             IRULES_TIMING_SPELLINGS, IrulesTopLevelDeclaration as Declaration,
         };
         let args = arguments.values();
-        let (body_index, priority) = match args {
-            [_, _] => (1, None),
-            [_, PRIORITY, value, _] => (3, Some(Self::irules_event_priority(value)?)),
-            [_, TIMING, value, _] => IRULES_TIMING_SPELLINGS
-                .contains(value)
-                .then_some((3, None))?,
-            // F5 documents both orders: the tmsh synopsis puts `priority`
-            // first, the iRules `when` reference `[timing on|off] [priority
-            // N]` (#2082).
-            [_, PRIORITY, priority, TIMING, timing, _]
-            | [_, TIMING, timing, PRIORITY, priority, _] => {
-                let priority = Self::irules_event_priority(priority)?;
-                IRULES_TIMING_SPELLINGS
-                    .contains(timing)
-                    .then_some((5, Some(priority)))?
+        let (event, body_index, priority_index) = match args {
+            [event, _] => (event, 1, None),
+            [event, PRIORITY, _, _] => (event, 3, Some(2)),
+            [event, TIMING, value, _] if IRULES_TIMING_SPELLINGS.contains(value) => {
+                (event, 3, None)
+            }
+            [event, PRIORITY, _, TIMING, timing, _] if IRULES_TIMING_SPELLINGS.contains(timing) => {
+                (event, 5, Some(2))
+            }
+            [event, TIMING, timing, PRIORITY, _, _] if IRULES_TIMING_SPELLINGS.contains(timing) => {
+                (event, 5, Some(4))
             }
             _ => return None,
         };
         if !arguments.is_braced_literal(body_index) {
             return None;
         }
-        let event = args.first()?.to_uppercase();
-        Some(Declaration::Event {
-            event,
+        let priority = match priority_index {
+            Some(index) => match Self::irules_event_priority(args[index]) {
+                Some(priority) => Some(priority),
+                None => return Some(Err(index)),
+            },
+            None => None,
+        };
+        Some(Ok(Declaration::Event {
+            event: event.to_uppercase(),
             body_index,
             priority,
-        })
+        }))
     }
 
     /// A `priority` clause value the BIG-IP handler priority policy accepts.

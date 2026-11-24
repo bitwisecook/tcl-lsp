@@ -471,6 +471,7 @@ These diagnostics fire only in the `f5-irules` dialect.
 | IRULE1006 | Warning | `*::payload` access without matching `*::collect` call | Bootstrap `collect` |
 | IRULE1007 | Error | `*::collect` without matching `*::release` on the same connection side | |
 | IRULE1008 | Error | `*::release` without matching `*::collect` on the same connection side | |
+| IRULE1009 | Warning | Event handler priority must be an integer from 0 to 1000 | |
 | IRULE1201 | Warning | HTTP command used after `HTTP::respond`/`HTTP::redirect` | |
 | IRULE1202 | Warning | Multiple `HTTP::respond`/`HTTP::redirect` on different branches | |
 

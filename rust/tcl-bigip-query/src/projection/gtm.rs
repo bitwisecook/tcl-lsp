@@ -19,7 +19,7 @@
 //! Field projection of GTM objects: data centres, servers, pools, wide IPs and listeners.
 
 use super::ltm::str_list;
-use super::{Fields, monitor_value, path_ref, path_ref_list_strs};
+use super::{Fields, path_ref, path_ref_list_strs};
 use crate::value::Value;
 use indexmap::IndexMap;
 use tcl_bigip::model::{
@@ -48,7 +48,7 @@ pub(super) fn project_gtm_server(o: &BigipGtmServer) -> IndexMap<String, Value> 
         .s("name", &o.name)
         .s("full-path", &o.full_path)
         .v("datacenter", path_ref(&o.datacenter, "gtm datacenter"))
-        .v("monitor", monitor_value(&o.monitor))
+        .s("monitor", &o.monitor)
         .s("product", &o.product)
         // The device's own (self) IP addresses.
         .v("addresses", str_list(&o.addresses))
@@ -68,7 +68,7 @@ pub(super) fn project_gtm_pool(o: &BigipGtmPool) -> IndexMap<String, Value> {
         .s("name", &o.name)
         .s("full-path", &o.full_path)
         .s("record-type", &o.record_type)
-        .v("monitor", monitor_value(&o.monitor))
+        .s("monitor", &o.monitor)
         .s("load-balancing-mode", &o.load_balancing_mode)
         .s("alternate-mode", &o.alternate_mode)
         .s("fallback-mode", &o.fallback_mode)
@@ -94,7 +94,7 @@ fn project_gtm_pool_members(members: &[BigipGtmPoolMember]) -> Value {
                         .s("order", &m.order)
                         .s("member-order", &m.member_order)
                         .s("ratio", &m.ratio)
-                        .v("monitor", monitor_value(&m.monitor))
+                        .s("monitor", &m.monitor)
                         .s("static-target", &m.static_target)
                         .s("state", &m.state)
                         .s("description", &m.description)

@@ -13,6 +13,9 @@ How do disabled-command diagnostics retain exact original source identity and fu
 ## Conclusion
 
 ResolvedContext and ContextRegistry select negative availability metadata from the actual immutable Registry generation, related provider rows and invocation realm. OriginalSourceCommandAvailability retains the complete original vector and positively selected Native, Logical or hosted source domain under its full image/input/configuration/context and independent lookup or hosted ancestry. Known declarations, custom cells and source barriers remain authoritative. W002 and IRULE2004 retain a typed source-current subject; Core transport preserves the command, exclusion classification and source domain independently of message text. No admitted descriptor, handler, runtime absence or successful completion follows.
+The BIG-IP loader's explicit disabled-command policy also supplies negative
+metadata. The analyser reports that policy at an authenticated written head as
+W002 and omits the W123 finding at that same call site.
 
 ## Scope
 

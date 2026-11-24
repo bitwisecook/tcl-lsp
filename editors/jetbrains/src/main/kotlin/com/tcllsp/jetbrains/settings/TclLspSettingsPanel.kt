@@ -341,6 +341,7 @@ class TclLspSettingsPanel {
     private val diagIRULE1006 = JBCheckBox("IRULE1006: Payload access without its required registered colle...")
     private val diagIRULE1007 = JBCheckBox("IRULE1007: Collection without its required registered release o...")
     private val diagIRULE1008 = JBCheckBox("IRULE1008: *::release without a matching *::collect on the same...")
+    private val diagIRULE1009 = JBCheckBox("IRULE1009: iRules event priority is outside the allowed range")
     private val diagIRULE1201 = JBCheckBox("IRULE1201: HTTP command used after HTTP::respond/HTTP::redirect")
     private val diagIRULE1202 = JBCheckBox("IRULE1202: Multiple HTTP::respond/HTTP::redirect on different b...")
     private val diagIRULE2001 = JBCheckBox("IRULE2001: Deprecated matchclass")
@@ -656,11 +657,11 @@ class TclLspSettingsPanel {
             ReflowingGrid(
                 listOf(
                     diagIRULE1001, diagIRULE1002, diagIRULE1003, diagIRULE1004, diagIRULE1005, diagIRULE1006,
-                    diagIRULE1007, diagIRULE1008, diagIRULE1201, diagIRULE1202, diagIRULE2001, diagIRULE2002,
-                    diagIRULE2003, diagIRULE2004, diagIRULE2101, diagIRULE5001, diagIRULE5002, diagIRULE5004,
-                    diagIRULE5005, diagIRULE5006, diagIRULE5007, diagIRULE3001, diagIRULE3002, diagIRULE3003,
-                    diagIRULE3004, diagIRULE3101, diagIRULE3102, diagIRULE4001, diagIRULE4002, diagIRULE4003,
-                    diagIRULE4004, diagIRULE4005,
+                    diagIRULE1007, diagIRULE1008, diagIRULE1009, diagIRULE1201, diagIRULE1202, diagIRULE2001,
+                    diagIRULE2002, diagIRULE2003, diagIRULE2004, diagIRULE2101, diagIRULE5001, diagIRULE5002,
+                    diagIRULE5004, diagIRULE5005, diagIRULE5006, diagIRULE5007, diagIRULE3001, diagIRULE3002,
+                    diagIRULE3003, diagIRULE3004, diagIRULE3101, diagIRULE3102, diagIRULE4001, diagIRULE4002,
+                    diagIRULE4003, diagIRULE4004, diagIRULE4005,
                 ),
             ),
         )
@@ -945,6 +946,7 @@ class TclLspSettingsPanel {
             diagIRULE1006.isSelected != s.diagnosticIRULE1006 ||
             diagIRULE1007.isSelected != s.diagnosticIRULE1007 ||
             diagIRULE1008.isSelected != s.diagnosticIRULE1008 ||
+            diagIRULE1009.isSelected != s.diagnosticIRULE1009 ||
             diagIRULE1201.isSelected != s.diagnosticIRULE1201 ||
             diagIRULE1202.isSelected != s.diagnosticIRULE1202 ||
             diagIRULE2001.isSelected != s.diagnosticIRULE2001 ||
@@ -1259,6 +1261,7 @@ class TclLspSettingsPanel {
         s.diagnosticIRULE1006 = diagIRULE1006.isSelected
         s.diagnosticIRULE1007 = diagIRULE1007.isSelected
         s.diagnosticIRULE1008 = diagIRULE1008.isSelected
+        s.diagnosticIRULE1009 = diagIRULE1009.isSelected
         s.diagnosticIRULE1201 = diagIRULE1201.isSelected
         s.diagnosticIRULE1202 = diagIRULE1202.isSelected
         s.diagnosticIRULE2001 = diagIRULE2001.isSelected
@@ -1620,6 +1623,7 @@ class TclLspSettingsPanel {
         diagIRULE1006.isSelected = s.diagnosticIRULE1006
         diagIRULE1007.isSelected = s.diagnosticIRULE1007
         diagIRULE1008.isSelected = s.diagnosticIRULE1008
+        diagIRULE1009.isSelected = s.diagnosticIRULE1009
         diagIRULE1201.isSelected = s.diagnosticIRULE1201
         diagIRULE1202.isSelected = s.diagnosticIRULE1202
         diagIRULE2001.isSelected = s.diagnosticIRULE2001

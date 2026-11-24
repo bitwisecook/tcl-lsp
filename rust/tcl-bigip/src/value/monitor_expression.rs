@@ -16,9 +16,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Typed BIG-IP monitor-expression value.
+//! Typed BIG-IP LTM monitor-expression value.
 
 use std::fmt;
+
+use crate::parser::{ShellToken, ShellTokenKind, shell_tokens};
 
 /// `monitor default` — the parent object's default selection.
 pub const DEFAULT_WORD: &str = "default";
@@ -103,125 +105,83 @@ impl Default for MonitorExpression {
 }
 
 impl MonitorExpression {
-    /// Parse a TMSH monitor expression. Returns `None` when the text
-    /// doesn't match any of the grammatical forms.
+    /// Parse an LTM monitor expression with the authored spelling and byte spans.
+    /// Returns `None` for malformed expressions or invalid minimum thresholds.
     #[must_use]
     pub fn try_parse(text: &str) -> Option<Self> {
-        let stripped = text.trim();
-        if stripped.is_empty() {
-            return None;
-        }
-        if stripped == DEFAULT_WORD {
-            return Some(Self {
-                mode: MonitorMode::Default,
-                raw: stripped.to_owned(),
-                ..Default::default()
-            });
-        }
-        if stripped == NONE_WORD {
-            return Some(Self {
-                mode: MonitorMode::None,
-                raw: stripped.to_owned(),
-                ..Default::default()
-            });
-        }
-        if stripped
-            .strip_prefix(MIN_WORD)
-            .is_some_and(|rest| rest.starts_with(' '))
+        let tokens = expression_tokens(text)?;
+        let mut expression = if let [token] = tokens.as_slice()
+            && let Some(inner) = token.spelling().strip_prefix('"')
+            && let Some(inner) = inner.strip_suffix('"')
+            && !inner.contains('"')
+            && inner.trim().chars().any(char::is_whitespace)
         {
-            return Self::parse_min_of(stripped);
-        }
-        Self::parse_and_chain(stripped)
-    }
-
-    fn parse_min_of(text: &str) -> Option<Self> {
-        let rest_start = MIN_WORD.len() + 1;
-        let rest = text[rest_start..].trim_start();
-        let separator = format!(" {OF_WORD} ");
-        let of_idx = rest.find(&separator)?;
-        let minimum: i64 = rest[..of_idx].trim().parse().ok()?;
-        let body_start_in_rest = of_idx + separator.len();
-        let body = rest[body_start_in_rest..].trim_start();
-        if !body.starts_with('{') || !body.trim_end().ends_with('}') {
-            return None;
-        }
-        // Walk *text* to find each monitor token between { and }.
-        let bytes = text.as_bytes();
-        let inner_open = text.find('{')?;
-        let mut monitors: Vec<String> = Vec::new();
-        let mut spans: Vec<(usize, usize)> = Vec::new();
-        let mut i = inner_open + 1;
-        let length = text.len();
-        while i < length && bytes[i] != b'}' {
-            if is_py_space(bytes[i]) {
-                i += 1;
-                continue;
+            let mut expression = Self::parse_tokens(&expression_tokens(inner)?)?;
+            let offset = token.range.start + 1;
+            for (start, end) in &mut expression.monitor_spans {
+                *start += offset;
+                *end += offset;
             }
-            let tok_start = i;
-            while i < length && !is_py_space(bytes[i]) && bytes[i] != b'}' {
-                i += 1;
-            }
-            monitors.push(text[tok_start..i].to_owned());
-            spans.push((tok_start, i));
-        }
-        if monitors.is_empty() {
-            return None;
-        }
-        Some(Self {
-            mode: MonitorMode::MinOf,
-            monitors,
-            minimum: Some(minimum),
-            raw: text.to_owned(),
-            monitor_spans: spans,
-        })
-    }
-
-    fn parse_and_chain(text: &str) -> Option<Self> {
-        let bytes = text.as_bytes();
-        let length = text.len();
-        let mut monitors: Vec<String> = Vec::new();
-        let mut spans: Vec<(usize, usize)> = Vec::new();
-        let mut i = 0;
-        let mut expect_monitor = true;
-        while i < length {
-            if is_py_space(bytes[i]) {
-                i += 1;
-                continue;
-            }
-            let tok_start = i;
-            while i < length && !is_py_space(bytes[i]) {
-                i += 1;
-            }
-            let token = &text[tok_start..i];
-            if expect_monitor {
-                if token.is_empty() {
-                    return None;
-                }
-                monitors.push(token.to_owned());
-                spans.push((tok_start, i));
-                expect_monitor = false;
-            } else {
-                if token != AND_WORD {
-                    return None;
-                }
-                expect_monitor = true;
-            }
-        }
-        if monitors.is_empty() {
-            return None;
-        }
-        let mode = if monitors.len() == 1 {
-            MonitorMode::Single
+            expression
         } else {
-            MonitorMode::All
+            Self::parse_tokens(&tokens)?
         };
-        Some(Self {
-            mode,
-            monitors,
-            minimum: None,
-            raw: text.to_owned(),
-            monitor_spans: spans,
-        })
+        text.clone_into(&mut expression.raw);
+        Some(expression)
+    }
+
+    fn parse_tokens(tokens: &[ShellToken<'_>]) -> Option<Self> {
+        let (first, rest) = tokens.split_first()?;
+        let mut expression = Self::default();
+        expression.mode = match (first.word_value()?.as_ref(), rest) {
+            (DEFAULT_WORD, []) => MonitorMode::Default,
+            (NONE_WORD, []) => MonitorMode::None,
+            (MIN_WORD, [minimum, of, open, members @ .., close])
+                if of.word_value()?.as_ref() == OF_WORD
+                    && open.kind == ShellTokenKind::Open
+                    && close.kind == ShellTokenKind::Close =>
+            {
+                let minimum = minimum.word_value()?.parse::<u16>().ok()?;
+                if minimum == 0 || usize::from(minimum) > members.len() {
+                    return None;
+                }
+                for member in members {
+                    expression.push_monitor(member)?;
+                }
+                expression.minimum = Some(i64::from(minimum));
+                MonitorMode::MinOf
+            }
+            _ => {
+                expression.push_monitor(first)?;
+                for pair in rest.chunks(2) {
+                    let [and, monitor] = pair else { return None };
+                    if and.word_value()?.as_ref() != AND_WORD {
+                        return None;
+                    }
+                    expression.push_monitor(monitor)?;
+                }
+                if rest.is_empty() {
+                    MonitorMode::Single
+                } else {
+                    MonitorMode::All
+                }
+            }
+        };
+        Some(expression)
+    }
+
+    fn push_monitor(&mut self, token: &ShellToken<'_>) -> Option<()> {
+        let name = token.word_value()?;
+        if name.is_empty()
+            || name.chars().any(char::is_whitespace)
+            || GRAMMAR_WORDS.contains(&name.as_ref())
+        {
+            return None;
+        }
+        self.monitors.push(name.into_owned());
+        self.monitor_spans
+            .push((token.range.start, token.range.end));
+        Some(())
     }
 
     /// `true` for the `default` mode.
@@ -323,10 +283,19 @@ impl fmt::Display for MonitorExpression {
     }
 }
 
-/// `true` for the ASCII whitespace characters that appear
-/// in monitor expressions.
-fn is_py_space(b: u8) -> bool {
-    matches!(b, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c)
+fn expression_tokens(text: &str) -> Option<Vec<ShellToken<'_>>> {
+    let mut end = 0;
+    let mut tokens = Vec::new();
+    for token in shell_tokens(text) {
+        if !token.complete || !text[end..token.range.start].trim().is_empty() {
+            return None;
+        }
+        end = token.range.end;
+        if token.kind != ShellTokenKind::Newline {
+            tokens.push(token);
+        }
+    }
+    text[end..].trim().is_empty().then_some(tokens)
 }
 
 #[cfg(test)]
@@ -389,6 +358,94 @@ mod tests {
             monitor_spans: Vec::new(),
         };
         assert_eq!(m.to_string(), "min 1 of { /Common/a /Common/b }");
+    }
+
+    #[test]
+    fn measured_ltm_monitor_expressions() {
+        // BIG-IP 21.1.0.1, evidence/bigip/tmsh-21.1-name-handling.md.
+        for (raw, mode, minimum, references) in [
+            (
+                "/Common/http",
+                MonitorMode::Single,
+                None,
+                &["/Common/http"][..],
+            ),
+            (
+                "/Common/http and /Common/https",
+                MonitorMode::All,
+                None,
+                &["/Common/http", "/Common/https"],
+            ),
+            (
+                r#""/Common/http" and "/Common/https""#,
+                MonitorMode::All,
+                None,
+                &["/Common/http", "/Common/https"],
+            ),
+            (
+                r#""/Common/http and /Common/https""#,
+                MonitorMode::All,
+                None,
+                &["/Common/http", "/Common/https"],
+            ),
+            (
+                "min 1 of { /Common/http /Common/https }",
+                MonitorMode::MinOf,
+                Some(1),
+                &["/Common/http", "/Common/https"],
+            ),
+            (
+                "min 2 of { /Common/http /Common/https }",
+                MonitorMode::MinOf,
+                Some(2),
+                &["/Common/http", "/Common/https"],
+            ),
+            ("default", MonitorMode::Default, None, &[]),
+            ("none", MonitorMode::None, None, &[]),
+        ] {
+            let expression = MonitorExpression::try_parse(raw).unwrap();
+            assert_eq!(expression.mode, mode, "{raw}");
+            assert_eq!(expression.minimum, minimum, "{raw}");
+            assert_eq!(expression.references(), references, "{raw}");
+            assert_eq!(expression.to_string(), raw);
+        }
+        for raw in [
+            "min 1 of { /Common/http and /Common/https }",
+            "/Common/http and",
+            "/Common/http or /Common/https",
+            "min 0 of { /Common/http /Common/https }",
+            "min -1 of { /Common/http and /Common/https }",
+            "min 3 of { /Common/http /Common/https }",
+            "min 65536 of { /Common/http /Common/https }",
+            "min 1 of { /Common/http } trailing }",
+            "/Common/http\n# trailing",
+        ] {
+            assert!(MonitorExpression::try_parse(raw).is_none(), "{raw}");
+        }
+    }
+
+    #[test]
+    fn quoted_reference_spans_use_original_byte_offsets() {
+        for (text, written_names) in [
+            (
+                r#"  "/Common/café" and "/Common/tcp"  "#,
+                [r#""/Common/café""#, r#""/Common/tcp""#],
+            ),
+            (
+                r#"  "/Common/café and /Common/tcp"  "#,
+                ["/Common/café", "/Common/tcp"],
+            ),
+        ] {
+            let expression = MonitorExpression::try_parse(text).unwrap();
+            assert_eq!(expression.references(), ["/Common/café", "/Common/tcp"]);
+            assert_eq!(expression.raw, text);
+            let spans = expression
+                .monitor_spans
+                .iter()
+                .map(|&(start, end)| &text[start..end])
+                .collect::<Vec<_>>();
+            assert_eq!(spans, written_names);
+        }
     }
 
     #[test]

@@ -19,6 +19,7 @@
 //! Excluded command metadata remains separate from admitted source schemas.
 
 use super::{ContextRegistry, ResolvedContext};
+use crate::irules_policy::{IrulesDisabledClass, irules_disabled_class};
 use crate::registry::NameProviders;
 use tcl_dialect::model::{Family, InvocationRealm};
 
@@ -28,6 +29,8 @@ use tcl_dialect::model::{Family, InvocationRealm};
 pub enum CommandSourceUnavailabilityKind {
     /// Related Registry metadata is unavailable under the complete context.
     Unavailable,
+    /// BIG-IP disables this command at rule load and omits it at runtime.
+    RuleLoaderDisabled,
     /// The authored rule-loader surface excludes this literal command.
     RuleLoaderRefused,
 }
@@ -78,21 +81,28 @@ impl ResolvedContext {
             return None;
         }
         let providers = registry.source_availability_providers(command)?;
-        if !self.is_related_to_a_provider_of(&providers) {
-            return None;
-        }
-        let refused = self
-            .environment
-            .core
-            .is_some_and(|core| core.family == Family::F5Irules)
-            && crate::irules_policy::rule_loader_refuses(command, realm);
+        let loader_policy = (realm == InvocationRealm::RuleLoader
+            && self
+                .environment
+                .core
+                .is_some_and(|core| core.family == Family::F5Irules))
+        .then(|| irules_disabled_class(command))
+        .flatten();
+        let kind = match loader_policy {
+            Some(IrulesDisabledClass::InterpreterAbsent) => {
+                CommandSourceUnavailabilityKind::RuleLoaderDisabled
+            }
+            Some(IrulesDisabledClass::CompilerRefused) => {
+                CommandSourceUnavailabilityKind::RuleLoaderRefused
+            }
+            None if self.is_related_to_a_provider_of(&providers) => {
+                CommandSourceUnavailabilityKind::Unavailable
+            }
+            None => return None,
+        };
         Some(CommandSourceUnavailability {
             command: command.to_owned(),
-            kind: if refused {
-                CommandSourceUnavailabilityKind::RuleLoaderRefused
-            } else {
-                CommandSourceUnavailabilityKind::Unavailable
-            },
+            kind,
             providers,
         })
     }

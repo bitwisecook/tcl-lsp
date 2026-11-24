@@ -780,6 +780,12 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "IRULE1009",
+    section: "irules",
+    description: "iRules event priority is outside the allowed range.",
+    defaultEnabled: true,
+  },
+  {
     code: "IRULE1201",
     section: "irules",
     description: "HTTP command used after `HTTP::respond`/`HTTP::redirect`.",

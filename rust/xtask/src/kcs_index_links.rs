@@ -140,6 +140,7 @@ const EXPECTED_DIAGNOSTIC_STAGES: &[(&str, &str)] = &[
     ("IRULE1006", "dataflow"),
     ("IRULE1007", "dataflow"),
     ("IRULE1008", "dataflow"),
+    ("IRULE1009", "command-walk"),
     ("IRULE1201", "dataflow"),
     ("IRULE1202", "dataflow"),
     ("IRULE2001", "command-walk"),

@@ -196,6 +196,7 @@ This index lists every per-code KCS page.
 - [IRULE1006 — payload without collect](kcs-diagnostic-irule1006-payload-without-collect.md)
 - [IRULE1007 — collect without release](kcs-diagnostic-irule1007-collect-without-release.md)
 - [IRULE1008 — release without collect](kcs-diagnostic-irule1008-release-without-collect.md)
+- [IRULE1009 — invalid event priority](kcs-diagnostic-irule1009-event-priority.md)
 - [IRULE1201 — HTTP command after respond](kcs-diagnostic-irule1201-http-command-after-respond.md)
 - [IRULE1202 — multiple respond/redirect](kcs-diagnostic-irule1202-multiple-respond-redirect.md)
 - [IRULE2001 — deprecated matchclass](kcs-diagnostic-irule2001-deprecated-matchclass.md)

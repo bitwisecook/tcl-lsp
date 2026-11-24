@@ -296,6 +296,7 @@ impl DeclaredPurposeDescription {
 #[serde(rename_all = "camelCase")]
 enum CommandAvailabilityDescription {
     Unavailable,
+    RuleLoaderDisabled,
     RuleLoaderRefused,
 }
 
@@ -749,6 +750,7 @@ fn command_availability_description(
         command: original.descriptor().command().to_owned(),
         classification: match original.descriptor().kind() {
             Kind::Unavailable => CommandAvailabilityDescription::Unavailable,
+            Kind::RuleLoaderDisabled => CommandAvailabilityDescription::RuleLoaderDisabled,
             Kind::RuleLoaderRefused => CommandAvailabilityDescription::RuleLoaderRefused,
         },
         domain: match original.domain() {
@@ -1317,7 +1319,8 @@ impl DiagnosticSubjectData {
                 )
                 | (
                     SubjectDescription::CommandAvailability {
-                        classification: CommandAvailabilityDescription::Unavailable,
+                        classification: CommandAvailabilityDescription::Unavailable
+                            | CommandAvailabilityDescription::RuleLoaderDisabled,
                         ..
                     },
                     "W002"

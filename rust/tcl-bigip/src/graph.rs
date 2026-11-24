@@ -726,7 +726,7 @@ pub(crate) fn pilot_references(
 /// Monitor paths referenced by a `monitor` expression: `default`/`none` →
 /// none;
 /// `min N of { … }` → the braced tokens; otherwise an `and`-chain of paths.
-fn monitor_paths(text: &str) -> Vec<String> {
+pub(crate) fn monitor_paths(text: &str) -> Vec<String> {
     let s = text.trim();
     if s.is_empty() || s == "default" || s == "none" {
         return Vec::new();
