@@ -1971,6 +1971,21 @@ working on is never affected.  This is a VS Code display choice only: the
 server keeps analysing and no diagnostics are lost.  See
 [`docs/kcs/kcs-howto-hide-diagnostics-in-diff-views.md`](docs/kcs/kcs-howto-hide-diagnostics-in-diff-views.md).
 
+The *original* side of a Git diff, and any revision opened from the
+**Source Control** graph, uses the `git:` scheme.  These, and any scheme
+listed in `tclLsp.viewOnlySchemes`, get semantic highlighting and hover
+but no diagnostics, and navigation from your workspace files never lands
+in them:
+
+```json
+"tclLsp.viewOnlySchemes": ["git", "gl-review", "gitlab-remote"]
+```
+
+The default is `["git"]`; `gl-review` and `gitlab-remote` are the GitLab
+Workflow extension's merge-request and remote-file views.  Reload the
+window after changing it.  See
+[`docs/kcs/kcs-howto-highlight-tcl-in-git-and-review-views.md`](docs/kcs/kcs-howto-highlight-tcl-in-git-and-review-views.md).
+
 ## Changing how prominent a diagnostic is
 
 Some checks are intentionally quiet — an unused variable

@@ -71,8 +71,10 @@ re-reads the workspace under the new limits.
 **Diagnostics can appear on non-file documents.** A web workspace has no single
 URI scheme to pin to, so Tcl documents are matched on any scheme. A side effect
 is that a Tcl file opened from another provider — the original side of a diff,
-for instance — is analysed too. Set `tclLsp.suppressDiagnosticsInDiffEditors` if
-you would rather diff views stayed clean.
+for instance — is analysed too. Schemes listed in `tclLsp.viewOnlySchemes`
+(`git` by default) never show diagnostics. Set
+`tclLsp.suppressDiagnosticsInDiffEditors` if you would rather diff views stayed
+clean.
 
 **Workspace trust.** Analysis needs no trust — the server never executes the
 Tcl it reads. The settings that choose which program the *desktop* extension

@@ -17,6 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import * as vscode from "vscode";
+import { dropForeignViews } from "./clientCore";
 
 export interface JsonPosition {
   line: number;
@@ -46,17 +47,22 @@ export function convertShowReferencesArgs(
   return {
     uri: vscode.Uri.parse(uriString),
     position: new vscode.Position(position.line, position.character),
-    locations: locations.map(
-      (loc) =>
-        new vscode.Location(
-          vscode.Uri.parse(loc.uri),
-          new vscode.Range(
-            loc.range.start.line,
-            loc.range.start.character,
-            loc.range.end.line,
-            loc.range.end.character,
-          ),
+    // Code-lens "show references" bypasses the client middleware, so filter here too.
+    locations:
+      dropForeignViews(
+        locations.map(
+          (loc) =>
+            new vscode.Location(
+              vscode.Uri.parse(loc.uri),
+              new vscode.Range(
+                loc.range.start.line,
+                loc.range.start.character,
+                loc.range.end.line,
+                loc.range.end.character,
+              ),
+            ),
         ),
-    ),
+        vscode.Uri.parse(uriString),
+      ) ?? [],
   };
 }

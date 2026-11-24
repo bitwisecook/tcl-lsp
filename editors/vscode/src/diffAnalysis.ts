@@ -34,10 +34,10 @@ import * as vscode from "vscode";
  * documents rendered side by side. The modified side of a Git diff is the
  * working-tree file (`file:` scheme), analysed exactly like any open file, so
  * the squiggles a diff shows are that file's own correct, current, *whole-file*
- * diagnostics (the `git:` original side is outside the document selector and
- * never analysed). They are shown by default; this setting is for reading a
- * change without the analyser's noise, since most findings predate the change
- * under review.
+ * diagnostics (the `git:` original side, a `tclLsp.viewOnlySchemes` entry by
+ * default, gets highlighting only; `clientCore` drops its diagnostics). They
+ * are shown by default; this setting is for reading a change without the
+ * analyser's noise, since most findings predate the change under review.
  *
  * The gating happens in the `handleDiagnostics` middleware: the real diagnostics
  * are remembered per URI, but an empty set is handed to the client whenever the

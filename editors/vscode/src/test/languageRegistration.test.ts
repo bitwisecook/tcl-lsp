@@ -24,6 +24,9 @@ import {
   groupDialectChoices,
   parseListedDialects,
 } from "../dialectChoices";
+import { buildClientOptions, dropForeignViews } from "../clientCore";
+import { convertShowReferencesArgs } from "../showReferences";
+import { DiffDiagnosticsSuppressor } from "../diffAnalysis";
 import { LANGUAGE_ID_DIALECTS, TCL_LANGUAGE_IDS, isTclLanguage } from "../languageIds";
 
 interface Manifest {
@@ -160,20 +163,83 @@ suite("Language Registration", () => {
     assert.ok(isTclLanguage("tcl-apl"), "isTclLanguage('tcl-apl') should be true");
   });
 
-  test("tcl-apl gets a document selector entry", () => {
-    // Mirror the documentSelector construction in extension.ts so the client
-    // attaches to APL buffers and provides LSP features.
-    const documentSelector = [...TCL_LANGUAGE_IDS].flatMap((lang) => [
-      { scheme: "file", language: lang },
-      { scheme: "untitled", language: lang },
+  test("tclLsp.viewOnlySchemes drives the desktop selector and drops diagnostics", async () => {
+    const cfg = vscode.workspace.getConfiguration("tclLsp");
+    assert.deepStrictEqual(cfg.get("viewOnlySchemes"), ["git"], "built-in Git is on by default");
+    // `file` must be ignored, or one stray entry would hide every real diagnostic.
+    await cfg.update(
+      "viewOnlySchemes",
+      ["git", "gl-review", "file"],
+      vscode.ConfigurationTarget.Global,
+    );
+    const suppressor = new DiffDiagnosticsSuppressor();
+    try {
+      const options = buildClientOptions(suppressor);
+      const selector = options.documentSelector as { scheme?: string; language: string }[];
+      const has = (scheme: string, language: string) =>
+        selector.some((s) => s.scheme === scheme && s.language === language);
+      for (const scheme of ["file", "untitled", "git", "gl-review"]) {
+        for (const language of ["tcl", "tcl-apl"]) {
+          assert.ok(has(scheme, language), `documentSelector should include ${scheme}:${language}`);
+        }
+      }
+      assert.ok(!has("gitlab-remote", "tcl"), "an unlisted scheme stays out of the selector");
+
+      // A view-only document gets highlighting, never diagnostics.
+      const diagnostic = new vscode.Diagnostic(new vscode.Range(0, 0, 0, 1), "x");
+      const applied = new Map<string, number>();
+      const sink = (uri: vscode.Uri, diags: vscode.Diagnostic[]) =>
+        applied.set(uri.scheme, diags.length);
+      const handle = options.middleware?.handleDiagnostics;
+      assert.ok(handle, "handleDiagnostics middleware should be installed");
+      handle(vscode.Uri.parse("git:/w/a.tcl?ref"), [diagnostic], sink);
+      handle(vscode.Uri.parse("gl-review:/w/a.tcl"), [diagnostic], sink);
+      handle(vscode.Uri.parse("gitlab-remote:/w/a.tcl"), [diagnostic], sink);
+      handle(vscode.Uri.file("/w/a.tcl"), [diagnostic], sink);
+      assert.strictEqual(applied.get("git"), 0);
+      assert.strictEqual(applied.get("gl-review"), 0);
+      assert.strictEqual(applied.get("gitlab-remote"), 1);
+      assert.strictEqual(applied.get("file"), 1);
+    } finally {
+      suppressor.dispose();
+      await cfg.update("viewOnlySchemes", undefined, vscode.ConfigurationTarget.Global);
+    }
+  });
+
+  test("navigation drops view-only documents other than the origin", () => {
+    const range = new vscode.Range(0, 0, 0, 1);
+    const working = vscode.Uri.file("/w/a.tcl");
+    const oldRev = vscode.Uri.parse("git:/w/a.tcl?old");
+    const mrRev = vscode.Uri.parse("gl-review:/w/a.tcl");
+    const at = (uri: vscode.Uri) => new vscode.Location(uri, range);
+    const uris = (locs: vscode.Location[] | undefined) => locs?.map((l) => l.uri.toString());
+
+    const views = ["git", "gl-review"];
+
+    // From the working tree, every view-only copy is a ghost.
+    assert.deepStrictEqual(
+      uris(dropForeignViews([at(working), at(oldRev), at(mrRev)], working, views)),
+      [working.toString()],
+    );
+    // From inside a view, that view's own hits stay.
+    assert.deepStrictEqual(
+      uris(dropForeignViews([at(working), at(oldRev), at(mrRev)], oldRev, views)),
+      [working.toString(), oldRev.toString()],
+    );
+    // A single-location definition pointing into a foreign view vanishes.
+    assert.strictEqual(dropForeignViews(at(oldRev), working, views), undefined);
+    // An unlisted scheme is left alone.
+    assert.deepStrictEqual(uris(dropForeignViews([at(mrRev)], working, ["git"])), [
+      mrRev.toString(),
     ]);
-    assert.ok(
-      documentSelector.some((s) => s.scheme === "file" && s.language === "tcl-apl"),
-      "documentSelector should include a file entry for tcl-apl",
-    );
-    assert.ok(
-      documentSelector.some((s) => s.scheme === "untitled" && s.language === "tcl-apl"),
-      "documentSelector should include an untitled entry for tcl-apl",
-    );
+    // LocationLink targets are judged by targetUri.
+    const link: vscode.LocationLink = { targetUri: mrRev, targetRange: range };
+    assert.deepStrictEqual(dropForeignViews([link], working, views), []);
+    // Code-lens "show references" goes through the same filter (default: git).
+    const lens = convertShowReferencesArgs(working.toString(), { line: 0, character: 0 }, [
+      { uri: working.toString(), range: { start: range.start, end: range.end } },
+      { uri: oldRev.toString(), range: { start: range.start, end: range.end } },
+    ]);
+    assert.deepStrictEqual(uris(lens.locations), [working.toString()]);
   });
 });

@@ -248,6 +248,9 @@ symptom with several possible causes worth telling apart. See rule 13 in
 - [kcs-howto-hide-diagnostics-in-diff-views.md](kcs-howto-hide-diagnostics-in-diff-views.md)
   — hide Tcl diagnostics in VS Code diff and compare editors with
   `tclLsp.suppressDiagnosticsInDiffEditors`.
+- [kcs-howto-highlight-tcl-in-git-and-review-views.md](kcs-howto-highlight-tcl-in-git-and-review-views.md)
+  — get Tcl highlighting in Git revisions and merge-request views without
+  duplicate navigation results, with `tclLsp.viewOnlySchemes`.
 - [kcs-howto-configure-project-entry-points.md](kcs-howto-configure-project-entry-points.md)
   — stop W120 warnings in files loaded by an entry file, via the
   automatic `source` graph or a manual `entryPoints` list.
