@@ -137,6 +137,13 @@ impl SourceCommandBindings {
             super::original_name_value::capture_word(word, state, evaluation.context.config)
                 .map(Arc::new)
         });
+        #[cfg(test)]
+        let result = super::binding_value_fixpoint_probe::operand_value(
+            word,
+            state,
+            result,
+            name_value.is_some(),
+        );
         let rhs_read = word
             .sole_command_substitution()
             .and(substitutions.normal_rhs_read.clone());

@@ -649,6 +649,8 @@ impl SourceCommandBindings {
                 image, frame, config, registry, options, purpose,
             )
         };
+        #[cfg(test)]
+        let memo_key = memo_key.filter(|_| !super::binding_value_fixpoint_probe::active());
         if let Some(mut bindings) = memo_key.as_ref().and_then(source_analysis_cache::lookup) {
             // Reused source facts retain a distinct attachment to this analysis call.
             bindings.original_analysis_owner = bindings

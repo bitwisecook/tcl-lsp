@@ -827,6 +827,8 @@ std::thread_local! {
 mod binding_baseline;
 mod binding_projection;
 mod binding_restoration;
+#[cfg(test)]
+mod binding_value_fixpoint_probe;
 mod cfg_lattice;
 mod command_identity;
 mod command_world_tables;
