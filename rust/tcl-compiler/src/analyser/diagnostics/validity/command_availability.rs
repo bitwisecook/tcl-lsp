@@ -79,6 +79,10 @@ impl Analyser {
             .unwrap_or_default()
             .to_owned();
         let (code, message) = match descriptor.kind() {
+            CommandSourceUnavailabilityKind::RuleLoaderDisabled => (
+                DiagCode::W002,
+                format!("command is disabled: \"{}\"", descriptor.command()),
+            ),
             CommandSourceUnavailabilityKind::RuleLoaderRefused => (
                 DiagCode::Irule2004,
                 format!(

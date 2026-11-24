@@ -492,8 +492,8 @@ impl Analyser {
         }
         let (valid, event, previous_event) =
             self.enter_registry_event_context(command, traits, args, arg_tokens, arg_single);
-        // A handler the rule loader rejects never runs: its body is inert data
-        // (IRULE1002 on the declaration is the only finding).
+        // A handler the rule loader rejects never runs. Its declaration
+        // can still receive event or priority diagnostics.
         if !valid {
             return;
         }

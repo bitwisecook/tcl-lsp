@@ -919,17 +919,26 @@ fn reference_values(raw: &str) -> Vec<String> {
         .collect()
 }
 
-fn property_reference_values(property: &str, raw: &str) -> Vec<String> {
-    if property == "monitor"
-        && let Some(expression) = MonitorExpression::try_parse(raw)
-    {
-        return expression
-            .monitors
-            .into_iter()
-            .filter(|value| is_static_reference(value))
-            .collect();
-    }
-    reference_values(raw)
+fn property_reference_values(module: &str, property: &str, raw: &str) -> Vec<String> {
+    let references = match (module, property) {
+        ("ltm", "monitor") => {
+            MonitorExpression::try_parse(raw).map(|expression| expression.monitors)
+        }
+        ("gtm", "monitor") => {
+            let paths = crate::graph::monitor_paths(raw);
+            (!paths.is_empty()).then_some(paths)
+        }
+        _ => None,
+    };
+    references.map_or_else(
+        || reference_values(raw),
+        |names| {
+            names
+                .into_iter()
+                .filter(|value| is_static_reference(value))
+                .collect()
+        },
+    )
 }
 
 fn reference_candidates(
@@ -1126,7 +1135,7 @@ fn check_registry_references(config: &BigipConfig, out: &mut Vec<ConfigDiagnosti
             for edge in tcl_registry::bigip::reference_edges_from(from_kind)
                 .filter(|edge| edge.section.is_none() && edge.property == property)
             {
-                for value in property_reference_values(&property, &parsed.value) {
+                for value in property_reference_values(&object.module, &property, &parsed.value) {
                     if reference_supplied_by_property(
                         &object.module,
                         &object.object_type,
@@ -1840,11 +1849,11 @@ net route-domain /Common/example { id 11 }
     #[test]
     fn monitor_reference_extraction_ignores_expression_grammar() {
         assert_eq!(
-            property_reference_values("monitor", "/Common/http and /Common/tcp"),
+            property_reference_values("ltm", "monitor", "/Common/http and /Common/tcp"),
             ["/Common/http", "/Common/tcp"]
         );
         assert_eq!(
-            property_reference_values("monitor", "min 1 of { /Common/http /Common/tcp }"),
+            property_reference_values("ltm", "monitor", "min 1 of { /Common/http /Common/tcp }"),
             ["/Common/http", "/Common/tcp"]
         );
     }

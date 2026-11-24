@@ -151,6 +151,7 @@ object DiagnosticCatalog {
         DiagnosticDef("IRULE1006", "irules", "IRULE1006: Payload access without its required registered colle...", true),
         DiagnosticDef("IRULE1007", "irules", "IRULE1007: Collection without its required registered release o...", true),
         DiagnosticDef("IRULE1008", "irules", "IRULE1008: *::release without a matching *::collect on the same...", true),
+        DiagnosticDef("IRULE1009", "irules", "IRULE1009: iRules event priority is outside the allowed range", true),
         DiagnosticDef("IRULE1201", "irules", "IRULE1201: HTTP command used after HTTP::respond/HTTP::redirect", true),
         DiagnosticDef("IRULE1202", "irules", "IRULE1202: Multiple HTTP::respond/HTTP::redirect on different b...", true),
         DiagnosticDef("IRULE2001", "irules", "IRULE2001: Deprecated matchclass", true),

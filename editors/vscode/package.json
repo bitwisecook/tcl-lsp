@@ -7820,12 +7820,40 @@
             "markdownDescription": "Display severity for **IRULE1008:** `*::release` without a matching `*::collect` on the same connection side.",
             "order": 7
           },
+          "tclLsp.diagnostics.IRULE1009": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**IRULE1009:** iRules event priority is outside the allowed range.",
+            "order": 8
+          },
+          "tclLsp.diagnosticSeverity.IRULE1009": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **IRULE1009:** iRules event priority is outside the allowed range.",
+            "order": 8
+          },
           "tclLsp.diagnostics.IRULE1201": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE1201:** HTTP command used after `HTTP::respond`/`HTTP::redirect`.",
-            "order": 8
+            "order": 9
           },
           "tclLsp.diagnosticSeverity.IRULE1201": {
             "scope": "resource",
@@ -7846,14 +7874,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE1201:** HTTP command used after `HTTP::respond`/`HTTP::redirect`.",
-            "order": 8
+            "order": 9
           },
           "tclLsp.diagnostics.IRULE1202": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE1202:** Multiple `HTTP::respond`/`HTTP::redirect` on different branches.",
-            "order": 9
+            "order": 10
           },
           "tclLsp.diagnosticSeverity.IRULE1202": {
             "scope": "resource",
@@ -7874,14 +7902,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE1202:** Multiple `HTTP::respond`/`HTTP::redirect` on different branches.",
-            "order": 9
+            "order": 10
           },
           "tclLsp.diagnostics.IRULE2001": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE2001:** Deprecated `matchclass` — use `class match` instead.",
-            "order": 10
+            "order": 11
           },
           "tclLsp.diagnosticSeverity.IRULE2001": {
             "scope": "resource",
@@ -7902,14 +7930,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE2001:** Deprecated `matchclass` — use `class match` instead.",
-            "order": 10
+            "order": 11
           },
           "tclLsp.diagnostics.IRULE2002": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE2002:** Deprecated iRules command.",
-            "order": 11
+            "order": 12
           },
           "tclLsp.diagnosticSeverity.IRULE2002": {
             "scope": "resource",
@@ -7930,14 +7958,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE2002:** Deprecated iRules command.",
-            "order": 11
+            "order": 12
           },
           "tclLsp.diagnostics.IRULE2003": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE2003:** Unsafe iRules command.",
-            "order": 12
+            "order": 13
           },
           "tclLsp.diagnosticSeverity.IRULE2003": {
             "scope": "resource",
@@ -7958,14 +7986,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE2003:** Unsafe iRules command.",
-            "order": 12
+            "order": 13
           },
           "tclLsp.diagnostics.IRULE2004": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE2004:** Command refused by the iRules rule compiler at load — present in TMM's interpreter and reachable via `eval` at runtime.",
-            "order": 13
+            "order": 14
           },
           "tclLsp.diagnosticSeverity.IRULE2004": {
             "scope": "resource",
@@ -7986,14 +8014,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE2004:** Command refused by the iRules rule compiler at load — present in TMM's interpreter and reachable via `eval` at runtime.",
-            "order": 13
+            "order": 14
           },
           "tclLsp.diagnostics.IRULE2101": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE2101:** Heavy `regexp` in a high-frequency event — consider `string match` or data-group.",
-            "order": 14
+            "order": 15
           },
           "tclLsp.diagnosticSeverity.IRULE2101": {
             "scope": "resource",
@@ -8014,14 +8042,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE2101:** Heavy `regexp` in a high-frequency event — consider `string match` or data-group.",
-            "order": 14
+            "order": 15
           },
           "tclLsp.diagnostics.IRULE5001": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE5001:** Ungated `log` in a high-frequency event.",
-            "order": 15
+            "order": 16
           },
           "tclLsp.diagnosticSeverity.IRULE5001": {
             "scope": "resource",
@@ -8042,14 +8070,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE5001:** Ungated `log` in a high-frequency event.",
-            "order": 15
+            "order": 16
           },
           "tclLsp.diagnostics.IRULE5002": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE5002:** `drop`/`reject`/`discard` without `event disable all` or `return`.",
-            "order": 16
+            "order": 17
           },
           "tclLsp.diagnosticSeverity.IRULE5002": {
             "scope": "resource",
@@ -8070,14 +8098,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE5002:** `drop`/`reject`/`discard` without `event disable all` or `return`.",
-            "order": 16
+            "order": 17
           },
           "tclLsp.diagnostics.IRULE5004": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE5004:** `DNS::return` without `return`.",
-            "order": 17
+            "order": 18
           },
           "tclLsp.diagnosticSeverity.IRULE5004": {
             "scope": "resource",
@@ -8098,14 +8126,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE5004:** `DNS::return` without `return`.",
-            "order": 17
+            "order": 18
           },
           "tclLsp.diagnostics.IRULE5005": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE5005:** Direct proc invocation without `call` — use `call proc_name`.",
-            "order": 18
+            "order": 19
           },
           "tclLsp.diagnosticSeverity.IRULE5005": {
             "scope": "resource",
@@ -8126,14 +8154,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE5005:** Direct proc invocation without `call` — use `call proc_name`.",
-            "order": 18
+            "order": 19
           },
           "tclLsp.diagnostics.IRULE5006": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE5006:** Top-level-only command used inside a nested body.",
-            "order": 19
+            "order": 20
           },
           "tclLsp.diagnosticSeverity.IRULE5006": {
             "scope": "resource",
@@ -8154,14 +8182,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE5006:** Top-level-only command used inside a nested body.",
-            "order": 19
+            "order": 20
           },
           "tclLsp.diagnostics.IRULE5007": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE5007:** Executable command used on iRules' declaration-only top level.",
-            "order": 20
+            "order": 21
           },
           "tclLsp.diagnosticSeverity.IRULE5007": {
             "scope": "resource",
@@ -8182,14 +8210,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE5007:** Executable command used on iRules' declaration-only top level.",
-            "order": 20
+            "order": 21
           },
           "tclLsp.diagnostics.IRULE3001": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE3001:** Tainted data in HTTP response body.",
-            "order": 21
+            "order": 22
           },
           "tclLsp.diagnosticSeverity.IRULE3001": {
             "scope": "resource",
@@ -8210,14 +8238,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE3001:** Tainted data in HTTP response body.",
-            "order": 21
+            "order": 22
           },
           "tclLsp.diagnostics.IRULE3002": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE3002:** Tainted data in HTTP header or cookie value.",
-            "order": 22
+            "order": 23
           },
           "tclLsp.diagnosticSeverity.IRULE3002": {
             "scope": "resource",
@@ -8238,14 +8266,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE3002:** Tainted data in HTTP header or cookie value.",
-            "order": 22
+            "order": 23
           },
           "tclLsp.diagnostics.IRULE3003": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE3003:** Tainted data in `log` command — log injection risk.",
-            "order": 23
+            "order": 24
           },
           "tclLsp.diagnosticSeverity.IRULE3003": {
             "scope": "resource",
@@ -8266,14 +8294,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE3003:** Tainted data in `log` command — log injection risk.",
-            "order": 23
+            "order": 24
           },
           "tclLsp.diagnostics.IRULE3004": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE3004:** Tainted data in an `HTTP::redirect` URL — open-redirect risk.",
-            "order": 24
+            "order": 25
           },
           "tclLsp.diagnosticSeverity.IRULE3004": {
             "scope": "resource",
@@ -8294,14 +8322,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE3004:** Tainted data in an `HTTP::redirect` URL — open-redirect risk.",
-            "order": 24
+            "order": 25
           },
           "tclLsp.diagnostics.IRULE3101": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE3101:** `HTTP::uri`/`HTTP::path` set to value not provably starting with `/`.",
-            "order": 25
+            "order": 26
           },
           "tclLsp.diagnosticSeverity.IRULE3101": {
             "scope": "resource",
@@ -8322,14 +8350,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE3101:** `HTTP::uri`/`HTTP::path` set to value not provably starting with `/`.",
-            "order": 25
+            "order": 26
           },
           "tclLsp.diagnostics.IRULE3102": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE3102:** `HTTP::path`/`HTTP::uri`/`HTTP::query` getter used without `-normalized`.",
-            "order": 26
+            "order": 27
           },
           "tclLsp.diagnosticSeverity.IRULE3102": {
             "scope": "resource",
@@ -8350,14 +8378,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE3102:** `HTTP::path`/`HTTP::uri`/`HTTP::query` getter used without `-normalized`.",
-            "order": 26
+            "order": 27
           },
           "tclLsp.diagnostics.IRULE4001": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE4001:** Write to `static::` variable outside `RULE_INIT`.",
-            "order": 27
+            "order": 28
           },
           "tclLsp.diagnosticSeverity.IRULE4001": {
             "scope": "resource",
@@ -8378,14 +8406,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE4001:** Write to `static::` variable outside `RULE_INIT`.",
-            "order": 27
+            "order": 28
           },
           "tclLsp.diagnostics.IRULE4002": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE4002:** Generic `static::` variable name — collision likely across iRules.",
-            "order": 28
+            "order": 29
           },
           "tclLsp.diagnosticSeverity.IRULE4002": {
             "scope": "resource",
@@ -8406,14 +8434,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE4002:** Generic `static::` variable name — collision likely across iRules.",
-            "order": 28
+            "order": 29
           },
           "tclLsp.diagnostics.IRULE4003": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE4003:** Variable scoping concern across events.",
-            "order": 29
+            "order": 30
           },
           "tclLsp.diagnosticSeverity.IRULE4003": {
             "scope": "resource",
@@ -8434,14 +8462,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE4003:** Variable scoping concern across events.",
-            "order": 29
+            "order": 30
           },
           "tclLsp.diagnostics.IRULE4004": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE4004:** Constant `set` in per-request event could be hoisted to an earlier once-per-connection event.",
-            "order": 30
+            "order": 31
           },
           "tclLsp.diagnosticSeverity.IRULE4004": {
             "scope": "resource",
@@ -8462,14 +8490,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE4004:** Constant `set` in per-request event could be hoisted to an earlier once-per-connection event.",
-            "order": 30
+            "order": 31
           },
           "tclLsp.diagnostics.IRULE4005": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**IRULE4005:** Potential race — `static::` variable written outside `RULE_INIT` and read in another event.",
-            "order": 31
+            "order": 32
           },
           "tclLsp.diagnosticSeverity.IRULE4005": {
             "scope": "resource",
@@ -8490,7 +8518,7 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **IRULE4005:** Potential race — `static::` variable written outside `RULE_INIT` and read in another event.",
-            "order": 31
+            "order": 32
           },
           "tclLsp.diagnostics.genericVariablePatterns": {
             "scope": "resource",
@@ -8500,7 +8528,7 @@
             },
             "default": [],
             "markdownDescription": "Regex patterns for generic `static::` variable names (IRULE4002). Each pattern is matched case-insensitively against the bare name after stripping `static::`. Also configurable via the tcl-lsp config file (see docs/kcs/kcs-xdg-config.md).",
-            "order": 32
+            "order": 33
           }
         }
       },

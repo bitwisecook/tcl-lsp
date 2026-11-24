@@ -299,8 +299,8 @@ impl Analyser {
             return;
         }
         let diag_registry = self.profile_registry();
-        self.emit_unresolved_command_diagnostics(&diag_registry);
         self.flush_disabled_command_diagnostics();
+        self.emit_unresolved_command_diagnostics(&diag_registry);
         self.flush_w143_diagnostics();
         self.flush_w304_diagnostics();
         // Decide every version-gated option relationship *before* the arity

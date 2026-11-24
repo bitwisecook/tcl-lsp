@@ -130,9 +130,12 @@ reconstructed object compares equal to the parsed one.
   host, service and explicit route domain. The TMSH virtual and HTTP
   monitor readers apply separate acceptance rules to the same value.
   `MemberKey` reads the member's node reference and service.
-- `MonitorExpression` / `MonitorMode` (`monitor_expression.rs`) —
-  pool / node / GTM monitor expression (`default` / `none` / a single
-  monitor / `M1 and M2` / `min N of { … }`), with per-monitor source spans.
+- `MonitorExpression` / `MonitorMode` (`monitor_expression.rs`) reads the
+  measured LTM grammar. It accepts `default`, `none`, a single monitor,
+  an `and` chain, or `min N of { M1 M2 … }`. It decodes quoted names
+  and quoted whole expressions and retains the spelling and byte spans.
+  The minimum must be in 1–65535 and at most the number of listed monitors.
+  [BIG-IP 21.1 monitor checks](../../../evidence/bigip/tmsh-21.1-name-handling.md#monitor-rules)
 - `ProfileAttachment` / `PersistenceAttachment` (`attachments.rs`) —
   `ltm virtual.profiles` and `.persist` keyed-block items.
 - `SnatMode` (`snat_mode.rs`) — the `source-address-translation` sum type

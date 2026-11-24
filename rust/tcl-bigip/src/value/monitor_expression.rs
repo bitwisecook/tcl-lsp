@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Typed BIG-IP monitor-expression value.
+//! Typed BIG-IP LTM monitor-expression value.
 
 use std::fmt;
 
@@ -113,6 +113,7 @@ impl MonitorExpression {
         let mut expression = if let [token] = tokens.as_slice()
             && let Some(inner) = token.spelling().strip_prefix('"')
             && let Some(inner) = inner.strip_suffix('"')
+            && !inner.contains('"')
         {
             let mut expression = Self::parse_tokens(&complete_tokens(inner)?)?;
             let offset = token.range.start + 1;
@@ -134,20 +135,20 @@ impl MonitorExpression {
     fn parse_tokens(tokens: &[ShellToken<'_>]) -> Option<Self> {
         let (first, rest) = tokens.split_first()?;
         let mut expression = Self::default();
-        expression.mode = match (first.spelling(), rest) {
+        expression.mode = match (first.word_value()?.as_ref(), rest) {
             (DEFAULT_WORD, []) => MonitorMode::Default,
             (NONE_WORD, []) => MonitorMode::None,
-            (MIN_WORD, [threshold, of, open, members @ .., close])
-                if of.spelling() == OF_WORD
+            (MIN_WORD, [minimum, of, open, members @ .., close])
+                if of.word_value()?.as_ref() == OF_WORD
                     && open.kind == ShellTokenKind::Open
                     && close.kind == ShellTokenKind::Close =>
             {
-                let minimum: u16 = threshold.spelling().parse().ok()?;
+                let minimum = minimum.word_value()?.parse::<u16>().ok()?;
                 if minimum == 0 || usize::from(minimum) > members.len() {
                     return None;
                 }
-                for token in members {
-                    expression.push_monitor(token)?;
+                for member in members {
+                    expression.push_monitor(member)?;
                 }
                 expression.minimum = Some(i64::from(minimum));
                 MonitorMode::MinOf
@@ -155,10 +156,8 @@ impl MonitorExpression {
             _ => {
                 expression.push_monitor(first)?;
                 for pair in rest.chunks(2) {
-                    let [and, monitor] = pair else {
-                        return None;
-                    };
-                    if and.spelling() != AND_WORD {
+                    let [and, monitor] = pair else { return None };
+                    if and.word_value()?.as_ref() != AND_WORD {
                         return None;
                     }
                     expression.push_monitor(monitor)?;
@@ -175,7 +174,10 @@ impl MonitorExpression {
 
     fn push_monitor(&mut self, token: &ShellToken<'_>) -> Option<()> {
         let name = token.word_value()?;
-        if name.is_empty() || GRAMMAR_WORDS.contains(&name.as_ref()) {
+        if name.is_empty()
+            || name.chars().any(char::is_whitespace)
+            || GRAMMAR_WORDS.contains(&name.as_ref())
+        {
             return None;
         }
         self.monitors.push(name.into_owned());
@@ -404,6 +406,94 @@ mod tests {
             monitor_spans: Vec::new(),
         };
         assert_eq!(m.to_string(), "min 1 of { /Common/a /Common/b }");
+    }
+
+    #[test]
+    fn measured_ltm_monitor_expressions() {
+        // BIG-IP 21.1.0.1, evidence/bigip/tmsh-21.1-name-handling.md.
+        for (raw, mode, minimum, references) in [
+            (
+                "/Common/http",
+                MonitorMode::Single,
+                None,
+                &["/Common/http"][..],
+            ),
+            (
+                "/Common/http and /Common/https",
+                MonitorMode::All,
+                None,
+                &["/Common/http", "/Common/https"],
+            ),
+            (
+                r#""/Common/http" and "/Common/https""#,
+                MonitorMode::All,
+                None,
+                &["/Common/http", "/Common/https"],
+            ),
+            (
+                r#""/Common/http and /Common/https""#,
+                MonitorMode::All,
+                None,
+                &["/Common/http", "/Common/https"],
+            ),
+            (
+                "min 1 of { /Common/http /Common/https }",
+                MonitorMode::MinOf,
+                Some(1),
+                &["/Common/http", "/Common/https"],
+            ),
+            (
+                "min 2 of { /Common/http /Common/https }",
+                MonitorMode::MinOf,
+                Some(2),
+                &["/Common/http", "/Common/https"],
+            ),
+            ("default", MonitorMode::Default, None, &[]),
+            ("none", MonitorMode::None, None, &[]),
+        ] {
+            let expression = MonitorExpression::try_parse(raw).unwrap();
+            assert_eq!(expression.mode, mode, "{raw}");
+            assert_eq!(expression.minimum, minimum, "{raw}");
+            assert_eq!(expression.references(), references, "{raw}");
+            assert_eq!(expression.to_string(), raw);
+        }
+        for raw in [
+            "min 1 of { /Common/http and /Common/https }",
+            "/Common/http and",
+            "/Common/http or /Common/https",
+            "min 0 of { /Common/http /Common/https }",
+            "min -1 of { /Common/http and /Common/https }",
+            "min 3 of { /Common/http /Common/https }",
+            "min 65536 of { /Common/http /Common/https }",
+            "min 1 of { /Common/http } trailing }",
+            "/Common/http\n# trailing",
+        ] {
+            assert!(MonitorExpression::try_parse(raw).is_none(), "{raw}");
+        }
+    }
+
+    #[test]
+    fn quoted_reference_spans_use_original_byte_offsets() {
+        for (text, written_names) in [
+            (
+                r#"  "/Common/café" and "/Common/tcp"  "#,
+                [r#""/Common/café""#, r#""/Common/tcp""#],
+            ),
+            (
+                r#"  "/Common/café and /Common/tcp"  "#,
+                ["/Common/café", "/Common/tcp"],
+            ),
+        ] {
+            let expression = MonitorExpression::try_parse(text).unwrap();
+            assert_eq!(expression.references(), ["/Common/café", "/Common/tcp"]);
+            assert_eq!(expression.raw, text);
+            let spans = expression
+                .monitor_spans
+                .iter()
+                .map(|&(start, end)| &text[start..end])
+                .collect::<Vec<_>>();
+            assert_eq!(spans, written_names);
+        }
     }
 
     #[test]

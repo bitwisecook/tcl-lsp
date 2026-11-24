@@ -424,6 +424,7 @@ diagnostic_codes! {
     Irule1006 => "IRULE1006", diag(Irules, true, "Payload access without its required registered collection operation.");
     Irule1007 => "IRULE1007", diag(Irules, true, "Collection without its required registered release operation on the same connection side.");
     Irule1008 => "IRULE1008", diag(Irules, true, "`*::release` without a matching `*::collect` on the same connection side.");
+    Irule1009 => "IRULE1009", diag(Irules, true, "iRules event priority is outside the allowed range.");
     Irule1201 => "IRULE1201", diag(Irules, true, "HTTP command used after `HTTP::respond`/`HTTP::redirect`.");
     Irule1202 => "IRULE1202", diag(Irules, true, "Multiple `HTTP::respond`/`HTTP::redirect` on different branches.");
     Irule2001 => "IRULE2001", diag(Irules, true, "Deprecated `matchclass` — use `class match` instead.", tag: Deprecated);

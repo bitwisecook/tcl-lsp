@@ -295,8 +295,8 @@ pub fn original_source_command_availability(
         return None;
     }
     let first = trace.required(original.first(), "source.original-head")?;
-    let invocation_realm = binding.invocation_realm().unwrap_or_default();
     let context = input.context_registry();
+    let invocation_realm = source_availability_realm(input, binding);
     let (descriptor, origin) = if input.has_hosted_source_name_context() {
         trace.required(
             hosted_unavailability(
@@ -361,6 +361,26 @@ pub fn original_source_command_availability(
     })
 }
 
+fn source_availability_realm(
+    input: &ResolvedAnalysisInput,
+    binding: &crate::command_binding::SourceInvocationBinding,
+) -> tcl_dialect::model::InvocationRealm {
+    // The appliance scans original rule source at load, including literal
+    // handler bodies. Their retained execution bindings still describe TMM.
+    if input.has_hosted_source_name_context()
+        && input
+            .context_registry()
+            .context()
+            .environment
+            .core
+            .is_some_and(|core| core.family == tcl_dialect::model::Family::F5Irules)
+    {
+        tcl_dialect::model::InvocationRealm::RuleLoader
+    } else {
+        binding.invocation_realm().unwrap_or_default()
+    }
+}
+
 fn hosted_unavailability(
     analysis: &AnalysisResult,
     binding: &crate::command_binding::SourceInvocationBinding,
@@ -384,27 +404,36 @@ fn hosted_unavailability(
         head.literal_units(tcl_syntax::naming::VendorSourceNamePurpose::CommandHead)?,
     )
     .ok()?;
-    let (descriptor, paths) = if binding.has_original_lookup_snapshot() {
-        binding.original_authored_unavailable_command(
-            tokens,
-            first,
-            &context,
-            invocation_realm,
-            written,
-        )?
+    let bound = binding.original_authored_unavailable_command(
+        tokens,
+        first,
+        &context,
+        invocation_realm,
+        written,
+    );
+    let (descriptor, paths) = if let Some(bound) = bound {
+        bound
     } else {
         let coordinate = head.root_command_coordinate()?;
-        let descriptors = context
-            .commands()
-            .command_names_in_any_dialect()
-            .filter(|name| {
-                tcl_syntax::naming::qualify("::", name).as_bytes() == coordinate.as_bytes()
-            })
-            .filter_map(|name| context.command_source_unavailability(name, invocation_realm))
-            .collect::<Vec<_>>();
-        let [descriptor] = descriptors.as_slice() else {
+        let rooted = std::str::from_utf8(coordinate.as_bytes()).ok()?;
+        let command = tcl_syntax::naming::unroot_rooted_key(rooted)?;
+        let descriptor = context.command_source_unavailability(command, invocation_realm)?;
+        // A disabled literal can have a retained runtime point with no
+        // callable slot. The loader policy applies through the independently
+        // sealed rule source and its declaration barriers.
+        if binding.has_original_lookup_snapshot()
+            && (!matches!(
+                descriptor.kind(),
+                tcl_registry::model::CommandSourceUnavailabilityKind::RuleLoaderDisabled
+                    | tcl_registry::model::CommandSourceUnavailabilityKind::RuleLoaderRefused
+            ) || binding.proved_target().is_some_and(|target| {
+                target.registry_identity().is_none_or(|identity| {
+                    tcl_syntax::naming::unroot_rooted_key(identity).unwrap_or(identity) != command
+                })
+            }))
+        {
             return None;
-        };
+        }
         if let Some(body) = occurrence.body_origin() {
             body.matches_child(&context, original).then_some(())?;
         } else {
@@ -423,7 +452,7 @@ fn hosted_unavailability(
                 return None;
             }
         }
-        (descriptor.clone(), vec![vec![coordinate]])
+        (descriptor, vec![vec![coordinate]])
     };
     let barriers = if let Some(body) = occurrence.body_origin() {
         super::vendor_source_barriers::capture_in_script_body(&context, head, &paths, body)?

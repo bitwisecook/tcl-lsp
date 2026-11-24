@@ -26,8 +26,10 @@
 use rustc_hash::FxHashSet;
 use std::collections::{HashMap, HashSet};
 use tcl_core_types::DiagCode;
+use tcl_registry::model::CommandSourceUnavailabilityKind;
 
 use crate::command_binding::SourceCommandSlotPresence;
+use crate::signature_scan::types::SignatureCommandLookup;
 
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
@@ -272,6 +274,24 @@ impl Analyser {
         }
     }
 
+    fn reported_rule_loader_heads(&self) -> FxHashSet<u32> {
+        // The original command-availability pass already reported these
+        // authored heads. They do not qualify for workspace autoload advice.
+        self.result
+            .diagnostics
+            .iter()
+            .filter_map(|diagnostic| {
+                let availability = diagnostic.command_availability()?;
+                matches!(
+                    availability.descriptor().kind(),
+                    CommandSourceUnavailabilityKind::RuleLoaderDisabled
+                        | CommandSourceUnavailabilityKind::RuleLoaderRefused
+                )
+                .then_some(diagnostic.span.start())
+            })
+            .collect()
+    }
+
     /// Walk every recorded command invocation, record the ones the oracle
     /// proves `Absent` as call sites, and (when `emit_w123`) push a W123
     /// with a "did you mean…?" suggestion.  Restores
@@ -299,6 +319,7 @@ impl Analyser {
             .filter(|candidate| seen_candidate_strs.insert(*candidate))
             .collect();
 
+        let disabled_heads = self.reported_rule_loader_heads();
         // Drain so the iteration loop can mutate
         // ``self.result.diagnostics`` freely; restore at the end
         // (matches the snapshot/restore round-trip contract).
@@ -311,15 +332,15 @@ impl Analyser {
             // `info commands NAME`) asserts nothing about the name's
             // existence — reference identity and existence are orthogonal, so
             // the record never feeds W123.
-            if inv.existence_probe {
+            if inv.existence_probe
+                || (inv.lookup == SignatureCommandLookup::InvocationHead
+                    && disabled_heads.contains(&inv.range.start()))
+            {
                 continue;
             }
             // A genuine selected authored class call is conditional source evidence;
             // it does not assert successful execution or issue callable identity.
-            if matches!(
-                inv.lookup,
-                crate::signature_scan::types::SignatureCommandLookup::InvocationHead
-            ) && crate::registry_invocation::source_structure::trace_jim_source_option("jim.diagnostic.call", crate::registry_invocation::source_structure::source_authored_jim_call_at(
+            if inv.lookup == SignatureCommandLookup::InvocationHead && crate::registry_invocation::source_structure::trace_jim_source_option("jim.diagnostic.call", crate::registry_invocation::source_structure::source_authored_jim_call_at(
                 &self.source,
                 &self.result,
                 inv.range.start(),

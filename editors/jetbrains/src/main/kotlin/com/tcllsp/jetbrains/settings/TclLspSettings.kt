@@ -227,6 +227,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var diagnosticIRULE1006: Boolean = true
     var diagnosticIRULE1007: Boolean = true
     var diagnosticIRULE1008: Boolean = true
+    var diagnosticIRULE1009: Boolean = true
     var diagnosticIRULE1201: Boolean = true
     var diagnosticIRULE1202: Boolean = true
     var diagnosticIRULE2001: Boolean = true
@@ -566,6 +567,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "IRULE1006" to diagnosticIRULE1006,
                 "IRULE1007" to diagnosticIRULE1007,
                 "IRULE1008" to diagnosticIRULE1008,
+                "IRULE1009" to diagnosticIRULE1009,
                 "IRULE1201" to diagnosticIRULE1201,
                 "IRULE1202" to diagnosticIRULE1202,
                 "IRULE2001" to diagnosticIRULE2001,

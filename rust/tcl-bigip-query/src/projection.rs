@@ -513,10 +513,7 @@ fn typed_str<T: std::fmt::Display>(opt: Option<&T>) -> Value {
     Value::Str(opt.map_or_else(String::new, ToString::to_string))
 }
 
-/// Project a `monitor` field: parse the raw string as a
-/// [`MonitorExpression`] and re-render it, so `min 1 of { a b }` and its
-/// spacing variants normalise to one spelling. Empty / unparseable
-/// strings pass through verbatim.
+/// Project an LTM monitor expression with its original spelling.
 fn monitor_value(raw: &str) -> Value {
     if raw.trim().is_empty() {
         return Value::Str(String::new());

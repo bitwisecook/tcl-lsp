@@ -138,6 +138,7 @@
 | IRULE1006 | irules | Payload access without its required registered collection operation. | ✓ |
 | IRULE1007 | irules | Collection without its required registered release operation on the same connection side. | ✓ |
 | IRULE1008 | irules | `*::release` without a matching `*::collect` on the same connection side. | ✓ |
+| IRULE1009 | irules | iRules event priority is outside the allowed range. | ✓ |
 | IRULE1201 | irules | HTTP command used after `HTTP::respond`/`HTTP::redirect`. | ✓ |
 | IRULE1202 | irules | Multiple `HTTP::respond`/`HTTP::redirect` on different branches. | ✓ |
 | IRULE2001 | irules | Deprecated `matchclass` — use `class match` instead. | ✓ |

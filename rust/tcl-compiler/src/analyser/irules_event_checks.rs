@@ -31,6 +31,7 @@
 //! - **IRULE1003** (WARNING): deprecated iRules event.
 //! - **IRULE1004** (HINT): event-handler priority omitted where that
 //!   handler's registry policy requires an explicit value.
+//! - **IRULE1009** (WARNING): invalid event-handler priority.
 //! - **IRULE2003** (ERROR): unsafe iRules command (context escalation).
 //! - **IRULE3102** (WARNING): `HTTP::path`/`uri`/`query` getter without `-normalized`.
 //! - **IRULE2101** (HINT): heavy `regexp` in a hot event.
@@ -159,11 +160,7 @@ impl Analyser {
         if let Some(ev) = event_ref {
             self.emit_irule1001_command_event_validity(cmd_name, args, cmd_tok, ev);
         }
-        self.emit_irule1002_unknown_event(cmd_name, args, arg_tokens, arg_single);
-        self.emit_irule1003_deprecated_event(cmd_name, args, arg_tokens, arg_single);
-        self.emit_irule1004_event_handler_missing_priority(
-            cmd_name, args, arg_tokens, arg_single, cmd_tok,
-        );
+        self.emit_irules_handler_diagnostics(cmd_name, args, arg_tokens, arg_single, cmd_tok);
         self.emit_irule2003_unsafe_command(cmd_name, cmd_tok);
         self.emit_irule3102_unnormalised_getter(arg_tokens, cmd_tok);
         self.emit_irule2101_heavy_regex(cmd_name, cmd_tok, event_ref);
@@ -480,54 +477,72 @@ impl Analyser {
         }
     }
 
-    /// Resolve one source-aware, top-level event declaration without checking
-    /// whether its event selector is known. This preserves IRULE1002's job:
-    /// it reports a valid declaration whose selector is unknown, while the
-    /// executable inventories reject that same declaration.
-    fn irules_event_declaration_shape(
-        &self,
-        cmd_name: &str,
-        args: &[String],
-        arg_tokens: &[Token],
-        arg_single: &[bool],
-    ) -> Option<tcl_registry::events::IrulesTopLevelDeclaration> {
-        if self.body_depth != 0 {
-            return None;
-        }
-        let registry = self.registry.as_deref()?;
-        let words: Vec<&str> = args.iter().map(String::as_str).collect();
-        let closed = tcl_registry::events::closed_braced_argument_words(
-            &self.source,
-            arg_tokens,
-            arg_single,
-        )?;
-        let arguments = tcl_registry::events::IrulesDeclarationArguments::new(
-            &words, arg_tokens, arg_single, &closed,
-        )?;
-        registry.irules_top_level_declaration_shape(cmd_name, arguments)
-    }
-
-    /// **IRULE1002.** `when` references an unknown iRules event name.
-    /// Only literal event names are validated (`$var` / `[cmd]` skipped).
-    fn emit_irule1002_unknown_event(
+    /// Validate the written event handler through the shared declaration reader.
+    fn emit_irules_handler_diagnostics(
         &mut self,
         cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
         arg_single: &[bool],
+        cmd_tok: Token,
     ) {
-        if !matches!(
-            self.irules_event_declaration_shape(cmd_name, args, arg_tokens, arg_single),
-            Some(tcl_registry::events::IrulesTopLevelDeclaration::Event { .. })
-        ) {
+        if self.body_depth != 0 {
             return;
         }
-        let (Some(event_name), Some(tok)) = (args.first(), arg_tokens.first()) else {
+        let Some(registry) = self.registry.as_deref() else {
             return;
         };
-        if matches!(tok.kind, TokenType::Var | TokenType::Cmd) {
+        let Some(policy) = registry.event_handler_priority(cmd_name) else {
             return;
+        };
+        let words: Vec<&str> = args.iter().map(String::as_str).collect();
+        let Some(closed) = tcl_registry::events::closed_braced_argument_words(
+            &self.source,
+            arg_tokens,
+            arg_single,
+        ) else {
+            return;
+        };
+        let Some(arguments) = tcl_registry::events::IrulesDeclarationArguments::new(
+            &words, arg_tokens, arg_single, &closed,
+        ) else {
+            return;
+        };
+        match registry.read_irules_event_declaration(arguments) {
+            Some(Ok(tcl_registry::events::IrulesTopLevelDeclaration::Event {
+                priority, ..
+            })) => {
+                let tok = arg_tokens[0];
+                if arg_single[0] && matches!(tok.kind, TokenType::Esc | TokenType::Str) {
+                    self.emit_irule1002_unknown_event(&args[0], tok);
+                    self.emit_irule1003_deprecated_event(&args[0], tok);
+                }
+                if priority.is_none() && policy.warn_when_implicit {
+                    self.emit_irule1004_missing_priority(cmd_name, cmd_tok, policy.keyword);
+                }
+            }
+            Some(Err(index))
+                if arg_single[index]
+                    && matches!(arg_tokens[index].kind, TokenType::Esc | TokenType::Str) =>
+            {
+                self.result
+                    .diagnostics
+                    .push(crate::analyser::types::Diagnostic::new(
+                        DiagCode::Irule1009,
+                        arg_tokens[index].span,
+                        format!(
+                            "Event priority must be an integer from {} to {}.",
+                            policy.min_priority, policy.max_priority,
+                        ),
+                        Severity::Warning,
+                    ));
+            }
+            _ => {}
         }
+    }
+
+    /// **IRULE1002.** A literal event name is unknown or unavailable at the target release.
+    fn emit_irule1002_unknown_event(&mut self, event_name: &str, tok: Token) {
         if event_registry().is_known(event_name) {
             // Known event — check the declared BIG-IP version range
             // (explicit data, or the 15.0 axis baseline) against the
@@ -645,22 +660,7 @@ impl Analyser {
     }
 
     /// **IRULE1003.** Deprecated iRules event referenced by `when`.
-    fn emit_irule1003_deprecated_event(
-        &mut self,
-        cmd_name: &str,
-        args: &[String],
-        arg_tokens: &[Token],
-        arg_single: &[bool],
-    ) {
-        if !matches!(
-            self.irules_event_declaration_shape(cmd_name, args, arg_tokens, arg_single),
-            Some(tcl_registry::events::IrulesTopLevelDeclaration::Event { .. })
-        ) {
-            return;
-        }
-        let (Some(event_name), Some(tok)) = (args.first(), arg_tokens.first()) else {
-            return;
-        };
+    fn emit_irule1003_deprecated_event(&mut self, event_name: &str, tok: Token) {
         let target = self.library_versions.bigip_version.clone().or_else(|| {
             tcl_dialect::VersionKey::BigipVersion
                 .default_version()
@@ -685,38 +685,14 @@ impl Analyser {
 
     /// **IRULE1004.** An event-handler command whose registry policy requires
     /// an explicit priority has omitted its priority keyword.
-    fn emit_irule1004_event_handler_missing_priority(
-        &mut self,
-        cmd_name: &str,
-        args: &[String],
-        arg_tokens: &[Token],
-        arg_single: &[bool],
-        cmd_tok: Token,
-    ) {
-        if !matches!(
-            self.irules_event_declaration_shape(cmd_name, args, arg_tokens, arg_single),
-            Some(tcl_registry::events::IrulesTopLevelDeclaration::Event { .. })
-        ) {
-            return;
-        }
-        let Some(policy) = self
-            .registry
-            .as_deref()
-            .and_then(|registry| registry.event_handler_priority(cmd_name))
-        else {
-            return;
-        };
-        if !policy.warn_when_implicit || args.iter().skip(1).any(|arg| arg == policy.keyword) {
-            return;
-        }
+    fn emit_irule1004_missing_priority(&mut self, cmd_name: &str, cmd_tok: Token, keyword: &str) {
         self.result
             .diagnostics
             .push(crate::analyser::types::Diagnostic::new(
                 DiagCode::Irule1004,
                 cmd_tok.span,
                 format!(
-                    "'{cmd_name}' missing an explicit {}. Add '{} <N>' to control execution order.",
-                    policy.keyword, policy.keyword,
+                    "'{cmd_name}' missing an explicit {keyword}. Add '{keyword} <N>' to control execution order.",
                 ),
                 Severity::Hint,
             ));

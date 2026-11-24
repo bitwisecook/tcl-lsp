@@ -627,6 +627,7 @@ suite("Configuration Settings", () => {
     "IRULE1006",
     "IRULE1007",
     "IRULE1008",
+    "IRULE1009",
     "IRULE1201",
     "IRULE1202",
     "IRULE2001",

@@ -21,19 +21,18 @@ Some Tcl dialects (e.g. iRules) deliberately restrict the set of available comma
 
 ## Symptoms
 
-- A yellow squiggle appears under the command name (or, for a version-gated
-  subcommand such as `package files`, under `command subcommand` together),
-  with a message like "'exec' is disabled in the active dialect profile
-  (available in: Tcl 8.4, Tcl 8.5, Tcl 8.6, Tcl 9.0, Tcl 9.1)". The
-  "available in" list is read straight from the command's registry entry, so
-  it names every dialect the command actually works in — a quick way to tell
-  whether switching the file's dialect would fix it.
+- An iRules command disabled by BIG-IP, such as `exec`, is underlined
+  with the message `command is disabled: "exec"`.
+- A release-gated Tcl command or subcommand may include an "available in"
+  list drawn from the command registry.
 
 ## Example that triggers it
 
 ```tcl
 # tcl-dialect: f5-irules
-exec ls /tmp
+when RULE_INIT {
+    exec ls /tmp
+}
 ```
 
 The analyser reports **`W002`** on the `exec` token.
@@ -55,8 +54,8 @@ that resolves to a same-file `proc`, `interp alias`, static `rename` target,
 tcl-lsp: stub` declaration is never flagged — Tcl resolves the call to that
 definition, not to the disabled builtin, so there is nothing to warn about.
 
-W002 also needs the dialect that has the command to be **related** to the
-document's own. A `tcl8.4` document writing a `tcl8.6` command, a `jim`
+For other dialect availability checks, W002 requires the dialect that has
+the command to be **related** to the document's own. A `tcl8.4` document writing a `tcl8.6` command, a `jim`
 document writing a Tcl command Jim's roster omits (`coroutine`), and a
 `tcl8.6` document writing an iRules command are related: the command exists
 on the document's own derivation line, so W002 says it is disabled here. A
