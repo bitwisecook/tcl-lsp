@@ -709,7 +709,7 @@ proc p "other {last default}" {return SECOND}"#;
         ] {
             assert_eq!(
                 final_presence(source, &input),
-                SourceCommandSlotPresence::Present,
+                SourceCommandSlotPresence::present(),
                 "{source}"
             );
         }
@@ -726,7 +726,7 @@ proc p "other {last default}" {return SECOND}"#;
         ] {
             assert_eq!(
                 final_presence(source, &input),
-                SourceCommandSlotPresence::Present,
+                SourceCommandSlotPresence::present(),
                 "{source}"
             );
         }
@@ -749,7 +749,7 @@ proc p "other {last default}" {return SECOND}"#;
         ] {
             assert_eq!(
                 final_presence(source, &input),
-                SourceCommandSlotPresence::Present,
+                SourceCommandSlotPresence::present(),
                 "{source}"
             );
         }
@@ -804,7 +804,7 @@ proc p "other {last default}" {return SECOND}"#;
         ] {
             assert_eq!(
                 final_presence(source, &input),
-                SourceCommandSlotPresence::Present,
+                SourceCommandSlotPresence::present(),
                 "{source}"
             );
         }
@@ -815,7 +815,7 @@ proc p "other {last default}" {return SECOND}"#;
         ] {
             assert_ne!(
                 final_presence(source, &input),
-                SourceCommandSlotPresence::Present,
+                SourceCommandSlotPresence::present(),
                 "{source}"
             );
         }
@@ -883,7 +883,7 @@ proc p "other {last default}" {return SECOND}"#;
         ] {
             assert_ne!(
                 final_presence(source, &input),
-                SourceCommandSlotPresence::Present,
+                SourceCommandSlotPresence::present(),
                 "{source}"
             );
         }

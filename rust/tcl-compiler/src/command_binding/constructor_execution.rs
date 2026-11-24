@@ -820,7 +820,7 @@ mod tests {
                 assert!(missing.proved_target().is_none(), "{profile}: {source}");
                 assert_eq!(
                     missing.selected_slot_presence(),
-                    super::super::SourceCommandSlotPresence::Absent,
+                    super::super::SourceCommandSlotPresence::absent(),
                     "{profile}: {source}"
                 );
             }

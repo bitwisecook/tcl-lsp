@@ -688,7 +688,9 @@ proc frame changes what it returns from, breaks out of, or binds against.
 
 #### Rename symbol
 
-Safely rename a proc or variable across all scopes in the file.
+Safely rename a proc or variable across all scopes in the file. If preparation
+cannot establish a complete edit, the editor receives a refusal reason. The MCP
+`rename` tool returns `{"refused": {"reason": "..."}}` for such requests.
 
 ```tcl
 proc greeting {name} {

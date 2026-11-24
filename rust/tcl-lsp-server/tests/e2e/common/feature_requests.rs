@@ -341,6 +341,14 @@ impl Lsp {
         self.request("textDocument/prepareRename", Self::doc_pos(uri, line, ch))
     }
 
+    pub fn prepare_rename_response(&mut self, uri: &str, line: u32, ch: u32) -> Value {
+        self.request_response(
+            "textDocument/prepareRename",
+            Self::doc_pos(uri, line, ch),
+            REQUEST_TIMEOUT,
+        )
+    }
+
     pub fn rename(&mut self, uri: &str, line: u32, ch: u32, new_name: &str) -> Value {
         let mut params = Self::doc_pos(uri, line, ch);
         params["newName"] = json!(new_name);

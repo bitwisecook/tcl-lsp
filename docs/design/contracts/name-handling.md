@@ -507,6 +507,50 @@ A name's spelling, identity and presentation are different values:
 | Display name | Tcl-facing or user-facing rendered text | Render at output. Never parse it back into identity. |
 | Compatibility key | Encoding for an explicitly selected reporting adapter | Keep it separate from Original bytes and allocations; do not expose it as Tcl text or infer a native identity from it. |
 
+### Typed keys and naming answers
+
+`tcl-core-types::semantic_identity` supplies distinct `CommandRef`,
+`NamespaceRef`, `VariablePlaceRef`, `FrameRef`, `BodyUnitRef`, `InstanceRef`,
+`PackageRef` and `InterpreterRef` keys. Each retains its analysis/runtime domain,
+non-reused token and generation. An owned `IdentityInterner` records structured
+allocation descriptors and provenance. Independent interners have separate issuer
+scopes. Display labels are excluded from the descriptor and have no inverse API.
+
+Source command allocations retain their original `SourceCommandKey` alongside
+report text. `CommandRefInterner` projects their original namespace, simple
+bytes, source site and bounded incarnation. Repeated-fresh allocations and
+symbolic compatibility slots abstain. A moved command retains its original
+allocation; deleting and recreating it issues a different reference.
+`tcl-runtime-api::semantic_identity::CommandIdentityTokens` projects already
+resolved engine handles without another name lookup. Both engines retain the
+original non-reused command token, including for historical handles. These
+references report identity; operation-specific lifetime checks still decide
+whether a command is callable. Native snapshot rows use the same vocabulary.
+
+`tcl-core-types::Answer<T>` carries `Knowledge::Proven`, `BoundedSet`, `Absent`
+or `Unknown(reason)`, together with naming provenance and purpose. Finite sets
+retain possible absence separately; a unique value is proved only when absence
+is excluded. `SourceCommandSlotPresence` is an alias for `Answer<()>`, and
+positioned command navigation exposes `command_answer`. Namespace lookup uses
+`Answer<SourceNamespaceKey>` rather than a private presence enum. Unknown
+cannot supply an absence diagnostic or a unique navigation target.
+
+`Refusal<Range>` and `EditorOutcome<T, Range>` are the shared editor outcome.
+The LSP prepare-rename handler reports a refusal as a protocol error with its
+reason; MCP rename returns a successful tool result containing
+`{"refused": {"reason": "..."}}`. Neither representation applies partial edits.
+`ConformanceCounts` reports correct answers, abstentions and wrong answers
+independently. A finite set that excludes the oracle answer counts as wrong.
+
+The [source identity regressions](../../../rust/tcl-compiler/tests/semantic_identity_answer.rs)
+cover the deletion and rename fixtures. Both engine adapters have
+`semantic_identity_tests::command_refs_survive_rename_and_split_on_recreation`
+in their command-token modules; `cargo test -p tcl-vm semantic_identity_tests
+--lib -- --nocapture` and `cargo test --manifest-path runtime/rust/Cargo.toml
+semantic_identity_tests --lib -- --nocapture` print independent conformance
+counts. [Answer invariants](../../../rust/tcl-core-types/src/answer.rs) cover
+conditional absence, bound exhaustion, provenance and report classification.
+
 Distinct slots can render as the same FQN: namespace segment `a:` with
 simple name `p`, and segment `a` with simple name `:p`, both render
 `::a:::p`. No string normaliser can recover which slot produced that text. Runtime trace add/remove/info retain the checked CommandId generation and project only that live token for reporting. Rename source selection uses the original operand and the same generation's current physical slot; a vacating C entry and its destination share that token. Reports never select or redirect a rename window.

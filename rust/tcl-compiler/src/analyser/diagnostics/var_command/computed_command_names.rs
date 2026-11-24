@@ -66,7 +66,8 @@ impl Analyser {
             .invocation_at_source("", call_offset)
             .lookup_command_word(value)
             .selected_slot_presence()
-            == crate::command_binding::SourceCommandSlotPresence::Present
+            .knowledge
+            == tcl_core_types::Knowledge::Proven(())
     }
 
     /// Positioned absence advice, retaining uncertainty about custom fallback.
@@ -75,7 +76,8 @@ impl Analyser {
             .invocation_at_source("", call_offset)
             .lookup_command_word(value)
             .selected_slot_diagnostic_presence()
-            == crate::command_binding::SourceCommandSlotPresence::Absent
+            .knowledge
+            == tcl_core_types::Knowledge::Absent
     }
 
     /// A formal's original caller operands are diagnostic candidates only.
@@ -147,7 +149,8 @@ impl Analyser {
             .head_identities
             .invocation_at_source("", site.cmd_span.start())
             .selected_slot_presence()
-            == crate::command_binding::SourceCommandSlotPresence::Present
+            .knowledge
+            == tcl_core_types::Knowledge::Proven(())
         {
             return true;
         }

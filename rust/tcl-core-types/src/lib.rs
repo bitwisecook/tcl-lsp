@@ -37,6 +37,20 @@
 
 extern crate alloc;
 
+/// Shared naming knowledge, provenance and editor refusal types.
+pub mod answer;
+pub use answer::{
+    Answer, EditorOutcome, Knowledge, NamingAuthority, NamingProvenance, Refusal, UnknownReason,
+};
+
+/// Typed allocation keys shared by analysis and runtime adapters.
+pub mod semantic_identity;
+pub use semantic_identity::{
+    BodyUnitRef, CommandRef, FrameRef, IdentityDomain, IdentityInterner, IdentityKey,
+    IdentityProvenance, InstanceRef, InterpreterRef, NamespaceRef, PackageRef, SemanticRef,
+    VariablePlaceRef,
+};
+
 mod artifact_string;
 pub use artifact_string::{ArtifactCString, ArtifactStringError, ArtifactStringTable};
 

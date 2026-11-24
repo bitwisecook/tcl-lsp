@@ -422,7 +422,7 @@ pub(super) const TOOLS: &[ToolDef] = &[
     },
     ToolDef {
         name: "rename",
-        description: "Text edits to rename the symbol at the cursor; null when not renameable.",
+        description: "Text edits to rename the symbol at the cursor, or a refused object with a reason.",
         params: &[
             SRC,
             LINE,

@@ -118,7 +118,7 @@ impl OriginalJimStockMethodEntry {
             || name.policy() != self.class.policy
             || self.may_be_caller_command(name.bytes())
         {
-            return Presence::Unknown;
+            return Presence::unavailable();
         }
         let presence = self.world.original_slot_presence_for_input(name, namespace);
         self.world.original_diagnostic_presence_after_absence(

@@ -97,6 +97,7 @@ impl PreservingCommandPublication {
             name,
             kind,
             allocation: CommandAllocation {
+                slot: slot.clone(),
                 site,
                 incarnation,
                 namespace: holder.into_owned(),

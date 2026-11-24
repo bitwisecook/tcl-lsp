@@ -45,11 +45,17 @@ impl Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await?;
+        let refusal_error = || {
+            jsonrpc::Error::invalid_params(
+                core_rename::prepare_rename_refusal(&doc.text, pos.line, pos.character, &analysis)
+                    .reason,
+            )
+        };
         if let std::ops::ControlFlow::Break(prepared) = self
             .original_command_prepare_tier(&uri, &doc, &analysis, pos)
             .await?
         {
-            return Ok(prepared);
+            return prepared.map(Some).ok_or_else(refusal_error);
         }
         let text = doc.text.clone();
         let analysis_for_worker = analysis.clone();
@@ -88,7 +94,7 @@ impl Backend {
             .conditional_variable_prepare_tier(&uri, &doc, pos, conditional_uri_generation)
             .await?
         {
-            return Ok(prepared);
+            return prepared.map(Some).ok_or_else(refusal_error);
         }
         if Self::original_namespace_cursor_retained(&doc.text, &analysis, pos)
             || tcl_lsp_core::variable_symbol::select(&doc.text, &analysis, pos.line, pos.character)
@@ -96,7 +102,7 @@ impl Backend {
             || tcl_lsp_core::method_symbol::select(&doc.text, &analysis, pos.line, pos.character)
                 .is_break()
         {
-            return Ok(None);
+            return Err(refusal_error());
         }
         // Consumer-document fall-through: the local analysis has no
         // declaration to anchor prepare on, but the cursor symbol may still
@@ -109,7 +115,7 @@ impl Backend {
         let Some(word_p) =
             core_rename::original_word_prepare_at(&doc.text, pos.line, pos.character, &analysis)
         else {
-            return Ok(None);
+            return Err(refusal_error());
         };
         if !self
             .resolve_workspace_symbols_for_binding(&uri, &doc.text, &analysis, pos)
@@ -121,7 +127,7 @@ impl Backend {
                 placeholder: word_p.placeholder,
             }));
         }
-        Ok(None)
+        Err(refusal_error())
     }
 
     pub(crate) async fn serve_rename(

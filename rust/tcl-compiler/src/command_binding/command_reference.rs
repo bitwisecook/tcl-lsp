@@ -129,6 +129,19 @@ impl SourceCommandReference {
         &self.binding
     }
 
+    /// The retained called command's typed incarnation, independent of its slot.
+    pub fn command_ref(
+        &self,
+        interner: &mut super::CommandRefInterner,
+    ) -> tcl_core_types::Answer<tcl_core_types::CommandRef> {
+        match &self.binding {
+            SourceCommandReferenceBinding::Direct { identity, .. } => {
+                identity.command_ref(interner)
+            }
+            SourceCommandReferenceBinding::Imported { origin, .. } => origin.command_ref(interner),
+        }
+    }
+
     /// Whether two lookups select the same command, wherever each was made.
     #[must_use]
     pub fn selects_same_command(&self, other: &Self) -> bool {
@@ -277,22 +290,70 @@ impl SourceInvocationBinding {
     /// that calling the selected alias/import will complete successfully.
     #[must_use]
     pub fn command_reference(&self, word: &str) -> Option<SourceCommandReference> {
-        let snapshot = self.lookup_state.as_ref()?;
+        self.command_answer(word, 32).into_proven()
+    }
+
+    /// Closed finite navigation alternatives from this positioned lookup world.
+    /// Missing evidence remains unknown; a slot absent on some paths is retained
+    /// separately from the finite commands on the other paths.
+    pub fn command_answer(
+        &self,
+        word: &str,
+        limit: usize,
+    ) -> tcl_core_types::Answer<SourceCommandReference> {
+        use tcl_core_types::{Answer, NamingAuthority, NamingProvenance, UnknownReason};
+        let Some(snapshot) = &self.lookup_state else {
+            return Answer::unknown(UnknownReason::UnavailableContext);
+        };
         let state = &snapshot.state;
         if !state.source_lookup_is_closed(word, &self.lookup_namespace_key) {
-            return None;
+            return Answer::unknown(UnknownReason::IncompleteLookup);
         }
-        let keys = state.source_keys(word, &self.lookup_namespace_key);
-        let [slot] = keys.as_slice() else {
-            return None;
-        };
-        let bindings = state.binding_alternatives(slot);
-        state.reference_for_command_key(
-            slot,
-            &bindings,
-            self.invocation_site().cloned(),
-            self.linked_definition(word),
-        )
+        let mut references = Vec::new();
+        let mut absent = false;
+        for path in state.source_lookup_paths(word, &self.lookup_namespace_key) {
+            let mut fallthrough = true;
+            for slot in path {
+                let bindings = state.binding_alternatives(&slot);
+                if bindings.is_empty() || bindings.contains(&MayBinding::Unknown) {
+                    return Answer::unknown(UnknownReason::IncompleteLookup);
+                }
+                fallthrough = bindings.contains(&MayBinding::Missing);
+                for binding in bindings {
+                    if binding == MayBinding::Missing {
+                        continue;
+                    }
+                    let Some(reference) = state.reference_for_command_key(
+                        &slot,
+                        &std::collections::BTreeSet::from([binding]),
+                        self.invocation_site().cloned(),
+                        self.linked_definition(word),
+                    ) else {
+                        return Answer::unknown(UnknownReason::UnavailableContext);
+                    };
+                    if !references.contains(&reference) {
+                        if references.len() == limit {
+                            return Answer::unknown(UnknownReason::AlternativeLimit);
+                        }
+                        references.push(reference);
+                    }
+                }
+                if !fallthrough {
+                    break;
+                }
+            }
+            absent |= fallthrough;
+        }
+        let provenance = self
+            .invocation_site()
+            .map_or(NamingProvenance::Analysis, |site| {
+                NamingProvenance::Source {
+                    instance: super::SourceOriginId::activation_key(&site.source),
+                    offset: site.offset,
+                }
+            });
+        Answer::bounded(references, absent, limit)
+            .with_evidence(provenance, NamingAuthority::Navigation)
     }
 
     /// Current original head reference from the complete retained vector and

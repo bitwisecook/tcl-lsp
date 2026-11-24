@@ -19,7 +19,6 @@
 //! The targets a command word may reach: source keys, alias chains and unresolved dispatch.
 
 use super::super::binding_projection::{CommandTargetLookup, source_binding_projection};
-use super::super::command_presence::SourceCommandSlotPresence;
 use super::super::namespace_context::{CommandKeyQuery, NamespaceKeyQuery, SourceNamespaceKey};
 use super::super::source_walk::registry_head;
 use super::super::trusted_packages::autoload_defines_nothing;
@@ -95,7 +94,7 @@ impl ModuleCommandBindings {
         name: &str,
         namespace: &(impl NamespaceKeyQuery + ?Sized),
     ) -> bool {
-        self.source_slot_presence(name, namespace) == SourceCommandSlotPresence::Absent
+        self.source_slot_presence(name, namespace).knowledge == tcl_core_types::Knowledge::Absent
     }
 }
 

@@ -38,7 +38,7 @@ fn a_head_holding_a_created_widget_path_is_a_present_command() {
                         .invocation_at_source("", at)
                         .lookup_command_word(".e")
                         .selected_slot_presence(),
-                    crate::command_binding::SourceCommandSlotPresence::Present,
+                    crate::command_binding::SourceCommandSlotPresence::present(),
                     "{release}: {source}"
                 );
                 assert!(
@@ -62,7 +62,7 @@ fn a_head_holding_a_created_widget_path_is_a_present_command() {
                 .invocation_at_source("", at)
                 .lookup_command_word(".e")
                 .selected_slot_presence(),
-            crate::command_binding::SourceCommandSlotPresence::Present,
+            crate::command_binding::SourceCommandSlotPresence::present(),
             "{release}"
         );
     }
@@ -122,7 +122,7 @@ fn a_widget_method_call_keeps_the_command_world_it_declares() {
                 .lookup_command_word(".e")
                 .selected_slot_presence();
             assert_eq!(
-                presence == crate::command_binding::SourceCommandSlotPresence::Present,
+                presence.knowledge == tcl_core_types::Knowledge::Proven(()),
                 known,
                 "{release}: {source}: {presence:?}"
             );
@@ -149,7 +149,7 @@ fn deleting_a_widget_withdraws_its_binding() {
                 .selected_slot_presence();
             assert_ne!(
                 presence,
-                crate::command_binding::SourceCommandSlotPresence::Present,
+                crate::command_binding::SourceCommandSlotPresence::present(),
                 "{release}: {source}"
             );
         }

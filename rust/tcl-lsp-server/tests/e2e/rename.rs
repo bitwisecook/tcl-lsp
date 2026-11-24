@@ -18,7 +18,7 @@
 
 //! Rename, end-to-end against the packaged server. Safety refusals can return
 //! a JSON-RPC error without edits. `prepareRename` is registered server-side
-//! and returns a `{range, placeholder}` (or `null` to reject).
+//! and returns a `{range, placeholder}` or an error carrying a refusal reason.
 
 // Test column math indexes tiny in-memory sources; a `find`/`len` result
 // always fits u32, so the pedantic truncation the lint warns of can't occur.
@@ -99,7 +99,14 @@ fn prepare_rename_builtin_rejected() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, "puts hello\n");
-    assert!(lsp.prepare_rename(&uri, 0, 1).is_null());
+    let response = lsp.prepare_rename_response(&uri, 0, 1);
+    assert_eq!(response["error"]["code"], -32602, "{response}");
+    assert!(
+        response["error"]["message"]
+            .as_str()
+            .is_some_and(|reason| !reason.is_empty()),
+        "{response}"
+    );
 }
 
 #[test]
@@ -107,7 +114,14 @@ fn prepare_rename_unknown_rejected() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     lsp.open_ready(&uri, "something_unknown\n");
-    assert!(lsp.prepare_rename(&uri, 0, 5).is_null());
+    let response = lsp.prepare_rename_response(&uri, 0, 5);
+    assert_eq!(response["error"]["code"], -32602, "{response}");
+    assert!(
+        response["error"]["message"]
+            .as_str()
+            .is_some_and(|reason| !reason.is_empty()),
+        "{response}"
+    );
 }
 
 #[test]

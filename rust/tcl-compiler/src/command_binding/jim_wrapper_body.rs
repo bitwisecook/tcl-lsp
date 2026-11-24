@@ -451,7 +451,7 @@ mod tests {
         assert!(state.baseline.native_entry.is_none());
         assert_eq!(
             future.selected_slot_diagnostic_presence(),
-            super::super::SourceCommandSlotPresence::Unknown
+            super::super::SourceCommandSlotPresence::unavailable()
         );
     }
 

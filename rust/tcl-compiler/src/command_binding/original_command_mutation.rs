@@ -571,7 +571,7 @@ mod tests {
             let at = u32::try_from(source.find("\nputs").unwrap() + 1).unwrap();
             assert_eq!(
                 bindings.diagnostic_slot_presence_at(at),
-                super::super::SourceCommandSlotPresence::Absent,
+                super::super::SourceCommandSlotPresence::absent(),
                 "{}",
                 version.dialect_profile_name()
             );

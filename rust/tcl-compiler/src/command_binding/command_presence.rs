@@ -22,20 +22,9 @@ use super::{
     BTreeSet, MayBinding, ModuleCommandBindings, SourceCommandBindings, SourceInvocationBinding,
 };
 
-/// Presence of the evaluated command's selected slot at its actual lookup point.
-/// This says nothing about alias targets, imported implementations, autoloading,
-/// fallback handlers, successful completion or native compilation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SourceCommandSlotPresence {
-    /// Every closed lookup path has a slot.
-    Present,
-    /// Every closed lookup path lacks a slot.
-    Absent,
-    /// Closed paths include both a present and an absent slot.
-    MayPresent,
-    /// Lookup routing or binding evidence is incomplete.
-    Unknown,
-}
+/// Closed slot knowledge in the shared naming-answer vocabulary.
+/// A proved slot does not prove its occupant or successful execution.
+pub type SourceCommandSlotPresence = tcl_core_types::Answer<()>;
 
 fn trace_jim_diagnostic_presence(
     offset: u32,
@@ -58,7 +47,6 @@ impl SourceCommandBindings {
     /// original source lookup when no reached observation exists. Actual unknown
     /// observations always win. Fixed tables and conditional source lookup supply
     /// no registration, completion, runtime token or compiler authority.
-    #[must_use]
     pub fn diagnostic_math_function_presence_at(
         &self,
         registry: &tcl_registry::CommandRegistry,
@@ -68,25 +56,25 @@ impl SourceCommandBindings {
         // Proof: naming.expression.original-function-navigation
         // docs/design/analysis/name-resolution-proofs/original-function-navigation.md
         let Some(origin) = self.root_origin.as_ref() else {
-            return SourceCommandSlotPresence::Unknown;
+            return SourceCommandSlotPresence::unavailable();
         };
         if let Some(presence) =
             self.fixed_math_diagnostic_presence
                 .get(&(origin.clone(), offset, function.to_owned()))
         {
-            return *presence;
+            return presence.clone();
         }
         // The original expression owner joins reached snapshots through its
         // sealed implicit-function name. A written-head presence query cannot
         // answer for this producer; incomplete reached snapshots still refuse.
         let Some(config) = self.lexer_config else {
-            return SourceCommandSlotPresence::Unknown;
+            return SourceCommandSlotPresence::unavailable();
         };
         let Some(end) = u32::try_from(function.len())
             .ok()
             .and_then(|length| offset.checked_add(length))
         else {
-            return SourceCommandSlotPresence::Unknown;
+            return SourceCommandSlotPresence::unavailable();
         };
         let mut original = self
             .original_math_functions_in_source(
@@ -100,10 +88,10 @@ impl SourceCommandBindings {
                 occurrence.span().start() == offset && occurrence.bytes() == function.as_bytes()
             });
         let Some(first) = original.next() else {
-            return SourceCommandSlotPresence::Unknown;
+            return SourceCommandSlotPresence::unavailable();
         };
         if !original.all(|other| other == first) {
-            return SourceCommandSlotPresence::Unknown;
+            return SourceCommandSlotPresence::unavailable();
         }
         first.diagnostic_presence()
     }
@@ -120,15 +108,17 @@ impl SourceCommandBindings {
             return;
         };
         let presence = if state.opaque_domain {
-            Presence::Unknown
+            Presence::unavailable()
         } else if let Some(entry) = &state.baseline.native_entry {
             entry
                 .math_functions
                 .as_ref()
-                .map_or(Presence::Unknown, |table| match table.lookup(function) {
-                    Resolution::Present(_) => Presence::Present,
-                    Resolution::Absent => Presence::Absent,
-                    Resolution::Unknown => Presence::Unknown,
+                .map_or(Presence::unavailable(), |table| {
+                    match table.lookup(function) {
+                        Resolution::Present(_) => Presence::present(),
+                        Resolution::Absent => Presence::absent(),
+                        Resolution::Unknown => Presence::unavailable(),
+                    }
                 })
         } else {
             state
@@ -137,11 +127,11 @@ impl SourceCommandBindings {
                 .and_then(|dialect| {
                     tcl_registry::mathfunc::fresh_fixed_function_presence(dialect, function)
                 })
-                .map_or(Presence::Unknown, |present| {
+                .map_or(Presence::unavailable(), |present| {
                     if present {
-                        Presence::Present
+                        Presence::present()
                     } else {
-                        Presence::Absent
+                        Presence::absent()
                     }
                 })
         };
@@ -149,7 +139,7 @@ impl SourceCommandBindings {
             .entry((origin.clone(), site, function.to_owned()))
             .and_modify(|previous| {
                 if *previous != presence {
-                    *previous = Presence::Unknown;
+                    *previous = Presence::unavailable();
                 }
             })
             .or_insert(presence);
@@ -158,7 +148,6 @@ impl SourceCommandBindings {
     /// Diagnostic assistance at an exact offset in the retained document
     /// origin. Separate future worlds can provide advice but never execution
     /// authority. Derived/loaded source offsets cannot alias document offsets.
-    #[must_use]
     pub fn diagnostic_slot_presence_at(&self, offset: u32) -> SourceCommandSlotPresence {
         self.diagnostic_command_presence(None, offset)
     }
@@ -166,7 +155,6 @@ impl SourceCommandBindings {
     /// Diagnostic presence of a name consumed by an actual command at `offset`.
     /// The referenced name is looked up in the post-argv immutable world, not
     /// at its written argument span. Future entry worlds remain independent.
-    #[must_use]
     pub fn diagnostic_command_slot_presence_at(
         &self,
         name: &str,
@@ -214,15 +202,15 @@ impl SourceCommandBindings {
             advice = Some(match advice {
                 None => selected,
                 Some(previous) if previous == selected => previous,
-                Some(SourceCommandSlotPresence::Unknown) => SourceCommandSlotPresence::Unknown,
-                Some(_) if selected == SourceCommandSlotPresence::Unknown => selected,
-                Some(_) => SourceCommandSlotPresence::MayPresent,
+                Some(previous) if previous.is_unknown() => previous,
+                Some(_) if selected == SourceCommandSlotPresence::unavailable() => selected,
+                Some(_) => SourceCommandSlotPresence::conditional(),
             });
         }
         trace_jim_diagnostic_presence(
             offset,
             "combined",
-            advice.unwrap_or(SourceCommandSlotPresence::Unknown),
+            advice.unwrap_or(SourceCommandSlotPresence::unavailable()),
         )
     }
 }
@@ -243,7 +231,6 @@ impl SourceInvocationBinding {
     /// Diagnostic-only slot advice. An absent slot is actionable only when
     /// the fallback remains the explicit initial handler or is itself absent.
     /// This does not prove that the initial autoload handler will fail.
-    #[must_use]
     pub fn selected_slot_diagnostic_presence(&self) -> SourceCommandSlotPresence {
         if self.invocation_site().is_some()
             && crate::registry_invocation::source_structure::trace_jim_source_option(
@@ -255,7 +242,7 @@ impl SourceInvocationBinding {
             return self.original_selected_slot_diagnostic_presence();
         }
         let presence = self.selected_slot_presence();
-        if presence != SourceCommandSlotPresence::Absent {
+        if presence.knowledge != tcl_core_types::Knowledge::Absent {
             return presence;
         }
         if matches!(
@@ -263,17 +250,17 @@ impl SourceInvocationBinding {
             tcl_registry::native_compilation::NativeCompilationSelection::Inline { .. }
         ) && self.proved_execution_target().is_some()
         {
-            return SourceCommandSlotPresence::Unknown;
+            return SourceCommandSlotPresence::unavailable();
         }
         let Some(snapshot) = self.lookup_state.as_ref() else {
-            return SourceCommandSlotPresence::Unknown;
+            return SourceCommandSlotPresence::unavailable();
         };
         let state = &snapshot.state;
         let Some(head) = self.lookup_word.as_deref() else {
-            return SourceCommandSlotPresence::Unknown;
+            return SourceCommandSlotPresence::unavailable();
         };
         if !state.has_retained_diagnostic_qualifier(head, &self.lookup_namespace_key) {
-            return SourceCommandSlotPresence::Unknown;
+            return SourceCommandSlotPresence::unavailable();
         }
         if state
             .unknown_lookup_namespaces
@@ -282,7 +269,7 @@ impl SourceInvocationBinding {
                 .namespace_unknown_handlers
                 .contains(&self.lookup_namespace_key)
         {
-            return SourceCommandSlotPresence::Unknown;
+            return SourceCommandSlotPresence::unavailable();
         }
         let handlers = if self.logical_source_name_advice_input().is_some() {
             state
@@ -299,7 +286,7 @@ impl SourceInvocationBinding {
                     tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
                 )
             }) else {
-                return SourceCommandSlotPresence::Unknown;
+                return SourceCommandSlotPresence::unavailable();
             };
             state.source_keys(policy.default_handler, &self.lookup_namespace_key)
         };
@@ -316,11 +303,11 @@ impl SourceInvocationBinding {
                 }
             };
             let Some(expected) = expected else {
-                return SourceCommandSlotPresence::Unknown;
+                return SourceCommandSlotPresence::unavailable();
             };
             let actual = state.binding_alternatives(&handler);
             if actual != expected && actual != BTreeSet::from([MayBinding::Missing]) {
-                return SourceCommandSlotPresence::Unknown;
+                return SourceCommandSlotPresence::unavailable();
             }
         }
         presence
@@ -329,15 +316,15 @@ impl SourceInvocationBinding {
     fn original_selected_slot_diagnostic_presence(&self) -> SourceCommandSlotPresence {
         use SourceCommandSlotPresence as Presence;
         let Some(input) = self.original_recorded_head_name_input() else {
-            return Presence::Unknown;
+            return Presence::unavailable();
         };
         let Some(snapshot) = &self.lookup_state else {
-            return Presence::Unknown;
+            return Presence::unavailable();
         };
         let state = &snapshot.state;
         let presence =
             state.original_diagnostic_slot_presence_for_input(&input, &self.lookup_namespace_key);
-        if presence != Presence::Absent {
+        if presence.knowledge != tcl_core_types::Knowledge::Absent {
             return presence;
         }
         if matches!(
@@ -345,7 +332,7 @@ impl SourceInvocationBinding {
             tcl_registry::native_compilation::NativeCompilationSelection::Inline { .. }
         ) && self.proved_execution_target().is_some()
         {
-            return Presence::Unknown;
+            return Presence::unavailable();
         }
         state.original_diagnostic_presence_after_absence(
             &self.lookup_namespace_key,
@@ -358,14 +345,13 @@ impl SourceInvocationBinding {
     /// Query only the retained evaluated head and its positioned lookup world.
     /// A present alias/import wrapper counts as a slot even when its terminal
     /// target is absent. An absent slot can still invoke a custom fallback.
-    #[must_use]
     pub fn selected_slot_presence(&self) -> SourceCommandSlotPresence {
         if self.invocation_site().is_some() && self.logical_source_name_advice_input().is_none() {
             let Some(input) = self.original_recorded_head_name_input() else {
-                return SourceCommandSlotPresence::Unknown;
+                return SourceCommandSlotPresence::unavailable();
             };
             return self.lookup_state.as_ref().map_or(
-                SourceCommandSlotPresence::Unknown,
+                SourceCommandSlotPresence::unavailable(),
                 |snapshot| {
                     snapshot
                         .state
@@ -374,10 +360,10 @@ impl SourceInvocationBinding {
             );
         }
         let Some(snapshot) = self.lookup_state.as_ref() else {
-            return SourceCommandSlotPresence::Unknown;
+            return SourceCommandSlotPresence::unavailable();
         };
         let Some(head) = self.lookup_word.as_deref() else {
-            return SourceCommandSlotPresence::Unknown;
+            return SourceCommandSlotPresence::unavailable();
         };
         snapshot
             .state
@@ -465,7 +451,7 @@ impl ModuleCommandBindings {
         namespace: &(impl super::NamespaceKeyQuery + ?Sized),
     ) -> SourceCommandSlotPresence {
         if !self.source_lookup_is_closed(head, namespace) {
-            return SourceCommandSlotPresence::Unknown;
+            return SourceCommandSlotPresence::unavailable();
         }
         let mut present = false;
         let mut absent = false;
@@ -474,7 +460,7 @@ impl ModuleCommandBindings {
             for slot in path {
                 let bindings = self.binding_alternatives(&slot);
                 if bindings.is_empty() || bindings.contains(&MayBinding::Unknown) {
-                    return SourceCommandSlotPresence::Unknown;
+                    return SourceCommandSlotPresence::unavailable();
                 }
                 present |= bindings.iter().any(|binding| {
                     matches!(binding, MayBinding::Target(_) | MayBinding::Imported(_))
@@ -487,10 +473,10 @@ impl ModuleCommandBindings {
             absent |= fallthrough;
         }
         match (present, absent) {
-            (true, false) => SourceCommandSlotPresence::Present,
-            (false, true) => SourceCommandSlotPresence::Absent,
-            (true, true) => SourceCommandSlotPresence::MayPresent,
-            (false, false) => SourceCommandSlotPresence::Unknown,
+            (true, false) => SourceCommandSlotPresence::present(),
+            (false, true) => SourceCommandSlotPresence::absent(),
+            (true, true) => SourceCommandSlotPresence::conditional(),
+            (false, false) => SourceCommandSlotPresence::unavailable(),
         }
     }
 }
@@ -505,9 +491,9 @@ mod tests {
         let registry = owner.commands();
         let profile = registry.profile().expect("actual Tcl 8.4 fixture");
         for (function, expected) in [
-            ("sin", SourceCommandSlotPresence::Present),
-            ("min", SourceCommandSlotPresence::Absent),
-            ("custom", SourceCommandSlotPresence::Absent),
+            ("sin", SourceCommandSlotPresence::present()),
+            ("min", SourceCommandSlotPresence::absent()),
+            ("custom", SourceCommandSlotPresence::absent()),
         ] {
             let source = format!("expr {{{function}(1)}}");
             let site = u32::try_from(source.find(function).unwrap()).unwrap();
@@ -529,9 +515,9 @@ mod tests {
                 assert_eq!(
                     bindings.diagnostic_math_function_presence_at(registry, function, site),
                     if unknown_entry {
-                        SourceCommandSlotPresence::Unknown
+                        SourceCommandSlotPresence::unavailable()
                     } else {
-                        expected
+                        expected.clone()
                     }
                 );
                 let script = super::super::ExecutedScriptSource::contiguous(
@@ -572,14 +558,14 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/original-workspace-diagnostic-refinement.md
         let input = logical_source_input();
         for (source, expected) in [
-            ("missing 1 2", SourceCommandSlotPresence::Absent),
+            ("missing 1 2", SourceCommandSlotPresence::absent()),
             (
                 "proc defined {} {}; defined",
-                SourceCommandSlotPresence::Present,
+                SourceCommandSlotPresence::present(),
             ),
             (
                 "proc unknown args {return restored}; missing",
-                SourceCommandSlotPresence::Unknown,
+                SourceCommandSlotPresence::unavailable(),
             ),
         ] {
             let analysis = crate::analyser::Analyser::new()
@@ -613,7 +599,7 @@ mod tests {
                 expected,
                 "{source}"
             );
-            if expected == SourceCommandSlotPresence::Absent {
+            if expected.knowledge == tcl_core_types::Knowledge::Absent {
                 assert_eq!(analysis.unresolved_command_sites.len(), 1);
                 assert!(
                     analysis
@@ -628,7 +614,7 @@ mod tests {
         assert!(native.original_recorded_head_name_input().is_some());
         assert_eq!(
             native.selected_slot_diagnostic_presence(),
-            SourceCommandSlotPresence::Absent
+            SourceCommandSlotPresence::absent()
         );
     }
 
@@ -650,11 +636,11 @@ mod tests {
         assert_eq!(second.lookup_word, first.lookup_word);
         assert_eq!(
             first.selected_slot_presence(),
-            SourceCommandSlotPresence::Absent
+            SourceCommandSlotPresence::absent()
         );
         assert_eq!(
             second.selected_slot_diagnostic_presence(),
-            SourceCommandSlotPresence::Absent
+            SourceCommandSlotPresence::absent()
         );
         assert_eq!(analysis.unresolved_command_sites.len(), 1);
         assert_eq!(analysis.unresolved_command_sites[0].1, "missing");
@@ -684,7 +670,7 @@ mod tests {
         assert_eq!(genuine.logical_source_name_advice_input(), Some(&input));
         assert_eq!(
             genuine.selected_slot_diagnostic_presence(),
-            SourceCommandSlotPresence::Absent
+            SourceCommandSlotPresence::absent()
         );
         for options in [
             super::super::SourceAnalysisOptions {
@@ -757,7 +743,7 @@ mod tests {
             unknown
                 .invocation_at_source("", 0)
                 .selected_slot_diagnostic_presence(),
-            SourceCommandSlotPresence::Unknown
+            SourceCommandSlotPresence::unavailable()
         );
         let hosted = crate::analyser::ResolvedAnalysisInput::new(
             input.analyser_profile(),
@@ -781,7 +767,7 @@ mod tests {
         assert!(binding.logical_source_name_advice_input().is_none());
         assert_eq!(
             binding.selected_slot_diagnostic_presence(),
-            SourceCommandSlotPresence::Unknown
+            SourceCommandSlotPresence::unavailable()
         );
     }
 
@@ -851,19 +837,19 @@ mod tests {
             assert!(binding.original_recorded_head_name_input().is_some());
             assert_eq!(
                 binding.selected_slot_presence(),
-                SourceCommandSlotPresence::Absent,
+                SourceCommandSlotPresence::absent(),
                 "{profile}"
             );
             assert_eq!(
                 binding.selected_slot_diagnostic_presence(),
-                SourceCommandSlotPresence::Absent,
+                SourceCommandSlotPresence::absent(),
                 "{profile}"
             );
             let mut presentation = binding.clone();
             presentation.lookup_word = Some("set".to_owned());
             assert_eq!(
                 presentation.selected_slot_diagnostic_presence(),
-                SourceCommandSlotPresence::Absent
+                SourceCommandSlotPresence::absent()
             );
             let mut missing = binding.clone();
             missing.original_written_words = None;
@@ -871,14 +857,14 @@ mod tests {
             missing.declaration_layout_observations = None;
             assert_eq!(
                 missing.selected_slot_diagnostic_presence(),
-                SourceCommandSlotPresence::Unknown
+                SourceCommandSlotPresence::unavailable()
             );
             let mut foreign = binding.clone();
             foreign.original_written_words =
                 point_in("other argument", "other", profile).original_written_words;
             assert_eq!(
                 foreign.selected_slot_diagnostic_presence(),
-                SourceCommandSlotPresence::Unknown
+                SourceCommandSlotPresence::unavailable()
             );
             let custom = point_in(
                 r"proc unknown args {return handled}; missing\uD800",
@@ -887,11 +873,11 @@ mod tests {
             );
             assert_eq!(
                 custom.selected_slot_presence(),
-                SourceCommandSlotPresence::Absent
+                SourceCommandSlotPresence::absent()
             );
             assert_eq!(
                 custom.selected_slot_diagnostic_presence(),
-                SourceCommandSlotPresence::Unknown
+                SourceCommandSlotPresence::unavailable()
             );
             let qualified = point_in(
                 r"external::missing\uD800",
@@ -900,11 +886,11 @@ mod tests {
             );
             assert_eq!(
                 qualified.selected_slot_presence(),
-                SourceCommandSlotPresence::Absent
+                SourceCommandSlotPresence::absent()
             );
             assert_eq!(
                 qualified.selected_slot_diagnostic_presence(),
-                SourceCommandSlotPresence::Unknown
+                SourceCommandSlotPresence::unavailable()
             );
         }
     }
@@ -918,7 +904,7 @@ mod tests {
             let binding = point(source, "ns::missing");
             assert_eq!(
                 binding.selected_slot_diagnostic_presence(),
-                SourceCommandSlotPresence::Absent,
+                SourceCommandSlotPresence::absent(),
                 "{source}: raw={:?}, snapshot={:?}",
                 binding.selected_slot_presence(),
                 binding.lookup_state.as_ref().map(|snapshot| (
@@ -936,58 +922,58 @@ mod tests {
             (
                 "external::operation",
                 "external::operation",
-                SourceCommandSlotPresence::Unknown,
+                SourceCommandSlotPresence::unavailable(),
             ),
             (
                 "::external::operation",
                 "::external::operation",
-                SourceCommandSlotPresence::Unknown,
+                SourceCommandSlotPresence::unavailable(),
             ),
             (
                 "namespace eval external {}; external::operation",
                 "external::operation",
-                SourceCommandSlotPresence::Absent,
+                SourceCommandSlotPresence::absent(),
             ),
             (
                 "namespace eval external {}; ::external::operation",
                 "::external::operation",
-                SourceCommandSlotPresence::Absent,
+                SourceCommandSlotPresence::absent(),
             ),
             (
                 "namespace eval external {}; external::::operation",
                 "external::::operation",
-                SourceCommandSlotPresence::Absent,
+                SourceCommandSlotPresence::absent(),
             ),
             (
                 "namespace eval external {}; external::child::operation",
                 "external::child::operation",
-                SourceCommandSlotPresence::Unknown,
+                SourceCommandSlotPresence::unavailable(),
             ),
             (
                 "namespace eval external {}; external::",
                 "external::",
-                SourceCommandSlotPresence::Absent,
+                SourceCommandSlotPresence::absent(),
             ),
             (
                 "::operation",
                 "::operation",
-                SourceCommandSlotPresence::Absent,
+                SourceCommandSlotPresence::absent(),
             ),
             (
                 "namespace eval external {}; namespace delete external; external::operation",
                 "external::operation",
-                SourceCommandSlotPresence::Unknown,
+                SourceCommandSlotPresence::unavailable(),
             ),
             (
                 "namespace eval external {}; namespace delete external; namespace eval external {}; external::operation",
                 "external::operation",
-                SourceCommandSlotPresence::Absent,
+                SourceCommandSlotPresence::absent(),
             ),
         ] {
             let binding = point(source, head);
             assert_eq!(
                 binding.selected_slot_presence(),
-                SourceCommandSlotPresence::Absent,
+                SourceCommandSlotPresence::absent(),
                 "{source}"
             );
             assert_eq!(
@@ -1003,7 +989,7 @@ mod tests {
         let binding = point("interp alias {} short {} missing; short", "short");
         assert_eq!(
             binding.selected_slot_presence(),
-            SourceCommandSlotPresence::Present
+            SourceCommandSlotPresence::present()
         );
     }
 
@@ -1012,7 +998,7 @@ mod tests {
         let binding = point("proc unknown args {return handled}; missing", "missing");
         assert_eq!(
             binding.selected_slot_presence(),
-            SourceCommandSlotPresence::Absent
+            SourceCommandSlotPresence::absent()
         );
         assert!(
             !binding.targets.is_empty(),
@@ -1020,7 +1006,7 @@ mod tests {
         );
         assert_eq!(
             binding.selected_slot_diagnostic_presence(),
-            SourceCommandSlotPresence::Unknown
+            SourceCommandSlotPresence::unavailable()
         );
     }
 
@@ -1033,22 +1019,22 @@ mod tests {
             (
                 "expr {missing()}",
                 "missing",
-                SourceCommandSlotPresence::Absent,
+                SourceCommandSlotPresence::absent(),
             ),
             (
                 "proc ::tcl::mathfunc::f {} {return 1}; expr {f()}",
                 "f",
-                SourceCommandSlotPresence::Present,
+                SourceCommandSlotPresence::present(),
             ),
             (
                 "rename ::tcl::mathfunc::sin {}; expr {sin(1)}",
                 "sin",
-                SourceCommandSlotPresence::Absent,
+                SourceCommandSlotPresence::absent(),
             ),
             (
                 "proc unknown args {return HANDLED}; expr {missing()}",
                 "missing",
-                SourceCommandSlotPresence::Unknown,
+                SourceCommandSlotPresence::unavailable(),
             ),
         ] {
             let bindings = SourceCommandBindings::analyse_with_options(
@@ -1074,7 +1060,7 @@ mod tests {
     fn missing_snapshot_or_head_has_no_presence_proof() {
         assert_eq!(
             SourceInvocationBinding::unknown().selected_slot_presence(),
-            SourceCommandSlotPresence::Unknown
+            SourceCommandSlotPresence::unavailable()
         );
     }
 
@@ -1089,7 +1075,7 @@ mod tests {
         std::sync::Arc::make_mut(&mut state.source_variables).namespace_known = false;
         assert_eq!(
             state.source_slot_presence("missing", "::"),
-            SourceCommandSlotPresence::Unknown
+            SourceCommandSlotPresence::unavailable()
         );
         assert!(!state.definitely_absent("missing", "::"));
         assert!(state.definitely_absent("::missing", "::"));
@@ -1103,11 +1089,11 @@ mod tests {
             let closed = point_in("missing", "missing", profile);
             assert_eq!(
                 closed.selected_slot_presence(),
-                SourceCommandSlotPresence::Absent
+                SourceCommandSlotPresence::absent()
             );
             assert_eq!(
                 closed.selected_slot_diagnostic_presence(),
-                SourceCommandSlotPresence::Absent
+                SourceCommandSlotPresence::absent()
             );
             let mut state = closed.lookup_state.as_ref().unwrap().state.clone();
             state.unclosed_command_world = true;
@@ -1117,19 +1103,19 @@ mod tests {
             ));
             assert_eq!(
                 unclosed.selected_slot_presence(),
-                SourceCommandSlotPresence::Unknown
+                SourceCommandSlotPresence::unavailable()
             );
             assert_eq!(
                 unclosed.selected_slot_diagnostic_presence(),
-                SourceCommandSlotPresence::Unknown
+                SourceCommandSlotPresence::unavailable()
             );
             assert_eq!(
                 closed.selected_slot_presence(),
-                SourceCommandSlotPresence::Absent
+                SourceCommandSlotPresence::absent()
             );
             assert_eq!(
                 closed.selected_slot_diagnostic_presence(),
-                SourceCommandSlotPresence::Absent
+                SourceCommandSlotPresence::absent()
             );
         }
     }
@@ -1142,16 +1128,16 @@ mod tests {
         );
         assert_eq!(
             imported.selected_slot_presence(),
-            SourceCommandSlotPresence::Present
+            SourceCommandSlotPresence::present()
         );
         let missing = point("missing", "missing");
         assert_eq!(
             missing.selected_slot_presence(),
-            SourceCommandSlotPresence::Absent
+            SourceCommandSlotPresence::absent()
         );
         assert_eq!(
             missing.selected_slot_diagnostic_presence(),
-            SourceCommandSlotPresence::Absent
+            SourceCommandSlotPresence::absent()
         );
         assert!(
             !missing.targets.is_empty(),
@@ -1172,7 +1158,7 @@ mod tests {
                 let binding = point_in(source, head, profile);
                 assert_eq!(
                     binding.selected_slot_presence(),
-                    SourceCommandSlotPresence::Present,
+                    SourceCommandSlotPresence::present(),
                     "{profile}: {source}"
                 );
                 assert!(
@@ -1190,12 +1176,12 @@ mod tests {
             let binding = point_in(source, "missing", profile);
             assert_eq!(
                 binding.selected_slot_presence(),
-                SourceCommandSlotPresence::Absent
+                SourceCommandSlotPresence::absent()
             );
             let expected = if profile == "jim" {
-                SourceCommandSlotPresence::Unknown
+                SourceCommandSlotPresence::unavailable()
             } else {
-                SourceCommandSlotPresence::Absent
+                SourceCommandSlotPresence::absent()
             };
             assert_eq!(
                 binding.selected_slot_diagnostic_presence(),

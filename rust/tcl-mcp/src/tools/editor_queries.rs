@@ -219,7 +219,7 @@ pub(super) fn rename(args: &Value) -> Value {
         .as_ref()
         .map(tcl_compiler::analyser::ResolvedAnalysisInput::context_registry);
     let commands = context.as_ref().map(|context| context.commands().as_ref());
-    let edits = tcl_lsp_core::rename::rename(
+    let outcome = tcl_lsp_core::rename::rename_outcome(
         source,
         tcl_lsp_core::profile_for_dialect(&dialect),
         arg_u32(args, "line"),
@@ -228,12 +228,45 @@ pub(super) fn rename(args: &Value) -> Value {
         &analysis,
         commands,
     );
-    if edits.is_empty() {
-        return Value::Null;
-    }
+    let edits = match outcome {
+        Ok(edits) => edits,
+        Err(refusal) => return json!({ "refused": { "reason": refusal.reason } }),
+    };
     let edits_json: Vec<Value> = edits
         .iter()
         .map(|e| json!({ "range": lsp_range_json(&e.range), "new_text": e.new_text }))
         .collect();
     json!({ "edits": edits_json, "total": edits.len() })
+}
+
+#[cfg(test)]
+mod refusal_tests {
+    use super::*;
+
+    #[test]
+    fn unresolved_command_rename_reports_a_reason_instead_of_null() {
+        let source = include_str!(
+            "../../../../docs/work/name-handling/handover/oo-dispatch-probe/editor-actions/workspace/nosource.tcl"
+        );
+        let result = rename(
+            &json!({ "source": source, "dialect": "tcl9.0", "line": 1, "character": 26, "new_name": "scaled" }),
+        );
+        let reason = result["refused"]["reason"]
+            .as_str()
+            .expect("visible refusal reason");
+        assert!(reason.contains("unavailable"), "{reason}");
+        assert!(!result.is_null());
+    }
+
+    #[test]
+    fn inapplicable_rename_is_a_visible_refusal() {
+        let result = rename(
+            &json!({ "source": "# comment\n", "dialect": "tcl9.0", "line": 0, "character": 3, "new_name": "renamed" }),
+        );
+        assert!(
+            result["refused"]["reason"]
+                .as_str()
+                .is_some_and(|reason| !reason.is_empty())
+        );
+    }
 }

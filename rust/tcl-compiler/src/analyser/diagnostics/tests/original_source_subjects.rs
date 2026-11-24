@@ -196,7 +196,7 @@ fn w123_retains_original_math_function_context_without_command_head_authority() 
             .clone();
         let occurrence = subject.occurrence();
         assert_eq!(subject.reporting_name(), "Pi", "{dialect}");
-        assert_eq!(subject.presence(), SourceCommandSlotPresence::Absent);
+        assert_eq!(subject.presence(), SourceCommandSlotPresence::absent());
         assert_eq!(occurrence.source_image().bytes(), source.as_bytes());
         assert_eq!(occurrence.span(), Span::new(6, 8));
         assert_eq!(occurrence.ordinal(), 0);

@@ -205,7 +205,6 @@ impl Analyser {
 
     /// Diagnostic-only presence from the retained positioned lookup. Presence
     /// suppresses an absence advisory without allocating a public target.
-    #[must_use]
     fn command_diagnostic_slot_presence(
         &self,
         name: &str,
@@ -215,7 +214,7 @@ impl Analyser {
     ) -> SourceCommandSlotPresence {
         use crate::command_binding::SourceCommandSlotPresence as Presence;
         if name.starts_with('$') || name.starts_with('[') {
-            return Presence::Unknown;
+            return Presence::unavailable();
         }
         // Explicit assistance declarations can suppress this advisory without
         // establishing a callable implementation or donating a registry key.
@@ -227,15 +226,15 @@ impl Analyser {
                 .any(|stub| stub.name == name)
             || self.is_scoped_command_resolved(name, range)
         {
-            return Presence::Unknown;
+            return Presence::unavailable();
         }
         let Some(offset) = lookup.offset(range) else {
-            return Presence::Unknown;
+            return Presence::unavailable();
         };
         if is_mathfunc_call {
             self.registry
                 .as_deref()
-                .map_or(Presence::Unknown, |registry| {
+                .map_or(Presence::unavailable(), |registry| {
                     self.head_identities
                         .diagnostic_math_function_presence_at(registry, name, offset)
                 })
@@ -269,7 +268,7 @@ impl Analyser {
                 }
                 | crate::signature_scan::types::SignatureCommandLookup::PossibleConsumedName {
                     ..
-                } => Presence::Unknown,
+                } => Presence::unavailable(),
             }
         }
     }
@@ -356,12 +355,10 @@ impl Analyser {
                 continue;
             }
             // Only diagnostic-purpose selected-slot absence feeds W123.
-            if self.command_diagnostic_slot_presence(
-                name,
-                inv.range,
-                inv.lookup,
-                inv.is_mathfunc_call,
-            ) != SourceCommandSlotPresence::Absent
+            if self
+                .command_diagnostic_slot_presence(name, inv.range, inv.lookup, inv.is_mathfunc_call)
+                .knowledge
+                != tcl_core_types::Knowledge::Absent
             {
                 continue;
             }

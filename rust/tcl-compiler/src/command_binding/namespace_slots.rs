@@ -36,12 +36,6 @@ pub(super) enum PublicationPurpose {
     Object,
 }
 
-/// A unique namespace geometry may prove absence; ambiguous geometry is unavailable.
-pub(super) enum OriginalNamespaceKeyPresence {
-    Unavailable,
-    Available(Option<SourceNamespaceKey>),
-}
-
 /// The command token a one-binding row names: its target's own token or its
 /// imported origin.
 fn sole_token(bindings: &BTreeSet<super::MayBinding>) -> Option<&super::CommandIdentity> {
@@ -104,10 +98,14 @@ impl ModuleCommandBindings {
             }
             [_, _, namespace] => {
                 let path = recipe.lambda_namespace_path(namespace.bytes()).ok()?;
-                match self.original_namespace_key_for_path(&path, policy) {
-                    OriginalNamespaceKeyPresence::Available(Some(key)) => key,
-                    OriginalNamespaceKeyPresence::Available(None)
-                    | OriginalNamespaceKeyPresence::Unavailable => return None,
+                match self
+                    .original_namespace_key_for_path(&path, policy)
+                    .knowledge
+                {
+                    tcl_core_types::Knowledge::Proven(key) => key,
+                    tcl_core_types::Knowledge::Absent
+                    | tcl_core_types::Knowledge::Unknown(_)
+                    | tcl_core_types::Knowledge::BoundedSet { .. } => return None,
                 }
             }
             _ => return None,
@@ -223,10 +221,8 @@ impl ModuleCommandBindings {
         input: &SignatureSourceNameInput,
     ) -> Option<SourceNamespaceKey> {
         let path = self.original_namespace_path_for_input(current, input)?;
-        match self.original_namespace_key_for_path(&path, input.policy()) {
-            OriginalNamespaceKeyPresence::Available(key) => key,
-            OriginalNamespaceKeyPresence::Unavailable => None,
-        }
+        self.original_namespace_key_for_path(&path, input.policy())
+            .into_proven()
     }
 
     fn original_namespace_path_for_input(
@@ -257,7 +253,7 @@ impl ModuleCommandBindings {
         &self,
         path: &ByteNamespacePath,
         policy: tcl_syntax::naming::NamePolicyProtocol,
-    ) -> OriginalNamespaceKeyPresence {
+    ) -> tcl_core_types::Answer<SourceNamespaceKey> {
         let scope = SignatureNamespaceScope::C(path.clone());
         let mut keys = self.namespaces.iter().filter(|key| {
             key.exact_native_path() == Some(path)
@@ -265,9 +261,12 @@ impl ModuleCommandBindings {
         });
         let key = keys.next().cloned();
         if keys.next().is_none() {
-            OriginalNamespaceKeyPresence::Available(key)
+            key.map_or_else(
+                tcl_core_types::Answer::absent,
+                tcl_core_types::Answer::proven,
+            )
         } else {
-            OriginalNamespaceKeyPresence::Unavailable
+            tcl_core_types::Answer::unavailable()
         }
     }
 
@@ -292,13 +291,17 @@ impl ModuleCommandBindings {
         let mut parent = ByteNamespacePath::root();
         for component in path.as_segments() {
             parent.push(component.clone());
-            match self.original_namespace_key_for_path(&parent, policy) {
-                OriginalNamespaceKeyPresence::Available(Some(key)) => {
+            match self
+                .original_namespace_key_for_path(&parent, policy)
+                .knowledge
+            {
+                tcl_core_types::Knowledge::Proven(key) => {
                     result = key;
                     continue;
                 }
-                OriginalNamespaceKeyPresence::Available(None) => {}
-                OriginalNamespaceKeyPresence::Unavailable => return None,
+                tcl_core_types::Knowledge::Absent => {}
+                tcl_core_types::Knowledge::Unknown(_)
+                | tcl_core_types::Knowledge::BoundedSet { .. } => return None,
             }
             let count = Arc::make_mut(&mut self.namespace_allocation_counts)
                 .entry((site.clone(), parent.clone()))

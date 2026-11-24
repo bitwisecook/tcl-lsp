@@ -106,7 +106,7 @@ mod tests {
             };
             assert_eq!(
                 presence(&analysis, text, offset),
-                Some(super::super::super::SourceCommandSlotPresence::Absent)
+                Some(super::super::super::SourceCommandSlotPresence::absent())
             );
             assert!(
                 analysis
@@ -121,7 +121,7 @@ mod tests {
                 .source_bindings_ref();
             assert_eq!(
                 generic.diagnostic_slot_presence_at(offset),
-                super::super::super::SourceCommandSlotPresence::Unknown
+                super::super::super::SourceCommandSlotPresence::unavailable()
             );
             assert!(presence(&analysis, "foreign bytes", offset).is_none());
             let future = generic
@@ -153,7 +153,7 @@ mod tests {
         let offset = u32::try_from(text.find("::<reference").unwrap()).unwrap() - 1;
         assert_eq!(
             presence(&analysis, text, offset),
-            Some(super::super::super::SourceCommandSlotPresence::Unknown)
+            Some(super::super::super::SourceCommandSlotPresence::unavailable())
         );
     }
 
@@ -174,7 +174,7 @@ mod tests {
             let offset = u32::try_from(text.rfind("missing_entry").unwrap()).unwrap();
             assert_ne!(
                 presence(&analysis, text, offset),
-                Some(super::super::super::SourceCommandSlotPresence::Absent)
+                Some(super::super::super::SourceCommandSlotPresence::absent())
             );
         }
     }

@@ -412,9 +412,7 @@ fn head_is_unresolved(
     let Some(realm) = analysis.retained_command_realm() else {
         return false;
     };
-    if realm.diagnostic_slot_presence_at(offset)
-        != tcl_compiler::command_binding::SourceCommandSlotPresence::Absent
-    {
+    if realm.diagnostic_slot_presence_at(offset).knowledge != tcl_core_types::Knowledge::Absent {
         return false;
     }
     let namespace = crate::definition::namespace_context_at(

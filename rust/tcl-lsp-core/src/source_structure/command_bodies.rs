@@ -563,8 +563,7 @@ fn original_positioned_absent_head(
     owner == head.span.start()
         && !original.group().expand
         && tcl_syntax::word_rules::original_static_word_unicode_value(&original).is_some()
-        && realm.diagnostic_slot_presence_at(owner)
-            == tcl_compiler::command_binding::SourceCommandSlotPresence::Absent
+        && realm.diagnostic_slot_presence_at(owner).knowledge == tcl_core_types::Knowledge::Absent
 }
 
 fn operand_body(

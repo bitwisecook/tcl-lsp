@@ -71,6 +71,7 @@
 3	tcl-compiler::command_resolution_conformance	test	tcl-compiler	command_resolution_conformance
 3	tcl-compiler::it_3	test	tcl-compiler	it_3
 3	tcl-compiler::native_arithmetic_conformance	test	tcl-compiler	native_arithmetic_conformance
+3	tcl-compiler::semantic_identity_answer	test	tcl-compiler	semantic_identity_answer
 3	tcl-cshim	lib	tcl-cshim	tcl_cshim
 3	tcl-cshim::pkga_e2e	test	tcl-cshim	pkga_e2e
 3	tcl-engine-tclvm	lib	tcl-engine-tclvm	tcl_engine_tclvm

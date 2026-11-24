@@ -23,7 +23,9 @@ What does the rename feature do, and how do I use it?
   definition and every reference in the current file in one step.
 - **From a script or MCP tool**: call the `rename` tool with `source`,
   `line`, `character`, and `new_name`. It returns the full set of text
-  edits, or null when the symbol is not renameable.
+  edits, or `{"refused": {"reason": "..."}}` when the symbol is not
+  renameable. The editor also receives a reason when rename preparation is
+  refused.
 
 ## Options
 

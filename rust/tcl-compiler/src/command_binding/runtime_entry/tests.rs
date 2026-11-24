@@ -676,12 +676,12 @@ fn native_colon_context_lookup_does_not_publish_a_global_source_alias() {
         let local = analysis.invocation_at_source("p", 0);
         assert_eq!(
             local.selected_slot_presence(),
-            Presence::Present,
+            Presence::present(),
             "{version:?}"
         );
         assert_eq!(
             local.lookup_command_word(":::::p").selected_slot_presence(),
-            Presence::Absent,
+            Presence::absent(),
             "{version:?}"
         );
         assert!(
@@ -764,7 +764,7 @@ fn namespace_unknown_handler_does_not_taint_known_native_compiler_lookup() {
     snapshot.commands.push(default_handler);
     let inventory = analyse(&snapshot);
     let known = inventory.invocation_at_source("set", 0);
-    assert_eq!(known.selected_slot_presence(), Presence::Present);
+    assert_eq!(known.selected_slot_presence(), Presence::present());
     assert!(matches!(
         known.native_compilation_admission_selection(),
         Selection::Inline { .. }
@@ -772,10 +772,10 @@ fn namespace_unknown_handler_does_not_taint_known_native_compiler_lookup() {
     assert!(!inventory.native_compilation_provider_required_at(0));
     for name in ["missing", "::missing"] {
         let missing = known.lookup_command_word(name);
-        assert_eq!(missing.selected_slot_presence(), Presence::Absent);
+        assert_eq!(missing.selected_slot_presence(), Presence::absent());
         assert_eq!(
             missing.selected_slot_diagnostic_presence(),
-            Presence::Unknown
+            Presence::unavailable()
         );
         assert!(missing.unknown);
         assert_eq!(

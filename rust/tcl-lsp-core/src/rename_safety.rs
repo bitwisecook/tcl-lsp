@@ -127,34 +127,20 @@ use crate::definition::LspRange;
 use crate::definition::span_to_range;
 use crate::references::{collect_member_bodies_scoped, strip_var_decoration};
 
-/// A refused rename: why, and (when there is one) the offending site.
-///
-/// The server turns this into an LSP error response, so the editor shows the
-/// reason instead of applying a partial edit set.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RenameRefusal {
-    /// Precise, user-facing explanation — names the shape that could not be
-    /// proved safe, so the user can decide what to do about it.
-    pub reason: String,
-    /// The site the refusal is about, when it is a single place in the
-    /// document the request was issued against.
-    pub range: Option<LspRange>,
-}
+/// A user-visible refusal with an optional source range.
+pub type RenameRefusal = tcl_core_types::Refusal<LspRange>;
 
-impl RenameRefusal {
-    fn new(reason: String, source: &str, line_index: &LineIndex, span: Option<Span>) -> Self {
-        Self {
-            reason,
-            range: span.map(|s| span_to_range(source, line_index, s)),
-        }
-    }
-
-    /// [`Self::new`] for the sibling gates that live in their own modules
-    /// ([`crate::namespace_rename`]) — one constructor, so every refusal
-    /// resolves its span against the document it came from the same way.
-    #[must_use]
-    pub fn at(reason: String, source: &str, line_index: &LineIndex, span: Option<Span>) -> Self {
-        Self::new(reason, source, line_index, span)
+/// Attach an editor refusal to a range in the document that produced it.
+#[must_use]
+pub fn refusal_at(
+    reason: String,
+    source: &str,
+    line_index: &LineIndex,
+    span: Option<Span>,
+) -> RenameRefusal {
+    RenameRefusal {
+        reason,
+        range: span.map(|span| span_to_range(source, line_index, span)),
     }
 }
 
@@ -193,7 +179,7 @@ pub fn method_rename_hazard(
     line_index: &LineIndex,
 ) -> Option<RenameRefusal> {
     if crate::references::dispatch_source_context(source, analysis).is_none() {
-        return Some(RenameRefusal::new(
+        return Some(refusal_at(
             format!(
                 "cannot rename `{}`: the complete original source and metadata are unavailable",
                 target.method
@@ -231,7 +217,7 @@ pub fn method_rename_hazard(
             )
             .is_none()
         {
-            return Some(RenameRefusal::new(
+            return Some(refusal_at(
                 "cannot prove every original link target and coupled alias edit".to_owned(),
                 source,
                 line_index,
@@ -351,7 +337,7 @@ fn unproved_definition_member_reference(
             )
         });
         let Some(inventory) = inventory else {
-            return Some(RenameRefusal::new(
+            return Some(refusal_at(
                 format!(
                     "cannot rename `{}`: the original definition metadata reference inventory is unavailable.",
                     target.method
@@ -370,7 +356,7 @@ fn unproved_definition_member_reference(
         }
     }
     let span = unproved?;
-    Some(RenameRefusal::new(
+    Some(refusal_at(
         format!(
             "cannot rename `{}`: a definition metadata reference lacks its original selected worker and class allocation receipt.",
             target.method
@@ -394,7 +380,7 @@ fn unproved_callback_method_selector(
         analysis,
         target.method,
     )?;
-    Some(RenameRefusal::new(
+    Some(refusal_at(
         format!(
             "cannot rename `{}`: a captured callback method lacks its original receiver allocation receipt.",
             target.method
@@ -436,7 +422,7 @@ fn computed_method_selector(
             && !target.family.is_empty())
         .then(|| incomplete_hazard_census(source, line_index, target.method));
     };
-    Some(RenameRefusal::new(
+    Some(refusal_at(
         format!(
             "cannot rename `{}`: a selected dispatch uses a computed method name without exact editable contributor proof.",
             target.method,
@@ -517,7 +503,7 @@ fn renamed_member_would_abort(
             if moved.destination == target.method
                 && let Some(kind) = moved.abort_if_renamed_to(target.new_name)
             {
-                return Some(RenameRefusal::new(
+                return Some(refusal_at(
                     abort_refusal_reason(kind, target, &moved.source, class_q),
                     source,
                     line_index,
@@ -527,7 +513,7 @@ fn renamed_member_would_abort(
             // The mirror: an ordinary member renamed into the destination this
             // move needs free.
             if moved.collides_with_renaming(target.method, target.new_name) {
-                return Some(RenameRefusal::new(
+                return Some(refusal_at(
                     format!(
                         "cannot rename `{method}` to `{new}`: class `{class_q}` renames \
                          `{src}` to `{new}` later in the same definition body, so a member \
@@ -621,7 +607,7 @@ fn unlocatable_member_reference(
         )
         .is_empty()
         {
-            return Some(RenameRefusal::new(
+            return Some(refusal_at(
                 format!(
                     "cannot rename `{method}`: class `{class_q}` declares an export / \
                      unexport / filter naming it, but the declaring word is outside the \
@@ -662,7 +648,7 @@ fn ambiguous_object_command(
             other.qualified_name == binding.qualified_name && other.class_q != binding.class_q
         });
         if clashes {
-            return Some(RenameRefusal::new(
+            return Some(refusal_at(
                 format!(
                     "cannot rename `{method}`: the object command `{cmd}` is created by \
                      more than one class in this workspace, so which class a `{tail} \
@@ -823,7 +809,7 @@ fn dispatch_hazard(
             method = target.method,
         )
     };
-    Some(RenameRefusal::new(reason, source, line_index, Some(span)))
+    Some(refusal_at(reason, source, line_index, Some(span)))
 }
 
 /// Run `visit` over every command in every region of the document a dispatch
@@ -854,7 +840,7 @@ pub(crate) fn walk_document(
 }
 
 fn incomplete_hazard_census(source: &str, line_index: &LineIndex, target: &str) -> RenameRefusal {
-    RenameRefusal::new(
+    refusal_at(
         format!(
             "cannot rename `{target}`: original potential source coverage is unavailable; an unrepresented region may contain a rename hazard"
         ),
@@ -1033,7 +1019,7 @@ pub fn namespace_variable_rename_hazard(
 ) -> Option<RenameRefusal> {
     let Some((config, context)) = crate::references::dispatch_source_context(source, analysis)
     else {
-        return Some(RenameRefusal::new(
+        return Some(refusal_at(
             format!(
                 "cannot rename `{cell}`: the complete original source and metadata are unavailable"
             ),
@@ -1163,7 +1149,7 @@ fn namespace_variable_hazard_refusal(
 ) -> Option<RenameRefusal> {
     let (span, unknown) = hazard?;
     if unknown {
-        return Some(RenameRefusal::new(
+        return Some(refusal_at(
             format!(
                 "cannot rename `{cell}`: original variable-name roles are unavailable at a computed operand"
             ),
@@ -1174,7 +1160,7 @@ fn namespace_variable_hazard_refusal(
     }
 
     let written = slice(source, span).unwrap_or("");
-    Some(RenameRefusal::new(
+    Some(refusal_at(
         format!(
             "cannot rename `{cell}`: this document names a variable through a value \
              computed at run time (`{written}`), which may be this very cell — there is \
@@ -1261,7 +1247,7 @@ pub fn literal_name_variable_rename_refusal(
     if !tcl_syntax::naming::var_name_requires_quoting(&def.name) {
         return None;
     }
-    Some(RenameRefusal::new(
+    Some(refusal_at(
         format!(
             "cannot rename `{name}`: the variable's name can only be written quoted \
              (`{{{name}}}` / `${{{name}}}`), so each occurrence carries delimiters that \

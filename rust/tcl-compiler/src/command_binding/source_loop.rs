@@ -372,7 +372,7 @@ mod tests {
                 repeated
                     .lookup_command_word(command)
                     .selected_slot_presence(),
-                super::super::SourceCommandSlotPresence::Present
+                super::super::SourceCommandSlotPresence::present()
             );
         }
         let after = u32::try_from(source.find("set result").unwrap()).unwrap();

@@ -380,6 +380,53 @@ pub fn rename(
     .unwrap_or_default()
 }
 
+/// Explain why the current cursor cannot prepare a complete rename.
+#[must_use]
+pub fn prepare_rename_refusal(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+) -> crate::rename_safety::RenameRefusal {
+    let reason = if crate::original_context::CurrentSourceContext::capture(source, analysis)
+        .is_none()
+    {
+        "cannot prove a complete current source context for this rename"
+    } else if crate::variable_symbol::select(source, analysis, line, character).is_break() {
+        "cannot account for every original variable name, alias target and read in this document"
+    } else {
+        "cannot prove a unique editable symbol and complete references at this position"
+    };
+    crate::rename_safety::RenameRefusal {
+        reason: reason.to_owned(),
+        range: None,
+    }
+}
+
+/// Rename with a visible refusal for both unsafe and inapplicable requests.
+pub fn rename_outcome(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    line: u32,
+    character: u32,
+    new_name: &str,
+    analysis: &AnalysisResult,
+    registry: Option<&CommandRegistry>,
+) -> tcl_core_types::EditorOutcome<Vec<TextEdit>, LspRange> {
+    let edits = rename_with_diagnosis(
+        source, dialect, line, character, new_name, analysis, registry,
+    )?;
+    if edits.is_empty() {
+        let mut refusal = prepare_rename_refusal(source, line, character, analysis);
+        if !is_safe_symbol_name(new_name) {
+            "the requested name cannot be written safely by this rename"
+                .clone_into(&mut refusal.reason);
+        }
+        return Err(refusal);
+    }
+    Ok(edits)
+}
+
 /// Every refusal that must be decided **before** any edit is built, in order.
 ///
 /// Grouped because they share that one property: a hazard here can never be
@@ -898,7 +945,7 @@ fn rename_definition_operand(
                 line_index,
             )
         });
-    Some(edits.unwrap_or_else(|| Err(crate::rename_safety::RenameRefusal::at(
+    Some(edits.unwrap_or_else(|| Err(crate::rename_safety::refusal_at(
         "cannot rename this metadata operand: its original method declaration is unavailable for a complete edit.".to_owned(),
         source, line_index, Some(reference.name_span()),
     ))))

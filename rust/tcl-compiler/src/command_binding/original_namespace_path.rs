@@ -56,12 +56,10 @@ pub(super) fn select(
                 .recipe()
                 .namespace_address_path(scope.context()?, element)
                 .ok()?;
-            match state.original_namespace_key_for_path(&path, policy) {
-                super::namespace_slots::OriginalNamespaceKeyPresence::Available(key) => {
-                    key.filter(|key| !state.unknown_lookup_namespaces.contains(key))
-                }
-                super::namespace_slots::OriginalNamespaceKeyPresence::Unavailable => None,
-            }
+            state
+                .original_namespace_key_for_path(&path, policy)
+                .into_proven()
+                .filter(|key| !state.unknown_lookup_namespaces.contains(key))
         })
         .collect()
 }

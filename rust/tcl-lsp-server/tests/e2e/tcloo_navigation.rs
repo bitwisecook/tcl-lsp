@@ -496,9 +496,13 @@ fn tp_receiver_unexport_keeps_the_inherited_callback_out_of_the_family() {
         definition.is_null() || definition.as_array().is_some_and(Vec::is_empty),
         "definition from a suppressed callback cursor must be empty: {definition:?}"
     );
+    let response = lsp.prepare_rename_response(&uri, 7, callback_char);
+    assert_eq!(response["error"]["code"], -32602, "{response}");
     assert!(
-        lsp.prepare_rename(&uri, 7, callback_char).is_null(),
-        "prepareRename must reject a callback the receiver cannot dispatch"
+        response["error"]["message"]
+            .as_str()
+            .is_some_and(|reason| !reason.is_empty()),
+        "prepareRename must explain a callback the receiver cannot dispatch: {response}"
     );
     assert!(
         lsp.rename(&uri, 7, callback_char, "tock").is_null(),

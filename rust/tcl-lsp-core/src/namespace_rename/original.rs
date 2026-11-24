@@ -42,7 +42,7 @@ struct OriginalNamespaceEdits<'a> {
 
 impl OriginalNamespaceEdits<'_> {
     fn refusal(&self, span: Option<Span>, reason: &str) -> RenameRefusal {
-        RenameRefusal::at(
+        crate::rename_safety::refusal_at(
             reason.to_owned(),
             self.source,
             &LineIndex::new(self.source),
@@ -745,7 +745,7 @@ pub fn original_namespace_rename_edits(
     new_tail: &str,
 ) -> Result<Vec<TextEdit>, RenameRefusal> {
     if analysis.resolved_profile() != Some(dialect) {
-        return Err(RenameRefusal::at(
+        return Err(crate::rename_safety::refusal_at(
             "the requested profile differs from the retained analysis input".to_owned(),
             source,
             &LineIndex::new(source),
@@ -759,7 +759,7 @@ pub fn original_namespace_rename_edits(
         symbol.policy().string_protocol(),
     )
     .map_err(|_| {
-        RenameRefusal::at(
+        crate::rename_safety::refusal_at(
             "the replacement namespace has no selected source channel recipe".to_owned(),
             source,
             &LineIndex::new(source),

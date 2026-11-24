@@ -859,7 +859,7 @@ use cfg_lattice::unavailable_cfg_entry;
 use command_identity::CommandToken;
 pub use command_identity::{
     AllocationIncarnation, CommandAllocation, CommandAllocationSite, CommandIdentity,
-    RuntimeCommandTokenIdentity,
+    CommandRefInterner, RuntimeCommandTokenIdentity,
 };
 #[cfg(test)]
 use compilation_lookup_advice::original_static_layout_projection;

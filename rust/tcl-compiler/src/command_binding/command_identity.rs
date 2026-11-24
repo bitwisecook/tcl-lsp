@@ -92,6 +92,8 @@ pub struct CommandAllocation {
     pub incarnation: AllocationIncarnation,
     /// Presentation of the evaluated output slot, without lookup authority.
     pub command: String,
+    /// Exact originally selected slot; never recovered from the reporting name.
+    pub slot: super::SourceCommandKey,
     /// Exact namespace owning the allocation, independent of its presentation.
     pub namespace: SourceNamespaceKey,
 }
@@ -125,5 +127,94 @@ impl CommandAllocation {
                 | SourceOriginKind::Derived { .. }
                 | SourceOriginKind::ConditionalField { .. } => false,
             }
+    }
+}
+
+/// Owner of interned source command references. The descriptor retains original
+/// component boundaries and allocation provenance; reporting labels are excluded.
+#[derive(Debug)]
+pub struct CommandRefInterner {
+    identities:
+        tcl_core_types::IdentityInterner<SourceCommandDescriptor, tcl_core_types::CommandRef>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct SourceCommandDescriptor {
+    site: CommandAllocationSite,
+    namespace: SourceNamespaceKey,
+    simple: tcl_core_types::NameBytes,
+}
+
+impl CommandRefInterner {
+    /// Retain a source-analysis identity domain. Independently created interners
+    /// cannot alias even when their source instances have equal bytes.
+    #[must_use]
+    pub fn new(source: &Arc<SourceOriginId>) -> Self {
+        Self {
+            identities: tcl_core_types::IdentityInterner::new(
+                tcl_core_types::IdentityDomain::Analysis(SourceOriginId::activation_key(source)),
+            ),
+        }
+    }
+}
+
+impl CommandIdentity {
+    /// Project a retained allocation into the shared typed identity vocabulary.
+    /// Runtime tokens retain their actual owner. Repeated or symbolic source
+    /// allocations abstain instead of manufacturing an identity from a label.
+    pub fn command_ref(
+        &self,
+        interner: &mut CommandRefInterner,
+    ) -> tcl_core_types::Answer<tcl_core_types::CommandRef> {
+        use tcl_core_types::{
+            Answer, IdentityDomain, IdentityKey, IdentityProvenance, NamingAuthority,
+            NamingProvenance, SemanticRef, UnknownReason,
+        };
+        if let Some(runtime) = self.runtime {
+            return Answer::proven(tcl_core_types::CommandRef::from_key(IdentityKey {
+                domain: IdentityDomain::Runtime {
+                    owner: runtime.interpreter.owner,
+                    interpreter: runtime.interpreter.interpreter,
+                },
+                token: runtime.token,
+                generation: 0,
+                issuer: None,
+            }))
+            .with_evidence(
+                NamingProvenance::Runtime {
+                    owner: runtime.interpreter.owner,
+                    interpreter: runtime.interpreter.interpreter,
+                },
+                NamingAuthority::Navigation,
+            );
+        }
+        let Some(allocation) = &self.allocation else {
+            return Answer::unknown(UnknownReason::UnavailableContext);
+        };
+        let generation = match allocation.incarnation {
+            AllocationIncarnation::First => 1,
+            AllocationIncarnation::Second => 2,
+            AllocationIncarnation::RepeatedFresh => {
+                return Answer::unknown(UnknownReason::RepeatedAllocation);
+            }
+        };
+        let super::SourceCommandKey::Slot { namespace, simple } = &allocation.slot else {
+            return Answer::unknown(UnknownReason::UnavailableContext);
+        };
+        let instance = SourceOriginId::activation_key(&allocation.site.source);
+        let offset = allocation.site.offset;
+        let reference = interner.identities.intern(
+            SourceCommandDescriptor {
+                site: allocation.site.clone(),
+                namespace: namespace.clone(),
+                simple: simple.clone(),
+            },
+            generation,
+            IdentityProvenance::Source { instance, offset },
+        );
+        Answer::proven(reference).with_evidence(
+            NamingProvenance::Source { instance, offset },
+            NamingAuthority::Navigation,
+        )
     }
 }

@@ -141,7 +141,7 @@ fn logical_scalar_continuation_keeps_original_values_and_captured_set_operands()
         let binding = final_binding(source, &input);
         assert_eq!(
             binding.selected_slot_diagnostic_presence(),
-            SourceCommandSlotPresence::Absent,
+            SourceCommandSlotPresence::absent(),
             "{source}"
         );
         assert!(binding.variable_context.execution_name_policy.is_none());
@@ -155,7 +155,7 @@ fn logical_scalar_continuation_keeps_original_values_and_captured_set_operands()
     ] {
         assert_eq!(
             final_binding(source, &input).selected_slot_diagnostic_presence(),
-            SourceCommandSlotPresence::Unknown,
+            SourceCommandSlotPresence::unavailable(),
             "{source}"
         );
     }
@@ -176,7 +176,7 @@ fn logical_original_transfers_preserve_unicode_registry_moves_and_aliases() {
         let binding = final_binding(source, &input);
         assert_eq!(
             binding.selected_slot_diagnostic_presence(),
-            SourceCommandSlotPresence::Present,
+            SourceCommandSlotPresence::present(),
             "{source}"
         );
         assert!(binding.variable_context.execution_name_policy.is_none());
@@ -191,27 +191,27 @@ fn logical_original_transfers_preserve_moves_deletes_and_scalar_head_values() {
     for (source, presence) in [
         (
             "proc original {} {}; rename original moved; moved",
-            SourceCommandSlotPresence::Present,
+            SourceCommandSlotPresence::present(),
         ),
         (
             "proc original {} {}; rename original moved; original",
-            SourceCommandSlotPresence::Absent,
+            SourceCommandSlotPresence::absent(),
         ),
         (
             "proc original {} {}; rename original {}; original",
-            SourceCommandSlotPresence::Absent,
+            SourceCommandSlotPresence::absent(),
         ),
         (
             "proc original {} {}; rename original ::fresh::nested::moved; ::fresh::nested::moved",
-            SourceCommandSlotPresence::Present,
+            SourceCommandSlotPresence::present(),
         ),
         (
             "proc foo_hi {} {}; rename foo_hi {}; set suffix _hi; foo$suffix",
-            SourceCommandSlotPresence::Absent,
+            SourceCommandSlotPresence::absent(),
         ),
         (
             "proc foo_hi {} {}; rename foo_hi {}; set suffix _hi; proc foo_hi {} {}; foo$suffix",
-            SourceCommandSlotPresence::Present,
+            SourceCommandSlotPresence::present(),
         ),
     ] {
         assert_eq!(
@@ -464,7 +464,7 @@ fn logical_original_alias_capture_composes_registry_operations_at_the_call() {
     ] {
         assert_eq!(
             final_binding(source, &input).selected_slot_diagnostic_presence(),
-            SourceCommandSlotPresence::Absent,
+            SourceCommandSlotPresence::absent(),
             "{source}"
         );
     }
@@ -706,7 +706,7 @@ fn logical_original_operation_refusals_do_not_recover_from_reporting_state() {
     ] {
         assert_ne!(
             final_binding(source, &input).selected_slot_diagnostic_presence(),
-            SourceCommandSlotPresence::Absent,
+            SourceCommandSlotPresence::absent(),
             "{source}"
         );
     }

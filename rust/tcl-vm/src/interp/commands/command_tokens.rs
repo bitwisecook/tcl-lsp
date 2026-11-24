@@ -426,3 +426,89 @@ impl Vm {
             })
     }
 }
+
+impl tcl_runtime_api::semantic_identity::CommandIdentityTokens for Vm {
+    fn interpreter_ref(&self) -> tcl_core_types::InterpreterRef {
+        let (owner, interpreter) = self.native_object_bridge_identity();
+        tcl_runtime_api::native_compilation::NativeInterpreterIdentity { owner, interpreter }
+            .interpreter_ref()
+    }
+
+    fn command_ref(
+        &self,
+        command: tcl_runtime_api::CommandId,
+    ) -> tcl_core_types::Answer<tcl_core_types::CommandRef> {
+        use tcl_core_types::{Answer, NamingAuthority, NamingProvenance, UnknownReason};
+        let Some(token) = self.interned_command_token(command.0) else {
+            return Answer::unknown(UnknownReason::UnavailableContext);
+        };
+        let (owner, interpreter) = self.native_object_bridge_identity();
+        let runtime =
+            tcl_runtime_api::native_compilation::NativeInterpreterIdentity { owner, interpreter };
+        Answer::proven(runtime.command_ref(token)).with_evidence(
+            NamingProvenance::Runtime { owner, interpreter },
+            NamingAuthority::Runtime,
+        )
+    }
+}
+
+#[cfg(test)]
+mod semantic_identity_tests {
+    use super::*;
+    use tcl_runtime_api::{Namespaces, ROOT_NS, semantic_identity::CommandIdentityTokens};
+
+    #[test]
+    fn command_refs_survive_rename_and_split_on_recreation() {
+        let mut vm = Vm::new();
+        vm.set_compiler(Box::new(
+            tcl_codegen::compile_service::BytecodeCompileService::default(),
+        ));
+        assert!(
+            vm.try_eval_source("proc p {} {return p}")
+                .unwrap()
+                .code
+                .is_ok()
+        );
+        let initial_handle = vm.find_command(ROOT_NS, "p").unwrap();
+        let initial = vm.command_ref(initial_handle).into_proven().unwrap();
+        assert!(vm.try_eval_source("rename p q").unwrap().code.is_ok());
+        let moved_handle = vm.find_command(ROOT_NS, "q").unwrap();
+        assert_eq!(initial, vm.command_ref(moved_handle).into_proven().unwrap());
+        assert!(
+            vm.try_eval_source("proc p {} {return newp}")
+                .unwrap()
+                .code
+                .is_ok()
+        );
+        let recreated = vm.find_command(ROOT_NS, "p").unwrap();
+        assert_ne!(initial, vm.command_ref(recreated).into_proven().unwrap());
+        assert!(
+            vm.try_eval_source("rename q {}; proc q {} {return fresh}")
+                .unwrap()
+                .code
+                .is_ok()
+        );
+        let fresh = vm.find_command(ROOT_NS, "q").unwrap();
+        assert_ne!(initial, vm.command_ref(fresh).into_proven().unwrap());
+        assert_eq!(
+            initial,
+            vm.command_ref(initial_handle).into_proven().unwrap()
+        );
+        let mut counts = tcl_core_types::answer::ConformanceCounts::default();
+        counts.observe(
+            &vm.command_ref(moved_handle)
+                .map(|reference| reference == initial),
+            Some(&true),
+        );
+        counts.observe(
+            &vm.command_ref(recreated)
+                .map(|reference| reference != initial),
+            Some(&true),
+        );
+        counts.observe(
+            &vm.command_ref(fresh).map(|reference| reference != initial),
+            Some(&true),
+        );
+        println!("vm: {counts}");
+    }
+}

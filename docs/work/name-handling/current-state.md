@@ -1,5 +1,64 @@
 # Current LSP naming migration state
 
+## Development push validation
+
+The identity/answer change is rebased onto the latest remote `work`, preserving
+the registry and conformance additions. The four documentation conflicts retain
+both owners' entries, definitions and validation records. Workspace formatting
+and whitespace checks pass on the combined tree. Full Rust gates,
+`prep-pr` and deep tests have not been rerun on this combined tree; the passing
+results below apply to their independently validated inputs. Run the full gates
+on the combined tree before a PR. This development push uses the explicit
+`work` exception and does not authorise a merge.
+
+## Items 77 and 78 validation
+
+The shared typed-key and answer modules are implemented in `tcl-core-types`.
+Source command allocations retain original structured slots, and both engines
+expose already-issued command handles through `CommandIdentityTokens`.
+Command-slot and namespace queries use the shared answer vocabulary; rename
+refusals use the common editor outcome and visible host responses.
+
+Items 77 and 78 are complete. Validation passed: core types (60 tests),
+runtime API identity (1), positioned source identity (3), VM identity (1),
+standalone runtime identity (1), MCP refusals (2), and all 10 server
+conditional-rename tests, including the missing-source refusal. The source
+comparison reported `correct=2 abstentions=0 wrong=0`; each engine reported
+`correct=3 abstentions=0 wrong=0`.
+
+Before integration with the newer remote work, `make rust-check` passed,
+including all 46 drift gates
+(`/tmp/rust-check-complete-work.log`). Final lint after the E2E assertion
+updates also passed (`/tmp/rust-check-lint-complete-work.log`). The existing
+W210 probe now selects its already-filtered warning by its source span,
+without parsing diagnostic display text. Packaged-server rejection assertions
+require visible refusal reasons and pass focused Clippy
+(`/tmp/tcl-e2e-refusal-clippy-work.log`); their execution remains in CI.
+
+`make prep-pr` and the deep suites have not been run. The gate's optional C Tcl
+header cross-check and WASI C compile checks were not run: no explicit Tcl
+source was selected and wasi-sdk is unavailable. Enforced C-API/header ownership
+checks passed. This is a development push under the `work` exception.
+Before a PR, run `make prep-pr` and obtain the required deep CI results; no implementation obligations
+remain for these two items.
+
+The refusal fixture selects the unresolved `::util::scale` call in
+`handover/oo-dispatch-probe/editor-actions/workspace/nosource.tcl` at zero-based
+line 1, character 26. Its standalone local `doubled` rename returns edits,
+consistent with Workspace C in `editor-actions/results.txt`; the historical
+Workspace B refusal used an indexed companion file. These regressions exercise
+the unresolved call's refusal without adding that workspace configuration.
+No fixture source was changed.
+
+Reproduction: the naming contract's
+[typed keys and naming answers](../../design/contracts/name-handling.md#typed-keys-and-naming-answers)
+section links the source tests and both engine commands. Core/API checks are
+`cargo test -p tcl-core-types --lib` and
+`cargo test -p tcl-runtime-api semantic_identity --lib`; source identity runs
+with `cargo test -p tcl-compiler --test semantic_identity_answer -- --nocapture`.
+MCP runs with `cargo test -p tcl-mcp --bin tcl-mcp refusal_tests`; the server
+runs with `cargo test -p tcl-lsp-server --lib conditional_rename_annotation_tests`.
+
 ## Registry facts verification
 
 Snapshot: 25 November 2026. The shallow `work` checkout contains the
@@ -73,9 +132,9 @@ The annotated-command probe passed all 48 frame cases under C Tcl 8.6.18,
 all 33 comparisons where an existing LSP consumer did. Item 93 is complete.
 [Probe results and reproduction](handover/oo-dispatch-probe/annotated-frame-commands.md)
 
-Workspace formatting and Clippy, focused Clippy with dependencies, licence
-headers and Tcl evidence passed. The remaining `make rust-check` stages and
-`make prep-pr` were running when the result was prepared for publication.
+Workspace formatting and Clippy, licence headers, Tcl evidence and the full
+`make rust-check` passed before integration with the newer remote work. `make prep-pr` has not been
+rerun during this task.
 
 ## Item 151 verification
 

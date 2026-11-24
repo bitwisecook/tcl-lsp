@@ -74,6 +74,8 @@ pub mod native_variable_trace;
 /// Shared structured identities and one-way static display projections.
 pub mod command_identity;
 pub mod command_inventory;
+/// Typed source and runtime identity vocabulary over existing snapshot tokens.
+pub mod semantic_identity;
 
 /// Standard Tcl return-option construction policy.
 pub mod completion_options;

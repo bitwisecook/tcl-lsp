@@ -131,6 +131,7 @@ impl ModuleCommandBindings {
             .or_default();
         *count = count.saturating_add(1).min(3);
         Some(CommandAllocation {
+            slot: command.clone(),
             site,
             incarnation: match *count {
                 1 => AllocationIncarnation::First,

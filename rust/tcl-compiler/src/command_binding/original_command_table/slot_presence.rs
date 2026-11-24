@@ -78,12 +78,12 @@ impl ModuleCommandBindings {
                 && matches!(current, SourceNamespaceKey::Authored(_))
                 && !self.source_variables.namespace_known)
         {
-            return Presence::Unknown;
+            return Presence::unavailable();
         }
         let Some(paths) =
             self.original_command_slot_paths_for_bytes(current, input.bytes(), input.policy())
         else {
-            return Presence::Unknown;
+            return Presence::unavailable();
         };
         self.original_slot_presence_in_paths(paths, input.policy())
     }
@@ -100,16 +100,16 @@ impl ModuleCommandBindings {
             let mut fallthrough = true;
             for slot in path {
                 let Some(key) = self.original_lookup_key_for_slot(&slot, policy) else {
-                    return Presence::Unknown;
+                    return Presence::unavailable();
                 };
                 let Some(key) = key.key() else {
                     continue;
                 };
                 let Some(bindings) = self.original_bindings_for_key(&key) else {
-                    return Presence::Unknown;
+                    return Presence::unavailable();
                 };
                 if bindings.is_empty() || bindings.contains(&MayBinding::Unknown) {
-                    return Presence::Unknown;
+                    return Presence::unavailable();
                 }
                 present |= bindings.iter().any(|binding| {
                     matches!(binding, MayBinding::Target(_) | MayBinding::Imported(_))
@@ -122,10 +122,10 @@ impl ModuleCommandBindings {
             absent |= fallthrough;
         }
         match (present, absent) {
-            (true, false) => Presence::Present,
-            (false, true) => Presence::Absent,
-            (true, true) => Presence::MayPresent,
-            (false, false) => Presence::Unknown,
+            (true, false) => Presence::present(),
+            (false, true) => Presence::absent(),
+            (true, true) => Presence::conditional(),
+            (false, false) => Presence::unavailable(),
         }
     }
 
@@ -151,12 +151,12 @@ impl ModuleCommandBindings {
             || (!self.source_variables.namespace_known
                 && matches!(current, SourceNamespaceKey::Authored(_)))
         {
-            return Presence::Unknown;
+            return Presence::unavailable();
         }
         let Some(paths) =
             self.original_command_slot_paths_for_bytes(current, name.command_bytes(), policy)
         else {
-            return Presence::Unknown;
+            return Presence::unavailable();
         };
         let qualifier_retained = !paths.is_empty()
             && paths.iter().all(|path| {
@@ -182,14 +182,14 @@ impl ModuleCommandBindings {
         qualifier_retained: bool,
     ) -> super::super::SourceCommandSlotPresence {
         use super::super::SourceCommandSlotPresence as Presence;
-        if presence != Presence::Absent {
+        if presence.knowledge != tcl_core_types::Knowledge::Absent {
             return presence;
         }
         if !qualifier_retained
             || self.unknown_lookup_namespaces.contains(current)
             || self.namespace_unknown_handlers.contains(current)
         {
-            return Presence::Unknown;
+            return Presence::unavailable();
         }
         let Some(fallback) = self.baseline.dialect.and_then(|dialect| {
             tcl_registry::command_lookup::native_lookup_fallback_policy(
@@ -197,25 +197,25 @@ impl ModuleCommandBindings {
                 tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
             )
         }) else {
-            return Presence::Unknown;
+            return Presence::unavailable();
         };
         let Some(paths) =
             self.original_registry_command_paths(current, fallback.default_handler, policy)
         else {
-            return Presence::Unknown;
+            return Presence::unavailable();
         };
         if paths.is_empty() {
-            return Presence::Unknown;
+            return Presence::unavailable();
         }
         for handler in paths.into_iter().flatten() {
             let Some(expected) = self.original_initial_bindings_for_key(&handler) else {
-                return Presence::Unknown;
+                return Presence::unavailable();
             };
             let Some(actual) = self.original_bindings_for_key(&handler) else {
-                return Presence::Unknown;
+                return Presence::unavailable();
             };
             if actual != expected && actual != BTreeSet::from([MayBinding::Missing]) {
-                return Presence::Unknown;
+                return Presence::unavailable();
             }
         }
         presence

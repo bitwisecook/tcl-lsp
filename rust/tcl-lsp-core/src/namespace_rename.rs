@@ -128,7 +128,7 @@ pub fn namespace_rename_edits(
         );
     }
     if !analysis.allows_lexical_declaration_advice() {
-        return Err(RenameRefusal::at(
+        return Err(crate::rename_safety::refusal_at(
             "the displayed namespace has no unique original byte selection".to_owned(),
             source,
             &index,
@@ -261,7 +261,7 @@ fn lexical_namespace_rename_edits(
 ) -> Result<Vec<TextEdit>, RenameRefusal> {
     let line_index = LineIndex::new(source);
     let current = crate::original_context::CurrentSourceContext::capture(source, analysis)
-        .ok_or_else(|| RenameRefusal::at(
+        .ok_or_else(|| crate::rename_safety::refusal_at(
             format!("cannot rename `{cell}`: the complete original source and metadata are unavailable"),
             source, &line_index, None,
         ))?;
@@ -277,7 +277,7 @@ fn lexical_namespace_rename_edits(
             Some(WrittenCellOccurrence::Written(segment)) => spans.push(segment),
             Some(WrittenCellOccurrence::Inherited) => {}
             None => {
-                return Err(RenameRefusal::at(
+                return Err(crate::rename_safety::refusal_at(
                     format!(
                         "cannot rename `{cell}`: the selected namespace component cannot be mapped to its complete written name"
                     ),
@@ -460,7 +460,7 @@ fn computed_namespace_path_hazard(
         let written = source
             .get(span.start() as usize..span.end() as usize)
             .unwrap_or("");
-        return Some(RenameRefusal::at(
+        return Some(crate::rename_safety::refusal_at(
             format!(
                 "cannot rename `{cell}`: a `namespace path` is built from a value computed \
                  at run time (`{written}`), whose entries may name this very namespace — \
@@ -573,7 +573,7 @@ fn namespace_rename_hazard(
         return Some(refusal);
     }
     let unavailable = || {
-        RenameRefusal::at(
+        crate::rename_safety::refusal_at(
             format!(
                 "cannot rename `{cell}`: the complete original source and metadata are unavailable"
             ),
@@ -643,7 +643,7 @@ fn namespace_rename_hazard(
         && (!complete_dispatch
             || coverage != crate::executable_regions::PotentialSourceVisit::Complete)
     {
-        return Some(RenameRefusal::at(
+        return Some(crate::rename_safety::refusal_at(
             format!(
                 "cannot rename `{cell}`: original potential source coverage is unavailable; an unrepresented region may name this namespace"
             ),
@@ -657,7 +657,12 @@ fn namespace_rename_hazard(
         .get(span.start() as usize..span.end() as usize)
         .unwrap_or("");
     let reason = namespace_hazard_reason(cell, written, kind);
-    Some(RenameRefusal::at(reason, source, line_index, Some(span)))
+    Some(crate::rename_safety::refusal_at(
+        reason,
+        source,
+        line_index,
+        Some(span),
+    ))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

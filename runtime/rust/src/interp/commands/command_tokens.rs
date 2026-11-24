@@ -337,3 +337,95 @@ impl Interp {
             .resolve_fqn(self.current_ns.get(), name)
     }
 }
+
+impl tcl_runtime_api::semantic_identity::CommandIdentityTokens for Interp {
+    fn interpreter_ref(&self) -> tcl_core_types::InterpreterRef {
+        self.native_command_interpreter.interpreter_ref()
+    }
+
+    fn command_ref(
+        &self,
+        command: tcl_runtime_api::CommandId,
+    ) -> tcl_core_types::Answer<tcl_core_types::CommandRef> {
+        use tcl_core_types::{Answer, NamingAuthority, NamingProvenance, UnknownReason};
+        let token = self
+            .cmd_arena
+            .borrow()
+            .commands
+            .get(command.0 as usize)
+            .map(|(_, token)| *token);
+        let Some(token) = token else {
+            return Answer::unknown(UnknownReason::UnavailableContext);
+        };
+        let runtime = self.native_command_interpreter;
+        Answer::proven(runtime.command_ref(token)).with_evidence(
+            NamingProvenance::Runtime {
+                owner: runtime.owner,
+                interpreter: runtime.interpreter,
+            },
+            NamingAuthority::Runtime,
+        )
+    }
+}
+
+#[cfg(test)]
+mod semantic_identity_tests {
+    use super::*;
+    use tcl_runtime_api::{semantic_identity::CommandIdentityTokens, Namespaces, ROOT_NS};
+
+    #[test]
+    fn command_refs_survive_rename_and_split_on_recreation() {
+        let mut interp = Interp::new();
+        assert_eq!(
+            interp.eval_str(b"proc p {} {return p}"),
+            crate::interp::Code::Ok
+        );
+        let initial_handle = interp.find_command(ROOT_NS, "p").unwrap();
+        let initial = interp.command_ref(initial_handle).into_proven().unwrap();
+        assert_eq!(interp.eval_str(b"rename p q"), crate::interp::Code::Ok);
+        let moved_handle = interp.find_command(ROOT_NS, "q").unwrap();
+        assert_eq!(
+            initial,
+            interp.command_ref(moved_handle).into_proven().unwrap()
+        );
+        assert_eq!(
+            interp.eval_str(b"proc p {} {return newp}"),
+            crate::interp::Code::Ok
+        );
+        let recreated = interp.find_command(ROOT_NS, "p").unwrap();
+        assert_ne!(
+            initial,
+            interp.command_ref(recreated).into_proven().unwrap()
+        );
+        assert_eq!(
+            interp.eval_str(b"rename q {}; proc q {} {return fresh}"),
+            crate::interp::Code::Ok
+        );
+        let fresh = interp.find_command(ROOT_NS, "q").unwrap();
+        assert_ne!(initial, interp.command_ref(fresh).into_proven().unwrap());
+        assert_eq!(
+            initial,
+            interp.command_ref(initial_handle).into_proven().unwrap()
+        );
+        let mut counts = tcl_core_types::answer::ConformanceCounts::default();
+        counts.observe(
+            &interp
+                .command_ref(moved_handle)
+                .map(|reference| reference == initial),
+            Some(&true),
+        );
+        counts.observe(
+            &interp
+                .command_ref(recreated)
+                .map(|reference| reference != initial),
+            Some(&true),
+        );
+        counts.observe(
+            &interp
+                .command_ref(fresh)
+                .map(|reference| reference != initial),
+            Some(&true),
+        );
+        println!("runtime: {counts}");
+    }
+}

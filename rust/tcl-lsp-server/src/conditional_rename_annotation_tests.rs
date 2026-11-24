@@ -38,13 +38,8 @@ async fn conditional_rename_requires_client_confirmation_and_preserves_version()
         new_name: "new".to_owned(),
         work_done_progress_params: WorkDoneProgressParams::default(),
     };
-    assert!(
-        backend
-            .prepare_rename(position.clone())
-            .await
-            .unwrap()
-            .is_none()
-    );
+    let refusal = backend.prepare_rename(position.clone()).await.unwrap_err();
+    assert!(!refusal.message.is_empty());
     let error = backend.rename(params.clone()).await.unwrap_err();
     assert_eq!(error.code, jsonrpc::ErrorCode::InvalidRequest);
     backend
@@ -358,5 +353,32 @@ fn conditional_edit_is_versioned_and_requires_confirmation() {
     assert_eq!(
         json["changeAnnotations"]["conditional-variable-source-alpha"]["needsConfirmation"],
         true
+    );
+}
+
+#[tokio::test]
+async fn prepare_rename_reports_missing_source_coverage() {
+    let backend = super::tests::test_backend();
+    let uri: Uri = "file:///nosource.tcl".parse().unwrap();
+    let source = include_str!(
+        "../../../docs/work/name-handling/handover/oo-dispatch-probe/editor-actions/workspace/nosource.tcl"
+    );
+    let admission = Arc::new(DocumentPathAdmission::capture(&uri, backend.store.as_ref()).unwrap());
+    backend.documents.lock("prepare_refusal_test").await.insert(
+        uri.clone(),
+        DocumentState::with_version(source.to_owned(), "tcl".to_owned(), 1)
+            .with_path_admission(admission),
+    );
+    let refusal = backend
+        .prepare_rename(TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier { uri },
+            position: Position::new(1, 26),
+        })
+        .await
+        .unwrap_err();
+    assert!(
+        refusal.message.contains("cannot prove"),
+        "{}",
+        refusal.message
     );
 }

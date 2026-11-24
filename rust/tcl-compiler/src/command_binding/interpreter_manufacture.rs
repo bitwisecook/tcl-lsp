@@ -85,7 +85,7 @@ mod tests {
             let call = bindings.invocation_at_source("sandbox", offset);
             assert_eq!(
                 call.selected_slot_presence(),
-                SourceCommandSlotPresence::Present,
+                SourceCommandSlotPresence::present(),
                 "{version:?}: {call:#?}"
             );
             let target = call.proved_target().expect("actual child command slot");

@@ -122,7 +122,7 @@ impl OriginalFixedMathFunctionLookup {
         use super::SourceCommandSlotPresence as Presence;
         use tcl_runtime_api::native_compilation::NativeMathFunctionResolution as Resolution;
         let Ok(function) = std::str::from_utf8(self.function.as_bytes()) else {
-            return Presence::Unknown;
+            return Presence::unavailable();
         };
         let mut unanimous = None;
         for snapshot in &self.observations {
@@ -135,26 +135,26 @@ impl OriginalFixedMathFunctionLookup {
                     .as_ref()
                     .map(|table| table.lookup(function))
                 {
-                    Some(Resolution::Present(_)) => Presence::Present,
-                    Some(Resolution::Absent) => Presence::Absent,
-                    Some(Resolution::Unknown) | None => Presence::Unknown,
+                    Some(Resolution::Present(_)) => Presence::present(),
+                    Some(Resolution::Absent) => Presence::absent(),
+                    Some(Resolution::Unknown) | None => Presence::unavailable(),
                 }
             } else {
                 tcl_registry::mathfunc::fresh_fixed_function_presence(self.dialect, function)
-                    .map_or(Presence::Unknown, |present| {
+                    .map_or(Presence::unavailable(), |present| {
                         if present {
-                            Presence::Present
+                            Presence::present()
                         } else {
-                            Presence::Absent
+                            Presence::absent()
                         }
                     })
             };
             if unanimous.is_some_and(|previous| previous != current) {
-                return Presence::Unknown;
+                return Presence::unavailable();
             }
             unanimous = Some(current);
         }
-        unanimous.unwrap_or(Presence::Unknown)
+        unanimous.unwrap_or(Presence::unavailable())
     }
 }
 
@@ -168,11 +168,11 @@ impl OriginalMathFunctionLookup {
                 self.policy,
             );
             if unanimous.is_some_and(|previous| previous != current) {
-                return super::SourceCommandSlotPresence::Unknown;
+                return super::SourceCommandSlotPresence::unavailable();
             }
             unanimous = Some(current);
         }
-        unanimous.unwrap_or(super::SourceCommandSlotPresence::Unknown)
+        unanimous.unwrap_or(super::SourceCommandSlotPresence::unavailable())
     }
 }
 
@@ -260,15 +260,14 @@ impl OriginalMathFunctionOccurrence {
     /// Original source lookup advice after independently closed literal operands.
     /// Actual reached observations remain the diagnostic owner's first choice;
     /// this conditional value cannot supply runtime dispatch or a command word.
-    #[must_use]
     pub fn diagnostic_presence(&self) -> super::SourceCommandSlotPresence {
         match self.dispatch {
             NativeMathFunctionDispatch::CommandTable => self.original_lookup.as_ref().map_or(
-                super::SourceCommandSlotPresence::Unknown,
+                super::SourceCommandSlotPresence::unavailable(),
                 OriginalMathFunctionLookup::diagnostic_presence,
             ),
             NativeMathFunctionDispatch::FixedTable => self.fixed_lookup.as_ref().map_or(
-                super::SourceCommandSlotPresence::Unknown,
+                super::SourceCommandSlotPresence::unavailable(),
                 OriginalFixedMathFunctionLookup::diagnostic_presence,
             ),
         }
@@ -758,7 +757,7 @@ fn original_fixed_function_lookup(
         Arc::clone(&site.source),
         site.offset,
         function.to_owned(),
-    )) && (*reached == super::SourceCommandSlotPresence::Unknown
+    )) && (*reached == super::SourceCommandSlotPresence::unavailable()
         || *reached != lookup.diagnostic_presence())
     {
         return None;
@@ -820,7 +819,7 @@ fn original_function_lookup(
                     &binding.lookup_namespace_key,
                     &name,
                     policy,
-                ) == super::SourceCommandSlotPresence::Unknown
+                ) == super::SourceCommandSlotPresence::unavailable()
             {
                 return None;
             }
@@ -1006,7 +1005,7 @@ mod tests {
             };
             assert_eq!(call.dispatch(), NativeMathFunctionDispatch::FixedTable);
             assert_eq!(call.bytes(), b"Pi");
-            assert_eq!(call.diagnostic_presence(), Presence::Absent);
+            assert_eq!(call.diagnostic_presence(), Presence::absent());
             assert!(call.original_function_command_name().is_none());
             assert!(call.command_reference().is_none());
             assert!(call.registry_identity().is_none());
@@ -1023,17 +1022,17 @@ mod tests {
             let root = Arc::clone(bindings.source_origin().unwrap());
             bindings
                 .fixed_math_diagnostic_presence
-                .insert((root, 6, "Pi".to_owned()), Presence::Unknown);
+                .insert((root, 6, "Pi".to_owned()), Presence::unavailable());
             let calls = bindings.original_math_functions_in_source(
                 &registry,
                 &image,
                 config,
                 Span::new(6, 8),
             );
-            assert_eq!(calls[0].diagnostic_presence(), Presence::Unknown);
+            assert_eq!(calls[0].diagnostic_presence(), Presence::unavailable());
             assert_eq!(
                 bindings.diagnostic_math_function_presence_at(&registry, "Pi", 6),
-                Presence::Unknown
+                Presence::unavailable()
             );
             for source in [
                 "expr {Pi([unknown])}",
@@ -1044,12 +1043,12 @@ mod tests {
                 assert!(
                     calls
                         .iter()
-                        .all(|call| call.diagnostic_presence() == Presence::Unknown),
+                        .all(|call| call.diagnostic_presence() == Presence::unavailable()),
                     "{environment}: {source}"
                 );
             }
             let (_, _, _, _, calls) = functions("expr {abs(-3)}", environment);
-            assert_eq!(calls[0].diagnostic_presence(), Presence::Present);
+            assert_eq!(calls[0].diagnostic_presence(), Presence::present());
             assert!(calls[0].original_function_command_name().is_none());
         }
     }
@@ -1073,12 +1072,12 @@ mod tests {
             assert_eq!(lookup.function_bytes(), b"Pi");
             assert_eq!(lookup.source(), "Pi()");
             assert_eq!(lookup.command_bytes(), b"tcl::mathfunc::Pi");
-            assert_eq!(call.diagnostic_presence(), Presence::Absent);
+            assert_eq!(call.diagnostic_presence(), Presence::absent());
             assert!(call.command_reference().is_none());
             assert!(call.registry_identity().is_none());
             assert_eq!(
                 bindings.diagnostic_math_function_presence_at(&registry, "Pi", 6),
-                Presence::Absent
+                Presence::absent()
             );
             let root = Arc::clone(bindings.source_origin().unwrap());
             bindings.implicit_math_invocations.insert(
@@ -1087,7 +1086,7 @@ mod tests {
             );
             assert_eq!(
                 bindings.diagnostic_math_function_presence_at(&registry, "Pi", 6),
-                Presence::Unknown
+                Presence::unavailable()
             );
             let calls = bindings.original_math_functions_in_source(
                 &registry,

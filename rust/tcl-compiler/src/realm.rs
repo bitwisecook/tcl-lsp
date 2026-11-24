@@ -701,7 +701,6 @@ impl CommandBindingRealm {
     }
 
     /// Positioned slot advice, independently of executable binding facts.
-    #[must_use]
     pub fn diagnostic_slot_presence_at(
         &self,
         offset: u32,
@@ -710,7 +709,6 @@ impl CommandBindingRealm {
     }
 
     /// Exact native command-table math lookup after the original operands.
-    #[must_use]
     pub fn diagnostic_math_function_presence_at(
         &self,
         registry: &CommandRegistry,
@@ -721,7 +719,6 @@ impl CommandBindingRealm {
             .diagnostic_math_function_presence_at(registry, function, offset)
     }
     /// Name-reference advice in the consuming command's exact post-argv world.
-    #[must_use]
     pub fn diagnostic_command_slot_presence_at(
         &self,
         name: &str,

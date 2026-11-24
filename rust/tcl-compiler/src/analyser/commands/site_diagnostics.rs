@@ -170,8 +170,10 @@ impl Analyser {
         {
             return false;
         }
-        self.head_identities.diagnostic_slot_presence_at(offset)
-            == crate::command_binding::SourceCommandSlotPresence::Absent
+        self.head_identities
+            .diagnostic_slot_presence_at(offset)
+            .knowledge
+            == tcl_core_types::Knowledge::Absent
     }
 
     /// The script-injection family — a script or command line built by

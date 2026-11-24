@@ -115,7 +115,7 @@ impl SourceUnresolvedMathFunctionSubject {
         // docs/design/analysis/name-resolution-proofs/diagnostic-original-math-function-subject.md
         if !invocation.is_mathfunc_call
             || invocation.existence_probe
-            || presence != SourceCommandSlotPresence::Absent
+            || presence.knowledge != tcl_core_types::Knowledge::Absent
             || invocation.range != original.span()
             || invocation.name != original.function()
             || invocation.argc != Some(original.argument_count())
@@ -143,9 +143,8 @@ impl SourceUnresolvedMathFunctionSubject {
     }
 
     /// Diagnostic-purpose function absence, without a completion prediction.
-    #[must_use]
-    pub const fn presence(&self) -> SourceCommandSlotPresence {
-        self.presence
+    pub fn presence(&self) -> SourceCommandSlotPresence {
+        self.presence.clone()
     }
 }
 
@@ -281,7 +280,7 @@ mod tests {
                     image,
                     config,
                     registry,
-                    SourceCommandSlotPresence::Absent,
+                    SourceCommandSlotPresence::absent(),
                 )
             };
         assert_eq!(issue(image, config, registry).as_ref(), Some(subject));
@@ -319,9 +318,9 @@ mod tests {
             )
         };
         for presence in [
-            SourceCommandSlotPresence::Present,
-            SourceCommandSlotPresence::MayPresent,
-            SourceCommandSlotPresence::Unknown,
+            SourceCommandSlotPresence::present(),
+            SourceCommandSlotPresence::conditional(),
+            SourceCommandSlotPresence::unavailable(),
         ] {
             assert!(issue(invocation, presence).is_none());
         }
@@ -336,7 +335,7 @@ mod tests {
         let mut probe = invocation.clone();
         probe.existence_probe = true;
         for foreign in [ordinary, foreign_name, foreign_span, foreign_arity, probe] {
-            assert!(issue(&foreign, SourceCommandSlotPresence::Absent).is_none());
+            assert!(issue(&foreign, SourceCommandSlotPresence::absent()).is_none());
         }
         let diagnostic = analysis
             .diagnostics
