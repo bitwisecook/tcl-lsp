@@ -55,6 +55,10 @@ pub const VERSION: &str = env!("TCL_LSP_RESOLVED_VERSION");
 /// show it in its own field rather than parse it back out.
 pub const COMMIT: &str = env!("TCL_LSP_RESOLVED_COMMIT");
 
+/// The full Git revision at build time, or the supplied `GIT_HASH` override.
+/// Empty when neither input is available.
+pub const SOURCE_REVISION: &str = env!("TCL_LSP_SOURCE_REVISION");
+
 // Compile the build-script support into this crate only for its regression
 // tests. `build.rs` includes the same source directly, keeping the resolver's
 // tested implementation and the one Cargo executes identical.

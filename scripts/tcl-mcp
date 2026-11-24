@@ -2,8 +2,8 @@
 #
 # Launch the native Rust tcl-lsp MCP server (`tcl-mcp`).
 #
-# Resolution order (all diagnostics go to stderr so stdout stays a clean
-# JSON-RPC stream):
+# The repository's .mcp.json uses Cargo to build and run the current source.
+# With --allow-prebuilt, resolve the binary in this order:
 #   1. a locally-built binary (target/release or target/debug) — in-repo dev;
 #   2. a previously-fetched binary cached under ~/.cache/tcl-lsp;
 #   3. a prebuilt release asset downloaded from GitHub for the host platform —
@@ -16,6 +16,14 @@ set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(cd "$here/.." && pwd)"
+
+if [ "${1:-}" != "--allow-prebuilt" ]; then
+    cd "$root"
+    unset GIT_HASH TCL_LSP_VERSION
+    exec cargo run --quiet --locked -p tcl-mcp --bin tcl-mcp -- "$@"
+fi
+shift
+
 repo="bitwisecook/tcl-lsp"
 cache="${XDG_CACHE_HOME:-$HOME/.cache}/tcl-lsp"
 

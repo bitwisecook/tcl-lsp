@@ -1435,8 +1435,8 @@ rust-f5: ## Build the native Rust `f5-query` CLI (PROFILE=release|debug)
 	cd $(ROOT) && cargo build -p f5-cli $(if $(filter release,$(PROFILE)),--release,); \
 	echo "==> Built $(ROOT)target/$(PROFILE)/f5-query"
 
-# Build the native Rust MCP server binary (target/release/tcl-mcp).  The repo
-# `.mcp.json` (via scripts/tcl-mcp) launches this for Claude Code / Codex.
+# Build the native MCP server for direct registration. The repository
+# configuration runs Cargo through scripts/tcl-mcp on each launch.
 rust-mcp: ## Build the native Rust `tcl-mcp` MCP server (PROFILE=release|debug)
 	@set -eu; \
 	if ! command -v cargo >/dev/null 2>&1; then \

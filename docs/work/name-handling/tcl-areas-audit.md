@@ -129,7 +129,7 @@ Item 153 corrected the five historical rewrites below. The [execution audit](han
    - Jim execution.
 
    Each needs implementing or an explicit non-goal with a catchable refusal that names the engine.
-7. **The MCP tool runs a stale build** and has no Jim dialect. Results from the tools cannot be trusted as current: the MCP server should rebuild from source or report its build stamp (plan item 104).
+7. **The audit ran a stale MCP build.** That build also lacked the Jim dialect. Plan item 199 tracks rebuilding from source and reporting build provenance.
 
 ## Plan
 

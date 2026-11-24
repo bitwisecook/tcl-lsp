@@ -93,7 +93,9 @@ fn main() {
     // Result: `2.1.8+g4c5a8f8` at a tag, `2.1.8-3+g4c5a8f8` between releases,
     // `…+g4c5a8f8.dirty` from a modified tree. Semver build metadata (`+…`) is
     // ignored for precedence, so this stays a legal version string.
-    let hash = env_hash().or_else(git_hash);
+    let override_hash = env_hash();
+    let hash = override_hash.clone().or_else(|| git_hash(&["--short=8"]));
+    let source_revision = override_hash.or_else(|| git_hash(&[]));
 
     // `.dirty` means "a developer built this from a modified tree", and it must
     // not fire in CI. A workflow that ships an artefact regenerates TRACKED files
@@ -130,6 +132,10 @@ fn main() {
         "cargo:rustc-env=TCL_LSP_RESOLVED_COMMIT={}",
         hash.unwrap_or_default()
     );
+    println!(
+        "cargo:rustc-env=TCL_LSP_SOURCE_REVISION={}",
+        source_revision.unwrap_or_default()
+    );
 }
 
 /// Cargo's `PROFILE` is `debug` for the dev and test profiles and `release`
@@ -146,9 +152,11 @@ fn env_hash() -> Option<String> {
     (!t.is_empty()).then(|| t.to_owned())
 }
 
-fn git_hash() -> Option<String> {
+fn git_hash(options: &[&str]) -> Option<String> {
     let out = Command::new("git")
-        .args(["rev-parse", "--short=8", "HEAD"])
+        .arg("rev-parse")
+        .args(options)
+        .arg("HEAD")
         .current_dir(env!("CARGO_MANIFEST_DIR"))
         .output()
         .ok()?;

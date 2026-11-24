@@ -1633,9 +1633,13 @@ Bobbit are recognised (Bobbit supports project scope only):
 
 Working **inside this repo**, compatible harnesses auto-discover the server via
 the committed [`.mcp.json`](.mcp.json), which launches
-[`scripts/tcl-mcp`](scripts/tcl-mcp): it prefers a local build
-(`make rust-mcp`), else a cached binary, else fetches the release asset for the
-host platform, else builds from source. Register globally without the installer
+[`scripts/tcl-mcp`](scripts/tcl-mcp). Each launch runs Cargo against the current
+checkout and stops if the build fails. Restart the MCP session after changing
+source. Every tool response includes its build timestamp, version, and source
+revision in `_meta["io.github.bitwisecook/tcl-lsp-build"]`.
+
+Use `scripts/tcl-mcp --allow-prebuilt` to opt into using a local or cached
+binary or fetching a release asset. Register globally without the installer
 with `make rust-mcp && claude mcp add tcl-lsp -- "$(pwd)/target/release/tcl-mcp"`.
 
 | Tool | Description |

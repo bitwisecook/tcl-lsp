@@ -103,6 +103,17 @@ dependency graph (a crate can only use what it declares in
    MCP tools on top of the LSP-core and tooling crates; nothing below it
    depends on it.
 
+### MCP build provenance
+
+The repository MCP configuration launches `scripts/tcl-mcp`, which runs
+`cargo run --locked` from its checkout each time a client starts a server.
+Cargo checks the binary and its dependencies against the workspace source.
+The transport adds the build stamp to every completed tool result, including
+tool errors, under `_meta["io.github.bitwisecook/tcl-lsp-build"]`. It contains
+the MCP build script's UTC Unix timestamp (`SOURCE_DATE_EPOCH` if supplied),
+the resolved version, and the revision from `tcl-version`. A build from an
+export with no Git revision supplied returns `null` for `sourceRevision`.
+
 ## When you add a new module
 
 - New parsing / analysis passes must expose stable, reusable facts.  Put

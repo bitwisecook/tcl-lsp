@@ -16,8 +16,8 @@ MCP
 | Context | How |
 |---------|-----|
 | Claude Desktop | Add to `claude_desktop_config.json` |
-| Claude Code / Codex | Registered via the repo `.mcp.json`, which launches `scripts/tcl-mcp` |
-| Any MCP client | Run the native `tcl-mcp` binary directly (build with `make rust-mcp`, or let `scripts/tcl-mcp` fetch the prebuilt release asset) |
+| Claude Code / Codex | The repo `.mcp.json` launches `scripts/tcl-mcp`, which runs Cargo on the checkout |
+| Any MCP client | Register with the installer, build with `make rust-mcp`, or use `scripts/tcl-mcp --allow-prebuilt` |
 
 ## How to use
 
@@ -86,9 +86,15 @@ agent can tell a clean report from one that hid something (see
 
 Native Rust implementation — a single self-contained `tcl-mcp` binary, no runtime dependencies. Uses the same analysis engine (`tcl-compiler`/`tcl-lsp-core`) as the LSP server.
 
+Each tool response includes `builtAtUnixSeconds`, `version`, and `sourceRevision`
+under `_meta["io.github.bitwisecook/tcl-lsp-build"]`. For a repository launch,
+compare `sourceRevision` with `git rev-parse HEAD`. Restart the session after
+editing source or switching branches so Cargo checks the checkout again.
+
 ## Failure modes
 
 - Stdin/stdout hijacked by other tools.
+- If the repository build fails, the server exits and Cargo reports the error on stderr.
 
 ## Test anchors
 

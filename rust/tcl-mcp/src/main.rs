@@ -29,8 +29,8 @@ use rmcp::ServiceExt;
 use rmcp::handler::server::ServerHandler;
 use rmcp::model::{
     CacheScope, CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, ErrorData,
-    ListToolsResult, PaginatedRequestParams, ProtocolVersion, ServerCapabilities, ServerConfig,
-    Tool,
+    ListToolsResult, MetaObject, PaginatedRequestParams, ProtocolVersion, ServerCapabilities,
+    ServerConfig, Tool,
 };
 use rmcp::service::{RequestContext, RoleServer};
 use rmcp::transport::stdio;
@@ -97,16 +97,32 @@ impl ServerHandler for TclMcp {
         // synchronously, so they all take the `Complete` arm — which is what
         // `From<CallToolResult>` gives.
         let args = request.arguments.map_or_else(|| json!({}), Value::Object);
-        std::future::ready(match tools::dispatch(&request.name, &args) {
-            Some(result) => {
-                Ok(CallToolResult::success(vec![ContentBlock::text(result.to_string())]).into())
-            }
-            None => Ok(CallToolResult::error(vec![ContentBlock::text(
-                json!({ "error": format!("Unknown tool: {}", request.name) }).to_string(),
-            )])
-            .into()),
-        })
+        std::future::ready(Ok(tool_result(&request.name, &args).into()))
     }
+}
+
+fn tool_result(name: &str, args: &Value) -> CallToolResult {
+    let mut result = match tools::dispatch(name, args) {
+        Some(result) => CallToolResult::success(vec![ContentBlock::text(result.to_string())]),
+        None => CallToolResult::error(vec![ContentBlock::text(
+            json!({ "error": format!("Unknown tool: {name}") }).to_string(),
+        )]),
+    };
+    let revision = tcl_version::SOURCE_REVISION;
+    let timestamp = env!("TCL_MCP_BUILD_TIMESTAMP")
+        .parse::<u64>()
+        .expect("build script emits Unix seconds");
+    let mut meta = MetaObject::new();
+    meta.0.insert(
+        "io.github.bitwisecook/tcl-lsp-build".into(),
+        json!({
+            "builtAtUnixSeconds": timestamp,
+            "sourceRevision": (!revision.is_empty()).then_some(revision),
+            "version": tcl_version::VERSION,
+        }),
+    );
+    result.meta = Some(meta);
+    result
 }
 
 /// The server blurb clients show before any tool call — the selectable
@@ -184,5 +200,30 @@ mod protocol_tests {
         let legacy = serde_json::to_value(tool_list_result(Vec::new(), false)).unwrap();
         assert!(legacy.get("ttlMs").is_none());
         assert!(legacy.get("cacheScope").is_none());
+    }
+
+    #[test]
+    fn tool_results_include_build_provenance() {
+        let args = json!({"source": "set answer 42", "dialect": "tcl8.6"});
+        let expected = tools::dispatch("analyze", &args).unwrap();
+        for (name, is_error, payload) in [
+            ("analyze", false, expected),
+            ("unknown", true, json!({"error": "Unknown tool: unknown"})),
+        ] {
+            let result = serde_json::to_value(tool_result(name, &args)).unwrap();
+            let stamp = &result["_meta"]["io.github.bitwisecook/tcl-lsp-build"];
+            assert_eq!(stamp["version"], tcl_version::VERSION);
+            assert_eq!(
+                stamp["sourceRevision"],
+                json!(
+                    (!tcl_version::SOURCE_REVISION.is_empty())
+                        .then_some(tcl_version::SOURCE_REVISION)
+                )
+            );
+            assert!(stamp["builtAtUnixSeconds"].is_u64());
+            assert_eq!(result["isError"], is_error);
+            let text = result["content"][0]["text"].as_str().unwrap();
+            assert_eq!(serde_json::from_str::<Value>(text).unwrap(), payload);
+        }
     }
 }
