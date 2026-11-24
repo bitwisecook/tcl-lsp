@@ -1026,6 +1026,10 @@ that the refinement DSL cannot preserve those tri-state withdrawals. The
 loader rejects these rows as semantic exclusions, and Studio marks their draft
 unrecovered instead of silently exporting the inherited parent contract.
 
+The native `source_arity_with_option` descriptor selects an alternative
+arity from a complete leading option scan. It is recorded in `GAPS` and
+the coverage ledger pending a form predicate on the loaded option grammar.
+
 Nested `SubSubCommand::native_compilation` is deliberately excluded from pack authoring. The loader rejects `sub_subcommand NAME -native_compilation CONTRACT` as a semantic exclusion. Studio marks the nested draft incomplete and both renderers preserve an explicit omission; the SpecTcl renderer records `nested_native_compilation` in `GAPS`. Recovered names, availability and options do not establish a native worker's compiler identity.
 
 Value-transfer statements (`semantics`, `evaluate`, `facts`; DSL 2.2) share

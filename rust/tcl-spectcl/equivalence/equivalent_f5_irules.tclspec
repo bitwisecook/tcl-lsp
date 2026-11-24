@@ -26029,7 +26029,7 @@ clock add [clock seconds] 1 day -timezone :UTC}
     }
 
     subcommand add {
-        arity 1..
+        arity 1.. -step 2
         detail {Add duration to a time.}
         synopsis {clock add timeVal ?count unit ...?}
         available {tcl 8.5-}
@@ -26076,7 +26076,7 @@ clock add [clock seconds] 1 day -timezone :UTC}
     }
 
     subcommand format {
-        arity 1..
+        arity 1.. -step 2
         detail {Format a time value.}
         synopsis {clock format timeVal ?-option value ...?}
         return_type String
@@ -26147,7 +26147,7 @@ clock add [clock seconds] 1 day -timezone :UTC}
     }
 
     subcommand scan {
-        arity 1..
+        arity 1.. -step 2
         detail {Parse a date/time string.}
         synopsis {clock scan inputString ?-option value ...?}
         return_type Int
@@ -26621,6 +26621,7 @@ if {[catch {encoding convertfrom -profile strict -failindex idx ascii $data} res
 
     subcommand convertfrom {
         arity 1..6
+        arity 1..2 -retired 9.0
         detail {Convert data from the specified encoding to a Tcl string; if encoding is omitted, uses the current system encoding.}
         synopsis {encoding convertfrom ?encoding? data}
         traits {UNCONDITIONAL_VARIABLE_WRITE TAINT_SOURCE}
@@ -26639,6 +26640,7 @@ if {[catch {encoding convertfrom -profile strict -failindex idx ascii $data} res
 
     subcommand convertto {
         arity 1..6
+        arity 1..2 -retired 9.0
         detail {Convert a Tcl string to the specified encoding, returning a byte sequence; if encoding is omitted, uses the current system encoding.}
         synopsis {encoding convertto ?encoding? data}
         traits UNCONDITIONAL_VARIABLE_WRITE
@@ -27201,6 +27203,7 @@ string, and returns the string corresponding to the specific field.}
 command global {
     available {tcl 8.4-} {f5-irules}
     traits {LANGUAGE_KEYWORD CREATES_SCOPE_ALIAS ALIASES_GLOBAL CREATES_BARRIER CREATES_DYNAMIC_BARRIER BYTE_COMPILED NOT_PROC_FACTORY FRAMELESS_RUNTIME FRAME_HASH_BUILTIN}
+    arity 1.. -retired 8.6
 
     return_type String
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
@@ -28660,6 +28663,7 @@ command linsert {
     available {tcl 8.4-} {f5-irules}
     traits {CSE_CANDIDATE BYTE_COMPILED FRAMELESS_RUNTIME}
     arity 2..
+    arity 3.. -retired 8.6
 
     return_type List
     inferred_storage_type List
@@ -29881,7 +29885,7 @@ HTTP::redirect instead.}
 command regexp {
     available {tcl 8.4-} {f5-irules}
     traits {CONDITIONAL_VARIABLE_WRITE BYTE_COMPILED FRAME_HASH_BUILTIN}
-    arity 1..
+    arity 2.. -positionals
 
     return_type Int
     var_write_typing Destructured
@@ -30882,7 +30886,7 @@ if {[string first "World" $s] >= 0} {
     }
 
     subcommand compare {
-        arity 2..
+        arity 2..5
         detail {Compare two strings lexicographically.}
         synopsis {string compare ?-nocase? ?-length length? string1 string2}
         return_type Int
@@ -30928,7 +30932,7 @@ if {[string first "World" $s] >= 0} {
     }
 
     subcommand equal {
-        arity 2..
+        arity 2..5
         detail {Test string equality.}
         synopsis {string equal ?-nocase? ?-length length? string1 string2}
         return_type Boolean
@@ -31101,7 +31105,7 @@ if {[string first "World" $s] >= 0} {
     }
 
     subcommand is {
-        arity 2..
+        arity 2..5
         detail {Test if string is a member of a character class.}
         synopsis {string is class ?-strict? ?-failindex varname? string}
         traits CONDITIONAL_VARIABLE_WRITE
@@ -31216,7 +31220,7 @@ if {[string first "World" $s] >= 0} {
     }
 
     subcommand map {
-        arity 2..
+        arity 2..3
         detail {Map substrings via key-value pairs.}
         synopsis {string map ?-nocase? mapping string}
         return_type String
@@ -31265,7 +31269,7 @@ if {[string first "World" $s] >= 0} {
     }
 
     subcommand match {
-        arity 2..
+        arity 2..3
         detail {Test glob-style pattern match.}
         synopsis {string match ?-nocase? pattern string}
         return_type Boolean
@@ -32810,6 +32814,7 @@ The use command is not required on BIG-IP 9.X systems.}
 command variable {
     available {tcl 8.4-} {f5-irules}
     traits {LANGUAGE_KEYWORD CREATES_SCOPE_ALIAS CREATES_BARRIER CREATES_DYNAMIC_BARRIER BYTE_COMPILED NOT_PROC_FACTORY FRAMELESS_RUNTIME FRAME_HASH_BUILTIN}
+    arity 1.. -retired 8.6
 
     return_type String
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL

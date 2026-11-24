@@ -341,7 +341,7 @@ pub fn spec() -> CommandSpec {
         runtime_backing: RuntimeBacking::shipped("fconfigure"),
         surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED | Traits::SAFE_INTERP_HIDDEN,
-        arity: Arity::at_least(1),
+        arity: Arity::stepped(1, Arity::UNLIMITED, 2).with_also_exact(2),
         arg_roles: &[(0, ArgRole::Channel)],
         return_type: Some(TclType::String),
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {

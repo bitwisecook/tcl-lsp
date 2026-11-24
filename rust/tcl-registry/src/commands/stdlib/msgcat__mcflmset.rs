@@ -23,6 +23,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "msgcat::mcflmset",
         surface: Some(SpecSurface::ALL_TCL),
+        lifecycle: Lifecycle::introduced_in("1.5"),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Set multiple translations for the locale of the current message file.",

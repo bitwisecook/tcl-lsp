@@ -23,6 +23,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http::responseInfo",
         surface: Some(SpecSurface::ALL_TCL),
+        lifecycle: Lifecycle::introduced_in("2.10"),
         arity: Arity::exact(1),
         return_type: Some(TclType::Dict),
         hover: Some(HoverSnippet {

@@ -22,7 +22,14 @@ use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testlinkarray",
-        surface: Some(SpecSurface::TCL90_PLUS),
+        surface: Some(
+            const {
+                &[SpecSurface::package_in(
+                    "tcltest-executable",
+                    &[("9.0", None)],
+                )]
+            },
+        ),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Test linked array variables (9.0+).",

@@ -76,6 +76,11 @@ pub struct Gap {
 /// from its source **only** on these keys, and reports any other difference as
 /// a failure.
 pub const GAPS: &[Gap] = &[
+    Gap {
+        key: "source_arity_with_option",
+        spelling: "",
+        kind: GapKind::Excluded,
+    },
     // Only the audited built-in handler may opt into this conditional source
     // phase; a loadable declaration cannot establish the C implementation.
     Gap {

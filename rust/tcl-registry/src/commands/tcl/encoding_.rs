@@ -264,6 +264,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // value, TCL90_PLUS-gated on the options below) can add up to 4
         // more words on top of the mandatory "encoding data" pair.
         arity: Arity::new(1, 6),
+        arity_windows: const {
+            &[crate::arity::ArityWindow {
+                lifecycle: crate::lifecycle::Lifecycle::UNSPECIFIED.retired_from("9.0"),
+                arity: Arity::new(1, 2),
+            }]
+        },
         detail: "Convert data from the specified encoding to a Tcl string; if encoding is omitted, uses the current system encoding.",
         synopsis: "encoding convertfrom ?encoding? data",
         options: CONVERTFROM_OPTIONS,
@@ -290,6 +296,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
         subcommand_forms: CONVERTTO_FORMS,
         traits: Traits::UNCONDITIONAL_VARIABLE_WRITE,
         arity: Arity::new(1, 6),
+        arity_windows: const {
+            &[crate::arity::ArityWindow {
+                lifecycle: crate::lifecycle::Lifecycle::UNSPECIFIED.retired_from("9.0"),
+                arity: Arity::new(1, 2),
+            }]
+        },
         detail: "Convert a Tcl string to the specified encoding, returning a byte sequence; if encoding is omitted, uses the current system encoding.",
         synopsis: "encoding convertto ?encoding? data",
         options: CONVERTTO_OPTIONS,

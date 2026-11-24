@@ -22,7 +22,14 @@ use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testgetopenfile",
-        surface: Some(SpecSurface::TCL8X),
+        surface: Some(
+            const {
+                &[SpecSurface::package_in(
+                    "tcltest-executable",
+                    &[("8.4", Some("8.7"))],
+                )]
+            },
+        ),
         arity: Arity::any(),
         hover: Some(HoverSnippet {
             summary: "Retrieve the FILE* behind a channel (Tcl 8.4-8.6).",

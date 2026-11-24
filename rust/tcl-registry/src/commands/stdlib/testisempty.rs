@@ -22,7 +22,14 @@ use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testisempty",
-        surface: Some(SpecSurface::TCL91),
+        surface: Some(
+            const {
+                &[SpecSurface::package_in(
+                    "tcltest-executable",
+                    &[("9.1", Some("9.2"))],
+                )]
+            },
+        ),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Test whether a value is empty (Tcl 9.1).",

@@ -1104,53 +1104,65 @@ fn tcl_core(default_release: Release) -> CoreProfileSelector {
 /// per-release names stay the generated, stable spellings (Q4).
 fn ladder_environments() -> Vec<EnvironmentDefinition> {
     [
-        (Release::TCL_8_4, "tcl84", "3.4"),
-        (Release::TCL_8_5, "tcl85", "3.4"),
-        (Release::TCL_8_6, "tcl86", "4.2"),
-        (Release::TCL_9_0, "tcl90", "4.2"),
-        (Release::TCL_9_1, "tcl91", "4.2"),
+        (Release::TCL_8_4, "tcl84", "3.4", "2.5.8", "1.3.5", "2.2.11"),
+        (Release::TCL_8_5, "tcl85", "3.4", "2.7.13", "1.5.2", "2.3.8"),
+        (Release::TCL_8_6, "tcl86", "4.2", "2.9.9", "1.6.1", "2.5.11"),
+        (
+            Release::TCL_9_0,
+            "tcl90",
+            "4.2",
+            "2.10.2",
+            "1.7.1",
+            "2.5.11",
+        ),
+        (Release::TCL_9_1, "tcl91", "4.2", "2.10.2", "1.7.1", "2.6.0"),
     ]
     .into_iter()
-    .map(|(release, editor_id, itcl)| EnvironmentDefinition {
-        id: EnvironmentId::new(&format!("tcl{}", release.as_str())),
-        aliases: Vec::new(),
-        display_name: arc(&format!("Tcl {release}")),
-        short_name: arc(&format!("Tcl {release}")),
-        kind: EnvironmentKind::Language,
-        editor_identity: EditorLanguageIdentityId::new(editor_id),
-        selecting_identities: Vec::new(),
-        core: Some(tcl_core(release)),
-        targets: tcl_line(release),
-        expected_packages: vec![
-            // Tk is **hosted** here: a `tclsh8.6` document must
-            // `package require Tk` (W120 nags when it does not), and the
-            // floor rides Tk's **own** package axis — never the Tcl core
-            // axis (invariant I2). `TracksBase` is the one named
-            // exemption ("unless a specific host environment truly
-            // guarantees matched versions"): a *release-pinned* Tcl
-            // environment is exactly that host — the 8.6 distribution
-            // ships Tk 8.6 — so the point on the Tk axis is derived from
-            // the pinned core release. The unpinned environments (`tcl`,
-            // `tk`) claim no such guarantee and carry a bare requirement
-            // instead.
-            PackagePlacement {
-                package: arc("Tk"),
-                version: Placement::TracksBase,
-                ambient: false,
-            },
-            hosted_pin("Itcl", itcl),
-        ],
-        policy_defaults: open_policy(Some(release)),
-        server_detection: DetectionFacts {
-            shebang_words: vec![
-                arc(&format!("tclsh{release}")),
-                arc(&format!("wish{release}")),
+    .map(
+        |(release, editor_id, itcl, http, msgcat, tcltest)| EnvironmentDefinition {
+            id: EnvironmentId::new(&format!("tcl{}", release.as_str())),
+            aliases: Vec::new(),
+            display_name: arc(&format!("Tcl {release}")),
+            short_name: arc(&format!("Tcl {release}")),
+            kind: EnvironmentKind::Language,
+            editor_identity: EditorLanguageIdentityId::new(editor_id),
+            selecting_identities: Vec::new(),
+            core: Some(tcl_core(release)),
+            targets: tcl_line(release),
+            expected_packages: vec![
+                // Tk is **hosted** here: a `tclsh8.6` document must
+                // `package require Tk` (W120 nags when it does not), and the
+                // floor rides Tk's **own** package axis — never the Tcl core
+                // axis (invariant I2). `TracksBase` is the one named
+                // exemption ("unless a specific host environment truly
+                // guarantees matched versions"): a *release-pinned* Tcl
+                // environment is exactly that host — the 8.6 distribution
+                // ships Tk 8.6 — so the point on the Tk axis is derived from
+                // the pinned core release. The unpinned environments (`tcl`,
+                // `tk`) claim no such guarantee and carry a bare requirement
+                // instead.
+                PackagePlacement {
+                    package: arc("Tk"),
+                    version: Placement::TracksBase,
+                    ambient: false,
+                },
+                hosted_pin("Itcl", itcl),
+                hosted_pin("http", http),
+                hosted_pin("msgcat", msgcat),
+                hosted_pin("tcltest", tcltest),
             ],
-            ..DetectionFacts::default()
+            policy_defaults: open_policy(Some(release)),
+            server_detection: DetectionFacts {
+                shebang_words: vec![
+                    arc(&format!("tclsh{release}")),
+                    arc(&format!("wish{release}")),
+                ],
+                ..DetectionFacts::default()
+            },
+            help_terms: arcs(&["tcl", "tk"]),
+            provenance: Provenance::BuiltIn,
         },
-        help_terms: arcs(&["tcl", "tk"]),
-        provenance: Provenance::BuiltIn,
-    })
+    )
     .collect()
 }
 

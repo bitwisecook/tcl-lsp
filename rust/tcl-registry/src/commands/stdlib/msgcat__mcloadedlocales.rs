@@ -23,6 +23,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "msgcat::mcloadedlocales",
         surface: Some(SpecSurface::ALL_TCL),
+        lifecycle: Lifecycle::introduced_in("1.6"),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Return or manage the list of locales that have been loaded.",

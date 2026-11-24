@@ -23,10 +23,10 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcltest::cleanupTests",
         surface: Some(SpecSurface::ALL_TCL),
-        arity: Arity::exact(0),
+        arity: Arity::new(0, 1),
         hover: Some(HoverSnippet {
             summary: "Print statistics and clean up after a test file.",
-            synopsis: &["tcltest::cleanupTests"],
+            synopsis: &["tcltest::cleanupTests ?calledFromAllFile?"],
             snippet: "Call at the end of each test file.  Prints a summary of passed/failed/skipped tests and performs clean-up.",
             source: "Tcl stdlib tcltest package",
             examples: "",

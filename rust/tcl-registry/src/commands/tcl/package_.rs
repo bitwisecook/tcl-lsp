@@ -490,6 +490,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "present",
         arity: Arity::at_least(1),
+        arity_windows: const {
+            &[crate::arity::ArityWindow {
+                lifecycle: crate::lifecycle::Lifecycle::UNSPECIFIED.retired_from("8.5"),
+                arity: Arity::new(1, 2).with_positionals(),
+            }]
+        },
         detail: "Equivalent to package require, except it never attempts to load the package: it only succeeds when a version satisfying the given requirements has already been provided (via package provide) — it does not consult the package ifneeded database or invoke package unknown.",
         synopsis: "package present ?-exact? package ?requirement...?",
         return_type: Some(TclType::String),
@@ -547,6 +553,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
             require_transitions,
         )),
         arity: Arity::at_least(1),
+        arity_windows: const {
+            &[crate::arity::ArityWindow {
+                lifecycle: crate::lifecycle::Lifecycle::UNSPECIFIED.retired_from("8.5"),
+                arity: Arity::new(1, 2).with_positionals(),
+            }]
+        },
         detail: "Ensures a version of package satisfying the given requirements is loaded: if not already provided, evaluates the highest-acceptable package ifneeded script (in the global namespace), falling back to package unknown as a last resort. Returns the loaded version; raises an error if no acceptable version becomes available. The highest acceptable version is selected; from Tcl 8.5, this is subject to the package prefer mode (stable by default, preferring a stable version over an unstable one) — Tcl 8.4 has no package prefer and no stable/unstable distinction, so it always simply picks the highest acceptable version.",
         synopsis: "package require ?-exact? package ?requirement...?",
         return_type: Some(TclType::String),

@@ -22,7 +22,14 @@ use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testpreferstable",
-        surface: Some(SpecSurface::TCL90_PLUS),
+        surface: Some(
+            const {
+                &[SpecSurface::package_in(
+                    "tcltest-executable",
+                    &[("9.0", None)],
+                )]
+            },
+        ),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Test TIP 268 stable-vs-latest preference (9.0+).",

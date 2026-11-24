@@ -14,7 +14,7 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | definition_body | 15 |
 | options | 19 |
 | special_vars | 2 |
-| irreducible | 51 |
+| irreducible | 49 |
 
 | Axis | Until | File | Sites | Waiver | Reason |
 |---|---|---|---|---|---|
@@ -46,8 +46,7 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | irreducible | never | `rust/tcl-compiler/src/command_binding/source_transition_advice/transition_capture.rs` | 2 | site | selects which calls a debug trace logs |
 | irreducible | never | `rust/tcl-compiler/src/parsing/spectcl_source.rs` | 1 | site | the SpecTcl DSL's own include row, which the loader defines |
 | irreducible | never | `rust/tcl-diagram/src/graph.rs` | 12 | file | the diagram IR's own node kinds and branch labels, not Tcl words |
-| irreducible | never | `rust/tcl-expr/src/expr/jim_function_tree.rs` | 1 | file | expression operators, not commands |
-| irreducible | never | `rust/tcl-lsp-core/src/file_uri.rs` | 4 | file | a URI scheme and a home-directory marker, not Tcl words |
+| irreducible | never | `rust/tcl-lsp-core/src/file_uri.rs` | 3 | file | a URI scheme and a home-directory marker, not Tcl words |
 | irreducible | never | `rust/tcl-lsp-core/src/formatting/config.rs` | 1 | site | an editor-settings spelling for `tclLsp.formatting.docstringStyle` (a stub-placement choice), not a Tcl clause-grammar keyword; "body" here coincides with the registry's `ArgRole::Body` word by English spelling only |
 | irreducible | never | `rust/tcl-lsp-core/src/formatting/docstring.rs` | 1 | site | `args` here is a proc's own *formal parameter* name (Tcl's variadic-last-parameter convention, checked against the signature this stub is generated from), not a call to `info args`; the spelling coincides with `info`'s subcommand by coincidence only |
 | irreducible | never | `rust/tcl-lsp-core/src/minify/symbol_map.rs` | 2 | site | `section` is this parser's own section tag, set a few lines up from *this format's own* `# Procs` / `# Variables in …` headers (the `Self::format` writer's own vocabulary for its symbol-map file), not a dispatch on `info procs` / `info variables`; the spelling coincides with `info`'s subcommand names only |
@@ -95,7 +94,7 @@ Every other scanned file with an unwaived site, and its count, which is the pin 
 | `rust/tcl-bigip/src/irule_context.rs` | 6 |
 | `rust/tcl-bigip/src/lint.rs` | 6 |
 | `rust/tcl-bigip/src/model/gen/dispatch.rs` | 16 |
-| `rust/tcl-bigip/src/parser/bespoke.rs` | 28 |
+| `rust/tcl-bigip/src/parser/bespoke.rs` | 27 |
 | `rust/tcl-bigip/src/parser/driver.rs` | 13 |
 | `rust/tcl-bigip/src/pcap_enrich.rs` | 3 |
 | `rust/tcl-bigip/src/policy_eval.rs` | 9 |
@@ -113,7 +112,7 @@ Every other scanned file with an unwaived site, and its count, which is the pin 
 | `rust/tcl-bigip/src/value/port.rs` | 1 |
 | `rust/tcl-bigip/src/value/port_set.rs` | 1 |
 | `rust/tcl-bigip/src/value/snat_mode.rs` | 4 |
-| `rust/tcl-bigip/src/wireshark_profile.rs` | 6 |
+| `rust/tcl-bigip/src/wireshark_profile.rs` | 5 |
 | `rust/tcl-cli/src/commands/diff.rs` | 1 |
 | `rust/tcl-cli/src/commands/graphs.rs` | 1 |
 | `rust/tcl-cli/src/commands/help.rs` | 1 |
@@ -126,10 +125,10 @@ Every other scanned file with an unwaived site, and its count, which is the pin 
 | `rust/tcl-codegen/src/codegen/emitter/bytecoded.rs` | 13 |
 | `rust/tcl-codegen/src/codegen/emitter/ordering.rs` | 2 |
 | `rust/tcl-codegen/src/inlining/mod.rs` | 1 |
-| `rust/tcl-compiler/src/analyser/bounds_checks.rs` | 19 |
+| `rust/tcl-compiler/src/analyser/bounds_checks.rs` | 4 |
 | `rust/tcl-compiler/src/analyser/class_lattice.rs` | 1 |
 | `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` | 6 |
-| `rust/tcl-compiler/src/analyser/diagnostics/validity.rs` | 10 |
+| `rust/tcl-compiler/src/analyser/diagnostics/validity.rs` | 4 |
 | `rust/tcl-compiler/src/analyser/diagnostics/var_command.rs` | 1 |
 | `rust/tcl-compiler/src/analyser/irules_event_checks.rs` | 2 |
 | `rust/tcl-compiler/src/analyser/per_item.rs` | 4 |
@@ -158,7 +157,7 @@ Every other scanned file with an unwaived site, and its count, which is the pin 
 | `rust/tcl-diagram/src/attach.rs` | 2 |
 | `rust/tcl-diagram/src/data.rs` | 4 |
 | `rust/tcl-expr/src/expr/mathfunc.rs` | 6 |
-| `rust/tcl-expr/src/expr/parser.rs` | 43 |
+| `rust/tcl-expr/src/expr/parser.rs` | 15 |
 | `rust/tcl-irules/src/ilx.rs` | 2 |
 | `rust/tcl-irules/src/lib.rs` | 26 |
 | `rust/tcl-lsp-core/src/call_hierarchy.rs` | 4 |

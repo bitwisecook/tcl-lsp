@@ -461,6 +461,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
         name: "close",
         traits: Traits::FIRE_AND_FORGET_TEARDOWN,
         arity: Arity::new(1, 2),
+        arity_windows: const {
+            &[crate::arity::ArityWindow {
+                lifecycle: crate::lifecycle::Lifecycle::UNSPECIFIED.retired_from("8.6"),
+                arity: Arity::exact(1),
+            }]
+        },
         detail: "Close a channel, or (Tcl 8.6+) half-close one direction of a bidirectional channel.",
         synopsis: "chan close channelId ?direction?",
         // Same `Tcl_CloseObjCmd` machinery as the bare `close` (tclIOCmd.c
@@ -483,7 +489,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "configure",
-        arity: Arity::at_least(1),
+        arity: Arity::stepped(1, Arity::UNLIMITED, 2).with_also_exact(2),
         detail: "Get or set channel configuration options; each channel type may add its own options beyond the generic set (see e.g. socket(n), open(n)).",
         synopsis: "chan configure channelId ?-option value ...?",
         arg_roles: &[(0, ArgRole::Channel)],
@@ -501,7 +507,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "copy",
-        arity: Arity::at_least(2),
+        arity: Arity::stepped(2, 6, 2),
         detail: "Copy data between channels, blocking until complete unless -command is given.",
         synopsis: "chan copy inputChan outputChan ?-size size? ?-command callback?",
         arg_roles: &[(0, ArgRole::Channel), (1, ArgRole::Channel)],
@@ -714,7 +720,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "puts",
-        arity: Arity::at_least(1),
+        arity: Arity::new(1, 3),
         arg_role_layout_resolver: Some(super::puts_::puts_layout_roles),
         arg_role_resolver_roles: &[ArgRole::Channel],
         detail: "Write to a channel (default stdout).",

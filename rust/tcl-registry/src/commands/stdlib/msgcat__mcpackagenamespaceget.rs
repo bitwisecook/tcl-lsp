@@ -23,6 +23,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "msgcat::mcpackagenamespaceget",
         surface: Some(SpecSurface::ALL_TCL),
+        lifecycle: Lifecycle::introduced_in("1.7"),
         arity: Arity::exact(0),
         hover: Some(HoverSnippet {
             summary: "Return the package namespace for the calling context.",

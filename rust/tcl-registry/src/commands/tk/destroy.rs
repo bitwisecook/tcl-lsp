@@ -41,11 +41,11 @@ pub fn spec() -> CommandSpec {
         teardown_argument_layout: Some(
             crate::spec::TeardownArgumentLayout::AllEffectivePostHeadArguments,
         ),
-        arity: Arity::at_least(1),
+        arity: Arity::any(),
         hover: Some(HoverSnippet {
-            summary: "Destroy one or more windows and all their descendants.",
+            summary: "Destroy the named windows and all their descendants.",
             synopsis: &["destroy ?window window ...?"],
-            snippet: "Destroys the specified windows and all of their descendants. If the main window (\".\") is destroyed the entire application is terminated.",
+            snippet: "Destroys the specified windows and all of their descendants. With no windows the command does nothing. If the main window (\".\") is destroyed the entire application is terminated.",
             source: "Tk man page destroy.n",
             examples: "",
             return_value: "",

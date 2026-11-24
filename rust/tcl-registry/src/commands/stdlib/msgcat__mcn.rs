@@ -23,6 +23,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "msgcat::mcn",
         surface: Some(SpecSurface::ALL_TCL),
+        lifecycle: Lifecycle::introduced_in("1.7"),
         arity: Arity::at_least(2),
         hover: Some(HoverSnippet {
             summary: "Translate a source string in a given namespace.",

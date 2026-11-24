@@ -24,6 +24,12 @@ pub fn spec() -> CommandSpec {
         name: "http::register",
         surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::new(3, 6),
+        arity_windows: const {
+            &[crate::arity::ArityWindow {
+                lifecycle: crate::lifecycle::Lifecycle::UNSPECIFIED.retired_from("2.10"),
+                arity: Arity::exact(3),
+            }]
+        },
         hover: Some(HoverSnippet {
             summary: "Register a protocol handler (e.g. https) with the http package.",
             synopsis: &["http::register proto defaultport command"],

@@ -24,23 +24,6 @@
 
 namespace eval ::tmm {
     variable _gen_unavailable_modern_commands {
-        ::!
-        ::!=
-        ::%
-        ::&
-        ::*
-        ::**
-        ::+
-        ::-
-        ::/
-        ::<
-        ::<<
-        ::<=
-        ::==
-        ::>
-        ::>=
-        ::>>
-        ::^
         ::alias
         ::apply
         ::callback
@@ -52,15 +35,10 @@ namespace eval ::tmm {
         ::coroutine
         ::dict
         ::divmod
-        ::eq
         ::foreachLine
         ::fpclassify
         ::frexp
-        ::ge
-        ::gt
-        ::in
         ::lassign
-        ::le
         ::ledit
         ::lfilter
         ::link
@@ -70,14 +48,11 @@ namespace eval ::tmm {
         ::lrepeat
         ::lreverse
         ::lseq
-        ::lt
         ::modf
         ::my
         ::mymethod
-        ::ne
         ::next
         ::nextto
-        ::ni
         ::oo::Helpers::callback
         ::oo::Helpers::classvariable
         ::oo::Helpers::link
@@ -144,7 +119,6 @@ namespace eval ::tmm {
         ::tcl::dict::values
         ::tcl::dict::with
         ::tcl::idna
-        ::tcl::mathfunc
         ::tcl::mathfunc::abs
         ::tcl::mathfunc::acos
         ::tcl::mathfunc::acosh
@@ -203,7 +177,6 @@ namespace eval ::tmm {
         ::tcl::mathfunc::tanh
         ::tcl::mathfunc::trunc
         ::tcl::mathfunc::wide
-        ::tcl::mathop
         ::tcl::mathop::!
         ::tcl::mathop::!=
         ::tcl::mathop::%
@@ -242,13 +215,12 @@ namespace eval ::tmm {
         ::timerate
         ::try
         ::unicode
+        ::unload
         ::writeFile
         ::yield
         ::yieldto
         ::zipfs
         ::zlib
-        ::|
-        ::~
     }
     variable _gen_runtime_compiler_refused {
         eof

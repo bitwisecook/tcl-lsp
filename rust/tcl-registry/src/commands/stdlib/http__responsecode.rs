@@ -23,6 +23,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http::responseCode",
         surface: Some(SpecSurface::ALL_TCL),
+        lifecycle: Lifecycle::introduced_in("2.10"),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Return the numeric HTTP response code.",

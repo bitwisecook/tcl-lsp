@@ -22,7 +22,14 @@ use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testbytestring",
-        surface: Some(SpecSurface::TCL86_PLUS),
+        surface: Some(
+            const {
+                &[SpecSurface::package_in(
+                    "tcltest-executable",
+                    &[("8.6", None)],
+                )]
+            },
+        ),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Create a bytestring Tcl_Obj from a string.",

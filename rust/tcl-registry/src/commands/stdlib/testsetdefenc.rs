@@ -22,7 +22,14 @@ use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testsetdefenc",
-        surface: Some(SpecSurface::TCL8X),
+        surface: Some(
+            const {
+                &[SpecSurface::package_in(
+                    "tcltest-executable",
+                    &[("8.4", Some("8.7"))],
+                )]
+            },
+        ),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Set the default encoding search directory (Tcl 8.4-8.6).",

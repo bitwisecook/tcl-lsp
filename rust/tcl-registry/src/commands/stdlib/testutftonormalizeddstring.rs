@@ -22,7 +22,14 @@ use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testutftonormalizeddstring",
-        surface: Some(SpecSurface::TCL91),
+        surface: Some(
+            const {
+                &[SpecSurface::package_in(
+                    "tcltest-executable",
+                    &[("9.1", Some("9.2"))],
+                )]
+            },
+        ),
         arity: Arity::new(3, 4),
         hover: Some(HoverSnippet {
             summary: "Test UTF-8 Unicode normalisation into a DString (Tcl 9.1).",

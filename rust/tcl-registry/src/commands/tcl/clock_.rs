@@ -451,7 +451,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // 8.6.18 clock.n page's unit list has no `weekdays`; it first
         // appears in the 9.0.4 page).
         surface: Some(SpecSurface::TCL85_PLUS),
-        arity: Arity::at_least(1),
+        arity: Arity::stepped(1, Arity::UNLIMITED, 2),
         detail: "Add duration to a time.",
         synopsis: "clock add timeVal ?count unit ...?",
         return_type: Some(TclType::Int),
@@ -487,7 +487,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "format",
         native_compilation: Some(clock_basic_compiler!("format")),
-        arity: Arity::at_least(1),
+        arity: Arity::stepped(1, Arity::UNLIMITED, 2),
         detail: "Format a time value.",
         synopsis: "clock format timeVal ?-option value ...?",
         options: FORMAT_OPTIONS,
@@ -550,7 +550,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "scan",
         native_compilation: Some(clock_basic_compiler!("scan")),
-        arity: Arity::at_least(1),
+        arity: Arity::stepped(1, Arity::UNLIMITED, 2),
         detail: "Parse a date/time string.",
         synopsis: "clock scan inputString ?-option value ...?",
         return_type: Some(TclType::Int),

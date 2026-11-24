@@ -22,7 +22,7 @@ use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "gettimes",
-        surface: Some(SpecSurface::ALL_TCL),
+        surface: Some(const { &[SpecSurface::package("tcltest-executable")] }),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Get timing information for performance testing.",

@@ -688,10 +688,8 @@ fn real_tcl_oracle_distinguishes_default_and_level_zero_return_codes() {
         .stdout(Stdio::piped())
         .spawn()
         .expect("tclsh oracle available");
-    child
-        .stdin
-        .as_mut()
-        .expect("oracle stdin")
+    let stdin = child.stdin.as_mut().expect("oracle stdin");
+    stdin
         .write_all(script.as_bytes())
         .expect("write oracle script");
     let output = child.wait_with_output().expect("wait for tclsh oracle");

@@ -74,3 +74,60 @@ pub fn spec() -> CommandSpec {
         ..CommandSpec::DEFAULT
     }
 }
+
+const LEGACY_PATH_OPERAND: &[crate::arity::ArityWindow] = &[crate::arity::ArityWindow {
+    lifecycle: Lifecycle::UNSPECIFIED.retired_from("8.6"),
+    arity: Arity::at_least(1),
+}];
+
+const fn member(
+    name: &'static str,
+    arity: Arity,
+    arity_windows: &'static [crate::arity::ArityWindow],
+    hover: HoverSnippet,
+) -> CommandSpec {
+    CommandSpec {
+        name,
+        surface: Some(SpecSurface::TCL85_PLUS),
+        arity,
+        arity_windows,
+        hover: Some(hover),
+        ..CommandSpec::DEFAULT
+    }
+}
+
+/// Direct implementations behind the public `tcl::tm::path` ensemble.
+pub fn member_specs() -> [CommandSpec; 3] {
+    [
+        member(
+            "tcl::tm::add",
+            Arity::any(),
+            LEGACY_PATH_OPERAND,
+            HoverSnippet::brief(
+                "Prepend directories to the Tcl module search path.",
+                &["tcl::tm::add ?path ...?"],
+                "Tcl tm(n)",
+            ),
+        ),
+        member(
+            "tcl::tm::list",
+            Arity::exact(0),
+            &[],
+            HoverSnippet::brief(
+                "Return the Tcl module search path.",
+                &["tcl::tm::list"],
+                "Tcl tm(n)",
+            ),
+        ),
+        member(
+            "tcl::tm::remove",
+            Arity::any(),
+            LEGACY_PATH_OPERAND,
+            HoverSnippet::brief(
+                "Remove directories from the Tcl module search path.",
+                &["tcl::tm::remove ?path ...?"],
+                "Tcl tm(n)",
+            ),
+        ),
+    ]
+}

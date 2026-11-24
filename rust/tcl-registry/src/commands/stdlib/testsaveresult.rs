@@ -22,7 +22,14 @@ use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testsaveresult",
-        surface: Some(SpecSurface::TCL8X),
+        surface: Some(
+            const {
+                &[SpecSurface::package_in(
+                    "tcltest-executable",
+                    &[("8.4", Some("9.0"))],
+                )]
+            },
+        ),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Test Tcl_SaveResult / Tcl_RestoreResult.",

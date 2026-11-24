@@ -57,7 +57,7 @@ pub fn spec() -> CommandSpec {
         arg_role_resolver_roles: &[ArgRole::Body],
         return_type: Some(TclType::String),
         subcommands: CLASS_FACTORY_SUBCOMMANDS,
-        allow_unknown_subcommands: true,
+        prefix_matching: PrefixMatching::Strict,
         // Bodies of `oo::configurable create / new / createWithNamespace`
         // run in a TclOO definition context (not the caller's frame),
         // exactly like `oo::class`.

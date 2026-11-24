@@ -81,6 +81,12 @@ pub fn spec() -> CommandSpec {
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME | Traits::BYTE_COMPILED | Traits::CSE_CANDIDATE,
         arity: Arity::at_least(2),
+        arity_windows: const {
+            &[crate::arity::ArityWindow {
+                lifecycle: crate::lifecycle::Lifecycle::UNSPECIFIED.retired_from("8.6"),
+                arity: Arity::at_least(3),
+            }]
+        },
         return_type: Some(TclType::List),
         inferred_storage_type: Some(StorageType::List),
         hover: Some(HoverSnippet {

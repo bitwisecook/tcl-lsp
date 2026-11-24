@@ -23,6 +23,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "msgcat::mcpackagelocale",
         surface: Some(SpecSurface::ALL_TCL),
+        lifecycle: Lifecycle::introduced_in("1.6"),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Get, set, or manage the locale for the calling package.",

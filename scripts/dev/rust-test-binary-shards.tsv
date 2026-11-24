@@ -65,6 +65,7 @@
 3	tcl-cmd-core	lib	tcl-cmd-core	tcl_cmd_core
 3	tcl-codegen	lib	tcl-codegen	tcl_codegen
 3	tcl-codegen::it_3	test	tcl-codegen	it_3
+3	tcl-compiler::command_definitions	test	tcl-compiler	command_definitions
 3	tcl-compiler::command_resolution_conformance	test	tcl-compiler	command_resolution_conformance
 3	tcl-compiler::it_3	test	tcl-compiler	it_3
 3	tcl-compiler::native_arithmetic_conformance	test	tcl-compiler	native_arithmetic_conformance

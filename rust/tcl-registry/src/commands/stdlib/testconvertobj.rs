@@ -22,7 +22,14 @@ use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testconvertobj",
-        surface: Some(SpecSurface::TCL84),
+        surface: Some(
+            const {
+                &[SpecSurface::package_in(
+                    "tcltest-executable",
+                    &[("8.4", Some("8.5"))],
+                )]
+            },
+        ),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Force conversion of a value to a named internal type (Tcl 8.4 only).",

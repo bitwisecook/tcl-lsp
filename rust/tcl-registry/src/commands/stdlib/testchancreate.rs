@@ -22,7 +22,14 @@ use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testchancreate",
-        surface: Some(SpecSurface::TCL91),
+        surface: Some(
+            const {
+                &[SpecSurface::package_in(
+                    "tcltest-executable",
+                    &[("9.1", Some("9.2"))],
+                )]
+            },
+        ),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Create a reflected test channel (Tcl 9.1).",

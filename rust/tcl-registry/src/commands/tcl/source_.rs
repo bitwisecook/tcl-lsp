@@ -217,6 +217,12 @@ pub fn spec() -> CommandSpec {
         // Exact selected forms own argv counts. The shared file selector
         // validates native option grammar before any file is read.
         arity: Arity::new(1, 3),
+        arity_windows: const {
+            &[crate::arity::ArityWindow {
+                lifecycle: crate::lifecycle::Lifecycle::UNSPECIFIED.retired_from("8.5"),
+                arity: Arity::exact(1),
+            }]
+        },
         command_forms: COMMAND_FORMS,
         body_execution: Some(crate::body_execution::BodyExecutionSpec::SourceFile),
         return_type: Some(TclType::String),

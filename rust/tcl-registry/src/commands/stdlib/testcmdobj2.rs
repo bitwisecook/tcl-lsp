@@ -22,7 +22,14 @@ use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testcmdobj2",
-        surface: Some(SpecSurface::TCL90_PLUS),
+        surface: Some(
+            const {
+                &[SpecSurface::package_in(
+                    "tcltest-executable",
+                    &[("9.0", None)],
+                )]
+            },
+        ),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Test the Tcl_CreateObjCommand2 dispatch path (Tcl 9.0+).",

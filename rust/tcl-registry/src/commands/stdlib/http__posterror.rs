@@ -23,6 +23,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http::postError",
         surface: Some(SpecSurface::ALL_TCL),
+        lifecycle: Lifecycle::introduced_in("2.10"),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Return the post-request error message, if any.",

@@ -22,7 +22,7 @@ use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testfilehandler",
-        surface: Some(SpecSurface::ALL_TCL),
+        surface: Some(const { &[SpecSurface::package("tcltest-executable")] }),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Exercise the Tcl_CreateFileHandler notifier API.",

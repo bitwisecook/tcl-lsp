@@ -103,7 +103,8 @@ const REGISTRY_OPTION_VALUES: &[ArgValue] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "registry",
-        surface: Some(SpecSurface::ALL_TCL),
+        surface: Some(const { &[SpecSurface::package("registry")] }),
+        required_package: Some("registry"),
         arity: Arity::new(2, 5),
         return_type: Some(TclType::String),
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {

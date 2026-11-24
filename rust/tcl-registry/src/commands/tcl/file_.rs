@@ -238,6 +238,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
         }),
         traits: Traits::FIRE_AND_FORGET_TEARDOWN,
         arity: Arity::at_least(0),
+        arity_windows: const {
+            &[crate::arity::ArityWindow {
+                lifecycle: crate::lifecycle::Lifecycle::UNSPECIFIED.retired_from("8.6"),
+                arity: Arity::at_least(1),
+            }]
+        },
         detail: "Removes the file or directory specified by each pathname argument. A non-empty directory is removed only with -force. Operates on a symbolic link itself, never its target. A non-existent pathname is not an error; a read-only file is still deleted regardless of -force.",
         synopsis: "file delete ?-force? ?--? ?pathname ...?",
         return_type: Some(TclType::String),
@@ -476,6 +482,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
             tcl_dialect::TclVersion::V8_6,
         )),
         arity: Arity::new(1, 2),
+        arity_windows: const {
+            &[crate::arity::ArityWindow {
+                lifecycle: crate::lifecycle::Lifecycle::UNSPECIFIED.retired_from("9.0"),
+                arity: Arity::exact(2),
+            }]
+        },
         detail: "Same as stat except uses the lstat kernel call instead of stat, so a symbolic link name reports information about the link itself rather than its target. varName is optional from Tcl 9.0 on; omitting it returns a dict of the stat fields instead of populating the array and returning an empty string (mandatory in 8.4-8.6).",
         synopsis: "file lstat name ?varName?",
         return_type: Some(TclType::String),
@@ -512,6 +524,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ..StateTransitionDescriptor::EMPTY
         }),
         arity: Arity::at_least(0),
+        arity_windows: const {
+            &[crate::arity::ArityWindow {
+                lifecycle: crate::lifecycle::Lifecycle::UNSPECIFIED.retired_from("8.6"),
+                arity: Arity::at_least(1),
+            }]
+        },
         detail: "Creates each directory specified, including any non-existing parent directories. An already-existing directory is not an error. Halts at the first error, if any, leaving earlier directories (processed in the order given) created.",
         synopsis: "file mkdir ?dir ...?",
         return_type: Some(TclType::String),
@@ -796,6 +814,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
             tcl_dialect::TclVersion::V8_6,
         )),
         arity: Arity::new(1, 2),
+        arity_windows: const {
+            &[crate::arity::ArityWindow {
+                lifecycle: crate::lifecycle::Lifecycle::UNSPECIFIED.retired_from("9.0"),
+                arity: Arity::exact(2),
+            }]
+        },
         detail: "Invokes the stat kernel call on name. If varName is given, populates it as an array with atime/ctime/dev/gid/ino/mode/mtime/nlink/size/type/uid elements and returns an empty string. From Tcl 9.0, varName may be omitted, in which case the same fields are returned directly as a dict (mandatory in 8.4-8.6, where the array form is the only form).",
         synopsis: "file stat name ?varName?",
         return_type: Some(TclType::String),

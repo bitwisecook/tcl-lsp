@@ -23,6 +23,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "msgcat::mcpackageconfig",
         surface: Some(SpecSurface::ALL_TCL),
+        lifecycle: Lifecycle::introduced_in("1.6"),
         arity: Arity::at_least(2),
         hover: Some(HoverSnippet {
             summary: "Get or set per-package configuration options.",

@@ -29,10 +29,11 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http::registerError",
         surface: Some(SpecSurface::ALL_TCL),
-        arity: Arity::exact(1),
+        lifecycle: Lifecycle::introduced_in("2.9"),
+        arity: Arity::new(1, 2),
         hover: Some(HoverSnippet {
             summary: "Register or retrieve an error message for a protocol handler.",
-            synopsis: &["http::registerError token"],
+            synopsis: &["http::registerError sock ?msg?"],
             snippet: "",
             source: "Tcl stdlib http package",
             examples: "",

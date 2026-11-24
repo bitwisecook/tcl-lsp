@@ -202,7 +202,7 @@ pub fn spec() -> CommandSpec {
         // none plausibly ships a `TCL_MEM_DEBUG` build either, but there is no
         // evidence (and no available mechanism) to model that here
         // per-dialect, so this stays available across every real-Tcl surface.
-        surface: Some(SpecSurface::ALL_TCL),
+        surface: Some(const { &[SpecSurface::package("tcl-mem-debug")] }),
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
         return_type: Some(TclType::String),

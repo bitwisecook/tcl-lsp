@@ -23,6 +23,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http::requestHeaders",
         surface: Some(SpecSurface::ALL_TCL),
+        lifecycle: Lifecycle::introduced_in("2.10"),
         arity: Arity::new(1, 2),
         return_type: Some(TclType::List),
         hover: Some(HoverSnippet {

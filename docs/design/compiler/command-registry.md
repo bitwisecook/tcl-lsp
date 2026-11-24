@@ -2143,3 +2143,24 @@ exception, runtime lookup or successful handler/Native/equivalence grant is
 introduced. This repairs the concrete invalid CommandSpec field projection in
 the pending dictionary layout packet; source checks alone do not establish
 compilation, round-trip or diagnostic efficacy.
+
+
+## Tcl and Tk command definition conformance
+
+The [definition matrix](../../work/name-handling/handover/oo-dispatch-probe/definitions/README.md)
+compares registry-backed source diagnostics against pinned Tcl and Tk
+releases, Jim and selected Tcllib packages. Versioned Tcl environments carry
+bundled `http`, `msgcat` and `tcltest` versions on their own package axes.
+A Tk `destroy` with no window operands does nothing. Tcl's operator commands
+live in the exported `::tcl::mathop` namespace, and `::tcl::mathfunc` contains
+the commands that supply expression functions.
+
+The C test-executable catalogue is selected by the host provider
+`tcltest-executable`, versioned on the Tcl release line. The debug allocator
+command similarly requires a `tcl-mem-debug` provider. Ordinary
+`package require tcltest` supplies the Tcl script testing package.
+
+The public callback inventory follows the metaclasses’ exported methods.
+`oo::class new` and `createWithNamespace` on the four metaclasses are
+reachable only through object-local dispatch, so they are absent from the
+public callback baseline.

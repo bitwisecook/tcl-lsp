@@ -22,7 +22,7 @@ use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testalarm",
-        surface: Some(SpecSurface::ALL_TCL),
+        surface: Some(const { &[SpecSurface::package("tcltest-executable")] }),
         arity: Arity::new(0, 1),
         hover: Some(HoverSnippet {
             summary: "Schedule a SIGALRM to test the async-signal machinery.",

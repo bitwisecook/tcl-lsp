@@ -49,15 +49,12 @@
 use crate::prelude::*;
 use tcl_dialect::model::SpecSurface;
 const FORMS: &[FormSpec] = &[FormSpec {
-    synopsis: "link linkName ?linkName ...?",
+    synopsis: "link ?linkName ...?",
     ..FormSpec::DEFAULT
 }];
 const HOVER: HoverSnippet = HoverSnippet {
     summary: "expose a method as a bareword command in the object's own namespace",
-    synopsis: &[
-        "link linkName ?linkName ...?",
-        "link {linkName targetName} ?...?",
-    ],
+    synopsis: &["link ?linkName ...?", "link {linkName targetName} ?...?"],
     snippet: "The link command is used within the body of a method, constructor, or destructor to create a command in the object's own private namespace that invokes a method on the current object. Each linkName is either a plain name (aliasing to the method of the same name) or a two-element list {linkName targetName} aliasing linkName to a differently-named method.",
     source: "Tcl man page link.n",
     examples: "",
@@ -75,7 +72,7 @@ pub fn spec() -> CommandSpec {
             .union(Traits::TCLOO_REQUIRES_METHOD_FRAME)
             .union(Traits::TCLOO_BINDS_METHOD_ALIAS),
         surface: Some(SpecSurface::TCL90_PLUS),
-        arity: Arity::at_least(1),
+        arity: Arity::any(),
         return_type: Some(TclType::String),
         hover: Some(HOVER),
         forms: FORMS,
@@ -95,7 +92,7 @@ pub fn spec_ooutil_86() -> CommandSpec {
             .union(Traits::TCLOO_REQUIRES_METHOD_FRAME)
             .union(Traits::TCLOO_BINDS_METHOD_ALIAS),
         surface: Some(SpecSurface::TCL86),
-        arity: Arity::at_least(1),
+        arity: Arity::any(),
         return_type: Some(TclType::String),
         hover: Some(HOVER),
         forms: FORMS,

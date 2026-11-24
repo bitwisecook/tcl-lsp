@@ -22,7 +22,14 @@ use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testaccessproc",
-        surface: Some(SpecSurface::TCL84),
+        surface: Some(
+            const {
+                &[SpecSurface::package_in(
+                    "tcltest-executable",
+                    &[("8.4", Some("8.5"))],
+                )]
+            },
+        ),
         arity: Arity::exact(2),
         hover: Some(HoverSnippet {
             summary: "Install or remove a test access(2) hook proc (Tcl 8.4 only).",

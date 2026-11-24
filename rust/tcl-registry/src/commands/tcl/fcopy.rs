@@ -65,7 +65,7 @@ pub fn spec() -> CommandSpec {
         }),
         surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED,
-        arity: Arity::at_least(2),
+        arity: Arity::stepped(2, 6, 2),
         arg_roles: &[(0, ArgRole::Channel), (1, ArgRole::Channel)],
         return_type: Some(TclType::Int),
         side_effects: crate::knowledge::Knowledge::Partial(&[SideEffect {

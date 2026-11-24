@@ -23,6 +23,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "msgcat::mcforgetpackage",
         surface: Some(SpecSurface::ALL_TCL),
+        lifecycle: Lifecycle::introduced_in("1.6"),
         arity: Arity::exact(0),
         hover: Some(HoverSnippet {
             summary: "Remove all translations for the calling package.",

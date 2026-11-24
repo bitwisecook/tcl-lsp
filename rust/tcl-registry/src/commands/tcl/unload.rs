@@ -120,7 +120,7 @@ pub fn spec() -> CommandSpec {
         // above (which nothing else in the test suite depends on), and the
         // per-option `dialects` below are set precisely rather than inheriting
         // this field's overly-permissive lower bound.
-        surface: Some(SpecSurface::ALL_TCL),
+        surface: Some(SpecSurface::TCL85_PLUS),
         // BYTE_COMPILED: `unload` is a recognised core Tcl builtin — the
         // same literal-command-word convention `load` (its direct
         // sibling, same manpage family) already carries.

@@ -13,8 +13,8 @@ Rows are commands and subcommands. Each domain is counted as unknown / partial /
 | expect | 35 | 35 / 0 / 0 | 35 / 0 / 0 | 35 / 0 / 0 | 35 / 0 / 0 | 35 / 0 / 0 | 35 / 0 / 0 | 35 / 0 / 0 | 0 / 0 / 0 / 0 / 0 |
 | iapps | 49 | 49 / 0 / 0 | 49 / 0 / 0 | 49 / 0 / 0 | 49 / 0 / 0 | 49 / 0 / 0 | 49 / 0 / 0 | 49 / 0 / 0 | 0 / 0 / 0 / 0 / 0 |
 | irules | 1286 | 11 / 1275 / 0 | 1282 / 4 / 0 | 1286 / 0 / 0 | 1286 / 0 / 0 | 1285 / 1 / 0 | 1282 / 4 / 0 | 1078 / 208 / 0 | 0 / 0 / 0 / 0 / 0 |
-| stdlib | 257 | 234 / 23 / 0 | 255 / 2 / 0 | 257 / 0 / 0 | 257 / 0 / 0 | 256 / 1 / 0 | 255 / 2 / 0 | 256 / 1 / 0 | 0 / 0 / 0 / 0 / 0 |
-| tcl | 700 | 99 / 347 / 254 | 380 / 66 / 254 | 415 / 31 / 254 | 435 / 11 / 254 | 393 / 92 / 215 | 380 / 66 / 254 | 638 / 62 / 0 | 35 / 175 / 180 / 203 / 251 |
+| stdlib | 262 | 239 / 23 / 0 | 260 / 2 / 0 | 262 / 0 / 0 | 262 / 0 / 0 | 261 / 1 / 0 | 260 / 2 / 0 | 261 / 1 / 0 | 0 / 0 / 0 / 0 / 0 |
+| tcl | 669 | 94 / 344 / 231 | 377 / 61 / 231 | 407 / 31 / 231 | 427 / 11 / 231 | 390 / 87 / 192 | 377 / 61 / 231 | 608 / 61 / 0 | 35 / 156 / 161 / 180 / 228 |
 | tcllib | 1770 | 1593 / 156 / 21 | 1749 / 0 / 21 | 1748 / 1 / 21 | 1749 / 0 / 21 | 1749 / 0 / 21 | 1749 / 0 / 21 | 1770 / 0 / 0 | 0 / 21 / 21 / 21 / 21 |
 | tk | 771 | 0 / 771 / 0 | 771 / 0 / 0 | 771 / 0 / 0 | 771 / 0 / 0 | 208 / 563 / 0 | 771 / 0 / 0 | 548 / 223 / 0 | 0 / 0 / 0 / 0 / 0 |
 
@@ -98,73 +98,50 @@ Every row pure at some Tcl release, with the windows its four domains are comple
 | tcl | `tcl::mathop::*` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::/` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::/` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
-| tcl | `%` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::%` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::%` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
-| tcl | `**` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::**` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::**` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
-| tcl | `<<` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::<<` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::<<` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
-| tcl | `>>` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::>>` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::>>` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
-| tcl | `&` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::&` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::&` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
-| tcl | `|` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::|` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::|` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
-| tcl | `^` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::^` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::^` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
-| tcl | `==` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::==` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::==` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
-| tcl | `!=` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::!=` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::!=` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
-| tcl | `<` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::<` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::<` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
-| tcl | `<=` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::<=` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::<=` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
-| tcl | `>` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::>` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::>` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
-| tcl | `>=` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::>=` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::>=` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
-| tcl | `eq` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::eq` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::eq` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
-| tcl | `ne` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::ne` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::ne` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
-| tcl | `lt` | 9.0 9.1 | `{9.0 9.1}` |
 | tcl | `tcl::mathop::lt` | 9.0 9.1 | `{9.0 9.1}` |
 | tcl | `tcl::mathop::lt` | 9.0 9.1 | `{9.0 9.1}` |
-| tcl | `le` | 9.0 9.1 | `{9.0 9.1}` |
 | tcl | `tcl::mathop::le` | 9.0 9.1 | `{9.0 9.1}` |
 | tcl | `tcl::mathop::le` | 9.0 9.1 | `{9.0 9.1}` |
-| tcl | `gt` | 9.0 9.1 | `{9.0 9.1}` |
 | tcl | `tcl::mathop::gt` | 9.0 9.1 | `{9.0 9.1}` |
 | tcl | `tcl::mathop::gt` | 9.0 9.1 | `{9.0 9.1}` |
-| tcl | `ge` | 9.0 9.1 | `{9.0 9.1}` |
 | tcl | `tcl::mathop::ge` | 9.0 9.1 | `{9.0 9.1}` |
 | tcl | `tcl::mathop::ge` | 9.0 9.1 | `{9.0 9.1}` |
-| tcl | `in` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::in` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::in` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
-| tcl | `ni` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::ni` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::ni` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
-| tcl | `~` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::~` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::~` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
-| tcl | `!` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::!` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathop::!` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
 | tcl | `tcl::mathfunc::abs` | 8.5 8.6 9.0 9.1 | `{8.5 9.1}` |
@@ -494,6 +471,11 @@ Rows authored pure before purity was derived (`formerly_pure.tsv`) that no evide
 | stdlib | `tcl_startOfPreviousWord` | no source evidence for `stdlib` |
 | stdlib | `tcl_wordBreakAfter` | no source evidence for `stdlib` |
 | stdlib | `tcl_wordBreakBefore` | no source evidence for `stdlib` |
+| tcl | `!` | no C entry |
+| tcl | `!=` | no C entry |
+| tcl | `%` | no C entry |
+| tcl | `&` | no C entry |
+| tcl | `**` | no C entry |
 | tcl | `tcl::dict::create` | no C entry |
 | tcl | `tcl::idna decode` | no C entry |
 | tcl | `tcl::idna encode` | no C entry |
@@ -512,6 +494,14 @@ Rows authored pure before purity was derived (`formerly_pure.tsv`) that no evide
 | tcl | `tcl::unsupported::grapheme offset` | open: `unresolved:GraphemeNext:utf8proc_grapheme_break_stateful` |
 | tcl | `tcl::unsupported::grapheme range` | open: `unresolved:GraphemeNext:utf8proc_grapheme_break_stateful` |
 | tcl | `tcl::unsupported::grapheme reverse` | open: `unresolved:GraphemeNext:utf8proc_grapheme_break_stateful` |
+| tcl | `<` | no C entry |
+| tcl | `<<` | no C entry |
+| tcl | `<=` | no C entry |
+| tcl | `==` | no C entry |
+| tcl | `>` | no C entry |
+| tcl | `>=` | no C entry |
+| tcl | `>>` | no C entry |
+| tcl | `^` | no C entry |
 | tcl | `after info` | open: `channels:Tcl_Flush` |
 | tcl | `auto_qualify` | no C entry |
 | tcl | `binary decode` | no C entry |
@@ -534,6 +524,7 @@ Rows authored pure before purity was derived (`formerly_pure.tsv`) that no evide
 | tcl | `dict getd` | no C entry |
 | tcl | `encoding names` | open: `encodings:Tcl_GetEncodingNames` |
 | tcl | `encoding user` | open: `encodings:Tcl_GetEncoding` |
+| tcl | `eq` | no C entry |
 | tcl | `file dirname` | open: `filesystem:Tcl_FSGetPathType` |
 | tcl | `file join` | open: `filesystem:TclGetPathType` |
 | tcl | `file nativename` | open: `filesystem:Tcl_FSGetTranslatedPath` |
@@ -542,6 +533,9 @@ Rows authored pure before purity was derived (`formerly_pure.tsv`) that no evide
 | tcl | `file split` | open: `filesystem:Tcl_FSSplitPath` |
 | tcl | `file tail` | open: `filesystem:Tcl_FSGetPathType` |
 | tcl | `fpclassify` | open: `unresolved:ClassifyDouble:fpclassify` |
+| tcl | `ge` | no C entry |
+| tcl | `gt` | no C entry |
+| tcl | `in` | no C entry |
 | tcl | `info args` | open: `commands:TclFindProc` |
 | tcl | `info body` | open: `commands:TclFindProc` |
 | tcl | `info class` | no C entry |
@@ -577,8 +571,10 @@ Rows authored pure before purity was derived (`formerly_pure.tsv`) that no evide
 | tcl | `interp issafe` | no C entry |
 | tcl | `interp slaves` | no C entry |
 | tcl | `interp target` | no C entry |
+| tcl | `le` | no C entry |
 | tcl | `lsearch` | open: `unresolved:RegExpExecUniChar:TclReExec` |
 | tcl | `lseq` | open: `unresolved:TclMSB:_BitScanReverse64` |
+| tcl | `lt` | no C entry |
 | tcl | `memory info` | no C entry |
 | tcl | `namespace children` | open: `interpreter:TclGetCurrentNamespace:varFramePtr` |
 | tcl | `namespace code` | open: `interpreter:TclGetCurrentNamespace:varFramePtr` |
@@ -587,6 +583,8 @@ Rows authored pure before purity was derived (`formerly_pure.tsv`) that no evide
 | tcl | `namespace origin` | open: `commands:TclGetOriginalCommand` |
 | tcl | `namespace parent` | open: `interpreter:TclGetCurrentNamespace:varFramePtr` |
 | tcl | `namespace which` | open: `commands:Tcl_GetCommandFromObj` |
+| tcl | `ne` | no C entry |
+| tcl | `ni` | no C entry |
 | tcl | `oo::Helpers::self` | no C entry |
 | tcl | `package files` | no C entry |
 | tcl | `package list` | no C entry |
@@ -613,6 +611,8 @@ Rows authored pure before purity was derived (`formerly_pure.tsv`) that no evide
 | tcl | `zlib deflate` | open: `channels:fprintf` |
 | tcl | `zlib gzip` | open: `channels:fprintf` |
 | tcl | `zlib inflate` | open: `channels:fprintf` |
+| tcl | `|` | no C entry |
+| tcl | `~` | no C entry |
 | tcllib | `ascii85::decode` | no source evidence for `tcllib` |
 | tcllib | `ascii85::encode` | no source evidence for `tcllib` |
 | tcllib | `base32::decode` | no source evidence for `tcllib` |
@@ -983,7 +983,7 @@ Rows authored pure before purity was derived (`formerly_pure.tsv`) that no evide
 
 ## Pure under Tcl 8.4, not evidenced for F5
 
-An iRules call resolves at the F5 iRules and F5 Tcl releases, which descend from Tcl 8.4 by a fork whose source is not available, so the core-Tcl evidence does not close them. These 36 rows were authored pure and are pure at Tcl 8.4, and are not pure under `f5-irules`; `docs/work/name-handling/bigip-name-checks.md` check 33 is the device test that would evidence them. A further 927 rows authored pure under `f5-irules` (iRules commands and core rows not closed at 8.4) have no evidence at all.
+An iRules call resolves at the F5 iRules and F5 Tcl releases, which descend from Tcl 8.4 by a fork whose source is not available, so the core-Tcl evidence does not close them. These 36 rows were authored pure and are pure at Tcl 8.4, and are not pure under `f5-irules`; `docs/work/name-handling/bigip-name-checks.md` check 33 is the device test that would evidence them. A further 902 rows authored pure under `f5-irules` (iRules commands and core rows not closed at 8.4) have no evidence at all.
 
 `concat`, `file extension`, `file rootname`, `format`, `info complete`, `info sharedlibextension`, `join`, `lindex`, `linsert`, `list`, `llength`, `lrange`, `lreplace`, `namespace qualifiers`, `namespace tail`, `split`, `string bytelength`, `string compare`, `string equal`, `string first`, `string index`, `string last`, `string length`, `string map`, `string match`, `string range`, `string repeat`, `string replace`, `string tolower`, `string totitle`, `string toupper`, `string trim`, `string trimleft`, `string trimright`, `string wordend`, `string wordstart`
 

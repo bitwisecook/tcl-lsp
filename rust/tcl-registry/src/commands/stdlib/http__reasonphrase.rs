@@ -23,6 +23,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http::reasonPhrase",
         surface: Some(SpecSurface::ALL_TCL),
+        lifecycle: Lifecycle::introduced_in("2.10"),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Return the standard reason phrase for an HTTP status code.",

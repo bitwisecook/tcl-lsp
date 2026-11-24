@@ -72,13 +72,13 @@ mod msgcat__mcset;
 mod msgcat__mcunknown;
 mod msgcat__mcutil;
 mod noop;
-mod pkg__create;
 mod pkg_mkindex;
 mod platform__generic;
 mod platform__identify;
 mod platform__patterns;
 mod platform__shell__generic;
 mod platform__shell__identify;
+mod reference_library_helpers;
 mod safe__interpaddtoaccesspath;
 mod safe__interpconfigure;
 mod safe__interpcreate;
@@ -282,6 +282,8 @@ pub fn stdlib_command_specs() -> Vec<CommandSpec> {
     specs.extend(msgcat_specs());
     specs.extend(pkg_platform_safe_specs());
     specs.extend(tcl_namespace_specs());
+    specs.extend(tcl__tm__path::member_specs());
+    specs.extend(reference_library_helpers::specs());
     specs.extend(tcltest_specs());
     specs.extend(test_harness_specs());
     specs.extend(test_harness_specs_h_w());
@@ -355,7 +357,6 @@ fn msgcat_specs() -> Vec<CommandSpec> {
 /// `pkg::*`, `platform::*`, and `safe::*` interpreter families.
 fn pkg_platform_safe_specs() -> Vec<CommandSpec> {
     vec![
-        pkg__create::spec(),
         pkg_mkindex::spec(),
         platform__generic::spec(),
         platform__identify::spec(),

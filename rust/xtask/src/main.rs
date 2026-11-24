@@ -499,6 +499,9 @@ enum Command {
     #[command(name = "owner-resolution")]
     OwnerResolution,
 
+    /// Compare the registry and analyser with pinned Tcl, Tk, Jim and Tcllib.
+    DefinitionsGate,
+
     /// Flag a command recognised by name on the value axis, and generate or
     /// verify the registry's value-transfer inventory
     /// (`docs/generated/value-transfers.md`).
@@ -716,6 +719,7 @@ fn dispatch(command: Command) -> anyhow::Result<ExitCode> {
         Command::CatalogueCallers { check } => Ok(catalogue_callers::run(check)),
         Command::FileSizes { check } => file_sizes::run(check),
         Command::OwnerResolution => owner_resolution::run(),
+        Command::DefinitionsGate => definitions_gate(),
         Command::ValueTransfers { check } => value_transfers::run(check),
         Command::RegistryAxes { check } => registry_axes::run(check),
         Command::SemanticsMatrix { check } => semantics_matrix::run(check),
@@ -750,4 +754,33 @@ fn dispatch(command: Command) -> anyhow::Result<ExitCode> {
             examples,
         } => fp_sweep::run(&codes, &corpus, examples),
     }
+}
+
+fn definitions_gate() -> anyhow::Result<ExitCode> {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let directory = std::env::var_os("TCL_LSP_DEFINITIONS_WORK").map_or_else(
+        || root.join("tmp/command-definitions"),
+        std::path::PathBuf::from,
+    );
+    std::fs::create_dir_all(&directory)?;
+    let directory = directory.canonicalize()?;
+    let status = std::process::Command::new(env!("CARGO"))
+        .current_dir(root)
+        .args([
+            "test",
+            "--locked",
+            "-p",
+            "tcl-compiler",
+            "--test",
+            "command_definitions",
+            "--",
+            "--nocapture",
+        ])
+        .env("TCL_LSP_DEFINITIONS_WORK", directory)
+        .status()?;
+    Ok(if status.success() {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    })
 }

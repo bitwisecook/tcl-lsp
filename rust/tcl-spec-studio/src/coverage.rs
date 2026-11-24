@@ -170,7 +170,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         name: _,
         pack_source_sandbox_helper: _, traits: _,
         surface: _,
-        arity: _, arity_windows: _,
+        arity: _, source_arity_with_option: _, arity_windows: _,
         arg_roles: _,
         arg_role_resolver: _,
         arg_role_count_resolver: _,
@@ -316,6 +316,12 @@ pub const COMMAND_SPEC: &[Field] = &[
     f("traits", Surface::Key("traits")),
     f("surface", Surface::Key("surface")),
     f("arity", Surface::Key("arity")),
+    f(
+        "source_arity_with_option",
+        Surface::Excluded(
+            "The stock source arity checker selects this alternate shape from the leading option run.",
+        ),
+    ),
     f("arity_windows", Surface::Key("arity_windows")),
     f("arg_roles", Surface::Key("arg_roles")),
     f("arg_role_resolver", Surface::Key("arg_role_resolver")),

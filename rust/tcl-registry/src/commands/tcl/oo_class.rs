@@ -36,12 +36,6 @@ const CLASS_NAMED_CREATE_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
     StateTransitionDomain::ObjectDispatch,
 ];
 
-const CLASS_EXPLICIT_NAMESPACE_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
-    StateTransitionDomain::Namespaces,
-    StateTransitionDomain::VariableCells,
-    StateTransitionDomain::ObjectDispatch,
-];
-
 const CLASS_INTERP_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[
     TransitionEffectCoverage {
         source: WorldEffectWriteSource::LegacySideEffect(SideEffectTarget::InterpState),
@@ -98,27 +92,6 @@ const CLASS_NEW_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescript
     commit: StateTransitionCommit::OnOkOnly,
 };
 
-const CLASS_CREATE_WITH_NAMESPACE_TRANSITIONS: StateTransitionDescriptor =
-    StateTransitionDescriptor {
-        logical_source_resolver: None,
-        composition: StateTransitionComposition::Extend,
-        success_resolver: None,
-        resolver: Some(class_create_with_namespace_state_transitions),
-        argument_shape: StateTransitionArgumentShape::Positional,
-        dynamic_widening: &[
-            StateTransitionWideningRule {
-                operands: StateTransitionOperandLayout::Indices(&[1]),
-                domains: CLASS_NAMED_CREATE_TRANSITION_DOMAINS,
-            },
-            StateTransitionWideningRule {
-                operands: StateTransitionOperandLayout::Indices(&[2]),
-                domains: CLASS_EXPLICIT_NAMESPACE_TRANSITION_DOMAINS,
-            },
-        ],
-        effect_coverage: CLASS_INTERP_EFFECT_COVERAGE,
-        commit: StateTransitionCommit::OnOkOnly,
-    };
-
 fn push_named_class_creation(
     transitions: &mut StateTransitions,
     target: TransitionSubject,
@@ -165,24 +138,6 @@ fn class_new_state_transitions(_arguments: InvocationArguments<'_>) -> StateTran
     transitions
 }
 
-fn class_create_with_namespace_state_transitions(
-    arguments: InvocationArguments<'_>,
-) -> StateTransitions {
-    let mut transitions = StateTransitions::default();
-    let (Some(target), Some(private_namespace)) = (
-        TransitionSubject::from_argument(arguments, 1),
-        TransitionSubject::from_argument(arguments, 2),
-    ) else {
-        return transitions;
-    };
-    push_named_class_creation(
-        &mut transitions,
-        target,
-        ObjectPrivateNamespace::Named(private_namespace),
-    );
-    transitions
-}
-
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
     writes: true,
@@ -194,72 +149,42 @@ const FORMS: &[FormSpec] = &[FormSpec {
     ..FormSpec::DEFAULT
 }];
 
-/// The three class-manufacturing methods `class.n` documents for
-/// `oo::class` — non-exhaustive completion/hover data only, never
-/// `closed_value_args`: `oo::class` is itself an ordinary `TclOO`
-/// object, so it also answers to every method `oo::object` defines
-/// (`destroy`, …) and to any method grafted on afterwards (e.g. via
-/// `oo::objdefine`), neither of which belongs in a fixed enum here.
-const CLASS_METHOD_VALUES: &[ArgValue] = &[
-    ArgValue {
-        value: "create",
-        detail: "Create a new instance named name, passing the optional definition script to oo::define. Returns the fully qualified object name.",
-        ..ArgValue::DEFAULT
-    },
-    ArgValue {
-        value: "new",
-        detail: "Create a new instance with an automatically generated unique name. Not exported on oo::class itself — new classes should be made with create.",
-        ..ArgValue::DEFAULT
-    },
-    ArgValue {
-        value: "createWithNamespace",
-        detail: "Non-exported: like create, but the instance's internal namespace is explicitly named nsName instead of being auto-generated.",
-        ..ArgValue::DEFAULT
-    },
-];
+const CREATE: SubCommand = SubCommand {
+    name: "create",
+    arity: Arity::new(1, 2),
+    detail: "Create a named class, optionally evaluating a definition body.",
+    synopsis: "oo::class create name ?definition?",
+    arg_roles: &[(0, ArgRole::Name), (1, ArgRole::Body)],
+    body_kind: BodyKind::Structural,
+    return_type: Some(TclType::String),
+    defines_command_at: Some(0),
+    world_effects: crate::knowledge::Knowledge::Partial(CLASS_FACTORY_EFFECTS),
+    state_transitions: crate::knowledge::Knowledge::Partial(CLASS_CREATE_TRANSITIONS),
+    ..SubCommand::DEFAULT
+};
 
-pub(crate) const CLASS_FACTORY_SUBCOMMANDS: &[SubCommand] = &[
-    SubCommand {
-        name: "create",
-        arity: Arity::new(1, 2),
-        detail: "Create a named class, optionally evaluating a definition body.",
-        synopsis: "oo::class create name ?definition?",
-        arg_roles: &[(0, ArgRole::Name), (1, ArgRole::Body)],
-        body_kind: BodyKind::Structural,
-        return_type: Some(TclType::String),
-        defines_command_at: Some(0),
-        world_effects: crate::knowledge::Knowledge::Partial(CLASS_FACTORY_EFFECTS),
-        state_transitions: crate::knowledge::Knowledge::Partial(CLASS_CREATE_TRANSITIONS),
-        ..SubCommand::DEFAULT
-    },
-    SubCommand {
-        name: "new",
-        arity: Arity::new(0, 1),
-        detail: "Create an automatically named class, optionally evaluating a definition body.",
-        synopsis: "oo::class new ?definition?",
-        arg_roles: &[(0, ArgRole::Body)],
-        body_kind: BodyKind::Structural,
-        return_type: Some(TclType::String),
-        world_effects: crate::knowledge::Knowledge::Partial(CLASS_FACTORY_EFFECTS),
-        state_transitions: crate::knowledge::Knowledge::Partial(CLASS_NEW_TRANSITIONS),
-        ..SubCommand::DEFAULT
-    },
-    SubCommand {
-        name: "createWithNamespace",
-        arity: Arity::new(2, 3),
-        detail: "Create a named class with an explicitly named private namespace.",
-        synopsis: "oo::class createWithNamespace name nsName ?definition?",
-        arg_roles: &[(0, ArgRole::Name), (1, ArgRole::Name), (2, ArgRole::Body)],
-        body_kind: BodyKind::Structural,
-        return_type: Some(TclType::String),
-        defines_command_at: Some(0),
-        world_effects: crate::knowledge::Knowledge::Partial(CLASS_FACTORY_EFFECTS),
-        state_transitions: crate::knowledge::Knowledge::Partial(
-            CLASS_CREATE_WITH_NAMESPACE_TRANSITIONS,
-        ),
-        ..SubCommand::DEFAULT
-    },
-];
+const NEW: SubCommand = SubCommand {
+    name: "new",
+    arity: Arity::new(0, 1),
+    detail: "Create an automatically named class, optionally evaluating a definition body.",
+    synopsis: "oo::class new ?definition?",
+    arg_roles: &[(0, ArgRole::Body)],
+    body_kind: BodyKind::Structural,
+    return_type: Some(TclType::String),
+    world_effects: crate::knowledge::Knowledge::Partial(CLASS_FACTORY_EFFECTS),
+    state_transitions: crate::knowledge::Knowledge::Partial(CLASS_NEW_TRANSITIONS),
+    ..SubCommand::DEFAULT
+};
+const DESTROY: SubCommand = SubCommand {
+    name: "destroy",
+    arity: Arity::exact(0),
+    detail: "Destroy the class.",
+    synopsis: "oo::class destroy",
+    ..SubCommand::DEFAULT
+};
+
+const ROOT_CLASS_SUBCOMMANDS: &[SubCommand] = &[CREATE, DESTROY];
+pub(crate) const CLASS_FACTORY_SUBCOMMANDS: &[SubCommand] = &[CREATE, DESTROY, NEW];
 
 /// Resolve the body argument index for the metaclass shapes:
 ///
@@ -299,8 +224,8 @@ pub fn spec() -> CommandSpec {
         arg_role_resolver: Some(oo_class_arg_roles),
         arg_role_resolver_roles: &[ArgRole::Body],
         return_type: Some(TclType::String),
-        subcommands: CLASS_FACTORY_SUBCOMMANDS,
-        allow_unknown_subcommands: true,
+        subcommands: ROOT_CLASS_SUBCOMMANDS,
+        prefix_matching: PrefixMatching::Strict,
         // Bodies of `oo::class create / new / createWithNamespace`
         // run in a TclOO definition context (not the caller's frame).
         body_kind: BodyKind::Structural,
@@ -309,16 +234,14 @@ pub fn spec() -> CommandSpec {
             synopsis: &[
                 "oo::class method ?arg ...?",
                 "oo::class create name ?definition?",
-                "oo::class new ?definition?",
-                "oo::class createWithNamespace name nsName ?definition?",
+                "oo::class destroy",
             ],
             snippet: "Classes are objects that manufacture other objects according to a pattern stored in the factory object (the class): create makes an instance with an explicit name, new makes one with an automatically generated unique name. oo::class is the class of all classes — every class, including oo::class itself, is an instance of oo::class, and oo::class is a subclass of oo::object, so every class is also an object. oo::class hides its own new method on itself, so a brand-new class should always be made with create; a class made that way still exports a normal, working new of its own for creating instances. The constructor takes a single optional argument, passed on to oo::define together with the new class's name, so a class body can be supplied directly at creation time. There is no explicit destructor: destroying a class also destroys all its subclasses, instances, and any objects it has been mixed into. The non-exported createWithNamespace method behaves like create but additionally lets the caller name the instance's internal namespace explicitly.",
             source: "Tcl man page class.n",
             examples: "oo::class create fruit {\n    method eat {} {\n        puts \"yummy!\"\n    }\n}\noo::class create banana {\n    superclass fruit\n    constructor {} {\n        my variable peeled\n        set peeled 0\n    }\n    method peel {} {\n        my variable peeled\n        set peeled 1\n        puts \"skin now off\"\n    }\n    method edible? {} {\n        my variable peeled\n        return $peeled\n    }\n    method eat {} {\n        if {![my edible?]} {\n            my peel\n        }\n        next\n    }\n}\nset b [banana new]\n$b eat    ;# prints \"skin now off\" and \"yummy!\"\nfruit destroy\n$b eat    ;# error \"unknown command\"",
-            return_value: "The fully qualified name of the newly created class for create, new, and createWithNamespace; otherwise whatever the invoked method returns.",
+            return_value: "The fully qualified name of the newly created class for create; destroy returns an empty string.",
         }),
         forms: FORMS,
-        arg_values: &[(0, CLASS_METHOD_VALUES)],
         side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
         definition_body: Some(&crate::definer::TCLOO_GRAMMAR),
         manufacturer_methods: crate::definer::TCLOO_ROOT_CLASS_MANUFACTURERS,
@@ -500,26 +423,6 @@ mod tests {
                     .widens(StateTransitionDomain::CommandBindings)
             );
         }
-    }
-
-    #[test]
-    fn create_with_namespace_retains_explicit_private_identity() {
-        let registry = CommandRegistry::build_default();
-        let transitions = registry
-            .resolve_invocation(
-                "oo::class",
-                &["createWithNamespace", "::C", "::private::C", "{}"],
-                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
-            )
-            .expect("createWithNamespace must resolve")
-            .state_transitions();
-        assert!(transitions.facts().iter().any(|fact| matches!(
-            &fact.transition,
-            StateTransition::ObjectDispatch(ObjectDispatchTransition::Create {
-                private_namespace: ObjectPrivateNamespace::Named(namespace),
-                ..
-            }) if namespace.literal() == Some("::private::C")
-        )));
     }
 
     #[test]

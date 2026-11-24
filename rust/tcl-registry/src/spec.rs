@@ -345,6 +345,10 @@ pub struct CommandSpec {
     /// covers it).
     pub arity: Arity,
 
+    /// Alternate source arity when a specific leading option is present.
+    /// Selection uses the same option scan as positional argument counting.
+    pub source_arity_with_option: Option<(&'static str, Arity)>,
+
     /// Per-release signature shapes, for a command whose arity changed across
     /// its owning package's releases.
     ///

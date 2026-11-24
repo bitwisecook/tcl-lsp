@@ -299,18 +299,8 @@ pub fn spec() -> CommandSpec {
         traits: Traits::BYTE_COMPILED
             | Traits::FRAME_HASH_BUILTIN
             | Traits::CONDITIONAL_VARIABLE_WRITE,
-        // The post-switch positional floor is 2 (`exp`, `string`) in the
-        // general case, but `-about` relaxes it to 1 (`exp` alone) —
-        // confirmed unchanged from Tcl 8.4 (`core-8-4-20`) through 9.0.4's
-        // `Tcl_RegexpObjCmd` (`generic/tclCmdMZ.c`):
-        // `if ((objc - i) < (2 - about)) { ...wrong # args... }`, where
-        // `about` is 1 when `-about` was given, 0 otherwise. `Arity` has
-        // no per-switch axis, so the floor here is the loosest of the two
-        // (1, not 2) to avoid a false "too few arguments" on a legitimate
-        // `regexp -about exp` call; a plain `regexp somePattern` (missing
-        // `string`, no `-about`) is consequently not caught by this
-        // coarse check.
-        arity: Arity::at_least(1),
+        arity: Arity::at_least(2).with_positionals(),
+        source_arity_with_option: Some(("-about", Arity::at_least(1).with_positionals())),
         // `Tcl_RegexpObjCmd` uses `TCL_EXACT`: unlike the common
         // Tcl_GetIndexFromObj tables, `-sta` is an error rather than -start.
         prefix_matching: PrefixMatching::Strict,

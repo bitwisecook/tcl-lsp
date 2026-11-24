@@ -57,7 +57,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "bell",
         surface: Some(SpecSurface::TK_AND_TCL),
-        arity: Arity::at_least(0),
+        arity: Arity::new(0, 3),
         hover: Some(HoverSnippet {
             summary: "Ring the display's bell.",
             synopsis: &["bell ?-displayof window? ?-nice?"],

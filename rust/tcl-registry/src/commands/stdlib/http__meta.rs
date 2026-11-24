@@ -24,6 +24,12 @@ pub fn spec() -> CommandSpec {
         name: "http::meta",
         surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::exact(1),
+        arity_windows: const {
+            &[crate::arity::ArityWindow {
+                lifecycle: crate::lifecycle::Lifecycle::introduced_in("2.10"),
+                arity: Arity::new(1, 2),
+            }]
+        },
         hover: Some(HoverSnippet {
             summary: "Return the HTTP response headers as a dict-like list.",
             synopsis: &["http::meta token"],
@@ -32,6 +38,13 @@ pub fn spec() -> CommandSpec {
             examples: "",
             return_value: "",
         }),
+        forms: const {
+            &[FormSpec {
+                synopsis: "http::meta token ?headerName?",
+                lifecycle: crate::lifecycle::Lifecycle::introduced_in("2.10"),
+                ..FormSpec::DEFAULT
+            }]
+        },
         required_package: Some("http"),
         deprecated_replacement: Some("http::responseHeaders"),
         ..CommandSpec::DEFAULT

@@ -161,6 +161,12 @@ pub fn spec() -> CommandSpec {
         // on the common case; see FORMS above for the version-split
         // synopsis text.
         arity: Arity::any(),
+        arity_windows: const {
+            &[crate::arity::ArityWindow {
+                lifecycle: crate::lifecycle::Lifecycle::UNSPECIFIED.retired_from("8.6"),
+                arity: Arity::at_least(1),
+            }]
+        },
         arg_roles: &[(0, ArgRole::VarWrite)],
         repeated_args: REPEATED,
         assigns_variable_at: Some(0),

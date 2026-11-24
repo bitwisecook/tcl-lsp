@@ -318,7 +318,7 @@ if printf '%s\n' "$aggregate_run" | grep -Fq 'exit 0'; then
     fail 'aggregate run must not unconditionally succeed'
 fi
 
-expected_release_needs='[channel, pr-gate, rust-tests, rust-tests-heavy, spectcl-compat, lsp-server-wasm, lsp-e2e, cargo-deny, python, web-frontends]'
+expected_release_needs='[channel, pr-gate, rust-tests, rust-tests-heavy, spectcl-compat, lsp-server-wasm, lsp-e2e, cargo-deny, python, web-frontends, command-definitions]'
 [ "$(needs_sequence "$create_release")" = "$expected_release_needs" ] ||
     fail 'create-release must retain the exact stable release-gate dependency set'
 

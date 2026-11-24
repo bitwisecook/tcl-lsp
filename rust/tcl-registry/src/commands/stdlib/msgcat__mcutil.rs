@@ -23,6 +23,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "msgcat::mcutil",
         surface: Some(SpecSurface::ALL_TCL),
+        lifecycle: Lifecycle::introduced_in("1.7"),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Utility subcommands for the message catalogue system.",

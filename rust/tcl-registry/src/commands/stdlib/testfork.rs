@@ -22,7 +22,14 @@ use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testfork",
-        surface: Some(SpecSurface::TCL85_PLUS),
+        surface: Some(
+            const {
+                &[SpecSurface::package_in(
+                    "tcltest-executable",
+                    &[("8.5", Some("9.2"))],
+                )]
+            },
+        ),
         arity: Arity::exact(0),
         hover: Some(HoverSnippet {
             summary: "fork(2) the process (Tcl 8.5+).",

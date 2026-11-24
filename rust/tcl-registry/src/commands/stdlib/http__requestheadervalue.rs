@@ -23,6 +23,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http::requestHeaderValue",
         surface: Some(SpecSurface::ALL_TCL),
+        lifecycle: Lifecycle::introduced_in("2.10"),
         arity: Arity::exact(2),
         hover: Some(HoverSnippet {
             summary: "Return the value of a specific HTTP request header.",

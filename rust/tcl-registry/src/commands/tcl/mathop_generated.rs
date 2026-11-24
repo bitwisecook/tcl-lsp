@@ -19,7 +19,7 @@
 //! `tcl::mathop` operator ensemble.
 //!
 //! Each operator with a real `::tcl::mathop` command form is registered in
-//! three spellings (bare `+`, `tcl::mathop::+`, `::tcl::mathop::+`).
+//! two spellings (`tcl::mathop::+`, `::tcl::mathop::+`).
 //! **Derived** from `tcl_syntax::expr::operators` (`BinOp::spec()`/
 //! `UnaryOp::spec()`) — the single source of truth for which operators
 //! exist, their dialect gating, and whether they have a mathop command form
@@ -71,8 +71,8 @@ pub fn specs() -> Vec<CommandSpec> {
         .clone()
 }
 
-/// The three spellings a mathop operator command is invocable under.
-const PREFIXES: [&str; 3] = ["", "tcl::mathop::", "::tcl::mathop::"];
+/// The two qualified spellings a mathop operator command is invocable under.
+const PREFIXES: [&str; 2] = ["tcl::mathop::", "::tcl::mathop::"];
 
 /// Push a `CommandSpec` for each spelling of `spec`, or nothing at all when
 /// `spec` has no `::tcl::mathop` command form (`mathop_shape: None` — `&&`,
@@ -91,14 +91,7 @@ fn push_spellings(out: &mut Vec<CommandSpec>, spec: OperatorSpec) {
         ));
         out.push(CommandSpec {
             name,
-            // The two qualified spellings are real commands the runtime
-            // registers (`cmd_mathop.rs`); the bare operator word is grammar
-            // evaluated inside `expr`, which nothing dispatches as a command.
-            runtime_backing: if prefix.is_empty() {
-                RuntimeBacking::None
-            } else {
-                RuntimeBacking::shipped(name)
-            },
+            runtime_backing: RuntimeBacking::shipped(name),
             // The `::tcl::mathop` command ensemble was added in Tcl 8.5 (TIP
             // 174), so every operator *command* has an 8.5+ floor even when
             // its `OperatorSpec.surface` is `None` ("no gate beyond mathop's
@@ -123,6 +116,7 @@ fn push_spellings(out: &mut Vec<CommandSpec>, spec: OperatorSpec) {
             // for a redundancy *diagnostic*, which is a policy call about
             // user-visible noise rather than a fact about the command.
             traits: Traits::OPERATOR_COMMAND,
+            is_namespace_exported: true,
             arity,
             native_compilation:
                 crate::native_mathop_compilation::NativeMathOperator::from_spelling(spec.spelling)

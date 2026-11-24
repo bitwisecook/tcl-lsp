@@ -678,10 +678,6 @@
       "location": "arg[1]"
     },
     {
-      "owner": "oo::abstract createWithNamespace",
-      "location": "arg[2]"
-    },
-    {
       "owner": "oo::abstract new",
       "location": "arg[0]"
     },
@@ -694,24 +690,12 @@
       "location": "arg[1]"
     },
     {
-      "owner": "oo::class createWithNamespace",
-      "location": "arg[2]"
-    },
-    {
-      "owner": "oo::class new",
-      "location": "arg[0]"
-    },
-    {
       "owner": "oo::configurable",
       "location": "dynamic-arg-role"
     },
     {
       "owner": "oo::configurable create",
       "location": "arg[1]"
-    },
-    {
-      "owner": "oo::configurable createWithNamespace",
-      "location": "arg[2]"
     },
     {
       "owner": "oo::configurable new",
@@ -732,10 +716,6 @@
     {
       "owner": "oo::singleton create",
       "location": "arg[1]"
-    },
-    {
-      "owner": "oo::singleton createWithNamespace",
-      "location": "arg[2]"
     },
     {
       "owner": "oo::singleton new",

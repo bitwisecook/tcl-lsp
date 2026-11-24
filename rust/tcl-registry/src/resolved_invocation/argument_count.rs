@@ -185,10 +185,9 @@ impl<'r> ResolvedInvocation<'r, '_> {
             let count = self.authored_source_count_for_arity(arity)?;
             (!count.indeterminate).then_some(arity.accepts(count.minimum))
         };
-        let (forms, arity) = source.subcommand.map_or(
-            (source.command.command_forms, source.command.arity),
-            |sub| (sub.subcommand_forms, sub.arity),
-        );
+        let forms = source
+            .subcommand
+            .map_or(source.command.command_forms, |sub| sub.subcommand_forms);
         let admitted = forms
             .iter()
             .filter(|form| {
@@ -197,7 +196,7 @@ impl<'r> ResolvedInvocation<'r, '_> {
             })
             .collect::<Vec<_>>();
         if admitted.is_empty() {
-            return accepts(arity);
+            return accepts(source.arity);
         }
         let mut decided = Some(false);
         for form in admitted {
@@ -244,14 +243,24 @@ impl<'r> ResolvedInvocation<'r, '_> {
             },
             SubCommand::primary_synopsis,
         );
+        let mut arity = self.semantics.arity;
+        if selected.subcommand.is_none()
+            && let Some((option, alternative)) = selected.command.source_arity_with_option
+            && self
+                .semantics
+                .options
+                .prefix_contains(self.words.arguments(), option)?
+        {
+            arity = alternative;
+        }
         Some(AuthoredSourceArity {
             command: selected.command,
             subcommand: selected.subcommand,
-            arity: self.semantics.arity,
+            arity,
             windows,
             missing_subcommand,
             synopsis,
-            count: self.authored_source_count_for_arity(self.semantics.arity)?,
+            count: self.authored_source_count_for_arity(arity)?,
         })
     }
 

@@ -24,6 +24,12 @@ pub fn spec() -> CommandSpec {
         name: "msgcat::mcpreferences",
         surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::at_least(0),
+        arity_windows: const {
+            &[crate::arity::ArityWindow {
+                lifecycle: crate::lifecycle::Lifecycle::UNSPECIFIED.retired_from("1.7"),
+                arity: Arity::exact(0),
+            }]
+        },
         hover: Some(HoverSnippet {
             summary: "Return the ordered list of locale preferences.",
             synopsis: &["msgcat::mcpreferences ?locale ...?"],

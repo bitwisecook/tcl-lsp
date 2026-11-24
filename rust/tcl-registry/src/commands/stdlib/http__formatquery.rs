@@ -23,10 +23,16 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http::formatQuery",
         surface: Some(SpecSurface::ALL_TCL),
-        arity: Arity::at_least(2),
+        arity: Arity::any(),
+        arity_windows: const {
+            &[crate::arity::ArityWindow {
+                lifecycle: crate::lifecycle::Lifecycle::introduced_in("2.9"),
+                arity: Arity::stepped(0, Arity::UNLIMITED, 2),
+            }]
+        },
         hover: Some(HoverSnippet {
             summary: "Generate an x-url-encoded query string from key/value pairs.",
-            synopsis: &["http::formatQuery key value ?key value ...?"],
+            synopsis: &["http::formatQuery ?key value ...?"],
             snippet: "Takes alternating key/value arguments and returns a properly URL-encoded query string suitable for use as a ``-query`` value in ``http::geturl``.",
             source: "Tcl stdlib http package",
             examples: "",

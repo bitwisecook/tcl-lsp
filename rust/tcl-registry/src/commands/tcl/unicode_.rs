@@ -96,7 +96,7 @@ const fn normalise_sub(
 ) -> SubCommand {
     SubCommand {
         name,
-        arity: Arity::new(1, 3),
+        arity: Arity::stepped(1, 3, 2),
         detail,
         synopsis,
         options: &PROFILE_OPTIONS,

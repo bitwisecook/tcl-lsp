@@ -22,7 +22,14 @@ use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testpostinit",
-        surface: Some(SpecSurface::TCL91),
+        surface: Some(
+            const {
+                &[SpecSurface::package_in(
+                    "tcltest-executable",
+                    &[("9.1", Some("9.2"))],
+                )]
+            },
+        ),
         arity: Arity::exact(0),
         hover: Some(HoverSnippet {
             summary: "Run the post-initialisation test hook (Tcl 9.1).",

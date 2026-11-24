@@ -1,0 +1,121 @@
+# first Tcl line	last Tcl line	verdict	source (\n separates setup from the call)
+8.4	9.1	ok	package require Tk\ndestroy
+8.4	9.1	arity	package require Tk\nbell -displayof . -nice extra
+8.4	9.1	ok	package require http\nhttp::formatQuery
+8.4	8.5	ok	package require http\nhttp::formatQuery a
+8.6	9.1	arity	package require http\nhttp::formatQuery a
+8.4	8.6	arity	package require http\nhttp::meta tok header
+9.0	9.1	ok	package require http\nhttp::meta tok header
+9.0	9.1	arity	package require http\nhttp::meta tok header extra
+8.6	9.1	ok	package require http\nhttp::registerError sock msg
+8.4	9.1	ok	package require tcltest\ntcltest::cleanupTests 0
+8.4	9.1	ok	puts -nonewline stdout x
+8.4	8.6	ok	puts stdout x nonewline
+9.0	9.1	arity	puts stdout x nonewline
+9.0	9.1	ok	oo::class create Example {method run {} {link}}
+8.6	9.1	unknown	tcl::mathop
+8.6	9.1	unknown	tcl::mathfunc
+8.6	9.1	unknown	+ 1 2
+8.6	9.1	ok	::tcl::mathop::+ 1 2
+8.6	9.1	ok	namespace import ::tcl::mathop::*\n+ 1 2
+8.6	9.1	ok	namespace path ::tcl::mathop\n+ 1 2
+8.6	9.1	unknown	http
+8.6	9.1	unknown	filename
+8.6	9.1	unknown	disabled_in_irules
+8.6	9.1	unknown	pkg_mkindex .
+8.6	9.1	unknown	package require tcltest\nnoop
+8.6	9.1	unknown	memory info
+8.6	9.1	unknown	registry keys x
+8.6	9.1	unknown	bgerror message
+8.6	9.1	unknown	next
+8.6	9.1	unknown	my method
+8.6	9.1	unknown	self method
+8.4	8.4	unknown	unload x
+8.5	9.1	ok	unload x
+8.4	8.5	unknown	package require msgcat\nmsgcat::mcexists x
+8.6	9.1	ok	package require msgcat\nmsgcat::mcexists x
+8.4	8.4	unknown	package require msgcat\nmsgcat::mcflset a b
+8.5	9.1	ok	package require msgcat\nmsgcat::mcflset a b
+8.4	8.6	unknown	package require msgcat\nmsgcat::mcn a b c
+9.0	9.1	ok	package require msgcat\nmsgcat::mcn 1 a b
+8.4	8.6	unknown	package require http\nhttp::responseBody x
+9.0	9.1	ok	package require http\nhttp::responseBody x
+8.4	8.5	unknown	package require http\nhttp::quoteString x
+8.6	9.1	ok	package require http\nhttp::quoteString x
+8.6	8.6	unknown	::oo::Helpers::link
+9.0	9.1	ok	::oo::Helpers::link
+9.0	9.1	unavailable	package require tcltest\ntcltest::bytestring x
+8.6	9.1	subcommand	oo::class new
+8.6	9.1	subcommand	oo::class createWithNamespace C ::Private
+9.0	9.1	subcommand	oo::abstract createWithNamespace C ::Private
+9.0	9.1	subcommand	oo::configurable createWithNamespace C ::Private
+9.0	9.1	subcommand	oo::singleton createWithNamespace C ::Private
+9.0	9.1	ok	oo::configurable new
+8.4	8.4	arity	catch {} result options
+8.5	9.1	ok	catch {} result options
+8.4	8.5	arity	close stdin read
+8.6	9.1	ok	close stdin read
+8.5	8.5	arity	chan close stdin read
+8.6	9.1	ok	chan close stdin read
+8.4	8.5	arity	linsert {} 0
+8.6	9.1	ok	linsert {} 0
+8.5	8.5	arity	lrepeat 2
+8.6	9.1	ok	lrepeat 2
+8.4	8.4	arity	source -encoding utf-8 script.tcl
+8.5	9.1	ok	source -encoding utf-8 script.tcl
+8.4	8.4	arity	package require PackageDefinitionProbe 1.0 2.0
+8.5	9.1	ok	package require PackageDefinitionProbe 1.0 2.0
+8.4	8.5	arity	file delete
+8.6	9.1	ok	file delete
+8.4	8.5	arity	file mkdir
+8.6	9.1	ok	file mkdir
+8.4	8.5	arity	glob
+8.6	9.1	ok	glob
+8.4	8.5	arity	global
+8.6	9.1	ok	global
+8.4	8.5	arity	variable
+8.6	9.1	ok	variable
+8.4	8.6	arity	file stat .
+9.0	9.1	ok	file stat .
+8.4	8.6	arity	file lstat .
+9.0	9.1	ok	file lstat .
+8.4	8.6	arity	encoding convertfrom -profile strict utf-8 a
+9.0	9.1	ok	encoding convertfrom -profile strict utf-8 a
+8.4	8.6	arity	encoding convertto -profile strict utf-8 a
+9.0	9.1	ok	encoding convertto -profile strict utf-8 a
+8.4	8.6	arity	package require http\nhttp::register x 80 callback variable
+9.0	9.1	ok	package require http\nhttp::register x 80 callback variable
+8.4	8.6	arity	package require msgcat\nmsgcat::mcpreferences en
+9.0	9.1	ok	package require msgcat\nmsgcat::mcpreferences en
+9.1	9.1	arity	unicode tonfc -profile strict
+9.1	9.1	ok	unicode tonfc -profile strict abc
+8.4	9.1	ok	fconfigure stdout -blocking
+8.4	9.1	arity	fconfigure stdout -blocking 1 -translation
+8.5	9.1	ok	chan configure stdout -blocking
+8.5	9.1	arity	chan configure stdout -blocking 1 -translation
+8.4	9.1	arity	fcopy stdin stdout -size
+8.5	9.1	arity	chan copy stdin stdout -size
+8.5	9.1	arity	clock add 0 1
+8.4	9.1	arity	clock format 0 -format
+8.4	9.1	arity	clock scan today -gmt
+8.6	9.1	arity	zlib gunzip x -headerVar
+8.5	9.1	arity	pkg::create -name foo -version 1 -load x -source
+8.5	9.1	arity	chan puts -nonewline stdout x more
+8.4	9.1	arity	string compare -nocase -nocase -nocase -nocase a b
+8.4	9.1	arity	string equal -nocase -nocase -nocase -nocase a b
+8.4	9.1	arity	string is integer -strict -strict -strict -strict 1
+8.4	9.1	arity	string map -nocase -nocase {a b} a
+8.4	9.1	arity	string match -nocase -nocase x x
+8.4	9.1	arity	regexp x
+8.4	9.1	ok	regexp -nocase -about x
+8.4	9.1	arity	if 1
+8.4	8.4	unknown	tcl::tm::add .
+8.5	9.1	ok	tcl::tm::add .
+8.5	9.1	ok	tcl::tm::remove .
+8.5	9.1	ok	tcl::tm::list
+8.4	9.1	ok	package require http\nhttp::mapReply a
+8.4	8.4	ok	pkg_compareExtension filename
+8.5	9.1	unknown	pkg_compareExtension filename
+8.4	8.4	ok	tclLdAout
+8.6	8.6	option	regsub -command {x} x {list} out
+8.4	9.1	value	proc worker {} {}\ntrace add command worker {rename write} callback

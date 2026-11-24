@@ -136,6 +136,12 @@ pub fn spec() -> CommandSpec {
         // where at least one element is required — see the two FORMS
         // entries below and the module comment.
         arity: Arity::at_least(1),
+        arity_windows: const {
+            &[crate::arity::ArityWindow {
+                lifecycle: crate::lifecycle::Lifecycle::UNSPECIFIED.retired_from("8.6"),
+                arity: Arity::at_least(2),
+            }]
+        },
         return_type: Some(TclType::List),
         inferred_storage_type: Some(StorageType::List),
         hover: Some(HoverSnippet {

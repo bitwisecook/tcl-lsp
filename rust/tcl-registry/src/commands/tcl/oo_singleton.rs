@@ -72,7 +72,7 @@ pub fn spec() -> CommandSpec {
         arg_role_resolver_roles: &[ArgRole::Body],
         return_type: Some(TclType::String),
         subcommands: CLASS_FACTORY_SUBCOMMANDS,
-        allow_unknown_subcommands: true,
+        prefix_matching: PrefixMatching::Strict,
         // Bodies of `oo::singleton create / new / createWithNamespace`
         // run in a TclOO definition context, exactly like `oo::class`.
         body_kind: BodyKind::Structural,

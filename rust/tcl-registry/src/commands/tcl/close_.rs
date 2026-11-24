@@ -97,6 +97,12 @@ pub fn spec() -> CommandSpec {
         // W302 suppression keys off this trait.
         traits: Traits::BYTE_COMPILED | Traits::FIRE_AND_FORGET_TEARDOWN,
         arity: Arity::new(1, 2),
+        arity_windows: const {
+            &[crate::arity::ArityWindow {
+                lifecycle: crate::lifecycle::Lifecycle::UNSPECIFIED.retired_from("8.6"),
+                arity: Arity::exact(1),
+            }]
+        },
         arg_roles: &[(0, ArgRole::Channel)],
         return_type: Some(TclType::String),
         // Closing a command-pipeline channel (`open |...`) also waits for the

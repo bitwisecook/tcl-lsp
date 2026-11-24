@@ -311,7 +311,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // "declare the write unconditionally since the static spec can't
         // see whether a call actually passes the option" convention as
         // `encoding convertfrom`'s -failindex.
-        arity: Arity::new(1, 3),
+        arity: Arity::stepped(1, 3, 2),
         detail: "Return the uncompressed contents of string, which must be gzip-format data.",
         synopsis: "zlib gunzip string ?-headerVar varName?",
         options: GUNZIP_OPTIONS,

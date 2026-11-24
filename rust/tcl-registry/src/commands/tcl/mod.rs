@@ -64,7 +64,6 @@ mod auto_mkindex;
 mod auto_mkindex_old;
 mod auto_qualify;
 mod auto_reset;
-mod bgerror;
 mod binary_;
 mod break_;
 mod case_;
@@ -80,7 +79,6 @@ mod coroinject;
 mod coroprobe;
 mod coroutine;
 mod dict;
-mod disabled_in_irules;
 mod encoding_;
 mod eof_;
 mod error_;
@@ -97,7 +95,6 @@ pub use fconfigure_::resolve_fconfigure_option;
 mod fcopy;
 mod file_;
 mod fileevent;
-mod filename;
 mod flush_;
 mod for_;
 mod foreach_;
@@ -108,7 +105,6 @@ mod fpclassify;
 mod gets_;
 mod glob_;
 mod global_;
-mod http;
 mod if_;
 mod incr_;
 mod info_;
@@ -145,9 +141,7 @@ mod lsearch_;
 mod lseq;
 mod lset;
 mod lsort_;
-mod mathfunc;
 mod mathfunc_generated;
-mod mathop;
 mod mathop_generated;
 mod memory;
 mod namespace_;
@@ -177,7 +171,6 @@ mod package_;
 mod parray;
 mod pid;
 mod pkg__create;
-mod pkg_mkindex;
 mod prefix_;
 mod proc_;
 mod puts_;
@@ -291,13 +284,9 @@ pub(crate) fn authored_tcl_command_specs() -> Vec<CommandSpec> {
         tcllog::spec(),
         tclpkgsetup::spec(),
         tclpkgunknown::spec(),
-        bgerror::spec(),
-        filename::spec(),
-        http::spec(),
         memory::spec(),
         nextto::spec(),
         pkg__create::spec(),
-        pkg_mkindex::spec(),
         pwd::spec(),
         tcl__build_info::spec(),
         tcl_findlibrary::spec(),
@@ -336,7 +325,6 @@ fn tcl_specs_a_through_l() -> Vec<CommandSpec> {
         coroprobe::spec(),
         coroutine::spec(),
         dict::spec(),
-        disabled_in_irules::spec(),
         encoding_::spec(),
         eof_::spec(),
         error_::spec(),
@@ -400,8 +388,6 @@ fn tcl_specs_a_through_l() -> Vec<CommandSpec> {
 /// [`tcl_specs_a_through_l`].
 fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
     vec![
-        mathfunc::spec(),
-        mathop::spec(),
         namespace_::jim_spec(),
         namespace_::spec(),
         oo_abstract::spec(),

@@ -191,6 +191,12 @@ pub fn spec() -> CommandSpec {
         // misflagging a legitimate modern zero-pattern call; the exact
         // per-era requirement is documented precisely on `FORMS` above.
         arity: Arity::any(),
+        arity_windows: const {
+            &[crate::arity::ArityWindow {
+                lifecycle: crate::lifecycle::Lifecycle::UNSPECIFIED.retired_from("8.6"),
+                arity: Arity::at_least(1),
+            }]
+        },
         pattern_type: Some(PatternType::FilesystemGlob),
         arg_role_layout_resolver: Some(glob_arg_roles),
         arg_role_resolver_roles: &[ArgRole::Pattern],

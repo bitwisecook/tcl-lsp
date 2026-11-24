@@ -40,6 +40,7 @@ impl CommandSpec {
         traits: Traits::empty(),
         surface: None,
         arity: Arity::any(),
+        source_arity_with_option: None,
         arity_windows: &[],
         arg_roles: &[],
         arg_role_resolver: None,

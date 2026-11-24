@@ -193,7 +193,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::StringCompare)),
-        arity: Arity::at_least(2),
+        arity: Arity::new(2, 5),
         reserved_trailing_words: 2,
         detail: "Compare two strings lexicographically.",
         synopsis: "string compare ?-nocase? ?-length length? string1 string2",
@@ -264,7 +264,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::StringEqual)),
-        arity: Arity::at_least(2),
+        arity: Arity::new(2, 5),
         reserved_trailing_words: 2,
         detail: "Test string equality.",
         synopsis: "string equal ?-nocase? ?-length length? string1 string2",
@@ -537,7 +537,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::StringIs)),
         // `-failindex` is written only when the class test fails.
         traits: Traits::CONDITIONAL_VARIABLE_WRITE,
-        arity: Arity::at_least(2),
+        arity: Arity::new(2, 5),
         detail: "Test if string is a member of a character class.",
         synopsis: "string is class ?-strict? ?-failindex varname? string",
         return_type: Some(TclType::Boolean),
@@ -770,7 +770,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // 8.6 and 9.0 (`StringMapCmd`; tclsh 8.6.14-verified — a bytearray
         // operand yields a string). The canonical K22406348 corruption step.
         byte_array_effect: ByteArrayEffect::Coerces,
-        arity: Arity::at_least(2),
+        arity: Arity::new(2, 3),
         detail: "Map substrings via key-value pairs.",
         synopsis: "string map ?-nocase? mapping string",
         successful_handler: Some(
@@ -864,7 +864,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             operation: SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
-        arity: Arity::at_least(2),
+        arity: Arity::new(2, 3),
         detail: "Test glob-style pattern match.",
         synopsis: "string match ?-nocase? pattern string",
         successful_handler: Some(

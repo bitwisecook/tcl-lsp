@@ -6783,31 +6783,6 @@
     "notes": "static script-body position"
   },
   {
-    "id": "oo::abstract createWithNamespace/arg[2]@bpf+spectcl+sslictcl+tcl9.0+tcl9.1+tk",
-    "owner": "oo::abstract createWithNamespace",
-    "surface": "subcommand",
-    "kind": "body-script",
-    "provenance": "Tcl manual/source (8.4-9.1 corpus)",
-    "dialects": [
-      "bpf",
-      "spectcl",
-      "sslictcl",
-      "tcl9.0",
-      "tcl9.1",
-      "tk"
-    ],
-    "lifecycle": "all known owning-package versions",
-    "timing": "same-invocation",
-    "appended_arity": null,
-    "callback_taint_inputs": [],
-    "forms": [
-      "oo::class createWithNamespace name nsName ?definition?"
-    ],
-    "registry_derived": true,
-    "registry_owner": "oo::abstract",
-    "notes": "static script-body position"
-  },
-  {
     "id": "oo::abstract new/arg[0]@bpf+spectcl+sslictcl+tcl9.0+tcl9.1+tk",
     "owner": "oo::abstract new",
     "surface": "subcommand",
@@ -6888,66 +6863,6 @@
     "notes": "static script-body position"
   },
   {
-    "id": "oo::class createWithNamespace/arg[2]@bpf+expect+jim+mentor-eda-tcl+spectcl+sslictcl+synopsys-eda-tcl+tcl8.6+tcl9.0+tcl9.1+tk",
-    "owner": "oo::class createWithNamespace",
-    "surface": "subcommand",
-    "kind": "body-script",
-    "provenance": "Tcl manual/source (8.4-9.1 corpus)",
-    "dialects": [
-      "bpf",
-      "expect",
-      "jim",
-      "mentor-eda-tcl",
-      "spectcl",
-      "sslictcl",
-      "synopsys-eda-tcl",
-      "tcl8.6",
-      "tcl9.0",
-      "tcl9.1",
-      "tk"
-    ],
-    "lifecycle": "all known owning-package versions",
-    "timing": "same-invocation",
-    "appended_arity": null,
-    "callback_taint_inputs": [],
-    "forms": [
-      "oo::class createWithNamespace name nsName ?definition?"
-    ],
-    "registry_derived": true,
-    "registry_owner": "oo::class",
-    "notes": "static script-body position"
-  },
-  {
-    "id": "oo::class new/arg[0]@bpf+expect+jim+mentor-eda-tcl+spectcl+sslictcl+synopsys-eda-tcl+tcl8.6+tcl9.0+tcl9.1+tk",
-    "owner": "oo::class new",
-    "surface": "subcommand",
-    "kind": "body-script",
-    "provenance": "Tcl manual/source (8.4-9.1 corpus)",
-    "dialects": [
-      "bpf",
-      "expect",
-      "jim",
-      "mentor-eda-tcl",
-      "spectcl",
-      "sslictcl",
-      "synopsys-eda-tcl",
-      "tcl8.6",
-      "tcl9.0",
-      "tcl9.1",
-      "tk"
-    ],
-    "lifecycle": "all known owning-package versions",
-    "timing": "same-invocation",
-    "appended_arity": null,
-    "callback_taint_inputs": [],
-    "forms": [
-      "oo::class new ?definition?"
-    ],
-    "registry_derived": true,
-    "registry_owner": "oo::class",
-    "notes": "static script-body position"
-  },
-  {
     "id": "oo::class/dynamic-arg-role@bpf+expect+jim+mentor-eda-tcl+spectcl+sslictcl+synopsys-eda-tcl+tcl8.6+tcl9.0+tcl9.1+tk",
     "owner": "oo::class",
     "surface": "command",
@@ -6997,31 +6912,6 @@
     "callback_taint_inputs": [],
     "forms": [
       "oo::class create name ?definition?"
-    ],
-    "registry_derived": true,
-    "registry_owner": "oo::configurable",
-    "notes": "static script-body position"
-  },
-  {
-    "id": "oo::configurable createWithNamespace/arg[2]@bpf+spectcl+sslictcl+tcl9.0+tcl9.1+tk",
-    "owner": "oo::configurable createWithNamespace",
-    "surface": "subcommand",
-    "kind": "body-script",
-    "provenance": "Tcl manual/source (8.4-9.1 corpus)",
-    "dialects": [
-      "bpf",
-      "spectcl",
-      "sslictcl",
-      "tcl9.0",
-      "tcl9.1",
-      "tk"
-    ],
-    "lifecycle": "all known owning-package versions",
-    "timing": "same-invocation",
-    "appended_arity": null,
-    "callback_taint_inputs": [],
-    "forms": [
-      "oo::class createWithNamespace name nsName ?definition?"
     ],
     "registry_derived": true,
     "registry_owner": "oo::configurable",
@@ -7159,31 +7049,6 @@
     "callback_taint_inputs": [],
     "forms": [
       "oo::class create name ?definition?"
-    ],
-    "registry_derived": true,
-    "registry_owner": "oo::singleton",
-    "notes": "static script-body position"
-  },
-  {
-    "id": "oo::singleton createWithNamespace/arg[2]@bpf+spectcl+sslictcl+tcl9.0+tcl9.1+tk",
-    "owner": "oo::singleton createWithNamespace",
-    "surface": "subcommand",
-    "kind": "body-script",
-    "provenance": "Tcl manual/source (8.4-9.1 corpus)",
-    "dialects": [
-      "bpf",
-      "spectcl",
-      "sslictcl",
-      "tcl9.0",
-      "tcl9.1",
-      "tk"
-    ],
-    "lifecycle": "all known owning-package versions",
-    "timing": "same-invocation",
-    "appended_arity": null,
-    "callback_taint_inputs": [],
-    "forms": [
-      "oo::class createWithNamespace name nsName ?definition?"
     ],
     "registry_derived": true,
     "registry_owner": "oo::singleton",

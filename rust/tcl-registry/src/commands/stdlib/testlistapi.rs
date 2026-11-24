@@ -22,7 +22,14 @@ use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testlistapi",
-        surface: Some(SpecSurface::TCL91),
+        surface: Some(
+            const {
+                &[SpecSurface::package_in(
+                    "tcltest-executable",
+                    &[("9.1", Some("9.2"))],
+                )]
+            },
+        ),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Exercise the internal list C API (Tcl 9.1).",

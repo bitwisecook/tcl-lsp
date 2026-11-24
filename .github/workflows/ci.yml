@@ -2990,6 +2990,10 @@ jobs:
         if: env.RUN_WEB_FRONTENDS == 'true'
         run: make typecheck-spec-studio-ts lint-spec-studio-ts spec-studio-assets spec-studio-test
 
+  command-definitions:
+    if: startsWith(github.ref, 'refs/tags/v')
+    uses: ./.github/workflows/command-definitions.yml
+
   # Release: create (or verify) the GitHub Release so each build job
   # can upload its artifact independently — no single slow or failing
   # build blocks the others.
@@ -3003,7 +3007,7 @@ jobs:
     # whose SHA was never tested (or whose green is stale) runs everything
     # here in full.  cargo-deny always runs regardless.
     needs:
-      [channel, pr-gate, rust-tests, rust-tests-heavy, spectcl-compat, lsp-server-wasm, lsp-e2e, cargo-deny, python, web-frontends]
+      [channel, pr-gate, rust-tests, rust-tests-heavy, spectcl-compat, lsp-server-wasm, lsp-e2e, cargo-deny, python, web-frontends, command-definitions]
     runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload
