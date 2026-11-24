@@ -1,5 +1,22 @@
 # Current LSP naming migration state
 
+## Item 93 verification
+
+The annotated-command spike ran all 16 frame fixtures under C Tcl 8.6.18,
+9.0.4 and 9.1.0 and compared the retained compiler records with both the
+archived and present LSP answers. Each release yielded the same four missing
+records and three command-answer gaps against the plan criterion.
+Item 93 stays open. [Probe results and reproduction](handover/oo-dispatch-probe/annotated-frame-commands.md)
+
+Workspace and runtime Rust formatting and Clippy passed, as did all four
+offline X.509 tests and the licence and Tcl evidence checks on the initial
+base. The remaining `make rust-check` drift checks and `make prep-pr` were
+interrupted when `work` advanced. The full frame comparison was repeated
+after incorporating item 94, with identical results. Formatting, licence
+and Tcl evidence checks passed again. Clippy with dependencies stops at
+`analyse_source_in_frame_with_options`, where item 94's instrumentation
+takes the function to 101 lines against the 100-line limit.
+
 ## Item 151 verification
 
 The Unix lookup skipped a non-executable file earlier on PATH. The Windows

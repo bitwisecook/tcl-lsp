@@ -33,14 +33,14 @@ Deferred engine-only work: 18, 20, 30, 34, 38, 42, 72's engine part, 88, 135, 14
 
 The catalogue-driven header this replaces, with its counts and working rules, is kept in [current-state.md](current-state.md#superseded-plan-header-23-november-2026). Live measurements stay there too.
 
-**Status of every numbered item (23 November 2026).** The BIG-IP commits of 23 November (`bfc0ef87`–`9e479b96`) completed most of items 217–233. The fixes for #2142, #2227, #2228, #2249 and #2250 are already on `work` (an earlier "not on `work`" came from a shallow clone). Tags:
+**Status of every numbered item (24 November 2026).** The BIG-IP commits of 23 November (`bfc0ef87`–`9e479b96`) completed most of items 217–233. The fixes for #2142, #2227, #2228, #2249 and #2250 are already on `work` (an earlier "not on `work`" came from a shallow clone). Tags:
 
 - **completed**: done and verified on `work`.
 - **in progress**: part of the work exists on `work` (code, a harness or recorded evidence) and the rest is open.
 - **designed**: the approach, owner and completion test are written down (a design page or the item itself); no implementation yet.
 - **not yet started**: needs a decision, an investigation or a design before implementation can begin.
 
-Counts: completed 34, in progress 11, designed 191, not yet started 6 (owner decisions on items 74, 96, 142 and 196 recorded on 23 November 2026; items 235–242 added). Wrong answers re-checked on the current binaries and source for this pass:
+Counts: completed 35, in progress 12, designed 191, not yet started 4 (owner decisions on items 74, 96, 142 and 196 recorded on 23 November 2026; items 235–242 added). Wrong answers re-checked on the current binaries and source for this pass:
 - item 42: `lremove` is still missing in the VM;
 - item 18: `next` still runs one level too deep in the VM;
 - item 114: the shared matcher and cross-gate coverage are still open.
@@ -336,7 +336,7 @@ Validation spikes, phase 0, before the phases that rely on them ([design integra
 
 92. **[not yet started]** (spike not run) Name-world cost: memory and time of per-point binding states (`ModuleCommandBindings`) on the 687-line file and the analysis-performance corpus.
    - Done when: the spike reports retained memory and analysis time with and without per-point `ModuleCommandBindings` on the 687-line file (the "medium" case in `caching-perf.out`) and on the analysis-performance corpus. Pass: per-point states add at most 10% to analysis time and at most 25 MB to retained memory on the 687-line file. Fail: the design moves to sparse deltas or `imbl` before phase 3.
-93. **[not yet started]** (spike not run) Annotated commands for nested sites: build the per-site record for every reached command over `oo-dispatch-probe/frames/` from today's binding and compare with existing consumers.
+93. **[in progress]** (spike run, coverage and answer criteria failed) Annotated commands for nested sites: build the per-site record for every reached command over `oo-dispatch-probe/frames/` from today's binding and compare with existing consumers. [Probe results and reproduction](handover/oo-dispatch-probe/annotated-frame-commands.md)
    - Done when: a probe builds the annotated command for every reached command in `frames/` (f01–f14, g01, g02), nested ones included, from today's binding, and compares its command answer with `frames.out` and tclsh. Pass: every `;# CALL` site has a record and matches tclsh wherever an existing consumer does. Fail: any reached site has no record, and the missing sites are listed.
 94. **[completed]** (24 November 2026: the five original cases converged in one round with zero re-bound sites. A computed-level companion converged in two rounds and re-bound three sites. Fresh and incremental sealed site bytes matched in all eight cases. See the [spike results](binding-value-fixpoint-spike.md).) Binding and value fixpoint: run the bounded loop on the `oo-dispatch-probe/dynamic/` dynamic-head, `upvar $n` and `uplevel $lvl` fixtures; count iterations and re-bound sites.
    - Done when: the bounded binding and value loop runs on the `dynamic/` dynamic-head, `upvar $n` and `uplevel $lvl` fixtures (`e01`, `e03`, `e04`, `e21`, `e18`) with iteration and re-bound-site counts recorded. Pass: every fixture converges within the fixed limit (four iterations), and fresh and incremental runs give byte-identical sealed realms. Fail: any fixture hits the limit or differs between the two runs.
