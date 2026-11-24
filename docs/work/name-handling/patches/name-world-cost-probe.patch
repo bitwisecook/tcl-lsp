@@ -1,0 +1,443 @@
+diff --git a/rust/tcl-compiler/src/command_binding.rs b/rust/tcl-compiler/src/command_binding.rs
+index bbe08fc92a..253dc4d376 100644
+--- a/rust/tcl-compiler/src/command_binding.rs
++++ b/rust/tcl-compiler/src/command_binding.rs
+@@ -1873,3 +1873,127 @@ mod standalone_document_layout_tests;
+
+ #[cfg(test)]
+ mod compiled_range_selection_tests;
++
++thread_local! {
++    static ITEM92_EMPTY_POINT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
++    static ITEM92_EMPTY_WORLD: ModuleCommandBindings = ModuleCommandBindings::default();
++    static ITEM92_POINT_WORK: std::cell::Cell<(u64, u64, u128)> = const {
++        std::cell::Cell::new((0, 0, 0))
++    };
++}
++
++/// Disable point-world capture for the timing control.
++pub fn item92_omit_point_states() {
++    ITEM92_EMPTY_WORLD.with(|_| {});
++    ITEM92_EMPTY_POINT.with(|enabled| enabled.set(true));
++}
++
++/// Return and reset the timing counters for point-world capture.
++pub fn item92_point_work() -> (u64, u64, u128) {
++    ITEM92_POINT_WORK.with(|work| work.replace((0, 0, 0)))
++}
++
++/// Release source analysis memos before measuring retained state.
++pub fn item92_clear_source_cache() {
++    source_analysis_cache::item92_clear();
++}
++
++impl ModuleCommandBindings {
++    fn item92_point_clone(&self) -> Self {
++        let start = std::time::Instant::now();
++        let value = if ITEM92_EMPTY_POINT.with(std::cell::Cell::get) {
++            ITEM92_EMPTY_WORLD.with(|empty| Self {
++                current_source_origin: self.current_source_origin.clone(),
++                variable_frame: self.variable_frame.clone(),
++                baseline: self.baseline.clone(),
++                ..empty.clone()
++            })
++        } else {
++            self.clone()
++        };
++        let ns = start.elapsed().as_nanos();
++        ITEM92_POINT_WORK.with(|work| {
++            let (clones, joins, time) = work.get();
++            work.set((clones + 1, joins, time + ns));
++        });
++        value
++    }
++
++    fn item92_point_join(&mut self, other: &Self) {
++        let start = std::time::Instant::now();
++        if !ITEM92_EMPTY_POINT.with(std::cell::Cell::get) {
++            self.join(other);
++        }
++        let ns = start.elapsed().as_nanos();
++        ITEM92_POINT_WORK.with(|work| {
++            let (clones, joins, time) = work.get();
++            work.set((clones, joins + 1, time + ns));
++        });
++    }
++}
++
++impl SourceCommandBindings {
++    /// Remove measured state from this temporary probe's retained source realm.
++    pub fn item92_strip_point_states(
++        &mut self,
++        meter: impl Fn() -> usize,
++    ) -> (usize, usize, usize, usize, usize) {
++        let empty = ModuleCommandBindings::default();
++        let clone_before = meter();
++        let cloned = empty.clone();
++        assert_eq!(meter(), clone_before, "replacement allocated extra heap");
++        drop(cloned);
++
++        let before = meter();
++        let mut count = 0;
++        let mut capacity = 0;
++        let mut shared = 0;
++        self.item92_strip(&empty, &mut count, &mut capacity, &mut shared);
++        let after = meter();
++        (count, capacity * size_of::<ModuleCommandBindings>(), before, after, shared)
++    }
++
++    fn item92_strip(
++        &mut self,
++        empty: &ModuleCommandBindings,
++        count: &mut usize,
++        capacity: &mut usize,
++        shared: &mut usize,
++    ) {
++        fn unique<T>(inventory: &SharedSourceInventory<T>, shared: &mut usize) -> bool {
++            let unique = Arc::strong_count(&inventory.shared()) == 2;
++            *shared += usize::from(!unique);
++            unique
++        }
++        if !self.points.is_empty() && unique(&self.points, shared) {
++            *capacity += self.points.capacity();
++            *count += self.points.len();
++            for point in self.points.iter_mut() {
++                point.state = empty.clone();
++            }
++        }
++        if !self.origin_points.is_empty() && unique(&self.origin_points, shared) {
++            for points in self.origin_points.values_mut() {
++                *capacity += points.capacity();
++                *count += points.len();
++                for point in points {
++                    point.state = empty.clone();
++                }
++            }
++        }
++        if !self.phases.is_empty() && unique(&self.phases, shared) {
++            *capacity += self.phases.capacity();
++            *count += self.phases.len();
++            for phase in self.phases.iter_mut() {
++                phase.point.state = empty.clone();
++            }
++        }
++        if let Some(walk) = &mut self.declared_frame_walk {
++            if Arc::strong_count(walk) == 1 {
++                Arc::make_mut(walk).item92_strip(empty, count, capacity, shared);
++            } else {
++                *shared += 1;
++            }
++        }
++    }
++}
+diff --git a/rust/tcl-compiler/src/command_binding/origin_inventory.rs b/rust/tcl-compiler/src/command_binding/origin_inventory.rs
+index adcc25ef8d..30b574914a 100644
+--- a/rust/tcl-compiler/src/command_binding/origin_inventory.rs
++++ b/rust/tcl-compiler/src/command_binding/origin_inventory.rs
+@@ -1175,7 +1175,7 @@ impl SourceCommandBindings {
+                 &mut previous.evaluated_argument_values,
+                 &point.evaluated_argument_values,
+             );
+-            previous.state.join(&point.state);
++            previous.state.item92_point_join(&point.state);
+             previous.compiled_execution.join(&point.compiled_execution);
+             super::compiled_invocation::join_argument_words(
+                 &mut previous.evaluated_argument_words,
+diff --git a/rust/tcl-compiler/src/command_binding/source_analysis_cache.rs b/rust/tcl-compiler/src/command_binding/source_analysis_cache.rs
+index 5e9be1821b..8e361e62f7 100644
+--- a/rust/tcl-compiler/src/command_binding/source_analysis_cache.rs
++++ b/rust/tcl-compiler/src/command_binding/source_analysis_cache.rs
+@@ -936,3 +936,7 @@ mod tests {
+     }
+     include!("source_analysis_cache_corpus.rs");
+ }
++
++pub(super) fn item92_clear() {
++    CACHE.with(|cache| cache.borrow_mut().clear());
++}
+diff --git a/rust/tcl-compiler/src/command_binding/source_walk.rs b/rust/tcl-compiler/src/command_binding/source_walk.rs
+index 2bc95a1e03..f68dcaf7ba 100644
+--- a/rust/tcl-compiler/src/command_binding/source_walk.rs
++++ b/rust/tcl-compiler/src/command_binding/source_walk.rs
+@@ -545,7 +545,7 @@ impl SourceCommandBindings {
+             end: u32::MAX,
+             namespace: context.namespace.to_owned(),
+             namespace_key: context.namespace_identity(),
+-            state: state.clone(),
++            state: state.item92_point_clone(),
+             lookup_snapshot: OnceLock::new(),
+             original_binding: PointBindingMemo::default(),
+             dispatch: false,
+diff --git a/rust/tcl-compiler/src/command_binding/source_walk/command_walk.rs b/rust/tcl-compiler/src/command_binding/source_walk/command_walk.rs
+index ac809413a0..bbc6837f1f 100644
+--- a/rust/tcl-compiler/src/command_binding/source_walk/command_walk.rs
++++ b/rust/tcl-compiler/src/command_binding/source_walk/command_walk.rs
+@@ -504,7 +504,7 @@ impl SourceCommandBindings {
+             end: segment.span.end(),
+             namespace: context.namespace.to_owned(),
+             namespace_key: context.namespace_identity(),
+-            state: state.clone(),
++            state: state.item92_point_clone(),
+             lookup_snapshot: OnceLock::new(),
+             original_binding: PointBindingMemo::default(),
+             dispatch: true,
+@@ -652,7 +652,7 @@ impl SourceCommandBindings {
+                 &mut self.points[*index].evaluated_argument_values,
+                 &point.evaluated_argument_values,
+             );
+-            self.points[*index].state.join(&point.state);
++            self.points[*index].state.item92_point_join(&point.state);
+             self.points[*index]
+                 .compiled_execution
+                 .join(&point.compiled_execution);
+diff --git a/rust/tcl-compiler/src/command_binding/source_walk/lifecycle_walk.rs b/rust/tcl-compiler/src/command_binding/source_walk/lifecycle_walk.rs
+index 8240aae869..308bd33ed4 100644
+--- a/rust/tcl-compiler/src/command_binding/source_walk/lifecycle_walk.rs
++++ b/rust/tcl-compiler/src/command_binding/source_walk/lifecycle_walk.rs
+@@ -71,7 +71,7 @@ impl SourceCommandBindings {
+                 && point.point.declaration_preview == (self.declaration_preview_depth != 0)
+                 && point.point.state.variable_frame == state.variable_frame
+         }) {
+-            previous.point.state.join(state);
++            previous.point.state.item92_point_join(state);
+             previous.point.invalidate_derived();
+         } else {
+             self.phases.push(SourcePhasePoint {
+@@ -98,7 +98,7 @@ impl SourceCommandBindings {
+                     end: site,
+                     namespace: context.namespace.to_owned(),
+                     namespace_key: context.namespace_identity(),
+-                    state: state.clone(),
++                    state: state.item92_point_clone(),
+                     lookup_snapshot: OnceLock::new(),
+                     original_binding: PointBindingMemo::default(),
+                     dispatch: false,
+diff --git a/.probe-92/driver.rs b/.probe-92/driver.rs
+new file mode 100644
+index 0000000000..34eb5e077f
+--- /dev/null
++++ b/.probe-92/driver.rs
+@@ -0,0 +1,189 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
++//
++// This program is free software: you can redistribute it and/or modify
++// it under the terms of the GNU Affero General Public License as published by
++// the Free Software Foundation, either version 3 of the License, or
++// (at your option) any later version.
++//
++// This program is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++// GNU Affero General Public License for more details.
++//
++// You should have received a copy of the GNU Affero General Public License
++// along with this program.  If not, see <https://www.gnu.org/licenses/>.
++//
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++use std::alloc::{GlobalAlloc, Layout, System};
++use std::fmt::Write;
++use std::hint::black_box;
++use std::sync::Arc;
++use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering::Relaxed};
++use std::time::Instant;
++use tcl_compiler::analyser::{Analyser, ResolvedAnalysisInput};
++use tcl_compiler::command_binding::{
++    item92_clear_source_cache, item92_omit_point_states, item92_point_work,
++};
++use tcl_registry::CommandRegistry;
++
++struct CountingAllocator;
++
++static TRACK: AtomicBool = AtomicBool::new(false);
++static LIVE: AtomicUsize = AtomicUsize::new(0);
++
++#[global_allocator]
++static ALLOCATOR: CountingAllocator = CountingAllocator;
++
++// The allocator forwards the same layouts and pointers to System. Each
++// measured process enables counting before constructing its inputs.
++unsafe impl GlobalAlloc for CountingAllocator {
++    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
++        let ptr = unsafe { System.alloc(layout) };
++        if !ptr.is_null() && TRACK.load(Relaxed) {
++            LIVE.fetch_add(layout.size(), Relaxed);
++        }
++        ptr
++    }
++
++    unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
++        let ptr = unsafe { System.alloc_zeroed(layout) };
++        if !ptr.is_null() && TRACK.load(Relaxed) {
++            LIVE.fetch_add(layout.size(), Relaxed);
++        }
++        ptr
++    }
++
++    unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
++        let new_ptr = unsafe { System.realloc(ptr, layout, new_size) };
++        if !new_ptr.is_null() && TRACK.load(Relaxed) {
++            LIVE.fetch_add(new_size.wrapping_sub(layout.size()), Relaxed);
++        }
++        new_ptr
++    }
++
++    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
++        if TRACK.load(Relaxed) {
++            LIVE.fetch_sub(layout.size(), Relaxed);
++        }
++        unsafe { System.dealloc(ptr, layout) }
++    }
++}
++
++fn heap() -> usize {
++    LIVE.load(Relaxed)
++}
++
++fn generated(n: usize) -> String {
++    let mut script = String::from("namespace eval ::bench {\n    variable counter 0\n}\n\n");
++    for i in 0..n {
++        write!(
++            script,
++            "# proc number {i}\nproc ::bench::step{i} {{a b}} {{\n    set v{i} [expr {{$a + $b}}]\n    set msg \"step {i} = $v{i}\"\n    if {{$v{i} > 10}} {{\n        set v{i} [expr {{$v{i} + 1}}]\n    }}\n    return $v{i}\n}}\n\n"
++        )
++        .unwrap();
++    }
++    script
++}
++
++fn main() {
++    // Library/runtime setup may have allocated before main. All results are
++    // differences between readings after warm-up, so that startup cancels.
++    TRACK.store(true, Relaxed);
++    let mut args = std::env::args().skip(1);
++    let mode = args.next().unwrap();
++    let workload = args.next().unwrap();
++    let memory = mode.ends_with("memory");
++    if !memory {
++        TRACK.store(false, Relaxed);
++    }
++    let source = if let Ok(n) = workload.parse() {
++        generated(n)
++    } else {
++        let source = std::fs::read_to_string(&workload).unwrap();
++        assert_eq!(source.lines().count(), 687);
++        source
++    };
++    assert!(args.next().is_none());
++    let dialect = if workload.parse::<usize>().is_ok() {
++        "tcl8.6"
++    } else {
++        "tcl9.0"
++    };
++    let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
++    let registry = CommandRegistry::build_default().project_for_profile(profile);
++    let context = tcl_registry::model::context_for_profile(profile);
++    let context = Arc::new(context.with_command_store(registry.snapshot().shared_registry()));
++    let input = ResolvedAnalysisInput::new(
++        profile,
++        profile,
++        context,
++        tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
++    );
++    let structure = std::env::var_os("ITEM92_STRUCTURE").is_some();
++    let analyse = |source: &str| {
++        let mut analyser = if dialect == "tcl9.0" {
++            Analyser::new()
++        } else {
++            Analyser::new().with_resolved_input(input.clone())
++        };
++        if structure {
++            analyser.structure_only().analyse(source, dialect)
++        } else {
++            analyser.analyse(source, dialect)
++        }
++    };
++    drop(analyse("set init 1\n"));
++    item92_clear_source_cache();
++    let _ = item92_point_work();
++    if mode.starts_with("without") {
++        item92_omit_point_states();
++    }
++    let before = heap();
++    let start = Instant::now();
++    let result = analyse(&source);
++    let elapsed = start.elapsed();
++    let (clones, joins, direct_ns) = item92_point_work();
++    let diagnostics = result.diagnostics.len();
++    if mode != "memory" && memory {
++        item92_clear_source_cache();
++        println!(
++            "RESULT {workload} lines={} mode={mode} diag={diagnostics} retained_result={}",
++            source.lines().count(),
++            heap().wrapping_sub(before)
++        );
++    } else if memory {
++        item92_clear_source_cache();
++        let retained_result = heap().wrapping_sub(before);
++        let mut bindings = result
++            .retained_command_realm()
++            .unwrap()
++            .source_bindings_ref()
++            .clone();
++        drop(result);
++        item92_clear_source_cache();
++        let (count, inline, heap_before, heap_after, shared) =
++            bindings.item92_strip_point_states(heap);
++        assert!(count > 0);
++        println!(
++            "RESULT {workload} lines={} mode={mode} diag={diagnostics} points={count} inline={inline} shared={shared} retained_result={retained_result} retained_with={} retained_without={} heap_delta={}",
++            source.lines().count(),
++            heap_before.wrapping_sub(before),
++            heap_after.wrapping_sub(before) - inline,
++            heap_before.wrapping_sub(heap_after)
++        );
++        black_box(bindings);
++        return;
++    } else {
++        println!(
++            "RESULT {workload} lines={} mode={mode} diag={diagnostics} clones={clones} joins={joins} full_ns={} direct_ns={direct_ns}",
++            source.lines().count(),
++            elapsed.as_nanos(),
++        );
++    }
++    if std::env::var_os("ITEM92_DIAGNOSTICS").is_some() {
++        eprintln!("{:?}", result.diagnostics);
++    }
++    black_box(result);
++}
+diff --git a/.probe-92/link.py b/.probe-92/link.py
+new file mode 100644
+index 0000000000..f7483f5b0c
+--- /dev/null
++++ b/.probe-92/link.py
+@@ -0,0 +1,28 @@
++import json
++from pathlib import Path
++import subprocess
++import sys
++
++deps = {}
++directories = set()
++for line in Path(sys.argv[1] if len(sys.argv) > 1 else ".probe-92/build.jsonl").read_text().splitlines():
++    if not line.startswith("{"):
++        continue
++    event = json.loads(line)
++    if event["reason"] != "compiler-artifact":
++        continue
++    name = event["target"]["name"]
++    files = [Path(path) for path in event["filenames"]]
++    directories.update(path.parent for path in files if path.suffix in {".rlib", ".so"})
++    rlibs = [path for path in files if path.suffix == ".rlib"]
++    if rlibs:
++        deps[name] = max(rlibs, key=lambda path: len(path.parts))
++
++args = ["rustc", "--edition", "2024", "-C", "opt-level=1", "-C", "link-arg=-fuse-ld=lld"]
++for directory in sorted(directories):
++    args.extend(["-L", f"dependency={directory}"])
++for name in ("tcl_compiler", "tcl_registry", "tcl_lexer"):
++    args.extend(["--extern", f"{name}={deps[name]}"])
++
++output = sys.argv[2] if len(sys.argv) > 2 else ".probe-92/run"
++subprocess.run([*args, ".probe-92/driver.rs", "-o", output], check=True)

@@ -73,14 +73,14 @@
    - A custom recipe written in Tcl runs only in analysis, in the SpecTcl sandbox. The engines run the user's real Tcl code for a custom object system anyway.
 10. **The name world's scope and cost are measured before the design goes further.**
     - Classes and instances stay in the name world, as they are today.
-    - Spike 92 measures the memory and time of per-point binding states on the analysis-performance corpus before any persistent-map change.
-    - `imbl` replaces whole-table `Arc` clones only if the measurement shows a need.
+    - [Spike 92](handover/name-world-cost.md) measured the current representation within both medium-file budgets. Phase 3 keeps the per-point states and uses the corpus measurements to check growth.
+    - Revisit sparse deltas or persistent maps if a later change exceeds those budgets.
 
 ## Validation spikes
 
 Each is small, measured and reverts if it fails. They run in phase 0, before the phases that depend on them.
 
-- **92. Name-world cost:** memory and time of the per-point binding states on the 687-line file (the `overrides` package at `fe18ee3`, as described in [caching design](caching-design.md#measured-cost)) and the corpus. Answers whether per-point state is affordable now that analysis retains about 230 MB.
+- **92. [Name-world cost](handover/name-world-cost.md).** Measured the 687-line Overrides input and the analysis-performance corpus. The ordinary walk with point states was faster than the omission control and stayed within the medium-file memory budget.
 - **93. Annotated command for nested commands:** produce the record for every reached command in one fixture directory (`oo-dispatch-probe/frames/`) from today's binding and compare it with the existing consumers' answers. Answers whether "computed once" covers nested sites.
 - **94. Binding and value fixpoint:** the [spike results](binding-value-fixpoint-spike.md) record the iterations, re-bound sites and sealed realm comparison for the dynamic-head, `upvar $n` and `uplevel $lvl` cases in `oo-dispatch-probe/dynamic/` and their companions.
 - **95. Per-body salsa query:** move one consumer (W210 on one body unit) onto a per-body query and measure re-analysis after a one-line edit.

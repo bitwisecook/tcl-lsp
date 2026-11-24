@@ -40,7 +40,7 @@ The catalogue-driven header this replaces, with its counts and working rules, is
 - **designed**: the approach, owner and completion test are written down (a design page or the item itself); no implementation yet.
 - **not yet started**: needs a decision, an investigation or a design before implementation can begin.
 
-Counts: completed 36, in progress 12, designed 191, not yet started 3 (owner decisions on items 74, 96, 142 and 196 recorded on 23 November 2026; items 235–242 added). Wrong answers re-checked on the current binaries and source for this pass:
+Counts: completed 37, in progress 12, designed 191, not yet started 2 (owner decisions on items 74, 96, 142 and 196 recorded on 23 November 2026; items 235–242 added). Wrong answers re-checked on the current binaries and source for this pass:
 - item 42: `lremove` is still missing in the VM;
 - item 18: `next` still runs one level too deep in the VM;
 - item 114: the shared matcher and cross-gate coverage are still open.
@@ -334,7 +334,7 @@ Foundations, architecture and object systems (the structural work the domain ite
 
 Validation spikes, phase 0, before the phases that rely on them ([design integration](design-integration.md)):
 
-92. **[not yet started]** (spike not run) Name-world cost: memory and time of per-point binding states (`ModuleCommandBindings`) on the 687-line file and the analysis-performance corpus.
+92. **[completed]** [Measured per-point binding-state memory and time](handover/name-world-cost.md) on the 687-line file and the analysis-performance corpus. The medium case met both budgets, so phase 3 can retain the current representation.
    - Done when: the spike reports retained memory and analysis time with and without per-point `ModuleCommandBindings` on the 687-line file (the "medium" case in `caching-perf.out`) and on the analysis-performance corpus. Pass: per-point states add at most 10% to analysis time and at most 25 MB to retained memory on the 687-line file. Fail: the design moves to sparse deltas or `imbl` before phase 3.
 93. **[in progress]** (spike run, coverage and answer criteria failed) Annotated commands for nested sites: build the per-site record for every reached command over `oo-dispatch-probe/frames/` from today's binding and compare with existing consumers. [Probe results and reproduction](handover/oo-dispatch-probe/annotated-frame-commands.md)
    - Done when: a probe builds the annotated command for every reached command in `frames/` (f01–f14, g01, g02), nested ones included, from today's binding, and compares its command answer with `frames.out` and tclsh. Pass: every `;# CALL` site has a record and matches tclsh wherever an existing consumer does. Fail: any reached site has no record, and the missing sites are listed.
