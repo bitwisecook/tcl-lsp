@@ -80,7 +80,7 @@
 
 Each is small, measured and reverts if it fails. They run in phase 0, before the phases that depend on them.
 
-- **92. Name-world cost:** memory and time of the per-point binding states on the 687-line file and the corpus. Answers whether per-point state is affordable now that analysis retains about 230 MB.
+- **92. Name-world cost:** memory and time of the per-point binding states on the 687-line file (the `overrides` package at `fe18ee3`, as described in [caching design](caching-design.md#measured-cost)) and the corpus. Answers whether per-point state is affordable now that analysis retains about 230 MB.
 - **93. Annotated command for nested commands:** produce the record for every reached command in one fixture directory (`oo-dispatch-probe/frames/`) from today's binding and compare it with the existing consumers' answers. Answers whether "computed once" covers nested sites.
 - **94. Binding and value fixpoint:** run the loop of decision 1 on the dynamic-head, `upvar $n` and `uplevel $lvl` fixtures in `oo-dispatch-probe/dynamic/`; count the iterations and re-bound sites, and check that fresh and incremental runs give identical, sealed realms.
 - **95. Per-body salsa query:** move one consumer (W210 on one body unit) onto a per-body query and measure re-analysis after a one-line edit.

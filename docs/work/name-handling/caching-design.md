@@ -6,7 +6,7 @@ How analysis results, registries, indices and names are cached, interned and inv
 
 ## Measured cost
 
-An in-process probe (`Analyser::new().analyse`, `tcl9.0`, test profile at opt-level 2, on `65261ff6`) over a two-line script and a 687-line Tcl library:
+An in-process probe (`Analyser::new().analyse`, `tcl9.0`, test profile at opt-level 2, on `65261ff6`) over a two-line script and a 687-line Tcl library: [`Dechcaudron/overrides`](https://github.com/Dechcaudron/overrides) at `fe18ee3dcc0ab7e034596ec0d79e3db3cb34978d`, its [`cmdOverrides.tcl`](https://github.com/Dechcaudron/overrides/blob/fe18ee3dcc0ab7e034596ec0d79e3db3cb34978d/src/overrides/cmdOverrides.tcl) followed by its [`overrides.tcl`](https://github.com/Dechcaudron/overrides/blob/fe18ee3dcc0ab7e034596ec0d79e3db3cb34978d/src/overrides/overrides.tcl) without the `source` and `package provide` lines, ending in one probe line (`set probe 1`):
 
 | Measure | Result |
 | --- | --- |
