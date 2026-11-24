@@ -1,0 +1,7 @@
+# Source path	Fact or grammar	Declaration and operation	Waiver reason	Occurrences
+runtime/rust/src/engine_abi/command_inventory_tests.rs	release-facts	VERSIONS:VERSIONS	-	1
+rust/tcl-cmd-core/src/string_is.rs	release-facts	CLASSES_SINCE:CLASSES_SINCE	-	1
+rust/tcl-numeric/src/number.rs	release-facts	RELEASE:RELEASE	-	1
+rust/tcl-syntax/src/release_expectations.rs	release-facts	LADDER:LADDER	-	1
+rust/tcl-vm/src/value_scalar_target_tests.rs	release-facts	FIXTURES:FIXTURES	-	1
+rust/tcl-vm/src/value_scalar_tests.rs	release-facts	VERSIONS:VERSIONS	-	1

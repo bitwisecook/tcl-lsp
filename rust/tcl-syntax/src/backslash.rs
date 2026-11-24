@@ -841,6 +841,31 @@ pub fn literal_quoted_source_fragment_in_braced_script(
     Some(fragment)
 }
 
+/// The source container that will hold a generated literal word.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LiteralWordContext {
+    Script,
+    BracedScript,
+}
+
+/// Spell a Unicode value as one literal Tcl word. In an enclosing braced
+/// script, braces inside an escaped word must be protected even in quotes.
+#[must_use]
+pub fn quote_literal_source_word(value: &str, context: LiteralWordContext) -> String {
+    if !value.is_empty()
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || b"._/-".contains(&byte))
+    {
+        return value.to_owned();
+    }
+    if !value.contains(['{', '}', '\r']) && !value.ends_with('\\') && !value.contains("\\\n") {
+        return format!("{{{value}}}");
+    }
+    let fragment = quote_literal_source_content(value, context == LiteralWordContext::BracedScript);
+    format!("\"{fragment}\"")
+}
+
 fn quote_literal_source_content(text: &str, protect_braces: bool) -> String {
     let mut result = String::new();
     for character in text.chars() {

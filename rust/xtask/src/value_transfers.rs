@@ -298,7 +298,8 @@ fn lint(root: &Path) -> Lint {
             CLEAN_FILES.contains(&path) || RATCHET.iter().any(|(pinned, _)| *pinned == path)
         });
         let clean = CLEAN_FILES.contains(&owner.as_str());
-        let file_waiver = file_waiver(&text);
+        let comments = crate::util::waivers::Waivers::new(&text);
+        let file_waiver = file_waiver(&comments);
         if let Some((axis, _)) = &file_waiver
             && !AXES.contains(&axis.as_str())
         {
@@ -311,7 +312,7 @@ fn lint(root: &Path) -> Lint {
                 line,
                 snippet,
             };
-            if let Some((axis, reason)) = site_waiver(&text, line) {
+            if let Some((axis, reason)) = site_waiver(&text, &comments, line) {
                 if !AXES.contains(&axis.as_str()) {
                     out.problems
                         .push(format!("{rel}:{line}: waiver names unknown axis `{axis}`"));
@@ -628,47 +629,34 @@ fn parse_waiver(after_marker: &str) -> (String, String) {
 /// The site waiver for `line_no`: on the line, in the comment block
 /// directly above it, or — for a `match` arm on an evaluator id — in the
 /// comment block above the enclosing `match`.
-fn site_waiver(text: &str, line_no: usize) -> Option<(String, String)> {
-    let lines: Vec<&str> = text.lines().collect();
-    let idx = line_no.saturating_sub(1);
-    let marker = |l: &str| {
-        l.find(WAIVER)
-            .filter(|_| !l.contains(FILE_WAIVER))
-            .map(|i| parse_waiver(&l[i + WAIVER.len()..]))
-    };
-    if let Some(found) = lines.get(idx).and_then(|l| marker(l)) {
-        return Some(found);
+fn site_waiver(
+    text: &str,
+    comments: &crate::util::waivers::Waivers<'_>,
+    line: usize,
+) -> Option<(String, String)> {
+    if let Some((_, payload)) = comments.site(line, WAIVER) {
+        return Some(parse_waiver(payload));
     }
-    let block_above = |at: usize| {
-        lines[..at.min(lines.len())]
-            .iter()
-            .rev()
-            .take_while(|l| l.trim_start().starts_with("//"))
-            .find_map(|l| marker(l))
-    };
-    if let Some(found) = block_above(idx) {
-        return Some(found);
-    }
-    if lines.get(idx).is_some_and(|l| l.contains("NativeEvalId::")) {
-        let indent = |l: &str| l.len() - l.trim_start().len();
-        let arm_indent = lines.get(idx).map_or(0, |l| indent(l));
-        let enclosing = lines[..idx]
-            .iter()
-            .enumerate()
-            .rev()
-            .find(|(_, l)| indent(l) < arm_indent && l.trim_start().starts_with("match "))
-            .map(|(i, _)| i)?;
-        return block_above(enclosing);
-    }
-    None
+    let lines: Vec<_> = text.lines().take(line).collect();
+    let current = lines
+        .last()
+        .filter(|line| line.contains("NativeEvalId::"))?;
+    let indent = |line: &str| line.len() - line.trim_start().len();
+    let enclosing = lines[..lines.len() - 1]
+        .iter()
+        .enumerate()
+        .rev()
+        .find(|(_, l)| indent(l) < indent(current) && l.trim_start().starts_with("match "))
+        .map(|(index, _)| index + 1)?;
+    comments
+        .site(enclosing, WAIVER)
+        .map(|(_, payload)| parse_waiver(payload))
 }
 
-/// The file-level waiver in the file's leading comment, when it has one.
-fn file_waiver(text: &str) -> Option<(String, String)> {
-    text.lines().take(80).find_map(|l| {
-        l.find(FILE_WAIVER)
-            .map(|i| parse_waiver(&l[i + FILE_WAIVER.len()..]))
-    })
+fn file_waiver(comments: &crate::util::waivers::Waivers<'_>) -> Option<(String, String)> {
+    comments
+        .leading(FILE_WAIVER)
+        .map(|(_, payload)| parse_waiver(payload))
 }
 
 // The ratchet
@@ -1237,14 +1225,17 @@ mod tests {
         let hits = scan(src);
         assert_eq!(hits.len(), 3);
         assert_eq!(
-            site_waiver(src, hits[0].0),
+            site_waiver(src, &crate::util::waivers::Waivers::new(src), hits[0].0),
             Some(("options".to_owned(), "pending value_word_count".to_owned()))
         );
         assert_eq!(
-            site_waiver(src, hits[1].0),
+            site_waiver(src, &crate::util::waivers::Waivers::new(src), hits[1].0),
             Some(("irreducible".to_owned(), "grammar".to_owned()))
         );
-        assert_eq!(site_waiver(src, hits[2].0), None);
+        assert_eq!(
+            site_waiver(src, &crate::util::waivers::Waivers::new(src), hits[2].0),
+            None
+        );
     }
 
     #[test]
@@ -1253,7 +1244,10 @@ mod tests {
         let hits = scan(src);
         assert_eq!(hits.len(), 2);
         for (line, _) in hits {
-            assert!(site_waiver(src, line).is_some(), "line {line}");
+            assert!(
+                site_waiver(src, &crate::util::waivers::Waivers::new(src), line).is_some(),
+                "line {line}"
+            );
         }
     }
 
@@ -1261,13 +1255,16 @@ mod tests {
     fn a_file_waiver_names_its_axis() {
         let src = "//! docs\n// value-transfer-ok(file): options — every site awaits value_word_count\nfn f() {}\n";
         assert_eq!(
-            file_waiver(src),
+            file_waiver(&crate::util::waivers::Waivers::new(src)),
             Some((
                 "options".to_owned(),
                 "every site awaits value_word_count".to_owned()
             ))
         );
-        assert_eq!(site_waiver(src, 3), None);
+        assert_eq!(
+            site_waiver(src, &crate::util::waivers::Waivers::new(src), 3),
+            None
+        );
     }
 
     fn lint_with(hits: &[(&str, usize)]) -> Lint {

@@ -26,8 +26,7 @@
 //!
 //! A reviewed presentation-only read (punctuation joining, newline
 //! normalisation of an edit before it is applied) carries a
-//! `// presentation-ok: <reason>` comment on the flagged line or one of the
-//! four lines above it.
+//! `// presentation-ok: <reason>` comment on the flagged line or in its preceding comment block.
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -148,6 +147,7 @@ fn collect(dir: &Path, out: &mut Vec<PathBuf>) {
 /// `(1-based line, line)` for each unwaived production line that parses a
 /// presentation field. Rust lines after the file's test module are skipped.
 fn flagged_lines(text: &str, typescript: bool) -> Vec<(usize, &str)> {
+    let waivers = crate::util::waivers::Waivers::new(text);
     let lines: Vec<&str> = text.lines().collect();
     let end = if typescript {
         lines.len()
@@ -162,7 +162,7 @@ fn flagged_lines(text: &str, typescript: bool) -> Vec<(usize, &str)> {
             let code = line.trim_start();
             !code.starts_with("//") && !code.starts_with('*') && parses_presentation(code, methods)
         })
-        .filter(|(idx, _)| !waived(&lines, *idx))
+        .filter(|(idx, _)| waivers.attached(idx + 1, "presentation-ok:").is_none())
         .map(|(idx, line)| (idx + 1, *line))
         .collect()
 }
@@ -184,12 +184,6 @@ fn parses_presentation(code: &str, methods: &[&str]) -> bool {
             })
         })
     })
-}
-
-fn waived(lines: &[&str], idx: usize) -> bool {
-    (idx.saturating_sub(4)..=idx)
-        .filter_map(|i| lines.get(i))
-        .any(|l| l.contains("presentation-ok:"))
 }
 
 #[cfg(test)]

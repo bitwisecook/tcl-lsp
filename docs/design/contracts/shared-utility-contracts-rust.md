@@ -22,6 +22,10 @@ never re-derives it.
 
 ## Owners
 
+The [work branch grammar index](../../work/name-handling/ownership/README.md)
+links the reader and writer for each Tcl grammar. The grammar-bypass gate
+checks consumers for host string operations that bypass those entry points.
+
 The machine-checked manifest below is the canonical source-to-owner map. An
 owner row names the source files that implement the owner, the public entry
 points consumers use, the semantic axis that must be threaded, and the drift

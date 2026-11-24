@@ -126,6 +126,7 @@ mod resolution_drift;
 mod retired_api_gate;
 mod runtime_stdlib;
 mod segmentation_drift;
+mod semantic_ownership;
 mod semantics_matrix;
 mod sslictcl_data;
 mod tcltest_sweep;
@@ -154,6 +155,9 @@ enum Command {
         #[arg(required = true)]
         gates: Vec<String>,
     },
+
+    #[command(flatten)]
+    SemanticOwnership(semantic_ownership::Command),
 
     /// Validate markdown links + KCS/design index coverage under `docs/`.
     KcsIndexLinks,
@@ -634,8 +638,12 @@ fn batch(gates: &[String]) -> ExitCode {
         println!("==> xtask {gate}");
         let outcome = match Cli::try_parse_from(argv) {
             Ok(Cli {
-                command: Command::Batch { .. },
-            }) => Err(anyhow::anyhow!("a batch cannot contain a batch")),
+                command:
+                    Command::Batch { .. }
+                    | Command::SemanticOwnership(semantic_ownership::Command::Check),
+            }) => Err(anyhow::anyhow!(
+                "a batch cannot contain an aggregate command"
+            )),
             Ok(cli) => dispatch(cli.command),
             Err(err) => Err(err.into()),
         };
@@ -672,6 +680,7 @@ fn batch(gates: &[String]) -> ExitCode {
 fn dispatch(command: Command) -> anyhow::Result<ExitCode> {
     match command {
         Command::Batch { gates } => Ok(batch(&gates)),
+        Command::SemanticOwnership(command) => command.run(),
         Command::KcsIndexLinks => kcs_index_links::run(),
         Command::SmokeTargets { operation, package } => {
             cargo_smoke::run(&operation, package.as_deref())

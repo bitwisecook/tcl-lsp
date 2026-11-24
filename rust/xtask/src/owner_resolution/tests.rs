@@ -514,8 +514,8 @@ fn legacy_naming_gate_resolves_the_tcl_evidence_check() {
     let main = read(&root, XTASK_MAIN_PATH).expect("xtask main");
     assert!(naming_proof_gate_is_current(&root, &makefile));
     let contract = synthetic_manifest(
-        "`rust/tcl-value-syntax/src/list.rs`",
-        "`split_list`",
+        "`rust/tcl-syntax/src/frame_level.rs`",
+        "`parse_supplied_level`",
         "`check-name-resolution-proofs`",
     );
     assert_eq!(

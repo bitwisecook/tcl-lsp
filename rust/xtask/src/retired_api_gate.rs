@@ -50,7 +50,7 @@
 //! `rust/tcl-registry/src/` (`ProfileQueries` and the cache doors live on
 //! there behind `pub(crate)` — the compile-level half of the gate). A
 //! deliberate, reviewed exception carries a `// retired-api-ok: <reason>`
-//! waiver on the flagged line or one of the four lines above it, and must
+//! waiver on the flagged line or in its preceding comment block, and must
 //! be recorded in the centralisation ledger.
 //!
 //! # The one-oracle gate
@@ -545,15 +545,16 @@ pub fn run(_check: bool) -> ExitCode {
         let Ok(text) = std::fs::read_to_string(&path) else {
             continue;
         };
+        let waivers = crate::util::waivers::Waivers::new(&text);
         for (line_no, needle) in scan(&text, inside_registry) {
-            if is_waived(&text, line_no, RETIRED_WAIVER) {
+            if waivers.attached(line_no, RETIRED_WAIVER).is_some() {
                 continue;
             }
             hits += 1;
             let _ = writeln!(report, "  {rel}:{line_no}: `{needle}`");
         }
         for (line_no, needle) in scan_owned(&text, relative) {
-            if is_waived(&text, line_no, OWNED_WAIVER) {
+            if waivers.attached(line_no, OWNED_WAIVER).is_some() {
                 continue;
             }
             owned_hits += 1;
@@ -637,16 +638,6 @@ const RETIRED_WAIVER: &str = "retired-api-ok:";
 
 /// The waiver marker for an owned answer written outside its owner.
 const OWNED_WAIVER: &str = "one-oracle-ok:";
-
-/// Whether the flagged line (or one of the four lines above it — room for
-/// a multi-line justification comment) carries a `marker` waiver.
-fn is_waived(text: &str, line_no: usize, marker: &str) -> bool {
-    let lines: Vec<&str> = text.lines().collect();
-    let idx = line_no.saturating_sub(1);
-    (idx.saturating_sub(4)..=idx)
-        .filter_map(|i| lines.get(i))
-        .any(|l| l.contains(marker))
-}
 
 /// Whether `owner` (a directory prefix or one file) covers `rel`. A file
 /// owner covers the modules split out of it: `a/b.rs` covers `a/b/…`.
@@ -970,14 +961,26 @@ mod tests {
             "// one-oracle-ok: ledger §3 row, reviewed\nlet n = self.builtin_command_names();\n";
         let hits = scan_owned(owned, Path::new("rust/tcl-lsp-core/src/completion.rs"));
         assert_eq!(hits.len(), 1);
-        assert!(is_waived(owned, hits[0].0, OWNED_WAIVER));
-        assert!(!is_waived(owned, hits[0].0, RETIRED_WAIVER));
+        assert!(
+            crate::util::waivers::Waivers::new(owned)
+                .attached(hits[0].0, OWNED_WAIVER)
+                .is_some()
+        );
+        assert!(
+            crate::util::waivers::Waivers::new(owned)
+                .attached(hits[0].0, RETIRED_WAIVER)
+                .is_none()
+        );
 
         let wrong =
             "// retired-api-ok: not the right hatch\nlet n = self.builtin_command_names();\n";
         let hits = scan_owned(wrong, Path::new("rust/tcl-lsp-core/src/completion.rs"));
         assert_eq!(hits.len(), 1);
-        assert!(!is_waived(wrong, hits[0].0, OWNED_WAIVER));
+        assert!(
+            crate::util::waivers::Waivers::new(wrong)
+                .attached(hits[0].0, OWNED_WAIVER)
+                .is_none()
+        );
     }
 
     /// The documented waiver suppresses a hit; an unwaived hit stands.
@@ -987,10 +990,18 @@ mod tests {
             "// retired-api-ok: ledger §3 entry, reviewed\nlet p = DialectProfile::by_name(n);\n";
         let hits = scan(src, false);
         assert_eq!(hits.len(), 1);
-        assert!(is_waived(src, hits[0].0, RETIRED_WAIVER));
+        assert!(
+            crate::util::waivers::Waivers::new(src)
+                .attached(hits[0].0, RETIRED_WAIVER)
+                .is_some()
+        );
         let bare = "let p = DialectProfile::by_name(n);\n";
         let hits = scan(bare, false);
         assert_eq!(hits.len(), 1);
-        assert!(!is_waived(bare, hits[0].0, RETIRED_WAIVER));
+        assert!(
+            crate::util::waivers::Waivers::new(bare)
+                .attached(hits[0].0, RETIRED_WAIVER)
+                .is_none()
+        );
     }
 }

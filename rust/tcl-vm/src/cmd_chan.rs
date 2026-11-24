@@ -165,7 +165,7 @@ fn cmd_open_in_original(
             ));
         }
     };
-    if name.starts_with('|') {
+    if tcl_syntax::pipeline::open_pipeline_script(name.as_bytes()).is_some() {
         return Ok(err("command pipelines are not supported"));
     }
     let m = mode.trim();

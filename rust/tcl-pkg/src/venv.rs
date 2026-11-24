@@ -39,18 +39,6 @@ fn venv_error(message: impl Into<String>, hint: Option<&str>) -> TclPkgError {
     TclPkgError::venv(message, hint.map(ToString::to_string))
 }
 
-fn supported_list_grammars()
--> impl Iterator<Item = (tcl_dialect::ListParse, tcl_dialect::EscapeSyntax)> {
-    tcl_dialect::EscapeSyntax::ALL.iter().flat_map(|&escapes| {
-        [
-            tcl_dialect::ListParse::Strict,
-            tcl_dialect::ListParse::Lenient,
-        ]
-        .into_iter()
-        .map(move |syntax| (syntax, escapes))
-    })
-}
-
 /// Decode only directories shared by all supported Tcl interpreters. A build's
 /// external tclsh can be a wrapper, so its filename cannot select a grammar.
 #[must_use]
@@ -58,26 +46,10 @@ pub fn tcllibpath_directories(inherited: Option<&OsStr>) -> Vec<PathBuf> {
     let Some(source) = inherited.and_then(OsStr::to_str) else {
         return Vec::new();
     };
-    let mut common = None::<Vec<PathBuf>>;
-    for (syntax, escapes) in supported_list_grammars() {
-        let Ok(elements) =
-            tcl_syntax::list::split_list_bytes_in(source.as_bytes(), syntax, escapes)
-        else {
-            return Vec::new();
-        };
-        let paths: Vec<_> = elements
-            .iter()
-            .filter_map(|value| {
-                let value = std::str::from_utf8(value).ok()?;
-                (!value.is_empty() && !value.contains('\0')).then(|| PathBuf::from(value))
-            })
-            .collect();
-        match &mut common {
-            Some(common) => common.retain(|directory| paths.contains(directory)),
-            None => common = Some(paths),
-        }
-    }
-    common.unwrap_or_default()
+    tcl_syntax::tcllibpath::external_directories(source)
+        .into_iter()
+        .map(PathBuf::from)
+        .collect()
 }
 
 /// Prepend one actual Unicode path to a Tcl environment-list value, preserving
@@ -111,7 +83,7 @@ pub fn prepare_tcllibpath(
         output.push(' ');
         output.push_str(inherited);
     }
-    for (syntax, escapes) in supported_list_grammars() {
+    for (syntax, escapes) in tcl_syntax::tcllibpath::external_list_grammars() {
         let original = tcl_syntax::list::split_list_bytes_in(inherited.as_bytes(), syntax, escapes)
             .map_err(|_| {
                 venv_error(

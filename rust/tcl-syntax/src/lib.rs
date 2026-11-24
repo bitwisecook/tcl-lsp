@@ -106,6 +106,7 @@ pub mod native_variable_words;
 pub mod ns_op_conformance;
 pub mod number;
 pub use tcl_numeric::number_tower;
+pub mod pipeline;
 pub mod posix_shell;
 pub use tcl_value_syntax::raw_string;
 pub mod release_expectations;
@@ -114,6 +115,7 @@ pub mod scan;
 /// Selected script completeness delegates to the shared original Lexer owner.
 pub mod script_completeness;
 pub mod switch_body;
+pub mod tcllibpath;
 pub mod utf;
 pub mod value;
 pub mod var_conformance;

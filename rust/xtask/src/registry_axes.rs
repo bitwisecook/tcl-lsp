@@ -466,7 +466,7 @@ fn lint_file(rel: &str, text: &str, vocabulary: &Vocabulary, out: &mut Lint) {
         CLEAN_FILES.contains(&path) || RATCHET.iter().any(|(pinned, _)| *pinned == path)
     });
     let clean = CLEAN_FILES.contains(&owner.as_str());
-    let comments = line_comments(text);
+    let comments = crate::util::waivers::Waivers::new(text);
     let file_waiver = file_waiver(&comments);
     if let Some(Err(problem)) = &file_waiver {
         out.problems.push(format!("{rel}: file waiver {problem}"));
@@ -566,40 +566,6 @@ fn tokens(text: &str) -> Vec<Tok> {
             });
         }
         line += text[offset..end].bytes().filter(|b| *b == b'\n').count();
-        offset = end;
-    }
-    out
-}
-
-/// One `//` comment: its text, and whether it stands alone on its line.
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct Comment {
-    text: String,
-    standalone: bool,
-}
-
-/// Every `//` comment by line — the waiver markers' carrier.
-fn line_comments(text: &str) -> BTreeMap<usize, Comment> {
-    let mut out = BTreeMap::new();
-    let mut offset = 0;
-    let mut line = 1;
-    let mut line_start = 0;
-    for token in rustc_lexer::tokenize(text) {
-        let end = offset + token.len;
-        if token.kind == TokenKind::LineComment {
-            out.insert(
-                line,
-                Comment {
-                    text: text[offset..end].to_owned(),
-                    standalone: text[line_start..offset].trim().is_empty(),
-                },
-            );
-        }
-        let lexeme = &text[offset..end];
-        line += lexeme.bytes().filter(|b| *b == b'\n').count();
-        if let Some(last) = lexeme.rfind('\n') {
-            line_start = offset + last + 1;
-        }
         offset = end;
     }
     out
@@ -997,68 +963,36 @@ fn parse_waiver(after_marker: &str) -> Result<Waiver, String> {
     })
 }
 
-/// The waiver whose marker is in the comment on `line`, its text continued
-/// over the standalone comment lines below until the expiry is written.
-fn marker_at(
-    comments: &BTreeMap<usize, Comment>,
-    line: usize,
-    marker: &str,
-) -> Option<Result<Waiver, String>> {
-    let comment = comments.get(&line)?;
-    if marker == WAIVER && comment.text.contains(FILE_WAIVER) {
-        return None;
-    }
-    let at = comment.text.find(marker)?;
-    let mut waiver = comment.text[at + marker.len()..].trim().to_owned();
-    let mut next = line + 1;
-    while comment.standalone && !waiver.contains("; until ") {
-        let Some(more) = comments.get(&next).filter(|c| c.standalone) else {
-            break;
-        };
-        let more = more
-            .text
-            .trim_start_matches('/')
-            .trim_start_matches('!')
-            .trim();
-        if more.is_empty() || more.contains(WAIVER) || more.contains(FILE_WAIVER) {
+fn detailed_waiver(
+    comments: &crate::util::waivers::Waivers<'_>,
+    (line, payload): (usize, &str),
+) -> Result<Waiver, String> {
+    let mut waiver = payload.to_owned();
+    for more in comments.continuation(line) {
+        if waiver.contains("; until ") || more.starts_with(WAIVER) || more.starts_with(FILE_WAIVER)
+        {
             break;
         }
         waiver.push(' ');
         waiver.push_str(more);
-        next += 1;
     }
-    Some(parse_waiver(&waiver))
+    parse_waiver(&waiver)
 }
 
-/// The waiver on `line`, or in the comment block directly above it.
-fn waiver_at(comments: &BTreeMap<usize, Comment>, line: usize) -> Option<Result<Waiver, String>> {
-    if let Some(found) = marker_at(comments, line, WAIVER) {
-        return Some(found);
-    }
-    let mut above = line.checked_sub(1)?;
-    let mut block = Vec::new();
-    while comments.get(&above).is_some_and(|c| c.standalone) {
-        block.push(above);
-        above = above.checked_sub(1)?;
-    }
-    block
-        .into_iter()
-        .rev()
-        .find_map(|at| marker_at(comments, at, WAIVER))
-}
-
-/// The site's waiver: on its line or directly above it, or — for an arm, a
-/// `matches!` pattern or a table entry — on or above the enclosing construct.
-fn site_waiver(comments: &BTreeMap<usize, Comment>, hit: &Hit) -> Option<Result<Waiver, String>> {
-    waiver_at(comments, hit.line).or_else(|| hit.anchor.and_then(|at| waiver_at(comments, at)))
-}
-
-/// The file-level waiver in the file's leading comments, when it has one.
-fn file_waiver(comments: &BTreeMap<usize, Comment>) -> Option<Result<Waiver, String>> {
+fn site_waiver(
+    comments: &crate::util::waivers::Waivers<'_>,
+    hit: &Hit,
+) -> Option<Result<Waiver, String>> {
     comments
-        .range(..=80)
-        .find(|(_, comment)| comment.text.contains(FILE_WAIVER))
-        .and_then(|(&line, _)| marker_at(comments, line, FILE_WAIVER))
+        .site(hit.line, WAIVER)
+        .or_else(|| hit.anchor.and_then(|line| comments.site(line, WAIVER)))
+        .map(|site| detailed_waiver(comments, site))
+}
+
+fn file_waiver(comments: &crate::util::waivers::Waivers<'_>) -> Option<Result<Waiver, String>> {
+    comments
+        .leading(FILE_WAIVER)
+        .map(|site| detailed_waiver(comments, site))
 }
 
 // The ratchet
@@ -1289,7 +1223,7 @@ mod tests {
         assert!(parse_waiver("irreducible — Tcl grammar; until never").is_ok());
         // Found on the line, in the block above, and above an enclosing match.
         let src = "// registry-axis-ok: clause_grammar — the walk; until the descriptor\nfn f(w: &str) -> bool { w == \"else\" }\nfn g(w: &str) -> bool { w == \"then\" } // registry-axis-ok: irreducible — Tcl grammar; until never\n// registry-axis-ok: definition_body — the arm table; until the descriptor\nfn h(w: &str) -> u8 {\n    match w {\n        \"method\" => 1,\n        _ => 0,\n    }\n}\nfn i(w: &str) -> bool { w == \"set\" }\n";
-        let comments = line_comments(src);
+        let comments = crate::util::waivers::Waivers::new(src);
         let hits = scan(src, &sample());
         assert_eq!(hits.len(), 4);
         let axes: Vec<Option<String>> = hits
@@ -1314,7 +1248,7 @@ mod tests {
     #[test]
     fn an_enclosing_match_carries_its_arms_waiver() {
         let src = "fn h(w: &str) -> u8 {\n    // registry-axis-ok: definition_body — the arm table; until the descriptor\n    match w {\n        \"method\" => 1,\n        _ => 0,\n    }\n}\n";
-        let comments = line_comments(src);
+        let comments = crate::util::waivers::Waivers::new(src);
         let hits = scan(src, &sample());
         assert_eq!(hits.len(), 1);
         assert!(site_waiver(&comments, &hits[0]).is_some_and(|w| w.is_ok()));

@@ -85,8 +85,9 @@ pub fn run(_check: bool) -> ExitCode {
         };
         let lines: Vec<&str> = text.lines().collect();
         let test_tail = crate::util::test_module_start(&lines).unwrap_or(lines.len());
+        let waivers = crate::util::waivers::Waivers::new(&text);
         for (line_no, window_text) in scan_windows(&text) {
-            if line_no > test_tail || window_is_waived(&text, line_no) {
+            if line_no > test_tail || waivers.attached(line_no, "drift-ok:").is_some() {
                 continue;
             }
             hits += 1;
@@ -191,41 +192,10 @@ fn has_simple_name_compare(window: &str) -> bool {
     false
 }
 
-/// Whether the flagged line (or its attached comment block) carries a `drift-ok:` waiver.
-fn window_is_waived(text: &str, line_no: usize) -> bool {
-    let lines: Vec<_> = text.lines().take(line_no).collect();
-    if lines.len() != line_no || line_no == 0 {
-        return false;
-    }
-    let attached = lines[..line_no - 1]
-        .iter()
-        .rev()
-        .take_while(|line| line.trim_start().starts_with("//"))
-        .count();
-    let first_line = line_no - attached;
-
-    let mut offset = 0;
-    let mut line = 1;
-    for token in rustc_lexer::tokenize(text) {
-        let spelling = &text[offset..offset + token.len];
-        if line >= first_line
-            && token.kind == rustc_lexer::TokenKind::LineComment
-            && spelling[2..].trim_start().starts_with("drift-ok:")
-        {
-            return true;
-        }
-        offset += token.len;
-        line += spelling.bytes().filter(|&byte| byte == b'\n').count();
-        if line > line_no {
-            break;
-        }
-    }
-    false
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::util::waivers::Waivers;
 
     #[test]
     fn a_scan_inside_a_test_module_is_not_production() {
@@ -271,7 +241,7 @@ mod tests {
         let src = "// drift-ok: deterministic fallback, documented\nlet p = all_procs.values().find(|p| p.name == w);\n";
         let hits = scan_windows(src);
         assert_eq!(hits.len(), 1);
-        assert!(window_is_waived(src, hits[0].0));
+        assert!(Waivers::new(src).attached(hits[0].0, "drift-ok:").is_some());
     }
     #[test]
     fn waivers_are_exact_tags_in_attached_comments() {
@@ -287,10 +257,21 @@ mod tests {
             let [(line, _)] = scan_windows(&source)
                 .try_into()
                 .unwrap_or_else(|_| panic!("{source}"));
-            assert!(!window_is_waived(&source, line), "{source}");
+            assert!(
+                Waivers::new(&source).attached(line, "drift-ok:").is_none(),
+                "{source}"
+            );
         }
         let source = format!("// drift-ok: start\n// one\n// two\n// three\n// four\n{scan}");
-        assert!(window_is_waived(&source, source.lines().count()));
-        assert!(window_is_waived(&format!("{scan} // drift-ok: inline"), 1));
+        assert!(
+            Waivers::new(&source)
+                .attached(source.lines().count(), "drift-ok:")
+                .is_some()
+        );
+        assert!(
+            Waivers::new(&format!("{scan} // drift-ok: inline"))
+                .attached(1, "drift-ok:")
+                .is_some()
+        );
     }
 }

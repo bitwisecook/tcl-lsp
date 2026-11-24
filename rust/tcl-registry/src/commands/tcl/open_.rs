@@ -134,9 +134,9 @@ const ACCESS_VALUES: &[ArgValue] = &[
 fn discovery_file_open(arguments: InvocationArguments<'_>) -> StateTransitions {
     let mut transitions = StateTransitions::default();
     if !(1..=3).contains(&arguments.len())
-        || arguments
-            .literal_at(0)
-            .is_some_and(|path| path.starts_with('|'))
+        || arguments.literal_at(0).is_some_and(|path| {
+            tcl_syntax::pipeline::open_pipeline_script(path.as_bytes()).is_some()
+        })
     {
         return transitions;
     }

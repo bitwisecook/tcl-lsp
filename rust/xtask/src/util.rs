@@ -20,6 +20,8 @@
 
 pub(crate) mod source_literals;
 pub(crate) mod test_sources;
+pub(crate) mod tsv;
+pub(crate) mod waivers;
 
 use std::ffi::OsString;
 use std::fmt::Write as _;

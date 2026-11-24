@@ -174,8 +174,9 @@ pub fn run(_check: bool) -> ExitCode {
         let Ok(text) = std::fs::read_to_string(&path) else {
             continue;
         };
+        let waivers = crate::util::waivers::Waivers::new(&text);
         for (line_no, snippet) in scan(&text) {
-            if line_is_waived(&text, line_no) {
+            if waivers.attached(line_no, WAIVER).is_some() {
                 continue;
             }
             hits += 1;
@@ -433,28 +434,6 @@ fn is_recognition_position(text: &str, start: usize, end: usize) -> bool {
     }
 }
 
-/// Whether the flagged line carries a `number-drift-ok:` waiver — on the line
-/// itself, or anywhere in the contiguous `//` comment block directly above it.
-///
-/// The whole attached block counts, rather than a fixed number of lines above:
-/// a waiver here has to explain *why* the text being parsed is not Tcl script,
-/// and that is usually several sentences. A fixed window silently stops
-/// recognising the marker once the justification grows past it, which punishes
-/// exactly the thorough explanations the waiver is supposed to require.
-fn line_is_waived(text: &str, line_no: usize) -> bool {
-    let lines: Vec<&str> = text.lines().collect();
-    let idx = line_no.saturating_sub(1);
-    if lines.get(idx).is_some_and(|l| l.contains(WAIVER)) {
-        return true;
-    }
-    // Walk up through the comment block immediately above the flagged line.
-    lines[..idx.min(lines.len())]
-        .iter()
-        .rev()
-        .take_while(|l| l.trim_start().starts_with("//"))
-        .any(|l| l.contains(WAIVER))
-}
-
 /// The marker that waives a site.
 const WAIVER: &str = "number-drift-ok:";
 
@@ -512,7 +491,11 @@ mod tests {
                    let v = s.strip_prefix(\"0x\");\n";
         let hits = scan(src);
         assert_eq!(hits.len(), 1);
-        assert!(line_is_waived(src, hits[0].0));
+        assert!(
+            crate::util::waivers::Waivers::new(src)
+                .attached(hits[0].0, WAIVER)
+                .is_some()
+        );
     }
 
     /// The marker counts anywhere in the attached comment block, however long
@@ -529,7 +512,12 @@ mod tests {
                    }\n";
         let hits = scan(src);
         assert_eq!(hits.len(), 1, "the site is still detected");
-        assert!(line_is_waived(src, hits[0].0), "waiver must be honoured");
+        assert!(
+            crate::util::waivers::Waivers::new(src)
+                .attached(hits[0].0, WAIVER)
+                .is_some(),
+            "waiver must be honoured"
+        );
     }
 
     /// A waiver on some *unrelated* earlier statement must not carry over: the
@@ -541,8 +529,18 @@ mod tests {
                    let b = thing.strip_prefix(\"0o\");\n";
         let hits = scan(src);
         assert_eq!(hits.len(), 2);
-        assert!(line_is_waived(src, hits[0].0), "first site is waived");
-        assert!(!line_is_waived(src, hits[1].0), "second site is not");
+        assert!(
+            crate::util::waivers::Waivers::new(src)
+                .attached(hits[0].0, WAIVER)
+                .is_some(),
+            "first site is waived"
+        );
+        assert!(
+            crate::util::waivers::Waivers::new(src)
+                .attached(hits[1].0, WAIVER)
+                .is_none(),
+            "second site is not"
+        );
     }
 
     /// A `|` that is not a string-literal alternative must not be mistaken for

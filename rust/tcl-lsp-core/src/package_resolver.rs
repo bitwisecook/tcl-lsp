@@ -532,6 +532,16 @@ pub fn parse_tcl_index(
     entries
 }
 
+/// Render one version 2.0 Tcl autoload entry, relative to the index's directory.
+#[must_use]
+pub fn render_tcl_index_entry(name: &str, filename: &str) -> String {
+    use tcl_syntax::backslash::{LiteralWordContext, quote_literal_source_word};
+    let target =
+        quote_literal_source_word(&format!("auto_index({name})"), LiteralWordContext::Script);
+    let file = quote_literal_source_word(filename, LiteralWordContext::Script);
+    format!("set {target} [list source [file join $dir {file}]]\n")
+}
+
 /// Extract `NAME` from an `auto_index(NAME)` array-element word.
 fn auto_index_key(raw: &str) -> Option<&str> {
     let (root, index) = tcl_syntax::naming::split_element_ref(raw)?;

@@ -38,35 +38,11 @@ use crate::model::{
     TrustProgramDeclaration,
 };
 
-/// Quote `value` as one Tcl word: bare when it is already a safe literal,
-/// braced when it contains no brace or line-continuation trouble, and
-/// backslash-escaped inside double quotes otherwise.
 pub(crate) fn tcl_word(value: &str) -> String {
-    if !value.is_empty()
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || b"._/-".contains(&byte))
-    {
-        return value.to_owned();
-    }
-    if !value.contains('{') && !value.contains('}') && !value.contains("\\\n") {
-        return format!("{{{value}}}");
-    }
-    let mut output = String::from("\"");
-    for character in value.chars() {
-        match character {
-            '\\' | '"' | '$' | '[' | ']' => {
-                output.push('\\');
-                output.push(character);
-            }
-            '\n' => output.push_str("\\n"),
-            '\r' => output.push_str("\\r"),
-            '\t' => output.push_str("\\t"),
-            other => output.push(other),
-        }
-    }
-    output.push('"');
-    output
+    tcl_syntax::backslash::quote_literal_source_word(
+        value,
+        tcl_syntax::backslash::LiteralWordContext::BracedScript,
+    )
 }
 
 /// Lowercase hexadecimal, two digits per byte.
@@ -425,6 +401,26 @@ mod tests {
     /// The shipped sample exercises every declaration and member of
     /// vocabulary 1, plus an unknown word in each open block.
     const SAMPLE: &str = include_str!("../../../samples/sslictcl/example.sslictcl");
+
+    #[test]
+    fn words_keep_the_enclosing_document_balanced() {
+        for value in ["a {", "a }", "path\\", "line\\\nnext", "$literal; [set x]"] {
+            let word = super::tcl_word(value);
+            let script = format!("set value {word}");
+            let container = format!("{{{script}}}");
+            let config = tcl_lexer::LexerConfig::default();
+            assert!(
+                tcl_syntax::word_rules::lexical_unicode_source_word_matches(
+                    &container, &script, config
+                ),
+                "{container}"
+            );
+            assert!(
+                tcl_syntax::word_rules::lexical_unicode_source_word_matches(&word, value, config),
+                "{word}"
+            );
+        }
+    }
 
     #[test]
     fn sample_document_loads_with_no_errors() {

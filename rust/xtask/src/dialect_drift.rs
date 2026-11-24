@@ -231,6 +231,7 @@ fn is_exempt_path(rel: &str) -> bool {
 
 /// Every offending `(line_number, trimmed_line, why)` in `text`.
 fn scan<'a>(rel: &str, text: &'a str) -> Vec<(usize, &'a str, &'static str)> {
+    let waivers = crate::util::waivers::Waivers::new(text);
     let lines: Vec<&str> = text.lines().collect();
     let test_tail = crate::util::test_module_start(&lines).unwrap_or(lines.len());
     let mut out = Vec::new();
@@ -254,7 +255,7 @@ fn scan<'a>(rel: &str, text: &'a str) -> Vec<(usize, &'a str, &'static str)> {
                 .needles
                 .iter()
                 .any(|n| needle_hits(rel, text, &code, &window, n));
-            if hit && !is_waived(&lines, idx) {
+            if hit && waivers.attached(idx + 1, WAIVER).is_none() {
                 out.push((idx + 1, trimmed, rule.why));
                 break;
             }
@@ -431,27 +432,6 @@ fn code_only(line: &str) -> String {
         i += 1;
     }
     out
-}
-
-/// A waiver is honoured on the flagged line itself, or anywhere in the
-/// run of `//` comment lines directly above it (so the reason can be a
-/// paragraph). It does not leak past intervening code.
-fn is_waived(lines: &[&str], idx: usize) -> bool {
-    if lines[idx].contains(WAIVER) {
-        return true;
-    }
-    let mut i = idx;
-    while i > 0 {
-        i -= 1;
-        let t = lines[i].trim_start();
-        if !t.starts_with("//") {
-            return false;
-        }
-        if t.contains(WAIVER) {
-            return true;
-        }
-    }
-    false
 }
 
 fn collect_rs_files(dir: &Path, out: &mut Vec<PathBuf>) {

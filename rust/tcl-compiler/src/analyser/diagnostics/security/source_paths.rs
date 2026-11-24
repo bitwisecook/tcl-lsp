@@ -83,7 +83,7 @@ fn pipeline_prefix(word: &tcl_lexer::NativeWord) -> bool {
         .list(arena.root())
         .first()
         .and_then(|part| arena.text(part))
-        .is_some_and(|text| text.starts_with(b"|"))
+        .is_some_and(|text| tcl_syntax::pipeline::open_pipeline_script(text).is_some())
 }
 
 /// A proven value is an independent advisory facet; the original source word
@@ -101,9 +101,7 @@ fn path_diagnostic(
     let (code, severity, message) = match kind {
         RegistrySourceDiagnosticKind::ChannelPath => {
             if let Some(value) = value {
-                if !value.starts_with('|') {
-                    return None;
-                }
+                tcl_syntax::pipeline::open_pipeline_script(value.as_bytes())?;
                 (
                     DiagCode::W103,
                     Severity::Hint,

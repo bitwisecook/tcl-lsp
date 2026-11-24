@@ -335,6 +335,15 @@ fn parse_tcl_index_v2_and_old_formats() {
 }
 
 #[test]
+fn tcl_index_writer_preserves_literal_names_and_paths() {
+    let source = render_tcl_index_entry("ns::p $x", "with space.tcl");
+    let entries = parse_tcl_index(&source, Path::new("/index"), &|_| true);
+    assert_eq!(entries.len(), 1, "{source}");
+    assert_eq!(entries[0].proc_name, "ns::p $x");
+    assert_eq!(entries[0].source_file, Path::new("/index/with space.tcl"));
+}
+
+#[test]
 fn parse_tcl_index_differential_against_auto_mkindex() {
     let Some(sh) = find_tclsh() else {
         eprintln!("skipping auto_mkindex differential: no pinned Tcl reference interpreter");

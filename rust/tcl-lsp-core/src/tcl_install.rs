@@ -191,24 +191,9 @@ pub fn tcllibpath_dirs() -> Vec<PathBuf> {
 }
 
 fn tcllibpath_value_dirs(raw: &str) -> Vec<PathBuf> {
-    let mut agreed = None;
-    for version in tcl_dialect::TclVersion::ALL {
-        let grammar = tcl_dialect::model::DialectPoint::for_tcl_version(version).grammar();
-        let Ok(elements) = tcl_syntax::list::split_list_in(raw, grammar.escapes) else {
-            return Vec::new();
-        };
-        if let Some(previous) = &agreed {
-            if previous != &elements {
-                return Vec::new();
-            }
-        } else {
-            agreed = Some(elements);
-        }
-    }
-    agreed
-        .unwrap_or_default()
+    tcl_syntax::tcllibpath::discovery_directories(raw)
         .into_iter()
-        .map(|element| PathBuf::from(element.as_ref()))
+        .map(PathBuf::from)
         .collect()
 }
 

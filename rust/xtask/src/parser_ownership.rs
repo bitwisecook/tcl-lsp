@@ -46,6 +46,7 @@ const PACK: &str = "rust/tcl-spectcl/src/loader/command/world_state.rs";
 const APL: &str = "rust/tcl-bigip/src/apl/tokens.rs";
 const STUDIO: &str = "rust/tcl-spec-studio/src/corpus.rs";
 const VENV: &str = "rust/tcl-pkg/src/venv.rs";
+const TCLLIBPATH: &str = "rust/tcl-syntax/src/tcllibpath.rs";
 
 const ROUTES: &[Route] = &[
     Route {
@@ -105,8 +106,26 @@ const ROUTES: &[Route] = &[
     Route {
         file: VENV,
         function: "tcllibpath_directories",
-        owner: "tcl_syntax::list::split_list_bytes_in",
-        selected: &[(1, "syntax"), (2, "escapes")],
+        owner: "tcl_syntax::tcllibpath::external_directories",
+        selected: &[(0, "source")],
+    },
+    Route {
+        file: "rust/tcl-lsp-core/src/tcl_install.rs",
+        function: "tcllibpath_value_dirs",
+        owner: "tcl_syntax::tcllibpath::discovery_directories",
+        selected: &[(0, "raw")],
+    },
+    Route {
+        file: TCLLIBPATH,
+        function: "external_directories",
+        owner: "crate::list::split_list_bytes_in",
+        selected: &[(0, "raw.as_bytes()"), (1, "syntax"), (2, "escapes")],
+    },
+    Route {
+        file: TCLLIBPATH,
+        function: "discovery_directories",
+        owner: "crate::list::split_list_in",
+        selected: &[(0, "raw"), (1, "grammar.escapes")],
     },
 ];
 
