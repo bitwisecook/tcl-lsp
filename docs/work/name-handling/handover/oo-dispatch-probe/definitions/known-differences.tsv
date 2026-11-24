@@ -53,7 +53,6 @@ jim	0.84-15-g2f8e155	lsubst		0,2,3,4,5,6,7,12	missed-arity	The pinned Jim usage 
 jim	0.84-15-g2f8e155	namespace	upvar	2,4,6,12	false-arity	The pinned Jim has a different accepted count than the source descriptor for this command.
 jim	0.84-15-g2f8e155	namespace	upvar	1	missed-arity	The pinned Jim usage is stricter for these words than the Jim or inherited Tcl source grammar.
 jim	0.84-15-g2f8e155	open		3	missed-arity	The pinned Jim usage is stricter for these words than the Jim or inherited Tcl source grammar.
-jim	0.84-15-g2f8e155	os.fork		1,2,3,4,5,6,7,12	missed-arity	The pinned Jim usage is stricter for these words than the Jim or inherited Tcl source grammar.
 jim	0.84-15-g2f8e155	os.gethostname		1,2,3,4,5,6,7,12	missed-arity	The pinned Jim usage is stricter for these words than the Jim or inherited Tcl source grammar.
 jim	0.84-15-g2f8e155	os.getids		1,2,3,4,5,6,7,12	missed-arity	The pinned Jim usage is stricter for these words than the Jim or inherited Tcl source grammar.
 jim	0.84-15-g2f8e155	os.umask		2,3,4,5,6,7,12	missed-arity	The pinned Jim usage is stricter for these words than the Jim or inherited Tcl source grammar.

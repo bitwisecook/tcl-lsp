@@ -183,8 +183,8 @@ close $input
 foreach command $commands { set selected([list $command {}]) 1 }
 if {$lane ne "tk"} { discard $child }
 
-# These need specific inputs or can block, exit or change the probe environment.
-set skip {zlib tk_chooseColor tk_chooseDirectory tk_getOpenFile tk_getSaveFile tk_messageBox tk_dialog exit exec vwait tkwait after unknown rename interp history update tclLdAout tcltest::test tcltest::runTests tcltest::cleanupTests tcltest::runAllTests tcltest::main tcltest::ProcessFlags tcltest::processCmdLineArgs http::wait}
+# These need specific inputs or can block, exit, fork or change the probe environment.
+set skip {os.fork zlib tk_chooseColor tk_chooseDirectory tk_getOpenFile tk_getSaveFile tk_messageBox tk_dialog exit exec vwait tkwait after unknown rename interp history update tclLdAout tcltest::test tcltest::runTests tcltest::cleanupTests tcltest::runAllTests tcltest::main tcltest::ProcessFlags tcltest::processCmdLineArgs http::wait}
 foreach key [lsort [array names selected]] {
     foreach {command sub} $key break
     if {$lane ne "tk"} { set child [fresh] }
