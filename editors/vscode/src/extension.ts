@@ -306,6 +306,15 @@ export async function activate(context: ExtensionContext) {
           );
         }
       }
+      // The document selector is fixed when the client is built; the
+      // navigation and diagnostics filters already read the setting live.
+      if (e.affectsConfiguration("tclLsp.viewOnlySchemes")) {
+        void window
+          .showInformationMessage("Reload the window to apply tclLsp.viewOnlySchemes.", "Reload")
+          .then((choice) =>
+            choice ? vscode.commands.executeCommand("workbench.action.reloadWindow") : undefined,
+          );
+      }
       // When a VS Code editor setting that a feature toggle inherits from
       // changes, re-push resolved feature values so the server stays in sync.
       if (client && EDITOR_SETTINGS_AFFECTING_FEATURES.some((s) => e.affectsConfiguration(s))) {

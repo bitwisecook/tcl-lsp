@@ -35,7 +35,7 @@
  */
 
 import { Range, Uri, workspace, WorkspaceEdit } from "vscode";
-import type { Disposable } from "vscode";
+import type { Disposable, Location, LocationLink } from "vscode";
 import type { BaseLanguageClient, LanguageClientOptions } from "vscode-languageclient";
 import type { DiffDiagnosticsSuppressor } from "./diffAnalysis";
 import { TCL_LANGUAGE_IDS } from "./languageIds";
@@ -244,6 +244,72 @@ export function resolveAllFeatureToggles(): Record<string, boolean> {
 export const DESKTOP_DOCUMENT_SCHEMES = ["file", "untitled"] as const;
 
 /**
+ * The `tclLsp.viewOnlySchemes` setting: URI schemes other extensions use to
+ * show Tcl that is not part of the workspace — a Git revision (`git`), a
+ * merge-request diff (`gl-review`), a remote file (`gitlab-remote`), and so on.
+ *
+ * The desktop client attaches to them so they get semantic highlighting and
+ * hover, but drops their diagnostics, and navigation from the workspace never
+ * lands in them. `file` and `untitled` are the workspace itself and are ignored
+ * here, so a mistyped entry cannot silence the real files' diagnostics.
+ */
+function viewOnlySchemes(): string[] {
+  const configured = workspace.getConfiguration("tclLsp").get<unknown>("viewOnlySchemes", []);
+  const desktop: readonly string[] = DESKTOP_DOCUMENT_SCHEMES;
+  return Array.isArray(configured)
+    ? configured.filter((s): s is string => typeof s === "string" && !desktop.includes(s))
+    : [];
+}
+
+/**
+ * Whether `uri` is a view-only document other than `origin`.
+ *
+ * The server indexes every open document, so an open view duplicates each
+ * proc of its working-tree file in cross-document answers. Navigation keeps
+ * results inside the view the request came from and drops the other views.
+ * ponytail: client-side filter; the root fix is the server not indexing these
+ * schemes, which needs its publication state machine to learn about them.
+ */
+function isForeignView(uri: Uri, origin: Uri | undefined, schemes: readonly string[]) {
+  return schemes.includes(uri.scheme) && uri.toString() !== origin?.toString();
+}
+
+type NavigationTarget = Location | LocationLink;
+
+/** Drop foreign views from a definition / references style answer. */
+export function dropForeignViews<R extends NavigationTarget | NavigationTarget[]>(
+  result: R | null | undefined,
+  origin?: Uri,
+  schemes: readonly string[] = viewOnlySchemes(),
+): R | undefined {
+  const foreign = (t: NavigationTarget) =>
+    isForeignView("targetUri" in t ? t.targetUri : t.uri, origin, schemes);
+  if (!result) {
+    return undefined;
+  }
+  if (Array.isArray(result)) {
+    return result.filter((t) => !foreign(t)) as R;
+  }
+  return foreign(result as NavigationTarget) ? undefined : result;
+}
+
+/** Drop rename edits aimed at foreign views, which are read-only anyway. */
+function dropForeignEdits(edit: WorkspaceEdit | null | undefined, origin: Uri) {
+  const schemes = viewOnlySchemes();
+  const entries = edit?.entries() ?? [];
+  if (!edit || !entries.some(([uri]) => isForeignView(uri, origin, schemes))) {
+    return edit;
+  }
+  const kept = new WorkspaceEdit();
+  for (const [uri, edits] of entries) {
+    if (!isForeignView(uri, origin, schemes)) {
+      kept.set(uri, edits);
+    }
+  }
+  return kept;
+}
+
+/**
  * Match Tcl documents on any URI scheme.
  *
  * Spelled `null` rather than `undefined` on purpose: `undefined` is exactly
@@ -262,7 +328,12 @@ export const ANY_SCHEME = null;
  */
 export function buildClientOptions(
   diffSuppressor: DiffDiagnosticsSuppressor,
-  schemes: readonly string[] | typeof ANY_SCHEME = DESKTOP_DOCUMENT_SCHEMES,
+  // Read once: the selector is fixed for the client's lifetime, so a changed
+  // `tclLsp.viewOnlySchemes` needs a window reload (extension.ts offers one).
+  schemes: readonly string[] | typeof ANY_SCHEME = [
+    ...DESKTOP_DOCUMENT_SCHEMES,
+    ...viewOnlySchemes(),
+  ],
 ): LanguageClientOptions {
   return {
     documentSelector: [
@@ -285,7 +356,39 @@ export function buildClientOptions(
     },
     middleware: {
       handleDiagnostics: (uri, diagnostics, next) =>
-        diffSuppressor.handleDiagnostics(uri, diagnostics, next),
+        viewOnlySchemes().includes(uri.scheme)
+          ? next(uri, [])
+          : diffSuppressor.handleDiagnostics(uri, diagnostics, next),
+      provideDefinition: async (document, position, token, next) =>
+        dropForeignViews(await next(document, position, token), document.uri),
+      provideDeclaration: async (document, position, token, next) =>
+        dropForeignViews(await next(document, position, token), document.uri),
+      provideTypeDefinition: async (document, position, token, next) =>
+        dropForeignViews(await next(document, position, token), document.uri),
+      provideImplementation: async (document, position, token, next) =>
+        dropForeignViews(await next(document, position, token), document.uri),
+      provideReferences: async (document, position, options, token, next) =>
+        dropForeignViews(await next(document, position, options, token), document.uri),
+      provideRenameEdits: async (document, position, newName, token, next) =>
+        dropForeignEdits(await next(document, position, newName, token), document.uri),
+      provideWorkspaceSymbols: async (query, token, next) => {
+        const schemes = viewOnlySchemes();
+        return (await next(query, token))?.filter(
+          (s) => !isForeignView(s.location.uri, undefined, schemes),
+        );
+      },
+      provideCallHierarchyIncomingCalls: async (item, token, next) => {
+        const schemes = viewOnlySchemes();
+        return (await next(item, token))?.filter(
+          (c) => !isForeignView(c.from.uri, item.uri, schemes),
+        );
+      },
+      provideCallHierarchyOutgoingCalls: async (item, token, next) => {
+        const schemes = viewOnlySchemes();
+        return (await next(item, token))?.filter(
+          (c) => !isForeignView(c.to.uri, item.uri, schemes),
+        );
+      },
       workspace: {
         // Pull path: server requests configuration via workspace/configuration
         // for each workspace folder (plus an unscoped fallback request).

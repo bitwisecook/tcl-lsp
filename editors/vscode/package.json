@@ -3871,6 +3871,21 @@
             "description": "Hide Tcl diagnostics (errors and warnings) for a file while it is shown only in a diff editor — a Git change in Source Control, 'Compare With…', or 'Compare with Saved'. Diagnostics in a diff are the underlying file's own full-file diagnostics (the analyser never runs on diff content), so they are shown by default; enable this to read changes without the analyser's noise. The file always keeps its diagnostics when it is also open in a normal editor. Purely a client-side display choice; the server keeps analysing. (Deliberately not under tclLsp.diagnostics.*, which is reserved for per-code on/off toggles.)",
             "order": 6
           },
+          "tclLsp.viewOnlySchemes": {
+            "scope": "window",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*$",
+              "patternErrorMessage": "A URI scheme, without the colon (for example git)."
+            },
+            "uniqueItems": true,
+            "default": [
+              "git"
+            ],
+            "markdownDescription": "URI schemes other extensions use to show Tcl that is not part of the workspace — a Git revision, a merge-request diff, a remote file. Tcl opened on these schemes gets semantic highlighting and hover, but no diagnostics, and go-to-definition, references, rename, workspace symbols and call hierarchy from your files never land in them. Examples: `git` (built-in Git: Source Control graph and diffs), `gl-review` and `gitlab-remote` (GitLab Workflow). `file` and `untitled` are ignored. Reload the window after changing this.",
+            "order": 6
+          },
           "tclLsp.packages.preferLatest": {
             "scope": "resource",
             "type": "boolean",
