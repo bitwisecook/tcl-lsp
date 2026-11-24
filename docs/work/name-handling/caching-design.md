@@ -42,7 +42,7 @@ CARGO_PROFILE_TEST_OPT_LEVEL=2 CARGO_PROFILE_TEST_DEBUG=0 \
 
 Each trial primes a fresh database from the original file. The timed interval starts before updating the source and includes segmentation, the query demands and rebasing. The one-line edit in `IsOverridden` reads an unbound local. The probe compares the W210 messages and spans before and after the edit with fresh whole-file analysis, and checks Salsa's `WillExecute` events and the 50 ms budget. The fresh analysis of the edited file runs after all five timed trials.
 
-After rebasing on item 94, Clippy with dependencies reports `too_many_lines` in `analyse_source_in_frame_with_options` (101 lines, limit 100). The full `make rust-check` and `make prep-pr` gates remain pending for the PR stage under the development push policy for `work`.
+A rerun at `508b801b` on a 4-core Intel Xeon (2.30 GHz) re-executed the same single query in each of five trials, slowest 48.58 ms, so the budget holds with little margin. Clippy with the gate's flags (`-D warnings -A clippy::assert_is_empty`) is clean on `tcl-compiler`, `tcl-lsp-db` and `tcl-lsp-core` at that commit.
 
 ## Inventory
 

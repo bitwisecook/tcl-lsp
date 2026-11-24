@@ -473,11 +473,11 @@ compiler.source.complete-original-read-footprint:534:variable-prepass	compiler	c
 compiler.source.complete-original-substitution-inventory:3233	compiler	caller_migration	no	retarget	2	82	Nested geometry and operand values should come from structured words, not a text re-scan.
 compiler.source.configured-literal-word-construction:3146	compiler	caller_migration	yes	retarget	2	39	Tcl source construction for edits should land on the purpose-taking writer owner.
 compiler.source.configured-original-variable-geometry:106	compiler	caller_migration	no	retarget	3	158	Alias and trace targets should be keyed by the trace fact owner, not strings.
-compiler.source.configured-original-variable-geometry:1241	compiler	caller_migration	no	keep	2	70	Moves W212 brace-reference decisions onto the configured reference geometry owner.
-compiler.source.configured-original-variable-geometry:169	compiler	caller_migration	yes	keep	2	70	Carries full config into the index owner for nested variable names.
+compiler.source.configured-original-variable-geometry:1241	compiler	caller_migration	no	keep	3	70	Moves W212 brace-reference decisions onto the configured reference geometry owner.
+compiler.source.configured-original-variable-geometry:169	compiler	caller_migration	yes	keep	3	70	Carries full config into the index owner for nested variable names.
 compiler.source.configured-original-variable-geometry:1736	compiler	caller_migration	yes	retarget	2	82	Nested geometry and operand values should come from structured words, not a text re-scan.
-compiler.source.configured-original-variable-geometry:2004	compiler	caller_migration	no	keep	2	70	Extends the shared configured boundary so braced names stay inert inside quotes.
-compiler.source.configured-original-variable-geometry:2573	compiler	caller_migration	no	delete-with-phase	3	73	The analyser scope fallback stops resolving names in phase 3.
+compiler.source.configured-original-variable-geometry:2004	compiler	caller_migration	no	keep	3	70	Extends the shared configured boundary so braced names stay inert inside quotes.
+compiler.source.configured-original-variable-geometry:2573	compiler	caller_migration	no	delete-with-phase	7	73	The analyser scope fallback stops resolving names in phase 3.
 compiler.source.configured-original-variable-geometry:326	compiler	caller_migration	no	retarget	3	51	Spelling-keyed SSA lookups are replaced by typed place and symbol keys in phase 3.
 compiler.source.configured-original-variable-geometry:337	compiler	caller_migration	no	keep			Replaces private recovery with the configured expression component owner in tcl-syntax.
 compiler.source.configured-original-variable-geometry:3401	compiler	caller_migration	yes	delete-with-phase	5	84	Analyser walk code here folds into binding in phase 5, so migrating it is wasted work.
@@ -487,9 +487,9 @@ compiler.source.configured-original-variable-geometry:3784	compiler	caller_migra
 compiler.source.configured-original-variable-geometry:47	compiler	caller_migration	no	keep			Config or source transport inside command binding, which becomes the one binding walk and survives.
 compiler.source.configured-original-variable-geometry:550	compiler	caller_migration	yes	delete-with-phase	5	84	Analyser walk code here folds into binding in phase 5, so migrating it is wasted work.
 compiler.source.configured-original-variable-geometry:590	compiler	caller_migration	yes	retarget	2	41	structural_index paths are retired or narrowed by item 41; unsure versus keep.
-compiler.source.configured-original-variable-geometry:799	compiler	caller_migration	yes	keep	2	70	Adopts the shared configured variable root owner in the loop-bounds check.
+compiler.source.configured-original-variable-geometry:799	compiler	caller_migration	yes	keep	3	70	Adopts the shared configured variable root owner in the loop-bounds check.
 compiler.source.configured-original-variable-geometry:871	compiler	caller_migration	no	retarget	2	82	Nested geometry and operand values should come from structured words, not a text re-scan.
-compiler.source.configured-original-variable-geometry:895	compiler	caller_migration	yes	keep	2	70	Adopts the shared whole scalar reference owner in the loop-bounds check.
+compiler.source.configured-original-variable-geometry:895	compiler	caller_migration	yes	keep	3	70	Adopts the shared whole scalar reference owner in the loop-bounds check.
 compiler.source.configured-original-variable-geometry:974	compiler	caller_migration	yes	delete-with-phase	1	22	Parameter-trait identity becomes a projection of the frame-effect model in phase 1.
 compiler.source.configured-scalar-word-construction:117	compiler	caller_migration	no	retarget	2	39	Tcl source construction for edits should land on the purpose-taking writer owner.
 compiler.source.configured-scalar-word-construction:121	compiler	caller_migration	yes	retarget	2	39	Tcl source construction for edits should land on the purpose-taking writer owner.
@@ -508,7 +508,7 @@ compiler.source.constructed-script-original-owner:3256	compiler	caller_migration
 compiler.source.constructed-script-original-owner:3313	compiler	caller_migration	no	delete-with-phase	5	84	Analyser synthetic one-head processing folds into binding; item 83 owns such bodies.
 compiler.source.current-module-lexer-config:1086	compiler	caller_migration	no	keep			Carries the held module lexer config at an owner that survives.
 compiler.source.current-module-lexer-config:69	compiler	caller_migration	no	keep			Carries the held module lexer config at an owner that survives.
-compiler.source.evaluated-literal-variable-target:5472	compiler	caller_migration	no	keep	2	70	Stops reinterpreting an escaped literal name as a variable reference; a real fix.
+compiler.source.evaluated-literal-variable-target:5472	compiler	caller_migration	no	keep	3	70	Stops reinterpreting an escaped literal name as a variable reference; a real fix.
 compiler.source.expression-literal-construction:682	compiler	caller_migration	yes	retarget	2	39	Tcl source construction for edits should land on the purpose-taking writer owner.
 compiler.source.expression-origin-transport:752	compiler	caller_migration	no	keep	3	66	Uses SsaSourceView::read_expression_variable, which item 66 extends rather than replaces.
 compiler.source.expression-read-formation:2537	compiler	caller_migration	no	retarget	3	51	Spelling-keyed SSA lookups are replaced by typed place and symbol keys in phase 3.
@@ -521,8 +521,8 @@ compiler.source.interpreter-subject-identity:137	compiler	shared_owner_repair	no
 compiler.source.interpreter-subject-identity:350	compiler	caller_migration	yes	retarget	0	77	Identity is carried as a string or marker; it belongs on the typed identity layer.
 compiler.source.interpreter-subject-identity:821	compiler	caller_migration	no	retarget	0	77	Identity is carried as a string or marker; it belongs on the typed identity layer.
 compiler.source.interpreter-subject-identity:91	compiler	caller_migration	no	retarget	0	77	Identity is carried as a string or marker; it belongs on the typed identity layer.
-compiler.source.literal-target-read:487	compiler	caller_migration	yes	keep	2	70	Stops treating a literal Incr target as a substitution reference; a real wrong rewrite.
-compiler.source.literal-target-read:730	compiler	caller_migration	no	keep	2	70	Keeps literal targets distinct from substitution references at the shared read owner.
+compiler.source.literal-target-read:487	compiler	caller_migration	yes	keep	3	70	Stops treating a literal Incr target as a substitution reference; a real wrong rewrite.
+compiler.source.literal-target-read:730	compiler	caller_migration	no	keep	3	70	Keeps literal targets distinct from substitution references at the shared read owner.
 compiler.source.logical-callback-target:506	compiler	shared_owner_repair	no	retarget	4	83	Body inventory completeness belongs to every-body-a-unit lowering with entry facts.
 compiler.source.logical-existence-query-operand:453	compiler	caller_migration	no	retarget	3	66	Existence queries should be answered by the variable lookup owner; unsure versus keep.
 compiler.source.logical-point-name-scope-transport:1259	compiler	caller_migration	yes	keep			Source-structure catalogue transport at the registry invocation owner, which survives.
@@ -559,7 +559,7 @@ compiler.source.original-expression-materialization-config:691	compiler	caller_m
 compiler.source.original-expression-materialization-config:755	compiler	caller_migration	yes	keep			Passes full lexer config to the expression or word owner in lowering, which survives.
 compiler.source.original-expression-node-extent:1045	compiler	caller_migration	yes	retarget	2	29	The diagnostic should read the lowered expression rather than copy tree geometry.
 compiler.source.original-factory-expression-evaluation:9686	compiler	caller_migration	no	delete-with-phase	5	84	Analyser walk code here folds into binding in phase 5, so migrating it is wasted work.
-compiler.source.original-formal-reference-observations:3936	compiler	caller_migration	yes	keep	2	70	Replaces a private bare-reference scanner in summaries with the shared grammar.
+compiler.source.original-formal-reference-observations:3936	compiler	caller_migration	yes	keep	3	70	Replaces a private bare-reference scanner in summaries with the shared grammar.
 compiler.source.original-formal-topology:125	compiler	caller_migration	yes	delete-with-phase	5	84	Signature-scan walk code folds into binding in phase 5, so migrating it is wasted work.
 compiler.source.original-formal-topology:163	compiler	caller_migration	no	delete-with-phase	5	84	Signature-scan walk code folds into binding in phase 5, so migrating it is wasted work.
 compiler.source.original-formal-topology:166	compiler	caller_migration	yes	keep			Uses the shared formal-parameter owner at a summary that survives.
@@ -617,7 +617,7 @@ compiler.source.original-stored-callback-prefix:3555	compiler	caller_migration	y
 compiler.source.original-substitution-fold:3533	compiler	caller_migration	no	delete-with-phase	1	61	The original-value-facts solver merges into the main SCCP in phase 1.
 compiler.source.original-substitution-fold:59	compiler	caller_migration	no	keep			Carries full config into the shared substitution owner, which survives.
 compiler.source.original-variable-destruction-fix:4694	compiler	caller_migration	no	retarget	3	50	Selected form, roles and options should come from the annotated command, not a registry re-lookup.
-compiler.source.original-variable-reference-proposals:882	compiler	caller_migration	yes	keep	2	70	Uses the configured reference extent owner instead of a private matcher.
+compiler.source.original-variable-reference-proposals:882	compiler	caller_migration	yes	keep	3	70	Uses the configured reference extent owner instead of a private matcher.
 compiler.source.original-variable-value-facts:2168	compiler	caller_migration	no	retarget	6	54	Dispatch value facts and formal correspondence should come from command contracts.
 compiler.source.original-word-selected-config:2622	compiler	caller_migration	yes	keep			Config or source transport inside command binding, which becomes the one binding walk and survives.
 compiler.source.original-word-selected-config:2749	compiler	caller_migration	yes	keep			Config or source transport inside command binding, which becomes the one binding walk and survives.
@@ -664,7 +664,7 @@ compiler.source.selected-introduced-command-proposals:2358	compiler	caller_migra
 compiler.source.selected-introduced-command-proposals:2799	compiler	caller_migration	yes	retarget	2	39	Tcl source construction for edits should land on the purpose-taking writer owner.
 compiler.source.selected-iteration-binding:1778	compiler	caller_migration	no	retarget	3	51	Spelling-keyed SSA lookups are replaced by typed place and symbol keys in phase 3.
 compiler.source.selected-iteration-binding:2819	compiler	caller_migration	no	delete-with-phase	1	61	The original-value-facts solver merges into the main SCCP in phase 1.
-compiler.source.selected-list-escape-rules:150	compiler	shared_owner_repair	no	keep	2	70	Extends WordValueRules with the selected escape grammar, the shared list and escape owner.
+compiler.source.selected-list-escape-rules:150	compiler	shared_owner_repair	no	keep	3	70	Extends WordValueRules with the selected escape grammar, the shared list and escape owner.
 compiler.source.selected-list-field-geometry:4608	compiler	caller_migration	no	delete-with-phase	5	84	Analyser walk code here folds into binding in phase 5, so migrating it is wasted work.
 compiler.source.selected-list-field-geometry:5044	compiler	caller_migration	no	delete-with-phase	5	84	Analyser walk code here folds into binding in phase 5, so migrating it is wasted work.
 compiler.source.selected-list-field-geometry:520	compiler	caller_migration	no	delete-with-phase	5	84	Analyser walk code here folds into binding in phase 5, so migrating it is wasted work.
@@ -870,7 +870,7 @@ db.unit.registry.transfer.place-identity-transport	db	shared_owner_extension	no	
 db.unit.registry.transitions.alias-delete-source-value-confusion	db	shared_owner_repair	no	keep		35	Fixes a real wrong answer in the interp alias transition descriptor, which the plan keeps and extends.
 db.unit.registry.try.selected-list-grammar	db	shared_owner_extension	yes	retarget	1	172,174	Try trap and handler list grammar belongs to the completion-code owner and its registry descriptors.
 db.unit.registry.update-original-member-declaration	db	shared_owner_extension	no	deferred			Engine-side native declaration or construction work for the VM and runtime, off this branch.
-db.unit.registry.value-transfer.cell-read-errorcode-name-rendering	db	caller_migration	no	retarget		112	Error-code text should come from the one set of Tcl error builders; item 112 has no phase assigned.
+db.unit.registry.value-transfer.cell-read-errorcode-name-rendering	db	caller_migration	no	retarget	1	112	Error-code text should come from the one set of Tcl error builders; item 112's analysis part is phase 1.
 db.unit.registry.value-transfer.completion-jim-option-cstring-extent	db	caller_migration	no	keep			Replaces a copied C-string extent recipe with the existing shared owner, which survives.
 db.unit.registry.value-transfer.completion-return-options-list-grammar	db	caller_migration	no	retarget	1	174	Return-option list handling belongs to the return-option factories owner in tcl-cmd-core.
 db.unit.registry.value-transfer.completion-try-binder-list-grammar	db	caller_migration	no	retarget	1	172,174	Try binder list grammar belongs to the completion-code owner and its descriptors.
@@ -878,7 +878,7 @@ db.unit.registry.value-transfer.constops-list-receiver-grammar	db	caller_migrati
 db.unit.registry.value-transfer.declared-option-selected-occurrence	db	caller_migration	no	retarget	3	50,44	Selected option occurrence is part of the annotated command selected form and one option table.
 db.unit.registry.value-transfer.expression-read-full-context	db	caller_migration	no	retarget	2	29	Expression variable and function names should come from the lowered expression, not copied geometry.
 db.unit.registry.value-transfer.iteration-binder-list-grammar	db	caller_migration	no	retarget	1	43,81	List cardinality and binder decoding go through the one tcl-cmd-core evaluator and value kernel.
-db.unit.registry.value-transfer.unbind-errorcode-name-rendering	db	caller_migration	no	retarget		112	Error-code text should come from the one set of Tcl error builders; item 112 has no phase assigned.
+db.unit.registry.value-transfer.unbind-errorcode-name-rendering	db	caller_migration	no	retarget	1	112	Error-code text should come from the one set of Tcl error builders; item 112's analysis part is phase 1.
 db.unit.registry.xc-event-routing-advice	db	shared_owner_extension	no	deferred			BIG-IP and iRules migration beyond the stage 2 wrong answers, off this branch.
 db.unit.registry.xc-operation-descriptors	db	shared_owner_extension	no	deferred			XC translation descriptors are BIG-IP migration work, deferred off this branch.
 db.unit.registry.zlib-original-member-option-declarations	db	shared_owner_extension	no	deferred			Engine-side native declaration or construction work for the VM and runtime, off this branch.
