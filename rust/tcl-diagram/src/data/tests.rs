@@ -682,7 +682,8 @@ fn real_tcl_oracle_distinguishes_default_and_level_zero_return_codes() {
             puts [probe_custom_code 4294967295]
             puts [probe_custom_code error]
         ";
-    let mut child = Command::new("tclsh")
+    let oracle = tcl_host_native::executable::which("tclsh").expect("tclsh oracle available");
+    let mut child = Command::new(oracle)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()

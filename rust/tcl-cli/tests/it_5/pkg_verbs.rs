@@ -1204,13 +1204,14 @@ fn generated_posix_venv_source_preserves_executable_arguments_and_activation_val
     let base = temp_dir("venv-posix-source");
     let selected_dir = base.join("selected '$literal`quote` directory");
     std::fs::create_dir_all(&selected_dir).unwrap();
-    let selected = selected_dir.join("tclsh9.0");
+    let selected = selected_dir.join("tclsh9.1");
     let target = r#"#!/bin/sh
-if [ "$1" = - ]; then printf '9.0.4\n'; exit 0; fi
+if [ "$1" = - ]; then printf '9.1.0\n'; exit 0; fi
 printf '%s\000' "$0" "$@" "$TCL_VENV" "$TCLLIBPATH" > "$RECEIPT"
 "#;
     std::fs::write(&selected, target).unwrap();
     std::fs::set_permissions(&selected, std::fs::Permissions::from_mode(0o755)).unwrap();
+    std::fs::copy(&selected, selected_dir.join("tclsh9.0")).unwrap();
     let venv = base.join("venv '$literal`quote` {path}");
     let prompt = "prompt '$literal`quote`\";\nsecond line";
     let output = Command::new(env!("CARGO_BIN_EXE_tcl"))

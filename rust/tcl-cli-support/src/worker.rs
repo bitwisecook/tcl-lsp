@@ -57,10 +57,12 @@ use std::hash::{Hash, Hasher};
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
+
 use std::process::{Command, ExitStatus, Output, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, OnceLock, PoisonError};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use tcl_host_native::executable::which;
 
 /// The argv sentinel that turns the CLI binary into a worker.
 pub const WORKER_ARG: &str = "__tcl-cli-worker";
@@ -690,17 +692,6 @@ impl Pool {
         std::thread::spawn(move || child.wait());
         Ok(())
     }
-}
-
-/// Resolve the program as `Command` would, so the identity is the file run.
-fn which(program: &OsStr) -> Option<PathBuf> {
-    let path = Path::new(program);
-    if path.components().count() > 1 {
-        return Some(std::env::current_dir().ok()?.join(path));
-    }
-    std::env::split_paths(&std::env::var_os("PATH")?)
-        .map(|dir| dir.join(path))
-        .find(|candidate| candidate.is_file())
 }
 
 /// The worker directory's key: the binary as built, the command's overrides,

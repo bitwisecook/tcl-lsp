@@ -23,7 +23,7 @@
 //! exactly the character C Tcl binds the name to. We ask a real `tclsh9.0`
 //! which ASCII codepoint `[[.NAME.]]` matches and assert our engine agrees.
 //!
-//! Skips cleanly when no `tclsh9.0` is on `PATH`.
+//! Uses the pinned Tcl 9.0 oracle when available.
 
 use std::io::Write;
 use std::process::{Command, Stdio};
@@ -31,7 +31,7 @@ use std::process::{Command, Stdio};
 use tcl_regex::Regex;
 use tcl_regex::defs::REG_ADVANCED;
 
-fn run_tcl(tclsh: &str, script: &str) -> Option<String> {
+fn run_tcl(tclsh: &std::path::Path, script: &str) -> Option<String> {
     let mut child = Command::new(tclsh)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -41,17 +41,6 @@ fn run_tcl(tclsh: &str, script: &str) -> Option<String> {
     child.stdin.take()?.write_all(script.as_bytes()).ok()?;
     let out = child.wait_with_output().ok()?;
     Some(String::from_utf8_lossy(&out.stdout).into_owned())
-}
-
-fn find_tclsh9() -> Option<String> {
-    for cand in ["tclsh9.0", "tclsh"] {
-        if let Some(out) = run_tcl(cand, "puts -nonewline [info patchlevel]")
-            && out.starts_with("9.")
-        {
-            return Some(cand.to_string());
-        }
-    }
-    None
 }
 
 /// Does our engine's `[[.name.]]` match exactly the single codepoint `cp`?
@@ -74,8 +63,7 @@ fn engine_matches_only(name: &str, cp: u32) -> bool {
 
 #[test]
 fn named_collating_elements_match_tclsh9() {
-    let Some(tclsh) = find_tclsh9() else {
-        eprintln!("skipping collating-name oracle: no tclsh9.0 on PATH");
+    let Some(tclsh) = tcl_test_support::witness_tclsh(tcl_dialect::TclVersion::V9_0) else {
         return;
     };
 
@@ -104,7 +92,7 @@ fn named_collating_elements_match_tclsh9() {
          \x20 puts \"$n $hit\"\n\
          }}\n"
     );
-    let out = run_tcl(&tclsh, &script).expect("tclsh runs");
+    let out = run_tcl(&tclsh.path, &script).expect("tclsh runs");
 
     let mut checked = 0usize;
     for line in out.lines() {

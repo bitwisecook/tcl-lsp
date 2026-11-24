@@ -25,6 +25,8 @@
 
 use std::path::{Path, PathBuf};
 
+use tcl_host_native::executable::which;
+
 /// A backend the fuzzer can run a generated script through.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub enum Engine {
@@ -111,14 +113,6 @@ fn beside_this_exe(name: &str) -> Option<PathBuf> {
     let dir = exe.parent()?;
     let beside = dir.join(name);
     beside.is_file().then_some(beside)
-}
-
-/// Find an executable on `PATH`.
-fn which(name: &str) -> Option<PathBuf> {
-    let path = std::env::var_os("PATH")?;
-    std::env::split_paths(&path)
-        .map(|dir| dir.join(name))
-        .find(|p| p.is_file())
 }
 
 #[cfg(test)]

@@ -1,5 +1,27 @@
 # Current LSP naming migration state
 
+## Item 151 verification
+
+The Unix lookup skipped a non-executable file earlier on PATH. The Windows
+suffix fixture selected `.BAT` or `.EXE` according to the supplied
+`PATHEXT` order, retaining the `9.1` in the basename. A direct package
+lookup selected the executable `tclsh9.1` on a PATH that also contained
+`tclsh9.0` and a non-executable `tclsh9.1` placeholder. The `tcl venv create`
+regression confirmed that the generated wrapper launched `tclsh9.1` when
+both versioned shells were present. The source-tree selection test passed
+with all five pinned Tcl releases, as did the four
+regex oracle tests, 33 lexer structural-index tests and four VM CLI
+reference tests. The diagram test also passed using the shared PATH lookup
+for its required `tclsh`. The source audit found no local Tcl 9 lookup
+helper or direct VM CLI launch by shell name.
+
+The 12 Tcl 9.1 registry tests also passed. Formatting, code generation,
+frontend checks, installer checks and the initial 40 drift checks passed.
+The final Rust gate's drift process and the Nextest smoke build were killed
+by the host. The targeted smoke retry and final Clippy run were still in
+progress at publication. The separate compiler integration build was also
+killed before its tests ran.
+
 ## Item 153 verification
 
 The three `item_153` release optimiser tests passed. The execution audit matched status, stdout and stderr on all 49 original/rewrite pairs. The targeted regex, error-variable, trace and representation fixtures agreed across the applicable Tcl 8.4.20–9.1.0 releases. The O116 witness also matched under an explicit ISO-8859-1 source encoding. [Execution audit](handover/oo-dispatch-probe/tcl-areas-head/README.md)

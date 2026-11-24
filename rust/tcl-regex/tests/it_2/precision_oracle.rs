@@ -23,7 +23,7 @@
 //! never spelled no-match.
 //!
 //! The three witnesses are the page's table, checked against every `tclsh`
-//! release on `PATH` (8.4 to 9.1); a release that is not installed is
+//! reference release (8.4 to 9.1); a release that is not installed is
 //! skipped, and the engine's own answer is asserted either way.
 
 use std::io::Write;
@@ -33,11 +33,8 @@ use std::sync::atomic::AtomicBool;
 use tcl_regex::defs::REG_ADVANCED;
 use tcl_regex::{ExecLimits, ExecOutcome, ExecStop, Regex, Span};
 
-/// The release series the witnesses are pinned against.
-const RELEASES: [&str; 5] = ["8.4", "8.5", "8.6", "9.0", "9.1"];
-
 /// `script`'s standard output under `tclsh`, or `None` when it is not there.
-fn run_tcl(tclsh: &str, script: &str) -> Option<String> {
+fn run_tcl(tclsh: &std::path::Path, script: &str) -> Option<String> {
     let mut child = Command::new(tclsh)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -47,15 +44,6 @@ fn run_tcl(tclsh: &str, script: &str) -> Option<String> {
     child.stdin.take()?.write_all(script.as_bytes()).ok()?;
     let out = child.wait_with_output().ok()?;
     Some(String::from_utf8_lossy(&out.stdout).trim_end().to_owned())
-}
-
-/// Every release on `PATH`, as its `tclsh` name.
-fn releases_on_path() -> Vec<String> {
-    RELEASES
-        .iter()
-        .map(|series| format!("tclsh{series}"))
-        .filter(|tclsh| run_tcl(tclsh, "puts [info patchlevel]").is_some())
-        .collect()
 }
 
 fn cps(s: &str) -> Vec<u32> {
@@ -77,13 +65,16 @@ fn indices(span: Option<Span>) -> String {
     }
 }
 
-/// The page's three witnesses, each against every release on `PATH`, and
+/// The page's three witnesses, each against every available reference release, and
 /// the engine's own answer for each: exact where the oracle matches, a
 /// completed no-match where it does not, never a stop and never an
 /// approximated span.
 #[test]
 fn the_three_precision_witnesses() {
-    let releases = releases_on_path();
+    let releases: Vec<_> = tcl_dialect::TclVersion::ALL
+        .into_iter()
+        .filter_map(tcl_test_support::witness_tclsh)
+        .collect();
     let run_a = "a".repeat(300);
     let run_a_bb = format!("{run_a}bb");
     let run_x = "x".repeat(300);
@@ -101,11 +92,16 @@ fn the_three_precision_witnesses() {
     assert_eq!(ours, "1 {0 301} {300 300}");
     for tclsh in &releases {
         let oracle = run_tcl(
-            tclsh,
+            &tclsh.path,
             "set s [string repeat a 300]bb\n\
              puts [list [regexp -indices {^a*(b)\\1$} $s whole g1] $whole $g1]\n",
         );
-        assert_eq!(oracle.as_deref(), Some(ours.as_str()), "{tclsh}");
+        assert_eq!(
+            oracle.as_deref(),
+            Some(ours.as_str()),
+            "{}",
+            tclsh.path.display()
+        );
     }
 
     // `regexp -indices {(x)*} <300×x> whole g1`: 1, `0 299`, `299 299` —
@@ -117,11 +113,16 @@ fn the_three_precision_witnesses() {
     assert_eq!(ours, "1 {0 299} {299 299}");
     for tclsh in &releases {
         let oracle = run_tcl(
-            tclsh,
+            &tclsh.path,
             "set s [string repeat x 300]\n\
              puts [list [regexp -indices {(x)*} $s whole g1] $whole $g1]\n",
         );
-        assert_eq!(oracle.as_deref(), Some(ours.as_str()), "{tclsh}");
+        assert_eq!(
+            oracle.as_deref(),
+            Some(ours.as_str()),
+            "{}",
+            tclsh.path.display()
+        );
     }
 
     // `regexp {^(a+)+\1$}` and `regexp {^(a+)+b$}` over 300 and 301 `a`:
@@ -141,13 +142,18 @@ fn the_three_precision_witnesses() {
         );
         for tclsh in &releases {
             let oracle = run_tcl(
-                tclsh,
+                &tclsh.path,
                 &format!(
                     "set s [string repeat a {length}]\n\
                      puts [list [regexp {{^(a+)+\\1$}} $s] [regexp {{^(a+)+b$}} $s]]\n"
                 ),
             );
-            assert_eq!(oracle.as_deref(), Some("1 0"), "{tclsh}, {length} a");
+            assert_eq!(
+                oracle.as_deref(),
+                Some("1 0"),
+                "{}, {length} a",
+                tclsh.path.display()
+            );
         }
     }
     eprintln!("precision witnesses checked against {releases:?}");

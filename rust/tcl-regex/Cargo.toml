@@ -41,5 +41,9 @@ tcl-syntax = { path = "../tcl-syntax" }
 # can drive these engines. Off by default to omit command plumbing.
 cmd-core = ["dep:tcl-cmd-core"]
 
+[dev-dependencies]
+tcl-test-support = { path = "../tcl-test-support" }
+tcl-dialect = { path = "../tcl-dialect" }
+
 [lints]
 workspace = true

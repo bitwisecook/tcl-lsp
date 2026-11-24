@@ -860,23 +860,9 @@ mod tests {
     /// other. `true`, `env` and `sleep` are on `PATH` on every distro we build
     /// on and on macOS, so resolve them rather than guessing a location.
     fn tool(name: &str) -> PathBuf {
-        std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())
-            .map(|dir| dir.join(name))
-            .find(|p| is_executable_file(p))
-            .unwrap_or_else(|| {
-                panic!("`{name}` is not on PATH; the sandbox tests need it (coreutils)")
-            })
-    }
-
-    #[cfg(unix)]
-    fn is_executable_file(p: &std::path::Path) -> bool {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::metadata(p).is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
-    }
-
-    #[cfg(not(unix))]
-    fn is_executable_file(p: &std::path::Path) -> bool {
-        p.is_file()
+        tcl_host_native::executable::which(name).unwrap_or_else(|| {
+            panic!("`{name}` is not on PATH; the sandbox tests need it (coreutils)")
+        })
     }
 
     /// A fixed fake environment, so the scrubbing logic is exercised without
@@ -1216,10 +1202,7 @@ mod tests {
     #[test]
     fn network_denial_is_enforced_where_the_kernel_can() {
         let root = Scratch::new("net");
-        let Some(bash) = std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())
-            .map(|dir| dir.join("bash"))
-            .find(|p| is_executable_file(p))
-        else {
+        let Some(bash) = tcl_host_native::executable::which("bash") else {
             return;
         };
         let attempt = |allow: bool| {

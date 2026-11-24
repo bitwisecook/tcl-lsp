@@ -34,6 +34,9 @@ tcl venv deactivate              # print deactivation snippet
 tcl venv delete .venv            # remove the venv
 ```
 
+By default, `tcl venv create` searches `PATH` for the newest supported
+versioned shell, starting with `tclsh9.1`, and then tries plain `tclsh`.
+
 ### How activation works
 
 Activation prepends `<venv>/bin` to `PATH`, sets `TCLLIBPATH` to

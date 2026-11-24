@@ -161,7 +161,7 @@ fn adversarial_prediction_self_consistency_is_quantified() {
     // quantifies the boundary (and flags a regression if the
     // heuristic collapses) rather than asserting a soundness it does
     // not have. (The *realistic* recovery case — a single forgotten
-    // `]` in real code — is verified exactly against C Tcl 9.0.3 in
+    // `]` in real code — is verified exactly against C Tcl 9.0 in
     // `ctcl9_realistic_recovery_completes_under_reference`.)
     let mut total = 0usize;
     let mut agree = 0usize;
@@ -304,13 +304,13 @@ fn scalar_only_index_diverges_from_lexer() {
     assert_eq!(scalar_unterminated(s2), 1); // scalar: WRONG (diverges)
 }
 
-// C Tcl 9.0.3 differential verification. The oracle is `tclsh9.0`'s
+// C Tcl 9.0 differential verification. The oracle is `tclsh9.0`'s
 // `info complete`. These tests
-// skip gracefully when `tclsh9.0` is not on PATH so the suite still
+// skip gracefully when the Tcl 9.0 oracle is unavailable so the suite still
 // passes in a minimal CI, but they run (and gate) wherever the
 // reference interpreter is available.
 
-/// Run `info complete` under C Tcl 9.0.3 for a batch of sources.
+/// Run `info complete` under C Tcl 9.0 for a batch of sources.
 /// Returns `None` if `tclsh9.0` is unavailable. Records are sent
 /// length-prefixed so arbitrary bytes (newlines, braces) round-trip.
 fn ctcl9_info_complete(sources: &[String]) -> Option<Vec<bool>> {
@@ -330,7 +330,8 @@ while {1} {
     puts [info complete $data]
 }
 "#;
-    let mut child = Command::new("tclsh9.0")
+    let oracle = tcl_test_support::witness_tclsh(tcl_dialect::TclVersion::V9_0)?;
+    let mut child = Command::new(&oracle.path)
         .arg("-")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -405,13 +406,13 @@ fn separated_corpus(n: usize) -> Vec<String> {
 #[test]
 fn ctcl9_bracket_completeness_iff_on_separated_corpus() {
     // **The reference-grounded bracket contract.** On a corpus where
-    // braces / quotes are balanced and word-separated, C Tcl 9.0.3
+    // braces / quotes are balanced and word-separated, C Tcl 9.0
     // `info complete` reflects *only* bracket balance, so the
     // structural index's verdict must match it exactly, both ways:
     //   index.unterminated_count()==0  <=>  info complete == 1.
     let cases = separated_corpus(8000);
     let Some(oracle) = ctcl9_info_complete(&cases) else {
-        eprintln!("tclsh9.0 unavailable — skipping C Tcl 9.0.3 verification");
+        eprintln!("tclsh9.0 unavailable — skipping C Tcl 9.0 verification");
         return;
     };
     let mut both_complete = 0usize;
@@ -433,7 +434,7 @@ fn ctcl9_bracket_completeness_iff_on_separated_corpus() {
     }
     assert!(
         violations.is_empty(),
-        "index disagreed with C Tcl 9.0.3 `info complete`: {violations:#?}",
+        "index disagreed with C Tcl 9.0 `info complete`: {violations:#?}",
     );
     // The corpus must exercise both verdicts (not a degenerate pass).
     assert!(
@@ -459,13 +460,13 @@ fn ctcl9_extra_chars_after_word_is_a_documented_divergence() {
         "a[".to_string(),    // command-sub in a bareword -> incomplete
         "{b} [".to_string(), // separated -> the `[` is a real, unterminated sub
     ]) else {
-        eprintln!("tclsh9.0 unavailable — skipping C Tcl 9.0.3 verification");
+        eprintln!("tclsh9.0 unavailable — skipping C Tcl 9.0 verification");
         return;
     };
     assert_eq!(
         verdicts,
         vec![true, false, false],
-        "C Tcl 9.0.3 semantics drifted"
+        "C Tcl 9.0 semantics drifted"
     );
     // The index reports unterminated `[` for all three (it mirrors
     // the lexer, not the command parser's extra-chars rule).
@@ -483,7 +484,7 @@ fn ctcl9_extra_chars_after_word_is_a_documented_divergence() {
 fn ctcl9_realistic_recovery_completes_under_reference() {
     // For each well-formed snippet with one `]` deleted, the index
     // points at insert offsets that balance it; inserting `]` at the
-    // *original* deleted position must yield a script C Tcl 9.0.3
+    // *original* deleted position must yield a script C Tcl 9.0
     // calls complete, and the index must predict that. Direct
     // reference-grounded recovery check.
     let mut repaired: Vec<String> = Vec::new();
@@ -504,7 +505,7 @@ fn ctcl9_realistic_recovery_completes_under_reference() {
         }
     }
     let Some(oracle) = ctcl9_info_complete(&repaired) else {
-        eprintln!("tclsh9.0 unavailable — skipping C Tcl 9.0.3 verification");
+        eprintln!("tclsh9.0 unavailable — skipping C Tcl 9.0 verification");
         return;
     };
     for ((s, &complete), &pred) in repaired.iter().zip(&oracle).zip(&predicted) {
@@ -626,7 +627,7 @@ fn ctcl9_brace_completeness_is_necessary_no_cmd_subs() {
     // (see the module header).
     let cases = brace_top_level_corpus(8000);
     let Some(oracle) = ctcl9_info_complete(&cases) else {
-        eprintln!("tclsh9.0 unavailable — skipping C Tcl 9.0.3 verification");
+        eprintln!("tclsh9.0 unavailable — skipping C Tcl 9.0 verification");
         return;
     };
     let mut violations: Vec<String> = Vec::new();
@@ -637,7 +638,7 @@ fn ctcl9_brace_completeness_is_necessary_no_cmd_subs() {
     }
     assert!(
         violations.is_empty(),
-        "index found an unterminated `{{` C Tcl 9.0.3 considers complete: {violations:#?}",
+        "index found an unterminated `{{` C Tcl 9.0 considers complete: {violations:#?}",
     );
 }
 
@@ -645,7 +646,7 @@ fn ctcl9_brace_completeness_is_necessary_no_cmd_subs() {
 fn brace_command_sub_interiors_parse_as_scripts() {
     // Closed boundary: `[...]` interiors are parsed recursively as
     // scripts (word-based braces + terminal extra-chars), so the
-    // index matches C Tcl 9.0.3 inside command subs.
+    // index matches C Tcl 9.0 inside command subs.
     let pin: &[(&str, bool)] = &[
         ("[set x {b}{", true),        // extra-chars inside sub -> complete
         ("[set x {", false),          // genuinely open brace -> incomplete
@@ -666,7 +667,7 @@ fn brace_command_sub_interiors_parse_as_scripts() {
     let inputs: Vec<String> = pin.iter().map(|(s, _)| (*s).to_string()).collect();
     if let Some(oracle) = ctcl9_info_complete(&inputs) {
         for ((s, want), &complete) in pin.iter().zip(&oracle) {
-            assert_eq!(complete, *want, "C Tcl 9.0.3 semantics drifted for {s:?}");
+            assert_eq!(complete, *want, "C Tcl 9.0 semantics drifted for {s:?}");
         }
     }
 }
@@ -675,11 +676,11 @@ fn brace_command_sub_interiors_parse_as_scripts() {
 fn ctcl9_brace_completeness_is_necessary_with_cmd_subs() {
     // With the recursive command-sub parse, the necessary condition
     // now holds across the *full* adversarial corpus (command subs
-    // included): whenever C Tcl 9.0.3 reports complete, the brace
+    // included): whenever C Tcl 9.0 reports complete, the brace
     // index must report balanced.
     let cases = brace_full_corpus(8000);
     let Some(oracle) = ctcl9_info_complete(&cases) else {
-        eprintln!("tclsh9.0 unavailable — skipping C Tcl 9.0.3 verification");
+        eprintln!("tclsh9.0 unavailable — skipping C Tcl 9.0 verification");
         return;
     };
     let mut violations: Vec<String> = Vec::new();
@@ -698,7 +699,7 @@ fn ctcl9_brace_completeness_is_necessary_with_cmd_subs() {
     );
     assert!(
         violations.is_empty(),
-        "index found an unterminated `{{` C Tcl 9.0.3 considers complete: {violations:#?}",
+        "index found an unterminated `{{` C Tcl 9.0 considers complete: {violations:#?}",
     );
 }
 
@@ -706,11 +707,11 @@ fn ctcl9_brace_completeness_is_necessary_with_cmd_subs() {
 fn ctcl9_brace_completeness_iff_on_separated_corpus() {
     // Reference-grounded brace contract: on a corpus where brackets /
     // quotes are balanced and word-separated (and no comments /
-    // extra-`}`), C Tcl 9.0.3 `info complete` reflects only brace
+    // extra-`}`), C Tcl 9.0 `info complete` reflects only brace
     // balance, so the brace index must match it both ways.
     let cases = brace_separated_corpus(8000);
     let Some(oracle) = ctcl9_info_complete(&cases) else {
-        eprintln!("tclsh9.0 unavailable — skipping C Tcl 9.0.3 verification");
+        eprintln!("tclsh9.0 unavailable — skipping C Tcl 9.0 verification");
         return;
     };
     let mut both_complete = 0usize;
@@ -732,7 +733,7 @@ fn ctcl9_brace_completeness_iff_on_separated_corpus() {
     }
     assert!(
         violations.is_empty(),
-        "brace index disagreed with C Tcl 9.0.3 `info complete`: {violations:#?}",
+        "brace index disagreed with C Tcl 9.0 `info complete`: {violations:#?}",
     );
     assert!(
         both_complete > 100 && both_incomplete > 100,
@@ -742,7 +743,7 @@ fn ctcl9_brace_completeness_iff_on_separated_corpus() {
 
 #[test]
 fn brace_semantics_match_reference_examples() {
-    // Pin the canonical C Tcl 9.0.3 brace rules the index must honour.
+    // Pin the canonical C Tcl 9.0 brace rules the index must honour.
     // (incomplete == unterminated_count > 0)
     let pin: &[(&str, bool)] = &[
         ("set x {", false),     // open brace word -> incomplete
@@ -819,7 +820,7 @@ fn ctcl9_realistic_brace_recovery_completes_under_reference() {
         }
     }
     let Some(oracle) = ctcl9_info_complete(&repaired) else {
-        eprintln!("tclsh9.0 unavailable — skipping C Tcl 9.0.3 verification");
+        eprintln!("tclsh9.0 unavailable — skipping C Tcl 9.0 verification");
         return;
     };
     for ((s, &complete), &pred) in repaired.iter().zip(&oracle).zip(&predicted) {
@@ -833,7 +834,7 @@ fn ctcl9_realistic_brace_recovery_completes_under_reference() {
 
 // Expr paren dimension (`(` / `)`).
 
-/// C Tcl 9.0.3 `expr` paren verdict for a batch of expressions.
+/// C Tcl 9.0 `expr` paren verdict for a batch of expressions.
 /// `Some('B')` balanced / OK, `'O'` unbalanced-open, `'C'`
 /// unbalanced-close, `'X'` a non-paren error (paren state
 /// indeterminate from the oracle). Returns `None` if `tclsh9.0` is
@@ -865,7 +866,8 @@ while {1} {
     }
 }
 "#;
-    let mut child = Command::new("tclsh9.0")
+    let oracle = tcl_test_support::witness_tclsh(tcl_dialect::TclVersion::V9_0)?;
+    let mut child = Command::new(&oracle.path)
         .arg("-")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -952,7 +954,7 @@ fn expr_paren_index_counts_only_grouping_parens() {
 
 #[test]
 fn ctcl9_expr_paren_verdict_matches_reference() {
-    // The index's paren-balance verdict must match C Tcl 9.0.3
+    // The index's paren-balance verdict must match C Tcl 9.0
     // `expr` wherever `expr` gives a *definitive* paren verdict (OK,
     // unbalanced-open, unbalanced-close). Non-paren errors ('X') are
     // excluded — `expr` may hit a different error before reaching the
@@ -960,7 +962,7 @@ fn ctcl9_expr_paren_verdict_matches_reference() {
     // oracle.
     let cases = expr_corpus(8000);
     let Some(oracle) = tcl_expr_paren_verdicts(&cases) else {
-        eprintln!("tclsh9.0 unavailable — skipping C Tcl 9.0.3 verification");
+        eprintln!("tclsh9.0 unavailable — skipping C Tcl 9.0 verification");
         return;
     };
     let mut checked = 0usize;
@@ -981,7 +983,7 @@ fn ctcl9_expr_paren_verdict_matches_reference() {
     assert!(checked > 1000, "too few definitive cases: {checked}");
     assert!(
         violations.is_empty(),
-        "expr paren index disagreed with C Tcl 9.0.3: {violations:#?}",
+        "expr paren index disagreed with C Tcl 9.0: {violations:#?}",
     );
 }
 
@@ -989,7 +991,7 @@ fn ctcl9_expr_paren_verdict_matches_reference() {
 fn ctcl9_realistic_expr_paren_recovery() {
     // A single forgotten `)` in a real expression: the index
     // predicts the original close site, and the repair evaluates
-    // under C Tcl 9.0.3.
+    // under C Tcl 9.0.
     let bases = &[
         "(1 + 2) * 3",
         "max(1, (2 + 3))",
@@ -1013,7 +1015,7 @@ fn ctcl9_realistic_expr_paren_recovery() {
         }
     }
     let Some(oracle) = tcl_expr_paren_verdicts(&repaired) else {
-        eprintln!("tclsh9.0 unavailable — skipping C Tcl 9.0.3 verification");
+        eprintln!("tclsh9.0 unavailable — skipping C Tcl 9.0 verification");
         return;
     };
     for ((s, &v), &pred) in repaired.iter().zip(&oracle).zip(&predicted) {
@@ -1143,12 +1145,12 @@ fn general_corpus(n: usize) -> Vec<String> {
 
 #[test]
 fn ctcl9_script_is_complete_iff_info_complete() {
-    // The full contract: `script_is_complete` matches C Tcl 9.0.3
+    // The full contract: `script_is_complete` matches C Tcl 9.0
     // `info complete` *both ways* over a general adversarial corpus —
     // no dimension isolation, every construct mixed.
     let cases = general_corpus(12000);
     let Some(oracle) = ctcl9_info_complete(&cases) else {
-        eprintln!("tclsh9.0 unavailable — skipping C Tcl 9.0.3 verification");
+        eprintln!("tclsh9.0 unavailable — skipping C Tcl 9.0 verification");
         return;
     };
     let mut both_t = 0usize;
@@ -1177,7 +1179,7 @@ fn ctcl9_script_is_complete_iff_info_complete() {
     }
     assert!(
         unexpected.is_empty(),
-        "script_is_complete disagreed with C Tcl 9.0.3 outside the documented \
+        "script_is_complete disagreed with C Tcl 9.0 outside the documented \
              comment-continuation edge: {unexpected:#?}",
     );
     // The documented edge must stay vanishingly rare (< 0.05%).

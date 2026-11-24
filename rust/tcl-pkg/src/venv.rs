@@ -139,39 +139,16 @@ pub fn prepare_tcllibpath(
     Ok(OsString::from(output))
 }
 
-/// Find a suitable `tclsh` on PATH (preferring newer versions), or `None`.
+pub use tcl_host_native::executable::which;
+
+/// Find a suitable `tclsh` on PATH, preferring newer versioned names.
 #[must_use]
 pub fn find_tclsh() -> Option<PathBuf> {
-    for name in ["tclsh9.0", "tclsh8.6", "tclsh8.5", "tclsh8.4", "tclsh"] {
-        if let Some(path) = which(name) {
-            return Some(path);
-        }
-    }
-    None
-}
-
-/// Locate `name` on `PATH`, returning the first executable match.
-#[must_use]
-pub fn which(name: &str) -> Option<PathBuf> {
-    let paths = std::env::var_os("PATH")?;
-    for dir in std::env::split_paths(&paths) {
-        let candidate = dir.join(name);
-        if is_executable(&candidate) {
-            return Some(candidate);
-        }
-    }
-    None
-}
-
-#[cfg(unix)]
-fn is_executable(path: &Path) -> bool {
-    use std::os::unix::fs::PermissionsExt;
-    std::fs::metadata(path).is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
-}
-
-#[cfg(not(unix))]
-fn is_executable(path: &Path) -> bool {
-    path.is_file()
+    tcl_dialect::TclVersion::ALL
+        .into_iter()
+        .rev()
+        .find_map(|version| which(format!("tclsh{}", version.version_string())))
+        .or_else(|| which("tclsh"))
 }
 
 fn resolve_tclsh(requested: Option<&str>) -> Result<PathBuf, TclPkgError> {
@@ -185,7 +162,7 @@ fn resolve_tclsh(requested: Option<&str>) -> Result<PathBuf, TclPkgError> {
             })
             .and_then(|path| posix_source::selected_executable(&path));
     };
-    if let Some(path) = which(&format!("tclsh{req}")) {
+    if let Some(path) = which(format!("tclsh{req}")) {
         return posix_source::selected_executable(&path);
     }
     if let Some(path) = which("tclsh") {
@@ -407,7 +384,7 @@ pub fn update_venv(venv_path: &Path, new_tcl: &str) -> Result<PathBuf, TclPkgErr
     let venv_path = absolutise(venv_path);
     let mut cfg = read_venv_config(&venv_path)?;
 
-    let tclsh = which(&format!("tclsh{new_tcl}"))
+    let tclsh = which(format!("tclsh{new_tcl}"))
         .or_else(|| which("tclsh"))
         .ok_or_else(|| venv_error(format!("tclsh{new_tcl} not found on PATH"), None))?;
     let tclsh = posix_source::selected_executable(&tclsh)?;

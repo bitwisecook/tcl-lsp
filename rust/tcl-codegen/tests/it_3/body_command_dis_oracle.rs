@@ -123,7 +123,7 @@ fn our_codegen_keeps_body_commands_opaque() {
 
 // C Tcl `dis` oracle.
 
-fn run_tcl(tclsh: &str, script: &str) -> Option<String> {
+fn run_tcl(tclsh: &std::path::Path, script: &str) -> Option<String> {
     let mut child = Command::new(tclsh)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -135,21 +135,9 @@ fn run_tcl(tclsh: &str, script: &str) -> Option<String> {
     Some(String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
-fn find_tclsh9() -> Option<String> {
-    for cand in ["tclsh9.0", "tclsh"] {
-        if let Some(out) = run_tcl(cand, "puts -nonewline [info patchlevel]")
-            && out.starts_with("9.")
-        {
-            return Some(cand.to_string());
-        }
-    }
-    None
-}
-
 #[test]
 fn c_tcl_dis_confirms_body_pushed_as_literal() {
-    let Some(tclsh) = find_tclsh9() else {
-        eprintln!("skipping C-Tcl dis oracle: no tclsh9.0 on PATH");
+    let Some(tclsh) = tcl_test_support::witness_tclsh(tcl_dialect::TclVersion::V9_0) else {
         return;
     };
     for case in CASES {
@@ -159,7 +147,7 @@ fn c_tcl_dis_confirms_body_pushed_as_literal() {
             case.dis_setup,
             case.source.trim_end()
         );
-        let dis = run_tcl(&tclsh, &script).expect("tclsh runs");
+        let dis = run_tcl(&tclsh.path, &script).expect("tclsh runs");
 
         // C Tcl pushes the body as a literal on a `push` instruction — the
         // contiguous fragment appears in that instruction's comment. (For an

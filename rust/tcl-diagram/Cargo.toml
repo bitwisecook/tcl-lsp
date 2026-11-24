@@ -36,5 +36,8 @@ tcl-registry = { path = "../tcl-registry" }
 tcl-syntax = { path = "../tcl-syntax" }
 serde_json = "1"
 
+[dev-dependencies]
+tcl-host-native = { path = "../tcl-host-native" }
+
 [lints]
 workspace = true

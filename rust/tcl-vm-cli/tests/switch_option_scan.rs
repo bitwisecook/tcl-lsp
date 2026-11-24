@@ -23,6 +23,8 @@
 use std::path::PathBuf;
 use std::process::Command;
 
+use tcl_dialect::TclVersion;
+
 const SCRIPT: &str = "\
 proc f {} {return -x}
 puts [catch {switch [f] {-x {puts m} default {puts d}}} r]:$r
@@ -62,7 +64,13 @@ fn stdout(command: &mut Command) -> Option<String> {
 #[test]
 fn an_unknown_switch_subject_is_scanned_as_each_release_scans_it() {
     let path = script();
-    for release in ["8.4", "8.5", "8.6", "9.0"] {
+    for version in [
+        TclVersion::V8_4,
+        TclVersion::V8_5,
+        TclVersion::V8_6,
+        TclVersion::V9_0,
+    ] {
+        let release = version.version_string();
         let vm = stdout(
             Command::new(env!("CARGO_BIN_EXE_tclvm"))
                 .args(["--tcl-version", release])
@@ -70,7 +78,8 @@ fn an_unknown_switch_subject_is_scanned_as_each_release_scans_it() {
         )
         .expect("run tclvm");
         assert_eq!(vm, expected(release), "tclvm {release}");
-        if let Some(tclsh) = stdout(Command::new(format!("tclsh{release}")).arg(&path)) {
+        if let Some(oracle) = tcl_test_support::witness_tclsh(version) {
+            let tclsh = stdout(Command::new(&oracle.path).arg(&path)).expect("run tclsh");
             assert_eq!(tclsh, expected(release), "tclsh{release}");
         }
     }

@@ -4402,6 +4402,7 @@ dependencies = [
  "tabled",
  "tcl-compiler",
  "tcl-dialect",
+ "tcl-host-native",
  "tcl-lexer",
  "tcl-lsp-core",
  "tcl-pkg",
@@ -4521,6 +4522,7 @@ dependencies = [
  "serde_json",
  "tcl-compiler",
  "tcl-dialect",
+ "tcl-host-native",
  "tcl-irules",
  "tcl-lexer",
  "tcl-registry",
@@ -4620,6 +4622,7 @@ dependencies = [
  "tcl-codegen",
  "tcl-compiler",
  "tcl-dialect",
+ "tcl-host-native",
  "tcl-lexer",
  "tcl-registry",
  "tcl-runtime-api",
@@ -4686,6 +4689,7 @@ dependencies = [
  "bytecount",
  "tcl-core-types",
  "tcl-dialect",
+ "tcl-test-support",
  "thiserror 2.0.21",
 ]
 
@@ -4821,6 +4825,7 @@ dependencies = [
  "sha2 0.11.1",
  "tar",
  "tcl-dialect",
+ "tcl-host-native",
  "tcl-pkg-model",
  "tcl-registry",
  "tcl-sandbox",
@@ -4852,7 +4857,9 @@ version = "0.1.0"
 dependencies = [
  "tcl-cmd-core",
  "tcl-core-types",
+ "tcl-dialect",
  "tcl-syntax",
+ "tcl-test-support",
 ]
 
 [[package]]
@@ -4914,6 +4921,7 @@ dependencies = [
  "rappct",
  "seccompiler",
  "serde",
+ "tcl-host-native",
  "wait-timeout",
 ]
 
@@ -5014,6 +5022,7 @@ dependencies = [
  "sha2 0.11.1",
  "tcl-dialect",
  "tcl-host-c-abi",
+ "tcl-host-native",
  "tcl-platform",
 ]
 
@@ -5074,6 +5083,7 @@ dependencies = [
  "tcl-engine-tclvm",
  "tcl-lexer",
  "tcl-registry",
+ "tcl-test-support",
  "tcl-vm",
 ]
 

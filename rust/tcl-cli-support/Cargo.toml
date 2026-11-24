@@ -28,6 +28,7 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
+tcl-host-native = { path = "../tcl-host-native" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-dialect = { path = "../tcl-dialect" }
 tcl-registry = { path = "../tcl-registry" }

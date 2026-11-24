@@ -38,5 +38,8 @@ tcl-core-types = { path = "../tcl-core-types" }
 tcl-dialect = { path = "../tcl-dialect" }
 thiserror = "2.0"
 
+[dev-dependencies]
+tcl-test-support = { path = "../tcl-test-support" }
+
 [lints]
 workspace = true

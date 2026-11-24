@@ -1864,7 +1864,7 @@ isolated virtual environments that pin a specific tclsh version.
 
 ```sh
 # Quick start
-tcl venv create .venv            # create a virtual environment
+tcl venv create .venv            # prefer the newest versioned tclsh on PATH
 source .venv/bin/activate        # activate it
 tcl pkg init                     # create tclpkg.tcl manifest
 tcl pkg discover --add           # find safe package requires in source

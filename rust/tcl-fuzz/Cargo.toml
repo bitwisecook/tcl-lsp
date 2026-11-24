@@ -44,6 +44,7 @@ name = "tcl-fuzz"
 path = "src/main.rs"
 
 [dependencies]
+tcl-host-native = { path = "../tcl-host-native" }
 clap = { version = "4", features = ["derive", "wrap_help"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }

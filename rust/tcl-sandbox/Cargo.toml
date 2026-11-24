@@ -39,5 +39,8 @@ seccompiler = "0.5"
 [target.'cfg(windows)'.dependencies]
 rappct = "0.13"
 
+[dev-dependencies]
+tcl-host-native = { path = "../tcl-host-native" }
+
 [lints]
 workspace = true

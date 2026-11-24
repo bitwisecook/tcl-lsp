@@ -22,6 +22,8 @@
 use std::path::PathBuf;
 use std::process::Command;
 
+use tcl_dialect::TclVersion;
+
 const SCRIPT: &str = "\
 set n 0
 while {$n < 2} { while {1} { break }; incr n }
@@ -57,7 +59,13 @@ fn stdout(command: &mut Command) -> Option<String> {
 #[test]
 fn an_inner_loop_exit_leaves_only_the_inner_loop() {
     let path = script();
-    for release in ["8.5", "8.6", "9.0", "9.1"] {
+    for version in [
+        TclVersion::V8_5,
+        TclVersion::V8_6,
+        TclVersion::V9_0,
+        TclVersion::V9_1,
+    ] {
+        let release = version.version_string();
         let vm = stdout(
             Command::new(env!("CARGO_BIN_EXE_tclvm"))
                 .args(["--tcl-version", release])
@@ -65,7 +73,8 @@ fn an_inner_loop_exit_leaves_only_the_inner_loop() {
         )
         .expect("run tclvm");
         assert_eq!(vm, EXPECTED, "tclvm {release}");
-        if let Some(tclsh) = stdout(Command::new(format!("tclsh{release}")).arg(&path)) {
+        if let Some(oracle) = tcl_test_support::witness_tclsh(version) {
+            let tclsh = stdout(Command::new(&oracle.path).arg(&path)).expect("run tclsh");
             assert_eq!(tclsh, EXPECTED, "tclsh{release}");
         }
     }

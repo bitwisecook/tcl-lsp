@@ -25,7 +25,7 @@
 //! binds to that variable (the text `regexp` actually compiles).  We verify
 //! that by asking a real `tclsh9.0` for the variable's value and comparing.
 //!
-//! Skips cleanly when no `tclsh9.0` is on `PATH` (CI without a Tcl 9 build).
+//! Uses the pinned Tcl 9.0 oracle when available.
 
 use std::io::Write;
 use std::process::{Command, Stdio};
@@ -35,7 +35,7 @@ use tcl_compiler::regex_source::regex_source_literal_spans;
 use tcl_registry::CommandRegistry;
 
 /// Run `script` on `tclsh` via stdin, returning `(exit_ok, stdout)`.
-fn run_tcl(tclsh: &str, script: &str) -> Option<(bool, String)> {
+fn run_tcl(tclsh: &std::path::Path, script: &str) -> Option<(bool, String)> {
     let mut child = Command::new(tclsh)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -51,18 +51,6 @@ fn run_tcl(tclsh: &str, script: &str) -> Option<(bool, String)> {
         out.status.success(),
         String::from_utf8_lossy(&out.stdout).into_owned(),
     ))
-}
-
-/// Locate a `tclsh9.0` (or a `tclsh` reporting a `9.x` patchlevel) on `PATH`.
-fn find_tclsh9() -> Option<String> {
-    for cand in ["tclsh9.0", "tclsh"] {
-        if let Some((true, out)) = run_tcl(cand, "puts -nonewline [info patchlevel]")
-            && out.starts_with("9.")
-        {
-            return Some(cand.to_string());
-        }
-    }
-    None
 }
 
 /// Strip a quoted/braced word's surrounding delimiters.
@@ -89,8 +77,7 @@ fn highlighted_literals(source: &str) -> Vec<String> {
 
 #[test]
 fn highlighted_literal_matches_tcl9_variable_value() {
-    let Some(tclsh) = find_tclsh9() else {
-        eprintln!("skipping regex_source oracle: no tclsh9.0 on PATH");
+    let Some(tclsh) = tcl_test_support::witness_tclsh(tcl_dialect::TclVersion::V9_0) else {
         return;
     };
 
@@ -114,7 +101,7 @@ fn highlighted_literal_matches_tcl9_variable_value() {
 
         // Ground truth: what does tclsh bind to `$r`?
         let (ok, val) =
-            run_tcl(&tclsh, &format!("set r {lit}\nputs -nonewline $r")).expect("tclsh runs");
+            run_tcl(&tclsh.path, &format!("set r {lit}\nputs -nonewline $r")).expect("tclsh runs");
         assert!(ok, "tclsh failed for {lit}");
         assert_eq!(
             our_inner, val,
@@ -129,8 +116,7 @@ fn highlighted_literal_inside_namespace_eval_matches_tcl9() {
     // synthetic body unit. The highlighted literal must still equal the value
     // the interpreter binds to the (namespace-scoped) variable — read back as
     // `${::ns::r}` after the eval completes.
-    let Some(tclsh) = find_tclsh9() else {
-        eprintln!("skipping regex_source oracle: no tclsh9.0 on PATH");
+    let Some(tclsh) = tcl_test_support::witness_tclsh(tcl_dialect::TclVersion::V9_0) else {
         return;
     };
     for lit in ["{a+b}", "\".*abc\"", "{[0-9]+}"] {
@@ -144,7 +130,7 @@ fn highlighted_literal_inside_namespace_eval_matches_tcl9() {
         );
         let our_inner = inner(&got[0]);
         let (ok, val) = run_tcl(
-            &tclsh,
+            &tclsh.path,
             &format!("namespace eval ::ns {{ set r {lit} }}\nputs -nonewline ${{::ns::r}}"),
         )
         .expect("tclsh runs");
@@ -162,8 +148,7 @@ fn highlighted_literal_inside_apply_lambda_matches_tcl9() {
     // synthetic body unit. The lambda local does not outlive the call, so the
     // oracle prints the value from *inside* the lambda; the highlighted literal
     // must equal it.
-    let Some(tclsh) = find_tclsh9() else {
-        eprintln!("skipping regex_source oracle: no tclsh9.0 on PATH");
+    let Some(tclsh) = tcl_test_support::witness_tclsh(tcl_dialect::TclVersion::V9_0) else {
         return;
     };
     for lit in ["{a+b}", "\"foo|bar\"", "{^\\d{3}$}"] {
@@ -176,7 +161,7 @@ fn highlighted_literal_inside_apply_lambda_matches_tcl9() {
         );
         let our_inner = inner(&got[0]);
         let (ok, val) = run_tcl(
-            &tclsh,
+            &tclsh.path,
             &format!("apply {{{{}} {{ set r {lit}; puts -nonewline $r }}}}"),
         )
         .expect("tclsh runs");
@@ -197,8 +182,7 @@ fn interpolated_source_is_conservatively_not_tracked() {
     // choice — verified against tclsh, which *does* resolve a concrete value,
     // documenting the deliberate gap between "lattice-constant" and
     // "runtime-constant".
-    let Some(tclsh) = find_tclsh9() else {
-        eprintln!("skipping regex_source oracle: no tclsh9.0 on PATH");
+    let Some(tclsh) = tcl_test_support::witness_tclsh(tcl_dialect::TclVersion::V9_0) else {
         return;
     };
     let src = "set p abc\nset r \"$p.*\"\nregexp $r $s\n";
@@ -208,7 +192,7 @@ fn interpolated_source_is_conservatively_not_tracked() {
     );
     // tclsh nonetheless resolves the pattern — the gap is intentional.
     let (ok, val) =
-        run_tcl(&tclsh, "set p abc\nset r \"$p.*\"\nputs -nonewline $r").expect("tclsh runs");
+        run_tcl(&tclsh.path, "set p abc\nset r \"$p.*\"\nputs -nonewline $r").expect("tclsh runs");
     assert!(ok);
     assert_eq!(val, "abc.*");
 }

@@ -30,6 +30,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use tcl_dialect::TclVersion;
+use tcl_host_native::executable::which;
 
 pub mod automatic_errors;
 pub mod binary_values;
@@ -233,7 +234,6 @@ struct ReleaseLocation {
     version: TclVersion,
     binary_env: &'static str,
     source_env: &'static str,
-    binary_names: &'static [&'static str],
 }
 
 const RELEASES: &[ReleaseLocation] = &[
@@ -241,31 +241,26 @@ const RELEASES: &[ReleaseLocation] = &[
         version: TclVersion::V8_4,
         binary_env: "TCL_LSP_TCLSH84",
         source_env: "TCL_LSP_TCL_ROOT84",
-        binary_names: &["tclsh8.4"],
     },
     ReleaseLocation {
         version: TclVersion::V8_5,
         binary_env: "TCL_LSP_TCLSH85",
         source_env: "TCL_LSP_TCL_ROOT85",
-        binary_names: &["tclsh8.5"],
     },
     ReleaseLocation {
         version: TclVersion::V8_6,
         binary_env: "TCL_LSP_TCLSH86",
         source_env: "TCL_LSP_TCL_ROOT86",
-        binary_names: &["tclsh8.6"],
     },
     ReleaseLocation {
         version: TclVersion::V9_0,
         binary_env: "TCL_LSP_TCLSH90",
         source_env: "TCL_LSP_TCL_ROOT90",
-        binary_names: &["tclsh9.0"],
     },
     ReleaseLocation {
         version: TclVersion::V9_1,
         binary_env: "TCL_LSP_TCLSH91",
         source_env: "TCL_LSP_TCL_ROOT91",
-        binary_names: &["tclsh9.1"],
     },
 ];
 
@@ -292,8 +287,9 @@ pub fn locate_tclsh(version: TclVersion) -> Result<Option<Tclsh>, OracleError> {
         }
         return validate_tclsh(path, version).map(Some);
     }
-    for name in location.binary_names {
-        if let Some(path) = which_on_path(name)
+    let versioned = format!("tclsh{}", version.version_string());
+    for name in [versioned.as_str(), "tclsh"] {
+        if let Some(path) = which(name)
             && let Ok(interpreter) = validate_tclsh(path, version)
         {
             return Ok(Some(interpreter));
@@ -413,8 +409,8 @@ pub const REQUIRE_TCLSH: &str = "TCL_LSP_REQUIRE_TCLSH";
 
 /// The reference interpreter an output witness compares a program under for
 /// `version`, as [`locate_tclsh`] finds it: the release's override variable
-/// (`TCL_LSP_TCLSH90`) when it is set, and otherwise `tclsh9.0` on `PATH`,
-/// at the exact pinned patchlevel.
+/// (`TCL_LSP_TCLSH90`) when it is set, and otherwise the versioned name or `tclsh` on
+/// `PATH`, at the exact pinned patchlevel.
 ///
 /// A release with none fails the calling test when [`REQUIRE_TCLSH`]
 /// requires it. Otherwise the test reports it, once per test and release, on
@@ -853,13 +849,6 @@ fn collect_source_candidates(parent: &Path, version: TclVersion, out: &mut Vec<P
             .filter(|text| text.starts_with(&prefix))
             .map(|_| entry.path())
     }));
-}
-
-fn which_on_path(name: &str) -> Option<PathBuf> {
-    let path = std::env::var_os("PATH")?;
-    std::env::split_paths(&path)
-        .map(|directory| directory.join(name))
-        .find(|candidate| candidate.is_file())
 }
 
 #[cfg(test)]

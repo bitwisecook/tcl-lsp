@@ -22,7 +22,7 @@
 
 use std::path::PathBuf;
 
-use crate::{OracleError, run_script, which_on_path};
+use crate::{OracleError, run_script, which};
 
 /// Current upstream reference selection, refreshed deliberately after probing.
 /// The reported patchlevel includes the built source revision; a release-only
@@ -228,7 +228,7 @@ pub fn locate_jimsh() -> Result<Option<Jimsh>, OracleError> {
             )));
         }
         path
-    } else if let Some(path) = which_on_path("jimsh") {
+    } else if let Some(path) = which("jimsh") {
         path
     } else {
         return Ok(None);

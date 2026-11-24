@@ -45,6 +45,8 @@ use tcl_platform::{
     SystemEncoding,
 };
 
+pub mod executable;
+
 /// The native, std-backed host. Holds its capability objects so the `Host`
 /// accessors can hand out `&dyn` references.
 pub struct NativeHost {

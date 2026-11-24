@@ -36,7 +36,7 @@ fn reg() -> CommandRegistry {
 
 /// Run `script` on `tclsh` via stdin, returning its stdout when it exits
 /// cleanly — the helper `differential_fold.rs` uses.
-fn run_tcl(tclsh: &str, script: &str) -> Option<String> {
+fn run_tcl(tclsh: &std::path::Path, script: &str) -> Option<String> {
     use std::io::Write;
     use std::process::{Command, Stdio};
     let mut child = Command::new(tclsh)
@@ -50,14 +50,6 @@ fn run_tcl(tclsh: &str, script: &str) -> Option<String> {
     out.status
         .success()
         .then(|| String::from_utf8_lossy(&out.stdout).into_owned())
-}
-
-/// A `tclsh9.1` (or a bare `tclsh` reporting a 9.1 patchlevel) on `PATH`.
-fn find_tclsh91() -> Option<&'static str> {
-    ["tclsh9.1", "tclsh"].into_iter().find(|cand| {
-        run_tcl(cand, "puts -nonewline [info patchlevel]")
-            .is_some_and(|patchlevel| patchlevel.starts_with("9.1"))
-    })
 }
 
 #[test]
@@ -282,12 +274,11 @@ fn subst_mixed_families_error_matches_tclsh91() {
         ),
         Some(SubstitutionKinds::ALL)
     );
-    let Some(tclsh) = find_tclsh91() else {
-        eprintln!("skipping subst_mixed_families_error_matches_tclsh91: no tclsh9.1 on PATH");
+    let Some(tclsh) = tcl_test_support::witness_tclsh(tcl_dialect::TclVersion::V9_1) else {
         return;
     };
     let error = run_tcl(
-        tclsh,
+        &tclsh.path,
         "catch {subst -nocommands -variables x} message; puts -nonewline $message",
     )
     .expect("tclsh9.1 runs the probe");
