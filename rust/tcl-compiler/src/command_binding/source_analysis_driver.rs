@@ -637,10 +637,9 @@ impl SourceCommandBindings {
         #[cfg(any(test, debug_assertions))]
         let tracing = SourceAnalysisTrace::start();
         let config = options.native_lexer_config(config);
-        let inherited_frame = options
+        let frame = options
             .source_point_entry
-            .map(|entry| entry.frame().clone());
-        let frame = inherited_frame.as_ref().unwrap_or(frame);
+            .map_or(frame, |entry| entry.frame());
         // The survey-scoped interpretation is never shared through the memo.
         let memo_key = if logical_conditional_source_control || native_formals.is_some() {
             None

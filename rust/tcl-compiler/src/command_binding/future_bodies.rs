@@ -25,6 +25,7 @@ use super::{
 };
 use crate::var_resolve::VariableExecutionFrame;
 use tcl_registry::CommandRegistry;
+use tcl_registry::body_execution::DeferredBodyFrame;
 
 /// Conditional invocations of an explicitly selected future script entry.
 /// These can withdraw caller assumptions; they establish no document execution.
@@ -180,19 +181,46 @@ impl SourceCommandBindings {
         context: SourceExecutionContext<'_>,
         facts: &InvocationFacts,
     ) {
+        let Some(dialect) = native.invocation.arguments().dialect() else {
+            return;
+        };
         let Some(frame) = facts
             .body_execution
-            .and_then(|spec| spec.deferred_entry_frame(native.invocation.arguments().dialect()?))
+            .and_then(|spec| spec.deferred_entry_frame(dialect))
         else {
             return;
         };
-        let tcl_registry::body_execution::DeferredBodyFrame::Global = frame;
         let Some(origin) = &state.current_source_origin else {
             return;
         };
         let registration = CommandAllocationSite {
             source: Arc::clone(origin),
             offset: native.segment.span.start(),
+        };
+        let (namespace, namespace_key, future_frame) = match frame {
+            DeferredBodyFrame::Global => (
+                "::".to_owned(),
+                state.native_root_namespace_key().unwrap_or_default(),
+                VariableExecutionFrame::Global,
+            ),
+            DeferredBodyFrame::CapturedNamespace => {
+                // The receiver's private namespace has no authored name.
+                if matches!(
+                    context.frame.layout(),
+                    VariableExecutionFrame::ReceiverMethod { .. }
+                ) {
+                    return;
+                }
+                let namespace_key = context.namespace_identity();
+                let Some(namespace) = namespace_key.display() else {
+                    return;
+                };
+                let frame = VariableExecutionFrame::NamespaceActivation {
+                    namespace: namespace.clone(),
+                    identity: registration.variable_storage_identity(),
+                };
+                (namespace, namespace_key, frame)
+            }
         };
         for &(index, role) in &facts.arg_roles {
             if role != tcl_registry::ArgRole::Body {
@@ -208,6 +236,13 @@ impl SourceCommandBindings {
             ) else {
                 continue;
             };
+            if frame == DeferredBodyFrame::CapturedNamespace
+                && dialect
+                    .native_namespace_code_policy()
+                    .is_none_or(|policy| policy.preserves_argument(script.text.bytes()))
+            {
+                continue;
+            }
             let root = DeferredSourceBody {
                 realm: evaluated_script_realm(
                     argument..argument + 1,
@@ -230,14 +265,16 @@ impl SourceCommandBindings {
                     text.to_owned()
                 },
                 offset: script.base(),
-                namespace: "::".to_owned(),
-                namespace_key: state.native_root_namespace_key().unwrap_or_default(),
+                namespace: namespace.clone(),
+                namespace_key: namespace_key.clone(),
                 event: None,
                 receiver_method: false,
                 receiver_namespace: None,
-                future_frame: Some(VariableExecutionFrame::Global.with_namespace_identity(
-                    state.native_root_namespace_key().unwrap_or_default(),
-                )),
+                future_frame: Some(
+                    future_frame
+                        .clone()
+                        .with_namespace_identity(namespace_key.clone()),
+                ),
                 parameters: Vec::new(),
                 original_parameters: None,
                 statics: None,

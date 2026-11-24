@@ -35,6 +35,10 @@ impl OriginalForwardMethod {
         &self.name
     }
 
+    pub(super) fn target_input(&self) -> Option<&SignatureSourceNameInput> {
+        self.prefix.first()
+    }
+
     pub(super) fn closed_for_policy(&self, policy: tcl_syntax::naming::NamePolicyProtocol) -> bool {
         !self.prefix.is_empty()
             && self.name.policy() == policy

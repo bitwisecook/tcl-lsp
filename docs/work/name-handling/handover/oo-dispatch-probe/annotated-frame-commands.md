@@ -1,12 +1,12 @@
 # Annotated command records at frame call sites
 
-The [item 93](../../plan.md) spike failed its coverage and answer criteria.
-Each release returned 131 records for reached source positions across the 16
-fixtures, including records at 12 of the 16 marked positions. In 8 cases the
-record and an LSP consumer agreed with Tcl. In 3 cases an LSP consumer matched
-Tcl and the record gave a different answer or left the target unresolved.
-The remaining record, for `namespace inscope`, and the LSP both left the
-target unresolved.
+The [item 93](../../plan.md) probe passed on C Tcl 8.6.18, 9.0.4 and 9.1.0.
+Each release yielded 136 records across the fixtures, including all 16 marked
+positions. The records matched Tcl in all 33
+comparisons where an archived or current LSP consumer gave the correct answer.
+They also matched Tcl for the alias, `after` callback and TclOO forward.
+`namespace inscope` and the deferred `namespace code` body retain records with
+unresolved targets. The LSP abstains from an exact answer at both sites.
 
 ## Reproduce
 
@@ -20,11 +20,20 @@ cargo run --locked -p tcl-lsp-core --example annotated_frame_commands
 The probe runs each unmodified [frame fixture](frames/) as a file in C Tcl,
 then builds a compilation unit under the corresponding dialect. It enumerates
 the original source positions where the retained compiler binding reports
-reached dispatch and reads `invocation_at_source` at each position. It uses
-the marked word for definition, hover and analyser diagnostics, and the
-command head for binding. In f14 the editor queries `b` and the binding query
-starts at `my`. In f06 and f13 the mark identifies a captured target operand,
-whose dispatch takes place later through the alias or forwarder.
+reached dispatch and reads `invocation_at_source` at each position. It also
+projects future-script bindings through their contiguous source mappings and
+links reached alias and receiver invocations to the original captured prefix
+words. A future entry carries its conditional frame and lookup state. In f06
+and f13 the mark identifies a captured operand and the reached position
+belongs to the alias or receiver invocation that selects it.
+
+The probe uses the marked word for definition, hover and analyser diagnostics,
+and the command head for binding. In f14 the editor queries `b` and the binding
+query starts at `my`. The receiver annotation uses the original TclOO lookup
+path. The plain `next` case uses the retained stock helper, entered method
+and sole superclass to identify the provider conditional on helper selection.
+The absence answer concerns the invoked name's slot before Tcl's unresolved
+command handler.
 
 The Tcl fixtures print the selected procedure or a value unique to the
 selected method. The negative control g01 catches the invalid command
@@ -37,8 +46,8 @@ declaration line or an exact hover counts as a matching LSP answer. For g01
 the matching observation is W123 and an empty definition. The comparison
 uses [the archived LSP observations](frames.out) for 8.6 and 9.0 and fresh
 observations for all three releases. Both sets identified the same matching
-sites. The command reports the experimental verdict after measuring every
-lane and exits with an error if it cannot complete a measurement.
+sites. The command exits with an error for missing records, contradictory
+answers, or failure to match Tcl wherever an existing consumer does.
 
 ## Marked sites
 
@@ -49,17 +58,17 @@ identifies `::C::b`.
 |---|---|---|---|
 | f01 namespace procedure, 4:19 | `::a::helper` | `::a::helper` | Yes |
 | f02 namespace path, 5:19 | `::lib::helper` | `::lib::helper` | Yes |
-| f03 TclOO defining namespace, 4:40 | `::helper` | `::ns::helper` | Yes |
-| f04 TclOO `next`, 2:50 | `B` | Unresolved | Yes |
+| f03 TclOO defining namespace, 4:40 | `::helper` | `::helper` | Yes |
+| f04 TclOO `next`, 2:50 | `B` | `::B::m` | Yes |
 | f05 `apply` namespace, 3:19 | `::lib::helper` | `::lib::helper` | Yes |
-| f06 alias target, 4:32 | `::helper` | **Missing record** | No |
+| f06 alias target, 4:32 | `::helper` | `::helper` | No |
 | f07 global `uplevel`, 4:32 | `::helper` | `::helper` | Yes |
 | f08 `namespace inscope`, 3:33 | `::lib::helper` | Unresolved | No |
 | f09 `namespace eval`, 3:28 | `::a::helper` | `::a::helper` | Yes |
-| f10 global `after` callback, 4:29 | `::helper` | **Missing record** | No |
+| f10 global `after` callback, 4:29 | `::helper` | `::helper` | No |
 | f11 import, 5:19 | `::lib::helper` | `::lib::helper` | Yes |
-| f12 `namespace code` callback, 4:35 | `::lib::helper` | **Missing record** | No |
-| f13 TclOO forward target, 4:36 | `::helper` | **Missing record** | No |
+| f12 `namespace code` callback, 4:35 | `::lib::helper` | Unresolved | No |
+| f13 TclOO forward target, 4:36 | `::helper` | `::helper` | No |
 | f14 TclOO `my`, 1:36 | `C.b` | `::C::b` | Yes |
-| g01 unrelated namespace, 3:19 | `1:invalid command name "helper"` | Absence unproved | Yes |
+| g01 unrelated namespace, 3:19 | `1:invalid command name "helper"` | Absent | Yes |
 | g02 namespace path set later, 3:19 | `::lib::helper` | `::lib::helper` | Yes |

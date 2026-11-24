@@ -193,14 +193,52 @@ impl ModuleCommandBindings {
                     .collect::<Vec<_>>())
             );
         }
-        self.original_targets_for_input_in(input, namespace, lookup, &mut BTreeSet::new())
+        let paths = self.original_command_paths_for_input(namespace, input)?;
+        self.original_targets_for_paths(
+            input.policy(),
+            namespace,
+            lookup,
+            paths,
+            &mut BTreeSet::new(),
+        )
     }
 
-    fn original_targets_for_input_in(
+    pub(in super::super) fn original_targets_for_receiver(
         &self,
         input: &SignatureSourceNameInput,
+        helper_path: &[&str],
         namespace: &SourceNamespaceKey,
         lookup: super::super::CommandTargetLookup,
+    ) -> Option<OriginalCommandTargetSelection> {
+        let (slots, local) = super::super::source_name_lookup::original_receiver_candidates(
+            input.bytes(),
+            input.policy(),
+            helper_path,
+        )?;
+        if local
+            && tcl_registry::definer::DefinerFamily::TclOo
+                .receiver_namespace_commands()
+                .iter()
+                .any(|name| name.as_bytes() == input.bytes())
+        {
+            return None;
+        }
+        let paths = self.original_command_paths_for_slots(&[slots], input.policy())?;
+        self.original_targets_for_paths(
+            input.policy(),
+            namespace,
+            lookup,
+            paths,
+            &mut BTreeSet::new(),
+        )
+    }
+
+    fn original_targets_for_paths(
+        &self,
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+        namespace: &SourceNamespaceKey,
+        lookup: super::super::CommandTargetLookup,
+        paths: Vec<Vec<SourceCommandKey>>,
         visiting: &mut BTreeSet<SourceCommandKey>,
     ) -> Option<OriginalCommandTargetSelection> {
         let mut selected = OriginalCommandTargetSelection {
@@ -209,7 +247,7 @@ impl ModuleCommandBindings {
             may_be_absent: false,
             unknown: false,
         };
-        for path in self.original_command_paths_for_input(namespace, input)? {
+        for path in paths {
             let mut absent = true;
             for key in path {
                 if !visiting.insert(key.clone()) {
@@ -224,7 +262,7 @@ impl ModuleCommandBindings {
                             target,
                             &key,
                             OriginalTargetLookupContext {
-                                policy: input.policy(),
+                                policy,
                                 namespace,
                                 lookup,
                             },
@@ -242,7 +280,7 @@ impl ModuleCommandBindings {
                                         target,
                                         &key,
                                         OriginalTargetLookupContext {
-                                            policy: input.policy(),
+                                            policy,
                                             namespace,
                                             lookup,
                                         },
@@ -353,10 +391,12 @@ impl ModuleCommandBindings {
             tcl_registry::AliasTargetLookup::Global => self.source_root_namespace_key()?,
             tcl_registry::AliasTargetLookup::CallerNamespace => namespace.clone(),
         };
-        let result = self.original_targets_for_input_in(
-            alias.name_input(),
+        let paths = self.original_command_paths_for_input(&target_namespace, alias.name_input())?;
+        let result = self.original_targets_for_paths(
+            alias.name_input().policy(),
             &target_namespace,
             lookup,
+            paths,
             visiting,
         )?;
         selected.may_be_absent |= result.may_be_absent;

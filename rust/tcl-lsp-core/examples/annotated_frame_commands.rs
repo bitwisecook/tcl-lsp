@@ -29,6 +29,7 @@ use tcl_compiler::command_binding::{
     BindingKind, SourceInvocationBinding, SourceRuntimeReachability,
 };
 use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
+use tcl_compiler::signature_scan::scope::SignatureSourceNameInput;
 use tcl_dialect::TclVersion;
 use tcl_lexer::{LexerConfig, LineIndex};
 use tcl_registry::CommandRegistry;
@@ -71,12 +72,26 @@ fn marker(source: &str) -> Marker<'_> {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+enum SiteKind {
+    Dispatch,
+    Deferred,
+    AliasTarget,
+    ForwardTarget,
+}
+
+struct CommandRecord {
+    binding: SourceInvocationBinding,
+    answer: Option<Answer>,
+    kind: SiteKind,
+}
+
 fn command_records(
     source: &str,
     input: &ResolvedAnalysisInput,
     registry: &CommandRegistry,
     config: LexerConfig,
-) -> BTreeMap<u32, SourceInvocationBinding> {
+) -> BTreeMap<u32, CommandRecord> {
     let unit = CompilationUnit::build_with_analysis_input(
         source,
         UnitBuildOptions {
@@ -98,20 +113,112 @@ fn command_records(
         .expect("compiler retained the original source binding");
     // Enumerate exact byte positions in these short fixtures. The binding
     // owner determines which positions reached dispatch.
-    source
-        .char_indices()
-        .map(|(offset, _)| u32::try_from(offset).expect("fixture offset fits u32"))
-        .filter(|&offset| bindings.reached_site(offset))
-        .filter_map(|offset| {
-            // The positioned query reads the original head at this offset.
-            let record = bindings.invocation_at_source("", offset);
-            (record.runtime_reachability() == SourceRuntimeReachability::Reached)
-                .then_some((offset, record))
-        })
-        .collect()
+    let mut records = BTreeMap::new();
+    let image = tcl_lexer::SourceImage::document(source);
+    for (offset, _) in source.char_indices() {
+        let offset = u32::try_from(offset).expect("fixture offset fits u32");
+        if !bindings.reached_site(offset) {
+            continue;
+        }
+        let binding = bindings.invocation_at_source("", offset);
+        if binding.runtime_reachability() != SourceRuntimeReachability::Reached {
+            continue;
+        }
+        let head_absent = binding.original_receiver_namespace_commands().is_none()
+            && binding
+                .evaluated_command_word()
+                .is_some_and(|head| bindings.command_is_absent_at(head, offset));
+        retain_captured_targets(&mut records, &binding, &image, registry);
+        let answer = binding_answer(&binding, registry).or(head_absent.then_some(Answer::Absent));
+        records.insert(
+            offset,
+            CommandRecord {
+                binding,
+                answer,
+                kind: SiteKind::Dispatch,
+            },
+        );
+    }
+    for call in &module.future_call_sites {
+        if matches!(
+            call.source.mapping,
+            tcl_compiler::command_binding::ExecutedScriptMapping::Contiguous { .. }
+        ) && call.source.origin.source_image() == &image
+        {
+            retain_capture(
+                &mut records,
+                call.offset,
+                &call.binding,
+                binding_answer(&call.binding, registry),
+                SiteKind::Deferred,
+            );
+        }
+    }
+    records
 }
 
-#[derive(Debug, PartialEq, Eq)]
+fn retain_captured_targets(
+    records: &mut BTreeMap<u32, CommandRecord>,
+    binding: &SourceInvocationBinding,
+    image: &tcl_lexer::SourceImage,
+    registry: &CommandRegistry,
+) {
+    if let Some(alias) = binding
+        .original_evaluated_command_reference()
+        .and_then(|reference| binding.original_alias_target_for_reference(&reference))
+        && let Some(offset) = original_offset(alias.name_input(), image)
+    {
+        retain_capture(
+            records,
+            offset,
+            binding,
+            binding_answer(binding, registry),
+            SiteKind::AliasTarget,
+        );
+    }
+    if let Some((input, procedure)) = binding.frozen_object_forward_target()
+        && let Some(offset) = original_offset(input, image)
+    {
+        retain_capture(
+            records,
+            offset,
+            binding,
+            procedure.map(Answer::Procedure),
+            SiteKind::ForwardTarget,
+        );
+    }
+}
+
+fn original_offset(
+    input: &SignatureSourceNameInput,
+    image: &tcl_lexer::SourceImage,
+) -> Option<u32> {
+    let word = input.original_word_key()?;
+    (word.source_image() == image).then(|| word.span().start())
+}
+
+fn retain_capture(
+    records: &mut BTreeMap<u32, CommandRecord>,
+    offset: u32,
+    binding: &SourceInvocationBinding,
+    answer: Option<Answer>,
+    kind: SiteKind,
+) {
+    records
+        .entry(offset)
+        .and_modify(|record| {
+            if !matches!(record.kind, SiteKind::Dispatch) && record.answer != answer {
+                record.answer = None;
+            }
+        })
+        .or_insert_with(|| CommandRecord {
+            binding: binding.clone(),
+            answer,
+            kind,
+        });
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum Answer {
     Procedure(String),
     Method(String, String),
@@ -159,9 +266,20 @@ impl Answer {
 }
 
 fn binding_answer(record: &SourceInvocationBinding, registry: &CommandRegistry) -> Option<Answer> {
-    if let Some((_, method, _)) = record.receiver_self_method_entry(registry) {
+    if let Some(method) = record
+        .receiver_self_method_entry(registry)
+        .map(|(_, method, _)| method)
+        .or_else(|| record.receiver_next_method_entry(registry))
+    {
         let owner = method.declaring_class()?;
         return Some(Answer::Method(owner.command.clone(), method.name().into()));
+    }
+    if record.original_receiver_namespace_commands().is_some() {
+        let reference = record.original_evaluated_command_reference()?;
+        let definition = reference.definition()?;
+        return (definition.kind()
+            == tcl_compiler::command_binding::SourceCommandDefinitionKind::Procedure)
+            .then(|| Answer::Procedure(definition.allocation().command.clone()));
     }
     if let Some(target) = record.proved_target()
         && target.kind == BindingKind::Proc
@@ -251,7 +369,7 @@ fn run_lane(oracle: &Tclsh, paths: &[PathBuf], archive: &str) -> Result<bool, Bo
     );
     let mut pass = true;
     println!(
-        "C Tcl {}\nfixture\tsite\tcommand records\tbinding\theads\tLSP def lines\thover\tdiagnostics\tarchive matches Tcl\tLSP matches Tcl\tTcl stdout\tcriterion",
+        "C Tcl {}\nfixture\tsite\tcommand records\tbinding\trecord provenance\tLSP def lines\thover\tdiagnostics\tarchive matches Tcl\tLSP matches Tcl\tTcl stdout\tcriterion",
         oracle.patchlevel
     );
     for path in paths {
@@ -267,14 +385,8 @@ fn run_lane(oracle: &Tclsh, paths: &[PathBuf], archive: &str) -> Result<bool, Bo
         let expected = Answer::from_oracle(&stdout);
         let records = command_records(&source, &input, registry, config);
         let record = records.get(&marker.command);
-        let answer = record.and_then(|record| binding_answer(record, registry));
-        let heads = record.map(|record| {
-            record
-                .targets
-                .iter()
-                .map(|target| target.command.as_str())
-                .collect::<Vec<_>>()
-        });
+        let answer = record.and_then(|record| record.answer.as_ref());
+        let provenance = record.map(|record| (record.kind, record.binding.runtime_reachability()));
 
         let analysis = Analyser::new()
             .with_resolved_input(input.clone())
@@ -305,19 +417,21 @@ fn run_lane(oracle: &Tclsh, paths: &[PathBuf], archive: &str) -> Result<bool, Bo
         };
         let judgement = if record.is_none() {
             "missing record"
-        } else if (live || archived == Some(true)) && answer.as_ref() != Some(&expected) {
+        } else if answer.is_some_and(|answer| *answer != expected) {
+            "wrong command answer"
+        } else if (live || archived == Some(true)) && answer != Some(&expected) {
             "command answer gap"
         } else {
             "pass"
         };
         pass &= judgement == "pass";
         println!(
-            "{file}\t{}:{} {}\t{}\t{}\t{heads:?}\t{lines:?}\t{hover:?}\t{diagnostics:?}\t{archived:?}\t{live}\t{stdout:?}\t{judgement}",
+            "{file}\t{}:{} {}\t{}\t{}\t{provenance:?}\t{lines:?}\t{hover:?}\t{diagnostics:?}\t{archived:?}\t{live}\t{stdout:?}\t{judgement}",
             pos.line + 1,
             pos.character.get() + 1,
             marker.head,
             records.len(),
-            answer.as_ref().map_or_else(
+            answer.map_or_else(
                 || if record.is_some() {
                     "unresolved".into()
                 } else {
@@ -344,5 +458,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         pass &= run_lane(&oracle, &paths, &archive)?;
     }
     println!("Item 93 criterion: {}", if pass { "pass" } else { "fail" });
-    Ok(())
+    if pass {
+        Ok(())
+    } else {
+        Err("item 93 coverage or command answer criteria failed".into())
+    }
 }

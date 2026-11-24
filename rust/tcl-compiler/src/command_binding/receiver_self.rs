@@ -477,6 +477,110 @@ impl SourceInvocationBinding {
         Some((proof.class_target(), entry, proof.dispatch_generation()))
     }
 
+    /// Provider of the stock `next` helper in a reached instance method with
+    /// a single retained superclass. The provider is conditional on selecting
+    /// that helper in the receiver namespace.
+    #[must_use]
+    pub fn receiver_next_method_entry(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<&super::SourceReceiverMethodEntry> {
+        use tcl_registry::{
+            RuntimeBacking, native_compilation::NativeCompilationGrammar,
+            native_tcloo_compilation::NativeTclOoHelper,
+        };
+        self.original_receiver_namespace_commands()?;
+        let input = self.original_retained_written_name_input(0)?;
+        let spec = registry.get(std::str::from_utf8(input.bytes()).ok()?)?;
+        let RuntimeBacking::ShippedBuiltin { identity } = spec.runtime_backing else {
+            return None;
+        };
+        if !self.evaluated_argument_words.is_empty()
+            || spec.native_compilation?.grammar
+                != NativeCompilationGrammar::TclOoHelper(NativeTclOoHelper::Next)
+            || self.entered_execution_observer.observed()
+        {
+            return None;
+        }
+        let helper = self.lookup_command_word(identity);
+        let target = helper.proved_target()?;
+        if !target.prepended.is_empty() || target.registry_identity() != Some(identity) {
+            return None;
+        }
+        let state = &self.lookup_state.as_ref()?.state;
+        let receiver = state.active_method_receiver(&self.variable_frame)?;
+        let class = receiver.class_target();
+        let definition = state.class_definitions.get(class.identity.as_ref()?)?;
+        let [base] = definition.inherited_classes.as_slice() else {
+            return None;
+        };
+        if !definition.single_superclass
+            || state.source_step_observed()
+            || state.source_execution_observed(None)
+        {
+            return None;
+        }
+        let site = self.invocation_site()?;
+        let mut methods = definition
+            .receiver_method_entries
+            .iter()
+            .filter(|(_, method)| {
+                method.declaring_class() == Some(class)
+                    && method.body().origin == site.source
+                    && site
+                        .offset
+                        .checked_sub(method.body().base())
+                        .is_some_and(|offset| (offset as usize) < method.body().text.len())
+            });
+        let (key, _) = methods.next()?;
+        if key.0 != super::SourceMethodReceiver::Instance || methods.next().is_some() {
+            return None;
+        }
+        state
+            .class_definitions
+            .get(base.identity.as_ref()?)?
+            .receiver_method_entries
+            .get(key)
+    }
+
+    /// A retained forward prefix and the target selected in the current
+    /// receiver's lookup world. The target remains conditional on dispatching
+    /// the forward. This supplies no visibility or completion proof.
+    #[must_use]
+    pub fn frozen_object_forward_target(
+        &self,
+    ) -> Option<(
+        &crate::signature_scan::scope::SignatureSourceNameInput,
+        Option<String>,
+    )> {
+        let head = &self.frozen_head_object.as_ref()?.word;
+        let receiver = self.frozen_object_instance_at_dispatch(head)?;
+        let state = &self.lookup_state.as_ref()?.state;
+        let selector = self.original_retained_written_name_input(1)?;
+        let definition = state
+            .class_definitions
+            .get(receiver.class_target().identity.as_ref()?)?;
+        if receiver.own_method_generation != 0 {
+            return None;
+        }
+        let forward = definition.forward_method_entries.get(selector.bytes())?;
+        let input = forward.target_input()?;
+        let selected = state.original_targets_for_receiver(
+            input,
+            receiver.receiver_namespace_path?,
+            &self.lookup_namespace_key,
+            super::CommandTargetLookup::WithFallback,
+        );
+        let proved = selected
+            .filter(|selected| {
+                !selected.unknown && !selected.may_be_absent && selected.targets.len() == 1
+            })
+            .and_then(|selected| selected.targets.into_iter().next())
+            .filter(|target| target.kind == super::BindingKind::Proc);
+        // The resolved implementation is a projection of a retained table.
+        Some((input, proved.map(|target| target.command)))
+    }
+
     /// Possible receiver-local builtin operation selected from the original
     /// method declaration or an actual reached receiver. A custom declared
     /// override excludes the builtin. Generic external activation retains an

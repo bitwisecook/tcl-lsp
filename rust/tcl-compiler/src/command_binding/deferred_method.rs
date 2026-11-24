@@ -403,6 +403,7 @@ struct RetainedClassEntries {
     receiver_method_entries: Arc<SourceReceiverMethodEntries>,
     forward_method_entries: Arc<super::deferred_forward::OriginalForwardEntries>,
     inherited_classes: Arc<Vec<super::SourceCommandTarget>>,
+    single_superclass: bool,
 }
 
 #[derive(Clone, Copy)]

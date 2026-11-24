@@ -81,7 +81,7 @@
 Each is small, measured and reverts if it fails. They run in phase 0, before the phases that depend on them.
 
 - **92. [Name-world cost](handover/name-world-cost.md).** Measured the 687-line Overrides input and the analysis-performance corpus. The ordinary walk with point states was faster than the omission control and stayed within the medium-file memory budget.
-- **93. Annotated command for nested commands:** produce the record for every reached command in one fixture directory (`oo-dispatch-probe/frames/`) from today's binding and compare it with the existing consumers' answers. Answers whether "computed once" covers nested sites.
+- **93. [Annotated commands for nested sites](handover/oo-dispatch-probe/annotated-frame-commands.md).** The frame probe covers all marked nested sites and matches Tcl wherever an existing consumer does.
 - **94. Binding and value fixpoint:** the [spike results](binding-value-fixpoint-spike.md) record the iterations, re-bound sites and sealed realm comparison for the dynamic-head, `upvar $n` and `uplevel $lvl` cases in `oo-dispatch-probe/dynamic/` and their companions.
 - **95. Per-body salsa query:** move one consumer (W210 on one body unit) onto a per-body query and measure re-analysis after a one-line edit.
 

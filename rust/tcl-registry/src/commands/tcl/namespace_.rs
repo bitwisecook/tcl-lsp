@@ -1267,6 +1267,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // Keep that timing in registry data so every executable-body
         // consumer distinguishes capture from same-invocation execution.
         traits: Traits::WRAPS_COMMAND_PREFIX.union(Traits::DEFERS_BODY),
+        body_execution: Some(crate::body_execution::BodyExecutionSpec::DeferredNamespaceScript),
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
         world_effects: crate::knowledge::Knowledge::Partial(WorldEffectDescriptor::EMPTY),
         side_effects: crate::knowledge::Knowledge::declared(NAMESPACE_READ_SIDE_EFFECTS),

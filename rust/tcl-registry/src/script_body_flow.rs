@@ -103,7 +103,8 @@ pub fn script_body_flow(facts: &InvocationFacts) -> ScriptBodyFlow {
         }
         Some(
             crate::body_execution::BodyExecutionSpec::DeferredGlobalScript
-            | crate::body_execution::BodyExecutionSpec::DeferredGlobalScriptForFamily(_),
+            | crate::body_execution::BodyExecutionSpec::DeferredGlobalScriptForFamily(_)
+            | crate::body_execution::BodyExecutionSpec::DeferredNamespaceScript,
         ) => {
             return ScriptBodyFlow::Deferred;
         }

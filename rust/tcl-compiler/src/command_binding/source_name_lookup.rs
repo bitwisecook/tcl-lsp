@@ -820,7 +820,8 @@ impl SourceInvocationBinding {
         };
         let rows = self.original_receiver_rows(Some(key))?;
         let receiver = original_receiver_namespace(&rows, input.policy())?;
-        let (mut candidates, local) = original_receiver_candidates(input, receiver)?;
+        let (mut candidates, local) =
+            original_receiver_candidates(input.bytes(), input.policy(), receiver.path)?;
         let receiver_command = local
             && receiver
                 .family
@@ -1195,25 +1196,24 @@ fn original_receiver_namespace(
 
 /// Ordered candidates after the unnamed receiver namespace, and whether the
 /// word searches that namespace at all (an absolute word does not).
-fn original_receiver_candidates(
-    input: &SignatureSourceNameInput,
-    receiver: super::conditional_body::SourceReceiverNamespace,
+pub(super) fn original_receiver_candidates(
+    bytes: &[u8],
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+    namespaces: &[&str],
 ) -> Option<(Vec<ByteCommandSlot>, bool)> {
     use tcl_syntax::naming::{CommandLookupBase, NativeCommandNamespaceRoute, NativeNameProtocol};
-    let policy = input.policy();
     let recipe = policy.recipe();
     if !matches!(recipe, NativeNameProtocol::C(_)) {
         return None;
     }
     let root = SignatureNamespaceScope::root(Some(policy));
     let selected = recipe
-        .command_lookup_projection(root.context()?, input.bytes())
+        .command_lookup_projection(root.context()?, bytes)
         .ok()?;
     if selected.namespace_route() == NativeCommandNamespaceRoute::Root {
         return Some((vec![selected.slot().clone()], false));
     }
-    let path = receiver
-        .path
+    let path = namespaces
         .iter()
         .map(|namespace| {
             tcl_syntax::naming::authored_source_namespace_path(
@@ -1230,9 +1230,7 @@ fn original_receiver_candidates(
             CommandLookupBase::Context(Some(scope)) => scope,
             CommandLookupBase::Root => root.clone(),
         };
-        let candidate = recipe
-            .command_lookup_slot(scope.context()?, input.bytes())
-            .ok()?;
+        let candidate = recipe.command_lookup_slot(scope.context()?, bytes).ok()?;
         if !candidates.contains(&candidate) {
             candidates.push(candidate);
         }

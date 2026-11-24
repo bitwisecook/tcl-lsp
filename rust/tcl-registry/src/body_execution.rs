@@ -501,6 +501,8 @@ pub enum BodyExecutionSpec {
     DeferredGlobalScript,
     /// Future global entry whose authored frame contract names one family.
     DeferredGlobalScriptForFamily(tcl_dialect::model::Family),
+    /// Capture a script in the registering C Tcl namespace.
+    DeferredNamespaceScript,
     /// Dictionary mapping plus a completion-sensitive caller-frame epilogue.
     DictionaryScope(crate::dictionary_scope::DictionaryScopeSpec),
     /// Three caller-frame phases; setup failure omits body, cleanup captures all
@@ -514,6 +516,8 @@ pub enum BodyExecutionSpec {
 pub enum DeferredBodyFrame {
     /// A fresh global activation, outside the registering procedure/namespace.
     Global,
+    /// A new activation of the captured namespace.
+    CapturedNamespace,
 }
 
 /// Argument grammar for a captured setup/body/cleanup lifecycle.
@@ -824,6 +828,11 @@ impl BodyExecutionSpec {
         let family = match self {
             Self::DeferredGlobalScript => None,
             Self::DeferredGlobalScriptForFamily(family) => Some(family),
+            Self::DeferredNamespaceScript => {
+                return (dialect.family() == Some(Family::Tcl)
+                    && dialect.native_namespace_code_policy().is_some())
+                .then_some(DeferredBodyFrame::CapturedNamespace);
+            }
             _ => return None,
         };
         if family.is_some_and(|family| dialect.family() != Some(family)) {
@@ -848,7 +857,8 @@ impl BodyExecutionSpec {
             | Self::SourceFile
             | Self::SubstitutionTemplate
             | Self::DeferredGlobalScript
-            | Self::DeferredGlobalScriptForFamily(_) => BodyExecutionSelection::UnknownArguments,
+            | Self::DeferredGlobalScriptForFamily(_)
+            | Self::DeferredNamespaceScript => BodyExecutionSelection::UnknownArguments,
         }
     }
 }

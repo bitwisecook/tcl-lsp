@@ -144,6 +144,7 @@ pub(super) fn retained_class_entries(
     });
     RetainedClassEntries {
         inherited_classes: Arc::default(),
+        single_superclass: false,
         instance_methods: closed_instance_methods(
             grammar, definition, map, segments, dialect, policy, context,
         ),

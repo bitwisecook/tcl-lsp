@@ -408,6 +408,7 @@ impl ModuleCommandBindings {
                 receiver_method_entries: Arc::default(),
                 forward_method_entries: Arc::default(),
                 inherited_classes: Arc::default(),
+                single_superclass: false,
                 custom_metaclass: None,
             },
         ))
@@ -471,6 +472,7 @@ impl ModuleCommandBindings {
                 return false;
             }
             let dependencies = Arc::make_mut(&mut entries.inherited_classes);
+            entries.single_superclass = !mixin;
             dependencies.push(base);
             dependencies.extend(inherited.inherited_classes.iter().cloned());
             match (&mut entries.instance_methods, inherited.instance_methods) {
@@ -614,6 +616,7 @@ impl ModuleCommandBindings {
                 receiver_method_entries: entries.receiver_method_entries,
                 forward_method_entries: entries.forward_method_entries,
                 inherited_classes: entries.inherited_classes,
+                single_superclass: entries.single_superclass,
                 custom_metaclass: None,
             },
         );
