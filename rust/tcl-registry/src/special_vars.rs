@@ -76,7 +76,7 @@ impl NativeErrorStorageVariable {
     /// The variable-table key in the root namespace.
     #[must_use]
     pub fn simple_name(self) -> &'static str {
-        self.global_name().trim_start_matches("::")
+        tcl_syntax::naming::unroot_rooted_key(self.global_name()).expect("rooted error storage key")
     }
 }
 
