@@ -279,6 +279,9 @@ pub(in super::super) fn parse_representation_effect(
     let parts = list_words(text);
     match parts.split_first() {
         Some((head, rest)) if head == "None" && rest.is_empty() => Some(RepresentationEffect::None),
+        Some((head, rest)) if head == "ObserveValue" && rest.is_empty() => {
+            Some(RepresentationEffect::ObserveValue)
+        }
         Some((head, rest)) if head == "CoerceExpressionValues" && rest.len() == 1 => rest[0]
             .parse()
             .ok()

@@ -258,17 +258,18 @@ pub(super) fn populate_trace_facts(
 ) {
     // naming.compiler.original-analysis-metadata-context
     // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
-    let actual = crate::registry_invocation::retained_module_metadata_context(registry, module);
-    let context = actual.as_deref().map(Into::into).or_else(|| {
-        (standalone && module.source_metadata_input.is_none())
-            .then(|| {
-                registry
-                    .profile()
-                    .map(tcl_registry::model::semantic::SemanticContext::for_profile)
-                    .map(crate::registry_invocation::InvocationMetadataContext::from)
-            })
-            .flatten()
-    });
+    let context =
+        crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)
+            .or_else(|| {
+                (standalone && module.source_metadata_input.is_none())
+                    .then(|| {
+                        registry
+                            .profile()
+                            .map(tcl_registry::model::semantic::SemanticContext::for_profile)
+                            .map(crate::registry_invocation::InvocationMetadataContext::from)
+                    })
+                    .flatten()
+            });
     // Borrow every retained body instead of cloning it: a derived `Clone` of
     // cap-deep structured IR overflows a 2 MiB thread. The facts collect
     // separately and are applied once the walk has finished.

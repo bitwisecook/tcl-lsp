@@ -72,6 +72,12 @@ impl NativeErrorStorageVariable {
             Self::ErrorInfo => "::errorInfo",
         }
     }
+
+    /// The variable-table key in the root namespace.
+    #[must_use]
+    pub fn simple_name(self) -> &'static str {
+        self.global_name().trim_start_matches("::")
+    }
 }
 
 /// C Tcl error presentation can write both global cells, independently of the

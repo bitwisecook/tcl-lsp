@@ -805,6 +805,21 @@ impl<'a> LatticeDriver<'a> {
         self.typed_assignment
     }
 
+    /// The interpreter's error cells can receive unrepresented writes.
+    pub(crate) fn is_native_error_storage(
+        &self,
+        key: &crate::var_resolve::VariableCellKey,
+    ) -> bool {
+        let dialect = self.policy.invocation_dialect.unwrap_or_else(|| {
+            tcl_registry::InvocationDialect::of_profile(
+                self.registry
+                    .profile()
+                    .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl),
+            )
+        });
+        key.is_native_error_storage(dialect)
+    }
+
     /// A single-token literal word's value under the document's grammar —
     /// [`literal_token_value`] for the typed statements, which carry their
     /// word's text rather than its value.

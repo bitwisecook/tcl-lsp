@@ -3996,6 +3996,7 @@ command ::tcl::unsupported::representation {
     arity 1
 
     return_type String
+    representation_effect ObserveValue
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.
@@ -44637,6 +44638,7 @@ command tcl::unsupported::representation {
     arity 1
 
     return_type String
+    representation_effect ObserveValue
     # TODO(spectcl): `native_compilation` is set on the source spec. The DSL
     #   spells it `native_compilation -native CONTRACT`, but a draft records
     #   only that the field is set, never the expression that set it.

@@ -83,6 +83,7 @@ pub(super) fn module_script_encoding(
 }
 
 pub(super) fn fold_retained_builtin(
+    module: &crate::ir::Module,
     registry: &CommandRegistry,
     call: &crate::word_subst::LiftedCall,
     calls: &[crate::word_subst::LiftedCall],
@@ -112,23 +113,38 @@ pub(super) fn fold_retained_builtin(
         lookup_var: &lookup,
         script_encoding,
     }
-    .fold_retained_call_with_metadata_context(call, calls, metadata)
+    .fold_retained_call_with_metadata_context(
+        call,
+        crate::const_subst::RetainedCalls::in_module(calls, module),
+        metadata,
+    )
     .filter(|value| !crate::const_subst::folded_literal_reads_apart(value, release))
 }
 
 fn retained_expr_invocation(
+    module: &crate::ir::Module,
     call: &crate::word_subst::LiftedCall,
     registry: &CommandRegistry,
     metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
 ) -> Option<crate::registry_invocation::ResolvedStatementInvocation> {
+    let metadata = metadata?;
+    let tokens = call.tokens.as_ref()?;
     let invocation = crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
         registry,
-        Some(metadata?),
-        call.tokens.as_ref()?,
+        Some(metadata),
+        tokens,
     )?;
     (invocation.facts.operation
         == tcl_registry::SemanticOperationId::StructuredLowering(
             tcl_registry::hooks::LoweringHookId::Expr,
+        )
+        && !module.has_dynamic_trace
+        && !crate::registry_invocation::source_fold_has_execution_trace(
+            registry,
+            metadata,
+            tokens,
+            invocation.facts.descriptor_key(),
+            &module.traced_commands,
         ))
     .then_some(invocation)
 }
@@ -141,9 +157,9 @@ pub(super) fn retained_o115(
     word: &str,
     registry: &CommandRegistry,
 ) -> Option<String> {
-    let actual = crate::registry_invocation::retained_module_metadata_context(registry, module)?;
-    let metadata = Some(actual.as_ref().into());
-    let invocation = retained_expr_invocation(call, registry, metadata)?;
+    let metadata =
+        crate::registry_invocation::InvocationMetadataContext::for_module(registry, module);
+    let invocation = retained_expr_invocation(module, call, registry, metadata)?;
     if !ctx
         .command_mutations
         .trusts(invocation.facts.descriptor_key().label())
@@ -176,9 +192,8 @@ pub(super) fn visit_call_cmd_subst_folds(
     let Some(registry) = ctx.registry else {
         return;
     };
-    let actual =
-        crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module);
-    let metadata = actual.as_deref().map(Into::into);
+    let metadata =
+        crate::registry_invocation::InvocationMetadataContext::for_module(registry, &cu.ir_module);
     let Some(calls) = retained_substitution_calls(tokens, &cu.ir_module, registry) else {
         return;
     };
@@ -220,7 +235,7 @@ pub(super) fn visit_call_cmd_subst_folds(
             ));
             continue;
         }
-        let is_expr = retained_expr_invocation(call, registry, metadata).is_some();
+        let is_expr = retained_expr_invocation(&cu.ir_module, call, registry, metadata).is_some();
 
         if is_expr && let Some(folded) = try_o101_expr_arg_fold(ctx, cu, tokens, call, constants) {
             ctx.report(Optimisation::new(
@@ -232,37 +247,17 @@ pub(super) fn visit_call_cmd_subst_folds(
             continue;
         }
         if let Some(value) = fold_retained_builtin(
+            &cu.ir_module,
             registry,
             call,
             &calls,
             None,
             metadata,
             (ctx.dialect, Some(constants), module_script_encoding(cu)),
-        ) && let Some(word) = render_propagation_word(&value, ctx.lexer_config())
-        {
-            let code = call
-                .tokens
-                .as_ref()
-                .and_then(|tokens| {
-                    crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
-                        registry, metadata, tokens,
-                    )
-                })
-                .map_or(DiagCode::O129, |invocation| {
-                    // value-transfer-ok: irreducible — names the reported
-                    // rewrite family of a fold already made; no value depends on it.
-                    match invocation.facts.canonical_command.as_str() {
-                        "list" => DiagCode::O116,
-                        "lindex" => DiagCode::O118,
-                        _ => DiagCode::O129,
-                    }
-                });
-            ctx.report(Optimisation::new(
-                code,
-                "Fold constant builtin command substitution",
-                call.span,
-                word,
-            ));
+        ) {
+            if let Some(rewrite) = builtin_fold_rewrite(ctx, call, &value, metadata) {
+                ctx.report(rewrite);
+            }
             continue;
         }
         if let Some((name, replacement)) = try_o103_proc_fold(ctx, cu, call, &calls) {
@@ -274,6 +269,50 @@ pub(super) fn visit_call_cmd_subst_folds(
             ));
         }
     }
+}
+
+fn builtin_fold_rewrite(
+    ctx: &PassContext<'_>,
+    call: &crate::word_subst::LiftedCall,
+    value: &str,
+    metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+) -> Option<Optimisation> {
+    let registry = ctx.registry?;
+    let code = call
+        .tokens
+        .as_ref()
+        .and_then(|tokens| {
+            crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
+                registry, metadata, tokens,
+            )
+        })
+        .map_or(DiagCode::O129, |invocation| {
+            // value-transfer-ok: irreducible — names the reported
+            // rewrite family of a fold already made; no value depends on it.
+            match invocation.facts.canonical_command.as_str() {
+                "list" => DiagCode::O116,
+                "lindex" => DiagCode::O118,
+                _ => DiagCode::O129,
+            }
+        });
+    let config = ctx.lexer_config();
+    let replacement = if code == DiagCode::O116
+        && !value.is_ascii()
+        && ctx
+            .source
+            .get(call.span.as_range())
+            .is_some_and(|text| text.contains("\\x"))
+    {
+        tcl_syntax::word_rules::lexical_ascii_escaped_source_word(value, config)
+    } else {
+        render_propagation_word(value, config)
+    };
+    Some(Optimisation::new(
+        code,
+        "Fold constant builtin command substitution",
+        call.span,
+        replacement?,
+    ))
 }
 
 /// True when `inside` is exactly one bracket-balanced `[…]` covering the
@@ -303,6 +342,27 @@ pub(super) fn is_whole_word_cmd_subst(inside: &str) -> bool {
     false
 }
 
+fn outermost_calls_in(
+    calls: &[crate::word_subst::LiftedCall],
+    span: tcl_lexer::Span,
+) -> Vec<&crate::word_subst::LiftedCall> {
+    let contained: Vec<_> = calls
+        .iter()
+        .filter(|call| call.span.start() >= span.start() && call.span.end() <= span.end())
+        .collect();
+    let mut roots: Vec<_> = contained
+        .iter()
+        .copied()
+        .filter(|call| {
+            !contained.iter().any(|outer| {
+                outer.span.start() < call.span.start() && outer.span.end() >= call.span.end()
+            })
+        })
+        .collect();
+    roots.sort_by_key(|call| call.span.start());
+    roots
+}
+
 /// Fold a pure-builtin command substitution
 /// embedded *inside* an interpolation string, splicing the raw result
 /// into the surrounding `"…"` (O129): `puts "v=[string length abc]"` →
@@ -325,9 +385,8 @@ pub(super) fn visit_string_interpolation_cmd_subs(
     let Some(registry) = ctx.registry else {
         return;
     };
-    let actual =
-        crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module);
-    let metadata = actual.as_deref().map(Into::into);
+    let metadata =
+        crate::registry_invocation::InvocationMetadataContext::for_module(registry, &cu.ir_module);
     let Some(calls) = retained_substitution_calls(tokens, &cu.ir_module, registry) else {
         return;
     };
@@ -364,27 +423,21 @@ pub(super) fn visit_string_interpolation_cmd_subs(
     if ctx.source.get(content_base as usize..content_end as usize) != Some(inside) {
         return;
     }
-    let contained: Vec<_> = calls
-        .iter()
-        .filter(|call| call.span.start() >= content_base && call.span.end() <= content_end)
-        .collect();
-    let mut roots: Vec<_> = contained
-        .iter()
-        .copied()
-        .filter(|call| {
-            !contained.iter().any(|outer| {
-                outer.span.start() < call.span.start() && outer.span.end() >= call.span.end()
-            })
-        })
-        .collect();
-    roots.sort_by_key(|call| call.span.start());
+    let roots = outermost_calls_in(&calls, tcl_lexer::Span::new(content_base, content_end));
     let mut out = String::with_capacity(inside.len());
     let mut last = 0;
     let mut folded_any = false;
     let lattice = (ctx.dialect, Some(constants), module_script_encoding(cu));
     for call in roots {
-        let Some(result) = fold_retained_builtin(registry, call, &calls, None, metadata, lattice)
-        else {
+        let Some(result) = fold_retained_builtin(
+            &cu.ir_module,
+            registry,
+            call,
+            &calls,
+            None,
+            metadata,
+            lattice,
+        ) else {
             continue;
         };
         if result

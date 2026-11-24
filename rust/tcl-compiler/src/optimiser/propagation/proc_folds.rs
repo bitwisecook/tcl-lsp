@@ -425,8 +425,14 @@ pub(super) fn try_o103_proc_fold(
         tcl_syntax::formal_params::parse_formal_parameters_in(&declaration.params_raw, grammar)
             .ok()?;
     let registry = ctx.registry?;
-    let actual =
-        crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module)?;
+    let module = &cu.ir_module;
+    let metadata =
+        crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)?;
+    if crate::registry_invocation::source_procedure_fold_has_execution_trace(
+        registry, metadata, tokens, target, module,
+    ) {
+        return None;
+    }
     let original = crate::const_subst::ConstSubstCtx {
         registry,
         resolution_namespace: "::",
@@ -437,7 +443,11 @@ pub(super) fn try_o103_proc_fold(
         lookup_var: &|_| None,
         script_encoding: tcl_registry::value_transfer::ScriptEncoding::Auto,
     }
-    .retained_arguments_with_metadata_context(call, calls, actual.as_ref().into())?;
+    .retained_arguments_with_metadata_context(
+        call,
+        crate::const_subst::RetainedCalls::in_module(calls, &cu.ir_module),
+        metadata,
+    )?;
     let plan =
         tcl_syntax::formal_params::bind_formal_arguments(&parameters, original.len(), grammar)
             .ok()?;

@@ -108,6 +108,60 @@ impl RetainedSourceModuleBindings {
         self.observed.names_only_a_declared_command(name, namespace)
     }
 
+    /// A representation observer can see changes to any producer that reaches
+    /// it, including through aliases or shared objects in other bodies.
+    pub(crate) fn observes_value_representation(
+        &self,
+        module: &Module,
+        registry: &CommandRegistry,
+    ) -> bool {
+        let observes = |name: &str| {
+            registry.get(name).is_some_and(|spec| {
+                spec.representation_effect == Some(tcl_registry::RepresentationEffect::ObserveValue)
+            })
+        };
+        let recorded_observer =
+            self.positioned_for_module(module, registry)
+                .is_some_and(|bindings| {
+                    bindings.origin_points.values().flatten().any(|point| {
+                        point.dispatch
+                            && point
+                                .original_dispatch_binding()
+                                .proved_handler_target()
+                                .is_some_and(|target| {
+                                    target.registry_backed && observes(&target.command)
+                                })
+                    })
+                });
+        if recorded_observer {
+            return true;
+        }
+
+        // An original point can be unavailable inside a conditional or
+        // interpolated command. A written observer is sufficient to withhold
+        // source rewrites without claiming that the invocation will run.
+        let bodies = std::iter::once(&module.top_level)
+            .chain(module.procedures.values().map(|p| &p.body))
+            .chain(module.body_lowerings().map(|(_, p)| &p.body))
+            .chain(module.methods.values().map(|m| &m.body));
+        bodies.into_iter().any(|body| {
+            let mut found = false;
+            crate::ir::for_each_statement(body, &mut |statement| {
+                if found {
+                    return;
+                }
+                if let Some(tokens) = statement.tokens() {
+                    let config = tokens.native_lexer_config(module.lexer_config.nested());
+                    found = tokens.argv_texts.first().is_some_and(|head| observes(head))
+                        || crate::word_subst::lifted_calls(Some(tokens), config)
+                            .iter()
+                            .any(|call| observes(&call.command));
+                }
+            });
+            found
+        })
+    }
+
     /// Whether every declaration-time walk of the procedure `identity` left
     /// the command world unchanged ([`SourceCommandBindings::procedure_preserves_command_world`]).
     #[must_use]

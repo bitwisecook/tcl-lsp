@@ -1243,3 +1243,105 @@ fn native_literal_commands_use_the_selected_readers_and_writers() {
         }
     }
 }
+
+#[test]
+fn item_153_preserves_execution_around_observers_and_regex_restarts() {
+    let audit = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../docs/work/name-handling/handover/oo-dispatch-probe");
+    for (file, first) in [
+        ("regex-patterns/r14-all-restart-context.tcl", "8.4"),
+        (
+            "special-variables/sv14-errorinfo-write-before-error.tcl",
+            "8.4",
+        ),
+        ("special-variables/sv17-error-vars-across-catch.tcl", "8.4"),
+        ("traces/tr20-builtin-exec-trace.tcl", "8.4"),
+        ("threads-subsystems/t07-unsupported.tcl", "8.6"),
+    ] {
+        let source = std::fs::read_to_string(audit.join(file)).unwrap();
+        preserves(&source, first);
+    }
+}
+
+#[test]
+fn item_153_keeps_list_bytes_escaped_in_an_eight_series_script() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../docs/work/name-handling/handover/oo-dispatch-probe/encodings-channels/e03-invalid-utf8-from.tcl"
+    ));
+    let (rewritten, applied) = optimise(source, "tcl8.6");
+    let list_fold = applied
+        .iter()
+        .find(|edit| edit.code == tcl_core_types::DiagCode::O116);
+    let replacement = &list_fold
+        .unwrap_or_else(|| panic!("the literal list is still folded {applied:?}"))
+        .replacement;
+    assert!(
+        replacement.is_ascii() && replacement.contains(r"\xc0\x80"),
+        "{replacement:?}"
+    );
+
+    let version = tcl_dialect::TclVersion::V8_6;
+    if let Some(tclsh) = tcl_test_support::witness_tclsh(version) {
+        let run = |program| {
+            tcl_test_support::run_script_fixture(
+                &tclsh.path,
+                "cd $::oracle_fixture_root\nsource -encoding iso8859-1 program.tcl",
+                &[("program.tcl", program)],
+            )
+            .expect("the Tcl oracle runs")
+        };
+        let original = run(source);
+        assert!(original.success(), "{original:?}");
+        assert_eq!(run(&rewritten), original);
+    }
+}
+
+#[test]
+fn item_153_audit_rewrites_preserve_file_execution() {
+    let audit = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../docs/work/name-handling/handover/oo-dispatch-probe");
+    let records = std::fs::read(audit.join("tcl-areas-head/rewrites-executed.tsv"))
+        .expect("the audit's original release and fixture inventory");
+    let records = String::from_utf8_lossy(&records);
+    let mut failures = Vec::new();
+    let path = std::env::temp_dir().join(format!("tcl-optimiser-audit-{}.tcl", std::process::id()));
+    for series in ["8.6", "9.0"] {
+        let version = tcl_dialect::TclVersion::from_version_string(series).unwrap();
+        let Some(tclsh) = tcl_test_support::witness_tclsh(version) else {
+            continue;
+        };
+        let dialect = format!("tcl{series}");
+        let profile = resolve_environment(&dialect).analyser_profile();
+        let registry = tcl_registry::model::ingress::static_context_for(&dialect).commands();
+        for row in records.lines() {
+            let columns: Vec<_> = row.splitn(5, '\t').collect();
+            let [_, area, fixture, release, ..] = columns.as_slice() else {
+                continue;
+            };
+            if *release != dialect {
+                continue;
+            }
+            let original = std::fs::read_to_string(audit.join(area).join(fixture)).unwrap();
+            let (rewritten, edits) = tcl_compiler::optimiser::manager::optimise_source_multipass(
+                &original,
+                registry,
+                Some(profile),
+                8,
+            );
+            let run = |program| {
+                std::fs::write(&path, program).unwrap();
+                tcl_test_support::run_script_file(&tclsh.path, &path).expect("the Tcl oracle runs")
+            };
+            let before = run(original.as_bytes());
+            let after = run(rewritten.as_bytes());
+            if before != after {
+                failures.push(format!(
+                    "{dialect} {area}/{fixture}\n{before:?}\n{after:?}\n{rewritten}\n{edits:?}"
+                ));
+            }
+        }
+    }
+    let _ = std::fs::remove_file(path);
+    assert!(failures.is_empty(), "{}", failures.join("\n\n"));
+}

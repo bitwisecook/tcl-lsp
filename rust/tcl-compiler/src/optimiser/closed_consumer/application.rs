@@ -93,9 +93,9 @@ pub fn select_application_folds(
     {
         return Err(ClosedSourceRefusal::Source);
     }
-    let retained = crate::registry_invocation::retained_module_metadata_context(registry, module)
-        .ok_or(ClosedSourceRefusal::Source)?;
-    let metadata: crate::registry_invocation::InvocationMetadataContext<'_> = (&*retained).into();
+    let metadata =
+        crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)
+            .ok_or(ClosedSourceRefusal::Source)?;
     let mut selected = Vec::new();
     for statement in &module.top_level.statements {
         // The ordinary O129 visitor's sites only.
@@ -137,9 +137,11 @@ pub fn select_application_folds(
                 lookup_var: &|_| None,
                 script_encoding: tcl_registry::value_transfer::ScriptEncoding::Auto,
             };
-            if let Some(request) =
-                context.select_retained_call_with_metadata_context(call, &calls, metadata)
-            {
+            if let Some(request) = context.select_retained_call_with_metadata_context(
+                call,
+                crate::const_subst::RetainedCalls::in_module(&calls, module),
+                metadata,
+            ) {
                 selected.push(SelectedApplicationFold {
                     span: call.span.as_range(),
                     request,
@@ -359,9 +361,9 @@ fn candidate_inventory(
     if module.top_level.statements.len() > MAX_APPLICATION_COMMANDS {
         return Err(ClosedSourceRefusal::Budget);
     }
-    let retained = crate::registry_invocation::retained_module_metadata_context(registry, module)
-        .ok_or(ClosedSourceRefusal::Source)?;
-    let metadata: crate::registry_invocation::InvocationMetadataContext<'_> = (&*retained).into();
+    let metadata =
+        crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)
+            .ok_or(ClosedSourceRefusal::Source)?;
     let mut commands = Vec::new();
     let mut scalars: Vec<String> = Vec::new();
     for statement in &module.top_level.statements {

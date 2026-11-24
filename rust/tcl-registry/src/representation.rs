@@ -30,6 +30,8 @@ pub enum RepresentationEffect {
     /// No representation effect has been declared.
     #[default]
     None,
+    /// Inspect a value's current internal representation and object sharing.
+    ObserveValue,
     /// Mutating the named container duplicates it when its Tcl object is
     /// shared.
     ///
@@ -275,6 +277,7 @@ impl RepresentationEffect {
                 Some(argument_offset + usize::from(variable_arg))
             }
             Self::None
+            | Self::ObserveValue
             | Self::CopyOnWriteContainerMutation { .. }
             | Self::CoerceExpressionValues { .. }
             | Self::CoerceNumericValues { .. }

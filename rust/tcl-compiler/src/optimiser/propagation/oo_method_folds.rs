@@ -335,9 +335,8 @@ fn visit_oo_frame_folds(
     let Some(registry) = ctx.registry else {
         return;
     };
-    let actual =
-        crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module);
-    let metadata = actual.as_deref().map(Into::into);
+    let metadata =
+        crate::registry_invocation::InvocationMetadataContext::for_module(registry, &cu.ir_module);
     let Some(calls) = retained_substitution_calls(tokens, &cu.ir_module, registry) else {
         return;
     };
@@ -350,6 +349,7 @@ fn visit_oo_frame_folds(
             continue;
         };
         if let Some(value) = fold_retained_builtin(
+            &cu.ir_module,
             registry,
             call,
             &calls,
@@ -389,9 +389,8 @@ fn try_oo_frame_return_fold(
     let Some(tokens) = tokens else {
         return;
     };
-    let actual =
-        crate::registry_invocation::retained_module_metadata_context(registry, &cu.ir_module);
-    let metadata = actual.as_deref().map(Into::into);
+    let metadata =
+        crate::registry_invocation::InvocationMetadataContext::for_module(registry, &cu.ir_module);
     let Some(calls) = retained_substitution_calls(tokens, &cu.ir_module, registry) else {
         return;
     };
@@ -407,6 +406,7 @@ fn try_oo_frame_return_fold(
         return;
     }
     let Some(value) = fold_retained_builtin(
+        &cu.ir_module,
         registry,
         call,
         &calls,

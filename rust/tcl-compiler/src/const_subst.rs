@@ -237,6 +237,45 @@ enum RetainedFold<'r> {
     },
 }
 
+static EMPTY_TRACE_INVENTORY: std::collections::BTreeSet<String> =
+    std::collections::BTreeSet::new();
+
+#[derive(Clone, Copy)]
+pub(crate) struct RetainedCalls<'a> {
+    sites: &'a [crate::word_subst::LiftedCall],
+    traced_commands: &'a std::collections::BTreeSet<String>,
+    has_dynamic_trace: bool,
+}
+
+impl<'a> RetainedCalls<'a> {
+    pub(crate) fn new(sites: &'a [crate::word_subst::LiftedCall]) -> Self {
+        Self {
+            sites,
+            traced_commands: &EMPTY_TRACE_INVENTORY,
+            has_dynamic_trace: false,
+        }
+    }
+
+    pub(crate) fn with_traces(
+        self,
+        commands: &'a std::collections::BTreeSet<String>,
+        has_dynamic_trace: bool,
+    ) -> Self {
+        Self {
+            traced_commands: commands,
+            has_dynamic_trace,
+            ..self
+        }
+    }
+
+    pub(crate) fn in_module(
+        sites: &'a [crate::word_subst::LiftedCall],
+        module: &'a crate::ir::Module,
+    ) -> Self {
+        Self::new(sites).with_traces(&module.traced_commands, module.has_dynamic_trace)
+    }
+}
+
 impl<'a> ConstSubstCtx<'a> {
     /// Fold one original substitution using its retained execution identity and
     /// effective argv. Every nested result comes from the same complete source
@@ -244,7 +283,7 @@ impl<'a> ConstSubstCtx<'a> {
     pub(crate) fn fold_retained_call_with_metadata_context(
         &self,
         call: &crate::word_subst::LiftedCall,
-        calls: &[crate::word_subst::LiftedCall],
+        calls: RetainedCalls<'_>,
         context: crate::registry_invocation::InvocationMetadataContext<'_>,
     ) -> Option<String> {
         self.fold_retained_at_depth(call, calls, 0, context)
@@ -256,7 +295,7 @@ impl<'a> ConstSubstCtx<'a> {
     pub(crate) fn select_retained_call_with_metadata_context(
         &self,
         call: &crate::word_subst::LiftedCall,
-        calls: &[crate::word_subst::LiftedCall],
+        calls: RetainedCalls<'_>,
         context: crate::registry_invocation::InvocationMetadataContext<'_>,
     ) -> Option<SelectedConstFold> {
         match self.select_retained_at_depth(call, calls, 0, context)? {
@@ -268,7 +307,7 @@ impl<'a> ConstSubstCtx<'a> {
     fn fold_retained_at_depth(
         &self,
         call: &crate::word_subst::LiftedCall,
-        calls: &[crate::word_subst::LiftedCall],
+        calls: RetainedCalls<'_>,
         depth: u32,
         context: crate::registry_invocation::InvocationMetadataContext<'_>,
     ) -> Option<String> {
@@ -281,7 +320,7 @@ impl<'a> ConstSubstCtx<'a> {
     fn select_retained_at_depth(
         &self,
         call: &crate::word_subst::LiftedCall,
-        calls: &[crate::word_subst::LiftedCall],
+        calls: RetainedCalls<'_>,
         depth: u32,
         context: crate::registry_invocation::InvocationMetadataContext<'_>,
     ) -> Option<RetainedFold<'a>> {
@@ -299,6 +338,17 @@ impl<'a> ConstSubstCtx<'a> {
                 tokens,
             )?;
 
+        if calls.has_dynamic_trace
+            || crate::registry_invocation::source_fold_has_execution_trace(
+                self.registry,
+                context,
+                tokens,
+                invocation.facts.descriptor_key(),
+                calls.traced_commands,
+            )
+        {
+            return None;
+        }
         let dialect = invocation.dialect?;
         // A fold hook supplies the contract for the call it replaces;
         // absent effect metadata stays conservative for other calls.
@@ -350,7 +400,7 @@ impl<'a> ConstSubstCtx<'a> {
     pub(crate) fn retained_arguments_with_metadata_context(
         &self,
         call: &crate::word_subst::LiftedCall,
-        calls: &[crate::word_subst::LiftedCall],
+        calls: RetainedCalls<'_>,
         context: crate::registry_invocation::InvocationMetadataContext<'_>,
     ) -> Option<Vec<String>> {
         self.retained_arguments_at_depth(call, calls, 0, context)
@@ -361,7 +411,7 @@ impl<'a> ConstSubstCtx<'a> {
     pub(crate) fn retained_token_arguments_with_metadata_context(
         &self,
         tokens: &crate::ir::CommandTokens,
-        calls: &[crate::word_subst::LiftedCall],
+        calls: RetainedCalls<'_>,
         context: crate::registry_invocation::InvocationMetadataContext<'_>,
     ) -> Option<Vec<String>> {
         self.retained_token_arguments_at_depth(tokens, calls, 0, context)
@@ -370,7 +420,7 @@ impl<'a> ConstSubstCtx<'a> {
     fn retained_arguments_at_depth(
         &self,
         call: &crate::word_subst::LiftedCall,
-        calls: &[crate::word_subst::LiftedCall],
+        calls: RetainedCalls<'_>,
         depth: u32,
         context: crate::registry_invocation::InvocationMetadataContext<'_>,
     ) -> Option<Vec<String>> {
@@ -392,7 +442,7 @@ impl<'a> ConstSubstCtx<'a> {
         }
         access.context_alternatives().iter().all(|context| {
             let place = access.place_in_context(context, self.registry);
-            let produces = context.read_produces_value(&place, self.registry);
+            let produces = self.retained_argument_read_produces_value(context, &place);
             if !produces {
                 return false;
             }
@@ -411,17 +461,29 @@ impl<'a> ConstSubstCtx<'a> {
                 == crate::command_binding::SourceVariableReadResidual::Closed
             && access.context_alternatives().iter().all(|context| {
                 context.binding_identity == crate::var_resolve::BindingIdentity::Bound
-                    && context.read_produces_value(
+                    && self.retained_argument_read_produces_value(
+                        context,
                         &access.place_in_context(context, self.registry),
-                        self.registry,
                     )
             })
+    }
+
+    fn retained_argument_read_produces_value(
+        &self,
+        context: &crate::var_resolve::ResolveContext,
+        place: &crate::place::Place,
+    ) -> bool {
+        context.read_produces_value(place, self.registry)
+            && !(place.is_global()
+                && context.invocation_dialect.is_some_and(|dialect| {
+                    crate::var_resolve::cell_key(place).is_native_error_storage(dialect)
+                }))
     }
 
     fn retained_token_arguments_at_depth(
         &self,
         tokens: &crate::ir::CommandTokens,
-        calls: &[crate::word_subst::LiftedCall],
+        calls: RetainedCalls<'_>,
         depth: u32,
         context: crate::registry_invocation::InvocationMetadataContext<'_>,
     ) -> Option<Vec<String>> {
@@ -492,7 +554,7 @@ impl<'a> ConstSubstCtx<'a> {
                         (self.lookup_var)(name)
                     }
                     crate::ir::WordExpr::CommandSubstitution { source, .. } => {
-                        let mut selected = calls
+                        let mut selected = calls.sites
                             .iter()
                             .filter(|child| child.span.start() == source.span.start());
                         let child = selected.next()?;

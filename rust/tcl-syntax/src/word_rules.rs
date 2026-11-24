@@ -960,6 +960,31 @@ pub fn lexical_unicode_source_word(value: &str, config: tcl_lexer::LexerConfig) 
     Some(proposal)
 }
 
+/// Render a word independently of the script file encoding. Byte-range
+/// characters use bounded hex escapes where the grammar can delimit them.
+#[must_use]
+pub fn lexical_ascii_escaped_source_word(
+    value: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<String> {
+    use std::fmt::Write as _;
+
+    let fragment = crate::backslash::literal_quoted_source_fragment(value, config.escapes)?;
+    let mut proposal = String::from("\"");
+    for character in fragment.chars() {
+        match u32::from(character) {
+            0x00..=0x7f => proposal.push(character),
+            byte @ 0x80..=0xff if config.escapes.hex_escape_digits() == Some(2) => {
+                write!(proposal, "\\x{byte:02x}").ok()?;
+            }
+            code @ 0x80..=0xffff => write!(proposal, "\\u{code:04x}").ok()?,
+            code => write!(proposal, "\\U{code:08x}").ok()?,
+        }
+    }
+    proposal.push('"');
+    lexical_unicode_source_word_matches(&proposal, value, config).then_some(proposal)
+}
+
 /// Whether one complete configured source word has exactly the supplied
 /// Unicode value. This is source syntax correspondence, not dispatch, value
 /// observation or edit authority.

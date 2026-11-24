@@ -54,6 +54,7 @@ fn make_spec(name: &'static str) -> CommandSpec {
         // nothing: `cmd_representation` (`tcl-vm/src/cmd_info.rs`) and
         // `representation_cmd` (`runtime/rust/src/cmd_info.rs`).
         traits: Traits::FRAMELESS_RUNTIME,
+        representation_effect: Some(crate::RepresentationEffect::ObserveValue),
         surface: Some(SpecSurface::TCL86_PLUS),
         arity: Arity::new(1, 1),
         return_type: Some(TclType::String),

@@ -240,7 +240,7 @@ pub(super) fn representation_effect_word(expr: &str) -> Option<String> {
     let inner = unwrap_some(expr)?;
     let variant = variant_of(inner.split(['(', '{']).next()?);
     Some(match variant {
-        "None" => "None".to_owned(),
+        "None" | "ObserveValue" => variant.to_owned(),
         "CoerceExpressionValues" | "CoerceNumericValues" => {
             let fields = struct_fields(inner)?;
             format!("{{{variant} {}}}", fields.get("arguments_from")?)

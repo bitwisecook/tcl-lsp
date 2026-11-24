@@ -66,6 +66,10 @@ puts 5
 - A method's `[self class]` remains unchanged when relative command names
   could resolve in the receiver's namespace. A receiver-local command can
   shadow `self`; the declaring class alone does not prove its target.
+- A known execution trace keeps the call in the source so the trace callback
+  still runs.
+- The regular-expression folder leaves restart-sensitive patterns in calls
+  to `regexp` or `regsub` with `-all` or `-start`.
 - Folding within a quoted word preserves the boundaries of backslash escapes.
   A result that would extend a preceding hexadecimal, Unicode or octal escape
   stays as a command substitution.

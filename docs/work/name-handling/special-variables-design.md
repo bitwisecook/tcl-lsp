@@ -81,4 +81,8 @@ The VM's `auto_path` ends in a cwd-relative `./lib` where tclsh has `<prefix>/li
 
 ## Status on the current source
 
-Confirmed on the current source: W210 on `errorCode` after `catch` (`sv16`), the missed 9.0 `namespace eval` read (`sv10`), and the `sv14`/`sv17` forwarding of seeded `errorInfo`/`errorCode` (wrong output). Not reproduced: the `sv18` precision and `sv19` `auto_path` rewrites (cached-build artefacts). Details: [audit summary](tcl-areas-audit.md) and [`tcl-areas-head/`](handover/oo-dispatch-probe/tcl-areas-head/). Plan items 153–199.
+Item 153 keeps the error-variable reads in `sv14` and `sv17` live across
+the caught errors. W210 on `errorCode` after `catch` (`sv16`) and the missed
+9.0 `namespace eval` read (`sv10`) remain open. The `sv18` and `sv19`
+rewrites did not reproduce in the current-source audit.
+[Execution audit](handover/oo-dispatch-probe/tcl-areas-head/README.md)

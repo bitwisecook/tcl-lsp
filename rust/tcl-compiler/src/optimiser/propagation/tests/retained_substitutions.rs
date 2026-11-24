@@ -269,6 +269,7 @@ fn retained_substitution_native_object_callbacks_withdraw_builtin_erasure() {
     assert!(invocation.facts.effects.requires_world_barrier());
     assert!(
         fold_retained_builtin(
+            &cu.ir_module,
             registry,
             call,
             &calls,
@@ -424,11 +425,15 @@ fn retained_recursive_folding_preserves_actual_availability() {
     let outer = calls.iter().find(|call| call.command == "list").unwrap();
     assert_eq!(
         fold_retained_builtin(
+            &cu.ir_module,
             registry,
             outer,
             &calls,
             None,
-            Some(current.into()),
+            crate::registry_invocation::InvocationMetadataContext::for_module(
+                registry,
+                &cu.ir_module
+            ),
             (
                 None,
                 None,
@@ -443,6 +448,7 @@ fn retained_recursive_folding_preserves_actual_availability() {
     for metadata in [Some((&older).into()), Some(foreign.into()), None] {
         assert!(
             fold_retained_builtin(
+                &cu.ir_module,
                 registry,
                 outer,
                 &calls,

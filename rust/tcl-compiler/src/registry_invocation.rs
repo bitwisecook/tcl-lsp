@@ -89,7 +89,8 @@ mod execution_trace;
 mod metadata_context;
 pub(crate) use execution_trace::{
     original_execution_trace_keys, original_invocation_has_execution_trace,
-    original_procedure_has_execution_trace,
+    original_procedure_has_execution_trace, source_fold_has_execution_trace,
+    source_procedure_fold_has_execution_trace,
 };
 pub(crate) use metadata_context::InvocationMetadataSelection;
 pub(crate) use metadata_context::retained_module_metadata_context;

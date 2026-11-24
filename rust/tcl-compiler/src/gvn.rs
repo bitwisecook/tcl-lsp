@@ -546,7 +546,12 @@ pub(crate) fn is_pure_tokens_with_metadata_context(
         lookup_var: &|_| None,
         script_encoding: tcl_registry::value_transfer::ScriptEncoding::Auto,
     }
-    .retained_token_arguments_with_metadata_context(tokens, &calls, metadata)
+    .retained_token_arguments_with_metadata_context(
+        tokens,
+        crate::const_subst::RetainedCalls::new(&calls)
+            .with_traces(traced_commands, has_dynamic_trace),
+        metadata,
+    )
     .is_some()
 }
 

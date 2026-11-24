@@ -1,9 +1,15 @@
 # Analyser and optimiser at HEAD over the 14 Tcl-area fixtures
 
-The audit agents measured the analyser through the cached MCP binary (built 19 November), which lags the source. This directory re-runs every fixture of the fourteen area directories on the source at `b0311765`:
+The original analyser and optimiser audit used source at `b0311765`.
+`analyser-optimiser-head.tsv` preserves that diagnostic and rewrite census.
+`probe.rs` is the original temporary analyser probe.
 
-- `analyser-optimiser-head.tsv`: `D` rows list each fixture's diagnostics (`code@line:message`) under `tcl8.6` and `tcl9.0`; `O` rows list the optimiser rewrites applied (non-hint, non-overlapping) under each profile.
-- `rewrites-executed.tsv`: every rewritten fixture run before and after under the matching tclsh (8.6 or 9.0); `DIFF` rows whose only difference is the script name in an error trace are not real.
-- `probe.rs`: the temporary test (append to a `tcl-compiler` test module importing `Analyser`; `PROBE_DIRS`, `PROBE_OUT`; opt-level 2).
+For [plan item 153](../../../plan.md), the permanent
+`item_153_audit_rewrites_preserve_file_execution` test in
+`tcl-codegen/tests/it_3/release_optimiser_safety.rs` reran all 49 entries in
+`rewrites-executed.tsv` on Tcl 8.6.18 and 9.0.4. It runs each version of a
+script from the same filename and compares the exit status, stdout and stderr.
+All rows matched. The companion tests exercise the affected constructs on
+Tcl 8.4–9.1 where supported and load the O116 list fixture as ISO-8859-1 on Tcl 8.6.18.
 
 Jim fixtures are not included: there is no `jim` dialect profile for the analyser (`DialectProfile::find("jim")` is `None`); the Jim page used the server's `jimtcl` dialect.

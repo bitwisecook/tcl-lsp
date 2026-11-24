@@ -573,7 +573,20 @@ fn sccp_constants_from(
         }
     }
     let mut out = std::collections::HashMap::new();
+    let dialect = policy.invocation_dialect.unwrap_or_else(|| {
+        tcl_registry::InvocationDialect::of_profile(
+            policy
+                .dialect
+                .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl),
+        )
+    });
     for (sym, cvs) in per_var {
+        if ssa
+            .cell_key(sym)
+            .is_some_and(|key| key.is_native_error_storage(dialect))
+        {
+            continue;
+        }
         let first = cvs[0];
         if !cvs.iter().all(|cv| *cv == first) {
             continue;

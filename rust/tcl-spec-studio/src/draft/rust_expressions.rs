@@ -292,6 +292,7 @@ pub(super) fn versioned_arg_values_expr(gates: &[VersionedArgValue]) -> Option<S
 pub(super) fn representation_effect_expr(effect: RepresentationEffect) -> String {
     match effect {
         RepresentationEffect::None => "Some(RepresentationEffect::None)".to_owned(),
+        RepresentationEffect::ObserveValue => "Some(RepresentationEffect::ObserveValue)".to_owned(),
         RepresentationEffect::CoerceExpressionValues { arguments_from } => format!(
             "Some(RepresentationEffect::CoerceExpressionValues {{ arguments_from: {arguments_from} }})"
         ),

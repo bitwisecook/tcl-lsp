@@ -378,9 +378,10 @@ fn expression_coercion_survives_render_load_and_draft() {
 }
 
 #[test]
-fn ordinary_container_coercion_survives_render_load_and_draft() {
+fn representation_effect_survives_render_load_and_draft() {
     use tcl_registry::representation::RepresentationEffect;
     for effect in [
+        RepresentationEffect::ObserveValue,
         RepresentationEffect::CoerceOrdinaryList { operand: 0 },
         RepresentationEffect::CoerceOrdinaryDictionary { operand: 1 },
         RepresentationEffect::CoerceOrdinaryListPairs { variables_from: 0 },

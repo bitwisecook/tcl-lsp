@@ -33,7 +33,7 @@ puts {a b c}
 
 ## Safety conditions
 
-- Skipped when any element contains whitespace, braces, or backslashes that would require quoting in the literal form.
+- The replacement keeps escaped byte-range characters in ASCII source so Tcl can read the same values under a different script encoding.
 - Skipped when elements are not compile-time constants.
 
 ## How to disable

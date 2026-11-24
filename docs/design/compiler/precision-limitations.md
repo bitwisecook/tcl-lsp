@@ -433,6 +433,26 @@ Why it has not been done: a summary per level would be context-sensitive,
 the computed level a seed the call site supplies; one context-insensitive
 summary per procedure is the rule.
 
+## Source rewrites and observed effects
+
+The registry's regex routes decline `regexp` and `regsub` with `-all` or
+`-start` when the pattern has a restart-sensitive ARE constraint (`\A`,
+`\m`, `\M`, `\y`, `\Y` or `\B`). The runtime matcher still needs the
+left-context semantics.
+
+Source folding uses the retained invocation's execution-trace evidence.
+The module's trace inventory protects logical source folds, including nested
+substitutions. The SSA and argument-folding guards treat native root error
+cells as externally updated until the error writes are represented in SSA.
+O116 uses an ASCII word with escapes when folding a list substitution that
+would turn hex escapes into non-ASCII source.
+
+The registry describes `tcl::unsupported::representation` with
+`RepresentationEffect::ObserveValue`. A source unit containing a known
+invocation of this observer keeps its original source. Internal types and
+object sharing may be visible through aliases, procedure returns and other
+values beyond the immediate operand.
+
 ## Open — a release-blind fold of index arithmetic declines
 
 The shared index parser (`rust/tcl-cmd-core/src/index.rs`) reads an index as

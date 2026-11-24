@@ -77,4 +77,6 @@ Analysis (`analyser-mcp.out`):
 
 ## Status on the current source
 
-Confirmed on the current source: the restart-context folds (`r14`, wrong output; tclsh `XXX`, VM `Xbc`) and W210 on `switch -matchvar` in procedures (`r11`). Not reproduced: the top-level `r06` W210. Details: [audit summary](tcl-areas-audit.md) and [`tcl-areas-head/`](handover/oo-dispatch-probe/tcl-areas-head/). Plan items 153–199.
+Item 153 makes the folder decline the restart-sensitive forms in `r14`.
+The engine correction and W210 on `switch -matchvar` in procedures (`r11`)
+remain open. [Execution audit](handover/oo-dispatch-probe/tcl-areas-head/README.md)

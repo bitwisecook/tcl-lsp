@@ -68,6 +68,8 @@
 
 Each was run before and after under tclsh:
 
+Item 153 corrected the five historical rewrites below. The [execution audit](handover/oo-dispatch-probe/tcl-areas-head/README.md) now matches on all 49 rows.
+
 - `regsub -all {\A.} abc X` and related restart-context folds (`r14`; tclsh `XXX`, rewrite `Xbc`): the regex engine keeps left context after a match.
 - A seeded `errorInfo`/`errorCode` forwarded across `catch {error …}` (`sv14`, `sv17`; tclsh `x NONE`, rewrite `seeded seeded`).
 - `string length abc` folded although an execution trace on `string` prints on every call (`tr20`; the trace output disappears).

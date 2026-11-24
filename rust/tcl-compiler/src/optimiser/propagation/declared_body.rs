@@ -148,6 +148,7 @@ impl OriginalBodyCallSource<'_> {
                 // This existing evaluator still requires the actual registry target,
                 // handler, closed original arguments and declared footprint policy.
                 let Some(value) = super::fold_retained_builtin(
+                    &unit.ir_module,
                     registry,
                     call,
                     &calls,

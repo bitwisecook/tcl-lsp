@@ -138,7 +138,7 @@ impl SourceNamespaceKey {
         })
     }
 
-    pub(super) fn is_root(&self) -> bool {
+    pub(crate) fn is_root(&self) -> bool {
         match self {
             Self::Authored(text) => text == "::",
             _ => self

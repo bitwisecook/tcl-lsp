@@ -1,5 +1,14 @@
 # Current LSP naming migration state
 
+## Item 153 verification
+
+The three `item_153` release optimiser tests passed. The execution audit matched status, stdout and stderr on all 49 original/rewrite pairs. The targeted regex, error-variable, trace and representation fixtures agreed across the applicable Tcl 8.4.20–9.1.0 releases. The O116 witness also matched under an explicit ISO-8859-1 source encoding. [Execution audit](handover/oo-dispatch-probe/tcl-areas-head/README.md)
+
+Workspace formatting, licence headers, Tcl evidence and host lockfile checks passed.
+The full Rust and pre-push gates received SIGKILL while compiling the compiler
+crate. The pre-push run completed TypeScript and Python formatting before
+stopping at editor catalog generation.
+
 ## Item 26 verification
 
 The six membership cases ran under C Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 and Jim 0.84-15-g2f8e155. All five `membership_precedence` tests passed in the VM's `it_2` target, the standalone runtime library and the compiler's `native_arithmetic_conformance` target. The compiler tests covered advisory folding and both analysis entry points. The `tcl-expr` and `tcl-dialect` library suites passed all 393 tests. [Reference interpreter evidence](../../../evidence/tcl/expression-membership-precedence.md)

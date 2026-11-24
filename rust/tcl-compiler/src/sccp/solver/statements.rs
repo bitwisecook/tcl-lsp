@@ -404,6 +404,9 @@ fn define_values(
         let (val, folded) =
             if n17_source_only_definition(ssa.source_variable_symbol(var).is_some(), (var, ver))
                 || is_externally_mutable(ssa.var_name(var), escaping, has_dynamic_variable_trace)
+                || ssa
+                    .cell_key(var)
+                    .is_some_and(|key| driver.is_native_error_storage(key))
                 || element_write_base == Some(var)
             {
                 (LatticeValue::Overdefined, None)

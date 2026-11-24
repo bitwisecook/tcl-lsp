@@ -196,6 +196,17 @@ pub fn finalise_optimisations(
     registry: &CommandRegistry,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Vec<Optimisation> {
+    // Source folds can change the type and sharing of Tcl objects even
+    // when their string contents are preserved. Keep the original source
+    // when a representation observer is present and its producers are unknown.
+    if cu
+        .ir_module
+        .retained_source_bindings
+        .as_ref()
+        .is_some_and(|bindings| bindings.observes_value_representation(&cu.ir_module, registry))
+    {
+        return Vec::new();
+    }
     let mut selected = select_non_overlapping(raw);
     // Couple constant propagation with dead-store removal: a `set x <const>`
     // whose every use was propagated away by a *surviving* O100/O101/O102/O103

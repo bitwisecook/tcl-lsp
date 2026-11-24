@@ -146,6 +146,23 @@ impl VariableCellKey {
             })
     }
 
+    /// Tcl can update its root error cells during error presentation without
+    /// a represented source store. Their reads are ineligible for forwarding.
+    pub(crate) fn is_native_error_storage(&self, dialect: tcl_registry::InvocationDialect) -> bool {
+        let Some(storage) = tcl_registry::special_vars::native_error_storage(dialect) else {
+            return false;
+        };
+        match self.root() {
+            Self::Authored(name) => storage
+                .iter()
+                .any(|variable| name == variable.global_name() || name == variable.simple_name()),
+            Self::Namespace { identity, simple } if identity.is_root() => storage
+                .iter()
+                .any(|variable| simple.as_bytes() == variable.simple_name().as_bytes()),
+            _ => false,
+        }
+    }
+
     /// Compatibility spelling only; never a lookup or equality proof.
     #[must_use]
     pub fn compatibility_name(&self) -> String {

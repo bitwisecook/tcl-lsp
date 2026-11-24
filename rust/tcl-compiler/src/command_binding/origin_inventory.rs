@@ -164,6 +164,12 @@ impl SourceInvocationBinding {
         })
     }
 
+    /// Positive observation evidence from the retained point, even when it
+    /// has no native dispatch receipt.
+    pub(crate) fn entered_execution_may_be_observed(&self) -> bool {
+        self.entered_execution_observer.observed()
+    }
+
     /// Actual runtime binding evidence excludes execution observers on this token.
     #[must_use]
     pub fn unobserved_native_dispatch(&self) -> bool {

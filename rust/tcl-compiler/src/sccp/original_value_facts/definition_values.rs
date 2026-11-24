@@ -312,7 +312,11 @@ pub(super) fn fold_original_substitution_value<
         lookup_var: &lookup,
         script_encoding: tcl_registry::value_transfer::ScriptEncoding::Auto,
     }
-    .fold_retained_call_with_metadata_context(call, &calls, metadata)
+    .fold_retained_call_with_metadata_context(
+        call,
+        crate::const_subst::RetainedCalls::new(&calls),
+        metadata,
+    )
 }
 
 fn fold_prepared_invocation_expression(

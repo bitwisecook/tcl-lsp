@@ -54,7 +54,7 @@ use super::route::{EvalRoute, NativeEvalId};
 
 /// This module's revision of the two routes; the engine's own revision is
 /// folded in beside it ([`route_revision`]).
-const ROUTE_REVISION: u64 = 1;
+const ROUTE_REVISION: u64 = 2;
 
 /// The axes the two routes read: the ARE feature set and its limits, the
 /// character indices `-indices` and `-start` count in, the source decoding
@@ -115,14 +115,28 @@ fn start_is_release_stable(value: &str) -> bool {
         && (digits == "0" || !digits.starts_with('0'))
 }
 
-/// The decline for an option run whose `-start` index the releases may read
-/// differently.
-fn start_decline(args: &[String]) -> Option<DeclineReason> {
-    option_run(args)
-        .1
+/// The engine does not implement Tcl's restart context for these constraints.
+fn needs_restart_context(pattern: &str) -> bool {
+    let mut bytes = pattern.bytes();
+    while let Some(byte) = bytes.next() {
+        if byte == b'\\' && matches!(bytes.next(), Some(b'A' | b'm' | b'M' | b'y' | b'Y' | b'B')) {
+            return true;
+        }
+    }
+    false
+}
+
+fn option_decline(args: &[String]) -> Option<DeclineReason> {
+    let (end, starts) = option_run(args);
+    let may_restart = !starts.is_empty() || args[..end].iter().any(|word| word == "-all");
+    (starts
         .into_iter()
         .any(|value| !start_is_release_stable(value))
-        .then_some(DeclineReason::Unsupported)
+        || (may_restart
+            && args
+                .get(end)
+                .is_some_and(|pattern| needs_restart_context(pattern))))
+    .then_some(DeclineReason::Unsupported)
 }
 
 /// Run one analysis-path command under `ops`' budget: the compile charge and
@@ -211,7 +225,7 @@ fn open<'b>(
     budget: &'b mut Budget,
 ) -> Result<(ConstOps<'b>, Vec<String>, Vec<OperandId>), EvalAnswer> {
     let (ops, texts, targets) = open_words(input, budget, NEEDS)?;
-    if let Some(reason) = start_decline(&texts) {
+    if let Some(reason) = option_decline(&texts) {
         return Err(EvalAnswer::Declined(reason));
     }
     Ok((ops, texts, targets))
@@ -437,6 +451,25 @@ impl CommandSemantics for RegsubSemantics {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn restart_constraints_decline_only_with_a_restart_option() {
+        for constraint in [r"\A", r"\m", r"\M", r"\y", r"\Y", r"\B"] {
+            for options in [&["-all"][..], &["-start", "1"][..]] {
+                let mut args: Vec<_> = options.iter().map(ToString::to_string).collect();
+                args.extend([format!("{constraint}."), String::from("abc")]);
+                assert_eq!(option_decline(&args), Some(DeclineReason::Unsupported));
+            }
+        }
+        for words in [
+            ["-all", r"\\m", "abc"],
+            ["--", r"\A.", "abc"],
+            ["-all", "^.", "abc"],
+            ["-all", "a", r"\m"],
+        ] {
+            assert_eq!(option_decline(&words.map(str::to_owned)), None, "{words:?}");
+        }
+    }
 
     #[test]
     fn only_a_plain_decimal_start_reads_alike_everywhere() {

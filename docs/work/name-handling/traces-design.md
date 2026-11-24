@@ -83,4 +83,7 @@ A trace is a **deferred body bound to an event**, and the event is an access or 
 
 ## Status on the current source
 
-Confirmed on the current source: W214 on every trace callback and the `tr20` fold of a traced builtin (wrong output). Not reproduced: the `tr22`/`tr23` folds and the `tr08` W211/W220 (cached-build artefacts; kept as regression rows). Details: [audit summary](tcl-areas-audit.md) and [`tcl-areas-head/`](handover/oo-dispatch-probe/tcl-areas-head/). Plan items 153–199.
+The item 153 conformance run preserves the execution-trace output in `tr20`.
+W214 coverage for trace callbacks remains open. The `tr22`/`tr23` folds
+and `tr08` W211/W220 findings did not reproduce in the current-source audit
+and remain regression rows. [Execution audit](handover/oo-dispatch-probe/tcl-areas-head/README.md)

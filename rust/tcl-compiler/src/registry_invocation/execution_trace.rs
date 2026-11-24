@@ -161,6 +161,65 @@ pub(crate) fn original_invocation_has_execution_trace(
     traced.contains(key) || traced.contains(slot) || traced.contains(descriptor.label())
 }
 
+/// A source fold can neither erase a recorded observer nor ignore an
+/// observer already installed on a captured native command token.
+pub(crate) fn source_fold_has_execution_trace(
+    registry: &CommandRegistry,
+    metadata: InvocationMetadataContext<'_>,
+    tokens: &crate::ir::CommandTokens,
+    descriptor: tcl_registry::CanonicalCommandDescriptorKey<'_>,
+    traced: &std::collections::BTreeSet<String>,
+) -> bool {
+    let Some(binding) = tokens.source_binding.as_ref() else {
+        return true;
+    };
+    let Some(target) = binding.proved_execution_target() else {
+        return true;
+    };
+    binding.entered_execution_may_be_observed()
+        || trace_inventory_contains(traced, descriptor.label())
+        || trace_inventory_contains(traced, &target.command)
+        || (target
+            .identity
+            .as_ref()
+            .is_some_and(|identity| identity.runtime.is_some())
+            && original_invocation_has_execution_trace(
+                registry, metadata, tokens, descriptor, traced,
+            ))
+}
+
+fn trace_inventory_contains(traced: &std::collections::BTreeSet<String>, command: &str) -> bool {
+    traced.contains(command)
+        || tcl_syntax::naming::unroot_rooted_key(command).is_some_and(|key| traced.contains(key))
+}
+
+/// Combine the module's trace inventory and retained call-site evidence for
+/// a procedure whose source call would be erased by folding.
+pub(crate) fn source_procedure_fold_has_execution_trace(
+    registry: &CommandRegistry,
+    metadata: InvocationMetadataContext<'_>,
+    tokens: &crate::ir::CommandTokens,
+    target: &crate::command_binding::SourceCommandTarget,
+    module: &crate::ir::Module,
+) -> bool {
+    module.has_dynamic_trace
+        || tokens.source_binding.as_ref().is_none_or(
+            crate::command_binding::SourceInvocationBinding::entered_execution_may_be_observed,
+        )
+        || trace_inventory_contains(&module.traced_commands, &target.command)
+        || (target
+            .identity
+            .as_ref()
+            .is_some_and(|identity| identity.runtime.is_some())
+            && original_procedure_has_execution_trace(
+                registry,
+                Some(metadata),
+                Some(tokens),
+                &target.command,
+                &module.traced_commands,
+            ))
+}
+
 /// The direct procedure consumer retains its actual original call receiver.
 /// A future fresh source allocation requires its separate sealed absence proof;
 /// constructed keys and empty spelling inventories never provide that proof.
