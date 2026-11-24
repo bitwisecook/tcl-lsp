@@ -24,8 +24,6 @@ jobs:
       CARGO_INCREMENTAL: 0
       CARGO_PROFILE_TEST_DEBUG: 0
       CARGO_PROFILE_TEST_OPT_LEVEL: 1
-      TCL_LSP_TCL_BIN_DIR: ${{ runner.temp }}/definition-tcl-bin
-      TCL_LSP_JIM_ROOT: ${{ runner.temp }}/definition-jim
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30 # v2.0.1
@@ -42,6 +40,9 @@ jobs:
             ${{ runner.temp }}/definition-jim
           key: ${{ runner.os }}-definition-oracles-${{ hashFiles('rust/tcl-dialect/data/reference-toolchains.tsv', 'rust/tcl-test-support/jim-reference.txt', 'scripts/dev/run-definition-oracles.sh') }}
       - name: Check the command definition matrix
+        env:
+          TCL_LSP_TCL_BIN_DIR: ${{ runner.temp }}/definition-tcl-bin
+          TCL_LSP_JIM_ROOT: ${{ runner.temp }}/definition-jim
         run: bash scripts/dev/run-definition-oracles.sh
       - name: Upload definition and usage reports
         if: ${{ !cancelled() }}
