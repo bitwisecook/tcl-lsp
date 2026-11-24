@@ -383,6 +383,7 @@ mod tests {
         for raw in [
             "min 1 of { /Common/http and /Common/https }",
             "/Common/http and",
+            "/Common/http\n# trailing",
             "/Common/http or /Common/https",
             "min 0 of { /Common/http /Common/https }",
             "min -1 of { /Common/http and /Common/https }",
@@ -406,70 +407,6 @@ mod tests {
             monitor_spans: Vec::new(),
         };
         assert_eq!(m.to_string(), "min 1 of { /Common/a /Common/b }");
-    }
-
-    #[test]
-    fn measured_ltm_monitor_expressions() {
-        // BIG-IP 21.1.0.1, evidence/bigip/tmsh-21.1-name-handling.md.
-        for (raw, mode, minimum, references) in [
-            (
-                "/Common/http",
-                MonitorMode::Single,
-                None,
-                &["/Common/http"][..],
-            ),
-            (
-                "/Common/http and /Common/https",
-                MonitorMode::All,
-                None,
-                &["/Common/http", "/Common/https"],
-            ),
-            (
-                r#""/Common/http" and "/Common/https""#,
-                MonitorMode::All,
-                None,
-                &["/Common/http", "/Common/https"],
-            ),
-            (
-                r#""/Common/http and /Common/https""#,
-                MonitorMode::All,
-                None,
-                &["/Common/http", "/Common/https"],
-            ),
-            (
-                "min 1 of { /Common/http /Common/https }",
-                MonitorMode::MinOf,
-                Some(1),
-                &["/Common/http", "/Common/https"],
-            ),
-            (
-                "min 2 of { /Common/http /Common/https }",
-                MonitorMode::MinOf,
-                Some(2),
-                &["/Common/http", "/Common/https"],
-            ),
-            ("default", MonitorMode::Default, None, &[]),
-            ("none", MonitorMode::None, None, &[]),
-        ] {
-            let expression = MonitorExpression::try_parse(raw).unwrap();
-            assert_eq!(expression.mode, mode, "{raw}");
-            assert_eq!(expression.minimum, minimum, "{raw}");
-            assert_eq!(expression.references(), references, "{raw}");
-            assert_eq!(expression.to_string(), raw);
-        }
-        for raw in [
-            "min 1 of { /Common/http and /Common/https }",
-            "/Common/http and",
-            "/Common/http or /Common/https",
-            "min 0 of { /Common/http /Common/https }",
-            "min -1 of { /Common/http and /Common/https }",
-            "min 3 of { /Common/http /Common/https }",
-            "min 65536 of { /Common/http /Common/https }",
-            "min 1 of { /Common/http } trailing }",
-            "/Common/http\n# trailing",
-        ] {
-            assert!(MonitorExpression::try_parse(raw).is_none(), "{raw}");
-        }
     }
 
     #[test]
