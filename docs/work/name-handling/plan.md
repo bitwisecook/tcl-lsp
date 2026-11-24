@@ -40,7 +40,7 @@ The catalogue-driven header this replaces, with its counts and working rules, is
 - **designed**: the approach, owner and completion test are written down (a design page or the item itself); no implementation yet.
 - **not yet started**: needs a decision, an investigation or a design before implementation can begin.
 
-Counts: completed 35, in progress 12, designed 191, not yet started 4 (owner decisions on items 74, 96, 142 and 196 recorded on 23 November 2026; items 235–242 added). Wrong answers re-checked on the current binaries and source for this pass:
+Counts: completed 36, in progress 12, designed 191, not yet started 3 (owner decisions on items 74, 96, 142 and 196 recorded on 23 November 2026; items 235–242 added). Wrong answers re-checked on the current binaries and source for this pass:
 - item 42: `lremove` is still missing in the VM;
 - item 18: `next` still runs one level too deep in the VM;
 - item 114: the shared matcher and cross-gate coverage are still open.
@@ -340,8 +340,9 @@ Validation spikes, phase 0, before the phases that rely on them ([design integra
    - Done when: a probe builds the annotated command for every reached command in `frames/` (f01–f14, g01, g02), nested ones included, from today's binding, and compares its command answer with `frames.out` and tclsh. Pass: every `;# CALL` site has a record and matches tclsh wherever an existing consumer does. Fail: any reached site has no record, and the missing sites are listed.
 94. **[completed]** (24 November 2026: the five original cases converged in one round with zero re-bound sites. A computed-level companion converged in two rounds and re-bound three sites. Fresh and incremental sealed site bytes matched in all eight cases. See the [spike results](binding-value-fixpoint-spike.md).) Binding and value fixpoint: run the bounded loop on the `oo-dispatch-probe/dynamic/` dynamic-head, `upvar $n` and `uplevel $lvl` fixtures; count iterations and re-bound sites.
    - Done when: the bounded binding and value loop runs on the `dynamic/` dynamic-head, `upvar $n` and `uplevel $lvl` fixtures (`e01`, `e03`, `e04`, `e21`, `e18`) with iteration and re-bound-site counts recorded. Pass: every fixture converges within the fixed limit (four iterations), and fresh and incremental runs give byte-identical sealed realms. Fail: any fixture hits the limit or differs between the two runs.
-95. **[not yet started]** (spike not run) Per-body salsa query: move W210 for one body unit onto a per-body query and measure re-analysis after a one-line edit.
+95. **[completed]** Per-body salsa query: move W210 for one body unit onto a per-body query and measure re-analysis after a one-line edit.
    - Done when: W210 for one body unit runs as a per-body salsa query, and a one-line edit inside one procedure of the 687-line file is measured. Pass: the salsa event log shows only that body's W210 query re-executed, and re-analysis takes at most 50 ms, against 1.27 s for the whole file today. Fail: any other body re-executes or the bound is missed.
+   - On 24 November 2026, replacing one line in `IsOverridden` re-executed 1 of 17 procedure W210 queries in each of five trials (37.37–43.97 ms), with the same warnings and spans as fresh whole-file analysis. A separate edit that retained the nested return crossed 50 ms. [Measurements and reproduction](caching-design.md#per-procedure-w210-spike).
 
 Architecture review of the earlier decisions together with the new design ([architecture review](architecture-review.md)):
 

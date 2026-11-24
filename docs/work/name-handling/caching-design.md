@@ -18,6 +18,32 @@ An in-process probe (`Analyser::new().analyse`, `tcl9.0`, test profile at opt-le
 
 There is a fixed cost of about 17 ms per analysis even for two lines, whole-file analysis is what an edit triggers (the salsa document queries are whole-file), and the capped caches fill to roughly 230 MB after ten distinct documents and stay there. This probe does not reload spec packs, so it does not exercise the generation-keyed growth below; [#2543](https://github.com/bitwisecook/tcl-lsp/issues/2543)'s pack-churn measurements do.
 
+### Per-procedure W210 spike
+
+The probe tracks W210 for each literal top-level procedure and rebases the warnings to their current file positions. It uses the existing analyser on each procedure declaration in the fixture's namespace. A production query would also need the dependencies that affect a procedure's warnings, such as caller constants, callee transfers and registry overlays. [Probe source](../../../rust/tcl-lsp-db/examples/w210_body_probe.rs).
+
+On Linux x86-64 (AMD EPYC 9V74, Rust 1.100.0, opt-level 2), the original file executed 17 procedure queries. Replacing `return [llength [array get LambdaStacks $cmdName]]` with `set cmdName $missingProbeValue` in `IsOverridden` re-executed one `procedure_w210` query in each of five trials. The edits took 37.37–43.97 ms, and the same process took 1.47 s to analyse the edited file afresh. In a separate run, adding the same missing read to the `variable LambdaStacks` line and keeping the nested return took 47.72–50.14 ms, with two of five trials over budget.
+
+Reconstruct the 687-line input from the two files pinned above. Drop the trailing blank line from `cmdOverrides.tcl` before concatenating.
+
+```sh
+fixture_dir=$(mktemp -d)
+fixture_url=https://raw.githubusercontent.com/Dechcaudron/overrides/fe18ee3dcc0ab7e034596ec0d79e3db3cb34978d/src/overrides
+curl -fsSLo "$fixture_dir/cmdOverrides.tcl" "$fixture_url/cmdOverrides.tcl"
+curl -fsSLo "$fixture_dir/overrides.tcl" "$fixture_url/overrides.tcl"
+{
+    sed '$ { /^$/d; }' "$fixture_dir/cmdOverrides.tcl"
+    sed -e '/^source /d' -e '/^package provide /d' "$fixture_dir/overrides.tcl"
+    printf '%s\n' 'set probe 1'
+} > "$fixture_dir/medium.tcl"
+CARGO_PROFILE_TEST_OPT_LEVEL=2 CARGO_PROFILE_TEST_DEBUG=0 \
+    cargo run --locked --profile test -p tcl-lsp-db --example w210_body_probe -- "$fixture_dir/medium.tcl"
+```
+
+Each trial primes a fresh database from the original file. The timed interval starts before updating the source and includes segmentation, the query demands and rebasing. The one-line edit in `IsOverridden` reads an unbound local. The probe compares the W210 messages and spans before and after the edit with fresh whole-file analysis, and checks Salsa's `WillExecute` events and the 50 ms budget. The fresh analysis of the edited file runs after all five timed trials.
+
+After rebasing on item 94, Clippy with dependencies reports `too_many_lines` in `analyse_source_in_frame_with_options` (101 lines, limit 100). The full `make rust-check` and `make prep-pr` gates remain pending for the PR stage under the development push policy for `work`.
+
 ## Inventory
 
 **Memos inside memoised values** (about 15 types in `command_binding`, the realm and `analyser/types/result_caches.rs`): `Mutex<Option<…>>`, `OnceLock` and `Mutex<HashMap>` fields inside `AnalysisResult`, bindings and realms, equality-transparent and empty on clone, filling *after* the salsa query returns; capped at 65,536 entries in several places, uncapped in `ModuleRealmMemo` (inferred). Salsa's LRU sizes and `memory_usage()` do not see them.
