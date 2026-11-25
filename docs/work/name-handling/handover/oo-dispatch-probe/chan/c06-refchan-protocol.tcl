@@ -4,6 +4,7 @@ set ::log {}
 set ::data "line1\nline2\n"
 proc rc {cmd args} {
   lappend ::log [list $cmd {*}[lrange $args 1 end]]
+  ;# COMPLETE initialize
   switch -- $cmd {
     initialize { return {initialize finalize watch read} }
     finalize { return }

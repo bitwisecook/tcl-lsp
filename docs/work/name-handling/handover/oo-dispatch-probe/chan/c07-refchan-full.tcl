@@ -3,6 +3,7 @@ proc t {label script} {if {[catch {uplevel 1 $script} r]} {puts "$label: ERR $r"
 set ::log {}
 proc rc {cmd id args} {
   lappend ::log [list $cmd {*}$args]
+  ;# COMPLETE initialize
   switch -- $cmd {
     initialize { return {initialize finalize watch read write seek configure cget cgetall blocking truncate} }
     read { return "" }

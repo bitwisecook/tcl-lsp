@@ -58,6 +58,8 @@ pub struct EditorAnswers {
     pub hover: String,
     /// Diagnostic codes on the marked line.
     pub diagnostics: Vec<String>,
+    /// Completion labels at a `;# COMPLETE` mark, in the order offered.
+    pub completion: Option<Vec<String>>,
 }
 
 pub struct Dialect {
@@ -283,14 +285,36 @@ fn copy_tree(from: &Path, to: &Path) {
 struct Mark {
     word: String,
     cursor: usize,
+    /// A `;# COMPLETE` mark asks for completion as well.
+    complete: bool,
 }
 
 /// `;# CALL` marks the last word before it, or the named word
-/// (`;# CALL get_a`); `;# READ` marks the variable of the last `$` before it.
+/// (`;# CALL get_a`); `;# READ` marks the variable of the last `$` before it;
+/// `;# COMPLETE word` marks the end of `word` on the next line holding it, so
+/// a mark can sit outside a braced body (a `switch` arm) it must not change.
 fn marks(source: &str) -> Vec<Mark> {
     let mut found = Vec::new();
     let mut line_start = 0;
-    for line in source.split_inclusive('\n') {
+    let lines: Vec<&str> = source.split_inclusive('\n').collect();
+    for (index, line) in lines.iter().enumerate() {
+        if let Some(at) = line.find(";# COMPLETE") {
+            let named = line[at + ";# COMPLETE".len()..].split_whitespace().next();
+            let mut start = line_start + line.len();
+            for next in &lines[index + 1..] {
+                if let Some(word) = named
+                    && let Some(column) = next.find(word)
+                {
+                    found.push(Mark {
+                        word: word.to_owned(),
+                        cursor: start + column + word.len(),
+                        complete: true,
+                    });
+                    break;
+                }
+                start += next.len();
+            }
+        }
         for (kind, tag) in [("CALL", ";# CALL"), ("READ", ";# READ")] {
             let Some(at) = line.find(tag) else { continue };
             let before = &line[..at];
@@ -324,6 +348,7 @@ fn marks(source: &str) -> Vec<Mark> {
             found.push(Mark {
                 word,
                 cursor: line_start + cursor,
+                complete: false,
             });
         }
         line_start += line.len();
@@ -334,6 +359,9 @@ fn marks(source: &str) -> Vec<Mark> {
 fn position(range: &tcl_lsp_core::definition::LspRange) -> String {
     format!("L{}c{}", range.start_line + 1, range.start_character)
 }
+
+/// How many completion labels a `;# COMPLETE` row records.
+const COMPLETION_LABELS: usize = 12;
 
 fn editor_answers(
     source: &str,
@@ -398,7 +426,23 @@ fn editor_answers(
                 .filter(|diag| index.position_at_utf16(diag.span.start(), source).line == line)
                 .map(|diag| diag.code.as_str().to_owned())
                 .collect();
+            let completion = mark.complete.then(|| {
+                tcl_lsp_core::completion::completions(
+                    source,
+                    line,
+                    character,
+                    analysis,
+                    Some(registry),
+                    None,
+                    profile,
+                )
+                .into_iter()
+                .take(COMPLETION_LABELS)
+                .map(|item| item.label)
+                .collect()
+            });
             EditorAnswers {
+                completion,
                 at: source[mark.cursor..]
                     .chars()
                     .take(mark.word.chars().count() + 1)
