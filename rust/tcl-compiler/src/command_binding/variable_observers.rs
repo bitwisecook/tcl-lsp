@@ -127,6 +127,7 @@ impl SourceCommandBindings {
         if !captured_store_contract(facts, native.invocation.arguments()) {
             return None;
         }
+        let rejection = Route::Tcl(CompletionCode::Error);
         if self.invalid_increment_amount_input(
             native,
             facts,
@@ -134,10 +135,7 @@ impl SourceCommandBindings {
             context,
             tcl_registry::native_rmw::NativeRmwAmountValidation::BeforeRead,
         ) {
-            return Some(SourceOutcomes::invocation(
-                state,
-                Route::Tcl(CompletionCode::Error),
-            ));
+            return Some(SourceOutcomes::invocation(state, rejection));
         }
         let (receiver, reads) = captured_native_receiver(
             native.invocation.arguments(),
@@ -148,10 +146,7 @@ impl SourceCommandBindings {
         )?;
         let receiver = &receiver;
         if state.source_variables.selected_scalar_is_constant(receiver) {
-            return Some(SourceOutcomes::invocation(
-                state,
-                Route::Tcl(CompletionCode::Error),
-            ));
+            return Some(SourceOutcomes::invocation(state, rejection));
         }
         if reads.iter().all(|read| !read.observed)
             && increment_requires_missing_error(
@@ -161,10 +156,7 @@ impl SourceCommandBindings {
                 native.invocation.arguments(),
             )
         {
-            return Some(SourceOutcomes::invocation(
-                state,
-                Route::Tcl(CompletionCode::Error),
-            ));
+            return Some(SourceOutcomes::invocation(state, rejection));
         }
         if reads
             .iter()
@@ -180,10 +172,7 @@ impl SourceCommandBindings {
         if state.source_variables.store_would_error(&unobserved)
             && !(receiver.index.is_none() && reads.iter().any(|read| read.observed))
         {
-            return Some(SourceOutcomes::invocation(
-                state,
-                Route::Tcl(CompletionCode::Error),
-            ));
+            return Some(SourceOutcomes::invocation(state, rejection));
         }
         let lease = Arc::make_mut(&mut state.source_variables).capture_protected_cell(receiver)?;
         let mut outcomes = if reads.is_empty() {
@@ -608,21 +597,13 @@ impl SourceCommandBindings {
             .filter(|(_, role)| *role == tcl_registry::ArgRole::VarWrite)
             .collect();
         let [(index, _)] = roles.as_slice() else {
-            if roles.iter().any(|(index, _)| {
-                let receiver = native.original_variable_operands.access(
-                    facts.argument_offset + usize::from(*index),
-                    &state.source_variables,
-                    context.registry,
-                    TraceOperation::Unset,
-                    false,
-                );
-                state
-                    .source_variables
-                    .selected_scalar_is_constant(&receiver)
-            }) {
-                return Some(super::opaque_source_invocation(state));
-            }
-            return None;
+            return mixed_unset_reaches_constant(
+                native,
+                facts,
+                &state.source_variables,
+                context.registry,
+            )
+            .then(|| super::opaque_source_invocation(state));
         };
         let index = facts.argument_offset + usize::from(*index);
         if native
@@ -1210,6 +1191,28 @@ fn captured_store_contract(
         _ => false,
     };
     primitive && closed_variable_effects(facts)
+}
+
+fn mixed_unset_reaches_constant(
+    native: super::SourceNativeInvocation<'_>,
+    facts: &tcl_registry::InvocationFacts,
+    variables: &crate::var_resolve::ResolveContext,
+    registry: &tcl_registry::CommandRegistry,
+) -> bool {
+    facts
+        .arg_roles
+        .iter()
+        .filter(|(_, role)| *role == tcl_registry::ArgRole::VarWrite)
+        .any(|(index, _)| {
+            let receiver = native.original_variable_operands.access(
+                facts.argument_offset + usize::from(*index),
+                variables,
+                registry,
+                TraceOperation::Unset,
+                false,
+            );
+            variables.selected_scalar_is_constant(&receiver)
+        })
 }
 
 fn constant_unset_completion(
