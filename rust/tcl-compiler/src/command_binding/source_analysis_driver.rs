@@ -640,6 +640,16 @@ impl SourceCommandBindings {
         let frame = options
             .source_point_entry
             .map_or(frame, |entry| entry.frame());
+        let options = SourceAnalysisOptions {
+            stock_tclsh_stdout: options.stock_tclsh_stdout.filter(|_| {
+                matches!(
+                    frame.layout(),
+                    crate::var_resolve::VariableExecutionFrame::Global
+                ) && purpose == tcl_lexer::SourceSegmentationPurpose::WholeInput
+                    && image.channel() == tcl_lexer::SourceChannel::Document
+            }),
+            ..options
+        };
         // The survey-scoped interpretation is never shared through the memo.
         let memo_key = if logical_conditional_source_control || native_formals.is_some() {
             None

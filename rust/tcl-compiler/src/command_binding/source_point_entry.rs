@@ -366,6 +366,7 @@ impl OriginalSourcePointEntry {
         entry.compilation_scope = self.payload.compilation_scope;
         entry.source_point_entry = Some(self.clone());
         entry.native_entry = None;
+        entry.stock_tclsh_stdout = None;
         entry.compiled_variable_provider = None;
         entry.native_compilation =
             tcl_registry::native_compilation::NativeCompilationContext::default();
@@ -477,6 +478,7 @@ impl OriginalSourcePointEntry {
         let mut state = self.payload.snapshot.state.clone();
         let mut baseline = (*state.baseline).clone();
         baseline.source_point_entry = Some(self.clone());
+        baseline.stock_tclsh_stdout = false;
         baseline.invocation_realm = self.payload.snapshot.realm;
         baseline.semantics = match baseline.logical_source_input.as_ref() {
             Some(input) => registry.authored_source_semantics_in_context(

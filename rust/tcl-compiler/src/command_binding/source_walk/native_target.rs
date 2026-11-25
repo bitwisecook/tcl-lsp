@@ -75,10 +75,32 @@ fn source_procedure_body_admission(
     ))
 }
 
-fn unmodelled_native_reentry(native: SourceNativeInvocation<'_>, facts: &InvocationFacts) -> bool {
+pub(super) fn is_implicit_stock_stdout_write(
+    native: SourceNativeInvocation<'_>,
+    facts: &InvocationFacts,
+) -> bool {
+    native.target.registry_backed
+        && native.target.kind == super::super::BindingKind::Builtin
+        && native.target.implementation_generation == 0
+        && native.target.prepended.is_empty()
+        && facts.operation
+            == tcl_registry::SemanticOperationId::Intrinsic(tcl_registry::IntrinsicId::ChannelWrite)
+        && facts.arg_roles_complete
+        && facts.argument_offset == 0
+        && native.invocation.arguments().exact_argv_len() == Some(1)
+}
+
+fn unmodelled_native_reentry(
+    native: SourceNativeInvocation<'_>,
+    facts: &InvocationFacts,
+    state: &ModuleCommandBindings,
+) -> bool {
     use tcl_registry::resolved_invocation::SourceCallbackRetention;
     use tcl_registry::side_effects::SideEffectTarget;
     use tcl_registry::world_effect::WorldStateDomain;
+    if is_implicit_stock_stdout_write(native, facts) {
+        return !state.stock_tclsh_stdout;
+    }
     if native
         .invocation
         .arguments()
@@ -667,7 +689,7 @@ impl SourceCommandBindings {
     ) -> SourceOutcomes {
         let prepared = match prepare_selected_native_body(native, state, context, facts, route) {
             Ok(prepared) => prepared,
-            Err(route) if unmodelled_native_reentry(native, facts) => {
+            Err(route) if unmodelled_native_reentry(native, facts, state) => {
                 // Channel observers, notifier callbacks, and selected callback
                 // operands can re-enter Tcl before any returned completion.
                 state.mark_opaque_binding_mutation();

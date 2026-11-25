@@ -37,6 +37,7 @@ impl PartialEq for BindingBaseline {
             && self.execution_name_policy == other.execution_name_policy
             && self.unknown_entry == other.unknown_entry
             && self.host_extensible_command_table == other.host_extensible_command_table
+            && self.stock_tclsh_stdout == other.stock_tclsh_stdout
             && self.registry_snapshot == other.registry_snapshot
             && self
                 .registry_owner
@@ -132,6 +133,7 @@ impl BindingBaseline {
             invocation_realm: tcl_dialect::model::InvocationRealm::RuleLoader,
             unknown_entry: false,
             host_extensible_command_table: false,
+            stock_tclsh_stdout: false,
             native_entry: None,
             compiled_variable_provider: None,
             expression_parser: None,
@@ -192,6 +194,7 @@ impl BindingBaseline {
         self.invocation_realm.hash(&mut state);
         self.unknown_entry.hash(&mut state);
         self.host_extensible_command_table.hash(&mut state);
+        self.stock_tclsh_stdout.hash(&mut state);
         self.declared_commands.hash(&mut state);
         self.declared_surface.hash(&mut state);
         self.catalogue_commands.hash(&mut state);

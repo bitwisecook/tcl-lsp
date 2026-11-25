@@ -219,6 +219,7 @@ impl Lowerer<'_> {
                 compiled_variable_provider: self.compiled_variable_provider,
                 expression_parser: self.expression_parser,
                 native_entry: self.native_entry.as_deref(),
+                stock_tclsh_stdout: self.stock_tclsh_stdout.as_ref(),
                 incoming_formals: if self.nest_depth == 1 {
                     &self.incoming_formals
                 } else {

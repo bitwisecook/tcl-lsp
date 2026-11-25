@@ -111,6 +111,7 @@ impl<'r> Lowerer<'r> {
             logical_source_input: None,
             vendor_source_input: None,
             native_entry: None,
+            stock_tclsh_stdout: None,
             source_point_entry: None,
             analyser_source_settings: None,
             source_channel: tcl_lexer::SourceChannel::Document,
@@ -470,6 +471,7 @@ impl<'r> Lowerer<'r> {
         self.native_entry = options
             .native_entry
             .map(|entry| std::sync::Arc::new(entry.clone()));
+        self.stock_tclsh_stdout = options.stock_tclsh_stdout.cloned();
     }
 
     /// Retain the original entry channel for checked structural lowering.

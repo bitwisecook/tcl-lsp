@@ -161,6 +161,7 @@ impl Lowerer<'_> {
             expression_parser: self.expression_parser,
             native_compilation: self.native_compilation,
             native_entry: self.native_entry.clone(),
+            stock_tclsh_stdout: self.stock_tclsh_stdout.clone(),
             incoming_formals: self.incoming_formals.clone(),
         };
     }

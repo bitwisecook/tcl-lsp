@@ -373,7 +373,8 @@ pub use conditional_source::{
 };
 mod source_argument_syntax;
 pub use source_analysis_entry::{
-    SourceAnalysisEntry, SourceAnalysisOptions, native_entry_config, native_entry_options,
+    SourceAnalysisEntry, SourceAnalysisOptions, StockTclshStdout, native_entry_config,
+    native_entry_options,
 };
 pub(crate) use source_analysis_entry::{SourceDeclaredCommandContracts, source_input_dialect};
 pub use source_point_entry::{
@@ -578,6 +579,7 @@ struct BindingBaseline {
     invocation_realm: tcl_dialect::model::InvocationRealm,
     unknown_entry: bool,
     host_extensible_command_table: bool,
+    stock_tclsh_stdout: bool,
     native_entry: Option<Arc<tcl_runtime_api::NativeCompilationEntry>>,
     native_compilation: tcl_registry::native_compilation::NativeCompilationContext,
     fingerprint: u64,
@@ -1459,6 +1461,8 @@ pub struct ModuleCommandBindings {
     /// Original fresh pool provenance, permanently withdrawn by unknown host
     /// or object methods. New result objects cannot restore this history.
     ordinary_literal_pool: Option<literal_object_pool::SourceOrdinaryLiteralPool>,
+    /// The original stock process sink is still free of Tcl callbacks.
+    stock_tclsh_stdout: bool,
     allocation_counts: Arc<BTreeMap<(CommandAllocationSite, SourceCommandKey), u8>>,
     namespace_allocation_counts:
         Arc<BTreeMap<(CommandAllocationSite, tcl_core_types::ByteNamespacePath), u8>>,

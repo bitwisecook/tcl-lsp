@@ -43,8 +43,6 @@ fn e007_needs_the_actual_store_and_the_same_initialised_constant() {
     assert!(!has_code(source, "tcl8.6", "E007"));
     assert!(has_code(source, "tcl8.6", "W002"));
     for source in [
-        "const fixed 3; puts $fixed; set fixed 4",
-        "puts ready; const fixed 3; set fixed 4",
         "const fixed 3; puts -nonewline stdout ready; set fixed 4",
         "const fixed 3; chan put stdout ready; set fixed 4",
         "const fixed 3; chan puts stdout ready; set fixed 4",
@@ -63,6 +61,93 @@ fn e007_needs_the_actual_store_and_the_same_initialised_constant() {
             "unexpected E007 for {source:?}"
         );
     }
+}
+
+const GLOBAL_AFTER_STDOUT: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../docs/work/name-handling/handover/oo-dispatch-probe/dynamic/e05-global.tcl"
+));
+const CONSTANT_AFTER_STDOUT: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../docs/work/name-handling/handover/oo-dispatch-probe/dynamic/e20-const-90.tcl"
+));
+
+#[test]
+fn stock_process_stdout_preserves_original_variable_diagnostics() {
+    for profile in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+        let mut analyser = crate::analyser::Analyser::new();
+        let result = analyser.analyse(GLOBAL_AFTER_STDOUT, profile);
+        let reads = result
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == DiagCode::W210)
+            .collect::<Vec<_>>();
+        let [read] = reads.as_slice() else {
+            panic!("expected one missing read for {profile}: {reads:?}");
+        };
+        assert_eq!(&GLOBAL_AFTER_STDOUT[read.span.as_range()], "nope");
+    }
+    for profile in ["tcl9.0", "tcl9.1"] {
+        assert!(has_code(CONSTANT_AFTER_STDOUT, profile, "E007"));
+        assert!(has_code(
+            "puts ready; const fixed 3; set fixed 4",
+            profile,
+            "E007"
+        ));
+    }
+    assert!(has_code(CONSTANT_AFTER_STDOUT, "tcl8.6", "W002"));
+    assert!(!has_code(CONSTANT_AFTER_STDOUT, "tcl8.6", "E007"));
+}
+
+#[test]
+fn stock_process_stdout_is_not_reissued_for_supplied_unknown_history() {
+    let dialect = "tcl9.1";
+    let environment = tcl_registry::model::ingress::resolve_environment(dialect);
+    let context = environment.default_context_registry();
+    let config = tcl_lexer::LexerConfig::for_file_grammar(environment.grammar());
+    let input = crate::analyser::ResolvedAnalysisInput::new(
+        environment.analyser_profile(),
+        environment.unit_profile(),
+        context.clone(),
+        config,
+    );
+    let fresh = crate::command_binding::SourceAnalysisEntry::for_supplied_source(
+        context.commands(),
+        &input,
+        config,
+        Some(input.unit_profile()),
+    );
+    assert!(fresh.stock_tclsh_stdout.is_some());
+    let inherited = crate::command_binding::SourceAnalysisEntry {
+        stock_tclsh_stdout: None,
+        ..fresh.clone()
+    };
+    let unknown = crate::command_binding::SourceAnalysisEntry {
+        unknown_entry: true,
+        ..fresh
+    };
+    for entry in [inherited, unknown] {
+        let mut analyser = crate::analyser::Analyser::new()
+            .with_resolved_input(input.clone())
+            .with_source_analysis_entry(std::sync::Arc::new(entry));
+        let result = analyser.analyse(CONSTANT_AFTER_STDOUT, dialect);
+        assert!(
+            !result
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == DiagCode::E007)
+        );
+    }
+}
+
+#[test]
+fn stock_process_stdout_is_withdrawn_after_channel_mutation() {
+    let source = "proc transform {op handle args} {return [lindex $args 0]}\n\
+                  const fixed 3\n\
+                  catch {chan push stdout transform}\n\
+                  puts ready\n\
+                  set fixed 4\n";
+    assert!(!has_code(source, "tcl9.1", "E007"));
 }
 
 #[test]

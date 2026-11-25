@@ -31,6 +31,7 @@ use super::completion_receipts::{
     CapturedNativeCompletionReceipts, command_world_closed_on_normal_return,
     creates_literal_ensemble, requires_reentry_guard,
 };
+use super::native_target::is_implicit_stock_stdout_write;
 use super::native_transfer::select_contents_write_source;
 use super::outcomes::boxed_source_branch;
 use std::sync::OnceLock;
@@ -420,6 +421,29 @@ fn source_target_arguments_invalid(
             })
 }
 
+fn may_change_stock_stdout(facts: &InvocationFacts) -> bool {
+    use tcl_registry::side_effects::SideEffectTarget;
+    use tcl_registry::world_effect::WorldStateDomain;
+    requires_reentry_guard(facts)
+        || facts.effects.accesses().iter().any(|access| {
+            matches!(
+                access.domain,
+                WorldStateDomain::InterpreterTopology
+                    | WorldStateDomain::InterpreterPolicy
+                    | WorldStateDomain::HostCapabilities
+                    | WorldStateDomain::PackageState
+                    | WorldStateDomain::LegacyExternal(
+                        SideEffectTarget::FileIo
+                            | SideEffectTarget::ChannelIo
+                            | SideEffectTarget::NetworkIo
+                            | SideEffectTarget::LogIo
+                            | SideEffectTarget::InterpState
+                            | SideEffectTarget::Process
+                    )
+            )
+        })
+}
+
 impl SourceCommandBindings {
     pub(in super::super) fn walk_source_target_after_observers(
         &mut self,
@@ -612,6 +636,12 @@ impl SourceCommandBindings {
         Box<SourceOutcomes>,
     > {
         let facts = prepared.facts.as_ref();
+        if state.stock_tclsh_stdout
+            && !is_implicit_stock_stdout_write(native, facts)
+            && may_change_stock_stdout(facts)
+        {
+            state.stock_tclsh_stdout = false;
+        }
         if let Some(outcomes) = Self::prepare_jim_stock_class_boxed(native, facts, state, context) {
             return Err(outcomes);
         }

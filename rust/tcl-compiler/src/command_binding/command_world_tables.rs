@@ -71,6 +71,7 @@ impl ModuleCommandBindings {
             && Arc::ptr_eq(&self.root_boundary_bindings, &other.root_boundary_bindings)
             && Arc::ptr_eq(&self.baseline, &other.baseline)
             && self.loader_handler_unknown == other.loader_handler_unknown
+            && self.stock_tclsh_stdout == other.stock_tclsh_stdout
             && self.opaque_domain == other.opaque_domain
             && self.opaque_binding_mutation == other.opaque_binding_mutation
             && self.dynamic_proc_binding == other.dynamic_proc_binding

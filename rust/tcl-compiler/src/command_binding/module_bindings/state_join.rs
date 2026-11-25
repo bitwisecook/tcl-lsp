@@ -258,6 +258,9 @@ impl ModuleCommandBindings {
     /// view still knows the step's exact effect; one step it does not know
     /// withholds that view for good.
     pub(in super::super) fn withhold_command_world(&mut self, modelled_for_diagnostics: bool) {
+        if !modelled_for_diagnostics {
+            self.stock_tclsh_stdout = false;
+        }
         self.diagnostic_command_world_closed = modelled_for_diagnostics
             && (!self.unclosed_command_world || self.diagnostic_command_world_closed);
         self.unclosed_command_world = true;
@@ -266,6 +269,10 @@ impl ModuleCommandBindings {
     /// Historical opacity survives restoration of the current lookup state.
     fn join_binding_history(&mut self, other: &Self) -> bool {
         let mut changed = false;
+        if self.stock_tclsh_stdout && !other.stock_tclsh_stdout {
+            self.stock_tclsh_stdout = false;
+            changed = true;
+        }
         if other.opaque_domain && !self.opaque_domain {
             self.opaque_domain = true;
             changed = true;

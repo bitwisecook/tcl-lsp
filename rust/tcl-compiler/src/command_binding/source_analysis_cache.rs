@@ -89,6 +89,7 @@ impl SourceAnalysisCacheKey {
                 compilation_scope: options.compilation_scope,
                 invocation_realm: options.invocation_realm,
                 native_entry: None,
+                stock_tclsh_stdout: options.stock_tclsh_stdout.cloned(),
                 incoming_formals: options.incoming_formals.to_vec(),
                 declared_commands: options.declared_commands.cloned(),
                 trusted_package_loaders: options.trusted_package_loaders.to_vec(),
@@ -163,6 +164,7 @@ impl SourcePointHistoryKey {
             compilation_scope,
             invocation_realm,
             native_entry,
+            stock_tclsh_stdout,
             incoming_formals,
             declared_commands,
             trusted_package_loaders,
@@ -190,6 +192,7 @@ impl SourcePointHistoryKey {
             && &self.entry.compilation_scope == compilation_scope
             && &self.entry.invocation_realm == invocation_realm
             && &self.entry.native_entry == native_entry
+            && &self.entry.stock_tclsh_stdout == stock_tclsh_stdout
             && &self.entry.incoming_formals == incoming_formals
             && &self.entry.declared_commands == declared_commands
             && &self.entry.trusted_package_loaders == trusted_package_loaders
@@ -215,6 +218,7 @@ fn history_entry(entry: &SourceAnalysisEntry) -> SourceAnalysisEntry {
         compilation_scope,
         invocation_realm,
         native_entry,
+        stock_tclsh_stdout,
         incoming_formals,
         declared_commands,
         trusted_package_loaders,
@@ -237,6 +241,7 @@ fn history_entry(entry: &SourceAnalysisEntry) -> SourceAnalysisEntry {
         compilation_scope: *compilation_scope,
         invocation_realm: *invocation_realm,
         native_entry: native_entry.clone(),
+        stock_tclsh_stdout: stock_tclsh_stdout.clone(),
         incoming_formals: incoming_formals.clone(),
         declared_commands: declared_commands.clone(),
         trusted_package_loaders: trusted_package_loaders.clone(),

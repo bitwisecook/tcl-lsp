@@ -25,6 +25,11 @@ use std::sync::Arc;
 
 use super::{TrustedPackageLoader, TrustedSourceModuleLoader};
 
+/// Source analysis of a stock `tclsh script.tcl` process starts with a native
+/// stdout sink before any Tcl script can install a channel observer.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct StockTclshStdout(Arc<crate::analyser::ResolvedAnalysisInput>);
+
 /// Immutable document/workspace contract carrier. The document-surface owner
 /// remains the only metadata query door; no runtime lookup follows from it.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -129,6 +134,8 @@ pub struct SourceAnalysisOptions<'a> {
     pub invocation_realm: tcl_dialect::model::InvocationRealm,
     /// Actual live runtime table; supplied rows replace fresh-world assumptions.
     pub native_entry: Option<&'a tcl_runtime_api::NativeCompilationEntry>,
+    /// Fresh process stdout supplied by the whole-document source entry owner.
+    pub stock_tclsh_stdout: Option<&'a StockTclshStdout>,
     /// Ordinary incoming local slots proved by the activation binding plan.
     /// Reference aliases and retained static slots must not appear here.
     pub incoming_formals: &'a [String],
@@ -185,6 +192,28 @@ pub(crate) fn source_input_dialect(
 }
 
 impl<'a> SourceAnalysisOptions<'a> {
+    pub(super) fn starts_with_stock_tclsh_stdout(
+        &self,
+        metadata: &crate::registry_invocation::OwnedInvocationMetadataContext,
+        config: Option<tcl_lexer::LexerConfig>,
+    ) -> bool {
+        let Some(StockTclshStdout(input)) = self.stock_tclsh_stdout else {
+            return false;
+        };
+        !self.unknown_entry
+            && !self.host_extensible_command_table
+            && self.source_point_entry.is_none()
+            && self.native_entry.is_none()
+            && self.compilation_scope == tcl_runtime_api::SourceCompilationScope::WholeModule
+            && self.logical_source_input.is_none()
+            && self.vendor_source_input.is_none()
+            && self.hosted_execution_context.is_none()
+            && metadata.source_analysis_input() == Some(input.as_ref())
+            && config == Some(input.lexer_config())
+            && self.source_invocation_dialect(input.lexer_config())
+                == Some(source_input_dialect(input))
+    }
+
     /// The driver's file contracts, else the sibling workspace files the
     /// document input offers for auto-loading.
     pub(crate) fn effective_source_modules(&self) -> &'a [TrustedSourceModuleLoader] {
@@ -449,6 +478,8 @@ pub struct SourceAnalysisEntry {
     pub invocation_realm: tcl_dialect::model::InvocationRealm,
     /// Retained actual interpreter command/namespace compilation boundary.
     pub native_entry: Option<Arc<tcl_runtime_api::NativeCompilationEntry>>,
+    /// Fresh process stdout for a checked whole-document source entry.
+    pub stock_tclsh_stdout: Option<StockTclshStdout>,
     /// Ordinary incoming local slots retained from the activation contract.
     pub incoming_formals: Vec<String>,
     /// Retained declaration contracts for assistance adapters.
@@ -576,13 +607,27 @@ impl SourceAnalysisEntry {
         }
         Self::for_logical_source(input)
             .or_else(|| Self::for_fresh_hosted_source(input))
-            .unwrap_or_else(|| Self {
-                metadata_context,
-                invocation_dialect: Some(crate::environment_ingress::authoring_invocation_dialect(
+            .unwrap_or_else(|| {
+                let dialect = crate::environment_ingress::authoring_invocation_dialect(
                     registry, profile, config,
-                )),
-                native_compilation: crate::environment_ingress::authoring_native_compilation(),
-                ..Self::default()
+                );
+                let stock_tclsh_stdout = dialect
+                    .tcl_version
+                    .filter(|release| {
+                        let name = release.dialect_profile_name();
+                        input.entry_procedure_frame().is_none()
+                            && input.analyser_profile().name == name
+                            && input.unit_profile().name == name
+                            && input.availability_context().environment.id.as_str() == name
+                    })
+                    .map(|_| StockTclshStdout(Arc::new(input.clone())));
+                Self {
+                    metadata_context,
+                    invocation_dialect: Some(dialect),
+                    stock_tclsh_stdout,
+                    native_compilation: crate::environment_ingress::authoring_native_compilation(),
+                    ..Self::default()
+                }
             })
     }
 
@@ -603,6 +648,7 @@ impl SourceAnalysisEntry {
             unentered: false,
             invocation_realm: self.invocation_realm,
             native_entry: self.native_entry.as_deref(),
+            stock_tclsh_stdout: self.stock_tclsh_stdout.as_ref(),
             incoming_formals: &self.incoming_formals,
             declared_commands: self.declared_commands.as_ref(),
             trusted_package_loaders: &self.trusted_package_loaders,

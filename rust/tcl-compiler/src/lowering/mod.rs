@@ -399,6 +399,7 @@ pub struct Lowerer<'r> {
     /// Evaluation protocol, independent of the runtime variable frame.
     native_compilation: tcl_registry::native_compilation::NativeCompilationContext,
     native_entry: Option<std::sync::Arc<tcl_runtime_api::NativeCompilationEntry>>,
+    stock_tclsh_stdout: Option<crate::command_binding::StockTclshStdout>,
     source_point_entry: Option<crate::command_binding::OriginalSourcePointEntry>,
     analyser_source_settings:
         Option<std::sync::Arc<crate::analyser::OriginalAnalyserSourceSettings>>,

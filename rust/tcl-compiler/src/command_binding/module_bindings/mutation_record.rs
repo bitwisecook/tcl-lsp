@@ -60,6 +60,7 @@ impl ModuleCommandBindings {
         Arc::make_mut(&mut self.original_command_world).withdraw();
         self.withdraw_ensemble_dispatches();
         self.ordinary_literal_pool = None;
+        self.stock_tclsh_stdout = false;
         Arc::make_mut(&mut self.object_instances).invalidate_dispatch(true);
         self.opaque_domain = true;
         self.opaque_binding_mutation = true;

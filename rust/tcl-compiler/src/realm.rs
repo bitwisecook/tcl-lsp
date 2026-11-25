@@ -1043,19 +1043,13 @@ pub fn document_realm_bindings_with_resolved_input(
     // docs/design/analysis/name-resolution-proofs/diagnostic-original-math-function-subject.md
     let context = input.context_registry();
     let config = input.lexer_config();
-    let dialect = crate::environment_ingress::authoring_invocation_dialect(
+    let entry = crate::command_binding::SourceAnalysisEntry::for_supplied_source(
         context.commands(),
-        Some(input.unit_profile()),
+        input,
         config,
+        Some(input.unit_profile()),
     );
-    let options = crate::command_binding::SourceAnalysisOptions {
-        metadata_context: crate::registry_invocation::InvocationMetadataInput::SuppliedSource(
-            Some(input),
-        ),
-        invocation_dialect: Some(dialect),
-        native_compilation: crate::environment_ingress::authoring_native_compilation(),
-        ..crate::command_binding::SourceAnalysisOptions::default()
-    };
+    let options = entry.options();
     let bindings = SourceCommandBindings::analyse_with_options(
         source,
         config,

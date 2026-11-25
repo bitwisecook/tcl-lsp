@@ -69,6 +69,7 @@ impl ModuleCommandBindings {
             }
         }
         let mut state = Self {
+            stock_tclsh_stdout: baseline.stock_tclsh_stdout,
             baseline,
             namespace_exports: Arc::new(
                 exports
@@ -168,6 +169,8 @@ impl ModuleCommandBindings {
             baseline.execution_name_policy = options.execution_name_policy();
         }
         baseline.metadata_context = options.retained_metadata_context();
+        baseline.stock_tclsh_stdout =
+            options.starts_with_stock_tclsh_stdout(&baseline.metadata_context, config);
         baseline.source_read_config = config.map_or(
             crate::var_resolve::SourceReadConfiguration::Standalone,
             crate::var_resolve::SourceReadConfiguration::Selected,

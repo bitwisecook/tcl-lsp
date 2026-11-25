@@ -300,6 +300,7 @@ impl ModuleCommandBindings {
     fn clear_runtime_entry_tables(&mut self) {
         // Command/namespace snapshots contain no literal-object pool facts.
         self.ordinary_literal_pool = None;
+        self.stock_tclsh_stdout = false;
         self.bindings = Arc::new(
             self.baseline
                 .semantics

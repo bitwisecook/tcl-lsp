@@ -44,6 +44,7 @@ pub(super) struct NonBindingObservationStamp {
         Arc<BTreeMap<ResolvedCommandTarget, Option<Arc<logical_prefix::LogicalAliasPrefix>>>>,
     pub(in super::super) ordinary_literal_pool:
         Option<literal_object_pool::SourceOrdinaryLiteralPool>,
+    stock_tclsh_stdout: bool,
     pub(in super::super) class_definitions: Arc<BTreeMap<CommandIdentity, ClassDefinitionReceipt>>,
     pub(in super::super) object_instances: Arc<object_instance::SourceObjectState>,
     pub(in super::super) bounded_constructions:
@@ -94,6 +95,7 @@ impl PartialEq for ModuleCommandBindings {
             && self.logical_alias_prefixes == other.logical_alias_prefixes
             && self.current_source_origin == other.current_source_origin
             && self.ordinary_literal_pool == other.ordinary_literal_pool
+            && self.stock_tclsh_stdout == other.stock_tclsh_stdout
             && self.allocation_counts == other.allocation_counts
             && self.namespace_allocation_counts == other.namespace_allocation_counts
             && self.class_definitions == other.class_definitions
@@ -149,6 +151,7 @@ impl ModuleCommandBindings {
                 || self.original_command_world == other.original_command_world)
             && self.logical_alias_prefixes == other.logical_alias_prefixes
             && self.ordinary_literal_pool == other.ordinary_literal_pool
+            && self.stock_tclsh_stdout == other.stock_tclsh_stdout
             && self.class_definitions == other.class_definitions
             && self.object_instances == other.object_instances
             && self.bounded_constructions == other.bounded_constructions
@@ -194,6 +197,7 @@ impl ModuleCommandBindings {
             original_command_world: Arc::clone(&self.original_command_world),
             logical_alias_prefixes: Arc::clone(&self.logical_alias_prefixes),
             ordinary_literal_pool: self.ordinary_literal_pool.clone(),
+            stock_tclsh_stdout: self.stock_tclsh_stdout,
             class_definitions: Arc::clone(&self.class_definitions),
             object_instances: Arc::clone(&self.object_instances),
             bounded_constructions: Arc::clone(&self.bounded_constructions),
@@ -239,6 +243,7 @@ impl std::hash::Hash for ModuleCommandBindings {
         self.logical_alias_prefixes.hash(state);
         self.current_source_origin.hash(state);
         self.ordinary_literal_pool.hash(state);
+        self.stock_tclsh_stdout.hash(state);
         self.allocation_counts.hash(state);
         self.namespace_allocation_counts.hash(state);
         self.class_definitions.hash(state);
@@ -304,6 +309,7 @@ impl ModuleCommandBindings {
             && self.packages == other.packages
             && self.revoked_loaders == other.revoked_loaders
             && self.loader_handler_unknown == other.loader_handler_unknown
+            && self.stock_tclsh_stdout == other.stock_tclsh_stdout
             && self.class_definitions == other.class_definitions
             && self.object_instances == other.object_instances
             && self.bounded_constructions == other.bounded_constructions

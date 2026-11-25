@@ -192,6 +192,7 @@ impl SourceCommandBindings {
                 }),
             incoming_formals: &[],
             native_entry: self.final_state.baseline.native_entry.as_deref(),
+            stock_tclsh_stdout: None,
             native_compilation: self
                 .points
                 .iter()
