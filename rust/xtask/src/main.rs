@@ -802,11 +802,14 @@ fn conformance(update: bool, harness: &[String]) -> anyhow::Result<ExitCode> {
         anyhow::ensure!(command.status()?.success(), "build failed: {command:?}");
         Ok(())
     };
-    built(
-        std::process::Command::new(cargo)
-            .current_dir(&root)
-            .args(["build", "--locked", "-p", "tcl-vm-cli", "--bin", "tclvm"]),
-    )?;
+    built(std::process::Command::new(cargo).current_dir(&root).args([
+        "build",
+        "--locked",
+        "-p",
+        "tcl-vm-cli",
+        "--bin",
+        "tclvm",
+    ]))?;
     let runtime_target = target.join("conformance-runtime");
     let tommath = std::env::var_os("TCL_TOMMATH_DIR").map_or_else(
         || {
@@ -821,14 +824,27 @@ fn conformance(update: bool, harness: &[String]) -> anyhow::Result<ExitCode> {
         std::process::Command::new(cargo)
             .current_dir(&root)
             .env("TCL_TOMMATH_DIR", tommath)
-            .args(["build", "--locked", "--manifest-path", "runtime/rust/Cargo.toml"])
+            .args([
+                "build",
+                "--locked",
+                "--manifest-path",
+                "runtime/rust/Cargo.toml",
+            ])
             .arg("--target-dir")
             .arg(&runtime_target)
             .args(["--example", "run_script"]),
     )?;
     let mut test = std::process::Command::new(cargo);
     test.current_dir(&root)
-        .args(["test", "--locked", "-p", "tcl-lsp-core", "--test", "conformance", "--"])
+        .args([
+            "test",
+            "--locked",
+            "-p",
+            "tcl-lsp-core",
+            "--test",
+            "conformance",
+            "--",
+        ])
         .args(harness)
         .env("TCL_LSP_TCLVM", target.join("debug/tclvm"))
         .env(
