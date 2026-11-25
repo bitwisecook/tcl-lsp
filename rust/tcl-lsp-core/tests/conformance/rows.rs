@@ -85,6 +85,8 @@ fn dialects_for(area: &str) -> &'static [&'static str] {
     }
 }
 
+const TIMING_MARK: &str = "# conformance: timing-sensitive.";
+
 pub fn compute(fixture: &Fixture, interpreters: &Interpreters, root: &Path) -> Row {
     let bytes =
         std::fs::read(&fixture.path).unwrap_or_else(|error| panic!("{}: {error}", fixture.name()));
@@ -92,14 +94,17 @@ pub fn compute(fixture: &Fixture, interpreters: &Interpreters, root: &Path) -> R
     // see the editor's lossy view and the folder is not executed on them.
     let exact = std::str::from_utf8(&bytes).is_ok();
     let source = String::from_utf8_lossy(&bytes).into_owned();
+    // A fixture that documents a timing race records only its exit status.
+    let timing = source.starts_with(TIMING_MARK);
     let engines = interpreters
         .all
         .iter()
         .map(|interpreter| {
-            (
-                interpreter.column.clone(),
-                run_copy(fixture, &bytes, |file| interpreter.run(file, root)),
-            )
+            let mut outcome = run_copy(fixture, &bytes, |file| interpreter.run(file, root));
+            if timing {
+                "(timing-sensitive output not compared)".clone_into(&mut outcome.output);
+            }
+            (interpreter.column.clone(), outcome)
         })
         .collect();
     let dialects = dialects_for(&fixture.area)

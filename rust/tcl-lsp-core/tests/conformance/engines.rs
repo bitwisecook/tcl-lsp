@@ -130,6 +130,11 @@ impl Interpreter {
             .args(&self.leading)
             .arg(name)
             .current_dir(directory)
+            // A fixed environment: nothing the host installs or exports
+            // (TCLLIBPATH, TCL_LIBRARY, package trees) reaches a row.
+            .env_clear()
+            .env("PATH", std::env::var_os("PATH").unwrap_or_default())
+            .env("HOME", "/home/tcl-conformance")
             .env("LC_ALL", "C.UTF-8")
             .env("TZ", "UTC")
             .stdin(Stdio::null())
