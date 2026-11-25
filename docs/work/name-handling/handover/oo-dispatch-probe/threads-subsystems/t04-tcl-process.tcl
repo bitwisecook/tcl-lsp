@@ -6,7 +6,7 @@ set pid [exec true &]
 after 300
 puts "listed=[expr {$pid in [tcl::process list]}]"
 set st [tcl::process status -wait $pid]
-puts "status=$st"
+puts "status=[expr {[dict keys $st] eq [list $pid]}] [lindex $st 1]"
 tcl::process purge $pid
 puts "purged=[expr {$pid in [tcl::process list]}]"
 set pid2 [exec false &]

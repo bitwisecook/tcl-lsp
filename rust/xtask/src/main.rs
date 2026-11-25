@@ -120,6 +120,7 @@ mod object_recipe_gate;
 mod owner_resolution;
 mod pack_goldens;
 mod parser_ownership;
+mod plan_rows;
 mod registry_axes;
 mod registry_oracle;
 mod resolution_drift;
@@ -506,6 +507,29 @@ enum Command {
     /// Compare the registry and analyser with pinned Tcl, Tk, Jim and Tcllib.
     DefinitionsGate,
 
+    /// Check that the plan's migration items name existing conformance rows
+    /// (item 205): the umbrella items and every migration item in progress,
+    /// the named items, or with `--all` every open migration item.
+    PlanRows {
+        /// Plan item numbers to check.
+        items: Vec<u32>,
+        /// Report every open migration item.
+        #[arg(long)]
+        all: bool,
+    },
+
+    /// Run every probe fixture as a conformance row across C Tcl 8.4–9.1,
+    /// jimsh, the VM, the runtime, the analyser, the folder and the editor
+    /// features, and check the committed probe outputs against the rows.
+    Conformance {
+        /// Rewrite the committed probe outputs from the rows.
+        #[arg(long)]
+        update: bool,
+        /// Arguments for the test harness (a row filter, `--list`, …).
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        harness: Vec<String>,
+    },
+
     /// Flag a command recognised by name on the value axis, and generate or
     /// verify the registry's value-transfer inventory
     /// (`docs/generated/value-transfers.md`).
@@ -729,6 +753,8 @@ fn dispatch(command: Command) -> anyhow::Result<ExitCode> {
         Command::FileSizes { check } => file_sizes::run(check),
         Command::OwnerResolution => owner_resolution::run(),
         Command::DefinitionsGate => definitions_gate(),
+        Command::PlanRows { items, all } => plan_rows::run(&items, all),
+        Command::Conformance { update, harness } => conformance(update, &harness),
         Command::ValueTransfers { check } => value_transfers::run(check),
         Command::RegistryAxes { check } => registry_axes::run(check),
         Command::SemanticsMatrix { check } => semantics_matrix::run(check),
@@ -763,6 +789,61 @@ fn dispatch(command: Command) -> anyhow::Result<ExitCode> {
             examples,
         } => fp_sweep::run(&codes, &corpus, examples),
     }
+}
+
+fn conformance(update: bool, harness: &[String]) -> anyhow::Result<ExitCode> {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()?;
+    let target = std::env::var_os("CARGO_TARGET_DIR")
+        .map_or_else(|| root.join("target"), std::path::PathBuf::from);
+    let cargo = env!("CARGO");
+    let built = |command: &mut std::process::Command| -> anyhow::Result<()> {
+        anyhow::ensure!(command.status()?.success(), "build failed: {command:?}");
+        Ok(())
+    };
+    built(
+        std::process::Command::new(cargo)
+            .current_dir(&root)
+            .args(["build", "--locked", "-p", "tcl-vm-cli", "--bin", "tclvm"]),
+    )?;
+    let runtime_target = target.join("conformance-runtime");
+    let tommath = std::env::var_os("TCL_TOMMATH_DIR").map_or_else(
+        || {
+            root.join(format!(
+                "tmp/tcl{}/libtommath",
+                tcl_dialect::TclVersion::V9_0.patchlevel()
+            ))
+        },
+        std::path::PathBuf::from,
+    );
+    built(
+        std::process::Command::new(cargo)
+            .current_dir(&root)
+            .env("TCL_TOMMATH_DIR", tommath)
+            .args(["build", "--locked", "--manifest-path", "runtime/rust/Cargo.toml"])
+            .arg("--target-dir")
+            .arg(&runtime_target)
+            .args(["--example", "run_script"]),
+    )?;
+    let mut test = std::process::Command::new(cargo);
+    test.current_dir(&root)
+        .args(["test", "--locked", "-p", "tcl-lsp-core", "--test", "conformance", "--"])
+        .args(harness)
+        .env("TCL_LSP_TCLVM", target.join("debug/tclvm"))
+        .env(
+            "TCL_LSP_RUN_SCRIPT",
+            runtime_target.join("debug/examples/run_script"),
+        )
+        .env("TCL_LSP_REQUIRE_TCLSH", "1");
+    if update {
+        test.env("TCL_LSP_CONFORMANCE_UPDATE", "1");
+    }
+    Ok(if test.status()?.success() {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    })
 }
 
 fn definitions_gate() -> anyhow::Result<ExitCode> {

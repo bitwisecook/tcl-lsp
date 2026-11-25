@@ -70,6 +70,8 @@ tcl-codegen = { path = "../tcl-codegen" }
 tcl-spectcl = { path = "../tcl-spectcl" }
 # Pinned C Tcl provider validation and byte-preserving oracle invocation for differential tests.
 tcl-test-support = { path = "../tcl-test-support" }
+# One reported test per conformance row (`tests/conformance`).
+libtest-mimic = "0.8.2"
 
 
 # Match the server provider's mutually exclusive runtime features per target.
@@ -81,3 +83,10 @@ tower-lsp-server = { version = "0.23", default-features = false, features = ["ru
 
 [lints]
 workspace = true
+
+# Probe fixtures as rows across the reference interpreters, the engines and
+# the analysis consumers; run through `cargo xtask conformance`.
+[[test]]
+name = "conformance"
+path = "tests/conformance/main.rs"
+harness = false

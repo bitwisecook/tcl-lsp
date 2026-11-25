@@ -939,6 +939,7 @@ XTASK_GATES := \
 	'memo-type' \
 	'release-table' \
 	'grammar-bypass' \
+	'plan-rows' \
 	'contract-evidence' \
 	'value-transfers --check' \
 	'registry-axes --check' \
