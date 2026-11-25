@@ -18,6 +18,8 @@ python3 scripts/dev/extract-tcl-evidence.py evidence/tcl/<file>.md -o script.tcl
 
 [Channel callback protocols](channel-callback-protocols.md) records reflected-handler word counts, the `truncate` release boundary and a transform write-and-pop sequence.
 
+[Inherited stdout transforms](item-14-stdout-observer-entry.md) record how a parent's channel callback can change later lookups in a fresh child on pinned Tcl 8.6, 9.0 and 9.1.
+
 [Thread send flag layouts](thread-send-flags-and-surplus-words.md) records combined flags, callback-prefix interpretation and ignored surplus result words in Thread 3.0.4.
 
 [TclOO definition and method activations](tcloo-definition-and-method-activations.md) distinguishes immediate definition namespace entry from a later receiver method.
