@@ -18,7 +18,7 @@
 
 //! tclpkg release tags and Tcl dependency requirements.
 //!
-//! Release tags and legacy minimums use SemVer with optional patch digits,
+//! Release tags and legacy minimums use `SemVer` with optional patch digits,
 //! a leading `v`, and short `a1`/`b2`/`rc1` prereleases. Tcl dependency
 //! operands use the interpreter's version grammar from `tcl-dialect`.
 
@@ -338,6 +338,7 @@ impl DependencyVersion {
     /// # Errors
     /// The operand must be a tclpkg minimum or a valid Tcl requirement list.
     pub fn parse(raw: &str) -> Result<Self, VersionError> {
+        // grammar-bypass-ok: scripts — Selects the operand form before the Tcl list parser.
         if raw.trim_start().starts_with('-') {
             let words = tcl_syntax::list::split_list(raw).map_err(|error| {
                 VersionError(format!("invalid requirement list: {}", error.message()))

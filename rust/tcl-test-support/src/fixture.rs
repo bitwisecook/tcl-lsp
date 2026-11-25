@@ -96,6 +96,7 @@ pub fn tsv_lines(fixture: &str) -> impl Iterator<Item = (usize, &str)> {
 }
 
 /// Split one row, preserving leading, internal and trailing empty cells.
+#[must_use]
 pub fn tsv_fields(row: &str) -> std::str::Split<'_, char> {
     row.split('\t')
 }

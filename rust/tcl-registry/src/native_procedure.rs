@@ -1137,7 +1137,7 @@ mod tests {
         let protocol = NativeProcedureActivationProtocol::C(tcl_dialect::TclVersion::V8_4);
         let mut compared = 0;
         for row in include_str!("../tests/data/native_c84_parse_context/8.4.20.tsv").lines() {
-            let fields = row.split('\t').collect::<Vec<_>>();
+            let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
             assert_eq!(fields.len(), 9);
             if fields[1] == "0" {
                 // The native parser accepted this bracket suffix; its later

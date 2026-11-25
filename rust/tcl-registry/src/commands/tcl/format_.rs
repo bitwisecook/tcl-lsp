@@ -30,7 +30,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 
 /// Fold the compatibility callback's conservative subset through the same
 /// command semantics as the direct value transfer. Admission here preserves
-/// the older callback's narrower surface for SpecTcl packs.
+/// the older callback's narrower surface for `SpecTcl` packs.
 pub(crate) fn fold_format(args: &[&str], version: Option<TclVersion>) -> Option<String> {
     let (template, operands) = args.split_first()?;
     if !template.is_ascii() {
@@ -75,6 +75,7 @@ fn admit_operand(spec: &Spec, word: &str, version: Option<TclVersion>) -> Option
         // handles conversion, rounding and the target's range rules.
         b'f' | b'e' | b'E' | b'g' | b'G' => (!hash
             && word
+                // grammar-bypass-ok: scripts — Inspects the ASCII decimal compatibility subset.
                 .trim_ascii()
                 .bytes()
                 .all(|byte| matches!(byte, b'0'..=b'9' | b'+' | b'-' | b'.' | b'e' | b'E')))
@@ -107,6 +108,7 @@ fn admit_operand(spec: &Spec, word: &str, version: Option<TclVersion>) -> Option
 /// The compatibility hook accepts only signed decimal spellings, including
 /// release-specific leading zeroes when it knows the receiver.
 fn decimal_operand(word: &str, version: Option<TclVersion>) -> Option<Number> {
+    // grammar-bypass-ok: scripts — Identifies the decimal subset for the shared number parser.
     let text = word.trim_ascii();
     let digits = text.strip_prefix(['+', '-']).unwrap_or(text);
     if digits.is_empty()

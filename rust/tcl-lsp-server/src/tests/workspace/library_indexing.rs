@@ -269,7 +269,7 @@ async fn a_versioned_require_indexes_the_release_it_asks_for() {
 #[tokio::test]
 async fn autoload_merge_makes_references_reach_the_library_m8() {
     let backend = test_backend();
-    let lib_uri = seed_autoload_library(&backend, "autoload-refs").await;
+    let (_library_dir, lib_uri) = seed_autoload_library(&backend, "autoload-refs").await;
     // The workspace document only *calls* the library command.
     let app = Uri::from_str("file:///app.tcl").unwrap();
     let app_src = "Rbc_ActiveLegend .g\n";
@@ -297,7 +297,8 @@ async fn autoload_merge_makes_references_reach_the_library_m8() {
 #[tokio::test]
 async fn original_autoload_navigation_joins_current_source_declaration_identity() {
     let backend = test_backend();
-    let lib_uri = seed_autoload_library(&backend, "original-autoload-navigation").await;
+    let (_library_dir, lib_uri) =
+        seed_autoload_library(&backend, "original-autoload-navigation").await;
     let app = Uri::from_str("file:///original-autoload-app.tcl").unwrap();
     let source = "Rbc_ActiveLegend .g\n";
     register(&backend, &app, source).await;
@@ -357,7 +358,8 @@ async fn original_autoload_navigation_joins_current_source_declaration_identity(
 async fn native_bare_autoload_head_keeps_its_own_readonly_eligibility_and_source_currency() {
     for public in [true, false] {
         let backend = test_backend();
-        let provider = seed_autoload_library(&backend, &format!("bare-autoload-{public}")).await;
+        let (_library_dir, provider) =
+            seed_autoload_library(&backend, &format!("bare-autoload-{public}")).await;
         let provider_path = provider.to_file_path().unwrap().into_owned();
         std::fs::write(&provider_path, "proc Rbc_ActiveLegend {} {}\n").unwrap();
         let app: Uri = "file:///bare-autoload-caller.tcl".parse().unwrap();
@@ -550,7 +552,8 @@ async fn library_publication_retains_original_provider_mapping_across_equal_path
 async fn library_publication_checks_closed_saved_source_and_commits_whole_batch() {
     for change_saved_source in [false, true] {
         let backend = test_backend();
-        let uri = seed_autoload_library(&backend, "checked-library-saved-source").await;
+        let (_library_dir, uri) =
+            seed_autoload_library(&backend, "checked-library-saved-source").await;
         let snapshot = backend.read_document(&uri).await.unwrap().unwrap();
         let epoch = backend.diag_inputs_epoch();
         let generation = *backend.class_factory_generation.read().await;
@@ -805,7 +808,8 @@ fn assert_library_edit_keeps_configuration_epoch(backend: &Backend, epoch: u64) 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn original_library_publication_rechecks_closed_source_after_gate_wait() {
     let backend = Arc::new(test_backend());
-    let library_uri = seed_autoload_library(&backend, "original-library-closed-race").await;
+    let (_library_dir, library_uri) =
+        seed_autoload_library(&backend, "original-library-closed-race").await;
     let caller_uri = Uri::from_str("file:///original-library-closed-caller.tcl").unwrap();
     register(&backend, &caller_uri, "Rbc_ActiveLegend ARG\n").await;
     let caller_document = backend.read_document(&caller_uri).await.unwrap().unwrap();
@@ -867,7 +871,7 @@ async fn original_library_publication_rechecks_closed_source_after_gate_wait() {
 #[tokio::test]
 async fn autoload_merge_makes_rename_reach_the_library_m8() {
     let backend = test_backend();
-    let lib_uri = seed_autoload_library(&backend, "autoload-rename").await;
+    let (_library_dir, lib_uri) = seed_autoload_library(&backend, "autoload-rename").await;
     let app = Uri::from_str("file:///app.tcl").unwrap();
     let app_src = "Rbc_ActiveLegend .g\n";
     register(&backend, &app, app_src).await;
@@ -902,7 +906,7 @@ async fn autoload_merge_makes_rename_reach_the_library_m8() {
 #[tokio::test]
 async fn autoload_merge_abstains_when_the_workspace_defines_the_command() {
     let backend = test_backend();
-    let lib_uri = seed_autoload_library(&backend, "autoload-abstain").await;
+    let (_library_dir, lib_uri) = seed_autoload_library(&backend, "autoload-abstain").await;
     let def = Uri::from_str("file:///def.tcl").unwrap();
     register(&backend, &def, "proc Rbc_ActiveLegend {graph} {}\n").await;
     let app = Uri::from_str("file:///app.tcl").unwrap();
@@ -932,7 +936,7 @@ async fn autoload_merge_abstains_when_the_workspace_defines_the_command() {
 #[tokio::test]
 async fn autoload_merge_is_dropped_when_the_package_database_rebuilds() {
     let backend = test_backend();
-    seed_autoload_library(&backend, "autoload-rebuild").await;
+    let (_library_dir, _) = seed_autoload_library(&backend, "autoload-rebuild").await;
     let resolved = backend
         .ensure_autoload_indexed("Rbc_ActiveLegend", "::")
         .await

@@ -21,10 +21,9 @@ fn expansion_rows(engine: &str) -> &'static str {
 }
 fn expansion_result(engine: &str, case: usize) -> Vec<&'static str> {
     let prefix = format!("RESULT\t{case}\t");
-    expansion_rows(engine)
+    let row = expansion_rows(engine)
         .lines()
         .find(|row| row.starts_with(&prefix))
-        .unwrap()
-        .split('\t')
-        .collect()
+        .unwrap();
+    tcl_test_support::fixture::tsv_fields(row).collect()
 }

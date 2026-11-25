@@ -239,7 +239,8 @@ mod tests {
                 version,
             )
             .unwrap();
-            let row = rows.lines().nth(3).unwrap().split('\t').collect::<Vec<_>>();
+            let row = tcl_test_support::fixture::tsv_fields(rows.lines().nth(3).unwrap())
+                .collect::<Vec<_>>();
             assert_eq!(row[3], "message info code");
             let dict_count = row[4]
                 .split_whitespace()

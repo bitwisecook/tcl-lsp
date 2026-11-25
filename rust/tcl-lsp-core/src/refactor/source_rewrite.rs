@@ -268,18 +268,7 @@ pub(super) fn script_word_spellings(
     script: &str,
     config: tcl_lexer::LexerConfig,
 ) -> Option<Vec<Vec<&str>>> {
-    let source = tcl_lexer::SourceImage::document(script);
-    let words = tcl_lexer::native_script_words_in(
-        source,
-        tcl_lexer::Span::new(0, u32::try_from(script.len()).ok()?),
-        config,
-    )
-    .ok()?;
-    if words.fatal_tail.is_some() {
-        return None;
-    }
-    words
-        .commands
+    generated_script_words(script, config)?
         .iter()
         .map(|command| {
             command
@@ -289,6 +278,20 @@ pub(super) fn script_word_spellings(
                 .collect()
         })
         .collect()
+}
+
+/// Complete words of a proposed script under the selected lexer grammar.
+pub(super) fn generated_script_words(
+    script: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<Vec<tcl_lexer::NativeScriptCommandWords>> {
+    let words = tcl_lexer::native_script_words_in(
+        tcl_lexer::SourceImage::document(script),
+        tcl_lexer::Span::new(0, u32::try_from(script.len()).ok()?),
+        config,
+    )
+    .ok()?;
+    words.fatal_tail.is_none().then_some(words.commands)
 }
 
 #[cfg(test)]

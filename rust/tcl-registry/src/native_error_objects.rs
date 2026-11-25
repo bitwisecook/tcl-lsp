@@ -93,7 +93,7 @@ mod tests {
                 .collect();
             assert_ne!(controls.len(), 0);
             for line in controls {
-                let fields: Vec<_> = line.split('\t').collect();
+                let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(line).collect();
                 rows += 1;
                 match fields[0] {
                     "initial-options" => assert_eq!(

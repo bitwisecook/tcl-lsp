@@ -376,9 +376,6 @@ rust/tcl-lsp-core/src/receiver_identity.rs	source-reader	class_at_read:visit_ana
 rust/tcl-lsp-core/src/receiver_identity.rs	source-reader	method_at_cursor:visit_analysis_executable_commands	-	1
 rust/tcl-lsp-core/src/receiver_identity.rs	source-reader	selected_method_reference_spans:visit_analysis_executable_commands	-	1
 rust/tcl-lsp-core/src/refactor/datagroup.rs	name-resolution	resolve_dg_name:resolve_dg_name	-	1
-rust/tcl-lsp-core/src/refactor/datagroup.rs	source-reader	complete_single_command_source:native_script_words_in	-	1
-rust/tcl-lsp-core/src/refactor/datagroup.rs	source-reader	generated_operand_values:native_script_words_in	-	1
-rust/tcl-lsp-core/src/refactor/datagroup.rs	source-reader	literal_record_value:native_script_words_in	-	1
 rust/tcl-lsp-core/src/refactor/datagroup.rs	source-reader	parse_set_or_return:segment_commands_with_offset_and_config	-	1
 rust/tcl-lsp-core/src/refactor/datagroup/source_subject.rs	source-reader	scalar_variable_source_syntax:native_script_words_in	-	1
 rust/tcl-lsp-core/src/refactor/extract_proc.rs	source-reader	collect_observed_variables:segment_commands_with_offset_and_config	-	1
@@ -386,7 +383,6 @@ rust/tcl-lsp-core/src/refactor/extract_proc.rs	source-reader	extract_proc:segmen
 rust/tcl-lsp-core/src/refactor/extract_variable.rs	source-reader	capture:native_script_words_in	-	1
 rust/tcl-lsp-core/src/refactor/extract_variable.rs	source-reader	extract_variable:native_script_words_in	-	1
 rust/tcl-lsp-core/src/refactor/extract_variable.rs	source-reader	logical_value_word:native_script_words_in	-	1
-rust/tcl-lsp-core/src/refactor/if_to_switch.rs	source-reader	render_switch:native_script_words_in	-	1
 rust/tcl-lsp-core/src/refactor/inline_proc.rs	source-reader	single_command_body:segment_commands_with_offset_and_config	-	1
 rust/tcl-lsp-core/src/refactor/inline_variable.rs	source-reader	capture:native_script_words_in	-	1
 rust/tcl-lsp-core/src/refactor/inline_variable.rs	source-reader	capture:native_script_words_in_with_purpose	-	1
@@ -402,8 +398,8 @@ rust/tcl-lsp-core/src/refactor/mod.rs	source-reader	walk_same_frame:segment_comm
 rust/tcl-lsp-core/src/refactor/mod.rs	source-walk	walk_commands:walk_commands	-	1
 rust/tcl-lsp-core/src/refactor/mod.rs	source-walk	walk_commands_inner:walk_commands_inner	-	1
 rust/tcl-lsp-core/src/refactor/mod.rs	source-walk	walk_same_frame:walk_same_frame	-	1
+rust/tcl-lsp-core/src/refactor/source_rewrite.rs	source-reader	generated_script_words:native_script_words_in	-	1
 rust/tcl-lsp-core/src/refactor/switch_to_dict.rs	source-reader	parse_branch_assignment:segment_commands_with_offset_and_config	-	1
-rust/tcl-lsp-core/src/refactor/switch_to_dict.rs	source-reader	switch_to_dict:native_script_words_in	-	1
 rust/tcl-lsp-core/src/references/callback_targets.rs	source-reader	authored_callback_reference_spans:visit_analysis_executable_commands	-	1
 rust/tcl-lsp-core/src/references/callback_targets.rs	source-reader	collect_stored_callback_writes:segment_commands_with_offset_and_config	-	1
 rust/tcl-lsp-core/src/references/callback_targets.rs	source-reader	command_prefix_target_in_region:segment_commands_with_offset_and_config	-	1
@@ -443,6 +439,7 @@ rust/tcl-lsp-server/src/navigation/logical_declarations.rs	name-resolution	resol
 rust/tcl-lsp-server/src/navigation/symbol_resolution.rs	name-resolution	resolve_workspace_symbols_for_binding:resolve_workspace_symbols_for_binding	-	1
 rust/tcl-lsp-server/src/readonly_reference_reports/source_views/call_hierarchy.rs	source-walk	walk_original_source_view_calls:walk_original_source_view_calls	-	1
 rust/tcl-lsp-server/src/readonly_reference_reports/source_views/frontier_walk.rs	source-walk	visit_original_source_view:visit_original_source_view	-	1
+rust/tcl-lsp-server/src/workspace/package_database.rs	source-reader	document_module_paths:segment_commands_with_offset_and_config	-	1
 rust/tcl-mcp/src/irule_gen.rs	source-reader	sole_source_word:native_script_words_in	-	1
 rust/tcl-mcp/src/irule_gen.rs	source-reader	source_header_hint:native_script_words_in	-	1
 rust/tcl-mcp/src/irule_test.rs	source-walk	walk_flow:walk_flow	-	1

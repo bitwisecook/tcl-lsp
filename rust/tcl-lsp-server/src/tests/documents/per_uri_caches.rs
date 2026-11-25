@@ -193,7 +193,7 @@ async fn did_rename_of_an_unrelated_file_keeps_other_seeds_1298() {
 #[tokio::test]
 async fn did_rename_forgets_the_autoloaded_library_record_1298() {
     let backend = test_backend();
-    let lib_uri = seed_autoload_library(&backend, "autoload-rename").await;
+    let (_library_dir, lib_uri) = seed_autoload_library(&backend, "autoload-rename").await;
     let app = Uri::from_str("file:///autoload-rename-app.tcl").unwrap();
     let app_src = "Rbc_ActiveLegend .g\n";
     register(&backend, &app, app_src).await;

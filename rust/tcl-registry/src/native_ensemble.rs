@@ -672,7 +672,7 @@ mod configuration_epoch_tests {
             let recipe = configuration_compiler_mutations(InvocationDialect::for_version(version));
             let mut previous = None;
             for row in rows.lines().skip(1) {
-                let fields: Vec<_> = row.split('\t').collect();
+                let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
                 let compiler = fields[2].parse::<usize>().unwrap();
                 if let Some(previous) = previous {
                     assert_eq!(fields[3], "1", "{version:?}: actual original compiler hook");

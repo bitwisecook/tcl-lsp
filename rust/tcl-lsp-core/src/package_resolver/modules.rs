@@ -19,7 +19,6 @@
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
-    sync::OnceLock,
 };
 
 use tcl_dialect::{TclVersion, validate_version_for};
@@ -123,6 +122,11 @@ impl PackageResolver {
         {
             return;
         }
+        let pattern = tcl_regex::Regex::compile_str(
+            r"^([_[:alpha:]][:_[:alnum:]]*)-([[:digit:]].*)[.]tm$",
+            tcl_regex::defs::REG_ADVANCED,
+        )
+        .expect("Tcl's module advertisement pattern");
         let mut pending = vec![root.to_path_buf()];
         let mut found = Vec::new();
         for _ in 0..max_dirs {
@@ -138,7 +142,7 @@ impl PackageResolver {
                 paths.sort();
                 found.extend(paths.into_iter().filter_map(|path| {
                     let (name, version) =
-                        module_advertisement(path.strip_prefix(root).ok()?, release)?;
+                        module_advertisement(&pattern, path.strip_prefix(root).ok()?, release)?;
                     Some(PackageInfo {
                         name,
                         version,
@@ -179,17 +183,11 @@ impl PackageResolver {
     }
 }
 
-fn module_advertisement(relative: &Path, release: TclVersion) -> Option<(String, String)> {
-    // Use the Tcl library's pattern and its regexp owner. Tcl tests the
-    // module version separately with package vcompare.
-    static PATTERN: OnceLock<tcl_regex::Regex> = OnceLock::new();
-    let pattern = PATTERN.get_or_init(|| {
-        tcl_regex::Regex::compile_str(
-            r"^([_[:alpha:]][:_[:alnum:]]*)-([[:digit:]].*)[.]tm$",
-            tcl_regex::defs::REG_ADVANCED,
-        )
-        .expect("Tcl's module advertisement pattern")
-    });
+fn module_advertisement(
+    pattern: &tcl_regex::Regex,
+    relative: &Path,
+    release: TclVersion,
+) -> Option<(String, String)> {
     let filename = relative
         .iter()
         .map(std::ffi::OsStr::to_str)

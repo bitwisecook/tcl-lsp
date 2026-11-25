@@ -43,6 +43,7 @@
 #[must_use]
 pub fn edit_distance(a: &str, b: &str) -> usize {
     // strsim sizes its working rows from the second string.
+    // grammar-bypass-ok: encodings — Sizes strsim work rows by Rust scalar count.
     if a.chars().count() < b.chars().count() {
         strsim::osa_distance(b, a)
     } else {

@@ -337,7 +337,7 @@ mod tests {
                     .collect();
                 assert_eq!(rows.len(), table.len(), "{version:?} {label}");
                 for (index, (row, word)) in rows.into_iter().zip(table).enumerate() {
-                    let fields: Vec<_> = row.split('\t').collect();
+                    let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
                     assert_eq!(fields.len(), 3);
                     assert_eq!(fields[1], index.to_string());
                     assert_eq!(fields[2], hex(word.as_bytes()));

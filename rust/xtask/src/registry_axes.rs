@@ -91,6 +91,8 @@ const AXES: &[&str] = &[
 /// The files the lint holds clean: every site waived or gone. A review that
 /// rewrites a file adds it here with its pin removed; a file never leaves.
 const CLEAN_FILES: &[&str] = &[
+    "rust/tcl-cli/src/commands/pkg_discover.rs",
+    "rust/tcl-codegen/src/codegen/emitter/ordering.rs",
     "rust/tcl-compiler/src/auto_path_eval.rs",
     "rust/tcl-compiler/src/analyser/commands.rs",
     "rust/tcl-compiler/src/analyser/param_traits.rs",
@@ -99,6 +101,7 @@ const CLEAN_FILES: &[&str] = &[
     "rust/tcl-compiler/src/executable_ir.rs",
     "rust/tcl-compiler/src/signature_scan/walker.rs",
     "rust/tcl-compiler/src/var_escape/slot_resolution.rs",
+    "rust/tcl-diagram/src/data.rs",
     "rust/tcl-lsp-core/src/definition.rs",
     "rust/tcl-lsp-core/src/formatting/config.rs",
     "rust/tcl-lsp-core/src/formatting/docstring.rs",
@@ -148,7 +151,6 @@ const RATCHET: &[(&str, usize)] = &[
     ("rust/tcl-cli/src/commands/graphs.rs", 1),
     ("rust/tcl-cli/src/commands/help.rs", 1),
     ("rust/tcl-cli/src/commands/minimize.rs", 10),
-    ("rust/tcl-cli/src/commands/pkg_discover.rs", 1),
     ("rust/tcl-cli/src/commands/spec.rs", 1),
     ("rust/tcl-cli/src/commands/transform.rs", 2),
     ("rust/tcl-cli/src/lib.rs", 1),
@@ -165,7 +167,6 @@ const RATCHET: &[(&str, usize)] = &[
     ("rust/tcl-compiler/src/analyser/tk_checks.rs", 1),
     ("rust/tcl-codegen/src/codegen/cmd_subst.rs", 19),
     ("rust/tcl-codegen/src/codegen/emitter/bytecoded.rs", 13),
-    ("rust/tcl-codegen/src/codegen/emitter/ordering.rs", 2),
     ("rust/tcl-compiler/src/inline_uplevel.rs", 1),
     ("rust/tcl-codegen/src/inlining/mod.rs", 1),
     ("rust/tcl-compiler/src/interprocedural.rs", 1),
@@ -189,7 +190,6 @@ const RATCHET: &[(&str, usize)] = &[
     ("rust/tcl-compiler/src/uri_split.rs", 4),
     ("rust/tcl-compiler/src/var_escape/handlers.rs", 1),
     ("rust/tcl-diagram/src/attach.rs", 2),
-    ("rust/tcl-diagram/src/data.rs", 4),
     ("rust/tcl-irules/src/ilx.rs", 2),
     ("rust/tcl-irules/src/lib.rs", 26),
     ("rust/tcl-lsp-core/src/call_hierarchy.rs", 4),

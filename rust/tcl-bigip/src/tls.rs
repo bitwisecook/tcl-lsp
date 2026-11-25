@@ -784,6 +784,7 @@ fn material_source_key(source: &str) -> &str {
         return source;
     };
     let path = uri.path().as_str();
+    // registry-axis-ok: irreducible — the file scheme belongs to the URI grammar and the borrowed path selects supplied material; until never
     if uri.scheme().as_str().eq_ignore_ascii_case("file")
         && uri
             .authority()

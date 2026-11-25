@@ -28,10 +28,10 @@ use tcl_test_support::fixture::{oracle_release, tsv_fields, tsv_lines};
 // Direct tab splits in fixture-bearing Rust modules. Lower the limit when
 // readers move to tcl_test_support::fixture. Protocol readers outside those
 // modules and byte payloads inside oracle rows have separate owners.
-const MAX_DIRECT_TSV_SPLITS: usize = 271;
+const MAX_DIRECT_TSV_SPLITS: usize = 246;
 // Native capture directories still use pinned patchlevels on work. The
 // release-key migration shrinks this count as their readers move together.
-const MAX_LEGACY_RELEASE_DIRECTORIES: usize = 1198;
+const MAX_LEGACY_RELEASE_DIRECTORIES: usize = 1193;
 
 pub(crate) fn run() -> Result<ExitCode> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");

@@ -28,7 +28,7 @@ use tcl_lexer::{LexerConfig, LineIndex};
 use tcl_registry::{ArgRole, CommandRegistry};
 
 use super::equality_source::scalar_string_disjunction as try_or_chain;
-use super::source_rewrite::{reindent_script, selected_proposed_spec};
+use super::source_rewrite::{generated_script_words, reindent_script, selected_proposed_spec};
 use super::{
     RefactorEdit, Refactoring, configured_command_span_offsets, find_command_at, line_indent,
 };
@@ -376,18 +376,10 @@ fn generated_operand_values(
     config: LexerConfig,
     expected: &[(usize, &str)],
 ) -> Option<()> {
-    let generated = tcl_lexer::native_script_words_in(
-        tcl_lexer::SourceImage::document(command),
-        tcl_lexer::Span::new(0, u32::try_from(command.len()).ok()?),
-        config,
-    )
-    .ok()?;
-    let [parsed] = generated.commands.as_slice() else {
+    let generated = generated_script_words(command, config)?;
+    let [parsed] = generated.as_slice() else {
         return None;
     };
-    if generated.fatal_tail.is_some() {
-        return None;
-    }
     expected.iter().try_for_each(|&(index, value)| {
         let word = parsed.words.get(index)?;
         (!word.group().expand
@@ -443,13 +435,7 @@ fn set_command(variable: &str, value_source: &str, config: LexerConfig) -> Optio
 
 /// Proposed syntax is checked independently of scalar grammar and permissions.
 fn complete_single_command_source(source: &str, config: LexerConfig) -> Option<()> {
-    let generated = tcl_lexer::native_script_words_in(
-        tcl_lexer::SourceImage::document(source),
-        tcl_lexer::Span::new(0, u32::try_from(source.len()).ok()?),
-        config,
-    )
-    .ok()?;
-    (generated.fatal_tail.is_none() && generated.commands.len() == 1).then_some(())
+    (generated_script_words(source, config)?.len() == 1).then_some(())
 }
 
 /// A parsed if/elseif equality chain.
@@ -591,19 +577,14 @@ fn zip_records(
 }
 
 fn literal_record_value(source: &str, config: LexerConfig) -> Option<String> {
-    let parsed = tcl_lexer::native_script_words_in(
-        tcl_lexer::SourceImage::document(source),
-        tcl_lexer::Span::new(0, u32::try_from(source.len()).ok()?),
-        config,
-    )
-    .ok()?;
-    let [command] = parsed.commands.as_slice() else {
+    let parsed = generated_script_words(source, config)?;
+    let [command] = parsed.as_slice() else {
         return None;
     };
     let [word] = command.words.as_slice() else {
         return None;
     };
-    if parsed.fatal_tail.is_some() || word.bytes() != source.as_bytes() {
+    if word.bytes() != source.as_bytes() {
         return None;
     }
     String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(

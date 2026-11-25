@@ -495,7 +495,7 @@ mod tests {
     fn switch_selection_matches_56_native_compiler_frontiers() {
         let mut compared = 0;
         for row in include_str!("../tests/data/registered-switch56.tsv").lines() {
-            let fields = row.split('\t').collect::<Vec<_>>();
+            let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
             let version = match fields[0] {
                 "8.5.19" => TclVersion::V8_5,
                 "8.6.18" => TclVersion::V8_6,
@@ -544,7 +544,7 @@ mod tests {
     fn switch_branch_selection_matches_56_native_compiler_frontiers() {
         let mut compared = 0;
         for row in include_str!("../tests/data/registered-switch-branches56.tsv").lines() {
-            let fields = row.split('\t').collect::<Vec<_>>();
+            let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
             let version = match fields[0] {
                 "8.5.19" => TclVersion::V8_5,
                 "8.6.18" => TclVersion::V8_6,

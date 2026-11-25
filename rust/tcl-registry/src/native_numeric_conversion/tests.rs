@@ -319,7 +319,7 @@ fn stock_integer_contents_recipe_matches_public_object_lineages() {
         }
         for row in rows.lines().filter(|row| row.starts_with("raw")) {
             assert!(
-                row.split('\t').any(|field| field == "code=0"),
+                tcl_test_support::fixture::tsv_fields(row).any(|field| field == "code=0"),
                 "{version:?}: {row}"
             );
         }

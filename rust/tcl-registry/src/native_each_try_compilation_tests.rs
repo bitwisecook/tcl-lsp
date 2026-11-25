@@ -90,7 +90,7 @@ fn original_each_and_try_recipes_match_190_native_selection_and_local_windows() 
     for (version, fixture) in fixtures() {
         let dialect = crate::InvocationDialect::for_version(version);
         for row in fixture.lines().skip(1) {
-            let columns = row.split('\t').collect::<Vec<_>>();
+            let columns = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
             let index = columns[0].parse::<usize>().unwrap();
             let (label, source) = inputs::CASES[index];
             // These two source vectors prove child/outer parse failure rather

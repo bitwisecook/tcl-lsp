@@ -1144,7 +1144,7 @@ Commands and subcommands that declare no semantics, write no variable, and decla
 | tcl8.6 | 2425 |
 | tcl9.0 | 2470 |
 | tcl9.1 | 2481 |
-| tk | 2639 |
+| tk | 2640 |
 | xilinx-eda-tcl | 3202 |
 
 ## Hand-written command knowledge outside the registry

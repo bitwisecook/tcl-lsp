@@ -281,7 +281,7 @@ mod tests {
             .lines()
             .skip(1)
         {
-            let fields: Vec<_> = row.split('\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             let index: usize = fields[0].parse().unwrap();
             let (label, source) = inputs::CASES[index];
             let selected = recipe(source, context());
@@ -364,7 +364,7 @@ mod tests {
             let profile = tcl_dialect::DialectProfile::find(label).unwrap();
             let mut count = 0;
             for row in rows.lines().skip(1) {
-                let fields: Vec<_> = row.split('\t').collect();
+                let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
                 let index: usize = fields[0].parse().unwrap();
                 let (case, source) = inputs::CASES[index];
                 let command = native_script_words_in(

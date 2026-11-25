@@ -522,7 +522,7 @@ async fn workspace_symbol_readiness_releases_on_shutdown_and_cancellation() {
 #[tokio::test]
 async fn autoload_indexed_query_waits_out_an_in_flight_workspace_scan() {
     let backend = Arc::new(test_backend());
-    seed_autoload_library(&backend, "autoload-race").await;
+    let (_library_dir, _) = seed_autoload_library(&backend, "autoload-race").await;
     let guard = backend.workspace_scan_gate.lock().await;
     let query_backend = Arc::clone(&backend);
     let query = crate::rt::spawn(async move {

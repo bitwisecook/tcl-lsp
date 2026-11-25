@@ -492,7 +492,7 @@ mod tests {
         let rows = include_str!("../tests/data/native_string_compilation/windows.tsv");
         let mut inline_count = 0;
         for line in rows.lines().skip(1) {
-            let fields: Vec<_> = line.split('\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(line).collect();
             let version = match fields[0] {
                 "8.4.20" => TclVersion::V8_4,
                 "8.5.19" => TclVersion::V8_5,
