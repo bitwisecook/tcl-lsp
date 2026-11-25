@@ -87,6 +87,28 @@ Tiers, policies, and the CI redundancy contract:
   scripts/dev/agent-build-env.sh` in each worktree; treat any result after an
   ENOSPC as suspect until a clean rebuild. Symptoms and recovery:
   [the KCS note](docs/kcs/kcs-issue-parallel-worktree-builds-serve-stale-artefacts.md).
+- **Build environment:** in cloud sessions the session-start hook exports
+  `agent-build-env.sh` to every shell: one target per checkout, incremental
+  test builds, no debuginfo, and CI's test opt-level 1. Without that
+  opt-level the suites run about four times slower and `depth_guard`'s
+  stack-budget test overflows, aborting its whole harness. Do not set
+  `CARGO_INCREMENTAL`, `CARGO_PROFILE_*`, `RUSTFLAGS` or `CARGO_TARGET_DIR`
+  yourself or in a subagent prompt: any difference changes cargo's
+  fingerprint and rebuilds the workspace beside the old build. Elsewhere,
+  `source scripts/dev/agent-build-env.sh`.
+- **Parallel agents:** a container builds one workspace at a time (a full
+  test build needs ~30 GB and every core). Subagents share their parent's
+  machine whatever isolation they ask for, so run them one at a time in one
+  checkout. For real parallelism, give each task its own cloud session and
+  branch; never let two agents edit or build the same checkout at once.
+- **Is it my change?** Several suites carry known failures, so judge a change
+  by the failing set, not the exit code: `scripts/dev/failset.py baseline --
+  <cargo test args>` on a clean tree, then `failset.py check -- <same args>`
+  after editing. Runs are cached by source state, so a committed change's
+  check is the next change's baseline.
+- **Long commands:** run builds and test suites in the foreground with
+  `timeout`, not as a background job watched by a loop polling its log; a
+  watcher outlives a killed run and waits forever.
 - `make help` lists every target. `make codegen` regenerates every generated
   file (editor catalogues and settings, AI prompts, iRule-test data); the
   `xtask-check` drift gates fail when one is stale, so regenerate and commit

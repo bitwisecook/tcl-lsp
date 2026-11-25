@@ -619,6 +619,47 @@ setup_tcl_library() {
     echo "session-start: TCL_LIBRARY=${TCL_LIBRARY}"
 }
 
+# ---------------------------------------------------------------------------
+# 9. One build environment for every tool shell. Claude Code's Bash tool does
+# not read ~/.bashrc, so exports above only reach the hook itself. Writing
+# them to CLAUDE_ENV_FILE applies them to every later command, subagents
+# included, so no agent re-types cargo settings: a single mistyped variable
+# changes cargo's fingerprint and rebuilds the workspace beside the old one.
+# ---------------------------------------------------------------------------
+setup_agent_env() {
+    if [ -z "${CLAUDE_ENV_FILE:-}" ]; then
+        echo "session-start: CLAUDE_ENV_FILE unset — source scripts/dev/agent-build-env.sh by hand" >&2
+        return 0
+    fi
+    {
+        (cd "$REPO_ROOT" && scripts/dev/agent-build-env.sh --print)
+        if [ -n "${TCL_LIBRARY:-}" ]; then
+            printf 'export TCL_LIBRARY=%q\n' "$TCL_LIBRARY"
+        fi
+    } >> "$CLAUDE_ENV_FILE"
+    echo "session-start: build environment written to CLAUDE_ENV_FILE"
+}
+
+# ---------------------------------------------------------------------------
+# 10. Disk headroom. A test build of the workspace needs ~30 GB; extra
+# worktree targets fill the disk and an ENOSPC mid-build leaves artefacts
+# that cannot be trusted. Below the floor, drop the incremental caches
+# (rebuildable) and name the other build directories.
+# ---------------------------------------------------------------------------
+check_disk_headroom() {
+    local floor_gb="${TCL_LSP_DISK_FLOOR_GB:-15}"
+    local free_gb
+    free_gb="$(df -Pk "$REPO_ROOT" | awk 'NR==2 {print int($4 / 1048576)}')"
+    echo "session-start: ${free_gb} GB free (floor ${floor_gb} GB)"
+    [ "$free_gb" -ge "$floor_gb" ] && return 0
+    rm -rf "${REPO_ROOT}"/target/*/incremental
+    echo "session-start: below the floor — removed incremental caches; now $(df -Pk "$REPO_ROOT" | awk 'NR==2 {print int($4 / 1048576)}') GB free" >&2
+    git -C "$REPO_ROOT" worktree list --porcelain | awk '/^worktree /{print $2}' | while read -r wt; do
+        [ "$wt" != "$REPO_ROOT" ] && [ -d "$wt/target" ] && du -sh "$wt/target" >&2
+    done
+    return 0
+}
+
 # The setup steps are independent: install_wasmtime / install_binaryen /
 # install_wasi_sdk pull separate GitHub downloads, and a transient failure in
 # any one of them must NOT abort the hook before install_rust (which pins the
@@ -650,6 +691,8 @@ STEPS=(
     install_node_and_python
     install_remaining_test_deps
     setup_tcl_library
+    setup_agent_env
+    check_disk_headroom
 )
 
 for step in "${STEPS[@]}"; do
