@@ -40,7 +40,6 @@ rust/tcl-codegen/src/codegen/cmd_subst.rs	scripts	parse_cmd_parts_expand:trim	-	
 rust/tcl-codegen/src/codegen/control_flow.rs	elements	is_two_plain_names:contains	-	1
 rust/tcl-codegen/src/codegen/control_flow/dict_commands.rs	elements	emit_dict_update:contains	-	2
 rust/tcl-codegen/src/codegen/control_flow/dict_commands.rs	elements	emit_dict_with:contains	-	1
-rust/tcl-codegen/src/codegen/emitter/bytecoded.rs	scripts	concat_cmd:trim	-	1
 rust/tcl-codegen/src/codegen/error_info.rs	scripts	stamp_substitution_error_info:trim	-	1
 rust/tcl-codegen/src/codegen/expressions.rs	scripts	emit_expr_literal:trim	-	1
 rust/tcl-codegen/src/codegen/native_error.rs	scripts	emit_native_error_return:trim_start	-	1
@@ -195,11 +194,8 @@ rust/tcl-compiler/src/registry_invocation/source_structure/package_references.rs
 rust/tcl-compiler/src/rendered_properties.rs	scripts	evaluate_value:trim	-	1
 rust/tcl-compiler/src/sccp/evaluation.rs	scripts	extract_foreach_elements:trim	-	1
 rust/tcl-compiler/src/sccp/evaluation.rs	scripts	resolve_foreach_list_via_lattice:trim	-	1
-rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs	scripts	extract_foreach_elements:trim	-	1
 rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs	scripts	fold_assign_value:trim	-	1
-rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs	scripts	parse_literal_value:trim	-	1
 rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs	scripts	resolve_const_string:trim	-	1
-rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs	scripts	resolve_foreach_list_via_lattice:trim	-	1
 rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs	scripts	split_head:trim_start	-	2
 rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs	scripts	strip_one_level:trim	-	1
 rust/tcl-compiler/src/sccp/original_value_facts/assignment_folds.rs	scripts	try_fold_cmd_subst:trim	-	4
@@ -214,7 +210,6 @@ rust/tcl-compiler/src/signature_scan/params.rs	scripts	spec_to_param:trim	-	1
 rust/tcl-compiler/src/signature_scan/params.rs	scripts	split_first_whitespace:trim_start	-	1
 rust/tcl-compiler/src/ssa/uses.rs	scripts	set_value_reads:trim	-	1
 rust/tcl-compiler/src/static_loops.rs	scripts	simple_var_ref:trim	-	1
-rust/tcl-compiler/src/static_loops/original_simulation.rs	scripts	parse_literal_value:trim	-	1
 rust/tcl-compiler/src/static_loops/original_simulation.rs	scripts	resolve_switch_subject:trim	-	1
 rust/tcl-compiler/src/static_loops/original_simulation.rs	scripts	strip_word_delimiters:trim	-	1
 rust/tcl-compiler/src/taint/callback_replay_source.rs	scripts	callback_replay_source:trim	-	2
@@ -232,6 +227,7 @@ rust/tcl-compiler/src/taint/word_taint.rs	scripts	word_taint_at:trim	-	1
 rust/tcl-compiler/src/taint/word_taint.rs	scripts	word_taint_step:trim	-	1
 rust/tcl-compiler/src/tcl_expr_eval.rs	scripts	parse_integer_operand_with_policy:trim	-	1
 rust/tcl-compiler/src/tcl_expr_eval/condition_facts.rs	elements	variable_name:contains	-	1
+rust/tcl-compiler/src/text.rs	encodings	edit_distance:chars	-	2
 rust/tcl-compiler/src/text.rs	encodings	scaled_max_distance:chars	-	1
 rust/tcl-compiler/src/text.rs	encodings	scaled_max_distance_strict:chars	-	1
 rust/tcl-compiler/src/type_infer/caller_safe_factories.rs	scripts	empty_source_class:trim	-	1
@@ -412,7 +408,6 @@ rust/tcl-registry/src/value_transfer/builtins.rs	encodings	evaluate_range:chars	
 rust/tcl-registry/src/value_transfer/reference_body.rs	scripts	expression_text:trim_start	-	1
 rust/tcl-registry/src/version.rs	scripts	requirement_lower_bound:trim	-	1
 rust/tcl-registry/src/version.rs	scripts	requirement_upper_bound:trim	-	1
-rust/tcl-registry/src/version.rs	scripts	satisfies_one:trim	-	1
 rust/tcl-spectcl/src/golden.rs	scripts	shipped_pack_dirs:trim	-	1
 rust/tcl-spectcl/src/loader/command/effect_rows.rs	scripts	option_relation_row:trim	-	1
 rust/tcl-spectcl/src/loader/notices.rs	encodings	quotable:chars	-	1

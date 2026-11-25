@@ -784,6 +784,7 @@ fn material_source_key(source: &str) -> &str {
         return source;
     };
     let path = uri.path().as_str();
+    // registry-axis-ok: irreducible — an RFC 8089 URI scheme, not a Tcl or registry name; until URI handling moves to the shared file-URI owner
     if uri.scheme().as_str().eq_ignore_ascii_case("file")
         && uri
             .authority()

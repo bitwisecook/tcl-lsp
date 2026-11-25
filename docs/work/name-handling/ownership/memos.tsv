@@ -107,7 +107,6 @@ rust/tcl-compiler/src/taint.rs	analysis-memo	arg_var_names:thread_local	-	1
 rust/tcl-compiler/src/taint.rs	analysis-memo	local_instance_classes_with_source:thread_local	-	1
 rust/tcl-compiler/src/tcl_expr_eval/services.rs	analysis-memo	NO_ENV:LazyLock	-	1
 rust/tcl-compiler/src/var_escape/helpers.rs	analysis-memo	SET:OnceLock	-	2
-rust/tcl-compiler/src/var_scoping.rs	analysis-memo	REGISTRY:OnceLock	-	1
 rust/tcl-compiler/src/word_subst/nested_words.rs	analysis-memo	RECENT_WORDS:thread_local	-	1
 rust/tcl-expr/src/expr/parser.rs	analysis-memo	CACHE:OnceLock	-	1
 rust/tcl-irules/src/executable.rs	analysis-memo	IrulesExecutableCommand:thread_local	-	1
