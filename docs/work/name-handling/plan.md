@@ -67,8 +67,11 @@ oracle, SpecTcl vocabulary, LSP document floor and MCP wire checks passed.
 The preceding checkpoint passed `prep-pr`, `test-jetbrains`, the focused
 compiler and package-provider tests, and the checked-edit regressions. The
 wider refactor run reproduced the same 55 failing tests on the baseline.
-The combined SCCP migration is rerunning the Rust and pre-push gates on the
-new upstream completion lattice.
+The combined SCCP and fixture-owner checkpoint passed `prep-pr`, workspace
+and runtime Clippy, and the offline X.509 tests. The drift batch found one
+upstream interpreter path using a fixed Tcl list grammar. It now reads the
+document grammar, and the focused drift check passed. The full gates are
+rerunning after the upstream diagnostic and conformance updates.
 
 **Status of every numbered item (25 November 2026).** The BIG-IP commits of 23 November (`bfc0ef87`–`9e479b96`) completed most of items 217–233. The fixes for #2142, #2227, #2228, #2249 and #2250 are already on `work` (an earlier "not on `work`" came from a shallow clone). Tags:
 
