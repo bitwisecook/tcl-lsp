@@ -227,6 +227,10 @@ impl W120Availability {
             original_available: std::collections::HashSet::new(),
         };
         for root in roots {
+            if matches!(root.key(), Key::Unknown) {
+                // There is no package identity to use for source advice.
+                continue;
+            }
             let version = root
                 .key()
                 .original()
@@ -296,6 +300,8 @@ impl W120Availability {
     /// Whether this availability set removes `d` — always `false` for anything
     /// that is not a W120.
     pub(in super::super) fn suppresses(&self, d: &tcl_compiler::analyser::Diagnostic) -> bool {
+        use tcl_registry::native_package::matches_package_descriptor;
+
         if d.code != DiagCode::W120 {
             return false;
         }
@@ -304,10 +310,15 @@ impl W120Availability {
         };
         self.unknowable
             || self.original_available.contains(package)
-            || self
-                .available
-                .iter()
-                .any(|available| package.matches_ascii(available))
+            || std::str::from_utf8(package.bytes()).is_ok_and(|descriptor| {
+                self.available
+                    .iter()
+                    .any(|available| matches_package_descriptor(available.as_bytes(), descriptor))
+                    || self.original_available.iter().any(|available| {
+                        available.policy() == package.policy()
+                            && matches_package_descriptor(available.bytes(), descriptor)
+                    })
+            })
     }
 }
 

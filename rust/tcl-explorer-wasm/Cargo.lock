@@ -969,6 +969,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "strsim"
+version = "0.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
+
+[[package]]
 name = "subtle"
 version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1011,6 +1017,7 @@ dependencies = [
 name = "tcl-bigip"
 version = "0.1.0"
 dependencies = [
+ "fluent-uri",
  "indexmap",
  "ipnet",
  "regex",
@@ -1078,12 +1085,14 @@ dependencies = [
  "num-traits",
  "regex",
  "rustc-hash",
+ "strsim",
  "tcl-bytecode",
  "tcl-cmd-core",
  "tcl-core-types",
  "tcl-dialect",
  "tcl-expr",
  "tcl-lexer",
+ "tcl-regex",
  "tcl-registry",
  "tcl-runtime-api",
  "tcl-syntax",
@@ -1177,6 +1186,7 @@ name = "tcl-host-native"
 version = "0.1.0"
 dependencies = [
  "nix",
+ "tcl-dialect",
  "tcl-host-c-abi",
  "tcl-platform",
 ]
@@ -1222,6 +1232,7 @@ dependencies = [
  "tcl-dialect",
  "tcl-irules",
  "tcl-lexer",
+ "tcl-platform",
  "tcl-regex",
  "tcl-registry",
  "tcl-sslictcl",
@@ -1336,6 +1347,7 @@ dependencies = [
  "sha2",
  "tcl-compiler",
  "tcl-core-types",
+ "tcl-dialect",
  "tcl-lexer",
  "tcl-syntax",
  "x509-parser",

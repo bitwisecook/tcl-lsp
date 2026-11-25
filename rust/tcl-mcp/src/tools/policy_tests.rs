@@ -60,6 +60,22 @@ fn has_code(diagnostics: &[Value], code: &str) -> bool {
     diagnostics.iter().any(|d| d["code"] == code)
 }
 
+#[test]
+fn diagnostic_and_fix_ranges_use_utf16_columns() {
+    let args = json!({
+        "source": "proc p {} { set s \"éé\"; return [expr {$s == \"x\"}] }",
+        "dialect": "tcl8.6",
+    });
+    let diagnostics = analyzed(&args, "");
+    let finding = diagnostics.iter().find(|d| d["code"] == "W110").unwrap();
+    let expected = json!({
+        "start": {"line": 0, "character": 41},
+        "end": {"line": 0, "character": 43},
+    });
+    assert_eq!(finding["range"], expected);
+    assert_eq!(finding["fixes"][0]["range"], expected);
+}
+
 /// `analyze`'s `suppressed` array under `global_ini`.
 fn analyze_suppressed(args: &Value, global_ini: &str) -> Vec<Value> {
     analyze_with(args, &inputs(args, "diagnostics", global_ini))["suppressed"]
@@ -754,7 +770,7 @@ fn code_actions_offer_a_shown_rewrite_as_a_quickfix() {
 // (`docs/design/compiler/diagnostic-policy.md` § The truth table).
 
 /// `analyze`'s `diagnostics` and `suppressed` arrays, as observations:
-/// `range` is 0-based (`byte_range`), so a line is `range.start.line`
+/// `range` is zero-based, so a line is `range.start.line`
 /// plus one; a gap's `range` is `null`, and a not-run entry is one
 /// observation per code it lists.
 fn observed_from_analyze(

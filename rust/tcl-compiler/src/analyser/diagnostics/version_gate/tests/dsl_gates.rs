@@ -359,6 +359,16 @@ fn a_prerelease_package_require_tcl_sets_its_release_floor() {
 }
 
 #[test]
+fn dsl_gates_preserve_older_alternative_package_require_versions() {
+    let source = "package require Tcl 9.0 8.6\nformat %llu 5\n";
+    assert!(
+        dsl_diags(source, "tcl8.6")
+            .iter()
+            .any(|(code, _)| code == "W138")
+    );
+}
+
+#[test]
 fn w200_binary_modifiers_follow_the_effective_version() {
     // TIP 275: binary format/scan u/s modifiers are 8.5+. The F5
     // trunk profiles all ride the fork of Tcl at 8.4.6 — measured,

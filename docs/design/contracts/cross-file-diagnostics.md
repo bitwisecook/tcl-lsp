@@ -172,7 +172,7 @@ claim it. Two mechanisms, at two levels.
 ### 1. `has_dynamic_providers` — the analyser's file-wide widening
 
 The Logical reporting analyser sets this when the document makes its
-reporting command set unknowable, and widens its W120/W123 advice:
+reporting command set unknowable and widens its W123 advice:
 
 - `load`, an `auto_path` mutation, a dynamic `package require` name;
 - `namespace unknown HANDLER` — the handler runs for every failed lookup and
@@ -186,6 +186,11 @@ reporting command set unknowable, and widens its W120/W123 advice:
   a package missing that the moved command loads, the server widens. The test
   is the registry trait, so no command name appears in the analyser and a
   dialect that adds another file-loading command is covered by declaring it.
+
+An unnameable `package require` leaves W120 available for unrelated package
+metadata. The other unresolved provider effects listed above can also widen
+W120. Registry package-descriptor aliases such as `itcl` and `Itcl` match for
+W120 and H301 source advice. Package lookup retains the exact Tcl package key.
 
 The Logical unresolved-site inventory is empty in these
 states, and when the document has any `package require`, and when a user

@@ -140,7 +140,7 @@ impl CodegenCtx<'_> {
         if self.is_proc {
             self.cmd_index += 1;
         }
-        match fold_const_branch(cond) {
+        match fold_const_branch(cond, self.numbers) {
             Some(true) => {
                 if Some(true_target) != next_block {
                     self.emit_comment(

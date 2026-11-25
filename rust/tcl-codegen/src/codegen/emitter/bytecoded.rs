@@ -1532,26 +1532,13 @@ pub(in crate::codegen) fn try_expanded_tailcall(
 // concat
 
 /// `concat ?arg ...?` — const-fold when every argument is a plain literal
-/// (trim each, drop the empties, join with a single space — mirroring
-/// `tcl_registry::literal_folds::fold_concat` and C Tcl's literal `concat`
-/// folding); otherwise push each word and emit `concatStk N`. No arguments
-/// yields the empty result. Arguments carrying a substitution (`$`/`[`) or a
-/// backslash escape are not folded — they take the `concatStk` path, which
-/// substitutes correctly.
+/// through the shared `concat` grammar. Otherwise push each word and emit
+/// `concatStk N`. No arguments yields the empty result. A substitution
+/// (`$`/`[`) or a backslash escape takes the runtime path.
 fn concat_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
-    if args.is_empty() {
-        ctx.push_lit("");
-        ctx.emit(Op::POP, vec![]);
-        return true;
-    }
-    let foldable = args.iter().all(|a| !a.contains(['$', '[', '\\']));
-    if foldable {
-        let folded = args
-            .iter()
-            .map(|a| a.trim())
-            .filter(|s| !s.is_empty())
-            .collect::<Vec<_>>()
-            .join(" ");
+    if args.iter().all(|a| !a.contains(['$', '[', '\\'])) {
+        let words = args.iter().map(String::as_str).collect::<Vec<_>>();
+        let folded = tcl_cmd_core::literal_value::fold_concat(&words);
         ctx.push_lit(&folded);
         ctx.emit(Op::POP, vec![]);
         return true;

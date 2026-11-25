@@ -31,27 +31,7 @@
 use tcl_dialect::model::{Family, Release, grammar};
 use tcl_lexer::{Lexer, LexerConfig, SourceMap, Token, TokenType};
 
-/// Decode the vector file's `\n` / `\t` / `\\` escapes.
-fn unescape(field: &str) -> String {
-    let mut out = String::with_capacity(field.len());
-    let mut chars = field.chars();
-    while let Some(ch) = chars.next() {
-        if ch != '\\' {
-            out.push(ch);
-            continue;
-        }
-        match chars.next() {
-            Some('n') => out.push('\n'),
-            Some('t') => out.push('\t'),
-            Some('\\') | None => out.push('\\'),
-            Some(other) => {
-                out.push('\\');
-                out.push(other);
-            }
-        }
-    }
-    out
-}
+use tcl_test_support::fixture::decode_escaped_field;
 
 /// One expectation column: an accepted word rendering, or the first
 /// diagnostic's message text.
@@ -64,7 +44,7 @@ enum Expectation {
 
 fn parse_expectation(field: &str) -> Expectation {
     if let Some(rest) = field.strip_prefix("OK=") {
-        Expectation::Ok(unescape(rest))
+        Expectation::Ok(decode_escaped_field(rest).into_owned())
     } else if let Some(rest) = field.strip_prefix("ERR=") {
         Expectation::Err(rest.to_owned())
     } else {
@@ -191,7 +171,7 @@ fn f5_trunk_vectors_hold_under_both_grammars() {
             "line {}: rows are `source | f5 | tcl8.4`",
             line_number + 1
         );
-        let source = unescape(fields[0]);
+        let source = decode_escaped_field(fields[0]);
         let f5_expected = parse_expectation(fields[1]);
         let stock_expected = parse_expectation(fields[2]);
         check(

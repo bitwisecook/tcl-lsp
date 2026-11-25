@@ -226,6 +226,7 @@ impl Analyser {
                 .extend(names);
         }
         self.result.has_dynamic_providers |= r.has_dynamic_providers;
+        self.result.has_unresolved_provider_effects |= r.has_unresolved_provider_effects;
         if self.result.unknown_proc_info.is_none() {
             self.result.unknown_proc_info = r.unknown_proc_info;
         }

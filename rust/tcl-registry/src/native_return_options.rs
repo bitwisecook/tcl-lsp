@@ -184,12 +184,8 @@ impl crate::InvocationDialect {
     /// Completion-code and return-option behavior of the actual original objects.
     #[must_use]
     pub fn return_options_protocol(self) -> Option<ReturnOptionsProtocol> {
-        Some(match self.native_string_protocol()? {
-            NativeStringProtocol::Jim084 => ReturnOptionsProtocol::Jim084,
-            NativeStringProtocol::C(TclVersion::V8_4) => ReturnOptionsProtocol::Tcl84,
-            NativeStringProtocol::C(TclVersion::V8_5) => ReturnOptionsProtocol::Tcl85,
-            NativeStringProtocol::C(_) => ReturnOptionsProtocol::Tcl86Plus,
-        })
+        self.native_string_protocol()
+            .map(ReturnOptionsProtocol::for_native_strings)
     }
 
     /// Select an explicit logical provider independently of actual native proof.

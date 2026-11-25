@@ -66,6 +66,7 @@ TCL_FILE_EXTENSIONS = {
     "itcl",
     "tm",
     "test",
+    "itk",
     "exp",
     "expect",
     "scf",

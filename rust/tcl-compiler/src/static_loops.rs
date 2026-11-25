@@ -49,8 +49,8 @@ mod original_simulation;
 pub use original_simulation::{
     StaticExpressionObligation, StaticIncrementObligation, StaticLoopAnalysis, StaticLoopSummary,
     analyse_for_statement_with_dependencies, evaluate_expr_with_constants,
-    evaluate_expr_with_constants_and_math_bindings, parse_literal_value,
-    summarise_for_statement_with_dependencies, summarise_for_statement_with_math_bindings,
+    evaluate_expr_with_constants_and_math_bindings, summarise_for_statement_with_dependencies,
+    summarise_for_statement_with_math_bindings,
 };
 pub(crate) use original_simulation::{
     StaticLoopSource, analyse_for_statement_with_source_dependencies,

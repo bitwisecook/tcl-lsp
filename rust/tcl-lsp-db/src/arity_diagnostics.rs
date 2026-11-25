@@ -79,6 +79,7 @@ fn cross_file_arity_diagnostic(
     };
     Some(Diagnostic {
         subject: None,
+        signed_data_group_comparison: None,
         code,
         span,
         message,
@@ -110,6 +111,7 @@ fn callback_exact_arity_diagnostic(
     }
     Some(Diagnostic {
         subject: None,
+        signed_data_group_comparison: None,
         code: DiagCode::E005,
         span,
         message: format!(

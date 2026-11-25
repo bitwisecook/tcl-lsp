@@ -174,11 +174,7 @@ pub fn extract_proc_rename_command_for_analysis(
 ) -> Option<ActionCommand> {
     crate::original_context::CurrentSourceContext::capture(source, analysis)?;
     let input = analysis.resolved_input.as_ref()?;
-    if refactoring.disabled.is_some()
-        || refactoring.edits.iter().any(|edit| {
-            edit.start > edit.end || source.get(edit.start as usize..edit.end as usize).is_none()
-        })
-    {
+    if refactoring.disabled.is_some() {
         return None;
     }
     let insertion = refactoring
@@ -193,7 +189,7 @@ pub fn extract_proc_rename_command_for_analysis(
     {
         return None;
     }
-    let after = refactoring.apply(source);
+    let after = refactoring.try_apply(source).ok()?;
     let mut analyser = tcl_compiler::analyser::Analyser::new().with_resolved_input(input.clone());
     let generated = analyser.analyse(&after, "tcl");
     crate::original_context::CurrentSourceContext::capture(&after, &generated)?;

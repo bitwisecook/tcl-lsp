@@ -27,33 +27,26 @@ fn w210_uses_registry_owned_startup_lifecycle_facts() {
     // default global gains W210 coverage automatically; the registry's own
     // exact fixture guards the release-by-release inventory.
     for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-        let source: String = tcl_registry::special_vars::special_vars_for_dialect(Some(
-            tcl_registry::special_vars::surface_query_for_profile(Some(
-                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
-            )),
-        ))
-        .filter(|spec| {
-            tcl_registry::special_vars::is_readable_at_startup(
-                spec.name,
-                Some(tcl_registry::special_vars::surface_query_for_profile(Some(
-                    tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
-                ))),
-            )
-        })
-        .filter_map(|spec| match spec.kind {
-            tcl_registry::special_vars::SpecialVarKind::Scalar => {
-                Some(format!("puts ${}\n", spec.name))
-            }
-            // Array elements are normalised to their registry-owned base
-            // by the SSA model.  The synthetic key need not exist at
-            // runtime; the assertion is specifically about W210's entry
-            // binding knowledge, not an array-key value claim.
-            tcl_registry::special_vars::SpecialVarKind::Array => {
-                Some(format!("puts ${}(__tcl_lsp_startup_probe__)\n", spec.name))
-            }
-            tcl_registry::special_vars::SpecialVarKind::Namespace => None,
-        })
-        .collect();
+        let context = tcl_registry::model::ingress::static_context_for(dialect);
+        let registry = context.commands();
+        let query = Some(context.context().authoring_query());
+        let source: String = registry
+            .special_vars_for_dialect(query)
+            .filter(|spec| registry.startup_existence(spec.name, query).readable())
+            .filter_map(|spec| match spec.kind {
+                tcl_registry::special_vars::SpecialVarKind::Scalar => {
+                    Some(format!("puts ${}\n", spec.name))
+                }
+                // Array elements are normalised to their registry-owned base
+                // by the SSA model.  The synthetic key need not exist at
+                // runtime; the assertion is specifically about W210's entry
+                // binding knowledge, not an array-key value claim.
+                tcl_registry::special_vars::SpecialVarKind::Array => {
+                    Some(format!("puts ${}(__tcl_lsp_startup_probe__)\n", spec.name))
+                }
+                tcl_registry::special_vars::SpecialVarKind::Namespace => None,
+            })
+            .collect();
         let result = Analyser::new().analyse(&source, dialect);
         assert!(
             !result.diagnostics.iter().any(|d| d.code == DiagCode::W210),

@@ -27,7 +27,7 @@ use tcl_registry::Traits;
 use tcl_syntax::naming::AuthoredCompactNameSequence;
 
 use super::symbol_map::SymbolMap;
-use super::{Edit, MinifyEnv, apply_edits, lexical_keywords, lexical_metadata, original};
+use super::{MinifyEnv, SourceEdit, apply_edits, lexical_keywords, lexical_metadata, original};
 
 // Aggressive-tier aliasing (command / argument / string-literal)
 
@@ -307,17 +307,22 @@ pub(super) fn alias_by_uses(
     if aliases.is_empty() {
         return (source.to_owned(), BTreeMap::new());
     }
-    let mut edits: Vec<Edit> = Vec::new();
+    let mut edits: Vec<SourceEdit> = Vec::new();
     let mut preamble = String::new();
     let mut map = BTreeMap::new();
     for (name, alias, spelling) in &aliases {
         preamble.push_str(&spelling.assignment);
         for &off in &uses[name] {
-            edits.push((off, name.len(), spelling.reference.clone()));
+            edits.push(SourceEdit {
+                span: off..off + name.len(),
+                text: spelling.reference.clone(),
+            });
         }
         map.insert(name.clone(), alias.clone());
     }
-    let body = apply_edits(source, edits);
+    let Ok(body) = apply_edits(source, &edits) else {
+        return (source.to_owned(), BTreeMap::new());
+    };
     (format!("{preamble}{body}"), map)
 }
 
@@ -523,8 +528,8 @@ pub(super) fn alias_string_literals(
 
     let mut names = AuthoredCompactNameSequence::new(input.lexer_config());
     let mut claimed_bytes: HashSet<usize> = HashSet::new();
-    let mut aliases: Vec<(String, String, Vec<Edit>)> = Vec::new();
-    for (_, sub, offsets) in scored {
+    let mut aliases: Vec<(String, String, Vec<SourceEdit>)> = Vec::new();
+    for (_, sub, mut offsets) in scored {
         let Ok(sub_string) = std::str::from_utf8(&sub) else {
             continue;
         };
@@ -536,11 +541,15 @@ pub(super) fn alias_string_literals(
         {
             continue;
         }
-        let free: Vec<usize> = offsets
-            .iter()
-            .copied()
-            .filter(|&off| !(off..off + sub.len()).any(|p| claimed_bytes.contains(&p)))
-            .collect();
+        offsets.sort_unstable();
+        let mut free = Vec::new();
+        let mut end = 0;
+        for off in offsets {
+            if off >= end && !(off..off + sub.len()).any(|p| claimed_bytes.contains(&p)) {
+                free.push(off);
+                end = off + sub.len();
+            }
+        }
         if free.len() < 2 {
             continue;
         }
@@ -560,13 +569,17 @@ pub(super) fn alias_string_literals(
                 })?;
                 let replacement =
                     alias_string_reference(source, fragment, off, end, &alias, sub_string)?;
-                Some((off, sub.len(), replacement))
+                Some(SourceEdit {
+                    span: off..end,
+                    text: replacement,
+                })
             })
             .collect::<Option<Vec<_>>>();
         let Some(proposals) = proposals else {
             continue;
         };
-        let aliased_cost = preamble_cost + proposals.iter().map(|edit| edit.2.len()).sum::<usize>();
+        let aliased_cost =
+            preamble_cost + proposals.iter().map(|edit| edit.text.len()).sum::<usize>();
         if aliased_cost >= original_cost {
             continue;
         }
@@ -584,14 +597,16 @@ pub(super) fn alias_string_literals(
 
     // Step 7: build preamble + edits.
     let mut preamble = String::new();
-    let mut edits: Vec<Edit> = Vec::new();
+    let mut edits: Vec<SourceEdit> = Vec::new();
     let mut map = BTreeMap::new();
     for (sub, alias, proposals) in aliases {
         let _ = writeln!(preamble, "set {alias} {{{sub}}}");
         edits.extend(proposals);
         map.insert(sub, alias);
     }
-    let body = apply_edits(source, edits);
+    let Ok(body) = apply_edits(source, &edits) else {
+        return (source.to_owned(), BTreeMap::new());
+    };
     (format!("{preamble}{body}"), map)
 }
 

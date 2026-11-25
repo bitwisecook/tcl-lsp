@@ -105,8 +105,6 @@ pub(in crate::analyser::diagnostics) use dataflow::{body_references_param, find_
 #[cfg(test)]
 pub(in crate::analyser::diagnostics) use helpers::find_dotted_quads;
 #[cfg(test)]
-pub(in crate::analyser::diagnostics) use security::has_redos_shape;
-#[cfg(test)]
 pub(in crate::analyser::diagnostics) use usage::{
     first_nested_expr, is_benign_unicode, is_valid_subnet_mask, looks_like_subnet_mask,
     nearest_valid_mask,
@@ -1912,5 +1910,5 @@ pub(crate) fn writes_externally_read_special_variable(
     dialect: Option<tcl_dialect::model::SurfaceQuery<'_>>,
 ) -> bool {
     helpers::special_variable_definition(fu, definition, cell, registry)
-        .is_some_and(|simple| tcl_registry::special_vars::is_externally_read(&simple, dialect))
+        .is_some_and(|simple| registry.is_externally_read(&simple, dialect))
 }

@@ -25,6 +25,7 @@
 //! dynamic; an omitted descriptor therefore resolves to the deliberately
 //! conservative [`CompletionDescriptor::CONSERVATIVE`].
 
+use tcl_cmd_core::return_options::ReturnOptionsProtocol;
 pub use tcl_core_types::Code as CompletionCode;
 
 /// Parse Tcl's integer completion-code spelling and apply its C-compatible
@@ -33,13 +34,16 @@ pub use tcl_core_types::Code as CompletionCode;
 /// Values outside that range, including integers beyond Tcl's wide parser,
 /// are not valid completion-code selectors.
 #[must_use]
-#[allow(clippy::cast_possible_truncation)] // Intentional Tcl UINT_MAX → signed-code wrap.
 pub fn canonical_completion_code(value: &str, numbers: tcl_syntax::number::Numbers) -> Option<i32> {
-    let value = numbers.parse_wide(value)?;
-    if value < i64::from(i32::MIN) || value > i64::from(u32::MAX) {
-        return None;
-    }
-    Some(value as i32)
+    tcl_cmd_core::return_options::completion_code_integer(value, numbers)
+}
+
+/// Map the five standard Tcl completion-code names.
+#[must_use]
+pub fn standard_completion_code(value: &str) -> Option<CompletionCode> {
+    ReturnOptionsProtocol::Tcl86Plus
+        .named_completion_code(value.as_bytes())
+        .map(CompletionCode::from_int)
 }
 
 /// Map a Tcl completion-code *selector* to its code.
@@ -52,14 +56,8 @@ pub fn completion_code_selector(
     value: &str,
     numbers: tcl_syntax::number::Numbers,
 ) -> Option<CompletionCode> {
-    match value {
-        "ok" => Some(CompletionCode::Ok),
-        "error" => Some(CompletionCode::Error),
-        "return" => Some(CompletionCode::Return),
-        "break" => Some(CompletionCode::Break),
-        "continue" => Some(CompletionCode::Continue),
-        value => canonical_completion_code(value, numbers).map(CompletionCode::from_int),
-    }
+    standard_completion_code(value)
+        .or_else(|| canonical_completion_code(value, numbers).map(CompletionCode::from_int))
 }
 
 /// Native numeric and named completion-selector conversion.
@@ -131,20 +129,20 @@ pub fn resolve_completion_code_selector(
     policy: CompletionCodePolicy,
 ) -> CompletionCodeSelection {
     use CompletionCodeSelection::{Exact, Invalid, Unknown};
-    let named = match value {
-        "ok" => Some(CompletionCode::Ok),
-        "error" => Some(CompletionCode::Error),
-        "return" => Some(CompletionCode::Return),
-        "break" => Some(CompletionCode::Break),
-        "continue" => Some(CompletionCode::Continue),
-        "signal" | "exit" | "eval" if policy == CompletionCodePolicy::Unknown => return Unknown,
-        "signal" if policy == CompletionCodePolicy::Jim => Some(CompletionCode::Other(5)),
-        "exit" if policy == CompletionCodePolicy::Jim => Some(CompletionCode::Other(6)),
-        "eval" if policy == CompletionCodePolicy::Jim => Some(CompletionCode::Other(7)),
-        _ => None,
-    };
-    if let Some(code) = named {
+    let spelling = value.as_bytes();
+    if let Some(code) = standard_completion_code(value) {
         return Exact(code);
+    }
+    if matches!(
+        policy,
+        CompletionCodePolicy::Jim | CompletionCodePolicy::Unknown
+    ) && let Some(code) = ReturnOptionsProtocol::Jim084.named_completion_code(spelling)
+    {
+        return if policy == CompletionCodePolicy::Jim {
+            Exact(CompletionCode::from_int(code))
+        } else {
+            Unknown
+        };
     }
     let Some(number) = numbers.parse_wide(value) else {
         return match numbers.parse_whole(value) {
@@ -175,10 +173,9 @@ pub fn resolve_completion_code_selector(
             Invalid
         };
     }
-    let bytes = number.to_le_bytes();
-    Exact(CompletionCode::from_int(i32::from_le_bytes([
-        bytes[0], bytes[1], bytes[2], bytes[3],
-    ])))
+    Exact(CompletionCode::from_int(
+        tcl_syntax::number::native_int32_low_bits(number),
+    ))
 }
 
 /// The statically possible Tcl completion codes for an invocation.

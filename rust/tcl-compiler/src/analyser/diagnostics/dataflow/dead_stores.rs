@@ -109,9 +109,7 @@ fn dead_store_has_visible_or_synthetic_effects(
     // when the script never reads them back, so ``set auto_path …`` is
     // not a dead store.  Dialect-aware: the iRules set differs.
     if super::super::helpers::special_variable_definition(fu, definition, cell_name, registry)
-        .is_some_and(|simple| {
-            tcl_registry::special_vars::is_externally_read(&simple, visibility.dialect)
-        })
+        .is_some_and(|simple| registry.is_externally_read(&simple, visibility.dialect))
     {
         return true;
     }
@@ -479,10 +477,8 @@ impl Analyser {
                 || cross_event_vars.contains(base)
                 || super::super::helpers::special_variable_definition_at_span(fu, span, registry)
                     .is_some_and(|simple| {
-                        tcl_registry::special_vars::is_externally_read(
-                            &simple,
-                            Some(context.context().authoring_query()),
-                        )
+                        registry
+                            .is_externally_read(&simple, Some(context.context().authoring_query()))
                     })
                 || self
                     .result

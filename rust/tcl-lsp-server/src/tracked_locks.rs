@@ -397,11 +397,13 @@ impl<T> TrackedMutex<T> {
                 publication_advanced.await;
                 continue;
             }
-            let value = self.lock().await;
-            if let Ok(snapshot) = self.snapshots.try_track(value.clone(), site) {
+            let snapshot = {
+                let value = self.lock().await;
+                self.snapshots.try_track(value.clone(), site)
+            };
+            if let Ok(snapshot) = snapshot {
                 return snapshot;
             }
-            drop(value);
             publication_advanced.await;
         }
     }

@@ -104,7 +104,7 @@ mod tests {
     fn assert_refused_unchanged(source: &str, action: &Refactoring) {
         assert_eq!(action.title, "Brace expr for safety and performance");
         assert_eq!(action.edits, [] as [RefactorEdit; 0]);
-        assert_eq!(action.apply(source), source);
+        assert_eq!(action.try_apply(source).unwrap(), source);
         assert!(action.disabled.as_deref().is_some_and(|reason| {
             reason.starts_with("missing-expression-evaluation-equivalence:")
         }));
@@ -193,7 +193,7 @@ mod original_tests {
                 "{profile}: {:?}",
                 action.disabled
             );
-            assert_eq!(action.apply(source), "expr {1 + 2}");
+            assert_eq!(action.try_apply(source).unwrap(), "expr {1 + 2}");
             assert!(brace_expr("# changed\nexpr \"1 + 2\"", 0, &analysis).is_none());
         }
         for source in ["expr \"$value + 2\"", "expr 1 + 2", "expr \"abs(1)\""] {

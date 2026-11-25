@@ -309,6 +309,7 @@ name = "tcl-host-native"
 version = "0.1.0"
 dependencies = [
  "nix",
+ "tcl-dialect",
  "tcl-host-c-abi",
  "tcl-platform",
 ]
@@ -365,6 +366,8 @@ dependencies = [
 name = "tcl-runtime"
 version = "0.1.0"
 dependencies = [
+ "adler2",
+ "crc32fast",
  "flate2",
  "tcl-bytecode",
  "tcl-cmd-core",

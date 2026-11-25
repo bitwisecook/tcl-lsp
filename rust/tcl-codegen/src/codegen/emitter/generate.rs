@@ -32,6 +32,7 @@ use tcl_compiler::cfg::BodyErrorContext;
 
 use tcl_compiler::cfg::{Function as CfgFunction, Terminator};
 use tcl_compiler::ir::Statement;
+use tcl_dialect::NumberSyntax;
 
 use super::super::CodegenCtx;
 use super::super::layout::{optimise_jumps, resolve_layout};
@@ -686,7 +687,7 @@ fn emit_block_terminator_inner(
         // the compile epoch; the first body command then shares that marker.
         // Top-level emission always emits the marker; later peepholes remove
         // it when the unit has no generic invocation.
-        if let Some((true_target, join)) = constant_true_if(cfg, term) {
+        if let Some((true_target, join)) = constant_true_if(cfg, term, ctx.numbers) {
             if ctx.is_proc {
                 state
                     .first_command_covered_by_if
@@ -915,6 +916,7 @@ fn emit_block(
 fn constant_true_if(
     cfg: &CfgFunction,
     term: &Terminator,
+    numbers: NumberSyntax,
 ) -> Option<(tcl_compiler::cfg::BlockId, tcl_compiler::cfg::BlockId)> {
     let Terminator::Branch {
         condition,
@@ -924,7 +926,7 @@ fn constant_true_if(
     else {
         return None;
     };
-    if ordering::fold_const_branch(condition) != Some(true) {
+    if ordering::fold_const_branch(condition, numbers) != Some(true) {
         return None;
     }
     let Some(Terminator::Goto { target: join, .. }) = &cfg.blocks.get(true_target)?.terminator
@@ -962,7 +964,7 @@ fn open_branch_command(
     let join_name = cfg.block_name(*join);
     if ctx.cmd_index == 0
         || !state.laid_out.contains(join_name)
-        || constant_true_if(cfg, term).is_some()
+        || constant_true_if(cfg, term, ctx.numbers).is_some()
         || !state.opened_branch_commands.insert(bname.to_owned())
     {
         return;
@@ -1422,7 +1424,7 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction) -> FunctionAsm {
         // The retained compiler traversal ends at this rejection. Required
         // transforms and later source instructions never run at that entry;
         // its original prefix dependencies and unknown presentation remain.
-        let block_order = linearise(cfg);
+        let block_order = linearise(cfg, ctx.numbers);
         let loop_ctx = ordering::build_loop_context(cfg);
         return finalize_function(ctx, cfg, &block_order, &loop_ctx);
     }
@@ -1432,7 +1434,7 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction) -> FunctionAsm {
             ctx.require_command_site(site);
         }
     }
-    let block_order = linearise(cfg);
+    let block_order = linearise(cfg, ctx.numbers);
     let mut loop_ctx = ordering::build_loop_context(cfg);
     let mut state = GenerateState::new();
     state.laid_out = block_order.iter().cloned().collect();
@@ -1559,7 +1561,7 @@ fn intern_dead_compiled_locals(
                 .and_then(|span| cfg.condition_owners.get(&span))
                 .is_some_and(|owner| owner.skips_constant_dead_script) =>
             {
-                match ordering::fold_const_branch(condition) {
+                match ordering::fold_const_branch(condition, ctx.numbers) {
                     Some(true) => vec![*true_target],
                     Some(false) => vec![*false_target],
                     None => vec![*true_target, *false_target],

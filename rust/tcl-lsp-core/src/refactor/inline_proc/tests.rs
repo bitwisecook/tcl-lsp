@@ -83,7 +83,7 @@ fn outcome_for(
     let refactoring = at_dialect(src, needle, dialect).expect("a call to inline");
     match &refactoring.disabled {
         Some(reason) => Err(reason.clone()),
-        None => Ok(refactoring.apply(src)),
+        None => Ok(refactoring.try_apply(src).unwrap()),
     }
 }
 

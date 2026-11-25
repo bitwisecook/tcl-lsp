@@ -574,40 +574,6 @@ impl Analyser {
     }
 }
 
-/// True when `pattern` contains a catastrophic-backtracking shape: a
-/// nested quantifier (`…+)+`, `…*)*`, `…+){`) or an overlapping
-/// alternation (`(…|…)` immediately followed by `+` / `*` / `{`).
-pub(super) fn has_redos_shape(pattern: &str) -> bool {
-    let bytes = pattern.as_bytes();
-    let quant = |b: Option<&u8>| matches!(b, Some(b'+' | b'*' | b'{'));
-    // Nested quantifier: `<+|*> ) <+|*|{>`.
-    for i in 0..bytes.len() {
-        if matches!(bytes[i], b'+' | b'*')
-            && bytes.get(i + 1) == Some(&b')')
-            && quant(bytes.get(i + 2))
-        {
-            return true;
-        }
-    }
-    // Overlapping alternation: `( [^)]* | [^)]* ) <+|*|{>`.
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'(' {
-            let mut j = i + 1;
-            let mut has_pipe = false;
-            while j < bytes.len() && bytes[j] != b')' {
-                has_pipe |= bytes[j] == b'|';
-                j += 1;
-            }
-            if j < bytes.len() && has_pipe && quant(bytes.get(j + 1)) {
-                return true;
-            }
-        }
-        i += 1;
-    }
-    false
-}
-
 /// Turn a synopsis placeholder into the variable name a quick-fix inserts.
 ///
 /// Synopsis placeholders name a *role*, in Tcl manual-page style: the word

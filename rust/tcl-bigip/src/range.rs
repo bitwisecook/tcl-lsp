@@ -85,7 +85,7 @@ impl Range {
 }
 
 /// Resolve a byte offset to a [`Position`] via the line index (UTF-16 column).
-fn position_at(source: &str, line_index: &LineIndex, offset: usize) -> Position {
+pub(crate) fn position_at(source: &str, line_index: &LineIndex, offset: usize) -> Position {
     let off = u32::try_from(offset).unwrap_or(u32::MAX);
     let sp = line_index.position_at_utf16(off, source);
     // The `offset` field is a code-point index, not a byte offset — count

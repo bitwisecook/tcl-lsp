@@ -21,6 +21,7 @@
 use std::path::{Path, PathBuf};
 
 use tcl_registry::dialects::TCL_SOURCE_EXTENSIONS;
+pub(in super::super) use tcl_registry::dialects::{is_skipped_scan_dir, is_tcl_source};
 
 use crate::vfs;
 
@@ -40,60 +41,6 @@ pub(in super::super) const WORKSPACE_SCAN_FILE_CAP: usize = 2000;
 /// Upper bound on the number of directories the package-database tree scan
 /// visits per workspace root, so a huge tree can't stall the package scan.
 pub(in super::super) const WORKSPACE_SCAN_DIR_CAP: usize = 4000;
-
-/// `true` when `path` names a directory the workspace scan should
-/// not descend into: hidden directories (dot-prefixed) and the
-/// common vendor / build / scratch trees that never hold
-/// first-party Tcl sources worth indexing.
-pub(in super::super) fn is_skipped_scan_dir(path: &Path) -> bool {
-    match path.file_name().and_then(|n| n.to_str()) {
-        Some(name) => name.starts_with('.') || matches!(name, "node_modules" | "target" | "tmp"),
-        // No representable file name (e.g. `..`): skip to be safe.
-        None => true,
-    }
-}
-
-/// `true` when `path` has a Tcl-family source extension the analyser
-/// can usefully index, so the startup workspace scan picks
-/// up unopened files — otherwise cross-document definition /
-/// references / rename / call-hierarchy / workspace-symbols miss
-/// definitions that live in `.itcl`/`.irule`/`.iapp`/… files until they
-/// are opened.
-///
-/// The extension is compared case-insensitively, matching every other
-/// extension test in the server (`tcl_registry::dialects`'
-/// `dialect_from_extension`, `core_bigip::is_bigip_conf_uri`, the APL source
-/// check), so an `UPPER.TCL` is visible to the workspace scan, the
-/// watched-file filter, and the rename filter as well as to an explicit open.
-/// Extensions the *loaded packs* claim, on top of the static set — so a pack
-/// declaring `file_extension irulex` makes closed `.irulex` files indexable,
-/// not merely analysable once opened.
-///
-/// Read live rather than cached: the pack set reloads while the server runs,
-/// and this predicate is asked on every scanned path *after* a reload as well
-/// as before it.
-///
-/// Deliberately the registry's allocation-free entry point rather than its
-/// list form. `is_tcl_source` is called once per path by the workspace scan,
-/// and that scan runs on every configuration change — building and sorting a
-/// `Vec<String>` per file there would put an allocation and a sort on the hot
-/// path of the very thing whose latency the liveness probe watches. The
-/// no-packs case, which is every session that loads none, returns on a single
-/// map check.
-fn is_pack_source_extension(ext: &str) -> bool {
-    tcl_registry::dialects::is_pack_source_extension(ext)
-}
-
-pub(in super::super) fn is_tcl_source(path: &Path) -> bool {
-    path.extension()
-        .and_then(|e| e.to_str())
-        .is_some_and(|ext| {
-            TCL_SOURCE_EXTENSIONS
-                .iter()
-                .any(|known| known.eq_ignore_ascii_case(ext))
-                || is_pack_source_extension(ext)
-        })
-}
 
 /// The `**/*.{…}` glob naming exactly [`TCL_SOURCE_EXTENSIONS`], for the
 /// LSP registrations that take a glob rather than a predicate.

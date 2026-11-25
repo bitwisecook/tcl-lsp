@@ -1807,9 +1807,6 @@ function openIssue(): void {
 }
 
 // Package import
-/** The extensions a Tcl library is written in — what a directory pass keeps. */
-const TCL_EXTENSIONS = [".tcl", ".tm", ".test", ".itcl", ".itk"];
-
 /**
  * Read a chosen set of files and infer a spec for every `proc` in them.
  *
@@ -1824,13 +1821,14 @@ function readFiles(fileList: FileList | null, opts: { directory?: boolean } = {}
   if (!files.length) return;
   const total = files.length;
   if (opts.directory) {
-    files = files.filter((file) =>
-      TCL_EXTENSIONS.some((ext) => file.name.toLowerCase().endsWith(ext)),
-    );
+    files = files.filter((file) => {
+      const path = file.webkitRelativePath;
+      return wasm.is_import_source(path ? path.slice(path.indexOf("/") + 1) : file.name);
+    });
     if (!files.length) {
       setStatus(
         "importStatus",
-        `no Tcl sources in that directory (looked at ${total} file(s) for ${TCL_EXTENSIONS.join(", ")})`,
+        `no Tcl sources in that directory (looked at ${total} file(s))`,
         "err",
       );
       return;

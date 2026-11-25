@@ -421,7 +421,7 @@ impl Analyser {
                     .contains(tcl_registry::Traits::LOADS_EXTERNAL_UNIT)
             })
         {
-            self.result.has_dynamic_providers = true;
+            self.result.record_unresolved_provider_effect();
         }
     }
 }

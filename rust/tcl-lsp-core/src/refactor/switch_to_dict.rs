@@ -302,7 +302,7 @@ mod tests {
     #[test]
     fn proposed_mapping_names_use_complete_shared_literal_and_reference_construction() {
         let source = "switch -exact -- $x {a {set {output name} one} b {set {output name} two}}";
-        let proposed = run(source, 0).unwrap().apply(source);
+        let proposed = run(source, 0).unwrap().try_apply(source).unwrap();
         assert_eq!(
             proposed,
             "set {output name_map} [dict create a one b two]\nset {output name} [dict get ${output name_map} $x]"
@@ -317,7 +317,7 @@ mod tests {
         let source = "switch -exact -- $method {\n    GET { set handler handle_get }\n    POST { set handler handle_post }\n    PUT { set handler handle_put }\n}";
         let r = run(source, 0).expect("result");
         assert!(r.title.to_lowercase().contains("dict"));
-        let applied = r.apply(source);
+        let applied = r.try_apply(source).unwrap();
         // The genuine subject retains its original source spelling.
         assert_eq!(
             applied,
@@ -330,7 +330,7 @@ mod tests {
     #[test]
     fn return_pattern() {
         let source = "switch -exact -- $code {\n    200 { return \"OK\" }\n    404 { return \"Not Found\" }\n    500 { return \"Server Error\" }\n}";
-        let applied = run(source, 0).expect("result").apply(source);
+        let applied = run(source, 0).expect("result").try_apply(source).unwrap();
         assert!(applied.contains("dict create"), "{applied:?}");
     }
 
@@ -354,7 +354,7 @@ mod tests {
     #[test]
     fn rewrite_covers_entire_switch_command() {
         let source = "switch -exact -- $m {\n    a { set out 1 }\n    b { set out 2 }\n    c { set out 3 }\n}";
-        let applied = run(source, 0).expect("result").apply(source);
+        let applied = run(source, 0).expect("result").try_apply(source).unwrap();
         let applied = applied.trim();
         assert!(applied.ends_with(']'), "{applied:?}");
         assert!(!applied.ends_with("]}"), "{applied:?}");
@@ -364,7 +364,7 @@ mod tests {
     fn indented_switch_does_not_double_indent_first_line() {
         let source = "    switch -exact -- $method {\n        GET { set handler get_h }\n        POST { set handler post_h }\n        PUT { set handler put_h }\n    }";
         // Cursor at col 4 (offset 4) — on the `switch` keyword.
-        let applied = run(source, 4).expect("result").apply(source);
+        let applied = run(source, 4).expect("result").try_apply(source).unwrap();
         let first_line = applied.split('\n').next().unwrap();
         assert!(first_line.starts_with("    set "), "{first_line:?}");
         assert!(!first_line.starts_with("        set "), "{first_line:?}");
@@ -409,7 +409,8 @@ mod tests {
             assert_eq!(result.edits.len(), 1);
             assert!(
                 result
-                    .apply(&source)
+                    .try_apply(&source)
+                    .unwrap()
                     .contains(&format!("dict get $result_map {subject}")),
                 "{subject}"
             );
@@ -421,7 +422,10 @@ mod tests {
             }
         }
         let source = "switch -exact -- {$x} {{a b} {return one} {$literal} {return two} {[get]} {return three}}";
-        let applied = run(source, 0).expect("literal case data").apply(source);
+        let applied = run(source, 0)
+            .expect("literal case data")
+            .try_apply(source)
+            .unwrap();
         assert_eq!(
             applied,
             "set result_map [dict create {a b} one {$literal} two {[get]} three]\nreturn [dict get $result_map {$x}]"
@@ -430,7 +434,8 @@ mod tests {
         assert!(
             run(positional, 0)
                 .expect("option-shaped subject is data after --")
-                .apply(positional)
+                .try_apply(positional)
+                .unwrap()
                 .contains("dict get $result_map -nocase")
         );
         for options in [
@@ -461,7 +466,12 @@ mod tests {
         let result = switch_to_dict(source, cursor, &analysis, &LineIndex::new(source))
             .expect("Logical alias source rewrite");
         assert_eq!(result.edits[0].start, cursor);
-        assert!(result.apply(source).contains("dict get $result_map {$x}"));
+        assert!(
+            result
+                .try_apply(source)
+                .unwrap()
+                .contains("dict get $result_map {$x}")
+        );
         assert!(
             switch_to_dict(
                 &format!("# changed\n{source}"),
@@ -546,7 +556,7 @@ mod original_branch_parser_tests {
         assert_eq!(action.edits[0].start, cursor);
         assert_eq!(action.edits[0].end as usize, source.len());
         assert_eq!(
-            action.apply(source),
+            action.try_apply(source).unwrap(),
             "\u{feff}set result_map [dict create a {\u{feff}ONE} b TWO]\nreturn [dict get $result_map {$x}]"
         );
         assert!(

@@ -53,7 +53,6 @@ pub(crate) use statements::prior_version;
 pub(super) use statements::sccp_process_statements;
 #[cfg(test)]
 pub(super) use statements::typed_element_write_base;
-#[cfg(test)]
 pub(super) use sweep::sccp_process_phis;
 pub(super) use sweep::seed_live_in_roots;
 use sweep::seeded_values;

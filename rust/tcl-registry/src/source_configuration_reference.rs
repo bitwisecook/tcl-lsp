@@ -26,19 +26,26 @@ use crate::resolved_invocation::{AuthoredSourceOptionBoundary, ResolvedInvocatio
 pub enum SourceConfigurationReferenceLayout {
     /// A three-word item/operator/data-group tail after the declared options.
     DataGroupComparison,
+    /// A three-word data-group/operator/item tail after the declared options.
+    DataGroupSearchComparison,
     /// The final data-group operand of `class lookup <key> <data-group>`.
     DataGroupLookup,
 }
 
 impl SourceConfigurationReferenceLayout {
     /// Complete declarative authoring vocabulary.
-    pub const ALL: &'static [Self] = &[Self::DataGroupComparison, Self::DataGroupLookup];
+    pub const ALL: &'static [Self] = &[
+        Self::DataGroupComparison,
+        Self::DataGroupSearchComparison,
+        Self::DataGroupLookup,
+    ];
 
     /// Exact declarative spelling used by native and loadable metadata.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::DataGroupComparison => "DataGroupComparison",
+            Self::DataGroupSearchComparison => "DataGroupSearchComparison",
             Self::DataGroupLookup => "DataGroupLookup",
         }
     }
@@ -95,7 +102,8 @@ impl ResolvedInvocation<'_, '_> {
             .subcommand?
             .source_configuration_reference?;
         match layout {
-            SourceConfigurationReferenceLayout::DataGroupComparison => {
+            SourceConfigurationReferenceLayout::DataGroupComparison
+            | SourceConfigurationReferenceLayout::DataGroupSearchComparison => {
                 let arguments = self.words.arguments();
                 let count = arguments.exact_argv_len()?;
                 if !self
@@ -105,14 +113,20 @@ impl ResolvedInvocation<'_, '_> {
                 {
                     return None;
                 }
-                let item = count.checked_sub(3)?;
-                if item < self.semantics.argument_offset
+                let first = count.checked_sub(3)?;
+                let last = first.checked_add(2)?;
+                let (item, argument) =
+                    if layout == SourceConfigurationReferenceLayout::DataGroupComparison {
+                        (first, last)
+                    } else {
+                        (last, first)
+                    };
+                if first < self.semantics.argument_offset
                     || !arguments.get(item)?.has_exactly_one_argv_entry()
                 {
                     return None;
                 }
-                let operator = item.checked_add(1)?;
-                let argument = item.checked_add(2)?;
+                let operator = first.checked_add(1)?;
                 if !is_data_group_comparison_operator(arguments.literal_at(operator)?)
                     || arguments.literal_at(argument)?.contains('\0')
                 {
@@ -124,18 +138,18 @@ impl ResolvedInvocation<'_, '_> {
                         || option
                             .values
                             .as_ref()
-                            .is_none_or(|values| values.end > item)
+                            .is_none_or(|values| values.end > first)
                 }) {
                     return None;
                 }
                 let selection_unknown = match scan.boundary {
-                    AuthoredSourceOptionBoundary::Positional(start) if start == item => false,
+                    AuthoredSourceOptionBoundary::Positional(start) if start == first => false,
                     AuthoredSourceOptionBoundary::Terminator(terminator)
-                        if terminator.checked_add(1) == Some(item) =>
+                        if terminator.checked_add(1) == Some(first) =>
                     {
                         false
                     }
-                    AuthoredSourceOptionBoundary::Dynamic(start) if start == item => {
+                    AuthoredSourceOptionBoundary::Dynamic(start) if start == first => {
                         !arguments.get(start)?.proves_non_option()
                     }
                     _ => return None,
@@ -244,6 +258,15 @@ mod tests {
                 })
             );
         }
+        assert_eq!(
+            project(&[Literal("search"), Literal("dg"), Literal("equals"), Dynamic]),
+            Some(AuthoredSourceConfigurationReference {
+                argument: 1,
+                comparison_item: Some(3),
+                family: ConfigurationObjectFamily::DataGroup,
+                selection_unknown: false,
+            })
+        );
         for operator in [
             "contains",
             "starts_with",

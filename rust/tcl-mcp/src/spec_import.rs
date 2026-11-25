@@ -38,6 +38,7 @@
 
 use std::path::Path;
 
+use crate::tools::{ToolResult, tool_error};
 use serde_json::{Value, json};
 use tcl_cli_support::spec_import::{
     SpecImportError, SpecImportOptions, import_snapshots, load_snapshot,
@@ -45,11 +46,8 @@ use tcl_cli_support::spec_import::{
 use tcl_spec_studio::versions::VersionedSnapshot;
 
 /// The MCP `spec_import` handler.
-pub fn spec_import(args: &Value) -> Value {
-    let snapshots = match read_snapshots(args) {
-        Ok(snapshots) => snapshots,
-        Err(message) => return json!({ "error": message }),
-    };
+pub fn spec_import(args: &Value) -> ToolResult {
+    let snapshots = read_snapshots(args).map_err(tool_error)?;
 
     let dialect = crate::tools::declared_dialect(args);
     let package = args.get("package").and_then(Value::as_str);
@@ -84,7 +82,7 @@ pub fn spec_import(args: &Value) -> Value {
             }),
         );
     }
-    result
+    Ok(result)
 }
 
 /// Read the `snapshots` argument: `[{"version": "1.2", "path": "…"}, …]`.

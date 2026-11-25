@@ -200,23 +200,21 @@ impl Interp {
 
     /// Settle the selected native file boundary independently of procedure return.
     pub(super) fn settle_source_return(&mut self, code: Code) -> Code {
-        use tcl_registry::completion::CompletionCode;
         use tcl_registry::completion_route::{
             InvocationCompletionRoute as Route, ReturnCompletionRoute,
         };
         let route = if code == Code::Return {
             Route::Return(ReturnCompletionRoute {
-                eventual_code: CompletionCode::from_int(self.return_code.get().as_int() as i32),
+                eventual_code: self.return_code.get(),
                 remaining_level: self.return_level.get() as u64,
             })
         } else {
-            Route::Tcl(CompletionCode::from_int(code.as_int() as i32))
+            Route::Tcl(code)
         };
         match tcl_registry::source_file::completion_route(self.native_invocation_dialect(), route) {
             Route::Return(pending) => {
                 self.return_level.set(pending.remaining_level as usize);
-                self.return_code
-                    .set(Code::from_int(pending.eventual_code.as_int() as i32));
+                self.return_code.set(pending.eventual_code);
                 Code::Return
             }
             Route::Tcl(code) => {
@@ -224,7 +222,7 @@ impl Interp {
                     self.return_level.set(0);
                     self.return_code.set(Code::Ok);
                 }
-                Code::from_int(code.as_int() as i32)
+                code
             }
             _ => self.set_error(b"selected native source completion is unavailable"),
         }

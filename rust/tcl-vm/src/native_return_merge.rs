@@ -24,11 +24,10 @@ use crate::{
 };
 use tcl_cmd_core::{
     CmdError,
-    native_append::{self, NativeAppendObjects},
     native_return_merge::{self, NativeReturnMergeObjects},
     return_options::ReturnOptionsOps,
 };
-use tcl_runtime_api::native_return_literal::{NativeKnownWordLiteral, NativeReturnOptionsLiteral};
+use tcl_runtime_api::native_return_literal::NativeReturnOptionsLiteral;
 use tcl_syntax::value::ValueError;
 
 impl NativeReturnMergeObjects for NativeReturnOps {
@@ -95,63 +94,12 @@ impl NativeReturnMergeObjects for crate::return_options::CheckedNativeReturnOps<
         self.finish_dictionary(root)
     }
 }
-fn known_word(ops: &NativeReturnOps, word: &NativeKnownWordLiteral) -> Result<Value, CmdError> {
-    let append = ops
-        .dialect
-        .native_object_append_protocol(None)
-        .ok_or(ValueError::CommandProtocolUnavailable(
-            "native known word append",
-        ))?
-        .recipe();
-    let objects = VmAppendObjects;
-    let mut temporary = objects.new_string(std::rc::Rc::from(&b""[..]));
-    for piece in &word.pieces {
-        temporary = native_append::append_counted_bytes(&objects, append, &temporary, piece)?;
-    }
-    if word.composite {
-        let receiver = objects.new_string(std::rc::Rc::from(&b""[..]));
-        Ok(
-            native_append::append_object(&objects, append, Some(&receiver), &temporary)?
-                .into_value(),
-        )
-    } else {
-        Ok(temporary)
-    }
-}
 pub(crate) fn manufacture(recipe: &NativeReturnOptionsLiteral) -> Result<Value, CmdError> {
-    let version = recipe
-        .protocol
-        .tcl_version()
-        .filter(|version| *version >= tcl_dialect::TclVersion::V8_5)
-        .ok_or(ValueError::CommandProtocolUnavailable(
-            "private Return compiler origin",
-        ))?;
-    let mut ops = NativeReturnOps::for_c(version)?;
-    let protocol =
-        ops.dialect
-            .return_options_protocol()
-            .ok_or(ValueError::CommandProtocolUnavailable(
-                "native Return merger",
-            ))?;
-    let originals = recipe
-        .words
-        .iter()
-        .map(|word| known_word(&ops, word))
-        .collect::<Result<Vec<_>, _>>()?;
-    let (merged, options) = if recipe.retains_controls {
-        native_return_merge::merge_retaining_controls(&mut ops, protocol, &originals)?
-    } else {
-        let merged = native_return_merge::merge(&mut ops, protocol, &originals)?;
-        let options = merged.options.clone();
-        (merged, options)
-    };
-    if (merged.code, merged.level, merged.size) != (recipe.code, recipe.level, recipe.size) {
-        return Err(ValueError::CommandProtocolUnavailable(
-            "native Return literal controls mismatch",
-        )
-        .into());
-    }
-    Ok(options)
+    native_return_merge::manufacture(
+        recipe,
+        |version| Ok((NativeReturnOps::for_c(version)?, VmAppendObjects)),
+        std::convert::identity,
+    )
 }
 
 fn seed_original_merged_error_options(
@@ -538,7 +486,12 @@ mod physical_tests {
                 let mut ops = NativeReturnOps::for_c(version).unwrap();
                 let originals = (1..capture.original_words().len())
                     .map(|index| {
-                        known_word(&ops, &capture.known_word_literal(index).unwrap()).unwrap()
+                        native_return_merge::materialise_known_word(
+                            &VmAppendObjects,
+                            ops.string,
+                            &capture.known_word_literal(index).unwrap(),
+                        )
+                        .unwrap()
                     })
                     .collect::<Vec<_>>();
                 let windows = StorageWindows { data, name, case };

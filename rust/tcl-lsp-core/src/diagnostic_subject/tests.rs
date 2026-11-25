@@ -923,18 +923,18 @@ fn original_pattern_shape_transport_keeps_child_ancestry_and_value_premises() {
     );
     for (source, argument, written, list_path, literal) in [
         (
-            "interp alias {} choose {} switch -regexp literal {(é+)+ {BODY}}; choose",
+            "interp alias {} choose {} switch -regexp literal {^((é+)+)\\\\1$ {BODY}}; choose",
             2,
             None,
             Some(0),
             None,
         ),
         (
-            "proc f {} {set p {(a+)+}; regexp $p literal}",
+            "proc f {} {set p {^((a+)+)\\1$}; regexp $p literal}",
             0,
             Some(0),
             None,
-            Some("(a+)+"),
+            Some("^((a+)+)\\1$"),
         ),
     ] {
         let result = tcl_compiler::analyser::Analyser::new()
@@ -958,7 +958,7 @@ fn original_pattern_shape_transport_keeps_child_ancestry_and_value_premises() {
                 payload["subject"]["listElementPath"],
                 serde_json::json!([index])
             );
-            assert_eq!(&source[diagnostic.span.as_range()], "(é+)+");
+            assert_eq!(&source[diagnostic.span.as_range()], r"^((é+)+)\\1$");
         } else {
             assert!(payload["subject"].get("listElementPath").is_none());
         }

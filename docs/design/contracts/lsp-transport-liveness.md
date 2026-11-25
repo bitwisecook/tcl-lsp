@@ -101,6 +101,40 @@ handlers finish, and the queued hover requests then run four at a time.
   readiness barrier. The current initialise handler does not make a
   server-to-client request, so it cannot form the reply cycle described here.
 
+## Async mutex audit
+
+The server denies Clippy's `await_holding_lock` lint for blocking mutexes.
+The table records why Tokio mutex guards and their `TrackedMutexGuard`
+wrappers may span additional awaits. A compound operation can take more than
+one of these guards. Acquire them in the order used by the existing owner.
+
+| Guard | Reason for holding it across an await |
+| --- | --- |
+| `db`, `db_files` | Analysis, navigation, provider capture and publication transactions pair a Salsa database view with the matching source handles or project inputs. The pair must stay current while the next guard in the transaction is acquired. |
+| `folder_db_configs`, `folder_db_config_tombstones` | Folder settings publish the current configuration and retired handles together. Analysis and diagnostic capture keep the folder selection stable while acquiring the global fallback. |
+| `db_project_members`, `db_project` | Folder configuration updates keep the project's member set and corresponding project input together while acquiring the active configuration. |
+| `default_dialect`, `warned_session_dialect` | `setDialect` publishes the name with its explicitness bit. Configured-dialect changes serialise the same pair with the last warned spelling. |
+| `rehoming_gate`, including `rehomed_index_guard` and guarded symbol snapshots | Navigation, rename, diagnostics, class factories, scans and source publication retain the selected index view while acquiring related read or publication guards. Rehoming cannot retire the viewed source generation midway through that operation. |
+| `disk_publication_gate` | Disk publication and workspace folder changes must order rehoming and source publication before another disk transaction can publish. |
+| `live_publication_gate`, including the carried `publication` guard in `pause_open_publication` | Deferred opens, live buffer changes, disk publication and proposal checks serialise the publication generation with its source inputs. The retry path releases the guard before joining a contended dependency's fair queue, then reacquires it and rechecks the generation. |
+| `diag_slots`, `diagnostic_publisher.completion`, `pull_diag_cache` | Diagnostic scheduling and publication pair the current job, completion receipt and cached result. Closed-badge pruning pairs the pull cache with its generation records while it applies the open-document check. |
+| `original_declaration_registry` | Logical lenses and hierarchy issue handles inside a transaction that checks the retained declaration and source generations. |
+| `original_source_view_build_gate` | Source-view reconciliation admits one builder through asynchronous capture, validation and table publication. |
+| `workspace_folders` | Workspace rename holds the active root selection through its comparison with the index and source-store receipt. |
+| `workspace_scan_gate`, `watched_file_change_gate` | The scan guard admits one workspace fill. The watch guard orders a batch of file-change notifications through the asynchronous refresh steps it triggers. |
+| `rehomed_source_seeds` | Workspace scan and library indexing reconcile pending rehoming with the autoloaded-library roster. |
+| `spec_pack_reload`, `studio_sources`, `spec_packs` | Reload serialises discovery and publication. Publication and configuration reports retain the Studio snapshot and installed pack generation together while joining the current analyser inputs. Notices keep the installed set through enqueue and release it before waiting for delivery. |
+| `external_pack_watch_globs` | While unregistering the previous watcher ID, the guard keeps the compared watch set current. The client request has a deadline. |
+
+To refresh the inventory, run
+`cargo clippy --locked -p tcl-lsp-server --lib -- -W clippy::await_holding_invalid_type`
+with a copy of the repository's `clippy.toml` in `CLIPPY_CONF_DIR` and add
+`await-holding-invalid-types = ["tokio::sync::MutexGuard", "tcl_lsp_server::tracked_locks::TrackedMutexGuard"]`.
+Inspect each `await_holding_invalid_type` result in source. An explicit `drop`
+can still appear in this inventory when the later await is inside the same
+lexical scope. Prefer a narrower scope for a temporary that only supplies a
+cloned value. Async transaction and publication owners stay documented here.
+
 ## Regression coverage
 
 The tests use both controls and the production topology so a passing result

@@ -216,14 +216,16 @@ fn compiler_check_memo_matches_uncached_argc_t100_controls() {
     use tcl_compiler::compiler_checks::DiagCode;
 
     let dialect = "tcl8.6";
-    let profile = tcl_lsp_core::stated_profile_for_dialect(dialect);
-    let surface = tcl_registry::special_vars::surface_query_for_profile(profile);
-    assert!(tcl_registry::special_vars::is_initially_bound(
-        "argc",
-        Some(surface)
-    ));
+    let context = tcl_registry::model::ingress::static_context_for(dialect);
+    let registry = context.commands();
     assert!(
-        tcl_registry::special_vars::special_var("argc")
+        registry
+            .startup_existence("argc", Some(context.context().authoring_query()))
+            .initially_bound
+    );
+    assert!(
+        registry
+            .special_var("argc")
             .is_some_and(|spec| spec.read_taint.is_none())
     );
 

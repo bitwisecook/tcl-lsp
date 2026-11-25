@@ -18,7 +18,9 @@
 
 //! The tools that report a source's structure: its graphs, diagram, symbols, dialect and event order.
 
-use super::{DEFAULT_DIALECT, analyse, arg_str, registry, resolve_dialect};
+use super::{
+    DEFAULT_DIALECT, analyse, analysis_source, arg_str, refused, registry, resolve_dialect,
+};
 use serde_json::{Value, json};
 use std::collections::HashSet;
 use tcl_compiler::analyser::AnalysisResult;
@@ -122,15 +124,14 @@ type SourceGraphBuilder = fn(
 ) -> Result<Value, tcl_lsp_core::graphs::GraphSourceInputDecline>;
 
 fn supplied_source_graph(args: &Value, build: SourceGraphBuilder) -> Value {
-    let source = arg_str(args, "source");
+    let source = &analysis_source(args);
     let dialect = resolve_dialect(args, source);
     let analysis = analyse(source, &dialect);
     let Some(input) = analysis.resolved_input.as_ref() else {
-        return json!({ "error": "The graph's retained source input is unavailable" });
+        return refused("The graph's retained source input is unavailable");
     };
     let context = input.context_registry();
-    build(source, context.commands(), Some(input))
-        .unwrap_or_else(|reason| json!({ "error": reason.to_string() }))
+    build(source, context.commands(), Some(input)).unwrap_or_else(refused)
 }
 
 pub(super) fn call_graph(args: &Value) -> Value {
@@ -176,7 +177,7 @@ pub(super) fn memory_aliases(args: &Value) -> Value {
 }
 
 pub(super) fn diagram(args: &Value) -> Value {
-    let source = arg_str(args, "source");
+    let source = &analysis_source(args);
     let dialect = resolve_dialect(args, source);
     tcl_diagram::diagram_data_for_dialect(
         source,
@@ -186,7 +187,7 @@ pub(super) fn diagram(args: &Value) -> Value {
 }
 
 pub(super) fn detect_dialect(args: &Value) -> Value {
-    let source = arg_str(args, "source");
+    let source = &analysis_source(args);
     let filename = args.get("filename").and_then(Value::as_str);
     json!(tcl_registry::detect_dialect(
         source,
@@ -196,7 +197,7 @@ pub(super) fn detect_dialect(args: &Value) -> Value {
 }
 
 pub(super) fn event_order(args: &Value) -> Value {
-    let source = arg_str(args, "source");
+    let source = &analysis_source(args);
     let dialect = resolve_dialect(args, source);
     let analysis = analyse(source, &dialect);
     let ordered = event_order_list(source, &analysis);
@@ -204,7 +205,7 @@ pub(super) fn event_order(args: &Value) -> Value {
 }
 
 pub(super) fn symbols(args: &Value) -> Value {
-    let source = arg_str(args, "source");
+    let source = &analysis_source(args);
     let dialect = resolve_dialect(args, source);
     let analysis = analyse(source, &dialect);
     let syms: Vec<Value> =

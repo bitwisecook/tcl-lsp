@@ -120,7 +120,7 @@ impl std::ops::Deref for SourceInventory {
 /// conditional source scaffold with independently supplied outcome obligations).
 #[must_use]
 pub fn generate_irule_test(args: &Value) -> Value {
-    let source = args.get("source").and_then(Value::as_str).unwrap_or("");
+    let source: &str = &crate::tools::analysis_source(args);
 
     let registry = crate::environment::store_for_dialect("f5-irules");
     let inventory = SourceInventory::capture(source, registry);

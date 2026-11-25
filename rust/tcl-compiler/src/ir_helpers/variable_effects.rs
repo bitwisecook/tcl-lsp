@@ -140,19 +140,9 @@ pub(super) fn collect_defs_from_script(script: &Script, defs: &mut Vec<String>, 
                 collect_defs_from_script(body, defs, depth + 1);
             }
 
-            Statement::Catch {
-                body,
-                result_var,
-                options_var,
-                ..
-            } => {
+            Statement::Catch { body, .. } => {
                 collect_defs_from_script(body, defs, depth + 1);
-                if let Some(rv) = result_var {
-                    defs.push(rv.clone());
-                }
-                if let Some(ov) = options_var {
-                    defs.push(ov.clone());
-                }
+                defs.extend(structural_variable_write_projection(stmt).literal_names);
             }
 
             Statement::Try {

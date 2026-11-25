@@ -545,6 +545,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cfb-mode"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac64b0984be8510caae81455ea2c8c23e5af6be61c36129df62f3380d5d64e1f"
+dependencies = [
+ "cipher",
+]
+
+[[package]]
 name = "cfg-if"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4310,6 +4319,7 @@ checksum = "8c447be3a2abfa84b2d91680c56600bd6b2873866de27b36ec911be705e291da"
 name = "tcl-bigip"
 version = "0.1.0"
 dependencies = [
+ "fluent-uri",
  "indexmap",
  "ipnet",
  "regex",
@@ -4331,6 +4341,7 @@ name = "tcl-bigip-io"
 version = "0.1.0"
 dependencies = [
  "aes",
+ "cfb-mode",
  "digest 0.11.3",
  "flate2",
  "md-5",
@@ -4340,6 +4351,7 @@ dependencies = [
  "tar",
  "tcl-bigip",
  "tcl-core-types",
+ "tcl-platform",
  "temp-env",
  "thiserror 2.0.21",
 ]
@@ -4479,6 +4491,7 @@ dependencies = [
  "regex",
  "rustc-hash",
  "serde_json",
+ "strsim",
  "tcl-bytecode",
  "tcl-cmd-core",
  "tcl-core-types",
@@ -4486,6 +4499,7 @@ dependencies = [
  "tcl-engine-tclvm",
  "tcl-expr",
  "tcl-lexer",
+ "tcl-regex",
  "tcl-registry",
  "tcl-runtime-api",
  "tcl-spectcl",
@@ -4663,6 +4677,7 @@ name = "tcl-host-native"
 version = "0.1.0"
 dependencies = [
  "nix 0.31.4",
+ "tcl-dialect",
  "tcl-host-c-abi",
  "tcl-platform",
 ]
@@ -4730,6 +4745,7 @@ dependencies = [
  "tcl-dialect",
  "tcl-irules",
  "tcl-lexer",
+ "tcl-platform",
  "tcl-regex",
  "tcl-registry",
  "tcl-spectcl",
@@ -4904,6 +4920,8 @@ dependencies = [
 name = "tcl-runtime"
 version = "0.1.0"
 dependencies = [
+ "adler2",
+ "crc32fast",
  "flate2",
  "tcl-bytecode",
  "tcl-cmd-core",
@@ -5012,6 +5030,7 @@ dependencies = [
  "sha2 0.11.1",
  "tcl-compiler",
  "tcl-core-types",
+ "tcl-dialect",
  "tcl-lexer",
  "tcl-registry",
  "tcl-syntax",

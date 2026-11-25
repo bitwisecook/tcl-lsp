@@ -599,7 +599,7 @@ mod tests {
             run_logical(source, 5, u32::try_from(source.len()).unwrap(), "seasoning").unwrap();
         assert!(action.disabled.is_none());
         assert_eq!(
-            action.apply(source),
+            action.try_apply(source).unwrap(),
             "set seasoning {salt and pepper}\nputs $seasoning"
         );
         let source = "puts [string length $name]";
@@ -607,7 +607,8 @@ mod tests {
             run_logical(source, 5, u32::try_from(source.len()).unwrap(), "length").unwrap();
         assert!(
             action
-                .apply(source)
+                .try_apply(source)
+                .unwrap()
                 .contains("set length [string length $name]")
         );
     }
@@ -627,7 +628,7 @@ mod tests {
         .expect("a complete original scalar value word");
         assert!(action.disabled.is_none(), "{:?}", action.disabled);
         assert_eq!(
-            action.apply(source),
+            action.try_apply(source).unwrap(),
             "set value ${source}\nputs $value\nputs done\n"
         );
         let mut missing = analysis.clone();
@@ -677,7 +678,7 @@ mod tests {
         let start = u32::try_from(source.find("literal").unwrap()).unwrap();
         let action = run_logical(source, start, start + 7, "result").unwrap();
         assert_eq!(
-            action.apply(source),
+            action.try_apply(source).unwrap(),
             "proc p {} {set result literal; puts $result}"
         );
     }
@@ -720,7 +721,7 @@ mod tests {
             .expect("available source setter");
         assert!(action.disabled.is_none());
         assert_eq!(
-            action.apply(source),
+            action.try_apply(source).unwrap(),
             "set seasoning {salt and pepper}\nputs $seasoning"
         );
         assert!(extract_variable(source, (5, end), "seasoning", &analyse(older), &index).is_none());
@@ -874,7 +875,7 @@ mod logical_source_recipe_tests {
         let action = proposal(source, "[string length $name]", "length").unwrap();
         assert!(action.disabled.is_none());
         assert_eq!(
-            action.apply(source),
+            action.try_apply(source).unwrap(),
             "set length [string length $name]\nputs $length"
         );
         assert!(proposal("puts $value; puts literal", "literal", "value").is_none());

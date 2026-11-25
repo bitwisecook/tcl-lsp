@@ -22,6 +22,15 @@ use tcl_core_types::NameBytes;
 use tcl_dialect::TclVersion;
 use tcl_syntax::naming::NamePolicyProtocol;
 
+/// Compare source package names with registered command metadata. Aliases
+/// denote equivalent providers of those commands, while the Tcl package
+/// database still keys every name by its exact bytes.
+#[must_use]
+pub fn matches_package_descriptor(name: &[u8], descriptor: &str) -> bool {
+    name == descriptor.as_bytes()
+        || matches!((name, descriptor), (b"itcl", "Itcl") | (b"Itcl", "itcl"))
+}
+
 /// A package database key projected from already retained native name units.
 ///
 /// The naming policy selects the package operation's `CString` extent. This

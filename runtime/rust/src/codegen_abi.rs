@@ -329,14 +329,7 @@ pub extern "C" fn tcl_codegen_native_body_entry_status() -> i32 {
 
 /// Convert the shared semantic completion to its object-handle ABI form.
 fn completion_abi(completion: tcl_runtime_api::Completion<*mut TclObj>) -> TclCompletionAbi {
-    let code = match completion.code {
-        tcl_runtime_api::Code::Ok => 0,
-        tcl_runtime_api::Code::Error => 1,
-        tcl_runtime_api::Code::Return => 2,
-        tcl_runtime_api::Code::Break => 3,
-        tcl_runtime_api::Code::Continue => 4,
-        tcl_runtime_api::Code::Other(code) => code,
-    };
+    let code = completion.code.as_i32();
     TclCompletionAbi {
         code,
         result: completion.result,

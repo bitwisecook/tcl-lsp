@@ -111,17 +111,7 @@ pub fn prepare_tcllibpath(
     Ok(OsString::from(output))
 }
 
-pub use tcl_host_native::executable::which;
-
-/// Find a suitable `tclsh` on PATH, preferring newer versioned names.
-#[must_use]
-pub fn find_tclsh() -> Option<PathBuf> {
-    tcl_dialect::TclVersion::ALL
-        .into_iter()
-        .rev()
-        .find_map(|version| which(format!("tclsh{}", version.version_string())))
-        .or_else(|| which("tclsh"))
-}
+pub use tcl_host_native::executable::{find_tclsh, which};
 
 fn resolve_tclsh(requested: Option<&str>) -> Result<PathBuf, TclPkgError> {
     let Some(req) = requested else {

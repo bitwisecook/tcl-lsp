@@ -323,6 +323,8 @@ Navigation consumes the renderer's `startLine`/`endLine` and
 `startColUtf16`/`endColUtf16` pair. The byte offsets remain byte offsets and are
 never passed to VS Code's UTF-16 `positionAt` or converted locally. Missing,
 malformed or out-of-bounds UTF-16 coordinates leave that row non-navigable.
+The explorer and `tcl diff` use the same zero-based byte columns for
+`startCol` and `endCol`, with an exclusive end.
 Navigation checks repeat after document-open/show awaits so a projection
 cannot reveal a newer document through a span from an older source snapshot.
 A `showTextDocument` request already in flight may finish opening its read-only

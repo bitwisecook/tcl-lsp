@@ -23,7 +23,7 @@ use crate::analyses::{ConstValue, LatticeValue};
 use crate::codegen_helpers::split_list_values;
 use crate::expr_ast::ExprNode;
 use crate::ir::Statement;
-use crate::ssa::{SsaFunction, SsaStatement, Symbol, ValueKey};
+use crate::ssa::{SsaFunction, SsaSourceView, SsaStatement, Symbol, ValueKey};
 use crate::value_transfer::LatticeDriver;
 use std::collections::HashMap;
 use tcl_lexer::TokenType;
@@ -435,21 +435,21 @@ pub fn extract_foreach_elements(
 /// simple var reference or its lattice value is not a
 /// Const(String).
 #[must_use]
-pub fn resolve_foreach_list_via_lattice<S1, S2>(
+pub fn resolve_foreach_list_via_lattice<'a, S1, S2>(
     list_text: &str,
     uses: &HashMap<Symbol, crate::ssa::Version, S1>,
     values: &HashMap<ValueKey, LatticeValue, S2>,
-    ssa: &SsaFunction,
+    ssa: impl Into<SsaSourceView<'a>>,
     rules: tcl_syntax::word_rules::WordValueRules,
-    config: tcl_lexer::LexerConfig,
+    config: impl Into<Option<tcl_lexer::LexerConfig>>,
 ) -> Option<Vec<String>>
 where
     S1: std::hash::BuildHasher,
     S2: std::hash::BuildHasher,
 {
     let stripped = list_text.trim();
-    let name = tcl_syntax::naming::whole_scalar_variable_reference_name(stripped, config)?;
-    let sym = ssa.var_symbol(name)?;
+    let name = tcl_syntax::naming::whole_scalar_variable_reference_name(stripped, config.into()?)?;
+    let sym = ssa.into().symbol(name)?;
     let ver = uses.get(&sym).copied()?;
     match values.get(&(sym, ver))? {
         // The lattice value is the variable's runtime string; splitting it as a

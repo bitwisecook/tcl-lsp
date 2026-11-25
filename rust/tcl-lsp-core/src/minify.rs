@@ -135,8 +135,6 @@ mod lexical_metadata;
 mod original;
 pub use original::{MinifyOptions, MinifyRefusal, MinifyTier, minify_with_analysis};
 
-use rustc_hash::FxHashSet;
-
 use tcl_compiler::analyser::AnalysisResult;
 #[cfg(test)]
 use tcl_compiler::analyser::ScopeKind;
@@ -148,7 +146,7 @@ use tcl_compiler::ssa::Version;
 use tcl_compiler::taint::TaintLattice;
 #[cfg(test)]
 use tcl_lexer::TokenType;
-use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token};
+use tcl_lexer::{Lexer, LexerConfig, SourceEdit, SourceMap, Span, Token, apply_edits};
 use tcl_registry::CommandRegistry;
 #[cfg(test)]
 use tcl_registry::Traits;
@@ -325,18 +323,18 @@ fn lexical_aggressive(
     let optimisations =
         tcl_compiler::optimiser::optimise_with_dialect(source, registry, Some(profile));
     let opt_count = optimisations.iter().filter(|o| !o.hint_only).count();
-    let opt_edits: Vec<Edit> = optimisations
+    let mut opt_edits: Vec<_> = optimisations
         .iter()
         .filter(|o| !o.hint_only)
-        .map(|o| {
-            (
-                o.span.start() as usize,
-                (o.span.end() - o.span.start()) as usize,
-                o.replacement.clone(),
-            )
+        .map(|o| SourceEdit {
+            span: o.span.as_range(),
+            text: o.replacement.clone(),
         })
         .collect();
-    let optimised = apply_edits(source, opt_edits);
+    opt_edits.sort_by_key(|edit| (edit.span.start, edit.span.end));
+    opt_edits.dedup();
+    let optimised =
+        apply_edits(source, &opt_edits).map_err(|_| MinifyRefusal::SourceCorrespondenceChanged)?;
 
     // Fold static substrings (SCCP-proven constants).
     let (folded, fold_count, static_folds) = fold_original_static_substrings(&optimised, input);
@@ -600,32 +598,6 @@ fn minify_body(
         }
     }
     parts.join(";")
-}
-
-// Local-name compaction (compact_names tier)
-
-/// A text edit: replace `length` bytes at `offset` with `text`.
-type Edit = (usize, usize, String);
-
-/// Apply non-overlapping `(offset, length, new_text)` edits in
-/// reverse offset order, deduplicating identical `(offset, length)`
-/// pairs.
-fn apply_edits(source: &str, mut edits: Vec<Edit>) -> String {
-    if edits.is_empty() {
-        return source.to_owned();
-    }
-    edits.sort_by_key(|edit| std::cmp::Reverse(edit.0));
-    let mut seen: FxHashSet<(usize, usize)> = FxHashSet::default();
-    let mut result = source.to_owned();
-    for (offset, length, new_text) in edits {
-        if !seen.insert((offset, length)) {
-            continue;
-        }
-        if offset + length <= result.len() {
-            result.replace_range(offset..offset + length, &new_text);
-        }
-    }
-    result
 }
 
 #[cfg(test)]

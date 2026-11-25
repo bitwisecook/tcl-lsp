@@ -28,7 +28,7 @@
 
 // Retained analysis receipts require deeper auto-trait evaluation.
 #![recursion_limit = "256"]
-#![deny(missing_docs)]
+#![deny(missing_docs, clippy::await_holding_lock)]
 #![forbid(unsafe_code)]
 // Long linear fail-closed guard chains and scenario tests; splitting them is
 // tracked as follow-up debt (Luna-41 notes) rather than done mid-merge.

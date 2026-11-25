@@ -74,21 +74,7 @@ use tcl_lsp_core::source_decode::{DecodeReport, decode_source};
 use tcl_lsp_core::source_style::{
     DEFAULT_LINE_ENDING, DEFAULT_LINE_LENGTH, style_facts_from_analysis,
 };
-use tcl_registry::dialects::TCL_SOURCE_EXTENSIONS;
-
-/// Directory names skipped by the corpus walk. Keep this aligned with the
-/// normal CLI input walk: generated/build trees and VCS metadata are neither
-/// user source nor useful third-party audit material.
-const SKIP_DIRECTORY_NAMES: &[&str] = &[
-    ".git",
-    ".hg",
-    ".svn",
-    ".venv",
-    "__pycache__",
-    "node_modules",
-    "build",
-    "dist",
-];
+use tcl_registry::dialects::{is_skipped_scan_dir, is_tcl_source};
 
 /// A document entering the sweep, plus provenance needed only by corpus
 /// extraction. Native documents use no override and a zero offset.
@@ -129,19 +115,6 @@ fn extension_is(path: &Path, wanted: &str) -> bool {
     path.extension()
         .and_then(|ext| ext.to_str())
         .is_some_and(|ext| ext.eq_ignore_ascii_case(wanted))
-}
-
-fn is_native_source(path: &Path) -> bool {
-    if path.file_name().is_some_and(|name| name == "pkgIndex.tcl") {
-        return true;
-    }
-    path.extension()
-        .and_then(|ext| ext.to_str())
-        .is_some_and(|ext| {
-            TCL_SOURCE_EXTENSIONS
-                .iter()
-                .any(|known| ext.eq_ignore_ascii_case(known))
-        })
 }
 
 fn is_irules_when_clause_tail(tail: &str) -> bool {
@@ -308,18 +281,17 @@ fn walk_corpus(
             let name = path
                 .file_name()
                 .context("corpus directory entry has no basename")?;
-            let name = name.to_str().with_context(|| {
+            name.to_str().with_context(|| {
                 format!(
                     "corpus directory basename is not representable as Unicode: {}",
                     path.display()
                 )
             })?;
-            let keep = !name.starts_with('.') && !SKIP_DIRECTORY_NAMES.contains(&name);
-            if keep {
+            if !is_skipped_scan_dir(&path) {
                 walk_corpus(&path, native, embedded)?;
             }
         } else if path.is_file() {
-            if is_native_source(&path) {
+            if is_tcl_source(&path) {
                 native.insert(canonical(&path));
             } else if extension_is(&path, "txt") || extension_is(&path, "rst") {
                 embedded.insert(canonical(&path));
@@ -338,7 +310,7 @@ fn discover_corpus(inputs: &[PathBuf]) -> Result<(BTreeSet<PathBuf>, BTreeSet<Pa
         }
         if input.is_dir() {
             walk_corpus(&canonical(input), &mut native, &mut embedded)?;
-        } else if input.is_file() && is_native_source(input) {
+        } else if input.is_file() && is_tcl_source(input) {
             native.insert(canonical(input));
         } else if input.is_file() && (extension_is(input, "txt") || extension_is(input, "rst")) {
             embedded.insert(canonical(input));

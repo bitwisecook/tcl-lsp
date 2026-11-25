@@ -47,7 +47,12 @@ puts done";
     let selection = (start, start + 7);
     let action = extract_proc(source, selection, &analysis, &registry).unwrap();
     assert!(action.disabled.is_none(), "{:?}", action.disabled);
-    assert!(action.apply(source).contains("proc extracted_proc {x}"));
+    assert!(
+        action
+            .try_apply(source)
+            .unwrap()
+            .contains("proc extracted_proc {x}")
+    );
     analysis.resolved_input = None;
     assert!(extract_proc(source, selection, &analysis, &registry).is_none());
 }
@@ -93,7 +98,7 @@ fn logical_extraction_scalar_proposals_keep_selected_grammar_and_refuse_unwritab
                 "{style:?} {source_word}: {:?}",
                 action.disabled
             );
-            let rewritten = action.apply(&source);
+            let rewritten = action.try_apply(&source).unwrap();
             assert!(
                 rewritten.contains(&format!("extracted_proc {reference}")),
                 "{rewritten}"
@@ -148,7 +153,7 @@ fn original_extraction_uses_retained_brace_grammar_and_withdraws_changed_owners(
         assert_eq!(analysis.body_lexer_config, Some(config));
         let action = extract_proc(source, selection, &analysis, registry).unwrap();
         assert!(action.disabled.is_none(), "{:?}", action.disabled);
-        let rewritten = action.apply(source);
+        let rewritten = action.try_apply(source).unwrap();
         assert!(
             rewritten.contains(&format!("proc extracted_proc {{{parameters}}} {{")),
             "{style:?}: {rewritten}"
@@ -201,7 +206,10 @@ fn generated_rename_uses_genuine_afterimage_header_and_utf16_with_original_input
     };
     let command =
         extract_proc_rename_command_for_analysis(&refactoring, source, &analysis).unwrap();
-    assert_eq!(command.string_args[0], refactoring.apply(source));
+    assert_eq!(
+        command.string_args[0],
+        refactoring.try_apply(source).unwrap()
+    );
     assert_eq!(command.string_args[1], "café");
     assert_eq!(command.args, vec![1, 5, 9]);
     assert!(

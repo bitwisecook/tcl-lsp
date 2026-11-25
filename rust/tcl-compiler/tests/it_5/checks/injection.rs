@@ -322,25 +322,21 @@ mod uplevel_injection {
     }
 }
 
-// W303 — ReDoS (catastrophic-backtracking regex shapes).
-//
-// Pure static heuristic over the pattern literal: nested quantifiers
-// `(a+)+`/`(a*)*` and overlapping alternation `(a|a)+`. `switch -glob` patterns
-// are NOT regexes → never checked.
+// W303 over backreferences combined with nested or alternative repetition.
 mod redos {
     use super::super::*;
 
     #[test]
     fn nested_quantifier_fires() {
-        let ds = of_code("regexp {(a+)+} $input", D, "W303");
+        let ds = of_code("regexp {^((a+)+)\\1$} $input", D, "W303");
         assert_eq!(ds.len(), 1);
         assert!(ds[0].0.to_lowercase().contains("backtracking"));
     }
 
     #[test]
     fn nested_star_and_overlapping_alternation_fire() {
-        assert_eq!(count("regexp {(a*)*} $input", D, "W303"), 1);
-        assert_eq!(count("regexp {(a|a)+} $input", D, "W303"), 1);
+        assert_eq!(count("regexp {^((a*)*)\\1$} $input", D, "W303"), 1);
+        assert_eq!(count("regexp {^((a|aa)+)\\1$} $input", D, "W303"), 1);
     }
 
     #[test]
@@ -351,13 +347,17 @@ mod redos {
 
     #[test]
     fn options_do_not_hide_the_pattern() {
-        assert_eq!(count("regexp -nocase {(a+)+} $input", D, "W303"), 1);
+        assert_eq!(count("regexp -nocase {^((a+)+)\\1$} $input", D, "W303"), 1);
         assert_eq!(
-            count("regsub {(a+)+} $input replacement result", D, "W303"),
+            count("regsub {^((a+)+)\\1$} $input replacement result", D, "W303"),
             1
         );
         assert_eq!(
-            count("regsub -all -nocase {(a*)*} $input X result", D, "W303"),
+            count(
+                "regsub -all -nocase {^((a*)*)\\1$} $input X result",
+                D,
+                "W303"
+            ),
             1
         );
     }
@@ -371,7 +371,7 @@ mod redos {
     fn switch_regexp_arms_checked_glob_not() {
         assert_eq!(
             count(
-                "switch -regexp $x { {(a+)+} {puts bad} {^ok} {puts ok} }",
+                "switch -regexp $x { {^((a+)+)\\1$} {puts bad} {^ok} {puts ok} }",
                 D,
                 "W303"
             ),
@@ -383,7 +383,11 @@ mod redos {
             "W303"
         ));
         // -glob patterns are not regexes → never ReDoS-checked.
-        assert!(!fires("switch -glob $x { (a+)+ {puts bad} }", D, "W303"));
+        assert!(!fires(
+            "switch -glob $x { {^((a+)+)\\1$} {puts bad} }",
+            D,
+            "W303"
+        ));
     }
 }
 

@@ -228,7 +228,7 @@ impl Analyser {
                 registry,
             )
             .is_some_and(|simple| {
-                tcl_registry::special_vars::is_externally_read(
+                registry.is_externally_read(
                     &simple,
                     Some(self.analysis_context().context().authoring_query()),
                 )

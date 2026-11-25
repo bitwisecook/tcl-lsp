@@ -18,24 +18,27 @@
 
 //! The cursor-addressed refactorings and the `refactor` tool that names one.
 
-use super::{analyse, arg_str, arg_u32, cursor, resolve_dialect};
+use super::{analyse, analysis_source, arg_str, arg_u32, cursor, refused, resolve_dialect};
 use serde_json::{Value, json};
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::{LineIndex, Utf16Col};
 
 fn refactoring_json(source: &str, r: &tcl_lsp_core::refactor::Refactoring) -> Value {
-    let mut result = json!({
-        "title": r.title,
-        "rewritten": r.apply(source),
-        "edit_count": r.edits.len(),
-    });
     if let Some(reason) = &r.disabled {
-        result["disabled"] = json!(reason);
+        return refused(reason);
     }
-    result
+    let rewritten = match r.try_apply(source) {
+        Ok(rewritten) => rewritten,
+        Err(error) => return refused(error),
+    };
+    json!({
+        "title": r.title,
+        "rewritten": rewritten,
+        "edit_count": r.edits.len(),
+    })
 }
 
-/// Run a cursor-addressed refactoring, returning its result dict or `null`.
+/// Run a cursor-addressed refactoring or explain why it cannot be applied.
 fn refactor_at(
     args: &Value,
     f: impl FnOnce(
@@ -45,18 +48,18 @@ fn refactor_at(
         &LineIndex,
     ) -> Option<tcl_lsp_core::refactor::Refactoring>,
 ) -> Value {
-    let source = arg_str(args, "source");
+    let source = &analysis_source(args);
     let dialect = resolve_dialect(args, source);
     let (idx, off) = cursor(source, arg_u32(args, "line"), arg_u32(args, "character"));
     let analysis = analyse(source, &dialect);
     match f(source, off, &analysis, &idx) {
-        Some(r) => refactoring_json(source, &r),
-        None => Value::Null,
+        Some(r) => refactoring_json(arg_str(args, "source"), &r),
+        None => refused("No eligible refactoring at the requested position or selection"),
     }
 }
 
 pub(super) fn inline_variable(args: &Value) -> Value {
-    let source = arg_str(args, "source");
+    let source = &analysis_source(args);
     let dialect = resolve_dialect(args, source);
     let (idx, off) = cursor(source, arg_u32(args, "line"), arg_u32(args, "character"));
     let analysis = analyse(source, &dialect);
@@ -65,7 +68,7 @@ pub(super) fn inline_variable(args: &Value) -> Value {
         .as_ref()
         .map(tcl_compiler::analyser::ResolvedAnalysisInput::context_registry)
     else {
-        return Value::Null;
+        return refused("The resolved analysis context is unavailable");
     };
     match tcl_lsp_core::refactor::inline_variable(
         source,
@@ -74,8 +77,8 @@ pub(super) fn inline_variable(args: &Value) -> Value {
         context.commands().as_ref(),
         &idx,
     ) {
-        Some(r) => refactoring_json(source, &r),
-        None => Value::Null,
+        Some(r) => refactoring_json(arg_str(args, "source"), &r),
+        None => refused("No eligible refactoring at the requested position or selection"),
     }
 }
 
@@ -88,20 +91,20 @@ pub(super) fn switch_to_dict(args: &Value) -> Value {
 }
 
 pub(super) fn brace_expr(args: &Value) -> Value {
-    let source = arg_str(args, "source");
+    let source = &analysis_source(args);
     let dialect = resolve_dialect(args, source);
     let (_idx, off) = cursor(source, arg_u32(args, "line"), arg_u32(args, "character"));
     let analysis = analyse(source, &dialect);
     match tcl_lsp_core::refactor::brace_expr(source, off, &analysis) {
-        Some(r) => refactoring_json(source, &r),
-        None => Value::Null,
+        Some(r) => refactoring_json(arg_str(args, "source"), &r),
+        None => refused("No eligible refactoring at the requested position or selection"),
     }
 }
 
 // ── Refactor tools ────────────────────────────────────────────────────
 
 pub(super) fn extract_variable(args: &Value) -> Value {
-    let source = arg_str(args, "source");
+    let source = &analysis_source(args);
     let dialect = resolve_dialect(args, source);
     let analysis = analyse(source, &dialect);
     let line_index = LineIndex::new(source);
@@ -126,8 +129,8 @@ pub(super) fn extract_variable(args: &Value) -> Value {
         &analysis,
         &line_index,
     ) {
-        Some(r) => refactoring_json(source, &r),
-        None => Value::Null,
+        Some(r) => refactoring_json(arg_str(args, "source"), &r),
+        None => refused("No eligible refactoring at the requested position or selection"),
     }
 }
 
@@ -145,25 +148,32 @@ pub(super) fn datagroup_advice(
 }
 
 pub(super) fn extract_datagroup(args: &Value) -> Value {
-    let source = arg_str(args, "source");
+    let source = &analysis_source(args);
     let (line_index, cursor) = cursor(source, arg_u32(args, "line"), arg_u32(args, "character"));
     let dg_name = arg_str(args, "dg_name");
     let dialect = resolve_dialect(args, source);
     let analysis = analyse(source, &dialect);
     let Some(r) = datagroup_advice(source, cursor, dg_name, &analysis, &line_index) else {
-        return Value::Null;
+        return refused("No eligible data-group extraction at the requested position");
     };
+    if let Some(reason) = &r.disabled {
+        return refused(reason);
+    }
     let Some(dg) = r.data_group.as_ref() else {
-        return Value::Null;
+        return refused("The refactoring did not supply a data-group definition");
     };
     let records: Vec<Value> = dg
         .records
         .iter()
         .map(|(k, v)| json!({ "key": k, "value": v }))
         .collect();
+    let rewritten = match r.try_apply(arg_str(args, "source")) {
+        Ok(rewritten) => rewritten,
+        Err(error) => return refused(error),
+    };
     json!({
         "title": r.title,
-        "rewritten": r.apply(source),
+        "rewritten": rewritten,
         "data_group_definition": tcl_lsp_core::refactor::data_group_tcl(dg),
         "data_group": {
             "name": dg.name,
@@ -176,7 +186,7 @@ pub(super) fn extract_datagroup(args: &Value) -> Value {
 }
 
 pub(super) fn refactor(args: &Value) -> Value {
-    let source = arg_str(args, "source");
+    let source = &analysis_source(args);
     let dialect = resolve_dialect(args, source);
     let line_index = LineIndex::new(source);
     let start_off = line_index.offset_at_utf16(
@@ -200,7 +210,7 @@ pub(super) fn refactor(args: &Value) -> Value {
         if let Some(r) = r {
             let mut candidate = json!({ "tool": tool, "title": r.title });
             if let Some(reason) = r.disabled {
-                candidate["disabled"] = json!(reason);
+                candidate["refused"] = json!({ "reason": reason });
             }
             available.push(candidate);
         }

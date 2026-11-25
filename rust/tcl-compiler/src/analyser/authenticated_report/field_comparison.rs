@@ -168,6 +168,7 @@ fn check_exhaustive_report_fields(a: &AnalysisResult) {
         package_ifneededs: _,
         package_prefer_latest: _,
         has_dynamic_providers: _,
+        has_unresolved_provider_effects: _,
         source_targets: _,
         path_constant_assignments: _,
         command_aliases: _,
@@ -382,6 +383,7 @@ fn diagnostic_fields_equal(
         // A new Diagnostic facet must also be given an explicit policy.
         let crate::analyser::Diagnostic {
             subject: _,
+            signed_data_group_comparison: _,
             code: _,
             span: _,
             message: _,
@@ -405,6 +407,7 @@ fn diagnostic_fields_equal(
             }
         };
         diagnostics_equal &= subject_equal
+            && a.signed_data_group_comparison == b.signed_data_group_comparison
             && a.code == b.code
             && a.span == b.span
             && a.message == b.message
@@ -463,6 +466,11 @@ pub(super) fn compare(
     if a.has_dynamic_providers != b.has_dynamic_providers {
         return AnalysisReportComparison::Different {
             field: "has_dynamic_providers",
+        };
+    }
+    if a.has_unresolved_provider_effects != b.has_unresolved_provider_effects {
+        return AnalysisReportComparison::Different {
+            field: "has_unresolved_provider_effects",
         };
     }
     if a.suppressed_lines != b.suppressed_lines {

@@ -141,7 +141,7 @@ const PROVEN_ROWS: [ProvenRow; 14] = [
     (
         DiagCode::W303,
         "tcl8.6",
-        "proc p {s} {\n    set re {(a+)+$}\n    regexp $re $s\n}\n",
+        "proc p {s} {\n    set re {^((a+)+)\\1$}\n    regexp $re $s\n}\n",
         "proc p {re s} {\n    regexp $re $s\n}\n",
         "$re",
     ),

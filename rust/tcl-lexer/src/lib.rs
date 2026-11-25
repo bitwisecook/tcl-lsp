@@ -72,6 +72,7 @@ mod parse_issue;
 mod ranges;
 pub mod script;
 mod script_completeness;
+mod source_edit;
 mod source_map;
 mod source_purpose;
 mod span;
@@ -124,6 +125,7 @@ pub use ranges::{
 };
 pub use script::{CommandSpan, WordKind, WordSpan, group_commands, group_commands_bytes};
 pub use script_completeness::{ScriptCompletenessUnavailable, script_image_is_complete};
+pub use source_edit::{SourceEdit, SourceEditError, apply_edits};
 pub use source_map::{DocumentLineEndingProjection, SourceChannel, SourceImage, SourceMap};
 pub use source_purpose::SourceSegmentationPurpose;
 pub use span::Span;

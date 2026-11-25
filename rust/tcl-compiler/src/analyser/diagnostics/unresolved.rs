@@ -590,7 +590,8 @@ impl Analyser {
         &mut self,
         registry: &tcl_registry::CommandRegistry,
     ) {
-        if self.disabled_diagnostics.contains("W120") || self.result.has_dynamic_providers {
+        if self.disabled_diagnostics.contains("W120") || self.result.has_unresolved_provider_effects
+        {
             return;
         }
         let generation = self.analysis_context();
@@ -620,7 +621,7 @@ impl Analyser {
                 || generation.context().ambient_package(package)
                 || references
                     .iter()
-                    .any(|(reference, _)| reference.matches_ascii(package))
+                    .any(|(reference, _)| reference.matches_package_descriptor(package))
             {
                 continue;
             }
@@ -706,7 +707,8 @@ impl Analyser {
             if !package.is_ascii()
                 || generation.context().ambient_package(package)
                 || references.iter().any(|(reference, _)| {
-                    reference.kind() == Kind::Provide && reference.matches_ascii(package)
+                    reference.kind() == Kind::Provide
+                        && reference.matches_package_descriptor(package)
                 })
             {
                 continue;
@@ -716,7 +718,7 @@ impl Analyser {
                 .filter(|(reference, unconditional)| {
                     *unconditional
                         && reference.kind() == Kind::Require
-                        && reference.matches_ascii(package)
+                        && reference.matches_package_descriptor(package)
                 })
                 .filter_map(|(reference, _)| {
                     reference

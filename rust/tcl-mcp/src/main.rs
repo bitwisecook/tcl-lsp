@@ -20,8 +20,8 @@
 //!
 //! Built on the official [`rmcp`] SDK (`JSON-RPC` 2.0 over `stdio`). Every tool
 //! handler calls the Rust analysis crates (`tcl-lsp-core`, `tcl-compiler`,
-//! `tcl-registry`) **directly**. The tool set + wire results are kept stable so
-//! existing MCP clients are unaffected.
+//! `tcl-registry`) **directly**. Tool results carry JSON payloads in the MCP
+//! text content blocks.
 
 use std::sync::Arc;
 
@@ -102,11 +102,9 @@ impl ServerHandler for TclMcp {
 }
 
 fn tool_result(name: &str, args: &Value) -> CallToolResult {
-    let mut result = match tools::dispatch(name, args) {
-        Some(result) => CallToolResult::success(vec![ContentBlock::text(result.to_string())]),
-        None => CallToolResult::error(vec![ContentBlock::text(
-            json!({ "error": format!("Unknown tool: {name}") }).to_string(),
-        )]),
+    let mut result = match tools::run_tool(name, args) {
+        Ok(payload) => CallToolResult::success(vec![ContentBlock::text(payload.to_string())]),
+        Err(payload) => CallToolResult::error(vec![ContentBlock::text(payload.to_string())]),
     };
     let revision = tcl_version::SOURCE_REVISION;
     let timestamp = env!("TCL_MCP_BUILD_TIMESTAMP")
@@ -202,10 +200,61 @@ mod protocol_tests {
         assert!(legacy.get("cacheScope").is_none());
     }
 
+    fn wire_payload(name: &str, args: &Value) -> (bool, Value) {
+        let result = serde_json::to_value(tool_result(name, args)).unwrap();
+        let is_error = result["isError"].as_bool().unwrap();
+        let payload = serde_json::from_str(result["content"][0]["text"].as_str().unwrap()).unwrap();
+        (is_error, payload)
+    }
+
+    #[test]
+    fn tool_failures_and_refusals_have_distinct_wire_results() {
+        for (name, args) in [
+            (
+                "analyze",
+                json!({"source": "set x 1", "dialect": "klingon"}),
+            ),
+            ("irule_with_context", json!({"config_paths": ["\u{0}"]})),
+        ] {
+            let (is_error, payload) = wire_payload(name, &args);
+            assert!(is_error, "{payload}");
+            assert!(payload["error"].is_string(), "{payload}");
+        }
+
+        let (is_error, payload) = wire_payload(
+            "if_to_switch",
+            &json!({"source": "set x 1", "line": 0, "character": 0}),
+        );
+        assert!(!is_error, "{payload}");
+        assert!(payload["refused"]["reason"].is_string(), "{payload}");
+        assert!(payload.get("error").is_none(), "{payload}");
+    }
+
+    #[test]
+    fn facts_and_diagnostics_share_the_lone_cr_line_model() {
+        let args = json!({"source": "set x 1\rproc p {} { set }", "dialect": "tcl9.0"});
+        let (_, facts) = wire_payload("symbols", &args);
+        let (_, diagnostics) = wire_payload("analyze", &args);
+        let proc = facts["symbols"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|symbol| symbol["name"] == "p")
+            .unwrap();
+        let arity = diagnostics["diagnostics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|finding| matches!(finding["code"].as_str(), Some("E002" | "E003")))
+            .unwrap();
+        assert_eq!(proc["range"]["start"]["line"], 1, "{facts}");
+        assert_eq!(arity["range"]["start"]["line"], 1, "{diagnostics}");
+    }
+
     #[test]
     fn tool_results_include_build_provenance() {
         let args = json!({"source": "set answer 42", "dialect": "tcl8.6"});
-        let expected = tools::dispatch("analyze", &args).unwrap();
+        let expected = tools::run_tool("analyze", &args).unwrap();
         for (name, is_error, payload) in [
             ("analyze", false, expected),
             ("unknown", true, json!({"error": "Unknown tool: unknown"})),

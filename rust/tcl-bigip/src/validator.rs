@@ -410,6 +410,59 @@ fn check_irule_ip_group_items(
     }
 }
 
+fn check_signed_data_group_items(
+    rule: &crate::model::BigipRule,
+    view: &ModelView<'_>,
+    context: &OriginalIrulesSourceContext,
+    out: &mut Vec<ConfigDiagnostic>,
+) {
+    let line_index = LineIndex::new(&rule.source);
+    for finding in context.signed_data_group_diagnostics() {
+        let Some(comparison) = &finding.signed_data_group_comparison else {
+            continue;
+        };
+        let group = crate::object_names::owner_partition_reference_paths(
+            &comparison.group,
+            &rule.full_path,
+            view.default_partition,
+        )
+        .into_iter()
+        .find_map(|path| view.data_groups.get(&path));
+        let known_key = group
+            .filter(|group| group.value_type == "integer")
+            .and_then(|group| {
+                group.records.iter().find_map(|key| {
+                    let key = key.parse::<u64>().ok()?;
+                    comparison.unsigned_keys.contains(&key).then_some(key)
+                })
+            });
+        let (severity, message) = known_key.map_or_else(
+            || (DiagSeverity::Hint, finding.message.clone()),
+            |key| {
+                (
+                    DiagSeverity::Warning,
+                    format!(
+                        "{} Configured key {key} is outside the item's signed range.",
+                        finding.message
+                    ),
+                )
+            },
+        );
+        out.push(ConfigDiagnostic {
+            code: finding.code.as_str().to_owned(),
+            message,
+            severity,
+            subject: ConfigDiagnosticSubject::IRule,
+            range: range_from_capture(
+                &rule.source,
+                &line_index,
+                finding.span.start() as usize,
+                finding.span.end() as usize,
+            ),
+        });
+    }
+}
+
 /// BIGIP6002: iRule references a pool not found in config.
 fn check_irule_pools(
     rule: &crate::model::BigipRule,
@@ -1359,6 +1412,7 @@ pub fn validate_bigip_config(config: &BigipConfig) -> Vec<ConfigDiagnostic> {
         check_irule_snatpools(rule, &view, &mut out);
         if let Some(context) = OriginalIrulesSourceContext::capture(&rule.source, registry) {
             check_irule_ip_group_items(rule, &view, &context, &mut out);
+            check_signed_data_group_items(rule, &view, &context, &mut out);
             event_handlers.insert(
                 path.to_owned(),
                 extract_original_irules_event_handlers(&rule.source, &context),
@@ -1909,6 +1963,39 @@ ltm pool /Common/quorum {
             );
             assert!(!code.is_internal());
             assert!(!code.is_reserved());
+        }
+    }
+}
+
+#[cfg(test)]
+mod signed_data_group_tests {
+    use super::*;
+
+    #[test]
+    fn signed_scan_data_group_equality_promotes_for_a_configured_unsigned_key() {
+        for (key, expected) in [
+            (129, DiagSeverity::Warning),
+            (127, DiagSeverity::Hint),
+            (300, DiagSeverity::Hint),
+        ] {
+            let source = format!(
+                "ltm data-group internal /Common/int_dg {{ type integer
+ records {{ {key} {{ data hit }} }} }}
+                 ltm rule /Common/sample {{
+ when CLIENT_DATA {{
+  binary scan [TCP::payload] c value
+  class match -- $value equals int_dg
+ }}
+}}
+"
+            );
+            let diagnostics = validate_bigip_source(&source, "Common");
+            let finding = diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic.code == "W156")
+                .expect("signed data-group item");
+            assert_eq!(finding.severity, expected, "{diagnostics:?}");
+            assert_eq!(finding.message.contains("Configured key 129"), key == 129);
         }
     }
 }

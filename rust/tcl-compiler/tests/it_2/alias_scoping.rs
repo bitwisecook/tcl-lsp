@@ -387,7 +387,7 @@ mod global_declaration_indices_tests {
     #[test]
     fn multiple_names() {
         assert_eq!(
-            global_declaration_indices(&v(&["a", "b", "c"])),
+            global_declaration_indices(registry(), &v(&["a", "b", "c"])),
             vec![0, 1, 2]
         );
     }
@@ -396,7 +396,10 @@ mod global_declaration_indices_tests {
     fn skips_substituted_refs() {
         // `global $dynamic` is a runtime-resolved name; the compiler ignores it
         // as a static declaration, so we do too.
-        assert_eq!(global_declaration_indices(&v(&["$dynamic", "b"])), vec![1]);
+        assert_eq!(
+            global_declaration_indices(registry(), &v(&["$dynamic", "b"])),
+            vec![1]
+        );
     }
 
     // NOTE: there is no token-vs-string variance to test here — the helper is
@@ -414,7 +417,7 @@ mod variable_declaration_indices_tests {
     fn even_indices_only() {
         // variable name1 value1 name2 value2  → names at the even positions.
         assert_eq!(
-            variable_declaration_indices(&v(&["counter", "0", "flag", "false"])),
+            variable_declaration_indices(registry(), &v(&["counter", "0", "flag", "false"])),
             vec![0, 2]
         );
     }
@@ -422,13 +425,16 @@ mod variable_declaration_indices_tests {
     #[test]
     fn name_without_value() {
         // variable counter   (no initial value)
-        assert_eq!(variable_declaration_indices(&v(&["counter"])), vec![0]);
+        assert_eq!(
+            variable_declaration_indices(registry(), &v(&["counter"])),
+            vec![0]
+        );
     }
 
     #[test]
     fn skips_substituted_names() {
         assert_eq!(
-            variable_declaration_indices(&v(&["$dynamic", "0"])),
+            variable_declaration_indices(registry(), &v(&["$dynamic", "0"])),
             [] as [usize; 0]
         );
     }
@@ -448,7 +454,7 @@ mod upvar_local_declaration_indices_tests {
     fn default_level() {
         // upvar other local           → pair (other, local); local at index 1.
         assert_eq!(
-            upvar_local_declaration_indices("upvar", &v(&["other", "local"])),
+            upvar_local_declaration_indices(registry(), "upvar", &v(&["other", "local"])),
             vec![1]
         );
     }
@@ -457,7 +463,7 @@ mod upvar_local_declaration_indices_tests {
     fn integer_level() {
         // upvar 1 other local         → pair (other, local); local at index 2.
         assert_eq!(
-            upvar_local_declaration_indices("upvar", &v(&["1", "other", "local"])),
+            upvar_local_declaration_indices(registry(), "upvar", &v(&["1", "other", "local"])),
             vec![2]
         );
     }
@@ -466,7 +472,7 @@ mod upvar_local_declaration_indices_tests {
     fn hash_level_arbitrary_digits() {
         // `upvar #3 other local` — arbitrary #N levels are recognised.
         assert_eq!(
-            upvar_local_declaration_indices("upvar", &v(&["#3", "other", "local"])),
+            upvar_local_declaration_indices(registry(), "upvar", &v(&["#3", "other", "local"])),
             vec![2]
         );
     }
@@ -474,7 +480,7 @@ mod upvar_local_declaration_indices_tests {
     #[test]
     fn hash_zero_level() {
         assert_eq!(
-            upvar_local_declaration_indices("upvar", &v(&["#0", "g", "l"])),
+            upvar_local_declaration_indices(registry(), "upvar", &v(&["#0", "g", "l"])),
             vec![2]
         );
     }
@@ -483,7 +489,7 @@ mod upvar_local_declaration_indices_tests {
     fn multiple_pairs() {
         // upvar 1 a A b B             → locals A (idx 2) and B (idx 4).
         assert_eq!(
-            upvar_local_declaration_indices("upvar", &v(&["1", "a", "A", "b", "B"])),
+            upvar_local_declaration_indices(registry(), "upvar", &v(&["1", "a", "A", "b", "B"])),
             vec![2, 4]
         );
     }
@@ -492,7 +498,7 @@ mod upvar_local_declaration_indices_tests {
     fn skips_substituted_names() {
         // Pair with a $-prefixed side is dropped.
         assert_eq!(
-            upvar_local_declaration_indices("upvar", &v(&["1", "$dyn", "local"])),
+            upvar_local_declaration_indices(registry(), "upvar", &v(&["1", "$dyn", "local"])),
             [] as [usize; 0]
         );
     }
@@ -502,7 +508,11 @@ mod upvar_local_declaration_indices_tests {
         // Lowered `namespace upvar ns src dst` form: command="namespace",
         // args[0] == "upvar", args[1] == namespace, args[2:] are pairs.
         assert_eq!(
-            upvar_local_declaration_indices("namespace", &v(&["upvar", "mymod", "src", "dst"])),
+            upvar_local_declaration_indices(
+                registry(),
+                "namespace",
+                &v(&["upvar", "mymod", "src", "dst"])
+            ),
             vec![3]
         );
     }
@@ -511,7 +521,11 @@ mod upvar_local_declaration_indices_tests {
     fn namespace_upvar_direct_form() {
         // command="namespace upvar", args[0] == namespace, args[1:] are pairs.
         assert_eq!(
-            upvar_local_declaration_indices("namespace upvar", &v(&["mymod", "src", "dst"])),
+            upvar_local_declaration_indices(
+                registry(),
+                "namespace upvar",
+                &v(&["mymod", "src", "dst"])
+            ),
             vec![2]
         );
     }
@@ -519,7 +533,7 @@ mod upvar_local_declaration_indices_tests {
     #[test]
     fn empty_args() {
         assert_eq!(
-            upvar_local_declaration_indices("upvar", &[]),
+            upvar_local_declaration_indices(registry(), "upvar", &[]),
             [] as [usize; 0]
         );
     }

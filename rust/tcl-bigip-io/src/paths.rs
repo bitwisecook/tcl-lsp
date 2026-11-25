@@ -28,6 +28,7 @@ use std::io::Read;
 use std::path::Path;
 
 use tcl_bigip::parser::{BigipConfig, parse_bigip_conf};
+use tcl_platform::file_uri::{FileUriEscaping, from_path};
 
 use crate::ucs::{
     DEFAULT_PASSPHRASE_ENV, UcsError, UcsScfSource, is_pgp_bytes, is_ucs_bytes,
@@ -45,6 +46,9 @@ pub enum PathError {
     /// The selected native path cannot be represented by this loader's URI contract.
     #[error("input path is not representable as Unicode: {0:?}")]
     NonUnicodePath(std::path::PathBuf),
+    /// The selected native path has no supported file-URI geometry.
+    #[error("input path has no supported file URI: {0:?}")]
+    UnsupportedFileUriPath(std::path::PathBuf),
     /// An I/O failure reading the file or stdin.
     #[error("{0}")]
     Io(String),
@@ -244,15 +248,17 @@ pub fn read_path_source(
     if !abs.is_file() {
         return Err(PathError::NotAFile(path_str.to_owned()));
     }
-    let abs_str = abs
-        .to_str()
-        .ok_or_else(|| PathError::NonUnicodePath(abs.clone()))?;
+    if abs.to_str().is_none() {
+        return Err(PathError::NonUnicodePath(abs));
+    }
+    let uri = from_path(&abs, FileUriEscaping::Unreserved)
+        .ok_or_else(|| PathError::UnsupportedFileUriPath(abs.clone()))?;
     let raw = std::fs::read(&abs)
         .map_err(|e| PathError::Io(format!("failed to read {path_str}: {e}")))?;
     if looks_like_ucs(&raw, is_ucs_suffix(path), false) {
         let source = ucs_archive_to_scf_source(&raw, &provider, false, path_str)?;
         return Ok(ConfigInput {
-            uri: file_uri(abs_str),
+            uri,
             source: ConfigSource::Archive(source),
         });
     }
@@ -263,7 +269,7 @@ pub fn read_path_source(
     }
     let preview = String::from_utf8_lossy(&raw).into_owned();
     Ok(ConfigInput {
-        uri: file_uri(abs_str),
+        uri,
         source: ConfigSource::Text {
             bytes: raw,
             preview,
@@ -301,23 +307,6 @@ pub fn load_paths<P: AsRef<Path>>(
         });
     }
     Ok(out)
-}
-
-/// Build a `file://` URI from an admitted Unicode absolute path, percent-encoding
-/// its UTF-8 bytes and leaving `/` plus ASCII alphanumerics and `_.-~` unescaped.
-fn file_uri(abs: &str) -> String {
-    use std::fmt::Write as _;
-    let s = abs;
-    let mut uri = String::from("file://");
-    for &b in s.as_bytes() {
-        let safe = b.is_ascii_alphanumeric() || matches!(b, b'_' | b'.' | b'-' | b'~' | b'/');
-        if safe {
-            uri.push(b as char);
-        } else {
-            let _ = write!(uri, "%{b:02X}");
-        }
-    }
-    uri
 }
 
 #[cfg(all(test, unix))]

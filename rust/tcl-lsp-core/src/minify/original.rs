@@ -371,7 +371,7 @@ fn scalar_alpha_compaction(
         return Err(MinifyRefusal::AlphaRenameGeometryUnavailable);
     }
     let index = LineIndex::new(source);
-    let byte_edits = scalar_alpha_byte_edits(source, &index, edits)?;
+    let byte_edits = scalar_alpha_byte_edits(source, &index, edits);
     // A native value can have several source-text inverses. Report the actual
     // declaration's written label after the receipt and edit owner select its cell.
     let mut original_formals = analysis.original_variable_symbols.iter().filter(|occurrence| {
@@ -394,7 +394,8 @@ fn scalar_alpha_compaction(
         )
         .ok_or(MinifyRefusal::AlphaRenameGeometryUnavailable)?
         .to_owned();
-    plan.source = super::apply_edits(source, byte_edits);
+    plan.source = super::apply_edits(source, &byte_edits)
+        .map_err(|_| MinifyRefusal::AlphaRenameGeometryUnavailable)?;
     // These labels only report a proved transformation; they never select a
     // declaration, variable, frame, native key or editable source occurrence.
     plan.symbol_map
@@ -410,7 +411,7 @@ fn scalar_alpha_byte_edits(
     source: &str,
     index: &LineIndex,
     edits: Vec<crate::rename::TextEdit>,
-) -> Result<Vec<super::Edit>, MinifyRefusal> {
+) -> Vec<super::SourceEdit> {
     let mut byte_edits = Vec::new();
     for edit in edits {
         let start = index.offset_at_utf16(
@@ -423,12 +424,12 @@ fn scalar_alpha_byte_edits(
             Utf16Col::new(edit.range.end_character),
             source,
         );
-        let written = source
-            .get(start as usize..end as usize)
-            .ok_or(MinifyRefusal::AlphaRenameGeometryUnavailable)?;
-        byte_edits.push((start as usize, written.len(), edit.new_text));
+        byte_edits.push(super::SourceEdit {
+            span: start as usize..end as usize,
+            text: edit.new_text,
+        });
     }
-    Ok(byte_edits)
+    byte_edits
 }
 
 /// Explicit driver inputs: profile and store are retained before the analyser

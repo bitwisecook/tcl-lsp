@@ -556,7 +556,7 @@ impl Analyser {
             // at runtime, which static W123 unknown-command analysis can
             // never predict.
             Hook::Load => {
-                self.result.has_dynamic_providers = true;
+                self.result.record_unresolved_provider_effect();
                 false
             }
             // A *static* ``rename OLD NEW`` is recorded precisely by
@@ -574,7 +574,7 @@ impl Analyser {
                     scope_path,
                     cmd_tok.span.start(),
                 ) {
-                    self.result.has_dynamic_providers = true;
+                    self.result.record_unresolved_provider_effect();
                 }
                 false
             }

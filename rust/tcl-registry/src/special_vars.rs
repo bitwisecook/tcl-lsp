@@ -54,6 +54,23 @@ use crate::taint::TaintColour;
 use tcl_dialect::model::SpecSurface;
 use tcl_dialect::model::{SurfaceQuery, surface_admits};
 
+/// Startup binding and read-trace facts for a special variable.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct StartupExistence {
+    /// The interpreter binds the variable before the script runs.
+    pub initially_bound: bool,
+    /// A read trace materialises the variable, including after an unset.
+    pub lazily_readable: bool,
+}
+
+impl StartupExistence {
+    /// Whether an initial global read can succeed before any script writes.
+    #[must_use]
+    pub const fn readable(self) -> bool {
+        self.initially_bound || self.lazily_readable
+    }
+}
+
 /// Native interpreter storage written while presenting an error completion.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NativeErrorStorageVariable {
@@ -346,8 +363,14 @@ impl SpecialVarSpec {
     /// lazy read trace; callers must still account for scope and later writes.
     #[must_use]
     pub fn readable_at_startup_in(&self, dialect: Option<SurfaceQuery<'_>>) -> bool {
-        surface_admits(self.initially_bound, dialect.as_ref())
-            || surface_admits(self.lazily_readable, dialect.as_ref())
+        self.startup_existence(dialect).readable()
+    }
+
+    pub(crate) fn startup_existence(&self, dialect: Option<SurfaceQuery<'_>>) -> StartupExistence {
+        StartupExistence {
+            initially_bound: surface_admits(self.initially_bound, dialect.as_ref()),
+            lazily_readable: surface_admits(self.lazily_readable, dialect.as_ref()),
+        }
     }
 
     /// The known keys of this array that are present in `dialect`.
@@ -403,50 +426,29 @@ pub fn special_var_in_dialect(
 /// This is an availability / metadata query.  It is intentionally *not* a
 /// W210 predicate: a number of special variables are created only after a
 /// runtime event or library call.
-#[must_use]
-pub fn is_special_var(name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool {
+#[cfg(test)]
+fn is_special_var(name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool {
     special_var_in_dialect(name, dialect).is_some()
 }
 
-/// Whether a bare global `name` is readable before user code has written it
-/// in the default startup context for `dialect`.
-///
-/// Consumers must apply this only to an initial global SSA version.  A
-/// procedure-local variable of the same name, or a version killed by `unset`,
-/// remains a genuine read-before-set.
-#[must_use]
-pub fn is_readable_at_startup(name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool {
-    special_var(name).is_some_and(|v| v.readable_at_startup_in(dialect))
+#[cfg(test)]
+fn is_readable_at_startup(name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool {
+    special_var(name).is_some_and(|spec| spec.startup_existence(dialect).readable())
 }
 
-/// Whether `name` is eagerly bound before user code in the default startup
-/// context for `dialect`.
-///
-/// Unlike [`is_readable_at_startup`], this excludes a read trace such as Tcl
-/// 8.x `tcl_precision`: an initial read is valid there, but a first `unset`
-/// still fails until that trace has materialised a value.
-#[must_use]
-pub fn is_initially_bound(name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool {
-    special_var(name).is_some_and(|v| surface_admits(v.initially_bound, dialect.as_ref()))
+#[cfg(test)]
+fn is_initially_bound(name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool {
+    special_var(name).is_some_and(|spec| spec.startup_existence(dialect).initially_bound)
 }
 
-/// Whether reading `name` in `dialect` invokes a registry-declared Tcl read
-/// trace which can materialise the value again after `unset`.  Unlike
-/// [`is_readable_at_startup`], this intentionally excludes eager startup
-/// bindings such as `argv`: deleting those leaves an ordinary undefined Tcl
-/// variable.
-#[must_use]
-pub fn is_lazily_readable(name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool {
-    special_var(name).is_some_and(|v| surface_admits(v.lazily_readable, dialect.as_ref()))
+#[cfg(test)]
+fn is_lazily_readable(name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool {
+    special_var(name).is_some_and(|spec| spec.startup_existence(dialect).lazily_readable)
 }
 
-/// Whether a *write* to `name` in `dialect` is observed by the runtime — so
-/// `set NAME …` must not be flagged as a dead store (W220) or unused variable
-/// (W211) even when the script never reads `$NAME`. This is the fix for the
-/// `set auto_path …` false positive.
-#[must_use]
-pub fn is_externally_read(name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool {
-    special_var_in_dialect(name, dialect).is_some_and(|v| v.externally_read)
+#[cfg(test)]
+fn is_externally_read(name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool {
+    special_var_in_dialect(name, dialect).is_some_and(|spec| spec.externally_read)
 }
 
 /// The extra interpreter/runtime state a *write* to special variable `name`

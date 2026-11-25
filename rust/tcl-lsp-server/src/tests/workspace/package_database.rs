@@ -22,8 +22,8 @@ use super::*;
 
 #[test]
 fn effective_auto_path_layers_editor_project_and_discovery() {
-    // editor libraryPaths → global → project .tcl-lsp.ini → discovered →
-    // TCLLIBPATH, deduped and in priority order.
+    // TCLLIBPATH → editor libraryPaths → global → project .tcl-lsp.ini →
+    // discovered, deduped and in priority order.
     let ws = TmpWs::new("ap");
     ws.write(".tcl-lsp.ini", "[project]\nlibraryPaths = /proj/lib\n");
     let editor = vec!["/editor/lib".to_owned()];
@@ -37,13 +37,22 @@ fn effective_auto_path_layers_editor_project_and_discovery() {
         std::slice::from_ref(&ws.0),
         &editor,
         &discovered,
+        vec![PathBuf::from("/env/lib"), PathBuf::from("/sys/lib")],
+    );
+    assert_eq!(ap[0], PathBuf::from("/env/lib"));
+    assert_eq!(ap[1], PathBuf::from("/sys/lib"));
+    assert_eq!(
+        ap.iter()
+            .filter(|path| *path == Path::new("/sys/lib"))
+            .count(),
+        1
     );
     assert!(ap.contains(&PathBuf::from("/editor/lib")));
     assert!(ap.contains(&PathBuf::from("/proj/lib")));
     assert!(ap.contains(&PathBuf::from("/sys/lib")));
     let pos = |p: &str| ap.iter().position(|x| x == &PathBuf::from(p)).unwrap();
     assert!(pos("/editor/lib") < pos("/proj/lib"));
-    assert!(pos("/proj/lib") < pos("/sys/lib"));
+    assert!(pos("/proj/lib") < pos("/sys/lib/tcl8.6"));
 }
 
 #[test]

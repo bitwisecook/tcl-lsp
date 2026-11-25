@@ -31,7 +31,7 @@ use std::collections::HashMap;
 use std::fmt::Write as _;
 
 use crate::analyser::state::Analyser;
-use crate::analyser::types::Severity;
+use crate::analyser::types::{Diagnostic, Severity, SignedDataGroupComparison};
 use crate::cfg::Terminator;
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::ir::Statement;
@@ -83,7 +83,7 @@ impl Analyser {
             return;
         }
         let numbers = crate::intervals::numbers_for_dialect(Some(self.profile));
-        let mut findings: Vec<(tcl_lexer::Span, String)> = Vec::new();
+        let mut findings = Vec::new();
         let mut check =
             |expr: &ExprNode,
              view: SsaSourceView<'_>,
@@ -120,7 +120,7 @@ impl Analyser {
                 };
                 for (variable, composition) in compositions(expr, numbers) {
                     if let Some(origin) = resolve(variable) {
-                        findings.push((
+                        findings.push(signed_scan_warning(
                             fu.abs_span(locate(variable)),
                             composition.message(variable, origin),
                         ));
@@ -139,7 +139,7 @@ impl Analyser {
                         }
                         _ => fallback,
                     };
-                    findings.push((fu.abs_span(span), message));
+                    findings.push(signed_scan_warning(fu.abs_span(span), message));
                 }
             };
         let parser_context = self.original_expression_parser_context();
@@ -156,19 +156,15 @@ impl Analyser {
             (registry, Some(context.as_ref().into())),
             self.file_lexer_config(),
             (&signed, &unresolved),
+            &ConfigurationSource {
+                source: &self.source,
+                analysis: &self.result,
+                context: context.as_ref(),
+            },
         ));
-        findings.sort_by_key(|(span, _)| (span.start(), span.end()));
+        findings.sort_by_key(|finding| (finding.span.start(), finding.span.end()));
         findings.dedup();
-        for (span, message) in findings {
-            self.result
-                .diagnostics
-                .push(crate::analyser::types::Diagnostic::new(
-                    DiagCode::W156,
-                    span,
-                    message,
-                    Severity::Warning,
-                ));
-        }
+        self.result.diagnostics.extend(findings);
     }
 }
 
@@ -1040,10 +1036,21 @@ fn format_effect(verb: u8, dotted: bool) -> Option<&'static str> {
 /// One call a statement makes, itself or in a `[…]` word: its command, its
 /// post-head words with their spans, and which of them are indices.
 struct ConsumerCall {
+    head: Option<u32>,
     name: String,
     args: Vec<String>,
     spans: Vec<tcl_lexer::Span>,
     indices: Vec<usize>,
+}
+
+struct ConfigurationSource<'a> {
+    source: &'a str,
+    analysis: &'a crate::analyser::AnalysisResult,
+    context: &'a tcl_registry::model::ContextRegistry,
+}
+
+fn signed_scan_warning(span: tcl_lexer::Span, message: String) -> Diagnostic {
+    Diagnostic::new(DiagCode::W156, span, message, Severity::Warning)
 }
 
 /// Signed scan values passed, unmasked, to a command that mishandles them:
@@ -1058,9 +1065,11 @@ fn call_consumers(
     ),
     config: tcl_lexer::LexerConfig,
     (signed, unresolved): (&HashMap<ValueKey, SignedOrigin>, &UnresolvedScans),
-) -> Vec<(tcl_lexer::Span, String)> {
+    configuration: &ConfigurationSource<'_>,
+) -> Vec<Diagnostic> {
     let surface = tcl_registry::model::DocumentCommandSurface::new(registry, None);
     let lift = |lifted: crate::word_subst::LiftedCall| ConsumerCall {
+        head: lifted.words.as_ref().and_then(consumer_head),
         indices: index_positions(registry, context, lifted.tokens.as_ref(), &lifted.args),
         name: lifted.command,
         args: lifted.args,
@@ -1082,6 +1091,7 @@ fn call_consumers(
             ) = (&statement.statement, tokens)
             {
                 calls.push(ConsumerCall {
+                    head: consumer_head(tokens),
                     name: canonical_command.as_deref().unwrap_or(command).to_owned(),
                     args: args.clone(),
                     spans: tokens.argv.iter().skip(1).copied().collect(),
@@ -1111,7 +1121,7 @@ fn call_consumers(
                 signed,
                 unresolved,
             };
-            consume_calls(registry, &calls, &site, &mut out);
+            consume_calls(registry, configuration, &calls, &site, &mut out);
         }
         if let Some(Terminator::Branch {
             condition,
@@ -1141,10 +1151,15 @@ fn call_consumers(
                 signed,
                 unresolved,
             };
-            consume_calls(registry, &calls, &site, &mut out);
+            consume_calls(registry, configuration, &calls, &site, &mut out);
         }
     }
     out
+}
+
+fn consumer_head(tokens: &crate::ir::CommandTokens) -> Option<u32> {
+    let head = tokens.words().first()?.source();
+    (head.provenance == crate::ir::Provenance::Source).then_some(head.span.start())
 }
 
 /// The expression a statement evaluates, with its source base.
@@ -1212,9 +1227,10 @@ impl<'a> ReadSite<'a> {
 
 fn consume_calls(
     registry: &tcl_registry::CommandRegistry,
+    configuration: &ConfigurationSource<'_>,
     calls: &[ConsumerCall],
     site: &ReadSite<'_>,
-    out: &mut Vec<(tcl_lexer::Span, String)>,
+    out: &mut Vec<Diagnostic>,
 ) {
     let read = |span: tcl_lexer::Span, variable: &str| site.read(span, variable);
     for call in calls {
@@ -1239,8 +1255,65 @@ fn consume_calls(
             &call.spans,
             &read,
         ));
-        out.extend(found.map(|(span, message)| (site.fu.abs_span(span), message)));
+        out.extend(
+            found.map(|(span, message)| signed_scan_warning(site.fu.abs_span(span), message)),
+        );
+        out.extend(data_group_comparison(configuration, call, site));
     }
+}
+
+/// A data-group equality comparison with an item written by a signed scan.
+/// A source comparison alone does not establish which keys the group holds.
+fn data_group_comparison(
+    configuration: &ConfigurationSource<'_>,
+    call: &ConsumerCall,
+    site: &ReadSite<'_>,
+) -> Option<Diagnostic> {
+    // Only calls with a candidate descriptor need the complete source query.
+    let spec = configuration.context.commands().get(&call.name)?;
+    spec.resolve_subcommand(call.args.first()?)?
+        .source_configuration_reference?;
+    let head = site.fu.abs_pos(call.head?);
+    let selected = crate::registry_invocation::source_structure::source_registry_words_at(
+        configuration.source,
+        configuration.analysis,
+        head,
+    )?;
+    let reference = selected.with_source_schema(configuration.context, |invocation| {
+        invocation.authored_source_configuration_reference_operand()
+    })??;
+    let item = reference.comparison_item?;
+    let operator = reference.argument.min(item).checked_add(1)?;
+    let literal =
+        |index: usize| std::str::from_utf8(selected.arguments().get(index)?.literal_bytes()?).ok();
+    if !literal(operator)?.eq_ignore_ascii_case(crate::expr_ast::BinOp::StrEquals.as_str()) {
+        return None;
+    }
+    let group = literal(reference.argument)?;
+    let word = selected.original_argument_word(item)?;
+    let (variable, span) = super::super::original_roles::scalar_variable_reference(word)?;
+    let relative_span = call
+        .spans
+        .iter()
+        .copied()
+        .find(|&arg| site.fu.abs_span(arg) == word.span())?;
+    let origin = site.read(relative_span, &variable)?;
+    let (lo, hi) = origin.range();
+    let mask = (1u64 << origin.bits) - 1;
+    let mut finding = Diagnostic::new(
+        DiagCode::W156,
+        span,
+        format!(
+            "${variable} holds a signed {}-bit value from `{} … {}` ({lo}..{hi}); it may not match unsigned keys in data group `{group}`. For unsigned keys, mask it as `[expr {{${variable} & 0x{mask:x}}}]`.",
+            origin.bits, origin.command, origin.field,
+        ),
+        Severity::Hint,
+    );
+    finding.signed_data_group_comparison = Some(Box::new(SignedDataGroupComparison {
+        group: group.to_owned(),
+        unsigned_keys: (1u64 << (origin.bits - 1))..=mask,
+    }));
+    Some(finding)
 }
 
 /// `$name` arguments of a `format` call whose conversion renders a signed

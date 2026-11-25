@@ -16,109 +16,18 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Tcl package version arithmetic — comparison and `package vsatisfies`.
-//!
-//! Tcl versions are dotted sequences of non-negative integers (`8`, `8.6`,
-//! `8.6.16`, `2.0`).  Comparison is segment-wise with missing trailing
-//! segments treated as zero, so `8.6` and `8.6.0` are equal.
-//!
-//! A *requirement* (as used by `package require` and `package vsatisfies`)
-//! has one of three forms:
-//!
-//! * `min` — shorthand for `min-<M+1>` where `M` is `min`'s first (major)
-//!   segment, i.e. the half-open range `[min, M+1)`. `8.6` admits `8.6`…`8.9`
-//!   but not `9.0`; `2.1` is shorthand for `2.1-3`.
-//! * `min-` — the unbounded range `[min, ∞)`.
-//! * `min-max` — the half-open range `[min, max)` (`max` exclusive).
-//!
-//! This mirrors the Tcl `package` command's requirement semantics.  It is a
-//! distinct scheme from the semver-flavoured [`tcl_pkg::Version`] used by the
-//! package manager; the registry needs Tcl-native dotted-version gating for
-//! command/option availability, so it is kept self-contained here.
+//! Package version helpers for registry lifecycle bounds and source advice.
 
-use std::cmp::Ordering;
+pub use tcl_dialect::{compare_versions as compare, version_satisfies as satisfies_one};
 
-/// Iterator over a dotted version's numeric segments.  Non-numeric segments
-/// terminate parsing (defensive; real Tcl versions are purely numeric).
-fn segments(version: &str) -> impl Iterator<Item = u64> + '_ {
-    version.split('.').map_while(|seg| {
-        if seg.is_empty() {
-            None
-        } else {
-            seg.parse::<u64>().ok()
-        }
-    })
-}
-
-/// Segment-wise comparison of two dotted versions, zero-padding the shorter.
-///
-/// **Prerelease-blind, by design and by domain.** [`segments`] stops at the
-/// first non-numeric segment, so `1.0a1`, `1.0b1`, and `1.0` all compare
-/// **equal**. That is correct for what this comparator exists to answer —
-/// lifecycle floors and `package require` requirement bounds, whose release
-/// strings are plain dotted versions ([`crate::lifecycle::Lifecycle`]) — and
-/// it keeps a malformed spec from ordering unpredictably.
-///
-/// It is **not** correct for ordering or de-duplicating *release labels* a
-/// package actually shipped, where a prerelease is a distinct release. Use
-/// `tcl_dialect::compare_versions` — the oracle-pinned
-/// `package vcompare` port — for that.
-#[must_use]
-pub fn compare(a: &str, b: &str) -> Ordering {
-    let mut ai = segments(a);
-    let mut bi = segments(b);
-    loop {
-        match (ai.next(), bi.next()) {
-            (None, None) => return Ordering::Equal,
-            (av, bv) => {
-                let ord = av.unwrap_or(0).cmp(&bv.unwrap_or(0));
-                if ord != Ordering::Equal {
-                    return ord;
-                }
-            }
-        }
-    }
-}
-
-/// True when *available* version is >= *minimum* version.
+/// True when *available* version is at least *minimum* version.
 #[must_use]
 pub fn meets_min(available: &str, minimum: &str) -> bool {
-    compare(available, minimum) != Ordering::Less
+    compare(available, minimum).is_ge()
 }
 
-/// First (major) segment of a version, or 0.
-fn first_segment(version: &str) -> u64 {
-    segments(version).next().unwrap_or(0)
-}
-
-/// True when *version* satisfies a single *requirement* string.
-#[must_use]
-pub fn satisfies_one(version: &str, requirement: &str) -> bool {
-    let req = requirement.trim();
-    if let Some(min) = req.strip_suffix('-') {
-        return compare(version, min) != Ordering::Less;
-    }
-    if let Some((lo, hi)) = req.split_once('-') {
-        // Tcl's `RequirementSatisfied` special-cases an equal min/max: when the
-        // two bounds compare equal the requirement is an *exact pin* rather than
-        // the (empty) half-open range `[min, max)`.  `package vsatisfies 8.4
-        // 8.4-8.4` is therefore true, not false.
-        if compare(lo, hi) == Ordering::Equal {
-            return compare(version, lo) == Ordering::Equal;
-        }
-        return compare(version, lo) != Ordering::Less && compare(version, hi) == Ordering::Less;
-    }
-    // Bare `min` == `[min, first(min)+1)`.
-    if compare(version, req) == Ordering::Less {
-        return false;
-    }
-    first_segment(version) <= first_segment(req)
-}
-
-/// Mirror `package vsatisfies`: true if *version* meets **any** requirement.
-///
-/// With no requirements the result is `true` (an unconstrained
-/// `package require` accepts any version).
+/// Whether any requirement admits the supplied version. An empty requirement
+/// list is an unconstrained package lookup.
 #[must_use]
 pub fn vsatisfies(version: &str, requirements: &[&str]) -> bool {
     requirements.is_empty() || requirements.iter().any(|r| satisfies_one(version, r))
@@ -139,6 +48,39 @@ pub fn requirement_lower_bound(requirement: &str) -> &str {
         return lo;
     }
     req
+}
+
+/// A lower bound shared by every alternative in one package requirement.
+/// Unknown or invalid alternatives leave that bound undetermined.
+#[must_use]
+pub fn alternatives_lower_bound<'version>(
+    alternatives: impl IntoIterator<Item = Option<&'version str>>,
+    exact: bool,
+) -> Option<&'version str> {
+    let grammar = tcl_dialect::TclVersion::V9_1;
+    let mut alternatives = alternatives.into_iter();
+    if exact {
+        let version = alternatives.next()??;
+        return (alternatives.next().is_none()
+            && tcl_dialect::validate_version_for(version, grammar))
+        .then_some(version);
+    }
+    let mut floor = None;
+    for alternative in alternatives {
+        let requirement = alternative?;
+        tcl_dialect::validate_requirement_for(requirement, grammar).ok()?;
+        let lower = if requirement.contains('+') {
+            requirement
+        } else {
+            requirement_lower_bound(requirement)
+        };
+        if floor.is_none_or(|previous| {
+            tcl_dialect::compare_versions_for(lower, previous, grammar).is_lt()
+        }) {
+            floor = Some(lower);
+        }
+    }
+    floor
 }
 
 /// Return the **exclusive** upper bound a *requirement* admits, when it
@@ -194,6 +136,8 @@ mod tests {
         assert_eq!(compare("9.0", "8.9"), Greater);
         assert_eq!(compare("2.0", "1.11.4"), Greater);
         assert_eq!(compare("8.6.16", "8.6.2"), Greater);
+        assert_eq!(compare("8.6a1", "8.6b1"), Less);
+        assert_eq!(compare("8.6b1", "8.6"), Less);
     }
 
     #[test]

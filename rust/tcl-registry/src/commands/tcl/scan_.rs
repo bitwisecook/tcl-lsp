@@ -46,177 +46,61 @@ fn scan_arg_roles(argument_count: usize) -> Vec<(u8, ArgRole)> {
         .collect()
 }
 
-/// Constant-fold the *inline* `scan string format` form
-/// (no `varName` — that form writes variables and must never fold).
-///
-/// The scanf semantics are modelled **directly on tclsh**.  A naive fold
-/// that reads no `0x` prefix is unsound: it folds `scan 0xff %x` to `0`
-/// where every tclsh gives `255`.
-/// Only the dialect-invariant subset folds — verified against
-/// `tclsh8.4`/`8.5`/`8.6`/`9.0`/`9.1` during development (the differential
-/// harness pins these against the live `tclsh9.0`; the `scan.n` manpage
-/// text is byte-for-byte identical between 9.0 and 9.1, so nothing here is
-/// 9.1-specific):
-///
-/// * conversions `%d` / `%o` / `%x` / `%X` / `%s` / `%c` / `%%` only.  A width,
-///   `*` suppression, a `%[set]`, a size modifier (`%ld`), a positional `%n$`,
-///   a float conversion, and `%i` (base-0) / `%u` (unsigned wraparound) all
-///   bail (their value or availability is version-dependent).
-/// * a numeric result must fit the signed 32-bit range every release shares,
-///   `[-2³¹, 2³¹-1]` — above it 8.4 wraps, 8.5/8.6 widen, and 9.0 clamps or
-///   bignums, so e.g. `scan 2147483648 %d` is three-way divergent.
-/// * a `0x` / `0X` prefix on a `%x` input bails: tclsh reads it but its
-///   sign handling diverges in 8.4 (`scan -0xff %x` → `0` vs `-255`), and it
-///   is the exact case main mis-folds.
-/// * `%c` yields one character's codepoint (no whitespace skip; ASCII, since
-///   the whole input is ASCII-gated).  `%s` matches a non-whitespace run and
-///   bails if that run would need Tcl list-quoting, so the result is a plain
-///   space-join that renders identically to tclsh's returned list.
-/// * a literal mismatch, a failed / partial / empty conversion set, or a
-///   non-ASCII string / format all bail.
+/// Fold successful inline `scan` matches on the portable ASCII subset.
+/// The shared scan kernel reads the input. This compatibility hook admits
+/// only conversion kinds and result representations that all releases share.
 pub(crate) fn fold_scan(args: &[&str]) -> Option<String> {
-    let [string, fmt] = args else {
-        return None; // `scan str fmt var ...` writes vars — never fold
+    use tcl_cmd_core::scan::{Scanned, scan_match};
+
+    let [input, format] = args else {
+        return None;
     };
-    if !string.is_ascii() || !fmt.is_ascii() {
+    if !input.is_ascii() || !format.is_ascii() {
         return None;
     }
-    let s = string.as_bytes();
-    // The conversion grammar is shared with the runtime (`tcl_syntax::scan`); we
-    // only fold the dialect-invariant plain conversions and bail on the rest.
-    let f: Vec<char> = fmt.chars().collect();
-    let mut out: Vec<String> = Vec::new();
-    let mut si = 0;
-    let mut fi = 0;
-    while fi < f.len() {
-        let fc = f[fi];
-        if fc.is_ascii_whitespace() {
-            // Whitespace in the format matches a (possibly empty) input run.
-            while si < s.len() && s[si].is_ascii_whitespace() {
-                si += 1;
-            }
-            fi += 1;
+    let format = format.chars().collect::<Vec<_>>();
+    let has_hex_prefix = input.contains("0x") || input.contains("0X");
+    let mut fields = 0;
+    let mut at = 0;
+    while at < format.len() {
+        if format[at] != '%' {
+            at += 1;
             continue;
         }
-        if fc != '%' {
-            if si < s.len() && s[si] == fc as u8 {
-                si += 1;
-                fi += 1;
-                continue;
-            }
-            return None; // literal mismatch
-        }
-        // A conversion specifier — parsed through the shared grammar; a malformed
-        // spec bails (the runtime errors on it, so folding it would be unsound).
-        fi += 1;
-        let mut ci = fi;
-        let conv = tcl_syntax::scan::parse_conversion(&f, &mut ci).ok()?;
-        fi = ci;
-        if conv.verb == '%' {
-            if si < s.len() && s[si] == b'%' {
-                si += 1;
-                continue;
-            }
-            return None;
-        }
-        // A width, `*` suppression, a positional `%n$`, a size modifier, or a
-        // `%[set]` makes the value version-dependent or unmodelled here — bail.
-        if conv.suppress
-            || conv.xpg_index.is_some()
-            || conv.width.is_some()
-            || conv.size.is_some()
-            || conv.charset.is_some()
+        at += 1;
+        let conversion = tcl_syntax::scan::parse_conversion(&format, &mut at).ok()?;
+        if conversion.suppress
+            || conversion.xpg_index.is_some()
+            || conversion.width.is_some()
+            || conversion.size.is_some()
+            || !matches!(conversion.verb, '%' | 'd' | 'o' | 'x' | 'X' | 's' | 'c')
         {
             return None;
         }
-        let (value, next) = match conv.verb {
-            // One character, no whitespace skip (ASCII → codepoint < 128).
-            'c' => (u32::from(*s.get(si)?).to_string(), si + 1),
-            's' => scan_str_run(s, si)?,
-            'd' | 'o' | 'x' | 'X' => scan_int(s, si, conv.verb as u8)?,
-            // `%i` / `%u` / `%f` / `%e` / `%g` / `%b` — value or availability is
-            // version-dependent — bail.
-            _ => return None,
-        };
-        out.push(value);
-        si = next;
-    }
-    if out.is_empty() {
-        return None;
-    }
-    // Every element is list-safe (numeric, or a `%s` run screened below), so a
-    // space-join is byte-identical to the list tclsh's inline `scan` returns.
-    Some(out.join(" "))
-}
-
-/// `%s`: skip leading whitespace, match a non-whitespace run, and return it
-/// with the new input offset.  Bails if the run is empty or would need Tcl
-/// list-quoting (so the caller's space-join matches tclsh's list rendering).
-fn scan_str_run(s: &[u8], mut si: usize) -> Option<(String, usize)> {
-    while si < s.len() && s[si].is_ascii_whitespace() {
-        si += 1;
-    }
-    if si >= s.len() {
-        return None;
-    }
-    let start = si;
-    while si < s.len() && !s[si].is_ascii_whitespace() {
-        si += 1;
-    }
-    let word = &s[start..si];
-    if word.first() == Some(&b'#')
-        || word
-            .iter()
-            .any(|&b| matches!(b, b'{' | b'}' | b'[' | b']' | b'"' | b'\\' | b'$' | b';'))
-    {
-        return None;
-    }
-    Some((String::from_utf8_lossy(word).into_owned(), si))
-}
-
-/// `%d` / `%o` / `%x` / `%X`: skip whitespace, read an optional sign and the
-/// base's digits, and return the value — bounded to the signed-32-bit range
-/// every Tcl 8.4 → 9.1 agrees on for the no-size-modifier case — with the
-/// new offset.  Bails on a `0x` prefix, no digits, or an out-of-range /
-/// overflowing value.
-fn scan_int(s: &[u8], mut si: usize, conv: u8) -> Option<(String, usize)> {
-    while si < s.len() && s[si].is_ascii_whitespace() {
-        si += 1;
-    }
-    let neg = match s.get(si) {
-        Some(b'-') => {
-            si += 1;
-            true
+        // The sign of a prefixed hex input differs in Tcl 8.4.
+        if matches!(conversion.verb, 'x' | 'X') && has_hex_prefix {
+            return None;
         }
-        Some(b'+') => {
-            si += 1;
-            false
-        }
-        _ => false,
-    };
-    let base: u32 = match conv {
-        b'o' => 8,
-        b'x' | b'X' => 16,
-        _ => 10,
-    };
-    // A `0x` / `0X` prefix on a `%x` input is unsound to fold (main mis-reads
-    // it; `-0x…` diverges in 8.4).
-    if base == 16 && s.get(si) == Some(&b'0') && matches!(s.get(si + 1), Some(b'x' | b'X')) {
+        fields += usize::from(conversion.verb != '%');
+    }
+    if fields == 0 {
         return None;
     }
-    let start = si;
-    while si < s.len() && char::from(s[si]).is_digit(base) {
-        si += 1;
-    }
-    if si == start {
-        return None; // no digits — conversion failed
-    }
-    let mag = i64::from_str_radix(std::str::from_utf8(&s[start..si]).ok()?, base).ok()?;
-    let v = if neg { -mag } else { mag };
-    if !(-2_147_483_648..=2_147_483_647).contains(&v) {
+    let chars = input.chars().collect::<Vec<_>>();
+    let outcome = scan_match(&chars, &format);
+    if outcome.nconv != fields {
         return None;
     }
-    Some((v.to_string(), si))
+    let elements = outcome
+        .values
+        .into_iter()
+        .map(|value| match value? {
+            Scanned::Int(value) => Some(i32::try_from(value).ok()?.to_string()),
+            Scanned::Str(value) if tcl_syntax::list::list_element(&value) == value => Some(value),
+            _ => None,
+        })
+        .collect::<Option<Vec<_>>>()?;
+    String::from_utf8(tcl_syntax::list_result::portable_list_result(&elements)?).ok()
 }
 
 pub fn spec() -> CommandSpec {

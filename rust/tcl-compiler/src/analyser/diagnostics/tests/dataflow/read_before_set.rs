@@ -839,6 +839,28 @@ fn w210_does_not_report_a_name_a_substituted_catch_body_writes() {
     assert_eq!(w210_codes(source), [] as [String; 0], "{source}");
 }
 
+#[test]
+fn w210_reports_required_named_read_after_unset() {
+    let source = "proc p {} { set v 1; unset v; return [catch {set v} m]:$m }\nputs [p]\n";
+    let read = source.rfind("v}").unwrap();
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        let result = Analyser::new().analyse(source, dialect);
+        assert!(
+            result.diagnostics.iter().any(|diagnostic| {
+                diagnostic.code == DiagCode::W210 && diagnostic.span.as_range() == (read..read + 1)
+            }),
+            "{dialect}: {:?}",
+            result.diagnostics
+        );
+
+        let probe = "proc p {} { set v 1; unset v; return [info exists v] }\nputs [p]\n";
+        assert!(
+            w210_codes_in_dialect(probe, dialect).is_empty(),
+            "{dialect}"
+        );
+    }
+}
+
 /// A read after a loop selects the loop's joined contents: a counter or a
 /// value the loop wrote from clean data is not tainted.
 #[test]

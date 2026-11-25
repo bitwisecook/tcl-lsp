@@ -50,22 +50,6 @@ fn env_as_tcl_env(env: &StaticEnv) -> Env {
         .collect()
 }
 
-/// Parse a literal text as [`StaticValue`]. Prefers integer,
-/// then `true`/`false`, then string fallback.
-#[must_use]
-pub fn parse_literal_value(text: &str) -> StaticValue {
-    let stripped = text.trim();
-    if let Ok(i) = stripped.parse::<i64>() {
-        return StaticValue::Int(i);
-    }
-    match stripped.to_ascii_lowercase().as_str() {
-        "true" => return StaticValue::Bool(true),
-        "false" => return StaticValue::Bool(false),
-        _ => {}
-    }
-    StaticValue::Str(stripped.to_owned())
-}
-
 /// Evaluate an expression string under `env`.
 ///
 /// Returns `Some(int)` when the result folds to an integer (or an

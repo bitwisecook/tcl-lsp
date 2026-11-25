@@ -266,6 +266,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3244542535d5de959d90ec55d1b5ff0fd2bb7b1310223907d5f11932847f7b59"
 
 [[package]]
+name = "strsim"
+version = "0.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
+
+[[package]]
 name = "syn"
 version = "3.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -327,12 +333,14 @@ dependencies = [
  "num-traits",
  "regex",
  "rustc-hash",
+ "strsim",
  "tcl-bytecode",
  "tcl-cmd-core",
  "tcl-core-types",
  "tcl-dialect",
  "tcl-expr",
  "tcl-lexer",
+ "tcl-regex",
  "tcl-registry",
  "tcl-runtime-api",
  "tcl-syntax",
@@ -378,6 +386,7 @@ name = "tcl-host-native"
 version = "0.1.0"
 dependencies = [
  "nix",
+ "tcl-dialect",
  "tcl-host-c-abi",
  "tcl-platform",
 ]

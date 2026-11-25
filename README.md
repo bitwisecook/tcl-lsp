@@ -956,8 +956,8 @@ in `rust/tcl-dialect`, and `cargo xtask gen-environment-docs` regenerates them.
 | `tk` | Tk | Tcl 8.6 + Tk | `wish` | shebang `wish` |
 | `xilinx-eda-tcl` | Xilinx Vivado | Tcl 8.5 + vivado, sdc, upf | `vivado` | extension `.xdc` |
 
-Files with the extensions `.tcl`, `.tk`, `.itcl`, `.tm`, and `.test` name no
-dialect of their own. Detection, a `# tcl-dialect:` comment, or the
+Files with the extensions `.tcl`, `.tk`, `.itcl`, `.tm`, `.test`, and `.itk`
+name no dialect of their own. Detection, a `# tcl-dialect:` comment, or the
 `tclLsp.dialect` setting chooses one.
 [docs/generated/environments.md](docs/generated/environments.md) lists every
 environment with its core, packages, and language id.

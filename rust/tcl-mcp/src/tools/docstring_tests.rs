@@ -48,7 +48,12 @@ fn bare_name_without_a_namespace_does_not_choose_an_unrelated_declaration() {
         "proc_name": "dup",
     }));
     assert!(result["docstring"].is_null());
-    assert!(result["error"].as_str().unwrap().contains("qualified name"));
+    assert!(
+        result["refused"]["reason"]
+            .as_str()
+            .unwrap()
+            .contains("qualified name")
+    );
 }
 
 #[test]

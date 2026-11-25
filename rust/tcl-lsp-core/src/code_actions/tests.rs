@@ -144,6 +144,7 @@ fn fix_attached_to_diagnostic_surfaces_as_action() {
     r.diagnostics.clear();
     r.diagnostics.push(Diagnostic {
         subject: None,
+        signed_data_group_comparison: None,
         code: DiagCode::W210,
         message: "Variable read before set".to_string(),
         severity: tcl_compiler::analyser::Severity::Warning,
@@ -177,6 +178,7 @@ fn no_action_when_range_outside_diagnostic() {
     r.diagnostics.clear();
     r.diagnostics.push(Diagnostic {
         subject: None,
+        signed_data_group_comparison: None,
         code: DiagCode::W210,
         message: "msg".to_string(),
         severity: tcl_compiler::analyser::Severity::Warning,
@@ -208,6 +210,7 @@ fn empty_description_falls_back_to_diagnostic_message() {
     r.diagnostics.clear();
     r.diagnostics.push(Diagnostic {
         subject: None,
+        signed_data_group_comparison: None,
         code: DiagCode::W210,
         message: "Variable read before set".to_string(),
         severity: tcl_compiler::analyser::Severity::Warning,
@@ -259,6 +262,7 @@ fn multiple_fixes_on_one_diagnostic_each_become_an_action() {
     r.diagnostics.clear();
     r.diagnostics.push(Diagnostic {
         subject: None,
+        signed_data_group_comparison: None,
         code: DiagCode::W210,
         message: "msg".to_string(),
         severity: tcl_compiler::analyser::Severity::Warning,

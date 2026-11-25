@@ -20,8 +20,8 @@
 //!
 //! The clean boundary between *what a Tcl command computes* (portable, in
 //! `tcl-cmd-core`) and *what the host environment can do* (per-target). This
-//! crate is pure trait + type definitions — no syscalls, no `std::fs`/`net`/
-//! `process` — so it is a dependency-free, `wasm32`-clean leaf.
+//! crate defines host traits, capability types and pure path spelling. It makes
+//! no syscalls and remains a dependency-free, `wasm32`-clean leaf.
 //!
 //! # The capability model
 //!
@@ -39,6 +39,8 @@
 //! the impls are `#[cfg]`-selected per target, so a browser build need carry no
 //! process-spawn code at all.
 
+/// Lossless URI spelling for paths and components.
+pub mod file_uri;
 pub mod integer_formatter;
 pub mod native_list_sort;
 pub mod numeric_environment;

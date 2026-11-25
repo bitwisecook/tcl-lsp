@@ -78,7 +78,7 @@ Add to your `init.el`:
 ;; Plain `tcl-mode` for the rest of the family. The server routes these from
 ;; their own name or content, so sending languageId "tcl" costs nothing but
 ;; the mode line.
-(add-to-list 'auto-mode-alist '("\\.\\(tcl\\|tk\\|itcl\\|tm\\|test\\)\\'" . tcl-mode))
+(add-to-list 'auto-mode-alist '("\\.\\(tcl\\|tk\\|itcl\\|tm\\|test\\|itk\\)\\'" . tcl-mode))
 ;; </generated>
 
 ;; <generated: emacs-eglot>
@@ -176,8 +176,8 @@ derived modes in the eglot setup above, which send the correct `languageId`
 `tcl8.6`.
 
 Everything else the registry owns rides plain `tcl-mode`: `.tcl`, `.tk`,
-`.itcl`, `.tm`, and `.test`. The server detects those from their own content
-or file name, so the `languageId` has no ambiguity to resolve.
+`.itcl`, `.tm`, `.test`, and `.itk`. The server detects those from their own
+content or file name, so the `languageId` has no ambiguity to resolve.
 
 The `auto-mode-alist`, `interpreter-mode-alist` and `eglot-server-programs`
 forms above are generated from the environment registry by `cargo xtask

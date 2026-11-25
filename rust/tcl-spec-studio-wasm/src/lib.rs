@@ -235,7 +235,7 @@ pub fn import_package(files_json: &str, dialect: &str) -> String {
 /// `bytes` is the archive verbatim (a `File`'s `arrayBuffer`, a fetched release
 /// zipball). Returns
 /// `{"entries": [{"name", "text"}], "unsupported_encodings": […], "skipped": […], "members": n, "bytes": n}`
-/// — every `.tcl` / `.tm` / `.test` / `.itcl` / `.itk` member decoded as text,
+/// — Tcl source members from the workspace scan's file policy, decoded as text,
 /// plus a line per member the caps or a read error kept out, so the page can
 /// say what it did not look at rather than quietly analysing less than the
 /// author thinks. Unsupported encodings identify preview text that cannot be
@@ -247,6 +247,13 @@ pub fn import_package(files_json: &str, dialect: &str) -> String {
 #[must_use]
 pub fn unzip_entries(bytes: &[u8]) -> String {
     to_string(&archive::extract_json(bytes))
+}
+
+/// Whether a directory entry is a Tcl source under the workspace scan policy.
+#[wasm_bindgen]
+#[must_use]
+pub fn is_import_source(relative_path: &str) -> bool {
+    archive::is_import_source(relative_path)
 }
 
 /// Derive each command's version range from several releases of one package.

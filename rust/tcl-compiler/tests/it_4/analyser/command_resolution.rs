@@ -541,17 +541,17 @@ mod pack_declared_transitions {
             tcl_dialect::model::Family::Tcl,
             "8.6",
         ));
-        assert!(overlaid.is_readable_at_startup("sim_home", query));
+        assert!(overlaid.startup_existence("sim_home", query).readable());
         assert!(overlaid.special_var_in_dialect("sim_opts", query).is_some());
-        assert!(!overlaid.is_readable_at_startup("sim_opts", query));
+        assert!(!overlaid.startup_existence("sim_opts", query).readable());
         // The shipped rows still answer through the same door.
-        assert!(overlaid.is_readable_at_startup("tcl_version", query));
+        assert!(overlaid.startup_existence("tcl_version", query).readable());
 
         let plain = tcl_spectcl::install::registry_for_dialect_with_packs(
             D,
             &tcl_spectcl::PackSet::default(),
         );
         assert!(plain.special_var("sim_home").is_none());
-        assert!(!plain.is_readable_at_startup("sim_home", query));
+        assert!(!plain.startup_existence("sim_home", query).readable());
     }
 }

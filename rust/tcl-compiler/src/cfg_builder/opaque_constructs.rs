@@ -661,8 +661,6 @@ impl CfgBuilder<'_> {
     fn emit_opaque_catch(&mut self, stmt: &Statement, current: &str) {
         let Statement::Catch {
             body,
-            result_var,
-            options_var,
             raw_args,
             span,
             tokens,
@@ -685,7 +683,8 @@ impl CfgBuilder<'_> {
         }) {
             self.block_mut(current).statements.push(effect);
         }
-        let mut catch_defs: Vec<String> = result_var.iter().chain(options_var).cloned().collect();
+        let mut catch_defs =
+            crate::ir_helpers::structural_variable_write_projection(stmt).literal_names;
         dedup_preserve_order(&mut catch_defs);
         // Preserve ``tokens`` on the synthetic ``Statement::Call``
         // so the codegen's eval-fallback can detect the braced

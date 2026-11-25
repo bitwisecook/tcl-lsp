@@ -21,29 +21,11 @@
 //! File URI construction and checked native document/workspace path conversion.
 
 use std::borrow::Cow;
-use std::fmt::Write as _;
 use std::path::Path;
 
-/// Literal path characters admitted by a URI-producing protocol surface.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FileUriEscaping {
-    /// RFC 3986 path characters, including literal sub-delimiters, `:` and `@`.
-    PathCharacters,
-    /// The `ls_types` file-path spelling: unreserved bytes and `/` only.
-    Unreserved,
-}
-
-/// Render a rooted host path, without canonicalising or reading the filesystem.
-/// Invalid Unicode, NUL and relative paths decline. Windows path separators and
-/// extended-length drive/UNC prefixes are interpreted only on a Windows host;
-/// other verbatim namespace subtypes decline rather than publishing a URI that
-/// loses their native root. A POSIX backslash remains filename data. This API
-/// does not parse incoming URIs.
-#[must_use]
-pub fn from_path(path: &Path, escaping: FileUriEscaping) -> Option<String> {
-    path.has_root().then_some(())?;
-    from_rooted_spelling(path.to_str()?, cfg!(windows), escaping)
-}
+pub(crate) use tcl_platform::file_uri::escaped_path;
+use tcl_platform::file_uri::from_rooted_spelling;
+pub use tcl_platform::file_uri::{FileUriEscaping, file_uri_path_byte_projection, from_path};
 
 /// Readonly link candidate under the supplied host workspace/home policy.
 /// Only `~` and `~/` use the supplied absolute home; other relative spellings
@@ -111,105 +93,6 @@ fn vscode_document_spelling(path: &str, windows: bool) -> Option<String> {
     Some(ordinary)
 }
 
-fn from_rooted_spelling(path: &str, windows: bool, escaping: FileUriEscaping) -> Option<String> {
-    if path.as_bytes().contains(&0) {
-        return None;
-    }
-    let normalised;
-    let path = if windows {
-        normalised = path.replace('\\', "/");
-        normalised.as_str()
-    } else {
-        path
-    };
-    let extended_unc;
-    let path = if windows && let Some(extended) = path.strip_prefix("//?/") {
-        if let Some((kind, rest)) = extended.split_once('/')
-            && kind.eq_ignore_ascii_case("UNC")
-        {
-            extended_unc = format!("//{rest}");
-            extended_unc.as_str()
-        } else if matches!(extended.as_bytes(), [drive, b':', b'/', ..] if drive.is_ascii_alphabetic())
-        {
-            extended
-        } else {
-            // A verbatim Volume GUID or other non-drive/non-UNC namespace
-            // cannot lose `//?/`: that would turn its actual native root into
-            // an ordinary, potentially relative path on URI conversion.
-            return None;
-        }
-    } else {
-        path
-    };
-    let rooted = path.starts_with('/')
-        || windows
-            && matches!(path.as_bytes(), [drive, b':', b'/', ..] if drive.is_ascii_alphabetic());
-    rooted.then_some(())?;
-    let mut result = String::from("file://");
-    if windows && let Some(remote) = path.strip_prefix("//") {
-        let (authority, tail) = remote.split_once('/').unwrap_or((remote, ""));
-        result.push_str(&escaped_path(authority, FileUriEscaping::Unreserved));
-        result.push('/');
-        result.push_str(&escaped_path(tail, escaping));
-    } else {
-        if !path.starts_with('/') {
-            result.push('/');
-        }
-        result.push_str(&escaped_path(path, escaping));
-    }
-    Some(result)
-}
-
-/// Exact byte projection for generated host path URI consumers.
-/// Entries are literal ASCII or uppercase percent escapes, under the same
-/// forward owner as `from_path`; they supply no inverse or path admission.
-#[must_use]
-pub fn file_uri_path_byte_projection(escaping: FileUriEscaping) -> Vec<String> {
-    (0..=u8::MAX)
-        .map(|byte| {
-            if path_byte_is_literal(byte, escaping) {
-                char::from(byte).to_string()
-            } else {
-                format!("%{byte:02X}")
-            }
-        })
-        .collect()
-}
-
-fn path_byte_is_literal(byte: u8, escaping: FileUriEscaping) -> bool {
-    byte.is_ascii_alphanumeric()
-        || matches!(byte, b'-' | b'.' | b'_' | b'~' | b'/')
-        || escaping == FileUriEscaping::PathCharacters
-            && matches!(
-                byte,
-                b'!' | b'$'
-                    | b'&'
-                    | b'\''
-                    | b'('
-                    | b')'
-                    | b'*'
-                    | b'+'
-                    | b','
-                    | b';'
-                    | b'='
-                    | b':'
-                    | b'@'
-            )
-}
-
-pub(crate) fn escaped_path(path: &str, escaping: FileUriEscaping) -> String {
-    let mut out = String::with_capacity(path.len());
-    for &byte in path.as_bytes() {
-        let literal = path_byte_is_literal(byte, escaping);
-        if literal {
-            out.push(char::from(byte));
-        } else {
-            let _ = write!(out, "%{byte:02X}");
-        }
-    }
-    out
-}
-
 /// A file document URI cannot be represented under the selected host policy.
 /// Refusal is not evidence that a file, workspace or source provider is absent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -240,9 +123,12 @@ pub enum FileUriPathPurpose {
     /// LSP document/workspace interoperability with VS Code's authority spelling.
     /// This supplies neither a host file-action policy nor a browser virtual path.
     VsCodeDocument,
+    /// A native file input produced by the counted host-path encoder.
+    /// POSIX inputs cannot supply an authority. Windows UNC roots retain theirs.
+    NativeFile,
 }
 
-/// Parse an original document/workspace URI and retain its counted native path.
+/// Parse an original file URI and retain its counted native path.
 ///
 /// Under [`FileUriPathPurpose::VsCodeDocument`], POSIX `file://host/share`
 /// retains `//host/share`, including a literal `localhost` authority. Windows
@@ -268,9 +154,16 @@ pub fn to_path(
     }
     let uri =
         fluent_uri::Uri::parse(original_uri).map_err(|_| FileUriPathUnavailable::InvalidUri)?;
-    let spelling = match purpose {
-        FileUriPathPurpose::VsCodeDocument => document_file_path_spelling(&uri, cfg!(windows))?,
-    };
+    if purpose == FileUriPathPurpose::NativeFile
+        && !cfg!(windows)
+        && uri.scheme().as_str().eq_ignore_ascii_case("file")
+        && uri
+            .authority()
+            .is_some_and(|authority| !authority.as_str().is_empty())
+    {
+        return Err(FileUriPathUnavailable::UnsupportedAuthority);
+    }
+    let spelling = document_file_path_spelling(&uri, cfg!(windows))?;
     let path = std::path::PathBuf::from(spelling);
     if !path.is_absolute() {
         return Err(FileUriPathUnavailable::UnsupportedNativeGeometry);

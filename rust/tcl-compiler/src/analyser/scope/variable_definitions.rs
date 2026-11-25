@@ -19,7 +19,7 @@
 //! `define_var`, the alias link targets of a local and the W215 unreachable-name warning.
 
 use super::super::state::Analyser;
-use super::super::types::VarDef;
+use super::super::types::{ScopeKind, VarDef};
 use super::{scope_at, scope_at_mut};
 use tcl_core_types::DiagCode;
 use tcl_lexer::{Span, Token, TokenType};
@@ -90,16 +90,23 @@ impl Analyser {
             .filter(|e| !e.is_empty())
             .map(ToString::to_string);
 
-        let path = scope_path.to_vec();
+        // The positioned receiver may select a pre-existing root cell in Tcl
+        // 8.x. Use that selection for the reporting table as well, so a
+        // write to the root does not manufacture a namespace declaration.
+        let path = if self.definition_selects_existing_root(base_name, span, scope_path) {
+            &[]
+        } else {
+            scope_path
+        };
         // First definition of this variable → the W215 reachability check
         // fires here.
         // Done with a short immutable borrow before the mutable scope handle.
-        let is_first_def = scope_at(&self.result.global_scope, &path)
+        let is_first_def = scope_at(&self.result.global_scope, path)
             .is_some_and(|s| !s.variables.contains_key(base_name));
         if is_first_def && !self.structural_rebind {
-            self.emit_w215_unreachable_name(base_name, element.as_deref(), tok, span, &path);
+            self.emit_w215_unreachable_name(base_name, element.as_deref(), tok, span, path);
         }
-        let Some(scope) = scope_at_mut(&mut self.result.global_scope, &path) else {
+        let Some(scope) = scope_at_mut(&mut self.result.global_scope, path) else {
             return;
         };
 
@@ -156,6 +163,34 @@ impl Analyser {
             let key = tcl_syntax::naming::scope_variable_key(&scope.name, &base_owned);
             self.result.all_variables.insert(key, var);
         }
+    }
+
+    fn definition_selects_existing_root(
+        &self,
+        name: &str,
+        span: Span,
+        scope_path: &[usize],
+    ) -> bool {
+        use crate::signature_scan::variable_symbol::SignatureSourceVariableSlot;
+        !self.structural_rebind
+            && self.interp_path_stack.is_empty()
+            && self.result.ns_var_global_fallback()
+            && self.result.global_scope.variables.contains_key(name)
+            && !self.result.original_variable_alias_sites.contains(&span)
+            && scope_at(&self.result.global_scope, scope_path)
+                .is_some_and(|scope| scope.kind == ScopeKind::Namespace)
+            && self
+                .result
+                .original_variable_symbol_at_offset(span.start())
+                .is_some_and(|site| {
+                    let SignatureSourceVariableSlot::C { namespace, simple } = site.symbol().slot()
+                    else {
+                        return false;
+                    };
+                    site.span() == span
+                        && namespace.as_segments().is_empty()
+                        && simple.as_bytes() == name.as_bytes()
+                })
     }
 
     /// Record that the local `name` in the scope at `scope_path` aliases the

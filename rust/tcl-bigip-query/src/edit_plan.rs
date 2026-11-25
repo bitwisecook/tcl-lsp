@@ -36,6 +36,7 @@
 use std::collections::HashMap;
 
 use regex::Regex;
+use tcl_lexer::{SourceEdit, SourceEditError, apply_edits};
 
 use crate::errors::QueryError;
 use crate::rewrite::{RenameReport, rename_object};
@@ -295,7 +296,7 @@ fn apply_one_uri(
 
     let field_edit_count = field_ops.len();
     if !field_ops.is_empty() {
-        current = splice_edits(&current, &field_ops, uri)?;
+        current = apply_field_edits(&current, &field_ops, uri)?;
     }
 
     Ok(AppliedSource {
@@ -452,16 +453,18 @@ fn describe_str(value: &Value) -> String {
 /// Each op carries either a [`FieldSlot`] (an existing property to overwrite)
 /// or targets a missing list field we can materialise into a fresh
 /// `<field> { ... }` block. Slots are checked for overlap before application.
-fn splice_edits(source: &str, ops: &[&EditOp], uri: &str) -> Result<String, QueryError> {
-    let mut placed: Vec<(usize, usize, String, &EditOp)> = Vec::new();
+fn apply_field_edits(source: &str, ops: &[&EditOp], uri: &str) -> Result<String, QueryError> {
+    let mut edits = Vec::with_capacity(ops.len());
     for op in ops {
         if let Some(slot) = &op.field_slot {
-            let new_text = format_value(&op.new_value, &slot.raw_text, &op.field_name, 0)?;
-            placed.push((slot.start, slot.end, new_text, op));
+            edits.push(SourceEdit {
+                span: slot.start..slot.end,
+                text: format_value(&op.new_value, &slot.raw_text, &op.field_name, 0)?,
+            });
             continue;
         }
         if let Some(insert) = materialise_compound_block(source, op)? {
-            placed.push(insert);
+            edits.push(insert);
             continue;
         }
         return Err(QueryError::edit(format!(
@@ -472,27 +475,22 @@ fn splice_edits(source: &str, ops: &[&EditOp], uri: &str) -> Result<String, Quer
         )));
     }
 
-    placed.sort_by_key(|p| (p.0, p.1));
-    for i in 1..placed.len() {
-        let (_, prev_end, _, prev_op) = &placed[i - 1];
-        let (start, _, _, op) = &placed[i];
-        if start < prev_end {
-            return Err(QueryError::edit(format!(
+    apply_edits(source, &edits).map_err(|error| {
+        let message = match error {
+            SourceEditError::Overlap { first, second } => format!(
                 "overlapping edits at {uri}: {}.{} and {}.{}",
-                prev_op.object_path, prev_op.field_name, op.object_path, op.field_name
-            )));
-        }
-    }
-
-    let mut out_parts = String::new();
-    let mut cursor = 0usize;
-    for (start, end, new_text, _) in &placed {
-        out_parts.push_str(&source[cursor..*start]);
-        out_parts.push_str(new_text);
-        cursor = *end;
-    }
-    out_parts.push_str(&source[cursor..]);
-    Ok(out_parts)
+                ops[first].object_path,
+                ops[first].field_name,
+                ops[second].object_path,
+                ops[second].field_name,
+            ),
+            SourceEditError::InvalidSpan { edit } => format!(
+                "invalid edit range at {uri}: {}.{}",
+                ops[edit].object_path, ops[edit].field_name,
+            ),
+        };
+        QueryError::edit(message)
+    })
 }
 
 /// Render *value* for splicing back into source text.
@@ -600,10 +598,7 @@ fn is_flat_list_element(value: &Value) -> bool {
 }
 
 /// Return an edit that overwrites or materialises a `<field> { ... }` block.
-fn materialise_compound_block<'a>(
-    source: &str,
-    op: &'a EditOp,
-) -> Result<Option<(usize, usize, String, &'a EditOp)>, QueryError> {
+fn materialise_compound_block(source: &str, op: &EditOp) -> Result<Option<SourceEdit>, QueryError> {
     if !MATERIALISABLE_KIND_FIELDS.contains(&(op.object_kind.as_str(), op.field_name.as_str())) {
         return Ok(None);
     }
@@ -686,17 +681,18 @@ fn materialise_compound_block<'a>(
             return Ok(None);
         }
         let base = stanza_start + outer.body.start;
-        return Ok(Some((
-            base + start,
-            base + end,
-            format!("{{ {items_text} }}"),
-            op,
-        )));
+        return Ok(Some(SourceEdit {
+            span: base + start..base + end,
+            text: format!("{{ {items_text} }}"),
+        }));
     }
 
     // No existing block — insert before the closing brace.
     let block = format!("{indent}{} {{ {items_text} }}\n", op.field_name);
-    Ok(Some((closing_brace, closing_brace, block, op)))
+    Ok(Some(SourceEdit {
+        span: closing_brace..closing_brace,
+        text: block,
+    }))
 }
 
 #[cfg(test)]

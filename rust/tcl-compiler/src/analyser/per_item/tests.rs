@@ -74,7 +74,7 @@ fn per_item_body_keeps_proven_word_findings() {
             tcl_core_types::DiagCode::W230,
         ),
         (
-            "proc p {input} {set re {(a+)+$}; regexp $re $input}\n",
+            "proc p {input} {set re {^((a+)+)\\1$}; regexp $re $input}\n",
             tcl_core_types::DiagCode::W303,
         ),
     ] {

@@ -819,23 +819,6 @@ impl Procs for Interp {
     }
 }
 
-/// Bridge the runtime's own [`crate::interp::Code`] to the contract's
-/// [`tcl_runtime_api::Code`]. The two enums are structurally identical (the
-/// runtime predates the shared `tcl-core-types`); the explicit match keeps them
-/// honestly decoupled and breaks loudly if either drifts.
-fn api_code(code: crate::interp::Code) -> tcl_runtime_api::Code {
-    use crate::interp::Code as Rt;
-    use tcl_runtime_api::Code as Api;
-    match code {
-        Rt::Ok => Api::Ok,
-        Rt::Error => Api::Error,
-        Rt::Return => Api::Return,
-        Rt::Break => Api::Break,
-        Rt::Continue => Api::Continue,
-        Rt::Other(n) => Api::Other(n),
-    }
-}
-
 /// Capture one Guest completion from the original entered interpreter.
 ///
 /// The result and live return-options dictionary each transfer one independent
@@ -856,11 +839,7 @@ pub(crate) fn capture_completion_checked(
         });
     currency.ensure_current_or_refuse()?;
     let options = options?;
-    Ok(Completion::new(
-        api_code(code),
-        result.into_raw(),
-        options.into_raw(),
-    ))
+    Ok(Completion::new(code, result.into_raw(), options.into_raw()))
 }
 
 /// Run a full, prebuilt command argv through the inherent dispatcher, then

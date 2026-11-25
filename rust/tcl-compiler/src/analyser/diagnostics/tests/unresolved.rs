@@ -831,6 +831,32 @@ fn w120_suppressed_when_package_required() {
 }
 
 #[test]
+fn w120_accepts_the_registered_itcl_alias() {
+    for spelling in ["itcl", "Itcl", "ITCL"] {
+        let result = Analyser::new().analyse(
+            &format!("package require {spelling}\nitcl::class X {{}}\n"),
+            "tcl8.6",
+        );
+        assert_eq!(
+            result.diagnostics.iter().any(|d| d.code == DiagCode::W120),
+            spelling == "ITCL",
+            "unexpected diagnostics for `{spelling}`: {:?}",
+            result.diagnostics,
+        );
+    }
+}
+
+#[test]
+fn w120_checks_unrelated_packages_with_an_unnameable_requirement() {
+    let source = "package require $name\ntcl::idna decode example.com\n";
+    let result = Analyser::new().analyse(source, "tcl9.0");
+    assert!(result.has_dynamic_providers);
+    assert!(result.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == DiagCode::W120 && diagnostic.message.contains("tcl::idna")
+    }));
+}
+
+#[test]
 fn w120_fix_inserts_after_existing_require() {
     // With an unrelated `package require` present, the fix
     // inserts on the line after it.

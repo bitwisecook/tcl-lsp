@@ -18,7 +18,7 @@
 
 //! Keyword edits from complete Logical argv and selected availability.
 
-use super::{Edit, MinifyEnv, apply_edits, lexical_metadata};
+use super::{MinifyEnv, SourceEdit, apply_edits, lexical_metadata};
 use tcl_lexer::{NativeScriptCommandWords, NativeWord, WordKind};
 use tcl_registry::abbrev::{KeywordTable, PrefixMatching};
 use tcl_registry::{InvocationWord, InvocationWords, ResolvedInvocation};
@@ -47,14 +47,14 @@ pub(super) fn abbreviate(source: &str, env: MinifyEnv<'_>) -> (String, usize) {
         });
     }
     let count = edits.len();
-    (apply_edits(source, edits), count)
+    apply_edits(source, &edits).map_or_else(|_| (source.to_owned(), 0), |result| (result, count))
 }
 
 fn abbreviate_command(
     env: MinifyEnv<'_>,
     command: &NativeScriptCommandWords,
     schema: &ResolvedInvocation<'_, '_>,
-    edits: &mut Vec<Edit>,
+    edits: &mut Vec<SourceEdit>,
 ) {
     if schema.semantics.argument_offset == 1
         && let Some(subcommand) = schema.subcommand.resolved()
@@ -161,7 +161,7 @@ fn push_word_edit(
     word: &NativeWord,
     canonical: &'static str,
     tables: &[KeywordTable<'static>],
-    edits: &mut Vec<Edit>,
+    edits: &mut Vec<SourceEdit>,
 ) {
     let Some(value) = lexical_metadata::ascii_value(word) else {
         return;
@@ -177,11 +177,10 @@ fn push_word_edit(
         return;
     };
     if short.len() < value.len() {
-        edits.push((
-            word.span().start() as usize,
-            word.span().len() as usize,
-            short.to_owned(),
-        ));
+        edits.push(SourceEdit {
+            span: word.span().as_range(),
+            text: short.to_owned(),
+        });
     }
 }
 

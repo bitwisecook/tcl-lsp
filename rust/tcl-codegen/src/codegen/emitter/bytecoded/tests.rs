@@ -22,6 +22,19 @@ use super::*;
 use tcl_registry::CommandRegistry;
 
 #[test]
+fn concat_preserves_non_ascii_boundary_space() {
+    let registry = CommandRegistry::build_default();
+    let mut ctx = CodegenCtx::new(true, &[], &registry);
+    assert!(concat_cmd(&mut ctx, &["  a  ".into(), "\u{a0}b  ".into()]));
+    assert!(
+        ctx.literals
+            .entries()
+            .iter()
+            .any(|entry| entry.bytes() == "a \u{a0}b".as_bytes())
+    );
+}
+
+#[test]
 fn variable_declines_a_compiled_local_for_a_tail_ending_in_a_parenthesis() {
     // tclsh8.6, 9.0 and 9.1, `tcl::unsupported::disassemble proc v`:
     //   proc v {} {variable a(1)}     -> invokeStk1 (no local)

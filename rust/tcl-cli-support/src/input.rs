@@ -32,19 +32,9 @@ use tcl_lsp_core::source_decode::{DecodeReport, decode_source_as};
 /// `tcl check path/to/tests/` would skip a project's whole test suite,
 /// mirroring the same gap in the workspace scan. The list must also stay in
 /// sync with the server's `exp` / `apl` extensions.
-use tcl_registry::dialects::TCL_SOURCE_EXTENSIONS as SOURCE_SUFFIXES;
-
-/// Directory names skipped during recursive discovery.
-const SKIP_DIRECTORY_NAMES: &[&str] = &[
-    ".git",
-    ".hg",
-    ".svn",
-    ".venv",
-    "__pycache__",
-    "node_modules",
-    "build",
-    "dist",
-];
+use tcl_registry::dialects::{
+    TCL_SOURCE_EXTENSIONS as SOURCE_SUFFIXES, is_skipped_scan_dir, is_tcl_source,
+};
 
 /// Errors raised while resolving CLI input. Rendered as `error: {msg}`
 /// by the binary, exit code 2.
@@ -265,7 +255,7 @@ fn known_dialect_names() -> String {
         .join(", ")
 }
 
-/// The file extensions [`is_supported_source_file`] accepts, rendered
+/// The file extensions [`is_tcl_source`] accepts, rendered
 /// `.tcl, .tk, …` for user-facing errors.
 fn expected_source_extensions() -> String {
     SOURCE_SUFFIXES
@@ -273,20 +263,6 @@ fn expected_source_extensions() -> String {
         .map(|ext| format!(".{ext}"))
         .collect::<Vec<_>>()
         .join(", ")
-}
-
-/// `pkgIndex.tcl` is always accepted; otherwise the extension must be known.
-fn is_supported_source_file(path: &Path) -> bool {
-    if path.file_name().is_some_and(|n| n == "pkgIndex.tcl") {
-        return true;
-    }
-    match path.extension().and_then(|e| e.to_str()) {
-        Some(ext) => {
-            let lower = ext.to_ascii_lowercase();
-            SOURCE_SUFFIXES.contains(&lower.as_str())
-        }
-        None => false,
-    }
 }
 
 /// Discover supported source files under `directory`, sorted, honouring the
@@ -299,7 +275,7 @@ fn iter_directory_sources(directory: &Path, recursive: bool) -> Result<Vec<PathB
         let mut entries: Vec<PathBuf> = read_dir_sorted(directory)?;
         entries.sort();
         for path in entries {
-            if path.is_file() && is_supported_source_file(&path) {
+            if path.is_file() && is_tcl_source(&path) {
                 files.push(canonical(&path));
             }
         }
@@ -315,14 +291,13 @@ fn walk_recursive(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), CliError> {
     let mut files: Vec<PathBuf> = Vec::new();
     for path in entries {
         if path.is_dir() {
-            let name = path
-                .file_name()
-                .and_then(|n| n.to_str())
+            path.file_name()
+                .and_then(|name| name.to_str())
                 .ok_or_else(|| CliError::input("directory name is not representable as Unicode"))?;
-            if !SKIP_DIRECTORY_NAMES.contains(&name) && !name.starts_with('.') {
+            if !is_skipped_scan_dir(&path) {
                 subdirs.push(path);
             }
-        } else if path.is_file() && is_supported_source_file(&path) {
+        } else if path.is_file() && is_tcl_source(&path) {
             files.push(canonical(&path));
         }
     }
@@ -403,7 +378,7 @@ pub fn read_input_documents_as(
             continue;
         }
         if path.is_file() {
-            if !is_supported_source_file(&path) {
+            if !is_tcl_source(&path) {
                 return Err(CliError::input(format!(
                     "unsupported source file: {} (expected one of: {}, or a pkgIndex.tcl)",
                     path.display(),

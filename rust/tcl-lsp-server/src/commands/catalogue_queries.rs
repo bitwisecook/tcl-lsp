@@ -206,7 +206,13 @@ impl Backend {
             let installs = discovered.get_or_init(|| {
                 core_tcl_install::discover(&core_tcl_install::default_search_bases())
             });
-            let active = effective_auto_path(store.as_ref(), &roots, &editor_paths, installs);
+            let active = effective_auto_path(
+                store.as_ref(),
+                &roots,
+                &editor_paths,
+                installs,
+                core_tcl_install::tcllibpath_dirs(),
+            );
             serde_json::json!({
                 "installations": installs
                     .iter()

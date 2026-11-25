@@ -1,4 +1,8 @@
 # Fact	Owner	Disposition
+glob-c-string	rust/tcl-syntax/src/native_glob.rs#match_c_string_glob	Tcl_StringCaseMatch on release-specific, NUL-terminated strings.
+glob-native-name	rust/tcl-syntax/src/native_glob.rs#match_native_name_pattern	Native name matching on the selected C character units and lookup purpose.
+glob-cli-filter	rust/tcl-cli/src/commands/spec.rs#glob_matches	Non-Tcl pattern filter for command-spec listings.
+glob-dynamic-name-pieces	rust/tcl-compiler/src/dynamic_names.rs#pattern_matches	Non-Tcl compatibility test for whether abstract name pieces can spell a candidate.
 name-resolution	rust/tcl-compiler/src/command_binding/binding_projection.rs#source_binding	Use the retained command binding or the variable place proof.
 source-reader	rust/tcl-lexer/src/native_script_words.rs#native_script_words_in	Use the selected original source geometry at ingress.
 source-walk	rust/tcl-compiler/src/command_binding/source_walk.rs#walk_source_image	Read the compiler's positioned facts before adding a separate walk.

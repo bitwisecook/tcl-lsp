@@ -171,6 +171,124 @@ pub(super) fn variable_completions_in_source(
     fallback
 }
 
+/// Complete registry-owned globals and their known keys from the document's
+/// selected release and genuine global lexical context.
+pub(super) fn extend_special_variable_completions(
+    source: &str,
+    analysis: &AnalysisResult,
+    prefix: &tcl_lexer::word_parts::VariableCursorPrefix,
+    index: &tcl_lexer::LineIndex,
+    items: &mut Vec<CompletionItem>,
+) {
+    use tcl_registry::special_vars::SpecialVarKind;
+    use tcl_syntax::naming::{
+        array_source_reference, array_variable_completion_prefix, scalar_source_reference,
+    };
+
+    let Some(current) = crate::original_context::CurrentSourceContext::capture(source, analysis)
+    else {
+        return;
+    };
+    let config = current.config();
+    let image = tcl_lexer::SourceImage::document(source);
+    let reference = prefix.reference_span().start();
+    let Some(partial) = source
+        .get(prefix.partial_span().as_range())
+        .filter(|text| !text.is_empty())
+    else {
+        return;
+    };
+    if !variable_in_document_root(analysis, &image, config, reference) {
+        return;
+    }
+    let context = current.context();
+    let query = Some(context.context().authoring_query());
+    let begin = index.position_at_utf16(prefix.reference_span().start(), source);
+    let finish = index.position_at_utf16(prefix.completion_replacement_span().end(), source);
+    if begin.line != finish.line {
+        return;
+    }
+    let mut append = |label: String, new_text: String| {
+        if items.iter().any(|item| item.label == label) {
+            return;
+        }
+        items.push(CompletionItem {
+            label,
+            insert_text: new_text.clone(),
+            kind: CompletionKind::Variable,
+            text_edit: Some(CompletionEdit {
+                start_char: begin.character.get(),
+                end_char: finish.character.get(),
+                new_text,
+            }),
+            ..CompletionItem::default()
+        });
+    };
+    if prefix.index_span().is_some() {
+        if let Some((root, partial_index)) = array_variable_completion_prefix(partial)
+            && let Some(spec) = current.registry().special_var_in_dialect(root, query)
+        {
+            for key in spec
+                .keys_in(query)
+                .filter(|key| key.key.starts_with(partial_index))
+            {
+                if let Some(reference) =
+                    array_source_reference(root, key.key, config, prefix.is_braced())
+                {
+                    append(format!("${root}({})", key.key), reference);
+                }
+            }
+        }
+    } else {
+        for spec in current
+            .registry()
+            .special_vars_for_dialect(query)
+            .filter(|spec| spec.kind != SpecialVarKind::Namespace && spec.name.starts_with(partial))
+        {
+            if let Some(reference) = scalar_source_reference(spec.name, config, prefix.is_braced())
+            {
+                append(format!("${}", spec.name), reference);
+            }
+        }
+    }
+    items.sort_by(|left, right| left.label.cmp(&right.label));
+}
+
+fn variable_in_document_root(
+    analysis: &AnalysisResult,
+    image: &tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    reference: u32,
+) -> bool {
+    use tcl_compiler::var_resolve::VariableExecutionFrame;
+
+    let logical_root = analysis
+        .logical_variable_scope_advice(image, config, reference)
+        .is_some_and(|advice| {
+            advice
+                .eligible_scopes()
+                .last()
+                .is_some_and(|scope| std::ptr::eq(scope, advice.root()))
+        });
+    logical_root
+        || analysis
+            .original_variable_frame_in_source(image, config, reference)
+            .map_or_else(
+                || {
+                    // Native source retains body frames separately from the
+                    // document root. Require its retained outermost namespace.
+                    analysis.original_namespace_scope_at(reference).is_some_and(
+                        tcl_compiler::signature_scan::scope::SignatureNamespaceScope::is_root,
+                    ) && !analysis.global_scope.children.iter().any(|child| {
+                        child.body_span.is_some_and(|span| {
+                            span.start() <= reference && reference <= span.end()
+                        })
+                    })
+                },
+                |frame| matches!(frame.frame(), VariableExecutionFrame::Global),
+            )
+}
+
 /// Sorted current source names matching the fragment before insertion validation.
 pub(super) fn visible_variable_names(
     advice: &tcl_compiler::analyser::scope::LogicalVariableScopeAdvice<'_>,

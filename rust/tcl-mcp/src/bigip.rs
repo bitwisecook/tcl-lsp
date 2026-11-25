@@ -20,6 +20,8 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::tools::{ToolResult, refused, tool_error};
+
 use serde_json::{Value, json};
 use tcl_bigip::irule_context::{
     build_irule_context, context_bundle_to_json, context_bundle_to_text,
@@ -31,7 +33,7 @@ use tcl_bigip::parser::{BigipConfig, parse_bigip_conf};
 /// it references (pools, data-groups, profiles, monitors, …). Mirrors the
 /// `f5 irule context` pipeline: parse + merge the config(s), build one bundle
 /// per `ltm rule`, render to JSON or Tcl-flavoured text.
-pub fn irule_with_context(args: &Value) -> Value {
+pub fn irule_with_context(args: &Value) -> ToolResult {
     let config_text = args
         .get("config_text")
         .and_then(Value::as_str)
@@ -61,12 +63,14 @@ pub fn irule_with_context(args: &Value) -> Value {
                     let cfg = parse_bigip_conf(&text, "Common");
                     configs.push((path.to_owned(), text, cfg));
                 }
-                Err(e) => return json!({ "error": format!("reading {path}: {e}") }),
+                Err(e) => return Err(tool_error(format_args!("reading {path}: {e}"))),
             }
         }
     }
     if configs.is_empty() {
-        return json!({ "error": "no config provided; pass config_text or config_paths" });
+        return Err(tool_error(
+            "no config provided; pass config_text or config_paths",
+        ));
     }
 
     // Merge once so cross-file references resolve.
@@ -105,20 +109,20 @@ pub fn irule_with_context(args: &Value) -> Value {
         }
     }
     if bundles.is_empty() {
-        return json!({ "error": "no iRules found in config" });
+        return Ok(refused("no iRules found in config"));
     }
 
     let bundle_values: Vec<Value> = bundles.into_iter().map(|(_path, value)| value).collect();
-    json!({ "format": format, "bundles": bundle_values })
+    Ok(json!({ "format": format, "bundles": bundle_values }))
 }
 
 /// `explain_flow` — narrate a captured session against a BIG-IP config: matched
 /// virtual server, profiles, HTTP/TLS, ordered iRule events, pool decision, and
 /// (optionally) a simulated outcome. Over `f5_cli::explain_flow_value`.
-pub fn explain_flow(args: &Value) -> Value {
+pub fn explain_flow(args: &Value) -> ToolResult {
     let pcap_path = args.get("pcap_path").and_then(Value::as_str).unwrap_or("");
     if pcap_path.is_empty() {
-        return json!({ "error": "pcap_path is required" });
+        return Err(tool_error("pcap_path is required"));
     }
 
     // Config file paths, plus inline `config_text` staged to a temp file.
@@ -131,10 +135,10 @@ pub fn explain_flow(args: &Value) -> Value {
     {
         let mut p = std::env::temp_dir();
         p.push(format!("tcl_mcp_bigip_{}.conf", std::process::id()));
-        if std::fs::write(&p, text).is_ok() {
-            paths.push(p.clone());
-            tempfile = Some(p);
-        }
+        std::fs::write(&p, text)
+            .map_err(|error| tool_error(format_args!("staging config text: {error}")))?;
+        paths.push(p.clone());
+        tempfile = Some(p);
     }
     if let Some(arr) = args.get("config_paths").and_then(Value::as_array) {
         paths.extend(arr.iter().filter_map(Value::as_str).map(PathBuf::from));
@@ -172,5 +176,5 @@ pub fn explain_flow(args: &Value) -> Value {
     if let Some(p) = tempfile {
         let _ = std::fs::remove_file(p);
     }
-    result.unwrap_or_else(|e| json!({ "error": e }))
+    result.map_err(tool_error)
 }

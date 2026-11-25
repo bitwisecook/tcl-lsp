@@ -505,7 +505,7 @@ impl Analyser {
                     form,
                 });
         }
-        self.result.has_dynamic_providers = true;
+        self.result.record_unresolved_provider_effect();
     }
 
     /// Record a `set auto_path PATH` mutation.
@@ -534,7 +534,7 @@ impl Analyser {
                     range: tok.span,
                     form: super::super::types::AutoPathForm::Assign,
                 });
-            self.result.has_dynamic_providers = true;
+            self.result.record_unresolved_provider_effect();
         }
     }
 }

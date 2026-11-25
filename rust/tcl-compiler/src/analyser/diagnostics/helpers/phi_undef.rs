@@ -175,13 +175,10 @@ impl StartupFacts {
     fn for_name(name: &crate::var_resolve::VariableCellKey, ctx: &PhiUndefCtx<'_>) -> Self {
         let (startup_name, global_binding) =
             startup_cell_binding(name, ctx.initial_global, ctx.global_aliases);
+        let startup = ctx.registry.startup_existence(startup_name, ctx.dialect);
         Self {
-            readable_at_startup: global_binding
-                && ctx
-                    .registry
-                    .is_readable_at_startup(startup_name, ctx.dialect),
-            rematerialises_after_unset: global_binding
-                && ctx.registry.is_lazily_readable(startup_name, ctx.dialect),
+            readable_at_startup: global_binding && startup.readable(),
+            rematerialises_after_unset: global_binding && startup.lazily_readable,
         }
     }
 }

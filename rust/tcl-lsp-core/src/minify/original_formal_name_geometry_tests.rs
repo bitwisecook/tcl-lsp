@@ -57,7 +57,7 @@ fn compact_original_formal_fields_preserve_wrappers_and_unicode_defaults() {
         &mut edits,
     );
     assert_eq!(
-        apply_edits(source, edits),
+        apply_edits(source, &edits).unwrap(),
         r#"proc p {{{a} {default α}} {"b" longName} args} {return [list $longName $otherName $args]}"#
     );
 }

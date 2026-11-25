@@ -18,7 +18,7 @@
 
 //! The whole-source transformations: `format_source`, `optimize` and `compile_wasm`.
 
-use super::{PolicyInputs, arg_str, registry, resolve_dialect};
+use super::{PolicyInputs, ToolResult, arg_str, registry, resolve_dialect, tool_error};
 use serde_json::{Value, json};
 use tcl_lexer::{LexerConfig, LineIndex};
 use tcl_lsp_core::diagnostic_report::optimise_under_policy;
@@ -44,8 +44,8 @@ pub(super) fn format_source(args: &Value) -> Value {
     json!({ "formatted": formatted, "changed": formatted != source })
 }
 
-pub(super) fn optimize(args: &Value) -> Value {
-    optimize_with(args, &PolicyInputs::for_call(args, "optimiser"))
+pub(super) fn optimize(args: &Value) -> ToolResult {
+    optimize_under(args, &PolicyInputs::for_call(args, "optimiser"))
 }
 
 /// [`optimize`] under `inputs`: the rewrites the policy shows are applied,
@@ -61,7 +61,12 @@ pub(super) fn optimize(args: &Value) -> Value {
 /// The loop reads the analysis form of the source (a lone `\r` rewritten to
 /// `\n`), as `tcl opt` does, so `optimized_source` and every range are on the
 /// client's line model, and `changed` says whether a rewrite applied.
+#[cfg(test)]
 pub(super) fn optimize_with(args: &Value, inputs: &PolicyInputs) -> Value {
+    optimize_under(args, inputs).expect("optimiser context")
+}
+
+fn optimize_under(args: &Value, inputs: &PolicyInputs) -> ToolResult {
     use tcl_compiler::optimiser::profiles::OptimisationProfile;
 
     let raw = arg_str(args, "source");
@@ -84,7 +89,7 @@ pub(super) fn optimize_with(args: &Value, inputs: &PolicyInputs) -> Value {
         .context_registry(&tcl_registry::model::KeyedVersions::default(), overlay)
     {
         Ok(context) => context.with_command_store(std::sync::Arc::clone(&registry)),
-        Err(miss) => return json!({ "error": miss.to_string() }),
+        Err(miss) => return Err(tool_error(miss)),
     };
     let analysis_input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
         dialect_profile,
@@ -126,7 +131,7 @@ pub(super) fn optimize_with(args: &Value, inputs: &PolicyInputs) -> Value {
         })
         .collect();
 
-    json!({
+    Ok(json!({
         "optimizations": optimizations,
         "total": optimizations.len(),
         "optimized_source": optimised,
@@ -134,7 +139,7 @@ pub(super) fn optimize_with(args: &Value, inputs: &PolicyInputs) -> Value {
         "profile": profile.name(),
         "iterations": iterations,
         "multi_pass": profile.is_multi_pass(),
-    })
+    }))
 }
 
 pub(super) fn compile_wasm(args: &Value) -> Value {

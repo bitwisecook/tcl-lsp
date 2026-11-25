@@ -915,7 +915,9 @@ impl PackageResolver {
             // Reverse-sorted push so the LIFO pop visits children in name
             // order, keeping discovery order machine-independent.
             for path in sorted_subdirs(store, &dir).into_iter().rev() {
-                stack.push(path);
+                if !tcl_registry::dialects::is_skipped_scan_dir(&path) {
+                    stack.push(path);
+                }
             }
         }
     }

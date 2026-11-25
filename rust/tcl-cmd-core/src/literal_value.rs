@@ -289,6 +289,30 @@ pub fn fold_concat(args: &[&str]) -> String {
     tcl_syntax::list::concat_values(args.iter().copied())
 }
 
+/// Portable `string reverse`: the supported character models agree on ASCII.
+#[must_use]
+pub fn fold_string_reverse(args: &[&str]) -> Option<String> {
+    let [value] = args else {
+        return None;
+    };
+    value.is_ascii().then_some(())?;
+    crate::string::reverse(&mut LiteralOps, &(*value).to_owned()).ok()
+}
+
+/// Portable `string map` over ASCII text and a release-independent map list.
+#[must_use]
+pub fn fold_string_map(args: &[&str]) -> Option<String> {
+    match args {
+        [map, text] | ["-nocase", map, text] if map.is_ascii() && text.is_ascii() => {}
+        _ => return None,
+    }
+    let values = args
+        .iter()
+        .map(|word| (*word).to_owned())
+        .collect::<Vec<_>>();
+    crate::string::map(&mut LiteralOps, &values).ok()
+}
+
 /// Build a canonical Tcl list through the same kernel as the runtimes.
 #[must_use]
 pub fn fold_list(args: &[&str]) -> String {

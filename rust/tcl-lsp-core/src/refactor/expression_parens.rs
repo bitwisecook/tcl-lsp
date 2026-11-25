@@ -101,12 +101,12 @@ mod tests {
         let a = analysis(source, "tcl8.6");
         let grouped = parenthesise_expression(source, 6, &a).unwrap();
         assert_eq!(
-            grouped.apply(source),
+            grouped.try_apply(source).unwrap(),
             "if {($c & (0xff == 0x81)) || $d} {puts x}"
         );
         let trimmed = remove_redundant_parens(source, 6, &a).unwrap();
         assert_eq!(
-            trimmed.apply(source),
+            trimmed.try_apply(source).unwrap(),
             "if {$c & 0xff == 0x81 || $d} {puts x}"
         );
     }
@@ -119,10 +119,11 @@ mod tests {
         let trimmed = remove_redundant_parens(source, cursor, &a).unwrap();
         assert!(
             trimmed
-                .apply(source)
+                .try_apply(source)
+                .unwrap()
                 .contains("{ [HTTP::uri] starts_with \"/a\" and not $x }"),
             "{}",
-            trimmed.apply(source)
+            trimmed.try_apply(source).unwrap()
         );
     }
 

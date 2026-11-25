@@ -117,6 +117,8 @@ tcl-regex = { path = "../../rust/tcl-regex", features = ["cmd-core"] }
 # `libz`). Wasm32-clean — the `rust_backend` feature keeps the whole codec in
 # safe Rust, so the cdylib still builds for wasm32 (a C zlib would not).
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+crc32fast = "1"
+adler2 = "2"
 
 # The std-backed `NativeHost` — the full-capability `Host` for native builds.
 # It calls `std::fs`/`std::env`/`std::process`/`std::time`, so it is **not**

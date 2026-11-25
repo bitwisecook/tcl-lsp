@@ -200,6 +200,52 @@ fn qualified_var_definition_for_var_declared_in_a_reopened_namespace() {
 }
 
 #[test]
+fn namespace_write_and_read_navigate_to_the_release_selected_storage() {
+    let source =
+        "set x global\nnamespace eval ::n { set x nsevalset }\nnamespace eval ::n { set y $x }\n";
+    for (dialect, reaches_root) in [
+        ("tcl8.4", true),
+        ("tcl8.5", true),
+        ("tcl8.6", true),
+        ("tcl9.0", false),
+        ("tcl9.1", false),
+    ] {
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, dialect);
+        let lines: Vec<_> = definition(source, 2, 28, &analysis)
+            .into_iter()
+            .map(|range| range.start_line)
+            .collect();
+        assert_eq!(
+            lines,
+            if reaches_root { &[0, 1][..] } else { &[1] },
+            "{dialect}"
+        );
+
+        let locations = crate::references::references(
+            source,
+            tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+            2,
+            28,
+            &analysis,
+            true,
+        );
+        let lines: Vec<u32> = locations
+            .into_iter()
+            .map(|range| range.start_line)
+            .collect();
+        assert_eq!(
+            lines,
+            if reaches_root {
+                &[0, 1, 2][..]
+            } else {
+                &[1, 2]
+            },
+            "{dialect}"
+        );
+    }
+}
+
+#[test]
 fn qualified_var_definition_abstains_for_unknown_namespace() {
     // TN — a qualified reference into a namespace that's never declared
     // anywhere in the file must abstain (empty), not guess at an

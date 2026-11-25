@@ -44,6 +44,7 @@ use crate::var_escape::helpers::is_dynamic_upvar_level;
 use crate::var_escape::helpers::is_name_first_command;
 use crate::var_escape::types::{Barrier, BarrierKind, EscapeReason, EscapeReasonKind};
 #[cfg(test)]
+#[cfg(test)]
 use crate::var_scoping::{
     global_declaration_indices, upvar_local_declaration_indices, variable_declaration_indices,
 };
@@ -254,7 +255,11 @@ pub(crate) fn handle_upvar(args: &[String], state: &mut CfgState, defs: &HashMap
         state.record_unbounded_upvar();
         return;
     }
-    for idx in upvar_local_declaration_indices("upvar", args) {
+    for idx in upvar_local_declaration_indices(
+        crate::var_escape::helpers::default_registry(),
+        "upvar",
+        args,
+    ) {
         if let Some(name) = args.get(idx) {
             state.escape_with_reason(
                 name,
@@ -294,8 +299,7 @@ pub(crate) fn handle_global(
     state: &mut CfgState,
     defs: &HashMap<String, Version>,
 ) {
-    let owned: Vec<String> = args.to_vec();
-    for idx in global_declaration_indices(&owned) {
+    for idx in global_declaration_indices(crate::var_escape::helpers::default_registry(), args) {
         if let Some(name) = args.get(idx) {
             state.escape(name, defs);
         }
@@ -309,8 +313,7 @@ pub(crate) fn handle_variable(
     state: &mut CfgState,
     defs: &HashMap<String, Version>,
 ) {
-    let owned: Vec<String> = args.to_vec();
-    for idx in variable_declaration_indices(&owned) {
+    for idx in variable_declaration_indices(crate::var_escape::helpers::default_registry(), args) {
         if let Some(name) = args.get(idx) {
             state.escape(name, defs);
         }
@@ -331,8 +334,11 @@ pub(crate) fn handle_namespace_call(
     if sub != "upvar" {
         return;
     }
-    let owned: Vec<String> = args.to_vec();
-    for idx in upvar_local_declaration_indices("namespace", &owned) {
+    for idx in upvar_local_declaration_indices(
+        crate::var_escape::helpers::default_registry(),
+        "namespace",
+        args,
+    ) {
         if let Some(name) = args.get(idx) {
             state.escape(name, defs);
         }

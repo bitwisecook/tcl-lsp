@@ -281,6 +281,10 @@ pub const SOURCE_CONFIGURATION_REFERENCES: &[Variant] = &[
         "data-group operand after a comparison item and operator",
     ),
     v(
+        "DataGroupSearchComparison",
+        "data-group operand before a comparison operator and item",
+    ),
+    v(
         "DataGroupLookup",
         "data-group operand after a literal or dynamic lookup key",
     ),
@@ -1339,6 +1343,7 @@ mod tests {
     ) -> bool {
         match descriptor {
             tcl_registry::SourceConfigurationReferenceLayout::DataGroupComparison
+            | tcl_registry::SourceConfigurationReferenceLayout::DataGroupSearchComparison
             | tcl_registry::SourceConfigurationReferenceLayout::DataGroupLookup => true,
         }
     }

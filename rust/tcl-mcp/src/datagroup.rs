@@ -47,7 +47,7 @@ const DIALECT: &str = "f5-irules";
 
 /// MCP handler: `{candidates:[…], total:int}` for the `source` argument.
 pub fn suggest_datagroup_extractions(args: &Value) -> Value {
-    let source = args.get("source").and_then(Value::as_str).unwrap_or("");
+    let source: &str = &crate::tools::analysis_source(args);
     let candidates = suggest(source);
     json!({ "candidates": candidates, "total": candidates.len() })
 }

@@ -109,6 +109,9 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "search",
+        source_configuration_reference: Some(
+            SourceConfigurationReferenceLayout::DataGroupSearchComparison,
+        ),
         arity: Arity::at_least(0),
         detail: "Search a data group for an item.",
         synopsis: "class search ?options? ?--? <class> <operator> <item>",

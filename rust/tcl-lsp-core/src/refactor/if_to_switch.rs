@@ -204,7 +204,8 @@ mod tests {
             assert!(action.disabled.is_none());
             assert!(
                 action
-                    .apply(&source)
+                    .try_apply(&source)
+                    .unwrap()
                     .starts_with(&format!("switch -exact -- {subject} {{"))
             );
         }
@@ -253,7 +254,7 @@ mod tests {
         let source = "if {$x eq \"a\"} {\n    puts \"alpha\"\n} elseif {$x eq \"b\"} {\n    puts \"beta\"\n} elseif {$x eq \"c\"} {\n    puts \"gamma\"\n}";
         let r = run(source, 0).expect("result");
         assert!(r.title.to_lowercase().contains("switch"));
-        let applied = r.apply(source);
+        let applied = r.try_apply(source).unwrap();
         assert!(applied.contains("switch -exact -- $x"), "{applied:?}");
     }
 
@@ -261,7 +262,7 @@ mod tests {
     fn with_else_clause() {
         let source = "if {$cmd eq \"GET\"} {\n    handle_get\n} elseif {$cmd eq \"POST\"} {\n    handle_post\n} else {\n    handle_other\n}";
         let r = run(source, 0).expect("result");
-        assert!(r.apply(source).contains("default"));
+        assert!(r.try_apply(source).unwrap().contains("default"));
     }
 
     #[test]
@@ -301,7 +302,7 @@ mod tests {
     #[test]
     fn rewrite_covers_entire_if_command() {
         let source = "if {$x eq \"a\"} {\n    puts 1\n} elseif {$x eq \"b\"} {\n    puts 2\n}";
-        let applied = run(source, 0).expect("result").apply(source);
+        let applied = run(source, 0).expect("result").try_apply(source).unwrap();
         assert_eq!(
             applied,
             "switch -exact -- $x {\n    a {\n        puts 1\n    }\n    b {\n        puts 2\n    }\n}"
@@ -315,7 +316,7 @@ mod tests {
     fn values_with_spaces_are_braced() {
         let source =
             "if {$x eq \"a b\"} {\n    puts one\n} elseif {$x eq \"c d\"} {\n    puts two\n}";
-        let applied = run(source, 0).expect("result").apply(source);
+        let applied = run(source, 0).expect("result").try_apply(source).unwrap();
         assert!(applied.contains("{a b}"), "{applied:?}");
         assert!(applied.contains("{c d}"), "{applied:?}");
     }
@@ -341,7 +342,7 @@ mod tests {
         let cursor = u32::try_from(source.find("if {$m").unwrap()).unwrap();
         let r = run(source, cursor).expect("result inside the apply lambda");
         assert!(r.title.to_lowercase().contains("switch"));
-        let applied = r.apply(source);
+        let applied = r.try_apply(source).unwrap();
         assert!(applied.contains("switch -exact -- $m"), "{applied:?}");
         // The rewrite lands inside the lambda body, leaving `apply`'s own
         // argument list and the enclosing proc intact.
@@ -447,7 +448,7 @@ mod decoded_clause_script_indentation_tests {
         let action = if_to_switch(source, 0, &analysis, &LineIndex::new(source))
             .expect("actual selected original clause bodies");
         assert!(action.disabled.is_none());
-        let proposal = action.apply(source);
+        let proposal = action.try_apply(source).unwrap();
         for literal in ["{return one}", "{return two}", "{return other}"] {
             assert!(proposal.contains(literal), "{proposal}");
         }

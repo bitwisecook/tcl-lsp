@@ -1125,16 +1125,15 @@ mod tests {
                 .collect()
         }
         let mut compared = 0;
-        for line in include_str!(
+        let fixture = include_str!(
             "../../../tcl-syntax/tests/data/native_nested_expression_syntax/native.tsv"
-        )
-        .lines()
-        {
-            let row: Vec<_> = line.split('\t').collect();
+        );
+        for (line, row) in tcl_test_support::fixture::tsv_rows::<6>(fixture) {
             if row[0] == "jim" {
                 continue;
             }
-            let version = TclVersion::from_version_string(row[0]).unwrap();
+            let version = tcl_test_support::fixture::oracle_release(row[0])
+                .unwrap_or_else(|| panic!("line {line}: unknown oracle release {}", row[0]));
             let context = context(version);
             let source = bytes(row[2]);
             let CheckedExprParse::ProvedSyntaxFailure(failure) =

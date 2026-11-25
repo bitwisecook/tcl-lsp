@@ -22,6 +22,8 @@
 //! reconstruct a value from its spelling before reaching a native conversion.
 
 use crate::{CmdError, CmdErrorCodeUpdate, CmdErrorDetails};
+use tcl_dialect::TclVersion;
+use tcl_syntax::{native_string::NativeStringProtocol, number::Numbers};
 
 /// Selected native return command and completion-option protocol.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -128,6 +130,17 @@ pub struct PreparedPrefixErrorOptions<V> {
 }
 
 impl ReturnOptionsProtocol {
+    /// Select the completion-code and option grammar of actual native strings.
+    #[must_use]
+    pub const fn for_native_strings(protocol: NativeStringProtocol) -> Self {
+        match protocol {
+            NativeStringProtocol::Jim084 => Self::Jim084,
+            NativeStringProtocol::C(TclVersion::V8_4) => Self::Tcl84,
+            NativeStringProtocol::C(TclVersion::V8_5) => Self::Tcl85,
+            NativeStringProtocol::C(_) => Self::Tcl86Plus,
+        }
+    }
+
     /// Select only an exact authored completion name, without numeric probing
     /// or original-object cache effects.
     #[must_use]
@@ -199,6 +212,51 @@ fn quoted(prefix: &[u8], value: &[u8], suffix: &[u8]) -> Vec<u8> {
     message
 }
 
+/// Read a textual completion integer in the signed Tcl 9 / unsigned C int range.
+///
+/// The original-object converters use the native getters for their release's
+/// range and cache effects. This helper is for selectors already read as text.
+#[must_use]
+pub fn completion_code_integer(word: &str, numbers: Numbers) -> Option<i32> {
+    let value = numbers.parse_wide(word)?;
+    (i64::from(i32::MIN)..=i64::from(u32::MAX))
+        .contains(&value)
+        .then(|| tcl_syntax::number::native_int32_low_bits(value))
+}
+
+/// The native C Tcl error for an unrecognised completion-code word.
+/// The caller supplies the byte extent reached by its conversion.
+#[must_use]
+pub fn bad_completion_code_message(word: &[u8]) -> Vec<u8> {
+    let mut message = b"bad completion code \"".to_vec();
+    message.extend_from_slice(word);
+    message.extend_from_slice(b"\": must be ok, error, return, break, continue, or an integer");
+    message
+}
+
+/// Match a `trap` selector against the leading elements of an error-code list.
+///
+/// The caller obtains the original list elements and supplies equality. Short
+/// error codes and the first mismatch leave subsequent elements unreached.
+///
+/// # Errors
+/// Propagates the first error from comparing an element.
+pub fn trap_prefix_matches<T, E>(
+    pattern: &[T],
+    error_code: &[T],
+    mut equals: impl FnMut(&T, &T) -> Result<bool, E>,
+) -> Result<bool, E> {
+    if pattern.len() > error_code.len() {
+        return Ok(false);
+    }
+    for (left, right) in pattern.iter().zip(error_code) {
+        if !equals(left, right)? {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
 /// Convert an original completion-code object with the native cache schedule.
 pub fn parse_completion_code<O: ReturnOptionsOps>(
     ops: &mut O,
@@ -246,11 +304,7 @@ pub fn parse_completion_code<O: ReturnOptionsOps>(
     let message = if protocol == ReturnOptionsProtocol::Jim084 {
         quoted(b"expected return code but got \"", &bytes, b"\"")
     } else {
-        quoted(
-            b"bad completion code \"",
-            &bytes,
-            b"\": must be ok, error, return, break, continue, or an integer",
-        )
+        bad_completion_code_message(nul_prefix(&bytes))
     };
     Err(protocol.error(message, b"TCL RESULT ILLEGAL_CODE"))
 }

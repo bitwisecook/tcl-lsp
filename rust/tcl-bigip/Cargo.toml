@@ -28,6 +28,7 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
+fluent-uri = "0.4.1"
 tcl-dialect = { path = "../tcl-dialect" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-registry = { path = "../tcl-registry" }

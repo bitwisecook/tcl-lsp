@@ -18,84 +18,17 @@
 
 //! Folding an assigned value word: literals, variable references, `foreach` lists and pure command substitutions.
 
-use super::super::{BuiltinFoldInputs, FoldTrust};
+use super::super::{BuiltinFoldInputs, FoldTrust, parse_literal_value};
 use super::RetainedExpressionFoldInputs;
 use super::definition_values::{
     fold_original_substitution_value, resolve_simple_var_ref, source_read_key,
 };
 use super::math_expressions::{env_from_uses, env_from_uses_numeric, tcl_value_to_const};
 use crate::analyses::{ConstValue, LatticeValue};
-use crate::codegen_helpers::split_list_values;
 use crate::ssa::{SsaSourceView, Symbol, ValueKey};
 use crate::tcl_expr_eval::{FoldPolicy, TclValue, eval_tcl_expr_with_policy};
 use std::collections::HashMap;
 use tcl_dialect::StringCharacterModel;
-
-/// Extract iteration-variable elements from a foreach list arg
-/// that is a literal (no `$` / `[` substitution).
-///
-/// `list_text` must already be delimiter-stripped by the segmenter (the shape
-/// `Statement::Foreach`'s `list_arg` is built in, and the shape every caller
-/// of this function must pass) — a second strip here would wrongly peel a
-/// single-element list like `{{a b} {c d}}` (segmented to `{a b} {c d}`) down
-/// to the elements `a` and `b}`. See `cfg_builder::list_literal_nonempty` and
-/// `analyser::bounds_checks` for the same contract.
-///
-/// Behaviour:
-/// - Strip whitespace.
-/// - Split on Tcl list semantics (`Tcl_SplitList`), not ASCII whitespace.
-/// - Returns `None` for anything that starts with `$` or `[` so
-///   callers fall through to
-///   [`resolve_foreach_list_via_lattice`].
-#[must_use]
-pub fn extract_foreach_elements(
-    list_text: &str,
-    rules: tcl_syntax::word_rules::WordValueRules,
-) -> Option<Vec<String>> {
-    let stripped = list_text.trim();
-    if stripped.is_empty() {
-        return Some(Vec::new());
-    }
-    if stripped.starts_with('[') || stripped.starts_with('$') {
-        return None;
-    }
-    // List-aware split (Tcl_SplitList semantics): a nested-brace list like
-    // `a {b c} d` yields the three elements `a`, `b c`, `d` — not the four
-    // whitespace runs `a`, `{b`, `c}`, `d` a naive split would produce.
-    Some(split_list_values(stripped, rules))
-}
-
-/// Resolve `$var` / `${var}` to a `Vec<String>` of list elements
-/// via the SCCP lattice. Returns `None` when the operand is not a
-/// simple var reference or its lattice value is not a
-/// Const(String).
-#[must_use]
-pub fn resolve_foreach_list_via_lattice<'a, S1, S2>(
-    list_text: &str,
-    uses: &HashMap<Symbol, crate::ssa::Version, S1>,
-    values: &HashMap<ValueKey, LatticeValue, S2>,
-    ssa: impl Into<SsaSourceView<'a>>,
-    rules: tcl_syntax::word_rules::WordValueRules,
-    reference_config: Option<tcl_lexer::LexerConfig>,
-) -> Option<Vec<String>>
-where
-    S1: std::hash::BuildHasher,
-    S2: std::hash::BuildHasher,
-{
-    let ssa = ssa.into();
-    let stripped = list_text.trim();
-    let name =
-        tcl_syntax::naming::whole_scalar_variable_reference_name(stripped, reference_config?)?;
-    let sym = ssa.symbol(name)?;
-    let ver = uses.get(&sym).copied()?;
-    match values.get(&(sym, ver))? {
-        // The lattice value is the variable's runtime string; splitting it as a
-        // `foreach` list uses Tcl list semantics (nested-brace aware), not a
-        // whitespace split.
-        LatticeValue::Const(ConstValue::String(s)) => Some(split_list_values(s, rules)),
-        _ => None,
-    }
-}
 
 // AssignValue folding
 
@@ -382,24 +315,6 @@ pub(super) fn try_fold_cmd_subst<'a, S1: std::hash::BuildHasher, S2: std::hash::
         }
     }
 
-    // Registry dispatch below owns a literal list's native result spelling.
-    // `[format "..." args…]` with literal args.
-    // The document's escape grammar, from the same resolved profile the rest
-    // of the policy's axes come from. A caller with no dialect keeps the 9.0
-    // default, which is what `FoldPolicy::numbers` documents for its own axis
-    // — the fold stays available, it just stops guessing once a dialect is
-    // known.
-    let escapes = policy
-        .dialect
-        .map_or_else(tcl_dialect::EscapeSyntax::default, |profile| {
-            profile.grammar.escapes
-        });
-    if trusted("format")
-        && let Some(folded) = crate::codegen_helpers::try_format_fold(value, escapes)
-    {
-        return Some(LatticeValue::Const(ConstValue::String(folded)));
-    }
-
     let inner = value.strip_prefix('[')?.strip_suffix(']')?;
     let (cmd, rest) = split_head(inner);
     if !trusted(cmd) {
@@ -505,35 +420,4 @@ pub(super) fn strip_one_level(text: &str) -> &str {
         }
     }
     text
-}
-
-/// Parse a literal text as a [`ConstValue`]: prefers integer, then string fallback.
-///
-/// Only collapses to [`ConstValue::Int`] when the canonical integer text
-/// round-trips (`str(int(s)) == s`).  A leading-zero literal such as `"08"` or
-/// `"010"` parses as 8 / 10 but does *not* round-trip, so it is kept as a
-/// string — preserving the identity SCCP needs to compare it correctly under
-/// each dialect's leading-zero rule (octal in tcl8.x, decimal in tcl9.0).
-/// Likewise `"+5"` / `"-0"` are kept as strings (they don't round-trip).
-#[must_use]
-pub fn parse_literal_value(text: &str) -> ConstValue {
-    let stripped = text.trim();
-    // Decimal integer grammar `[+-]?[0-9]+`.
-    let digits = stripped.strip_prefix(['+', '-']).unwrap_or(stripped);
-    let is_decimal_int = !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit());
-    if is_decimal_int
-        && let Ok(i) = stripped.parse::<i64>()
-        && i.to_string() == stripped
-        // Only when the literal *is* the integer, with nothing around it.
-        // `" 5"` renders back as `5`, losing the space the program keeps.
-        && stripped == text
-    {
-        return ConstValue::Int(i);
-    }
-    // The exact spelling, not the trimmed one. Trimming here corrupted the
-    // value for every consumer of the lattice: `set p { again}` reached the
-    // lattice as `again`, so `append s $p` was rewritten to `append s again`
-    // and the program printed `helloagain` where tclsh prints `hello again`
-    // (#2052). Whitespace inside a Tcl word is data.
-    ConstValue::String(text.to_owned())
 }

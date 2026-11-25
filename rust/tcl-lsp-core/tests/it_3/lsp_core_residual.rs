@@ -263,7 +263,8 @@ fn fmt_already_formatted_is_unchanged() {
 fn inline(src: &str, cursor: u32) -> Option<String> {
     let analysis = Analyser::new().analyse(src, "tcl8.6").clone();
     let li = LineIndex::new(src);
-    inline_variable(src, cursor, &analysis, reg(), &li).map(|r| r.apply(src))
+    inline_variable(src, cursor, &analysis, reg(), &li)
+        .map(|r| r.try_apply(src).expect("checked refactoring edits"))
 }
 
 #[test]

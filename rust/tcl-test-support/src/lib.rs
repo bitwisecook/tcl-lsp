@@ -30,7 +30,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use tcl_dialect::TclVersion;
-use tcl_host_native::executable::which;
+use tcl_host_native::executable::{versioned_tclsh, which};
 
 pub mod automatic_errors;
 pub mod binary_values;
@@ -39,6 +39,7 @@ pub mod ensemble_map_prefix;
 pub mod expressions;
 pub mod fixed_corpus;
 pub mod fixed_sources;
+pub mod fixture;
 mod jim;
 pub mod jim_strings;
 pub mod native_integer_formatter;
@@ -287,15 +288,10 @@ pub fn locate_tclsh(version: TclVersion) -> Result<Option<Tclsh>, OracleError> {
         }
         return validate_tclsh(path, version).map(Some);
     }
-    let versioned = format!("tclsh{}", version.version_string());
-    for name in [versioned.as_str(), "tclsh"] {
-        if let Some(path) = which(name)
-            && let Ok(interpreter) = validate_tclsh(path, version)
-        {
-            return Ok(Some(interpreter));
-        }
-    }
-    Ok(None)
+    let checked = |path| validate_tclsh(path, version).ok();
+    Ok(versioned_tclsh(version)
+        .and_then(checked)
+        .or_else(|| which("tclsh").and_then(checked)))
 }
 
 /// Validate the interpreter built inside `source_tree` and require its exact
@@ -837,14 +833,14 @@ fn patchlevel_from_header(header: &str) -> Option<String> {
 }
 
 fn collect_source_candidates(parent: &Path, version: TclVersion, out: &mut Vec<PathBuf>) {
-    let prefix = ["tcl", version.version_string()].concat();
+    let prefix = version.dialect_profile_name();
     let Ok(entries) = fs::read_dir(parent) else {
         return;
     };
     out.extend(entries.filter_map(Result::ok).filter_map(|entry| {
         let name = entry.file_name();
         name.to_str()
-            .filter(|text| text.starts_with(&prefix))
+            .filter(|text| text.starts_with(prefix))
             .map(|_| entry.path())
     }));
 }

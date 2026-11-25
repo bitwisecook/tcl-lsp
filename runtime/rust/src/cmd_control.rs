@@ -1314,9 +1314,7 @@ fn execute_each_loop_body(
             return Some(interp.report_cmd_error(error.into()));
         }
     }
-    match cursor.body_completion(tcl_core_types::Code::from_int(
-        i32::try_from(code.as_int()).expect("runtime completion code is a C int"),
-    )) {
+    match cursor.body_completion(code) {
         BodyDecision::Collect => collected.push(crate::obj::Owned::retain(interp.get_obj_result())),
         BodyDecision::Continue | BodyDecision::Finish => {}
         BodyDecision::Propagate => {

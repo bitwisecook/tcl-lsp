@@ -32,6 +32,7 @@ tcl-bigip = { path = "../tcl-bigip" }
 # The shared native-stack safety-net primitive — see `openpgp.rs`'s
 # `MAX_COMPRESSED_PACKET_DEPTH`. Dependency-free leaf crate.
 tcl-core-types = { path = "../tcl-core-types" }
+tcl-platform = { path = "../tcl-platform" }
 thiserror = "2"
 
 # UCS container: gzip-compressed tar of /config.
@@ -39,10 +40,10 @@ flate2 = "1"
 tar = "0.4"
 
 # Encrypted UCS = OpenPGP symmetric message (S2K + AES-CFB, F5 KB K5437).
-# Pure-Rust RustCrypto stack (NO shelling out to gpg). The block cipher comes
-# from the audited `aes` crate; everything around it (packet framing, S2K,
-# OpenPGP-CFB, quick-check + SHA-1 MDC) is implemented here.
+# RustCrypto supplies AES and the CFB mode. Packet framing, S2K, and
+# integrity checks stay in the symmetric OpenPGP reader.
 aes = "0.9"
+cfb-mode = "0.9.1"
 digest = "0.11"
 md-5 = "0.11"
 sha1 = "0.11"

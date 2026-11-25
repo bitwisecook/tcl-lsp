@@ -32,7 +32,7 @@ use tcl_compiler::optimiser::helpers::literals::format_constant;
 use tcl_compiler::shimmer::type_name;
 use tcl_compiler::taint::{TaintColour, TaintLattice};
 use tcl_compiler::types::{TypeKind, TypeLattice};
-use tcl_lexer::{LineIndex, Span};
+use tcl_lexer::{ByteCol, LineIndex, SourcePosition, Span};
 use tcl_syntax::expr::ast::render_expr;
 
 /// Escape and truncate text for display.
@@ -107,15 +107,30 @@ pub fn range_dict(span: Span, line_index: &LineIndex, source: &str) -> Value {
         .and_then(|s| s.chars().next_back())
         .and_then(|c| u32::try_from(c.len_utf16()).ok())
         .unwrap_or(1);
+    let mut range = byte_range_json(
+        start,
+        SourcePosition::new(
+            end.line,
+            ByteCol::new(end.character.get() + 1),
+            end.offset + 1,
+        ),
+    );
+    range["startColUtf16"] = json!(start_utf16.character.get());
+    range["endColUtf16"] = json!(end_utf16.character.get() + end_units);
+    range
+}
+
+/// Serialise a zero-based byte range with an exclusive end. Callers choose
+/// the geometry first, including whether a highlight needs its closer.
+#[must_use]
+pub fn byte_range_json(start: SourcePosition, end: SourcePosition) -> Value {
     json!({
         "startLine": start.line,
         "startCol": start.character.get(),
         "startOffset": start.offset,
         "endLine": end.line,
-        "endCol": end.character.get() + 1,
-        "endOffset": end.offset + 1,
-        "startColUtf16": start_utf16.character.get(),
-        "endColUtf16": end_utf16.character.get() + end_units,
+        "endCol": end.character.get(),
+        "endOffset": end.offset,
     })
 }
 

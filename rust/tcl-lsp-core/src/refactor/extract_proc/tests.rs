@@ -40,7 +40,7 @@ fn outcome(src: &str, needle: &str) -> Result<String, String> {
     let refactoring = at(src, needle).expect("a selection to extract");
     match &refactoring.disabled {
         Some(reason) => Err(reason.clone()),
-        None => Ok(refactoring.apply(src)),
+        None => Ok(refactoring.try_apply(src).unwrap()),
     }
 }
 
@@ -92,7 +92,7 @@ fn extraction_original_components_keep_literal_sigil_data_and_refuse_array_captu
         action
             .disabled
             .clone()
-            .map_or_else(|| Ok(action.apply(source)), Err)
+            .map_or_else(|| Ok(action.try_apply(source).unwrap()), Err)
     };
     let source = "set value TEXT\nputs \"escaped=\\$notavar $value\"\nputs done\n";
     // tclsh 8.4.20–9.1.0 print `escaped=$notavar TEXT` then `done` for
@@ -153,7 +153,7 @@ fn a_release_refuses_an_extraction_the_interpreter_can_observe() {
             let refusal = action.disabled.as_deref().unwrap_or_else(|| {
                 panic!(
                     "{release}: {needle} must be refused: {}",
-                    action.apply(source)
+                    action.try_apply(source).unwrap()
                 )
             });
             assert!(refusal.contains(reason), "{release}: {needle}: {refusal}");
@@ -240,14 +240,16 @@ fn the_documents_dialect_decides_the_captured_braced_name() {
     let src = "if {1} {puts ${a{b}c}}\nputs done\n";
     let nine = at_dialect(src, "if {1} {puts ${a{b}c}}", "tcl9.0")
         .expect("a selection")
-        .apply(src);
+        .try_apply(src)
+        .unwrap();
     assert!(
         nine.contains("proc extracted_proc {a{b}c} {"),
         "9.x must capture the whole name: {nine}"
     );
     let eight = at_dialect(src, "if {1} {puts ${a{b}c}}", "tcl8.6")
         .expect("a selection")
-        .apply(src);
+        .try_apply(src)
+        .unwrap();
     // `a{b` carries an unbalanced brace, so it reaches the parameter list
     // as the quoted element tclsh itself writes (`list a{b` → `a\{b`).
     // Emitting it raw made `proc extracted_proc {a{b} {…}` — an unbalanced
@@ -295,7 +297,8 @@ fn extracted_call_passes_a_brace_bearing_name_braced() {
     let src = "if {1} {puts ${a{b}c}}\nputs done\n";
     let out = at_dialect(src, "if {1} {puts ${a{b}c}}", "tcl9.0")
         .expect("a selection")
-        .apply(src);
+        .try_apply(src)
+        .unwrap();
     assert!(
         out.contains("extracted_proc ${a{b}c}"),
         "the generated call must brace the name: {out}"

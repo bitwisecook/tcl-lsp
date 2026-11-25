@@ -136,7 +136,17 @@ impl OriginalSourcePackageReference {
         Some(original.as_slice() == value.as_bytes())
     }
 
-    /// Match fixed ASCII descriptor metadata under the original package purpose.
+    /// Match a registry package descriptor, reflecting declared provider aliases.
+    #[must_use]
+    pub fn matches_package_descriptor(&self, metadata: &str) -> bool {
+        let name = self.native_key.as_ref().map_or(
+            self.literal.as_slice(),
+            tcl_registry::native_package::NativePackageNameKey::bytes,
+        );
+        tcl_registry::native_package::matches_package_descriptor(name, metadata)
+    }
+
+    /// Match fixed ASCII metadata under the original package purpose.
     #[must_use]
     pub fn matches_ascii(&self, metadata: &str) -> bool {
         // naming.diagnostic.original-package-source-advice

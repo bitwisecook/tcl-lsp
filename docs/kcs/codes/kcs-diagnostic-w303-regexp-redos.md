@@ -1,4 +1,4 @@
-# KCS: W303 — Can this regexp cause catastrophic backtracking?
+# KCS: W303 — Why might this regexp be slow?
 
 > **Audience:** User
 > **Type:** Diagnostic
@@ -17,16 +17,16 @@ Why does the analyser warn about a regular expression pattern?
 
 ## Why
 
-Nested quantifiers like `(a+)+` cause exponential backtracking on crafted input, freezing the application (a ReDoS attack).
+A backreference may require the regexp engine to try several ways to split an input before it can reject the match. Nested repetition and repeated alternatives can amplify that work.
 
 ## Symptoms
 
-- A yellow squiggle appears under the regexp pattern, with the message *"Regular expression may be vulnerable to catastrophic backtracking (ReDoS). Nested quantifiers like (a+)+ can cause exponential matching time on crafted input."*
+- A yellow squiggle appears under the regexp pattern, with the message *"A regular expression with repeated alternatives or nested repetition and a backreference can take substantially longer to reject some inputs (backtracking)."*
 
 ## Example that triggers it
 
 ```tcl
-regexp {(a+)+} $input
+regexp {^((a+)+)\1$} $input
 ```
 
 The analyser reports **`W303`** on the regexp pattern.
@@ -34,10 +34,10 @@ The analyser reports **`W303`** on the regexp pattern.
 ## Fix
 
 ```tcl
-regexp {a+} $input
+regexp {^(a+)\1$} $input
 ```
 
-Remove nested quantifiers so the pattern matches in linear time.
+Simplify the repeated group while preserving the match. For this example, one or more runs of `a` describe the same sequence as a single run.
 
 ## How to suppress
 

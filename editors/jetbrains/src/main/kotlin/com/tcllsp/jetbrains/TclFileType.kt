@@ -40,6 +40,7 @@ class TclFileType private constructor() : LanguageFileType(TclLanguage) {
             "itcl",
             "tm",
             "test",
+            "itk",
             "exp",
             "expect",
             "scf",

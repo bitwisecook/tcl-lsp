@@ -122,13 +122,19 @@ impl Code {
     /// options-dict entry uses.
     #[must_use]
     pub fn as_int(self) -> i64 {
+        i64::from(self.as_i32())
+    }
+
+    /// The signed native Tcl completion code, as used by interpreter ABIs.
+    #[must_use]
+    pub const fn as_i32(self) -> i32 {
         match self {
             Code::Ok => 0,
             Code::Error => 1,
             Code::Return => 2,
             Code::Break => 3,
             Code::Continue => 4,
-            Code::Other(n) => i64::from(n),
+            Code::Other(n) => n,
         }
     }
 
