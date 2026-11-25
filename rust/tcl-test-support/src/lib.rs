@@ -703,9 +703,7 @@ pub fn locate_source_tree(
             });
     }
 
-    let pinned = repo_root
-        .join("tmp")
-        .join(format!("tcl{}", reference_patchlevel(version)));
+    let pinned = repo_root.join("tmp").join(version.source_tree_name());
     if let Ok(tree) = validate_reference_source_tree(&pinned, version) {
         return Ok(Some(tree));
     }
@@ -839,7 +837,7 @@ fn patchlevel_from_header(header: &str) -> Option<String> {
 }
 
 fn collect_source_candidates(parent: &Path, version: TclVersion, out: &mut Vec<PathBuf>) {
-    let prefix = format!("tcl{}", version.version_string());
+    let prefix = ["tcl", version.version_string()].concat();
     let Ok(entries) = fs::read_dir(parent) else {
         return;
     };

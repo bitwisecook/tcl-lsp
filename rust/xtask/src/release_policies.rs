@@ -115,9 +115,7 @@ fn compiled_policies(tree: &Path, rows: &mut Observations) -> Result<()> {
 }
 
 fn observe(root: &Path, version: TclVersion) -> Result<Observations> {
-    let tree = root
-        .join("tmp")
-        .join(format!("tcl{}", version.patchlevel()));
+    let tree = root.join("tmp").join(version.source_tree_name());
     let mut child = Command::new(tree.join("unix/tclsh"))
         .env("TCL_LIBRARY", tree.join("library"))
         .stdin(Stdio::piped())

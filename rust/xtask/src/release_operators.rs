@@ -204,9 +204,7 @@ fn extract(root: &std::path::Path) -> Result<String> {
     let mut output =
         String::from("# family\trelease\toperator\tleft binding power\tright binding power\n");
     for version in tcl_dialect::TclVersion::ALL {
-        let tree = root
-            .join("tmp")
-            .join(format!("tcl{}", version.patchlevel()));
+        let tree = root.join("tmp").join(version.source_tree_name());
         let source = fs::read_to_string(tree.join("generic").join(
             if version == tcl_dialect::TclVersion::V8_4 {
                 "tclParseExpr.c"

@@ -1134,10 +1134,7 @@ mod tests {
             if row[0] == "jim" {
                 continue;
             }
-            let version = TclVersion::ALL
-                .into_iter()
-                .find(|version| version.dialect_profile_name() == format!("tcl{}", row[0]))
-                .unwrap();
+            let version = TclVersion::from_version_string(row[0]).unwrap();
             let context = context(version);
             let source = bytes(row[2]);
             let CheckedExprParse::ProvedSyntaxFailure(failure) =

@@ -333,6 +333,32 @@ fn dsl_gates_honour_a_package_require_tcl_floor() {
 }
 
 #[test]
+fn a_prerelease_package_require_tcl_sets_its_release_floor() {
+    // `8.6b1` and `9.0b1` name the 8.6 and 9.0 lines (item 147): the floor
+    // they set is the one their release sets.
+    for (release, ambient, src) in [
+        ("8.6", "tcl8.5", "format %b 5\n"),
+        ("9.0", "tcl8.6", "format %llu 5\nstring is dict {a 1}\n"),
+    ] {
+        let floored =
+            |version: &str| dsl_diags(&format!("package require Tcl {version}\n{src}"), ambient);
+        assert!(
+            !dsl_diags(src, ambient).is_empty(),
+            "{release} feature gated under {ambient}"
+        );
+        assert_eq!(
+            floored(&format!("{release}b1")),
+            floored(release),
+            "{release}b1"
+        );
+        assert!(
+            floored(&format!("{release}b1")).is_empty(),
+            "{release}b1 admits {release}"
+        );
+    }
+}
+
+#[test]
 fn w200_binary_modifiers_follow_the_effective_version() {
     // TIP 275: binary format/scan u/s modifiers are 8.5+. The F5
     // trunk profiles all ride the fork of Tcl at 8.4.6 — measured,

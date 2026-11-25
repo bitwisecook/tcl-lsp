@@ -435,7 +435,9 @@ fn original_unset_execution_matches_85_native_completion_windows() {
         if columns[0] == "jim0.84" {
             continue;
         }
-        let profile = tcl_dialect::DialectProfile::find(&format!("tcl{}", columns[0])).unwrap();
+        let profile = tcl_dialect::TclVersion::profile_name_for(columns[0])
+            .and_then(tcl_dialect::DialectProfile::find)
+            .unwrap();
         let mut vm = Vm::with_native_core(
             Box::new(std::io::sink()),
             Rc::new(crate::host_native::NativeHost::new()),

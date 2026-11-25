@@ -201,6 +201,20 @@ impl TclVersion {
         self.release_facts().profile_name
     }
 
+    /// The plain-Tcl profile name for a `major.minor` release spelling
+    /// (`"8.6"` gives `"tcl8.6"`), or `None` for a release the enum lacks.
+    #[must_use]
+    pub fn profile_name_for(release: &str) -> Option<&'static str> {
+        Self::from_version_string(release).map(Self::dialect_profile_name)
+    }
+
+    /// The directory name of this release's pinned source tree
+    /// (`tcl8.6.18`), as the reference toolchain scripts unpack it.
+    #[must_use]
+    pub fn source_tree_name(self) -> String {
+        ["tcl", self.patchlevel()].concat()
+    }
+
     /// The full `major.minor.patch` string an engine emulating this release
     /// reports as `[info patchlevel]` / `$tcl_patchLevel`.
     ///

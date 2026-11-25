@@ -1436,7 +1436,7 @@ mod native_dispatch_diagnostic_tests {
                 NativeNameProtocol::Jim084
             } else {
                 NativeNameProtocol::C(
-                    tcl_dialect::TclVersion::from_dialect(Some(&format!("tcl{}", fields[0])))
+                    tcl_dialect::TclVersion::from_version_string(fields[0])
                         .expect("captured native C release"),
                 )
             };

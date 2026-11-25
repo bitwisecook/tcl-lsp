@@ -1080,10 +1080,10 @@ mod tests {
         let mut checked = 0;
         for row in include_str!("../tests/data/authored_procedure_names/native.tsv").lines() {
             let columns: Vec<_> = row.split('\t').collect();
-            let environment = crate::model::ingress::resolve_environment(&if columns[0] == "jim" {
-                "jim".into()
+            let environment = crate::model::ingress::resolve_environment(if columns[0] == "jim" {
+                "jim"
             } else {
-                format!("tcl{}", columns[0])
+                tcl_dialect::TclVersion::profile_name_for(columns[0]).expect("captured release")
             });
             let dialect = crate::InvocationDialect::of_profile(environment.unit_profile());
             let native = tcl_syntax::naming::NamePolicyProtocol::for_native_point(

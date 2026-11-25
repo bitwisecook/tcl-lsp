@@ -1120,7 +1120,10 @@ fn ladder_environments() -> Vec<EnvironmentDefinition> {
     .into_iter()
     .map(
         |(release, editor_id, itcl, http, msgcat, tcltest)| EnvironmentDefinition {
-            id: EnvironmentId::new(&format!("tcl{}", release.as_str())),
+            id: EnvironmentId::new(
+                crate::TclVersion::profile_name_for(release.as_str())
+                    .expect("every plain Tcl environment names a modelled release"),
+            ),
             aliases: Vec::new(),
             display_name: arc(&format!("Tcl {release}")),
             short_name: arc(&format!("Tcl {release}")),

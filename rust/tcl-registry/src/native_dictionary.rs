@@ -869,7 +869,10 @@ mod compiler_tests {
                     assert_eq!(ordinal, None, "{}", fields[1]);
                 }
             } else {
-                let profile = crate::model::resolve_environment(&format!("tcl{}", &fields[0][..3]));
+                let profile = crate::model::resolve_environment(
+                    tcl_dialect::TclVersion::profile_name_for(&fields[0][..3])
+                        .expect("captured release"),
+                );
                 let dialect = crate::InvocationDialect::of_profile(profile.unit_profile());
                 assert_eq!(dialect.dictionary_variable_value_ordinal(root, key), None);
                 assert_eq!(

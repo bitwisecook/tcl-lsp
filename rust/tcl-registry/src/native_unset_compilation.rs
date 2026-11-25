@@ -216,7 +216,9 @@ mod tests {
             if columns[0] == "jim0.84" {
                 continue;
             }
-            let profile = tcl_dialect::DialectProfile::find(&format!("tcl{}", columns[0])).unwrap();
+            let profile = tcl_dialect::TclVersion::profile_name_for(columns[0])
+                .and_then(tcl_dialect::DialectProfile::find)
+                .unwrap();
             let version = crate::InvocationDialect::of_profile(profile)
                 .tcl_version
                 .unwrap();
