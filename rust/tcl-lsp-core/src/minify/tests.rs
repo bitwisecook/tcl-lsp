@@ -1590,7 +1590,7 @@ fn logical_formal_edit_deduplication_uses_actual_scope_not_report_keys() {
         &mut report,
         &mut edits,
     );
-    assert!(edits.is_empty());
+    assert_eq!(edits, [] as [tcl_lexer::SourceEdit; 0]);
     assert!(report.variables.is_empty());
     compact_logical_formals(
         source,
@@ -1601,5 +1601,5 @@ fn logical_formal_edit_deduplication_uses_actual_scope_not_report_keys() {
         &mut report,
         &mut edits,
     );
-    assert!(edits.is_empty());
+    assert_eq!(edits, [] as [tcl_lexer::SourceEdit; 0]);
 }

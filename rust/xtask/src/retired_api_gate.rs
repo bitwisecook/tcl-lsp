@@ -976,7 +976,10 @@ mod tests {
             assert!(scan(ok, false).is_empty(), "{ok}");
         }
         let owner = "rust/tcl-compiler/src/command_binding/trace_registrations.rs";
-        assert!(scan_owned("Traits::ESTABLISHES_VARIABLE_TRACE", owner).is_empty());
+        assert_eq!(
+            scan_owned("Traits::ESTABLISHES_VARIABLE_TRACE", owner),
+            [] as [(usize, &str); 0]
+        );
     }
 
     /// An owned answer is not a violation in the module that owns it, and

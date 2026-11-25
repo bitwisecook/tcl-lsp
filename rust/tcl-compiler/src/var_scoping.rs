@@ -535,14 +535,17 @@ mod tests {
     #[test]
     fn upvar_declarations_use_the_selected_frame_level_policy() {
         let tcl84 = tcl_registry::model::ingress::static_context_for("tcl8.4").commands();
-        assert!(upvar_local_declaration_indices(tcl84, "upvar", &v(&["1", "b"])).is_empty());
+        assert_eq!(
+            upvar_local_declaration_indices(tcl84, "upvar", &v(&["1", "b"])),
+            [] as [usize; 0]
+        );
         assert_eq!(
             upvar_local_declaration_indices(registry(), "upvar", &v(&["1", "b"])),
             vec![1],
         );
-        assert!(
-            upvar_local_declaration_indices(registry(), "upvar", &v(&["$lvl", "a", "b"]))
-                .is_empty()
+        assert_eq!(
+            upvar_local_declaration_indices(registry(), "upvar", &v(&["$lvl", "a", "b"])),
+            [] as [usize; 0]
         );
     }
 

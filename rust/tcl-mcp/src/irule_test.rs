@@ -799,7 +799,7 @@ mod tests {
             Some([20, 30]),
             schema,
         );
-        assert!(unrelated.taint_warnings.is_empty());
+        assert_eq!(unrelated.taint_warnings, [] as [serde_json::Value; 0]);
         let unknown = build_path(
             PathSource {
                 kind: PathSourceKind::Event,
@@ -813,7 +813,7 @@ mod tests {
             None,
         );
         assert_eq!(unknown.priority.as_str(), "low");
-        assert!(unknown.questions.is_empty());
+        assert_eq!(unknown.questions, [] as [serde_json::Value; 0]);
     }
     #[test]
     fn path_source_kind_preserves_the_actual_diagram_category() {

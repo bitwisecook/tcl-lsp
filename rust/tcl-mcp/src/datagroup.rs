@@ -564,9 +564,13 @@ mod tests {
 
     #[test]
     fn too_few_values() {
-        assert!(candidates("if {$x eq \"a\"} { puts ok }").is_empty());
-        assert!(
-            candidates("switch -exact -- $x {\n    a { puts 1 }\n    b { puts 2 }\n}").is_empty()
+        assert_eq!(
+            candidates("if {$x eq \"a\"} { puts ok }"),
+            [] as [serde_json::Value; 0]
+        );
+        assert_eq!(
+            candidates("switch -exact -- $x {\n    a { puts 1 }\n    b { puts 2 }\n}"),
+            [] as [serde_json::Value; 0]
         );
     }
 
@@ -574,7 +578,7 @@ mod tests {
     fn glob_switch_declined() {
         let source =
             "switch -glob -- $x {\n    a* { set y 1 }\n    b* { set y 2 }\n    c* { set y 3 }\n}";
-        assert!(candidates(source).is_empty());
+        assert_eq!(candidates(source), [] as [serde_json::Value; 0]);
     }
 
     #[test]
@@ -600,7 +604,10 @@ mod tests {
             let candidates = suggest_for_analysis(source, analysis);
             assert_eq!(candidates.len(), 1);
             assert_eq!(candidates[0]["has_static_extraction"], false);
-            assert!(suggest_for_analysis(&format!("# changed\n{source}"), analysis).is_empty());
+            assert_eq!(
+                suggest_for_analysis(&format!("# changed\n{source}"), analysis),
+                [] as [serde_json::Value; 0]
+            );
         }
 
         // Static extraction writes `class match` / `class lookup`, so it is
@@ -641,7 +648,10 @@ mod tests {
         assert_eq!(replaced_candidates[0]["has_static_extraction"], false);
         let config = lexical.body_lexer_config.as_mut().unwrap();
         config.strict_quoting = !config.strict_quoting;
-        assert!(suggest_for_analysis(source, &lexical).is_empty());
+        assert_eq!(
+            suggest_for_analysis(source, &lexical),
+            [] as [serde_json::Value; 0]
+        );
     }
 
     #[test]
@@ -699,12 +709,18 @@ mod tests {
         assert_eq!(c[0]["variable"], "café");
         assert_eq!(c[0]["line"], 1);
         assert_eq!(c[0]["has_static_extraction"], false);
-        assert!(suggest_for_analysis(&format!("# changed\n{source}"), &analysis).is_empty());
+        assert_eq!(
+            suggest_for_analysis(&format!("# changed\n{source}"), &analysis),
+            [] as [serde_json::Value; 0]
+        );
         analysis.resolved_input = None;
-        assert!(suggest_for_analysis(source, &analysis).is_empty());
+        assert_eq!(
+            suggest_for_analysis(source, &analysis),
+            [] as [serde_json::Value; 0]
+        );
         let shadow =
             "proc switch {args} {}\nswitch -exact -- $x {GET {drop} POST {drop} PUT {drop}}";
-        assert!(candidates(shadow).is_empty());
+        assert_eq!(candidates(shadow), [] as [serde_json::Value; 0]);
         for options in ["-nocase --", "-glob --", "$options --", "{*}$options --"] {
             let source = format!("switch {options} $x {{GET {{drop}} POST {{drop}} PUT {{drop}}}}");
             assert!(candidates(&source).is_empty(), "{options}");
@@ -714,7 +730,10 @@ mod tests {
         assert_eq!(suggest_for_analysis(source, &analysis).len(), 1);
         let config = analysis.body_lexer_config.as_mut().unwrap();
         config.strict_quoting = !config.strict_quoting;
-        assert!(suggest_for_analysis(source, &analysis).is_empty());
+        assert_eq!(
+            suggest_for_analysis(source, &analysis),
+            [] as [serde_json::Value; 0]
+        );
     }
 }
 
@@ -780,10 +799,16 @@ mod original_arm_parser_purpose_tests {
                 invocation.name = "changed presentation".into();
             }
             assert_eq!(suggest_for_analysis(&source, &labels), found);
-            assert!(suggest_for_analysis(&format!("{source} "), &analysis).is_empty());
+            assert_eq!(
+                suggest_for_analysis(&format!("{source} "), &analysis),
+                [] as [serde_json::Value; 0]
+            );
             let mut missing = analysis.clone();
             missing.resolved_input = None;
-            assert!(suggest_for_analysis(&source, &missing).is_empty());
+            assert_eq!(
+                suggest_for_analysis(&source, &missing),
+                [] as [serde_json::Value; 0]
+            );
         }
         for source in [
             "proc if args {return NOOP}; if {$host eq {a} || $host eq {b}} {drop}",

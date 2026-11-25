@@ -34,12 +34,18 @@ fn original_mcp_event_reports_keep_requested_analysis_and_ignore_reporting_maps(
         event_order_list(source, &analysis)[0]["name"],
         "HTTP_REQUEST"
     );
-    assert!(detect_events(&format!("# moved\n{source}"), &analysis).is_empty());
+    assert_eq!(
+        detect_events(&format!("# moved\n{source}"), &analysis),
+        [] as [serde_json::Value; 0]
+    );
     for profile in ["tcl8.6", "tcl9.0", "f5-iapps"] {
         let result = analyze(&json!({"source":source,"dialect":profile}));
         assert_eq!(result["events"], json!([]), "{profile}");
         assert_eq!(result["event_order"], json!([]), "{profile}");
     }
     let shadow = "proc when {args} {}; when HTTP_REQUEST {}";
-    assert!(detect_events(shadow, &analyse(shadow, "f5-irules")).is_empty());
+    assert_eq!(
+        detect_events(shadow, &analyse(shadow, "f5-irules")),
+        [] as [serde_json::Value; 0]
+    );
 }

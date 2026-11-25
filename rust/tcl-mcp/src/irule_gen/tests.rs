@@ -548,8 +548,14 @@ fn original_irule_scaffolds_keep_source_candidates_without_predicted_outcomes() 
     );
     let custom =
         generate_irule_test(&json!({"source":"proc when args {}; when HTTP_REQUEST {pool fake}"}));
-    assert!(custom["events"].as_array().unwrap().is_empty());
-    assert!(custom["pools"].as_array().unwrap().is_empty());
+    assert_eq!(
+        custom["events"].as_array().unwrap().as_slice(),
+        [] as [serde_json::Value; 0]
+    );
+    assert_eq!(
+        custom["pools"].as_array().unwrap().as_slice(),
+        [] as [serde_json::Value; 0]
+    );
     assert_eq!(
         build_assertion("pool", &["target\nset forged 1".to_owned()])[1],
         "# Source candidate: pool target\\nset forged 1"
@@ -627,5 +633,8 @@ fn static_namespace_hints_preserve_actual_literal_variable_roles() {
         );
     }
     let inventory = executable("when HTTP_REQUEST {set data {static::inert}}");
-    assert!(extract_variables(&inventory).static_vars.is_empty());
+    assert_eq!(
+        extract_variables(&inventory).static_vars,
+        [] as [std::string::String; 0]
+    );
 }

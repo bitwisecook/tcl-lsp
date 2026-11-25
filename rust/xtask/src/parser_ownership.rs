@@ -867,13 +867,13 @@ mod tests {
                     .iter()
                     .any(|p| p.contains("lookup") && p.contains("whitespace"))
             );
-            assert!(
+            assert_eq!(
                 source(
                     r#"fn lookup() { owned(std::env::var("TCLLIBPATH")); }
                               fn an_os_format(s: &str) { s.split_whitespace(); }"#
                 )
-                .drift(path)
-                .is_empty()
+                .drift(path),
+                [] as [String; 0]
             );
         }
     }
@@ -888,7 +888,7 @@ mod tests {
             }
             #[test] fn apl_hands_complete_source_ranges_to_the_tcl_walker() { embedded_tcl_regions(b""); }
         "#;
-        assert!(source(valid).drift(APL).is_empty());
+        assert_eq!(source(valid).drift(APL), [] as [std::string::String; 0]);
         for changed in [
             valid.replace("environment.grammar()", "alternate.grammar()"),
             valid.replace("src, 0, config", "src, 0, LexerConfig::default()"),
@@ -935,7 +935,7 @@ mod tests {
     fn fixed_pack_and_selected_expression_routes_reject_host_fallbacks() {
         let pack = "fn coverage_row(s: &str) {crate::loader::value_parsers::strict_pack_list(s);}
                     fn world_state_domain(s: &str) {crate::loader::value_parsers::strict_pack_list(s);}";
-        assert!(source(pack).drift(PACK).is_empty());
+        assert_eq!(source(pack).drift(PACK), [] as [std::string::String; 0]);
         let renamed = pack.replace("strict_pack_list(s);", "strict_pack_list(s); fragment(s);")
             + "fn fragment(s: &str) {s.split_whitespace();}";
         assert!(
@@ -949,12 +949,15 @@ mod tests {
              tcl_syntax::expr::parser::parse_expr_for_profile_with_lexer_config(source, Some(profile), config);
            }
            #[test] fn switch_patterns_suggest_values_without_closing_the_argument() {scan();}";
-        assert!(source(studio).drift(STUDIO).is_empty());
+        assert_eq!(source(studio).drift(STUDIO), [] as [std::string::String; 0]);
         for changed in [
             studio.replace("Some(profile)", "None"),
             studio.replace("config);", "default());"),
         ] {
-            assert!(!source(&changed).drift(STUDIO).is_empty());
+            assert_ne!(
+                source(&changed).drift(STUDIO),
+                [] as [std::string::String; 0]
+            );
         }
     }
 }

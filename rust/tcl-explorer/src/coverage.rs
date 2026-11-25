@@ -342,7 +342,7 @@ mod tests {
 
     #[test]
     fn every_reviewed_artifact_has_a_view_or_reasoned_exclusion() {
-        assert!(!ARTIFACT_COVERAGE.is_empty());
+        assert_ne!(ARTIFACT_COVERAGE, []);
         for artifact in ARTIFACT_COVERAGE {
             assert!(artifact.view.is_some() ^ artifact.exclusion.is_some());
             if let Some(reason) = artifact.exclusion {

@@ -120,11 +120,11 @@ fn pkg_add_preserves_literal_name_and_source_argv_and_remove_selects_the_same_na
     assert_eq!(parsed.requires[0].source_url.as_deref(), Some(url));
     let (_stdout, stderr, code) = run_in(&dir, &["pkg", "remove", package]);
     assert_eq!(code, 0, "{stderr}");
-    assert!(
+    assert_eq!(
         tcl_pkg::manifest::load_manifest(&manifest)
             .unwrap()
-            .requires
-            .is_empty()
+            .requires,
+        [] as [tcl_pkg::manifest::Requirement; 0]
     );
     std::fs::write(&manifest, original).unwrap();
     let (_stdout, stderr, code) = run_in(&dir, &["pkg", "add", "foo", "1.0; require injected 9.0"]);
@@ -143,7 +143,7 @@ fn pkg_init_preserves_literal_package_names_and_refuses_invalid_headers_before_w
     let original = std::fs::read_to_string(&path).unwrap();
     let ast = tcl_pkg::manifest::load_manifest(&path).unwrap();
     assert_eq!(ast.name, name);
-    assert!(ast.requires.is_empty());
+    assert_eq!(ast.requires, [] as [tcl_pkg::manifest::Requirement; 0]);
     let (stdout, stderr, code) = run_in(
         &dir,
         &[
@@ -157,7 +157,7 @@ fn pkg_init_preserves_literal_package_names_and_refuses_invalid_headers_before_w
         ],
     );
     assert_eq!(code, 1, "{stderr}");
-    assert!(stdout.is_empty());
+    assert_eq!(stdout, "");
     assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
     std::fs::remove_dir_all(dir).unwrap();
 }
@@ -226,7 +226,7 @@ fn pkg_freeze_preserves_literal_dependencies_and_stages_all_source_before_emissi
     write_lockfile(&locked, dir.join("tclpkg.lock")).unwrap();
     let (stdout, stderr, code) = run_in(&dir, &["pkg", "freeze"]);
     assert_eq!(code, 1, "{stderr}");
-    assert!(stdout.is_empty());
+    assert_eq!(stdout, "");
     let (stdout, stderr, code) = run_in(&dir, &["pkg", "freeze", "--json"]);
     assert_eq!(code, 0, "{stderr}");
     let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
@@ -351,7 +351,10 @@ fn pkg_discover_uses_analysis_and_optimisation() {
             && requirement["name"].is_null()
             && requirement["status"] == "unresolved"
     }));
-    assert!(output["added"].as_array().unwrap().is_empty());
+    assert_eq!(
+        output["added"].as_array().unwrap().as_slice(),
+        [] as [serde_json::Value; 0]
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -365,7 +368,7 @@ fn pkg_discover_add_retains_manifest_when_source_decoding_loses_a_name() {
     let (stdout, stderr, code) = run_in(&dir, &["pkg", "discover", "--add", "--json"]);
     assert_ne!(code, 0);
     assert!(stderr.contains("decoding errors"), "{stderr}");
-    assert!(stdout.is_empty());
+    assert_eq!(stdout, "");
     assert_eq!(std::fs::read_to_string(manifest_path).unwrap(), manifest);
     std::fs::remove_dir_all(dir).unwrap();
 }

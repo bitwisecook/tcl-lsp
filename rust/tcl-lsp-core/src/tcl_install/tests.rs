@@ -136,7 +136,10 @@ fn module_paths_keep_release_and_environment_precedence() {
         paths.last(),
         Some(&PathBuf::from("release86").join("tcl8/8.6"))
     );
-    assert!(module_search_paths_with(&installations, TclVersion::V8_4, |_| None).is_empty());
+    assert_eq!(
+        module_search_paths_with(&installations, TclVersion::V8_4, |_| None),
+        [] as [std::path::PathBuf; 0]
+    );
 }
 
 #[test]

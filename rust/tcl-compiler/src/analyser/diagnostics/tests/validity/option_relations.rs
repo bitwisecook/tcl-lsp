@@ -647,6 +647,7 @@ fn a_write_to_a_constant_reports_e007_on_the_selected_cell() {
         "const PI 3; const PI 3; puts $PI",
         "const PI 3; proc f {} {set PI 4}; set Q 1; set Q 2",
         "set PI 3; catch {const PI 3}; set PI 4",
+        "set PI 3; set PI 4",
         "const PI 3; append PI",
         "const PI 3; lappend PI",
         "const PI \\{; lappend PI y",

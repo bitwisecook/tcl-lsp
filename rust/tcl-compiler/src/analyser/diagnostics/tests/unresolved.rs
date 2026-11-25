@@ -38,7 +38,7 @@ fn w123_anchors_a_missing_materialised_command_to_the_written_operand() {
         reported.message,
         "Unresolved command 'missing_materialised' in namespace '::'"
     );
-    assert!(reported.fixes.is_empty());
+    assert_eq!(reported.fixes.len(), 0);
     assert!(
         result
             .command_invocations
