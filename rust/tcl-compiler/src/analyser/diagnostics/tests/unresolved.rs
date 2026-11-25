@@ -795,20 +795,19 @@ fn analyse_w123_filtered_by_disabled_diagnostics() {
 
 #[test]
 fn w120_fires_for_package_gated_command_without_require() {
-    // `tcl::idna` carries `required_package = "tcl::idna"`.
-    // Using it without a `package require` emits W120.
+    // `http::register` requires the hosted http package.
     let mut a = Analyser::new();
-    let r = a.analyse("tcl::idna decode example.com\n", "tcl9.0");
+    let r = a.analyse("http::register foo 80 bar\n", "tcl8.6");
     let w120: Vec<_> = r
         .diagnostics
         .iter()
         .filter(|d| d.code == DiagCode::W120)
         .collect();
     assert_eq!(w120.len(), 1, "expected one W120; got {:?}", r.diagnostics);
-    assert!(w120[0].message.contains("package require tcl::idna"));
+    assert!(w120[0].message.contains("package require http"));
     // Carries a fix that inserts the require at the top.
     assert_eq!(w120[0].fixes.len(), 1);
-    assert_eq!(w120[0].fixes[0].new_text, "package require tcl::idna\n");
+    assert_eq!(w120[0].fixes[0].new_text, "package require http\n");
     assert!(
         w120[0].fixes[0]
             .description
@@ -820,8 +819,8 @@ fn w120_fires_for_package_gated_command_without_require() {
 fn w120_suppressed_when_package_required() {
     let mut a = Analyser::new();
     let r = a.analyse(
-        "package require tcl::idna\ntcl::idna decode example.com\n",
-        "tcl9.0",
+        "package require http\nhttp::register foo 80 bar\n",
+        "tcl8.6",
     );
     assert!(
         !r.diagnostics.iter().any(|d| d.code == DiagCode::W120),
@@ -848,11 +847,10 @@ fn w120_accepts_the_registered_itcl_alias() {
 
 #[test]
 fn w120_checks_unrelated_packages_with_an_unnameable_requirement() {
-    let source = "package require $name\ntcl::idna decode example.com\n";
-    let result = Analyser::new().analyse(source, "tcl9.0");
-    assert!(result.has_dynamic_providers);
+    let source = "package require $name\nhttp::register foo 80 bar\n";
+    let result = Analyser::new().analyse(source, "tcl8.6");
     assert!(result.diagnostics.iter().any(|diagnostic| {
-        diagnostic.code == DiagCode::W120 && diagnostic.message.contains("tcl::idna")
+        diagnostic.code == DiagCode::W120 && diagnostic.message.contains("package require http")
     }));
 }
 
@@ -860,9 +858,9 @@ fn w120_checks_unrelated_packages_with_an_unnameable_requirement() {
 fn w120_fix_inserts_after_existing_require() {
     // With an unrelated `package require` present, the fix
     // inserts on the line after it.
-    let src = "package require Tcl 8.6\ntcl::idna decode x\n";
+    let src = "package require Tcl 8.6\nhttp::register foo 80 bar\n";
     let mut a = Analyser::new();
-    let r = a.analyse(src, "tcl9.0");
+    let r = a.analyse(src, "tcl8.6");
     let w120 = r
         .diagnostics
         .iter()
@@ -883,9 +881,9 @@ fn w120_fix_inserts_after_existing_require() {
 
 #[test]
 fn w120_emitted_once_per_command_name() {
-    let src = "tcl::idna decode a\ntcl::idna encode b\n";
+    let src = "http::register foo 80 bar\nhttp::register baz 81 qux\n";
     let mut a = Analyser::new();
-    let r = a.analyse(src, "tcl9.0");
+    let r = a.analyse(src, "tcl8.6");
     let w120: Vec<_> = r
         .diagnostics
         .iter()
@@ -916,7 +914,11 @@ fn w120_is_silent_under_the_tk_environment_and_nags_under_plain_tcl() {
     // gated command name (`button`, `pack`), as W120 always emits.
     assert_eq!(fires("tcl8.6"), 2, "tcl8.6");
     assert_eq!(fires("tcl9.0"), 2, "tcl9.0");
-    assert_eq!(fires("tcl"), 2, "the lenient sink hosts Tk too");
+    assert_eq!(
+        fires("tcl"),
+        0,
+        "the unpinned sink has no package naming provider"
+    );
     // Ambient: `wish` ships Tk. Nothing to require, nothing to nag about.
     assert_eq!(fires("tk"), 0, "tk");
     assert_eq!(
@@ -1091,6 +1093,44 @@ fn w123_tp_issue_973_interp_alias_deleted_no_reestablishment() {
     // `target` is still a command.
     let src = "proc target {} {}\ninterp alias {} short {} target\ninterp alias {} short {}\nproc caller {} { short }\n";
     assert_eq!(w123_codes(src), vec!["W123".to_owned()]);
+}
+
+#[test]
+fn w123_reports_the_deleted_terminal_of_a_live_alias_chain() {
+    let source = include_str!(
+        "../../../../../../docs/work/name-handling/handover/oo-dispatch-probe/dynamic/e16-alias-chain.tcl"
+    );
+    let deleted_call = source.rfind("two y").unwrap();
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        let result = Analyser::new().analyse(source, dialect);
+        let warnings: Vec<_> = result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W123)
+            .collect();
+        assert_eq!(warnings.len(), 1, "{dialect}: {:?}", result.diagnostics);
+        assert_eq!(warnings[0].span.as_range(), deleted_call..deleted_call + 3);
+        assert!(warnings[0].message.contains("'one'"));
+        assert!(result.diagnostics.iter().any(|d| d.code == DiagCode::E002));
+    }
+}
+
+#[test]
+fn w123_leaves_aliases_with_a_new_target_or_custom_fallback_clean() {
+    for suffix in [
+        "proc target {} {return new}; retry",
+        "proc unknown args {return handled}; retry",
+    ] {
+        let source = format!(
+            "proc target {{}} {{return old}}; interp alias {{}} retry {{}} target; rename target {{}}; {suffix}"
+        );
+        let result = Analyser::new().analyse(&source, "tcl8.6");
+        assert!(
+            result.diagnostics.iter().all(|d| d.code != DiagCode::W123),
+            "{source}: {:?}",
+            result.diagnostics
+        );
+    }
 }
 
 #[test]

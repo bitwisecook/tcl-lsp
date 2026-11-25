@@ -47,12 +47,89 @@
 use std::cmp::Ordering;
 
 use tcl_dialect::{
-    PackagePrefer, compare_versions, exact_requirement, select_package_version, version_is_stable,
-    version_satisfies,
+    PackagePrefer, TclVersion, compare_versions, compare_versions_for, exact_requirement,
+    select_package_version, select_package_version_exact_for, select_package_version_for,
+    validate_requirement_for, validate_version_for, version_is_stable, version_satisfies,
+    version_satisfies_for,
 };
 
 const VERSION_ORACLE: &str = include_str!("data/package_version_oracle.txt");
 const SELECT_ORACLE: &str = include_str!("data/package_select_oracle.txt");
+
+#[test]
+fn package_fixtures_match_every_pinned_tcl_release() {
+    use Ordering::{Equal, Greater, Less};
+
+    // p01-vcompare, p02-vsatisfies, p03-bad-versions, p05-exact and p09-multi-req.
+    // Same outputs on 8.5.19, 8.6.18, 9.0.4 and 9.1.0. Tcl 8.4.20 raises
+    // on the newer grammar; the public owner reports these cases as invalid.
+    for release in TclVersion::ALL {
+        let modern = release != TclVersion::V8_4;
+        for (left, right, expected) in [
+            ("1.2", "1.10", Less),
+            ("1.2a1", "1.2", Less),
+            ("1.2b1", "1.2a2", Greater),
+            ("1.2", "1.2.0", Equal),
+            ("01.2", "1.2", Equal),
+            ("8.6", "8.6.18", Less),
+            ("1.0", "1", Equal),
+        ] {
+            let can_compare =
+                validate_version_for(left, release) && validate_version_for(right, release);
+            assert_eq!(
+                can_compare,
+                modern || !left.contains(['a', 'b']),
+                "{release:?} {left} {right}"
+            );
+            if can_compare {
+                assert_eq!(compare_versions_for(left, right, release), expected);
+            }
+        }
+        for (version, requirement, expected) in [
+            ("1.5", "1.0", true),
+            ("2.0", "1.0", false),
+            ("1.5", "1.0-2.0", true),
+            ("2.0", "1.0-2.0", false),
+            ("2.0", "1.0-2", false),
+            ("1.5", "2-1", false),
+            ("1.2a1", "1.2", true),
+            ("1.2b1", "1.2a1-", true),
+            ("9.0", "8.6-", true),
+            ("8.6.18", "8.6", true),
+        ] {
+            let can_satisfy = validate_version_for(version, release)
+                && validate_requirement_for(requirement, release).is_ok();
+            assert_eq!(
+                can_satisfy,
+                modern || (!version.contains(['a', 'b']) && !requirement.contains('-'))
+            );
+            assert_eq!(
+                version_satisfies_for(version, requirement, release),
+                can_satisfy && expected
+            );
+        }
+        for invalid in ["1..2", "a1", "1.2c3", "", "-1", "1.2a", "1.2ab3", "1_2"] {
+            assert!(
+                !validate_version_for(invalid, release),
+                "{release:?} {invalid}"
+            );
+        }
+        let versions = ["1.0", "1.5"];
+        let loaded = select_package_version_exact_for(&versions, "1.0", release)
+            .map(|index| versions[index]);
+        assert_eq!(loaded, Some("1.0"));
+        assert!(!version_satisfies_for(loaded.unwrap(), "1.5", release));
+        let versions = ["1.5", "3.0"];
+        let selected = select_package_version_for(
+            &versions,
+            &["1.0-2.0", "3.0-"],
+            PackagePrefer::Stable,
+            release,
+        )
+        .map(|index| versions[index]);
+        assert_eq!(selected, modern.then_some("3.0"));
+    }
+}
 
 /// The data rows of a pinned corpus: comment and blank lines dropped, each
 /// remaining line split on tabs.

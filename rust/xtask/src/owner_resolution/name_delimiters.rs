@@ -378,15 +378,19 @@ fn collect_rust_sources(root: &Path, relative: &str, found: &mut Vec<String>) ->
     Ok(())
 }
 
-fn workspace_name_delimiter_counts(
-    root: &Path,
-) -> Result<std::collections::BTreeMap<String, usize>> {
+pub(super) fn production_source_paths(root: &Path) -> Result<Vec<String>> {
     let mut sources = Vec::new();
     for tree in NAME_DELIMITER_ROOTS {
         collect_rust_sources(root, tree, &mut sources)?;
     }
+    Ok(sources)
+}
+
+fn workspace_name_delimiter_counts(
+    root: &Path,
+) -> Result<std::collections::BTreeMap<String, usize>> {
     let mut counts = std::collections::BTreeMap::new();
-    for path in sources {
+    for path in production_source_paths(root)? {
         let other_text = NAME_DELIMITER_OTHER_TEXT
             .iter()
             .find(|(file, _, _)| *file == path)

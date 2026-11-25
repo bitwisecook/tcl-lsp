@@ -16,14 +16,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+pub(crate) use tcl_test_support::fixture::tsv_fields as fields;
+
 /// Flat, unquoted TSV rows used by the xtask evidence ledgers.
 pub(crate) fn rows(text: &str) -> impl Iterator<Item = &str> {
-    text.lines()
-        .filter(|line| !line.is_empty() && !line.starts_with('#'))
-}
-
-pub(crate) fn fields(row: &str) -> impl Iterator<Item = &str> {
-    row.split('\t')
+    tcl_test_support::fixture::tsv_lines(text).map(|(_, line)| line)
 }
 
 pub(crate) fn record<'a>(fields: impl IntoIterator<Item = &'a str>) -> String {

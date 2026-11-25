@@ -1,0 +1,8 @@
+lib/installed.tcl
+main.tcl
+src/pack.tclspec
+src/rule.irul
+src/tclpkg.tcl
+src/widgets.ITK
+src/widgets.tk
+vendor/vendored.tcl

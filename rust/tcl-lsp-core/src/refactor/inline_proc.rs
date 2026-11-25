@@ -82,6 +82,9 @@ use tcl_registry::{ArgRole, CommandRegistry};
 use super::{RefactorEdit, Refactoring};
 use crate::code_actions::ActionKind;
 
+const ARRAY_REFERENCE_REFUSAL: &str =
+    "an array reference needs its original activation and index evaluation";
+
 /// Inline the proc called at byte offset `cursor`.
 ///
 /// Returns `None` when the cursor is not on a call to a resolvable proc at
@@ -162,17 +165,23 @@ pub fn inline_proc_in_program(
     let (call_start, call_end) = walk.command_span_offsets(source, &call)?;
 
     match plan_inline(source, &call, proc_def, analysis, registry, config) {
-        Ok(new_text) => Some(Refactoring {
-            title,
-            edits: vec![RefactorEdit {
-                start: call_start,
-                end: call_end,
-                new_text,
-            }],
-            kind: ActionKind::RefactorInline,
-            data_group: None,
-            disabled: None,
-        }),
+        Ok(new_text) => {
+            let proposal = Refactoring {
+                title,
+                edits: vec![RefactorEdit {
+                    start: call_start,
+                    end: call_end,
+                    new_text,
+                }],
+                kind: ActionKind::RefactorInline,
+                data_group: None,
+                disabled: None,
+            };
+            proposal.check_replacement(source, |replacement| {
+                check_inline_script(replacement, config)
+            })?;
+            Some(proposal)
+        }
         Err(reason) => Some(Refactoring {
             title,
             edits: Vec::new(),
@@ -181,6 +190,11 @@ pub fn inline_proc_in_program(
             disabled: Some(reason),
         }),
     }
+}
+
+fn check_inline_script(replacement: &str, config: LexerConfig) -> Option<()> {
+    (super::source_rewrite::script_word_spellings(replacement, config.nested())?.len() == 1)
+        .then_some(())
 }
 
 /// The inlined replacement text for `call`, or the reason it cannot be built.
@@ -210,9 +224,26 @@ fn plan_inline(
     let mut nested = Vec::new();
     walk.nested_same_frame_commands(source, &body.command, &mut nested);
     if !walk.complete() {
-        return Err(
-            "a nested command's original frame or operand grammar is unavailable".to_owned(),
-        );
+        // An active array substitution already rules out this rewrite,
+        // even when the command cannot select its operand grammar.
+        let active_array = walk
+            .native_words(source, &body.command)
+            .into_iter()
+            .flatten()
+            .any(|word| {
+                word.executable_parts().all_parts().any(|part| {
+                    matches!(
+                        part.part,
+                        tcl_lexer::ExecutablePart::Variable { index: Some(_), .. }
+                    )
+                })
+            });
+        let reason = if active_array {
+            ARRAY_REFERENCE_REFUSAL
+        } else {
+            "a nested command's original frame or operand grammar is unavailable"
+        };
+        return Err(reason.to_owned());
     }
     if !analysis.allows_lexical_declaration_advice() {
         return original_inline_body(
@@ -625,10 +656,7 @@ fn body_variable_references(
             .ok_or_else(|| "the body's original variable components are unavailable".to_owned())?
         {
             if reference.array {
-                return Err(
-                    "an array reference needs its original activation and index evaluation"
-                        .to_owned(),
-                );
+                return Err(ARRAY_REFERENCE_REFUSAL.to_owned());
             }
             let key = (reference.span.start(), reference.span.end());
             if let Some(previous) = references.insert(key, reference.clone())
@@ -1085,10 +1113,7 @@ fn collect_inline_body_references(
             .map_err(|_| unavailable())?
             .into_owned();
             if index.is_some() {
-                return Err(
-                    "an array reference needs its original activation and index evaluation"
-                        .to_owned(),
-                );
+                return Err(ARRAY_REFERENCE_REFUSAL.to_owned());
             }
             if rest_names.contains(&name) {
                 return Err(

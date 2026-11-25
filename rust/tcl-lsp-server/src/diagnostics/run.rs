@@ -260,6 +260,7 @@ pub(in super::super) async fn run_diagnostics_core(
             recovery_names: &inputs.recovery_names,
             entry_points: &inputs.entry_points,
             folder_root: inputs.folder_root.as_deref(),
+            data_group_root: inputs.data_group_root.as_deref(),
             cross_file_resolution: toggles.xc.cross_file_resolution,
         },
     )

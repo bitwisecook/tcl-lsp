@@ -446,13 +446,13 @@ const TCLPKG_MANIFEST_COMMANDS: &[ScopedCommand] = &[
         "require",
         Arity::new(2, 4),
         "production dependency",
-        "require <name> <minimum> ?-source <url>?",
+        "require <name> <minimum | Tcl requirement list> ?-source <url>?",
     ),
     manifest_directive(
         "dev-require",
         Arity::new(2, 4),
         "development-only dependency",
-        "dev-require <name> <minimum> ?-source <url>?",
+        "dev-require <name> <minimum | Tcl requirement list> ?-source <url>?",
     ),
     manifest_directive(
         "replace",

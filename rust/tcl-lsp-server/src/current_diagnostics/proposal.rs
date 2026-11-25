@@ -733,6 +733,9 @@ impl Backend {
         })
     }
 
+    // One detached analysis context assembled field by field; splitting it
+    // would only move the keepalive bookkeeping.
+    #[allow(clippy::too_many_lines)]
     async fn analyse_proposal_projection<'a>(
         &self,
         expected: &'a ProposalDiagnosticExpectation,
@@ -792,6 +795,7 @@ impl Backend {
             recovery_names: &proposal_recovery_names,
             entry_points: &inputs.entry_points,
             folder_root: inputs.folder_root.as_deref(),
+            data_group_root: inputs.data_group_root.as_deref(),
             cross_file_resolution: inputs.toggles.xc.cross_file_resolution,
         };
         let recovery = RecoveryWidenCtx {

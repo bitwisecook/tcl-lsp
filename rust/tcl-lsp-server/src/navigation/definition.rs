@@ -18,9 +18,11 @@
 
 //! Go-to-definition: the local provider and its workspace and autoload fallbacks.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use tcl_compiler::analyser::AnalysisResult;
+use tcl_lsp_core::original_declaration::{self, OriginalDeclarationRole};
 use tcl_lsp_core::original_indexed_location::OriginalIndexedSourceLocation;
 use tcl_lsp_core::{definition as core_definition, workspace_index as core_workspace_index};
 use tower_lsp_server::jsonrpc;
@@ -30,7 +32,10 @@ use crate::documents::{DocumentSourceResult, canonical_file_uri};
 use crate::protocol::{lift_lsp_range, line_col_to_byte_offset_indexed};
 use crate::{Backend, DocumentState, fresh_analysis_cache};
 
-use super::{LogicalNamespaceLocationsPurpose, LogicalVariableLocationsPurpose};
+use super::{
+    LogicalNamespaceLocationsPurpose, LogicalVariableLocationsPurpose, ReadonlyDeclarationLocation,
+    ReadonlyDeclarationTarget,
+};
 
 /// Observations that can require reissuing a failed readonly autoload query.
 /// They confer no header, lookup, completion or source-currentness authority.
@@ -694,7 +699,8 @@ impl Backend {
             .original_declaration_identity_at(&caller.0, &caller.1.text, analysis, position)
             .await?
         else {
-            return Ok(Vec::new());
+            return Box::pin(self.required_package_definition(caller, analysis, position, epoch))
+                .await;
         };
         let Ok(owner) = identity.uri().parse::<Uri>() else {
             return Ok(Vec::new());
@@ -726,6 +732,141 @@ impl Backend {
         )
         .await
     }
+
+    /// A selected package can supply a uniquely matching source declaration
+    /// even when its loader has no modeled runtime effect. Restrict the
+    /// candidate inventory to this caller's version-selected package files.
+    async fn required_package_definition(
+        &self,
+        caller: (Uri, DocumentState, u64),
+        analysis: &AnalysisResult,
+        position: Position,
+        epoch: u64,
+    ) -> DocumentSourceResult<Vec<Location>> {
+        let Some(request) = core_definition::original_autoload_request_at(
+            &caller.1.text,
+            analysis,
+            position.line,
+            position.character,
+        ) else {
+            return Ok(Vec::new());
+        };
+        let Some(lookup) = request.unresolved_source_lookup() else {
+            return Ok(Vec::new());
+        };
+        let (providers, resolver_revision) = self
+            .required_library_files(&caller.0, &caller.1.text, analysis, request.head_offset())
+            .await;
+        let providers = providers
+            .iter()
+            .filter_map(canonical_file_uri)
+            .map(|uri| uri.as_str().to_owned())
+            .collect::<HashSet<_>>();
+        if providers.is_empty() {
+            return Ok(Vec::new());
+        }
+        let (owner, span, revision, input) = {
+            let index = self.workspace_index.read().await;
+            let Some((owner, span)) = package_declaration_site(&index, lookup, &providers) else {
+                return Ok(Vec::new());
+            };
+            let Ok(uri) = owner.parse::<Uri>() else {
+                return Ok(Vec::new());
+            };
+            (
+                uri,
+                span,
+                index.document_revision(owner),
+                index.source_analysis_input(owner).cloned(),
+            )
+        };
+        let generation = self.live_publication_uri_generation(&owner);
+        let Some(document) = self.read_document(&owner).await? else {
+            return Ok(Vec::new());
+        };
+        let current = self
+            .analysis_for(&owner, document.text.clone(), document.dialect.clone())
+            .await?;
+        if current.resolved_input != input {
+            return Ok(Vec::new());
+        }
+        let Some(context) =
+            core_workspace_index::WorkspaceDiagnosticSourceContext::for_analysis(&current)
+        else {
+            return Ok(Vec::new());
+        };
+        let identity = original_declaration::declarations(owner.as_str(), &document.text, &current)
+            .and_then(|declarations| {
+                let mut matches = declarations.into_iter().filter(|declaration| {
+                    declaration.span() == span
+                        && matches!(
+                            declaration.role(),
+                            OriginalDeclarationRole::Procedure | OriginalDeclarationRole::Class
+                        )
+                });
+                let first = matches.next()?;
+                matches.next().is_none().then_some(first)
+            });
+        let Some(location) = identity.as_ref().and_then(|identity| {
+            OriginalIndexedSourceLocation::from_declaration(&context, identity)
+        }) else {
+            return Ok(Vec::new());
+        };
+        let targets = vec![ReadonlyDeclarationTarget {
+            uri: owner,
+            document,
+            analysis: current,
+            generation,
+            location: ReadonlyDeclarationLocation::Original(Box::new(location)),
+        }];
+        self.with_current_declaration_sources(caller, targets, epoch, |uri, document, _, span| {
+            let resolver = self.package_resolver.try_read().ok()?;
+            let index = self.workspace_index.try_read().ok()?;
+            if resolver.revision() != resolver_revision
+                || index.document_revision(uri.as_str()) != revision
+                || index.diagnostic_source_context(uri.as_str()) != Some(&context)
+            {
+                return None;
+            }
+            Some(Location {
+                uri: uri.clone(),
+                range: lift_lsp_range(core_definition::span_to_range(
+                    &document.text,
+                    &document.line_index,
+                    span,
+                )),
+            })
+        })
+        .await
+    }
+}
+
+fn package_declaration_site<'a>(
+    index: &'a core_workspace_index::WorkspaceIndex,
+    lookup: &tcl_compiler::command_binding::OriginalCommandLookup,
+    providers: &HashSet<String>,
+) -> Option<(&'a str, tcl_lexer::Span)> {
+    let procedures =
+        index
+            .original_procedure_source_candidates()
+            .map(|(owner, declaration, slot, policy)| {
+                (slot, policy, (owner, declaration.name_input().span()))
+            });
+    let classes =
+        index
+            .original_class_source_candidates()
+            .map(|(owner, declaration, slot, policy)| {
+                (slot, policy, (owner, declaration.name_input().span()))
+            });
+    let selected = lookup.matching_slot_publications(
+        procedures
+            .chain(classes)
+            .filter(|(_, _, (owner, _))| providers.contains(*owner)),
+    )?;
+    let [one] = selected.as_slice() else {
+        return None;
+    };
+    Some(*one)
 }
 
 /// Gate legacy navigation fallback on a current, complete original command

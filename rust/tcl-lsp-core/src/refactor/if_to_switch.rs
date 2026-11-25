@@ -20,14 +20,20 @@
 
 use crate::original_invocation::schema_clause_plan;
 use tcl_compiler::analyser::AnalysisResult;
+use tcl_dialect::model::SurfaceQuery;
 use tcl_lexer::{LexerConfig, LineIndex};
 use tcl_registry::ArgRole;
+use tcl_registry::option_effect::{EffectAxis, OptionEffectKind};
+use tcl_registry::spec::{CaseMatchMode, PatternWords};
 
 use super::datagroup::ScalarVariableSourceSyntax;
 use super::equality_source::scalar_string_equality as parse_eq_test;
 
-use super::source_rewrite::{RewriteObligation, select};
-use super::{RefactorEdit, Refactoring, reindent_body};
+use super::source_rewrite::{
+    RewriteObligation, generated_script_words, reindent_script, script_word_spellings, select,
+    selected_proposed_spec,
+};
+use super::{RefactorEdit, Refactoring};
 use crate::code_actions::ActionKind;
 
 /// Render literal pattern data through the shared list and source-word owners.
@@ -70,21 +76,18 @@ pub fn if_to_switch(
     }
     let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
     let config = current.config();
+    let spec = selected_proposed_spec(analysis, current.registry(), cmd.span.start(), "switch")?;
+    let availability = analysis.resolved_input.as_ref()?.availability_context();
+    let layout = ExactSwitchLayout::for_spec(spec, Some(availability.authoring_query()))?;
     let mut expression = tcl_syntax::expr::parser::ExprParseContext::for_profile(
         analysis.resolved_input.as_ref()?.unit_profile(),
     );
     expression.lexer_grammar = config.grammar_over(expression.lexer_grammar);
-    let texts = &cmd.texts;
-    if texts.len() < 3 {
-        return None;
-    }
-
     // Walk the chain through `if`'s own clause grammar — the condition and
     // body of each `if` / `elseif` clause, and the default (`else`, or its
     // optional-keyword bare final body) — rather than comparing keyword
     // spellings by hand; a structural defect (a stray word, a chain the
     // grammar cannot parse) declines the conversion.
-    let args: Vec<&str> = texts[1..].iter().map(String::as_str).collect();
     let context = current.context();
     let original = crate::original_invocation::source_registry_words(source, analysis, &cmd)?;
     let plan = original.with_source_schema(&context, schema_clause_plan)??;
@@ -97,15 +100,21 @@ pub fn if_to_switch(
     let mut else_body: Option<String> = None;
     let mut target_var: Option<ScalarVariableSourceSyntax> = None;
 
+    let literal_operand = |role: usize| {
+        let word = original.operands.get(role)?.as_ref()?.word.as_ref()?;
+        String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
+            word,
+        )?)
+        .ok()
+    };
     for clause in &plan.clauses {
-        let body = args[clause.operand(ArgRole::Body)?].to_owned();
+        let body = literal_operand(clause.operand(ArgRole::Body)?)?;
         if clause.is_default {
             else_body = Some(body);
             continue;
         }
-        let condition = args[clause.operand(ArgRole::Expr)?];
-
-        let parsed = parse_eq_test(condition, config, &expression)?;
+        let condition = literal_operand(clause.operand(ArgRole::Expr)?)?;
+        let parsed = parse_eq_test(&condition, config, &expression)?;
         match &target_var {
             None => target_var = Some(parsed.subject.clone()),
             Some(v) if v.name() != parsed.subject.name() => return None,
@@ -128,11 +137,18 @@ pub fn if_to_switch(
     let indent = lines
         .get(cmd_line as usize)
         .map_or("", |l| super::line_indent(l));
-    let replacement = render_switch(&target_var, &branches, else_body.as_deref(), indent, config)?;
+    let replacement = render_switch(
+        layout,
+        &target_var,
+        &branches,
+        else_body.as_deref(),
+        indent,
+        config,
+    )?;
 
     let (start, end) =
         super::FrameWalk::new(source, analysis)?.command_span_offsets(source, &cmd)?;
-    Some(Refactoring {
+    let proposal = Refactoring {
         title: format!("Convert to switch on {}", target_var.reference()),
         edits: vec![RefactorEdit {
             start,
@@ -142,10 +158,80 @@ pub fn if_to_switch(
         kind: ActionKind::RefactorRewrite,
         data_group: None,
         disabled: None,
-    })
+    };
+    proposal.check_replacement(source, |replacement| {
+        check_switch(
+            layout,
+            replacement,
+            &target_var,
+            &branches,
+            else_body.as_deref(),
+            config,
+        )
+    })?;
+    Some(proposal)
+}
+
+#[derive(Clone, Copy)]
+struct ExactSwitchLayout {
+    head: &'static str,
+    exact: &'static str,
+    end_options: &'static str,
+    fallback: &'static str,
+    fallthrough: Option<&'static str>,
+}
+
+impl ExactSwitchLayout {
+    fn for_spec(
+        spec: &tcl_registry::CommandSpec,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<Self> {
+        let case = spec.case_list?;
+        let [fallback] = case.exhaustive_keyword_patterns else {
+            return None;
+        };
+        if spec.lowering_hook != Some(tcl_registry::hooks::LoweringHookId::Switch)
+            || case.subject_args != 1
+            || !case.clause_flags.is_empty()
+            || !case.keyword_patterns_require_final
+            || case.pattern_words != PatternWords::Single
+        {
+            return None;
+        }
+        let options = spec.option_specs(dialect);
+        let select = |kind| {
+            options
+                .iter()
+                .find(|option| option.effect.is_some_and(|effect| effect.kind == kind))
+                .map(|option| option.name)
+        };
+        Some(Self {
+            head: spec.name,
+            exact: select(OptionEffectKind::Selects(EffectAxis::Selection(
+                CaseMatchMode::Exact,
+            )))?,
+            end_options: select(OptionEffectKind::EndsOptions)?,
+            fallback,
+            fallthrough: case.fallthrough_body,
+        })
+    }
+
+    fn default_script<'a>(
+        self,
+        branches: &[(String, String)],
+        else_body: Option<&'a str>,
+    ) -> Option<&'a str> {
+        else_body.or_else(|| {
+            branches
+                .last()
+                .is_some_and(|(pattern, _)| pattern == self.fallback)
+                .then_some("")
+        })
+    }
 }
 
 fn render_switch(
+    layout: ExactSwitchLayout,
     subject: &ScalarVariableSourceSyntax,
     branches: &[(String, String)],
     else_body: Option<&str>,
@@ -153,10 +239,17 @@ fn render_switch(
     config: LexerConfig,
 ) -> Option<String> {
     let inner = format!("{indent}    ");
+    let fallback = layout.default_script(branches, else_body);
 
-    let mut parts: Vec<String> = vec![format!("switch -exact -- {} {{", subject.reference())];
+    let mut parts: Vec<String> = vec![format!(
+        "{} {} {} {} {{",
+        layout.head,
+        layout.exact,
+        layout.end_options,
+        subject.reference(),
+    )];
     for (value, body) in branches {
-        let body_trimmed = reindent_body(body, &format!("{inner}    "));
+        let body_trimmed = reindent_script(body, &format!("{inner}    "), config.nested())?;
         parts.push(format!(
             "{inner}{} {{",
             render_switch_pattern(value, config)?
@@ -164,26 +257,115 @@ fn render_switch(
         parts.push(body_trimmed);
         parts.push(format!("{inner}}}"));
     }
-    if let Some(eb) = else_body {
-        let body_trimmed = reindent_body(eb, &format!("{inner}    "));
-        parts.push(format!("{inner}default {{"));
+    if let Some(eb) = fallback {
+        let body_trimmed = reindent_script(eb, &format!("{inner}    "), config.nested())?;
+        parts.push(format!("{inner}{} {{", layout.fallback));
         parts.push(body_trimmed);
         parts.push(format!("{inner}}}"));
     }
     parts.push(format!("{indent}}}"));
-    let replacement = parts.join("\n");
+    Some(parts.join("\n"))
+}
 
-    let generated = tcl_lexer::native_script_words_in(
-        tcl_lexer::SourceImage::document(&replacement),
-        tcl_lexer::Span::new(0, u32::try_from(replacement.len()).ok()?),
-        config,
-    )
-    .ok()?;
-    (generated.fatal_tail.is_none() && generated.commands.len() == 1).then_some(replacement)
+fn check_switch(
+    layout: ExactSwitchLayout,
+    replacement: &str,
+    subject: &ScalarVariableSourceSyntax,
+    branches: &[(String, String)],
+    else_body: Option<&str>,
+    config: LexerConfig,
+) -> Option<()> {
+    use tcl_syntax::word_rules::original_static_word_unicode_value;
+
+    let parsed = generated_script_words(replacement, config)?;
+    let [command] = parsed.as_slice() else {
+        return None;
+    };
+    let [head, mode, end_options, operand, body] = command.words.as_slice() else {
+        return None;
+    };
+    if [
+        head.bytes(),
+        mode.bytes(),
+        end_options.bytes(),
+        operand.bytes(),
+    ] != [
+        layout.head.as_bytes(),
+        layout.exact.as_bytes(),
+        layout.end_options.as_bytes(),
+        subject.reference().as_bytes(),
+    ] {
+        return None;
+    }
+    let data = String::from_utf8(original_static_word_unicode_value(body)?).ok()?;
+    let values = tcl_syntax::word_rules::WordValueRules::from_config(&config)
+        .split_list(&data)
+        .ok()?;
+    let fallback = layout.default_script(branches, else_body);
+    let expected = branches
+        .iter()
+        .map(|(pattern, body)| (pattern.as_str(), body.as_str()))
+        .chain(fallback.map(|body| (layout.fallback, body)));
+    if values.len() != 2 * expected.clone().count() {
+        return None;
+    }
+    values
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .zip(expected)
+        .try_for_each(|(actual, (pattern, body))| {
+            (actual[0].as_ref() == pattern
+                && layout.fallthrough != Some(actual[1].as_ref())
+                && script_word_spellings(actual[1].as_ref(), config.nested())?
+                    == script_word_spellings(body, config.nested())?)
+            .then_some(())
+        })
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn recheck_preserves_words_and_the_last_literal_default_pattern() {
+        let config = LexerConfig::for_dialect("tcl8.6");
+        let registry = super::super::test_registry();
+        let layout =
+            super::ExactSwitchLayout::for_spec(registry.get("switch").unwrap(), None).unwrap();
+        let subject = crate::refactor::scalar_variable_source_syntax("$x", config).unwrap();
+        let branches = [
+            ("a".to_owned(), "puts {line one\n line two}".to_owned()),
+            ("default".to_owned(), "puts last".to_owned()),
+        ];
+        let proposal = super::render_switch(layout, &subject, &branches, None, "", config).unwrap();
+        assert!(
+            proposal.contains("puts {line one\n line two}"),
+            "{proposal}"
+        );
+        assert_eq!(proposal.matches("default {").count(), 2, "{proposal}");
+        assert!(
+            super::check_switch(layout, &proposal, &subject, &branches, None, config).is_some()
+        );
+        let corrupt = proposal.replace(" line two", "  line two");
+        assert!(super::check_switch(layout, &corrupt, &subject, &branches, None, config).is_none());
+    }
+
+    #[test]
+    fn refuses_an_eagerly_interpolated_arm() {
+        let source = r#"if {$x eq "a"} "puts $y" elseif {$x eq "b"} {puts two}"#;
+        assert!(run(source, 0).is_none());
+    }
+
+    #[test]
+    fn refuses_a_rebound_switch_target() {
+        let source = "proc switch args {return custom}\nif {$x eq {a}} {puts one} elseif {$x eq {b}} {puts two}";
+        let action = run(source, u32::try_from(source.find("if {").unwrap()).unwrap());
+        assert!(
+            action
+                .as_ref()
+                .is_none_or(|proposal| proposal.disabled.is_some() && proposal.edits.is_empty()),
+            "{action:?}"
+        );
+    }
 
     #[test]
     fn selected_if_switch_scalar_syntax_preserves_reference_and_edit_permission() {

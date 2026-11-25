@@ -21,7 +21,7 @@ scripts	rust/tcl-lexer/src/native_script_words.rs#native_script_words_in	rust/tc
 subcommands	rust/tcl-registry/src/abbrev.rs#resolve_bytes	rust/tcl-registry/src/abbrev.rs#minimal_unique_prefix
 tclindex	rust/tcl-lsp-core/src/package_resolver.rs#parse_tcl_index	rust/tcl-lsp-core/src/package_resolver.rs#render_tcl_index_entry
 tcllibpath	rust/tcl-syntax/src/tcllibpath.rs#discovery_directories	rust/tcl-pkg/src/venv.rs#prepare_tcllibpath
-tsv	rust/xtask/src/util/tsv.rs#fields	rust/xtask/src/util/tsv.rs#record
+tsv	rust/tcl-test-support/src/fixture.rs#tsv_fields	rust/xtask/src/util/tsv.rs#record
 value-grammars	rust/tcl-registry/src/spec.rs#matches_syntax	rust/tcl-registry/src/spec/arguments.rs#VersionedArgValue
 variables	rust/tcl-lexer/src/word_parts.rs#scan_var_ref	rust/tcl-syntax/src/naming/variable_spelling.rs#variable_source_reference_with_tail
 versions	rust/tcl-pkg-model/src/version.rs#parse_version	rust/tcl-pkg-model/src/version.rs#canonical

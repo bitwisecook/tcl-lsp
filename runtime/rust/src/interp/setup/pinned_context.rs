@@ -46,6 +46,7 @@ impl Interp {
     pub fn set_host(&self, host: Rc<dyn tcl_platform::Host>) {
         self.invalidate_native_operation_context();
         self.invalidate_interpreter_policy();
+        self.initialised_library.borrow_mut().take();
         let previous = std::mem::replace(&mut *self.0.host.borrow_mut(), host.clone());
         let mut interp = self.clone();
         let scope = match native_operation_currency::NativeOperationScope::enter(&interp) {
@@ -372,6 +373,7 @@ impl Interp {
         let profile = pin.profile;
         if context_changed || !std::ptr::eq(self.dialect_profile(), profile) {
             self.invalidate_native_operation_context();
+            self.initialised_library.borrow_mut().take();
         }
         *self.0.pin.borrow_mut() = pin;
         let version = profile.vm_runtime_version;

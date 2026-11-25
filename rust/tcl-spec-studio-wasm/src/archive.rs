@@ -196,6 +196,27 @@ mod tests {
     }
 
     #[test]
+    fn archive_import_matches_the_shared_workspace_scan_fixture() {
+        let members: Vec<_> = include_str!("../../tcl-test-support/data/workspace-scan-inputs.txt")
+            .lines()
+            .map(|path| (path, b"set scan_fixture 1\n".as_slice()))
+            .collect();
+        let archive = extract(&zip_of(&members)).unwrap();
+        let mut actual: Vec<_> = archive
+            .entries
+            .iter()
+            .map(|entry| entry.name.as_str())
+            .collect();
+        let mut expected: Vec<_> =
+            include_str!("../../tcl-test-support/data/workspace-scan-sources.txt")
+                .lines()
+                .collect();
+        actual.sort_unstable();
+        expected.sort_unstable();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
     fn keeps_tcl_sources_and_drops_everything_else() {
         let bytes = zip_of(&[
             ("mylib-1.0/lib.tcl", b"proc greet {who} {}\n"),

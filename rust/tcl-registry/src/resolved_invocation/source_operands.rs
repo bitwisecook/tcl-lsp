@@ -717,11 +717,15 @@ impl ResolvedInvocation<'_, '_> {
         if self.form.is_some() {
             return None;
         }
-        let operation = self
-            .semantics
-            .script_metadata
-            .subcommand?
-            .source_path_operation?;
+        let operation = if let Some(member) = self.semantics.script_metadata.subcommand {
+            member.source_path_operation?
+        } else if self.selected.spec.inline_codegen_hook
+            == Some(crate::hooks::InlineCodegenHookId::List)
+        {
+            crate::source_path::SourcePathOperation::SingletonList
+        } else {
+            return None;
+        };
         let count = self.words.arguments().exact_argv_len()?;
         let first = self.semantics.argument_offset;
         let values = count.checked_sub(first)?;

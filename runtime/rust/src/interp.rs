@@ -996,6 +996,7 @@ pub struct InterpState {
     recursion_limit: Cell<usize>,
     /// The package database (`package provide`/`require`/`ifneeded`/`unknown`).
     pub(crate) packages: RefCell<crate::cmd_package::PackageState>,
+    initialised_library: RefCell<Option<String>>,
     /// The `source` script stack (`info script` — the file being sourced).
     script_stack: RefCell<Vec<Vec<u8>>>,
     /// Open channels (`open`/`read`/`gets`/`puts`/`close`).

@@ -228,6 +228,72 @@ fn original_command_at(
     None
 }
 
+/// Newly authored output words have no original invocation to project. This
+/// query retains the current descriptor at the proposal
+/// horizon, independently of output execution or insertion permissions.
+pub(super) fn selected_proposed_spec(
+    analysis: &AnalysisResult,
+    registry: &tcl_registry::CommandRegistry,
+    at: u32,
+    name: &str,
+) -> Option<&'static tcl_registry::CommandSpec> {
+    let context = analysis.resolved_input.as_ref()?.availability_context();
+    let expected = context.resolve_spec(registry, name)?;
+    let retained = match analysis.retained_command_realm()?.binding_at(name, at) {
+        tcl_compiler::realm::RealmBindingFact::Unchanged => true,
+        tcl_compiler::realm::RealmBindingFact::Command(target) => context
+            .resolve_spec(registry, target)
+            .is_some_and(|selected| std::ptr::eq(selected, expected)),
+        tcl_compiler::realm::RealmBindingFact::Rebound => false,
+    };
+    retained.then_some(expected)
+}
+
+/// Preserve authored command words while adding layout around a moved script.
+pub(super) fn reindent_script(
+    body: &str,
+    indent: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<String> {
+    let original = script_word_spellings(body, config)?;
+    let indented = super::reindent_body(body, indent);
+    if script_word_spellings(&indented, config).is_some_and(|words| words == original) {
+        Some(indented)
+    } else {
+        Some(body.to_owned())
+    }
+}
+
+pub(super) fn script_word_spellings(
+    script: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<Vec<Vec<&str>>> {
+    generated_script_words(script, config)?
+        .iter()
+        .map(|command| {
+            command
+                .words
+                .iter()
+                .map(|word| script.get(word.word_span().as_range()))
+                .collect()
+        })
+        .collect()
+}
+
+/// Complete words of a proposed script under the selected lexer grammar.
+pub(super) fn generated_script_words(
+    script: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<Vec<tcl_lexer::NativeScriptCommandWords>> {
+    let words = tcl_lexer::native_script_words_in(
+        tcl_lexer::SourceImage::document(script),
+        tcl_lexer::Span::new(0, u32::try_from(script.len()).ok()?),
+        config,
+    )
+    .ok()?;
+    words.fatal_tail.is_none().then_some(words.commands)
+}
+
 #[cfg(test)]
 pub(super) fn lexical_analysis(
     source: &str,

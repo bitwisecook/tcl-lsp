@@ -99,6 +99,7 @@ mod environment;
 mod evaluation_contexts;
 mod f5query_builtins_doc;
 mod file_sizes;
+mod fixture_ownership;
 mod fp_sweep;
 mod gen_ai;
 mod gen_bigip_grammars;
@@ -524,6 +525,9 @@ enum Command {
     #[command(name = "owner-resolution")]
     OwnerResolution,
 
+    /// Check test fixture TSV readers and canonical oracle release keys.
+    FixtureOwnership,
+
     /// Compare the registry and analyser with pinned Tcl, Tk, Jim and Tcllib.
     DefinitionsGate,
 
@@ -780,6 +784,7 @@ fn dispatch(command: Command) -> anyhow::Result<ExitCode> {
         Command::CatalogueCallers { check } => Ok(catalogue_callers::run(check)),
         Command::FileSizes { check } => file_sizes::run(check),
         Command::OwnerResolution => owner_resolution::run(),
+        Command::FixtureOwnership => fixture_ownership::run(),
         Command::DefinitionsGate => definitions_gate(),
         Command::PlanRows { items, all } => plan_rows::run(&items, all),
         Command::Conformance { update, harness } => conformance(update, &harness),

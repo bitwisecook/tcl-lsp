@@ -88,63 +88,78 @@ async fn deep_workspace_diagnostics(
                 .command_invocations
                 .iter()
                 .any(|invocation| invocation.is_mathfunc_call));
-    let (inheritance, settled_calls, workspace_sources) = if needs_inheritance || needs_settling {
-        let (docs, index) = loop {
-            let docs = documents.lock("workspace_diagnostic_source_query").await;
-            if let Ok(index) = inputs.workspace_index.try_read() {
-                break (docs, index);
-            }
-            drop(docs);
-            drop(inputs.workspace_index.read().await);
-        };
-        let settled_calls = if needs_settling {
-            settle_cross_file_calls(&index, analysis, &inputs.registry, uri.as_str())
-        } else {
-            CrossFileCalls::default()
-        };
-        let published = inputs
-            .provider_capture
-            .source_path_admissions
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let workspace_sources = match WorkspaceDiagnosticSources::capture(
-            &settled_calls.source_candidates,
-            &index,
-            &docs,
-            &published,
-            inputs.provider_capture.store.as_ref(),
-        ) {
-            Ok(sources) => sources,
-            Err(reason) => {
-                return ControlFlow::Break((
-                    !matches!(reason, DiagnosticUnavailable::Pending),
-                    reason,
-                ));
-            }
-        };
-        (
-            if needs_inheritance {
-                compute_source_inheritance(
-                    &index,
-                    uri,
-                    analysis,
-                    inputs.entry_points,
-                    inputs.folder_root,
-                    inputs.package_prefer,
-                )
+    let data_group_root = inputs.data_group_root.filter(|_| {
+        analyser_diags
+            .iter()
+            .any(|diagnostic| diagnostic.signed_data_group_comparison.is_some())
+    });
+    let (inheritance, settled_calls, workspace_sources) =
+        if needs_inheritance || needs_settling || data_group_root.is_some() {
+            let (docs, index) = loop {
+                let docs = documents.lock("workspace_diagnostic_source_query").await;
+                if let Ok(index) = inputs.workspace_index.try_read() {
+                    break (docs, index);
+                }
+                drop(docs);
+                drop(inputs.workspace_index.read().await);
+            };
+            let settled_calls = if needs_settling {
+                settle_cross_file_calls(&index, analysis, &inputs.registry, uri.as_str())
             } else {
-                SourceInheritance::default()
-            },
-            settled_calls,
-            workspace_sources,
-        )
-    } else {
-        (
-            SourceInheritance::default(),
-            CrossFileCalls::default(),
-            WorkspaceDiagnosticSources::default(),
-        )
-    };
+                CrossFileCalls::default()
+            };
+            let published = inputs
+                .provider_capture
+                .source_path_admissions
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let mut workspace_sources = match WorkspaceDiagnosticSources::capture(
+                &settled_calls.source_candidates,
+                &index,
+                &docs,
+                &published,
+                inputs.provider_capture.store.as_ref(),
+            ) {
+                Ok(sources) => sources,
+                Err(reason) => {
+                    return ControlFlow::Break((
+                        !matches!(reason, DiagnosticUnavailable::Pending),
+                        reason,
+                    ));
+                }
+            };
+            if let Some(root) = data_group_root
+                && let Err(reason) = workspace_sources.capture_configurations(
+                    &docs,
+                    root,
+                    inputs.provider_capture.store.as_ref(),
+                )
+            {
+                return ControlFlow::Break((true, reason));
+            }
+            (
+                if needs_inheritance {
+                    compute_source_inheritance(
+                        &index,
+                        uri,
+                        analysis,
+                        inputs.entry_points,
+                        inputs.folder_root,
+                        inputs.package_prefer,
+                    )
+                } else {
+                    SourceInheritance::default()
+                },
+                settled_calls,
+                workspace_sources,
+            )
+        } else {
+            (
+                SourceInheritance::default(),
+                CrossFileCalls::default(),
+                WorkspaceDiagnosticSources::default(),
+            )
+        };
     let mut workspace_sources = workspace_sources;
     if let Err(reason) = workspace_sources
         .read_saved(inputs.provider_capture.store, inputs.script_encoding)
@@ -379,8 +394,8 @@ pub(in super::super) async fn compute_deep_diagnostic_report_with_read_cancellat
             inheritance: &inheritance,
             package_resolver: inputs.package_resolver,
             provider_sources: &provider_access,
-            registry: &inputs.registry,
             settled_calls,
+            workspace_sources: &workspace_sources,
         },
         lift_inputs,
     )

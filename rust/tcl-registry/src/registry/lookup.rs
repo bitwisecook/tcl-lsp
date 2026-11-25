@@ -237,7 +237,9 @@ impl CommandRegistry {
         dialect: Option<SurfaceQuery<'_>>,
     ) -> crate::special_vars::StartupExistence {
         self.special_var(name)
-            .map_or_else(Default::default, |spec| spec.startup_existence(dialect))
+            .map_or_else(Default::default, |spec| {
+                spec.startup_existence(dialect, |package| self.is_ambient_package(package))
+            })
     }
 
     /// Whether the runtime observes a write to `name` in `dialect`.
@@ -660,11 +662,8 @@ impl CommandRegistry {
     /// least one registered command declares it as its
     /// [`required_package`](crate::CommandSpec::required_package).
     ///
-    /// Used by the W120 (missing-`package require`) check: a `package
-    /// require` of an *unknown* third-party package may itself pull in
-    /// arbitrary commands (e.g. a wrapper that `package require Tk`s
-    /// internally), so the analyser cannot prove a Tk/extension command
-    /// is unprovided and must suppress W120.
+    /// The result includes the authored aliases of registered descriptors.
+    /// This describes catalogue metadata independently of the package database.
     #[must_use]
     pub fn provides_package(&self, pkg: &str) -> bool {
         self.by_name

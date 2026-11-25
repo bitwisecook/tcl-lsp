@@ -16,13 +16,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Semantic version type with Tcl-friendly parsing.
+//! tclpkg release tags and Tcl dependency requirements.
 //!
-//! Version ordering agrees with
-//! semver 2.0 and with C Tcl's `package require` ordering: missing patch digits
-//! default to zero, a leading `v` is tolerated, and Tcl-style `a1`/`b2`/`rc1`
-//! prereleases collate alongside semver's `-alpha.1` form (`8.6.3a1` sorts
-//! before `8.6.3`).
+//! Release tags and legacy minimums use `SemVer` with optional patch digits,
+//! a leading `v`, and short `a1`/`b2`/`rc1` prereleases. Tcl dependency
+//! operands use the interpreter's version grammar from `tcl-dialect`.
 
 use std::cmp::Ordering;
 use std::fmt;
@@ -136,13 +134,14 @@ impl Version {
         let caps = SEMVER_RE
             .captures(stripped)
             .ok_or_else(|| VersionError(format!("invalid version: '{raw}'")))?;
-        let major = caps["major"].parse::<u64>().expect("regex digits parse");
-        let minor = caps
-            .name("minor")
-            .map_or(0, |m| m.as_str().parse().expect("regex digits parse"));
-        let patch = caps
-            .name("patch")
-            .map_or(0, |m| m.as_str().parse().expect("regex digits parse"));
+        let component = |name| {
+            caps.name(name)
+                .map_or(Ok(0), |matched| matched.as_str().parse::<u64>())
+                .map_err(|_| VersionError(format!("version component out of range: '{raw}'")))
+        };
+        let major = component("major")?;
+        let minor = component("minor")?;
+        let patch = component("patch")?;
         let (prerelease, prerelease_raw) = match caps.name("prerelease") {
             Some(m) => parse_prerelease(m.as_str()),
             None => (Vec::new(), String::new()),
@@ -249,6 +248,150 @@ impl std::hash::Hash for Version {
     }
 }
 
+/// The Tcl grammar admitted by a package manifest and its portable lock data.
+const MANIFEST_TCL: tcl_dialect::TclVersion = tcl_dialect::TclVersion::V9_1;
+
+/// One package-manager dependency. Authored package minimums retain the
+/// tclpkg version convention. Imported Tcl requirements retain the distinct
+/// `package require` matching rules.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DependencyVersion {
+    /// A legacy tclpkg minimum version.
+    Minimum(Version),
+    /// Alternatives or exact equality in the Tcl package grammar.
+    Tcl(TclPackageRequirement),
+}
+
+/// A validated Tcl dependency as a single manifest operand.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TclPackageRequirement {
+    versions: Vec<String>,
+    exact: bool,
+    release: tcl_dialect::TclVersion,
+}
+
+impl TclPackageRequirement {
+    /// Retain each package requirement without converting its endpoints.
+    ///
+    /// # Errors
+    /// An empty alternative list, malformed requirement, or exact request
+    /// without one valid version is refused.
+    pub fn new(
+        versions: Vec<String>,
+        exact: bool,
+        release: Option<tcl_dialect::TclVersion>,
+    ) -> Result<Self, VersionError> {
+        let release = release.unwrap_or(MANIFEST_TCL);
+        let valid = if exact {
+            matches!(versions.as_slice(), [version] if tcl_dialect::validate_version_for(version, release))
+        } else {
+            !versions.is_empty()
+                && (release.has_package_requirements() || versions.len() == 1)
+                && versions
+                    .iter()
+                    .all(|version| tcl_dialect::validate_requirement_for(version, release).is_ok())
+        };
+        if !valid {
+            return Err(VersionError(format!(
+                "invalid Tcl package requirement: {versions:?}"
+            )));
+        }
+        Ok(Self {
+            versions,
+            exact,
+            release,
+        })
+    }
+
+    /// Candidate versions named by this dependency.
+    ///
+    /// The tclpkg source registry describes locations. It has no version
+    /// catalogue, so the resolver can consider only concrete versions named
+    /// by the graph or its root overrides.
+    pub fn candidates(&self) -> impl Iterator<Item = &str> {
+        self.versions.iter().filter_map(|version| {
+            if self.exact {
+                Some(version.as_str())
+            } else {
+                tcl_dialect::package_requirement_bounds_for(version, self.release)
+                    .map(|(lower, _)| lower)
+            }
+        })
+    }
+
+    /// Whether a concrete candidate satisfies this Tcl dependency.
+    #[must_use]
+    pub fn matches(&self, candidate: &str) -> bool {
+        if self.exact {
+            tcl_dialect::version_matches_exact_for(candidate, &self.versions[0], self.release)
+        } else {
+            self.versions.iter().any(|requirement| {
+                tcl_dialect::version_satisfies_for(candidate, requirement, self.release)
+            })
+        }
+    }
+}
+
+impl DependencyVersion {
+    /// Read one dependency operand from a manifest or lockfile.
+    ///
+    /// # Errors
+    /// The operand must be a tclpkg minimum or a valid Tcl requirement list.
+    pub fn parse(raw: &str) -> Result<Self, VersionError> {
+        // grammar-bypass-ok: scripts — Selects the operand form before the Tcl list parser.
+        if raw.trim_start().starts_with('-') {
+            let words = tcl_syntax::list::split_list(raw).map_err(|error| {
+                VersionError(format!("invalid requirement list: {}", error.message()))
+            })?;
+            let Some((mode, versions)) = words.split_first() else {
+                return Err(VersionError("missing Tcl package requirement".to_owned()));
+            };
+            let exact = match mode.as_ref() {
+                "-tcl" => false,
+                "-exact" => true,
+                other => return Err(VersionError(format!("invalid requirement mode: '{other}'"))),
+            };
+            let (release, versions) = match versions {
+                [option, value, rest @ ..] if option == "-release" => {
+                    let release = tcl_dialect::TclVersion::ALL
+                        .into_iter()
+                        .find(|release| release.version_string() == value.as_ref())
+                        .ok_or_else(|| {
+                            VersionError(format!("unknown Tcl package release: '{value}'"))
+                        })?;
+                    (Some(release), rest)
+                }
+                _ => (None, versions),
+            };
+            return TclPackageRequirement::new(
+                versions.iter().map(ToString::to_string).collect(),
+                exact,
+                release,
+            )
+            .map(Self::Tcl);
+        }
+        Version::parse(raw).map(Self::Minimum)
+    }
+}
+
+impl fmt::Display for DependencyVersion {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Minimum(version) => version.fmt(f),
+            Self::Tcl(requirement) => {
+                let mode = if requirement.exact { "-exact" } else { "-tcl" };
+                let release = (requirement.release != MANIFEST_TCL)
+                    .then(|| ["-release", requirement.release.version_string()]);
+                f.write_str(&tcl_syntax::list::join_list(
+                    std::iter::once(mode)
+                        .chain(release.into_iter().flatten())
+                        .chain(requirement.versions.iter().map(String::as_str)),
+                ))
+            }
+        }
+    }
+}
+
 /// Convenience alias for [`Version::parse`].
 pub fn parse_version(raw: &str) -> Result<Version, VersionError> {
     Version::parse(raw)
@@ -266,6 +409,20 @@ pub fn max_version(versions: &[Version]) -> Result<Version, VersionError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dependency_operands_keep_the_selected_tcl_grammar() {
+        let operand = "-tcl -release 8.4 1.2";
+        let DependencyVersion::Tcl(requirement) = DependencyVersion::parse(operand).unwrap() else {
+            panic!("expected a Tcl requirement");
+        };
+        assert!(requirement.matches("1.2.0"));
+        assert!(!requirement.matches("1.2a1"));
+        assert_eq!(DependencyVersion::Tcl(requirement).to_string(), operand);
+        assert!(DependencyVersion::parse("-tcl -release 8.4 1.2 2.0").is_err());
+        assert!(DependencyVersion::parse("-exact -release 8.6 1.2+data").is_err());
+        assert!(DependencyVersion::parse("-exact -release 9.0 1.2+data").is_ok());
+    }
 
     fn v(s: &str) -> Version {
         Version::parse(s).expect("parses")

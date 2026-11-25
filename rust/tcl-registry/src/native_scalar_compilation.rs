@@ -341,7 +341,7 @@ mod tests {
         for (version, table) in original_scalar_windows() {
             let dialect = crate::InvocationDialect::for_version(version);
             for row in table.lines() {
-                let fields: Vec<_> = row.split('\t').collect();
+                let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
                 let case = fields[0].parse::<usize>().unwrap();
                 let source = CASES[case];
                 let parsed = tcl_lexer::native_script_words_in(

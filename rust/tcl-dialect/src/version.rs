@@ -45,7 +45,8 @@ pub use engine_policies::{
 pub use package_versions::{
     PackageDiagnostic, PackagePrefer, RequirementBytesValidationError, RequirementValidationError,
     VersionOrderKey, compare_versions, compare_versions_bytes_for, compare_versions_for,
-    exact_requirement, select_package_version, select_package_version_bytes_for,
+    exact_requirement, package_requirement_bounds_for, package_version_prefix_for,
+    select_package_version, select_package_version_bytes_for,
     select_package_version_exact_bytes_for, select_package_version_exact_for,
     select_package_version_for, validate_requirement, validate_requirement_bytes_for,
     validate_requirement_for, validate_version, validate_version_bytes_for, validate_version_for,

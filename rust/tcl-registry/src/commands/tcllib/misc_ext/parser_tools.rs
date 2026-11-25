@@ -84,7 +84,7 @@ pub(super) const GRAMMAR__FA__OP_CMDS: &[Row] = &[
     ),
 ];
 
-/// The `grammar::me` package.
+/// The `grammar::me::cpu` package.
 pub(super) const GRAMMAR__ME_CMDS: &[Row] = &[(
     "grammar::me::cpu",
     Arity::exact(2),
@@ -468,7 +468,7 @@ pub(super) const PAGE__PLUGINMGR_CMDS: &[Row] = &[
     ),
 ];
 
-/// The `page::util` package.
+/// The `page::util::flow` package.
 pub(super) const PAGE__UTIL_CMDS: &[Row] = &[(
     "page::util::flow",
     Arity::exact(4),
@@ -476,7 +476,7 @@ pub(super) const PAGE__UTIL_CMDS: &[Row] = &[(
     "This command contains the core logic to drive the walking of an arbitrary data structure which can partitioned in",
 )];
 
-/// The `page::util::norm` package.
+/// Normalisers, each provided by its own package.
 pub(super) const PAGE__UTIL__NORM_CMDS: &[Row] = &[
     (
         "page::util::norm::lemon",
@@ -552,7 +552,7 @@ pub(super) const PAGE__UTIL__QUOTE_CMDS: &[Row] = &[(
     "A character, as stored in an abstract syntax tree by a PEG processor (See the packages grammar::peg::interpreter,",
 )];
 
-/// The `pt` package.
+/// The `pt::rde` package.
 pub(super) const PT_CMDS: &[Row] = &[(
     "pt::rde",
     Arity::exact(1),
@@ -581,19 +581,3 @@ pub(super) const PT__PEG_CMDS: &[Row] = &[
         "The command creates a new parser object and returns the fully qualified name of the object command as its result.",
     ),
 ];
-
-/// The `pt_export_api` package.
-pub(super) const PT_EXPORT_API_CMDS: &[Row] = &[(
-    "export",
-    Arity::exact(2),
-    &["export serial configuration"],
-    "This command has to accept the canonical serialization of a parsing expression grammar and the configuration for ",
-)];
-
-/// The `pt_import_api` package.
-pub(super) const PT_IMPORT_API_CMDS: &[Row] = &[(
-    "import",
-    Arity::exact(1),
-    &["import text"],
-    "This command has to accept the a text containing a parsing expression grammar in some format.",
-)];

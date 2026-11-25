@@ -176,6 +176,40 @@ const HEAD_BINDINGS: &[&str] = &[
     "subcommand",
 ];
 
+/// The registry's portable list and dictionary fold callbacks are kernel
+/// re-exports. SCCP is held to registry dispatch by the source lint below.
+fn container_fold_owner_problems(root: &Path) -> Result<Vec<String>> {
+    const SOURCE: &str = "rust/tcl-registry/src/literal_folds.rs";
+    const OWNED: &[&str] = &[
+        "fold_dict_create",
+        "fold_dict_exists",
+        "fold_dict_get",
+        "fold_dict_keys",
+        "fold_dict_merge",
+        "fold_dict_merge_versioned",
+        "fold_dict_size",
+        "fold_dict_values",
+        "fold_join",
+        "fold_lindex",
+        "fold_llength",
+        "fold_lrepeat",
+        "fold_lreverse",
+        "fold_lsort",
+    ];
+    let source =
+        fs::read_to_string(root.join(SOURCE)).with_context(|| format!("reading {SOURCE}"))?;
+    let exports = source
+        .split_once("use tcl_cmd_core::literal_value::{")
+        .and_then(|(_, rest)| rest.split_once("};"))
+        .map_or("", |(exports, _)| exports);
+    let exported: BTreeSet<_> = exports.split(',').map(str::trim).collect();
+    Ok(OWNED
+        .iter()
+        .filter(|name| !exported.contains(*name))
+        .map(|name| format!("{SOURCE} must re-export {name} from tcl_cmd_core::literal_value"))
+        .collect())
+}
+
 /// Run the gate: the lint, then the enumeration, written or verified.
 pub fn run(check: bool) -> Result<ExitCode> {
     let root = repo_root();
@@ -203,6 +237,7 @@ pub fn run(check: bool) -> Result<ExitCode> {
         .chain(ledger_verdicts(&ledger, RATCHET))
         .chain(lint.problems.iter().cloned())
         .chain(classification_problems(&rows))
+        .chain(container_fold_owner_problems(&root)?)
     {
         failed = true;
         eprintln!("value-transfers: {problem}");

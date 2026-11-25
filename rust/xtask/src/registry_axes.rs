@@ -91,6 +91,8 @@ const AXES: &[&str] = &[
 /// The files the lint holds clean: every site waived or gone. A review that
 /// rewrites a file adds it here with its pin removed; a file never leaves.
 const CLEAN_FILES: &[&str] = &[
+    "rust/tcl-cli/src/commands/pkg_discover.rs",
+    "rust/tcl-codegen/src/codegen/emitter/ordering.rs",
     "rust/tcl-compiler/src/auto_path_eval.rs",
     "rust/tcl-compiler/src/analyser/commands.rs",
     "rust/tcl-compiler/src/analyser/param_traits.rs",
@@ -99,6 +101,7 @@ const CLEAN_FILES: &[&str] = &[
     "rust/tcl-compiler/src/executable_ir.rs",
     "rust/tcl-compiler/src/signature_scan/walker.rs",
     "rust/tcl-compiler/src/var_escape/slot_resolution.rs",
+    "rust/tcl-diagram/src/data.rs",
     "rust/tcl-lsp-core/src/definition.rs",
     "rust/tcl-lsp-core/src/formatting/config.rs",
     "rust/tcl-lsp-core/src/formatting/docstring.rs",

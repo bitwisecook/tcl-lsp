@@ -22,7 +22,7 @@ use super::math_expressions::{
     FoldedExpressionContents, const_to_env_value, env_from_uses, fold_math_expression,
 };
 use super::{BranchFold, ExpressionEvaluationPoint, MathFoldContext, SolverPurpose};
-use crate::analyses::{ConstValue, LatticeValue};
+use crate::analyses::LatticeValue;
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::expr_ast::ExprNode;
 use crate::ir::Statement;
@@ -111,18 +111,6 @@ pub(super) fn materialised_branch_bindings<'a>(
         .unwrap_or(bindings)
 }
 
-/// Convert an SCCP [`ConstValue`] to the static simulator's
-/// [`crate::static_loops::StaticValue`].
-fn const_to_static(c: &ConstValue) -> crate::static_loops::StaticValue {
-    use crate::static_loops::StaticValue;
-    match c {
-        ConstValue::Int(i) => StaticValue::Int(*i),
-        ConstValue::Float(f) => StaticValue::Float(*f),
-        ConstValue::Bool(b) => StaticValue::Bool(*b),
-        ConstValue::String(s) => StaticValue::Str(s.clone()),
-    }
-}
-
 /// Fold `condition` via a static summary of the `for` loop whose exit block is
 /// `bn`, or `None` when `bn` is not a loop exit or the loop cannot be
 /// summarised. The simulation is seeded with the constants known at the
@@ -150,7 +138,7 @@ fn loop_summary_decision(
                 continue;
             };
             if let Some(LatticeValue::Const(value)) = values.get(&(reference.symbol, version)) {
-                start_env.insert(name.to_owned(), const_to_static(value));
+                start_env.insert(name.to_owned(), value.clone().into());
             }
         }
     } else {
@@ -159,7 +147,7 @@ fn loop_summary_decision(
                 continue;
             };
             if let Some(LatticeValue::Const(value)) = values.get(&(symbol, *version)) {
-                start_env.insert(name.to_owned(), const_to_static(value));
+                start_env.insert(name.to_owned(), value.clone().into());
             }
         }
     }

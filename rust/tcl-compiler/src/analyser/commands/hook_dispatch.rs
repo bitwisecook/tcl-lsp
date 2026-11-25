@@ -519,6 +519,7 @@ impl Analyser {
                 self.handle_package_prefer(cmd_tok, args);
                 false
             }
+            Hook::ModulePathAdd => false,
             Hook::Source => {
                 self.handle_source_command(cmd_tok, args, arg_tokens, arg_single, scope_path);
                 false

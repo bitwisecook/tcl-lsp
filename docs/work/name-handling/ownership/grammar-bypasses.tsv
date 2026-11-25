@@ -77,7 +77,6 @@ rust/tcl-compiler/src/analyser/handlers/classes/static_provenance.rs	scripts	sta
 rust/tcl-compiler/src/analyser/handlers/classes/static_provenance.rs	scripts	static_word_value:trim	-	1
 rust/tcl-compiler/src/analyser/handlers/classes/unknown_dispatch.rs	lists	bracketed_self_receiver:split_whitespace	-	1
 rust/tcl-compiler/src/analyser/handlers/classes/unknown_dispatch.rs	scripts	bracketed_self_receiver:trim	-	1
-rust/tcl-compiler/src/analyser/handlers/interpreters.rs	lists	interp_path_key:split_whitespace	-	1
 rust/tcl-compiler/src/analyser/handlers/namespaces.rs	scripts	handle_namespace_unknown_command:trim	-	1
 rust/tcl-compiler/src/analyser/handlers/symbol_definitions.rs	encodings	MAX:chars	-	1
 rust/tcl-compiler/src/analyser/handlers/symbol_definitions.rs	scripts	MAX:trim	-	2
@@ -227,7 +226,7 @@ rust/tcl-compiler/src/taint/word_taint.rs	scripts	word_taint_at:trim	-	1
 rust/tcl-compiler/src/taint/word_taint.rs	scripts	word_taint_step:trim	-	1
 rust/tcl-compiler/src/tcl_expr_eval.rs	scripts	parse_integer_operand_with_policy:trim	-	1
 rust/tcl-compiler/src/tcl_expr_eval/condition_facts.rs	elements	variable_name:contains	-	1
-rust/tcl-compiler/src/text.rs	encodings	edit_distance:chars	-	2
+rust/tcl-compiler/src/text.rs	encodings	edit_distance:chars	Sizes strsim work rows by Rust scalar count.	2
 rust/tcl-compiler/src/text.rs	encodings	scaled_max_distance:chars	-	1
 rust/tcl-compiler/src/text.rs	encodings	scaled_max_distance_strict:chars	-	1
 rust/tcl-compiler/src/type_infer/caller_safe_factories.rs	scripts	empty_source_class:trim	-	1
@@ -371,6 +370,7 @@ rust/tcl-numeric/src/number.rs	scripts	native_index_octal_hint:trim_ascii_start	
 rust/tcl-pkg-model/src/manifest.rs	scripts	dispatch:trim	-	1
 rust/tcl-pkg-model/src/manifest.rs	scripts	dispatch:trim_start	-	1
 rust/tcl-pkg-model/src/version.rs	scripts	parse:trim	-	1
+rust/tcl-pkg-model/src/version.rs	scripts	parse:trim_start	Selects the operand form before the Tcl list parser.	1
 rust/tcl-pkg/src/cas.rs	scripts	load_tclpkgignore:trim	-	1
 rust/tcl-pkg/src/docker.rs	scripts	normalise_cli_version:trim	-	1
 rust/tcl-pkg/src/fetchers.rs	scripts	fetch_git:trim	-	2
@@ -382,9 +382,8 @@ rust/tcl-pkg/src/venv/config.rs	scripts	decode:trim	-	2
 rust/tcl-registry/src/body_execution.rs	lists	common_surface:split_whitespace	-	2
 rust/tcl-registry/src/body_execution.rs	lists	possible_commands:split_whitespace	-	1
 rust/tcl-registry/src/body_execution.rs	lists	possible_exports:split_whitespace	-	1
-rust/tcl-registry/src/commands/tcl/format_.rs	encodings	render_str:chars	-	1
-rust/tcl-registry/src/commands/tcl/format_.rs	scripts	parse_decimal_arg:trim	-	1
-rust/tcl-registry/src/commands/tcl/format_.rs	scripts	parse_int_i128:trim	-	1
+rust/tcl-registry/src/commands/tcl/format_.rs	scripts	admit_operand:trim_ascii	Inspects the ASCII decimal compatibility subset.	1
+rust/tcl-registry/src/commands/tcl/format_.rs	scripts	decimal_operand:trim_ascii	Identifies the decimal subset for the shared number parser.	1
 rust/tcl-registry/src/conditional_expression.rs	scripts	node_result:trim	-	1
 rust/tcl-registry/src/dialects.rs	lists	KEY:split_whitespace	-	1
 rust/tcl-registry/src/dialects.rs	lists	basename:split_whitespace	-	1

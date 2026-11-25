@@ -135,23 +135,28 @@ pub fn extract_variable(
         // column zero could place the new assignment outside that frame.
         (command_start, format!("{setter} {var_name} {value}; "))
     };
-    Some(extracted_variable_action(
-        var_name,
+    extracted_variable_action(
+        source,
+        (setter, var_name),
         Span::new(start, end),
         insertion,
         assignment,
         proposed_reference,
-    ))
+        config,
+    )
 }
 
 fn extracted_variable_action(
-    var_name: &str,
+    source: &str,
+    binding: (&str, &str),
     selection: Span,
     insertion: u32,
     assignment: String,
     reference: String,
-) -> Refactoring {
-    Refactoring {
+    config: tcl_lexer::LexerConfig,
+) -> Option<Refactoring> {
+    let (_, var_name) = binding;
+    let proposal = Refactoring {
         title: format!("Extract into variable '${var_name}'"),
         edits: vec![
             RefactorEdit {
@@ -168,7 +173,35 @@ fn extracted_variable_action(
         kind: ActionKind::RefactorExtract,
         data_group: None,
         disabled: None,
-    }
+    };
+    check_variable_extraction(source, &proposal, binding, config)?;
+    Some(proposal)
+}
+
+fn check_variable_extraction(
+    source: &str,
+    proposal: &Refactoring,
+    (setter, variable): (&str, &str),
+    config: tcl_lexer::LexerConfig,
+) -> Option<()> {
+    let [assignment, reference] = proposal.edits.as_slice() else {
+        return None;
+    };
+    let after = proposal.try_apply(source).ok()?;
+    let added = assignment.new_text.len();
+    let start = assignment.start as usize;
+    let inserted = after.get(start..start.checked_add(added)?)?;
+    let words = super::source_rewrite::script_word_spellings(inserted, config.nested())?;
+    let [command] = words.as_slice() else {
+        return None;
+    };
+    let [head, destination, _] = command.as_slice() else {
+        return None;
+    };
+    let start = (reference.start as usize).checked_add(added)?;
+    let fragment = after.get(start..start.checked_add(reference.new_text.len())?)?;
+    let read = super::scalar_variable_source_syntax(fragment, config.nested())?;
+    (*head == setter && *destination == variable && read.name() == variable).then_some(())
 }
 
 /// The existing Logical extraction feature proposes an authored edit, not an
@@ -334,25 +367,15 @@ impl LogicalVariableExtractionRecipe {
                 format!("{} {} {}; ", self.setter, self.name, self.value),
             )
         };
-        let selected = self.selected.word_span();
-        Some(Refactoring {
-            title: format!("Extract into variable '${}'", self.name),
-            edits: vec![
-                RefactorEdit {
-                    start: insertion,
-                    end: insertion,
-                    new_text: assignment,
-                },
-                RefactorEdit {
-                    start: selected.start(),
-                    end: selected.end(),
-                    new_text: self.reference,
-                },
-            ],
-            kind: ActionKind::RefactorExtract,
-            data_group: None,
-            disabled: None,
-        })
+        extracted_variable_action(
+            source,
+            (&self.setter, &self.name),
+            self.selected.word_span(),
+            insertion,
+            assignment,
+            self.reference,
+            current.config(),
+        )
     }
 }
 
@@ -588,6 +611,28 @@ mod tests {
             &analysis,
             &LineIndex::new(source),
         )
+    }
+
+    #[test]
+    fn extraction_rechecks_that_the_inserted_store_and_read_share_a_name() {
+        let source = "puts 123";
+        let config = tcl_lexer::LexerConfig::default();
+        let span = Span::new(5, 8);
+        let make = |assignment: &str, reference: &str| {
+            extracted_variable_action(
+                source,
+                ("set", "value"),
+                span,
+                0,
+                assignment.to_owned(),
+                reference.to_owned(),
+                config,
+            )
+        };
+        assert!(make("set value 123\n", "$value").is_some());
+        assert!(make("set other 123\n", "$value").is_none());
+        assert!(make("puts value 123\n", "$value").is_none());
+        assert!(make("set value 123\n", "$other").is_none());
     }
 
     #[test]

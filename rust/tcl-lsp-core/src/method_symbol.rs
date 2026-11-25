@@ -781,27 +781,33 @@ fn select_at_offset(
     if let Some(selected) = declared_self_query(source, analysis, offset) {
         return selected;
     }
-    // A cursor inside a `[...]` selector word belongs to the innermost
-    // command whose selector holds it, never to the enclosing command.
+    // A command substitution owns its own head and arguments, even when
+    // the substitution sits inside the enclosing command's selector word.
     let mut innermost: Option<SegmentedCommand> = None;
     crate::executable_regions::visit_analysis_executable_commands(
         source,
         analysis,
         &mut |command, _, _| {
-            if command.argv.get(1).is_some_and(|word| {
-                word.span.as_range().contains(&(offset as usize))
-                    && innermost
-                        .as_ref()
-                        .is_none_or(|outer| word.span.len() < outer.argv[1].span.len())
-            }) {
+            let extent = command.execution_span(source);
+            if extent.as_range().contains(&(offset as usize))
+                && innermost
+                    .as_ref()
+                    .is_none_or(|outer| extent.len() < outer.execution_span(source).len())
+            {
                 innermost = Some(command.clone());
             }
             false
         },
     );
-    innermost.map_or(ControlFlow::Continue(()), |command| {
-        command_query(source, analysis, &command)
-    })
+    if let Some(command) = innermost
+        && command
+            .argv
+            .get(1)
+            .is_some_and(|word| word.span.as_range().contains(&(offset as usize)))
+    {
+        return command_query(source, analysis, &command);
+    }
+    ControlFlow::Continue(())
 }
 
 /// A `my NAME` selector written in an original method body that no actual

@@ -47,6 +47,7 @@ impl Backend {
                     folders.push(added.uri.clone());
                 }
             }
+            self.invalidate_diag_inputs();
         }
         // Drop index entries for files under removed folders so their symbols
         // stop resolving across the workspace.  Open documents are left alone —

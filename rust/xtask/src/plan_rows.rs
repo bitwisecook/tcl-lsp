@@ -18,11 +18,11 @@
 
 //! Conformance before migration: every migration item of the name-handling
 //! plan names the conformance rows it turns green, and every named row
-//! exists — a probe fixture or area under `oo-dispatch-probe/`, or a
-//! committed vector file.
+//! exists — a probe fixture or area under `oo-dispatch-probe/`, a committed
+//! vector file, or an explicitly named Rust test.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::LazyLock;
 
@@ -103,12 +103,17 @@ pub fn migration_items(plan: &str) -> BTreeSet<u32> {
 pub struct Rows {
     areas: BTreeMap<String, Vec<String>>,
     files: Vec<String>,
+    root: PathBuf,
 }
 
 impl Rows {
     #[cfg(test)]
     pub fn new(areas: BTreeMap<String, Vec<String>>, files: Vec<String>) -> Self {
-        Self { areas, files }
+        Self {
+            areas,
+            files,
+            root: Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."),
+        }
     }
 
     fn load(root: &Path) -> anyhow::Result<Self> {
@@ -136,7 +141,11 @@ impl Rows {
                     .push(stem.to_owned());
             }
         }
-        Ok(Self { areas, files })
+        Ok(Self {
+            areas,
+            files,
+            root: root.to_path_buf(),
+        })
     }
 
     fn fixture(&self, area: &str, id: &str) -> bool {
@@ -161,6 +170,35 @@ impl Rows {
         };
         self.files.iter().any(|file| matcher.is_match(file))
     }
+
+    fn rust_test(&self, path: &str, name: &str) -> bool {
+        if !self.files.iter().any(|file| file == path) {
+            return false;
+        }
+        std::fs::read_to_string(self.root.join(path))
+            .ok()
+            .and_then(|text| syn::parse_file(&text).ok())
+            .is_some_and(|file| has_named_test(&file.items, name))
+    }
+}
+
+fn has_named_test(items: &[syn::Item], name: &str) -> bool {
+    items.iter().any(|item| match item {
+        syn::Item::Fn(function) if function.sig.ident == name => {
+            function.attrs.iter().any(|attribute| {
+                attribute
+                    .path()
+                    .segments
+                    .last()
+                    .is_some_and(|s| s.ident == "test")
+            })
+        }
+        syn::Item::Mod(module) => module
+            .content
+            .as_ref()
+            .is_some_and(|(_, items)| has_named_test(items, name)),
+        _ => false,
+    })
 }
 
 #[derive(Default, Debug, PartialEq, Eq)]
@@ -220,6 +258,16 @@ pub fn check(text: &str, rows: &Rows) -> Verdict {
                 verdict.rows.push(format!("{other}/{token}"));
             } else {
                 verdict.missing.push(format!("{area}/{token}"));
+            }
+        } else if let Some((path, name)) = token.split_once('#').filter(|(path, _)| {
+            std::path::Path::new(path)
+                .extension()
+                .is_some_and(|extension| extension == "rs")
+        }) {
+            if rows.rust_test(path, name) {
+                verdict.rows.push(token.to_owned());
+            } else {
+                verdict.missing.push(token.to_owned());
             }
         } else if token.contains('/')
             && !token.contains(' ')
@@ -370,6 +418,22 @@ mod tests {
             verdict.missing,
             ["tcl-syntax/tests/data/missing_vectors.tsv"]
         );
+    }
+
+    #[test]
+    fn a_named_rust_test_must_exist_and_have_a_test_attribute() {
+        let path = "rust/xtask/src/plan_rows.rs";
+        let mut rows = rows();
+        rows.files.push(path.to_owned());
+        let verdict = check(
+            &format!("`{path}#vector_files_and_areas_are_rows` and `{path}#has_named_test`"),
+            &rows,
+        );
+        assert_eq!(
+            verdict.rows,
+            [format!("{path}#vector_files_and_areas_are_rows")]
+        );
+        assert_eq!(verdict.missing, [format!("{path}#has_named_test")]);
     }
 
     #[test]

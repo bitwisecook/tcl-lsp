@@ -38,7 +38,7 @@ async fn workspace_folder_add_reschedules_non_xc_document_too() {
         .did_change_workspace_folders(DidChangeWorkspaceFoldersParams {
             event: tower_lsp_server::ls_types::WorkspaceFoldersChangeEvent {
                 added: vec![tower_lsp_server::ls_types::WorkspaceFolder {
-                    uri: Uri::from_file_path(&root).unwrap(),
+                    uri: crate::canonical_file_uri(&root).unwrap(),
                     name: "folder-add-reschedule".to_owned(),
                 }],
                 removed: Vec::new(),

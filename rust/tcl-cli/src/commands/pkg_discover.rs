@@ -32,7 +32,7 @@ use tcl_compiler::analyser::Analyser;
 use tcl_compiler::optimiser::optimise_source_multipass_admitting_with_analysis_input;
 use tcl_compiler::optimiser::profiles::{OptimisationProfile, profile_to_disabled};
 use tcl_pkg::manifest::{ManifestAst, RequirementKind, append_manifest_requirement, load_manifest};
-use tcl_pkg::version::Version;
+use tcl_pkg::version::{DependencyVersion, TclPackageRequirement};
 use tcl_registry::dialects::{is_skipped_scan_dir, is_tcl_source};
 
 use crate::cli::PkgCommon;
@@ -53,12 +53,15 @@ struct RequirementReport {
     resolution: &'static str,
     status: &'static str,
     reason: Option<String>,
+    #[serde(skip)]
+    dependency_version: Option<DependencyVersion>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 struct AddedRequirement {
     name: String,
     minimum: String,
+    requirement: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -166,10 +169,7 @@ pub fn run(options: &DiscoverOptions<'_>) -> anyhow::Result<u8> {
     let additions = collect_additions(&reports);
     let added = if add && !additions.is_empty() {
         match append_requirements(manifest_path, &additions) {
-            Ok(()) => additions
-                .into_iter()
-                .map(|(name, minimum)| AddedRequirement { name, minimum })
-                .collect(),
+            Ok(()) => additions,
             Err(error) => {
                 tcl_cli_support::errln!("error: {error:#}");
                 return Ok(1);
@@ -226,7 +226,13 @@ fn scan_documents(
         );
         warnings.extend(warning);
         for requirement in requirements {
-            reports.push(classify(requirement, &file, manifest, declared));
+            reports.push(classify(
+                requirement,
+                &file,
+                manifest,
+                declared,
+                tcl_dialect::TclVersion::from_profile(profile),
+            ));
         }
     }
 
@@ -435,6 +441,7 @@ fn classify(
     file: &str,
     manifest: &ManifestAst,
     declared: &BTreeSet<String>,
+    release: Option<tcl_dialect::TclVersion>,
 ) -> RequirementReport {
     let mut report = RequirementReport {
         name: requirement.name,
@@ -451,6 +458,7 @@ fn classify(
         resolution: requirement.resolution,
         status: "candidate",
         reason: None,
+        dependency_version: None,
     };
 
     let Some(name) = report.name.as_deref() else {
@@ -494,74 +502,70 @@ fn classify(
         );
         return report;
     }
-    if report.exact {
-        report.status = "review";
-        report.reason = Some("tclpkg.tcl requirements cannot express -exact".to_owned());
-        return report;
-    }
-    if report.requirements.len() > 1 {
-        report.status = "review";
-        report.reason = Some(
-            "multiple alternative requirements cannot be represented by one manifest minimum"
-                .to_owned(),
-        );
-        return report;
-    }
-    let Some(requirement_text) = report.minimum.as_deref() else {
+    let Some(requirements) = report
+        .requirements
+        .iter()
+        .cloned()
+        .collect::<Option<Vec<_>>>()
+    else {
         report.status = "unresolved";
         report.reason = Some("version requirement is not statically resolvable".to_owned());
         return report;
     };
-    if tcl_dialect::validate_requirement(requirement_text).is_err() {
-        report.status = "unresolved";
-        report.reason = Some(format!(
-            "invalid Tcl version requirement: {requirement_text}"
-        ));
-        return report;
+    let dependency = if requirements.is_empty() && !report.exact {
+        DependencyVersion::parse("0.0.1")
+    } else {
+        TclPackageRequirement::new(requirements, report.exact, release).map(DependencyVersion::Tcl)
+    };
+    match dependency {
+        Ok(DependencyVersion::Tcl(requirement)) => {
+            report.minimum = requirement
+                .candidates()
+                .min_by(|left, right| {
+                    tcl_dialect::compare_versions_for(left, right, tcl_dialect::TclVersion::V9_1)
+                })
+                .map(ToOwned::to_owned);
+            report.dependency_version = Some(DependencyVersion::Tcl(requirement));
+        }
+        Ok(dependency) => report.dependency_version = Some(dependency),
+        Err(error) => {
+            report.status = "unresolved";
+            report.reason = Some(error.to_string());
+        }
     }
-    if tcl_registry::version::requirement_upper_bound(requirement_text).is_some() {
-        report.status = "review";
-        report.reason = Some("tclpkg.tcl requirements cannot express an upper bound".to_owned());
-        return report;
-    }
-    let minimum = tcl_registry::version::requirement_lower_bound(requirement_text);
-    if Version::parse(minimum).is_err() {
-        report.status = "unresolved";
-        report.reason = Some(format!(
-            "invalid or unsupported version requirement: {requirement_text}"
-        ));
-        return report;
-    }
-    report.minimum = Some(minimum.to_owned());
     report
 }
 
-fn collect_additions(reports: &[RequirementReport]) -> BTreeMap<String, String> {
-    let mut additions: BTreeMap<String, String> = BTreeMap::new();
+fn collect_additions(reports: &[RequirementReport]) -> Vec<AddedRequirement> {
+    let mut additions = BTreeMap::new();
     for report in reports.iter().filter(|report| report.status == "candidate") {
-        let (Some(name), Some(minimum)) = (&report.name, &report.minimum) else {
+        let (Some(name), Some(minimum), Some(dependency)) =
+            (&report.name, &report.minimum, &report.dependency_version)
+        else {
             continue;
         };
-        if additions
-            .get(name)
-            .is_none_or(|current| tcl_dialect::compare_versions(current, minimum).is_lt())
-        {
-            additions.insert(name.clone(), minimum.clone());
-        }
+        let requirement = dependency.to_string();
+        additions
+            .entry((name.clone(), requirement.clone()))
+            .or_insert_with(|| AddedRequirement {
+                name: name.clone(),
+                minimum: minimum.clone(),
+                requirement,
+            });
     }
-    additions
+    additions.into_values().collect()
 }
 
-fn append_requirements(path: &Path, additions: &BTreeMap<String, String>) -> anyhow::Result<()> {
+fn append_requirements(path: &Path, additions: &[AddedRequirement]) -> anyhow::Result<()> {
     let original = std::fs::read_to_string(path)
         .with_context(|| format!("cannot read manifest {}", path.display()))?;
     let mut proposed = original;
-    for (name, minimum) in additions {
+    for addition in additions {
         proposed = append_manifest_requirement(
             &proposed,
             Some(&path.to_string_lossy()),
-            name,
-            minimum,
+            &addition.name,
+            &addition.requirement,
             None,
             RequirementKind::Runtime,
         )
@@ -582,9 +586,16 @@ fn print_text(output: &DiscoveryOutput, add: bool) {
             .name
             .as_deref()
             .unwrap_or(requirement.expression.as_str());
-        let minimum = requirement.minimum.as_deref().unwrap_or("?");
+        let operand = requirement
+            .dependency_version
+            .as_ref()
+            .map(ToString::to_string);
+        let version = operand
+            .as_deref()
+            .or(requirement.minimum.as_deref())
+            .unwrap_or("?");
         tcl_cli_support::outln!(
-            "  {name} {minimum}  [{}; {}]  {}:{}",
+            "  {name} {version}  [{}; {}]  {}:{}",
             requirement.status,
             requirement.resolution,
             requirement.file,
@@ -600,7 +611,7 @@ fn print_text(output: &DiscoveryOutput, add: bool) {
     if !output.added.is_empty() {
         tcl_cli_support::outln!("Added to {}:", output.manifest);
         for requirement in &output.added {
-            tcl_cli_support::outln!("  {} {}", requirement.name, requirement.minimum);
+            tcl_cli_support::outln!("  {} {}", requirement.name, requirement.requirement);
         }
         tcl_cli_support::outln!("Run 'tcl pkg install' to resolve and update tclpkg.lock.");
     } else if add {
@@ -730,6 +741,28 @@ fn collect_source_path(
 mod tests {
     use super::*;
 
+    #[test]
+    fn workspace_scan_agrees_with_check_and_keeps_manifest_purpose() {
+        let fixture = tcl_test_support::fixture::WorkspaceScan::new();
+        let roots = [fixture.root().to_path_buf()];
+        let mut check = tcl_cli_support::read_input_documents(&roots, &[], true)
+            .unwrap()
+            .into_iter()
+            .map(|document| document.path.unwrap())
+            .collect::<Vec<_>>();
+        check.sort();
+        assert_eq!(check, fixture.expected_sources());
+        let manifest = fixture.root().join("src/tclpkg.tcl");
+        let discovered = collect_source_paths(&roots, true, &manifest).unwrap();
+        let excluded = [
+            manifest,
+            fixture.root().join("lib/installed.tcl"),
+            fixture.root().join("vendor/vendored.tcl"),
+        ];
+        check.retain(|path| !excluded.contains(path));
+        assert_eq!(discovered, check);
+    }
+
     fn package_source_registry() -> std::sync::Arc<tcl_registry::CommandRegistry> {
         let mut registry = tcl_registry::CommandRegistry::build_default();
         let mut descriptor = registry.get("package").unwrap().clone();
@@ -851,7 +884,7 @@ mod tests {
     }
 
     #[test]
-    fn additions_choose_the_highest_minimum() {
+    fn additions_retain_each_distinct_source_constraint() {
         let reports = [
             report("json", "1.2"),
             report("json", "1.10"),
@@ -859,8 +892,18 @@ mod tests {
             report("http", "2.9"),
         ];
         let additions = collect_additions(&reports);
-        assert_eq!(additions["json"], "1.10");
-        assert_eq!(additions["http"], "2.9");
+        assert_eq!(
+            additions
+                .iter()
+                .map(|row| (row.name.as_str(), row.requirement.as_str()))
+                .collect::<Vec<_>>(),
+            [
+                ("http", "-tcl 2.9"),
+                ("json", "-tcl 1.10"),
+                ("json", "-tcl 1.10b1"),
+                ("json", "-tcl 1.2")
+            ]
+        );
     }
 
     #[test]
@@ -881,8 +924,15 @@ mod tests {
         append_requirements(&path, &additions).unwrap();
         let edited = std::fs::read_to_string(&path).unwrap();
         assert!(edited.starts_with(original));
-        assert!(edited.contains("require json::write 1.2\n"));
-        assert!(edited.contains("require tls 1.7\n"));
+        assert_eq!(
+            load_manifest(&path)
+                .unwrap()
+                .requires
+                .iter()
+                .map(|row| row.version.to_string())
+                .collect::<Vec<_>>(),
+            ["-tcl 1.2", "-tcl 1.7"],
+        );
         let parsed = load_manifest(&path).unwrap();
         assert_eq!(
             parsed
@@ -894,7 +944,11 @@ mod tests {
         );
         std::fs::write(&path, original).unwrap();
         let mut refused = additions;
-        refused.insert("zzz".to_owned(), "1.0; require injected 9.0".to_owned());
+        refused.push(AddedRequirement {
+            name: "zzz".to_owned(),
+            minimum: "1.0".to_owned(),
+            requirement: "1.0; require injected 9.0".to_owned(),
+        });
         assert!(append_requirements(&path, &refused).is_err());
         assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
         std::fs::remove_dir_all(directory).unwrap();
@@ -924,6 +978,9 @@ mod tests {
             resolution: "literal",
             status: "candidate",
             reason: None,
+            dependency_version: Some(DependencyVersion::Tcl(
+                TclPackageRequirement::new(vec![minimum.to_owned()], false, None).unwrap(),
+            )),
         }
     }
     #[test]

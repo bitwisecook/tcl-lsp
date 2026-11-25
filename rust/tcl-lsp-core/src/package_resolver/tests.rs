@@ -115,6 +115,88 @@ fn no_tcl_files(_: &Path) -> Vec<PathBuf> {
     Vec::new()
 }
 
+#[test]
+fn tcl_module_paths_choose_ordered_release_specific_providers() {
+    use tcl_dialect::TclVersion;
+    use tcl_registry::native_package::NativePackageNameKey;
+    use tcl_syntax::naming::NamePolicyProtocol;
+
+    let scratch = TempDir::new("modules");
+    let first = scratch.path().join("first");
+    let second = scratch.path().join("second");
+    let selected = first.join("acme/widget-1.2.tm");
+    write(&selected, "proc marker {} {return first}\n");
+    write(
+        &second.join("acme/widget-1.2.0.tm"),
+        "proc marker {} {return second}\n",
+    );
+    write(
+        &second.join("acme/widget-1.3b1.tm"),
+        "proc marker {} {return beta}\n",
+    );
+    write(
+        &first.join("acme/widget-9.0nonsense.tm"),
+        "error invalid advertisement\n",
+    );
+
+    let fallback = scratch.path().join("from-index.tcl");
+    let mut resolver = PackageResolver::new();
+    resolver.add_pkg_index(vec![PackageInfo {
+        name: "acme::widget".into(),
+        version: "3.0".into(),
+        source_files: vec![fallback.clone()],
+        pkg_index_path: scratch.path().join("pkgIndex.tcl"),
+        conditions: super::reachability::Conditions::default(),
+    }]);
+    for release in TclVersion::ALL {
+        resolver.scan_module_path_in(&NativeStore, &first, release, 16);
+        resolver.scan_module_path_in(&NativeStore, &second, release, 16);
+        let key = NativePackageNameKey::from_native_units(
+            b"acme::widget",
+            NamePolicyProtocol::authored_tcl(release),
+        );
+        let files = resolver.resolve_original_require(&key, &["1.0"], false, PackagePrefer::Stable);
+        if release == TclVersion::V8_4 {
+            assert!(files.is_empty());
+            continue;
+        }
+        assert_eq!(files, std::slice::from_ref(&selected));
+        let profile = tcl_dialect::DialectProfile::find(release.dialect_profile_name()).unwrap();
+        assert_eq!(
+            resolver.resolve_require_for_profile(
+                "acme::widget",
+                &["3.0"],
+                false,
+                PackagePrefer::Stable,
+                Some(profile),
+            ),
+            std::slice::from_ref(&fallback)
+        );
+        assert!(
+            resolver
+                .resolve_require_for_profile(
+                    "acme::Widget",
+                    &[],
+                    false,
+                    PackagePrefer::Stable,
+                    Some(profile),
+                )
+                .is_empty()
+        );
+
+        if let Some(sh) = tcl_test_support::witness_tclsh(release) {
+            let first = reference_tcl_path_word(&sh, &first).unwrap();
+            let second = reference_tcl_path_word(&sh, &second).unwrap();
+            let script = format!(
+                "::tcl::tm::path add {second} {first}\nputs [list [package require acme::widget 1.0] [marker]]\n"
+            );
+            let (status, output) = run_tclsh(&sh, &script);
+            assert!(status.success(), "{status:?}");
+            assert_eq!(output.trim(), "1.2 first", "{release:?}");
+        }
+    }
+}
+
 // auto_qualify — pure cases + differential against real tclsh.
 
 #[test]

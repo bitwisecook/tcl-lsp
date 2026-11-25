@@ -266,7 +266,8 @@ mod tests {
                     let observed = observations
                         .lines()
                         .find_map(|row| {
-                            let fields = row.split('\t').collect::<Vec<_>>();
+                            let fields =
+                                tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
                             (fields[0] == version.patchlevel()
                                 && fields[1] == "character-channel-source"
                                 && fields[2] == "plain")

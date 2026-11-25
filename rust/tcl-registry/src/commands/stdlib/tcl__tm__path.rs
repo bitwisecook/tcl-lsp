@@ -25,6 +25,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "add",
         arity: Arity::at_least(0),
+        analyser_hook: Some(AnalyserHookId::ModulePathAdd),
         detail: "",
         synopsis: "",
         ..SubCommand::DEFAULT
@@ -99,16 +100,19 @@ const fn member(
 /// Direct implementations behind the public `tcl::tm::path` ensemble.
 pub fn member_specs() -> [CommandSpec; 3] {
     [
-        member(
-            "tcl::tm::add",
-            Arity::any(),
-            LEGACY_PATH_OPERAND,
-            HoverSnippet::brief(
-                "Prepend directories to the Tcl module search path.",
-                &["tcl::tm::add ?path ...?"],
-                "Tcl tm(n)",
-            ),
-        ),
+        CommandSpec {
+            analyser_hook: Some(AnalyserHookId::ModulePathAdd),
+            ..member(
+                "tcl::tm::add",
+                Arity::any(),
+                LEGACY_PATH_OPERAND,
+                HoverSnippet::brief(
+                    "Prepend directories to the Tcl module search path.",
+                    &["tcl::tm::add ?path ...?"],
+                    "Tcl tm(n)",
+                ),
+            )
+        },
         member(
             "tcl::tm::list",
             Arity::exact(0),

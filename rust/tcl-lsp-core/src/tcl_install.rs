@@ -37,6 +37,7 @@
 //!   per-user *state* directory: the server writes it, the user does not edit it.
 
 use std::path::{Path, PathBuf};
+use tcl_dialect::TclVersion;
 
 /// A Tcl installation discovered on disk.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -188,6 +189,92 @@ pub fn tcllibpath_dirs() -> Vec<PathBuf> {
         return Vec::new();
     };
     tcllibpath_value_dirs(&raw)
+}
+
+/// Default Tcl module search paths in the selected release's search order.
+/// The environment overrides the filesystem paths derived from installations
+/// of that release. No interpreter or module script is executed.
+#[must_use]
+pub fn module_search_paths(installations: &[TclInstallation], release: TclVersion) -> Vec<PathBuf> {
+    module_search_paths_with(installations, release, |key| std::env::var(key).ok())
+}
+
+/// Ordered installed index roots, with the Tcl releases that search each one.
+/// A path shared by several installations retains every matching release.
+#[must_use]
+pub fn installation_index_paths(
+    installations: &[TclInstallation],
+) -> Vec<(PathBuf, Vec<TclVersion>)> {
+    let mut paths: Vec<(PathBuf, Vec<TclVersion>)> = Vec::new();
+    for install in installations {
+        let release = TclVersion::parse(&install.version);
+        let releases = release.as_slice();
+        let releases = if releases.is_empty() {
+            &TclVersion::ALL
+        } else {
+            releases
+        };
+        for path in &install.auto_path {
+            if let Some((_, seen)) = paths.iter_mut().find(|(root, _)| root == path) {
+                for release in releases {
+                    if !seen.contains(release) {
+                        seen.push(*release);
+                    }
+                }
+            } else {
+                paths.push((path.clone(), releases.to_vec()));
+            }
+        }
+    }
+    paths
+}
+
+fn module_search_paths_with(
+    installations: &[TclInstallation],
+    release: TclVersion,
+    env: impl Fn(&str) -> Option<String>,
+) -> Vec<PathBuf> {
+    if release < TclVersion::V8_5 {
+        return Vec::new();
+    }
+    let (major, minor) = release
+        .version_string()
+        .split_once('.')
+        .expect("known Tcl release");
+    let minor = minor.parse::<u8>().expect("numeric Tcl minor version");
+    let separator = if cfg!(windows) { ';' } else { ':' };
+    let mut paths = Vec::new();
+    for installation in installations
+        .iter()
+        .filter(|item| TclVersion::parse(&item.version) == Some(release))
+    {
+        let Some(parent) = installation.tcl_library.parent() else {
+            continue;
+        };
+        let root = parent.join(format!("tcl{major}"));
+        paths.push(root.join("site-tcl"));
+        paths.extend((0..=minor).map(|minor| root.join(format!("{major}.{minor}"))));
+    }
+    let mut seen = std::collections::HashSet::new();
+    paths.retain(|path| seen.insert(path.clone()));
+    // tm.tcl walks minor lines downwards and prepends each new path. A
+    // duplicate keeps its position, even when a later variable names it.
+    for minor in (0..=minor).rev() {
+        for key in [
+            format!("TCL{major}.{minor}_TM_PATH"),
+            format!("TCL{major}_{minor}_TM_PATH"),
+        ] {
+            if let Some(value) = env(&key) {
+                for path in value.split(separator).filter(|path| !path.is_empty()) {
+                    let path = PathBuf::from(path);
+                    if seen.insert(path.clone()) {
+                        paths.insert(0, path);
+                    }
+                }
+            }
+        }
+    }
+    paths
 }
 
 fn tcllibpath_value_dirs(raw: &str) -> Vec<PathBuf> {

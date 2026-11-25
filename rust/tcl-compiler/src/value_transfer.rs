@@ -101,7 +101,7 @@ pub(crate) use expressions::{
 pub use folded_type::FoldedType;
 use lattice_inputs::Words;
 pub(crate) use lattice_inputs::{
-    const_text, const_to_exact, exact_to_const, exact_to_lattice, variable_name,
+    const_into_exact, const_text, const_to_exact, exact_to_const, exact_to_lattice, variable_name,
 };
 pub(crate) use procedure_calls::summary_steps;
 pub(crate) use queries::{

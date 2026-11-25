@@ -27,7 +27,7 @@ use super::*;
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn rehomed_symbol_snapshot_does_not_hold_its_gate_while_waiting_for_scan() {
     let backend = Arc::new(test_backend());
-    seed_autoload_library(&backend, "autoload-rehoming-order").await;
+    let (_library_dir, _) = seed_autoload_library(&backend, "autoload-rehoming-order").await;
     let app = Uri::from_str("file:///app.tcl").unwrap();
     let app_src = "Rbc_ActiveLegend .g\n";
     register(&backend, &app, app_src).await;

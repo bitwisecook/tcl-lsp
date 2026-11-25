@@ -18,8 +18,11 @@
 
 //! The purpose-aware value solver: seeds, the fixpoint over the blocks, φ joins and the finished facts.
 
-use super::super::solver::sccp_process_phis;
-use super::super::{TraceInputs, cfg_order, compute_predecessors};
+use super::super::solver::{sccp_process_phis, seed_live_in_roots, seeded_values};
+use super::super::{
+    TraceInputs, cfg_order, compute_predecessors, incoming_executable_predecessors,
+    settle_reachability,
+};
 use super::block_transfer::{
     collect_constant_branches, sccp_process_statements, sccp_process_terminator,
 };
@@ -28,11 +31,10 @@ use super::{
     StatementInputs, StoreInputs, TerminatorInputs, ValueFactInputs,
 };
 use crate::analyses::LatticeValue;
-use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
+use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::expr_ast::ExprNode;
 use crate::ssa::{SsaFunction, SsaSourceView, ValueKey};
 use crate::tcl_expr_eval::FoldPolicy;
-use rustc_hash::FxHashSet;
 use std::collections::{HashMap, HashSet};
 use tcl_registry::CommandRegistry;
 
@@ -43,8 +45,19 @@ fn seed_value_facts(
     policy: FoldPolicy,
     registry: &CommandRegistry,
 ) -> (HashMap<ValueKey, LatticeValue>, tcl_dialect::LexerGrammar) {
-    let mut values = HashMap::new();
-    seed_parameter_constants(cfg, ssa, param_constants, registry, &mut values);
+    let mut values = seeded_values(param_constants, |name| {
+        ssa.point_contexts.as_ref().map_or_else(
+            || ssa.var_symbol(name),
+            |points| {
+                crate::var_resolve::canonical_variable_key(
+                    name,
+                    points.before_statement(cfg.entry, 0),
+                    registry,
+                )
+                .and_then(|cell| ssa.cell_symbol(&cell))
+            },
+        )
+    });
     let grammar = policy.preparation_context().map_or_else(
         || {
             registry
@@ -55,7 +68,9 @@ fn seed_value_facts(
         },
         |context| context.lexer_grammar,
     );
-    seed_live_in_roots(cfg, ssa, &mut values, grammar);
+    seed_live_in_roots(cfg, ssa, &mut values, grammar, |block, name| {
+        ssa.var_symbol_at_terminator(block, name)
+    });
     (values, grammar)
 }
 
@@ -152,70 +167,58 @@ fn solve_value_facts_once(
     }
     let order = cfg_order(cfg);
 
-    // Optimistic fixpoint over the RPO sweep, followed by a finalising pass
-    // that forces both arms for any executable branch still stuck on an UNKNOWN
-    // condition (defensive: a value defined only in unreachable code could
-    // otherwise leave a successor spuriously unreachable). `finalizing` is
-    // monotone, so the outer loop runs at most twice.
-    let mut finalizing = false;
-    loop {
-        let mut changed = true;
-        while changed {
-            changed = false;
-            for bn in &order {
-                if !executable_blocks.contains(bn) {
-                    continue;
-                }
-                let Some(ssa_block) = ssa.blocks.get(bn) else {
-                    continue;
-                };
+    settle_reachability(|finalizing| {
+        let mut changed = false;
+        for bn in &order {
+            if !executable_blocks.contains(bn) {
+                continue;
+            }
+            let Some(ssa_block) = ssa.blocks.get(bn) else {
+                continue;
+            };
 
-                let incoming_exec = incoming_executable_predecessors(*bn, preds, &executable_edges);
+            let incoming_exec = incoming_executable_predecessors(*bn, preds, &executable_edges);
 
-                // Phi nodes (not at entry, only when some predecessor is
-                // executable).
-                if bn != &cfg.entry {
-                    changed |= sccp_process_phis(&mut values, ssa_block, &incoming_exec);
-                }
+            // Phi nodes (not at entry, only when some predecessor is
+            // executable).
+            if bn != &cfg.entry {
+                changed |= sccp_process_phis(&mut values, ssa_block, &incoming_exec);
+            }
 
-                // Statements.
-                changed |= sccp_process_statements(
-                    &mut values,
-                    ssa_block,
-                    ssa,
-                    StatementInputs {
-                        store: &store_inputs,
-                        clobbers: ssa.value_clobbers.get(bn),
-                    },
-                );
+            // Statements.
+            changed |= sccp_process_statements(
+                &mut values,
+                ssa_block,
+                ssa,
+                StatementInputs {
+                    store: &store_inputs,
+                    clobbers: ssa.value_clobbers.get(bn),
+                },
+            );
 
-                // Terminator.
-                let inputs = TerminatorInputs {
-                    math_dependencies: Some(&required_math_invocations),
-                    cfg,
-                    ssa,
-                    values: &values,
-                    policy,
-                    grammar,
-                    registry: trace.registry,
-                    reference_config,
-                };
-                if sccp_process_terminator(
-                    *bn,
-                    &inputs,
-                    &mut executable_blocks,
-                    &mut executable_edges,
-                    finalizing,
-                ) {
-                    changed = true;
-                }
+            // Terminator.
+            let inputs = TerminatorInputs {
+                math_dependencies: Some(&required_math_invocations),
+                cfg,
+                ssa,
+                values: &values,
+                policy,
+                grammar,
+                registry: trace.registry,
+                reference_config,
+            };
+            if sccp_process_terminator(
+                *bn,
+                &inputs,
+                &mut executable_blocks,
+                &mut executable_edges,
+                finalizing,
+            ) {
+                changed = true;
             }
         }
-        if finalizing {
-            break;
-        }
-        finalizing = true;
-    }
+        changed
+    });
 
     finish_value_facts(
         (cfg, ssa),
@@ -299,20 +302,6 @@ fn finish_value_facts(
     solved
 }
 
-fn incoming_executable_predecessors(
-    block: BlockId,
-    predecessors: &HashMap<BlockId, HashSet<BlockId>>,
-    executable_edges: &HashSet<(BlockId, BlockId)>,
-) -> Vec<BlockId> {
-    predecessors
-        .get(&block)
-        .into_iter()
-        .flatten()
-        .copied()
-        .filter(|predecessor| executable_edges.contains(&(*predecessor, block)))
-        .collect()
-}
-
 pub(super) fn compatibility_escaping(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
@@ -342,93 +331,6 @@ pub(super) fn compatibility_escaping(
     names.extend(extra.iter().cloned());
     trace.extend_module_escaping(&mut names);
     names
-}
-
-fn seed_parameter_constants(
-    cfg: &CfgFunction,
-    ssa: &SsaFunction,
-    param_constants: Option<&HashMap<(String, crate::ssa::Version), LatticeValue>>,
-    registry: &CommandRegistry,
-    values: &mut HashMap<ValueKey, LatticeValue>,
-) {
-    if let Some(seed) = param_constants {
-        // The interprocedural seed keys on the parameter *name* (a stable,
-        // cache-safe identity); resolve each to this build's interned symbol.
-        // A param never read in the body isn't interned, and its seed slot
-        // would never be consulted, so dropping it is behaviour-neutral.
-        for ((name, version), v) in seed {
-            let symbol = ssa.point_contexts.as_ref().map_or_else(
-                || ssa.var_symbol(name),
-                |points| {
-                    crate::var_resolve::canonical_variable_key(
-                        name,
-                        points.before_statement(cfg.entry, 0),
-                        registry,
-                    )
-                    .and_then(|cell| ssa.cell_symbol(&cell))
-                },
-            );
-            if let Some(symbol) = symbol {
-                values.insert((symbol, *version), v.clone());
-            }
-        }
-    }
-}
-
-/// Seed live-in roots to `Overdefined`: a value *used* but never *defined*
-/// anywhere in this function (a proc parameter, a global / namespace read, an
-/// upvar target, or an undefined-variable read) holds a runtime-unknown value,
-/// so it is `Overdefined`, not the `Unknown` join-identity (which would
-/// silently vanish from any phi it feeds — folding `join(const, $runtime)` to
-/// the constant).
-pub(super) fn seed_live_in_roots<S: std::hash::BuildHasher>(
-    cfg: &CfgFunction,
-    ssa: &SsaFunction,
-    values: &mut HashMap<ValueKey, LatticeValue, S>,
-    grammar: tcl_dialect::LexerGrammar,
-) {
-    let mut defined_keys: FxHashSet<ValueKey> = FxHashSet::default();
-    let mut used_keys: FxHashSet<ValueKey> = FxHashSet::default();
-    for ssa_block in ssa.blocks.values() {
-        for phi in &ssa_block.phis {
-            defined_keys.insert((phi.name, phi.version));
-            for inc in phi.incoming.values() {
-                // Record every phi feed, including the version-0 (entry /
-                // live-in) incoming: it is never a def, so it drops through
-                // to the `used_keys.difference(&defined_keys)` seeding below
-                // and is pinned `Overdefined`. This is what lets the phi
-                // join at [`sccp_process_phis`] see the caller's value
-                // instead of silently dropping it and folding to the
-                // defined-arm constant.
-                used_keys.insert((phi.name, *inc));
-            }
-        }
-        for s in &ssa_block.statements {
-            for (&var, ver) in &s.defs {
-                defined_keys.insert((var, *ver));
-            }
-            for (&var, ver) in &s.uses {
-                used_keys.insert((var, *ver));
-            }
-        }
-    }
-    // Branch-condition reads, resolved at each block's exit versions.
-    for (bn, block) in &cfg.blocks {
-        if let Some(Terminator::Branch { condition, .. }) = &block.terminator
-            && let Some(sb) = ssa.blocks.get(bn)
-        {
-            for var in crate::var_refs::vars_in_expr(condition, grammar) {
-                let Some(sym) = ssa.var_symbol_at_terminator(*bn, &var) else {
-                    continue;
-                };
-                let ver = sb.exit_versions.get(&sym).copied().unwrap_or(0);
-                used_keys.insert((sym, ver));
-            }
-        }
-    }
-    for key in used_keys.difference(&defined_keys) {
-        values.entry(*key).or_insert(LatticeValue::Overdefined);
-    }
 }
 
 /// Optimistic (Wegman–Zadeck) deferral test for a non-constant branch.

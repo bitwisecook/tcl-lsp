@@ -431,11 +431,12 @@ fn original_unset_execution_matches_85_native_completion_windows() {
             .lines()
             .skip(1)
     {
-        let columns: Vec<_> = row.split('\t').collect();
+        let columns: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
         if columns[0] == "jim0.84" {
             continue;
         }
-        let profile = tcl_dialect::TclVersion::profile_name_for(columns[0])
+        let profile = tcl_test_support::fixture::oracle_release(columns[0])
+            .map(tcl_dialect::TclVersion::dialect_profile_name)
             .and_then(tcl_dialect::DialectProfile::find)
             .unwrap();
         let mut vm = Vm::with_native_core(

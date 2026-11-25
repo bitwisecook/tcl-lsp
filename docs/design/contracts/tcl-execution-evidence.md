@@ -70,6 +70,18 @@ be filled exactly once and every value used. The composed bytes are the
 executed script; the checker and extractor compose them. Do not create a
 fixture that only one case uses.
 
+## Release-keyed test data
+
+Use `tcl8.6`-style keys for release-indexed fixture rows and directories.
+Keep measured patchlevels such as `8.6.18` in observation fields so fixtures
+still identify the interpreter that produced the recorded result. Use the
+common TSV row reader and release-key parser from `tcl-test-support`.
+
+`cargo xtask fixture-ownership` checks release keys in TSV test data and
+counts legacy release directories and direct tab splits in Rust modules
+that include TSV fixtures. The two legacy counts are limits that should
+shrink as readers and directories migrate. This check runs in `xtask-gates`.
+
 ## Visible byte notation
 
 Evidence files themselves are UTF-8 Markdown with LF line endings. A physical

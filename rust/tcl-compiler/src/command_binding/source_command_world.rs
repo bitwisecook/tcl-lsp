@@ -51,12 +51,11 @@ struct NamespaceGeometry {
     allocation: Option<CommandAllocationSite>,
 }
 
-/// The world's namespace rows, shared copy-on-write between flow snapshots,
-/// with a lazily built index of each key's first row and row count, so a key
-/// lookup is not a scan.
+/// Persistent namespace rows share unchanged branches between flow snapshots.
+/// The lazy index records each key's first row and row count.
 #[derive(Debug, Clone, Default)]
 struct NamespaceLedger {
-    rows: Arc<Vec<NamespaceGeometry>>,
+    rows: Arc<imbl::Vector<NamespaceGeometry>>,
     first: std::sync::OnceLock<Arc<rustc_hash::FxHashMap<SourceNamespaceKey, (usize, usize)>>>,
     c_scopes: std::sync::OnceLock<
         Arc<rustc_hash::FxHashMap<tcl_core_types::ByteNamespacePath, Vec<SourceNamespaceKey>>>,
@@ -65,7 +64,7 @@ struct NamespaceLedger {
 
 impl NamespaceLedger {
     fn push(&mut self, row: NamespaceGeometry) {
-        Arc::make_mut(&mut self.rows).push(row);
+        Arc::make_mut(&mut self.rows).push_back(row);
         self.first = std::sync::OnceLock::new();
         self.c_scopes = std::sync::OnceLock::new();
     }
@@ -132,7 +131,7 @@ impl NamespaceLedger {
 impl From<Vec<NamespaceGeometry>> for NamespaceLedger {
     fn from(rows: Vec<NamespaceGeometry>) -> Self {
         Self {
-            rows: Arc::new(rows),
+            rows: Arc::new(rows.into_iter().collect()),
             first: std::sync::OnceLock::new(),
             c_scopes: std::sync::OnceLock::new(),
         }
@@ -140,7 +139,7 @@ impl From<Vec<NamespaceGeometry>> for NamespaceLedger {
 }
 
 impl std::ops::Deref for NamespaceLedger {
-    type Target = [NamespaceGeometry];
+    type Target = imbl::Vector<NamespaceGeometry>;
     fn deref(&self) -> &Self::Target {
         &self.rows
     }
@@ -156,6 +155,7 @@ impl Eq for NamespaceLedger {}
 
 impl std::hash::Hash for NamespaceLedger {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.rows.len().hash(state);
         self.rows.hash(state);
     }
 }

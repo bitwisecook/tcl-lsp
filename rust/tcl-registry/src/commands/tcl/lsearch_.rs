@@ -272,6 +272,37 @@ const fn match_style(kind: OptionEffectKind) -> OptionEffect {
     }
 }
 
+/// Fold the default search on ASCII words with a literal (non-glob) pattern.
+/// A selected C release supplies the list grammar and the result kernel.
+fn fold_default_search(args: &[&str], release: Option<TclVersion>) -> Option<String> {
+    use crate::value_transfer::{AnalysisContext, Budget, ConstOps, ConstValue, Needs};
+
+    let release = release?;
+    let [list, pattern] = args else {
+        return None;
+    };
+    if !list.is_ascii()
+        || list.contains(['\0', '\\'])
+        || !pattern.is_ascii()
+        || pattern.contains(['\0', '\\', '*', '?', '['])
+    {
+        return None;
+    }
+    let profile = tcl_dialect::DialectProfile::find(release.dialect_profile_name())?;
+    let context = AnalysisContext::detached(Some(profile));
+    let mut budget = Budget::evaluation();
+    budget
+        .charge_work(u64::try_from(list.len().saturating_add(pattern.len())).ok()?)
+        .ok()?;
+    let mut ops = ConstOps::admit(&context, &mut budget, Needs::LIST_RENDERING).ok()?;
+    let operands = [ConstValue::text(list), ConstValue::text(pattern)];
+    let result = tcl_cmd_core::lsearch::lsearch::<_, tcl_regex::cmd_core::AreEngine>(
+        &mut ops, &operands, release,
+    )
+    .ok()?;
+    String::from_utf8(ops.take(result).ok()?.bytes).ok()
+}
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         // Reached native value handler has no callbacks or variable-name writes.
@@ -293,6 +324,7 @@ pub fn spec() -> CommandSpec {
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME | Traits::BYTE_COMPILED | Traits::CSE_CANDIDATE,
         arity: Arity::exact(2).with_positionals(),
+        const_fold_versioned: Some(fold_default_search),
         return_type: Some(TclType::Int),
         // `-all`, `-inline` and `-subindices` each move the result shape, and
         // they interact (`-inline` beats `-subindices`), so the rule is a

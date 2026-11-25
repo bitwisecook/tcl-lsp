@@ -34,7 +34,7 @@ async fn reindex_stores_source_directed_dialect() {
     )
     .unwrap();
     let backend = test_backend();
-    let uri = Uri::from_file_path(&on_disk).unwrap();
+    let uri = crate::canonical_file_uri(&on_disk).unwrap();
 
     backend.reindex_index_from_disk(&uri).await.unwrap();
 
@@ -62,7 +62,7 @@ async fn reindex_from_disk_refreshes_index_rather_than_dropping() {
     std::fs::write(&on_disk, "proc helper {} {}\n").unwrap();
 
     let backend = test_backend();
-    let uri = Uri::from_file_path(&on_disk).unwrap();
+    let uri = crate::canonical_file_uri(&on_disk).unwrap();
     // Seed the index with a now-closed buffer version (proc `fresh`),
     // standing in for what did_open would have indexed.
     {
@@ -99,7 +99,7 @@ async fn reindex_from_disk_does_not_clobber_open_document() {
     std::fs::write(&on_disk, "proc stale {} {}\n").unwrap();
 
     let backend = test_backend();
-    let uri = Uri::from_file_path(&on_disk).unwrap();
+    let uri = crate::canonical_file_uri(&on_disk).unwrap();
     backend.documents.lock("test").await.insert(
         uri.clone(),
         DocumentState::new("proc fresh {} {}\n".to_owned(), "tcl8.6".to_owned()),

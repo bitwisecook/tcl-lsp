@@ -164,6 +164,13 @@ pub enum Condition {
     /// survey: `package vsatisfies [package provide Tcl] REQ …` must take the
     /// receipt's expected value under the caller's hypothetical release.
     SourceTarget(SourceTargetCondition),
+    /// The index directory participates in the selected installation's search path.
+    Installation {
+        /// Releases that search this directory.
+        releases: Vec<TclVersion>,
+        /// Whether the condition requires inclusion in the search path.
+        included: bool,
+    },
     /// The guard is real but this scan cannot evaluate it.
     Undecidable,
     /// The registration is unreachable on every Tcl release — it sits after
@@ -210,6 +217,9 @@ impl Condition {
                     Ternary::Inert => Ternary::Inert,
                 }
             }
+            Self::Installation { releases, included } => target.map_or(Ternary::Inert, |target| {
+                Ternary::from(releases.contains(&target) == *included)
+            }),
             Self::Undecidable => Ternary::Inert,
             Self::Impossible => Ternary::No,
         }
@@ -224,6 +234,10 @@ impl Condition {
                 receipt: std::sync::Arc::clone(&condition.receipt),
                 expect: !condition.expect,
             })),
+            Self::Installation { releases, included } => Some(Self::Installation {
+                releases: releases.clone(),
+                included: !included,
+            }),
             // "Cannot decide" negates to "cannot decide".
             Self::Undecidable => Some(Self::Undecidable),
             // "Never" negates to "always" — no condition at all.
@@ -252,6 +266,18 @@ pub enum Availability {
 pub struct Conditions(Vec<Condition>, Vec<SourceAdvertisement>);
 
 impl Conditions {
+    pub(super) fn limit_to_installations(&mut self, releases: &[TclVersion]) {
+        if !TclVersion::ALL
+            .iter()
+            .all(|release| releases.contains(release))
+        {
+            self.0.push(Condition::Installation {
+                releases: releases.to_vec(),
+                included: true,
+            });
+        }
+    }
+
     /// Whether a Tcl release running this index reaches the declaration.
     ///
     /// One definitely-false condition makes it [`Availability::Unavailable`],

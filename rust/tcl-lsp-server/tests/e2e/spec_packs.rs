@@ -68,7 +68,7 @@ speclib mylib 1 {
 ///
 /// The name is deliberately plain ASCII: these paths become `file://` URIs on
 /// both sides of the protocol, and the server percent-encodes what
-/// `Uri::from_file_path` says to. A directory named after `ThreadId(17)` is
+/// the canonical file URI owner specifies. A directory named after `ThreadId(17)` is
 /// then two different strings depending on who built the URI, which is a
 /// property of the test fixture and not of anything worth testing.
 fn workspace(name: &str) -> crate::common::ScratchDir {

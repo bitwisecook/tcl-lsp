@@ -20,7 +20,7 @@
 
 #[cfg(test)]
 use super::{
-    Analyser, Uri, compute_base_analysis, original_document_is_complete,
+    Analyser, compute_base_analysis, original_document_is_complete,
     prepare_base_completeness_input, vfs,
 };
 use super::{

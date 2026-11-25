@@ -45,7 +45,7 @@ fn every_sampled_stock_registration_has_a_matching_availability_descriptor() {
         .lines()
         .filter(|row| !row.starts_with('#'))
     {
-        let cells: Vec<_> = row.split('\t').collect();
+        let cells: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
         assert_eq!(cells.len(), 6);
         for (version, registration) in TclVersion::ALL.into_iter().zip(&cells[1..]) {
             if *registration == "ABSENT" {

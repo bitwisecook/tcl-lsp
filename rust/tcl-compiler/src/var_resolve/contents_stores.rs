@@ -415,6 +415,26 @@ impl ResolveContext {
         }
     }
 
+    /// Record namespace slot allocation for a link, retaining the undefined
+    /// contents of a stable cell independently of the occupied table slot.
+    pub(crate) fn allocate_namespace_alias_target(&mut self, target: &Place) {
+        if !target.is_global() || target.dynamic {
+            return;
+        }
+        if self
+            .invocation_dialect
+            .and_then(|dialect| dialect.variable_link_binding)
+            == Some(tcl_dialect::VariableLinkBinding::StableCell)
+            && self.contents_presence(target) == ContentsPresence::Undefined
+            && let Some(key) = canonical_binding_value_key(target)
+        {
+            self.record_presence_slot(target);
+            self.contents_presence
+                .insert(key, ContentsPresence::Undefined);
+        }
+        self.namespace_cells.present.insert(cell_key(target));
+    }
+
     /// Root kind of the same selected live physical cell, before observers run.
     #[must_use]
     pub fn root_contents_kind(&self, place: &Place) -> Option<RootContentsKind> {

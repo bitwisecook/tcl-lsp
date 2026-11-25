@@ -154,7 +154,7 @@ async fn did_close_hands_its_edit_turn_on_before_the_reindex_tail() {
     let root = unique_scratch_dir("close-off-ticket");
     let on_disk = root.join("closing.tcl");
     std::fs::write(&on_disk, "proc foo {} {}\n").unwrap();
-    let uri = Uri::from_file_path(&on_disk).unwrap();
+    let uri = crate::canonical_file_uri(&on_disk).unwrap();
     register(&backend, &uri, "proc foo {} {}\n").await;
 
     let rehoming_held = backend.rehoming_gate.lock().await;

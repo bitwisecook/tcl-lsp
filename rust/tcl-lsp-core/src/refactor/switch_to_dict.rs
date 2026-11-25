@@ -125,16 +125,6 @@ pub fn switch_to_dict(
         .nth(line_index.line_at(cmd.span.start()) as usize)
         .map_or("", super::line_indent);
     let replacement = build_dict_replacement(&arms, subject, indent, config)?;
-    let generated = tcl_lexer::native_script_words_in(
-        tcl_lexer::SourceImage::document(&replacement),
-        tcl_lexer::Span::new(0, u32::try_from(replacement.len()).ok()?),
-        config,
-    )
-    .ok()?;
-    if generated.fatal_tail.is_some() || generated.commands.len() != 2 {
-        return None;
-    }
-
     let (start, end) =
         super::FrameWalk::new(source, analysis)?.command_span_offsets(source, &cmd)?;
     let title = if arms.use_return {
@@ -142,7 +132,7 @@ pub fn switch_to_dict(
     } else {
         format!("Convert to dict lookup on '{}'", arms.target_var)
     };
-    Some(Refactoring {
+    let proposal = Refactoring {
         title,
         edits: vec![RefactorEdit {
             start,
@@ -152,7 +142,35 @@ pub fn switch_to_dict(
         kind: ActionKind::RefactorRewrite,
         data_group: None,
         disabled: None,
-    })
+    };
+    let final_head = if arms.default_value.is_some() {
+        "if"
+    } else if arms.use_return {
+        "return"
+    } else {
+        "set"
+    };
+    proposal.check_replacement(source, |postimage| {
+        check_dict_replacement(postimage, final_head, config)
+    })?;
+    Some(proposal)
+}
+
+fn check_dict_replacement(source: &str, final_head: &str, config: LexerConfig) -> Option<()> {
+    use super::source_rewrite::script_word_spellings;
+    let words = script_word_spellings(source, config)?;
+    let [initialiser, branch] = words.as_slice() else {
+        return None;
+    };
+    let ["set", _, expression] = initialiser.as_slice() else {
+        return None;
+    };
+    let body = expression.strip_prefix('[')?.strip_suffix(']')?;
+    let commands = script_word_spellings(body, config.nested())?;
+    let [create] = commands.as_slice() else {
+        return None;
+    };
+    (create.starts_with(&["dict", "create"]) && branch.first() == Some(&final_head)).then_some(())
 }
 
 /// The arms of a convertible switch, all of one shape.
@@ -297,6 +315,35 @@ mod tests {
         let analysis = super::super::source_rewrite::lexical_analysis(source, &reg);
         let li = LineIndex::new(source);
         switch_to_dict(source, cursor, &analysis, &li)
+    }
+
+    #[test]
+    fn checks_the_dictionary_initialisation_and_result_command() {
+        let config = LexerConfig::default();
+        assert!(
+            check_dict_replacement(
+                "set map [dict create a 1]; return [dict get $map $x]",
+                "return",
+                config
+            )
+            .is_some()
+        );
+        assert!(
+            check_dict_replacement(
+                "set map [list a 1]; return [dict get $map $x]",
+                "return",
+                config
+            )
+            .is_none()
+        );
+        assert!(
+            check_dict_replacement(
+                "set map [dict create a 1]; puts [dict get $map $x]",
+                "return",
+                config
+            )
+            .is_none()
+        );
     }
 
     #[test]

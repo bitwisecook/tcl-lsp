@@ -80,8 +80,8 @@ async fn fixture() -> (Fixture, Backend) {
     std::fs::create_dir(&root).unwrap();
     std::fs::write(root.join("main.tcl"), CALLER).unwrap();
     std::fs::write(root.join("child.tcl"), CHILD).unwrap();
-    let main = Uri::from_file_path(root.join("main.tcl")).unwrap();
-    let child = Uri::from_file_path(root.join("child.tcl")).unwrap();
+    let main = crate::canonical_file_uri(root.join("main.tcl")).unwrap();
+    let child = crate::canonical_file_uri(root.join("child.tcl")).unwrap();
     let backend = crate::tests::test_backend();
     open(&backend, &main, CALLER).await;
     (Fixture { root, main, child }, backend)
@@ -289,7 +289,7 @@ async fn unrelated_shared_source_root(
     );
     std::fs::write(other_root.join("main.tcl"), &other_source).unwrap();
     let other = Fixture {
-        main: Uri::from_file_path(other_root.join("main.tcl")).unwrap(),
+        main: crate::canonical_file_uri(other_root.join("main.tcl")).unwrap(),
         child: fixture.child.clone(),
         root: crate::tests::ScratchDir::at(other_root),
     };
@@ -576,7 +576,7 @@ impl SourceProtocol {
     }
 
     async fn start(&mut self, fixture: &Fixture) {
-        let root_uri = Uri::from_file_path(&fixture.root).unwrap();
+        let root_uri = crate::canonical_file_uri(&fixture.root).unwrap();
         let _ = self.request("initialize", serde_json::json!({
                 "processId":std::process::id(), "rootUri":null, "workspaceFolders":[],
                 "initializationOptions":{"folderDialects":{(root_uri.as_str()):"tcl8.6"}},
@@ -632,8 +632,8 @@ fn exact_source_fixture() -> Fixture {
     std::fs::write(root.join("app.tcl"), EXACT_APP).unwrap();
     std::fs::write(root.join("lib.tcl"), EXACT_LIB).unwrap();
     Fixture {
-        main: Uri::from_file_path(root.join("app.tcl")).unwrap(),
-        child: Uri::from_file_path(root.join("lib.tcl")).unwrap(),
+        main: crate::canonical_file_uri(root.join("app.tcl")).unwrap(),
+        child: crate::canonical_file_uri(root.join("lib.tcl")).unwrap(),
         root,
     }
 }
@@ -776,7 +776,7 @@ async fn pending_parent_does_not_mint_an_interpretation_or_completion_receipt() 
         "proc documented {value} {return $value}\n",
     )
     .await;
-    let parent = Uri::from_file_path(fixture.root.join("pending.tcl")).unwrap();
+    let parent = crate::canonical_file_uri(fixture.root.join("pending.tcl")).unwrap();
     open(&backend, &parent, "source main.tcl\n").await;
     backend
         .documents
@@ -800,7 +800,7 @@ async fn ordinary_unknown_factory_hover_is_independent_of_unrelated_source_debt(
     let (fixture, backend) = fixture().await;
     let caller = "UnknownFactory create Made {method go {} {return 1}}";
     open(&backend, &fixture.main, caller).await;
-    let unrelated = Uri::from_file_path(fixture.root.join("unrelated.tcl")).unwrap();
+    let unrelated = crate::canonical_file_uri(fixture.root.join("unrelated.tcl")).unwrap();
     open(&backend, &unrelated, "source missing.tcl\n").await;
     let route = backend
         .original_source_view_hover_route(&fixture.main, Position::new(0, 36))
@@ -1100,7 +1100,7 @@ async fn unavailable_source_hover_never_falls_through_to_lexical_names() {
         .await
         .unwrap();
     assert!(matches!(route, std::ops::ControlFlow::Break(None)));
-    let other = Uri::from_file_path(fixture.root.join("other.tcl")).unwrap();
+    let other = crate::canonical_file_uri(fixture.root.join("other.tcl")).unwrap();
     open(&backend, &other, "proc helper {wrong} {}\n").await;
     let route = backend
         .original_source_view_hover_route(&fixture.main, Position::new(1, 24))

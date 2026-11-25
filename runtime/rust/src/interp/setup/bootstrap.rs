@@ -598,11 +598,16 @@ impl Interp {
     }
 
     pub fn init_library(&mut self) -> Code {
+        self.init_library_from(None)
+    }
+
+    pub(in crate::interp) fn init_library_from(&mut self, library: Option<String>) -> Code {
         let scope = match native_operation_currency::NativeOperationScope::enter(self) {
             Ok(scope) => scope,
             Err(first) => return self.refuse_native_execution(first),
         };
-        let lib = self.host().env().get("TCL_LIBRARY").unwrap_or_default();
+        let lib =
+            library.unwrap_or_else(|| self.host().env().get("TCL_LIBRARY").unwrap_or_default());
         // Source init.tcl, which sets up unknown/auto-load/package + appends
         // tcl_library (and its parent) to auto_path.
         let init_path = format!("{lib}/init.tcl");
@@ -627,7 +632,12 @@ impl Interp {
                 let code = self.eval_sourced(&bytes, init_path.as_bytes());
                 self.end_package_initialization(active);
                 match scope.currency().ensure_current_or_refuse() {
-                    Ok(()) => code,
+                    Ok(()) => {
+                        if code == Code::Ok {
+                            self.initialised_library.replace(Some(lib));
+                        }
+                        code
+                    }
                     Err(first) => self.refuse_native_execution(first),
                 }
             }

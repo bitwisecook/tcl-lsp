@@ -846,7 +846,7 @@ mod compiler_tests {
         let fixture =
             include_str!("../tests/data/native_dictionary_variable_values/observations.tsv");
         for row in fixture.lines().filter(|row| !row.starts_with('#')) {
-            let fields: Vec<_> = row.split('\t').collect();
+            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             let (_, root, key) = cases
                 .iter()
                 .find(|(label, _, _)| *label == fields[1])

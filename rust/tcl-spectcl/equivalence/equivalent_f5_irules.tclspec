@@ -29191,6 +29191,7 @@ command lsearch {
     pattern_type Glob
     reserved_trailing_words 2
 
+    const_fold_versioned -native lsearch::const_fold_versioned
     return_type_hook -native Lsearch
     # TODO(spectcl): `completion` is set on the source spec. The DSL spells it
     #   `completion {CODE …} ?-partial? ?-complete WINDOW?…`, but a draft

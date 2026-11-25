@@ -31,7 +31,14 @@ entirely.
    package appearing in both `require` and `dev-require`.
 4. `version` is semver 2.0 with Tcl-style pre-release spellings (`a1`, `b2`,
    `rc1`). The `tcl` constraint defaults to `>=8.6`.
-5. `require` / `dev-require` take `name minver ?-source URL?`.
+5. `require` and `dev-require` take a package name, a version operand, and
+   optional `-source URL`. Version operands are a plain tclpkg minimum,
+   `{-tcl REQ ?REQ ...?}` for Tcl alternatives, or `{-exact VERSION}` for Tcl
+   equality. The Tcl forms accept `-release RELEASE` after the mode when
+   the source analysis selected a Tcl release. A plain Tcl requirement
+   within `-tcl` stops at the next major
+   release, `min-max` defines a bounded interval, and `min-` has an open
+   upper endpoint.
    `build <script> ?-network?` is a *declaration*: the manifest parser never
    runs it, and `tcl pkg build` runs it deprivileged only when the operator
    has both enabled build scripts and trusted the package.
@@ -46,15 +53,16 @@ entirely.
 
 ## Resolver — MVS (`resolver.rs`)
 
-7. Go-style Minimum Version Selection: a BFS over the dependency graph picking
-   the maximum-of-minimums per package. No upper bounds, no backtracking, no
-   SAT solver.
+7. The resolver visits the dependency graph breadth-first. A package with
+   only plain minimums selects the greatest minimum. A package with Tcl
+   requirements selects the lowest known candidate satisfying every dependency
+   constraint. A single Tcl operand with alternatives accepts any of them.
 8. The resolver is a pure function over data — the caller supplies a provider
    mapping `(name, version)` to that package's own requirements — so it is
    testable without any network or filesystem.
-9. `replace` forces a version for a named package; `exclude` refuses an exact
-   `(name, version)` pair, and if MVS would have selected it the error names
-   the chain that selected it.
+9. `replace` forces a version for a named package if it satisfies the
+   package's Tcl constraints. `exclude` refuses an exact `(name, version)`
+   pair when resolution selects it.
 10. A convergence pass re-processes packages whose minimums were bumped after
     they were first processed. An iteration cap is the safety valve against a
     pathological graph.

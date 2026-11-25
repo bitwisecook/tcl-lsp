@@ -44,7 +44,7 @@ async fn watched_change_refreshes_closed_file_badge() {
     // Starts clean; a prior open/close primed an (empty) badge.
     std::fs::write(&on_disk, "set x 1\n").unwrap();
     let backend = test_backend();
-    let uri = Uri::from_file_path(&on_disk).unwrap();
+    let uri = crate::canonical_file_uri(&on_disk).unwrap();
     backend
         .db_set_source(&uri, "set x 1\n", "tcl8.6".to_owned())
         .await
@@ -91,7 +91,7 @@ async fn watched_delete_clears_closed_file_badge() {
     let on_disk = root.join("warn.tcl");
     std::fs::write(&on_disk, "proc foo {} { set y 1 }\n").unwrap();
     let backend = test_backend();
-    let uri = Uri::from_file_path(&on_disk).unwrap();
+    let uri = crate::canonical_file_uri(&on_disk).unwrap();
     backend
         .db_set_source(&uri, "proc foo {} { set y 1 }\n", "tcl8.6".to_owned())
         .await
@@ -140,9 +140,9 @@ async fn watched_files_batch_applies_created_changed_and_deleted_together() {
     std::fs::write(&deleted_path, "proc deleted_proc {} {}\n").unwrap();
 
     let backend = test_backend();
-    let created_uri = Uri::from_file_path(&created_path).unwrap();
-    let changed_uri = Uri::from_file_path(&changed_path).unwrap();
-    let deleted_uri = Uri::from_file_path(&deleted_path).unwrap();
+    let created_uri = crate::canonical_file_uri(&created_path).unwrap();
+    let changed_uri = crate::canonical_file_uri(&changed_path).unwrap();
+    let deleted_uri = crate::canonical_file_uri(&deleted_path).unwrap();
 
     // Seed the pre-event state: `changed.tcl` and `deleted.tcl` are
     // already indexed (as a prior scan would have left them) under their
@@ -242,7 +242,7 @@ async fn watched_delete_then_create_reuses_source_input() {
     let on_disk = root.join("switched.tcl");
     std::fs::write(&on_disk, "proc foo {} {}\n").unwrap();
     let backend = test_backend();
-    let uri = Uri::from_file_path(&on_disk).unwrap();
+    let uri = crate::canonical_file_uri(&on_disk).unwrap();
     backend
         .db_set_source(&uri, "proc foo {} {}\n", "tcl8.6".to_owned())
         .await

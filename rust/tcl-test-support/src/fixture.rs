@@ -21,8 +21,88 @@
 use std::borrow::Cow;
 use tcl_dialect::TclVersion;
 
+/// One filesystem materialisation of the common workspace scan fixture.
+pub struct WorkspaceScan(std::path::PathBuf);
+
+impl WorkspaceScan {
+    /// Materialise the file names in a private temporary workspace.
+    ///
+    /// # Panics
+    /// Panics when the fixture cannot be created or written.
+    #[must_use]
+    pub fn new() -> Self {
+        use std::sync::atomic::{AtomicU32, Ordering};
+        static NEXT: AtomicU32 = AtomicU32::new(0);
+        let temp = std::env::temp_dir()
+            .canonicalize()
+            .expect("canonical temp directory");
+        let workspace = temp.join(format!(
+            "tcl-workspace-scan-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::create_dir(&workspace).expect("new workspace scan fixture");
+        let fixture = Self(workspace);
+        for name in include_str!("../data/workspace-scan-inputs.txt").lines() {
+            let path = fixture.0.join(name);
+            std::fs::create_dir_all(path.parent().expect("fixture file has a parent")).unwrap();
+            let content = if name.ends_with(".tclspec") {
+                "speclib scan_fixture 1 {}\n"
+            } else if name.ends_with("/tclpkg.tcl") {
+                "package require scan_fixture\n"
+            } else {
+                "set scan_fixture 1\n"
+            };
+            std::fs::write(path, content).expect("workspace fixture file");
+        }
+        fixture
+    }
+
+    /// Root of the fixture's native directory tree.
+    #[must_use]
+    pub fn root(&self) -> &std::path::Path {
+        &self.0
+    }
+
+    /// The sorted Tcl-family paths expected from a recursive workspace scan.
+    #[must_use]
+    pub fn expected_sources(&self) -> Vec<std::path::PathBuf> {
+        let mut paths: Vec<_> = include_str!("../data/workspace-scan-sources.txt")
+            .lines()
+            .map(|path| self.0.join(path))
+            .collect();
+        paths.sort();
+        paths
+    }
+}
+
+impl Default for WorkspaceScan {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Drop for WorkspaceScan {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+/// Physical TSV rows with source line numbers, excluding blank and comment rows.
+pub fn tsv_lines(fixture: &str) -> impl Iterator<Item = (usize, &str)> {
+    fixture.lines().enumerate().filter_map(|(index, line)| {
+        (!line.is_empty() && !line.starts_with('#')).then_some((index + 1, line))
+    })
+}
+
+/// Split one row, preserving leading, internal and trailing empty cells.
+#[must_use]
+pub fn tsv_fields(row: &str) -> std::str::Split<'_, char> {
+    row.split('\t')
+}
+
 /// Read fixed-width TSV fixture rows, preserving empty cells and row order.
-/// Blank lines and lines beginning with `#` after indentation are skipped.
+/// Empty lines and lines starting with `#` are skipped.
 /// The accompanying physical line number is one-based for diagnostics.
 ///
 /// # Panics
@@ -30,12 +110,8 @@ use tcl_dialect::TclVersion;
 pub fn tsv_rows<const COLUMNS: usize>(
     fixture: &str,
 ) -> impl Iterator<Item = (usize, [&str; COLUMNS])> {
-    fixture.lines().enumerate().filter_map(|(index, line)| {
-        if line.trim().is_empty() || line.trim_start().starts_with('#') {
-            return None;
-        }
-        let number = index + 1;
-        let mut cells = line.split('\t');
+    tsv_lines(fixture).map(|(number, line)| {
+        let mut cells = tsv_fields(line);
         let fields = std::array::from_fn(|_| {
             cells
                 .next()
@@ -45,7 +121,7 @@ pub fn tsv_rows<const COLUMNS: usize>(
             cells.next().is_none(),
             "TSV line {number} requires {COLUMNS} fields"
         );
-        Some((number, fields))
+        (number, fields)
     })
 }
 
@@ -96,6 +172,7 @@ mod tests {
         assert_eq!(line, 2);
         assert!(rows.next().is_none());
         assert_eq!(&fields[..2], &["name", ""]);
+        assert_eq!(tsv_rows::<3>("\t\t\n").next(), Some((1, ["", "", ""])));
         assert_eq!(decode_escaped_field(fields[2]), "a\tb\nc\\d");
         assert_eq!(decode_escaped_field(r"\q\"), r"\q\");
     }

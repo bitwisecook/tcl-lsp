@@ -92,6 +92,9 @@ impl ResolveContext {
         &mut self,
         name: &[u8],
         value: Option<&str>,
+        original_value: Option<
+            &crate::command_binding::original_name_value::OriginalProducedNameValue,
+        >,
         protocol: tcl_syntax::naming::NativeNameProtocol,
         registry: &CommandRegistry,
     ) -> Option<bool> {
@@ -163,6 +166,12 @@ impl ResolveContext {
                 ContentsOrigin::Unknown
             },
         );
+        if incoming
+            && let (Some(text), Some(original)) = (value, original_value)
+            && text.as_bytes() == original.bytes()
+        {
+            self.retain_original_name_value(&target, original, registry);
+        }
         Some(true)
     }
 

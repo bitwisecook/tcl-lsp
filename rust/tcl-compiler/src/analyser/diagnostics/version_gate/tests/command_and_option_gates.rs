@@ -316,6 +316,12 @@ fn a_require_range_that_reaches_a_retirement_is_hedged() {
             .all(|(code, _)| code == "W144"),
         "a range inside the window reports only the deprecation"
     );
+    let alternatives = "package require Tcl 8.5-8.7 9.0-9.1\ntrace variable v w handler\n";
+    assert!(
+        lifecycle_diags(alternatives, "tcl8.6")
+            .iter()
+            .any(|(code, message)| code == "W139" && message.contains("9.0-9.1"))
+    );
     // … and so does an open-ended or bare requirement, which states no
     // ceiling at all.
     for req in ["8.5-", "8.5"] {

@@ -577,6 +577,19 @@ impl Analyser {
             ) {
                 continue;
             }
+            if use_site.class == crate::ssa::UseClass::Name
+                && let Some(statement @ (Statement::AssignValue { .. } | Statement::Call { .. })) =
+                    stmt_opt
+                && super::super::helpers::original_argument_use_has_no_read(
+                    fu,
+                    statement,
+                    (use_id, use_index),
+                    cell_name,
+                    &self.profile_registry(),
+                )
+            {
+                continue;
+            }
             if let Ok(index) = usize::try_from(use_site.statement_index) {
                 let tokens =
                     crate::ssa::SsaSourceView::at_statement(&fu.ssa, use_id, index).source_tokens();

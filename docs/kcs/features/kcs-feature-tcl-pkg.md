@@ -51,9 +51,10 @@ package require $dependency 1.3
 ```
 
 The default is read-only. `--add` appends only deterministic, unconditional
-requirements that the minimum-version manifest can represent. Dynamic names or
-versions, guarded or loop-contained requirements, `-exact`, bounded ranges, and
-multiple alternative requirements are reported for review instead of guessed.
+requirements. It writes exact versions as `{-exact VERSION}` and Tcl
+requirements as `{-tcl REQUIREMENT ...}`, preserving bounded ranges and
+alternatives. Dynamic names or versions and guarded or loop-contained
+requirements stay in the report for review.
 The JSON report preserves every original alternative and every value the
 optimiser can resolve. Installed and generated trees such as `lib/`, `vendor/`,
 `.venv/`, and `target/` are excluded. Add anything the analysis cannot prove

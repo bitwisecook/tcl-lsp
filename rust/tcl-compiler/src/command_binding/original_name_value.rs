@@ -559,10 +559,16 @@ impl OriginalWrittenSourceWords {
     }
 
     pub(super) fn matches_native_words(&self, words: &[tcl_lexer::NativeWord]) -> bool {
+        self.projection()
+            .is_some_and(|original| original.native_words() == words)
+    }
+
+    pub(super) fn projection(
+        &self,
+    ) -> Option<Arc<crate::registry_invocation::OriginalSourceCommandProjection>> {
         self.site
             .source
             .original_lexical_command(&self.words, self.site.offset, self.config)
-            .is_some_and(|original| original.native_words() == words)
     }
 }
 

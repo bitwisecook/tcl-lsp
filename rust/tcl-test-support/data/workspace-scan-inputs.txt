@@ -1,0 +1,15 @@
+lib/installed.tcl
+main.tcl
+notes.txt
+src/pack.tclspec
+src/rule.irul
+src/tclpkg.tcl
+src/widgets.ITK
+src/widgets.tk
+src/build/generated.tk
+src/.venv/activate.tcl
+target/tclpkg.tcl
+target/generated.tclspec
+tmp/discard.itk
+dist/shipped.irul
+vendor/vendored.tcl

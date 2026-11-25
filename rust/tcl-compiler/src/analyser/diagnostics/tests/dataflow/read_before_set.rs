@@ -840,6 +840,69 @@ fn w210_does_not_report_a_name_a_substituted_catch_body_writes() {
 }
 
 #[test]
+fn w210_sees_caller_writes_through_an_original_value_formal() {
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        for source in [
+            include_str!(
+                "../../../../../../../docs/work/name-handling/handover/oo-dispatch-probe/dynamic/e04-upvar.tcl"
+            ),
+            include_str!(
+                "../../../../../../../docs/work/name-handling/handover/oo-dispatch-probe/frames-semantics/fr09-alias-frame.tcl"
+            ),
+            include_str!(
+                "../../../../../../../docs/work/name-handling/handover/oo-dispatch-probe/variables-lookup/v05-upvar-callee.tcl"
+            ),
+        ] {
+            let diagnostics = w210_codes_in_dialect(source, dialect);
+            assert!(
+                diagnostics.is_empty(),
+                "{dialect}: {source}\n{diagnostics:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn w210_keeps_caller_writes_across_a_root_frame_selection() {
+    let source = include_str!(
+        "../../../../../../../docs/work/name-handling/handover/oo-dispatch-probe/frames-semantics/fr01-uplevel-levels.tcl"
+    );
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        let diagnostics = w210_codes_in_dialect(source, dialect);
+        assert!(diagnostics.is_empty(), "{dialect}: {diagnostics:?}");
+    }
+}
+
+#[test]
+fn w210_sees_defined_catch_and_matcher_contents() {
+    let catch = include_str!(
+        "../../../../../../../docs/work/name-handling/handover/oo-dispatch-probe/dynamic/e27-catch-var.tcl"
+    );
+    let matcher = include_str!(
+        "../../../../../../../docs/work/name-handling/handover/oo-dispatch-probe/variables-lookup/v17-catch-regexp.tcl"
+    );
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        for source in [catch, matcher] {
+            let diagnostics = w210_codes_in_dialect(source, dialect);
+            assert!(
+                diagnostics.is_empty(),
+                "{dialect}: {source}\n{diagnostics:?}"
+            );
+        }
+        let failed_catch =
+            "proc p {} { catch {error bad; set inside 1}; return $inside }\nputs [p]\n";
+        let no_match = matcher.replace(" word ", " --- ");
+        for source in [failed_catch, &no_match] {
+            assert_eq!(
+                w210_codes_in_dialect(source, dialect).len(),
+                1,
+                "{dialect}: {source}"
+            );
+        }
+    }
+}
+
+#[test]
 fn w210_reports_required_named_read_after_unset() {
     let source = "proc p {} { set v 1; unset v; return [catch {set v} m]:$m }\nputs [p]\n";
     let read = source.rfind("v}").unwrap();
@@ -858,6 +921,22 @@ fn w210_reports_required_named_read_after_unset() {
             w210_codes_in_dialect(probe, dialect).is_empty(),
             "{dialect}"
         );
+    }
+}
+
+#[test]
+fn w210_reports_required_read_of_an_allocated_but_unset_global_link() {
+    let source = "set g 1\nproc p {} { global g; return $g }\nproc q {} { return $::g }\nproc r {} { global nope; return [catch {set nope} m]:$m }\nputs [r]\nputs [p][q]\n";
+    let read = source.rfind("nope}").unwrap();
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        let result = Analyser::new().analyse(source, dialect);
+        let spans = result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W210)
+            .map(|d| d.span.as_range())
+            .collect::<Vec<_>>();
+        assert_eq!(spans, std::slice::from_ref(&(read..read + 4)), "{dialect}");
     }
 }
 

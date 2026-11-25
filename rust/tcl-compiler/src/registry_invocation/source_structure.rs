@@ -73,6 +73,7 @@ pub use advice_queries::{
 };
 pub(crate) use advice_queries::{
     source_authored_jim_procedure_members_at, source_produced_command_prefix_words_in,
+    source_reached_procedure_call_at,
 };
 pub use expression_rewrites::{
     OriginalExpressionBooleanInversion, OriginalExpressionOperatorRewrite,

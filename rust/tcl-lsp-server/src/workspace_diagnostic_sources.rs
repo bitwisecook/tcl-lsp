@@ -34,14 +34,36 @@ pub(super) struct WorkspaceDiagnosticSource {
     saved_bytes: Option<Vec<u8>>,
 }
 
+struct WorkspaceConfigurations {
+    root: std::path::PathBuf,
+    documents: HashMap<Uri, DocumentState>,
+}
+
+fn workspace_configuration_documents<'a>(
+    documents: &'a HashMap<Uri, DocumentState>,
+    root: &'a std::path::Path,
+) -> impl Iterator<Item = (&'a Uri, &'a DocumentState)> {
+    documents.iter().filter(move |(_, document)| {
+        super::Backend::is_bigip_dialect(&document.dialect)
+            && !document.backing_file_deleted
+            && !tcl_lsp_core::source_decode::should_abstain(document.decode_report.as_ref())
+            && document
+                .path_admission
+                .as_ref()
+                .and_then(|admission| admission.path())
+                .is_some_and(|path| path.starts_with(root))
+    })
+}
+
 #[derive(Default)]
 pub(super) struct WorkspaceDiagnosticSources {
     selected: Vec<WorkspaceDiagnosticSource>,
+    configurations: Option<WorkspaceConfigurations>,
 }
 
 impl WorkspaceDiagnosticSources {
     pub(super) fn is_empty(&self) -> bool {
-        self.selected.is_empty()
+        self.selected.is_empty() && self.configurations.is_none()
     }
 
     /// Called while the actual document and index query guards are both held.
@@ -99,7 +121,43 @@ impl WorkspaceDiagnosticSources {
                 saved_bytes: None,
             });
         }
-        Ok(Self { selected })
+        Ok(Self {
+            selected,
+            configurations: None,
+        })
+    }
+
+    /// Retain the current BIG-IP source buffers in the caller's workspace folder.
+    /// A same-path document replacement cannot renew the captured source.
+    pub(super) fn capture_configurations(
+        &mut self,
+        documents: &HashMap<Uri, DocumentState>,
+        root: &std::path::Path,
+        store: &dyn vfs::SourceStore,
+    ) -> Result<(), DiagnosticUnavailable> {
+        let mut providers = HashMap::new();
+        for (uri, state) in workspace_configuration_documents(documents, root) {
+            let admission = state
+                .path_admission
+                .as_ref()
+                .ok_or(DiagnosticUnavailable::Context)?;
+            admission
+                .check_for(uri, store)
+                .map_err(|_| DiagnosticUnavailable::Context)?;
+            providers.insert(uri.clone(), state.clone());
+        }
+        self.configurations = Some(WorkspaceConfigurations {
+            root: root.to_owned(),
+            documents: providers,
+        });
+        Ok(())
+    }
+
+    pub(super) fn configuration_texts(&self) -> impl Iterator<Item = &str> {
+        self.configurations
+            .iter()
+            .flat_map(|sources| sources.documents.values())
+            .map(|source| source.text.as_ref())
     }
 
     /// Read only the exact selected saved inputs, after releasing query guards.
@@ -143,20 +201,24 @@ impl WorkspaceDiagnosticSources {
         documents: &HashMap<Uri, DocumentState>,
         index: &core_workspace_index::WorkspaceIndex,
     ) -> bool {
-        self.selected.iter().all(|selected| {
+        self.configurations.as_ref().is_none_or(|capture| {
+            let mut seen = 0;
+            let current =
+                workspace_configuration_documents(documents, &capture.root).all(|(uri, state)| {
+                    seen += 1;
+                    capture
+                        .documents
+                        .get(uri)
+                        .is_some_and(|retained| same_document_revision(retained, state))
+                });
+            current && seen == capture.documents.len()
+        }) && self.selected.iter().all(|selected| {
             if !index.logical_command_candidate_is_current(&selected.candidate) {
                 return false;
             }
             match (&selected.document, documents.get(&selected.uri)) {
                 (Some(retained), Some(current)) => {
-                    current.revision == retained.revision
-                        && current.version == retained.version
-                        && current.text == retained.text
-                        && current.dialect == retained.dialect
-                        && current.dialect_resolution_generation
-                            == retained.dialect_resolution_generation
-                        && current.resolved_dialect_generation
-                            == retained.resolved_dialect_generation
+                    same_document_revision(retained, current)
                         && current.publication == DocumentPublication::Indexed
                         && !current.backing_file_deleted
                         && current
@@ -192,8 +254,37 @@ impl WorkspaceDiagnosticSources {
                 saved.push((path, bytes.as_slice()));
             }
         }
+        for (uri, state) in self
+            .configurations
+            .iter()
+            .flat_map(|sources| &sources.documents)
+        {
+            let admission = state
+                .path_admission
+                .as_ref()
+                .expect("captured configuration admission");
+            admission.check_for(uri, store)?;
+            mappings.push(admission.current_saved_source_path(store)?);
+        }
         Ok(WorkspaceDiagnosticSourceInputs { mappings, saved })
     }
+}
+
+fn same_document_revision(retained: &DocumentState, current: &DocumentState) -> bool {
+    current.revision == retained.revision
+        && current.version == retained.version
+        && current.text == retained.text
+        && current.dialect == retained.dialect
+        && current.dialect_resolution_generation == retained.dialect_resolution_generation
+        && current.resolved_dialect_generation == retained.resolved_dialect_generation
+        && match (
+            retained.path_admission.as_ref(),
+            current.path_admission.as_ref(),
+        ) {
+            (Some(left), Some(right)) => Arc::ptr_eq(left, right),
+            (None, None) => true,
+            _ => false,
+        }
 }
 
 #[derive(Default)]
@@ -259,9 +350,13 @@ impl WorkspaceDiagnosticSources {
             .first()
             .map(|admission| admission.uri())
             .or_else(|| {
-                sources
-                    .iter()
-                    .find_map(|sources| sources.selected.first().map(|source| &source.uri))
+                sources.iter().find_map(|sources| {
+                    sources
+                        .selected
+                        .first()
+                        .map(|source| &source.uri)
+                        .or_else(|| sources.configurations.as_ref()?.documents.keys().next())
+                })
             })
             .expect("nonempty selected sources have an original URI");
         let mut result = None;
@@ -282,6 +377,60 @@ impl WorkspaceDiagnosticSources {
 mod tests {
     use super::*;
     use vfs::{MemoryStore, SourceStore};
+
+    #[test]
+    fn workspace_bigip_configs_promote_only_current_data_group_keys() {
+        let store = MemoryStore::new();
+        let index = core_workspace_index::WorkspaceIndex::new();
+        let root = std::path::Path::new("/workspace");
+        let uri = Uri::from_str("file:///workspace/bigip.conf").unwrap();
+        let config = "ltm data-group internal /Common/int_dg { type integer\n records { 129 { data hit } } }";
+        store.upsert_uri(
+            uri.as_str(),
+            "/workspace/bigip.conf",
+            config.as_bytes().to_vec(),
+        );
+        let admission = Arc::new(DocumentPathAdmission::capture(&uri, &store).unwrap());
+        let document = DocumentState::with_version(config.to_owned(), "f5-bigip".to_owned(), 1)
+            .with_path_admission(admission);
+        let mut documents = HashMap::new();
+        let mut empty = WorkspaceDiagnosticSources::default();
+        empty
+            .capture_configurations(&documents, root, &store)
+            .unwrap();
+        documents.insert(uri.clone(), document);
+        assert!(!empty.matches(&documents, &index));
+
+        let mut sources = WorkspaceDiagnosticSources::default();
+        sources
+            .capture_configurations(&documents, root, &store)
+            .unwrap();
+        assert!(sources.matches(&documents, &index));
+        let irule = "when CLIENT_DATA {\n binary scan [TCP::payload] c item\n class match -- $item equals int_dg\n}";
+        let mut result = Analyser::new().analyse(irule, "f5-irules");
+        let original = result
+            .diagnostics
+            .iter()
+            .find(|diag| diag.code.as_str() == "W156")
+            .unwrap();
+        assert_eq!(original.severity, tcl_compiler::analyser::Severity::Hint);
+        super::super::diagnostics::refine_signed_data_group_diagnostics(
+            &mut result.diagnostics,
+            sources.configuration_texts(),
+        );
+        let warning = result
+            .diagnostics
+            .iter()
+            .find(|diag| diag.code.as_str() == "W156")
+            .unwrap();
+        assert_eq!(warning.severity, tcl_compiler::analyser::Severity::Warning);
+        assert!(warning.message.contains("Configured key 129"));
+
+        documents.get_mut(&uri).unwrap().bump_analysis_generation();
+        assert!(!sources.matches(&documents, &index));
+        documents.remove(&uri);
+        assert!(!sources.matches(&documents, &index));
+    }
 
     #[test]
     fn actual_selected_source_revision_and_header_allocation_are_not_renewed() {

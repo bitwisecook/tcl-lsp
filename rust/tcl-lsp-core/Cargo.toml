@@ -73,6 +73,7 @@ tcl-spectcl = { path = "../tcl-spectcl" }
 tcl-test-support = { path = "../tcl-test-support" }
 # One reported test per conformance row (`tests/conformance`).
 libtest-mimic = "0.8.2"
+insta = { version = "1.47.2", default-features = false }
 
 
 # Match the server provider's mutually exclusive runtime features per target.

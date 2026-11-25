@@ -28,16 +28,16 @@ use tcl_registry::body_execution::{BodyExecutionSelection, BodyExecutionSpec, Bo
 use tcl_syntax::word_rules::WordValueRules;
 
 /// A loader for `package` when the registry declares its commands, through a
-/// loaded `SpecTcl` pack or a shipped package spec. Package names compare as
-/// `policy`'s package keys. It installs exactly the declared surface; a
-/// package that also redefines other commands is not modelled.
+/// loaded `SpecTcl` pack or a shipped package spec. The written package key
+/// selects matching registry descriptors and their declared aliases. The
+/// loader installs the declared surface under the exact written package key.
 #[must_use]
 pub fn declared_surface_package_loader(
     registry: &tcl_registry::CommandRegistry,
     package: &str,
     policy: tcl_syntax::naming::NamePolicyProtocol,
 ) -> Option<crate::command_binding::TrustedPackageLoader> {
-    use tcl_registry::native_package::NativePackageNameKey;
+    use tcl_registry::native_package::{NativePackageNameKey, matches_package_descriptor};
     let requested = NativePackageNameKey::from_native_units(package.as_bytes(), policy);
     let mut command_surface = Vec::new();
     // The export list a later `namespace import` filters by: the commands the
@@ -47,9 +47,10 @@ pub fn declared_surface_package_loader(
         let Some(spec) = registry.get(key.label()) else {
             continue;
         };
-        if spec.required_package.is_none_or(|required| {
-            NativePackageNameKey::from_native_units(required.as_bytes(), policy) != requested
-        }) {
+        if spec
+            .required_package
+            .is_none_or(|required| !matches_package_descriptor(requested.bytes(), required))
+        {
             continue;
         }
         let rooted = key.rooted_binding_label();
@@ -999,6 +1000,19 @@ mod tests {
     use crate::ir::Statement;
     use crate::lowering::lower_to_ir_with;
     use tcl_registry::CommandRegistry;
+
+    #[test]
+    fn declared_package_aliases_select_descriptors_and_keep_written_keys() {
+        let registry = CommandRegistry::build_default();
+        let policy =
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6);
+        let lower = declared_surface_package_loader(&registry, "itcl", policy).unwrap();
+        let upper = declared_surface_package_loader(&registry, "Itcl", policy).unwrap();
+        assert_eq!(lower.command_surface, upper.command_surface);
+        assert_eq!(lower.package, "itcl");
+        assert_eq!(upper.package, "Itcl");
+        assert!(declared_surface_package_loader(&registry, "ITCL", policy).is_none());
+    }
 
     #[test]
     fn possible_f5_conditional_retains_original_expression_ownership() {

@@ -18,48 +18,35 @@
 
 //! The optimistic fixpoint over the blocks in reverse post-order: seeds, φ joins and the per-block step.
 
-use super::super::{join, set_value};
+use super::super::{incoming_executable_predecessors, join, set_value, settle_reachability};
 use super::branches::sccp_process_terminator;
 use super::refinements::{narrow_values, restore_values};
 use super::statements::{clobber_at_unseen_call, sccp_process_statements};
 use super::{BlockExit, CatchBodies, StatementInputs, SweepContext, SweepState, TerminatorInputs};
 use crate::analyses::LatticeValue;
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
-use crate::ssa::{SsaFunction, ValueKey};
+use crate::ssa::{SsaFunction, Symbol, ValueKey};
 use crate::value_transfer::LatticeDriver;
 use rustc_hash::FxHashSet;
 use std::collections::{HashMap, HashSet};
 
 impl SweepContext<'_> {
-    /// The optimistic fixpoint over the RPO sweep, followed by a finalising
-    /// pass that forces both arms for any executable branch still stuck on an
-    /// UNKNOWN condition (defensive: a value defined only in unreachable code
-    /// could otherwise leave a successor spuriously unreachable).
-    /// `finalizing` is monotone, so the outer loop runs at most twice.
+    /// Settle the optimiser's block transfers over the shared reachability sweep.
     pub(super) fn settle(&self, order: &[BlockId], state: &mut SweepState) {
-        let mut finalizing = false;
-        loop {
-            let mut changed = true;
-            while changed {
-                changed = false;
-                // Every sweep re-evaluates each executable statement from
-                // scratch, so only the settled sweep's route entries — the
-                // last one run — should reach the tally. Each sweep is one
-                // iteration of the run's request: a tenth of what it has left.
-                self.driver.reset_tally_for_sweep();
-                self.driver.reset_undecided_for_sweep();
-                self.driver.open_iteration();
-                for bn in order {
-                    if state.executable_blocks.contains(bn) {
-                        changed |= self.block(*bn, state, finalizing);
-                    }
+        settle_reachability(|finalizing| {
+            // Every sweep re-evaluates each statement. Only the settled
+            // sweep's route entries belong in the reported tally.
+            self.driver.reset_tally_for_sweep();
+            self.driver.reset_undecided_for_sweep();
+            self.driver.open_iteration();
+            let mut changed = false;
+            for bn in order {
+                if state.executable_blocks.contains(bn) {
+                    changed |= self.block(*bn, state, finalizing);
                 }
             }
-            if finalizing {
-                break;
-            }
-            finalizing = true;
-        }
+            changed
+        });
     }
 
     /// One executable block of a sweep: its φs, its statements, the
@@ -75,12 +62,8 @@ impl SweepContext<'_> {
             return false;
         };
         let mut changed = false;
-        let incoming_exec: Vec<BlockId> = self.preds.get(&bn).map_or_default(|set| {
-            set.iter()
-                .copied()
-                .filter(|p| state.executable_edges.contains(&(*p, bn)))
-                .collect()
-        });
+        let incoming_exec =
+            incoming_executable_predecessors(bn, self.preds, &state.executable_edges);
 
         // Phi nodes (not at entry, only when some predecessor is
         // executable).
@@ -223,13 +206,13 @@ impl SweepContext<'_> {
 /// resolves to this build's interned symbol. A parameter never read in the
 /// body isn't interned, and its seed slot would never be consulted, so
 /// dropping it is behaviour-neutral.
-pub(super) fn seeded_values(
-    ssa: &SsaFunction,
+pub(in super::super) fn seeded_values(
     param_constants: Option<&HashMap<(String, crate::ssa::Version), LatticeValue>>,
+    symbol_of: impl Fn(&str) -> Option<Symbol>,
 ) -> HashMap<ValueKey, LatticeValue> {
     let mut values = HashMap::new();
     for ((name, version), value) in param_constants.into_iter().flatten() {
-        if let Some(sym) = ssa.var_symbol(name) {
+        if let Some(sym) = symbol_of(name) {
             values.insert((sym, *version), value.clone());
         }
     }
@@ -247,6 +230,7 @@ pub(in super::super) fn seed_live_in_roots<S: std::hash::BuildHasher>(
     ssa: &SsaFunction,
     values: &mut HashMap<ValueKey, LatticeValue, S>,
     grammar: tcl_dialect::LexerGrammar,
+    branch_symbol: impl Fn(BlockId, &str) -> Option<Symbol>,
 ) {
     let mut defined_keys: FxHashSet<ValueKey> = FxHashSet::default();
     let mut used_keys: FxHashSet<ValueKey> = FxHashSet::default();
@@ -279,7 +263,7 @@ pub(in super::super) fn seed_live_in_roots<S: std::hash::BuildHasher>(
             && let Some(sb) = ssa.blocks.get(bn)
         {
             for var in crate::var_refs::vars_in_expr(condition, grammar) {
-                let Some(sym) = ssa.var_symbol(&var) else {
+                let Some(sym) = branch_symbol(*bn, &var) else {
                     continue;
                 };
                 let ver = sb.exit_versions.get(&sym).copied().unwrap_or(0);

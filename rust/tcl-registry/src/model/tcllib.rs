@@ -169,6 +169,18 @@ pub const TCLLIB_MODULES: &[TcllibModule] = &[
         evidence: "bench/pkgIndex.tcl",
     },
     TcllibModule {
+        package: "bench::out::csv",
+        trains: &["0.1.3"],
+        core_floor: Some("8.5"),
+        evidence: "bench/pkgIndex.tcl",
+    },
+    TcllibModule {
+        package: "bench::out::text",
+        trains: &["0.1.3"],
+        core_floor: Some("8.5"),
+        evidence: "bench/pkgIndex.tcl",
+    },
+    TcllibModule {
         package: "bibtex",
         trains: &["0.8"],
         core_floor: Some("8.5"),
@@ -327,6 +339,12 @@ pub const TCLLIB_MODULES: &[TcllibModule] = &[
         evidence: "fumagic/pkgIndex.tcl",
     },
     TcllibModule {
+        package: "fileutil::magic::filetype",
+        trains: &["2.0.2"],
+        core_floor: Some("8.6"),
+        evidence: "fumagic/pkgIndex.tcl",
+    },
+    TcllibModule {
         package: "fileutil::magic::rt",
         trains: &["3.1"],
         core_floor: Some("8.6"),
@@ -363,6 +381,12 @@ pub const TCLLIB_MODULES: &[TcllibModule] = &[
         trains: &["0.4.2"],
         core_floor: Some("8.5"),
         evidence: "grammar_fa/pkgIndex.tcl",
+    },
+    TcllibModule {
+        package: "grammar::me::cpu",
+        trains: &["0.3"],
+        core_floor: Some("8.5"),
+        evidence: "grammar_me/pkgIndex.tcl",
     },
     TcllibModule {
         package: "grammar::me::cpu::gasm",
@@ -744,6 +768,24 @@ pub const TCLLIB_MODULES: &[TcllibModule] = &[
         evidence: "page/pkgIndex.tcl",
     },
     TcllibModule {
+        package: "page::util::flow",
+        trains: &["0.2"],
+        core_floor: None,
+        evidence: "page/pkgIndex.tcl",
+    },
+    TcllibModule {
+        package: "page::util::norm::lemon",
+        trains: &["0.2"],
+        core_floor: None,
+        evidence: "page/pkgIndex.tcl",
+    },
+    TcllibModule {
+        package: "page::util::norm::peg",
+        trains: &["0.2"],
+        core_floor: None,
+        evidence: "page/pkgIndex.tcl",
+    },
+    TcllibModule {
         package: "page::util::peg",
         trains: &["0.2"],
         core_floor: None,
@@ -797,6 +839,12 @@ pub const TCLLIB_MODULES: &[TcllibModule] = &[
     TcllibModule {
         package: "pt::peg",
         trains: &["1.1.1"],
+        core_floor: Some("8.5"),
+        evidence: "pt/pkgIndex.tcl",
+    },
+    TcllibModule {
+        package: "pt::rde",
+        trains: &["1.2"],
         core_floor: Some("8.5"),
         evidence: "pt/pkgIndex.tcl",
     },
@@ -1000,6 +1048,18 @@ pub const TCLLIB_MODULES: &[TcllibModule] = &[
         evidence: "virtchannel_base/pkgIndex.tcl",
     },
     TcllibModule {
+        package: "tcl::chan::core",
+        trains: &["1.1"],
+        core_floor: Some("8.5"),
+        evidence: "virtchannel_core/pkgIndex.tcl",
+    },
+    TcllibModule {
+        package: "tcl::chan::events",
+        trains: &["1.1"],
+        core_floor: Some("8.5"),
+        evidence: "virtchannel_core/pkgIndex.tcl",
+    },
+    TcllibModule {
         package: "tcl::chan::facade",
         trains: &["1.0.2"],
         core_floor: Some("8.5"),
@@ -1094,6 +1154,12 @@ pub const TCLLIB_MODULES: &[TcllibModule] = &[
         trains: &["1.1"],
         core_floor: Some("8.6"),
         evidence: "virtchannel_transform/pkgIndex.tcl",
+    },
+    TcllibModule {
+        package: "tcl::transform::core",
+        trains: &["1.1"],
+        core_floor: Some("8.5"),
+        evidence: "virtchannel_core/pkgIndex.tcl",
     },
     TcllibModule {
         package: "tcl::transform::counter",
@@ -1331,77 +1397,6 @@ pub const TCLLIB_MODULES: &[TcllibModule] = &[
         evidence: "zip/pkgIndex.tcl",
     },
 ];
-
-/// The names the compiled catalogue uses as a tcllib "package" that
-/// tcllib 2.0 **does not provide** — the identity census's residue,
-/// recorded rather than silently renamed.
-///
-/// Each row is `(catalogue name, what the sources actually say)`. Two
-/// kinds live here:
-///
-/// - **Namespace prefixes.** `tcl::chan`, `tcl::transform`,
-///   `fileutil::magic`, `grammar::me`, `page::util`, `page::util::norm`,
-///   `bench::out` and `pt` are the *common prefix* of a family of real
-///   packages (`tcl::chan::fifo` 1.1, `fileutil::magic::rt` 3.1, …), not
-///   packages themselves. A `package require tcl::chan` fails; the
-///   catalogue nonetheless files those commands under the prefix, so
-///   W120 currently nags for a require that cannot be written.
-/// - **Documentation identities.** `pt_export_api` and `pt_import_api`
-///   are doctools *manpage* names for plugin interfaces
-///   (`pt/pt_to_api.man`, `pt/pt_from_api.man`), never `package provide`d
-///   at all; `tcl::combine` is a bare `proc` in
-///   `virtchannel_base/randseed.tcl`, whose package is `tcl::randomseed`.
-///
-/// Fixing these means re-filing the affected commands under their real
-/// providers, which is per-command surface work rather than identity
-/// work, so this table records the census and leaves the rows. The exhaustiveness
-/// test `the_identity_census_is_closed` (in `commands::tcllib`) fails the
-/// build if a *new* unbacked name appears, so the list can only shrink.
-pub const UNBACKED_PACKAGE_NAMES: &[(&str, &str)] = &[
-    (
-        "bench::out",
-        "prefix of bench::out::csv / bench::out::text 0.1.3",
-    ),
-    (
-        "fileutil::magic",
-        "prefix of fileutil::magic::rt 3.1 and siblings",
-    ),
-    ("grammar::me", "prefix of grammar::me::tcl 0.2 and siblings"),
-    (
-        "page::util",
-        "prefix of page::util::peg / ::quote / ::norm::* 0.2",
-    ),
-    (
-        "page::util::norm",
-        "prefix of page::util::norm::peg / ::lemon 0.2",
-    ),
-    ("pt", "prefix of pt::ast 1.2, pt::peg 1.0 and siblings"),
-    (
-        "pt_export_api",
-        "a doctools manpage identity (pt/pt_to_api.man)",
-    ),
-    (
-        "pt_import_api",
-        "a doctools manpage identity (pt/pt_from_api.man)",
-    ),
-    ("tcl::chan", "prefix of tcl::chan::fifo 1.1 and siblings"),
-    (
-        "tcl::combine",
-        "a proc in virtchannel_base/randseed.tcl; package is tcl::randomseed",
-    ),
-    (
-        "tcl::transform",
-        "prefix of tcl::transform::hex 1.1 and siblings",
-    ),
-];
-
-/// Whether `package` is a recorded [`UNBACKED_PACKAGE_NAMES`] row.
-#[must_use]
-pub fn is_unbacked_package_name(package: &str) -> bool {
-    UNBACKED_PACKAGE_NAMES
-        .iter()
-        .any(|&(name, _)| name == package)
-}
 
 /// The modelled tcllib module named `package`, if the table carries one.
 #[must_use]

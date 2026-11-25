@@ -117,7 +117,7 @@ impl Fixture {
         let path = root.join("source.tcl");
         std::fs::write(&path, "proc p {} {}\n").unwrap();
         std::fs::write(root.join("tcl8.6.tcl.stubs"), "stub old_command {}\n").unwrap();
-        let uri = Uri::from_file_path(&path).unwrap();
+        let uri = crate::canonical_file_uri(&path).unwrap();
         let (resume, receiver) = std::sync::mpsc::channel();
         let store = Arc::new(ReadPauseStore {
             target: path,
@@ -200,7 +200,7 @@ async fn queued_index_writer(backend: &Backend) {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn autoload_definition_recaptures_the_whole_query_after_input_publication() {
     let fixture = Fixture::with_native_saved_sources(1).await;
-    let caller = Uri::from_file_path(fixture.root.join("caller.tcl")).unwrap();
+    let caller = crate::canonical_file_uri(fixture.root.join("caller.tcl")).unwrap();
     let source = "p\n";
     fixture
         .backend

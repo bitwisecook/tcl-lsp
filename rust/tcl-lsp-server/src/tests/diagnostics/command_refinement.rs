@@ -194,11 +194,11 @@ fn arity_codes(
 }
 
 pub(in super::super) fn caller_uri() -> Uri {
-    Uri::from_file_path("/proj/plaincaller.tcl").unwrap()
+    crate::canonical_file_uri("/proj/plaincaller.tcl").unwrap()
 }
 
 fn deflib() -> Uri {
-    Uri::from_file_path("/proj/deflib.tcl").unwrap()
+    crate::canonical_file_uri("/proj/deflib.tcl").unwrap()
 }
 
 /// **TP.** The cross-file call resolves (so its W123 is
@@ -251,8 +251,8 @@ fn cross_file_call_with_a_fitting_count_is_silent() {
 
 #[test]
 fn cross_file_source_candidates_do_not_match_foreign_namespace_tails() {
-    let caller = Uri::from_file_path("/proj/caller.tcl").unwrap();
-    let foreign = Uri::from_file_path("/proj/foreign.tcl").unwrap();
+    let caller = crate::canonical_file_uri("/proj/caller.tcl").unwrap();
+    let foreign = crate::canonical_file_uri("/proj/foreign.tcl").unwrap();
     let (analysis, settled) = settle(
         &caller,
         "namespace eval caller { helper x }\n",
@@ -264,8 +264,8 @@ fn cross_file_source_candidates_do_not_match_foreign_namespace_tails() {
 
 #[test]
 fn cross_file_math_function_uses_the_retained_expression_coordinate() {
-    let caller = Uri::from_file_path("/proj/vector.tcl").unwrap();
-    let mathfunc = Uri::from_file_path("/proj/mathfunc.tcl").unwrap();
+    let caller = crate::canonical_file_uri("/proj/vector.tcl").unwrap();
+    let mathfunc = crate::canonical_file_uri("/proj/mathfunc.tcl").unwrap();
     let source = "expr {Pi()}\n";
     let (analysis, settled) = settle(
         &caller,
@@ -287,7 +287,7 @@ fn cross_file_math_function_uses_the_retained_expression_coordinate() {
 /// identity runs, but it does know the call fits neither.
 #[test]
 fn disjoint_cross_file_arity_ranges_reject_the_gap() {
-    let second = Uri::from_file_path("/proj/deflib2.tcl").unwrap();
+    let second = crate::canonical_file_uri("/proj/deflib2.tcl").unwrap();
     let (analysis, settled) = settle(
         &caller_uri(),
         "p 1 2\n",
@@ -308,7 +308,7 @@ fn disjoint_cross_file_arity_ranges_reject_the_gap() {
 /// preserving the gap must not turn the union into an intersection.
 #[test]
 fn disjoint_cross_file_arity_ranges_accept_each_member() {
-    let second = Uri::from_file_path("/proj/deflib2.tcl").unwrap();
+    let second = crate::canonical_file_uri("/proj/deflib2.tcl").unwrap();
     for call in ["p 1\n", "p 1 2 3\n"] {
         let (analysis, settled) = settle(
             &caller_uri(),
@@ -738,7 +738,7 @@ async fn pkgindex_package_source_command_suppresses_w123() {
         resolver.scan_tree(&ws.0, 100);
         *backend.package_resolver.write().await = resolver;
     }
-    let util = Uri::from_file_path("/proj/lib/util.tcl").unwrap();
+    let util = crate::canonical_file_uri("/proj/lib/util.tcl").unwrap();
     // The module calls `draw_widget` with no local `package require`.
     let util_src = "draw_widget .w\n";
 
@@ -761,7 +761,7 @@ async fn pkgindex_package_source_command_suppresses_w123() {
         let analysis = a
             .analyse("package require mylib\nsource lib/util.tcl\n", "tcl8.6")
             .clone();
-        let app = Uri::from_file_path("/proj/app.tcl").unwrap();
+        let app = crate::canonical_file_uri("/proj/app.tcl").unwrap();
         backend
             .workspace_index
             .write()
@@ -804,7 +804,7 @@ async fn cross_file_resolves_against_disk_backed_file() {
 
     let backend = test_backend();
     *backend.default_dialect.lock().await = "tcl".to_owned();
-    let b = Uri::from_file_path(&on_disk).unwrap();
+    let b = crate::canonical_file_uri(&on_disk).unwrap();
     let a = Uri::from_str("file:///caller.tcl").unwrap();
 
     // B is on disk but never opened — the did_close / scan path indexes it
@@ -859,7 +859,7 @@ async fn cross_file_drops_disk_backed_file_when_gone() {
 
     let backend = test_backend();
     *backend.default_dialect.lock().await = "tcl".to_owned();
-    let b = Uri::from_file_path(&on_disk).unwrap();
+    let b = crate::canonical_file_uri(&on_disk).unwrap();
     let a = Uri::from_str("file:///caller.tcl").unwrap();
     backend.feature_toggles.lock().await.apply(
         serde_json::json!({ "crossFileResolution": true })

@@ -125,7 +125,7 @@ mod tests {
                 .native_ensemble_rewrite_protocol()
                 .unwrap();
             for row in observations.lines() {
-                let fields: Vec<_> = row.split('\t').collect();
+                let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
                 let receipt: Vec<_> = fields[1].split(' ').collect();
                 assert_eq!(fields[2], "0", "{version:?}: {row}");
                 assert_eq!(receipt[0], "before=1", "{version:?}: {row}");

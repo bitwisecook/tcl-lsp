@@ -40,7 +40,7 @@ async fn disk_reindex_waiting_for_the_index_never_holds_documents_1800() {
     std::fs::write(&on_disk, "proc disk_copy {} {}\n").unwrap();
 
     let backend = Arc::new(test_backend());
-    let uri = Uri::from_file_path(&on_disk).unwrap();
+    let uri = crate::canonical_file_uri(&on_disk).unwrap();
     let index_held = backend.workspace_index.write().await;
     let reindexing = crate::rt::spawn({
         let backend = Arc::clone(&backend);
@@ -97,7 +97,7 @@ async fn disk_reindex_waiting_for_a_salsa_snapshot_never_holds_documents_1800() 
     std::fs::write(&on_disk, "proc disk_copy {} {}\n").unwrap();
 
     let backend = Arc::new(test_backend());
-    let uri = Uri::from_file_path(&on_disk).unwrap();
+    let uri = crate::canonical_file_uri(&on_disk).unwrap();
     // Production code must never retain a snapshot across an await. This
     // test does so intentionally to make the setter's blocking precondition
     // stable for the duration of the experiment.
@@ -162,7 +162,7 @@ async fn disk_reindex_yields_to_a_racing_live_buffer_1800() {
     std::fs::write(&on_disk, "proc stale {} {}\n").unwrap();
 
     let backend = Arc::new(test_backend());
-    let uri = Uri::from_file_path(&on_disk).unwrap();
+    let uri = crate::canonical_file_uri(&on_disk).unwrap();
     let mut index_held = backend.workspace_index.write().await;
     let stale_analysis = Analyser::new()
         .analyse("proc stale {} {}\n", "tcl8.6")

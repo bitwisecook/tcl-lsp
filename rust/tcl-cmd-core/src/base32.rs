@@ -39,20 +39,11 @@ pub enum Alphabet {
 }
 
 impl Alphabet {
-    const fn symbols(self) -> &'static [u8; 32] {
+    const fn encoding(self) -> data_encoding::Encoding {
         match self {
-            Self::Standard => b"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567",
-            Self::ExtendedHex => b"0123456789ABCDEFGHIJKLMNOPQRSTUV",
+            Self::Standard => data_encoding::BASE32,
+            Self::ExtendedHex => data_encoding::BASE32HEX,
         }
-    }
-
-    /// The value of `symbol`, in either case.
-    fn value(self, symbol: u8) -> Option<u8> {
-        let upper = symbol.to_ascii_uppercase();
-        self.symbols()
-            .iter()
-            .position(|&candidate| candidate == upper)
-            .and_then(|at| u8::try_from(at).ok())
     }
 }
 
@@ -70,42 +61,11 @@ pub enum DecodeError {
     NonCanonical,
 }
 
-/// The padding a final group of `bytes` data bytes takes, and the trailing
-/// bits of its last character that carry no data.
-const fn tail_shape(bytes: usize) -> (usize, u32) {
-    match bytes {
-        1 => (6, 2),
-        2 => (4, 4),
-        3 => (3, 1),
-        4 => (1, 3),
-        _ => (0, 0),
-    }
-}
-
 /// `data` encoded: eight characters for every five bytes, the last group
 /// padded with `=`.
 #[must_use]
 pub fn encode(data: &[u8], alphabet: Alphabet) -> String {
-    let symbols = alphabet.symbols();
-    let mut out = String::with_capacity(data.len().div_ceil(5) * 8);
-    for group in data.chunks(5) {
-        let mut block = [0u8; 5];
-        block[..group.len()].copy_from_slice(group);
-        let bits = block
-            .iter()
-            .fold(0u64, |bits, &byte| (bits << 8) | u64::from(byte));
-        let (padding, _) = tail_shape(group.len());
-        for at in 0..8 - padding {
-            let shift = 35 - 5 * at;
-            out.push(char::from(
-                symbols[usize::try_from((bits >> shift) & 31).unwrap_or(0)],
-            ));
-        }
-        for _ in 0..padding {
-            out.push('=');
-        }
-    }
-    out
+    alphabet.encoding().encode(data)
 }
 
 /// `text` decoded, where it is a canonical encoding over `alphabet`.
@@ -126,35 +86,19 @@ pub fn decode(text: &str, alphabet: Alphabet) -> Result<Vec<u8>, DecodeError> {
     if !matches!(padding, 0 | 1 | 3 | 4 | 6) {
         return Err(DecodeError::Padding);
     }
-    let mut values = Vec::with_capacity(data);
-    for &symbol in &symbols[..data] {
-        values.push(alphabet.value(symbol).ok_or(DecodeError::Character)?);
+    // Tcllib accepts case-insensitive symbols and only a final padding run.
+    if symbols[..data].contains(&b'=') {
+        return Err(DecodeError::Character);
     }
-    let mut out = Vec::with_capacity(data * 5 / 8);
-    for group in values.chunks(8) {
-        let bits = group
-            .iter()
-            .fold(0u64, |bits, &value| (bits << 5) | u64::from(value))
-            << (5 * (8 - group.len()));
-        let bytes = match group.len() {
-            8 => 5,
-            7 => 4,
-            5 => 3,
-            4 => 2,
-            2 => 1,
-            _ => return Err(DecodeError::Padding),
-        };
-        let (_, unused) = tail_shape(bytes);
-        let last = group.last().copied().unwrap_or(0);
-        if u32::from(last) & ((1 << unused) - 1) != 0 {
-            return Err(DecodeError::NonCanonical);
-        }
-        for at in 0..bytes {
-            let shift = 32 - 8 * at;
-            out.push(u8::try_from((bits >> shift) & 0xff).unwrap_or(0));
-        }
-    }
-    Ok(out)
+    alphabet
+        .encoding()
+        .decode(text.to_ascii_uppercase().as_bytes())
+        .map_err(|error| match error.kind {
+            data_encoding::DecodeKind::Length => DecodeError::Length,
+            data_encoding::DecodeKind::Symbol => DecodeError::Character,
+            data_encoding::DecodeKind::Padding => DecodeError::Padding,
+            data_encoding::DecodeKind::Trailing => DecodeError::NonCanonical,
+        })
 }
 
 #[cfg(test)]

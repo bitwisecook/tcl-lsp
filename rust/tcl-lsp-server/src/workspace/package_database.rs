@@ -41,18 +41,27 @@ pub(in super::super) fn build_package_resolver(
     dir_cap: usize,
 ) -> PackageResolver {
     let mut resolver = PackageResolver::new();
+    for release in tcl_dialect::TclVersion::ALL {
+        for root in core_tcl_install::module_search_paths(discovered, release) {
+            resolver.scan_module_path_in(store, &root, release, dir_cap);
+        }
+    }
     workspace_scan_trace!("package.auto_path.begin");
     for dir in effective_auto_path(
         store,
         roots,
         editor_library_paths,
-        discovered,
+        &[],
         core_tcl_install::tcllibpath_dirs(),
     ) {
         workspace_scan_trace!("package.path.begin path={dir:?}");
         resolver.scan_path_in(store, &dir);
         workspace_scan_trace!("package.path.end path={dir:?}");
     }
+    resolver.scan_installation_paths_in(
+        store,
+        &core_tcl_install::installation_index_paths(discovered),
+    );
     for root in roots {
         workspace_scan_trace!("package.tree.begin root={root:?} dir_cap={dir_cap}");
         resolver.scan_tree_in(store, root, dir_cap);
@@ -120,7 +129,103 @@ pub(super) fn extend_resolver_with_document_auto_paths(
     for dir in &dirs {
         resolver.scan_path_in(store, dir);
     }
+    let mut module_roots = 0;
+    for (uri, source, _, analysis) in analysed {
+        let Some((release, roots)) = document_module_paths(uri, source, analysis) else {
+            continue;
+        };
+        for root in roots
+            .into_iter()
+            .take(DOCUMENT_AUTO_PATH_DIR_CAP - module_roots)
+        {
+            resolver.prepend_module_path_in(store, &root, release, 256);
+            module_roots += 1;
+        }
+        if module_roots == DOCUMENT_AUTO_PATH_DIR_CAP {
+            break;
+        }
+    }
     resolver
+}
+
+/// Retained top-level module-path additions contribute candidate roots.
+/// Dynamic operands provide no path, and another command with the same
+/// spelling cannot supply the Registry's selected operation.
+pub(in super::super) fn document_module_paths(
+    uri: &Uri,
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Option<(tcl_dialect::TclVersion, Vec<PathBuf>)> {
+    use tcl_compiler::{
+        auto_path_eval, registry_invocation::source_structure::source_registry_words,
+    };
+    use tcl_registry::hooks::AnalyserHookId;
+
+    let file = uri.document_path()?;
+    let input = analysis.resolved_input.as_ref()?;
+    let release = input.analyser_profile().runtime_version()?;
+    if release < tcl_dialect::TclVersion::V8_5 {
+        return None;
+    }
+    let config = input.lexer_config();
+    let context = input.borrowed_context_registry();
+    let constants = auto_path_eval::fold_constant_assignments(
+        &analysis.path_constant_assignments,
+        file.to_str(),
+    );
+    let mut roots = Vec::new();
+    for command in
+        tcl_compiler::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+    {
+        let Some(words) = source_registry_words(source, analysis, &command) else {
+            continue;
+        };
+        let Some(Some(first_path)) = words.with_source_schema(context, |schema| {
+            let descriptors = schema.authored_source_descriptors();
+            if descriptors
+                .subcommand
+                .and_then(|member| member.analyser_hook)
+                == Some(AnalyserHookId::ModulePathAdd)
+            {
+                Some(1)
+            } else if descriptors.command.analyser_hook == Some(AnalyserHookId::ModulePathAdd) {
+                Some(0)
+            } else {
+                None
+            }
+        }) else {
+            continue;
+        };
+        for argument in first_path..words.arguments().len() {
+            let Some(word) = words.original_argument_word(argument) else {
+                continue;
+            };
+            let Some(expression) =
+                auto_path_eval::capture_source_path_expression(source, analysis, word)
+            else {
+                continue;
+            };
+            let Some(path) = expression.evaluate(file.to_str(), &|name| {
+                auto_path_eval::PathConstantLookup::path_constant(
+                    &constants.at(word.span().start()),
+                    name,
+                )
+            }) else {
+                continue;
+            };
+            if path.is_empty() {
+                continue;
+            }
+            let root = tcl_lsp_core::source_graph::resolve_source_target(&file, &path);
+            if !roots.contains(&root) {
+                roots.push(root);
+            }
+            if roots.len() == DOCUMENT_AUTO_PATH_DIR_CAP {
+                return Some((release, roots));
+            }
+        }
+    }
+    Some((release, roots))
 }
 
 /// Candidate package directories under the same actual retained analysis.

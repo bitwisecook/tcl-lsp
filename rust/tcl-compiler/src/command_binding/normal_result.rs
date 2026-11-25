@@ -936,6 +936,24 @@ mod tests {
     }
 
     #[test]
+    fn expression_result_does_not_inherit_the_last_original_value_formal() {
+        let source = "proc add {a b} {return [expr {$a + $b}]}; add 2 3; add 4 5";
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let (bindings, config) = inventory_for(source, dialect);
+            for (command, expected) in [("add 2 3", "5"), ("add 4 5", "9")] {
+                let offset = source.find(command).unwrap();
+                let tokens = original_tokens(source, offset, config);
+                let binding = bindings.invocation_at_source("add", u32::try_from(offset).unwrap());
+                assert_eq!(
+                    binding.original_normal_result(&tokens).unwrap().text(),
+                    expected,
+                    "{dialect}: {command}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn native_integer_call_results_and_mutable_double_spelling_are_independent() {
         for (profile, fixture, precision_one) in [
             (

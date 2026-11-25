@@ -248,7 +248,6 @@ impl Backend {
         uri: &Uri,
         doc: &DocumentState,
         analysis: &Arc<AnalysisResult>,
-        registry: &Arc<CommandRegistry>,
         disabled_codes: &HashSet<String>,
     ) -> Vec<tcl_compiler::analyser::Diagnostic> {
         self.published_analyser_diagnostics(
@@ -256,7 +255,6 @@ impl Backend {
             &doc.text,
             analysis,
             tcl_lsp_core::profile_for_dialect(&doc.dialect),
-            registry,
             disabled_codes,
         )
         .await
@@ -360,7 +358,7 @@ impl Backend {
         // it is the policy step's decision, taken below with the compiler
         // checks and the optimiser's rewrites in the same report.
         let published = self
-            .code_action_published_diagnostics(uri, &doc, &analysis, &registry, &disabled_codes)
+            .code_action_published_diagnostics(uri, &doc, &analysis, &disabled_codes)
             .await;
         // Lift the request-context diagnostics (the editor sends the ones it
         // currently shows) so context-driven quick-fixes — e.g. the iRules

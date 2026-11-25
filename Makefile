@@ -923,6 +923,7 @@ XTASK_GATES := \
 	'gen-jetbrains-catalog --check' \
 	'gen-ai-diagnostics --check' \
 	'owner-resolution' \
+	'fixture-ownership' \
 	'catalogue-callers --check' \
 	'file-sizes --check' \
 	'resolution-drift' \

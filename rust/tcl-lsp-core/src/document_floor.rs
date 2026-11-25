@@ -106,14 +106,22 @@ impl<'a> DocumentFloor<'a> {
     }
 
     fn requirement_names_package(&self, req: &SignaturePackageRequire, package: &str) -> bool {
+        use tcl_registry::native_package::matches_package_descriptor;
+
         if let Some(name) = &req.original_name {
-            return name.key().matches_ascii(package) && self.input_is_current(name.input());
+            return self.input_is_current(name.input())
+                && matches_package_descriptor(name.key().bytes(), package);
         }
-        self.analysis.allows_lexical_declaration_advice() && req.name == package
+        self.analysis.allows_lexical_declaration_advice()
+            && matches_package_descriptor(req.name.as_bytes(), package)
     }
 
     fn requirement_floor(&self, req: &'a SignaturePackageRequire) -> Option<&'a str> {
-        if req.original_name.is_some() {
+        if let Some(name) = &req.original_name {
+            let grammar = match name.key().policy().recipe() {
+                tcl_syntax::naming::NativeNameProtocol::C(release) => release,
+                tcl_syntax::naming::NativeNameProtocol::Jim084 => return None,
+            };
             let alternatives = req.original_requirements.iter().map(|input| {
                 let input = input.as_ref()?;
                 if !self.input_is_current(input) || input.bytes().contains(&0) {
@@ -121,12 +129,18 @@ impl<'a> DocumentFloor<'a> {
                 }
                 std::str::from_utf8(input.bytes()).ok()
             });
-            return tcl_registry::version::alternatives_lower_bound(alternatives, req.exact);
+            return tcl_registry::version::alternatives_lower_bound_for(
+                alternatives,
+                req.exact,
+                grammar,
+            );
         }
         self.analysis
             .allows_lexical_declaration_advice()
             .then_some(())?;
-        req.written_lower_bound()
+        let grammar = tcl_dialect::TclVersion::from_profile(self.profile)
+            .unwrap_or(tcl_dialect::TclVersion::V9_1);
+        req.written_lower_bound_for(grammar)
     }
 
     /// The source-advice version floor for `spec`'s owning package.

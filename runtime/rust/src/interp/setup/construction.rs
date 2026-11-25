@@ -191,6 +191,7 @@ impl Interp {
             recursion_depth: Cell::new(0),
             recursion_limit: Cell::new(RECURSION_LIMIT),
             packages: RefCell::new(crate::cmd_package::PackageState::with_core(version)),
+            initialised_library: RefCell::new(None),
             script_stack: RefCell::new(Vec::new()),
             channels: RefCell::new(crate::cmd_chan::ChannelTable::new(version, system_encoding)),
             return_code: Cell::new(Code::Ok),

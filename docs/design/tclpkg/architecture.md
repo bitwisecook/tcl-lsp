@@ -84,12 +84,15 @@ tclpkg.tcl (manifest)
 
 ### MVS resolver
 
-10. Minimum Version Selection is deterministic and solverless: every
-    `require <pkg> <minver>` declares a minimum, and the resolver picks the
-    maximum-of-minimums for each package across the whole graph. No upper
-    bounds, no backtracking, no SAT solver.
-11. `replace` from the root manifest forces a specific version; a
-    transitive `replace` is ignored.
+10. A plain `require <pkg> <minver>` declares a minimum. The resolver picks
+    the greatest minimum when a package has only plain minimums. Tcl operands
+    such as `{-tcl 1.2-2.0 3.0}` or `{-exact 2.0}` retain Tcl alternatives,
+    upper bounds and equality. The resolver picks the lowest written
+    candidate that satisfies all the package's constraints, using Tcl's
+    package version owner for Tcl comparisons. The source registry supplies
+    locations, so the candidate set comes from the dependency graph.
+11. `replace` from the root manifest forces a specific version subject to
+    Tcl operands. A transitive `replace` is ignored.
 12. `exclude` from the root manifest refuses a specific version and errors
     with the dependency chain that selected it.
 13. The resolver is a pure function over data — callers supply the provider
@@ -97,10 +100,9 @@ tclpkg.tcl (manifest)
 
 ### Version ordering
 
-14. `version.rs` agrees with both semver 2.0 and C Tcl's `package require`
-    ordering: missing patch digits default to zero, a leading `v` is
-    tolerated, and Tcl-style `a1` / `b2` / `rc1` prereleases collate
-    alongside semver's `-alpha.1` form (`8.6.3a1` sorts before `8.6.3`).
+14. tclpkg release tags and plain minimums use the semver-compatible
+    `Version` type. Tcl dependency operands use the shared Tcl package
+    comparison and satisfaction functions in `tcl-dialect`.
 
 ### Content-addressable cache
 
@@ -137,11 +139,10 @@ tclpkg.tcl (manifest)
     folds to refine dynamic words while retaining original file/line
     provenance.
 25. `discover --add` changes only `tclpkg.tcl`. It adds deterministic,
-    unconditional requirements which the manifest's minimum-version model can
-    represent; unresolved words, guarded or loop-contained calls, exact and
-    bounded requirements, and Tcl's alternative requirement lists remain
-    review findings. Installed, vendored, virtual-environment, build, and
-    generated trees are not scanned as direct project source.
+    unconditional requirements under their original Tcl version constraints.
+    Unresolved words and guarded or loop-contained calls remain review
+    findings. Installed, vendored, virtual-environment, build, and generated
+    trees are outside the direct project source inventory.
 
 ## CLI surface
 

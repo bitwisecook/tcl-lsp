@@ -86,7 +86,8 @@ use name_delimiters::{validate_counted_name_facade_consumers, validate_workspace
 use variable_consumers::variable_inventory_is_owned;
 use variable_consumers::{
     validate_array_search_consumers, validate_native_variable_callback_consumers,
-    validate_variable_command_grammars, validate_variable_table_consumers,
+    validate_special_variable_consumers, validate_variable_command_grammars,
+    validate_variable_table_consumers,
 };
 
 const CONTRACT_PATH: &str = "docs/design/contracts/shared-utility-contracts-rust.md";
@@ -131,6 +132,7 @@ pub fn run() -> Result<ExitCode> {
     problems.extend(validate_namespace_object_consumers(&root)?);
     problems.extend(validate_command_guard_consumers(&root)?);
     problems.extend(validate_variable_table_consumers(&root)?);
+    problems.extend(validate_special_variable_consumers(&root)?);
     problems.extend(validate_array_search_consumers(&root)?);
     problems.extend(validate_variable_command_grammars(&root)?);
     problems.extend(validate_native_bootstrap_consumers(&root)?);

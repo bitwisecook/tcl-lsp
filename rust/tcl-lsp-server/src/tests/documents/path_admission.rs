@@ -96,7 +96,7 @@ fn canonical_file_uri_preserves_absolute_and_relative_existence_policy() {
 fn canonical_file_uri_declines_a_verbatim_volume_instead_of_redirecting_it() {
     let original = Path::new(r"\\?\Volume{01234567-89ab-cdef-0123-456789abcdef}\project\file.tcl");
     assert!(original.is_absolute());
-    let legacy = Uri::from_file_path(original).unwrap();
+    let legacy = crate::uri_norm::legacy_provider_file_uri(original).unwrap();
     let repaired = uri_norm::repair_file_uri_from_path(legacy.as_str(), true).unwrap();
     let legacy_uri = Uri::from_str(&repaired).unwrap();
     let redirected = legacy_uri.to_file_path().unwrap();

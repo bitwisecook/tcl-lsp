@@ -34,6 +34,24 @@ fn arity_codes(src: &str, dialect: &str) -> Vec<String> {
 }
 
 #[test]
+fn reached_user_call_arity_uses_nested_and_replacement_formals() {
+    let nested = include_str!(
+        "../../../../../../../docs/work/name-handling/handover/oo-dispatch-probe/dynamic/e17-proc-inside-proc.tcl"
+    );
+    let fixed = include_str!(
+        "../../../../../../../docs/work/name-handling/handover/oo-dispatch-probe/dynamic/e07-shadow-builtin.tcl"
+    );
+    let variadic = include_str!(
+        "../../../../../../../docs/work/name-handling/handover/oo-dispatch-probe/dynamic/e30-rename-builtin-proc-wrap.tcl"
+    );
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        assert_eq!(arity_codes(nested, dialect), ["E002"], "{dialect}");
+        assert_eq!(arity_codes(fixed, dialect), ["E003"], "{dialect}");
+        assert!(arity_codes(variadic, dialect).is_empty(), "{dialect}");
+    }
+}
+
+#[test]
 fn irules_arity_accepts_documented_pool_log_and_class_iteration_forms() {
     // BIG-IP 21.0.0.1 TMSH rule manuals for pool, log and class.
     for src in [

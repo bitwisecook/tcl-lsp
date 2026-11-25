@@ -33,15 +33,16 @@ use tcl_registry::CommandRegistry;
 use tcl_registry::hooks::LoweringHookId;
 use tcl_registry::value_transfer::{
     Budget, BudgetLimit, CompletionOutcome, DeclineReason, ExactValue, ExitRule, IterationPlan,
-    LoopStep, NumericValue, PlaceKind, PlaceRef, RepresentationEvidence, StoreOutcome,
+    LoopStep, PlaceKind, PlaceRef, StoreOutcome,
 };
 
+use crate::analyses::ConstValue;
 use crate::expr_ast::ExprNode;
 use crate::ir::{Script, Statement};
 #[cfg(test)]
 use crate::naming::normalise_var_name;
 use crate::tcl_expr_eval::FoldPolicy;
-use crate::value_transfer::{LatticeDriver, StateStep};
+use crate::value_transfer::{LatticeDriver, StateStep, const_into_exact, exact_to_const};
 #[cfg(test)]
 use tcl_syntax::naming::is_static_variable_source_word;
 
@@ -73,6 +74,28 @@ pub enum StaticValue {
     Bool(bool),
     /// String.
     Str(String),
+}
+
+impl From<ConstValue> for StaticValue {
+    fn from(value: ConstValue) -> Self {
+        match value {
+            ConstValue::Int(i) => Self::Int(i),
+            ConstValue::Float(f) => Self::Float(f),
+            ConstValue::Bool(b) => Self::Bool(b),
+            ConstValue::String(s) => Self::Str(s),
+        }
+    }
+}
+
+impl From<StaticValue> for ConstValue {
+    fn from(value: StaticValue) -> Self {
+        match value {
+            StaticValue::Int(i) => Self::Int(i),
+            StaticValue::Float(f) => Self::Float(f),
+            StaticValue::Bool(b) => Self::Bool(b),
+            StaticValue::Str(s) => Self::String(s),
+        }
+    }
 }
 
 /// The constants a `for`-loop summary starts from and reports — variable
@@ -192,7 +215,10 @@ pub fn summarise_for_statement(
         state.set(name, Slot::Scalar);
     }
     for (name, value) in initial_constants {
-        state.set(name.clone(), Slot::Value(exact_of_static(value)));
+        state.set(
+            name.clone(),
+            Slot::Value(const_into_exact(value.clone().into())),
+        );
     }
     let driver = LatticeDriver::over_registry(semantics.registry, semantics.policy);
     let run = enumerate_loop(&driver, &stmt, state, (false, max_iterations), &|_| false).ok()?;
@@ -203,7 +229,7 @@ pub fn summarise_for_statement(
     for (name, slot) in run.state {
         match slot {
             Slot::Value(value) => {
-                env.insert(name, static_of_exact(&value));
+                env.insert(name, exact_to_const(&value).into());
             }
             Slot::Scalar | Slot::Unbound => {
                 env.remove(&name);
@@ -211,44 +237,6 @@ pub fn summarise_for_statement(
         }
     }
     Some(env)
-}
-
-/// A summary's constant from an exact value: the classification when it has
-/// one, else the exact text. A double keeps its text unless that is the
-/// canonical spelling [`exact_of_static`] gives back.
-fn static_of_exact(value: &ExactValue) -> StaticValue {
-    match value.numeric {
-        Some(NumericValue::Int(i)) => StaticValue::Int(i),
-        Some(NumericValue::Float(f))
-            if value.bytes == tcl_syntax::number::format_double(f).as_bytes() =>
-        {
-            StaticValue::Float(f)
-        }
-        Some(NumericValue::Float(_)) => {
-            StaticValue::Str(String::from_utf8_lossy(&value.bytes).into_owned())
-        }
-        Some(NumericValue::Bool(b)) => StaticValue::Bool(b),
-        None => StaticValue::Str(String::from_utf8_lossy(&value.bytes).into_owned()),
-    }
-}
-
-/// An exact value from a summary's constant: the value's canonical text with
-/// its classification.
-fn exact_of_static(value: &StaticValue) -> ExactValue {
-    match value {
-        StaticValue::Int(i) => ExactValue::int(*i),
-        StaticValue::Float(f) => ExactValue {
-            bytes: tcl_syntax::number::format_double(*f).into_bytes(),
-            numeric: Some(NumericValue::Float(*f)),
-            representation: RepresentationEvidence::Unknown,
-        },
-        StaticValue::Bool(b) => ExactValue {
-            bytes: (if *b { "1" } else { "0" }).as_bytes().to_vec(),
-            numeric: Some(NumericValue::Bool(*b)),
-            representation: RepresentationEvidence::Unknown,
-        },
-        StaticValue::Str(s) => ExactValue::text(s.clone()),
-    }
 }
 
 // Bounded-loop enumeration

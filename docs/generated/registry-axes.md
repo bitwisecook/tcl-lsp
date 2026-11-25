@@ -12,7 +12,7 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | subcommands | 12 |
 | clause_grammar | 2 |
 | definition_body | 11 |
-| options | 19 |
+| options | 17 |
 | special_vars | 2 |
 | irreducible | 51 |
 
@@ -31,8 +31,8 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | definition_body | the definition-body grammar exposes lifecycle members | `rust/tcl-lsp-core/src/hover/original_registry.rs` | 2 | site | TclOO lifecycle member keywords |
 | definition_body | the definition-body grammar exposes property accessors | `rust/tcl-compiler/src/analyser/oo/member_effects.rs` | 3 | site | property accessor keywords of the class body |
 | definition_body | the snit definition grammar marks callable members | `rust/tcl-compiler/src/command_binding/snit_definition.rs` | 1 | site | snit member keywords that define a callable |
-| irreducible | URI handling moves to the shared file-URI owner | `rust/tcl-bigip/src/tls.rs` | 1 | site | an RFC 8089 URI scheme, not a Tcl or registry name |
 | irreducible | never | `rust/tcl-bigip/src/f5_trailer.rs` | 1 | site | the keys of the data schema's `ip_fields` table, not a Tcl command word: `offset` coincides with `grapheme`'s subcommand by spelling only |
+| irreducible | never | `rust/tcl-bigip/src/tls.rs` | 1 | site | the file scheme belongs to the URI grammar and the borrowed path selects supplied material |
 | irreducible | never | `rust/tcl-bigip/src/validator.rs` | 1 | site | the literal sentinel admitted by BigipPropertySpec::allow_none |
 | irreducible | never | `rust/tcl-bigip/src/validator.rs` | 1 | site | the name key in the member FQDN block |
 | irreducible | never | `rust/tcl-bigip/src/value/address.rs` | 2 | site | wildcard spellings belong to this address-value grammar |
@@ -62,7 +62,6 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 | irreducible | never | `rust/tcl-syntax/src/execution_conformance.rs` | 1 | file | a conformance table's empty-cell marker, not a Tcl word |
 | options | the ensemble option table drives the walk | `rust/tcl-compiler/src/analyser/handlers/ensembles.rs` | 5 | site | namespace ensemble configuration options |
 | options | the getter's option table marks the normalising flag | `rust/tcl-compiler/src/rendered_properties.rs` | 1 | site | the HTTP getter's normalising flag |
-| options | the option table carries the safe-interpreter flag | `rust/tcl-compiler/src/analyser/handlers/interpreters.rs` | 2 | site | the interp create flag run |
 | options | the option table marks the force flag | `rust/tcl-syntax/src/naming/native.rs` | 1 | site | the native name policy's force flag |
 | options | the return option table drives the emitter | `rust/tcl-codegen/src/codegen/control_flow/catch_command.rs` | 3 | site | return's -code/-level options in codegen |
 | options | the substitution option table offers the hardening edit | `rust/tcl-lsp-core/src/code_actions/context_diagnostics.rs` | 2 | site | the hardening edit rewrites subst's own option word |
@@ -78,7 +77,7 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 
 ## The ratchet
 
-The files the gate holds clean, with every site waived or gone: `rust/tcl-compiler/src/auto_path_eval.rs`, `rust/tcl-compiler/src/analyser/commands.rs`, `rust/tcl-compiler/src/analyser/param_traits.rs`, `rust/tcl-compiler/src/analyser/recovery.rs`, `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs`, `rust/tcl-compiler/src/executable_ir.rs`, `rust/tcl-compiler/src/signature_scan/walker.rs`, `rust/tcl-compiler/src/var_escape/slot_resolution.rs`, `rust/tcl-lsp-core/src/definition.rs`, `rust/tcl-lsp-core/src/formatting/config.rs`, `rust/tcl-lsp-core/src/formatting/docstring.rs`, `rust/tcl-lsp-core/src/formatting/engine.rs`, `rust/tcl-lsp-core/src/formatting/keywords.rs`, `rust/tcl-lsp-core/src/minify.rs`, `rust/tcl-lsp-core/src/refactor/datagroup.rs`, `rust/tcl-lsp-core/src/refactor/if_to_switch.rs`, `rust/tcl-lsp-core/src/semantic_tokens.rs`, `rust/tcl-lsp-core/src/workspace_index.rs`, `rust/tcl-mcp/src/datagroup.rs`.
+The files the gate holds clean, with every site waived or gone: `rust/tcl-cli/src/commands/pkg_discover.rs`, `rust/tcl-codegen/src/codegen/emitter/ordering.rs`, `rust/tcl-compiler/src/auto_path_eval.rs`, `rust/tcl-compiler/src/analyser/commands.rs`, `rust/tcl-compiler/src/analyser/param_traits.rs`, `rust/tcl-compiler/src/analyser/recovery.rs`, `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs`, `rust/tcl-compiler/src/executable_ir.rs`, `rust/tcl-compiler/src/signature_scan/walker.rs`, `rust/tcl-compiler/src/var_escape/slot_resolution.rs`, `rust/tcl-diagram/src/data.rs`, `rust/tcl-lsp-core/src/definition.rs`, `rust/tcl-lsp-core/src/formatting/config.rs`, `rust/tcl-lsp-core/src/formatting/docstring.rs`, `rust/tcl-lsp-core/src/formatting/engine.rs`, `rust/tcl-lsp-core/src/formatting/keywords.rs`, `rust/tcl-lsp-core/src/minify.rs`, `rust/tcl-lsp-core/src/refactor/datagroup.rs`, `rust/tcl-lsp-core/src/refactor/if_to_switch.rs`, `rust/tcl-lsp-core/src/semantic_tokens.rs`, `rust/tcl-lsp-core/src/workspace_index.rs`, `rust/tcl-mcp/src/datagroup.rs`.
 
 Every other scanned file with an unwaived site, and its count, which is the pin in `rust/xtask/src/registry_axes.rs`. The count may only fall: the change that removes or waives a file's sites lowers its pin.
 

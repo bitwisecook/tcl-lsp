@@ -47,10 +47,10 @@ pub(super) use existence_guards::{
 use hidden_writes::{collect_expr_cmd_sub_writes, collect_script_concat_writes};
 pub(super) use original_cells::{
     DiagnosticCellFacts, collect_defined_vars, definition_has_cell_fact, globals_read_by_procs,
-    globals_written_by_procs, original_array_scalar_read_at_span, original_definition_places,
-    original_read_cell, original_read_cells_at, original_read_is_live_array_scalar,
-    original_read_occurrence_at_span, read_has_cell_fact, special_variable_definition,
-    special_variable_definition_at_span,
+    globals_written_by_procs, original_argument_use_has_no_read, original_definition_places,
+    original_read_cannot_be_undefined_at_span, original_read_cell, original_read_cells_at,
+    original_read_is_live_array_scalar, original_read_occurrence_at_span, read_has_cell_fact,
+    special_variable_definition, special_variable_definition_at_span,
 };
 pub(super) use phi_undef::{
     MayDefMap, PhiBlockMap, PhiDefMap, PhiUndefCtx, PhiUndefMemo, UndefIndexMaps,

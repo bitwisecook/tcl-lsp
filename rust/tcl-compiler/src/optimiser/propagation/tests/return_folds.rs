@@ -21,6 +21,26 @@
 use super::*;
 
 #[test]
+fn retained_builtin_return_uses_the_checked_result_word() {
+    let source = "proc p {} {return [llength {a b c}]}\nputs [p]";
+    let optimisations = run_pass(source);
+    assert!(
+        optimisations.iter().any(|optimisation| {
+            optimisation.code == DiagCode::O129
+                && optimisation.replacement == "return 3"
+                && !optimisation.hint_only
+        }),
+        "{optimisations:?}"
+    );
+
+    let shadowed =
+        "proc llength {args} {return 99}\nproc p {} {return [llength {a b c}]}\nputs [p]";
+    assert!(run_pass(shadowed).iter().all(|optimisation| {
+        optimisation.code != DiagCode::O129 || optimisation.replacement != "return 3"
+    }));
+}
+
+#[test]
 fn return_literal_replacement_keeps_original_head_and_result_word_owner() {
     let context =
         tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();

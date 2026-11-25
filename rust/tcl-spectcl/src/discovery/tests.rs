@@ -36,6 +36,20 @@ fn write(path: &Path, body: &str) {
     std::fs::write(path, body).expect("write");
 }
 
+#[test]
+fn workspace_pack_discovery_prunes_the_shared_fixture() {
+    let fixture = tcl_test_support::fixture::WorkspaceScan::new();
+    let found = discover(&DiscoveryOptions {
+        workspace_roots: vec![fixture.root().to_path_buf()],
+        bundled_dir: Some(fixture.root().join("absent-bundled")),
+        skip_user_tier: true,
+        ..DiscoveryOptions::default()
+    });
+    assert_eq!(found.len(), 1, "{found:#?}");
+    assert_eq!(found[0].path, fixture.root().join("src/pack.tclspec"));
+    assert_eq!(found[0].tier, Tier::Workspace);
+}
+
 /// A multi-root workspace that configures `tclLsp.specPacks` on its
 /// *secondary* folder loads that folder's packs. The session-scope pull
 /// carries only the primary folder's answer, so before folder scoping

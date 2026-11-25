@@ -40,7 +40,7 @@ fn rewrite(
     let lead = text.len() - text.trim_start().len();
     let trail = text.len() - text.trim_end().len();
     let new_text = render(&expression)?;
-    Some(Refactoring {
+    let proposal = Refactoring {
         title: title.to_owned(),
         edits: vec![RefactorEdit {
             start: content.start() + u32::try_from(lead).ok()?,
@@ -50,7 +50,11 @@ fn rewrite(
         kind: ActionKind::RefactorRewrite,
         data_group: None,
         disabled: None,
-    })
+    };
+    proposal.check_replacement(source, |replacement| {
+        expression.same_parse_as(replacement).then_some(())
+    })?;
+    Some(proposal)
 }
 
 /// Parenthesise every operator's operands in the braced expression at
@@ -93,6 +97,20 @@ mod tests {
 
     fn analysis(source: &str, dialect: &str) -> AnalysisResult {
         tcl_compiler::analyser::Analyser::new().analyse(source, dialect)
+    }
+
+    #[test]
+    fn refuses_a_well_formed_postimage_with_a_different_tree() {
+        let source = "if {1 + 2 * 3} {puts x}";
+        let input = analysis(source, "tcl8.6");
+        for title in [
+            "Parenthesise expression by precedence",
+            "Remove redundant parentheses",
+        ] {
+            assert!(
+                rewrite(source, 6, &input, title, |_| Some("(1 + 2) * 3".to_owned())).is_none()
+            );
+        }
     }
 
     #[test]

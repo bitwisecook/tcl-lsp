@@ -194,18 +194,37 @@ impl SignaturePackageRequire {
     /// A lower bound implied by the written versions in this requirement.
     #[must_use]
     pub fn written_lower_bound(&self) -> Option<&str> {
-        let versions = self
-            .requirements
-            .iter()
-            .map(|version| Some(version.as_str()))
-            .chain(
-                self.requirements
-                    .is_empty()
-                    .then_some(self.version.as_deref())
-                    .flatten()
-                    .map(Some),
-            );
-        tcl_registry::version::alternatives_lower_bound(versions, self.exact)
+        self.written_lower_bound_for(tcl_dialect::TclVersion::V9_1)
+    }
+
+    /// Written alternatives, using the compatibility version when needed.
+    pub fn written_requirements(&self) -> impl Iterator<Item = &str> {
+        self.requirements.iter().map(String::as_str).chain(
+            self.requirements
+                .is_empty()
+                .then_some(self.version.as_deref())
+                .flatten(),
+        )
+    }
+
+    /// The implied lower bound under one release's package grammar.
+    #[must_use]
+    pub fn written_lower_bound_for(&self, release: tcl_dialect::TclVersion) -> Option<&str> {
+        tcl_registry::version::alternatives_lower_bound_for(
+            self.written_requirements().map(Some),
+            self.exact,
+            release,
+        )
+    }
+
+    /// Whether this source requirement names a registered package descriptor.
+    #[must_use]
+    pub fn matches_package_descriptor(&self, descriptor: &str) -> bool {
+        let name = self
+            .original_name
+            .as_ref()
+            .map_or(self.name.as_bytes(), |name| name.key().bytes());
+        tcl_registry::native_package::matches_package_descriptor(name, descriptor)
     }
 }
 

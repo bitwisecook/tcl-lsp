@@ -216,6 +216,19 @@ impl SourceCommandBindings {
 }
 
 impl SourceInvocationBinding {
+    /// Missing terminal through an actually selected interpreter alias.
+    /// This advice is independent of occupancy of the invoked alias slot.
+    pub(crate) fn deleted_alias_target(&self) -> Option<tcl_core_types::NameBytes> {
+        if !self.may_be_absent {
+            return None;
+        }
+        let input = self.original_recorded_head_name_input()?;
+        self.lookup_state
+            .as_ref()?
+            .state
+            .original_deleted_alias_target(&input, self.lookup_namespace_key.clone())
+    }
+
     /// Actual complete Logical advice input selected at this lookup's entry.
     /// Its absence cannot be repaired from a source site or reporting label.
     #[must_use]

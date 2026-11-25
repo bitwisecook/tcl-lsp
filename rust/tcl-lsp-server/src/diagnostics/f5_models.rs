@@ -185,6 +185,77 @@ pub(in super::super) fn bigip_config_findings(text: &str) -> Vec<core_policy::Fi
     ))
 }
 
+/// Complete signed data-group findings with typed workspace configuration keys.
+pub(in super::super) fn refine_signed_data_group_diagnostics<'a>(
+    diagnostics: &mut [tcl_compiler::analyser::Diagnostic],
+    configuration_texts: impl Iterator<Item = &'a str>,
+) {
+    use std::fmt::Write as _;
+    let configs: Vec<_> = configuration_texts
+        .map(|text| {
+            tcl_bigip::parser::driver::parse_bigip_conf(
+                &tcl_lexer::normalise_lone_cr(text),
+                BIGIP_DEFAULT_PARTITION,
+            )
+        })
+        .collect();
+    if configs.is_empty() {
+        return;
+    }
+    let groups = tcl_bigip::model::DataGroupKeys::from_configs(&configs);
+    for diagnostic in diagnostics {
+        let Some(comparison) = &diagnostic.signed_data_group_comparison else {
+            continue;
+        };
+        let Some(key) = groups.unsigned_key_in(
+            &comparison.group,
+            "",
+            BIGIP_DEFAULT_PARTITION,
+            &comparison.unsigned_keys,
+        ) else {
+            continue;
+        };
+        diagnostic.severity = tcl_compiler::analyser::Severity::Warning;
+        let _ = write!(
+            diagnostic.message,
+            " Configured key {key} is outside the item's signed range."
+        );
+    }
+}
+
+impl Backend {
+    /// Refresh push reports when an admitted BIG-IP buffer changes the keys
+    /// available to iRules in the same workspace configuration scope.
+    pub(in super::super) async fn refresh_data_group_diagnostics(&self, uri: &Uri) {
+        let Some(path) = uri.document_path() else {
+            return;
+        };
+        let folders = self.workspace_folder_urls().await;
+        let peers = self
+            .documents
+            .lock("refresh_data_group_diagnostics")
+            .await
+            .iter()
+            .filter(|(_, state)| tcl_lsp_core::profile_for_dialect(&state.dialect).is_irules())
+            .filter(|(candidate, _)| {
+                data_group_workspace_root(&folders, candidate)
+                    .is_some_and(|root| path.starts_with(root))
+            })
+            .map(|(uri, _)| uri.clone())
+            .collect();
+        super::scheduling::reschedule_peers(&self.diag_slots, uri, peers).await;
+    }
+}
+
+pub(super) fn data_group_workspace_root(folders: &[Uri], uri: &Uri) -> Option<PathBuf> {
+    folders
+        .iter()
+        .filter(|folder| crate::workspace::uri_under_folder(uri.as_str(), folder.as_str()))
+        .max_by_key(|folder| folder.as_str().len())
+        .and_then(super::super::uri_norm::DocumentPath::document_path)
+        .map(std::borrow::Cow::into_owned)
+}
+
 /// iApp APL presentation diagnostics
 /// (`IAPP7001`–`IAPP7003`).  Parses the APL presentation, optionally
 /// cross-checks it against the sibling implementation's

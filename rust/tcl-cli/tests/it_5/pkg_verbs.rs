@@ -331,7 +331,7 @@ fn pkg_discover_uses_analysis_and_optimisation() {
             && requirement["requirement_expressions"]
                 == serde_json::json!(["1.0", "${alternative}"])
             && requirement["resolution"] == "original-value"
-            && requirement["status"] == "review"
+            && requirement["status"] == "candidate"
     }));
     assert!(requirements.iter().any(|requirement| {
         requirement["name"] == "partial"
@@ -400,23 +400,34 @@ fn pkg_discover_add_is_idempotent_and_skips_dependency_trees() {
     let (stdout, stderr, code) = run_in(&dir, &["pkg", "discover", "--add", "--json"]);
     assert_eq!(code, 0, "{stderr}");
     let output: serde_json::Value = serde_json::from_str(&stdout).unwrap();
-    assert_eq!(output["added"].as_array().unwrap().len(), 1);
-    assert_eq!(output["added"][0]["name"], "tls");
-    assert_eq!(output["added"][0]["minimum"], "1.7");
+    let additions = output["added"].as_array().unwrap();
+    assert_eq!(additions.len(), 4);
+    for (name, operand) in [
+        ("tls", "-tcl -release 8.6 1.7"),
+        ("pinned", "-exact -release 8.6 2.0"),
+        ("ranged", "-tcl -release 8.6 1.0-2.0"),
+        ("alternatives", "-tcl -release 8.6 1.0 2.0-2.5"),
+    ] {
+        assert!(
+            additions
+                .iter()
+                .any(|addition| { addition["name"] == name && addition["requirement"] == operand })
+        );
+    }
     let requirements = output["requirements"].as_array().unwrap();
     assert!(requirements.iter().any(|requirement| {
-        requirement["name"] == "pinned" && requirement["status"] == "review"
+        requirement["name"] == "pinned" && requirement["status"] == "candidate"
     }));
     assert!(requirements.iter().any(|requirement| {
-        requirement["name"] == "ranged" && requirement["status"] == "review"
+        requirement["name"] == "ranged" && requirement["status"] == "candidate"
     }));
     assert!(requirements.iter().any(|requirement| {
         requirement["name"] == "alternatives"
             && requirement["requirement_expressions"] == serde_json::json!(["1.0", "2.0-2.5"])
             && requirement["requirements"] == serde_json::json!(["1.0", "2.0-2.5"])
-            && requirement["minimum"].is_null()
+            && requirement["minimum"] == "1.0"
             && requirement["resolution"] == "literal"
-            && requirement["status"] == "review"
+            && requirement["status"] == "candidate"
     }));
     assert!(requirements.iter().any(|requirement| {
         requirement["name"] == "looped"
@@ -437,9 +448,9 @@ fn pkg_discover_add_is_idempotent_and_skips_dependency_trees() {
     let manifest = std::fs::read_to_string(dir.join("tclpkg.tcl")).unwrap();
     assert_eq!(manifest.matches("require json").count(), 1);
     assert_eq!(manifest.matches("require tls").count(), 1);
-    assert!(!manifest.contains("require pinned"));
-    assert!(!manifest.contains("require ranged"));
-    assert!(!manifest.contains("require alternatives"));
+    assert_eq!(manifest.matches("require pinned").count(), 1);
+    assert_eq!(manifest.matches("require ranged").count(), 1);
+    assert_eq!(manifest.matches("require alternatives").count(), 1);
     assert!(!manifest.contains("require looped"));
     assert!(!manifest.contains("require Tcl"));
     assert!(!manifest.contains("require demo"));

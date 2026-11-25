@@ -25,7 +25,7 @@ use crate::{ArgRole, InvocationArguments, InvocationFacts};
 pub enum NativeVariableOutputSpec {
     /// Scan's shared, native-verified complete ASCII conversion subset.
     Scan,
-    /// Regexp's ASCII literal/group pattern with optional native case folding.
+    /// Regexp's ASCII literal/group pattern and native Tcl word runs.
     Regexp,
 }
 
@@ -118,8 +118,16 @@ fn literal_regexp_outputs(
         || input.contains('\0')
         || input.len() > 8192
         || pattern.len() > 1024
-        || pattern.bytes().any(|byte| b".^$*+?{}[]\\|".contains(&byte))
     {
+        return None;
+    }
+    let literal_groups = |part: &str| !part.bytes().any(|byte| b".^$*+?{}[]\\|".contains(&byte));
+    let pattern_supported = if arguments.dialect()?.tcl_version.is_some() {
+        pattern.split(r"\w+").all(literal_groups)
+    } else {
+        literal_groups(pattern)
+    };
+    if !pattern_supported {
         return None;
     }
     let mut nocase = false;
@@ -216,6 +224,28 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn tcl_word_run_outputs_follow_the_known_match() {
+        use InvocationWord::Literal as L;
+        use VariableOutputCommitment::{Unchanged, Written};
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            for (subject, commitment) in [("word", Written), ("---", Unchanged)] {
+                assert_eq!(
+                    outputs(
+                        environment,
+                        "regexp",
+                        &[L(r"(\w+)"), L(subject), L("->"), L("m")]
+                    ),
+                    Some(vec![(2, commitment), (3, commitment)]),
+                );
+            }
+        }
+        assert_eq!(
+            outputs("jim", "regexp", &[L(r"(\w+)"), L("word"), L("m")]),
+            None
+        );
     }
 
     #[test]

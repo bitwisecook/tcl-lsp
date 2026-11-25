@@ -456,7 +456,7 @@ mod tests {
                 tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
             let mut count = 0;
             for line in fixture.lines().skip(1) {
-                let columns: Vec<_> = line.split('\t').collect();
+                let columns: Vec<_> = tcl_test_support::fixture::tsv_fields(line).collect();
                 let index: usize = columns[0].parse().unwrap();
                 let variable: i32 = columns[2].parse().unwrap();
                 let global: i32 = columns[3].parse().unwrap();

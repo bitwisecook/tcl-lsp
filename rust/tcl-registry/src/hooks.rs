@@ -506,6 +506,8 @@ pub enum AnalyserHookId {
     /// `load libFile ?prefix? ?interp?` — brings a shared library's
     /// commands in at runtime: flips the dynamic-providers flag.
     Load => (30, "load"),
+    /// A module-path addition exposes candidate roots for package navigation.
+    ModulePathAdd => (31, "Tcl module path addition"),
 }
 }
 

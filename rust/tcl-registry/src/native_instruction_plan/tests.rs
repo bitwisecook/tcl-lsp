@@ -167,7 +167,7 @@ mod concat_expansion_controls {
                 let opcodes: Vec<_> = rows
                     .lines()
                     .filter(|line| line.starts_with(&prefix))
-                    .map(|line| line.split('\t').nth(3).unwrap())
+                    .map(|line| tcl_test_support::fixture::tsv_fields(line).nth(3).unwrap())
                     .collect();
                 let image = SourceImage::native(*source);
                 let script = native_script_words_in(
@@ -186,11 +186,13 @@ mod concat_expansion_controls {
                 let native_shapes: Vec<_> = rows
                     .lines()
                     .filter(|line| line.starts_with(&prefix))
-                    .filter_map(|line| match line.split('\t').nth(3).unwrap() {
-                        "1" => Some(Shape::Substituted),
-                        "2" => Some(Shape::Literal),
-                        "256" => Some(Shape::Expanded),
-                        _ => None,
+                    .filter_map(|line| {
+                        match tcl_test_support::fixture::tsv_fields(line).nth(3).unwrap() {
+                            "1" => Some(Shape::Substituted),
+                            "2" => Some(Shape::Literal),
+                            "256" => Some(Shape::Expanded),
+                            _ => None,
+                        }
                     })
                     .collect();
                 assert_eq!(
@@ -244,12 +246,9 @@ fn original_uplevel_instruction_keeps_level_and_script_stack_geometry() {
         .lines()
         .skip(1)
     {
-        let fields = row.split('\t').collect::<Vec<_>>();
-        let version = match fields[0] {
-            "9.0" => TclVersion::V9_0,
-            "9.1" => TclVersion::V9_1,
-            _ => unreachable!("measured compiler fixture"),
-        };
+        let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
+        let version = tcl_test_support::fixture::oracle_release(fields[0])
+            .expect("measured compiler fixture");
         let selected = project(
             fields[2].as_bytes(),
             NativeCompilationGrammar::Uplevel,

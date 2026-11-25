@@ -699,7 +699,7 @@ mod tests {
     }
 
     #[test]
-    fn required_package_matches_namespace() {
+    fn required_package_matches_provider() {
         let specs = tcllib_command_specs();
         let pkg = |name: &str| {
             specs
@@ -721,31 +721,42 @@ mod tests {
         // `sha256`, and that is what a user writes.
         assert_eq!(pkg("sha1::sha1"), Some("sha1"));
         assert_eq!(pkg("sha2::sha256"), Some("sha256"));
+        for name in [
+            "bench::out::csv",
+            "bench::out::text",
+            "fileutil::magic::filetype",
+            "grammar::me::cpu",
+            "page::util::flow",
+            "page::util::norm::lemon",
+            "page::util::norm::peg",
+            "pt::rde",
+            "tcl::chan::core",
+            "tcl::chan::events",
+            "tcl::transform::core",
+        ] {
+            assert_eq!(pkg(name), Some(name));
+        }
+        assert_eq!(pkg("tcl::combine"), Some("tcl::randomseed"));
+        assert!(
+            !specs
+                .iter()
+                .any(|spec| matches!(spec.name, "export" | "import"))
+        );
     }
 
-    /// **The package-identity census.** Every package name the catalogue files a
-    /// tcllib command under is either a module the tcllib 2.0 sources
-    /// really provide ([`TCLLIB_MODULES`](crate::model::tcllib::TCLLIB_MODULES))
-    /// or a *recorded* gap
-    /// ([`UNBACKED_PACKAGE_NAMES`](crate::model::tcllib::UNBACKED_PACKAGE_NAMES)).
-    /// A new name backed by neither fails
-    /// the build, so the census can only shrink.
+    /// Every catalogue package is backed by the tcllib 2.0 inventory.
     #[test]
     fn the_identity_census_is_closed() {
-        use crate::model::tcllib::{is_unbacked_package_name, tcllib_module};
         let mut unknown: Vec<&str> = tcllib_command_specs()
             .iter()
             .filter_map(CommandSpec::owning_package)
-            .filter(|package| {
-                tcllib_module(package).is_none() && !is_unbacked_package_name(package)
-            })
+            .filter(|package| tcllib_module(package).is_none())
             .collect();
         unknown.sort_unstable();
         unknown.dedup();
         assert!(
             unknown.is_empty(),
-            "tcllib package names backed by neither the module table nor the \
-             recorded-gap list: {unknown:?}",
+            "tcllib packages absent from the module table: {unknown:?}"
         );
     }
 

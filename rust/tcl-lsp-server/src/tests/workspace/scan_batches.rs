@@ -75,7 +75,7 @@ async fn workspace_scan_publishes_under_unchanged_closed_document_override() {
     let root = TmpWs::new("scan-dialect-current");
     let path = root.0.join("source.tcl");
     root.write("source.tcl", "proc stable {} {}\n");
-    let uri = Uri::from_file_path(&path).unwrap();
+    let uri = crate::canonical_file_uri(&path).unwrap();
     let backend = test_backend();
     backend
         .set_document_dialect_override_command(&[
@@ -124,7 +124,7 @@ async fn workspace_scan_omits_closed_row_after_document_override_changes() {
     let root = TmpWs::new("scan-dialect-stale-document");
     let path = root.0.join("source.tcl");
     root.write("source.tcl", "proc stable {} {}\n");
-    let uri = Uri::from_file_path(&path).unwrap();
+    let uri = crate::canonical_file_uri(&path).unwrap();
     let backend = test_backend();
     backend
         .set_document_dialect_override_command(&[
@@ -274,7 +274,7 @@ async fn workspace_scan_open_and_absent_candidates_remain_intentional_skips() {
     root.write("open.tcl", "proc openProc {} {}\n");
     root.write("absent.tcl", "proc absentProc {} {}\n");
     std::fs::remove_file(&absent_path).unwrap();
-    let open_uri = Uri::from_file_path(&open_path).unwrap();
+    let open_uri = crate::canonical_file_uri(&open_path).unwrap();
     let backend = test_backend();
     let (epoch, factory_generation, document_overrides, folder_dialects, default_dialect) =
         captured_workspace_scan_inputs(&backend).await;
@@ -311,7 +311,7 @@ async fn workspace_scan_transient_busy_batch_stays_incomplete() {
     let path = root.0.join("source.tcl");
     let text = "proc stable {} {}\n";
     root.write("source.tcl", text);
-    let uri = Uri::from_file_path(&path).unwrap();
+    let uri = crate::canonical_file_uri(&path).unwrap();
     let backend = test_backend();
     let (epoch, factory_generation, document_overrides, folder_dialects, default_dialect) =
         captured_workspace_scan_inputs(&backend).await;
@@ -400,7 +400,7 @@ async fn workspace_scan_unavailable_analysis_keeps_coverage_incomplete() {
 
     let root = PathBuf::from("/workspace/scan-unavailable-analysis");
     let path = root.join("source.tcl");
-    let uri = Uri::from_file_path(&path).unwrap();
+    let uri = crate::canonical_file_uri(&path).unwrap();
     let store = Arc::new(vfs::MemoryStore::new());
     store.upsert_uri(
         uri.as_str(),

@@ -351,11 +351,12 @@ mod tests {
 enum OriginalUserCallOwner {
     NativeSource(crate::command_binding::OriginalSourceProcedureCall),
     Logical(crate::command_binding::OriginalLogicalProcedureCall),
+    Reached(crate::command_binding::formal_topology::ReachedProcedureCall),
 }
 
-/// An original conditional user procedure signature and its actual source argv.
-/// Earlier uncertainty, lookup and body entry stay explicit; no Native call,
-/// physical formal binding, completed result or source edit grant follows.
+/// An original user procedure signature and its written source argv. A
+/// conditional answer retains the lookup and body-entry obligations that
+/// the source declaration alone cannot establish.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceUserCallAritySubject {
     original: OriginalUserCallOwner,
@@ -381,6 +382,7 @@ impl SourceUserCallAritySubject {
             (OriginalUserCallOwner::Logical(a), OriginalUserCallOwner::Logical(b)) if a == b => {
                 true
             }
+            (OriginalUserCallOwner::Reached(a), OriginalUserCallOwner::Reached(b)) => a == b,
             _ => return None,
         };
         Some(originals && self.arity == other.arity && self.obligations == other.obligations)
@@ -394,6 +396,7 @@ impl SourceUserCallAritySubject {
         use crate::command_binding::SourceCommandTransitionObligation as Obligation;
         use crate::registry_invocation::source_structure::{
             source_logical_procedure_call_at, source_original_procedure_call_at,
+            source_reached_procedure_call_at,
         };
         let input = analysis.resolved_input.as_ref()?;
         let (original, arity, mut obligations, uncertain) =
@@ -411,8 +414,19 @@ impl SourceUserCallAritySubject {
                     uncertain,
                 )
             } else {
-                let call = source_original_procedure_call_at(source, analysis, offset)?;
-                let arity = call.declaration(analysis)?.metadata().arity();
+                let declared = source_original_procedure_call_at(source, analysis, offset)
+                    .and_then(|call| {
+                        let arity = call.declaration(analysis)?.metadata().arity();
+                        Some((call, arity))
+                    });
+                let Some((call, arity)) = declared else {
+                    let reached = source_reached_procedure_call_at(source, analysis, offset)?;
+                    return Some(Self {
+                        arity: reached.arity,
+                        original: OriginalUserCallOwner::Reached(reached),
+                        obligations: Vec::new(),
+                    });
+                };
                 let mut obligations = call.declaration_advice().obligations().to_vec();
                 if call.is_future_body() {
                     obligations.push(Obligation::FutureOriginalProcedureSourceApplicability);
@@ -443,6 +457,7 @@ impl SourceUserCallAritySubject {
         match &self.original {
             OriginalUserCallOwner::NativeSource(call) => call.original_words(),
             OriginalUserCallOwner::Logical(call) => call.original_words(),
+            OriginalUserCallOwner::Reached(call) => &call.words,
         }
     }
     /// Genuine declared formal count, before original alias-prefix binding.
@@ -456,6 +471,7 @@ impl SourceUserCallAritySubject {
         match &self.original {
             OriginalUserCallOwner::NativeSource(call) => call.captured_argument_count(),
             OriginalUserCallOwner::Logical(call) => call.captured_argument_count(),
+            OriginalUserCallOwner::Reached(call) => call.captured,
         }
     }
     /// Source applicability remains independent of a runtime invocation.

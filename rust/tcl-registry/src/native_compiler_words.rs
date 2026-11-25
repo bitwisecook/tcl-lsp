@@ -539,7 +539,7 @@ mod tests {
                     let row = observations
                         .lines()
                         .filter(|row| !row.starts_with('#'))
-                        .map(|row| row.split('\t').collect::<Vec<_>>())
+                        .map(|row| tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>())
                         .find(|row| {
                             row[0].starts_with(version.version_string())
                                 && row[1] == path

@@ -304,13 +304,13 @@ fn original_namespace_origin_matches_five_native_import_chains() {
             .collect()
     }
     let mut compared = 0;
-    for row in include_str!("../../../tests/data/native_namespace_origin/windows.tsv").lines() {
-        let fields = row.split('\t').collect::<Vec<_>>();
+    let fixture = include_str!("../../../tests/data/native_namespace_origin/windows.tsv");
+    for (_, fields) in tcl_test_support::fixture::tsv_rows::<4>(fixture) {
+        let release =
+            tcl_test_support::fixture::oracle_release(fields[0]).expect("modelled release");
         let mut interp = Interp::with_native_core(
             crate::interp::default_host(),
-            crate::environment::profile_for_dialect(
-                tcl_dialect::TclVersion::profile_name_for(fields[0]).expect("modelled release"),
-            ),
+            crate::environment::profile_for_dialect(release.dialect_profile_name()),
             tcl_registry::special_vars::NativeBootstrapInputs::default(),
         )
         .unwrap();

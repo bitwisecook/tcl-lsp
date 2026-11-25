@@ -230,6 +230,10 @@ pub(super) fn evaluate_path_operation(
         }
         SourcePathOperation::Normalize => super::eval_file_normalize(arguments.first()?)?,
         SourcePathOperation::ScriptPath => info_script?.to_owned(),
+        SourcePathOperation::SingletonList => {
+            let [value] = arguments else { return None };
+            (tcl_syntax::list::list_element(value) == *value).then(|| value.clone())?
+        }
     })
 }
 

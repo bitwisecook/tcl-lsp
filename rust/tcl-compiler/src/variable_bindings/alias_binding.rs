@@ -572,9 +572,7 @@ fn install_alias_binding(
         state.namespace_cells.closed = false;
         state.namespace_cells.closed_namespaces.clear();
     }
-    if target.is_global() && !target.dynamic {
-        state.namespace_cells.present.insert(cell_key(&target));
-    }
+    state.allocate_namespace_alias_target(&target);
     if state.global_frame()
         || state.namespace_scope()
         || original_slot.is_some_and(Place::is_global)

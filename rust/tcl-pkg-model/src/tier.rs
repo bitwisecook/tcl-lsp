@@ -203,7 +203,7 @@ mod tests {
         let mut manifest = root();
         manifest.dev_requires.push(Requirement {
             name: "deep".to_owned(),
-            minimum: crate::version::Version::parse("1.0.0").expect("version"),
+            version: crate::version::DependencyVersion::parse("1.0.0").expect("version"),
             source_url: None,
             dev: true,
         });

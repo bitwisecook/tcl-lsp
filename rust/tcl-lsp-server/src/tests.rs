@@ -410,8 +410,8 @@ async fn register_in_dialect(backend: &Backend, uri: &Uri, src: &str, dialect: &
 /// Build an on-disk autoload library (`tclIndex` + defining file, like a
 /// `TCLLIBPATH` entry) whose `Rbc_Wire` also calls `Rbc_ActiveLegend`
 /// internally, and point the backend's package database at it.  Returns
-/// the library file's URI.
-async fn seed_autoload_library(backend: &Backend, tag: &str) -> Uri {
+/// the scratch directory owner and the library file's URI.
+async fn seed_autoload_library(backend: &Backend, tag: &str) -> (ScratchDir, Uri) {
     let libdir = unique_scratch_dir(tag);
     std::fs::write(
         libdir.join("graph.tcl"),
@@ -435,7 +435,8 @@ async fn seed_autoload_library(backend: &Backend, tag: &str) -> Uri {
         &[],
         WORKSPACE_SCAN_DIR_CAP,
     );
-    Uri::from_file_path(libdir.join("graph.tcl")).expect("library uri")
+    let uri = crate::canonical_file_uri(libdir.join("graph.tcl")).expect("library uri");
+    (libdir, uri)
 }
 
 /// Put an entry for `uri` in every cache [`Backend::forget_uri_states`]

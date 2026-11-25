@@ -25,7 +25,7 @@ async fn publish_source(
     source: &str,
     version: i32,
 ) -> Uri {
-    let uri = Uri::from_file_path(path).unwrap();
+    let uri = crate::canonical_file_uri(path).unwrap();
     store.upsert_uri(uri.as_str(), path, source.as_bytes().to_vec());
     backend
         .db_set_source(&uri, source, "tcl8.6".into())
@@ -296,7 +296,7 @@ async fn actual_proposal_command_refuses_selected_provider_and_unversioned_disk_
                     .db_files
                     .lock()
                     .await
-                    .contains_key(&Uri::from_file_path(&path).unwrap())
+                    .contains_key(&crate::canonical_file_uri(&path).unwrap())
             );
             path
         };

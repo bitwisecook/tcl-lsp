@@ -41,13 +41,8 @@ pub fn vsatisfies(version: &str, requirements: &[&str]) -> bool {
 #[must_use]
 pub fn requirement_lower_bound(requirement: &str) -> &str {
     let req = requirement.trim();
-    if let Some(min) = req.strip_suffix('-') {
-        return min;
-    }
-    if let Some((lo, _hi)) = req.split_once('-') {
-        return lo;
-    }
-    req
+    tcl_dialect::package_requirement_bounds_for(req, tcl_dialect::TclVersion::V9_1)
+        .map_or(req, |(lower, _)| lower)
 }
 
 /// A lower bound shared by every alternative in one package requirement.
@@ -57,9 +52,18 @@ pub fn alternatives_lower_bound<'version>(
     alternatives: impl IntoIterator<Item = Option<&'version str>>,
     exact: bool,
 ) -> Option<&'version str> {
-    let grammar = tcl_dialect::TclVersion::V9_1;
+    alternatives_lower_bound_for(alternatives, exact, tcl_dialect::TclVersion::V9_1)
+}
+
+/// A source-advice lower bound under the selected release's package grammar.
+#[must_use]
+pub fn alternatives_lower_bound_for<'version>(
+    alternatives: impl IntoIterator<Item = Option<&'version str>>,
+    exact: bool,
+    grammar: tcl_dialect::TclVersion,
+) -> Option<&'version str> {
     let mut alternatives = alternatives.into_iter();
-    if exact {
+    if exact || !grammar.has_package_requirements() {
         let version = alternatives.next()??;
         return (alternatives.next().is_none()
             && tcl_dialect::validate_version_for(version, grammar))
@@ -67,13 +71,7 @@ pub fn alternatives_lower_bound<'version>(
     }
     let mut floor = None;
     for alternative in alternatives {
-        let requirement = alternative?;
-        tcl_dialect::validate_requirement_for(requirement, grammar).ok()?;
-        let lower = if requirement.contains('+') {
-            requirement
-        } else {
-            requirement_lower_bound(requirement)
-        };
+        let (lower, _) = tcl_dialect::package_requirement_bounds_for(alternative?, grammar)?;
         if floor.is_none_or(|previous| {
             tcl_dialect::compare_versions_for(lower, previous, grammar).is_lt()
         }) {
@@ -97,12 +95,8 @@ pub fn alternatives_lower_bound<'version>(
 /// is what a straddle check (does the window cross a retirement?) needs.
 #[must_use]
 pub fn requirement_upper_bound(requirement: &str) -> Option<&str> {
-    let req = requirement.trim();
-    if req.ends_with('-') {
-        return None;
-    }
-    let (_lo, hi) = req.split_once('-')?;
-    (!hi.is_empty()).then_some(hi)
+    tcl_dialect::package_requirement_bounds_for(requirement.trim(), tcl_dialect::TclVersion::V9_1)
+        .and_then(|(_, upper)| upper)
 }
 
 /// Whether `version` falls inside the closed range `[min, max]` (either

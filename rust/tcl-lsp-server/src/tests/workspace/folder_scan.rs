@@ -114,7 +114,7 @@ async fn scan_workspace_folders_builds_resolver_with_no_roots() {
     );
     root_ws.write("r.tcl", "package provide rootpkg 1.0\n");
     let backend2 = test_backend();
-    let root_uri = Uri::from_file_path(&root_ws.0).unwrap();
+    let root_uri = crate::canonical_file_uri(&root_ws.0).unwrap();
     *backend2.workspace_folders.lock().await = vec![root_uri];
     backend2.scan_workspace_folders().await.unwrap();
     assert!(
@@ -225,7 +225,7 @@ async fn scan_workspace_folders_indexes_unopened_files() {
     std::fs::write(root.join("main.tcl"), "greet world\n").unwrap();
 
     let backend = test_backend();
-    let root_url = Uri::from_file_path(&root).unwrap();
+    let root_url = crate::canonical_file_uri(&root).unwrap();
     *backend.workspace_folders.lock().await = vec![root_url];
 
     backend.scan_workspace_folders().await.unwrap();
@@ -258,8 +258,8 @@ async fn scan_workspace_folders_skips_open_documents() {
     std::fs::write(&on_disk, "proc stale {} {}\n").unwrap();
 
     let backend = test_backend();
-    let root_url = Uri::from_file_path(&root).unwrap();
-    let uri = Uri::from_file_path(&on_disk).unwrap();
+    let root_url = crate::canonical_file_uri(&root).unwrap();
+    let uri = crate::canonical_file_uri(&on_disk).unwrap();
     *backend.workspace_folders.lock().await = vec![root_url];
     backend.documents.lock("test").await.insert(
         uri.clone(),
@@ -316,7 +316,7 @@ async fn scan_workspace_folders_does_not_build_deep_tier_for_unopened_files() {
     let backend = test_backend_over(tcl_lsp_db::TclDatabase::with_event_logger(move |key| {
         sink.lock().unwrap().push(key);
     }));
-    let root_url = Uri::from_file_path(&root).unwrap();
+    let root_url = crate::canonical_file_uri(&root).unwrap();
     *backend.workspace_folders.lock().await = vec![root_url];
 
     backend.scan_workspace_folders().await.unwrap();
@@ -522,7 +522,7 @@ async fn workspace_symbol_readiness_releases_on_shutdown_and_cancellation() {
 #[tokio::test]
 async fn autoload_indexed_query_waits_out_an_in_flight_workspace_scan() {
     let backend = Arc::new(test_backend());
-    seed_autoload_library(&backend, "autoload-race").await;
+    let (_library_dir, _) = seed_autoload_library(&backend, "autoload-race").await;
     let guard = backend.workspace_scan_gate.lock().await;
     let query_backend = Arc::clone(&backend);
     let query = crate::rt::spawn(async move {

@@ -20,6 +20,8 @@
 //! The registry supplies policy and evidence; this module owns only value
 //! algorithms and conservative agreement across unselected release policies.
 
+pub use crate::list::clamp_range;
+
 /// The selected operand grammar and native result producer for literal values.
 #[derive(Debug, Clone, Copy)]
 pub struct LiteralContext {
@@ -264,21 +266,6 @@ fn alternate_compiled_index(
     crate::index::compiles_apart(spec, length, release)
         .then(|| i64::try_from(length).ok())
         .flatten()
-}
-
-/// Resolve `(first, last)` parsed indices into a clamped `[lo, hi]`
-/// inclusive range over a collection of `len` items, or `None` when the
-/// range is empty (`first > last` after clamping `first` up to 0 and
-/// `last` down to `len-1`).
-#[must_use]
-pub fn clamp_range(first: i64, last: i64, len: usize) -> Option<(usize, usize)> {
-    let last_max = i64::try_from(len).ok()? - 1;
-    let first = first.max(0);
-    let last = last.min(last_max);
-    if first > last {
-        return None;
-    }
-    Some((usize::try_from(first).ok()?, usize::try_from(last).ok()?))
 }
 
 // list commands

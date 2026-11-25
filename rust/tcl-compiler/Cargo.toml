@@ -43,6 +43,7 @@ thiserror = "2.0"
 unicode-general-category = "1.1.0"
 rustc-hash = { workspace = true }
 strsim = "0.11"
+imbl = "7.0.2"
 regex = "1"
 # Arbitrary-precision integers for exact `expr` constant folding (the numeric
 # tower of docs/design/compiler/type-tracking.md): the folder mirrors the VM's

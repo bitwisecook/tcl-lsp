@@ -1078,12 +1078,14 @@ mod tests {
                 .collect()
         }
         let mut checked = 0;
-        for row in include_str!("../tests/data/authored_procedure_names/native.tsv").lines() {
-            let columns: Vec<_> = row.split('\t').collect();
+        let fixture = include_str!("../tests/data/authored_procedure_names/native.tsv");
+        for (line, columns) in tcl_test_support::fixture::tsv_rows::<6>(fixture) {
             let environment = crate::model::ingress::resolve_environment(if columns[0] == "jim" {
                 "jim"
             } else {
-                tcl_dialect::TclVersion::profile_name_for(columns[0]).expect("captured release")
+                tcl_test_support::fixture::oracle_release(columns[0])
+                    .expect("captured release")
+                    .dialect_profile_name()
             });
             let dialect = crate::InvocationDialect::of_profile(environment.unit_profile());
             let native = tcl_syntax::naming::NamePolicyProtocol::for_native_point(
@@ -1108,7 +1110,7 @@ mod tests {
                 assert_eq!(
                     procedure_name_creation_error_for_policy(policy, columns[2] == "1", &name),
                     expected,
-                    "{row}"
+                    "line {line}: {columns:?}"
                 );
             }
             assert_ne!(native.authority(), authored.authority());
@@ -1135,7 +1137,7 @@ mod tests {
         let protocol = NativeProcedureActivationProtocol::C(tcl_dialect::TclVersion::V8_4);
         let mut compared = 0;
         for row in include_str!("../tests/data/native_c84_parse_context/8.4.20.tsv").lines() {
-            let fields = row.split('\t').collect::<Vec<_>>();
+            let fields = tcl_test_support::fixture::tsv_fields(row).collect::<Vec<_>>();
             assert_eq!(fields.len(), 9);
             if fields[1] == "0" {
                 // The native parser accepted this bracket suffix; its later

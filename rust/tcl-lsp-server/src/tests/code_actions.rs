@@ -248,7 +248,7 @@ async fn the_lightbulb_reads_the_published_report() {
     let registry = backend.registry_for_dialect("tcl8.6").await;
     let (disabled, _) = backend.resolved_analysis_settings(&uri).await;
     let published_diags = backend
-        .published_analyser_diagnostics(&uri, src, &analysis, dialect, &registry, &disabled)
+        .published_analyser_diagnostics(&uri, src, &analysis, dialect, &disabled)
         .await;
     let checks =
         tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "tcl8.6", None, None);

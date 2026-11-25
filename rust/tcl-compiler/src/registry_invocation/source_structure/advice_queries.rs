@@ -186,6 +186,21 @@ pub fn source_original_procedure_call_at(
     realm.original_source_procedure_call_at(input, offset)
 }
 
+pub(crate) fn source_reached_procedure_call_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<crate::command_binding::formal_topology::ReachedProcedureCall> {
+    let input = analysis.resolved_input.as_ref()?;
+    let image = original_query_document_image(source, analysis, input.lexer_config());
+    analysis
+        .matches_original_source_image(&image, input.lexer_config())
+        .then_some(())?;
+    let realm = analysis.retained_command_realm()?;
+    let binding = realm.invocation_at_source("", offset);
+    realm.source_bindings_ref().reached_procedure_call(&binding)
+}
+
 /// Conditional original procedure header at this exact source call horizon.
 /// Alias prefixes and actual definition transitions stay held; missing original
 /// owners remain unavailable, never a report-name or Native target fallback.
