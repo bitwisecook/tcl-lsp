@@ -26,6 +26,51 @@ use tcl_core_types::DiagCode;
 use tcl_dialect::model::SpecSurface;
 
 impl Analyser {
+    /// **W148** inside an expression: a number literal Tcl 9.0 reads but the
+    /// document's release rejects (`expr {08 + 0}` fails on 8.4-8.6 with
+    /// "invalid octal number", item 192 `tcl9-changes/t01`). Whole-word
+    /// numerals are checked where the command's words are.
+    pub(in crate::analyser) fn emit_w148_expr_numerals(&mut self, content_span: tcl_lexer::Span) {
+        use tcl_syntax::number::{ParseFlags, parse_whole_with};
+        let syntax = self.grammar().numbers;
+        if syntax == tcl_dialect::NumberSyntax::Tcl90 {
+            return;
+        }
+        let start = content_span.start() as usize;
+        let Some(expr_text) =
+            Analyser::source_slice(&self.source, start, content_span.end() as usize)
+        else {
+            return;
+        };
+        let Some(modern) = tcl_dialect::DialectProfile::find("tcl9.0") else {
+            return;
+        };
+        for token in tcl_lexer::tokenise_expr_for_profile(expr_text, modern) {
+            if token.kind != tcl_lexer::ExprTokenType::Number
+                || parse_whole_with(&token.text, ParseFlags::for_syntax(syntax)).is_some()
+                || parse_whole_with(
+                    &token.text,
+                    ParseFlags::for_syntax(tcl_dialect::NumberSyntax::Tcl90),
+                )
+                .is_none()
+            {
+                continue;
+            }
+            let offset = content_span.start();
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::W148,
+                    tcl_lexer::Span::new(offset + token.start, offset + token.end + 1),
+                    format!(
+                        "Numeral '{}' is not accepted by the resolved Tcl numeral grammar.",
+                        token.text
+                    ),
+                    Severity::Warning,
+                ));
+        }
+    }
+
     /// **W003.** Emit "Expression operator not available in active
     /// dialect" warnings for an EXPR-role argument that uses a Tcl
     /// 9.0 string-comparison operator (`lt` / `le` / `gt` / `ge`,

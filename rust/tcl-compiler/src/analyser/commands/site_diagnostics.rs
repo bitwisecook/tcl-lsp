@@ -725,6 +725,7 @@ impl Analyser {
             );
             if let Ok(content) = word.content_span() {
                 self.emit_w003_dialect_invalid_expr_operator(content);
+                self.emit_w148_expr_numerals(content);
             }
             self.emit_expr_function_dialect_diagnostics(*token);
             self.emit_w114_original_nested_expr(&original, argument);

@@ -1413,3 +1413,19 @@ fn safe_commands_autoload_without_require() {
         );
     }
 }
+
+#[test]
+fn a_tcl9_numeral_inside_an_expression_reports_w148_before_9_0() {
+    // Item 192, `tcl9-changes/t01`: tclsh 8.6.18 rejects `expr {08 + 0}`
+    // ("invalid octal number"); 9.0.4 reads 8.
+    let w148 = |dialect: &str| {
+        Analyser::new()
+            .analyse("set r [expr {08 + 0}]\n", dialect)
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W148)
+            .count()
+    };
+    assert_eq!(w148("tcl8.6"), 1);
+    assert_eq!(w148("tcl9.0"), 0);
+}
