@@ -140,7 +140,7 @@ fn public_error_resets_preserve_global_headers_and_start_fresh_episodes() {
                 );
                 assert_eq!(
                     unsafe { (*original.as_ptr()).ref_count },
-                    fields[4].parse().unwrap()
+                    fields[4].parse::<isize>().unwrap()
                 );
                 assert!(!interp.exc.borrow().native.legacy_copy);
                 assert_eq!(interp.exc.borrow().native.info_len, 0);
@@ -157,7 +157,7 @@ fn public_error_resets_preserve_global_headers_and_start_fresh_episodes() {
             );
             assert_eq!(
                 unsafe { (*original.as_ptr()).ref_count },
-                fields[7].parse().unwrap(),
+                fields[7].parse::<isize>().unwrap(),
                 "{profile}"
             );
             check_repeated_error_episode(&mut interp, &head, &original, &fields, profile);

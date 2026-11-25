@@ -222,7 +222,7 @@ fn native_destructor_frame_has_no_original_call_arguments_or_call_stack_entry() 
         OBSERVED.with(|observed| observed.borrow_mut().clear());
         assert_eq!(interp.dispatch(&pointers), Code::Error);
         OBSERVED.with(|observed| {
-            assert_eq!(observed.borrow().as_slice(), &[Vec::new()]);
+            assert_eq!(observed.borrow().as_slice(), &[Vec::<usize>::new()]);
         });
         assert_eq!(native_detail(version, "destructor", "frame", "objc="), 0);
         let protocol = interp.invocation_string_protocol().unwrap();

@@ -202,7 +202,7 @@ mod tests {
                     );
                     assert_eq!(
                         references,
-                        fields[5].parse().unwrap(),
+                        fields[5].parse::<isize>().unwrap(),
                         "{version}/{case} refs"
                     );
                     assert_eq!(

@@ -419,10 +419,10 @@ mod tests {
                 // The unshared header remains the result; the shared original
                 // remains live through the probe's genuine external reference.
                 unsafe {
-                    assert_eq!((*result).ref_count, fields[3].parse().unwrap());
-                    assert_eq!((*original).ref_count, fields[4].parse().unwrap());
+                    assert_eq!((*result).ref_count, fields[3].parse::<isize>().unwrap());
+                    assert_eq!((*original).ref_count, fields[4].parse::<isize>().unwrap());
                     assert_eq!(!(*result).bytes.is_null(), fields[6] == "1");
-                    assert_eq!((*result).length, fields[7].parse().unwrap());
+                    assert_eq!((*result).length, fields[7].parse::<isize>().unwrap());
                 }
                 assert_eq!(primary(result), fields[5], "{environment}");
                 assert!(!interp.host_refusal_pending(), "{environment}");
