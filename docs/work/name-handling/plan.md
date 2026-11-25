@@ -64,8 +64,9 @@ consumers (31) and the checked refactor edits (145). The compiler sweep passed
 80 of 83 selected tests. The same two availability failures and one
 namespace capture failure reproduce on the previous checkpoint. The package
 oracle, SpecTcl vocabulary, LSP document floor and MCP wire checks passed.
-The full Rust and smoke gates are rerunning after fixes for compiler lints,
-fixture include discovery and the generated value-transfer line references.
+All 50 Rust drift checks, the corrected workspace and runtime Clippy runs,
+and the pre-push smoke suite passed before the rebase onto the latest `work`.
+Both gates are rerunning against the combined changes.
 
 **Status of every numbered item (25 November 2026).** The BIG-IP commits of 23 November (`bfc0ef87`–`9e479b96`) completed most of items 217–233. The fixes for #2142, #2227, #2228, #2249 and #2250 are already on `work` (an earlier "not on `work`" came from a shallow clone). Tags:
 

@@ -85,16 +85,18 @@
     "lsearch" "lseq" "lset" "lsort" "modf" "oo::copy"
     "open" "parray" "pid" "pkg::create" "pkg_compareExtension" "pkg_mkIndex"
     "puts" "pwd" "read" "readFile" "regexp" "regsub"
-    "remquo" "scan" "seek" "socket" "split" "string"
-    "subst" "tclLdAout" "tclLog" "tclPkgSetup" "tclPkgUnknown" "tcl_endOfWord"
-    "tcl_findLibrary" "tcl_startOfNextWord" "tcl_startOfPreviousWord" "tcl_wordBreakAfter" "tcl_wordBreakBefore" "tell"
-    "time" "timer" "tmsh::add_help" "tmsh::add_tabc" "tmsh::begin_transaction" "tmsh::builtin_help"
-    "tmsh::builtin_tabc" "tmsh::cancel_transaction" "tmsh::cd" "tmsh::clear_screen" "tmsh::commit_transaction" "tmsh::create"
-    "tmsh::delete" "tmsh::display" "tmsh::display_threshold" "tmsh::get_config" "tmsh::get_field_names" "tmsh::get_field_value"
-    "tmsh::get_name" "tmsh::get_status" "tmsh::get_type" "tmsh::include" "tmsh::list" "tmsh::log"
-    "tmsh::log_dest" "tmsh::log_level" "tmsh::modify" "tmsh::pwd" "tmsh::reset_stats" "tmsh::show"
-    "tmsh::stateless" "tmsh::version" "trace" "unicode" "unknown" "unload"
-    "unset" "update" "vwait" "writeFile" "zipfs" "zlib"))
+    "remquo" "safe::interpAddToAccessPath" "safe::interpConfigure" "safe::interpCreate" "safe::interpDelete" "safe::interpFindInAccessPath"
+    "safe::interpInit" "safe::setLogCmd" "safe::setSyncMode" "scan" "seek" "socket"
+    "split" "string" "subst" "tclLdAout" "tclLog" "tclPkgSetup"
+    "tclPkgUnknown" "tcl_endOfWord" "tcl_findLibrary" "tcl_startOfNextWord" "tcl_startOfPreviousWord" "tcl_wordBreakAfter"
+    "tcl_wordBreakBefore" "tell" "time" "timer" "tmsh::add_help" "tmsh::add_tabc"
+    "tmsh::begin_transaction" "tmsh::builtin_help" "tmsh::builtin_tabc" "tmsh::cancel_transaction" "tmsh::cd" "tmsh::clear_screen"
+    "tmsh::commit_transaction" "tmsh::create" "tmsh::delete" "tmsh::display" "tmsh::display_threshold" "tmsh::get_config"
+    "tmsh::get_field_names" "tmsh::get_field_value" "tmsh::get_name" "tmsh::get_status" "tmsh::get_type" "tmsh::include"
+    "tmsh::list" "tmsh::log" "tmsh::log_dest" "tmsh::log_level" "tmsh::modify" "tmsh::pwd"
+    "tmsh::reset_stats" "tmsh::show" "tmsh::stateless" "tmsh::version" "trace" "unicode"
+    "unknown" "unload" "unset" "update" "vwait" "writeFile"
+    "zipfs" "zlib"))
 
 ; Highlight unset / variable arguments as variables
 (command

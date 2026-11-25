@@ -88,14 +88,15 @@
     "lset" "lsort" "match_max" "modf" "oo::copy" "open"
     "overlay" "parity" "parray" "pid" "pkg::create" "pkg_compareExtension"
     "pkg_mkIndex" "puts" "pwd" "read" "readFile" "regexp"
-    "regsub" "remove_nulls" "remquo" "scan" "seek" "send"
-    "send_error" "send_log" "send_tty" "send_user" "sleep" "socket"
-    "spawn" "split" "strace" "string" "stty" "subst"
-    "system" "tclLdAout" "tclLog" "tclPkgSetup" "tclPkgUnknown" "tcl_endOfWord"
-    "tcl_findLibrary" "tcl_startOfNextWord" "tcl_startOfPreviousWord" "tcl_wordBreakAfter" "tcl_wordBreakBefore" "tell"
-    "time" "timer" "timestamp" "trace" "trap" "unicode"
-    "unknown" "unload" "unset" "update" "vwait" "wait"
-    "writeFile" "zipfs" "zlib"))
+    "regsub" "remove_nulls" "remquo" "safe::interpAddToAccessPath" "safe::interpConfigure" "safe::interpCreate"
+    "safe::interpDelete" "safe::interpFindInAccessPath" "safe::interpInit" "safe::setLogCmd" "safe::setSyncMode" "scan"
+    "seek" "send" "send_error" "send_log" "send_tty" "send_user"
+    "sleep" "socket" "spawn" "split" "strace" "string"
+    "stty" "subst" "system" "tclLdAout" "tclLog" "tclPkgSetup"
+    "tclPkgUnknown" "tcl_endOfWord" "tcl_findLibrary" "tcl_startOfNextWord" "tcl_startOfPreviousWord" "tcl_wordBreakAfter"
+    "tcl_wordBreakBefore" "tell" "time" "timer" "timestamp" "trace"
+    "trap" "unicode" "unknown" "unload" "unset" "update"
+    "vwait" "wait" "writeFile" "zipfs" "zlib"))
 
 ; Highlight unset / variable arguments as variables
 (command
