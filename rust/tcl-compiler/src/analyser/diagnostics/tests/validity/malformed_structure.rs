@@ -21,6 +21,51 @@
 use super::*;
 
 #[test]
+fn e007_needs_the_actual_store_and_the_same_initialised_constant() {
+    let source = "const fixed 3\nset fixed\nset fixed 4\n";
+    for profile in ["tcl9.0", "tcl9.1"] {
+        let mut analyser = crate::analyser::Analyser::new();
+        let result = analyser.analyse(source, profile);
+        let matches = result
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == DiagCode::E007)
+            .collect::<Vec<_>>();
+        let [diagnostic] = matches.as_slice() else {
+            panic!("expected one constant write for {profile}: {matches:?}");
+        };
+        assert_eq!(
+            diagnostic.span.start() as usize,
+            source.rfind("fixed").unwrap()
+        );
+        assert_eq!(&source[diagnostic.span.as_range()], "fixed");
+    }
+    assert!(!has_code(source, "tcl8.6", "E007"));
+    assert!(has_code(source, "tcl8.6", "W002"));
+    for source in [
+        "const fixed 3; puts $fixed; set fixed 4",
+        "puts ready; const fixed 3; set fixed 4",
+        "const fixed 3; puts -nonewline stdout ready; set fixed 4",
+        "const fixed 3; chan put stdout ready; set fixed 4",
+        "const fixed 3; chan puts stdout ready; set fixed 4",
+        "const fixed 3; read stdin; set fixed 4",
+        "const fixed 3; exec true >@stdout; set fixed 4",
+        "const fixed 3; catch {puts -nonewline stdout ready}; set fixed 4",
+        "const fixed 3; update; set fixed 4",
+        "const fixed 3; update idletasks; set fixed 4",
+        "const fixed 3; vwait ready; set fixed 4",
+        "const fixed 3; proc cmp args {rename set savedSet; proc set args {return 4}; return 0}; lsort -command cmp {1 2}; set fixed 4",
+        "const fixed 3; rename set oldSet; proc set args {}; set fixed 4",
+        "namespace eval Box {const fixed 3}; namespace delete Box; namespace eval Box {set fixed 4}",
+    ] {
+        assert!(
+            !has_code(source, "tcl9.1", "E007"),
+            "unexpected E007 for {source:?}"
+        );
+    }
+}
+
+#[test]
 fn e006_rejects_invalid_literal_formal_parameter_lists_from_registry_roles() {
     // Tcl 9.0.4 rejects a formal specifier with three fields, a namespace
     // qualified name, and an array element.  Duplicate parameter names remain

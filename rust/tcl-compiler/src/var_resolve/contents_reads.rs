@@ -338,7 +338,10 @@ impl ResolveContext {
             })
             && self.contents_presence(place) == ContentsPresence::Defined
             && matches!(self.contents_origin(place), ContentsOrigin::WrittenAt(_))
-            && self.contents_kinds.get(&cell_key(place)) == Some(&RootContentsKind::Scalar)
+            && matches!(
+                self.contents_kinds.get(&cell_key(place)),
+                Some(RootContentsKind::Scalar | RootContentsKind::ConstantScalar(_))
+            )
     }
 
     pub(super) fn current_contents_generation(&self, place: &Place) -> bool {

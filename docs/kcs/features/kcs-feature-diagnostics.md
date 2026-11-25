@@ -23,6 +23,8 @@ all-editors, MCP, Claude skill, diagnostic, warning
 
 The analyser produces diagnostics in categories: errors (E-codes), security (S-codes), taint (T-codes), performance/style (W-codes), and optimiser suggestions (O-codes). Diagnostics are published on every document change via the LSP `textDocument/publishDiagnostics` notification (the default push model).
 
+On Tcl 9, a `set` write to a variable proved constant produces `E007` at the variable name. [Write to a constant](../codes/kcs-diagnostic-e007-write-to-constant.md)
+
 Files matching a `tclLsp.diagnostics.exclude` glob (per workspace folder, gitignore-style) publish an empty diagnostic set instead — every other feature (hover, navigation, formatting, indexing) keeps working on them.
 
 The server also answers pull-model requests — `textDocument/diagnostic` for one document and `workspace/diagnostic` for the whole workspace — from the same cache, for clients that request them directly. Pull is not a user setting: switching delivery models changes the capability advertised during `initialize`, so it must be agreed by the client and server for a fresh session. Push publication remains the editor default.

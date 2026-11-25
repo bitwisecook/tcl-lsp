@@ -63,7 +63,7 @@ pub(super) fn walk_known_outputs(
         if target.observed || target.dynamic || target.cell.is_none() {
             return None;
         }
-        if candidate.source_variables.store_would_error(&target) {
+        if candidate.source_variables.native_store_would_error(&target) {
             *state = *candidate;
             return Some(SourceOutcomes::invocation(
                 state,

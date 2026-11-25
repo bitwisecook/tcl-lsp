@@ -218,7 +218,7 @@ pub(crate) fn transfer_finite_iteration_bindings(
             registry,
             tcl_registry::TraceOperation::Write,
         );
-        if state.store_would_error(&target) {
+        if state.native_store_would_error(&target) {
             return Outcome::StoreError;
         }
         if target.observed || target.dynamic || target.kind == PlaceKind::Unknown {
@@ -275,7 +275,7 @@ pub fn transfer_source_iteration_bindings(
             registry,
             tcl_registry::TraceOperation::Write,
         );
-        if state.store_would_error(&target) {
+        if state.native_store_would_error(&target) {
             return Outcome::StoreError;
         }
         if target.observed || target.dynamic || target.kind == PlaceKind::Unknown {

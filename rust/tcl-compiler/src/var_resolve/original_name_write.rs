@@ -90,7 +90,7 @@ impl ResolveContext {
             || !receiver.keys.is_empty()
             || !matches!(receiver.kind, PlaceKind::Scalar | PlaceKind::ArrayElem)
             || !self.current_contents_generation(receiver)
-            || self.store_would_error(receiver)
+            || self.native_store_would_error(receiver)
         {
             return false;
         }

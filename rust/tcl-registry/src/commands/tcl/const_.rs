@@ -62,6 +62,10 @@ pub fn spec() -> CommandSpec {
             writes: true,
             ..SideEffect::DEFAULT
         }]),
+        world_effects: crate::knowledge::Knowledge::Partial(crate::WorldEffectDescriptor {
+            composition: crate::world_effect::WorldEffectComposition::Replace,
+            ..crate::WorldEffectDescriptor::VARIABLE_WRITE
+        }),
         hover: Some(HoverSnippet {
             summary: "Create and initialize an unmodifiable constant variable.",
             synopsis: &["const varName value"],

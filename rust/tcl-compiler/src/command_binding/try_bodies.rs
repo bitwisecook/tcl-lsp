@@ -224,7 +224,7 @@ fn bind_try_outputs(
             context.registry,
             tcl_registry::TraceOperation::Write,
         );
-        if state.source_variables.store_would_error(&target) {
+        if state.source_variables.native_store_would_error(&target) {
             return false;
         }
         crate::variable_bindings::transfer_captured_variable_outputs(

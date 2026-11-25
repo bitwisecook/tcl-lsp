@@ -116,6 +116,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var diagnosticE003: Boolean = true
     var diagnosticE005: Boolean = true
     var diagnosticE006: Boolean = true
+    var diagnosticE007: Boolean = true
     var diagnosticE200: Boolean = true
     var diagnosticW001: Boolean = true
     var diagnosticW002: Boolean = true
@@ -456,6 +457,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "E003" to diagnosticE003,
                 "E005" to diagnosticE005,
                 "E006" to diagnosticE006,
+                "E007" to diagnosticE007,
                 "E200" to diagnosticE200,
                 "W001" to diagnosticW001,
                 "W002" to diagnosticW002,

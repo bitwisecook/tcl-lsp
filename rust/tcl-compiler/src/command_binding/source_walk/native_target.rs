@@ -75,6 +75,36 @@ fn source_procedure_body_admission(
     ))
 }
 
+fn unmodelled_native_reentry(native: SourceNativeInvocation<'_>, facts: &InvocationFacts) -> bool {
+    use tcl_registry::resolved_invocation::SourceCallbackRetention;
+    use tcl_registry::side_effects::SideEffectTarget;
+    use tcl_registry::world_effect::WorldStateDomain;
+    if native
+        .invocation
+        .arguments()
+        .dialect()
+        .and_then(|dialect| dialect.tcl_version)
+        .is_none_or(|version| version < tcl_dialect::TclVersion::V9_0)
+    {
+        return false;
+    }
+    let host_io = facts.effects.accesses().iter().any(|access| {
+        matches!(
+            access.domain,
+            WorldStateDomain::LegacyExternal(SideEffectTarget::FileIo | SideEffectTarget::Process)
+        )
+    });
+    host_io
+        || (facts
+            .state_transitions
+            .declared()
+            .is_none_or(|transitions| transitions.facts().is_empty())
+            && (facts
+                .traits
+                .contains(tcl_registry::Traits::CREATES_DYNAMIC_BARRIER)
+                || facts.source_callback_retention() != SourceCallbackRetention::Absent))
+}
+
 #[inline(never)]
 fn native_implementation_dependency_holds(
     native: SourceNativeInvocation<'_>,
@@ -583,6 +613,9 @@ impl SourceCommandBindings {
         {
             return Err(Box::new(refusal));
         }
+        if let Some(outcomes) = Self::walk_native_constant(native, facts, state, context) {
+            return Err(Box::new(outcomes));
+        }
         if let Some(outcomes) =
             self.walk_observed_native_store(native, facts, state, context, route, incoming)
         {
@@ -634,6 +667,12 @@ impl SourceCommandBindings {
     ) -> SourceOutcomes {
         let prepared = match prepare_selected_native_body(native, state, context, facts, route) {
             Ok(prepared) => prepared,
+            Err(route) if unmodelled_native_reentry(native, facts) => {
+                // Channel observers, notifier callbacks, and selected callback
+                // operands can re-enter Tcl before any returned completion.
+                state.mark_opaque_binding_mutation();
+                return SourceOutcomes::invocation(state, route);
+            }
             Err(route) => return SourceOutcomes::native_invocation(incoming, state, route),
         };
         let body_context = source_body_context_boxed(

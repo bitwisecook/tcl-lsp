@@ -116,6 +116,7 @@ const EXPECTED_DIAGNOSTIC_STAGES: &[(&str, &str)] = &[
     ("E004", "command-walk"),
     ("E005", "command-walk"),
     ("E006", "command-walk"),
+    ("E007", "command-walk"),
     ("E100", "lexing"),
     ("E101", "lexing"),
     ("E102", "lexing"),

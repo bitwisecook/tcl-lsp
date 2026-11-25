@@ -1330,6 +1330,13 @@ dict with d {incr a; set result done}
   spelling share one declaration, and the rebuilt dictionary is both the
   result and the one `Write`; a malformed prior declines rather than being
   repaired.
+- **A constant write fails before the store.** On Tcl 9, the selected
+  `const` operation records immutability on the resolved scalar
+  generation after proven initialisation. A later native `set` for that
+  generation takes the error completion, and the command walk uses the
+  original write operand for E007. The fact requires the same cell
+  generation and a proven dispatch at the write. An opaque callback or
+  an unproved creation withdraws the finding. [Tcl execution evidence](../../../evidence/tcl/constant-write-observer-order.md)
 - **Duplicate targets resolve to places first.** `lassign … a a` writes
   `a` twice in order; the outcomes are composed after resolution, in
   execution order.

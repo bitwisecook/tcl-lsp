@@ -404,6 +404,7 @@ impl Analyser {
         self.emit_source_signature_advice(site, original.as_ref());
         if !presubstituted_args && let Some(original) = original.as_ref() {
             self.emit_missing_named_value_read(original, cmd_tok, arg_tokens);
+            self.emit_constant_variable_write(original, cmd_tok, arg_tokens);
             self.record_proven_site(&super::super::diagnostics::CallWords {
                 cmd_tok,
                 args,
@@ -461,6 +462,61 @@ impl Analyser {
                     span,
                     format!("Variable '{name}' is read before it is set"),
                     Severity::Warning,
+                ));
+        }
+    }
+
+    fn emit_constant_variable_write(
+        &mut self,
+        original: &super::super::diagnostic_registry::OriginalDiagnosticInvocation,
+        head: Token,
+        arguments: &[Token],
+    ) {
+        use tcl_registry::native_result::{NativeResultContract, VariableResultPhase};
+        if self.disabled_diagnostics.contains("E007")
+            || original.with_schema(|call| {
+                matches!(
+                    call.semantics.native_result,
+                    Some(NativeResultContract::VariableValue {
+                        phase: VariableResultPhase::AfterWrite,
+                        ..
+                    })
+                )
+            }) != Some(true)
+        {
+            return;
+        }
+        let constant_write = || {
+            let tokens = self.retained_invocation_tokens(head.span.start(), arguments)?;
+            let binding = tokens.source_binding.as_ref()?;
+            if binding.runtime_reachability()
+                != crate::command_binding::SourceRuntimeReachability::Reached
+                || !binding.unobserved_native_dispatch()
+            {
+                return None;
+            }
+            let input = self.result.resolved_input.as_ref()?;
+            let registry = self.registry.as_deref()?;
+            let metadata =
+                binding.original_invocation_metadata_for_input(&tokens, input, registry)?;
+            let transfer =
+                crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+                    registry,
+                    Some(metadata),
+                    &tokens,
+                )?;
+            let argument = transfer.constant_store_argument(&binding.variable_context, registry)?;
+            let word = tokens.words().get(argument + 1)?;
+            Some(word.source().span)
+        };
+        if let Some(span) = constant_write() {
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::E007,
+                    span,
+                    "Cannot write to a constant variable".to_owned(),
+                    Severity::Error,
                 ));
         }
     }

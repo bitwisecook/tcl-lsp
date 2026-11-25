@@ -844,6 +844,9 @@ position the solver transfers the typed assignment itself; the route
 serves the invocation-shaped uses, `[set x]` first. `CellWriteSemantics`
 in `tcl_registry::value_transfer::cell_write`.
 
+In Tcl 9, `const` makes the selected scalar cell immutable. A later
+`set` write to that cell fails before it changes the value.
+
 See also: [Value transfers § Storage-writing commands](design/compiler/value-transfers.md#storage-writing-commands),
 [Keyed update](#keyed-update).
 

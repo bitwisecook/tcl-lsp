@@ -326,6 +326,7 @@ pub(super) fn capture_append(
         || receiver.observed
         || writer.dynamic
         || writer.observed
+        || before.source_variables.selected_scalar_is_constant(&writer)
         || receiver.cell != writer.cell
         || receiver.index != writer.index
         || !before

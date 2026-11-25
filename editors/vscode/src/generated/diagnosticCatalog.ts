@@ -67,6 +67,12 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "E007",
+    section: "error",
+    description: "The selected Tcl variable is constant and cannot be written.",
+    defaultEnabled: true,
+  },
+  {
     code: "E200",
     section: "error",
     description:

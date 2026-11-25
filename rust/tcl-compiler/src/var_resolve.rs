@@ -399,6 +399,8 @@ pub enum VariableReadCompletion {
 pub enum RootContentsKind {
     /// A root contains one scalar value.
     Scalar,
+    /// A native constant scalar of the selected cell generation.
+    ConstantScalar(CellGeneration),
     /// A root owns an array element table, including an empty table.
     Array,
 }

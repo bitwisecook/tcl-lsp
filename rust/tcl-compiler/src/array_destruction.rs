@@ -107,7 +107,9 @@ impl ResolveContext {
         root.kind = PlaceKind::ArrayWhole;
         let missing = self.contents_presence(&root) == ContentsPresence::Undefined;
         match self.root_contents_kind(&root) {
-            Some(RootContentsKind::Scalar) => return ArrayEntriesStoreOutcome::Error,
+            Some(RootContentsKind::Scalar | RootContentsKind::ConstantScalar(_)) => {
+                return ArrayEntriesStoreOutcome::Error;
+            }
             Some(RootContentsKind::Array) => {}
             None if missing => {}
             None => return ArrayEntriesStoreOutcome::Unknown,

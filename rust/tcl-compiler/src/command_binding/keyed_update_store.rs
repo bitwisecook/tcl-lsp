@@ -69,6 +69,7 @@ pub(super) fn retain_keyed_update_store(
                 || receiver.observed
                 || writer.observed
                 || receiver.cell != writer.cell
+                || before.source_variables.selected_scalar_is_constant(&writer)
             {
                 return None;
             }

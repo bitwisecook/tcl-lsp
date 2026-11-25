@@ -217,6 +217,9 @@ eval $user_input             ;# W101: eval with substituted arguments (injection
 catch { error "oops" }       ;# W302: catch without a result variable
 ```
 
+In Tcl 9, `E007` flags a `set` write when analysis can prove that `const`
+created the variable it selects. [Write to a constant](docs/kcs/codes/kcs-diagnostic-e007-write-to-constant.md)
+
 Child interpreters are modelled too: a command hidden in a safe
 interpreter (`interp create -safe`) is flagged where it can never run
 (W129), and an `interp eval` into an interpreter the file never creates

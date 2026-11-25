@@ -70,7 +70,7 @@ impl SourceCommandBindings {
             name_value,
             offset,
         } = store;
-        if state.source_variables.store_would_error(receiver) {
+        if state.source_variables.native_store_would_error(receiver) {
             return SourceOutcomes::invocation(state, Route::Tcl(CompletionCode::Error));
         }
         if !super::variable_outputs::store_is_closed(
@@ -147,6 +147,12 @@ impl SourceCommandBindings {
             native.original_variable_operands,
         )?;
         let receiver = &receiver;
+        if state.source_variables.selected_scalar_is_constant(receiver) {
+            return Some(SourceOutcomes::invocation(
+                state,
+                Route::Tcl(CompletionCode::Error),
+            ));
+        }
         if reads.iter().all(|read| !read.observed)
             && increment_requires_missing_error(
                 facts,
@@ -215,6 +221,75 @@ impl SourceCommandBindings {
         release_captured_lease(&mut outcomes, lease);
         outcomes.publish(state);
         Some(outcomes)
+    }
+
+    pub(super) fn walk_native_constant(
+        native: super::SourceNativeInvocation<'_>,
+        facts: &tcl_registry::InvocationFacts,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> Option<SourceOutcomes> {
+        use crate::place::PlaceKind;
+        let arguments = native.invocation.arguments();
+        if !facts.native_compilation.is_some_and(|spec| {
+            spec.grammar == tcl_registry::native_compilation::NativeCompilationGrammar::Constant
+        }) || !closed_variable_effects(facts)
+            || arguments
+                .exact_argv_len()?
+                .checked_sub(facts.argument_offset)
+                != Some(2)
+        {
+            return None;
+        }
+        let variables = &state.source_variables;
+        let (receiver, reads) = captured_native_receiver(
+            arguments,
+            facts,
+            variables,
+            context.registry,
+            native.original_variable_operands,
+        )?;
+        if receiver.kind != PlaceKind::Scalar
+            || receiver.index.is_some()
+            || receiver.dynamic
+            || !reads.is_empty()
+            || !super::variable_outputs::store_is_closed(&receiver, variables, context.registry)
+        {
+            return None;
+        }
+        if variables.selected_scalar_is_constant(&receiver) {
+            return Some(SourceOutcomes::invocation(
+                state,
+                Route::Tcl(CompletionCode::Ok),
+            ));
+        }
+        let observers =
+            variables.variable_observers_at(&receiver, TraceOperation::Write, context.registry);
+        if !variables.read_is_definitely_missing(&receiver, context.registry)
+            || observers.unknown_residual
+            || !observers.callbacks.is_empty()
+            || !observers.possible_callbacks.is_empty()
+        {
+            return None;
+        }
+        state.record_provider_state_writes(
+            facts,
+            *native.invocation,
+            context.registry,
+            native.original_variable_operands,
+        );
+        let variables = Arc::make_mut(&mut state.source_variables);
+        variables.set_contents_write_source(state.current_source_origin.clone());
+        variables.publish_captured_store(
+            &receiver,
+            arguments.literal_at(facts.argument_offset + 1),
+            native.segment.span.start(),
+        );
+        variables.retain_constant_scalar(&receiver);
+        Some(SourceOutcomes::invocation(
+            state,
+            Route::Tcl(CompletionCode::Ok),
+        ))
     }
 
     fn walk_observed_native_getter(
@@ -402,7 +477,7 @@ impl SourceCommandBindings {
         ) {
             return SourceOutcomes::invocation(state, Route::Tcl(CompletionCode::Error));
         }
-        if state.source_variables.store_would_error(&receiver) {
+        if state.source_variables.native_store_would_error(&receiver) {
             return SourceOutcomes::invocation(state, Route::Tcl(CompletionCode::Error));
         }
         let increment = facts.operation
@@ -524,7 +599,7 @@ impl SourceCommandBindings {
         state: &mut ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
     ) -> Option<SourceOutcomes> {
-        if !closed_variable_effects(facts) {
+        if !facts.arg_roles_complete {
             return None;
         }
         let roles: Vec<_> = facts
@@ -533,6 +608,20 @@ impl SourceCommandBindings {
             .filter(|(_, role)| *role == tcl_registry::ArgRole::VarWrite)
             .collect();
         let [(index, _)] = roles.as_slice() else {
+            if roles.iter().any(|(index, _)| {
+                let receiver = native.original_variable_operands.access(
+                    facts.argument_offset + usize::from(*index),
+                    &state.source_variables,
+                    context.registry,
+                    TraceOperation::Unset,
+                    false,
+                );
+                state
+                    .source_variables
+                    .selected_scalar_is_constant(&receiver)
+            }) {
+                return Some(super::opaque_source_invocation(state));
+            }
             return None;
         };
         let index = facts.argument_offset + usize::from(*index);
@@ -557,6 +646,20 @@ impl SourceCommandBindings {
             TraceOperation::Unset,
             false,
         );
+        if state
+            .source_variables
+            .selected_scalar_is_constant(&receiver)
+        {
+            return Some(
+                match constant_unset_completion(native.invocation.arguments(), facts) {
+                    Some(code) => SourceOutcomes::invocation(state, Route::Tcl(code)),
+                    None => super::opaque_source_invocation(state),
+                },
+            );
+        }
+        if !closed_variable_effects(facts) {
+            return None;
+        }
         if let Some(plan) = Arc::make_mut(&mut state.source_variables).begin_array_destruction(
             &receiver,
             native.segment.span.start(),
@@ -1109,6 +1212,39 @@ fn captured_store_contract(
     primitive && closed_variable_effects(facts)
 }
 
+fn constant_unset_completion(
+    arguments: tcl_registry::InvocationArguments<'_>,
+    facts: &tcl_registry::InvocationFacts,
+) -> Option<CompletionCode> {
+    use tcl_registry::native_compilation::{NativeArrayCommand, NativeCompilationGrammar};
+    match facts.native_compilation?.grammar {
+        NativeCompilationGrammar::LiteralUnset => {}
+        NativeCompilationGrammar::Array {
+            command: NativeArrayCommand::Unset,
+            ..
+        } => return Some(CompletionCode::Ok),
+        _ => return None,
+    }
+    let argument_offset = facts.argument_offset;
+    let count = arguments.exact_argv_len()?.checked_sub(argument_offset)?;
+    let options = arguments
+        .dialect()?
+        .unset_option_protocol()?
+        .parse(count, |at| {
+            let at = argument_offset + at;
+            arguments
+                .native_bytes_at(at)
+                .or_else(|| arguments.literal_at(at).map(str::as_bytes))
+                .ok_or(())
+        })
+        .ok()?;
+    Some(if options.complain {
+        CompletionCode::Error
+    } else {
+        CompletionCode::Ok
+    })
+}
+
 fn closed_variable_effects(facts: &tcl_registry::InvocationFacts) -> bool {
     use tcl_registry::world_effect::{CallbackKinds, EffectAccessMode, WorldStateDomain};
     facts.arg_roles_complete
@@ -1226,6 +1362,42 @@ mod tests {
                 facts.arg_roles_complete,
                 facts.state_transitions,
                 facts.effects
+            );
+        }
+    }
+
+    #[test]
+    fn native_constant_allows_reads_and_rejects_a_following_store() {
+        use crate::command_binding::SourceRuntimeReachability::{NotEntered, Reached};
+        let source = "const fixed 3; set fixed; set fixed 4; llength stable";
+        for profile in ["tcl9.0", "tcl9.1"] {
+            let bindings = analyse_for(source, profile);
+            for (word, reachability) in [("set fixed 4", Reached), ("llength", NotEntered)] {
+                let offset = u32::try_from(source.find(word).unwrap()).unwrap();
+                assert_eq!(
+                    bindings
+                        .invocation_at_source(word, offset)
+                        .runtime_reachability(),
+                    reachability,
+                    "{profile}: {word}",
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn suppressed_unset_and_redeclaration_preserve_a_native_constant() {
+        use crate::command_binding::SourceRuntimeReachability::{NotEntered, Reached};
+        let source = "const fixed 3; array unset fixed; unset -nocomplain fixed; const fixed 8; set fixed 4; llength stable";
+        let bindings = analyse_for(source, "tcl9.1");
+        for (word, reachability) in [("set fixed 4", Reached), ("llength", NotEntered)] {
+            let offset = u32::try_from(source.find(word).unwrap()).unwrap();
+            assert_eq!(
+                bindings
+                    .invocation_at_source(word, offset)
+                    .runtime_reachability(),
+                reachability,
+                "{word}",
             );
         }
     }

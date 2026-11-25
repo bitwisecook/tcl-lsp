@@ -350,6 +350,36 @@ impl NormalTransferInvocation {
         Some((origin, place.cell?.name))
     }
 
+    /// A written target of a selected ordinary store that the current cell
+    /// rejects before any variable write observer.
+    pub(crate) fn constant_store_argument(
+        &self,
+        state: &crate::var_resolve::ResolveContext,
+        registry: &CommandRegistry,
+    ) -> Option<usize> {
+        use tcl_registry::native_result::{NativeResultSelection, VariableResultPhase};
+        self.stored_value_argument()?;
+        let contract = self.invocation.facts.native_result?;
+        let NativeResultSelection::VariableValue {
+            variable_at,
+            phase: VariableResultPhase::AfterWrite,
+        } = self.with_arguments(|arguments| {
+            contract.select(arguments, self.invocation.facts.argument_offset)
+        })
+        else {
+            return None;
+        };
+        let origin = self.written_argument(variable_at)?;
+        let place = self.original_operands.as_ref()?.access(
+            variable_at,
+            state,
+            registry,
+            tcl_registry::TraceOperation::Write,
+            false,
+        );
+        state.selected_scalar_is_constant(&place).then_some(origin)
+    }
+
     /// Bound contents changes, including destruction; no runtime dispatch licence.
     #[must_use]
     pub fn mutation_places(

@@ -385,6 +385,19 @@ impl ResolveContext {
         }
     }
 
+    /// Mark the same physical scalar after its observer-free initialisation.
+    pub(crate) fn retain_constant_scalar(&mut self, receiver: &Place) {
+        if let Some(cell) = &receiver.cell
+            && cell.generation != CellGeneration::Unknown
+            && self.root_contents_kind(receiver) == Some(RootContentsKind::Scalar)
+        {
+            self.contents_kinds.insert(
+                cell_key(receiver),
+                RootContentsKind::ConstantScalar(cell.generation),
+            );
+        }
+    }
+
     pub(crate) fn record_presence_slot(&mut self, place: &Place) {
         if let Some(key) = canonical_binding_value_key(place) {
             self.contents_presence_slots
@@ -443,7 +456,29 @@ impl ResolveContext {
         if place.observed || !self.current_contents_generation(place) {
             return None;
         }
-        self.contents_kinds.get(&key).copied()
+        self.contents_kinds.get(&key).map(|kind| match kind {
+            RootContentsKind::ConstantScalar(_) => RootContentsKind::Scalar,
+            kind => *kind,
+        })
+    }
+
+    /// A write to the selected constant scalar fails before variable observers.
+    pub(crate) fn selected_scalar_is_constant(&self, place: &Place) -> bool {
+        place.kind == PlaceKind::Scalar
+            && place.index.is_none()
+            && !place.dynamic
+            && !self.dynamic_bindings
+            && place.cell.as_ref().is_some_and(|cell| {
+                cell.generation != CellGeneration::Unknown
+                    && self.current_contents_generation(place)
+                    && self.contents_kinds.get(&cell_key(place))
+                        == Some(&RootContentsKind::ConstantScalar(cell.generation))
+            })
+    }
+
+    /// Failure at the actual native store phase, after any preceding reads.
+    pub(crate) fn native_store_would_error(&self, place: &Place) -> bool {
+        self.selected_scalar_is_constant(place) || self.store_would_error(place)
     }
 
     /// Whether an ordinary scalar/element store is proved to fail before writing.

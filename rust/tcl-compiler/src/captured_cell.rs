@@ -198,7 +198,9 @@ impl CapturedCellArena {
                     Some(RootContentsKind::Array) => {
                         CapturedCellState::Retired(CapturedCellRetirement::Array)
                     }
-                    Some(RootContentsKind::Scalar) => CapturedCellState::ContentsReset,
+                    Some(RootContentsKind::Scalar | RootContentsKind::ConstantScalar(_)) => {
+                        CapturedCellState::ContentsReset
+                    }
                     None => CapturedCellState::Unknown,
                 };
             } else {
