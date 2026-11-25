@@ -48,7 +48,7 @@ engine, editor or complete-catalogue migrations.
 - **designed**: the approach, owner and completion test are written down (a design page or the item itself); no implementation yet.
 - **not yet started**: needs a decision, an investigation or a design before implementation can begin.
 
-Counts: completed 40, in progress 27, designed 173, not yet started 4 (owner decisions on items 74, 96, 142 and 196 recorded on 23 November 2026; items 235–244 added). Wrong answers re-checked on the current binaries and source for this pass:
+Counts: completed 41, in progress 27, designed 172, not yet started 4 (owner decisions on items 74, 96, 142 and 196 recorded on 23 November 2026; items 235–244 added). Wrong answers re-checked on the current binaries and source for this pass:
 - item 42: `lremove` is still missing in the VM;
 - item 18: `next` still runs one level too deep in the VM;
 - item 114: the shared matcher and cross-gate coverage are still open.
@@ -657,8 +657,9 @@ Jim ([Jim](jim-design.md)):
 
 Across the fourteen areas:
 
-198. **[designed]** (merged in part: conformance rows is done once under item 75) Conformance: turn every area's fixtures and `engines.tsv` into rows run by both engines (8.4–9.1 pins where relevant; Jim rows by jimsh and the analyser only, item 196) and by the analyser, optimiser (executed before and after) and LSP features, regenerating `tcl-areas-head/` instead of hand-written `analyser-mcp.out` files.
+198. **[completed]** (merged in part: conformance rows is done once under item 75) Conformance: turn every area's fixtures and `engines.tsv` into rows run by both engines (8.4–9.1 pins where relevant; Jim rows by jimsh and the analyser only, item 196) and by the analyser, optimiser (executed before and after) and LSP features, regenerating `tcl-areas-head/` instead of hand-written `analyser-mcp.out` files.
    - Done when one runner regenerates every area's (`oo-dispatch-probe/*/`) `engines.tsv`, `analyser-mcp.out` and `tcl-areas-head/` from the fixtures (both engines on the 8.4–9.1 pins, jimsh plus the analyser for Jim, the optimiser executed before and after, LSP features), CI runs it, and a hand edit or a reintroduced regression in any row fails it.
+   - Verified 25 November 2026. `cargo xtask conformance` regenerates every area's `engines.tsv` and `analysis.tsv`, the `analyser-mcp.out` verdict files (a verdict survives only while its codes are unchanged) and `tcl-areas-head/`. The `Command definitions` workflow runs it after the definitions gate and passed on `5ca21818` ([run 45544162958](https://github.com/bitwisecook/tcl-lsp/actions/runs/45544162958)). A hand edit fails its row, and the run caught the phase 0b registry change's new, correct `W146` on `encodings-channels/e13` under tcl9.0.
 199. **[completed]** MCP freshness. The repository launcher runs Cargo against the checkout on each start. Tool results include the build timestamp, resolved version and source revision in protocol metadata. [Build and response contract](../../design/contracts/project-layout.md#mcp-build-provenance)
    - Verified over stdio using the repository MCP configuration. A success and an unknown-tool response both reported `git rev-parse HEAD`. Adding an uncommitted field to the `analyze` implementation changed the next launch's result and build timestamp. An intentional compilation error exited with no protocol output while both a previous executable and a cached binary were available.
    - The protocol and version tests passed. The full MCP suite passed 147 of 148 tests; the failing `review_reports_the_compiler_check_families` is IRULE4002 not firing at all, a separate defect present since `work`'s first commit (item 243).
