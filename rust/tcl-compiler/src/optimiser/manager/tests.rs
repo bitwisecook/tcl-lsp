@@ -822,3 +822,43 @@ fn a_break_in_a_for_step_leaves_the_code_after_the_loop_live() {
         assert!(deletions.is_empty(), "{dialect}: {deletions:?}");
     }
 }
+
+#[test]
+fn applied_rewrites_never_intersect_on_the_probe_overlap_fixtures() {
+    // Item 244: these probe fixtures once returned intersecting rewrites, so
+    // applying every suggestion corrupted the source. Hints are never applied.
+    const PROBE: &str = "../../docs/work/name-handling/handover/oo-dispatch-probe";
+    let fixtures = [
+        "comments-continuations/c02-semicolon-hash-forms.tcl",
+        "constants/folds/c17-string-concat.tcl",
+        "encodings-channels/raw/s03-lonecr.tcl",
+        "errors-returns/e26-for-break-step.tcl",
+        "event-loop/ev08-deferred-variable.tcl",
+        "jim/j20-octal-and-expr.tcl",
+        "rename-alias/editor-rename/before/e08-dynamic-name.tcl",
+        "rename-alias/editor-rename/after/e08-dynamic-name.tcl",
+        "words-scripts/s06-var-boundaries.tcl",
+    ];
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(PROBE);
+    for fixture in fixtures {
+        let bytes = std::fs::read(root.join(fixture)).expect("probe fixture");
+        let src = String::from_utf8_lossy(&bytes);
+        for version in tcl_dialect::TclVersion::ALL {
+            let dialect = version.dialect_profile_name();
+            let context = tcl_registry::model::ingress::resolve_environment(dialect)
+                .default_context_registry();
+            let mut spans: Vec<_> = optimise_with_dialect(
+                &src,
+                context.commands(),
+                tcl_dialect::DialectProfile::find(dialect),
+            )
+            .into_iter()
+            .filter(|rewrite| !rewrite.hint_only)
+            .map(|rewrite| rewrite.span.as_range())
+            .collect();
+            spans.sort_by_key(|span| (span.start, span.end));
+            let overlap = spans.windows(2).find(|pair| pair[1].start < pair[0].end);
+            assert!(overlap.is_none(), "{fixture} under {dialect}: {overlap:?}");
+        }
+    }
+}
