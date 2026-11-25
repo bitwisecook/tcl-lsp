@@ -11,4 +11,5 @@ proc rc {cmd id args} {
 t create {set c [chan create read rc]; string match rc* $c}
 t event {chan event $c readable {set ::got 1}; vwait ::got; set ::got}
 t handler {chan event $c readable}
+puts "bad-event: [catch {chan postevent $c sideways} m] $m"
 t close {close $c}
