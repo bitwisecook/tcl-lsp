@@ -593,13 +593,19 @@ mod tests {
         let input = input_for("tcl8.6");
         let source = "set long 1; list $long";
         let mut analysis = analyse_source(source, &input);
-        assert!(!collect_rename_edits(source, &analysis, &mut HashMap::new()).is_empty());
-        assert!(
-            collect_rename_edits("set other 1; list $long", &analysis, &mut HashMap::new())
-                .is_empty()
+        assert_ne!(
+            collect_rename_edits(source, &analysis, &mut HashMap::new()),
+            [] as [tcl_lexer::SourceEdit; 0]
+        );
+        assert_eq!(
+            collect_rename_edits("set other 1; list $long", &analysis, &mut HashMap::new()),
+            [] as [tcl_lexer::SourceEdit; 0]
         );
         analysis.resolved_input = None;
-        assert!(collect_rename_edits(source, &analysis, &mut HashMap::new()).is_empty());
+        assert_eq!(
+            collect_rename_edits(source, &analysis, &mut HashMap::new()),
+            [] as [tcl_lexer::SourceEdit; 0]
+        );
 
         let collision = "set long 1; set a 2; list $long $a";
         let renamed = renamed_source(collision, &input);

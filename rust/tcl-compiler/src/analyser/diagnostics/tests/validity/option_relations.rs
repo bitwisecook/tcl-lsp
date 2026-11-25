@@ -636,7 +636,10 @@ fn a_write_to_a_constant_reports_w146_in_its_scope() {
         .is_empty(),
         "another scope or an ordinary variable is not a constant"
     );
-    assert!(w146_messages("set PI 3\nset PI 4\n", "tcl9.0").is_empty());
+    assert_eq!(
+        w146_messages("set PI 3\nset PI 4\n", "tcl9.0"),
+        [] as [std::string::String; 0]
+    );
 }
 
 #[test]

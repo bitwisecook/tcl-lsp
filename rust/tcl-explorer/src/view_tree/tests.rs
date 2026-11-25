@@ -261,7 +261,10 @@ fn aot_view_names_a_selected_native_add() {
 
 #[test]
 fn unknown_view_is_empty() {
-    assert!(build_view("does-not-exist", &data("set x 1")).is_empty());
+    assert_eq!(
+        build_view("does-not-exist", &data("set x 1")),
+        [] as [crate::view_tree::ViewNode; 0]
+    );
 }
 
 #[test]

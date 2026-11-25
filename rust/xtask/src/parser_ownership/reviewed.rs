@@ -287,9 +287,20 @@ mod tests {
             signed.check_file(file, Some(&parse(code)), &mut errors);
             errors
         };
-        assert!(check("fn host(s:S) { for byte in s { if byte == b']' { break; } } } fn adapter(s:S) { group_commands(tokens, s, config); }").is_empty());
-        assert!(!check("fn adapter(s:S) { group_commands(tokens, s, other); }").is_empty());
-        assert!(!check("fn changed_name(s:S) { group_commands(tokens, s, config); }").is_empty());
+        assert_eq!(
+            check(
+                "fn host(s:S) { for byte in s { if byte == b']' { break; } } } fn adapter(s:S) { group_commands(tokens, s, config); }"
+            ),
+            [] as [std::string::String; 0]
+        );
+        assert_ne!(
+            check("fn adapter(s:S) { group_commands(tokens, s, other); }"),
+            [] as [std::string::String; 0]
+        );
+        assert_ne!(
+            check("fn changed_name(s:S) { group_commands(tokens, s, config); }"),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
@@ -330,26 +341,47 @@ mod tests {
             signed.check_file(path, Some(&parse(text)), &mut errors);
             errors
         };
-        assert!(errors(file, "// Docs\nfn words( data:S ) { group_commands(t,data,config); } fn host_name() -> &'static str { \"tool\" }").is_empty());
-        assert!(
-            !errors(
+        assert_eq!(
+            errors(
+                file,
+                "// Docs\nfn words( data:S ) { group_commands(t,data,config); } fn host_name() -> &'static str { \"tool\" }"
+            ),
+            [] as [std::string::String; 0]
+        );
+        assert_ne!(
+            errors(
                 file,
                 "fn words(data: S) { group_commands(t, data, default); }"
-            )
-            .is_empty()
+            ),
+            [] as [String; 0]
         );
-        assert!(!errors(file, "fn words(data: S) { group_commands(t, data, config); } fn renamed(s: &[u8]) { for &x in s { if x == b']' { break; } } }").is_empty());
-        assert!(
-            !errors(
+        assert_ne!(
+            errors(
+                file,
+                "fn words(data: S) { group_commands(t, data, config); } fn renamed(s: &[u8]) { for &x in s { if x == b']' { break; } } }"
+            ),
+            [] as [std::string::String; 0]
+        );
+        assert_ne!(
+            errors(
                 file,
                 "fn words(data: S) { group_commands(t, data, config); alternate!(); }"
-            )
-            .is_empty()
+            ),
+            [] as [String; 0]
         );
-        assert!(!errors(file, "macro_rules! hidden { () => { fn reader(s: &[u8]) { for b in s {} } } } fn words(data: S) { group_commands(t, data, config); }").is_empty());
-        assert!(!errors("runtime/rust/src/new.rs", "fn unrelated_name() {}").is_empty());
+        assert_ne!(
+            errors(
+                file,
+                "macro_rules! hidden { () => { fn reader(s: &[u8]) { for b in s {} } } } fn words(data: S) { group_commands(t, data, config); }"
+            ),
+            [] as [std::string::String; 0]
+        );
+        assert_ne!(
+            errors("runtime/rust/src/new.rs", "fn unrelated_name() {}"),
+            [] as [std::string::String; 0]
+        );
         let mut foreign = Vec::new();
         signed.check_file("runtime/rust/src/new_adapter.py", None, &mut foreign);
-        assert!(!foreign.is_empty());
+        assert_ne!(foreign, [] as [std::string::String; 0]);
     }
 }

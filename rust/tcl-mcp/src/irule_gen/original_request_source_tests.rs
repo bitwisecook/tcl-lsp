@@ -136,7 +136,10 @@ fn request_hints_keep_literal_word_and_container_values() {
         lines,
         ["::orch::run_http_request -host \"example.com\" -uri \"/\""]
     );
-    assert!(build_request_setup("HTTP_REQUEST", &[&condition], None).is_empty());
+    assert_eq!(
+        build_request_setup("HTTP_REQUEST", &[&condition], None),
+        [] as [std::string::String; 0]
+    );
     assert_eq!(
         cfg_pattern_to_value("\"quoted\"").as_deref(),
         Some("\"quoted\"")

@@ -158,7 +158,7 @@ fn tcl_module_paths_choose_ordered_release_specific_providers() {
         );
         let files = resolver.resolve_original_require(&key, &["1.0"], false, PackagePrefer::Stable);
         if release == TclVersion::V8_4 {
-            assert!(files.is_empty());
+            assert_eq!(files, [] as [std::path::PathBuf; 0]);
             continue;
         }
         assert_eq!(files.as_slice(), std::slice::from_ref(&selected));
@@ -175,16 +175,15 @@ fn tcl_module_paths_choose_ordered_release_specific_providers() {
                 .as_slice(),
             std::slice::from_ref(&fallback)
         );
-        assert!(
-            resolver
-                .resolve_require_for_profile(
-                    "acme::Widget",
-                    &[],
-                    false,
-                    PackagePrefer::Stable,
-                    Some(profile),
-                )
-                .is_empty()
+        assert_eq!(
+            resolver.resolve_require_for_profile(
+                "acme::Widget",
+                &[],
+                false,
+                PackagePrefer::Stable,
+                Some(profile),
+            ),
+            [] as [std::path::PathBuf; 0]
         );
 
         if let Some(sh) = tcl_test_support::witness_tclsh(release) {

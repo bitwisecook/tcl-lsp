@@ -375,7 +375,10 @@ fn dsl_gates_use_the_retained_package_release_grammar() {
     }
 
     let escaped = "package require -exact Tcl 9.\\u0030b1\nformat %llu 5\n";
-    assert!(dsl_diags(escaped, "tcl8.6").is_empty());
+    assert_eq!(
+        dsl_diags(escaped, "tcl8.6"),
+        [] as [(std::string::String, std::string::String); 0]
+    );
 }
 
 #[test]

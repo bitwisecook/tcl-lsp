@@ -155,7 +155,10 @@ fn completion_terminator_preserves_pending_native_return() {
     assert_eq!(encoded["completion"]["route"]["remainingLevel"], 2);
     assert_eq!(encoded["completion"]["normalPossible"], false);
     assert_eq!(encoded["completion"]["abruptPossible"], true);
-    assert!(block_successors(&snapshots[0].unit.cfg, Some(&term)).is_empty());
+    assert_eq!(
+        block_successors(&snapshots[0].unit.cfg, Some(&term)),
+        [] as [&str; 0]
+    );
 }
 
 #[test]
@@ -750,7 +753,10 @@ fn optimised_ir_and_cfg_present_when_source_changes() {
     // their IR reflects the folded `set x 3`.
     assert!(v["irOptimised"]["topLevel"].is_array());
     assert!(v["cfgPreSsaOptimised"].is_array());
-    assert!(!v["cfgPreSsaOptimised"].as_array().unwrap().is_empty());
+    assert_ne!(
+        v["cfgPreSsaOptimised"].as_array().unwrap().as_slice(),
+        [] as [serde_json::Value; 0]
+    );
 }
 
 #[test]
@@ -859,7 +865,7 @@ fn gvn_abstains_without_exact_common_invocation_provenance() {
     // for commands nested inside bracket substitutions. Production GVN
     // therefore fails closed instead of re-enabling its legacy textual
     // scanner and claiming an optimisation without common world facts.
-    assert!(arr.is_empty());
+    assert_eq!(arr.as_slice(), [] as [serde_json::Value; 0]);
 }
 
 #[test]
@@ -998,7 +1004,10 @@ fn loops_detects_for_loop_with_depth() {
         header.contains("for_body") || header.contains("header"),
         "rotated for-loop header is the body block, got {header}"
     );
-    assert!(!lp["latches"].as_array().unwrap().is_empty());
+    assert_ne!(
+        lp["latches"].as_array().unwrap().as_slice(),
+        [] as [serde_json::Value; 0]
+    );
     assert_eq!(
         lp["blockCount"].as_u64().unwrap(),
         lp["blocks"].as_array().unwrap().len() as u64
@@ -1009,11 +1018,12 @@ fn loops_detects_for_loop_with_depth() {
 fn loops_empty_for_straightline_code() {
     let result = run_pipeline("set x 1\nputs $x", "tcl8.6");
     let loops = serialise_result(&result)["loops"].clone();
-    assert!(
+    assert_eq!(
         loops.as_array().unwrap()[0]["loops"]
             .as_array()
             .unwrap()
-            .is_empty()
+            .as_slice(),
+        [] as [serde_json::Value; 0]
     );
 }
 

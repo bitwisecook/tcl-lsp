@@ -372,10 +372,9 @@ mod tests {
     fn ratchet_rejects_a_second_site_and_requires_a_removed_site_to_be_deleted() {
         let key = "rust/source.rs\twords\tf:trim\t-";
         let ledger = format!("{key}\t1\n");
-        assert!(
-            compare(&BTreeMap::from([(key.to_owned(), vec![12])]), &ledger)
-                .unwrap()
-                .is_empty()
+        assert_eq!(
+            compare(&BTreeMap::from([(key.to_owned(), vec![12])]), &ledger).unwrap(),
+            [] as [String; 0]
         );
         assert_eq!(
             compare(&BTreeMap::from([(key.to_owned(), vec![12, 14])]), &ledger)

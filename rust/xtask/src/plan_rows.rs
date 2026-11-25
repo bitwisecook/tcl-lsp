@@ -407,7 +407,7 @@ mod tests {
             "Move the parser into `tcl-syntax`; `cargo xtask check` passes.",
             &rows(),
         );
-        assert!(verdict.rows.is_empty());
+        assert_eq!(verdict.rows, [] as [std::string::String; 0]);
         assert!(!verdict.passes());
     }
 

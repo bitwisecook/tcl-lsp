@@ -475,8 +475,14 @@ fn the_json_carries_the_versions_the_commands_and_the_warnings() {
         .find(|c| c["name"] == json!("fakepkg::doomed"))
         .expect("doomed is in the JSON");
     assert_eq!(doomed["draft"]["retired_version"], json!("1.2"));
-    assert!(!doomed["notes"].as_array().expect("notes").is_empty());
-    assert!(!value["warnings"].as_array().expect("warnings").is_empty());
+    assert_ne!(
+        doomed["notes"].as_array().expect("notes").as_slice(),
+        [] as [serde_json::Value; 0]
+    );
+    assert_ne!(
+        value["warnings"].as_array().expect("warnings").as_slice(),
+        [] as [serde_json::Value; 0]
+    );
 }
 
 /// The single-snapshot importer is untouched: one snapshot still stamps its own

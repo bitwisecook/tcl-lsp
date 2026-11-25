@@ -637,7 +637,7 @@ mod tests {
     #[test]
     fn module_header_then_functions() {
         let entries = wasm_entries("set x 1\nputs $x");
-        assert!(!entries.is_empty());
+        assert_ne!(entries, [] as [serde_json::Value; 0]);
         assert_eq!(entries[0]["kind"], "module");
         assert_eq!(entries[0]["name"], "(module)");
         // At least the top-level function follows the module header.
