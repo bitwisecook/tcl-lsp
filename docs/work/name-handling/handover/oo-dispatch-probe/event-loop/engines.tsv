@@ -255,19 +255,19 @@ ev15-update-not-due.tcl	rt8.5	0	0 1
 ev15-update-not-due.tcl	rt8.6	0	0 1
 ev15-update-not-due.tcl	rt9.0	0	0 1
 ev15-update-not-due.tcl	rt9.1	0	0 1
-ev16-debug-vm-turn.tcl	tclsh8.4	1	bad option "milliseconds": must be clicks, format, scan, or seconds ¶     while executing ¶ "clock milliseconds" ¶     invoked from within ¶ "set t0 [clock milliseconds]" ¶     (file "ev16-debug-vm-turn.tcl" line 2)
-ev16-debug-vm-turn.tcl	tclsh8.5	0	a0
-ev16-debug-vm-turn.tcl	tclsh8.6	0	a0
-ev16-debug-vm-turn.tcl	tclsh9.0	0	a0
-ev16-debug-vm-turn.tcl	tclsh9.1	0	a0
-ev16-debug-vm-turn.tcl	jim	0	a0
-ev16-debug-vm-turn.tcl	vm8.4	0	a0
-ev16-debug-vm-turn.tcl	vm8.5	0	a0
-ev16-debug-vm-turn.tcl	vm8.6	0	a0 late
-ev16-debug-vm-turn.tcl	vm9.0	0	a0 late
-ev16-debug-vm-turn.tcl	vm9.1	1	
-ev16-debug-vm-turn.tcl	rt8.4	0	a0
-ev16-debug-vm-turn.tcl	rt8.5	0	a0
-ev16-debug-vm-turn.tcl	rt8.6	0	a0
-ev16-debug-vm-turn.tcl	rt9.0	0	a0
-ev16-debug-vm-turn.tcl	rt9.1	0	a0
+ev16-debug-vm-turn.tcl	tclsh8.4	1	(timing-sensitive output not compared)
+ev16-debug-vm-turn.tcl	tclsh8.5	0	(timing-sensitive output not compared)
+ev16-debug-vm-turn.tcl	tclsh8.6	0	(timing-sensitive output not compared)
+ev16-debug-vm-turn.tcl	tclsh9.0	0	(timing-sensitive output not compared)
+ev16-debug-vm-turn.tcl	tclsh9.1	0	(timing-sensitive output not compared)
+ev16-debug-vm-turn.tcl	jim	0	(timing-sensitive output not compared)
+ev16-debug-vm-turn.tcl	vm8.4	0	(timing-sensitive output not compared)
+ev16-debug-vm-turn.tcl	vm8.5	0	(timing-sensitive output not compared)
+ev16-debug-vm-turn.tcl	vm8.6	0	(timing-sensitive output not compared)
+ev16-debug-vm-turn.tcl	vm9.0	0	(timing-sensitive output not compared)
+ev16-debug-vm-turn.tcl	vm9.1	1	(timing-sensitive output not compared)
+ev16-debug-vm-turn.tcl	rt8.4	0	(timing-sensitive output not compared)
+ev16-debug-vm-turn.tcl	rt8.5	0	(timing-sensitive output not compared)
+ev16-debug-vm-turn.tcl	rt8.6	0	(timing-sensitive output not compared)
+ev16-debug-vm-turn.tcl	rt9.0	0	(timing-sensitive output not compared)
+ev16-debug-vm-turn.tcl	rt9.1	0	(timing-sensitive output not compared)

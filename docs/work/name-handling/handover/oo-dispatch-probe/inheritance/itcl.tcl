@@ -1,4 +1,4 @@
-lappend auto_path /opt/google-cloud-sdk/platform/bundledpythonunix/lib
+if {[info exists ::env(TCL_LSP_PROBE_PACKAGES)]} {lappend auto_path $::env(TCL_LSP_PROBE_PACKAGES)}
 package require itcl
 itcl::class A { method m {} { return A } }
 itcl::class B { inherit A; method m {} { return B } }

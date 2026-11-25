@@ -1,6 +1,6 @@
 # Each thread has its own interpreter: the creator's procs and globals are
 # not visible to scripts sent to it.
-lappend auto_path /opt/google-cloud-sdk/platform/bundledpythonunix/lib
+if {[info exists ::env(TCL_LSP_PROBE_PACKAGES)]} {lappend auto_path $::env(TCL_LSP_PROBE_PACKAGES)}
 if {[catch {package require Thread} v]} { puts "no-thread: $v"; return }
 set shared 1
 proc local {} { return local }

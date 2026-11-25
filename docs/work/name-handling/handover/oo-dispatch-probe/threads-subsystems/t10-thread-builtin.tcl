@@ -1,7 +1,7 @@
 # Same checks as t01-t03, but use thread:: commands if they already exist
 # (the VM registers them natively) and only otherwise package require Thread.
 if {![llength [info commands ::thread::create]]} {
-  lappend auto_path /opt/google-cloud-sdk/platform/bundledpythonunix/lib
+  if {[info exists ::env(TCL_LSP_PROBE_PACKAGES)]} {lappend auto_path $::env(TCL_LSP_PROBE_PACKAGES)}
   if {[catch {package require Thread} v]} { puts "no-thread: $v"; return }
   puts "source=package"
 } else { puts "source=builtin provide=[package provide Thread]" }

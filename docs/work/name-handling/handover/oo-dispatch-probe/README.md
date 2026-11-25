@@ -8,7 +8,7 @@ Run a fixture under every release (TclOO needs 8.6 or later; `oo::configurable`,
 for f in dispatch/*.tcl; do for v in 8.6 9.0 9.1; do echo "$f $v: $(tclsh$v $f 2>&1 | tr '\n' ' ')"; done; done
 ```
 
-itcl 4.3.5 for Tcl 9 is bundled with the Google Cloud SDK in this container; prepend `lappend auto_path /opt/google-cloud-sdk/platform/bundledpythonunix/lib` to the script and export `ITCL_LIBRARY=/opt/google-cloud-sdk/platform/bundledpythonunix/lib/itcl4.3.5`. snit and critcl are not installed, so their rows are static only.
+The `threads-subsystems/t*-thread*` and `inheritance/itcl.tcl` fixtures load Thread and itcl from `$TCL_LSP_PROBE_PACKAGES` when it is set (for example a directory holding itcl 4.3.5 and Thread 3.0 built for Tcl 9; itcl also needs `ITCL_LIBRARY`). The conformance rows run without it, so their rows record the missing packages on every host. snit and critcl are not installed, so their rows are static only.
 
 There is no Tk for the shell interpreters here, but Python's tkinter carries Tcl/Tk 9.0.3: run a `tk/` fixture with `xvfb-run -a python3 -I tk/run_tk.py tk/t01-basic-layout.tcl` (it prints each `puts` and any error). Tk 8.6 rows are static only.
 

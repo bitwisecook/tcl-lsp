@@ -1,6 +1,6 @@
 # Thread package (not bundled with these tclsh builds; thread 3.0.4 for Tcl 9
 # comes with the Google Cloud SDK). Run with the SDK lib on auto_path.
-lappend auto_path /opt/google-cloud-sdk/platform/bundledpythonunix/lib
+if {[info exists ::env(TCL_LSP_PROBE_PACKAGES)]} {lappend auto_path $::env(TCL_LSP_PROBE_PACKAGES)}
 if {[catch {package require Thread} v]} { puts "no-thread: $v"; return }
 puts "loaded=[package vcompare $v 2.0]"
 set t [thread::create {thread::wait}]

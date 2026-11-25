@@ -1,5 +1,5 @@
 # tsv:: shared variables are visible across threads.
-lappend auto_path /opt/google-cloud-sdk/platform/bundledpythonunix/lib
+if {[info exists ::env(TCL_LSP_PROBE_PACKAGES)]} {lappend auto_path $::env(TCL_LSP_PROBE_PACKAGES)}
 if {[catch {package require Thread} v]} { puts "no-thread: $v"; return }
 tsv::set cfg name alpha
 tsv::incr cfg hits 5

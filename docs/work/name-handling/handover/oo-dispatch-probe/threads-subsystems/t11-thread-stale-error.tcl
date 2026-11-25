@@ -1,6 +1,6 @@
 # A caught error from a synchronous thread::send must not resurface later.
 if {![llength [info commands ::thread::create]]} {
-  lappend auto_path /opt/google-cloud-sdk/platform/bundledpythonunix/lib
+  if {[info exists ::env(TCL_LSP_PROBE_PACKAGES)]} {lappend auto_path $::env(TCL_LSP_PROBE_PACKAGES)}
   if {[catch {package require Thread} v]} { puts "no-thread: $v"; return }
 }
 set t [thread::create {thread::wait}]
