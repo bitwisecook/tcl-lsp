@@ -26,7 +26,6 @@
 use rustc_hash::FxHashSet;
 use std::collections::{HashMap, HashSet};
 use tcl_core_types::DiagCode;
-use tcl_registry::model::CommandSourceUnavailabilityKind;
 
 use crate::command_binding::SourceCommandSlotPresence;
 use crate::signature_scan::types::SignatureCommandLookup;
@@ -273,21 +272,17 @@ impl Analyser {
         }
     }
 
-    fn reported_rule_loader_heads(&self) -> FxHashSet<u32> {
+    fn reported_unavailable_heads(&self) -> FxHashSet<u32> {
         // The original command-availability pass already reported these
-        // authored heads. They do not qualify for workspace autoload advice.
+        // authored heads, naming where the command exists (a release, a
+        // package or the rule loader). A second, unresolved-command finding
+        // at the same head repeats it, and they do not qualify for workspace
+        // autoload advice.
         self.result
             .diagnostics
             .iter()
-            .filter_map(|diagnostic| {
-                let availability = diagnostic.command_availability()?;
-                matches!(
-                    availability.descriptor().kind(),
-                    CommandSourceUnavailabilityKind::RuleLoaderDisabled
-                        | CommandSourceUnavailabilityKind::RuleLoaderRefused
-                )
-                .then_some(diagnostic.span.start())
-            })
+            .filter(|diagnostic| diagnostic.command_availability().is_some())
+            .map(|diagnostic| diagnostic.span.start())
             .collect()
     }
 
@@ -318,7 +313,7 @@ impl Analyser {
             .filter(|candidate| seen_candidate_strs.insert(*candidate))
             .collect();
 
-        let disabled_heads = self.reported_rule_loader_heads();
+        let disabled_heads = self.reported_unavailable_heads();
         // Drain so the iteration loop can mutate
         // ``self.result.diagnostics`` freely; restore at the end
         // (matches the snapshot/restore round-trip contract).

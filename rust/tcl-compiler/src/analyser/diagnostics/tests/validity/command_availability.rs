@@ -109,13 +109,12 @@ Greeter new x
         1,
         "W002 exactly once: {codes:?}"
     );
-    // On 8.6 the probe fails, so the class never exists and `Greeter new x`
-    // raises `invalid command name "Greeter"` (tclsh 8.6.18): one W123 on the
-    // class-name call is right; none on the member keywords.
+    // The unavailable definer head is not reported a second time as
+    // unresolved, and the member keywords do not cascade.
     assert_eq!(
         codes.iter().filter(|c| *c == "W123").count(),
-        1,
-        "only the class-name call is an unknown command: {codes:?}"
+        0,
+        "no unresolved-command finding repeats the W002: {codes:?}"
     );
 }
 
@@ -221,9 +220,10 @@ fn w001_accepts_unique_prefix_subcommand_abbreviations() {
 }
 
 #[test]
-fn command_version_gates_fire_w123() {
-    // Whole commands introduced after 8.4 must be unknown (W123) in older
-    // dialects and known once available.
+fn command_version_gates_fire_w002_once() {
+    // Whole commands introduced after 8.4 are reported once, as unavailable
+    // (W002, naming the release that has them), in older dialects, never
+    // also as unresolved (W123), and are known once available.
     let cases = [
         ("apply {{} {return 1}}", "tcl8.5", "tcl8.4"),
         ("lreverse {a b c}", "tcl8.5", "tcl8.4"),
@@ -232,14 +232,13 @@ fn command_version_gates_fire_w123() {
         // deliberately NOT version-gated — see const_.rs.
     ];
     for (snippet, ok, old) in cases {
-        assert!(
-            Analyser::new()
-                .analyse(snippet, old)
-                .diagnostics
-                .iter()
-                .any(|d| d.code == DiagCode::W123),
-            "expected W123 for {snippet:?} on {old}"
-        );
+        let codes: Vec<_> = Analyser::new()
+            .analyse(snippet, old)
+            .diagnostics
+            .iter()
+            .map(|d| d.code)
+            .collect();
+        assert_eq!(codes, [DiagCode::W002], "{snippet:?} on {old}");
         assert!(
             !Analyser::new()
                 .analyse(snippet, ok)

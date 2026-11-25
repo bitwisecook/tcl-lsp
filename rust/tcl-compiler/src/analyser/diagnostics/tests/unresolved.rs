@@ -420,10 +420,12 @@ fn w123_tp_ordinary_call_shaped_like_mathfunc_fires_under_84() {
     let src = "namespace eval ::tcl::mathfunc {\n    sin 1\n}\n";
     let mut a = Analyser::new();
     let r = a.analyse(src, "tcl8.4");
-    assert!(
-        r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
-        "an ordinary call shaped like a mathfunc dispatch must still draw \
-         W123 under an 8.4-based dialect; got {:?}",
+    let codes: Vec<_> = r.diagnostics.iter().map(|d| d.code).collect();
+    assert_eq!(
+        codes,
+        [DiagCode::W002],
+        "an ordinary call shaped like a mathfunc dispatch is reported once, \
+         as unavailable before 8.5; got {:?}",
         r.diagnostics,
     );
 }
@@ -453,10 +455,11 @@ fn w123_tp_custom_mathfunc_body_bareword_call_fires_under_84() {
                proc ::tcl::mathfunc::myfunc {x} { return [sin $x] }\n";
     let mut a = Analyser::new();
     let r = a.analyse(src, "tcl8.4");
+    let codes: Vec<_> = r.diagnostics.iter().map(|d| d.code).collect();
     assert!(
-        r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+        codes.contains(&DiagCode::W002) && !codes.contains(&DiagCode::W123),
         "a bareword call to a builtin from inside a custom mathfunc body \
-         must still draw W123 under an 8.4-based dialect; got {:?}",
+         is reported once, as unavailable before 8.5; got {:?}",
         r.diagnostics,
     );
 }
@@ -1278,4 +1281,26 @@ fn w123_fp_issue_1015_mutual_recursion_cycle_entered_at_top_level_resolves() {
     // without also poisoning the reachable case.
     let src = "proc helper {} { return hi }\nproc pingCaller {} { helper }\nproc pongCaller {} { pingCaller }\nproc entry {} { pongCaller }\nentry\nrename helper {}\n";
     assert_eq!(w123_codes(src), Vec::<String>::new());
+}
+
+/// A command the release lacks gets one finding, the availability one that
+/// names where it exists; an unknown name still gets W123 (items 185, 192, 210).
+#[test]
+fn a_command_the_release_lacks_is_reported_once() {
+    for (src, dialect) in [
+        ("chan names\n", "tcl8.4"),
+        ("zipfs mount a b\n", "tcl8.6"),
+        ("lseq 5\n", "tcl8.6"),
+        ("const x 1\n", "tcl8.6"),
+    ] {
+        let codes: Vec<_> = Analyser::new()
+            .analyse(src, dialect)
+            .diagnostics
+            .into_iter()
+            .map(|d| d.code)
+            .collect();
+        assert_eq!(codes, [DiagCode::W002], "{src} under {dialect}");
+    }
+    let unknown = Analyser::new().analyse("chann names\n", "tcl8.6");
+    assert!(unknown.diagnostics.iter().any(|d| d.code == DiagCode::W123));
 }
