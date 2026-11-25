@@ -398,7 +398,8 @@ impl Analyser {
     pub(in super::super) fn qualified_interp_key(&self, path: &str) -> String {
         // The path is a Tcl list naming a descent through children (`{s t}`
         // is child `t` of child `s`); its canonical list form is the key.
-        let local = tcl_syntax::list::split_list(path).map_or_else(
+        let rules = tcl_syntax::word_rules::WordValueRules::from_config(&self.file_lexer_config());
+        let local = rules.split_list(path).map_or_else(
             |_| path.to_owned(),
             |elements| tcl_syntax::list::join_list(elements.iter()),
         );
