@@ -534,3 +534,128 @@ fn w147_requires_two_distinct_canonical_options() {
         );
     }
 }
+
+fn w146_messages(source: &str, dialect: &str) -> Vec<String> {
+    crate::analyser::Analyser::new()
+        .analyse(source, dialect)
+        .diagnostics
+        .into_iter()
+        .filter(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::W146)
+        .map(|diagnostic| diagnostic.message)
+        .collect()
+}
+
+#[test]
+fn a_leading_tilde_in_a_file_name_reports_w146_from_tcl_9_0() {
+    // Item 192, `tcl9-changes/t03`: tclsh 8.6.18 reads `file pathtype ~/x` as
+    // absolute and 9.0.4 as relative; `file join a ~b` is `~b` and `a/~b`.
+    for source in [
+        "file pathtype ~/x\n",
+        "file join a ~b\n",
+        "file exi ~/x\n",
+        "file copy -force ~/a ~/b\n",
+    ] {
+        assert!(w146_messages(source, "tcl8.6").is_empty(), "{source}");
+        assert!(!w146_messages(source, "tcl9.0").is_empty(), "{source}");
+    }
+    for source in [
+        "file split ~/x\n",
+        "file tildeexpand ~/x\n",
+        "file join a b\n",
+        "file pathtype $x\n",
+    ] {
+        assert!(w146_messages(source, "tcl9.0").is_empty(), "{source}");
+    }
+    assert_eq!(w146_messages("file join a ~b ~c\n", "tcl9.1").len(), 1);
+}
+
+#[test]
+fn a_removed_encoding_name_reports_w146_from_tcl_9_0() {
+    // Item 192, `tcl9-changes/t08`: `binary` and `identity` raise `unknown
+    // encoding` in tclsh 9.0.4 and 9.1.0; 8.6.18 reads `identity` and the
+    // channel `-encoding binary`.
+    for source in [
+        "encoding convertto binary abc\n",
+        "encoding convertfrom identity abc\n",
+        "encoding convertfrom -profile strict binary abc\n",
+        "encoding system binary\n",
+        "fconfigure stdout -encoding binary\n",
+        "chan configure stdout -encoding identity\n",
+    ] {
+        assert_eq!(w146_messages(source, "tcl9.0").len(), 1, "{source}");
+        assert!(w146_messages(source, "tcl8.6").is_empty(), "{source}");
+    }
+    for source in [
+        "encoding convertto utf-8 binary\n",
+        "encoding convertfrom binary\n",
+        "encoding system\n",
+        "fconfigure stdout -encoding utf-8\n",
+        "fconfigure stdout -translation binary\n",
+    ] {
+        assert!(w146_messages(source, "tcl9.0").is_empty(), "{source}");
+    }
+}
+
+#[test]
+fn an_lseq_operand_that_is_an_expression_reports_w146() {
+    // Item 192, `tcl9-changes/t14` and `t32`: tclsh 9.0.4 and 9.1.0 raise
+    // `expected number but got "1+2"`.
+    for source in ["lseq 0 {1+2}\n", "lseq 1 {2+1}\n", "lseq 1 to foo by 2\n"] {
+        for dialect in ["tcl9.0", "tcl9.1"] {
+            assert_eq!(w146_messages(source, dialect).len(), 1, "{source}");
+        }
+    }
+    for source in [
+        "lseq 4\n",
+        "lseq 1 to 10 by 3\n",
+        "lseq 5 count 3\n",
+        "lseq 0 0.5 by 0.1\n",
+        "lseq 1 .. $n\n",
+    ] {
+        assert!(w146_messages(source, "tcl9.0").is_empty(), "{source}");
+    }
+}
+
+#[test]
+fn a_write_to_a_constant_reports_w146_in_its_scope() {
+    // Item 192, `tcl9-changes/t13`: tclsh 9.0.4 raises `can't set "PI":
+    // variable is a constant`.
+    for command in ["set PI 4", "incr PI", "append PI x", "lappend PI y"] {
+        let source = format!("const PI 3\n{command}\n");
+        assert_eq!(w146_messages(&source, "tcl9.0").len(), 1, "{command}");
+    }
+    assert!(
+        w146_messages("const PI 3\nconst PI 3\nputs $PI\n", "tcl9.0").is_empty(),
+        "redeclaring a constant keeps its value"
+    );
+    assert!(
+        w146_messages(
+            "const PI 3\nproc f {} {set PI 4}\nset Q 1\nset Q 2\n",
+            "tcl9.0"
+        )
+        .is_empty(),
+        "another scope or an ordinary variable is not a constant"
+    );
+    assert!(w146_messages("set PI 3\nset PI 4\n", "tcl9.0").is_empty());
+}
+
+#[test]
+fn the_variables_the_new_list_and_encoding_commands_write_are_defined() {
+    // Item 192: `encoding -failindex` and `ledit` write their variable, so a
+    // later read is not a read before set; `lremove` and `lseq` write none.
+    for source in [
+        "encoding convertfrom -failindex fi utf-8 abc\nputs $fi\n",
+        "encoding convertto -failindex fi utf-8 abc\nputs $fi\n",
+    ] {
+        assert!(
+            !codes_for_dialect(source, "tcl9.0").contains(&"W210".to_owned()),
+            "{source}"
+        );
+    }
+    for source in ["lremove $l 0\nputs $l\n", "set s [lseq 3]\nputs $l\n"] {
+        assert!(
+            codes_for_dialect(source, "tcl9.0").contains(&"W210".to_owned()),
+            "{source}"
+        );
+    }
+}

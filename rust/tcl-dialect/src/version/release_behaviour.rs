@@ -55,6 +55,27 @@ impl TclVersion {
         matches!(self, Self::V9_0 | Self::V9_1)
     }
 
+    /// Whether a leading `~` in a file name names a home directory (TIP 602).
+    /// Tcl 9.0 reads `~/x` as an ordinary relative name and keeps the
+    /// expansion in `file tildeexpand`; tclsh 8.4.20 through 8.6.18 expand it
+    /// in every file-name argument.
+    #[must_use]
+    pub const fn tilde_names_home(self) -> bool {
+        !matches!(self, Self::V9_0 | Self::V9_1)
+    }
+
+    /// The encoding names this release no longer accepts (TIP 656): `binary`
+    /// and `identity` were channel and conversion pseudo-encodings through
+    /// 8.6 and raise `unknown encoding` from 9.0, where `-translation binary`
+    /// or `-encoding iso8859-1` replaces them.
+    #[must_use]
+    pub const fn removed_encoding_names(self) -> &'static [&'static str] {
+        match self {
+            Self::V9_0 | Self::V9_1 => &["binary", "identity"],
+            _ => &[],
+        }
+    }
+
     /// Whether an ARE accepts `\z` as a synonym for the `\Z` end-of-string
     /// anchor. Tcl 9.1.0 added it (`regc_lex.c`, ticket fbc56b259e); tclsh
     /// 8.4.20 through 9.0.4 and the 9.1b0 beta reject it as `invalid escape \

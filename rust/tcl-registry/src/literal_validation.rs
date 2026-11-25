@@ -89,3 +89,21 @@ pub enum LiteralArgumentIssueReason {
     /// These exact members are outside the selected legal set.
     InvalidMembers(Vec<String>),
 }
+
+impl LiteralArgumentValidation {
+    /// A value at `argument_index` that fails its grammar for `reason`.
+    #[must_use]
+    pub fn invalid_value(
+        argument_index: usize,
+        subject: &'static str,
+        reason: &'static str,
+    ) -> Self {
+        Self::Invalid(LiteralArgumentIssue {
+            argument_index,
+            subject,
+            reason: LiteralArgumentIssueReason::InvalidValue(reason),
+            allowed_values: &[],
+            replacement_value: None,
+        })
+    }
+}

@@ -82,6 +82,16 @@ pub fn spec() -> CommandSpec {
         return_type: Some(TclType::List),
         inferred_storage_type: Some(StorageType::List),
         side_effects: crate::knowledge::Knowledge::declared(SIDE_EFFECTS),
+        world_effects: crate::knowledge::Knowledge::Partial(
+            crate::WorldEffectDescriptor::VARIABLE_READ_MODIFY_WRITE,
+        ),
+        representation_effect: Some(RepresentationEffect::copy_on_write_container(0, 4)),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         hover: Some(HoverSnippet {
             summary: "Replace a range of elements in a list variable, in place.",
             synopsis: &["ledit listVar first last ?value value ...?"],
@@ -119,5 +129,32 @@ pub fn spec() -> CommandSpec {
         ],
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::list_update::LEDIT),
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ledit_declares_its_list_variable_as_read_modify_write() {
+        // Item 192: `ledit` replaces a range of the list its variable holds
+        // (tclsh 9.0.4 and 9.1.0) and so writes that variable.
+        let spec = spec();
+        assert_eq!(
+            format!("{:?}", spec.world_effects.known()),
+            format!(
+                "{:?}",
+                Some(&crate::WorldEffectDescriptor::VARIABLE_READ_MODIFY_WRITE)
+            )
+        );
+        assert_eq!(spec.arg_roles, &[(0, ArgRole::VarWrite)]);
+        assert!(spec.representation_effect.is_some());
+        assert!(spec.completion.known().is_some());
+        assert!(
+            spec.side_effects.known().is_some_and(|effects| {
+                effects.iter().any(|effect| effect.writes && effect.reads)
+            })
+        );
     }
 }

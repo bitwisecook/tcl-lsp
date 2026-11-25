@@ -113,9 +113,33 @@ pub fn spec() -> CommandSpec {
                 },
             ),
         ],
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
         semantics: SemanticsDeclaration::Declared(
             &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
         ),
         ..CommandSpec::CLOSED_REFERENTIALLY_TRANSPARENT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lremove_declares_a_value_only_command() {
+        // Item 192: `lremove` returns the shortened list and writes no
+        // variable (tclsh 9.0.4 and 9.1.0).
+        let spec = spec();
+        assert_eq!(
+            format!("{:?}", spec.world_effects.known()),
+            format!("{:?}", Some(&crate::WorldEffectDescriptor::EMPTY))
+        );
+        assert!(spec.arg_roles.is_empty() && spec.assigns_variable_at.is_none());
+        assert!(spec.completion.known().is_some());
     }
 }

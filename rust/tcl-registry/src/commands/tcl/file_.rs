@@ -995,6 +995,80 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
 ];
 
+/// Subcommands whose arguments are file names (TIP 602): a leading `~` is
+/// expanded to a home directory through Tcl 8.6 and an ordinary character
+/// from 9.0. `split` reads `~` the same way in both and is not listed.
+const NAME_SUBCOMMANDS: &[&str] = &[
+    "atime",
+    "attributes",
+    "copy",
+    "delete",
+    "dirname",
+    "executable",
+    "exists",
+    "extension",
+    "isdirectory",
+    "isfile",
+    "join",
+    "link",
+    "lstat",
+    "mkdir",
+    "mtime",
+    "nativename",
+    "normalize",
+    "owned",
+    "pathtype",
+    "readable",
+    "readlink",
+    "rename",
+    "rootname",
+    "size",
+    "stat",
+    "tail",
+    "tempfile",
+    "type",
+    "writable",
+];
+
+/// Report a literal file name that begins with `~` where the selected release
+/// no longer expands it.
+fn validate_tilde_names(
+    arguments: crate::InvocationArguments<'_>,
+) -> crate::literal_validation::LiteralArgumentValidation {
+    use crate::literal_validation::{LiteralArgumentValidation, LiteralValidationDecline};
+    let Some(version) = arguments.dialect().and_then(|dialect| dialect.tcl_version) else {
+        return LiteralArgumentValidation::Abstain(LiteralValidationDecline::UnselectedGrammar);
+    };
+    if version.tilde_names_home() {
+        return LiteralArgumentValidation::Valid;
+    }
+    let Some(word) = arguments.literal_at(0) else {
+        return LiteralArgumentValidation::Abstain(LiteralValidationDecline::InvalidDiscriminator);
+    };
+    let exact = SUBCOMMANDS.iter().find(|sub| sub.name == word);
+    let mut prefixed = SUBCOMMANDS.iter().filter(|sub| sub.name.starts_with(word));
+    let selected = exact.or_else(|| match (prefixed.next(), prefixed.next()) {
+        (Some(only), None) => Some(only),
+        _ => None,
+    });
+    if !selected.is_some_and(|sub| NAME_SUBCOMMANDS.contains(&sub.name)) {
+        return LiteralArgumentValidation::Valid;
+    }
+    for index in 1..arguments.len() {
+        if arguments
+            .literal_at(index)
+            .is_some_and(|name| name.starts_with('~'))
+        {
+            return LiteralArgumentValidation::invalid_value(
+                index,
+                "file name",
+                "a leading `~` is an ordinary character from Tcl 9.0; `file tildeexpand` names the home directory",
+            );
+        }
+    }
+    LiteralArgumentValidation::Valid
+}
+
 /// Command spec for `file`.
 ///
 /// `dialects` is `ALL_TCL` because `file` is unavailable in F5 iRules:
@@ -1029,12 +1103,13 @@ pub fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Manipulate file names and attributes",
             synopsis: &["file option name ?arg arg ...?"],
-            snippet: "Dispatches on option to one of many operations on a file's name (dirname/tail/extension/join/split/normalize, all pure string or path-table operations) or its on-disk attributes (exists/isdirectory/isfile/readable/writable/executable/owned, atime/mtime/size/type/stat, copy/rename/delete/mkdir, link/readlink, attributes). name undergoes tilde substitution if it starts with ~. Any unique abbreviation of option is accepted, matching Tcl's ensemble-style dispatch.",
+            snippet: "Dispatches on option to one of many operations on a file's name (dirname/tail/extension/join/split/normalize, all pure string or path-table operations) or its on-disk attributes (exists/isdirectory/isfile/readable/writable/executable/owned, atime/mtime/size/type/stat, copy/rename/delete/mkdir, link/readlink, attributes). Any unique abbreviation of option is accepted, matching Tcl's ensemble-style dispatch.",
             source: "Tcl file(n)",
             examples: "file exists $path\nfile mkdir [file dirname $path]\nfile copy -force $src $dst\nset ext [file extension $path]\nfile stat $path st\nputs $st(size)",
             return_value: "Depends on option: a boolean (0/1), a path string, an integer, a list, a dict, or an empty string.",
         }),
         forms: FORMS,
+        literal_argument_validator: Some(validate_tilde_names),
         ..CommandSpec::DEFAULT
     }
 }
@@ -1042,6 +1117,16 @@ pub fn spec() -> CommandSpec {
 #[cfg(test)]
 mod tests {
     use crate::registry::CommandRegistry;
+
+    #[test]
+    fn the_file_hover_makes_no_claim_about_tilde_expansion() {
+        // Item 192: Tcl 9.0 reads a leading `~` as an ordinary character
+        // (TIP 602), so release-neutral prose names no expansion.
+        let hover = super::spec().hover.expect("file hover");
+        for text in [hover.summary, hover.snippet] {
+            assert!(!text.to_lowercase().contains("tilde"), "{text}");
+        }
+    }
 
     #[test]
     fn file_compiler_roster_matches_all_190_native_registration_windows() {

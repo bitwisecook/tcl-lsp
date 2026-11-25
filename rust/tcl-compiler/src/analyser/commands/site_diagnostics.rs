@@ -195,6 +195,7 @@ impl Analyser {
         self.emit_w105_original_script_words(original);
         self.emit_w312_interp_eval_injection(original);
         self.emit_w303_redos(original);
+        self.record_regex_z_anchor_gates(original);
     }
 
     /// Registry-owned literal/value diagnostics. Kept as one dispatch-site
@@ -388,6 +389,7 @@ impl Analyser {
         self.emit_binary_field_version_gates(&format_templates);
         self.emit_w121_invalid_subnet_mask(args, arg_tokens, original.as_ref());
         self.emit_w108_non_ascii(arg_tokens);
+        self.emit_w146_constant_write(original.as_ref(), scope_path);
         self.emit_w148_numeral_release(args, arg_tokens);
         self.emit_w151_range_numerals(args, arg_tokens);
         self.emit_bounds_family_diagnostics(cmd_name, args, arg_tokens, original.as_ref());
@@ -782,6 +784,7 @@ impl Analyser {
             if let Ok(content) = word.content_span() {
                 self.emit_w003_dialect_invalid_expr_operator(content);
                 self.emit_w148_expr_numerals(content);
+                self.emit_w003_expr_comments(content);
             }
             self.emit_expr_function_dialect_diagnostics(*token);
             self.emit_w114_original_nested_expr(&original, argument);

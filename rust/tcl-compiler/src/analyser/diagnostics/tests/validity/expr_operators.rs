@@ -500,3 +500,31 @@ fn w003_f5_tmsh_gates_both_tip_201_and_tip_461() {
     assert_eq!(w003_hits("expr {2 in {1 2 3}}", "f5-tmsh").len(), 1);
     assert_eq!(w003_hits("if {$x lt $y} { puts hi }", "f5-tmsh").len(), 1);
 }
+
+#[test]
+fn a_hash_comment_inside_an_expression_reports_w003_before_9_0() {
+    // Item 192, `tcl9-changes/t20`: tclsh 8.6.18 raises `invalid character
+    // "#"`; 9.0.4 reads the comment and returns 3.
+    let source = "set r [expr {1 + # one\n  2}]\n";
+    let count = |dialect: &str| {
+        codes_for_dialect(source, dialect)
+            .iter()
+            .filter(|code| *code == "W003")
+            .count()
+    };
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6"] {
+        assert_eq!(count(dialect), 1, "{dialect}");
+    }
+    for dialect in ["tcl9.0", "tcl9.1"] {
+        assert_eq!(count(dialect), 0, "{dialect}");
+    }
+    assert_eq!(count("tcl8.6"), 1);
+    assert_eq!(
+        codes_for_dialect("set r [expr {\"a#b\" eq \"a#b\"}]\n", "tcl8.6")
+            .iter()
+            .filter(|code| *code == "W003")
+            .count(),
+        0,
+        "a `#` inside a quoted string is not a comment"
+    );
+}

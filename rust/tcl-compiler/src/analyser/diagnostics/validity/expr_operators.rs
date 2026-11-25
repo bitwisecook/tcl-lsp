@@ -26,6 +26,40 @@ use tcl_core_types::DiagCode;
 use tcl_dialect::model::SpecSurface;
 
 impl Analyser {
+    /// **W003** for a `#` comment inside an expression before Tcl 9.0, where
+    /// the character is invalid (`invalid character "#"` on 8.4-8.6).
+    pub(in crate::analyser) fn emit_w003_expr_comments(&mut self, content_span: tcl_lexer::Span) {
+        if self.grammar().expr_comments.comments() {
+            return;
+        }
+        let start = content_span.start() as usize;
+        let Some(expr_text) =
+            Analyser::source_slice(&self.source, start, content_span.end() as usize)
+        else {
+            return;
+        };
+        if !expr_text.contains('#') {
+            return;
+        }
+        let Some(modern) = tcl_dialect::DialectProfile::find("tcl9.0") else {
+            return;
+        };
+        let offset = content_span.start();
+        for token in tcl_lexer::tokenise_expr_for_profile(expr_text, modern) {
+            if token.kind != tcl_lexer::ExprTokenType::Comment {
+                continue;
+            }
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::W003,
+                    tcl_lexer::Span::new(offset + token.start, offset + token.end + 1),
+                    "A `#` comment inside an expression needs Tcl 9.0; this release rejects the character.".to_owned(),
+                    Severity::Warning,
+                ));
+        }
+    }
+
     /// **W148** inside an expression: a number literal Tcl 9.0 reads but the
     /// document's release rejects (`expr {08 + 0}` fails on 8.4-8.6 with
     /// "invalid octal number", item 192 `tcl9-changes/t01`). Whole-word
