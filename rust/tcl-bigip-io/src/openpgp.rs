@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Minimal, dependency-free `OpenPGP` *symmetric* (passphrase) decryptor.
+//! `OpenPGP` symmetric (passphrase) decryption for UCS archives.
 //!
 //! The pure-Rust fallback used to decrypt an encrypted BIG-IP UCS archive without shelling
 //! out to `gpg`. BIG-IP encrypts UCS files with `GnuPG` using a passphrase and a
@@ -44,12 +44,20 @@
 
 use std::io::Read;
 
+use base64::engine::{DecodePaddingMode, GeneralPurpose, GeneralPurposeConfig};
+use base64::{DecodeError, Engine as _, alphabet};
 use cfb_mode::cipher::KeyIvInit;
 use digest::Digest;
 use flate2::read::{DeflateDecoder, ZlibDecoder};
 use tcl_core_types::RecursionLimit;
 
 const BLOCK: usize = 16;
+const ARMOR_BASE64: GeneralPurpose = GeneralPurpose::new(
+    &alphabet::STANDARD,
+    GeneralPurposeConfig::new()
+        .with_decode_padding_mode(DecodePaddingMode::RequireNone)
+        .with_decode_allow_trailing_bits(true),
+);
 
 /// Maximum nesting depth of `OpenPGP` Compressed Data (tag 8) packets
 /// [`extract_literal`] will unwrap before giving up:
@@ -449,7 +457,7 @@ fn maybe_dearmor(data: &[u8]) -> Result<Vec<u8>, OpenPgpError> {
     }
     let text = String::from_utf8_lossy(data);
     let mut collecting = false;
-    let mut b64 = String::new();
+    let mut encoded = Vec::new();
     for line in text.split('\n') {
         let line = line.strip_suffix('\r').unwrap_or(line);
         if line.starts_with("-----BEGIN PGP") {
@@ -472,41 +480,29 @@ fn maybe_dearmor(data: &[u8]) -> Result<Vec<u8>, OpenPgpError> {
         if line.contains(": ") {
             continue; // armor header (Version:, Comment:, …)
         }
-        b64.push_str(stripped);
+        encoded.extend(
+            stripped
+                .bytes()
+                .filter(|byte| *byte != b'=' && !byte.is_ascii_whitespace()),
+        );
     }
-    base64_decode(&b64).map_err(|e| OpenPgpError::new(format!("malformed PGP ASCII armor: {e}")))
-}
-
-/// Minimal standard-alphabet base64 decoder (armor bodies only).
-fn base64_decode(s: &str) -> Result<Vec<u8>, String> {
-    fn val(c: u8) -> Option<u8> {
-        match c {
-            b'A'..=b'Z' => Some(c - b'A'),
-            b'a'..=b'z' => Some(c - b'a' + 26),
-            b'0'..=b'9' => Some(c - b'0' + 52),
-            b'+' => Some(62),
-            b'/' => Some(63),
-            _ => None,
-        }
+    // Historically a trailing lone symbol was validated but produced no byte.
+    // Complete the group for the decoder, then discard its synthetic byte.
+    let lone_symbol = encoded.len() % 4 == 1;
+    if lone_symbol {
+        encoded.push(b'A');
     }
-    let mut out = Vec::new();
-    let mut buf = 0u32;
-    let mut bits = 0u32;
-    for &c in s.as_bytes() {
-        if c == b'=' || c.is_ascii_whitespace() {
-            continue;
-        }
-        let v = val(c).ok_or_else(|| format!("invalid base64 character {c:#x}"))?;
-        buf = (buf << 6) | u32::from(v);
-        bits += 6;
-        if bits >= 8 {
-            bits -= 8;
-            // Intentional low-byte extraction.
-            #[allow(clippy::cast_possible_truncation)]
-            out.push((buf >> bits) as u8);
-        }
+    let mut body = ARMOR_BASE64.decode(encoded).map_err(|error| {
+        let detail = match error {
+            DecodeError::InvalidByte(_, byte) => format!("invalid base64 character {byte:#x}"),
+            error => error.to_string(),
+        };
+        OpenPgpError::new(format!("malformed PGP ASCII armor: {detail}"))
+    })?;
+    if lone_symbol {
+        body.pop();
     }
-    Ok(out)
+    Ok(body)
 }
 
 // Public API
@@ -558,6 +554,26 @@ pub fn decrypt_symmetric(data: &[u8], passphrase: &[u8]) -> Result<Vec<u8>, Open
         ));
     }
     extract_literal(&decrypt_seipd(&enc_body, cipher_id, &session_key)?, 0)
+}
+
+#[cfg(test)]
+mod armor_tests {
+    use super::maybe_dearmor;
+
+    #[test]
+    fn armor_keeps_the_legacy_separator_and_tail_rules() {
+        let input = b"-----BEGIN PGP MESSAGE-----\r\nVersion: GnuPG\r\n\r\nT \t= R\r\n=abcd\r\n-----END PGP MESSAGE-----\r\n";
+        assert_eq!(maybe_dearmor(input).unwrap(), b"M");
+
+        let input = b"-----BEGIN PGP MESSAGE-----\nTWFuZ\n-----END PGP MESSAGE-----\n";
+        assert_eq!(maybe_dearmor(input).unwrap(), b"Man");
+
+        let input = b"-----BEGIN PGP MESSAGE-----\n!WFu?\n-----END PGP MESSAGE-----\n";
+        assert_eq!(
+            maybe_dearmor(input).unwrap_err().0,
+            "malformed PGP ASCII armor: invalid base64 character 0x21"
+        );
+    }
 }
 
 #[cfg(test)]
