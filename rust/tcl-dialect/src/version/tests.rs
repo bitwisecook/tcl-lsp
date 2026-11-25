@@ -828,3 +828,22 @@ fn release_parser_reads_package_prereleases_and_rejects_invalid_versions() {
         assert_eq!(TclVersion::from_package_version(text), expected, "{text}");
     }
 }
+
+#[test]
+fn tilde_and_removed_encoding_names_follow_the_release() {
+    // Measured on tclsh 8.4.20-8.6.18 and 9.0.4, 9.1.0 (`tcl9-changes/t03`,
+    // `t08`): 9.0 reads `~/x` as relative and drops `binary` and `identity`.
+    for version in TclVersion::ALL {
+        let from_9 = version >= TclVersion::V9_0;
+        assert_eq!(version.tilde_names_home(), !from_9, "{version:?}");
+        assert_eq!(
+            version.removed_encoding_names(),
+            if from_9 {
+                &["binary", "identity"][..]
+            } else {
+                &[]
+            },
+            "{version:?}"
+        );
+    }
+}

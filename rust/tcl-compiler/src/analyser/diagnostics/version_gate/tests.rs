@@ -756,3 +756,31 @@ mod range_targeting {
         );
     }
 }
+
+#[test]
+fn a_regexp_z_anchor_reports_w137_before_9_1() {
+    // Item 192, `tcl9-changes/t31`: `\z` is an anchor in tclsh 9.1.0 and
+    // `invalid escape \ sequence` in 8.6.18 and 9.0.4.
+    let count = |source: &str, dialect: &str| {
+        crate::analyser::Analyser::new()
+            .analyse(source, dialect)
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::W137)
+            .count()
+    };
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        assert_eq!(count("regexp {a\\z} ba\n", dialect), 1, "{dialect}");
+        assert_eq!(count("regsub -all -nocase {a\\z} $s x\n", dialect), 1);
+        assert_eq!(
+            count(
+                "switch -regexp -- $s {{a\\z} {puts 1} default {}}\n",
+                dialect
+            ),
+            1
+        );
+    }
+    assert_eq!(count("regexp {a\\z} ba\n", "tcl9.1"), 0);
+    assert_eq!(count("regexp {a\\Z} ba\n", "tcl8.6"), 0);
+    assert_eq!(count("regexp {a\\\\z} ba\n", "tcl8.6"), 0);
+}

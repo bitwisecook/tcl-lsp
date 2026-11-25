@@ -92,6 +92,11 @@ impl ChannelValueGrammar {
                 let Some(version) = version else {
                     return Unknown;
                 };
+                if version.removed_encoding_names().contains(&value) {
+                    return Invalid(
+                        "not an encoding from Tcl 9.0; use `-translation binary` or `-encoding iso8859-1`",
+                    );
+                }
                 if version.release_facts().encodings.contains(&value)
                     || (value == "binary" && version < TclVersion::V9_0)
                 {

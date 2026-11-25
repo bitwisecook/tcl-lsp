@@ -69,6 +69,51 @@ const OP_KEYWORD_VALUES: &[ArgValue] = &[
     },
 ];
 
+/// Report a literal operand that is neither a number nor a range keyword.
+/// Tcl 9.0.4 and 9.1 read operands as numbers only (TIP 746), so `lseq 0 {1+2}`
+/// raises `expected number`.
+fn validate_numeric_operands(
+    arguments: crate::InvocationArguments<'_>,
+) -> crate::literal_validation::LiteralArgumentValidation {
+    use crate::literal_validation::{LiteralArgumentValidation, LiteralValidationDecline};
+    if arguments
+        .dialect()
+        .and_then(|dialect| dialect.tcl_version)
+        .is_none_or(|version| version < tcl_dialect::TclVersion::V9_0)
+    {
+        return LiteralArgumentValidation::Abstain(LiteralValidationDecline::UnselectedGrammar);
+    }
+    let Some(count) = arguments.exact_argv_len() else {
+        return LiteralArgumentValidation::Abstain(LiteralValidationDecline::IncompleteInvocation);
+    };
+    let Some(words) = (0..count)
+        .map(|index| arguments.literal_at(index).map(str::as_bytes))
+        .collect::<Option<Vec<_>>>()
+    else {
+        return LiteralArgumentValidation::Abstain(LiteralValidationDecline::NonLiteralArgument);
+    };
+    if tcl_cmd_core::lseq::decode(&words).is_ok() {
+        return LiteralArgumentValidation::Valid;
+    }
+    let keyword = |word: &[u8]| {
+        !word.is_empty()
+            && [b"to".as_slice(), b"count", b"by", b".."]
+                .iter()
+                .any(|name| name.starts_with(word))
+    };
+    match words
+        .iter()
+        .position(|word| tcl_cmd_core::lseq::as_number(word).is_none() && !keyword(word))
+    {
+        Some(index) => LiteralArgumentValidation::invalid_value(
+            index,
+            "lseq operand",
+            "expected a number; Tcl 9.0.4 and later do not evaluate lseq operands as expressions",
+        ),
+        None => LiteralArgumentValidation::Abstain(LiteralValidationDecline::MalformedLiteral),
+    }
+}
+
 /// Command spec for `lseq`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -112,6 +157,37 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         arg_values: &[(1, OP_KEYWORD_VALUES)],
-        ..CommandSpec::DEFAULT
+        literal_argument_validator: Some(validate_numeric_operands),
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::builtins::ROUTE_UNAUTHORED,
+        ),
+        completion: crate::knowledge::Knowledge::Partial(
+            crate::completion::CompletionDescriptor::exact(&[
+                crate::completion::CompletionCode::Ok,
+                crate::completion::CompletionCode::Error,
+            ]),
+        ),
+        ..CommandSpec::CLOSED_REFERENTIALLY_TRANSPARENT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lseq_declares_a_value_only_command() {
+        // Item 192: `lseq` builds a list from numbers and evaluates nothing
+        // (TIP 746), so it has no world effect.
+        let spec = spec();
+        assert_eq!(
+            format!("{:?}", spec.world_effects.known()),
+            format!("{:?}", Some(&crate::WorldEffectDescriptor::EMPTY))
+        );
+        assert_eq!(
+            spec.result_stability.known(),
+            Some(&crate::result_stability::ResultStability::ReferentiallyTransparent)
+        );
+        assert!(spec.completion.known().is_some());
     }
 }

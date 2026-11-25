@@ -282,11 +282,8 @@ fn native_redos_shape(
     }
 }
 
-fn pattern_diagnostics(
-    original: &OriginalDiagnosticInvocation,
-    profile: &tcl_dialect::DialectProfile,
-) -> Vec<Diagnostic> {
-    let flags = original
+fn pattern_flags(original: &OriginalDiagnosticInvocation) -> tcl_cmd_core::regex::RegexFlags {
+    original
         .with_schema(crate::analyser::diagnostic_registry::source_diagnostic_options)
         .flatten()
         .map_or_else(tcl_cmd_core::regex::RegexFlags::default, |scan| {
@@ -299,15 +296,62 @@ fn pattern_diagnostics(
                 flags.apply_compile_option(option.option.name);
             }
             flags
-        });
+        })
+}
+
+/// Whether the pattern compiles only where `\z` is an end-of-string anchor
+/// (Tcl 9.1, [`tcl_dialect::TclVersion::regex_z_anchor`]).
+fn needs_z_anchor(
+    pattern: &str,
+    profile: &tcl_dialect::DialectProfile,
+    flags: tcl_cmd_core::regex::RegexFlags,
+) -> bool {
+    use tcl_dialect::{TclVersion, model::Family};
+    use tcl_syntax::native_regex::NativeRegexpRecipe;
+    use tcl_syntax::native_tcl_utf::NativeCPlainChar;
+
+    if !pattern.contains("\\z") || profile.runtime_core_family() != Some(Family::Tcl) {
+        return false;
+    }
+    let units = NativeRegexpRecipe::for_version(TclVersion::V9_1)
+        .pattern_units(pattern.as_bytes(), NativeCPlainChar::Signed);
+    let compiles = |z_anchor| {
+        let flags = tcl_cmd_core::regex::RegexFlags { z_anchor, ..flags };
+        tcl_regex::Regex::compile(&units, tcl_regex::cmd_core::are_flags(flags)).is_ok()
+    };
+    !compiles(false) && compiles(true)
+}
+
+fn pattern_subject(
+    original: &OriginalDiagnosticInvocation,
+    pattern: &OriginalPattern,
+) -> Option<std::sync::Arc<crate::analyser::diagnostic_registry::RegistrySourceDiagnosticSubject>> {
+    let subject = if pattern.path.is_empty() {
+        original.subject(
+            RegistrySourceDiagnosticKind::PatternShape,
+            Some(pattern.argument),
+        )
+    } else {
+        original.list_element_subject(
+            RegistrySourceDiagnosticKind::PatternShape,
+            pattern.argument,
+            &pattern.path,
+        )
+    }?;
+    let DiagnosticSubject::RegistrySource(subject) = subject else {
+        return None;
+    };
+    Some(subject)
+}
+
+fn pattern_diagnostics(
+    original: &OriginalDiagnosticInvocation,
+    profile: &tcl_dialect::DialectProfile,
+) -> Vec<Diagnostic> {
+    let flags = pattern_flags(original);
     original_patterns(original).into_iter().filter_map(|pattern| {
         if !native_redos_shape(&pattern.value, profile, flags) { return None; }
-        let subject = if pattern.path.is_empty() {
-            original.subject(RegistrySourceDiagnosticKind::PatternShape, Some(pattern.argument))
-        } else {
-            original.list_element_subject(RegistrySourceDiagnosticKind::PatternShape, pattern.argument, &pattern.path)
-        }?;
-        let DiagnosticSubject::RegistrySource(subject) = subject else { return None };
+        let subject = pattern_subject(original, &pattern)?;
         Some(Diagnostic::new(DiagCode::W303, subject.span(),
             "A regular expression with repeated alternatives or nested repetition and a backreference can take substantially longer to reject some inputs (backtracking).".to_owned(),
             Severity::Warning).with_subject(DiagnosticSubject::RegistrySource(subject)))
@@ -326,6 +370,43 @@ impl Analyser {
             self.result
                 .diagnostics
                 .extend(pattern_diagnostics(original, self.profile));
+        }
+    }
+
+    /// Buffer a W137 gate for each literal pattern that uses `\z`, which only
+    /// Tcl 9.1 reads as an anchor; the post-walk pass compares it with the
+    /// document's release.
+    pub(in crate::analyser) fn record_regex_z_anchor_gates(
+        &mut self,
+        original: Option<&OriginalDiagnosticInvocation>,
+    ) {
+        let Some(original) = original else { return };
+        if !original.matches_analysis(&self.result, &self.source) {
+            return;
+        }
+        let flags = pattern_flags(original);
+        for pattern in original_patterns(original) {
+            if !needs_z_anchor(&pattern.value, self.profile, flags) {
+                continue;
+            }
+            let Some(subject) = pattern_subject(original, &pattern) else {
+                continue;
+            };
+            let span = subject.span();
+            if self
+                .dsl_gate_sites
+                .iter()
+                .any(|site| site.span == span && site.code == DiagCode::W137)
+            {
+                continue;
+            }
+            self.dsl_gate_sites
+                .push(crate::analyser::diagnostics::version_gate::DslGateSite {
+                    span,
+                    code: DiagCode::W137,
+                    what: "regular expression escape '\\z'".to_owned(),
+                    min: tcl_dialect::TclVersion::V9_1,
+                });
         }
     }
 

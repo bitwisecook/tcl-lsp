@@ -250,6 +250,58 @@ const fn encoding_member(
     }
 }
 
+/// Report a literal encoding name the selected release no longer accepts.
+/// `convertfrom`/`convertto` take the name before the data, after the
+/// `-profile`/`-failindex` pairs; `system` takes it as its only operand.
+fn validate_removed_encoding_name(
+    arguments: crate::InvocationArguments<'_>,
+    skip_options: bool,
+) -> crate::literal_validation::LiteralArgumentValidation {
+    use crate::literal_validation::{LiteralArgumentValidation, LiteralValidationDecline};
+    let Some(version) = arguments.dialect().and_then(|dialect| dialect.tcl_version) else {
+        return LiteralArgumentValidation::Abstain(LiteralValidationDecline::UnselectedGrammar);
+    };
+    let removed = version.removed_encoding_names();
+    if removed.is_empty() {
+        return LiteralArgumentValidation::Valid;
+    }
+    let Some(count) = arguments.exact_argv_len() else {
+        return LiteralArgumentValidation::Abstain(LiteralValidationDecline::IncompleteInvocation);
+    };
+    let mut index = 1;
+    while skip_options
+        && arguments
+            .literal_at(index)
+            .is_some_and(|word| word.starts_with('-'))
+    {
+        index += 2;
+    }
+    if (skip_options && count != index + 2) || count < index + 1 {
+        return LiteralArgumentValidation::Valid;
+    }
+    match arguments.literal_at(index) {
+        Some(name) if removed.contains(&name) => LiteralArgumentValidation::invalid_value(
+            index,
+            "encoding name",
+            "not an encoding from Tcl 9.0; use `-translation binary` or `-encoding iso8859-1`",
+        ),
+        Some(_) => LiteralArgumentValidation::Valid,
+        None => LiteralArgumentValidation::Abstain(LiteralValidationDecline::NonLiteralArgument),
+    }
+}
+
+fn validate_conversion_encoding(
+    arguments: crate::InvocationArguments<'_>,
+) -> crate::literal_validation::LiteralArgumentValidation {
+    validate_removed_encoding_name(arguments, true)
+}
+
+fn validate_system_encoding(
+    arguments: crate::InvocationArguments<'_>,
+) -> crate::literal_validation::LiteralArgumentValidation {
+    validate_removed_encoding_name(arguments, false)
+}
+
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "convertfrom",
@@ -284,6 +336,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ..SideEffect::DEFAULT
         }]),
         is_unescape: true,
+        literal_argument_validator: Some(validate_conversion_encoding),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -324,6 +377,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             surface: Some(SpecSurface::TCL90_PLUS),
             ..SideEffect::DEFAULT
         }]),
+        literal_argument_validator: Some(validate_conversion_encoding),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -377,6 +431,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             writes: true,
             ..SideEffect::DEFAULT
         }]),
+        literal_argument_validator: Some(validate_system_encoding),
         ..SubCommand::DEFAULT
     },
     SubCommand {

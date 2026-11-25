@@ -217,6 +217,8 @@ pub struct Analyser {
     /// [`Self::flush_dsl_gate_diagnostics`] against the effective Tcl
     /// version.
     pub(super) dsl_gate_sites: Vec<super::diagnostics::version_gate::DslGateSite>,
+    /// The variables `const` has created, by the scope that holds them.
+    pub(super) constants: HashSet<(Vec<usize>, String)>,
     /// The calls the walk dispatched with a word a literal-only check could
     /// not read, which the CFG/SSA pass checks again over the words' proven
     /// values.
