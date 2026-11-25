@@ -513,7 +513,9 @@ mod tests {
             if columns[0] == "jim0.84" {
                 continue;
             }
-            let mut interp = interpreter(&format!("tcl{}", columns[0]));
+            let mut interp = interpreter(
+                tcl_dialect::TclVersion::profile_name_for(columns[0]).expect("modelled release"),
+            );
             let body = String::from_utf8(decode(columns[2])).unwrap();
             let source = format!(
                 "proc f {{name other names}} {{\n{body}\n}}\nset ::seen BEFORE\nset code [catch {{f x y {{x y}}}} value]\nlist RESULT $code $value $::seen"

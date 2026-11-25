@@ -157,7 +157,9 @@ fn original_command_traces_match_ten_native_byte_windows() {
     let mut compared = 0;
     for row in include_str!("../../tests/data/native_command_traces/windows.tsv").lines() {
         let fields = row.split('\t').collect::<Vec<_>>();
-        let mut interp = interpreter(&format!("tcl{}", fields[0]));
+        let mut interp = interpreter(
+            tcl_dialect::TclVersion::profile_name_for(fields[0]).expect("modelled release"),
+        );
         let source = decode(fields[2]);
         assert_eq!(
             interp.eval_str(&source).as_int(),

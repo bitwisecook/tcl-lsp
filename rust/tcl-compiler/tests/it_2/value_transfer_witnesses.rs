@@ -126,7 +126,9 @@ fn releases_on_path() -> Vec<(&'static str, String)> {
 
 /// The dialect profile name a release is analysed under.
 fn dialect_of(series: &str) -> String {
-    format!("tcl{series}")
+    tcl_dialect::TclVersion::profile_name_for(series)
+        .expect("modelled release")
+        .to_owned()
 }
 
 /// `source` rewritten by the multipass optimiser under `dialect`, with

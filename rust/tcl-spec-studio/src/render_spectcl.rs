@@ -443,7 +443,8 @@ fn tcl_version_word(variant: &str) -> String {
         .chars()
         .map(|c| if c == '_' { '.' } else { c })
         .collect();
-    format!("tcl{digits}")
+    tcl_dialect::TclVersion::profile_name_for(&digits)
+        .map_or_else(|| ["tcl", &digits].concat(), str::to_owned)
 }
 
 fn str_of(value: &Value) -> &str {

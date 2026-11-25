@@ -678,8 +678,12 @@ fn a_derived_body_runs_under_the_release_the_call_is_analysed_under() {
                 continue;
             }
             let shell = shell.answer();
-            let folded =
-                reference_evaluation_under(&format!("tcl{release}"), definition, *arity, call);
+            let folded = reference_evaluation_under(
+                tcl_dialect::TclVersion::profile_name_for(release).expect("modelled release"),
+                definition,
+                *arity,
+                call,
+            );
             assert_eq!(
                 folded, shell,
                 "{row} under {release}: the selected hook against the shell's own answer\n{definition}\n{call}"

@@ -308,7 +308,9 @@ fn original_namespace_origin_matches_five_native_import_chains() {
         let fields = row.split('\t').collect::<Vec<_>>();
         let mut interp = Interp::with_native_core(
             crate::interp::default_host(),
-            crate::environment::profile_for_dialect(&format!("tcl{}", fields[0])),
+            crate::environment::profile_for_dialect(
+                tcl_dialect::TclVersion::profile_name_for(fields[0]).expect("modelled release"),
+            ),
             tcl_registry::special_vars::NativeBootstrapInputs::default(),
         )
         .unwrap();

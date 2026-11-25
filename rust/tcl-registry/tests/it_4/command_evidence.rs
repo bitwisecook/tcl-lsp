@@ -84,7 +84,8 @@ fn complete_rows_match_the_c_evidence() {
         if TCLLIB_RELEASES.contains(&release) {
             closed.extend(&tcllib);
         }
-        let profile = tcl_dialect::DialectProfile::find(&format!("tcl{release}"))
+        let profile = tcl_dialect::TclVersion::profile_name_for(release)
+            .and_then(tcl_dialect::DialectProfile::find)
             .expect("a Tcl release profile");
         let registry = CommandRegistry::build_default().project_for_profile(profile);
         let query = SurfaceQuery::core(Family::Tcl, release);

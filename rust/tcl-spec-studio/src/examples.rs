@@ -1000,8 +1000,9 @@ mod tests {
         use tcl_registry::tk_geometry::TkGeometryContainerPolicy;
 
         for release in ["8.4", "8.5", "8.6", "9.0", "9.1"] {
-            let profile =
-                tcl_dialect::DialectProfile::find(&format!("tcl{release}")).expect("Tcl release");
+            let profile = tcl_dialect::TclVersion::profile_name_for(release)
+                .and_then(tcl_dialect::DialectProfile::find)
+                .expect("Tcl release");
             let mut registry =
                 tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
             registry.insert_ambient_package("Tk", release);

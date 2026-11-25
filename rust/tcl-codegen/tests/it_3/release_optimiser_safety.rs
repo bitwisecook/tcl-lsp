@@ -92,7 +92,7 @@ fn preserves(source: &str, first: &str) {
         let Some(tclsh) = tcl_test_support::witness_tclsh(version) else {
             continue;
         };
-        let (rewritten, rewrites) = optimise(source, &format!("tcl{series}"));
+        let (rewritten, rewrites) = optimise(source, version.dialect_profile_name());
         let summaries: Vec<_> = rewrites
             .iter()
             .map(|rewrite| (rewrite.code, rewrite.span, &rewrite.replacement))
@@ -1311,9 +1311,9 @@ fn item_153_audit_rewrites_preserve_file_execution() {
         let Some(tclsh) = tcl_test_support::witness_tclsh(version) else {
             continue;
         };
-        let dialect = format!("tcl{series}");
-        let profile = resolve_environment(&dialect).analyser_profile();
-        let registry = tcl_registry::model::ingress::static_context_for(&dialect).commands();
+        let dialect = version.dialect_profile_name();
+        let profile = resolve_environment(dialect).analyser_profile();
+        let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
         for row in records.lines() {
             let columns: Vec<_> = row.splitn(5, '\t').collect();
             let [_, area, fixture, release, ..] = columns.as_slice() else {

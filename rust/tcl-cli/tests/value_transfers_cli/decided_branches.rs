@@ -260,8 +260,8 @@ const NESTED_EQUALITY: &str = "proc p {x} {\n    if {$x eq \"a\"} {\n        if 
 #[test]
 fn the_nested_equality_decides_through_diag_and_opt() {
     for series in RELEASES {
-        let dialect = format!("tcl{series}");
-        let found = diagnostics_at(NESTED_EQUALITY, &dialect, &[]);
+        let dialect = tcl_dialect::TclVersion::profile_name_for(series).expect("modelled release");
+        let found = diagnostics_at(NESTED_EQUALITY, dialect, &[]);
         assert!(
             found
                 .iter()
@@ -333,8 +333,9 @@ fn the_eleven_loop_witnesses() {
         let source = format!("{program}\nif {{{condition}}} {{puts yes}} else {{puts no}}\n");
         let (printed, dropped) = if holds { ("yes", "no") } else { ("no", "yes") };
         for series in RELEASES {
-            let dialect = format!("tcl{series}");
-            let found = diagnostics_at(&source, &dialect, &[]);
+            let dialect =
+                tcl_dialect::TclVersion::profile_name_for(series).expect("modelled release");
+            let found = diagnostics_at(&source, dialect, &[]);
             assert!(
                 found
                     .iter()

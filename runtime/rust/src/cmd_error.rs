@@ -1273,7 +1273,9 @@ mod tests {
             let engine = if fields[0] == "jim" {
                 "jim".to_owned()
             } else {
-                format!("tcl{}", fields[0])
+                tcl_dialect::TclVersion::profile_name_for(fields[0])
+                    .expect("modelled release")
+                    .to_owned()
             };
             let mut interp = crate::interp::Interp::with_native_core(
                 crate::interp::default_host(),

@@ -165,7 +165,7 @@ fn opt_under(source: &str, series: &str) -> String {
         "--profile",
         "full",
         "--dialect",
-        &format!("tcl{series}"),
+        tcl_dialect::TclVersion::profile_name_for(series).expect("modelled release"),
     ])
 }
 
