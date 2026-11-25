@@ -509,13 +509,13 @@ mod tests {
         .lines()
         .skip(1)
         {
-            let columns: Vec<_> = row.split('\t').collect();
+            let columns: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
             if columns[0] == "jim0.84" {
                 continue;
             }
-            let mut interp = interpreter(
-                tcl_dialect::TclVersion::profile_name_for(columns[0]).expect("modelled release"),
-            );
+            let release = tcl_test_support::fixture::oracle_release(columns[0])
+                .expect("canonical Tcl release");
+            let mut interp = interpreter(release.dialect_profile_name());
             let body = String::from_utf8(decode(columns[2])).unwrap();
             let source = format!(
                 "proc f {{name other names}} {{\n{body}\n}}\nset ::seen BEFORE\nset code [catch {{f x y {{x y}}}} value]\nlist RESULT $code $value $::seen"
