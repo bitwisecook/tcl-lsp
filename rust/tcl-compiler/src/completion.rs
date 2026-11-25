@@ -52,6 +52,34 @@ pub enum CompletionCodeLattice {
 }
 
 impl CompletionCodeLattice {
+    /// Whether a completion may continue with the next statement: `TCL_OK`,
+    /// or any code under top.
+    #[must_use]
+    pub fn may_complete_normally(&self) -> bool {
+        self.may_be(|code| matches!(code, CompletionCode::Ok))
+    }
+
+    /// Whether a completion may jump to an enclosing loop target.
+    #[must_use]
+    pub fn may_jump_to_loop(&self) -> bool {
+        self.may_be(|code| matches!(code, CompletionCode::Break | CompletionCode::Continue))
+    }
+
+    /// Whether every completion leaves the procedure: none continues and none
+    /// jumps to a loop target. Bottom (a process exit) leaves it too.
+    #[must_use]
+    pub fn leaves_procedure(&self) -> bool {
+        !self.may_complete_normally() && !self.may_jump_to_loop()
+    }
+
+    fn may_be(&self, test: impl Fn(&CompletionCode) -> bool) -> bool {
+        match self {
+            Self::Bottom => false,
+            Self::Top => true,
+            Self::Exact(codes) => codes.iter().any(test),
+        }
+    }
+
     /// The bottom element, used before a reachable completion contributes.
     #[must_use]
     pub const fn bottom() -> Self {

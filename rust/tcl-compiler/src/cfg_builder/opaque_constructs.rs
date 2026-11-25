@@ -19,7 +19,7 @@
 //! Constructs kept as one opaque statement instead of blocks: frozen loops, opaque `foreach`, `catch` and `try`, and the effects of the scripts they keep inside.
 
 use super::CfgBuilder;
-use super::flow_facts::{Completion, flow_facts_stmt_with_classes};
+use super::flow_facts::flow_facts_stmt_with_classes;
 use crate::expr_ast::ExprNode;
 use crate::ir::{CommandTokens, Script, Statement};
 use std::collections::BTreeSet;
@@ -161,8 +161,9 @@ impl CfgBuilder<'_> {
                 // A command that leaves the procedure (`exit`, `error`) writes
                 // nothing the code after the statement can read.
                 let exits = leaves_the_procedure
-                    && flow_facts_stmt_with_classes(inner, &self.command_classes).1
-                        == Completion::ProcExit;
+                    && flow_facts_stmt_with_classes(inner, &self.command_classes)
+                        .1
+                        .leaves_procedure();
                 for produced in self.apply_upvar_invalidation(inner.clone()) {
                     match &produced {
                         _ if crate::ssa::is_unseen_call_marker(&produced) => unseen = true,

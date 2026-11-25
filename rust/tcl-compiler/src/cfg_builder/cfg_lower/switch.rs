@@ -214,7 +214,6 @@ impl CfgBuilder<'_> {
     /// the opaque-switch `invokeStk` bytecode / CFG shape are unchanged.  Returns
     /// the block subsequent statements continue in.
     fn lower_opaque_switch(&mut self, stmt: &Statement, block_name: &str) -> String {
-        use crate::cfg_builder::Completion;
         self.push_statement(block_name, stmt.clone());
         // A command an arm runs is inside the statement, so the scans of the
         // statements the graph lowers never reach it.
@@ -261,9 +260,9 @@ impl CfgBuilder<'_> {
                 break_target: &break_target,
                 continue_target: &continue_target,
             };
-            return self.wire_opaque_switch_jumps(stmt, block_name, completion, &escape);
+            return self.wire_opaque_switch_jumps(stmt, block_name, &completion, &escape);
         }
-        if completion == Completion::ProcExit {
+        if completion.leaves_procedure() {
             if self.block_mut(block_name).terminator.is_none() {
                 self.set_terminator(
                     block_name,
@@ -294,13 +293,12 @@ impl CfgBuilder<'_> {
         &mut self,
         stmt: &Statement,
         block_name: &str,
-        completion: crate::cfg_builder::Completion,
+        completion: &crate::cfg_builder::Completion,
         escape: &SwitchEscape<'_>,
     ) -> String {
-        use crate::cfg_builder::Completion;
         let mut targets: Vec<String> = Vec::new();
         let mut continuation: Option<String> = None;
-        if completion == Completion::Normal {
+        if completion.may_complete_normally() {
             let cont = self.new_block("switch_cont");
             continuation = Some(cont.clone());
             targets.push(cont);

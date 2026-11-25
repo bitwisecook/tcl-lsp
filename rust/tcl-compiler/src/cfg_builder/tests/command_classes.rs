@@ -296,9 +296,8 @@ fn opaque_host_barriers_match_calls_for_every_registry_proc_exit_command() {
                 ("Call", host_call(spelling.clone())),
                 ("Barrier", host_barrier(spelling.clone())),
             ] {
-                assert_eq!(
-                    flow_facts_stmt(&statement).1,
-                    Completion::ProcExit,
+                assert!(
+                    flow_facts_stmt(&statement).1.leaves_procedure(),
                     "{kind} {spelling} must leave the procedure",
                 );
 

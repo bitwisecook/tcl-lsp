@@ -41,24 +41,21 @@ use tcl_registry::CommandRegistry;
 // recovering the switch's defs, and an all-LoopJump switch is NOT a procedure
 // terminator.
 
-/// How a statement/script leaves: fall through, jump to an enclosing loop, or
-/// exit the procedure.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub(crate) enum Completion {
-    /// Falls through to the next statement.
-    Normal,
-    /// `break` / `continue` — leaves to an enclosing-loop target (still reaches
-    /// the code after that loop).
-    LoopJump,
-    /// `return` / `error` / `throw` / `exit` / `tailcall` — leaves the proc.
-    ProcExit,
+/// How a statement or script leaves, as the completion codes it may produce:
+/// `TCL_OK` falls through, `break`/`continue` jump to an enclosing loop
+/// target, and any other code (or none, for a process exit) leaves the
+/// procedure.
+pub(crate) type Completion = crate::completion::CompletionCodeLattice;
+
+fn normal() -> Completion {
+    Completion::exact(tcl_registry::CompletionCode::Ok)
 }
 
 /// Whether `stmt` certainly ends the interpreter, running no enclosing
 /// `finally`: a process-terminating command (`Traits::TERMINATES_PROCESS`,
 /// e.g. `exit`) that nothing can stop from running.
 ///
-/// [`Completion`] folds `exit` into `ProcExit` with `return` and `error`,
+/// [`Completion`] classes `exit` with `return` and `error` as leaving the procedure,
 /// which is right for what follows the statement and wrong for an enclosing
 /// `finally`: a `return` runs it, an `exit` does not (tclsh 8.6.18 and 9.0.4:
 /// `try {exit 7} finally {puts FINALLY}` prints nothing).
@@ -216,9 +213,12 @@ pub(super) fn flow_facts_stmt_with_classes(
                 .unwrap_or_default()
                 .into_iter()
                 .collect(),
-            Completion::Normal,
+            normal(),
         ),
-        Statement::Return { .. } => (BTreeSet::new(), Completion::ProcExit),
+        Statement::Return { .. } => (
+            BTreeSet::new(),
+            Completion::exact(tcl_registry::CompletionCode::Return),
+        ),
         Statement::Barrier { .. } => (BTreeSet::new(), command_classes.flow_completion(stmt)),
         Statement::Call { defs, .. } => (
             defs.iter().cloned().collect(),
@@ -248,7 +248,7 @@ pub(super) fn flow_facts_stmt_with_classes(
         // An else-less `If` / default-less `Switch` has a fall-through path that
         // assigns nothing for certain; everything else may not run / always
         // completes.
-        _ => (BTreeSet::new(), Completion::Normal),
+        _ => (BTreeSet::new(), normal()),
     }
 }
 
@@ -263,7 +263,7 @@ pub(crate) fn flow_facts_stmt(stmt: &Statement) -> (BTreeSet<String>, Completion
 ///
 /// Walk statements in order accumulating must-defines; the first statement that
 /// does not complete normally makes the rest dead and gives the script that
-/// statement's completion (`ProcExit` or `LoopJump`), with the must-defines
+/// statement's completion (leaving the procedure or jumping to a loop), with the must-defines
 /// being those accumulated up to (and including) it.  Only names guaranteed to
 /// be assigned are returned, so it never over-claims (which would hide a real
 /// read-before-set).
@@ -275,49 +275,39 @@ fn flow_facts_script_with_classes(
     for stmt in &script.statements {
         let (defs, completion) = flow_facts_stmt_with_classes(stmt, command_classes);
         assigned.extend(defs);
-        if completion != Completion::Normal {
+        if !completion.may_complete_normally() {
             return (assigned, completion);
         }
     }
-    (assigned, Completion::Normal)
+    (assigned, normal())
 }
 
 /// Combine branch bodies into `(must-defines, completion)`.
 ///
-/// A `ProcExit` branch reaches no code after the construct, so it is vacuous
-/// (⊤) and excluded from the must-define intersection.  A `Normal` or
-/// `LoopJump` branch *does* reach later code (the fall-through successor, or —
+/// A branch that leaves the procedure reaches no code after the construct, so
+/// it is vacuous (⊤) and excluded from the must-define intersection.  A branch
+/// that falls through or jumps to a loop *does* reach later code (the fall-through successor, or —
 /// for a loop jump — the code after the enclosing loop), so its must-defines
 /// (those established before it leaves) ARE intersected: this keeps the result
 /// sound when a `break`/`continue` arm escapes an opaque switch without the
-/// other arms' defs.  The combined completion is `Normal` if any branch falls
-/// through, else `LoopJump` if any jumps, else `ProcExit` (every branch exits).
+/// other arms' defs.  The combined completion is the join of the branches'.
 fn intersect_completing(
     bodies: &[&Script],
     command_classes: &CfgCommandClasses,
 ) -> (BTreeSet<String>, Completion) {
     let mut common: Option<BTreeSet<String>> = None;
-    let mut any_normal = false;
-    let mut any_loop_jump = false;
+    let mut combined = Completion::bottom();
     for body in bodies {
         let (assigned, completion) = flow_facts_script_with_classes(body, command_classes);
-        match completion {
-            Completion::ProcExit => continue,
-            Completion::Normal => any_normal = true,
-            Completion::LoopJump => any_loop_jump = true,
+        combined = combined.join(&completion);
+        if completion.leaves_procedure() {
+            continue;
         }
         common = Some(match common {
             None => assigned,
             Some(acc) => acc.intersection(&assigned).cloned().collect(),
         });
     }
-    let combined = if any_normal {
-        Completion::Normal
-    } else if any_loop_jump {
-        Completion::LoopJump
-    } else {
-        Completion::ProcExit
-    };
     (common.unwrap_or_default(), combined)
 }
 
@@ -462,7 +452,9 @@ fn escaping_loop_jumps_with_classes(
         // otherwise a dead `break` after `error`/`return` would forge a
         // loop-exit edge and fire W210 on unreachable post-loop code.
         if completion.is_some_and(|route| !route.normal_possible())
-            || flow_facts_stmt_with_classes(stmt, command_classes).1 != Completion::Normal
+            || !flow_facts_stmt_with_classes(stmt, command_classes)
+                .1
+                .may_complete_normally()
         {
             break;
         }

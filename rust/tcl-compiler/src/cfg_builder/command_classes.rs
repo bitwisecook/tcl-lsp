@@ -229,25 +229,29 @@ impl CfgCommandClasses {
             .map(|invocation| invocation.completion_route(registry))
     }
 
+    /// The completion codes `stmt` may produce, read from its registry route.
+    /// An unproved command falls through. A process exit contributes no code;
+    /// an abrupt route with no catch-visible code is classed as an error.
     pub(super) fn flow_completion(&self, stmt: &Statement) -> Completion {
+        use tcl_registry::CompletionCode as Code;
         use tcl_registry::completion_route::InvocationCompletionRoute as Route;
         let Some(route) = self.completion_route(stmt) else {
-            return Completion::Normal;
+            return Completion::exact(Code::Ok);
         };
-        if route.normal_possible() {
-            Completion::Normal
-        } else if route.alternatives().iter().any(|route| {
-            matches!(
-                route,
-                Route::Tcl(
-                    tcl_registry::CompletionCode::Break | tcl_registry::CompletionCode::Continue
-                )
-            )
-        }) {
-            Completion::LoopJump
-        } else {
-            Completion::ProcExit
-        }
+        route
+            .alternatives()
+            .into_iter()
+            .fold(Completion::bottom(), |joined, alternative| {
+                let codes = match alternative {
+                    Route::Unknown => Completion::top(),
+                    Route::ProcessExit => Completion::bottom(),
+                    Route::Return(_) => Completion::exact(Code::Return),
+                    alternative => {
+                        Completion::exact(alternative.immediate_code().unwrap_or(Code::Error))
+                    }
+                };
+                joined.join(&codes)
+            })
     }
 
     #[cfg(test)]
