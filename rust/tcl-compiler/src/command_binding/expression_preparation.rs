@@ -684,13 +684,13 @@ fn evaluated_numeric_source_value(
     // representation of a reused pool object. Retain native selected bytes
     // rather than formatting their mathematical interpretation.
     let text = match &evaluation.result_dependency {
-        Some(crate::tcl_expr_eval::NativeExpressionResultDependency::StringResult { bytes }) => {
-            Some(bytes.clone())
+        Some(crate::tcl_expr_eval::NativeExpressionResultDependency::StringResult { value }) => {
+            Some(value.bytes.clone())
         }
         Some(crate::tcl_expr_eval::NativeExpressionResultDependency::SelectedOperand {
-            existing_bytes,
+            existing_value,
             ..
-        }) => existing_bytes.clone(),
+        }) => existing_value.as_ref().map(|value| value.bytes.clone()),
         None => crate::tcl_expr_eval::format_tcl_value_with_policy(&evaluation.value, policy),
     }?;
     let numeric = epoch.filter(|_| {

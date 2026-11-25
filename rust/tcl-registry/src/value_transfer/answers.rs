@@ -640,11 +640,7 @@ impl ExactValue {
     /// A text value with no numeric classification.
     #[must_use]
     pub fn text(text: impl Into<String>) -> Self {
-        Self {
-            bytes: text.into().into_bytes(),
-            numeric: None,
-            representation: RepresentationEvidence::Unknown,
-        }
+        ExactValue::utf8(text).into_byte_value()
     }
 
     /// An integer value, spelled canonically.
@@ -692,6 +688,24 @@ impl ExactValue {
             numeric: canonical_literal_integer(text),
             representation: RepresentationEvidence::Unknown,
         }
+    }
+}
+
+impl ExactValue<String> {
+    /// A UTF-8 text value with no numeric classification.
+    #[must_use]
+    pub fn utf8(text: impl Into<String>) -> Self {
+        Self {
+            bytes: text.into(),
+            numeric: None,
+            representation: RepresentationEvidence::Unknown,
+        }
+    }
+
+    /// Move the text into byte storage, retaining its interpretation and evidence.
+    #[must_use]
+    pub fn into_byte_value(self) -> ExactValue {
+        self.map_bytes(String::into_bytes)
     }
 }
 

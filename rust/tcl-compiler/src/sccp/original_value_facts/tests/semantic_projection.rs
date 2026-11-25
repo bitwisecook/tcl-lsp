@@ -590,8 +590,8 @@ fn semantic_solver_keeps_selected_native_result_bytes_separate_from_number() {
     assert_eq!(selected.evaluation.value, TclValue::Int(3));
     assert!(matches!(&selected.evaluation.result_dependency,
             Some(crate::tcl_expr_eval::NativeExpressionResultDependency::SelectedOperand {
-                existing_bytes: Some(bytes), ..
-            }) if bytes == "003"));
+                existing_value: Some(value), ..
+            }) if value.bytes == "003"));
     assert!(
         facts
             .result

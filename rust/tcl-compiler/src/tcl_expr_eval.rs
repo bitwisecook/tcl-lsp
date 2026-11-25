@@ -54,7 +54,7 @@
 use std::{cell::RefCell, collections::HashMap};
 
 use tcl_dialect::{NumberSpelling, NumberSyntax, StringCharacterModel};
-use tcl_registry::value_transfer::DeclineReason;
+use tcl_registry::value_transfer::{DeclineReason, ExactValue};
 #[cfg(test)]
 use tcl_registry::value_transfer::{DomainFact, FactView};
 
@@ -255,7 +255,7 @@ pub struct NativeCoercionObligation {
 
 /// A native expression result whose object or existing string must be retained.
 /// Its numeric interpretation alone cannot establish a numeric result spelling.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum NativeExpressionResultDependency {
     /// Jim returns the selected retained operand object unchanged.
     SelectedOperand {
@@ -263,13 +263,13 @@ pub enum NativeExpressionResultDependency {
         reference: String,
         /// Original parser offset of the selected reference.
         start: Option<u32>,
-        /// Existing bytes, if already known without materialising the object.
-        existing_bytes: Option<String>,
+        /// Exact contents, if already known without materialising the object.
+        existing_value: Option<ExactValue<String>>,
     },
     /// The native engine retains string bytes without numeric normalization.
     StringResult {
-        /// Exact returned string bytes.
-        bytes: String,
+        /// Exact returned string contents.
+        value: ExactValue<String>,
     },
 }
 
@@ -440,7 +440,7 @@ fn past_the_wide_tower(value: &FoldValue, octal: Option<bool>, numbers: NumberSy
         FoldValue::Str(text) => match strict_number_for_dialect(value, octal, numbers) {
             Some(TclValue::Big(_)) => true,
             Some(TclValue::Float(f)) => {
-                f.is_infinite() || tcl_syntax::number::is_out_of_range_double(text, numbers)
+                f.is_infinite() || tcl_syntax::number::is_out_of_range_double(&text.bytes, numbers)
             }
             Some(TclValue::Int(_)) | None => false,
         },
@@ -463,7 +463,7 @@ pub fn parse_integer_operand_with_policy(text: &str, policy: FoldPolicy) -> Opti
         return Some(TclValue::Int(i64::from(value)));
     }
     match strict_number_for_dialect(
-        &FoldValue::Str(text.trim().to_owned()),
+        &FoldValue::text(text.trim()),
         policy.octal,
         policy.numbers.unwrap_or_default(),
     )? {
@@ -701,8 +701,8 @@ fn native_result_dependency(
         return None;
     }
     match result {
-        FoldValue::Str(bytes) => Some(NativeExpressionResultDependency::StringResult {
-            bytes: bytes.clone(),
+        FoldValue::Str(value) => Some(NativeExpressionResultDependency::StringResult {
+            value: value.clone(),
         }),
         FoldValue::RetainedNativeObject {
             value,
@@ -711,12 +711,13 @@ fn native_result_dependency(
             start,
             ..
         } => {
-            let existing_bytes = proof
+            let existing_value = proof
                 .as_ref()
-                .and_then(|proof| proof.existing_string.clone())
+                .and_then(|proof| proof.existing_string.as_deref())
+                .map(ExactValue::utf8)
                 .or_else(|| {
-                    if let FoldValue::Str(bytes) = value.as_ref() {
-                        Some(bytes.clone())
+                    if let FoldValue::Str(value) = value.as_ref() {
+                        Some(value.clone())
                     } else {
                         None
                     }
@@ -724,7 +725,7 @@ fn native_result_dependency(
             Some(NativeExpressionResultDependency::SelectedOperand {
                 reference: reference.clone(),
                 start: *start,
-                existing_bytes,
+                existing_value,
             })
         }
         _ => None,

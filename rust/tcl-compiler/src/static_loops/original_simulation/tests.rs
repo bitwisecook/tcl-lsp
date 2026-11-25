@@ -146,7 +146,7 @@ fn selected_operand_contents_keep_the_complete_scalar_reference_grammar() {
                 assert!(static_expression_contents(&evaluated, &initial, None).is_none());
                 assert!(summary.expression_obligations.iter().any(|obligation| matches!(
                         &obligation.result_dependency,
-                        Some(crate::tcl_expr_eval::NativeExpressionResultDependency::SelectedOperand { reference, existing_bytes: None, .. })
+                        Some(crate::tcl_expr_eval::NativeExpressionResultDependency::SelectedOperand { reference, existing_value: None, .. })
                         if reference == &format!("${{{name}}}")
                     )));
             }

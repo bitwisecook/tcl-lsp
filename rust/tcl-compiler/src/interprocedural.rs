@@ -26,7 +26,7 @@
 use std::collections::{HashMap, HashSet};
 
 pub use tcl_registry::Arity;
-use tcl_registry::value_transfer::{ExactValue, NumericValue, RepresentationEvidence};
+use tcl_registry::value_transfer::{ExactValue, NumericValue};
 
 use crate::ir::ProcedureId;
 use crate::side_effects::EffectRegion;
@@ -194,11 +194,9 @@ impl ConstantReturn {
     }
 
     fn with_reading(text: String, numeric: Option<NumericValue>) -> Self {
-        Self(ExactValue {
-            bytes: text,
-            numeric,
-            representation: RepresentationEvidence::Unknown,
-        })
+        let mut value = ExactValue::utf8(text);
+        value.numeric = numeric;
+        Self(value)
     }
 
     /// An integer with its canonical decimal spelling.

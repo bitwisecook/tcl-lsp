@@ -423,7 +423,7 @@ pub(super) fn ordering_facts(
 ) -> EdgeFacts {
     let numbers = policy.numbers.unwrap_or_default();
     let Operand::Num(TclValue::Int(bound)) =
-        classify_operand(&FoldValue::Str(literal.to_owned()), policy.octal, numbers)
+        classify_operand(&FoldValue::text(literal), policy.octal, numbers)
     else {
         return EdgeFacts::default();
     };
@@ -456,7 +456,7 @@ pub(super) fn ordering_facts(
 /// and neither does a NaN, which equals nothing.
 fn equality_facts(place: &str, literal: &str, policy: FoldPolicy) -> Vec<PlaceFact> {
     let numbers = policy.numbers.unwrap_or_default();
-    match classify_operand(&FoldValue::Str(literal.to_owned()), policy.octal, numbers) {
+    match classify_operand(&FoldValue::text(literal), policy.octal, numbers) {
         Operand::Str => vec![PlaceFact::exact(place, literal)],
         Operand::Num(TclValue::Float(f)) if f.is_nan() => Vec::new(),
         Operand::Num(value) => {

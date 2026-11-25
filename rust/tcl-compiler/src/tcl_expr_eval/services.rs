@@ -161,7 +161,7 @@ impl<'a> ExprServices<'a> {
         use tcl_lexer::word_parts::{SubstFlags, WordPart as Part, decompose_spanned_checked};
         if !substitutes {
             return tcl_syntax::expr::fixed_string_body(inner, false)
-                .map(|body| FoldValue::Str(body.to_owned()))
+                .map(FoldValue::text)
                 .ok_or(ExprStop::Declined(DeclineReason::NotExact));
         }
         let parts = decompose_spanned_checked(inner.as_bytes(), SubstFlags::default(), self.lexer)
@@ -222,7 +222,7 @@ impl<'a> ExprServices<'a> {
             }
         }
         String::from_utf8(bytes)
-            .map(FoldValue::Str)
+            .map(FoldValue::text)
             .map_err(|_| ExprStop::Declined(DeclineReason::NotText))
     }
 
@@ -285,7 +285,7 @@ impl<'a> ExprServices<'a> {
             Some(NumericValue::Bool(b)) => Ok(FoldValue::Int(i64::from(b))),
             None => value
                 .as_str()
-                .map(|text| FoldValue::Str(text.to_owned()))
+                .map(FoldValue::text)
                 .map_err(ExprStop::Declined),
         }
     }
@@ -329,7 +329,7 @@ impl<'a> ExprServices<'a> {
     fn full_value(&self, value: &FoldValue) -> Result<ExactValue, DeclineReason> {
         if self.widens != Some(true)
             && matches!(value, FoldValue::Str(text)
-                if tcl_syntax::number::is_out_of_range_double(text, self.fold.numbers))
+                if tcl_syntax::number::is_out_of_range_double(&text.bytes, self.fold.numbers))
         {
             return Err(self.tower_reason());
         }
@@ -337,7 +337,7 @@ impl<'a> ExprServices<'a> {
             FoldValue::Str(text) => {
                 match classify_operand(value, self.fold.octal, self.fold.numbers) {
                     Operand::Num(number) => number,
-                    Operand::Str => return Ok(ExactValue::text(text.clone())),
+                    Operand::Str => return Ok(text.clone().into_byte_value()),
                     Operand::Ambiguous => {
                         return Err(DeclineReason::ReleaseAmbiguous(Axis::NumeralGrammar));
                     }
@@ -422,7 +422,7 @@ impl tcl_syntax::expr::ExprOps for ExprServices<'_> {
     type Error = ExprStop;
 
     fn literal(&mut self, text: &str) -> Result<FoldValue, ExprStop> {
-        Ok(FoldValue::Str(text.to_owned()))
+        Ok(FoldValue::text(text))
     }
 
     /// An unpositioned string retains the explicit compatibility callback.

@@ -421,14 +421,14 @@ fn static_expression_contents(
 ) -> Option<StaticValue> {
     use crate::tcl_expr_eval::NativeExpressionResultDependency as Dependency;
     match &evaluation.result_dependency {
-        Some(Dependency::StringResult { bytes }) => Some(StaticValue::String(bytes.clone())),
+        Some(Dependency::StringResult { value }) => Some(StaticValue::String(value.bytes.clone())),
         Some(Dependency::SelectedOperand {
             reference,
-            existing_bytes,
+            existing_value,
             ..
         }) => {
-            if let Some(bytes) = existing_bytes {
-                return Some(StaticValue::String(bytes.clone()));
+            if let Some(value) = existing_value {
+                return Some(StaticValue::String(value.bytes.clone()));
             }
             let name =
                 tcl_syntax::naming::whole_scalar_variable_reference_name(reference, config?)?;

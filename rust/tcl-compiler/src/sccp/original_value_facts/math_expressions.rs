@@ -30,6 +30,7 @@ use crate::expr_ast::ExprNode;
 use crate::ssa::{SsaSourceView, Symbol, ValueKey};
 use crate::tcl_expr_eval::{Env, FoldPolicy, TclValue, const_to_env_value};
 use std::collections::{HashMap, HashSet};
+use tcl_registry::value_transfer::ExactValue;
 
 impl MathDependencies {
     pub(super) fn for_parameters(
@@ -134,7 +135,7 @@ fn math_dependencies_compatible(
 
 pub(super) enum FoldedExpressionContents {
     Numeric(TclValue),
-    Bytes(String),
+    Exact(ExactValue<String>),
 }
 
 /// Logical caller inputs are contents facts across proved ordinary incoming
@@ -193,7 +194,7 @@ impl FoldedExpressionContents {
     pub(super) fn into_const(self) -> ConstValue {
         match self {
             Self::Numeric(value) => tcl_value_to_const(value),
-            Self::Bytes(value) => ConstValue::String(value),
+            Self::Exact(value) => ConstValue::String(value.bytes),
         }
     }
 }
@@ -381,13 +382,11 @@ fn analysis_native_contents(
 ) -> Option<FoldedExpressionContents> {
     use crate::tcl_expr_eval::NativeExpressionResultDependency;
     match &evaluation.result_dependency {
-        Some(NativeExpressionResultDependency::SelectedOperand { existing_bytes, .. }) => {
-            existing_bytes
-                .as_ref()
-                .map(|bytes| FoldedExpressionContents::Bytes(bytes.clone()))
+        Some(NativeExpressionResultDependency::SelectedOperand { existing_value, .. }) => {
+            existing_value.clone().map(FoldedExpressionContents::Exact)
         }
-        Some(NativeExpressionResultDependency::StringResult { bytes }) => {
-            Some(FoldedExpressionContents::Bytes(bytes.clone()))
+        Some(NativeExpressionResultDependency::StringResult { value }) => {
+            Some(FoldedExpressionContents::Exact(value.clone()))
         }
         None => Some(FoldedExpressionContents::Numeric(evaluation.value.clone())),
     }

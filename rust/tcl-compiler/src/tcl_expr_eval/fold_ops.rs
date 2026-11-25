@@ -29,7 +29,7 @@ use super::{
 use crate::expr_ast::{BinOp, UnaryOp};
 use std::cell::RefCell;
 use tcl_dialect::{NumberSyntax, StringCharacterModel};
-use tcl_registry::value_transfer::{Axis, DeclineReason};
+use tcl_registry::value_transfer::{Axis, DeclineReason, ExactValue};
 
 pub(super) fn make_fold_ops<'a>(
     env: &'a Env,
@@ -95,7 +95,7 @@ pub(crate) enum FoldValue {
     Int(i64),
     Big(num_bigint::BigInt),
     Float(f64),
-    Str(String),
+    Str(ExactValue<String>),
     /// An environment value retains an actual runtime object. Missing evidence
     /// cannot erase a representation-changing conversion of a shared object.
     RetainedNativeObject {
@@ -108,13 +108,17 @@ pub(crate) enum FoldValue {
 }
 
 impl FoldValue {
+    pub(super) fn text(text: impl Into<String>) -> Self {
+        Self::Str(ExactValue::utf8(text))
+    }
+
     /// Interpret as a number, or `None` when the text isn't numeric.
     pub(super) fn to_number(&self, numbers: NumberSyntax) -> Option<TclValue> {
         match self {
             FoldValue::Int(i) => Some(TclValue::Int(*i)),
             FoldValue::Big(b) => Some(TclValue::from_big(b.clone())),
             FoldValue::Float(f) => Some(TclValue::Float(*f)),
-            FoldValue::Str(s) => parse_literal_in(s, numbers),
+            FoldValue::Str(s) => parse_literal_in(&s.bytes, numbers),
             FoldValue::RetainedNativeObject {
                 proof,
                 integer_contents,
@@ -132,7 +136,7 @@ impl FoldValue {
         format: Option<tcl_dialect::DoubleFormat>,
     ) -> Option<String> {
         Some(match self {
-            FoldValue::Str(s) => s.clone(),
+            FoldValue::Str(s) => s.bytes.clone(),
             FoldValue::Int(i) => i.to_string(),
             FoldValue::Big(b) => b.to_string(),
             FoldValue::Float(f) => tcl_syntax::number::format_double_selected(*f, format?),
@@ -271,7 +275,7 @@ pub(super) fn classify_operand(
             // here, so the grammar it is given is immaterial.
             return Operand::Num(value.to_number(NumberSyntax::default()).unwrap());
         }
-        FoldValue::Str(s) => s.as_str(),
+        FoldValue::Str(s) => s.bytes.as_str(),
         FoldValue::RetainedNativeObject {
             proof,
             integer_contents,
@@ -467,12 +471,13 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
     type Error = ();
 
     fn literal(&mut self, text: &str) -> Result<FoldValue, ()> {
+        let value = FoldValue::text(text);
         if self.arithmetic == tcl_dialect::NativeArithmetic::JimWide
-            && let Some(number) = self.strict_number(&FoldValue::Str(text.to_owned()))
+            && let Some(number) = self.strict_number(&value)
         {
             return Ok(FoldValue::from_tcl(number));
         }
-        Ok(FoldValue::Str(text.to_owned()))
+        Ok(value)
     }
     fn string(&mut self, inner: &str, substitutes: bool) -> Result<FoldValue, ()> {
         // A `"…"` operand substitutes `$var`, `[cmd]` and backslashes, and a
@@ -485,14 +490,14 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         // stays as written in Jim; the folder does not know which, so it
         // declines that too rather than guess.
         tcl_syntax::expr::fixed_string_body(inner, substitutes)
-            .map(|body| FoldValue::Str(body.to_owned()))
+            .map(FoldValue::text)
             .ok_or(())
     }
     fn var(&mut self, name: &str) -> Result<FoldValue, ()> {
         let value = match self.env.get(name) {
             Some(EnvValue::Int(i)) => FoldValue::Int(*i),
             Some(EnvValue::Float(f)) => FoldValue::Float(*f),
-            Some(EnvValue::Str(s)) => FoldValue::Str(s.clone()),
+            Some(EnvValue::Str(s)) => FoldValue::text(s.as_str()),
             None => return Err(()), // unbound → can't fold
         };
         if self.intrinsic_math {
@@ -516,7 +521,8 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
             let FoldValue::Str(contents) = &value else {
                 return Err(());
             };
-            if proof.is_some() || !receipt.accepts_number(self.invocation_dialect, contents) {
+            if proof.is_some() || !receipt.accepts_number(self.invocation_dialect, &contents.bytes)
+            {
                 return Err(());
             }
         }
@@ -569,7 +575,7 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
             let mut composed = target
                 .prepended
                 .into_iter()
-                .map(FoldValue::Str)
+                .map(FoldValue::text)
                 .collect::<Vec<_>>();
             composed.extend(args);
             return self.call(&target.function, composed);

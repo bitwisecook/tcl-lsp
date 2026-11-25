@@ -285,16 +285,33 @@ pub fn run(check: bool) -> Result<ExitCode> {
 fn constant_owner_verdicts(root: &Path) -> Result<Vec<String>> {
     const COMPILER: &str = "rust/tcl-compiler/src";
     let mut problems = Vec::new();
-    for (file, name) in [
+    for (file, name, variant) in [
         (
             "rust/tcl-registry/src/value_transfer/const_ops.rs",
             "ConstValue",
+            None,
         ),
-        ("rust/tcl-compiler/src/interprocedural.rs", "ConstantReturn"),
+        (
+            "rust/tcl-compiler/src/interprocedural.rs",
+            "ConstantReturn",
+            None,
+        ),
+        (
+            "rust/tcl-compiler/src/tcl_expr_eval/fold_ops.rs",
+            "FoldValue",
+            Some("Str"),
+        ),
+        (
+            "rust/tcl-compiler/src/sccp/original_value_facts/math_expressions.rs",
+            "FoldedExpressionContents",
+            Some("Exact"),
+        ),
     ] {
         let source =
             fs::read_to_string(root.join(file)).with_context(|| format!("reading {file}"))?;
-        if !has_exact_value_view(&source, name) {
+        if !has_exact_value_view(&source, name, variant) {
+            let name =
+                variant.map_or_else(|| name.to_owned(), |variant| format!("{name}::{variant}"));
             problems.push(format!("{file}: {name} must retain one ExactValue payload"));
         }
     }
@@ -321,17 +338,31 @@ fn constant_owner_verdicts(root: &Path) -> Result<Vec<String>> {
     Ok(problems)
 }
 
-fn has_exact_value_view(source: &str, name: &str) -> bool {
+fn has_exact_value_view(source: &str, name: &str, variant: Option<&str>) -> bool {
     syn::parse_file(source).is_ok_and(|file| {
-        file.items.iter().any(|item| {
-            let syn::Item::Struct(item) = item else { return false };
-            let syn::Fields::Unnamed(fields) = &item.fields else { return false };
-            item.ident == name && fields.unnamed.len() == 1 && matches!(
-                &fields.unnamed[0].ty,
-                syn::Type::Path(field) if field.path.segments.last().is_some_and(|segment| segment.ident == "ExactValue")
-            )
+        file.items.iter().any(|item| match (item, variant) {
+            (syn::Item::Struct(item), None) if item.ident == name => {
+                has_single_exact_value_field(&item.fields)
+            }
+            (syn::Item::Enum(item), Some(variant)) if item.ident == name => item
+                .variants
+                .iter()
+                .any(|item| item.ident == variant && has_single_exact_value_field(&item.fields)),
+            _ => false,
         })
     })
+}
+
+fn has_single_exact_value_field(fields: &syn::Fields) -> bool {
+    let syn::Fields::Unnamed(fields) = fields else {
+        return false;
+    };
+    fields.unnamed.len() == 1
+        && matches!(
+            &fields.unnamed[0].ty,
+            syn::Type::Path(field)
+                if field.path.segments.last().is_some_and(|segment| segment.ident == "ExactValue")
+        )
 }
 
 // The vocabulary
@@ -1181,13 +1212,24 @@ mod tests {
     fn constant_views_require_one_exact_value_payload() {
         assert!(has_exact_value_view(
             "struct View(ExactValue<String>);",
-            "View"
+            "View",
+            None,
         ));
         assert!(!has_exact_value_view(
             "struct View(String, ExactValue);",
-            "View"
+            "View",
+            None,
         ));
-        assert!(!has_exact_value_view("enum View { Text(String) }", "View"));
+        assert!(has_exact_value_view(
+            "enum View { Text(ExactValue<String>), Number(i64) }",
+            "View",
+            Some("Text"),
+        ));
+        assert!(!has_exact_value_view(
+            "enum View { Text(String), Number(ExactValue) }",
+            "View",
+            Some("Text"),
+        ));
     }
 
     fn vocabulary_of(words: &[(&str, &'static str)]) -> Vocabulary {

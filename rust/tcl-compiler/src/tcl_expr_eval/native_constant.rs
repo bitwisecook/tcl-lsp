@@ -56,10 +56,10 @@ pub fn eval_native_constant(node: &ExprNode, policy: FoldPolicy) -> NativeConsta
     ops.constant_compilation.enabled = true;
     match tcl_syntax::expr::eval(node, &mut ops) {
         Ok(_) if ops.declined.is_some() => NativeConstantResult::Unavailable,
-        Ok(FoldValue::Str(bytes)) => {
-            let number = ops.strict_number(&FoldValue::Str(bytes.clone()));
+        Ok(FoldValue::Str(contents)) => {
+            let number = ops.strict_number(&FoldValue::Str(contents.clone()));
             NativeConstantResult::Resident {
-                bytes: bytes.into_bytes(),
+                bytes: contents.bytes.into_bytes(),
                 number,
             }
         }

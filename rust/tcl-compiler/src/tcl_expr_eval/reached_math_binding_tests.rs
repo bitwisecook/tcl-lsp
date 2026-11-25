@@ -39,7 +39,7 @@ fn analysis_preserves_jim_selected_operand_result_bytes_and_sharing() {
         Some(NativeExpressionResultDependency::SelectedOperand {
             reference: "$x".into(),
             start: Some(2),
-            existing_bytes: Some("003".into()),
+            existing_value: Some(tcl_registry::value_transfer::ExactValue::utf8("003")),
         },)
     );
     assert!(!result.native_value_effects_are_proved());

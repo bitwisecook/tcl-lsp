@@ -128,7 +128,7 @@ pub(super) fn strict_number(value: &FoldValue, numbers: NumberSyntax) -> Option<
                 .map(|receipt| receipt.number().clone())
         }),
         FoldValue::Str(s) => match tcl_syntax::number::parse_whole_with(
-            s,
+            &s.bytes,
             tcl_syntax::number::ParseFlags::for_syntax(numbers),
         )? {
             Number::Int(v) => Some(TclValue::Int(v)),
@@ -173,6 +173,7 @@ pub(super) fn strict_number_for_dialect(
     let FoldValue::Str(s) = value else {
         return strict_number(value, numbers);
     };
+    let s = s.bytes.as_str();
     if is_bare_leading_zero(s) {
         return match octal {
             Some(true) => parse_octal_literal(s),
