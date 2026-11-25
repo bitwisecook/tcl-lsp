@@ -18,9 +18,7 @@
 
 //! IRULE4004: a per-request literal assignment that could run once per connection.
 
-use super::{
-    IrulesCheckPayload, IrulesCheckWarning, IrulesSourceQuery, OriginalEventPresence, is_irules,
-};
+use super::{IrulesCheckPayload, IrulesCheckWarning, IrulesSourceQuery, is_irules};
 use crate::compilation_unit::CompilationUnit;
 use crate::ir::Statement;
 use std::collections::HashMap;
@@ -63,7 +61,7 @@ pub fn find_hoistable_set_warnings(
         let Some(event) = source.event(fu) else {
             return Vec::new();
         };
-        let OriginalEventPresence::Event(event) = event else {
+        let tcl_core_types::Knowledge::Proven(event) = event else {
             continue;
         };
         if !events.is_per_request(event.body.event()) {
@@ -130,7 +128,7 @@ pub(super) fn event_mutation_counts(
     let mut counts = HashMap::new();
     let registry = source.registry;
     for fu in source.unit.functions() {
-        let OriginalEventPresence::Event(event) = source.event(fu)? else {
+        let tcl_core_types::Knowledge::Proven(event) = source.event(fu)? else {
             continue;
         };
         let contexts = crate::place_bridge::build_point_resolve_contexts_with_entry(

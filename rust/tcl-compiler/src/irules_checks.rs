@@ -557,20 +557,6 @@ struct OriginalEvent<'a> {
     procedure: &'a crate::ir::Procedure,
 }
 
-enum OriginalEventPresence<'a> {
-    Ordinary,
-    Event(OriginalEvent<'a>),
-}
-
-impl<'a> OriginalEventPresence<'a> {
-    fn into_event(self) -> Option<OriginalEvent<'a>> {
-        match self {
-            Self::Ordinary => None,
-            Self::Event(event) => Some(event),
-        }
-    }
-}
-
 /// Select the actual function's complete config before choosing parser purpose.
 /// Standalone assistance requires explicit standalone Module and CFG owners.
 fn irules_function_source_config(

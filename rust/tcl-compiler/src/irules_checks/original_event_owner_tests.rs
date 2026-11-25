@@ -73,7 +73,7 @@ fn supplied(
 fn events(source: &IrulesSourceQuery<'_>) -> Option<Vec<String>> {
     let mut names = Vec::new();
     for function in source.unit.functions() {
-        if let OriginalEventPresence::Event(event) = source.event(function)? {
+        if let tcl_core_types::Knowledge::Proven(event) = source.event(function)? {
             names.push(event.body.event().to_owned());
         }
     }

@@ -134,7 +134,7 @@ fn conditional_handler_flow(
 )> {
     let mut warnings = Vec::new();
     let function = unit.procedures.get(&id)?;
-    let event = source.event(function)?.into_event()?;
+    let event = source.event(function)?.into_proven()?;
     let config = source.function_config(function)?;
     let unreached = unreached_statements(function);
     let http = events

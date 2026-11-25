@@ -18,9 +18,7 @@
 
 //! IRULE4002: `static::` variables whose generic names collide across rules.
 
-use super::{
-    IrulesCheckPayload, IrulesCheckWarning, IrulesSourceQuery, OriginalEventPresence, is_irules,
-};
+use super::{IrulesCheckPayload, IrulesCheckWarning, IrulesSourceQuery, is_irules};
 use crate::compilation_unit::CompilationUnit;
 use crate::ir::Statement;
 use crate::sccp::cfg_order;
@@ -124,7 +122,7 @@ pub fn find_generic_static_name_warnings(
         let Some(event) = source.event(fu) else {
             return Vec::new();
         };
-        let OriginalEventPresence::Event(event) = event else {
+        let tcl_core_types::Knowledge::Proven(event) = event else {
             continue;
         };
         let contexts = crate::place_bridge::build_point_resolve_contexts_with_entry(

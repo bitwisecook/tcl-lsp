@@ -25,6 +25,7 @@
 mod artefacts;
 mod engines;
 mod rows;
+mod tally;
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -60,6 +61,7 @@ fn main() -> ExitCode {
     let artefacts = Arc::new(artefacts::catalogue(&root, &fixtures));
     let interpreters = Arc::new(std::sync::OnceLock::<engines::Interpreters>::new());
     let rendered: Arc<Mutex<Rendered>> = Arc::default();
+    let tally: Arc<Mutex<tally::Tally>> = Arc::default();
 
     let mut trials: Vec<Trial> = fixtures
         .iter()
@@ -68,11 +70,13 @@ fn main() -> ExitCode {
             let artefacts = Arc::clone(&artefacts);
             let interpreters = Arc::clone(&interpreters);
             let rendered = Arc::clone(&rendered);
+            let tally = Arc::clone(&tally);
             let repository = repository.clone();
             Trial::test(format!("row::{}", fixture.name()), move || {
                 let interpreters =
                     interpreters.get_or_init(engines::Interpreters::from_environment);
                 let row = rows::compute(&fixture, interpreters, &repository);
+                tally.lock().expect("engine tally").add(&row);
                 let mut differences = String::new();
                 for (index, artefact) in artefacts.iter().enumerate() {
                     if !artefact.covers(&fixture) {
@@ -116,6 +120,9 @@ fn main() -> ExitCode {
     }
 
     let conclusion = libtest_mimic::run(&arguments, trials);
+    // Abstentions (an engine's explicit refusal) and wrong answers are
+    // counted apart, per engine column, against C Tcl of the same release.
+    print!("{}", tally.lock().expect("engine tally").report());
     if update {
         let rendered = rendered.lock().expect("rendered lines");
         for (index, artefact) in artefacts.iter().enumerate() {

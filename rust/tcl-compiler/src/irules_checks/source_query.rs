@@ -18,10 +18,10 @@
 
 //! The `IrulesSourceQuery` operations: original events, argument calls and the handler pairing census.
 
-use super::flow_inventory::{OriginalIrulesFlowPresence, possible_irule_flow_command};
+use super::flow_inventory::possible_irule_flow_command;
 use super::{
     CollectFlowState, ConditionalSourcePairingAdvice, IrulesSourceQuery, OriginalEvent,
-    OriginalEventPresence, OriginalIrulesFlowCommand, irules_function_source_config,
+    OriginalIrulesFlowCommand, irules_function_source_config,
 };
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_lexer::Span;
@@ -89,7 +89,10 @@ impl<'a> IrulesSourceQuery<'a> {
     /// Distinguish ordinary functions from an unavailable original event.
     /// The actual map entry and lowering descriptor own identity; report names
     /// select neither source bodies nor conditional event frame policy.
-    pub(super) fn event(&self, function: &FunctionUnit) -> Option<OriginalEventPresence<'_>> {
+    pub(super) fn event(
+        &self,
+        function: &FunctionUnit,
+    ) -> Option<tcl_core_types::Knowledge<OriginalEvent<'_>>> {
         let module = &self.unit.ir_module;
         let Some((key, owned)) = self
             .unit
@@ -98,13 +101,13 @@ impl<'a> IrulesSourceQuery<'a> {
             .find(|(_, owned)| std::ptr::eq(*owned, function))
         else {
             return std::ptr::eq(function, std::ptr::from_ref(&self.unit.top_level))
-                .then_some(OriginalEventPresence::Ordinary);
+                .then_some(tcl_core_types::Knowledge::Absent);
         };
         let Some(expected) = module.irules_event_bodies.get(key) else {
             return owned
                 .irules_event_body
                 .is_none()
-                .then_some(OriginalEventPresence::Ordinary);
+                .then_some(tcl_core_types::Knowledge::Absent);
         };
         self.function_config(owned)?;
         let body = owned.irules_event_body.as_ref()?;
@@ -119,7 +122,7 @@ impl<'a> IrulesSourceQuery<'a> {
         {
             return None;
         }
-        Some(OriginalEventPresence::Event(OriginalEvent {
+        Some(tcl_core_types::Knowledge::Proven(OriginalEvent {
             body,
             procedure,
         }))
@@ -268,7 +271,7 @@ impl<'a> IrulesSourceQuery<'a> {
                 if possible.candidates.is_empty() {
                     return None;
                 }
-                if let OriginalIrulesFlowPresence::Relevant(command) =
+                if let tcl_core_types::Knowledge::Proven(command) =
                     possible_irule_flow_command(self.registry, token, &possible)?
                 {
                     output.handler_flow_commands.push(command);
@@ -313,7 +316,7 @@ impl<'a> IrulesSourceQuery<'a> {
         let mut flow_commands = Vec::new();
         for id in module.irules_event_bodies.keys() {
             let function = self.unit.procedures.get(id)?;
-            let event = self.event(function)?.into_event()?;
+            let event = self.event(function)?.into_proven()?;
             let mut declarations = module
                 .top_level
                 .statements

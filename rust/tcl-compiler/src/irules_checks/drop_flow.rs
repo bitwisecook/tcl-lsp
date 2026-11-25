@@ -22,7 +22,7 @@ use super::flow_inventory::original_irules_flow_commands;
 use super::flow_walk::{unreached_statements, walk_flow};
 use super::{
     CodeFix, DropFlowState, FlowDispatch, IrulesCheckPayload, IrulesCheckWarning,
-    IrulesSourceQuery, OriginalEventPresence, OriginalIrulesFlowCommand, is_irules,
+    IrulesSourceQuery, OriginalIrulesFlowCommand, is_irules,
 };
 use crate::compilation_unit::CompilationUnit;
 use crate::ir::{Script, Statement};
@@ -87,7 +87,7 @@ pub fn find_unguarded_drop_warnings(
         let Some(event) = source.event(fu) else {
             return Vec::new();
         };
-        let OriginalEventPresence::Event(event) = event else {
+        let tcl_core_types::Knowledge::Proven(event) = event else {
             continue;
         };
         let proc = event.procedure;

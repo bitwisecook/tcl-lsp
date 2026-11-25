@@ -76,6 +76,26 @@ pub enum Knowledge<T> {
 }
 
 /// A naming answer together with its provenance and permitted purpose.
+impl<T> Knowledge<T> {
+    /// Borrow the unique proved value; conditional alternatives remain conditional.
+    pub const fn as_proven(&self) -> Option<&T> {
+        if let Self::Proven(value) = self {
+            Some(value)
+        } else {
+            None
+        }
+    }
+
+    /// Extract only a unique proved value.
+    pub fn into_proven(self) -> Option<T> {
+        if let Self::Proven(value) = self {
+            Some(value)
+        } else {
+            None
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[must_use]
 pub struct Answer<T> {

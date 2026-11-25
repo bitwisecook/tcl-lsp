@@ -87,7 +87,7 @@ pub(super) fn original_irules_flow_inventory(
         if possible.may_be_absent {
             obligations.insert(CollectionSourceObligationKind::MayBeAbsent);
         }
-        if let OriginalIrulesFlowPresence::Relevant(command) =
+        if let tcl_core_types::Knowledge::Proven(command) =
             possible_irule_flow_command(source.registry, tokens, &possible)?
         {
             calls.push(command);
@@ -99,16 +99,11 @@ pub(super) fn original_irules_flow_inventory(
     })
 }
 
-pub(super) enum OriginalIrulesFlowPresence {
-    Irrelevant,
-    Relevant(OriginalIrulesFlowCommand),
-}
-
 pub(super) fn possible_irule_flow_command(
     registry: &CommandRegistry,
     tokens: &crate::ir::CommandTokens,
     possible: &crate::registry_invocation::RegistryInvocationAssistance,
-) -> Option<OriginalIrulesFlowPresence> {
+) -> Option<tcl_core_types::Knowledge<OriginalIrulesFlowCommand>> {
     use tcl_registry::events::IrulesSourceFlowAction;
     let mut drops_connection = false;
     let mut returns_dns_packet = false;
@@ -142,10 +137,10 @@ pub(super) fn possible_irule_flow_command(
         || requires_http_context
         || disables_all_events)
     {
-        return Some(OriginalIrulesFlowPresence::Irrelevant);
+        return Some(tcl_core_types::Knowledge::Absent);
     }
     let command = tokens.argv_texts.first()?.clone();
-    Some(OriginalIrulesFlowPresence::Relevant(
+    Some(tcl_core_types::Knowledge::Proven(
         OriginalIrulesFlowCommand {
             command,
             span: Span::new(tokens.argv.first()?.start(), tokens.argv.last()?.end()),

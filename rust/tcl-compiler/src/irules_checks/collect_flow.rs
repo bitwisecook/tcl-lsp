@@ -22,8 +22,8 @@ use super::{
     CollectFlowState, CollectionCall, CollectionSourceObligationKind,
     ConditionalCollectionSourcePairing, ConditionalCollectionSourcePairingAdvice,
     ConditionalIruleSourceOwner, ConditionalSourcePairingAdvice, IrulesCheckPayload,
-    IrulesCheckWarning, IrulesSourceQuery, OriginalEventPresence, PayloadCall,
-    conditional_source_pairing_message, is_irules,
+    IrulesCheckWarning, IrulesSourceQuery, PayloadCall, conditional_source_pairing_message,
+    is_irules,
 };
 use crate::cfg_builder::build_cfg_with_registry_and_config;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
@@ -542,7 +542,7 @@ pub(super) fn collect_flow_state(
     let mut events_seen = Vec::new();
     let events = EventRegistry::build();
     for fu in source.unit.analysable_functions() {
-        let OriginalEventPresence::Event(event) = source.event(fu)? else {
+        let tcl_core_types::Knowledge::Proven(event) = source.event(fu)? else {
             continue;
         };
         let event = event.body.event();
@@ -689,7 +689,11 @@ pub(super) fn event_anchor_span(
     source
         .unit
         .functions()
-        .filter_map(|fu| source.event(fu).and_then(OriginalEventPresence::into_event))
+        .filter_map(|fu| {
+            source
+                .event(fu)
+                .and_then(tcl_core_types::Knowledge::into_proven)
+        })
         .filter(|owned| owned.body.event() == event)
         .filter_map(|owned| {
             owned
