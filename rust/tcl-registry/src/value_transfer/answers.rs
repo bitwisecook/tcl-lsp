@@ -683,9 +683,16 @@ impl ExactValue {
     /// three-character string.
     #[must_use]
     pub fn from_literal(text: &str) -> Self {
+        Self::from_literal_bytes(text.as_bytes().to_vec())
+    }
+
+    /// Retain a decoded literal's bytes, including byte sequences with no
+    /// UTF-8 view. Text follows the same literal classification rules.
+    #[must_use]
+    pub fn from_literal_bytes(bytes: Vec<u8>) -> Self {
         Self {
-            bytes: text.as_bytes().to_vec(),
-            numeric: canonical_literal_integer(text),
+            numeric: canonical_literal_integer(&bytes),
+            bytes,
             representation: RepresentationEvidence::Unknown,
         }
     }
@@ -709,11 +716,15 @@ impl ExactValue<String> {
     }
 }
 
-fn canonical_literal_integer(text: &str) -> Option<NumericValue> {
-    let digits = text.strip_prefix(['+', '-']).unwrap_or(text);
-    if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+fn canonical_literal_integer(bytes: &[u8]) -> Option<NumericValue> {
+    let digits = match bytes {
+        [b'+' | b'-', digits @ ..] => digits,
+        _ => bytes,
+    };
+    if digits.is_empty() || !digits.iter().all(u8::is_ascii_digit) {
         return None;
     }
+    let text = std::str::from_utf8(bytes).ok()?;
     let value = text.parse::<i64>().ok()?;
     (value.to_string() == text).then_some(NumericValue::Int(value))
 }
@@ -741,7 +752,7 @@ impl<Bytes: AsRef<[u8]>> ExactValue<Bytes> {
             TclType::Double => text
                 .and_then(|text| text.parse().ok())
                 .map(NumericValue::Float),
-            TclType::String => text.and_then(canonical_literal_integer),
+            TclType::String => canonical_literal_integer(self.bytes.as_ref()),
             _ => None,
         };
         self
@@ -1122,7 +1133,7 @@ mod tests {
 
     #[test]
     fn literal_ingress_preserves_the_exact_text() {
-        for text in [" a ", "a\0b", "a\\b", "\t42\n", "hello", "", "  "] {
+        for text in [" a ", "a\0b", "a\\b", "\t42\n", "hello", "é", "", "  "] {
             let value = ExactValue::from_literal(text);
             assert_eq!(value.bytes, text.as_bytes(), "{text:?}");
             assert_eq!(value.numeric, None, "{text:?}");
@@ -1162,5 +1173,15 @@ mod tests {
         for text in ["08", "010", "+5", "-0", " 5", "5 ", "1_000", "0x10"] {
             assert_eq!(ExactValue::from_literal(text).as_int(), None, "{text:?}");
         }
+    }
+
+    #[test]
+    fn literal_ingress_retains_bytes_without_a_text_view() {
+        let bytes = vec![b'4', b'2', 0xff, 0];
+        let value = ExactValue::from_literal_bytes(bytes.clone());
+        assert_eq!(value.bytes, bytes);
+        assert_eq!(value.numeric, None);
+        assert_eq!(value.representation, RepresentationEvidence::Unknown);
+        assert_eq!(value.as_str(), Err(DeclineReason::NotText));
     }
 }

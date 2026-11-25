@@ -647,7 +647,7 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> LatticeInputs<'_, S
             self.driver.lexer_config,
         ) {
             WordBody::Literal(bytes) => {
-                return FactView::Exact(exact_of_bytes(bytes.to_vec()), None);
+                return FactView::Exact(ExactValue::from_literal_bytes(bytes.to_vec()), None);
             }
             WordBody::Parts(parts) => parts,
         };
@@ -712,7 +712,7 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> LatticeInputs<'_, S
         if pending {
             return FactView::Pending;
         }
-        FactView::Exact(exact_of_bytes(bytes), None)
+        FactView::Exact(ExactValue::from_literal_bytes(bytes), None)
     }
 }
 
@@ -784,17 +784,4 @@ pub(super) fn word_parts(text: &str, config: LexerConfig) -> Result<Vec<WordPart
             }
         })
         .collect()
-}
-
-/// A value's bytes as an exact value, classified as a literal is when they
-/// are text.
-pub(super) fn exact_of_bytes(bytes: Vec<u8>) -> ExactValue {
-    match std::str::from_utf8(&bytes) {
-        Ok(text) => ExactValue::from_literal(text),
-        Err(_) => ExactValue {
-            bytes,
-            numeric: None,
-            representation: tcl_registry::value_transfer::RepresentationEvidence::Unknown,
-        },
-    }
 }
