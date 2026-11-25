@@ -617,26 +617,77 @@ fn an_lseq_operand_that_is_an_expression_reports_w146() {
 }
 
 #[test]
-fn a_write_to_a_constant_reports_w146_in_its_scope() {
-    // Item 192, `tcl9-changes/t13`: tclsh 9.0.4 raises `can't set "PI":
-    // variable is a constant`.
-    for command in ["set PI 4", "incr PI", "append PI x", "lappend PI y"] {
+fn a_write_to_a_constant_reports_e007_on_the_selected_cell() {
+    // Both pinned Tcl 9 handlers reject incrementing a constant before
+    // converting the amount, even when the literal amount is invalid.
+    for command in [
+        "set PI 4",
+        "incr PI",
+        "incr PI 2",
+        "incr PI invalid",
+        "append PI x",
+        "lappend PI y",
+    ] {
         let source = format!("const PI 3\n{command}\n");
-        assert_eq!(w146_messages(&source, "tcl9.0").len(), 1, "{command}");
+        for profile in ["tcl9.0", "tcl9.1"] {
+            let result = crate::analyser::Analyser::new().analyse(&source, profile);
+            let reports = result
+                .diagnostics
+                .iter()
+                .filter(|diagnostic| matches!(diagnostic.code, DiagCode::E007 | DiagCode::W146))
+                .collect::<Vec<_>>();
+            let [diagnostic] = reports.as_slice() else {
+                panic!("expected one constant-write report for {command}: {reports:?}");
+            };
+            assert_eq!(diagnostic.code, DiagCode::E007, "{command}");
+            assert_eq!(&source[diagnostic.span.as_range()], "PI", "{command}");
+        }
     }
-    assert!(
-        w146_messages("const PI 3\nconst PI 3\nputs $PI\n", "tcl9.0").is_empty(),
-        "redeclaring a constant keeps its value"
-    );
-    assert!(
-        w146_messages(
-            "const PI 3\nproc f {} {set PI 4}\nset Q 1\nset Q 2\n",
-            "tcl9.0"
-        )
-        .is_empty(),
-        "another scope or an ordinary variable is not a constant"
-    );
-    assert!(w146_messages("set PI 3\nset PI 4\n", "tcl9.0").is_empty());
+    for source in [
+        "const PI 3; const PI 3; puts $PI",
+        "const PI 3; proc f {} {set PI 4}; set Q 1; set Q 2",
+        "set PI 3; catch {const PI 3}; set PI 4",
+        "const PI 3; append PI",
+        "const PI 3; lappend PI",
+        "const PI \\{; lappend PI y",
+        "const PI 3; proc inspect args {}; trace add variable PI read inspect; lappend PI y",
+    ] {
+        let result = crate::analyser::Analyser::new().analyse(source, "tcl9.0");
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .all(|diagnostic| { !matches!(diagnostic.code, DiagCode::E007 | DiagCode::W146) }),
+            "{source}: {:?}",
+            result.diagnostics
+        );
+    }
+}
+
+#[test]
+fn caught_constant_store_after_stdout_reports_at_the_written_target() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../docs/work/name-handling/handover/oo-dispatch-probe/tcl9-changes/t13-const.tcl"
+    ));
+    for profile in ["tcl9.0", "tcl9.1"] {
+        let result = crate::analyser::Analyser::new().analyse(source, profile);
+        let reports: Vec<_> = result
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| matches!(diagnostic.code, DiagCode::E007 | DiagCode::W146))
+            .collect();
+        let [diagnostic] = reports.as_slice() else {
+            panic!("{profile}: expected one constant-write report: {reports:?}");
+        };
+        assert_eq!(diagnostic.code, DiagCode::E007, "{profile}");
+        assert_eq!(
+            usize::try_from(diagnostic.span.start()).unwrap(),
+            source.find("set PI 4").unwrap() + "set ".len(),
+            "{profile}"
+        );
+        assert_eq!(&source[diagnostic.span.as_range()], "PI", "{profile}");
+    }
 }
 
 #[test]

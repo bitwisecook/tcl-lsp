@@ -297,16 +297,6 @@ impl ResolvedSemantics {
                 id: NativeEvalId::CellWrite,
             })
     }
-
-    /// Whether the invocation creates a constant: the written place refuses
-    /// every later write and unset in its frame (`const`, TIP 677).
-    #[must_use]
-    pub fn declares_constant(&self) -> bool {
-        self.route()
-            == Some(EvalRoute::Direct {
-                id: NativeEvalId::ConstWrite,
-            })
-    }
 }
 
 /// Resolve the declaration states of `spec`, the selected `sub`, and the

@@ -73,6 +73,30 @@ fn w123_checks_a_captured_namespace_at_its_evaluation() {
     }
 }
 
+#[test]
+fn w123_reports_a_deleted_alias_target_after_stdout() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../docs/work/name-handling/handover/oo-dispatch-probe/dynamic/e16-alias-chain.tcl"
+    ));
+    let site = source.rfind("two y").unwrap();
+    for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+        let result = crate::analyser::Analyser::new().analyse(source, dialect);
+        assert!(
+            result.diagnostics.iter().any(|diagnostic| {
+                diagnostic.code == DiagCode::W123
+                    && diagnostic.span.start() as usize == site
+                    && diagnostic.message.contains("targets removed command 'one'")
+            }),
+            "{dialect}: {:?}",
+            result.diagnostics
+        );
+        assert!(result.diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == DiagCode::E002 && diagnostic.span.end() as usize <= site
+        }));
+    }
+}
+
 /// A `W123` whose call the flow graph widens — it marks the call as one to
 /// code the module cannot see — ends with the sentence that says so and names
 /// the stub that keeps the variables: at the top level, in a `namespace eval`

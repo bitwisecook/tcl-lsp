@@ -37,7 +37,6 @@ use crate::analyser::state::Analyser;
 
 mod arity;
 mod command_availability;
-mod constant_writes;
 mod discouraged_commands;
 mod expr_operators;
 mod malformed_structure;

@@ -63,7 +63,6 @@ impl Analyser {
             tk_domains: std::collections::BTreeMap::new(),
             version_gate_sites: Vec::new(),
             dsl_gate_sites: Vec::new(),
-            constants: HashSet::new(),
             proven_sites: Vec::new(),
             interval_index_sites: HashSet::new(),
             loop_candidates: Vec::new(),

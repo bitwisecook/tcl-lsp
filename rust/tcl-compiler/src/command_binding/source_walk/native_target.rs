@@ -90,24 +90,38 @@ pub(super) fn is_implicit_stock_stdout_write(
         && native.invocation.arguments().exact_argv_len() == Some(1)
 }
 
-/// The stock expression handler delegates any Tcl re-entry to its walked operands.
-fn delegates_to_stock_expression_walk(
+/// The stock expression and capture handlers delegate re-entry to their walked operands.
+fn delegates_to_stock_operand_walk(
     native: SourceNativeInvocation<'_>,
     facts: &InvocationFacts,
+    context: SourceExecutionContext<'_>,
 ) -> bool {
     use tcl_registry::script_body_flow::{ScriptBodyFlow, script_body_flow};
-    native.target.registry_backed
-        && native.target.kind == super::super::BindingKind::Builtin
-        && native.target.implementation_generation == 0
-        && native.target.prepended.is_empty()
-        && facts.operation
-            == tcl_registry::SemanticOperationId::StructuredLowering(
-                tcl_registry::hooks::LoweringHookId::Expr,
-            )
-        && matches!(
+    use tcl_registry::{SemanticOperationId, hooks::LoweringHookId};
+    if !native.target.registry_backed
+        || native.target.kind != super::super::BindingKind::Builtin
+        || native.target.implementation_generation != 0
+        || !native.target.prepended.is_empty()
+    {
+        return false;
+    }
+    match facts.operation {
+        SemanticOperationId::StructuredLowering(LoweringHookId::Expr) => matches!(
             script_body_flow(facts),
             ScriptBodyFlow::Expressions(_) | ScriptBodyFlow::ConcatenatedExpression { .. }
-        )
+        ),
+        SemanticOperationId::StructuredLowering(LoweringHookId::Catch) => matches!(
+            tcl_registry::case_bodies::script_body_flow_in_registry(
+                context.registry,
+                facts,
+                native.invocation.arguments(),
+            ),
+            ScriptBodyFlow::Capture(
+                tcl_registry::catch_invocation::CatchInvocationSelection::Valid(_)
+            )
+        ),
+        _ => false,
+    }
 }
 
 /// The selected body walker accounts for callbacks in these script operands.
@@ -117,7 +131,7 @@ pub(super) fn delegates_stock_script_effects(
     state: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
 ) -> bool {
-    delegates_to_stock_expression_walk(native, facts)
+    delegates_to_stock_operand_walk(native, facts, context)
         || original_namespace_body::has_original_namespace_body_delegation(
             native, facts, state, context,
         )

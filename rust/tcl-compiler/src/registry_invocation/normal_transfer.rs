@@ -350,34 +350,76 @@ impl NormalTransferInvocation {
         Some((origin, place.cell?.name))
     }
 
-    /// A written target of a selected ordinary store that the current cell
-    /// rejects before any variable write observer.
+    /// The written target of a selected store rejected by the current cell.
     pub(crate) fn constant_store_argument(
         &self,
         state: &crate::var_resolve::ResolveContext,
         registry: &CommandRegistry,
+        stock_object_types: impl FnOnce() -> bool,
     ) -> Option<usize> {
-        use tcl_registry::native_result::{NativeResultSelection, VariableResultPhase};
-        self.stored_value_argument()?;
-        let contract = self.invocation.facts.native_result?;
-        let NativeResultSelection::VariableValue {
-            variable_at,
-            phase: VariableResultPhase::AfterWrite,
-        } = self.with_arguments(|arguments| {
-            contract.select(arguments, self.invocation.facts.argument_offset)
-        })
-        else {
+        use tcl_registry::native_compilation::{NativeAppendKind, NativeCompilationGrammar};
+        use tcl_syntax::native_string::NativeStringProtocol;
+        let protocol = self.invocation.dialect?.native_string_protocol()?;
+        let NativeStringProtocol::C(version) = protocol else {
             return None;
         };
+        let facts = &self.invocation.facts;
+        if version < tcl_dialect::TclVersion::V9_0
+            || !facts.arg_roles_complete
+            || facts.arity_accepts_frozen_arguments() != Some(true)
+        {
+            return None;
+        }
+        let count = self.argument_count().checked_sub(facts.argument_offset)?;
+        let reads_list = match facts.native_compilation?.grammar {
+            NativeCompilationGrammar::VariableLoadStore
+                if self.stored_value_argument().is_some() =>
+            {
+                false
+            }
+            // C Tcl 9 rejects increments of constants before converting the amount.
+            NativeCompilationGrammar::Increment if matches!(count, 1 | 2) => false,
+            NativeCompilationGrammar::VariableAppend(kind) if count > 1 => {
+                kind == NativeAppendKind::List
+            }
+            _ => return None,
+        };
+        let mut writes = facts
+            .arg_roles
+            .iter()
+            .filter(|(_, role)| *role == tcl_registry::ArgRole::VarWrite);
+        let variable_at = facts.argument_offset + usize::from(writes.next()?.0);
+        if writes.next().is_some() {
+            return None;
+        }
         let origin = self.written_argument(variable_at)?;
-        let place = self.original_operands.as_ref()?.access(
+        let operands = self.original_operands.as_ref()?;
+        let place = operands.access(
             variable_at,
             state,
             registry,
             tcl_registry::TraceOperation::Write,
             false,
         );
-        state.selected_scalar_is_constant(&place).then_some(origin)
+        state.selected_scalar_is_constant(&place).then_some(())?;
+        if reads_list {
+            stock_object_types().then_some(())?;
+            let read = operands.access(
+                variable_at,
+                state,
+                registry,
+                tcl_registry::TraceOperation::Read,
+                false,
+            );
+            // Native lappend reads and validates its old list before the write.
+            if read.cell != place.cell || !state.read_produces_value(&read, registry) {
+                return None;
+            }
+            let value = state.literal_contents_at(&read, registry)?;
+            let bytes = protocol.host_text_bytes(value);
+            tcl_syntax::list::split_native_list_bytes(&bytes, protocol).ok()?;
+        }
+        Some(origin)
     }
 
     /// Bound contents changes, including destruction; no runtime dispatch licence.

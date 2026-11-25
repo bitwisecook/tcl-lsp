@@ -250,6 +250,11 @@ impl CapturedNativeCompletionReceipts {
                 .all(|(key, _)| normal.original_bindings_for_key(key).is_some())
     }
 
+    /// Fresh same-interpreter aliases retain a prefix without invoking it.
+    pub(super) const fn captured_alias_creation(&self) -> bool {
+        self.alias_creation.is_some()
+    }
+
     pub(in super::super) fn captured(&self) -> bool {
         self.mutation.is_some()
             || self.alias_creation.is_some()

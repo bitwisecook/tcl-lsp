@@ -389,7 +389,6 @@ impl Analyser {
         self.emit_binary_field_version_gates(&format_templates);
         self.emit_w121_invalid_subnet_mask(args, arg_tokens, original.as_ref());
         self.emit_w108_non_ascii(arg_tokens);
-        self.emit_w146_constant_write(original.as_ref(), scope_path);
         self.emit_w148_numeral_release(args, arg_tokens);
         self.emit_w151_range_numerals(args, arg_tokens);
         self.emit_bounds_family_diagnostics(cmd_name, args, arg_tokens, original.as_ref());
@@ -474,15 +473,16 @@ impl Analyser {
         head: Token,
         arguments: &[Token],
     ) {
-        use tcl_registry::native_result::{NativeResultContract, VariableResultPhase};
+        use tcl_registry::native_compilation::NativeCompilationGrammar;
         if self.disabled_diagnostics.contains("E007")
             || original.with_schema(|call| {
                 matches!(
-                    call.semantics.native_result,
-                    Some(NativeResultContract::VariableValue {
-                        phase: VariableResultPhase::AfterWrite,
-                        ..
-                    })
+                    call.semantics.native_compilation.map(|spec| spec.grammar),
+                    Some(
+                        NativeCompilationGrammar::VariableLoadStore
+                            | NativeCompilationGrammar::Increment
+                            | NativeCompilationGrammar::VariableAppend(_)
+                    )
                 )
             }) != Some(true)
         {
@@ -507,7 +507,10 @@ impl Analyser {
                     Some(metadata),
                     &tokens,
                 )?;
-            let argument = transfer.constant_store_argument(&binding.variable_context, registry)?;
+            let argument =
+                transfer.constant_store_argument(&binding.variable_context, registry, || {
+                    binding.only_stock_object_types()
+                })?;
             let word = tokens.words().get(argument + 1)?;
             Some(word.source().span)
         };

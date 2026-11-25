@@ -451,7 +451,7 @@ fn may_change_stock_stdout(
                     | WorldStateDomain::InterpreterPolicy
                     | WorldStateDomain::PackageState
                     | WorldStateDomain::HostCapabilities
-            )
+            ) && access.mode != tcl_registry::world_effect::EffectAccessMode::Read
         }) && !delegates_stock_script_effects(native, facts, state, context))
 }
 
@@ -647,8 +647,10 @@ impl SourceCommandBindings {
         Box<SourceOutcomes>,
     > {
         let facts = prepared.facts.as_ref();
+        let completions = CapturedNativeCompletionReceipts::capture(native, facts, state, context);
         if state.stock_tclsh_stdout
             && !is_implicit_stock_stdout_write(native, facts)
+            && !completions.captured_alias_creation()
             && may_change_stock_stdout(native, facts, state, *context)
         {
             state.stock_tclsh_stdout = false;
@@ -671,7 +673,6 @@ impl SourceCommandBindings {
             }
             return Err(outcomes);
         }
-        let completions = CapturedNativeCompletionReceipts::capture(native, facts, state, context);
         let mut receipts = capture_source_native_results_boxed(native, facts, state, context);
         let (route, object_protocol) =
             self.prepare_native_handler(prepared, native, effective, state, context)?;

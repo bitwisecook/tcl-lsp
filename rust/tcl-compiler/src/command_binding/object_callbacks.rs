@@ -59,6 +59,12 @@ impl ObjectInputProtocol {
 }
 
 impl SourceInvocationBinding {
+    pub(crate) fn only_stock_object_types(&self) -> bool {
+        self.lookup_state
+            .as_ref()
+            .is_some_and(|snapshot| only_stock_object_types(&snapshot.state))
+    }
+
     /// Every reached native object method at this original invocation has
     /// independently closed effects. This says nothing about compilation.
     pub(crate) fn object_callback_effects_closed(&self) -> bool {
