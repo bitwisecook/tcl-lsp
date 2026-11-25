@@ -24,7 +24,7 @@ e11-channel-value.tcl	tcl9.0	W103@3 W103@15 W304@17	review
 e12-encoding-system-set.tcl	tcl8.6	-	review
 e12-encoding-system-set.tcl	tcl9.0	-	review
 e13-eofchar.tcl	tcl8.6	W103@3 W103@4 W103@5 W103@6 W103@7 W304@10	review
-e13-eofchar.tcl	tcl9.0	W103@3 W103@4 W103@5 W103@6 W103@7 W304@10	review
+e13-eofchar.tcl	tcl9.0	W103@3 W103@4 W103@5 W103@6 W103@7 W146@8 W304@10	review
 e14-read-encoding-count.tcl	tcl8.6	-	review
 e14-read-encoding-count.tcl	tcl9.0	-	review
 e15-lone-surrogate-scan.tcl	tcl8.6	-	review
